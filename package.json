@@ -1,0 +1,7 @@
+{
+  "name": "steward-mc-tools",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test test/*.test.mjs" },
+  "devDependencies": { "ajv": "^8.17.1" }
+}

@@ -1,0 +1,38 @@
+{
+  "prompt": "cozy farm town inside a hellish volcano, everyone is friendly, huge",
+  "card": {
+    "name": "Emberfield",
+    "site": {
+      "text": "inside a volcano",
+      "template": null,
+      "terrain": "sculpt",
+      "size": "XL"
+    },
+    "style": {
+      "text": "hellish",
+      "template": "infernal"
+    },
+    "purpose": {
+      "text": "cozy farm town",
+      "template": "farm_town"
+    },
+    "story": {
+      "text": "the friendly residents settled the volcano"
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med"
+    },
+    "avoid": [],
+    "interpretation": "A warm, welcoming farm town that lives inside a volcano: fields on terraces lit by lava glow, red and black materials softened with warm wood and lanterns.",
+    "contradictions": [
+      {
+        "issue": "a cozy farm town in a hellish setting",
+        "resolution": "keep the hellish setting for the walls and sky; make the buildings and farms warm and welcoming"
+      }
+    ],
+    "assumptions": [
+      "farming works under lava glow with artificial light"
+    ]
+  }
+}

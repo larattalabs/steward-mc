@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/larattalabs/steward-mc/schema/concept-card.schema.json",
+  "title": "Steward concept card",
+  "description": "What the player's prompt means, split into orthogonal fields. Claude fills it from free text (a structured job); the player edits and approves it before anything is generated.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["site", "style", "purpose", "constraints", "avoid", "interpretation", "contradictions", "assumptions"],
+  "properties": {
+    "name": { "type": "string", "maxLength": 80, "description": "Short display name for the settlement." },
+    "site": {
+      "type": "object", "additionalProperties": false, "required": ["text", "template", "terrain"],
+      "description": "Shape and place: how the settlement sits on or in the land.",
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "template": { "type": ["string", "null"], "description": "A known site template id (see prompts/concept-card.md) or null for a custom form." },
+        "terrain": { "enum": ["find", "sculpt", "flat"], "description": "find = use existing terrain that fits; sculpt = reshape terrain (shown with a block count, undoable); flat = build on level ground." },
+        "size": { "enum": ["S", "M", "L", "XL"] }
+      }
+    },
+    "style": {
+      "type": "object", "additionalProperties": false, "required": ["text", "template"],
+      "description": "Look and mood: palette, motifs, materials, lighting.",
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "template": { "type": ["string", "null"] }
+      }
+    },
+    "purpose": {
+      "type": "object", "additionalProperties": false, "required": ["text", "template"],
+      "description": "What the settlement is for: drives the mix of lots and, later, functional modules.",
+      "properties": {
+        "text": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "template": { "type": ["string", "null"] }
+      }
+    },
+    "story": {
+      "type": "object", "additionalProperties": false, "required": ["text"],
+      "description": "Optional backstory used for details, signs and books.",
+      "properties": { "text": { "type": "string", "maxLength": 400 } }
+    },
+    "constraints": {
+      "type": "object", "additionalProperties": false, "required": ["near", "density"],
+      "properties": {
+        "near": { "enum": ["spawn", "here", "search"] },
+        "density": { "enum": ["low", "med", "high"] },
+        "budgetUsd": { "type": "number", "minimum": 0 },
+        "difficulty": { "enum": ["patron", "supplied", "hardcore", "economy"] }
+      }
+    },
+    "avoid": { "type": "array", "items": { "type": "string", "maxLength": 120 }, "maxItems": 12, "description": "Things the player does not want, taken from the prompt." },
+    "interpretation": { "type": "string", "maxLength": 800, "description": "One short paragraph: what Claude took each field to mean, in plain words for the player." },
+    "contradictions": {
+      "type": "array", "maxItems": 6,
+      "items": { "type": "object", "additionalProperties": false, "required": ["issue", "resolution"], "properties": { "issue": { "type": "string", "maxLength": 200 }, "resolution": { "type": "string", "maxLength": 200 } } },
+      "description": "Tensions between fields and how the card resolved them; empty when none."
+    },
+    "assumptions": { "type": "array", "items": { "type": "string", "maxLength": 160 }, "maxItems": 8, "description": "Fields the prompt did not specify and Claude filled in; each is editable by the player." }
+  }
+}

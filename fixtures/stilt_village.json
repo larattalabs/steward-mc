@@ -1,0 +1,33 @@
+{
+  "prompt": "a fishing village built on stilts over a swamp, mossy and crooked",
+  "card": {
+    "name": "Reedwick",
+    "site": {
+      "text": "stilt village over a swamp",
+      "template": "waterfront",
+      "terrain": "find",
+      "size": "M"
+    },
+    "style": {
+      "text": "mossy and crooked",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "fishing village",
+      "template": "port"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med"
+    },
+    "avoid": [],
+    "interpretation": "A cluster of crooked wooden houses on stilts above swamp water, with boardwalks, nets and moss. It needs a swamp or shallow water nearby.",
+    "contradictions": [],
+    "assumptions": [
+      "swamp or shallow water must exist nearby; otherwise the steward will ask"
+    ]
+  }
+}

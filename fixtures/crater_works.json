@@ -1,0 +1,34 @@
+{
+  "prompt": "repurposed giant meteor crater mining facility, hellish evil lair",
+  "card": {
+    "name": "Ashfall Works",
+    "site": {
+      "text": "giant meteor crater",
+      "template": null,
+      "terrain": "sculpt",
+      "size": "L"
+    },
+    "style": {
+      "text": "hellish evil lair",
+      "template": "infernal"
+    },
+    "purpose": {
+      "text": "mining facility",
+      "template": "mining_outpost"
+    },
+    "story": {
+      "text": "repurposed after the impact"
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med"
+    },
+    "avoid": [],
+    "interpretation": "A mining operation built into a huge impact crater, dressed as a hellish lair: scorched rock, red and black materials, glowing vents. I will find or carve a crater and put the work levels and ore halls on its terraces.",
+    "contradictions": [],
+    "assumptions": [
+      "size L because a crater needs room",
+      "no budget set"
+    ]
+  }
+}

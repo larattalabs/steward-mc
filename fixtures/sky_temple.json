@@ -1,0 +1,35 @@
+{
+  "prompt": "floating sky temple, calm and bright, for monks, small, near spawn, no dark stone",
+  "card": {
+    "name": "Skyreach Monastery",
+    "site": {
+      "text": "floating sky temple",
+      "template": "sky_city",
+      "terrain": "sculpt",
+      "size": "S"
+    },
+    "style": {
+      "text": "calm and bright",
+      "template": null
+    },
+    "purpose": {
+      "text": "a home for monks",
+      "template": "monastery"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "spawn",
+      "density": "low"
+    },
+    "avoid": [
+      "dark stone"
+    ],
+    "interpretation": "A small floating temple island above spawn, built in pale stone, white and gold, with open courts and bells, for a monastic community.",
+    "contradictions": [],
+    "assumptions": [
+      "small means size S"
+    ]
+  }
+}
