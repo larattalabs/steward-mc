@@ -60,6 +60,8 @@ dependencies {
 	compileOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
 	clientCompileOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
 	testCompileOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
+	// tests may use the API's plain data types (JobSpec, DesignRequest, ...); the snapshot is never on the runtime classpath otherwise
+	testRuntimeOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
 
 	testImplementation platform("org.junit:junit-bom:${project.junit_version}")
 	testImplementation "org.junit.jupiter:junit-jupiter"
@@ -77,6 +79,8 @@ test {
 processResources {
 	def version = project.version
 	inputs.property "version", version
+	from('../schema') { into 'steward/schema' }
+	from('../prompts') { into 'steward/prompts' }
 	filesMatching("fabric.mod.json") {
 		expand "version": version
 	}
