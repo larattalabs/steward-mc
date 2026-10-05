@@ -207,6 +207,11 @@ The fixture is also the regression test for any later change to the batch queue 
 - repetition: districts built from a few designed module types use shared cell lists (the same module placed at many lots), so cost and
   evaluation time scale with the number of module types, not the number of lots.
 
+**Measured placement throughput** (Architect 4d gate, 2026-10-05; instant ticked placement, a 12-lot village of about 26k cells, player present, loaded chunks):
+1 ms per-tick budget about 10-12k cells/s (2.2-2.6 s wall); 4 ms (the default) about 19-20k cells/s (1.3-1.45 s; max MSPT 34 ms, no tick over 50 ms);
+10 ms about 34-35k cells/s (0.8 s). Ballpark for `mega_bench` planning: a million-cell site is about 50 s at the default budget, 10 million about 8 minutes,
+before lighting and chunk loading effects, which this run did not stress (see the unmeasured items in section 8).
+
 ## 7. Resolved with Architect (2026-10-05)
 
 1. **Survey:** Architect owns the format and the mod-side sampler, generic and exposed by the API. Heights at 1-block resolution
@@ -220,5 +225,6 @@ The fixture is also the regression test for any later change to the batch queue 
 ## 8. Remaining open points
 - Which "volatile properties" the CELL-policy comparison ignores (Architect's list; Steward may need more, such as crop age).
 - Cell-list size for a large section and how it is chunked over the sidecar WebSocket.
+- Throughput above is for a village on loaded chunks; terrain operators, unloaded chunks and survival construction sites are not yet measured.
 - Whether realise-time evaluation per section is fast enough in JS at crater scale; measure in `crater_works` first, then `mega_bench` (6a).
 - Per-stage checking: confirm the checker can run incrementally on stage prefixes without re-walking the whole region.

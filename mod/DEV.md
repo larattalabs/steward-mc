@@ -50,3 +50,6 @@ Agreed with the Architect session (it uses 7890/7891, 7990/7991, 8090/8091, 8190
 - `gateway/GroupPlanner`: concept card + `VillageLayout` plan + bible id into Architect's `GroupRequest` (one item per lot keyed by the lot id; the largest
   lot is the Opus anchor, other landmarks wave 1, the rest Sonnet wave 2; massing first with `approvalUi OWNER`; 3 redirects; shared context with the settlement,
   street and neighbour lots; budget from the card or `BudgetPolicy`; lots past Architect's 24-item cap are reported, landmarks are never dropped).
+- `gateway/BatchPlanner`: designed lots + `fitToLot` results into Architect's `Batch` (one item per lot keyed by the lot id, owner and group = the settlement,
+  stages: landmarks first then districts of 4 from the street's middle outward, mode INSTANT only for Patron where the world allows it, never an actor);
+  lots without a design or with a refused fit are skipped and named. The caller does the `Sites.fitToLot` calls with a live world.
