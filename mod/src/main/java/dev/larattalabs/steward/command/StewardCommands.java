@@ -36,7 +36,7 @@ public final class StewardCommands {
 				if (st.ok()) {
 					boolean up = ArchitectApi.get().jobs().available();
 					ctx.getSource().sendSuccess(() -> Component.literal("Claude link: " + (up ? "up" : "not available")), false);
-					String mode = WorldMode.survival(ctx.getSource().getServer(), ctx.getSource().getLevel()).map(b -> b ? "survival" : "creative").orElse("unknown");
+					String mode = WorldMode.survival(ctx.getSource().getServer()).map(b -> b ? "survival" : "creative").orElse("unknown");
 					ctx.getSource().sendSuccess(() -> Component.literal("World mode (Architect toggle): " + mode), false);
 				}
 				return st.ok() ? 1 : 0;
@@ -45,8 +45,8 @@ public final class StewardCommands {
 				CommandSourceStack src = ctx.getSource();
 				String text = StringArgumentType.getString(ctx, "text");
 				src.sendSuccess(() -> Component.literal("Interpreting your description..."), false);
-				// the world's survival toggle, read through Architect's dry-run workaround (API 1.2.0 will have a direct read)
-				boolean survival = WorldMode.survival(src.getServer(), src.getLevel()).orElse(false);
+				// the world's survival toggle, read (Architect API 1.2.0 Sites.survival())
+				boolean survival = WorldMode.survival(src.getServer()).orElse(false);
 				service().submit(text, Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", 128), null).whenComplete((r, err) -> {
 					// completes on the server thread (JOB_DONE), or immediately when refused
 					Steward.LOGGER.info("concept card: {}", err != null ? "refused: " + err.getMessage() : r.ok() ? String.format("ok, $%.4f, %s", r.cost().usd(), r.card().name()) : "failed: " + r.error());
