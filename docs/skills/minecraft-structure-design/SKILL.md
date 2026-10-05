@@ -60,8 +60,8 @@ node skill/scripts/attach-lint.mjs kit/out/<id>.nbt         # support/halves/ope
 - the **stairwell** is clear in every layer from floor to ceiling (stairs climb 1 per step: a run needs `rise` cells of length, and
   2 free rows above each step);
 - the **ceiling/roof row**: the interior is closed, except declared skylights or courtyards;
-- the **directional blocks listing** at the end of the output: stairs for a roof should face "outward and down" (the high edge toward
-  the ridge); a bed's head against a wall; doors facing the way they open; every count looks sane.
+- the **directional blocks listing** at the end of the output: stairs on a roof slope face **up-slope** (the direction you would walk to climb them, so on the south slope of an
+  east-west ridge they face north, on the north slope south); a bed's head against a wall; every count looks sane.
 
 **Renders (shape).** Read the PNGs in this order:
 1. **front** and **top** first: this is the **silhouette**. Does it read as the type (a tower tall and narrow, a barn wide with a big
@@ -80,7 +80,7 @@ problem left that a player would notice, not when you run out of ideas.
 - [ ] Corners built: every `param` at min and max, each bool both ways, two palette presets (`--palette cherry`, `--palette fortress`).
 - [ ] `attach-lint` is clean: ladders, wall torches and signs have support; doors have both halves and are written closed; beds have
   both halves; hanging lanterns have something above.
-- [ ] Facing: stairs on the roof face the right way; trapdoors and doors open into the room, not the wall; chests/furnaces face the room.
+- [ ] Facing: roof stairs face up-slope on every slope; chests, furnaces and beds face into the room; the directional listing from `slices.mjs` matches what you intended.
 - [ ] Light: the checker's lit rule passes, and you also see lanterns/candles at doors and stair landings, not just in the middle of rooms.
 - [ ] Reachability: from `entrance` you can walk to every floor with no step above 1 and no head bump (2 free rows above every step).
 - [ ] No floating pieces: eaves, balconies and chimneys sit on supports; the roof has a lining under each course.
@@ -91,10 +91,10 @@ problem left that a player would notice, not when you run out of ideas.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Roof stairs look inside-out | `facing` reversed on one slope | on a gable the low edge faces **down-slope** (the stair faces the direction you would walk up); fix per side and check the slice listing |
+| Roof stairs look inside-out | `facing` reversed on one slope | a stair's `facing` points **up-slope** (the direction you walk to climb it): south slope of an east-west ridge = `north`, north slope = `south`; fix per side and check the slice listing |
 | Dark corners flagged | one emitter per room | add lanterns by the stairs, in corners, under balconies; use `ceilingLights` with a smaller spacing |
 | "unreachable floor" | stairwell blocked by a floor slab or furniture | carve the stairwell on every level (`stairRun` carves), keep furniture off the landing |
-| Door open into a wall | door facing vs hinge | doors face the direction the player faces when entering; write closed; view the listing |
+| Door opens into a wall | door `facing`/`hinge` | write it closed, then confirm in the render that the door leaf sits in the wall plane and the hinge side is the one you want; compare with an example design's door call |
 | Floating pieces | overhang with no lining or support | add a lining course or a post; for porches add posts at the outer corners |
 | Boxy | single volume, flat faces | add a wing, a porch, a bay, a stepped roof, a chimney; offset a facade 1 to 2 blocks |
 | Variants break at a corner | geometry assumes the default | sweep the corners early; derive positions from the params (centre = floor(width/2)), not constants |
