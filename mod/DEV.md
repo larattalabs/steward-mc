@@ -47,3 +47,6 @@ Agreed with the Architect session (it uses 7890/7891, 7990/7991, 8090/8091, 8190
 `node ../architect-mc/tools/devcli.mjs wait --port 8491`, `cmd "/steward status" --port 8491` gave "Steward: Architect API 1.1.0 ok (11 features)" and
 "Claude link: up". `/steward card <text>` was NOT run live: the sidecar can inherit Anthropic credentials from the environment and a real card costs about
 2 cents, so it waits for an explicit go-ahead (the same call was verified on real Claude by the Architect session with this repo's schema and prompt).
+- `gateway/GroupPlanner`: concept card + `VillageLayout` plan + bible id into Architect's `GroupRequest` (one item per lot keyed by the lot id; the largest
+  lot is the Opus anchor, other landmarks wave 1, the rest Sonnet wave 2; massing first with `approvalUi OWNER`; 3 redirects; shared context with the settlement,
+  street and neighbour lots; budget from the card or `BudgetPolicy`; lots past Architect's 24-item cap are reported, landmarks are never dropped).
