@@ -1,7 +1,8 @@
 # A5b spec: macro kit and macro checker
 
 Written by the Steward session for the Architect session (ask A5b, phase 6 in architect-mc/docs/PLAN.md). Architect reviews
-this and turns it into a CONTRACT section when it builds it; nothing here binds Architect until then. Draft 2026-10-05.
+this and turns it into a CONTRACT section when it builds it; nothing here binds Architect until then. Draft 2026-10-05,
+revised the same day after Architect's answers (journal-backed sites, one shape-math implementation, see section 7).
 
 Goal: let Claude write a **region program** for a whole site (a rift, a sky city, a crater facility, a walled castle, a
 terraced hillside village), check it without the game, show it as a ghost, and place it through the snapshot path, with
@@ -30,9 +31,12 @@ Two phases:
 1. **Plan** (sidecar, no game): the program runs with `ctx.survey`, a coarse sample sent by the mod (heightmap grid,
    biome, sea level, water, a hash). It returns the Region description (JSON). The checker and the previews work on a
    virtual world built from the survey plus the ops.
-2. **Realise** (mod): the batch queue evaluates ops per chunk section against the real terrain. If the real terrain has
-   drifted from the survey beyond a tolerance (sample hash and a few probe columns), realisation stops and asks for a replan.
-   Ops expressed relative to the surface (`y: { surface: -3 }`) are evaluated against the real heights.
+2. **Realise** (sidecar evaluates, mod writes): per chunk section, the sidecar takes a **fresh survey of those sections**,
+   evaluates the ops (the shape math lives only in the JS kit) and returns **cell lists**; the mod writes them through the
+   change-set journal. The ghost uses the same cell lists. If the fresh survey has drifted from the plan survey beyond a tolerance
+   (sample hash and a few probe columns), realisation stops and asks for a replan. Ops expressed relative to the surface
+   (`y: { surface: -3 }`) are evaluated against the fresh heights; absolute Y is allowed (sky cities) and the checker warns near
+   the build limits.
 
 ## 2. Region API (sketch)
 
@@ -62,8 +66,8 @@ export default function region(ctx, { radius = 90, depth = 28 } = {}) {
 
 ### Primitives
 
-All shapes are composable signed-distance fields (`union`, `subtract`, `smooth`) so the mod can evaluate any cell
-independently and stream by chunk section.
+All shapes are composable signed-distance fields (`union`, `subtract`, `smooth`) so any cell can be evaluated
+independently and streamed by chunk section. There is one implementation (the kit's JS); no Java copy.
 
 | Primitive | Does | Notes |
 |---|---|---|
@@ -121,34 +125,41 @@ them too, but the engine does not trust the checker for them.
 Open building types (R4): a region program may declare the rule menu it wants (`rules: ['reachability','fluids','spawn']`);
 M1, M13 and M14 always apply.
 
-## 4. Needs from A5a / A7 (nested sites and site groups)
+## 4. Needs from A5a / A7 (journal-backed sites and site groups)
 
-**Site shape.** A realised region is a **site group** (A7) with an owner tag (R5, the settlement id) containing ordered sites:
+Architect chose to back sites with its **change-set journal** (a port of AgentCraft's WorldJournal: per-position cell stacks
+ordered by layer, BOX and CELL policies, ownership hand-down so overlapping entries undo in any order, crash safety). Nested
+sites are therefore not needed: overlap is legal and undo is ordered. This section states what a region needs from it.
 
-1. `terrain` site: the terrain ops. Parent of everything that sits on it.
-2. `road` and `bridge` sites, children of `terrain`.
-3. one `lot` site per lot, child of `terrain`: the child building, ordinary placement, its own snapshot.
+**Site shape.** A realised region is a **site group** (A7) with an owner tag (R5, the settlement id) containing ordered change-sets:
+
+1. `terrain`: the terrain ops. **CELL policy** (restore only while the world still holds what we wrote; the player's later blocks
+   are kept and reported).
+2. `road` and `bridge` sites. **CELL policy.**
+3. one `lot` site per lot: the child building, ordinary placement, **BOX policy** (exact restore, as today).
 
 **Requirements:**
 
-- **N1 Nesting.** A child site lies inside its parent's footprint. A child's snapshot records the parent's state as its "before",
-  so removing the child restores the parent exactly (child-first). Removing a parent that has children is refused unless the
-  caller asks for a cascade, which removes children first.
-- **N2 Not "player blocks".** Blocks written by a parent site are not player-placed. Occupancy and TerrainFit treat the parent's
-  blocks, inside a child's lot, as replaceable. The player's own blocks inside a lot still refuse placement.
-- **N3 Pad reservation.** The terrain site flattens each lot to its pad and records the lot rectangle. A child building must fit
-  its pad. Moving a child is allowed within its pad.
-- **N4 Order.** A group places terrain first, then roads/bridges, then lots, all through the batch queue. The queue persists, waits
-  for chunks, and "waits until clear" when the player stands in a box (A7). Failure of one child does not undo the group, but the
-  group reports `partial`.
-- **N5 Undo group.** One undo for the whole group, run in reverse order. A conflict (a player block placed since) is reported and
-  skipped, not overwritten.
-- **N6 Sparse snapshots.** A snapshot stores only written cells plus the guard rows, per chunk section, so the terrain site is as
-  large as the claim allows (A5a already says so). The leaf guard and the ground row rules carry over.
-- **N7 Delta (A6).** A patch re-runs the program, diffs by part id, and extends the snapshot before writing cells the original
-  did not touch. Remove stays exact.
-- **N8 Registry.** The site registry (A8/R7) exposes the group, its sites, parents, owner and state (`planned`, `placing`, `placed`,
+- **N1 Ordered layers.** Lots sit above the terrain change-set. Removing a lot restores the terrain layer's state exactly; removing
+  the terrain with lots still present is allowed and does not resurrect or delete the lots' blocks (ownership hand-down). Offer a
+  cascade, never silently.
+- **N2 Not "player blocks".** Blocks written by a group's change-sets are in the journal, so they never count as player blocks.
+  Occupancy and TerrainFit treat them as replaceable inside a child's lot. The player's own blocks inside a lot still refuse placement.
+- **N3 Pad reservation.** The terrain change-set flattens each lot to its pad and records the lot rectangle. A child building fits its
+  pad; moving a child is allowed within its pad.
+- **N4 Order and partial failure.** A group places terrain, then roads/bridges, then lots, through the batch queue (persistent,
+  waits for chunks, "waits until clear"). One child failing does not undo the group; the group reports `partial`.
+- **N5 Undo group, conflict-aware.** One undo for the whole group in reverse order. "Still ours" ignores a short allowlist of
+  volatile properties (doors open, levers powered, furnaces lit, leaf distance); a real change since is reported and kept, never
+  overwritten. A container the player filled still refuses removal, as today.
+- **N6 Guard cells are part of the change-set.** The row under a foundation, held leaves and similar cells are recorded so Remove
+  stays exact.
+- **N7 Delta (A6).** A patch re-runs the program, diffs by part id, and writes the new cells as a new change-set layer whose "before"
+  includes the earlier layers. Remove stays exact.
+- **N8 Registry.** The site registry (A8/R7) exposes the group, its change-sets, owner and state (`planned`, `placing`, `placed`,
   `partial`, `failed`, `removing`) with events.
+- **N9 Cell-list streaming.** The realise step hands the mod cell lists per chunk section (positions, block state, optional block
+  entity data). The mod needs no knowledge of the shape math.
 
 ## 5. Interaction with the other asks
 
@@ -171,13 +182,17 @@ a lake, a floating spur) and check that M2, M4 and M3 catch them.
 M2, M3 or M4 findings, realises through the batch queue, is placed with its child buildings, and one undo returns the whole area
 cell for cell (Architect's exactness bar), including a deliberate player block placed in a lot beforehand, which must be reported and kept.
 
-## 7. Open questions for Architect
+## 7. Resolved with Architect (2026-10-05)
 
-1. **Survey format.** Heightmap grid resolution and what the mod sends in `ctx.survey` (heights, biome, water, a few probe columns).
-   Steward can provide the mod-side sampler if you prefer to own only the format.
-2. **Evaluation location.** Ops evaluated in Java at realise time (my assumption, it needs real terrain) versus in the sidecar. The
-   spec assumes Java with the sidecar doing plan, check and previews only. Both sides then need the same shape math; a shared test
-   vector file would keep them aligned.
-3. **Terrain relative to surface vs absolute.** Do you want only `surface`-relative ops, or also absolute Y? Sky cities need absolute.
-4. **Child cap.** Keep 96x64x96 per lot (my assumption), or let large landmark lots (a keep, a cathedral) use a region program of their own.
-5. **Rule promotion.** I proposed which M-rules should end up errors; the promotion record can follow your usual process.
+1. **Survey:** Architect owns the format and the mod-side sampler, generic and exposed by the API. Heights at 1-block resolution
+   (4-block past about 256x256), ocean-floor heights, biome per 4x4 and a water mask. Steward consumes it.
+2. **Evaluation:** one implementation. The shape math is in the JS kit; the sidecar evaluates per chunk section against a fresh
+   survey and returns cell lists; the mod writes through the journal. No Java copy (it would drift).
+3. **Y:** both; surface-relative is the default, absolute is allowed (sky cities) and the checker warns near the build limits.
+4. **Landmark lots:** may be region programs. With sparse journal change-sets, 96x64x96 caps only the single-template format.
+5. **Rule promotion:** the usual process, warnings first, promoted on real generations, recorded in architect-mc PLAN.md.
+
+## 8. Remaining open points
+- Which "volatile properties" the CELL-policy comparison ignores (Architect's list; Steward may need more, such as crop age).
+- Cell-list size for a large section and how it is chunked over the sidecar WebSocket.
+- Whether realise-time evaluation per section is fast enough in JS at crater scale; measure in the first fixture (`crater_works`).
