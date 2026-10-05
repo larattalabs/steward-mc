@@ -26,3 +26,8 @@ real mod is on the classpath. When Architect publishes (GitHub Packages) or from
   versions, change log with undoable site ids, owner string `steward_mc:settlement/<id>`) and `SettlementStore` (one atomic JSON file per
   world; overlapping claims refused; a corrupt file is an error, never silently emptied).
 - `../fixtures` are shared with the schema tests and with `ModelTest` (test resources).
+- `gateway/ConceptCardJob`: the `structured` job spec for the concept-card parse (system prompt and schema are loaded from `../prompts` and
+  `../schema`, which `processResources` copies into the jar; Sonnet, low effort, 10 cent budget).
+- `gateway/LotBrief`: one lot of a settlement into an Architect `DesignRequest` (type, style, size clamped to Architect's cap, owner, ext, notes).
+- `layout/VillageLayout` + `Grid`: phase 1 layout, pure and deterministic: lots on both sides of one east-west street, dry and flat enough,
+  inside the claim, facing the street. Larger forms are region programs (A5b).
