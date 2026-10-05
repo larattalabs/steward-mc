@@ -24,3 +24,23 @@ inbox/HUD/hub, modules, villagers, animals. These stay in Steward.
 
 Coordination: Architect owns its repo. Steward does not edit it. Proposed changes go to the Architect session as a message;
 it decides ordering and records them in `architect-mc/docs/PLAN.md`.
+
+## Round 2 (2026-10-05): requested changes to the accepted plan
+
+Sent to the Architect session after its reply. Priority 1-5 change what Steward can ship; 6-11 are lower.
+
+| # | Request | Detail |
+|---|---|---|
+| R1 | **Split A5; take the infrastructure early (A5a)** | Nested sites (child inside parent, removed child-first), chunked/sparse snapshots (changed cells per chunk section), terrain operators through the snapshot path, roads and bridges as sites. Order: right after A7. Macro kit + checker (A5b) stays later. Minimum with A7: a **site group** (parent id, one undo group over separate lots) so phase-1 villages are not unrelated lots. |
+| R2 | **A8 `job.run` as a full job API** | Streamed progress, cancel, resume after restart, hard budget stop enforced in the sidecar, cache-read token counts in cost output, and **mod-provided tools** (callbacks over the WebSocket) so the agent can query world state mid-job. |
+| R3 | **Named parts and a shared component library** | Design sources built from named components with stable ids (wing, tower, porch) so patches and diffs stay local; a per-bible component library (windows, lantern posts, roof trims) generated once and reused. Better for A6 delta apply and for coherence than bible text alone. |
+| R4 | **Open building types** | Claude can declare a checker profile from a menu of rules (door opens, roof closed, floors reachable, lit, nothing floating) instead of needing a preset type. |
+| R5 | **Open metadata + ports + ownership** | `ext` namespace on library entries and sidecars; named connector ports on blueprints (item output, water inlet, bed count); an owner tag on sites (settlement id) so Architect's UI does not remove a steward-owned site by accident. |
+| R6 | Shared stockpile/ledger | Phase 3 crate and ledger serve multiple sites and are queryable by API. |
+| R7 | Placement events + site registry API | placed/removed/failed with the blocked reason; persistent queue that waits for chunks and survives relogs. |
+| R8 | Eval harness | A prompt set scored by checker + critique loop, run when prompts, the bible format or the model change. Needed for the Sonnet-vs-Opus tier decision. |
+| R9 | Rate limits with parallel jobs | Usage-limit hold/resume works on a job group. |
+| R10 | Library collections | Group entries by settlement and set. |
+| R11 | Reusable dev tooling | DevBridge and devcli usable by Steward's gates, separate ports. |
+
+Offer to Architect: the Steward session writes the A5b spec (macro kit primitives, macro checker rules, site-group and nested-site needs) as a document while Architect builds A8 through A7, so A5b does not start from zero.
