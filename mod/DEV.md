@@ -41,3 +41,9 @@ Agreed with the Architect session (it uses 7890/7891, 7990/7991, 8090/8091, 8190
 - `gateway/LotBrief`: one lot of a settlement into an Architect `DesignRequest` (type, style, size clamped to Architect's cap, owner, ext, notes).
 - `layout/VillageLayout` + `Grid`: phase 1 layout, pure and deterministic: lots on both sides of one east-west street, dry and flat enough,
   inside the claim, facing the street. Larger forms are region programs (A5b).
+
+## Smoke test (2026-10-05)
+`./gradlew runClient --offline` (ports 8490/8491), then Architect's devcli with `ARCHITECT_GAME_DIR=$PWD/run` (its token is in `run/architect/devbridge.token`):
+`node ../architect-mc/tools/devcli.mjs wait --port 8491`, `cmd "/steward status" --port 8491` gave "Steward: Architect API 1.1.0 ok (11 features)" and
+"Claude link: up". `/steward card <text>` was NOT run live: the sidecar can inherit Anthropic credentials from the environment and a real card costs about
+2 cents, so it waits for an explicit go-ahead (the same call was verified on real Claude by the Architect session with this repo's schema and prompt).
