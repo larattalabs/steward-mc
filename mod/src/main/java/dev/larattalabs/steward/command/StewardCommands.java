@@ -7,6 +7,7 @@ import dev.larattalabs.steward.Steward;
 import dev.larattalabs.steward.gateway.ArchitectGateway;
 import dev.larattalabs.steward.gateway.CardResult;
 import dev.larattalabs.steward.gateway.ConceptCardJob;
+import dev.larattalabs.steward.gateway.WorldMode;
 import dev.larattalabs.steward.service.CardService;
 import java.util.Map;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
@@ -35,6 +36,8 @@ public final class StewardCommands {
 				if (st.ok()) {
 					boolean up = ArchitectApi.get().jobs().available();
 					ctx.getSource().sendSuccess(() -> Component.literal("Claude link: " + (up ? "up" : "not available")), false);
+					String mode = WorldMode.survival(ctx.getSource().getServer(), ctx.getSource().getLevel()).map(b -> b ? "survival" : "creative").orElse("unknown");
+					ctx.getSource().sendSuccess(() -> Component.literal("World mode (Architect toggle): " + mode), false);
 				}
 				return st.ok() ? 1 : 0;
 			}))
@@ -42,8 +45,9 @@ public final class StewardCommands {
 				CommandSourceStack src = ctx.getSource();
 				String text = StringArgumentType.getString(ctx, "text");
 				src.sendSuccess(() -> Component.literal("Interpreting your description..."), false);
-				// Settings: the world's survival toggle has no public Architect API yet, so the world is assumed creative for now.
-				service().submit(text, Map.of(), new ConceptCardJob.Settings(false, "patron", 128), null).whenComplete((r, err) -> {
+				// the world's survival toggle, read through Architect's dry-run workaround (API 1.2.0 will have a direct read)
+				boolean survival = WorldMode.survival(src.getServer(), src.getLevel()).orElse(false);
+				service().submit(text, Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", 128), null).whenComplete((r, err) -> {
 					// completes on the server thread (JOB_DONE), or immediately when refused
 					Steward.LOGGER.info("concept card: {}", err != null ? "refused: " + err.getMessage() : r.ok() ? String.format("ok, $%.4f, %s", r.cost().usd(), r.card().name()) : "failed: " + r.error());
 					if (err != null) {
