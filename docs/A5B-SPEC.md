@@ -1,0 +1,183 @@
+# A5b spec: macro kit and macro checker
+
+Written by the Steward session for the Architect session (ask A5b, phase 6 in architect-mc/docs/PLAN.md). Architect reviews
+this and turns it into a CONTRACT section when it builds it; nothing here binds Architect until then. Draft 2026-10-05.
+
+Goal: let Claude write a **region program** for a whole site (a rift, a sky city, a crater facility, a walled castle, a
+terraced hillside village), check it without the game, show it as a ghost, and place it through the snapshot path, with
+its buildings as separate child designs.
+
+Scope: A5b is the **kit and checker**. The engine pieces it relies on come first (A5a nested sites, sparse snapshots,
+terrain operators through the snapshot path, roads/bridges as sites; A7 batch placement and site groups). Where this
+spec needs something from them it says so under "Needs from A5a / A7".
+
+## 1. Where it sits in the kit
+
+Today a design is a `Blueprint` (one template, one box, `kit/lib/kit.mjs`) with `build()` returning it. A5b adds a second
+program type beside it:
+
+```
+kit/designs/<id>.mjs   -> default export build(params) -> Blueprint        (unchanged)
+kit/regions/<id>.mjs   -> default export region(ctx, params) -> Region      (new)
+```
+
+A `Region` is a **description**, not a block array. It holds: terrain ops, lots, roads, bridges, utilities, anchors and
+the claim. Realising it produces (a) terrain writes, evaluated per chunk section, and (b) N child building jobs, one per
+lot, each an ordinary Blueprint design (96x64x96 cap per child, unchanged). A region is never one giant template, so the
+design-job cap stays as it is and the region itself has no cap (only the claim and a block budget).
+
+Two phases:
+1. **Plan** (sidecar, no game): the program runs with `ctx.survey`, a coarse sample sent by the mod (heightmap grid,
+   biome, sea level, water, a hash). It returns the Region description (JSON). The checker and the previews work on a
+   virtual world built from the survey plus the ops.
+2. **Realise** (mod): the batch queue evaluates ops per chunk section against the real terrain. If the real terrain has
+   drifted from the survey beyond a tolerance (sample hash and a few probe columns), realisation stops and asks for a replan.
+   Ops expressed relative to the surface (`y: { surface: -3 }`) are evaluated against the real heights.
+
+## 2. Region API (sketch)
+
+```js
+import { Region, shapes as S, roles } from '../lib/region.mjs';
+
+export const id = 'crater_works';
+export const params = { radius: { type: 'int', min: 40, max: 160, default: 90 }, depth: { type: 'int', min: 12, max: 48, default: 28 } };
+
+export default function region(ctx, { radius = 90, depth = 28 } = {}) {
+  const r = new Region({ id, claim: ctx.claim, bible: ctx.bible });   // material roles come from the bible, not raw blocks
+  const c = ctx.survey.pickCenter({ flat: true, near: ctx.claim.center });
+  r.part('bowl').carve(S.bowl(c, radius, depth), { to: roles.rock, lining: roles.scorched, naturalOnly: true });
+  r.part('rim').add(S.ring(c, radius, radius + 6, { rise: 6 }), roles.rubble);
+  r.part('ramp').stair(S.path([ rimPoint, floorPoint ], { width: 5, spiral: true }), { carve: true, railing: roles.rail });
+  r.part('floor').terrace(c, [0.2, 0.45, 0.7], { levels: 3, riser: 2 });          // work levels
+  const lots = [
+    r.lot('foreman_office', { at: terraceCell(1), size: [18, 14], max: [24, 20, 24], front: 'toward:ramp', brief: 'Overseer office, windows over the pit' }),
+    r.lot('ore_hall',       { at: terraceCell(2), size: [32, 24], max: [40, 30, 36], front: 'toward:ramp', brief: 'Sorting hall, crates, conveyors' }),
+  ];
+  r.road(S.path([ lots[0].entrance, lots[1].entrance ]), { width: 3, light: 'lantern_post' });
+  r.bridge(S.path([ a, b ]), { width: 4, rail: true, support: { every: 12, style: 'arch' } });
+  r.anchor('entrance', rimPoint); r.anchor('spawn', outsideRim);
+  return r;
+}
+```
+
+### Primitives
+
+All shapes are composable signed-distance fields (`union`, `subtract`, `smooth`) so the mod can evaluate any cell
+independently and stream by chunk section.
+
+| Primitive | Does | Notes |
+|---|---|---|
+| `carve(shape, opts)` | removes natural blocks inside the shape, optional `lining` | never removes player blocks, block entities, or anything outside the claim |
+| `add(shape, material, opts)` | adds blocks (platform, rim, island, mass) | may write into air and natural blocks only; `underside: 'flat' \| 'taper' \| 'pillars' \| 'rock'` for floating masses |
+| `platform(poly, y, opts)` | flat slab with edge and underside style | sky districts, terraces |
+| `pillar(at, opts)` | support column to ground or bedrock | auto-added under `add` with `underside: 'pillars'` |
+| `bridge(path, opts)` | deck, rails, supports every N, optional arches/towers | placed as a site (A5a) |
+| `stair(path, opts)` | carved or built stairs/ramps/spirals, landing every N | rise <= 1 per step, 2 headroom |
+| `cavern(shape, opts)` | noise-edged hollow with lighting and floor | seeded, deterministic |
+| `noise(field)` | seeded mask or height field used by other ops | same seed, same result, for variants and delta |
+| `ring(centre, r0, r1, opts)` | circular wall/rim with towers and gates | castles, crater rims |
+| `terrace(centre, fractions, opts)` | stepped flat levels with risers | hillside and pit work levels |
+| `lot(id, opts)` | a named building pad: footprint, floor level, front direction, brief, child size cap | produces a **child design job** and a flat pad with foundation fill |
+| `road(path, opts)` | path with width, surface by biome, lantern posts | placed as a site (A5a); AgentCraft roads are the model |
+| `utility(path, opts)` | reserved corridor for a spine (water, item, power) | no blocks at A5b; modules use it later (Steward phase 5) |
+| `anchor(name, at)` | `entrance`, `spawn`, `cam_*` as in the building kit | required: `entrance`, `spawn` |
+| `part(id)` | names a group of ops with a **stable id** | A6 diffs and patches by part; renames are breaking |
+
+Materials come from **roles** (`rock`, `surface`, `subsurface`, `rubble`, `scorched`, `rail`, `structure`, `accent`, ...)
+resolved from the style bible (A1). A re-skin changes the bible, not the program.
+
+Determinism: a region is a pure function of `(params, survey, bible roles, seed)`. Variants (A1/A2) re-run it without Claude.
+
+## 3. Checker: macro rules
+
+The checker runs on a **virtual world**: a sparse map of chunk sections built from the survey plus the ops (plus the
+child lots' declared footprints, not their interiors). It needs no game. Large regions are checked at **coarse resolution**
+(walk graph over surface cells, flood-fill over sampled columns) with a full-resolution pass only around lots, bridges,
+stairs and carved edges. Previews: shaded top-down, a section cutaway through the main axis, and a low-detail isometric.
+
+Severity follows Architect's rule: **every new rule starts as a warning** and is promoted after it passes hand-written examples
+and a couple of real generations (record the promotion in PLAN.md). The "proposed final" column is what I would promote to.
+A separate class, **engine invariants**, are enforced at write time by the mod regardless of the checker: nothing outside the
+claim, natural blocks only, no block entities removed, everything through the snapshot path, block budget. The checker reports
+them too, but the engine does not trust the checker for them.
+
+| # | Rule | Start | Proposed final | Check |
+|---|---|---|---|---|
+| M1 | **Claim containment** | error (invariant) | error | every write, lot and path inside the claim |
+| M2 | **Reachability** | warning | error | a walk graph (standable cell, step <= 1, headroom 2, fall <= 3, ladders/stairs/bridges) reaches every lot entrance and every named district from `entrance`; unreachable lots listed |
+| M3 | **Support / floating** | warning | error | every non-air, non-attachable block connects to ground through face adjacency; `add(..., underside)` masses are connected to their supports; gravity blocks supported; a region may declare `floating: [part ids]` for sky districts (then M3 only requires them to connect to each other and to a declared anchor) |
+| M4 | **Fluid containment** | warning | error | static flood fill from every fluid source touched by a `carve`, and from any fluid left exposed, into walkable and lot cells; flags breaches, new unintended lakes, lava within 3 of a walkway without a barrier |
+| M5 | **Spawn safety** | warning | warning | count of cells with block light 0, solid below, 2 headroom on walkable and lot surfaces and inside carved voids; ratio and absolute thresholds; carved caverns must declare lighting |
+| M6 | **Path clearance** | warning | error | roads, stairs and bridges keep the declared width and 2 headroom along their length |
+| M7 | **Slope and rise** | warning | warning | road grade and stair rise within limits (rise <= 1 per step, landing every N) |
+| M8 | **Edge protection** | warning | warning | walkable edges with a drop > 3 have rails or walls unless the theme opts out (`edges: 'open'`) |
+| M9 | **Lot pads** | warning | error | each lot has a flat pad within tolerance, foundation fill resolves, no overlap with margin, `max` inside the child design cap |
+| M10 | **Bridge supports** | warning | warning | span between supports <= limit; deck is not the only load path for gravity blocks; does not dam a water flow |
+| M11 | **Terrain-op sanity** | warning | warning | removed and added block counts within the budget shown on the ghost; no op reaches below the world bottom margin; carve does not breach into unexpected caves (reported, not forbidden) |
+| M12 | **Budget** | warning | warning | block count, estimated placement ticks, and (survival) the bill of materials estimate versus the player's stockpile |
+| M13 | **Palette validity** | error (inherited) | error | roles resolve to vanilla blocks in `blocks.mjs` |
+| M14 | **Parts** | warning | error | part ids unique and stable; every op belongs to a part |
+
+Open building types (R4): a region program may declare the rule menu it wants (`rules: ['reachability','fluids','spawn']`);
+M1, M13 and M14 always apply.
+
+## 4. Needs from A5a / A7 (nested sites and site groups)
+
+**Site shape.** A realised region is a **site group** (A7) with an owner tag (R5, the settlement id) containing ordered sites:
+
+1. `terrain` site: the terrain ops. Parent of everything that sits on it.
+2. `road` and `bridge` sites, children of `terrain`.
+3. one `lot` site per lot, child of `terrain`: the child building, ordinary placement, its own snapshot.
+
+**Requirements:**
+
+- **N1 Nesting.** A child site lies inside its parent's footprint. A child's snapshot records the parent's state as its "before",
+  so removing the child restores the parent exactly (child-first). Removing a parent that has children is refused unless the
+  caller asks for a cascade, which removes children first.
+- **N2 Not "player blocks".** Blocks written by a parent site are not player-placed. Occupancy and TerrainFit treat the parent's
+  blocks, inside a child's lot, as replaceable. The player's own blocks inside a lot still refuse placement.
+- **N3 Pad reservation.** The terrain site flattens each lot to its pad and records the lot rectangle. A child building must fit
+  its pad. Moving a child is allowed within its pad.
+- **N4 Order.** A group places terrain first, then roads/bridges, then lots, all through the batch queue. The queue persists, waits
+  for chunks, and "waits until clear" when the player stands in a box (A7). Failure of one child does not undo the group, but the
+  group reports `partial`.
+- **N5 Undo group.** One undo for the whole group, run in reverse order. A conflict (a player block placed since) is reported and
+  skipped, not overwritten.
+- **N6 Sparse snapshots.** A snapshot stores only written cells plus the guard rows, per chunk section, so the terrain site is as
+  large as the claim allows (A5a already says so). The leaf guard and the ground row rules carry over.
+- **N7 Delta (A6).** A patch re-runs the program, diffs by part id, and extends the snapshot before writing cells the original
+  did not touch. Remove stays exact.
+- **N8 Registry.** The site registry (A8/R7) exposes the group, its sites, parents, owner and state (`planned`, `placing`, `placed`,
+  `partial`, `failed`, `removing`) with events.
+
+## 5. Interaction with the other asks
+
+- **A1/A2:** the region job is a group parent. It generates the plan, then spawns child building jobs for the lots, with the shared
+  bible and the lot `brief` as input, in parallel.
+- **A3 massing:** a region massing pass is the ops plus the lot footprints as boxes. No interiors, no child detail. The approved
+  massing fixes the plan; the detail pass fills the lots.
+- **A4 critique:** the reviewer looks at the top-down, section and isometric previews plus the checker output.
+- **R3 named parts:** parts are the unit of patching. The component library (lantern posts, rail styles, bridge trims) is shared with
+  the building kit.
+
+## 6. Test plan and gate
+
+Hand-written fixtures first, one per site family, each with the expected checker report (which rules fire and why):
+`crater_works` (carve, terrace, stair, lots), `sky_isle` (floating add with pillars/taper, bridges), `rift_city` (carve, cavern, bridges,
+fluid containment), `walled_hill` (ring, terrace, gate, roads). Add deliberately broken variants (a lot with no path, a carve that opens
+a lake, a floating spur) and check that M2, M4 and M3 catch them.
+
+**Gate (proposal):** from a fresh dev world, a region generated by Claude from "a crater mining facility" passes the checker with no M1,
+M2, M3 or M4 findings, realises through the batch queue, is placed with its child buildings, and one undo returns the whole area
+cell for cell (Architect's exactness bar), including a deliberate player block placed in a lot beforehand, which must be reported and kept.
+
+## 7. Open questions for Architect
+
+1. **Survey format.** Heightmap grid resolution and what the mod sends in `ctx.survey` (heights, biome, water, a few probe columns).
+   Steward can provide the mod-side sampler if you prefer to own only the format.
+2. **Evaluation location.** Ops evaluated in Java at realise time (my assumption, it needs real terrain) versus in the sidecar. The
+   spec assumes Java with the sidecar doing plan, check and previews only. Both sides then need the same shape math; a shared test
+   vector file would keep them aligned.
+3. **Terrain relative to surface vs absolute.** Do you want only `surface`-relative ops, or also absolute Y? Sky cities need absolute.
+4. **Child cap.** Keep 96x64x96 per lot (my assumption), or let large landmark lots (a keep, a cathedral) use a region program of their own.
+5. **Rule promotion.** I proposed which M-rules should end up errors; the promotion record can follow your usual process.
