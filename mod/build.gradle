@@ -16,17 +16,6 @@ repositories {
 	mavenLocal()
 }
 
-sourceSets {
-	// TEMPORARY. A compile-only snapshot of Architect's API types (docs/CONTRACT.md "Phase 4a contract"), taken from its
-	// in-progress sources so Steward can be written against the contract before the artifact exists. NOT shipped.
-	// Delete this source set (and mod/api-snapshot/) and add `modImplementation "dev.larattalabs:architect_mc:<ver>"` instead
-	// once Architect's real build is available. See mod/api-snapshot/README.md.
-	apiSnapshot {
-		java.srcDir 'api-snapshot/java'
-		compileClasspath += sourceSets.main.compileClasspath
-	}
-}
-
 loom {
 	splitEnvironmentSourceSets()
 
@@ -55,13 +44,9 @@ dependencies {
 	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
 	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-	// The snapshot's classes dir goes on the compile classpaths as a plain directory (no task dependency, which would be circular
-	// with apiSnapshot extending main's classpath); the compile tasks depend on compileApiSnapshotJava explicitly below.
-	compileOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
-	clientCompileOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
-	testCompileOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
-	// tests may use the API's plain data types (JobSpec, DesignRequest, ...); the snapshot is never on the runtime classpath otherwise
-	testRuntimeOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
+	// Architect's public API and mod (dev.larattalabs.architect.api). From mavenLocal (cd ../../architect-mc/mod && ./gradlew publishToMavenLocal) until
+	// Architect publishes to GitHub Packages. Pin the exact version: Architect's API is semver'd from 1.0.0 but the artifact is 0.x.
+	implementation "dev.larattalabs:architect_mc:${project.architect_version}"
 
 	testImplementation platform("org.junit:junit-bom:${project.junit_version}")
 	testImplementation "org.junit.jupiter:junit-jupiter"
@@ -98,7 +83,3 @@ java {
 	sourceCompatibility = JavaVersion.VERSION_25
 	targetCompatibility = JavaVersion.VERSION_25
 }
-
-tasks.named('compileJava') { dependsOn tasks.named('compileApiSnapshotJava') }
-tasks.named('compileClientJava') { dependsOn tasks.named('compileApiSnapshotJava') }
-tasks.named('compileTestJava') { dependsOn tasks.named('compileApiSnapshotJava') }
