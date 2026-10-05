@@ -21,8 +21,9 @@ Status: **plan only**, written 2026-10-05, revised the same day after Architect 
    Claude owns "where" through code and iterates against the checker, not by placing blocks one at a time.
 3. **Everything is undoable and logged.** Snapshots, the Architect "never touches player blocks" rule, a change log,
    and permission levels up to full autonomy. Full autonomy is only safe because of this.
-4. **Cost and time are a product constraint.** A novel Opus design is about 4-6 minutes and about $1-1.50 (Architect,
-   measured twice). Model tiering, parallel jobs, massing-first, a spend meter and a budget cap are phase-1 features.
+4. **Cost and time are a product constraint.** Architect's real 4b gate run (2026-10-05) measured: a bible $1.2-2.0 and 5-8 min, an Opus design
+   (landmark) $2.0-3.2 and 8-13 min, a Sonnet design $0.8-2.5 and 4-10 min, in waves of 3. An 8-20 building settlement is roughly **$12-50 and
+   30-90 minutes**, about twice the earlier estimate (which came from single Opus designs). See `BudgetPolicy` and the soft budget below. Model tiering, parallel jobs, massing-first, a spend meter and a budget cap are phase-1 features.
 5. **Vanilla blocks in templates.** Keeps Architect's rule. Any mod block (an "assisted" tier) is a deliberate,
    opt-in exception decided per module (open question 2).
 6. **Singleplayer only**, same sidecar architecture as Architect and AgentCraft (local Node sidecar, Claude Agent
@@ -228,7 +229,10 @@ Claude-designed modules pass the tick-simulation gate before acceptance.
 
 ## Risks
 
-- **Cost and time.** Managed by tiering, parallelism, massing-first, budget cap, caching, and the free fallback. Re-measure in phase 1.
+- **Cost and time.** Higher than first assumed (see principle 4). Managed by tiering (Opus only for landmarks), parallel waves, massing-first, an
+  estimate shown before anything runs (`Designs.estimate`, Architect 4b Java), a soft budget that pauses at 80% and asks, a hard cap at 100%, caching,
+  and the free fallback. Default budgets scale with the settlement size (`BudgetPolicy.suggestedBudgetUsd`: S $20, M $35, L $55, XL $95); the old $20
+  default was too low for anything but S. Re-measure in phase 1.
 - **Style coherence** across independent building jobs. Style bible plus neighbour renders plus critique loop; measured in the phase 1 gate.
 - **Spatial reasoning at scale.** Programs plus a checker, never raw block lists from Claude.
 - **Scale and performance.** Placement is spread over ticks, near the player, with chunk-load handling.
