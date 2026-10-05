@@ -5,3 +5,4 @@ mod/run/
 mod/logs/
 .gradle-home/
 .claude/
+artifacts/
