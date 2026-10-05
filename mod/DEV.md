@@ -22,6 +22,11 @@ When Architect's GitHub Packages publish is set up, add that repository (read to
 `read:packages` elsewhere). The API is `dev.larattalabs.architect.api`; `gateway/ArchitectGateway` is the only class that should touch it for
 checks, and `gateway/ConceptCardJob`, `gateway/LotBrief` build its job and design types.
 
+## Dev ports
+Agreed with the Architect session (it uses 7890/7891, 7990/7991, 8090/8091, 8190/8191, 8290, 8390/8391): Steward dev runs use **8490** (Architect sidecar,
+`ARCHITECT_PORT`) and **8491** (DevBridge, `ARCHITECT_DEV_PORT`); 8590+ if more are needed. `runClient` sets them (override with `STEWARD_PORT` /
+`STEWARD_DEV_PORT`). Architect's dev defaults (auto world, sidecar unpack, SDK install) apply to a Steward dev run too.
+
 ## Layout
 - `src/main/java/.../Steward.java`: common entrypoint (logs the Architect API status).
 - `gateway/ArchitectGateway`: Steward's only door to Architect.

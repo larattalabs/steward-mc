@@ -31,6 +31,10 @@ loom {
 			def player = (System.getenv("STEWARD_PLAYER") ?: System.getProperty("user.name") ?: "Player").replaceAll(/[^A-Za-z0-9_]/, "").take(16) ?: "Player"
 			programArgs "--username", player, "--width", "1920", "--height", "1080"
 			vmArgs "-Xmx4G", "--enable-native-access=ALL-UNNAMED"
+			// Port allocation agreed with the Architect session so dev clients never collide: Steward uses 8490 (sidecar) / 8491 (DevBridge),
+			// 8590+ if more are needed. Override with STEWARD_PORT / STEWARD_DEV_PORT.
+			environmentVariable "ARCHITECT_PORT", System.getenv("STEWARD_PORT") ?: "8490"
+			environmentVariable "ARCHITECT_DEV_PORT", System.getenv("STEWARD_DEV_PORT") ?: "8491"
 			runDir "run"
 		}
 		server {
