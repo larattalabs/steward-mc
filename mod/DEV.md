@@ -18,8 +18,9 @@ publish it from Architect's checkout (or any clone of main at bac28db or later):
 cd ../../architect-mc/mod && ./gradlew build publishToMavenLocal      # -> ~/.m2/repository/dev/larattalabs/architect_mc/0.4.0/
 ```
 
-When Architect's GitHub Packages publish is set up, add that repository (read token: `GITHUB_TOKEN` with `packages: read` in CI, a PAT with
-`read:packages` elsewhere). The API is `dev.larattalabs.architect.api`; `gateway/ArchitectGateway` is the only class that should touch it for
+Architect's artifact is also on GitHub Packages (`dev.larattalabs:architect_mc:0.4.0`, public); `build.gradle` has that repository after mavenLocal.
+CI (`.github/workflows/ci.yml`) resolves it with the workflow's `GITHUB_TOKEN` (`packages: read`); verified green 2026-10-05, no extra access grant needed.
+Outside builders need a PAT with `read:packages` (`GITHUB_ACTOR` + `GITHUB_TOKEN` env vars). The API is `dev.larattalabs.architect.api`; `gateway/ArchitectGateway` is the only class that should touch it for
 checks, and `gateway/ConceptCardJob`, `gateway/LotBrief` build its job and design types.
 
 ## Dev ports
