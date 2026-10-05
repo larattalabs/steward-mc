@@ -9,7 +9,7 @@ It is a **sibling mod to Architect** (`larattalabs/architect-mc`). Architect is 
 construction engine. Steward is the director on top: concept, site, layout, a standing NPC, proactive upgrades,
 functional modules, villagers, animals, an inbox. Steward depends on Architect and does not copy it.
 
-Status: **plan only**, written 2026-10-05. Nothing is built.
+Status: **plan only**, written 2026-10-05, revised the same day after Architect accepted asks A1-A9 (see "Architect constraints"). Nothing is built.
 
 ## Principles
 
@@ -21,8 +21,8 @@ Status: **plan only**, written 2026-10-05. Nothing is built.
    Claude owns "where" through code and iterates against the checker, not by placing blocks one at a time.
 3. **Everything is undoable and logged.** Snapshots, the Architect "never touches player blocks" rule, a change log,
    and permission levels up to full autonomy. Full autonomy is only safe because of this.
-4. **Cost and time are a product constraint.** A novel Opus design is about 4 minutes and about $1 (Architect,
-   measured). Model tiering, parallel jobs, massing-first, a spend meter and a budget cap are phase-1 features.
+4. **Cost and time are a product constraint.** A novel Opus design is about 4-6 minutes and about $1-1.50 (Architect,
+   measured twice). Model tiering, parallel jobs, massing-first, a spend meter and a budget cap are phase-1 features.
 5. **Vanilla blocks in templates.** Keeps Architect's rule. Any mod block (an "assisted" tier) is a deliberate,
    opt-in exception decided per module (open question 2).
 6. **Singleplayer only**, same sidecar architecture as Architect and AgentCraft (local Node sidecar, Claude Agent
@@ -40,6 +40,8 @@ Status: **plan only**, written 2026-10-05. Nothing is built.
 | 2026-10-05 | The steward is a **server-side persistent entity** (right-clickable, saved with the world, survives relogs), unlike AgentCraft's client-only agents. It is the persona: it walks to the worksite and acts. The mod places the blocks. |
 | 2026-10-05 | A prompt is split into a **concept card**: site/form, style/mood, purpose, story (optional), constraints. One prompt box plus optional per-field chips. Claude parses the free text into the card and shows its interpretation; the player approves the card, not the raw prompt. |
 | 2026-10-05 | Site/form and style are versioned separately, so a re-skin does not redo the layout. |
+| 2026-10-05 | **One sidecar.** Steward is a protocol client of Architect's sidecar (one Node helper, one SDK install, one auth). Steward owns the prompt, schema and card UX; the concept-card call goes through Architect's generic `job.run {schema, prompt, model}` (A8). |
+| 2026-10-05 | Architect accepted A1-A9 (architect-mc commit a040e39). Its order is binding for Steward's phases: A9 phase 3, then A8, A1+A2, A3, A7, A4, A6, A5 (see "Architect constraints"). |
 | 2026-10-05 | Functional modules (farms, sorters, trading hall) come from a **verified catalog**, with later a simulation-verified path for Claude-designed ones. Claude composes and parametrises; it does not hand-wire redstone unverified. |
 
 ## Concept card
@@ -76,7 +78,9 @@ prompt -> concept card (approve) -> site survey -> style bible + site plan (macr
 2. **Site survey (mod, read-only data).** Heightmap, biome, water, existing ravines/valleys/cliffs near the claim. Claude may
    pick a spot where terrain already fits ("this valley already works as a crater") or propose sculpting.
 3. **Style bible (Claude, once).** Silhouette, palette, roof language, proportions, motifs, what materials mean at each
-   tier, lighting mood. It goes into every later job (and caches well).
+   tier, lighting mood. It goes into every later job (and caches well). Stored by Architect as a separate artifact
+   (`<gameDir>/architect/bibles/<id>.json`) that library entries reference, not inside one entry. Because buildings share a bible,
+   a **re-skin can be variants with no Claude call** (about 0.5 s each); Claude is only needed for structural changes.
 4. **Site plan = a macro program** in the kit: terrain operators plus a lot/road/utility layout. Claude writes it, code runs it.
 5. **Massing pass.** A cheap coarse pass (volumes, no detail) shown as a ghost. The player approves or redirects. Fixes
    "I wanted something different" before the expensive pass.
@@ -117,12 +121,12 @@ Read-only tools for the agent, assembled mod-side:
 
 | Difficulty | Behaviour |
 |---|---|
-| Patron | Free, instant builds (Architect creative placement). |
+| Patron | Free, instant builds (Architect creative placement). Only where the world allows it: in a survival world Patron is unavailable unless the world toggle is off or the caller has op. A per-settlement setting never bypasses the world's survival toggle. |
 | Supplied | Builds from a stockpile; the steward requests materials (Architect survival sites). |
 | Hardcore | You gather everything. |
 | Economy | You spend resources to unlock modules and tiers (automated farming and so on). |
 
-Difficulty maps onto Architect's per-world survival toggle (phase 3 there).
+Difficulty maps onto Architect's per-world survival toggle (`<world>/architect-world.json`, changed with permission 2). The Architect API accepts a placement mode only within what the world allows.
 
 ## Villagers and animals
 
@@ -157,31 +161,47 @@ the output before the design is accepted.
 | Lives in Architect (sidecar/kit/mod) | Lives in Steward |
 |---|---|
 | Design job runner, kit, checker profiles, renderer, library, variants, placement, snapshots, survival sites | Concept card, site survey, settlement plan store, steward entity, proactive triggers, permission and difficulty, inbox/HUD/hub, modules catalog, villagers, animals |
-| **New in Architect, used by Steward:** style bible, hierarchical (parallel) jobs, massing pass, critique loop, macro kit + macro checker, delta diff/apply, API for batch placement over ticks | A thin client of those APIs |
+| **New in Architect, used by Steward:** public API + protocol version + `job.run` (A8), style bible (A1), parallel jobs (A2), massing (A3), batch placement (A7), critique loop (A4), delta apply (A6), macro kit/checker/nested sites/chunked snapshots (A5) | A protocol client and Java API user of those. No second sidecar. |
 
 Architect changes are requested through the Architect session and land there first. See `docs/ARCHITECT-ASKS.md`.
+
+## Architect constraints (from Architect's reply, 2026-10-05)
+
+Binding for Steward's plans until Architect changes them:
+- Sites never overlap; nested sites (child inside parent, removed child-first) arrive with A5. Until then no covering terrain site.
+- DesignRequest `maxSize` is x/z 7..96, y 6..64 and one snapshot covers one box. Larger sites need chunked snapshots and region programs (A5).
+- Survival is per world; placement modes are limited to what the world allows (see Difficulty).
+- Occupancy refuses placement near the player; placements are asynchronous.
+- Library entries are per building; style bibles are separate artifacts under `<gameDir>/architect/bibles/`.
+- Remove is exact over the snapshot box + 7; delta apply extends the snapshot before writing new cells.
+- One sidecar; Steward is a protocol client. Architect will send the A8 API contract draft for review before building it.
 
 ## Phases
 
 Each phase ends at a gate checked in a dev client (DevBridge), never in a real world, using an independent gate-verifier.
 
-### Phase 0: Architect substrate (Architect repo)
-Finish Architect phase 3 (survival sites, crate, ledger) and carried-forward issues. In parallel the Architect session
-starts the generation primitives Steward needs (see ARCHITECT-ASKS): style bible, hierarchical jobs, massing pass, critique
-loop, macro kit and checker, delta apply, batch placement API.
-- **Gate:** Architect phase 3 gate passes. One style bible drives 3 buildings that read as one set; a massing ghost converts to
-  a detailed build; a delta edit applies without a full rebuild.
+### Phase 0: Architect substrate (Architect repo, in Architect's order)
+Architect phase 3 (A9) is in progress. Then: A8 public API + protocol version + `job.run`; A1 style bible + A2 parallel jobs;
+A3 massing pass; A7 batch placement; A4 critique loop; A6 delta apply; A5 macro kit + checker + nested sites + chunked snapshots.
+Steward builds against each as it lands; it does not wait for all of them.
+- **Gate (phase 1 subset):** A8, A1, A2, A3, A7 landed. One style bible drives 3 buildings that read as one set; a massing ghost
+  converts to a detailed build; a batch of placements lands with one undo group.
 
 ### Phase 1: Settlement core, generative (proposals only)
 Founding Stone, claim, concept card form, plan store, site survey, style bible and site plan for **one village-scale prompt**,
 massing ghost, parallel building designs, place, log and undo. Server-side steward entity (persona only). Spend meter and budget cap.
-Permission: Proposals. Difficulty: Patron.
+Permission: Proposals. Difficulty: Patron (creative worlds).
+Phase 1 scope limits, from Architect's contracts: the village is **separate lots, no covering terrain site** (sites never overlap
+until nested sites exist), and **each building stays inside Architect's size cap** (x/z 7..96, y 6..64). Placement may be deferred
+or refused (the player stands in the box, an overlap): the steward waits until clear and never assumes a request succeeded.
 - **Gate:** from a fresh dev world, a custom prompt ("a fishing village built on stilts over a swamp, mossy and crooked") yields
   a card, a massing ghost, 8+ buildings that pass checks and read as one place, placed through the ghost; Remove restores terrain
-  exactly; the spend meter matches the real cost.
+  exactly (Architect's snapshot box + 7); the spend meter matches the real cost.
 
 ### Phase 2: Macro sites and custom forms
-Macro kit in use: rift, sky city, crater, castle, ring wall. Sculpt vs find site, terrain operators, macro checker.
+**Blocked on Architect A5** (macro kit + checker, nested sites child-inside-parent removed child-first, chunked snapshots and region
+programs for sites beyond the size cap). Macro kit in use: rift, sky city, crater, castle, ring wall. Sculpt vs find site, terrain
+operators, macro checker. Terrain operators only ever go through Architect's snapshot path, never the world directly.
 - **Gate:** the rift and a custom "meteor crater mining facility" prompt each generate, pass reachability/support checks, and
   restore exactly on Remove.
 
@@ -212,6 +232,7 @@ Claude-designed modules pass the tick-simulation gate before acceptance.
 - **Style coherence** across independent building jobs. Style bible plus neighbour renders plus critique loop; measured in the phase 1 gate.
 - **Spatial reasoning at scale.** Programs plus a checker, never raw block lists from Claude.
 - **Scale and performance.** Placement is spread over ticks, near the player, with chunk-load handling.
+- **Placement can fail.** Occupancy refuses placement while the player is in or next to the box; the API gets a "wait until clear" mode (A7). The steward treats every placement as asynchronous and retryable.
 - **Griefing existing builds.** Claim boundary, natural-blocks-only terrain operators, Architect `Occupancy`.
 - **Functional builds** are version-fragile. Verified modules, dev-client measurement, simulation gate later.
 - **Auth/ToS.** API key first; claude-login is a personal opt-in only.
@@ -219,7 +240,7 @@ Claude-designed modules pass the tick-simulation gate before acceptance.
 
 ## Open questions
 
+0. ~~Where the concept-card parser lives~~ resolved: Steward owns prompt/schema/UX, the call goes through Architect's sidecar `job.run`.
 1. Name (Steward is a working name). Check Modrinth/CurseForge for conflicts before publishing.
 2. Vanilla-only modules, or a vanilla-authentic plus assisted split.
-3. Where the concept-card parser lives: Steward's own thin sidecar call, or Architect's sidecar.
 4. Track AgentCraft fixes to copied code, or treat the copies as independent (same question as Architect).

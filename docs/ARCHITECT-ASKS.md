@@ -1,5 +1,8 @@
 # Asks for Architect (from Steward)
 
+**Status 2026-10-05: all accepted** (architect-mc commit a040e39, "After phase 3: asks from Steward"). Architect's order: A9 (in progress), A8, A1+A2, A3, A7, A4, A6, A5. A8 contract draft comes to Steward for review before it is built.
+
+
 Steward (sibling mod, see PLAN.md) is generative-first and depends on Architect for generation and placement. These
 are the Architect-side changes it needs. They land in `architect-mc` first, through the Architect session, and each
 should be useful on its own for Architect's players. Order is by what Steward phase 1 needs.
