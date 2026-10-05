@@ -12,8 +12,18 @@ base {
 
 repositories {
 	mavenCentral()
-	// Architect's public API. Until Architect publishes (GitHub Packages), build it locally: ./gradlew publishToMavenLocal there.
+	// Architect's public API (dev.larattalabs:architect_mc). Locally: cd ../../architect-mc/mod && ./gradlew publishToMavenLocal. In CI and for
+	// outside builders it comes from GitHub Packages, which needs a token even for public packages (GITHUB_TOKEN with packages: read in
+	// Actions, a PAT with read:packages elsewhere).
 	mavenLocal()
+	maven {
+		url = uri('https://maven.pkg.github.com/larattalabs/architect-mc')
+		credentials {
+			username = System.getenv('GITHUB_ACTOR')
+			password = System.getenv('GITHUB_TOKEN')
+		}
+		content { includeGroup 'dev.larattalabs' }
+	}
 }
 
 loom {
