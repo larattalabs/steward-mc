@@ -22,5 +22,7 @@ real mod is on the classpath. When Architect publishes (GitHub Packages) or from
 - `src/main/java/.../Steward.java`: common entrypoint (logs the Architect API status).
 - `gateway/ArchitectGateway`: Steward's only door to Architect.
 - `model/`: pure logic with unit tests: `ConceptCard` (Gson parse of the structured job result), `Tier` (progression from advancements),
-  `Difficulty`, `Permission`.
+  `Difficulty`, `Permission`, `Claim` (the area a settlement may touch), `Settlement` (immutable: card, claim, separate site/style/purpose
+  versions, change log with undoable site ids, owner string `steward_mc:settlement/<id>`) and `SettlementStore` (one atomic JSON file per
+  world; overlapping claims refused; a corrupt file is an error, never silently emptied).
 - `../fixtures` are shared with the schema tests and with `ModelTest` (test resources).
