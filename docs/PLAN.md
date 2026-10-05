@@ -175,6 +175,12 @@ Binding for Steward's plans until Architect changes them:
 - Occupancy refuses placement near the player; placements are asynchronous.
 - Library entries are per building; style bibles are separate artifacts under `<gameDir>/architect/bibles/`.
 - Remove is exact over the snapshot box + 7; delta apply extends the snapshot before writing new cells.
+- **Placement rules (4d, frozen 2026-10-05):** overlap compares restore box against restore box; sides and back add nothing (a 0-block side gap is legal), only the
+  front grows, by up to the approach length + 8 (`Sites.overlapMargin(blueprintId)`, `LotFit.predictedRestoreBox`). `Sites.fitToLot` sets the front back by the approach
+  length so the approach stays inside the lot (`approachIntoStreet: true` lets it run out); `lot.minY` is the ground height. Queued items persist the actor UUID and the
+  resolved mode; actorless INSTANT is only for a creative world or survival off (Patron); survival turned on later fails queued INSTANT items with NOT_ALLOWED.
+  `cancelBatch` rolls the in-flight item back exactly. Steward's `VillageLayout` lot rectangles are therefore lot boxes the building and its approach must fit in
+  (`LOT_TOO_SMALL` is a typed refusal), and the 3-block gap in `Rules.defaults()` can shrink once 1.4.0 is on hand.
 - One sidecar; Steward is a protocol client. Architect will send the A8 API contract draft for review before building it.
 
 ## Phases
