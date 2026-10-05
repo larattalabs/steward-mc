@@ -1,0 +1,100 @@
+plugins {
+	// Minecraft 26.x is unobfuscated: the non-remapping Loom plugin (no mappings, no remapJar), as in Architect.
+	id 'net.fabricmc.fabric-loom' version "${loom_version}"
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+repositories {
+	mavenCentral()
+	// Architect's public API. Until Architect publishes (GitHub Packages), build it locally: ./gradlew publishToMavenLocal there.
+	mavenLocal()
+}
+
+sourceSets {
+	// TEMPORARY. A compile-only snapshot of Architect's API types (docs/CONTRACT.md "Phase 4a contract"), taken from its
+	// in-progress sources so Steward can be written against the contract before the artifact exists. NOT shipped.
+	// Delete this source set (and mod/api-snapshot/) and add `modImplementation "dev.larattalabs:architect_mc:<ver>"` instead
+	// once Architect's real build is available. See mod/api-snapshot/README.md.
+	apiSnapshot {
+		java.srcDir 'api-snapshot/java'
+		compileClasspath += sourceSets.main.compileClasspath
+	}
+}
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"steward_mc" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+
+	runs {
+		client {
+			def player = (System.getenv("STEWARD_PLAYER") ?: System.getProperty("user.name") ?: "Player").replaceAll(/[^A-Za-z0-9_]/, "").take(16) ?: "Player"
+			programArgs "--username", player, "--width", "1920", "--height", "1080"
+			vmArgs "-Xmx4G", "--enable-native-access=ALL-UNNAMED"
+			runDir "run"
+		}
+		server {
+			runDir "run/server"
+		}
+	}
+}
+
+dependencies {
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	implementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	implementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// The snapshot's classes dir goes on the compile classpaths as a plain directory (no task dependency, which would be circular
+	// with apiSnapshot extending main's classpath); the compile tasks depend on compileApiSnapshotJava explicitly below.
+	compileOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
+	clientCompileOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
+	testCompileOnly files(layout.buildDirectory.dir('classes/java/apiSnapshot'))
+
+	testImplementation platform("org.junit:junit-bom:${project.junit_version}")
+	testImplementation "org.junit.jupiter:junit-jupiter"
+	testRuntimeOnly "org.junit.platform:junit-platform-launcher"
+}
+
+test {
+	useJUnitPlatform()
+	testLogging {
+		events "failed"
+		exceptionFormat "full"
+	}
+}
+
+processResources {
+	def version = project.version
+	inputs.property "version", version
+	filesMatching("fabric.mod.json") {
+		expand "version": version
+	}
+}
+
+// Test fixtures shared with the schema tests (../fixtures: prompt + expected concept card).
+sourceSets.test.resources.srcDir '../fixtures'
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 25
+	it.options.encoding = "UTF-8"
+}
+
+java {
+	sourceCompatibility = JavaVersion.VERSION_25
+	targetCompatibility = JavaVersion.VERSION_25
+}
+
+tasks.named('compileJava') { dependsOn tasks.named('compileApiSnapshotJava') }
+tasks.named('compileClientJava') { dependsOn tasks.named('compileApiSnapshotJava') }
+tasks.named('compileTestJava') { dependsOn tasks.named('compileApiSnapshotJava') }
