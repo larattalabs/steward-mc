@@ -45,6 +45,7 @@ public final class StewardCommands {
 				// Settings: the world's survival toggle has no public Architect API yet, so the world is assumed creative for now.
 				service().submit(text, Map.of(), new ConceptCardJob.Settings(false, "patron", 128), null).whenComplete((r, err) -> {
 					// completes on the server thread (JOB_DONE), or immediately when refused
+					Steward.LOGGER.info("concept card: {}", err != null ? "refused: " + err.getMessage() : r.ok() ? String.format("ok, $%.4f, %s", r.cost().usd(), r.card().name()) : "failed: " + r.error());
 					if (err != null) {
 						src.sendFailure(Component.literal(String.valueOf(err.getMessage() != null ? err.getMessage() : err)));
 					} else if (!r.ok()) {
