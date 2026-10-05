@@ -1,5 +1,6 @@
 package dev.larattalabs.steward;
 
+import dev.larattalabs.steward.command.StewardCommands;
 import dev.larattalabs.steward.gateway.ArchitectGateway;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
@@ -14,5 +15,6 @@ public class Steward implements ModInitializer {
 	public void onInitialize() {
 		ArchitectGateway.Status status = ArchitectGateway.check();
 		LOGGER.info("Steward common init: {}", status.summary());
+		StewardCommands.init();
 	}
 }
