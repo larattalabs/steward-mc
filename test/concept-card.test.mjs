@@ -25,8 +25,18 @@ test('rejects unknown fields and bad enums', () => {
 
 test('the prompt names every template the fixtures use', () => {
   const prompt = fs.readFileSync(new URL('../prompts/concept-card.md', import.meta.url), 'utf8');
-  for (const f of fs.readdirSync(dir)) {
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.json'))) {
     const { card } = JSON.parse(fs.readFileSync(new URL(f, dir)));
     for (const k of ['site', 'style', 'purpose']) if (card[k].template) assert.ok(prompt.includes('`' + card[k].template + '`'), `${card[k].template} missing from prompt`);
+  }
+});
+
+test('real Sonnet outputs validate against the schema', () => {
+  const real = new URL('../fixtures/real/', import.meta.url);
+  const files = fs.readdirSync(real).filter((n) => n.endsWith('.json'));
+  assert.ok(files.length >= 2);
+  for (const f of files) {
+    const { card } = JSON.parse(fs.readFileSync(new URL(f, real)));
+    assert.ok(validate(card), f + ' ' + JSON.stringify(validate.errors));
   }
 });

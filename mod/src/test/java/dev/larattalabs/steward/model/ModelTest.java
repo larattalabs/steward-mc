@@ -29,6 +29,19 @@ class ModelTest {
 	}
 
 	@Test
+	void realModelOutputsParse() throws Exception {
+		for (String f : new String[] {"crater_works_real", "contradiction_real"}) {
+			try (InputStream in = ModelTest.class.getClassLoader().getResourceAsStream("real/" + f + ".json")) {
+				assertNotNull(in, f);
+				JsonObject card = JsonParser.parseReader(new InputStreamReader(in)).getAsJsonObject().getAsJsonObject("card");
+				ConceptCard c = ConceptCard.parse(card);
+				assertNull(c.site().template(), "a custom site keeps a null template");
+				assertEquals("infernal", c.style().template());
+			}
+		}
+	}
+
+	@Test
 	void splitsSiteStylePurposeAndKeepsCustomSiteTemplateNull() throws Exception {
 		ConceptCard c = ConceptCard.parse(fixtureCard("crater_works"));
 		assertEquals("giant meteor crater", c.site().text());

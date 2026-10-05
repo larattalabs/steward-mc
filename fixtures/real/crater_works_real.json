@@ -1,0 +1,48 @@
+{
+  "prompt": "Player's description:\nrepurposed giant meteor crater mining facility, hellish evil lair\n\nSettings: world is survival; default difficulty supplied; claim radius 96 blocks.\n",
+  "card": {
+    "name": "Meteor Crater Hell Mine",
+    "site": {
+      "text": "giant meteor crater",
+      "template": null,
+      "terrain": "sculpt",
+      "size": "L"
+    },
+    "style": {
+      "text": "hellish evil lair",
+      "template": "infernal"
+    },
+    "purpose": {
+      "text": "mining facility",
+      "template": "mining_outpost"
+    },
+    "story": {
+      "text": "repurposed"
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "supplied"
+    },
+    "avoid": [],
+    "interpretation": "The site is a giant meteor crater, which has to be sculpted into the land because it doesn't occur naturally. The purpose is a working mining facility. The style is a hellish, evil lair, with Nether-like blocks, lava glow and dark materials. \"Repurposed\" is the only backstory: the crater was reused for mining and not built for it. It is sized to fit inside your 96-block claim.",
+    "contradictions": [],
+    "assumptions": [
+      "Size L so the crater fits inside the 96-block claim radius.",
+      "Density medium, since none was given.",
+      "No location given, so the search finds a spot.",
+      "Difficulty is supplied, from the default setting.",
+      "No backstory beyond 'repurposed'; none invented."
+    ]
+  },
+  "model": "claude-sonnet-5-5",
+  "cost": {
+    "usd": 0.018734,
+    "inputTokens": 2,
+    "outputTokens": 583,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 3225,
+    "turns": 2
+  },
+  "note": "real claude-sonnet-5-5 output via Architect job.run (structured), 2026-10-05"
+}

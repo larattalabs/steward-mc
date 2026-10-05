@@ -1,0 +1,51 @@
+{
+  "prompt": "Player's description:\ncozy farm town inside a hellish volcano, everyone is friendly, huge\n\nSettings: world is survival; default difficulty supplied; claim radius 96 blocks.\n",
+  "card": {
+    "name": "Hearthcaldera Farm Town",
+    "site": {
+      "text": "inside a hellish volcano, settlement nestled in the caldera",
+      "template": null,
+      "terrain": "sculpt",
+      "size": "XL"
+    },
+    "style": {
+      "text": "cozy, warm and friendly village look set against hellish volcanic surroundings: basalt, blackstone, magma and lava glow, with warm lantern light and cozy wood cottages",
+      "template": "infernal"
+    },
+    "purpose": {
+      "text": "cozy farm town where friendly residents grow food",
+      "template": "farm_town"
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "supplied"
+    },
+    "avoid": [],
+    "interpretation": "A huge farm town set inside the caldera of a hellish volcano. The land is reshaped into a volcano with the town on its floor and slopes. The look is infernal on the outside (basalt, magma, lava glow) but the town itself is cozy and welcoming, with warm lights and homey cottages. Friendly residents are a mood for the town, not a backstory.",
+    "contradictions": [
+      {
+        "issue": "Cozy, friendly farm town versus hellish volcano setting",
+        "resolution": "Keep both: the volcano and infernal materials form the surroundings, while the town uses warm lighting, cottages and farms to feel safe and inviting."
+      }
+    ],
+    "assumptions": [
+      "Size is XL because the player said huge.",
+      "Density is medium since none was given.",
+      "Location is searched for since the player did not say near spawn or here.",
+      "Terrain is sculpted because a volcano rarely exists naturally.",
+      "Farms use vanilla crops, with lava-safe fenced fields and water channels.",
+      "Story left empty since none was given."
+    ]
+  },
+  "model": "claude-sonnet-5-5",
+  "cost": {
+    "usd": 0.010899,
+    "inputTokens": 2,
+    "outputTokens": 724,
+    "cacheReadTokens": 2436,
+    "cacheWriteTokens": 792,
+    "turns": 2
+  },
+  "note": "real claude-sonnet-5-5 output via Architect job.run (structured), 2026-10-05"
+}
