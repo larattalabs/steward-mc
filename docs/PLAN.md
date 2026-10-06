@@ -169,7 +169,7 @@ Architect changes are requested through the Architect session and land there fir
 ## Architect constraints (from Architect's reply, 2026-10-05)
 
 Binding for Steward's plans until Architect changes them:
-- Sites never overlap today. Architect will back sites with a **change-set journal** (ported from AgentCraft's WorldJournal, phase 4e), which makes overlap legal and undo ordered, conflict-aware and exact; nested sites are dropped. Until then no covering terrain site.
+- (Delivered in Architect 0.8.0 / API 1.5.0, 2026-10-06: journal-backed sites, opt-in LAYER, roads as sites that layer over cell sites and skip sites and roads, `placeCells`, `stack()`, covers/coveredBy.) Sites never overlap by default. Architect backs sites with a **change-set journal** (ported from AgentCraft's WorldJournal, phase 4e), which makes overlap legal and undo ordered, conflict-aware and exact; nested sites are dropped. Until then no covering terrain site.
 - DesignRequest `maxSize` is x/z 7..96, y 6..64: that caps the single-template format only. Larger sites are **region programs** whose shape math runs once, in the sidecar's JS kit, producing cell lists per chunk section that the mod writes through the journal (see A5B-SPEC.md).
 - Survival is per world; placement modes are limited to what the world allows (see Difficulty).
 - Occupancy refuses placement near the player; placements are asynchronous.

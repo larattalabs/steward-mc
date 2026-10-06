@@ -212,6 +212,13 @@ The fixture is also the regression test for any later change to the batch queue 
 10 ms about 34-35k cells/s (0.8 s). Ballpark for `mega_bench` planning: a million-cell site is about 50 s at the default budget, 10 million about 8 minutes,
 before lighting and chunk loading effects, which this run did not stress (see the unmeasured items in section 8).
 
+**Measured with Architect's journal (phase 4e gate, 2026-10-06).** Journal size: a 256x256 flattened pad 0.04 bytes/cell, a synthetic 760k-cell village-scale layout
+(40 lots, 8 roads) 0.39 bytes/cell. `Sites.stack()` at depth 4: p50 1.1-1.2 microseconds, p99 1.5-2.8. A 12-lot village plus roads at the 4 ms budget: 15-16.6k cells/s,
+max MSPT 13 ms (the journal costs about a fifth of 4d's 20k cells/s). Mega-lite (760k cells) stays under 50 ms per tick at every budget (max 27-46 ms); its group undo took
+10.6 s. Recorded, not gated: a 1000x1000 run placed 11.6M cells in 34 minutes at 4 ms (about 5.7k cells/s with unloaded chunks and worldgen), 11 of 610 lots timed out
+NOT_LOADED under LOAD_BOUNDED(64), and ticks reached 237 ms while the server generated unexplored terrain. So the megastructure answer is: storage is solved,
+**terrain generation and chunk loading** now dominate, which the staged-build mode (build near the player, over time) is the answer to. Architect will chase both in phase 6.
+
 ## 7. Resolved with Architect (2026-10-05)
 
 1. **Survey:** Architect owns the format and the mod-side sampler, generic and exposed by the API. Heights at 1-block resolution

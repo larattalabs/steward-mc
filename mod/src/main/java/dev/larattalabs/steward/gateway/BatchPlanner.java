@@ -5,6 +5,7 @@ import dev.larattalabs.architect.api.Batch;
 import dev.larattalabs.architect.api.LotFit;
 import dev.larattalabs.architect.api.Mode;
 import dev.larattalabs.architect.api.PlaceRequest;
+import dev.larattalabs.architect.api.RoadRequest;
 import dev.larattalabs.steward.layout.VillageLayout;
 import dev.larattalabs.steward.layout.VillageLayout.Front;
 import dev.larattalabs.steward.layout.VillageLayout.Lot;
@@ -16,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
@@ -84,6 +86,16 @@ public final class BatchPlanner {
 	 */
 	public static Result build(Settlement s, VillageLayout.Plan plan, Set<String> landmarkIds, Map<String, String> entries, Map<String, LotFit> fits,
 		@Nullable ServerLevel level, boolean worldSurvival, boolean autoApprove) {
+		return build(s, plan, landmarkIds, entries, fits, level, worldSurvival, autoApprove, false);
+	}
+
+	/**
+	 * As {@link #build(Settlement, VillageLayout.Plan, Set, Map, Map, ServerLevel, boolean, boolean)}, optionally with the village street as an Architect road
+	 * placed in a first stage, so every lot's approach stops at it (Architect 4e: roads are sites; an approach stopped by a road is not an overlap).
+	 * Roads are instant-only in Architect 1.5.0: in a construction-mode batch the street is left out and the result says so.
+	 */
+	public static Result build(Settlement s, VillageLayout.Plan plan, Set<String> landmarkIds, Map<String, String> entries, Map<String, LotFit> fits,
+		@Nullable ServerLevel level, boolean worldSurvival, boolean autoApprove, boolean includeStreet) {
 		Mode mode = modeFor(s.difficulty(), worldSurvival);
 		Map<String, Batch.Item> items = new LinkedHashMap<>();
 		List<String> skipped = new ArrayList<>();
@@ -104,6 +116,15 @@ public final class BatchPlanner {
 			items.put(l.id(), new Batch.Item(l.id(), r, stageOf.get(l.id()), List.of()));
 		}
 		List<Batch.StageSpec> specs = new ArrayList<>();
+		String note = null;
+		if (includeStreet) {
+			if (mode == Mode.INSTANT && !plan.lots().isEmpty()) {
+				items.put(STREET_KEY, Batch.Item.road(STREET_KEY, street(s, plan, level), "street", List.of()));
+				specs.add(new Batch.StageSpec("street", List.of(STREET_KEY)));
+			} else {
+				note = "the street was left out: roads can only be placed instantly (Patron in a world with survival off)";
+			}
+		}
 		for (StageDef sd : stageDefs) {
 			List<String> ids = sd.lotIds().stream().filter(items::containsKey).toList();
 			if (!ids.isEmpty()) specs.add(new Batch.StageSpec(sd.name(), ids));
@@ -112,8 +133,26 @@ public final class BatchPlanner {
 		ext.addProperty("steward_mc:settlement", s.id());
 		Batch b = new Batch(null, s.owner(), ext, s.id(), new ArrayList<>(items.values()), specs, Batch.WaitPolicy.DEFAULT,
 			dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY, null, false, autoApprove, false, null);
-		return new Result(b, List.copyOf(skipped));
+		return new Result(b, List.copyOf(skipped), note);
 	}
 
-	public record Result(Batch batch, List<String> skippedLotIds) {}
+	public static final String STREET_KEY = "street";
+
+	/** The village's main street as a road request: two waypoints along the street, a little past the outer lots, kept inside the claim. */
+	static RoadRequest street(Settlement s, VillageLayout.Plan plan, @Nullable ServerLevel level) {
+		int pad = 4;
+		int x0 = Math.max(s.claim().centerX() - s.claim().radius(), plan.streetX0() - pad);
+		int x1 = Math.min(s.claim().centerX() + s.claim().radius(), plan.streetX1() + pad);
+		JsonObject ext = new JsonObject();
+		ext.addProperty("steward_mc:settlement", s.id());
+		ext.addProperty("steward_mc:street", true);
+		return new RoadRequest(level, List.of(new BlockPos(x0, plan.streetY(), plan.streetZ()), new BlockPos(x1, plan.streetY(), plan.streetZ())), 3, null, null,
+			true, false, Mode.INSTANT, s.owner(), ext, null, false);
+	}
+
+	public record Result(Batch batch, List<String> skippedLotIds, @Nullable String note) {
+		public Result(Batch batch, List<String> skippedLotIds) {
+			this(batch, skippedLotIds, null);
+		}
+	}
 }

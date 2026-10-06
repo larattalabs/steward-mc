@@ -53,3 +53,5 @@ Agreed with the Architect session (it uses 7890/7891, 7990/7991, 8090/8091, 8190
 - `gateway/BatchPlanner`: designed lots + `fitToLot` results into Architect's `Batch` (one item per lot keyed by the lot id, owner and group = the settlement,
   stages: landmarks first then districts of 4 from the street's middle outward, mode INSTANT only for Patron where the world allows it, never an actor);
   lots without a design or with a refused fit are skipped and named. The caller does the `Sites.fitToLot` calls with a live world.
+- `BatchPlanner.build(..., includeStreet)`: the village street as an Architect road (`Batch.Item.road`) in a first stage, so approaches stop at it. Roads are instant-only in
+  API 1.5.0, so in construction mode the street is left out and `Result.note()` says so.

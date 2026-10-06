@@ -149,4 +149,38 @@ class BatchPlannerTest {
 		for (Batch.Item i : r.batch().items()) assertEquals(Mode.CONSTRUCTION, i.request().mode());
 		for (Batch.StageSpec st : r.batch().stages()) assertFalse(st.items().contains(lots.get(0).id()));
 	}
+
+	@Test
+	void theStreetIsARoadInAFirstStageWhenInstant() throws Exception {
+		Settlement s = settlement(Difficulty.PATRON);
+		VillageLayout.Plan p = plan(6);
+		Map<String, String> entries = new HashMap<>();
+		Map<String, LotFit> fits = new HashMap<>();
+		for (Lot l : p.lots()) { entries.put(l.id(), "gen_" + l.id()); fits.put(l.id(), okFit(l)); }
+		BatchPlanner.Result r = BatchPlanner.build(s, p, Set.of(), entries, fits, null, false, false, true);
+		assertNull(r.note());
+		assertEquals(p.lots().size() + 1, r.batch().items().size());
+		assertEquals("street", r.batch().stages().get(0).name());
+		Batch.Item street = r.batch().items().stream().filter(i -> "street".equals(i.itemKey())).findFirst().orElseThrow();
+		assertNull(street.request());
+		assertNotNull(street.road());
+		assertEquals(3, street.road().width());
+		assertEquals(Mode.INSTANT, street.road().mode());
+		assertEquals(p.streetZ(), street.road().points().get(0).getZ());
+		assertTrue(CLAIM.contains("minecraft:overworld", street.road().points().get(0).getX(), 70, street.road().points().get(0).getZ()));
+		assertTrue(CLAIM.contains("minecraft:overworld", street.road().points().get(1).getX(), 70, street.road().points().get(1).getZ()));
+	}
+
+	@Test
+	void noStreetInConstructionModeAndTheResultSaysWhy() throws Exception {
+		Settlement s = settlement(Difficulty.SUPPLIED);
+		VillageLayout.Plan p = plan(4);
+		Map<String, String> entries = new HashMap<>();
+		Map<String, LotFit> fits = new HashMap<>();
+		for (Lot l : p.lots()) { entries.put(l.id(), "gen_" + l.id()); fits.put(l.id(), okFit(l)); }
+		BatchPlanner.Result r = BatchPlanner.build(s, p, Set.of(), entries, fits, null, false, false, true);
+		assertNotNull(r.note());
+		assertEquals(p.lots().size(), r.batch().items().size());
+		assertTrue(r.batch().items().stream().noneMatch(i -> "street".equals(i.itemKey())));
+	}
 }
