@@ -1,0 +1,100 @@
+{
+  "purpose": "Candidate settlement-flavoured briefs for Architect's eval set v2 (A4/R8). Derived from Steward's concept-card fixtures and the LotBrief note format; the `notes` text is what a real Steward group item carries. In a group run they would also carry GroupRequest.context (settlement, site, purpose, street, neighbour lots).",
+  "briefs": [
+    {
+      "id": "s1_crater_ore_hall",
+      "from": "crater_works (L, infernal, mining_outpost)",
+      "request": {
+        "type": "custom",
+        "profile": [
+          "door",
+          "lit",
+          "no_floating",
+          "passage:3x3"
+        ],
+        "style": "hellish evil lair",
+        "maxSize": {
+          "x": 40,
+          "y": 30,
+          "z": 32
+        },
+        "notes": "Part of a settlement: giant meteor crater, used as mining facility. Backstory: repurposed after the impact. Its role in the settlement is a ore_hall (design it as a custom building of that kind). Design it with its front facing south as usual; the mod turns the building so its entrance faces the street."
+      }
+    },
+    {
+      "id": "s2_crater_foreman_office",
+      "from": "crater_works",
+      "request": {
+        "type": "house",
+        "style": "hellish evil lair",
+        "maxSize": {
+          "x": 18,
+          "y": 24,
+          "z": 14
+        },
+        "notes": "Part of a settlement: giant meteor crater, used as mining facility. Backstory: repurposed after the impact. Its role in the settlement is a house: the overseer's office with windows toward the pit. Design it with its front facing south as usual; the mod turns the building so its entrance faces the street."
+      }
+    },
+    {
+      "id": "s3_stilt_fisher_house",
+      "from": "stilt_village (M, rustic, port)",
+      "request": {
+        "type": "house",
+        "style": "mossy and crooked",
+        "maxSize": {
+          "x": 13,
+          "y": 24,
+          "z": 12
+        },
+        "notes": "Part of a settlement: stilt village over a swamp, used as fishing village. Its role in the settlement is a house on stilts with a dock side. Design it with its front facing south as usual; the mod turns the building so its entrance faces the street."
+      }
+    },
+    {
+      "id": "s4_stilt_net_shed",
+      "from": "stilt_village",
+      "request": {
+        "type": "custom",
+        "profile": [
+          "door",
+          "roof_closed",
+          "no_floating"
+        ],
+        "style": "mossy and crooked",
+        "maxSize": {
+          "x": 10,
+          "y": 18,
+          "z": 9
+        },
+        "notes": "Part of a settlement: stilt village over a swamp, used as fishing village. Its role in the settlement is a net-drying shed. Design it with its front facing south as usual; the mod turns the building so its entrance faces the street."
+      }
+    },
+    {
+      "id": "s5_sky_chapel",
+      "from": "sky_temple (S, calm and bright, monastery; avoid dark stone)",
+      "request": {
+        "type": "chapel",
+        "style": "calm and bright",
+        "maxSize": {
+          "x": 14,
+          "y": 30,
+          "z": 18
+        },
+        "notes": "Part of a settlement: floating sky temple, used as a home for monks. Its role in the settlement is a chapel. Avoid: dark stone. Design it with its front facing south as usual; the mod turns the building so its entrance faces the street."
+      }
+    },
+    {
+      "id": "s6_volcano_barn",
+      "from": "contradiction (XL, infernal, farm_town; cozy and friendly)",
+      "request": {
+        "type": "barn",
+        "style": "hellish, softened with warm wood and lanterns",
+        "maxSize": {
+          "x": 28,
+          "y": 24,
+          "z": 20
+        },
+        "notes": "Part of a settlement: a cozy farm town inside a hellish volcano; the residents are friendly. Its role in the settlement is a barn. Design it with its front facing south as usual; the mod turns the building so its entrance faces the street."
+      }
+    }
+  ]
+}
