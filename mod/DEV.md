@@ -45,8 +45,7 @@ Agreed with the Architect session (it uses 7890/7891, 7990/7991, 8090/8091, 8190
 ## Smoke test (2026-10-05)
 `./gradlew runClient --offline` (ports 8490/8491), then Architect's devcli with `ARCHITECT_GAME_DIR=$PWD/run` (its token is in `run/architect/devbridge.token`):
 `node ../architect-mc/tools/devcli.mjs wait --port 8491`, `cmd "/steward status" --port 8491` gave "Steward: Architect API 1.1.0 ok (11 features)" and
-"Claude link: up". `/steward card <text>` was NOT run live: the sidecar can inherit Anthropic credentials from the environment and a real card costs about
-2 cents, so it waits for an explicit go-ahead (the same call was verified on real Claude by the Architect session with this repo's schema and prompt).
+"Claude link: up". `/steward card <text>` live run: see "Live card run" below.
 - `gateway/GroupPlanner`: concept card + `VillageLayout` plan + bible id into Architect's `GroupRequest` (one item per lot keyed by the lot id; the largest
   lot is the Opus anchor, other landmarks wave 1, the rest Sonnet wave 2; massing first with `approvalUi OWNER`; 3 redirects; shared context with the settlement,
   street and neighbour lots; budget from the card or `BudgetPolicy`; lots past Architect's 24-item cap are reported, landmarks are never dropped).
@@ -59,3 +58,14 @@ Agreed with the Architect session (it uses 7890/7891, 7990/7991, 8090/8091, 8190
   bible approval, massing-first group, the player's massing decisions (auto-approved at Autonomous and Full), the soft-budget pause (always asks for money), usage
   holds, fit and queue, done. Terminal states ignore events. A thin adapter will turn commands into Architect calls and Architect events into events; the reducer
   makes no calls, so it is tested exhaustively (13 tests).
+
+## Live card run (2026-10-07)
+First real run of the Java path (`/steward card` -> `Jobs.run` -> `JOB_DONE` -> `CardService`) on the personal Claude login (Claude Max), no API key:
+the crater prompt gave "Crater Hellmine" in about 6 s for $0.0185 (2 turns, 574 output tokens, 2962 cache-write tokens). Site custom crater (sculpt, L), style infernal,
+purpose mining_outpost, no contradictions; the story came back as a one-sentence elaboration of "repurposed" (the earlier WebSocket-level run kept it to the one word).
+The result is in `fixtures/real/crater_works_java_path.json` and validates against the schema.
+
+How to repeat it (the login needs care): the dev client's sidecar uses the login only if `run/architect/sidecar-data/secrets.json` contains `{"useClaudeLogin": true}` (personal use;
+delete it afterwards), and the client must start from a scrubbed environment so no API key or Claude Code session variable reaches the sidecar:
+`env -i HOME="$HOME" USER="$USER" LOGNAME="$USER" TMPDIR="$TMPDIR" SHELL=/bin/zsh PATH=/opt/homebrew/bin:/usr/bin:/bin JAVA_HOME=... GRADLE_USER_HOME=... ./gradlew runClient --offline`
+(without USER/LOGNAME the keychain login is not found). The published 0.8.0 jar bundles the sidecar; a jar built from a tag clone needs `npm ci && npm run build` in `sidecar/` first.

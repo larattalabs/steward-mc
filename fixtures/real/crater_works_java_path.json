@@ -1,0 +1,48 @@
+{
+  "prompt": "repurposed giant meteor crater mining facility, hellish evil lair",
+  "card": {
+    "name": "Crater Hellmine",
+    "site": {
+      "text": "giant meteor crater",
+      "template": null,
+      "terrain": "sculpt",
+      "size": "L"
+    },
+    "style": {
+      "text": "hellish evil lair",
+      "template": "infernal"
+    },
+    "purpose": {
+      "text": "mining facility",
+      "template": "mining_outpost"
+    },
+    "story": {
+      "text": "Repurposed: the crater was reclaimed from its earlier use and turned into a mine."
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "The site is a giant meteor crater, which we'll sculpt into the land. The purpose is a mining facility with shafts, ore processing and storage. The style is a hellish evil lair, built from nether-style materials, dark stone, lava glow and spikes. \"Repurposed\" is the only backstory: the crater was taken over and put to new use.",
+    "contradictions": [],
+    "assumptions": [
+      "Size L so the crater fits within the 128-block claim radius.",
+      "Density medium.",
+      "Location is searched for since no spot was named.",
+      "Difficulty is patron, the default.",
+      "No budget given."
+    ]
+  },
+  "model": "claude-sonnet-5-5",
+  "cost": {
+    "usd": 0.018451,
+    "inputTokens": 931,
+    "outputTokens": 574,
+    "cacheReadTokens": 0,
+    "cacheWriteTokens": 2962,
+    "turns": 2
+  },
+  "note": "real claude-sonnet-5-5 output through the Java path (Steward /steward card -> Jobs.run -> JOB_DONE), 2026-10-07"
+}
