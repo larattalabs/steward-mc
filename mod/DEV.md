@@ -55,3 +55,7 @@ Agreed with the Architect session (it uses 7890/7891, 7990/7991, 8090/8091, 8190
   lots without a design or with a refused fit are skipped and named. The caller does the `Sites.fitToLot` calls with a live world.
 - `BatchPlanner.build(..., includeStreet)`: the village street as an Architect road (`Batch.Item.road`) in a first stage, so approaches stop at it. Roads are instant-only in
   API 1.5.0, so in construction mode the street is left out and `Result.note()` says so.
+- `pipeline/Pipeline`: the generation pipeline of one settlement as a pure reducer (`step(state, event, permission) -> {next state, commands}`): card approval, bible,
+  bible approval, massing-first group, the player's massing decisions (auto-approved at Autonomous and Full), the soft-budget pause (always asks for money), usage
+  holds, fit and queue, done. Terminal states ignore events. A thin adapter will turn commands into Architect calls and Architect events into events; the reducer
+  makes no calls, so it is tested exhaustively (13 tests).
