@@ -235,6 +235,9 @@ Claude-designed modules pass the tick-simulation gate before acceptance.
 
 ## Risks
 
+- **Polish failed its gate too (Architect 0.10.0, 2026-10-08):** the critic accepted 0 steps even for visible fixes, so polish stays behind a dev flag. Delta apply itself shipped and passed its gate
+  (12-village deltas max tick 11 ms; a 590k-cell full-change delta in 10.3 s, exact revert; survival items in = out). Steward's evolution therefore applies re-designed versions with `checkDelta`/`applyDelta`
+  (`UpdatePlanner`); the cheap scoping call (`fits`/`suggest`) can route free-text requests.
 - **Critique loop did not earn its cost (Architect 0.9.0 phase 5a, 2026-10-07).** On 18 Sonnet briefs a blind Opus judge preferred the loop's output 7 times to 6 losses and 5
   ties (p 0.50), the critic's own mean went 5.48 to 5.76 (never reaching its 7 ship line), and the loop cost +52% and +3 min per design. It ships experimental and off by default. Steward's
   plan therefore uses **REPORT critiques only** (about $0.05-0.15 per design, inside the design's slot): scores and open issues feed the inbox and can gate Steward's own decisions

@@ -71,3 +71,6 @@ delete it afterwards), and the client must start from a scrubbed environment so 
 (without USER/LOGNAME the keychain login is not found). The published 0.8.0 jar bundles the sidecar; a jar built from a tag clone needs `npm ci && npm run build` in `sidecar/` first.
 - `GroupPlanner` now gives every item a REPORT-only critique (Architect 0.9.0 `CritiqueSpec`) with up to three lot-specific criteria; `Options.withCritiqueReport(false)` turns it off.
   `BudgetPolicy.estimateWithCritiqueReports` adds $0.05-0.15 per building. The revision loop is not used (it failed Architect's gates).
+- `gateway/UpdatePlanner` (Architect 0.10.0 / API 1.7.0 delta apply): turns a `checkDelta` preview into APPLY / ASK / BLOCKED / NOTHING by permission level, with the inbox text
+  ("2 parts changed (+wing, roof), 44 blocks, 2 edited blocks kept, needs 140 dirt"). Survival deltas (non-empty BOM) always ask; creative upgrades auto-apply at Autonomous and Full;
+  player edits are KEPT (REFUSE only at Observer). Polish failed Architect's gate, so new versions come from re-designs, not polish.
