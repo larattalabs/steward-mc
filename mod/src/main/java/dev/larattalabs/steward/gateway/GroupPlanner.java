@@ -2,6 +2,8 @@ package dev.larattalabs.steward.gateway;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import dev.larattalabs.architect.api.CritiqueMode;
+import dev.larattalabs.architect.api.CritiqueSpec;
 import dev.larattalabs.architect.api.DesignRequest;
 import dev.larattalabs.architect.api.GroupRequest;
 import dev.larattalabs.steward.layout.VillageLayout;
@@ -26,7 +28,15 @@ public final class GroupPlanner {
 	private GroupPlanner() {
 	}
 
-	public record Options(String bibleId, @Nullable Integer bibleVersion, double budgetUsd, int concurrency, int maxRedirects, int landmarks) {
+	public record Options(String bibleId, @Nullable Integer bibleVersion, double budgetUsd, int concurrency, int maxRedirects, int landmarks, boolean critiqueReport) {
+		public Options(String bibleId, @Nullable Integer bibleVersion, double budgetUsd, int concurrency, int maxRedirects, int landmarks) {
+			this(bibleId, bibleVersion, budgetUsd, concurrency, maxRedirects, landmarks, true);
+		}
+
+		public Options withCritiqueReport(boolean on) {
+			return new Options(bibleId, bibleVersion, budgetUsd, concurrency, maxRedirects, landmarks, on);
+		}
+
 		/** Defaults for a card: its budget if the player set one, else the size-scaled suggestion; landmarks per the typical count for the size. */
 		public static Options forCard(Settlement s, String bibleId, @Nullable Integer bibleVersion) {
 			String size = s.card().site().size();
@@ -63,7 +73,8 @@ public final class GroupPlanner {
 			boolean landmark = landmarkIds.contains(l.id());
 			DesignRequest r = LotBrief.build(s, l, landmark ? LANDMARK_HEIGHT : ORDINARY_HEIGHT, null, null);
 			boolean anchor = l.id().equals(anchorId);
-			items.add(new GroupRequest.Item(l.id(), r, landmark ? GroupRequest.Role.LANDMARK : GroupRequest.Role.ORDINARY, landmark && !anchor ? 1 : 2, anchor));
+			GroupRequest.Item item = new GroupRequest.Item(l.id(), r, landmark ? GroupRequest.Role.LANDMARK : GroupRequest.Role.ORDINARY, landmark && !anchor ? 1 : 2, anchor);
+			items.add(o.critiqueReport() ? item.critique(reportSpec(s, l)) : item);
 		}
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
@@ -72,6 +83,22 @@ public final class GroupPlanner {
 			.withMassingFirst(GroupRequest.ApprovalUi.OWNER, o.maxRedirects())
 			.withContext(context(s, plan));
 		return new Built(req, List.copyOf(omitted));
+	}
+
+	/**
+	 * Report-only critique for an item (Architect 0.9.0: the revision LOOP failed its quality gates and ships experimental, so Steward uses REPORT, about $0.05-0.15
+	 * a design): scores and issues for the inbox, no revision. The extra criteria carry facts about this lot that the critic should check.
+	 */
+	static CritiqueSpec reportSpec(Settlement s, Lot l) {
+		List<String> extra = new ArrayList<>();
+		extra.add("The entrance is on the front (south) face and is easy to read and reach");
+		if (!s.card().avoid().isEmpty()) extra.add(clip("Avoids: " + String.join(", ", s.card().avoid())));
+		extra.add(clip("Reads as a " + l.type() + " in " + s.card().purpose().text()));
+		return new CritiqueSpec(CritiqueMode.REPORT, null, null, null, null, null, null, List.of(), null, extra);
+	}
+
+	private static String clip(String t) {
+		return t.length() <= CritiqueSpec.MAX_CRITERION ? t : t.substring(0, CritiqueSpec.MAX_CRITERION);
 	}
 
 	/** Shared context for every item's brief: what the settlement is, and where the neighbours and the street are. */

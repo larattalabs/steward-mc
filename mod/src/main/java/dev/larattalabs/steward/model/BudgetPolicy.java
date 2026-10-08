@@ -15,6 +15,8 @@ public final class BudgetPolicy {
 	public static final int LANDMARK_MIN_LOW = 8, LANDMARK_MIN_HIGH = 13;
 	public static final int ORDINARY_MIN_LOW = 4, ORDINARY_MIN_HIGH = 10;
 	public static final int WAVE_SIZE = 3;
+	/** A report-only critique per design (Architect 0.9.0 seeds: $0.05-0.15, about 0.5-2 min, run inside the design's slot). The revision loop is not planned for. */
+	public static final double CRITIQUE_REPORT_LOW = 0.05, CRITIQUE_REPORT_HIGH = 0.15;
 	/** Fraction of the budget at which the group pauses and asks (soft budget; the hard cap stays at 100%). */
 	public static final double SOFT_FRACTION = 0.8;
 
@@ -34,6 +36,12 @@ public final class BudgetPolicy {
 		int minLow = BIBLE_MIN_LOW + (l > 0 ? LANDMARK_MIN_LOW : 0) + waves * ORDINARY_MIN_LOW;
 		int minHigh = BIBLE_MIN_HIGH + (l > 0 ? LANDMARK_MIN_HIGH : 0) + waves * ORDINARY_MIN_HIGH;
 		return new Estimate(round1(low), round1(high), minLow, minHigh);
+	}
+
+	/** {@link #estimate(int, int)} plus a report-only critique on every building. Minutes are unchanged (the report runs inside the design's slot, within its own variance). */
+	public static Estimate estimateWithCritiqueReports(int buildings, int landmarks) {
+		Estimate e = estimate(buildings, landmarks);
+		return new Estimate(round1(e.usdLow() + buildings * CRITIQUE_REPORT_LOW), round1(e.usdHigh() + buildings * CRITIQUE_REPORT_HIGH), e.minutesLow(), e.minutesHigh());
 	}
 
 	/** Typical building and landmark counts per settlement size (S, M, L, XL). */

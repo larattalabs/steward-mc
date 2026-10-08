@@ -114,4 +114,26 @@ class GroupPlannerTest {
 		assertEquals(3, ctx.getAsJsonArray("lots").size());
 		assertEquals("dark stone", ctx.getAsJsonArray("avoid").get(0).getAsString());
 	}
+
+	@Test
+	void everyItemGetsAReportOnlyCritiqueWithLotSpecificCriteria() throws Exception {
+		Settlement s = settlement("sky_temple");
+		GroupRequest g = GroupPlanner.build(s, plan(3), GroupPlanner.Options.forCard(s, "b", null)).request();
+		for (var i : g.items()) {
+			assertNotNull(i.critique());
+			assertEquals(dev.larattalabs.architect.api.CritiqueMode.REPORT, i.critique().mode());
+			assertNull(i.critique().maxRevisions(), "no revision loop: it failed its gates and is experimental");
+			String all = String.join(" | ", i.critique().extraCriteria());
+			assertTrue(all.contains("entrance"));
+			assertTrue(all.contains("Avoids: dark stone"));
+			assertTrue(i.critique().extraCriteria().size() <= 3);
+		}
+	}
+
+	@Test
+	void critiqueCanBeSwitchedOff() throws Exception {
+		Settlement s = settlement("crater_works");
+		GroupRequest g = GroupPlanner.build(s, plan(3), GroupPlanner.Options.forCard(s, "b", null).withCritiqueReport(false)).request();
+		for (var i : g.items()) assertNull(i.critique());
+	}
 }

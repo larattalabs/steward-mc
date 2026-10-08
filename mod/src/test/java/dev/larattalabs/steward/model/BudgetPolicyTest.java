@@ -52,4 +52,14 @@ class BudgetPolicyTest {
 		assertEquals(BudgetPolicy.estimate(3, 3), BudgetPolicy.estimate(3, 9));
 		assertThrows(IllegalArgumentException.class, () -> BudgetPolicy.estimate(0, 0));
 	}
+
+	@Test
+	void reportCritiquesAddCentsPerBuildingAndNoTime() {
+		BudgetPolicy.Estimate base = BudgetPolicy.estimate(12, 2);
+		BudgetPolicy.Estimate with = BudgetPolicy.estimateWithCritiqueReports(12, 2);
+		assertEquals(base.usdLow() + 0.6, with.usdLow(), 0.01);
+		assertEquals(base.usdHigh() + 1.8, with.usdHigh(), 0.01);
+		assertEquals(base.minutesLow(), with.minutesLow());
+		assertEquals(base.minutesHigh(), with.minutesHigh());
+	}
 }

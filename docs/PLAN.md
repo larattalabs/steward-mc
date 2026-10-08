@@ -235,6 +235,11 @@ Claude-designed modules pass the tick-simulation gate before acceptance.
 
 ## Risks
 
+- **Critique loop did not earn its cost (Architect 0.9.0 phase 5a, 2026-10-07).** On 18 Sonnet briefs a blind Opus judge preferred the loop's output 7 times to 6 losses and 5
+  ties (p 0.50), the critic's own mean went 5.48 to 5.76 (never reaching its 7 ship line), and the loop cost +52% and +3 min per design. It ships experimental and off by default. Steward's
+  plan therefore uses **REPORT critiques only** (about $0.05-0.15 per design, inside the design's slot): scores and open issues feed the inbox and can gate Steward's own decisions
+  (for example "redirect this massing" or "polish later"), with per-lot extra criteria (entrance on the front face, the card's avoid list, reads as the lot's role). Do not plan on LOOP for
+  anchors or landmarks. A dedicated Opus-vs-Sonnet run for the landmark decision (about $30) is available if it matters. Bible format 2 (restraint) does de-clutter (detailNoise 0.27 vs 0.47).
 - **Cost and time.** Higher than first assumed (see principle 4). Managed by tiering (Opus only for landmarks), parallel waves, massing-first, an
   estimate shown before anything runs (`Designs.estimate`, Architect 4b Java), a soft budget that pauses at 80% and asks, a hard cap at 100%, caching,
   and the free fallback. Default budgets scale with the settlement size (`BudgetPolicy.suggestedBudgetUsd`: S $20, M $35, L $55, XL $95); the old $20
