@@ -84,3 +84,11 @@ Bug 2's name is now set in Java, so the SNBT question is moot. Open: B1 (waiting
 3. Persist runner state per settlement. Architect's catch-up (`listGroups(owner)`, durable JOB_DONE) makes resume after a restart feasible. This becomes simple once bug 5's dispatcher exists.
 4. The card's building program.
 5. A Steward `quick` gate chain.
+
+## Architect's answers (2026-10-09), for runner persistence
+- **Batches.** `Sites.batches(owner)` and `batch(id)` exist (since 1.4.0), but finished BatchViews last only until the world stops, and BATCH_DONE is not caught up. Rebuild placement outcomes durably from
+  `Sites.list(owner)`: every SiteView carries `batchId`, `itemKey` and the merged `ext`. Durable finished batches and a caught-up BATCH_DONE are queued for Architect 6c.
+- **Bibles and groups.** BIBLE_DONE and GROUP_DONE fire once per job or group, deduplicated, and catch up after a world loads, like JOB_DONE.
+- **Ack race.** Possible: the first upsert can arrive before the ack future completes, so re-reading after the ack (done in 3e9a555) is correct.
+- **Stage approval.** `Sites.approveStage(groupId, stage)` (plus skip, reorder and undo) since 1.4.0. For regions, the 6b nudge offers APPROVE_STAGE. This is what B1's stopgap uses for placement stages.
+- **Versions.** 6b (API 1.9.0) is in its in-game gate. The 6c contract comes after 6b ships, for Steward's review. Stay on Architect 0.11.2 (API 1.8.0).
