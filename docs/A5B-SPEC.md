@@ -219,6 +219,12 @@ max MSPT 13 ms (the journal costs about a fifth of 4d's 20k cells/s). Mega-lite 
 NOT_LOADED under LOAD_BOUNDED(64), and ticks reached 237 ms while the server generated unexplored terrain. So the megastructure answer is: storage is solved,
 **terrain generation and chunk loading** now dominate, which the staged-build mode (build near the player, over time) is the answer to. Architect will chase both in phase 6.
 
+**Measured by Architect's phase 6a gate (v0.11.0, 2026-10-09), mega_bench A: 1000x1000, 9.56M cells, prepared terrain.** Realise 54.6k cells/s; MSPT max 28 ms (p99 13 ms); 0 chunks generated during
+realise; prepare 2910 chunks in 147 s; journal 0.20 bytes/cell; heap about 0.7 GB above the game; group undo 135-141 s (max tick 29 ms); an exact-restore check over 258M cells. Staged run (LOADED_ONLY, scripted walk): 0 failed
+items, resume 1 s after a relog and 2 s after a sidecar kill; chunks loaded per stage ground 47,449, ways 5,710, lots 5,344 / 6,935 / 7,534 / 1,068; engine time ground 68.7 s, other stages 0.15-2.5 s (the harness's per-stage
+wall time is a 30 s dwell per waypoint, not engine speed). So a megastructure at this scale is now a few minutes of engine time plus the player's walk, and prepare is a one-off 2.5 minutes. The earlier lot timeouts were
+shared chunk tickets being dropped (now reference-counted). Journal format 2: a 0.10.x client refuses a world 0.11.0 wrote.
+
 ## 7. Resolved with Architect (2026-10-05)
 
 1. **Survey:** Architect owns the format and the mod-side sampler, generic and exposed by the API. Heights at 1-block resolution
