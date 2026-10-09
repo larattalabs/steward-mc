@@ -74,3 +74,6 @@ delete it afterwards), and the client must start from a scrubbed environment so 
 - `gateway/UpdatePlanner` (Architect 0.10.0 / API 1.7.0 delta apply): turns a `checkDelta` preview into APPLY / ASK / BLOCKED / NOTHING by permission level, with the inbox text
   ("2 parts changed (+wing, roof), 44 blocks, 2 edited blocks kept, needs 140 dirt"). Survival deltas (non-empty BOM) always ask; creative upgrades auto-apply at Autonomous and Full;
   player edits are KEPT (REFUSE only at Observer). Polish failed Architect's gate, so new versions come from re-designs, not polish.
+- `item/FoundingStone`, `service/Settlements`, `entity/StewardNpc`: the stone claims 129x129 around the clicked block (per-world `steward-settlements.json`, overlaps refused) and spawns the steward, a vanilla
+  `minecraft:mannequin` (persistent, player-shaped, immovable, tagged `steward_mc.steward` and `steward_mc.settlement.<id>`) through the summon command. Right-clicking it (Fabric `UseEntityCallback`) reports the
+  settlement and, if a build is running in this session, its pipeline status. Checked in a client: claim, NPC visible, both survive a restart. The right-click path itself was not driven (no use-entity hook in DevBridge).

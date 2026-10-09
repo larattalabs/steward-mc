@@ -17,6 +17,7 @@ public class Steward implements ModInitializer {
 		LOGGER.info("Steward common init: {}", status.summary());
 		dev.larattalabs.steward.item.FoundingStone.init();
 		dev.larattalabs.steward.service.Settlements.init();
+		dev.larattalabs.steward.entity.StewardNpc.init();
 		StewardCommands.init();
 	}
 }

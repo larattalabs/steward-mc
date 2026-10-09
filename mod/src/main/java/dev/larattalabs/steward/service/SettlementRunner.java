@@ -51,6 +51,19 @@ public final class SettlementRunner {
 		{"cabin", "12", "11"}, {"house", "14", "12"}, {"chapel", "14", "18"}, {"cottage", "12", "12"}, {"shop", "13", "12"}, {"house", "13", "13"}};
 	private static final int CLAIM_RADIUS = 64;
 
+	private static final Map<String, SettlementRunner> ACTIVE = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/** The runner of a settlement that is being built in this session (not persisted yet), or null. */
+	public static SettlementRunner active(String settlementId) {
+		return ACTIVE.get(settlementId);
+	}
+
+	/** One line for the steward to say: the pipeline phase, what each building is doing and the spend. */
+	public String statusLine() {
+		if (state == null) return "Getting started.";
+		return String.format("%s. Buildings: %s. Spent $%.2f of $%.0f.", state.phase().name().toLowerCase().replace('_', ' '), Pipeline.stageCounts(state), state.spentUsd(), state.budgetUsd());
+	}
+
 	private final MinecraftServer server;
 	private final ServerLevel level;
 	private final ServerPlayer player;
@@ -141,6 +154,7 @@ public final class SettlementRunner {
 			say("Layout: " + plan.lots().size() + " lots on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
 			if (plan.lots().isEmpty()) { say("No dry, flat room here. Try another spot."); return; }
 			register();
+			ACTIVE.put(settlement.id(), this);
 			if (resumeGroup != null) {
 				groupId = resumeGroup.id();
 				state = new State(Pipeline.Phase.GROUP_RUNNING, settlement.id(), r.card(), resumeGroup.bible().id(), resumeGroup.bible().version(), groupId, Map.of(), 0,

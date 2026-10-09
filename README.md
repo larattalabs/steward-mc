@@ -45,7 +45,9 @@ Run for real (dev client, claude login):
 
 Founding Stone (a right-click claims a 129x129 area, saved per world, overlapping claims refused) with `/steward describe`, `/steward start` and `/steward settlements`.
 
-Not built yet: the steward NPC, the concept-card screen, the inbox and HUD, proactive triggers, progression tiers, villagers and animals, functional farm modules.
+The steward NPC appears when you claim land: a persistent, player-shaped citizen (vanilla's mannequin entity, tagged with its settlement) that right-click reports on its settlement.
+
+Not built yet: steward movement and a custom skin, the concept-card screen, the inbox and HUD, proactive triggers, progression tiers, villagers and animals, functional farm modules.
 
 Where the plan is: [docs/PLAN.md](docs/PLAN.md). The macro-site spec and its measurements: [docs/A5B-SPEC.md](docs/A5B-SPEC.md). Every Architect contract Steward reviewed is in `docs/` (`A8-REVIEW.md` onward).
 
