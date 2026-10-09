@@ -8,7 +8,11 @@ import dev.larattalabs.steward.gateway.ArchitectGateway;
 import dev.larattalabs.steward.gateway.CardResult;
 import dev.larattalabs.steward.gateway.ConceptCardJob;
 import dev.larattalabs.steward.gateway.WorldMode;
+import dev.larattalabs.steward.model.Permission;
 import dev.larattalabs.steward.service.CardService;
+import dev.larattalabs.steward.service.SettlementRunner;
+import com.mojang.brigadier.arguments.DoubleArgumentType;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import java.util.Map;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.minecraft.commands.CommandSourceStack;
@@ -41,6 +45,16 @@ public final class StewardCommands {
 				}
 				return st.ok() ? 1 : 0;
 			}))
+			.then(Commands.literal("build").then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200))
+				.then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
+					CommandSourceStack src = ctx.getSource();
+					var player = src.getPlayerOrException();
+					int n = IntegerArgumentType.getInteger(ctx, "buildings");
+					double budget = DoubleArgumentType.getDouble(ctx, "budget");
+					SettlementRunner runner = new SettlementRunner(src.getServer(), src.getLevel(), player, Permission.FULL, service(), n >= 8 ? 2 : 0);
+					runner.start(StringArgumentType.getString(ctx, "text"), n, budget);
+					return 1;
+				})))))
 			.then(Commands.literal("card").then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
 				CommandSourceStack src = ctx.getSource();
 				String text = StringArgumentType.getString(ctx, "text");
