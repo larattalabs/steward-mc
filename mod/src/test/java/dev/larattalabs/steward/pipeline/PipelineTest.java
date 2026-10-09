@@ -179,4 +179,15 @@ class PipelineTest {
 		State m = Pipeline.step(n, group("running", Map.of("a", "done"), List.of(), 7.0), Permission.PROPOSALS).next();
 		assertEquals(8.4, m.spentUsd(), 1e-9);
 	}
+
+	@Test
+	void anUnnamedCardIsCalledByTheSettlementIdNeverNull() throws Exception {
+		ConceptCard c = card();
+		ConceptCard unnamed = new ConceptCard(null, c.site(), c.style(), c.purpose(), c.story(), c.constraints(), c.avoid(), c.interpretation(), c.contradictions(), c.assumptions());
+		State s = State.start("set_7", unnamed, 35.0);
+		Step st = Pipeline.step(s, new Cancel(), Permission.FULL);
+		Notify n = only(st, Notify.class);
+		assertFalse(n.text().contains("null"), n.text());
+		assertEquals("set_7", Pipeline.label(s));
+	}
 }

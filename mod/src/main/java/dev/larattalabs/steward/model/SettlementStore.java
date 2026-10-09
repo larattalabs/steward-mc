@@ -20,9 +20,12 @@ public final class SettlementStore {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	private static final int FORMAT = 1;
 
-	private record FileShape(int format, List<Settlement> settlements) {}
+	/** {@code nextSerial} is absent (0) in files written before it existed; ids are then derived from the settlements present. */
+	private record FileShape(int format, List<Settlement> settlements, int nextSerial) {}
 
 	private final Map<String, Settlement> byId = new LinkedHashMap<>();
+	/** The next id's number. It only grows, so a removed settlement's id (its Architect owner string, its tagged steward) is never handed to a new one. */
+	private int nextSerial = 1;
 
 	public List<Settlement> all() {
 		return List.copyOf(byId.values());
@@ -40,16 +43,24 @@ public final class SettlementStore {
 			}
 		}
 		byId.put(s.id(), s);
+		nextSerial = Math.max(nextSerial, serialOf(s.id()) + 1);
 	}
 
 	public void remove(String id) {
 		byId.remove(id);
 	}
 
+	/** The id for a new settlement, {@code set_<n>}. Taking it does not reserve it; {@link #put} does. */
 	public String nextId() {
-		for (int i = byId.size() + 1; ; i++) {
-			String id = "set_" + i;
-			if (!byId.containsKey(id)) return id;
+		return "set_" + nextSerial;
+	}
+
+	private static int serialOf(String id) {
+		if (!id.startsWith("set_")) return 0;
+		try {
+			return Integer.parseInt(id.substring(4));
+		} catch (NumberFormatException e) {
+			return 0;
 		}
 	}
 
@@ -59,7 +70,7 @@ public final class SettlementStore {
 	}
 
 	public String toJson() {
-		return GSON.toJson(new FileShape(FORMAT, new ArrayList<>(byId.values())));
+		return GSON.toJson(new FileShape(FORMAT, new ArrayList<>(byId.values()), nextSerial));
 	}
 
 	public static SettlementStore fromJson(String json) {
@@ -68,6 +79,7 @@ public final class SettlementStore {
 		if (f.format != FORMAT) throw new JsonParseException("unsupported settlements format " + f.format);
 		SettlementStore s = new SettlementStore();
 		for (Settlement x : f.settlements) s.put(x);
+		s.nextSerial = Math.max(s.nextSerial, f.nextSerial);
 		return s;
 	}
 

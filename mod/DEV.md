@@ -11,11 +11,11 @@ export GRADLE_USER_HOME=$PWD/../.gradle-home   # an APFS clone of Architect's ca
 First build without a cache needs network (Minecraft download and decompile). `.gradle-home/` is gitignored.
 
 ## Architect dependency
-`build.gradle` depends on `dev.larattalabs:architect_mc:${architect_version}` (gradle.properties, currently 0.4.0, API version 1.0.0) from mavenLocal. Build and
+`build.gradle` depends on `dev.larattalabs:architect_mc:${architect_version}` (gradle.properties, currently 0.11.2, API version 1.8.0; Steward refuses an API older than 1.8 and `fabric.mod.json` asks for `architect_mc >=0.11.0`) from mavenLocal. Build and
 publish it from Architect's checkout (or any clone of main at bac28db or later):
 
 ```sh
-cd ../../architect-mc/mod && ./gradlew build publishToMavenLocal      # -> ~/.m2/repository/dev/larattalabs/architect_mc/0.4.0/
+cd ../../architect-mc/mod && ./gradlew build publishToMavenLocal      # -> ~/.m2/repository/dev/larattalabs/architect_mc/<version>/
 ```
 
 Architect's artifact is also on GitHub Packages (`dev.larattalabs:architect_mc:0.4.0`, public); `build.gradle` has that repository after mavenLocal.
@@ -76,4 +76,7 @@ delete it afterwards), and the client must start from a scrubbed environment so 
   player edits are KEPT (REFUSE only at Observer). Polish failed Architect's gate, so new versions come from re-designs, not polish.
 - `item/FoundingStone`, `service/Settlements`, `entity/StewardNpc`: the stone claims 129x129 around the clicked block (per-world `steward-settlements.json`, overlaps refused) and spawns the steward, a vanilla
   `minecraft:mannequin` (persistent, player-shaped, immovable, tagged `steward_mc.steward` and `steward_mc.settlement.<id>`) through the summon command. Right-clicking it (Fabric `UseEntityCallback`) reports the
-  settlement and, if a build is running in this session, its pipeline status. Checked in a client: claim, NPC visible, both survive a restart. The right-click path itself was not driven (no use-entity hook in DevBridge).
+  settlement and, if a build is running in this session, its pipeline status (main hand only: the off-hand repeat is swallowed, `StewardNpc.use`). The name is set in Java after the summon, and `spawn` checks the
+  tagged entity exists. Checked in a client: claim, NPC visible, both survive a restart. The right-click path itself was not driven (no use-entity hook in DevBridge).
+- `SettlementRunner`: one runner per settlement (`busy`), Architect events routed through one set of listeners registered at init, all runners dropped on `SERVER_STOPPED`, the player found by UUID when it speaks,
+  ids from acks re-read once (an event can fire before the ack), the world's survival toggle decides the placement mode. Dev and cheat commands (`claim`, `survey`, `card`, `build`, `resume`) need permission level 2.

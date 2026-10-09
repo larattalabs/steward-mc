@@ -128,7 +128,7 @@ public final class Pipeline {
 		if (s.phase().terminal()) return Step.of(s);
 		if (e instanceof Cancel) {
 			State c = s.with(Phase.CANCELLED);
-			return s.groupId() != null ? Step.of(c, new CancelGroup(s.groupId()), new Notify("Cancelled " + s.card().name(), false)) : Step.of(c, new Notify("Cancelled", false));
+			return s.groupId() != null ? Step.of(c, new CancelGroup(s.groupId()), new Notify("Cancelled " + label(s), false)) : Step.of(c, new Notify("Cancelled", false));
 		}
 		return switch (s.phase()) {
 			case AWAITING_CARD_APPROVAL -> e instanceof CardApproved a ? cardApproved(s, a) : Step.of(s);
@@ -141,7 +141,7 @@ public final class Pipeline {
 				default -> Step.of(s);
 			};
 			case READY_TO_PLACE -> e instanceof BatchDone ? Step.of(s.with(Phase.PLACING)) : Step.of(s);
-			case PLACING -> e instanceof BatchDone b ? Step.of(s.with(Phase.DONE), new Notify(s.card().name() + " is built: " + b.placed() + " buildings placed" + (b.skipped() > 0 ? ", " + b.skipped() + " skipped" : ""), false)) : Step.of(s);
+			case PLACING -> e instanceof BatchDone b ? Step.of(s.with(Phase.DONE), new Notify(label(s) + " is built: " + b.placed() + " buildings placed" + (b.skipped() > 0 ? ", " + b.skipped() + " skipped" : ""), false)) : Step.of(s);
 			default -> Step.of(s);
 		};
 	}
@@ -156,7 +156,7 @@ public final class Pipeline {
 		if (!b.ok() || b.bibleId() == null) return Step.of(s.failed("the style bible failed: " + (b.error() == null ? "unknown" : b.error())), new Notify("The style bible could not be made: " + b.error(), true));
 		State n = s.withBible(b.bibleId(), b.version()).withBibleCost(b.costUsd());
 		if (perm.needsApproval(Permission.Action.NEW_PROJECT)) {
-			return Step.of(n.with(Phase.AWAITING_BIBLE_APPROVAL), new Notify("Style bible ready for " + s.card().name() + ": review its sheet and approve to start designing.", true));
+			return Step.of(n.with(Phase.AWAITING_BIBLE_APPROVAL), new Notify("Style bible ready for " + label(s) + ": review its sheet and approve to start designing.", true));
 		}
 		return requestGroup(n);
 	}
@@ -194,6 +194,12 @@ public final class Pipeline {
 		if (c.story() != null && c.story().text() != null && !c.story().text().isBlank()) parts.add("Backstory: " + c.story().text());
 		if (!c.avoid().isEmpty()) parts.add("Avoid: " + String.join(", ", c.avoid()));
 		return String.join(". ", parts) + ".";
+	}
+
+	/** What to call the settlement in messages: the card's name, which is optional, else the settlement id (never "null"). */
+	static String label(State s) {
+		String n = s.card() == null ? null : s.card().name();
+		return n == null || n.isBlank() ? s.settlementId() : n;
 	}
 
 	/** Items by stage, for the HUD ("5 massing, 2 approval, 1 detail, 4 done"). */

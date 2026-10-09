@@ -34,7 +34,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -43,15 +45,33 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
 
 /**
  * The live side of the generation pipeline for ONE settlement (a developer-driven runner until the Founding Stone exists): it turns {@link Pipeline}
- * commands into Architect API calls and Architect events into pipeline events. All callbacks arrive on the server thread. Dev scope: in memory only
- * (nothing is persisted), one village street layout, creative worlds (Patron), landmarks configurable.
+ * commands into Architect API calls and Architect events into pipeline events. All callbacks arrive on the server thread (Architect's API contract). Dev scope: in
+ * memory only (nothing is persisted), one village street layout, landmarks configurable.
+ *
+ * <p>One runner per settlement at a time ({@link #busy}); Architect events reach runners through one set of listeners registered at init ({@link #init}), and every
+ * runner is dropped when the server stops. The player is looked up by UUID whenever the runner speaks, so a respawn or relog does not silence it.
  */
 public final class SettlementRunner {
 	private static final String[][] ARCHETYPES = {{"tavern", "22", "18"}, {"house", "14", "13"}, {"shop", "14", "12"}, {"cottage", "13", "12"}, {"smithy", "15", "13"}, {"house", "13", "12"},
 		{"cabin", "12", "11"}, {"house", "14", "12"}, {"chapel", "14", "18"}, {"cottage", "12", "12"}, {"shop", "13", "12"}, {"house", "13", "13"}};
-	private static final int CLAIM_RADIUS = 64;
+	private static final int CLAIM_RADIUS = Settlements.DEFAULT_RADIUS;
 
 	private static final Map<String, SettlementRunner> ACTIVE = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/** Registers the event routing once (Fabric events cannot unregister, so runners never register their own) and drops every runner when the world closes. */
+	public static void init() {
+		SiteEvents.BIBLE_DONE.register(job -> List.copyOf(ACTIVE.values()).forEach(r -> r.onBibleDone(job)));
+		SiteEvents.GROUP_UPDATED.register(g -> List.copyOf(ACTIVE.values()).forEach(r -> r.onGroup(g)));
+		SiteEvents.GROUP_DONE.register(g -> List.copyOf(ACTIVE.values()).forEach(r -> r.onGroup(g)));
+		SiteEvents.BATCH_DONE.register(b -> List.copyOf(ACTIVE.values()).forEach(r -> r.onBatchDone(b)));
+		ServerLifecycleEvents.SERVER_STOPPED.register(server -> ACTIVE.clear());
+	}
+
+	/** Whether a settlement has a runner that has not finished (a second one would spend twice). */
+	public static boolean busy(String settlementId) {
+		SettlementRunner r = ACTIVE.get(settlementId);
+		return r != null && (r.state == null || !r.state.phase().terminal());
+	}
 
 	/** The runner of a settlement that is being built in this session (not persisted yet), or null. */
 	public static SettlementRunner active(String settlementId) {
@@ -66,7 +86,9 @@ public final class SettlementRunner {
 
 	private final MinecraftServer server;
 	private final ServerLevel level;
-	private final ServerPlayer player;
+	private final UUID playerId;
+	/** Where the player stood when the dev build started: the centre of a dev settlement (one from the Founding Stone uses its claim). */
+	private final net.minecraft.core.BlockPos origin;
 	private final Permission permission;
 	private final CardService cards;
 	private final int landmarks;
@@ -77,14 +99,16 @@ public final class SettlementRunner {
 	private String groupId;
 	private String batchId;
 	private Set<String> landmarkIds = Set.of();
-	private boolean registered;
+	/** The settlement id this runner holds in {@link #ACTIVE} while it is starting, before the settlement itself is known. */
+	private String claimedId;
 	/** lots already approved or redirected: Architect re-sends the awaiting status while an approval is in flight, and a second approve of the same item fails. */
 	private final Set<String> decided = new java.util.HashSet<>();
 
 	public SettlementRunner(MinecraftServer server, ServerLevel level, ServerPlayer player, Permission permission, CardService cards, int landmarks) {
 		this.server = server;
 		this.level = level;
-		this.player = player;
+		this.playerId = player.getUUID();
+		this.origin = player.blockPosition();
 		this.permission = permission;
 		this.cards = cards;
 		this.landmarks = landmarks;
@@ -96,10 +120,11 @@ public final class SettlementRunner {
 
 	/** Steps: concept card, survey and layout, then the pipeline. */
 	public void start(String prompt, int buildings, double budgetUsd) {
+		if (!claim(DEV_ID)) return;
 		say("Reading your description...");
 		cards.submit(prompt, Map.of(), new ConceptCardJob.Settings(false, "patron", CLAIM_RADIUS), null).whenComplete((r, err) -> {
-			if (err != null) { say("Card failed: " + err.getMessage()); return; }
-			if (!r.ok()) { say("Card failed: " + r.error()); return; }
+			if (err != null) { abandon("Card failed: " + err.getMessage()); return; }
+			if (!r.ok()) { abandon("Card failed: " + r.error()); return; }
 			for (String l : CardResult.lines(r.card(), r.cost())) say(l);
 			surveyAndStart(r, buildings, budgetUsd);
 		});
@@ -107,12 +132,13 @@ public final class SettlementRunner {
 
 	/** Dev: continue a paused group from a previous run (the sidecar kept it): rebuild the card from its job, re-survey the same spot, raise the budget and resume. */
 	public void resume(String groupIdToResume, String cardJobId, int buildings, double newBudgetUsd) {
+		if (!claim(DEV_ID)) return;
 		var api = ArchitectApi.get();
 		Group g = api.designs().group(groupIdToResume).orElse(null);
 		var job = api.jobs().get(cardJobId).orElse(null);
-		if (g == null || job == null) { say("Unknown group or card job."); return; }
+		if (g == null || job == null) { abandon("Unknown group or card job."); return; }
 		CardResult r = CardResult.interpret(job);
-		if (!r.ok()) { say("Card job unreadable: " + r.error()); return; }
+		if (!r.ok()) { abandon("Card job unreadable: " + r.error()); return; }
 		this.resumeGroup = g;
 		this.resumeBudget = newBudgetUsd;
 		surveyAndStart(r, buildings, newBudgetUsd);
@@ -125,17 +151,18 @@ public final class SettlementRunner {
 	/** Start from a settlement the player claimed with the Founding Stone and described: its claim and card are used, no card job runs. */
 	public void startExisting(Settlement s, int buildings, double budgetUsd) {
 		if (!s.described()) { say("Describe " + s.id() + " first: /steward describe " + s.id() + " <your words>"); return; }
+		if (!claim(s.id())) return;
 		this.existing = s;
 		surveyAndStart(new CardResult(s.card(), null, new dev.larattalabs.architect.api.Cost(0, 0, 0, 0, 0, 0)), buildings, budgetUsd);
 	}
 
 	private void surveyAndStart(CardResult r, int buildings, double budgetUsd) {
-		int cx = existing != null ? existing.claim().centerX() : player.blockPosition().getX();
-		int cz = existing != null ? existing.claim().centerZ() : player.blockPosition().getZ();
+		int cx = existing != null ? existing.claim().centerX() : origin.getX();
+		int cz = existing != null ? existing.claim().centerZ() : origin.getZ();
 		BoundingBox area = new BoundingBox(cx - CLAIM_RADIUS, level.getMinY(), cz - CLAIM_RADIUS, cx + CLAIM_RADIUS, level.getMaxY(), cz + CLAIM_RADIUS);
 		say("Surveying the land...");
 		ArchitectApi.get().survey().sample(level, area, 1, LoadPolicy.LOADED_ONLY).whenComplete((sample, err) -> {
-			if (err != null) { say("Survey failed: " + err.getMessage()); return; }
+			if (err != null) { abandon("Survey failed: " + err.getMessage()); return; }
 			Grid grid = TerrainGrid.fromSample(sample);
 			int wet = 0, lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
 			for (int z = grid.z0(); z < grid.z0() + grid.depth(); z++) for (int x = grid.x0(); x < grid.x0() + grid.width(); x++) {
@@ -144,7 +171,7 @@ public final class SettlementRunner {
 			}
 			Steward.LOGGER.info("survey: {}x{} columns, {} unusable (water or unloaded), {} loaded chunks, ground y {}..{}, trees {}", grid.width(), grid.depth(), wet, sample.chunksLoaded(), lo, hi, sample.tree().cardinality());
 			Claim claim = new Claim(level.dimension().identifier().toString(), cx, cz, CLAIM_RADIUS, level.getMinY(), level.getMaxY());
-			settlement = existing != null ? existing : Settlement.found("set_dev", r.card(), claim, permission, Difficulty.PATRON, System.currentTimeMillis());
+			settlement = existing != null ? existing : Settlement.found(DEV_ID, r.card(), claim, permission, Difficulty.PATRON, System.currentTimeMillis());
 			List<VillageLayout.LotSpec> specs = new ArrayList<>();
 			for (int i = 0; i < buildings; i++) {
 				String[] a = ARCHETYPES[i % ARCHETYPES.length];
@@ -152,9 +179,7 @@ public final class SettlementRunner {
 			}
 			plan = VillageLayout.plan(claim, grid, specs, VillageLayout.Rules.defaults());
 			say("Layout: " + plan.lots().size() + " lots on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
-			if (plan.lots().isEmpty()) { say("No dry, flat room here. Try another spot."); return; }
-			register();
-			ACTIVE.put(settlement.id(), this);
+			if (plan.lots().isEmpty()) { abandon("No dry, flat room here. Try another spot."); return; }
 			if (resumeGroup != null) {
 				groupId = resumeGroup.id();
 				state = new State(Pipeline.Phase.GROUP_RUNNING, settlement.id(), r.card(), resumeGroup.bible().id(), resumeGroup.bible().version(), groupId, Map.of(), 0,
@@ -171,13 +196,24 @@ public final class SettlementRunner {
 		});
 	}
 
-	private void register() {
-		if (registered) return;
-		registered = true;
-		SiteEvents.BIBLE_DONE.register(this::onBibleDone);
-		SiteEvents.GROUP_UPDATED.register(this::onGroup);
-		SiteEvents.GROUP_DONE.register(this::onGroup);
-		SiteEvents.BATCH_DONE.register(this::onBatchDone);
+	/** The id of the dev settlement {@code /steward build} and {@code resume} make (not saved). */
+	private static final String DEV_ID = "set_dev";
+
+	/** Takes the settlement's slot in {@link #ACTIVE}, or says why not. */
+	private boolean claim(String settlementId) {
+		if (busy(settlementId)) {
+			say(settlementId + " is already being built; wait for it to finish.");
+			return false;
+		}
+		claimedId = settlementId;
+		ACTIVE.put(settlementId, this);
+		return true;
+	}
+
+	/** Gives up before the pipeline started: says why and frees the slot. */
+	private void abandon(String why) {
+		say(why);
+		if (claimedId != null) ACTIVE.remove(claimedId, this);
 	}
 
 	private void apply(Pipeline.Step step) {
@@ -198,7 +234,11 @@ public final class SettlementRunner {
 				BibleRequest req = new BibleRequest(b.prompt(), b.name(), settlement.owner(), new JsonObject(), null, b.budgetUsd(), List.of(), null, null);
 				api.bibles().request(req).whenComplete((job, err) -> {
 					if (err != null) feed(new Pipeline.BibleDone(false, null, 0, 0, err.getMessage()));
-					else bibleJobId = job.id();
+					else {
+						bibleJobId = job.id();
+						// the job as it stood at the ack: a fast or cached bible may already be done, and BIBLE_DONE fired before we knew its id
+						if (job.finished()) onBibleDone(job);
+					}
 				});
 			}
 			case Pipeline.RequestGroup g -> {
@@ -208,7 +248,11 @@ public final class SettlementRunner {
 				say("Designing " + built.request().items().size() + " buildings (massings first)...");
 				api.designs().requestGroup(built.request()).whenComplete((id, err) -> {
 					if (err != null) { say("Group failed: " + err.getMessage()); feed(new Pipeline.Cancel()); }
-					else groupId = id;
+					else {
+						groupId = id;
+						// catch up on updates that fired before we knew the id (repeats are harmless: approvals are deduplicated)
+						api.designs().group(id).ifPresent(this::onGroup);
+					}
 				});
 			}
 			case Pipeline.ApproveGroup a -> {
@@ -243,7 +287,8 @@ public final class SettlementRunner {
 			fits.put(lot.id(), fit);
 			if (!fit.ok()) say("Fit " + lot.id() + " (" + entry + ") refused: " + fit.verdict().refusals().stream().map(r -> r.reason() + " " + r.message()).collect(Collectors.joining("; ")));
 		}
-		BatchPlanner.Result res = BatchPlanner.build(settlement, plan, landmarkIds, entries, fits, level, false, autoApprove, true);
+		BatchPlanner.Result res = BatchPlanner.build(settlement, plan, landmarkIds, entries, fits, level,
+			dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), autoApprove, true);
 		if (res.note() != null) say(res.note());
 		if (!res.skippedLotIds().isEmpty()) say("Skipped lots (no design or no fit): " + res.skippedLotIds());
 		say("Placing " + res.batch().items().size() + " items...");
@@ -251,6 +296,8 @@ public final class SettlementRunner {
 			if (err != null) { say("Queue failed: " + err.getMessage()); feed(new Pipeline.Cancel()); return; }
 			batchId = id;
 			feed(new Pipeline.BatchDone(0, 0)); // READY_TO_PLACE -> PLACING
+			// a batch that finished before we knew its id (everything placed in the queue's first pass)
+			sites.batch(id).filter(b -> !b.running()).ifPresent(this::onBatchDone);
 		});
 	}
 
@@ -286,6 +333,7 @@ public final class SettlementRunner {
 
 	private void say(String text) {
 		Steward.LOGGER.info("settlement: {}", text);
-		player.sendSystemMessage(Component.literal(text));
+		ServerPlayer p = server.getPlayerList().getPlayer(playerId);
+		if (p != null) p.sendSystemMessage(Component.literal(text));
 	}
 }

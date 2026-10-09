@@ -10,6 +10,8 @@ import java.util.Set;
 public final class ArchitectGateway {
 	/** The Architect API major version Steward is written against. */
 	public static final int REQUIRED_MAJOR = 1;
+	/** The oldest minor version Steward runs on: it calls groups, batches, critique and delta apply (API 1.8.0 = Architect 0.11.0; fabric.mod.json says the same). */
+	public static final int REQUIRED_MINOR = 8;
 	/** Features Steward cannot work without (names from ArchitectApi.features()). */
 	public static final Set<String> REQUIRED_FEATURES = Set.of("designs", "sites", "events");
 
@@ -28,14 +30,19 @@ public final class ArchitectGateway {
 
 	public record Status(boolean ok, String version, Set<String> features, String problem) {
 		public static Status evaluate(String version, Set<String> features) {
-			int major;
+			int major, minor;
 			try {
-				major = Integer.parseInt(version.split("\\.")[0]);
+				String[] parts = version.split("\\.");
+				major = Integer.parseInt(parts[0]);
+				minor = Integer.parseInt(parts[1]);
 			} catch (RuntimeException e) {
 				return new Status(false, version, features, "unreadable Architect API version: " + version);
 			}
 			if (major != REQUIRED_MAJOR) {
 				return new Status(false, version, features, "Architect API " + version + " is not major version " + REQUIRED_MAJOR);
+			}
+			if (minor < REQUIRED_MINOR) {
+				return new Status(false, version, features, "Architect API " + version + " is too old: Steward needs " + REQUIRED_MAJOR + "." + REQUIRED_MINOR + " or later (update Architect)");
 			}
 			for (String f : REQUIRED_FEATURES) {
 				if (!features.contains(f)) return new Status(false, version, features, "Architect lacks the feature \"" + f + "\"");

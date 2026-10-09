@@ -74,6 +74,10 @@ PROPOSALS with a clear message rather than spend.
 - `UpdatePlanner`'s permission table.
 - Mannequin over a custom entity is the right call for now.
 
+## Status (2026-10-09)
+Fixed in the follow-up commit: bugs 1-8, the command permission gate, the radius constant, the stale javadocs and DEV.md, with tests for the hand rule, monotonic ids and unnamed cards (91 tests).
+Bug 2's name is now set in Java, so the SNBT question is moot. Open: B1 (waiting on Noah's UX call), runner persistence, the card's building program, a `quick` gate. Not yet run in a client.
+
 ## Order of fixes
 1. Bugs 1-8 and the permission gate. They are small, all in this repo, and need no usage.
 2. B1, after Noah picks the stopgap UX.

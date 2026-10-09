@@ -81,7 +81,7 @@ class SettlementTest {
 		assertEquals(Difficulty.SUPPLIED, b.difficulty());
 		assertTrue(back.at("minecraft:overworld", 10, 70, 10).isPresent());
 		assertTrue(back.at("minecraft:overworld", 5000, 70, 5000).isEmpty());
-		assertEquals("set_3", back.nextId());
+		assertEquals("set_10", back.nextId(), "ids only grow: past the highest one ever used");
 	}
 
 	@Test
@@ -112,5 +112,21 @@ class SettlementTest {
 		st.put(d);
 		st.save(f);
 		assertEquals("giant meteor crater", SettlementStore.load(f).get("set_1").orElseThrow().card().site().text());
+	}
+
+	@Test
+	void idsAreNeverReusedEvenAcrossSaves(@TempDir Path dir) throws Exception {
+		SettlementStore st = new SettlementStore();
+		st.put(Settlement.founded(st.nextId(), "A", claim(0, 0), Permission.PROPOSALS, Difficulty.PATRON, 1L));
+		st.put(Settlement.founded(st.nextId(), "B", claim(1000, 0), Permission.PROPOSALS, Difficulty.PATRON, 1L));
+		st.remove("set_2");
+		assertEquals("set_3", st.nextId(), "a removed id must not come back (its owner string and steward NPC still exist)");
+		Path f = dir.resolve("s.json");
+		st.save(f);
+		assertEquals("set_3", SettlementStore.load(f).nextId());
+		// files written before the counter existed: derived from the settlements present
+		String old = Files.readString(f).replaceAll(",\\s*\"nextSerial\": \\d+", "");
+		assertFalse(old.contains("nextSerial"));
+		assertEquals("set_2", SettlementStore.fromJson(old).nextId());
 	}
 }

@@ -6,7 +6,7 @@ import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Common entrypoint. Phase 1 wiring (Founding Stone, claim, steward entity, concept card) lands here. */
+/** Common entrypoint: the Founding Stone, the per-world settlement store, the steward NPC, the settlement runners and the {@code /steward} commands. */
 public class Steward implements ModInitializer {
 	public static final String MOD_ID = "steward_mc";
 	public static final Logger LOGGER = LoggerFactory.getLogger("steward");
@@ -18,6 +18,7 @@ public class Steward implements ModInitializer {
 		dev.larattalabs.steward.item.FoundingStone.init();
 		dev.larattalabs.steward.service.Settlements.init();
 		dev.larattalabs.steward.entity.StewardNpc.init();
+		dev.larattalabs.steward.service.SettlementRunner.init();
 		StewardCommands.init();
 	}
 }
