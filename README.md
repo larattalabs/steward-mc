@@ -43,7 +43,9 @@ Run for real (dev client, claude login):
 - a full settlement flow, dev console only: card, survey of a dense forest (tree trunks read as ground), layout, style bible, 4 designs with massings, fit to lots, placement with a road. It found and fixed real
   bugs (lots too small for their approach, duplicate approvals, a batch group id, temporary refusals). Still rough: buildings sit close, the street is a plain path, no persistence across restarts.
 
-Not built yet: the Founding Stone item, claim persistence, the steward NPC, the concept-card screen, the inbox and HUD, proactive triggers, progression tiers, villagers and animals, functional farm modules.
+Founding Stone (a right-click claims a 129x129 area, saved per world, overlapping claims refused) with `/steward describe`, `/steward start` and `/steward settlements`.
+
+Not built yet: the steward NPC, the concept-card screen, the inbox and HUD, proactive triggers, progression tiers, villagers and animals, functional farm modules.
 
 Where the plan is: [docs/PLAN.md](docs/PLAN.md). The macro-site spec and its measurements: [docs/A5B-SPEC.md](docs/A5B-SPEC.md). Every Architect contract Steward reviewed is in `docs/` (`A8-REVIEW.md` onward).
 

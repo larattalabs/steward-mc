@@ -105,11 +105,20 @@ public final class SettlementRunner {
 		surveyAndStart(r, buildings, newBudgetUsd);
 	}
 
+	private Settlement existing;
 	private Group resumeGroup;
 	private double resumeBudget;
 
+	/** Start from a settlement the player claimed with the Founding Stone and described: its claim and card are used, no card job runs. */
+	public void startExisting(Settlement s, int buildings, double budgetUsd) {
+		if (!s.described()) { say("Describe " + s.id() + " first: /steward describe " + s.id() + " <your words>"); return; }
+		this.existing = s;
+		surveyAndStart(new CardResult(s.card(), null, new dev.larattalabs.architect.api.Cost(0, 0, 0, 0, 0, 0)), buildings, budgetUsd);
+	}
+
 	private void surveyAndStart(CardResult r, int buildings, double budgetUsd) {
-		int cx = player.blockPosition().getX(), cz = player.blockPosition().getZ();
+		int cx = existing != null ? existing.claim().centerX() : player.blockPosition().getX();
+		int cz = existing != null ? existing.claim().centerZ() : player.blockPosition().getZ();
 		BoundingBox area = new BoundingBox(cx - CLAIM_RADIUS, level.getMinY(), cz - CLAIM_RADIUS, cx + CLAIM_RADIUS, level.getMaxY(), cz + CLAIM_RADIUS);
 		say("Surveying the land...");
 		ArchitectApi.get().survey().sample(level, area, 1, LoadPolicy.LOADED_ONLY).whenComplete((sample, err) -> {
@@ -122,7 +131,7 @@ public final class SettlementRunner {
 			}
 			Steward.LOGGER.info("survey: {}x{} columns, {} unusable (water or unloaded), {} loaded chunks, ground y {}..{}, trees {}", grid.width(), grid.depth(), wet, sample.chunksLoaded(), lo, hi, sample.tree().cardinality());
 			Claim claim = new Claim(level.dimension().identifier().toString(), cx, cz, CLAIM_RADIUS, level.getMinY(), level.getMaxY());
-			settlement = Settlement.found("set_dev", r.card(), claim, permission, Difficulty.PATRON, System.currentTimeMillis());
+			settlement = existing != null ? existing : Settlement.found("set_dev", r.card(), claim, permission, Difficulty.PATRON, System.currentTimeMillis());
 			List<VillageLayout.LotSpec> specs = new ArrayList<>();
 			for (int i = 0; i < buildings; i++) {
 				String[] a = ARCHETYPES[i % ARCHETYPES.length];

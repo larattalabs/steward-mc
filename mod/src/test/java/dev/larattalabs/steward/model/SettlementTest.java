@@ -93,4 +93,24 @@ class SettlementTest {
 		Files.writeString(bad, "{\"format\":99,\"settlements\":[]}");
 		assertThrows(JsonParseException.class, () -> SettlementStore.load(bad));
 	}
+
+	@Test
+	void aClaimedSettlementHasNoCardUntilDescribedAndSurvivesTheStore(@TempDir Path dir) throws Exception {
+		Settlement s = Settlement.founded("set_1", "Settlement", claim(0, 0), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		assertFalse(s.described());
+		assertThrows(IllegalStateException.class, () -> s.reskin(new ConceptCard.Field("x", null, null, null), 2L));
+		SettlementStore st = new SettlementStore();
+		st.put(s);
+		Path f = dir.resolve("s.json");
+		st.save(f);
+		Settlement back = SettlementStore.load(f).get("set_1").orElseThrow();
+		assertFalse(back.described());
+		Settlement d = back.withCard(card(), 3L);
+		assertTrue(d.described());
+		assertEquals("Ashfall Works", d.name());
+		assertEquals(2, d.log().size());
+		st.put(d);
+		st.save(f);
+		assertEquals("giant meteor crater", SettlementStore.load(f).get("set_1").orElseThrow().card().site().text());
+	}
 }

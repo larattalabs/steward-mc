@@ -62,6 +62,40 @@ public final class StewardCommands {
 				});
 				return 1;
 			}))
+			.then(Commands.literal("claim").executes(ctx -> {
+				var p = ctx.getSource().getPlayerOrException();
+				return dev.larattalabs.steward.item.FoundingStone.claim(p, ctx.getSource().getLevel(), p.blockPosition().below()) ? 1 : 0;
+			}))
+			.then(Commands.literal("settlements").executes(ctx -> {
+				var all = dev.larattalabs.steward.service.Settlements.store().all();
+				if (all.isEmpty()) ctx.getSource().sendSuccess(() -> Component.literal("No settlements yet. Right-click a block with a Founding Stone (creative: Tools tab)."), false);
+				for (var s : all) ctx.getSource().sendSuccess(() -> Component.literal(s.id() + "  " + s.name() + "  at " + s.claim().centerX() + "," + s.claim().centerZ() + "  " + (s.described() ? s.card().site().text() + " / " + s.card().style().text() : "(not described)")), false);
+				return all.size();
+			}))
+			.then(Commands.literal("describe").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
+				CommandSourceStack src = ctx.getSource();
+				String id = StringArgumentType.getString(ctx, "id");
+				if (dev.larattalabs.steward.service.Settlements.store().get(id).isEmpty()) { src.sendFailure(Component.literal("No such settlement: " + id)); return 0; }
+				src.sendSuccess(() -> Component.literal("Interpreting your description..."), false);
+				boolean survival = WorldMode.survival(src.getServer()).orElse(false);
+				service().submit(StringArgumentType.getString(ctx, "text"), Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", 64), "steward_mc:settlement/" + id).whenComplete((r, err) -> {
+					if (err != null) { src.sendFailure(Component.literal(String.valueOf(err.getMessage()))); return; }
+					if (!r.ok()) { src.sendFailure(Component.literal(r.error())); return; }
+					var res = dev.larattalabs.steward.service.Settlements.describe(id, r.card(), System.currentTimeMillis());
+					if (!res.ok()) { src.sendFailure(Component.literal(res.error())); return; }
+					for (String line : CardResult.lines(r.card(), r.cost())) src.sendSuccess(() -> Component.literal(line), false);
+					src.sendSuccess(() -> Component.literal("Saved. Start building: /steward start " + id + " <buildings> <budget in USD>"), false);
+				});
+				return 1;
+			}))))
+			.then(Commands.literal("start").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200)).executes(ctx -> {
+				CommandSourceStack src = ctx.getSource();
+				var s = dev.larattalabs.steward.service.Settlements.store().get(StringArgumentType.getString(ctx, "id"));
+				if (s.isEmpty()) { src.sendFailure(Component.literal("No such settlement.")); return 0; }
+				int n = IntegerArgumentType.getInteger(ctx, "buildings");
+				new SettlementRunner(src.getServer(), src.getLevel(), src.getPlayerOrException(), s.get().permission(), service(), n >= 8 ? 2 : 0).startExisting(s.get(), n, DoubleArgumentType.getDouble(ctx, "budget"));
+				return 1;
+			})))))
 			.then(Commands.literal("resume").then(Commands.argument("group", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.word())
 				.then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200)).executes(ctx -> {
 					CommandSourceStack src = ctx.getSource();

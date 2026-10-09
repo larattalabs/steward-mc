@@ -2,6 +2,7 @@ package dev.larattalabs.steward.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One settlement in a world: its concept card, claim, versions, settings and change log. Immutable; every change returns a new
@@ -11,7 +12,7 @@ import java.util.List;
 public record Settlement(
 	String id,
 	String name,
-	ConceptCard card,
+	@Nullable ConceptCard card,
 	Claim claim,
 	int siteVersion,
 	int styleVersion,
@@ -27,6 +28,22 @@ public record Settlement(
 
 	public Settlement {
 		log = List.copyOf(log);
+	}
+
+	/** A claim the player has marked with the Founding Stone but not yet described: no concept card until they do. */
+	public static Settlement founded(String id, String name, Claim claim, Permission permission, Difficulty difficulty, long now) {
+		return new Settlement(id, name, null, claim, 1, 1, 1, permission, difficulty, List.of(new LogEntry(now, Kind.FOUNDED, "Claimed " + name, List.of())));
+	}
+
+	public boolean described() {
+		return card != null;
+	}
+
+	/** The player's description became a card (and, if the card names the settlement, its name). */
+	public Settlement withCard(ConceptCard c, long now) {
+		String n = c.name() == null || c.name().isBlank() ? name : c.name();
+		return new Settlement(id, n, c, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log)
+			.withLog(new LogEntry(now, Kind.CARD_EDITED, "Described as: " + c.site().text() + ", " + c.style().text(), List.of()));
 	}
 
 	public static Settlement found(String id, ConceptCard card, Claim claim, Permission permission, Difficulty difficulty, long now) {
@@ -48,6 +65,7 @@ public record Settlement(
 
 	/** A re-skin changes only the style (and the card's style field); layout and purpose versions stay. */
 	public Settlement reskin(ConceptCard.Field style, long now) {
+		if (card == null) throw new IllegalStateException("describe the settlement first");
 		ConceptCard c = new ConceptCard(card.name(), card.site(), style, card.purpose(), card.story(), card.constraints(), card.avoid(),
 			card.interpretation(), card.contradictions(), card.assumptions());
 		return new Settlement(id, name, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log)
