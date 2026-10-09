@@ -77,7 +77,7 @@ PROPOSALS with a clear message rather than spend.
 ## Status (2026-10-09)
 Fixed in the follow-up commit: bugs 1-8, the command permission gate, the radius constant, the stale javadocs and DEV.md, with tests for the hand rule, monotonic ids and unnamed cards (91 tests).
 Bug 2's name is now set in Java, so the SNBT question is moot. B1 fixed next (Noah chose stopgap commands): `/steward approve|redirect|raise|cancel <id>`, a pure `Pipeline.awaiting` decision and an `AWAITING_PLACEMENT_APPROVAL` phase whose approval approves every planned stage.
-Open: runner persistence, the card's building program, a `quick` gate. Not yet run in a client.
+The card's building program followed (`ProgramPlanner`; not yet checked against a real Sonnet card run). Open: runner persistence, a `quick` gate. Not yet run in a client.
 
 ## Order of fixes
 1. Bugs 1-8 and the permission gate. They are small, all in this repo, and need no usage.

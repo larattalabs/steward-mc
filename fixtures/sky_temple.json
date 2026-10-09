@@ -16,6 +16,40 @@
       "text": "a home for monks",
       "template": "monastery"
     },
+    "program": [
+      {
+        "role": "temple",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Bright open sanctuary at the island's heart"
+      },
+      {
+        "role": "monk cell",
+        "type": "monk_cell",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small quiet cells"
+      },
+      {
+        "role": "refectory",
+        "type": "refectory",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Shared kitchen and dining hall"
+      },
+      {
+        "role": "meditation garden",
+        "type": "garden_pavilion",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Pavilion at the island's edge"
+      }
+    ],
     "story": {
       "text": ""
     },

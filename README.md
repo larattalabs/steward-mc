@@ -49,6 +49,8 @@ The steward NPC appears when you claim land: a persistent, player-shaped citizen
 
 Until the inbox exists, the build's decisions are commands: `/steward approve`, `redirect`, `raise` and `cancel` (the steward tells you which one it is waiting for).
 
+The concept card now carries a building program (an overseer's keep, a slag foundry, worker barracks, ... for a crater lair), so what gets designed comes from your words, not a fixed village mix.
+
 Not built yet: steward movement and a custom skin, the concept-card screen, the inbox and HUD, proactive triggers, progression tiers, villagers and animals, functional farm modules.
 
 Where the plan is: [docs/PLAN.md](docs/PLAN.md). The macro-site spec and its measurements: [docs/A5B-SPEC.md](docs/A5B-SPEC.md). Every Architect contract Steward reviewed is in `docs/` (`A8-REVIEW.md` onward).

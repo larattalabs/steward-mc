@@ -83,3 +83,7 @@ delete it afterwards), and the client must start from a scrubbed environment so 
 - Decisions (stopgap until the inbox): `Pipeline.awaiting(state)` says what the build waits for (bible, massings, budget, placement). `/steward approve <id>` answers it (at placement it approves every planned
   stage of the batch's site group with `Sites.approveStage`), `redirect <id> <lot> <notes>` sends one massing back, `raise <id> <usd>` lifts a soft-budget pause, `cancel <id>` stops the build (a running batch is
   cancelled; placed sites stay). Notifications that need a decision carry the command to type, and right-clicking the steward repeats it.
+- Building program (generative-first): the concept card's `program` lists what the settlement needs in its own terms (role, an Architect preset or open snake_case type, count, footprint S-XL, landmark,
+  notes). `gateway/ProgramPlanner` turns it into lots: honoured landmarks first (capped: the size's typical count, at most one per four buildings), the ordinary entries round-robin so a smaller run keeps the
+  mix, larger runs repeat them, lot depth includes `LotBrief.APPROACH_MARGIN`, readable lot ids (`slag_foundry_1`). Open types go to Architect as types (API 1.2.0+), not `custom`. A card without a program
+  (described before programs existed) falls back to the generic mix and the steward says so. `describe` prints the program and a ready start command with the estimate.

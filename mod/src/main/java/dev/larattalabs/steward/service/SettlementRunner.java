@@ -17,6 +17,7 @@ import dev.larattalabs.steward.gateway.BatchPlanner;
 import dev.larattalabs.steward.gateway.CardResult;
 import dev.larattalabs.steward.gateway.ConceptCardJob;
 import dev.larattalabs.steward.gateway.GroupPlanner;
+import dev.larattalabs.steward.gateway.ProgramPlanner;
 import dev.larattalabs.steward.layout.Grid;
 import dev.larattalabs.steward.layout.TerrainGrid;
 import dev.larattalabs.steward.layout.VillageLayout;
@@ -52,8 +53,6 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  * runner is dropped when the server stops. The player is looked up by UUID whenever the runner speaks, so a respawn or relog does not silence it.
  */
 public final class SettlementRunner {
-	private static final String[][] ARCHETYPES = {{"tavern", "22", "18"}, {"house", "14", "13"}, {"shop", "14", "12"}, {"cottage", "13", "12"}, {"smithy", "15", "13"}, {"house", "13", "12"},
-		{"cabin", "12", "11"}, {"house", "14", "12"}, {"chapel", "14", "18"}, {"cottage", "12", "12"}, {"shop", "13", "12"}, {"house", "13", "13"}};
 	private static final int CLAIM_RADIUS = Settlements.DEFAULT_RADIUS;
 
 	private static final Map<String, SettlementRunner> ACTIVE = new java.util.concurrent.ConcurrentHashMap<>();
@@ -230,11 +229,12 @@ public final class SettlementRunner {
 			Steward.LOGGER.info("survey: {}x{} columns, {} unusable (water or unloaded), {} loaded chunks, ground y {}..{}, trees {}", grid.width(), grid.depth(), wet, sample.chunksLoaded(), lo, hi, sample.tree().cardinality());
 			Claim claim = new Claim(level.dimension().identifier().toString(), cx, cz, CLAIM_RADIUS, level.getMinY(), level.getMaxY());
 			settlement = existing != null ? existing : Settlement.found(DEV_ID, r.card(), claim, permission, Difficulty.PATRON, System.currentTimeMillis());
-			List<VillageLayout.LotSpec> specs = new ArrayList<>();
-			for (int i = 0; i < buildings; i++) {
-				String[] a = ARCHETYPES[i % ARCHETYPES.length];
-				specs.add(new VillageLayout.LotSpec("lot_" + i, a[0], Integer.parseInt(a[1]), Integer.parseInt(a[2]) + dev.larattalabs.steward.gateway.LotBrief.APPROACH_MARGIN));
-			}
+			// landmarks run on the dearer model: the size's typical count, and at most one per four buildings
+			int maxLandmarks = Math.min(dev.larattalabs.steward.model.BudgetPolicy.typicalLandmarks(r.card().site().size()), Math.max(1, buildings / 4));
+			ProgramPlanner.Result program = ProgramPlanner.lots(r.card(), buildings, maxLandmarks);
+			if (!program.fromCard()) say("This card has no building program (it was described before programs existed), so this is a generic village. Describe it again to get buildings of its own.");
+			if (!program.leftOut().isEmpty()) say("Left out at " + buildings + " buildings: " + String.join(", ", program.leftOut()) + ".");
+			List<VillageLayout.LotSpec> specs = program.specs();
 			plan = VillageLayout.plan(claim, grid, specs, VillageLayout.Rules.defaults());
 			say("Layout: " + plan.lots().size() + " lots on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
 			if (plan.lots().isEmpty()) { abandon("No dry, flat room here. Try another spot."); return; }

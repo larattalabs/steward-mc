@@ -34,6 +34,21 @@
         "template": { "type": ["string", "null"] }
       }
     },
+    "program": {
+      "type": "array", "minItems": 1, "maxItems": 16,
+      "description": "The buildings the settlement needs, from its purpose, site, style and story: what Steward designs. Optional only for cards made before programs existed; the parser always fills it.",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["role", "type", "count", "footprint", "landmark"],
+        "properties": {
+          "role": { "type": "string", "minLength": 1, "maxLength": 60, "description": "What the building is, in the settlement's own terms (\"slag foundry\", \"overseer's keep\")." },
+          "type": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,39}$", "description": "An Architect preset (house, cabin, cottage, tower, shop, tavern, barn, smithy, chapel, gatehouse) when one fits, else an open type in snake_case (slag_foundry)." },
+          "count": { "type": "integer", "minimum": 1, "maximum": 8 },
+          "footprint": { "enum": ["S", "M", "L", "XL"], "description": "Ground size: S about 11x9, M 14x12, L 18x15, XL 24x20 blocks." },
+          "landmark": { "type": "boolean", "description": "A centrepiece, designed first on the stronger model. One for S and M settlements, two for L and XL." },
+          "notes": { "type": "string", "maxLength": 200, "description": "What makes this building itself: its function, details, and how it relates to the rest." }
+        }
+      }
+    },
     "story": {
       "type": "object", "additionalProperties": false, "required": ["text"],
       "description": "Optional backstory used for details, signs and books.",

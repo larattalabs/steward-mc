@@ -39,15 +39,16 @@ class LotBriefTest {
 	}
 
 	@Test
-	void unknownTypesBecomeCustomAndSizesAreClampedToArchitectsCap() throws Exception {
+	void openTypesPassThroughAndSizesAreClampedToArchitectsCap() throws Exception {
 		Settlement s = settlement("stilt_village");
 		DesignRequest r = LotBrief.build(s, new Lot("lot_9", "ore_hall", 0, 0, 120, 5, Front.NORTH, 70), 200, null, null);
-		assertEquals("custom", r.type());
+		assertEquals("ore_hall", r.type(), "an open type (Architect API 1.2.0+) keeps its name");
+		assertEquals("custom", LotBrief.build(s, new Lot("lot_8", "Ore Hall!", 0, 0, 20, 20, Front.NORTH, 70), 20, null, null).type());
 		assertEquals(96, r.maxSize().x());
 		assertEquals(7, r.maxSize().z());
 		assertEquals(64, r.maxSize().y());
 		assertNull(r.model());
-		assertTrue(r.notes().contains("custom building"));
+		assertTrue(r.notes().contains("a building of its own kind"));
 	}
 
 	@Test
@@ -55,5 +56,17 @@ class LotBriefTest {
 		Settlement s = settlement("sky_temple");
 		DesignRequest r = LotBrief.build(s, new Lot("lot_1", "chapel", 0, 0, 12, 16, Front.SOUTH, 70), 30, null, null);
 		assertTrue(r.notes().contains("Avoid: dark stone"));
+	}
+
+	@Test
+	void theProgramsRoleAndNotesReachTheBriefAndTheDepthComesBackToTheFootprint() throws Exception {
+		Settlement s = settlement("crater_works");
+		var spec = ProgramPlanner.lots(s.card(), 6, 2).specs().stream().filter(x -> x.type().equals("slag_foundry")).findFirst().orElseThrow();
+		Lot lot = new Lot(spec.id(), spec.type(), 0, 0, spec.sizeX(), spec.sizeZ(), Front.SOUTH, 70, spec.role(), spec.notes(), spec.landmark());
+		DesignRequest r = LotBrief.build(s, lot, 40, null, null);
+		assertEquals("slag_foundry", r.type());
+		assertEquals(ProgramPlanner.FOOTPRINT.get("L")[1], r.maxSize().z(), "the lot adds the approach margin, the design takes it off");
+		assertTrue(r.notes().contains("slag foundry"), r.notes());
+		assertTrue(r.notes().contains("lava channels"), r.notes());
 	}
 }

@@ -4,6 +4,7 @@ import dev.larattalabs.steward.model.Claim;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Phase 1 layout: lots on both sides of one straight east-west main street, inside a claim, on ground that is dry and flat enough.
@@ -15,10 +16,21 @@ import java.util.List;
 public final class VillageLayout {
 	public enum Front { NORTH, SOUTH }
 
-	/** A building the plan needs: its id, building type and footprint (the design's size cap is the caller's business). */
-	public record LotSpec(String id, String type, int sizeX, int sizeZ) {}
+	/**
+	 * A building the plan needs: its id, building type and lot size (the design's size cap is the caller's business), plus what it is in the settlement's
+	 * own terms ({@code role}, {@code notes}) and whether it is a landmark (both from the card's program; a spec without one is its type and not a landmark).
+	 */
+	public record LotSpec(String id, String type, int sizeX, int sizeZ, String role, @Nullable String notes, boolean landmark) {
+		public LotSpec(String id, String type, int sizeX, int sizeZ) {
+			this(id, type, sizeX, sizeZ, type, null, false);
+		}
+	}
 
-	public record Lot(String id, String type, int x, int z, int sizeX, int sizeZ, Front front, int groundY) {
+	public record Lot(String id, String type, int x, int z, int sizeX, int sizeZ, Front front, int groundY, String role, @Nullable String notes, boolean landmark) {
+		public Lot(String id, String type, int x, int z, int sizeX, int sizeZ, Front front, int groundY) {
+			this(id, type, x, z, sizeX, sizeZ, front, groundY, type, null, false);
+		}
+
 		public int maxX() { return x + sizeX - 1; }
 		public int maxZ() { return z + sizeZ - 1; }
 	}
@@ -127,7 +139,7 @@ public final class VillageLayout {
 		int i = 0;
 		for (int xx = x; xx < x + s.sizeX(); xx++) for (int zz = z; zz < z + s.sizeZ(); zz++) hs[i++] = g.heightAt(xx, zz);
 		java.util.Arrays.sort(hs);
-		return new Lot(s.id(), s.type(), x, z, s.sizeX(), s.sizeZ(), front, hs[hs.length / 2]);
+		return new Lot(s.id(), s.type(), x, z, s.sizeX(), s.sizeZ(), front, hs[hs.length / 2], s.role(), s.notes(), s.landmark());
 	}
 
 	private static int slopeTotal(Plan p, Grid g) {

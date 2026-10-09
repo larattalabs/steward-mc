@@ -38,12 +38,23 @@ public record CardResult(@Nullable ConceptCard card, @Nullable String error, Cos
 		l.add("Style: " + c.style().text() + templ(c.style().template()));
 		l.add("Purpose: " + c.purpose().text() + templ(c.purpose().template()));
 		if (c.story() != null && c.story().text() != null && !c.story().text().isBlank()) l.add("Story: " + c.story().text());
+		if (c.hasProgram()) l.add("Builds (" + ProgramPlanner.total(c) + "): " + programLine(c));
 		if (!c.avoid().isEmpty()) l.add("Avoid: " + String.join(", ", c.avoid()));
 		l.add(c.interpretation());
 		for (ConceptCard.Contradiction x : c.contradictions()) l.add("Tension: " + x.issue() + " -> " + x.resolution());
 		for (String a : c.assumptions()) l.add("Assumed: " + a);
 		l.add(String.format("Cost: $%.3f", cost.usd()));
 		return l;
+	}
+
+	/** "overseer's keep (landmark, L), ore crusher x2, worker barracks x4, ...". */
+	static String programLine(ConceptCard c) {
+		List<String> parts = new ArrayList<>();
+		for (ConceptCard.Building b : c.program()) {
+			String tags = b.landmark() ? " (landmark, " + b.footprint() + ")" : "";
+			parts.add(b.role() + (b.count() > 1 ? " x" + b.count() : "") + tags);
+		}
+		return String.join(", ", parts);
 	}
 
 	private static String templ(@Nullable String t) {

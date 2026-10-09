@@ -40,3 +40,19 @@ test('real Sonnet outputs validate against the schema', () => {
     assert.ok(validate(card), f + ' ' + JSON.stringify(validate.errors));
   }
 });
+
+test('the prompt offers exactly the Architect presets LotBrief knows', () => {
+  const java = fs.readFileSync(new URL('../mod/src/main/java/dev/larattalabs/steward/gateway/LotBrief.java', import.meta.url), 'utf8');
+  const set = java.match(/ARCHITECT_TYPES = Set\.of\(([^)]*)\)/)[1].match(/"([a-z_]+)"/g).map((s) => s.slice(1, -1)).filter((t) => t !== 'custom');
+  const prompt = fs.readFileSync(new URL('../prompts/concept-card.md', import.meta.url), 'utf8');
+  const programLine = prompt.slice(prompt.indexOf('- **program**'), prompt.indexOf('- **story**'));
+  const offered = [...programLine.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]).filter((t) => set.includes(t) || !t.includes('_') && !['role', 'type', 'count', 'footprint', 'landmark', 'notes'].includes(t));
+  assert.deepEqual([...new Set(offered)].sort(), [...set].sort());
+});
+
+test('every fixture program type is a valid Architect type slug', () => {
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.json'))) {
+    const { card } = JSON.parse(fs.readFileSync(new URL(f, dir)));
+    for (const b of card.program ?? []) assert.match(b.type, /^[a-z][a-z0-9_]{0,39}$/, f);
+  }
+});

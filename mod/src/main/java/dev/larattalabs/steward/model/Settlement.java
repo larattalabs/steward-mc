@@ -67,7 +67,7 @@ public record Settlement(
 	public Settlement reskin(ConceptCard.Field style, long now) {
 		if (card == null) throw new IllegalStateException("describe the settlement first");
 		ConceptCard c = new ConceptCard(card.name(), card.site(), style, card.purpose(), card.story(), card.constraints(), card.avoid(),
-			card.interpretation(), card.contradictions(), card.assumptions());
+			card.interpretation(), card.contradictions(), card.assumptions(), card.program());
 		return new Settlement(id, name, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log)
 			.withLog(new LogEntry(now, Kind.RESKIN, "Style is now: " + style.text(), List.of()));
 	}

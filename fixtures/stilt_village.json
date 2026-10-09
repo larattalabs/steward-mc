@@ -16,6 +16,48 @@
       "text": "fishing village",
       "template": "port"
     },
+    "program": [
+      {
+        "role": "smokehouse",
+        "type": "smokehouse",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Big crooked smokehouse at the centre of the boardwalks"
+      },
+      {
+        "role": "fisher's hut",
+        "type": "cabin",
+        "count": 6,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Mossy stilt huts with nets"
+      },
+      {
+        "role": "net loft",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Storage for nets and boats"
+      },
+      {
+        "role": "bait shop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Tiny trading shack"
+      },
+      {
+        "role": "lookout",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Leaning watchtower over the swamp"
+      }
+    ],
     "story": {
       "text": ""
     },

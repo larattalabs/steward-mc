@@ -51,12 +51,15 @@ public final class GroupPlanner {
 
 	public static Built build(Settlement s, VillageLayout.Plan plan, Options o) {
 		List<Lot> lots = new ArrayList<>(plan.lots());
-		// landmarks: the largest footprints; the first of them is the anchor (designed first, the rest match it)
+		// landmarks: the ones the card's program marks, else the largest footprints; the largest landmark is the anchor (designed first, the rest match it)
 		List<Lot> byArea = new ArrayList<>(lots);
 		byArea.sort(Comparator.<Lot>comparingInt(l -> l.sizeX() * l.sizeZ()).reversed().thenComparing(Lot::id));
-		int n = Math.min(o.landmarks(), byArea.size());
 		Set<String> landmarkIds = new java.util.LinkedHashSet<>();
-		for (int i = 0; i < n; i++) landmarkIds.add(byArea.get(i).id());
+		boolean flagged = lots.stream().anyMatch(Lot::landmark);
+		for (Lot l : byArea) {
+			if (landmarkIds.size() >= o.landmarks() && !flagged) break;
+			if (!flagged || l.landmark()) landmarkIds.add(l.id());
+		}
 		String anchorId = landmarkIds.isEmpty() ? null : landmarkIds.iterator().next();
 
 		List<GroupRequest.Item> items = new ArrayList<>();
@@ -93,7 +96,7 @@ public final class GroupPlanner {
 		List<String> extra = new ArrayList<>();
 		extra.add("The entrance is on the front (south) face and is easy to read and reach");
 		if (!s.card().avoid().isEmpty()) extra.add(clip("Avoids: " + String.join(", ", s.card().avoid())));
-		extra.add(clip("Reads as a " + l.type() + " in " + s.card().purpose().text()));
+		extra.add(clip("Reads as a " + l.role() + " in " + s.card().purpose().text()));
 		return new CritiqueSpec(CritiqueMode.REPORT, null, null, null, null, null, null, List.of(), null, extra);
 	}
 
@@ -124,6 +127,7 @@ public final class GroupPlanner {
 			JsonObject j = new JsonObject();
 			j.addProperty("id", l.id());
 			j.addProperty("type", l.type());
+			j.addProperty("role", l.role());
 			j.addProperty("x", l.x());
 			j.addProperty("z", l.z());
 			j.addProperty("sizeX", l.sizeX());

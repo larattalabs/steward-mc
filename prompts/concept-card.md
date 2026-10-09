@@ -16,6 +16,13 @@ The fields are independent, so a change to one should not require changing anoth
   `steampunk`, `desert`, `nordic`, `gothic`, `eastern`, `ruined`, `infernal`. Otherwise null with a description.
 - **purpose**: what it is for (this decides which buildings it needs). Known templates: `home_base`, `trading_hub`, `fortress`,
   `farm_town`, `mining_outpost`, `port`, `monastery`, `market_town`. Otherwise null with a description.
+- **program**: the buildings it needs, derived from purpose, site, style and story together (this is what gets designed, so make
+  it specific to this settlement, not a generic village). Each entry: `role` in the settlement's own terms ("slag foundry",
+  "overseer's keep"), `type` (an Architect preset `house`, `cabin`, `cottage`, `tower`, `shop`, `tavern`, `barn`, `smithy`, `chapel`,
+  `gatehouse` when one honestly fits, otherwise a snake_case open type such as `slag_foundry`), `count`, `footprint` (S, M, L, XL),
+  `landmark`, and short `notes` on what makes it itself. Mark one landmark for an S or M settlement, at most two for L or XL; they
+  cost the most. Totals: about 6 buildings for S, 10 for M, 16 for L and XL. Homes and workplaces are usually several of one entry
+  (`count`). A "hellish evil lair" has no tavern or chapel unless the player asked for one.
 - **story**: optional backstory. Leave `text` empty when the player gave none; do not invent a backstory.
 - **constraints**: `near` (`spawn` if they said near spawn, `here` if they said here or this spot, else `search`), `density`
   (low/med/high), a budget in USD if they gave one, and `difficulty` only if they named it.
@@ -23,7 +30,8 @@ The fields are independent, so a change to one should not require changing anoth
 
 Split a mixed phrase into its fields: "repurposed giant meteor crater mining facility, hellish evil lair" is site = giant meteor
 crater (template null), purpose = mining facility (`mining_outpost`), story = repurposed, style = hellish evil lair
-(`infernal`). Keep the player's own words in `text`; do not replace them with a template name.
+(`infernal`). Its program might be an overseer's keep (landmark, L), a slag foundry, ore crushers, a
+mine head over the crater shaft, worker barracks (count 4) and a brimstone shrine. Keep the player's own words in `text`; do not replace them with a template name.
 
 Terrain: use `sculpt` only when the site clearly needs a form that does not exist naturally (a crater, a rift, a floating island);
 use `find` when existing land could work; `flat` for ordinary settlements. Size: S, M, L or XL, defaulting to M unless they imply otherwise.

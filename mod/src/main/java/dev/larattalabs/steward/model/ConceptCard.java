@@ -3,7 +3,10 @@ package dev.larattalabs.steward.model;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The concept card (schema/concept-card.schema.json): what a prompt means, split into orthogonal fields. The player edits and
@@ -19,12 +22,23 @@ public record ConceptCard(
 	List<String> avoid,
 	String interpretation,
 	List<Contradiction> contradictions,
-	List<String> assumptions
+	List<String> assumptions,
+	@Nullable List<Building> program
 ) {
 	public record Field(String text, String template, String terrain, String size) {}
 	public record Story(String text) {}
 	public record Constraints(String near, String density, Double budgetUsd, String difficulty) {}
 	public record Contradiction(String issue, String resolution) {}
+
+	/**
+	 * One entry of the building program: what the settlement needs built, in its own terms. {@code type} is an Architect preset or an open snake_case type;
+	 * {@code footprint} is S, M, L or XL.
+	 */
+	public record Building(String role, String type, int count, String footprint, boolean landmark, @Nullable String notes) {}
+
+	/** Architect's open-type rule (a preset name also matches it). */
+	public static final Pattern TYPE_SLUG = Pattern.compile("[a-z][a-z0-9_]{0,39}");
+	public static final List<String> FOOTPRINTS = List.of("S", "M", "L", "XL");
 
 	private static final Gson GSON = new Gson();
 
@@ -40,7 +54,32 @@ public record ConceptCard(
 		if (c.site.terrain == null || !List.of("find", "sculpt", "flat").contains(c.site.terrain)) {
 			throw new JsonParseException("site.terrain must be find, sculpt or flat");
 		}
-		return c;
+		// structured output usually obeys the schema, but the lists are read without trusting it
+		return new ConceptCard(c.name, c.site, c.style, c.purpose, c.story, c.constraints, orEmpty(c.avoid), c.interpretation == null ? "" : c.interpretation,
+			orEmpty(c.contradictions), orEmpty(c.assumptions), sanitize(c.program));
+	}
+
+	/** Whether the card says what to build (cards made before programs existed do not). */
+	public boolean hasProgram() {
+		return program != null && !program.isEmpty();
+	}
+
+	/** Clamps what the parser may get wrong: count 1..8, an unknown footprint is M, a type that is not a slug becomes {@code custom}, a blank role takes the type. */
+	static @Nullable List<Building> sanitize(@Nullable List<Building> in) {
+		if (in == null) return null;
+		List<Building> out = new ArrayList<>();
+		for (Building b : in) {
+			if (b == null) continue;
+			String type = b.type != null && TYPE_SLUG.matcher(b.type).matches() ? b.type : "custom";
+			String role = blank(b.role) ? type.replace('_', ' ') : b.role.strip();
+			String fp = FOOTPRINTS.contains(b.footprint) ? b.footprint : "M";
+			out.add(new Building(role, type, Math.max(1, Math.min(8, b.count)), fp, b.landmark, blank(b.notes) ? null : b.notes.strip()));
+		}
+		return out.isEmpty() ? null : List.copyOf(out);
+	}
+
+	private static <T> List<T> orEmpty(@Nullable List<T> l) {
+		return l == null ? List.of() : l;
 	}
 
 	/** The card's difficulty, or {@code fallback} when it names none. */
@@ -48,7 +87,7 @@ public record ConceptCard(
 		return constraints.difficulty == null ? fallback : Difficulty.parse(constraints.difficulty);
 	}
 
-	private static boolean blank(String s) {
+	private static boolean blank(@Nullable String s) {
 		return s == null || s.isBlank();
 	}
 }

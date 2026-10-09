@@ -16,6 +16,56 @@
       "text": "mining facility",
       "template": "mining_outpost"
     },
+    "program": [
+      {
+        "role": "overseer's keep",
+        "type": "overseers_keep",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Black-stone tower on the crater rim watching over the works"
+      },
+      {
+        "role": "slag foundry",
+        "type": "slag_foundry",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Smelting hall with lava channels and chimneys"
+      },
+      {
+        "role": "ore crusher",
+        "type": "ore_crusher",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Heavy machinery sheds feeding the foundry"
+      },
+      {
+        "role": "mine head",
+        "type": "mine_head",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Headframe over the shaft into the impact core"
+      },
+      {
+        "role": "worker barracks",
+        "type": "barracks",
+        "count": 4,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Grim bunk houses for the miners"
+      },
+      {
+        "role": "brimstone shrine",
+        "type": "shrine",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "A small altar to whatever fell from the sky"
+      }
+    ],
     "story": {
       "text": "repurposed after the impact"
     },

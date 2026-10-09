@@ -99,7 +99,7 @@ public final class StewardCommands {
 					var res = dev.larattalabs.steward.service.Settlements.describe(id, r.card(), System.currentTimeMillis());
 					if (!res.ok()) { src.sendFailure(Component.literal(res.error())); return; }
 					for (String line : CardResult.lines(r.card(), r.cost())) src.sendSuccess(() -> Component.literal(line), false);
-					src.sendSuccess(() -> Component.literal("Saved. Start building: /steward start " + id + " <buildings> <budget in USD>"), false);
+					src.sendSuccess(() -> Component.literal(startHint(id, r.card())), false);
 				});
 				return 1;
 			}))))
@@ -158,6 +158,15 @@ public final class StewardCommands {
 				});
 				return 1;
 			})))));
+	}
+
+	/** The start command to type for a freshly described card: its program's size and a budget at the high estimate, rounded up to $5. */
+	static String startHint(String id, dev.larattalabs.steward.model.ConceptCard c) {
+		int n = Math.min(12, dev.larattalabs.steward.gateway.ProgramPlanner.total(c));
+		int landmarks = (int) (c.hasProgram() ? Math.min(c.program().stream().filter(dev.larattalabs.steward.model.ConceptCard.Building::landmark).count(), Math.max(1, n / 4)) : 0);
+		var e = dev.larattalabs.steward.model.BudgetPolicy.estimateWithCritiqueReports(n, landmarks);
+		int budget = (int) (Math.ceil(e.usdHigh() / 5.0) * 5);
+		return String.format("Saved. Start building: /steward start %s %d %d (%d buildings, about $%.0f-%.0f and %d-%d minutes)", id, n, budget, n, e.usdLow(), e.usdHigh(), e.minutesLow(), e.minutesHigh());
 	}
 
 	/** Runs a player decision on the settlement's active build and reports what it did. */

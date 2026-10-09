@@ -183,7 +183,7 @@ class PipelineTest {
 	@Test
 	void anUnnamedCardIsCalledByTheSettlementIdNeverNull() throws Exception {
 		ConceptCard c = card();
-		ConceptCard unnamed = new ConceptCard(null, c.site(), c.style(), c.purpose(), c.story(), c.constraints(), c.avoid(), c.interpretation(), c.contradictions(), c.assumptions());
+		ConceptCard unnamed = new ConceptCard(null, c.site(), c.style(), c.purpose(), c.story(), c.constraints(), c.avoid(), c.interpretation(), c.contradictions(), c.assumptions(), c.program());
 		State s = State.start("set_7", unnamed, 35.0);
 		Step st = Pipeline.step(s, new Cancel(), Permission.FULL);
 		Notify n = only(st, Notify.class);

@@ -16,6 +16,48 @@
       "text": "cozy farm town",
       "template": "farm_town"
     },
+    "program": [
+      {
+        "role": "harvest hall",
+        "type": "barn",
+        "count": 1,
+        "footprint": "XL",
+        "landmark": true,
+        "notes": "Warm communal barn and feast hall in the caldera"
+      },
+      {
+        "role": "farmhouse",
+        "type": "house",
+        "count": 6,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Cosy homes with gardens, lit by lava glow"
+      },
+      {
+        "role": "greenhouse",
+        "type": "greenhouse",
+        "count": 3,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Glass houses using volcanic heat"
+      },
+      {
+        "role": "market",
+        "type": "shop",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Friendly stalls for produce"
+      },
+      {
+        "role": "ember mill",
+        "type": "ember_mill",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "A mill driven by geothermal vents"
+      }
+    ],
     "story": {
       "text": "the friendly residents settled the volcano"
     },

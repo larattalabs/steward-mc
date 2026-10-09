@@ -15,7 +15,7 @@ import java.util.Set;
  * layout; the style, purpose, story and avoid list from the concept card. Pure (no Minecraft calls).
  */
 public final class LotBrief {
-	/** Architect's building types (kit BUILDING_TYPES); anything else is designed as {@code custom}. */
+	/** Architect's preset building types (kit BUILDING_TYPES). Since API 1.2.0 any other snake_case type is an open type with the default checker profile. */
 	public static final Set<String> ARCHITECT_TYPES = Set.of("house", "cabin", "cottage", "tower", "shop", "tavern", "barn", "smithy", "chapel", "gatehouse", "custom");
 	/** Architect's size cap for one design (x/z 7..96, y 6..64). */
 	public static final int MIN_XZ = 7, MAX_XZ = 96, MIN_Y = 6, MAX_Y = 64;
@@ -32,7 +32,7 @@ public final class LotBrief {
 	 */
 	public static DesignRequest build(Settlement s, Lot lot, int maxHeight, String model, Double budgetUsd) {
 		ConceptCard c = s.card();
-		String type = ARCHITECT_TYPES.contains(lot.type()) ? lot.type() : "custom";
+		String type = ARCHITECT_TYPES.contains(lot.type()) || ConceptCard.TYPE_SLUG.matcher(lot.type()).matches() ? lot.type() : "custom";
 		int sx = clamp(lot.sizeX(), MIN_XZ, MAX_XZ);
 		int sz = clamp(lot.sizeZ() - APPROACH_MARGIN, MIN_XZ, MAX_XZ);
 		BlockSize size = new BlockSize(sx, clamp(maxHeight, MIN_Y, MAX_Y), sz);
@@ -47,7 +47,8 @@ public final class LotBrief {
 		List<String> parts = new ArrayList<>();
 		parts.add("Part of a settlement: " + c.site().text() + ", used as " + c.purpose().text() + ".");
 		if (c.story() != null && c.story().text() != null && !c.story().text().isBlank()) parts.add("Backstory: " + c.story().text() + ".");
-		parts.add("Its role in the settlement is a " + lot.type() + ("custom".equals(type) ? " (design it as a custom building of that kind)" : "") + ".");
+		parts.add("Its role in the settlement: " + lot.role() + (ARCHITECT_TYPES.contains(type) ? "" : " (a building of its own kind, not a preset type)") + ".");
+		if (lot.notes() != null) parts.add(lot.notes().endsWith(".") ? lot.notes() : lot.notes() + ".");
 		parts.add("Design it with its front facing south as usual; the mod turns the building so its entrance faces the street.");
 		if (!c.avoid().isEmpty()) parts.add("Avoid: " + String.join(", ", c.avoid()) + ".");
 		return String.join(" ", parts);
