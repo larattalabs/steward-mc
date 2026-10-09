@@ -51,6 +51,8 @@ Until the inbox exists, the build's decisions are commands: `/steward approve`, 
 
 The concept card now carries a building program (an overseer's keep, a slag foundry, worker barracks, ... for a crater lair), so what gets designed comes from your words, not a fixed village mix.
 
+A build in progress is saved per world and picks up after a restart.
+
 Not built yet: steward movement and a custom skin, the concept-card screen, the inbox and HUD, proactive triggers, progression tiers, villagers and animals, functional farm modules.
 
 Where the plan is: [docs/PLAN.md](docs/PLAN.md). The macro-site spec and its measurements: [docs/A5B-SPEC.md](docs/A5B-SPEC.md). Every Architect contract Steward reviewed is in `docs/` (`A8-REVIEW.md` onward).

@@ -87,3 +87,9 @@ delete it afterwards), and the client must start from a scrubbed environment so 
   notes). `gateway/ProgramPlanner` turns it into lots: honoured landmarks first (capped: the size's typical count, at most one per four buildings), the ordinary entries round-robin so a smaller run keeps the
   mix, larger runs repeat them, lot depth includes `LotBrief.APPROACH_MARGIN`, readable lot ids (`slag_foundry_1`). Open types go to Architect as types (API 1.2.0+), not `custom`. A card without a program
   (described before programs existed) falls back to the generic mix and the steward says so. `describe` prints the program and a ready start command with the estimate.
+- Builds survive restarts: `service/BuildStore` keeps each unfinished build in `<world>/steward-builds.json` (atomic, format 1, a corrupt file is left untouched and saving stops), saved after every
+  pipeline step and whenever an Architect id arrives. Builds are restored at SERVER_STARTING (before Architect's SERVER_STARTED catch-up events, whichever mod's listener runs first) and re-synced on the
+  first tick after SERVER_STARTED (`server.execute` would run inline on the server thread). `pipeline/ResyncRules` decides from what Architect kept (groups, queued batches and their planned stages,
+  site groups, placed sites; not finished batches): re-read the group, wait for the batch, adopt a running batch, finish from the batch or from this build's sites (every placed item carries
+  `ext.steward_mc:build`, so an earlier build's sites never count), queue again, or tell the player the restart interrupted a request. A finished build logs PROJECT_PLACED with its site ids on the
+  settlement; what the steward said while its player was away is delivered when they join. Settlements now load at SERVER_STARTING too.

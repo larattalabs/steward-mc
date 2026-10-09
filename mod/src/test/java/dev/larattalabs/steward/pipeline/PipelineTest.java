@@ -230,4 +230,12 @@ class PipelineTest {
 		State placing = Pipeline.step(Pipeline.step(s, group("done", Map.of(), List.of(), 20), Permission.FULL).next(), new BatchQueued("b1"), Permission.FULL).next();
 		only(Pipeline.step(placing, new Cancel(), Permission.FULL), CancelBatch.class);
 	}
+
+	@Test
+	void aPlacementFoundFinishedAfterARestartGoesStraightToDone() throws Exception {
+		State ready = Pipeline.step(groupRunning(Permission.PROPOSALS), group("done", Map.of(), List.of(), 20), Permission.PROPOSALS).next();
+		Step st = Pipeline.step(ready, new BatchDone(5, 1), Permission.PROPOSALS);
+		assertEquals(Phase.DONE, st.next().phase());
+		assertFalse(only(st, Notify.class).needsDecision(), "no approval is asked for what is already placed");
+	}
 }

@@ -96,6 +96,12 @@ public final class BatchPlanner {
 	 */
 	public static Result build(Settlement s, VillageLayout.Plan plan, Set<String> landmarkIds, Map<String, String> entries, Map<String, LotFit> fits,
 		@Nullable ServerLevel level, boolean worldSurvival, boolean autoApprove, boolean includeStreet) {
+		return build(s, plan, landmarkIds, entries, fits, level, worldSurvival, autoApprove, includeStreet, null);
+	}
+
+	/** As above, tagging every item's ext with {@code steward_mc:build = buildId} so a restart can tell this build's sites from an earlier build's. */
+	public static Result build(Settlement s, VillageLayout.Plan plan, Set<String> landmarkIds, Map<String, String> entries, Map<String, LotFit> fits,
+		@Nullable ServerLevel level, boolean worldSurvival, boolean autoApprove, boolean includeStreet, @Nullable String buildId) {
 		Mode mode = modeFor(s.difficulty(), worldSurvival);
 		Map<String, Batch.Item> items = new LinkedHashMap<>();
 		List<String> skipped = new ArrayList<>();
@@ -112,6 +118,7 @@ public final class BatchPlanner {
 			JsonObject ext = new JsonObject();
 			ext.addProperty("steward_mc:settlement", s.id());
 			ext.addProperty("steward_mc:lot", l.id());
+			if (buildId != null) ext.addProperty(BUILD_EXT, buildId);
 			PlaceRequest r = new PlaceRequest(entry, level, fit.origin(), fit.rotation(), mode, s.owner(), ext, false, null);
 			items.put(l.id(), new Batch.Item(l.id(), r, stageOf.get(l.id()), List.of()));
 		}
@@ -131,12 +138,15 @@ public final class BatchPlanner {
 		}
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
+		if (buildId != null) ext.addProperty(BUILD_EXT, buildId);
 		Batch b = new Batch(null, s.owner(), ext, null, new ArrayList<>(items.values()), specs, Batch.WaitPolicy.DEFAULT,
 			dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY, null, false, autoApprove, false, null);
 		return new Result(b, List.copyOf(skipped), note);
 	}
 
 	public static final String STREET_KEY = "street";
+	/** The ext key that names the build a placed site belongs to. */
+	public static final String BUILD_EXT = "steward_mc:build";
 
 	/** The village's main street as a road request: two waypoints along the street, a little past the outer lots, kept inside the claim. */
 	static RoadRequest street(Settlement s, VillageLayout.Plan plan, @Nullable ServerLevel level) {

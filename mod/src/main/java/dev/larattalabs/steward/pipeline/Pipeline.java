@@ -155,9 +155,14 @@ public final class Pipeline {
 				case BudgetRaised b when s.groupId() != null -> Step.of(s.withBudget(b.newBudgetUsd()), new ExtendAndResumeGroup(s.groupId(), b.newBudgetUsd()));
 				default -> Step.of(s);
 			};
-			case READY_TO_PLACE -> e instanceof BatchQueued ? (perm.needsApproval(Permission.Action.NEW_PROJECT)
-				? Step.of(s.with(Phase.AWAITING_PLACEMENT_APPROVAL), new Notify("The designs of " + label(s) + " are done and fitted to their lots. Approve to place them.", true))
-				: Step.of(s.with(Phase.PLACING))) : Step.of(s);
+			case READY_TO_PLACE -> switch (e) {
+				case BatchQueued q -> perm.needsApproval(Permission.Action.NEW_PROJECT)
+					? Step.of(s.with(Phase.AWAITING_PLACEMENT_APPROVAL), new Notify("The designs of " + label(s) + " are done and fitted to their lots. Approve to place them.", true))
+					: Step.of(s.with(Phase.PLACING));
+				// placed before a restart was noticed (read back from the sites)
+				case BatchDone b -> built(s, b);
+				default -> Step.of(s);
+			};
 			case AWAITING_PLACEMENT_APPROVAL -> switch (e) {
 				case PlacementApproved p -> Step.of(s.with(Phase.PLACING), new ApproveStages());
 				case BatchDone b -> built(s, b);

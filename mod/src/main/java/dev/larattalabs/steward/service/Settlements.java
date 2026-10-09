@@ -26,7 +26,8 @@ public final class Settlements {
 	}
 
 	public static void init() {
-		ServerLifecycleEvents.SERVER_STARTED.register(Settlements::load);
+		// at STARTING, like the builds: a restored build may log to its settlement during Architect's catch-up
+		ServerLifecycleEvents.SERVER_STARTING.register(Settlements::load);
 		ServerLifecycleEvents.SERVER_STOPPED.register(s -> { store = new SettlementStore(); file = null; });
 	}
 
@@ -69,6 +70,15 @@ public final class Settlements {
 		Optional<Settlement> s = store.get(id);
 		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
 		Settlement n = s.get().withCard(card, now);
+		store.put(n);
+		return save() ? Result.ok(n) : Result.fail("Could not save the settlement.");
+	}
+
+	/** Appends a change-log entry to a saved settlement. */
+	public static Result log(String id, Settlement.LogEntry e) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		Settlement n = s.get().withLog(e);
 		store.put(n);
 		return save() ? Result.ok(n) : Result.fail("Could not save the settlement.");
 	}
