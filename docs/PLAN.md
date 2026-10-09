@@ -183,6 +183,10 @@ Binding for Steward's plans until Architect changes them:
   (`LOT_TOO_SMALL` is a typed refusal), and the 3-block gap in `Rules.defaults()` can shrink once 1.4.0 is on hand.
 - One sidecar; Steward is a protocol client. Architect will send the A8 API contract draft for review before building it.
 
+## Survival rule for regions (decided 2026-10-08, relayed by the Architect session from Noah)
+Natural cut and fill and grown natural forms are **free** (no BOM, no drops); connectors and buildings are **construction sites with a BOM**. So Supplied and Hardcore can build regions: the terrain work costs
+nothing, the player pays for structures. Architect's five-phase settlement plan (6b, 6c, 7a-7c; caps 7b $90, 7c $180) is adopted; see `docs/A7-SETTLEMENTS-REVIEW.md` for Steward's answers.
+
 ## Phases
 
 Each phase ends at a gate checked in a dev client (DevBridge), never in a real world, using an independent gate-verifier.
