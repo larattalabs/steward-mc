@@ -119,7 +119,7 @@ class BatchPlannerTest {
 		assertEquals(p.lots().size(), b.items().size());
 		assertTrue(r.skippedLotIds().isEmpty());
 		assertEquals("steward_mc:settlement/set_1", b.owner());
-		assertEquals("set_1", b.group());
+		assertNull(b.group(), "a new batch makes a new site group; an existing group id is only for appending");
 		assertFalse(b.autoApprove());
 		for (Batch.Item i : b.items()) {
 			assertEquals(Mode.INSTANT, i.request().mode());

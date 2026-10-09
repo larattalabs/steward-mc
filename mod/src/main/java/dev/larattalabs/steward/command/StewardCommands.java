@@ -62,6 +62,14 @@ public final class StewardCommands {
 				});
 				return 1;
 			}))
+			.then(Commands.literal("resume").then(Commands.argument("group", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.word())
+				.then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200)).executes(ctx -> {
+					CommandSourceStack src = ctx.getSource();
+					SettlementRunner runner = new SettlementRunner(src.getServer(), src.getLevel(), src.getPlayerOrException(), Permission.FULL, service(), 0);
+					runner.resume(StringArgumentType.getString(ctx, "group"), StringArgumentType.getString(ctx, "card"), IntegerArgumentType.getInteger(ctx, "buildings"),
+						DoubleArgumentType.getDouble(ctx, "budget"));
+					return 1;
+				}))))))
 			.then(Commands.literal("build").then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200))
 				.then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
 					CommandSourceStack src = ctx.getSource();

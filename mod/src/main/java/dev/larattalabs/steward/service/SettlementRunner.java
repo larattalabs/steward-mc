@@ -92,6 +92,22 @@ public final class SettlementRunner {
 		});
 	}
 
+	/** Dev: continue a paused group from a previous run (the sidecar kept it): rebuild the card from its job, re-survey the same spot, raise the budget and resume. */
+	public void resume(String groupIdToResume, String cardJobId, int buildings, double newBudgetUsd) {
+		var api = ArchitectApi.get();
+		Group g = api.designs().group(groupIdToResume).orElse(null);
+		var job = api.jobs().get(cardJobId).orElse(null);
+		if (g == null || job == null) { say("Unknown group or card job."); return; }
+		CardResult r = CardResult.interpret(job);
+		if (!r.ok()) { say("Card job unreadable: " + r.error()); return; }
+		this.resumeGroup = g;
+		this.resumeBudget = newBudgetUsd;
+		surveyAndStart(r, buildings, newBudgetUsd);
+	}
+
+	private Group resumeGroup;
+	private double resumeBudget;
+
 	private void surveyAndStart(CardResult r, int buildings, double budgetUsd) {
 		int cx = player.blockPosition().getX(), cz = player.blockPosition().getZ();
 		BoundingBox area = new BoundingBox(cx - CLAIM_RADIUS, level.getMinY(), cz - CLAIM_RADIUS, cx + CLAIM_RADIUS, level.getMaxY(), cz + CLAIM_RADIUS);
@@ -110,12 +126,23 @@ public final class SettlementRunner {
 			List<VillageLayout.LotSpec> specs = new ArrayList<>();
 			for (int i = 0; i < buildings; i++) {
 				String[] a = ARCHETYPES[i % ARCHETYPES.length];
-				specs.add(new VillageLayout.LotSpec("lot_" + i, a[0], Integer.parseInt(a[1]), Integer.parseInt(a[2])));
+				specs.add(new VillageLayout.LotSpec("lot_" + i, a[0], Integer.parseInt(a[1]), Integer.parseInt(a[2]) + dev.larattalabs.steward.gateway.LotBrief.APPROACH_MARGIN));
 			}
 			plan = VillageLayout.plan(claim, grid, specs, VillageLayout.Rules.defaults());
 			say("Layout: " + plan.lots().size() + " lots on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
 			if (plan.lots().isEmpty()) { say("No dry, flat room here. Try another spot."); return; }
 			register();
+			if (resumeGroup != null) {
+				groupId = resumeGroup.id();
+				state = new State(Pipeline.Phase.GROUP_RUNNING, settlement.id(), r.card(), resumeGroup.bible().id(), resumeGroup.bible().version(), groupId, Map.of(), 0,
+					resumeGroup.cost().usd(), resumeBudget, false, null, null);
+				say("Resuming group " + groupId + " with budget $" + resumeBudget);
+				var d = ArchitectApi.get().designs();
+				if (resumeGroup.status() == Group.Status.DONE) { say("The group is already done; placing."); apply(Pipeline.step(state, new Pipeline.GroupUpdate(groupId, "done", Map.of(), List.of(), resumeGroup.cost().usd(), null), permission)); return; }
+				d.extendGroup(groupId, resumeBudget).thenCompose(v -> d.resumeGroup(groupId)).whenComplete((v, e) -> { if (e != null) say("Resume failed: " + e.getMessage()); });
+				for (Group.Item it : resumeGroup.items()) if (it.status() == dev.larattalabs.architect.api.Design.Status.DONE || it.stage().isPresent()) decided.add(it.itemKey());
+				return;
+			}
 			state = State.start(settlement.id(), r.card(), budgetUsd);
 			apply(Pipeline.step(state, new Pipeline.CardApproved(r.card()), permission));
 		});
@@ -189,7 +216,9 @@ public final class SettlementRunner {
 			String entry = entries.get(lot.id());
 			if (entry == null) continue;
 			BoundingBox box = BatchPlanner.lotBox(lot, lot.sizeX() > 20 ? 40 : 24);
-			fits.put(lot.id(), sites.fitToLot(entry, box, BatchPlanner.streetSide(lot), FitOptions.DEFAULT.withLevel(level)));
+			LotFit fit = sites.fitToLot(entry, box, BatchPlanner.streetSide(lot), FitOptions.DEFAULT.withLevel(level));
+			fits.put(lot.id(), fit);
+			if (!fit.ok()) say("Fit " + lot.id() + " (" + entry + ") refused: " + fit.verdict().refusals().stream().map(r -> r.reason() + " " + r.message()).collect(Collectors.joining("; ")));
 		}
 		BatchPlanner.Result res = BatchPlanner.build(settlement, plan, landmarkIds, entries, fits, level, false, autoApprove, true);
 		if (res.note() != null) say(res.note());

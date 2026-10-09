@@ -27,7 +27,8 @@ public final class VillageLayout {
 
 	public record Rules(int streetWidth, int lotGap, int maxSlope, int claimMargin) {
 		public static Rules defaults() {
-			return new Rules(3, 3, 3, 2);
+			// street 5 wide in the layout (the road itself is 3: a one-block verge each side so lot approaches stop clear of it)
+			return new Rules(5, 3, 3, 2);
 		}
 	}
 

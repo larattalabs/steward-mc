@@ -105,7 +105,7 @@ public final class BatchPlanner {
 		for (Lot l : plan.lots()) {
 			String entry = entries.get(l.id());
 			LotFit fit = fits.get(l.id());
-			if (entry == null || fit == null || !fit.ok()) {
+			if (entry == null || fit == null || !placeable(fit)) {
 				skipped.add(l.id());
 				continue;
 			}
@@ -131,7 +131,7 @@ public final class BatchPlanner {
 		}
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
-		Batch b = new Batch(null, s.owner(), ext, s.id(), new ArrayList<>(items.values()), specs, Batch.WaitPolicy.DEFAULT,
+		Batch b = new Batch(null, s.owner(), ext, null, new ArrayList<>(items.values()), specs, Batch.WaitPolicy.DEFAULT,
 			dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY, null, false, autoApprove, false, null);
 		return new Result(b, List.copyOf(skipped), note);
 	}
@@ -148,6 +148,12 @@ public final class BatchPlanner {
 		ext.addProperty("steward_mc:street", true);
 		return new RoadRequest(level, List.of(new BlockPos(x0, plan.streetY(), plan.streetZ()), new BlockPos(x1, plan.streetY(), plan.streetZ())), 3, null, null,
 			true, false, Mode.INSTANT, s.owner(), ext, null, false);
+	}
+
+	/** A fit is placeable when it has no refusal, or only temporary ones (player or mob in the box, chunks not loaded): the queue waits for those. */
+	static boolean placeable(LotFit fit) {
+		return fit.verdict().refusals().stream().allMatch(r -> r.reason() == dev.larattalabs.architect.api.Reason.PLAYER_IN_BOX || r.reason() == dev.larattalabs.architect.api.Reason.OCCUPIED
+			|| r.reason() == dev.larattalabs.architect.api.Reason.NOT_LOADED);
 	}
 
 	public record Result(Batch batch, List<String> skippedLotIds, @Nullable String note) {

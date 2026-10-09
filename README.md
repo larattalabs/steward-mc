@@ -4,8 +4,12 @@
 A village, a castle, a rift settlement, a "repurposed meteor crater mining facility, hellish evil lair": you describe it, approve a concept card, and the steward designs a style bible,
 the buildings and their layout, then places them, keeps them up to date as you progress, and asks you before it spends or demolishes anything.
 
-> **Status: early development, not playable yet.** The pipeline works end to end up to design (a real run produced a style bible and designed buildings from one sentence); placement through the
-> same flow is being finished. There is no Founding Stone, steward NPC or in-game UI yet, so nothing here is ready to install. See [Status](#status).
+> **Status: early development, not playable yet.** The pipeline now works end to end from the dev console: one sentence produced a concept card, a style bible, four designed buildings and a placed
+> street, in a forest with trees on every lot. There is no Founding Stone, steward NPC or in-game UI yet, so nothing here is ready to install. See [Status](#status).
+
+<img src="docs/img/first-village.jpg" alt="A street of mossy spruce buildings placed by one dev-console command in a forest, beside a river" width="100%">
+
+*Dev-console run: "a small mossy forest village of spruce and stone" (tavern, house, shop, cottage; about $12 of Claude usage). Not a player-facing flow yet.*
 
 Steward is a **sibling mod to [Architect](https://github.com/larattalabs/architect-mc)** (Fabric, Minecraft 26.3), which provides the building generator, library, placement, survival construction and the
 region engine. Steward adds the director on top: concept card, layout, a persistent steward, permission levels, difficulty modes, and the evolve-over-time loop. Like Architect, it is singleplayer
@@ -30,13 +34,14 @@ your words -> concept card (site / style / purpose / story / constraints) -> you
 
 ## Status
 
-Built and tested offline (84 unit tests, CI green on GitHub Actions):
+Built and tested offline (87 unit tests, CI green on GitHub Actions):
 concept card schema and parser prompt; settlement store and claims; village layout; lot-to-design-request; the design-group, placement-batch and update planners; the budget policy; and the whole
 generation pipeline as a pure state machine.
 
 Run for real (dev client, claude login):
 - the concept card (about 2 cents, 6 seconds);
-- a full settlement flow up to design: card, survey of a dense forest, layout, style bible, group of 4 designs with massings. Placement is the next run.
+- a full settlement flow, dev console only: card, survey of a dense forest (tree trunks read as ground), layout, style bible, 4 designs with massings, fit to lots, placement with a road. It found and fixed real
+  bugs (lots too small for their approach, duplicate approvals, a batch group id, temporary refusals). Still rough: buildings sit close, the street is a plain path, no persistence across restarts.
 
 Not built yet: the Founding Stone item, claim persistence, the steward NPC, the concept-card screen, the inbox and HUD, proactive triggers, progression tiers, villagers and animals, functional farm modules.
 

@@ -19,6 +19,8 @@ public final class LotBrief {
 	public static final Set<String> ARCHITECT_TYPES = Set.of("house", "cabin", "cottage", "tower", "shop", "tavern", "barn", "smithy", "chapel", "gatehouse", "custom");
 	/** Architect's size cap for one design (x/z 7..96, y 6..64). */
 	public static final int MIN_XZ = 7, MAX_XZ = 96, MIN_Y = 6, MAX_Y = 64;
+	/** Depth the lot keeps free in front of the building for Architect's approach (fitToLot sets the front back by it: a live run refused every lot as LOT_TOO_SMALL without it). */
+	public static final int APPROACH_MARGIN = 5;
 
 	private LotBrief() {
 	}
@@ -32,7 +34,7 @@ public final class LotBrief {
 		ConceptCard c = s.card();
 		String type = ARCHITECT_TYPES.contains(lot.type()) ? lot.type() : "custom";
 		int sx = clamp(lot.sizeX(), MIN_XZ, MAX_XZ);
-		int sz = clamp(lot.sizeZ(), MIN_XZ, MAX_XZ);
+		int sz = clamp(lot.sizeZ() - APPROACH_MARGIN, MIN_XZ, MAX_XZ);
 		BlockSize size = new BlockSize(sx, clamp(maxHeight, MIN_Y, MAX_Y), sz);
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());

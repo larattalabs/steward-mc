@@ -31,7 +31,7 @@ class LotBriefTest {
 		assertEquals("lot_3", r.ext().get("steward_mc:lot").getAsString());
 		assertEquals(20, r.maxSize().x());
 		assertEquals(24, r.maxSize().y());
-		assertEquals(14, r.maxSize().z());
+		assertEquals(14 - LotBrief.APPROACH_MARGIN, r.maxSize().z());
 		assertEquals("claude-sonnet-5-5", r.model());
 		assertEquals(1.5, r.budgetUsd());
 		assertTrue(r.notes().contains("mining facility"));
