@@ -65,6 +65,8 @@ public final class SettlementRunner {
 	private String batchId;
 	private Set<String> landmarkIds = Set.of();
 	private boolean registered;
+	/** lots already approved or redirected: Architect re-sends the awaiting status while an approval is in flight, and a second approve of the same item fails. */
+	private final Set<String> decided = new java.util.HashSet<>();
 
 	public SettlementRunner(MinecraftServer server, ServerLevel level, ServerPlayer player, Permission permission, CardService cards, int landmarks) {
 		this.server = server;
@@ -97,6 +99,12 @@ public final class SettlementRunner {
 		ArchitectApi.get().survey().sample(level, area, 1, LoadPolicy.LOADED_ONLY).whenComplete((sample, err) -> {
 			if (err != null) { say("Survey failed: " + err.getMessage()); return; }
 			Grid grid = TerrainGrid.fromSample(sample);
+			int wet = 0, lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
+			for (int z = grid.z0(); z < grid.z0() + grid.depth(); z++) for (int x = grid.x0(); x < grid.x0() + grid.width(); x++) {
+				if (grid.waterAt(x, z)) { wet++; continue; }
+				lo = Math.min(lo, grid.heightAt(x, z)); hi = Math.max(hi, grid.heightAt(x, z));
+			}
+			Steward.LOGGER.info("survey: {}x{} columns, {} unusable (water or unloaded), {} loaded chunks, ground y {}..{}, trees {}", grid.width(), grid.depth(), wet, sample.chunksLoaded(), lo, hi, sample.tree().cardinality());
 			Claim claim = new Claim(level.dimension().identifier().toString(), cx, cz, CLAIM_RADIUS, level.getMinY(), level.getMaxY());
 			settlement = Settlement.found("set_dev", r.card(), claim, permission, Difficulty.PATRON, System.currentTimeMillis());
 			List<VillageLayout.LotSpec> specs = new ArrayList<>();
@@ -153,8 +161,15 @@ public final class SettlementRunner {
 					else groupId = id;
 				});
 			}
-			case Pipeline.ApproveGroup a -> api.designs().approveGroup(a.groupId(), a.approve(), a.redirect(), a.cancel(), settlement.owner())
-				.whenComplete((r, err) -> { if (err != null) say("Approve failed: " + err.getMessage()); });
+			case Pipeline.ApproveGroup a -> {
+				List<String> approve = a.approve().stream().filter(decided::add).toList();
+				Map<String, String> redirect = new LinkedHashMap<>();
+				a.redirect().forEach((k, v) -> { if (decided.add(k)) redirect.put(k, v); });
+				List<String> cancel = a.cancel().stream().filter(decided::add).toList();
+				if (approve.isEmpty() && redirect.isEmpty() && cancel.isEmpty()) break;
+				api.designs().approveGroup(a.groupId(), approve, redirect, cancel, settlement.owner())
+					.whenComplete((r, err) -> { if (err != null) say("Approve failed: " + err.getMessage()); });
+			}
 			case Pipeline.ExtendAndResumeGroup e -> api.designs().extendGroup(e.groupId(), e.newBudgetUsd()).thenCompose(v -> api.designs().resumeGroup(e.groupId()));
 			case Pipeline.CancelGroup g -> api.designs().cancelGroup(g.groupId());
 			case Pipeline.FitAndQueue f -> fitAndQueue(f.autoApprove());

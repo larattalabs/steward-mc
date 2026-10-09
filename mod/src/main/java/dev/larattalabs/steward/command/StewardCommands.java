@@ -45,6 +45,23 @@ public final class StewardCommands {
 				}
 				return st.ok() ? 1 : 0;
 			}))
+			.then(Commands.literal("survey").executes(ctx -> {
+				CommandSourceStack src = ctx.getSource();
+				var p = src.getPlayerOrException();
+				int cx = p.blockPosition().getX(), cz = p.blockPosition().getZ();
+				var area = new net.minecraft.world.level.levelgen.structure.BoundingBox(cx - 64, src.getLevel().getMinY(), cz - 64, cx + 64, src.getLevel().getMaxY(), cz + 64);
+				ArchitectApi.get().survey().sample(src.getLevel(), area, 1, dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY).whenComplete((sm, err) -> {
+					if (err != null) { src.sendFailure(Component.literal("survey failed: " + err.getMessage())); return; }
+					var g = dev.larattalabs.steward.layout.TerrainGrid.fromSample(sm);
+					var specs = java.util.List.of(new dev.larattalabs.steward.layout.VillageLayout.LotSpec("a", "house", 14, 13), new dev.larattalabs.steward.layout.VillageLayout.LotSpec("b", "house", 14, 13),
+						new dev.larattalabs.steward.layout.VillageLayout.LotSpec("c", "house", 14, 13), new dev.larattalabs.steward.layout.VillageLayout.LotSpec("d", "house", 14, 13));
+					var claim = new dev.larattalabs.steward.model.Claim("d", cx, cz, 64, 0, 400);
+					int fit = dev.larattalabs.steward.layout.VillageLayout.plan(claim, g, specs, dev.larattalabs.steward.layout.VillageLayout.Rules.defaults()).lots().size();
+					Steward.LOGGER.info("survey at {},{}: trees {}, missing {}, 4 test lots fit: {}", cx, cz, sm.tree().cardinality(), sm.missing().cardinality(), fit);
+					src.sendSuccess(() -> Component.literal("survey at " + cx + "," + cz + ": trees " + sm.tree().cardinality() + ", missing " + sm.missing().cardinality() + ", 4 test lots fit: " + fit), false);
+				});
+				return 1;
+			}))
 			.then(Commands.literal("build").then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200))
 				.then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
 					CommandSourceStack src = ctx.getSource();

@@ -20,6 +20,31 @@ public final class TerrainGrid {
 				h[k] = unknown ? 0 : s.height()[k] + 1;
 			}
 		}
-		return new Grid(s.minX(), s.minZ(), s.width(), s.depth(), h, w);
+		// A tree column's motion-blocking height is the top of its trunk, not the ground. Estimate the ground there from the nearest non-tree dry columns
+		// (the placement code clears natural trees on a lot), so a forest is not read as a field of 8-block spikes.
+		int[] ground = h.clone();
+		for (int j = 0; j < s.depth(); j++) {
+			for (int i = 0; i < s.width(); i++) {
+				int k = s.index(i, j);
+				if (w[k] || !s.tree().get(k)) continue;
+				ground[k] = nearestGround(s, h, w, i, j, h[k]);
+			}
+		}
+		return new Grid(s.minX(), s.minZ(), s.width(), s.depth(), ground, w);
+	}
+
+	/** The lowest height among non-tree, non-water columns within 4 of (i, j), or {@code fallback} when there are none. */
+	private static int nearestGround(Sample s, int[] h, boolean[] w, int i, int j, int fallback) {
+		int best = Integer.MAX_VALUE;
+		for (int dj = -4; dj <= 4; dj++) {
+			for (int di = -4; di <= 4; di++) {
+				int ii = i + di, jj = j + dj;
+				if (ii < 0 || jj < 0 || ii >= s.width() || jj >= s.depth()) continue;
+				int k = s.index(ii, jj);
+				if (w[k] || s.tree().get(k)) continue;
+				best = Math.min(best, h[k]);
+			}
+		}
+		return best == Integer.MAX_VALUE ? fallback : best;
 	}
 }

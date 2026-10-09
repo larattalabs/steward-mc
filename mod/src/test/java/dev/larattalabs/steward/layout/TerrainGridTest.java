@@ -35,4 +35,16 @@ class TerrainGridTest {
 	void coarseSurveysAreRefused() {
 		assertThrows(IllegalArgumentException.class, () -> TerrainGrid.fromSample(sample(4)));
 	}
+
+	@Test
+	void aTreeColumnTakesTheGroundOfItsNeighboursNotItsTrunkTop() {
+		int w = 3, d = 1;
+		int[] height = {64, 74, 64};
+		BitSet tree = new BitSet();
+		tree.set(1);
+		Sample s = new Sample(0, 0, 2, 0, 1, w, d, height, new int[3], new int[3], List.of(), new int[3], new BitSet(), tree, new BitSet(), new BitSet(), 1, 1,
+			new int[1], List.of(), List.of(), 1);
+		Grid g = TerrainGrid.fromSample(s);
+		assertEquals(65, g.heightAt(1, 0));
+	}
 }
