@@ -28,6 +28,10 @@ import net.minecraft.network.chat.Component;
  * /steward settlements                             the settlements in this world
  * /steward describe &lt;id&gt; &lt;words&gt;                 turn a description into the settlement's concept card (about 2 cents)
  * /steward start &lt;id&gt; &lt;buildings&gt; &lt;budget&gt;        design and build a described settlement
+ * /steward approve &lt;id&gt;                           approve what the build waits for: the style bible, the massings, or placing it
+ * /steward redirect &lt;id&gt; &lt;lot&gt; &lt;notes&gt;           send one massing back with notes
+ * /steward raise &lt;id&gt; &lt;budget&gt;                    raise the budget of a build paused at its soft budget
+ * /steward cancel &lt;id&gt;                            stop the build (what is placed stays)
  * dev (cheats):
  * /steward claim                                   claim the land under you, as the Founding Stone does
  * /steward survey                                  survey around you and try four test lots
@@ -108,6 +112,15 @@ public final class StewardCommands {
 				new SettlementRunner(src.getServer(), src.getLevel(), src.getPlayerOrException(), s.get().permission(), service(), n >= 8 ? 2 : 0).startExisting(s.get(), n, DoubleArgumentType.getDouble(ctx, "budget"));
 				return 1;
 			})))))
+			.then(Commands.literal("approve").then(Commands.argument("id", StringArgumentType.word()).executes(ctx ->
+				decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"), SettlementRunner::approve))))
+			.then(Commands.literal("redirect").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("lot", StringArgumentType.word())
+				.then(Commands.argument("notes", StringArgumentType.greedyString()).executes(ctx -> decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"),
+					r -> r.redirect(StringArgumentType.getString(ctx, "lot"), StringArgumentType.getString(ctx, "notes"))))))))
+			.then(Commands.literal("raise").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 500)).executes(ctx ->
+				decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"), r -> r.raise(DoubleArgumentType.getDouble(ctx, "budget")))))))
+			.then(Commands.literal("cancel").then(Commands.argument("id", StringArgumentType.word()).executes(ctx ->
+				decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"), SettlementRunner::cancel))))
 			.then(Commands.literal("resume").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.argument("group", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.word())
 				.then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200)).executes(ctx -> {
 					CommandSourceStack src = ctx.getSource();
@@ -145,6 +158,18 @@ public final class StewardCommands {
 				});
 				return 1;
 			})))));
+	}
+
+	/** Runs a player decision on the settlement's active build and reports what it did. */
+	private static int decide(CommandSourceStack src, String id, java.util.function.Function<SettlementRunner, String> action) {
+		SettlementRunner r = SettlementRunner.active(id);
+		if (r == null) {
+			src.sendFailure(Component.literal("Nothing is being built for " + id + " in this session (see /steward settlements)."));
+			return 0;
+		}
+		String out = action.apply(r);
+		src.sendSuccess(() -> Component.literal(out), false);
+		return 1;
 	}
 
 	private static synchronized CardService service() {

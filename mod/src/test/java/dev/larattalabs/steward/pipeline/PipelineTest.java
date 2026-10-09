@@ -136,7 +136,7 @@ class PipelineTest {
 	@Test
 	void theBatchCompletingFinishesThePipeline() throws Exception {
 		State s = Pipeline.step(groupRunning(Permission.FULL), group("done", Map.of(), List.of(), 20), Permission.FULL).next();
-		State placing = Pipeline.step(s, new BatchDone(0, 0), Permission.FULL).next(); // READY_TO_PLACE -> PLACING on the first signal
+		State placing = Pipeline.step(s, new BatchQueued("b1"), Permission.FULL).next(); // Full: stages place as they come
 		assertEquals(Phase.PLACING, placing.phase());
 		Step done = Pipeline.step(placing, new BatchDone(11, 1), Permission.FULL);
 		assertEquals(Phase.DONE, done.next().phase());
@@ -189,5 +189,45 @@ class PipelineTest {
 		Notify n = only(st, Notify.class);
 		assertFalse(n.text().contains("null"), n.text());
 		assertEquals("set_7", Pipeline.label(s));
+	}
+
+	@Test
+	void atProposalsEveryDecisionWaitsForThePlayerAndTheWholePathCompletes() throws Exception {
+		Permission p = Permission.PROPOSALS;
+		State s = Pipeline.step(started(), new CardApproved(card()), p).next();
+		s = Pipeline.step(s, new BibleDone(true, "bib1", 1, 1.5, null), p).next();
+		assertEquals(Pipeline.Decision.BIBLE, Pipeline.awaiting(s));
+		s = Pipeline.step(s, new BibleApproved(), p).next();
+		assertEquals(Pipeline.Decision.NONE, Pipeline.awaiting(s));
+		s = Pipeline.step(s, group("awaiting_approval", Map.of("lot_0", "approval"), List.of("lot_0"), 2), p).next();
+		assertEquals(Pipeline.Decision.MASSINGS, Pipeline.awaiting(s));
+		Step approve = Pipeline.step(s, new MassingDecision(List.of("lot_0"), Map.of(), List.of()), p);
+		assertEquals(List.of("lot_0"), only(approve, ApproveGroup.class).approve());
+		s = Pipeline.step(approve.next(), group("done", Map.of("lot_0", "done"), List.of(), 6), p).next();
+		Step queued = Pipeline.step(s, new BatchQueued("b1"), p);
+		assertEquals(Pipeline.Decision.PLACEMENT, Pipeline.awaiting(queued.next()));
+		assertTrue(only(queued, Notify.class).needsDecision());
+		Step place = Pipeline.step(queued.next(), new PlacementApproved(), p);
+		only(place, ApproveStages.class);
+		assertEquals(Phase.PLACING, place.next().phase());
+		assertEquals(Phase.DONE, Pipeline.step(place.next(), new BatchDone(1, 0), p).next().phase());
+	}
+
+	@Test
+	void aRepeatedAwaitingUpdateDoesNotNotifyAgain() throws Exception {
+		State s = groupRunning(Permission.PROPOSALS);
+		Step first = Pipeline.step(s, group("awaiting_approval", Map.of(), List.of("lot_0"), 2), Permission.PROPOSALS);
+		only(first, Notify.class);
+		Step again = Pipeline.step(first.next(), group("awaiting_approval", Map.of(), List.of("lot_0"), 2), Permission.PROPOSALS);
+		assertTrue(again.commands().isEmpty(), "commands: " + again.commands());
+	}
+
+	@Test
+	void aBudgetPauseIsADecisionAndCancellingWhilePlacingStopsTheBatch() throws Exception {
+		State s = groupRunning(Permission.FULL);
+		State paused = Pipeline.step(s, group("paused_budget", Map.of(), List.of(), 28), Permission.FULL).next();
+		assertEquals(Pipeline.Decision.BUDGET, Pipeline.awaiting(paused));
+		State placing = Pipeline.step(Pipeline.step(s, group("done", Map.of(), List.of(), 20), Permission.FULL).next(), new BatchQueued("b1"), Permission.FULL).next();
+		only(Pipeline.step(placing, new Cancel(), Permission.FULL), CancelBatch.class);
 	}
 }

@@ -21,7 +21,8 @@ public final class Pipeline {
 	}
 
 	public enum Phase {
-		AWAITING_CARD_APPROVAL, BIBLE_RUNNING, AWAITING_BIBLE_APPROVAL, GROUP_RUNNING, AWAITING_MASSING_APPROVAL, READY_TO_PLACE, PLACING, DONE, FAILED, CANCELLED;
+		AWAITING_CARD_APPROVAL, BIBLE_RUNNING, AWAITING_BIBLE_APPROVAL, GROUP_RUNNING, AWAITING_MASSING_APPROVAL, READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING, DONE, FAILED,
+		CANCELLED;
 
 		public boolean terminal() {
 			return this == DONE || this == FAILED || this == CANCELLED;
@@ -70,7 +71,7 @@ public final class Pipeline {
 
 	// ------------------------------------------------------------------ events
 
-	public sealed interface Event permits CardApproved, BibleDone, BibleApproved, GroupUpdate, MassingDecision, BudgetRaised, BatchDone, Cancel {}
+	public sealed interface Event permits CardApproved, BibleDone, BibleApproved, GroupUpdate, MassingDecision, BudgetRaised, BatchQueued, PlacementApproved, BatchDone, Cancel {}
 
 	/** The player approved (or edited and approved) the concept card. */
 	public record CardApproved(ConceptCard card) implements Event {}
@@ -91,13 +92,19 @@ public final class Pipeline {
 
 	public record BudgetRaised(double newBudgetUsd) implements Event {}
 
+	/** Architect accepted the placement batch (its stages wait for approval unless the permission level places them as they come). */
+	public record BatchQueued(String batchId) implements Event {}
+
+	/** The player approved placing the designed settlement (every planned stage, in order). */
+	public record PlacementApproved() implements Event {}
+
 	public record BatchDone(int placed, int skipped) implements Event {}
 
 	public record Cancel() implements Event {}
 
 	// ---------------------------------------------------------------- commands
 
-	public sealed interface Command permits RequestBible, RequestGroup, ApproveGroup, ExtendAndResumeGroup, FitAndQueue, CancelGroup, Notify {}
+	public sealed interface Command permits RequestBible, RequestGroup, ApproveGroup, ExtendAndResumeGroup, FitAndQueue, ApproveStages, CancelGroup, CancelBatch, Notify {}
 
 	public record RequestBible(String prompt, String name, double budgetUsd) implements Command {}
 
@@ -111,7 +118,13 @@ public final class Pipeline {
 	/** Fit every designed lot with fitToLot and queue the placement batch; {@code autoApprove} places stages as they come. */
 	public record FitAndQueue(String groupId, boolean autoApprove) implements Command {}
 
+	/** Approve every planned stage of the queued batch, in order. */
+	public record ApproveStages() implements Command {}
+
 	public record CancelGroup(String groupId) implements Command {}
+
+	/** Stop the placement batch (what is placed stays; the change log can undo it). */
+	public record CancelBatch() implements Command {}
 
 	/** Something the player should see in the inbox. */
 	public record Notify(String text, boolean needsDecision) implements Command {}
@@ -128,7 +141,9 @@ public final class Pipeline {
 		if (s.phase().terminal()) return Step.of(s);
 		if (e instanceof Cancel) {
 			State c = s.with(Phase.CANCELLED);
-			return s.groupId() != null ? Step.of(c, new CancelGroup(s.groupId()), new Notify("Cancelled " + label(s), false)) : Step.of(c, new Notify("Cancelled", false));
+			Notify n = new Notify("Cancelled " + label(s), false);
+			if (s.phase() == Phase.AWAITING_PLACEMENT_APPROVAL || s.phase() == Phase.PLACING) return Step.of(c, new CancelBatch(), n);
+			return s.groupId() != null ? Step.of(c, new CancelGroup(s.groupId()), n) : Step.of(c, n);
 		}
 		return switch (s.phase()) {
 			case AWAITING_CARD_APPROVAL -> e instanceof CardApproved a ? cardApproved(s, a) : Step.of(s);
@@ -140,9 +155,33 @@ public final class Pipeline {
 				case BudgetRaised b when s.groupId() != null -> Step.of(s.withBudget(b.newBudgetUsd()), new ExtendAndResumeGroup(s.groupId(), b.newBudgetUsd()));
 				default -> Step.of(s);
 			};
-			case READY_TO_PLACE -> e instanceof BatchDone ? Step.of(s.with(Phase.PLACING)) : Step.of(s);
-			case PLACING -> e instanceof BatchDone b ? Step.of(s.with(Phase.DONE), new Notify(label(s) + " is built: " + b.placed() + " buildings placed" + (b.skipped() > 0 ? ", " + b.skipped() + " skipped" : ""), false)) : Step.of(s);
+			case READY_TO_PLACE -> e instanceof BatchQueued ? (perm.needsApproval(Permission.Action.NEW_PROJECT)
+				? Step.of(s.with(Phase.AWAITING_PLACEMENT_APPROVAL), new Notify("The designs of " + label(s) + " are done and fitted to their lots. Approve to place them.", true))
+				: Step.of(s.with(Phase.PLACING))) : Step.of(s);
+			case AWAITING_PLACEMENT_APPROVAL -> switch (e) {
+				case PlacementApproved p -> Step.of(s.with(Phase.PLACING), new ApproveStages());
+				case BatchDone b -> built(s, b);
+				default -> Step.of(s);
+			};
+			case PLACING -> e instanceof BatchDone b ? built(s, b) : Step.of(s);
 			default -> Step.of(s);
+		};
+	}
+
+	private static Step built(State s, BatchDone b) {
+		return Step.of(s.with(Phase.DONE), new Notify(label(s) + " is built: " + b.placed() + " buildings placed" + (b.skipped() > 0 ? ", " + b.skipped() + " skipped" : ""), false));
+	}
+
+	/** What the pipeline is waiting for the player to decide, if anything (the inbox, and for now the {@code /steward approve|redirect|raise} commands, act on it). */
+	public enum Decision { NONE, BIBLE, MASSINGS, BUDGET, PLACEMENT }
+
+	public static Decision awaiting(State s) {
+		return switch (s.phase()) {
+			case AWAITING_BIBLE_APPROVAL -> Decision.BIBLE;
+			case AWAITING_MASSING_APPROVAL -> Decision.MASSINGS;
+			case AWAITING_PLACEMENT_APPROVAL -> Decision.PLACEMENT;
+			case GROUP_RUNNING -> s.pausedForBudget() ? Decision.BUDGET : Decision.NONE;
+			default -> Decision.NONE;
 		};
 	}
 
@@ -174,10 +213,12 @@ public final class Pipeline {
 				if (!perm.needsApproval(Permission.Action.NEW_PROJECT)) {
 					yield Step.of(n.with(Phase.GROUP_RUNNING), new ApproveGroup(g.groupId(), g.awaiting(), Map.of(), List.of()));
 				}
+				// Architect re-sends awaiting_approval while an approval is in flight: tell the player once, on the way in
+				if (s.phase() == Phase.AWAITING_MASSING_APPROVAL) yield Step.of(n.with(Phase.AWAITING_MASSING_APPROVAL));
 				yield Step.of(n.with(Phase.AWAITING_MASSING_APPROVAL), new Notify(g.awaiting().size() + " massings are ready: approve or redirect each.", true));
 			}
 			case "paused_budget" -> Step.of(n.with(Phase.GROUP_RUNNING),
-				new Notify(String.format("Paused at %d%% of the $%.0f budget (spent $%.2f). Raise the budget to continue.", (int) (BudgetPolicy.SOFT_FRACTION * 100), s.budgetUsd(), g.costUsd()), true));
+				new Notify(String.format("Paused at %d%% of the $%.0f budget (spent $%.2f). Raise the budget to continue.", (int) (BudgetPolicy.SOFT_FRACTION * 100), s.budgetUsd(), n.spentUsd()), true));
 			case "held_usage" -> Step.of(n.with(Phase.GROUP_RUNNING), new Notify("Waiting for your Claude usage limit to reset" + (g.heldNote() == null ? "." : " (" + g.heldNote() + ")."), false));
 			case "done" -> Step.of(n.with(Phase.READY_TO_PLACE), new FitAndQueue(g.groupId(), !perm.needsApproval(Permission.Action.NEW_PROJECT)));
 			case "failed" -> Step.of(n.failed("the design group failed"), new Notify("The design group failed.", true));

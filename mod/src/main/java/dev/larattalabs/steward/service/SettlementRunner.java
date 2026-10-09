@@ -78,10 +78,66 @@ public final class SettlementRunner {
 		return ACTIVE.get(settlementId);
 	}
 
-	/** One line for the steward to say: the pipeline phase, what each building is doing and the spend. */
+	/** One line for the steward to say: the pipeline phase, what each building is doing and the spend, and what it waits for from the player. */
 	public String statusLine() {
 		if (state == null) return "Getting started.";
-		return String.format("%s. Buildings: %s. Spent $%.2f of $%.0f.", state.phase().name().toLowerCase().replace('_', ' '), Pipeline.stageCounts(state), state.spentUsd(), state.budgetUsd());
+		String line = String.format("%s. Buildings: %s. Spent $%.2f of $%.0f.", state.phase().name().toLowerCase().replace('_', ' '), Pipeline.stageCounts(state), state.spentUsd(), state.budgetUsd());
+		String hint = hint();
+		return hint == null ? line : line + " " + hint;
+	}
+
+	/** How the player answers what the pipeline waits for (the stopgap commands until the inbox exists), or null. */
+	private String hint() {
+		if (state == null || settlement == null) return null;
+		String id = settlement.id();
+		return switch (Pipeline.awaiting(state)) {
+			case BIBLE -> "Waiting for you: /steward approve " + id + " to design the buildings with this style.";
+			case MASSINGS -> "Waiting for you: /steward approve " + id + " (all " + lastAwaiting.size() + " massings), or /steward redirect " + id + " <lot> <what to change> (lots: "
+				+ String.join(", ", lastAwaiting) + ").";
+			case BUDGET -> String.format("Waiting for you: /steward raise %s <new budget in USD> (now $%.0f).", id, state.budgetUsd());
+			case PLACEMENT -> "Waiting for you: /steward approve " + id + " to place it.";
+			case NONE -> null;
+		};
+	}
+
+	// ----------------------------------------------------------------- the player's decisions (stopgap commands until the inbox exists)
+
+	/** Approves whatever is waiting: the style bible, every awaiting massing, or the placement. Returns what happened, for the command's feedback. */
+	public String approve() {
+		if (state == null) return "Nothing is waiting for you yet.";
+		return switch (Pipeline.awaiting(state)) {
+			case BIBLE -> { feed(new Pipeline.BibleApproved()); yield "Approved the style bible; designing the buildings."; }
+			case MASSINGS -> {
+				List<String> lots = List.copyOf(lastAwaiting);
+				feed(new Pipeline.MassingDecision(lots, Map.of(), List.of()));
+				yield "Approved " + lots.size() + " massings; detailing them.";
+			}
+			case PLACEMENT -> { feed(new Pipeline.PlacementApproved()); yield "Approved; placing the settlement stage by stage."; }
+			case BUDGET -> "The design group is paused at its budget: /steward raise " + settlement.id() + " <new budget in USD>.";
+			case NONE -> "Nothing is waiting for you (" + state.phase().name().toLowerCase().replace('_', ' ') + ").";
+		};
+	}
+
+	/** Sends one awaiting massing back with the player's notes (the others stay waiting). */
+	public String redirect(String lot, String notes) {
+		if (state == null || Pipeline.awaiting(state) != Pipeline.Decision.MASSINGS) return "No massing is waiting for approval.";
+		if (!lastAwaiting.contains(lot)) return "Lot " + lot + " is not waiting; waiting: " + String.join(", ", lastAwaiting) + ".";
+		feed(new Pipeline.MassingDecision(List.of(), Map.of(lot, notes), List.of()));
+		return "Sent " + lot + " back with your notes.";
+	}
+
+	/** Raises the design budget and resumes a group paused at its soft budget. */
+	public String raise(double newBudgetUsd) {
+		if (state == null || state.groupId() == null) return "There is no design group to fund yet.";
+		if (newBudgetUsd <= state.budgetUsd()) return String.format("The budget is already $%.0f; give a higher one.", state.budgetUsd());
+		feed(new Pipeline.BudgetRaised(newBudgetUsd));
+		return String.format("Budget raised to $%.0f.", newBudgetUsd);
+	}
+
+	public String cancel() {
+		if (state == null || state.phase().terminal()) return "Nothing to cancel.";
+		feed(new Pipeline.Cancel());
+		return "Cancelled. What is already placed stays (remove it with Architect's undo).";
 	}
 
 	private final MinecraftServer server;
@@ -103,6 +159,8 @@ public final class SettlementRunner {
 	private String claimedId;
 	/** lots already approved or redirected: Architect re-sends the awaiting status while an approval is in flight, and a second approve of the same item fails. */
 	private final Set<String> decided = new java.util.HashSet<>();
+	/** The lots whose massings Architect last reported as awaiting approval. */
+	private List<String> lastAwaiting = List.of();
 
 	public SettlementRunner(MinecraftServer server, ServerLevel level, ServerPlayer player, Permission permission, CardService cards, int landmarks) {
 		this.server = server;
@@ -267,7 +325,12 @@ public final class SettlementRunner {
 			case Pipeline.ExtendAndResumeGroup e -> api.designs().extendGroup(e.groupId(), e.newBudgetUsd()).thenCompose(v -> api.designs().resumeGroup(e.groupId()));
 			case Pipeline.CancelGroup g -> api.designs().cancelGroup(g.groupId());
 			case Pipeline.FitAndQueue f -> fitAndQueue(f.autoApprove());
-			case Pipeline.Notify n -> say(n.text());
+			case Pipeline.ApproveStages a -> approveStages();
+			case Pipeline.CancelBatch cb -> { if (batchId != null) api.sites(server).cancelBatch(batchId); }
+			case Pipeline.Notify n -> {
+				String hint = n.needsDecision() ? hint() : null;
+				say(hint == null ? n.text() : n.text() + " " + hint);
+			}
 		}
 	}
 
@@ -295,10 +358,26 @@ public final class SettlementRunner {
 		sites.queue(res.batch()).whenComplete((id, err) -> {
 			if (err != null) { say("Queue failed: " + err.getMessage()); feed(new Pipeline.Cancel()); return; }
 			batchId = id;
-			feed(new Pipeline.BatchDone(0, 0)); // READY_TO_PLACE -> PLACING
+			feed(new Pipeline.BatchQueued(id));
 			// a batch that finished before we knew its id (everything placed in the queue's first pass)
 			sites.batch(id).filter(b -> !b.running()).ifPresent(this::onBatchDone);
 		});
+	}
+
+	/** Approves every planned stage of the batch's site group, in order (each places once the ones before it are finished). */
+	private void approveStages() {
+		var sites = ArchitectApi.get().sites(server);
+		String siteGroup = batchId == null ? null : sites.batch(batchId).map(BatchView::group).orElse(null);
+		var group = siteGroup == null ? null : sites.group(siteGroup).orElse(null);
+		if (group == null) { say("The placement batch is gone; nothing to approve."); return; }
+		for (var st : group.stages()) {
+			if (st.state() != dev.larattalabs.architect.api.Stage.State.PLANNED || !batchId.equals(st.batchId())) continue;
+			try {
+				sites.approveStage(siteGroup, st.name());
+			} catch (IllegalStateException e) {
+				say("Stage " + st.name() + " could not be approved: " + e.getMessage());
+			}
+		}
 	}
 
 	// ----------------------------------------------------------------- Architect events
@@ -317,6 +396,7 @@ public final class SettlementRunner {
 			String stage = it.stage().map(Group.Stage::wire).orElse(it.status().name().toLowerCase());
 			items.put(it.itemKey(), stage);
 		}
+		lastAwaiting = List.copyOf(g.awaiting());
 		String held = g.usageLimitUntil() > 0 ? "until " + new java.util.Date(g.usageLimitUntil()) : null;
 		feed(new Pipeline.GroupUpdate(g.id(), g.status().wire(), items, g.awaiting(), g.cost().usd(), held));
 	}

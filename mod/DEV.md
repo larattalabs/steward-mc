@@ -80,3 +80,6 @@ delete it afterwards), and the client must start from a scrubbed environment so 
   tagged entity exists. Checked in a client: claim, NPC visible, both survive a restart. The right-click path itself was not driven (no use-entity hook in DevBridge).
 - `SettlementRunner`: one runner per settlement (`busy`), Architect events routed through one set of listeners registered at init, all runners dropped on `SERVER_STOPPED`, the player found by UUID when it speaks,
   ids from acks re-read once (an event can fire before the ack), the world's survival toggle decides the placement mode. Dev and cheat commands (`claim`, `survey`, `card`, `build`, `resume`) need permission level 2.
+- Decisions (stopgap until the inbox): `Pipeline.awaiting(state)` says what the build waits for (bible, massings, budget, placement). `/steward approve <id>` answers it (at placement it approves every planned
+  stage of the batch's site group with `Sites.approveStage`), `redirect <id> <lot> <notes>` sends one massing back, `raise <id> <usd>` lifts a soft-budget pause, `cancel <id>` stops the build (a running batch is
+  cancelled; placed sites stay). Notifications that need a decision carry the command to type, and right-clicking the steward repeats it.
