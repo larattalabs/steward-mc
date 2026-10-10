@@ -40,6 +40,8 @@ public final class Updates {
 	private static final Set<String> APPLYING = new HashSet<>();
 	/** {@code siteId@version}: applies that failed, with why. Not applied automatically again (the player can retry from the inbox). */
 	private static final Map<String, String> FAILED = new java.util.HashMap<>();
+	/** Site id -> the highest version reverted away from this session (held even when the revert's history could not be saved). */
+	private static final Map<String, Integer> HELD = new java.util.HashMap<>();
 	private static volatile boolean scanPending;
 	private static volatile MinecraftServer server;
 
@@ -64,6 +66,7 @@ public final class Updates {
 			SKIPPED.clear();
 			APPLYING.clear();
 			FAILED.clear();
+			HELD.clear();
 			scanPending = false;
 		});
 	}
@@ -87,7 +90,7 @@ public final class Updates {
 			String key = o.siteId() + "@" + o.headVersion();
 			if (SKIPPED.contains(key) || APPLYING.contains(o.siteId())) continue;
 			// the player reverted away from this version (or a newer one): not offered again; a version after it is
-			if (o.headVersion() <= s.revertedFrom(o.siteId())) continue;
+			if (o.headVersion() <= Math.max(s.revertedFrom(o.siteId()), HELD.getOrDefault(o.siteId(), 0))) continue;
 			var view = sites.get(o.siteId());
 			// a site of this owner in another dimension is not this settlement's
 			if (view.isPresent() && !view.get().dimension().identifier().toString().equals(s.claim().dimension())) continue;
@@ -178,18 +181,25 @@ public final class Updates {
 				FAILED.remove(key);
 				msg = "Updated " + p.lot() + " to version " + r.toVersion() + " (" + r.written() + " blocks" + (r.kept().isEmpty() ? "" : ", " + r.kept().size() + " of your edits kept")
 					+ ").";
-				change = new Settlement.SiteChange(p.siteId(), p.lot(), p.from(), r.toVersion());
+				change = new Settlement.SiteChange(p.siteId(), p.lot(), r.fromVersion(), r.toVersion());
 				// the steward goes to look at it
 				sites.get(p.siteId()).ifPresent(v -> StewardMotion.visit(server, s, v.box()));
 			}
 			// failed ones too: the history says what was tried
-			Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.UPDATED, msg, List.of(change), null,
+			var logged = Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.UPDATED, msg, List.of(change), null,
 				msg.startsWith("Updated") ? Settlement.Outcome.DONE : Settlement.Outcome.FAILED));
-			server.getPlayerList().getPlayers().forEach(pl -> pl.sendSystemMessage(Component.literal("Steward (" + s.name() + "): " + msg)));
-			StewardVoice.say(server, s.id(), msg);
+			if (!logged.ok()) msg = msg + " (Its history could not be saved: " + logged.error() + ")";
+			String said = msg;
+			server.getPlayerList().getPlayers().forEach(pl -> pl.sendSystemMessage(Component.literal("Steward (" + s.name() + "): " + said)));
+			StewardVoice.say(server, s.id(), said);
 			// the next scan (next tick) offers what is left; not here, where an apply that completed inline would recurse
 			scanPending = true;
 		});
+	}
+
+	/** Holds back a site's versions up to {@code version} this session (a revert went back from it). */
+	public static void hold(String siteId, int version) {
+		HELD.merge(siteId, version, Math::max);
 	}
 
 	/** Scans again on the next tick (after a revert, or anything else that changes what is offered). */

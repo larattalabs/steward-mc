@@ -91,4 +91,30 @@ class SaveCompatTest {
 		assertEquals(Recovery.NONE, log.get(3).recovery(), "a failed update changed nothing");
 		assertEquals(Kind.CLAIM_CHANGED, s.withClaim(new Claim("minecraft:overworld", 0, 0, 96, -64, 320), 5L).log().get(4).kind());
 	}
+
+	@Test
+	void oddV1FilesStillLoad() {
+		String odd = """
+			{"format": 1, "nextSerial": 3, "settlements": [
+			  {"id": "set_1", "name": "A", "claim": {"dimension": "minecraft:overworld", "centerX": 0, "centerZ": 0, "radius": 64, "minY": -64, "maxY": 320},
+			   "siteVersion": 1, "styleVersion": 1, "purposeVersion": 1, "permission": "PROPOSALS", "difficulty": "PATRON", "log": null},
+			  {"id": "set_2", "name": "B", "claim": {"dimension": "minecraft:overworld", "centerX": 500, "centerZ": 0, "radius": 64, "minY": -64, "maxY": 320},
+			   "siteVersion": 1, "styleVersion": 1, "purposeVersion": 1, "permission": "PROPOSALS", "difficulty": "PATRON",
+			   "log": [{"at": 1, "kind": "NOTE", "text": "Updated hut to version 2", "siteIds": null}, {"at": 2, "text": "no kind"}]}]}
+			""";
+		SettlementStore st = SettlementStore.fromJson(odd);
+		assertEquals(List.of(), st.get("set_1").orElseThrow().log());
+		var log = st.get("set_2").orElseThrow().log();
+		assertEquals(Kind.NOTE, log.get(0).kind(), "an update note without its site stays a note");
+		assertEquals(Kind.NOTE, log.get(1).kind(), "a missing kind reads as a note");
+	}
+
+	@Test
+	void successiveRevertsHoldTheHighestVersionLeft() {
+		Settlement s = Settlement.founded("set_1", "Here", new Claim("minecraft:overworld", 0, 0, 64, -64, 320), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		s = s.withLog(Settlement.LogEntry.of(2L, Kind.UPDATED, "u", List.of(new Settlement.SiteChange("s1", "inn", 1, 3)), null, Outcome.DONE));
+		s = s.withLog(Settlement.LogEntry.of(3L, Kind.REVERTED, "r", List.of(new Settlement.SiteChange("s1", "inn", 3, 2)), null, Outcome.DONE));
+		s = s.withLog(Settlement.LogEntry.of(4L, Kind.REVERTED, "r", List.of(new Settlement.SiteChange("s1", "inn", 2, 1)), null, Outcome.DONE));
+		assertEquals(3, s.revertedFrom("s1"), "3 -> 2 -> 1 still holds 3");
+	}
 }

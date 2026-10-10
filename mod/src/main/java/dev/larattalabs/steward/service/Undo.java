@@ -20,13 +20,17 @@ public final class Undo {
 	private Undo() {
 	}
 
-	/** The operation an undo logs: each removed site to version 0 (the version it stood at is in the placing entry); partial when it stopped early. */
-	private static Settlement.LogEntry removed(Settlement.LogEntry placed, List<String> gone, boolean whole) {
+	/** Said when the undo happened but its history could not be saved. */
+	static final String UNLOGGED = "The settlement's history could not be saved: the undo happened, but its record is missing (see the log).";
+
+	/** The operation an undo logs: each removed site from the version it stood at ({@code now}; the placing entry's when unknown) to 0. */
+	private static Settlement.LogEntry removed(Settlement.LogEntry placed, List<String> gone, boolean whole, java.util.Map<String, Integer> now) {
 		java.util.Map<String, Settlement.SiteChange> before = new java.util.HashMap<>();
 		for (Settlement.SiteChange c : placed.changes()) before.put(c.siteId(), c);
 		List<Settlement.SiteChange> changes = gone.stream().map(id -> {
 			var b = before.get(id);
-			return new Settlement.SiteChange(id, b == null ? null : b.lot(), b == null ? -1 : b.to(), 0);
+			int from = now.getOrDefault(id, b == null ? -1 : b.to());
+			return new Settlement.SiteChange(id, b == null ? null : b.lot(), from, 0);
 		}).toList();
 		return Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_REMOVED, "Undid " + gone.size() + " sites of \"" + placed.text() + "\"" + (placed.op() == null
 			? "" : " (" + placed.op() + ")"), changes, null, whole ? Settlement.Outcome.DONE : Settlement.Outcome.PARTIAL);
@@ -43,6 +47,9 @@ public final class Undo {
 		// the steward never stands in what is removed (a named mob in a box stops Architect)
 		var all = ArchitectApi.get().sites(server);
 		for (String id : ids) all.get(id).ifPresent(v -> StewardMotion.clear(server, s, v.box()));
+		// the versions they stand at now (updates may have moved them since they were placed): what the undo log records as "from"
+		java.util.Map<String, Integer> now = new java.util.HashMap<>();
+		for (String id : ids) all.get(id).ifPresent(v -> now.put(id, v.version()));
 		java.util.Collections.reverse(ids); // newest first
 		say.accept("Removing " + ids.size() + " sites of \"" + entry.get().text() + "\" and restoring the land...");
 		var sites = ArchitectApi.get().sites(server);
@@ -55,7 +62,7 @@ public final class Undo {
 			List<String> standing = List.copyOf(g.get().sites());
 			sites.removeGroup(group, as).whenComplete((r, err) -> {
 				List<String> gone = err == null && r.removed() ? standing : standing.stream().filter(id -> sites.get(id).isEmpty()).toList();
-				if (!gone.isEmpty()) Settlements.log(s.id(), removed(entry.get(), gone, gone.size() == standing.size()));
+				if (!gone.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), gone, gone.size() == standing.size(), now)).ok()) say.accept(UNLOGGED);
 				if (err != null) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
 				else if (!r.removed()) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: blocked by "
 					+ (r.blockers().isEmpty() ? "something in a box" : String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
@@ -83,7 +90,7 @@ public final class Undo {
 			});
 		}
 		chain.whenComplete((stop, err) -> {
-			if (!removed.isEmpty()) Settlements.log(s.id(), removed(entry.get(), List.copyOf(removed), removed.size() == ids.size()));
+			if (!removed.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), List.copyOf(removed), removed.size() == ids.size(), now)).ok()) say.accept(UNLOGGED);
 			if (err != null) {
 				Steward.LOGGER.warn("undo of {} failed", s.id(), err);
 				say.accept("Undo stopped after " + removed.size() + " of " + ids.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));

@@ -79,6 +79,12 @@ public final class StewardNpc {
 	static void replace(ServerLevel level, Mannequin old) {
 		Optional<String> id = settlementOf(old);
 		if (id.isEmpty()) return;
+		// a steward of this settlement already stands (an earlier replacement, or both were saved): the old one only goes
+		if (!level.getEntities(StewardEntity.TYPE, e -> id.get().equals(e.settlementId())).isEmpty()) {
+			old.discard();
+			Steward.LOGGER.info("the old steward of {} went: its steward_mc:steward already stands", id.get());
+			return;
+		}
 		BlockPos at = old.blockPosition();
 		StewardEntity n = make(level, at, id.get());
 		if (n == null) return;

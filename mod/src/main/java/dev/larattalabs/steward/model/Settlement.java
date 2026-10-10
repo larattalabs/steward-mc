@@ -55,6 +55,7 @@ public record Settlement(
 	public record LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup, @Nullable String op, List<SiteChange> changes,
 		@Nullable Outcome outcome) {
 		public LogEntry {
+			kind = kind == null ? Kind.NOTE : kind;
 			siteIds = siteIds == null ? List.of() : List.copyOf(siteIds);
 			changes = changes == null ? List.of() : List.copyOf(changes);
 			outcome = outcome == null ? Outcome.DONE : outcome;
@@ -252,14 +253,18 @@ public record Settlement(
 	 * to that version are not offered again: the player went back from it.
 	 */
 	public int revertedFrom(String siteId) {
+		// the highest version reverted away from since the site's last update (3 -> 2 -> 1 holds 3, not 2)
+		int held = 0;
 		for (int i = log.size() - 1; i >= 0; i--) {
 			LogEntry e = log.get(i);
 			if (e.outcome() == Outcome.FAILED || (e.kind() != Kind.REVERTED && e.kind() != Kind.UPDATED)) continue;
 			for (SiteChange c : e.changes()) {
-				if (c.siteId().equals(siteId)) return e.kind() == Kind.REVERTED ? Math.max(0, c.from()) : 0;
+				if (!c.siteId().equals(siteId)) continue;
+				if (e.kind() == Kind.UPDATED) return held;
+				held = Math.max(held, c.from());
 			}
 		}
-		return 0;
+		return held;
 	}
 
 	/** Site ids recorded in the log for a kind, newest first (what an "undo last project" would remove). */

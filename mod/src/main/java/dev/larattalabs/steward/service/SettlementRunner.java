@@ -106,6 +106,13 @@ public final class SettlementRunner {
 
 	private static void restoreAll(MinecraftServer server) {
 		buildsFile = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).resolve("steward-builds.json");
+		// a build logs its placement to its settlement for undo: with the settlements unreadable, none resumes (the builds file is left as it is)
+		if (Settlements.disabled()) {
+			Steward.LOGGER.error("settlements are disabled this session, so no unfinished build resumes ({} is kept for the next session)", buildsFile);
+			builds = new BuildStore();
+			buildsFile = null;
+			return;
+		}
 		try {
 			builds = BuildStore.load(buildsFile);
 		} catch (java.io.IOException | RuntimeException e) {
@@ -411,7 +418,13 @@ public final class SettlementRunner {
 	}
 
 	private boolean logPlaced(List<String> siteIds, int buildings, int notPlaced) {
-		if (siteIds.isEmpty() || Settlements.store().get(settlement.id()).isEmpty()) return true;
+		if (siteIds.isEmpty()) return true;
+		// a dev build has no saved settlement; any other build's settlement must be there, or its sites would never reach the undo log
+		var saved = Settlements.store().get(settlement.id());
+		if (saved.isEmpty()) return DEV_ID.equals(settlement.id());
+		// logged already (a restart came between the log and dropping the checkpoint): not twice
+		java.util.Set<String> ids = new java.util.HashSet<>(siteIds);
+		if (saved.get().log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && new java.util.HashSet<>(e.siteIds()).equals(ids))) return true;
 		var sites = ArchitectApi.get().sites(server);
 		List<Settlement.SiteChange> changes = siteIds.stream().map(id -> {
 			var v = sites.get(id);

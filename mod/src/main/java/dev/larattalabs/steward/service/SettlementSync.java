@@ -23,9 +23,11 @@ public final class SettlementSync {
 	public static void init() {
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			if (server.getTickCount() % EVERY != 0) return;
+			// each settlement's view is built once a round, however many players stand in it
+			Map<String, String> views = new HashMap<>();
 			for (var p : server.getPlayerList().getPlayers()) {
 				var s = Settlements.at(p.level(), p.blockPosition());
-				String json = s.isEmpty() ? "" : Actions.view(server, s.get()).toJson();
+				String json = s.isEmpty() ? "" : views.computeIfAbsent(s.get().id(), k -> Actions.view(server, s.get()).toJson());
 				if (json.equals(SENT.get(p.getUUID()))) continue;
 				SENT.put(p.getUUID(), json);
 				ServerPlayNetworking.send(p, new StewardNet.SettlementNear(json));

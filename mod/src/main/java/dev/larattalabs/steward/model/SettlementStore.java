@@ -117,19 +117,20 @@ public final class SettlementStore {
 	 */
 	static void v1ToV2(JsonObject file) {
 		for (JsonElement se : file.getAsJsonArray("settlements")) {
+			if (!se.isJsonObject() || !se.getAsJsonObject().has("log") || !se.getAsJsonObject().get("log").isJsonArray()) continue;
 			JsonArray log = se.getAsJsonObject().getAsJsonArray("log");
-			if (log == null) continue;
 			for (int i = 0; i < log.size(); i++) {
+				if (!log.get(i).isJsonObject()) continue;
 				JsonObject e = log.get(i).getAsJsonObject();
 				if (!e.has("op")) e.addProperty("op", "op_" + (i + 1));
-				if (!"NOTE".equals(e.has("kind") ? e.get("kind").getAsString() : null) || !e.has("text")) continue;
+				if (!e.has("kind") || !e.get("kind").isJsonPrimitive() || !"NOTE".equals(e.get("kind").getAsString()) || !e.has("text") || !e.get("text").isJsonPrimitive()) continue;
 				String text = e.get("text").getAsString();
 				if (text.startsWith("Claim is now ")) {
 					e.addProperty("kind", "CLAIM_CHANGED");
 					continue;
 				}
 				var m = UPDATED_NOTE.matcher(text);
-				JsonArray sites = e.getAsJsonArray("siteIds");
+				JsonArray sites = e.has("siteIds") && e.get("siteIds").isJsonArray() ? e.getAsJsonArray("siteIds") : null;
 				if (m.matches() && sites != null && sites.size() == 1) {
 					e.addProperty("kind", "UPDATED");
 					JsonObject c = new JsonObject();

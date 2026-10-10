@@ -19,10 +19,18 @@ public final class Revert {
 	private Revert() {
 	}
 
-	/** The version a site stood at before the one it stands at now (its history is oldest first), or 0 when it was placed at this one. */
+	/**
+	 * The version "back" goes to: the newest version older than the one it stands at, among those it has stood at (Architect's history, oldest first; a
+	 * revert appends the version it went to, so 3 -> 2 reads [1, 2, 3, 2] or [1, 2, 2] and back is 1). 0 when it never stood at an older one.
+	 */
 	public static int previousVersion(Sites sites, String siteId) {
-		List<SiteVersion> h = sites.history(siteId);
-		return h.size() < 2 ? 0 : h.get(h.size() - 2).version();
+		return previousVersion(sites.history(siteId).stream().map(SiteVersion::version).toList());
+	}
+
+	static int previousVersion(List<Integer> history) {
+		if (history.isEmpty()) return 0;
+		int now = history.get(history.size() - 1);
+		return history.stream().filter(v -> v < now).max(Integer::compare).orElse(0);
 	}
 
 	/** Starts the revert; the result comes as a chat line and a refreshed building panel. Returns what to tell the player now. */
@@ -42,8 +50,13 @@ public final class Revert {
 				: r.refusals().stream().map(x -> x.message()).reduce((a, b) -> a + "; " + b).orElse("refused");
 			String msg = ok ? "Reverted " + lot + " to version " + r.toVersion() + " (" + r.written() + " blocks" + (r.kept().isEmpty() ? "" : ", " + r.kept().size()
 				+ " of your edits kept") + ")." : "Could not revert " + lot + ": " + why;
-			Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.REVERTED, msg, List.of(new Settlement.SiteChange(siteId, lot, from,
-				ok ? r.toVersion() : toVersion)), null, ok ? Settlement.Outcome.DONE : Settlement.Outcome.FAILED));
+			var logged = Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.REVERTED, msg, List.of(new Settlement.SiteChange(siteId, lot,
+				ok ? r.fromVersion() : from, ok ? r.toVersion() : toVersion)), null, ok ? Settlement.Outcome.DONE : Settlement.Outcome.FAILED));
+			if (ok) {
+				// the version it left is not offered again even if the history could not be saved (this session; the saved hold covers the next)
+				Updates.hold(siteId, from);
+				if (!logged.ok()) msg += " (Its history could not be saved: " + logged.error() + ")";
+			}
 			if (ok) sites.get(siteId).ifPresent(v -> StewardMotion.visit(server, s, v.box()));
 			StewardVoice.say(server, s.id(), msg);
 			var p = server.getPlayerList().getPlayer(player);

@@ -45,6 +45,11 @@ public final class Settlements {
 		}
 	}
 
+	/** Whether settlements are disabled this session (their file could not be read): nothing that needs them may finish. */
+	public static boolean disabled() {
+		return file == null;
+	}
+
 	public static SettlementStore store() {
 		return store;
 	}
