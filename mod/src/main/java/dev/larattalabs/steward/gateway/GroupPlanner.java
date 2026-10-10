@@ -82,7 +82,7 @@ public final class GroupPlanner {
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
 		ext.addProperty("steward_mc:styleVersion", s.styleVersion());
-		GroupRequest req = new GroupRequest(s.name(), o.bibleId(), o.bibleVersion(), s.owner(), ext, o.concurrency(), o.budgetUsd(), items)
+		GroupRequest req = new GroupRequest(LotBrief.clip(s.name(), LotBrief.MAX_GROUP_NAME), o.bibleId(), o.bibleVersion(), s.owner(), ext, o.concurrency(), o.budgetUsd(), items)
 			.withMassingFirst(GroupRequest.ApprovalUi.OWNER, o.maxRedirects())
 			.withContext(context(s, plan));
 		return new Built(req, List.copyOf(omitted));

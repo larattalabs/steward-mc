@@ -69,4 +69,20 @@ class LotBriefTest {
 		assertTrue(r.notes().contains("slag foundry"), r.notes());
 		assertTrue(r.notes().contains("lava channels"), r.notes());
 	}
+
+	@Test
+	void fieldsStayWithinTheSidecarsLimits() throws Exception {
+		Settlement s = settlement("stilt_village");
+		var c = s.card();
+		var longStyle = new dev.larattalabs.steward.model.ConceptCard.Field("mossy, crooked, weathered timber, leaning stilts, hanging vines, moss and mud, dim lantern light", null, null, null);
+		var card = new dev.larattalabs.steward.model.ConceptCard("A".repeat(80), c.site(), longStyle, c.purpose(), new dev.larattalabs.steward.model.ConceptCard.Story("x".repeat(3000)),
+			c.constraints(), c.avoid(), c.interpretation(), c.contradictions(), c.assumptions(), c.program());
+		Settlement big = Settlement.found("set_1", card, s.claim(), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		DesignRequest r = LotBrief.build(big, new Lot("a_1", "cabin", 0, 0, 14, 17, Front.SOUTH, 70), 20, null, null);
+		assertTrue(r.style().length() <= LotBrief.MAX_STYLE, r.style());
+		assertEquals("mossy, crooked, weathered timber", r.style(), "cut at a word boundary");
+		assertTrue(r.notes().length() <= LotBrief.MAX_NOTES);
+		assertTrue(r.notes().contains("dim lantern light"), "the full style reaches the notes");
+		assertEquals("hellish evil lair", LotBrief.styleLabel(settlement("crater_works").card()), "the player's words when they fit");
+	}
 }
