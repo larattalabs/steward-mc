@@ -186,7 +186,7 @@ First passed 2026-10-10: **PASS 20 checks**. Latest: PASS 22 on Architect's vers
 - **The survey limit:** a radius-128 claim was surveyed as 257 x 257, past Architect's 256 x 256 full-resolution limit, so the survey came back at one column in four and the layout refused it. Builds now survey 255 x 255 at most (`ClaimRules.SURVEY_RADIUS`).
 - **A silent stall:** the exception was swallowed by the survey's future, so the build stopped without a word. The callback now says why it stopped.
 
-Sim limitation: an S lot (11 x 9) always fails in the sim, because its stand-in massing is the kit cabin. It is reported to Architect, and the stub run uses M buildings in the district.
+Sim limitation, fixed in Architect v0.12.3: an S lot (11 x 9) always failed in the sim, because its stand-in massing was the kit cabin. The stub run uses S buildings again.
 
 Since then: the save format, the settlement screen and building panel, revert, the steward entity (walking to an updated building, sitting on a stair, sleeping in
 a bed, a migrated old mannequin), its nameplate with the "!" and its speech bubble, each with a screenshot in `artifacts/shots/`.

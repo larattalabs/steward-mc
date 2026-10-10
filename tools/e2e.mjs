@@ -726,8 +726,7 @@ async function stubFlow(id) {
   if (!d) return fail('district by talk', `not founded: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
   ok('district by talk', `${d.name} founded with road ${d.roads[0].siteId}`);
   const inHarbour = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', 'library.json'), 'utf8')).answer;
-  inHarbour.building = { ...inHarbour.building, role: "harbourmaster's office", type: 'harbour_office', footprint: 'M', placement: undefined };
-  // M: the sim's stand-in massing (the kit cabin) does not fit an S lot (11 x 9)
+  inHarbour.building = { ...inHarbour.building, role: "harbourmaster's office", type: 'harbour_office', footprint: 'S', placement: undefined };
   inHarbour.district = d.name;
   inHarbour.reply = 'A harbourmaster\'s office in the harbour: it is in the inbox.';
   await cmd(`/steward dev sim_answer talk ${JSON.stringify(inHarbour)}`);
