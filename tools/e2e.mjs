@@ -65,6 +65,16 @@ async function quit() {
 const logSize = () => (fs.existsSync(LOG) ? fs.statSync(LOG).size : 0);
 const logSince = (from) => (fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8').slice(from) : '');
 
+/** Closes whatever screen is open (a focused text box takes the first Escape). */
+async function closeScreens() {
+  for (let i = 0; i < 3; i++) {
+    const st = await dev.request('dev.state');
+    if (!st.screen) return;
+    await dev.request('dev.key', { key: 'escape' });
+    await sleep(200);
+  }
+}
+
 async function cmd(c) {
   const r = await dev.request('dev.command', { cmd: c });
   return (r.messages ?? []).join(' | ');
@@ -286,7 +296,7 @@ async function placeUpdateUndo(id) {
       const screen = (await dev.request('dev.state')).screen?.class ?? 'none';
       if (/DescribeScreen|SettlementScreen/.test(screen)) ok('board', `opens ${screen.replace(/.*\./, '')}; ${boardShot}`);
       else fail('board', `screen ${screen}`);
-      await dev.request('dev.key', { key: 'escape' });
+      await closeScreens();
       await cmd(`/setblock ${px} ${py + 1} ${pz - 4} minecraft:air`);
     }
   }
@@ -299,7 +309,7 @@ async function placeUpdateUndo(id) {
   const ledger = (await dev.request('dev.state')).screen?.class ?? 'none';
   if (/DescribeScreen|SettlementScreen/.test(ledger)) ok('ledger', `opens ${ledger.replace(/.*\./, '')}`);
   else fail('ledger', `screen ${ledger}`);
-  await dev.request('dev.key', { key: 'escape' });
+  await closeScreens();
   // revert (3c): back to version 1 from the building panel (its third button, asked twice)
   await cmd(`/steward view ${id} ${site}`);
   await sleep(1500);
@@ -380,6 +390,30 @@ async function stewardLife(id) {
     ok('steward sleeps', shot.path ?? '');
   } else fail('steward sleeps', `not in the bed at ${cx - 5},${gy},${cz}: ${JSON.stringify(await at())}`);
   await cmd('/time set day');
+}
+
+/** Proposals (3e): a described settlement and a player carrying seeds: within a minute the steward proposes a farm; declined, it is remembered. */
+async function proposals(id) {
+  await cmd(`/steward dev describe ${id}`);
+  await cmd('/give @p minecraft:wheat_seeds 16');
+  let open = null;
+  for (let i = 0; i < 80 && !open; i++) {
+    await sleep(1000);
+    const st = settlements().find((x) => x.id === id);
+    open = st?.proposals?.open?.find((p) => p.key === 'farm') ?? null;
+  }
+  if (!open) return fail('proposal', 'no farm proposed within 80 s');
+  await closeScreens();
+  await dev.request('dev.key', { key: 'y' });
+  await sleep(1500);
+  const shot = (await dev.request('dev.screenshot', { name: 'e2e-proposal', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.key', { key: 'escape' });
+  ok('proposal', `${open.title}: ${open.why}; ${shot}`);
+  await cmd(`/steward proposals ${id} decline farm`);
+  await sleep(500);
+  const after = settlements().find((x) => x.id === id)?.proposals;
+  if (after?.declined?.includes('farm') && !after.open.some((p) => p.key === 'farm')) ok('proposal declined', 'remembered, not offered again');
+  else fail('proposal declined', JSON.stringify(after));
 }
 
 /** A world from before the steward entity: its mannequin stewards become steward_mc:steward when their chunks load. */
@@ -468,6 +502,7 @@ try {
     if (mode === 'free') {
       await placeUpdateUndo(id);
       await stewardLife(id);
+      await proposals(id);
     }
     else await stubFlow(id);
   }

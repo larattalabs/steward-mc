@@ -20,7 +20,8 @@ public record Settlement(
 	Permission permission,
 	Difficulty difficulty,
 	List<LogEntry> log,
-	Proposals proposals
+	Proposals proposals,
+	@Nullable BibleRef bible
 ) {
 	public enum Kind {
 		FOUNDED, CARD_EDITED, RESKIN, RELAYOUT, PROJECT_PROPOSED, PROJECT_APPROVED, PROJECT_PLACED, PROJECT_REMOVED, PERMISSION_CHANGED, NOTE,
@@ -118,12 +119,22 @@ public record Settlement(
 
 	/** The same settlement with its proposals replaced. */
 	public Settlement withProposals(Proposals p) {
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, p);
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, p, bible);
+	}
+
+	/**
+	 * The settlement's style bible (Architect's id and version), kept from its first build: later builds (a proposal, an addition) reuse it, so they match
+	 * the settlement and do not pay for a new one. Null until a build made one.
+	 */
+	public record BibleRef(String id, int version) {}
+
+	public Settlement withBible(BibleRef b) {
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, b);
 	}
 
 	/** A claim the player has marked with the Founding Stone but not yet described: no concept card until they do. */
 	public static Settlement founded(String id, String name, Claim claim, Permission permission, Difficulty difficulty, long now) {
-		return new Settlement(id, name, null, claim, 1, 1, 1, permission, difficulty, List.of(new LogEntry(now, Kind.FOUNDED, "Claimed " + name, List.of())), Proposals.NONE);
+		return new Settlement(id, name, null, claim, 1, 1, 1, permission, difficulty, List.of(new LogEntry(now, Kind.FOUNDED, "Claimed " + name, List.of())), Proposals.NONE, null);
 	}
 
 	public boolean described() {
@@ -133,14 +144,14 @@ public record Settlement(
 	/** The player's description became a card (and, if the card names the settlement, its name). */
 	public Settlement withCard(ConceptCard c, long now) {
 		String n = c.name() == null || c.name().isBlank() ? name : c.name();
-		return new Settlement(id, n, c, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals)
+		return new Settlement(id, n, c, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible)
 			.withLog(new LogEntry(now, Kind.CARD_EDITED, "Described as: " + c.site().text() + ", " + c.style().text(), List.of()));
 	}
 
 	public static Settlement found(String id, ConceptCard card, Claim claim, Permission permission, Difficulty difficulty, long now) {
 		String name = card.name() == null || card.name().isBlank() ? id : card.name();
 		return new Settlement(id, name, card, claim, 1, 1, 1, permission, difficulty,
-			List.of(new LogEntry(now, Kind.FOUNDED, "Founded " + name, List.of())), Proposals.NONE);
+			List.of(new LogEntry(now, Kind.FOUNDED, "Founded " + name, List.of())), Proposals.NONE, null);
 	}
 
 	/** The Architect owner string for this settlement's sites: {@code steward_mc:settlement/<id>}. */
@@ -152,7 +163,7 @@ public record Settlement(
 	public Settlement withLog(LogEntry e) {
 		List<LogEntry> l = new ArrayList<>(log);
 		l.add(e.op() == null ? e.withOp("op_" + (l.size() + 1)) : e);
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, l, proposals);
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, l, proposals, bible);
 	}
 
 	/** A re-skin changes only the style (and the card's style field); layout and purpose versions stay. */
@@ -160,18 +171,18 @@ public record Settlement(
 		if (card == null) throw new IllegalStateException("describe the settlement first");
 		ConceptCard c = new ConceptCard(card.name(), card.site(), style, card.purpose(), card.story(), card.constraints(), card.avoid(),
 			card.interpretation(), card.contradictions(), card.assumptions(), card.program());
-		return new Settlement(id, name, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals)
+		return new Settlement(id, name, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals, bible)
 			.withLog(new LogEntry(now, Kind.RESKIN, "Style is now: " + style.text(), List.of()));
 	}
 
 	/** The claim grown (or set by the card's size); the change log says to what. */
 	public Settlement withClaim(Claim c, long now) {
-		return new Settlement(id, name, card, c, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals)
+		return new Settlement(id, name, card, c, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible)
 			.withLog(new LogEntry(now, Kind.CLAIM_CHANGED, "Claim is now " + ClaimRules.side(c.radius()) + " x " + ClaimRules.side(c.radius()), List.of()));
 	}
 
 	public Settlement withPermission(Permission p, long now) {
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, p, difficulty, log, proposals)
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, p, difficulty, log, proposals, bible)
 			.withLog(new LogEntry(now, Kind.PERMISSION_CHANGED, "Permission: " + p, List.of()));
 	}
 

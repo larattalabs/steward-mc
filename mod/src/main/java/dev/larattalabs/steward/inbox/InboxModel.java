@@ -42,7 +42,7 @@ public final class InboxModel {
 
 		/** Unique in the inbox: a settlement can have a build in progress and updates waiting at once. */
 		public String key() {
-			return "UPDATE".equals(decision) ? settlementId + "#updates" : settlementId;
+			return "UPDATE".equals(decision) ? settlementId + "#updates" : "PROPOSAL".equals(decision) ? settlementId + "#proposals" : settlementId;
 		}
 
 		public boolean waiting() {
@@ -67,6 +67,13 @@ public final class InboxModel {
 		lines.add(String.format("Spent $%.2f of $%.0f", s.spentUsd(), s.budgetUsd()));
 		if (s.heldNote() != null) lines.add("Waiting for your Claude usage limit to reset (" + s.heldNote() + ")");
 		return new Entry(settlementId, name, d.name(), headline, lines, waitingLots, s.budgetUsd(), s.spentUsd(), Pipeline.minimumRaise(s));
+	}
+
+	/** The steward's proposals for a settlement: one row per idea (its key, its title, why and about what it costs), each to build or to decline. */
+	public static Entry proposals(String settlementId, String name, List<Lot> ideas) {
+		String headline = ideas.size() == 1 ? "The steward has an idea for " + name + ": build it, or not now (it will not ask again)."
+			: "The steward has " + ideas.size() + " ideas for " + name + ": build one, or decline it (it will not ask again).";
+		return new Entry(settlementId, name, "PROPOSAL", headline, List.of(), ideas, 0, 0, 0);
 	}
 
 	/** A settlement's waiting updates: one lot per building (its id is the site id, {@code waiting} when it can be applied). */

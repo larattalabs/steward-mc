@@ -290,6 +290,7 @@ public final class SettlementRunner {
 		this.landmarkIds = Set.copyOf(b.landmarkIds());
 		this.decided.addAll(b.decided());
 		this.lastAwaiting = b.lastAwaiting();
+		this.addition = b.addition();
 	}
 
 	private ServerLevel level() {
@@ -304,7 +305,7 @@ public final class SettlementRunner {
 		if (settlement == null || state == null || plan == null) return true;
 		if (state.phase().terminal()) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting));
+			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -456,8 +457,23 @@ public final class SettlementRunner {
 	}
 
 	private Settlement existing;
+	/** An addition to a built settlement (a proposal's building): no new street, and the settlement's style bible is reused. */
+	private boolean addition;
 	private Group resumeGroup;
 	private double resumeBudget;
+
+	/**
+	 * Builds one more building for a settlement that is already built (an accepted proposal): its card with {@code building} as the whole program, beside
+	 * what stands (the layout keeps off the settlement's sites), with no new street, in the settlement's own style bible when it has one.
+	 */
+	public void startAddition(Settlement s, dev.larattalabs.steward.model.ConceptCard.Building building, double budgetUsd) {
+		var c = s.card();
+		var card = new dev.larattalabs.steward.model.ConceptCard(c.name(), c.site(), c.style(), c.purpose(), c.story(), c.constraints(), c.avoid(), c.interpretation(),
+			c.contradictions(), c.assumptions(), List.of(building));
+		this.addition = true;
+		startExisting(new Settlement(s.id(), s.name(), card, s.claim(), s.siteVersion(), s.styleVersion(), s.purposeVersion(), s.permission(), s.difficulty(), s.log(),
+			s.proposals(), s.bible()), 1, budgetUsd);
+	}
 
 	/** Start from a settlement the player claimed with the Founding Stone and described: its claim and card are used, no card job runs. */
 	public void startExisting(Settlement s, int buildings, double budgetUsd) {
@@ -479,6 +495,8 @@ public final class SettlementRunner {
 		ArchitectApi.get().survey().sample(level, area, 1, LoadPolicy.LOADED_ONLY).whenComplete((sample, err) -> {
 			if (err != null) { abandon("Survey failed: " + err.getMessage()); return; }
 			Grid grid = TerrainGrid.fromSample(sample);
+			// what the settlement has built is taken ground (its buildings and its street), with a block's margin
+			if (existing != null) markSites(grid, existing);
 			int wet = 0, lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
 			for (int z = grid.z0(); z < grid.z0() + grid.depth(); z++) for (int x = grid.x0(); x < grid.x0() + grid.width(); x++) {
 				if (grid.waterAt(x, z)) { wet++; continue; }
@@ -511,8 +529,18 @@ public final class SettlementRunner {
 				return;
 			}
 			state = State.start(settlement.id(), r.card(), budgetUsd);
-			apply(Pipeline.step(state, new Pipeline.CardApproved(r.card()), permission));
+			var bible = existing != null ? existing.bible() : null;
+			if (bible != null) say("Designing in " + settlement.name() + "'s own style (its style bible is reused).");
+			apply(Pipeline.step(state, bible != null ? new Pipeline.CardApproved(r.card(), bible.id(), bible.version()) : new Pipeline.CardApproved(r.card()), permission));
 		});
+	}
+
+	/** Marks the settlement's standing sites as built ground (a block's margin round each), so a layout keeps off them. */
+	private void markSites(Grid grid, Settlement s) {
+		for (var v : ArchitectApi.get().sites(server).list(s.owner())) {
+			var b = v.box();
+			for (int x = b.minX() - 1; x <= b.maxX() + 1; x++) for (int z = b.minZ() - 1; z <= b.maxZ() + 1; z++) if (grid.has(x, z)) grid.setBuilt(x, z, true);
+		}
 	}
 
 	/** The id of the dev settlement {@code /steward build} and {@code resume} make (not saved). */
@@ -673,6 +701,7 @@ public final class SettlementRunner {
 			if (e != null) entries.add(e);
 		}
 		entries.addAll(Updates.inboxEntries());
+		entries.addAll(Proposals.inboxEntries());
 		net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new StewardNet.Inbox(List.copyOf(entries)));
 	}
 
@@ -844,7 +873,7 @@ public final class SettlementRunner {
 			if (!fit.ok()) say("Fit " + lot.id() + " (" + entry + ") refused: " + fit.verdict().refusals().stream().map(r -> r.reason() + " " + r.message()).collect(Collectors.joining("; ")));
 		}
 		BatchPlanner.Result res = BatchPlanner.build(settlement, plan, landmarkIds, entries, fits, level,
-			dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), autoApprove, true, buildId);
+			dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), autoApprove, !addition, buildId);
 		if (res.note() != null) say(res.note());
 		if (!res.skippedLotIds().isEmpty()) say("Skipped lots (no design or no fit): " + res.skippedLotIds());
 		say("Placing " + res.batch().items().size() + " items...");
@@ -897,6 +926,10 @@ public final class SettlementRunner {
 		if (bibleJobId == null || !bibleJobId.equals(job.id())) return;
 		bibleJobId = null;
 		boolean ok = job.status() == BibleJob.Status.DONE;
+		// the settlement keeps it: its later builds reuse it
+		if (ok && job.bibleId() != null && Settlements.store().get(settlement.id()).isPresent()) {
+			Settlements.bible(settlement.id(), new Settlement.BibleRef(job.bibleId(), job.version()));
+		}
 		feed(new Pipeline.BibleDone(ok, ok ? job.bibleId() : null, job.version(), job.cost().usd(), job.error().orElse(job.status().name())));
 	}
 

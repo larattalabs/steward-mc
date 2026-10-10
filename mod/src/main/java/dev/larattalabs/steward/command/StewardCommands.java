@@ -117,7 +117,18 @@ public final class StewardCommands {
 				.then(Commands.argument("site", StringArgumentType.word()).executes(ctx -> decide(ctx, "building", StringArgumentType.getString(ctx, "site"), "", 0)))))
 			.then(Commands.literal("show").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "show", "", "", 0))))
 			.then(Commands.literal("hide").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "hide", "", "", 0))))
-			.then(Commands.literal("dev").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.literal("ghost").then(Commands.argument("entry",
+			.then(Commands.literal("proposals").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("decline").then(Commands.argument("key",
+				StringArgumentType.word()).executes(ctx -> decide(ctx, "proposal_decline", StringArgumentType.getString(ctx, "key"), "", 0)))).then(Commands.literal("accept")
+				.then(Commands.argument("key", StringArgumentType.word()).executes(ctx -> decide(ctx, "proposal_accept", StringArgumentType.getString(ctx, "key"), "", 0))))))
+			.then(Commands.literal("dev").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.literal("describe").then(Commands.argument("id",
+				StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check): a fixed sample card, without the Claude call a description makes
+					String id = StringArgumentType.getString(ctx, "id");
+					var card = dev.larattalabs.steward.model.ConceptCard.parse(com.google.gson.JsonParser.parseString(SAMPLE_CARD).getAsJsonObject());
+					var r = dev.larattalabs.steward.service.Settlements.describe(id, card, System.currentTimeMillis());
+					ctx.getSource().sendSuccess(() -> Component.literal(r.ok() ? "described " + id : r.error()), false);
+					return r.ok() ? 1 : 0;
+				}))).then(Commands.literal("ghost").then(Commands.argument("entry",
 				StringArgumentType.word()).then(Commands.argument("label", StringArgumentType.greedyString()).executes(ctx -> {
 					// dev (the e2e check): a labelled massing-style ghost of a library entry 12 blocks north of the player ("" label clears it)
 					var p = ctx.getSource().getPlayerOrException();
@@ -254,6 +265,13 @@ public final class StewardCommands {
 		if (no != null) src.sendFailure(Component.literal(no));
 		return no == null;
 	}
+
+	/** The sample card of {@code /steward dev describe}: a small cottage hamlet (the program has no farm, so a farm can be proposed). */
+	static final String SAMPLE_CARD = """
+		{"name": "E2E Hamlet", "site": {"text": "a meadow by a stream", "terrain": "find", "size": "M"}, "style": {"text": "timber cottages with thatched roofs"},
+		 "purpose": {"text": "a quiet hamlet"}, "constraints": {"density": "low"}, "interpretation": "a few cottages and a well",
+		 "program": [{"role": "cottage", "type": "cottage", "count": 3, "footprint": "S", "landmark": false}]}
+		""";
 
 	private static int answer(CommandSourceStack src, Actions.Result r) {
 		if (r.message().isEmpty()) return r.ok() ? 1 : 0;

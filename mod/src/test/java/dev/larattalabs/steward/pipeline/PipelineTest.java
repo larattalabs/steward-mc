@@ -335,4 +335,15 @@ class PipelineTest {
 		assertEquals(Pipeline.Decision.BUDGET, Pipeline.awaiting(failed.next()));
 		only(Pipeline.step(failed.next(), new BudgetRaised(50), Permission.PROPOSALS), ExtendAndResumeGroup.class);
 	}
+
+	@Test
+	void aSettlementsOwnBibleIsReusedNoNewOneIsMadeOrApproved() throws Exception {
+		Step st = Pipeline.step(started(), new CardApproved(card(), "bib_town", 3), Permission.PROPOSALS);
+		assertTrue(st.commands().stream().noneMatch(RequestBible.class::isInstance), st.commands().toString());
+		RequestGroup g = only(st, RequestGroup.class);
+		assertEquals("bib_town", g.bibleId());
+		assertEquals(3, g.bibleVersion());
+		assertEquals(35.0, g.budgetUsd(), 1e-9, "the whole budget goes to the designs");
+		assertEquals(Phase.GROUP_RUNNING, st.next().phase());
+	}
 }

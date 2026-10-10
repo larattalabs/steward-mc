@@ -67,6 +67,11 @@ public final class ProposalRules {
 		return out;
 	}
 
+	/** The building type a proposal key builds (what an accepted proposal adds to the settlement), or null for an unknown key. */
+	public static String typeOf(String key) {
+		return RULES.stream().filter(r -> r.key().equals(key)).map(Rule::type).findFirst().orElse(null);
+	}
+
 	static boolean fires(String key, Signs s) {
 		return switch (key) {
 			case "workshop" -> s.tier().ordinal() >= Progress.Tier.STONE.ordinal();

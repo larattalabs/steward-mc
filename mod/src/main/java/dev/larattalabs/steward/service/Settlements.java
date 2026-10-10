@@ -103,6 +103,20 @@ public final class Settlements {
 		return store.all().stream().filter(x -> !x.id().equals(id)).map(Settlement::claim).toList();
 	}
 
+	/** Keeps the settlement's style bible (from its first build) for later builds. */
+	public static Result bible(String id, Settlement.BibleRef b) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		return commit(s, s.get().withBible(b), "");
+	}
+
+	/** Replaces a settlement's proposals (saved, or nothing changes). */
+	public static Result proposals(String id, Settlement.Proposals p) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		return commit(s, s.get().withProposals(p), "");
+	}
+
 	/** Appends a change-log entry to a saved settlement. */
 	public static Result log(String id, Settlement.LogEntry e) {
 		Optional<Settlement> s = store.get(id);

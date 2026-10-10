@@ -35,7 +35,15 @@ public final class BuildStore {
 	 */
 	public record Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement, Pipeline.State state,
 		VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId, List<String> landmarkIds,
-		List<String> decided, List<String> lastAwaiting) {
+		List<String> decided, List<String> lastAwaiting, boolean addition) {
+		/** Builds saved before additions (a proposal's one building, no new street) read as whole settlements. */
+		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
+			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,
+			List<String> landmarkIds, List<String> decided, List<String> lastAwaiting) {
+			this(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId, landmarkIds,
+				decided, lastAwaiting, false);
+		}
+
 		public Saved {
 			landmarkIds = landmarkIds == null ? List.of() : List.copyOf(landmarkIds);
 			decided = decided == null ? List.of() : List.copyOf(decided);

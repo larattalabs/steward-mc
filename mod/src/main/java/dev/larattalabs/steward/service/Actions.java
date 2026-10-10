@@ -214,6 +214,12 @@ public final class Actions {
 			sendSettlement(player, s.get(), "building".equals(action) && lot != null ? lot : "");
 			return Result.ok("");
 		}
+		if ("proposal_decline".equals(action) || "proposal_accept".equals(action)) {
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			if ("proposal_decline".equals(action)) return Result.ok(Proposals.decline(player.level().getServer(), s.get(), lot == null ? "" : lot));
+			return acceptProposal(player, s.get(), lot == null ? "" : lot);
+		}
 		if ("revert".equals(action)) {
 			Optional<Settlement> s = Settlements.store().get(id);
 			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
@@ -246,6 +252,30 @@ public final class Actions {
 			}
 			default -> Result.fail("Unknown action: " + action);
 		};
+	}
+
+	/**
+	 * Builds an accepted proposal: one building beside what stands, in the settlement's style, at the proposal's estimate as its budget (the build pauses at
+	 * 80% of it as any build does). Checked like a start.
+	 */
+	static Result acceptProposal(ServerPlayer player, Settlement s, String key) {
+		var p = s.proposals().open().stream().filter(x -> x.key().equals(key)).findFirst();
+		if (p.isEmpty()) return Result.fail("No proposal " + key + " waits.");
+		if (SettlementRunner.busy(s.id())) return Result.fail(s.id() + " is being built; build the proposal once that is done.");
+		if (reading(s.id())) return Result.fail("The steward is still reading a description of " + s.id() + ".");
+		if (!SettlementRunner.canSave()) return Result.fail("Builds cannot be saved in this world (steward-builds.json could not be read; see the log), so none is started.");
+		MinecraftServer server = player.level().getServer();
+		var level = server.getLevel(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,
+			net.minecraft.resources.Identifier.parse(s.claim().dimension())));
+		if (level == null) return Result.fail("The dimension of " + s.id() + " is not loaded.");
+		var ps = s.proposals();
+		List<String> accepted = new ArrayList<>(ps.accepted());
+		accepted.add(key);
+		var res = Settlements.proposals(s.id(), new Settlement.Proposals(ps.open().stream().filter(x -> !x.key().equals(key)).toList(), ps.declined(), accepted, ps.lastAt()));
+		if (!res.ok()) return Result.fail(res.error());
+		int budget = Proposals.estimate(p.get());
+		new SettlementRunner(server, level, player, s.permission(), cards(), 0).startAddition(res.settlement(), p.get().building(), budget);
+		return Result.ok(String.format("Building %s for %s: one building beside what stands, budget $%d.", p.get().title().toLowerCase(), s.name(), budget));
 	}
 
 	// ------------------------------------------------------------------ screens

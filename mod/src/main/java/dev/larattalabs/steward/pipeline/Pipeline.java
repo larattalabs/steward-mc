@@ -79,8 +79,15 @@ public final class Pipeline {
 	public sealed interface Event permits CardApproved, BibleDone, BibleApproved, GroupUpdate, MassingDecision, BudgetRaised, BudgetRaiseFailed, BatchQueued, PlacementApproved,
 		BatchDone, Cancel, CancelConfirmed {}
 
-	/** The player approved (or edited and approved) the concept card. */
-	public record CardApproved(ConceptCard card) implements Event {}
+	/**
+	 * The player approved (or edited and approved) the concept card. {@code bibleId}: the settlement's style bible to reuse (a later build of a settlement
+	 * that has one), so no new bible is made or approved; null makes one.
+	 */
+	public record CardApproved(ConceptCard card, @Nullable String bibleId, int bibleVersion) implements Event {
+		public CardApproved(ConceptCard card) {
+			this(card, null, 0);
+		}
+	}
 
 	public record BibleDone(boolean ok, @Nullable String bibleId, int version, double costUsd, @Nullable String error) implements Event {}
 
@@ -255,6 +262,10 @@ public final class Pipeline {
 	}
 
 	private static Step cardApproved(State s, CardApproved a) {
+		if (a.bibleId() != null) {
+			// the settlement's style, approved when it was made: straight to the designs, at no bible cost
+			return requestGroup(new State(Phase.GROUP_RUNNING, s.settlementId(), a.card(), a.bibleId(), a.bibleVersion(), null, Map.of(), 0, 0, s.budgetUsd(), false, null, null));
+		}
 		State n = new State(Phase.BIBLE_RUNNING, s.settlementId(), a.card(), null, null, null, Map.of(), 0, 0, s.budgetUsd(), false, null, null);
 		// the bible is a small share of the budget (its measured cost is $1.2-2.0), never more than the whole of it
 		return Step.of(n, new RequestBible(biblePrompt(a.card()), a.card().name() == null ? s.settlementId() : a.card().name(), Math.min(BudgetPolicy.BIBLE_HIGH * 1.5, s.budgetUsd())));

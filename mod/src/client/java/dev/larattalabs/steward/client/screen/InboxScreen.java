@@ -119,6 +119,7 @@ public final class InboxScreen extends KitScreen {
 			case "BUDGET" -> new String[] {"waiting", "budget paused"};
 			case "PLACEMENT" -> new String[] {"waiting", "ready to place"};
 			case "UPDATE" -> new String[] {"done", "update available"};
+			case "PROPOSAL" -> new String[] {"thinking", "an idea"};
 			default -> new String[] {"working", "working"};
 		};
 	}
@@ -126,6 +127,7 @@ public final class InboxScreen extends KitScreen {
 	/** A building's dot family and stage word. */
 	private static String[] stage(InboxModel.Lot l) {
 		if ("update".equals(l.stage())) return l.waiting() ? new String[] {"done", "update"} : new String[] {"error", "cannot update now"};
+		if ("proposal".equals(l.stage())) return new String[] {"thinking", "proposed"};
 		if (l.waiting()) return new String[] {"waiting", "massing ready"};
 		return switch (l.stage()) {
 			case "done" -> new String[] {"done", "designed"};
@@ -238,11 +240,11 @@ public final class InboxScreen extends KitScreen {
 		// the pill, the name, the spend
 		String[] p = pill(e);
 		int pw = UiBits.dotPill(g, font, p[0], p[1], x, y - 1, UiBits.ink());
-		String spend = "UPDATE".equals(e.decision()) ? "" : String.format("$%.2f of $%.0f", e.spentUsd(), e.budgetUsd());
+		String spend = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision()) ? "" : String.format("$%.2f of $%.0f", e.spentUsd(), e.budgetUsd());
 		g.text(font, spend, x + w - font.width(spend), y + 1, e.spentUsd() >= e.budgetUsd() * 0.8 ? UiStyle.CLAY_DARK : UiBits.muted(), false);
 		g.text(font, TextUtil.ellipsize(font, e.name(), w - pw - font.width(spend) - 14), x + pw + 6, y + 1, UiBits.ink(), false);
 		y += 14;
-		boolean update = "UPDATE".equals(e.decision());
+		boolean update = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision());
 		if (!update) {
 			// progress: buildings designed
 			int total = Math.max(1, e.lots().size());
@@ -270,7 +272,17 @@ public final class InboxScreen extends KitScreen {
 				String[] st = stage(l);
 				Panels.dot(g, st[0], x + 5, ry + 1, false);
 				int actionsW = 0;
-				if ("UPDATE".equals(e.decision()) && sentAtVersion < 0) {
+				if ("PROPOSAL".equals(e.decision()) && sentAtVersion < 0) {
+					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
+					int cy = ry + (20 - CHIP_H) / 2 - 1;
+					String no = "Not now";
+					ax -= chipWidth(no);
+					chip(g, no, ax, cy, false, true, mx, my, () -> send("proposal_decline", l.id(), "", 0, "Declining " + l.role().toLowerCase()));
+					String yes = "Build it";
+					ax -= chipWidth(yes) + 3;
+					chip(g, yes, ax, cy, true, true, mx, my, () -> send("proposal_accept", l.id(), "", 0, "Starting " + l.role().toLowerCase()));
+					actionsW = x + w - ax + 4;
+				} else if ("UPDATE".equals(e.decision()) && sentAtVersion < 0) {
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
 					int cy = ry + (20 - CHIP_H) / 2 - 1;
 					String pv = "Preview";
@@ -299,7 +311,7 @@ public final class InboxScreen extends KitScreen {
 				// short: the lot, the stage, the size (the named parts are in the redirect prompt)
 				String size = l.detail().contains(" (") ? l.detail().substring(0, l.detail().indexOf(" (")) : l.detail();
 				// with chips on the row its stage goes without saying
-				String sub = "update".equals(l.stage()) ? l.detail() : l.id() + (actionsW > 0 ? "" : " · " + st[1]) + (size.isEmpty() ? "" : " · " + size.replace(", ", " · "));
+				String sub = "update".equals(l.stage()) || "proposal".equals(l.stage()) ? l.detail() : l.id() + (actionsW > 0 ? "" : " · " + st[1]) + (size.isEmpty() ? "" : " · " + size.replace(", ", " · "));
 				g.text(font, TextUtil.ellipsize(font, sub, w - 20 - actionsW), x + 15, ry + 10, UiBits.muted(), false);
 			}
 			if (e.lots().size() > fit) {
@@ -354,6 +366,9 @@ public final class InboxScreen extends KitScreen {
 				bx += button(g, "Raise the budget", 1, true, false, idle, bx, y, mx, my, this::submitField) + 6;
 			}
 			case "PLACEMENT" -> bx += button(g, "Place it", 1, true, false, idle, bx, y, mx, my, () -> send("approve", "", "", 0, "Placing " + e.name())) + 6;
+			case "PROPOSAL" -> {
+				return;
+			}
 			case "UPDATE" -> {
 				long n = e.lots().stream().filter(InboxModel.Lot::waiting).count();
 				bx += button(g, "Update all " + n, 1, true, false, idle && n > 0, bx, y, mx, my, () -> send("update_apply", "", "", 0, "Updating " + n + " buildings")) + 6;
