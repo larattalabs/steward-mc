@@ -168,4 +168,15 @@ class VillageLayoutTest {
 		assertEquals(4, p.lots().size(), "the four that fit are laid out");
 		assertEquals(List.of("keep_1"), p.unplaced().stream().map(LotSpec::id).toList());
 	}
+
+	@Test
+	void twoLotsThatFitNowhereDoNotHoldUpTheOthers() {
+		List<LotSpec> l = new ArrayList<>();
+		l.add(new LotSpec("keep_1", "keep", 140, 30));
+		l.add(new LotSpec("keep_2", "keep", 150, 30));
+		l.addAll(specs(4, 14, 12));
+		Plan p = VillageLayout.plan(CLAIM, flat(), l, Rules.defaults());
+		assertEquals(4, p.lots().size());
+		assertEquals(java.util.Set.of("keep_1", "keep_2"), p.unplaced().stream().map(LotSpec::id).collect(java.util.stream.Collectors.toSet()));
+	}
 }

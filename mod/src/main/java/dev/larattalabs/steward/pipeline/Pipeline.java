@@ -98,8 +98,15 @@ public final class Pipeline {
 
 	public record BudgetRaised(double newBudgetUsd) implements Event {}
 
-	/** Architect did not take a raise (extend or resume failed): the budget goes back and the build stays paused. */
-	public record BudgetRaiseFailed(double previousBudgetUsd, String why) implements Event {}
+	/**
+	 * Architect did not take a raise and the build stays paused. {@code extended}: the group's cap was raised but resuming failed, so the new budget stands (a
+	 * raise to the same amount retries the resume); else the budget goes back.
+	 */
+	public record BudgetRaiseFailed(double previousBudgetUsd, String why, boolean extended) implements Event {
+		public BudgetRaiseFailed(double previousBudgetUsd, String why) {
+			this(previousBudgetUsd, why, false);
+		}
+	}
 
 	/** Architect accepted the placement batch (its stages wait for approval unless the permission level places them as they come). */
 	public record BatchQueued(String batchId) implements Event {}
@@ -170,7 +177,10 @@ public final class Pipeline {
 				case BudgetRaised b when s.groupId() == null && s.pausedForBudget() -> requestGroup(s.withBudget(b.newBudgetUsd()));
 				case BudgetRaised b when s.groupId() != null -> Step.of(s.withBudget(b.newBudgetUsd()),
 					new ExtendAndResumeGroup(s.groupId(), b.newBudgetUsd() - s.bibleCostUsd(), s.budgetUsd()));
-				case BudgetRaiseFailed f -> Step.of(s.paused(f.previousBudgetUsd()), new Notify("The budget could not be raised: " + f.why(), true));
+				case BudgetRaiseFailed f -> f.extended()
+					? Step.of(s.paused(s.budgetUsd()), new Notify(String.format("The budget is $%.0f but the design group did not resume: %s. Raise to $%.0f again to retry.", s.budgetUsd(),
+						f.why(), s.budgetUsd()), true))
+					: Step.of(s.paused(f.previousBudgetUsd()), new Notify("The budget could not be raised: " + f.why(), true));
 				default -> Step.of(s);
 			};
 			case READY_TO_PLACE -> switch (e) {

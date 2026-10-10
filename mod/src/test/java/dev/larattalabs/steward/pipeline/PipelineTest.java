@@ -325,4 +325,14 @@ class PipelineTest {
 		assertEquals(Phase.CANCELLED, Pipeline.step(cancelling, new CancelConfirmed(), Permission.PROPOSALS).next().phase());
 		assertEquals(Pipeline.Decision.NONE, Pipeline.awaiting(cancelling));
 	}
+
+	@Test
+	void aRaiseWhoseResumeFailsKeepsTheNewBudgetAndARaiseToItRetries() throws Exception {
+		State paused = Pipeline.step(groupRunning(Permission.PROPOSALS), group("paused_budget", Map.of(), List.of(), 26), Permission.PROPOSALS).next();
+		State raised = Pipeline.step(paused, new BudgetRaised(50), Permission.PROPOSALS).next();
+		Step failed = Pipeline.step(raised, new BudgetRaiseFailed(35, "helper down", true), Permission.PROPOSALS);
+		assertEquals(50.0, failed.next().budgetUsd(), "the group's cap was raised: the budget stands");
+		assertEquals(Pipeline.Decision.BUDGET, Pipeline.awaiting(failed.next()));
+		only(Pipeline.step(failed.next(), new BudgetRaised(50), Permission.PROPOSALS), ExtendAndResumeGroup.class);
+	}
 }

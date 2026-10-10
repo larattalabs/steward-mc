@@ -123,6 +123,11 @@ public final class Updates {
 		for (Pending p : list) {
 			if (!siteId.isEmpty() && !p.siteId().equals(siteId)) continue;
 			if (p.action() == UpdatePlanner.Action.BLOCKED) continue;
+			// checked again now: the offer may be old, and the world (or the claim) has changed since
+			var sites = ArchitectApi.get().sites(server);
+			DeltaVerdict now = sites.checkDelta(UpdatePlanner.request(p.siteId(), p.to(), UpdatePlanner.editsFor(s.get().permission()), s.get().owner()));
+			UpdatePlanner.Plan plan = UpdatePlanner.plan(p.lot(), now, s.get().permission(), s.get().claim());
+			if (plan.action() == UpdatePlanner.Action.BLOCKED || !now.ok()) continue;
 			FAILED.remove(p.siteId() + "@" + p.to());
 			apply(server, s.get(), p);
 			n++;

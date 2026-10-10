@@ -48,7 +48,8 @@ public final class UpdatePlanner {
 	 */
 	public static Plan plan(String building, DeltaVerdict v, Permission p, dev.larattalabs.steward.model.@org.jspecify.annotations.Nullable Claim claim) {
 		PlayerEdits edits = editsFor(p);
-		if (v.ok() && claim != null && knownBox(v) && !claim.containsBox(claim.dimension(), v.box().minX(), v.box().minY(), v.box().minZ(), v.box().maxX(), v.box().maxY(),
+		// before the refusals: a delta refused only for now (a player in the way) must not be offered when it also leaves the claim
+		if (claim != null && knownBox(v) && !claim.containsBox(claim.dimension(), v.box().minX(), v.box().minY(), v.box().minZ(), v.box().maxX(), v.box().maxY(),
 			v.box().maxZ())) {
 			return new Plan(Action.BLOCKED, building + " cannot be updated: the new version reaches outside the settlement's claim (expand the claim first).", edits);
 		}
@@ -68,8 +69,8 @@ public final class UpdatePlanner {
 	}
 
 	/**
-	 * Whether the verdict says where it writes. Architect 1.8 returns the empty box at the origin when its check has no write box (seen live: a one-lantern
-	 * delta came back with box 0,0,0..0,0,0), so that box means unknown, not "writes at the origin".
+	 * Whether the verdict says where it writes. Architect 1.8 ({@code Views.deltaVerdict}) returns the empty box at the origin when the write set is empty or
+	 * the check was refused before one was computed, so 0,0,0..0,0,0 means "no write box", never a real position.
 	 */
 	static boolean knownBox(DeltaVerdict v) {
 		var b = v.box();

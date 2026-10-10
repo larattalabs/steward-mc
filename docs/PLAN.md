@@ -56,6 +56,12 @@ and the free e2e check are built. Independent reviews found budget, cancel and o
 | 2026-10-09 | **Copies never cost quality** (Noah): designs are shared only with safeguards, adapted to their lot first, original as the fallback; the player can choose "all original". See "Copies, adaptations and originals". |
 | 2026-10-09 | **Hardening before phase 3** (Noah): the review findings are fixed first. Adopted from the plan review: cost and wait targets, a shorter Architect critical path, change history before autonomy. **Declined:** narrowing phase 3; it keeps its full scope. See "Reviews (2026-10-09)". |
 | 2026-10-09 | **Settlement and building interfaces** (Noah): a settlement screen, a panel for each building, and in-world interfaces after AgentCraft (the steward's nameplate and speech bubbles, building labels on look-at, survey mode, a settlement board, a ledger). Phase 3 core. See "Interface". |
+| 2026-10-09 | **Phase 3 guardrails** (Noah):
+- Proposals remember rejections and use cooldowns, coalescing and a planning allowance.
+- Autonomous and Full spend within an allowance per settlement, by default **$500 a week**, shown and changed in Settings.
+- Protected areas the steward never writes are adopted (Architect C17).
+- A release track, whenever it fits (after 3a at the earliest).
+- Known limitations show on the card before spending (lots over water wait for Architect 7b). |
 | 2026-10-09 | **Claims grow** (Noah): the card's size sets the first claim, the player can expand it, and a settlement grows by **districts** (adjacent claims the steward proposes). See "Claims and growth". |
 
 ## Concept card
@@ -369,11 +375,18 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - Conversation by right-click.
    - **3c. Change requests.** Free text scoped to a building or the settlement: a new version of the building's design, previewed as a delta ghost, applied, and revertible (needs Architect C13, C14).
    - **3d. In-world interface.** Building labels, survey mode, labelled massings, the settlement board, the ledger.
-   - **3e. Perception and proposals.**
+   - **3e. Perception and proposals.** The guardrails decided with Noah apply: rejected proposals are remembered, with cooldowns and coalescing, a planning allowance, and a spending allowance per settlement ($500 a week by default).
      - The progression tier and triggers.
      - Proposals with guardrails: a rejected proposal is remembered, with cooldowns, coalescing, and a planning allowance per settlement.
      - Permission levels act on their own only within the change history (3a) and the allowance.
    - **3f. Districts.** Several claims per settlement with stable ids, roads between them (Architect `placeRoad`), and undo.
+   - Protected areas (C17), before districts and terrain work: areas the player marks, or Architect detects from the player's edits, are never written by the steward.
+   - Known limitations are shown on the card before spending. Lots over water and cliffs wait for Architect 7b, so a "village over a swamp" stands beside the water for now.
+   - Release track, whenever it fits after 3a:
+     - API-key setup;
+     - a Founding Stone you can get in survival;
+     - a clean-install test;
+     - save migrations across matched Steward and Architect releases.
 4. **Architect slices as they land:**
    - **0a:** the stub turns on `e2e.mjs stub`, which then runs before every push. Also estimates by kind in the card screen, exact massing ghosts, and operation keys (C9: an interrupted request is adopted, not repeated).
    - **0b:** copies with safeguards, small buildings with bounded effort, and the cost benchmark against the targets.

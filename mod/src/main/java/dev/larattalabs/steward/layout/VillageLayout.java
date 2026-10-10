@@ -132,18 +132,23 @@ public final class VillageLayout {
 	 * {@link #tryStreet}, and when a lot fits nowhere (the street fills in order, so it would hold up every lot after it), again without it: the lot is left
 	 * out and the rest are laid out. Usually the first try places everything and nothing is repeated.
 	 */
+	/** How many lots in a row may be dropped without the street gaining one before skipping stops (each drop re-lays the street). */
+	private static final int MAX_STALE_DROPS = 3;
+
 	private static Plan tryStreetSkipping(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, int streetZ, boolean northFirst, boolean eastFirst) {
 		List<LotSpec> use = new ArrayList<>(specs);
 		List<LotSpec> dropped = new ArrayList<>();
 		Plan best = tryStreet(claim, grid, use, rules, streetZ, northFirst, eastFirst);
 		Plan p = best;
+		int stale = 0;
 		while (!p.unplaced().isEmpty() && use.size() > 1) {
 			use.remove(p.unplaced().get(0));
 			dropped.add(p.unplaced().get(0));
 			int before = p.lots().size();
 			p = tryStreet(claim, grid, use, rules, streetZ, northFirst, eastFirst);
-			// no better without it: the street is simply full, not held up
-			if (p.lots().size() <= before) break;
+			// no better for several drops in a row: the street is simply full, not held up (one or two blockers in a row are skipped)
+			if (p.lots().size() > before) stale = 0;
+			else if (++stale >= MAX_STALE_DROPS) break;
 			if (p.lots().size() > best.lots().size()) {
 				List<LotSpec> out = new ArrayList<>(p.unplaced());
 				out.addAll(dropped);

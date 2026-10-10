@@ -6,6 +6,7 @@ package dev.larattalabs.steward.model;
  */
 public record Claim(String dimension, int centerX, int centerZ, int radius, int minY, int maxY) {
 	public Claim {
+		if (dimension == null) throw new com.google.gson.JsonParseException("a claim needs a dimension");
 		if (radius < 8 || radius > 2048) throw new IllegalArgumentException("radius must be 8..2048: " + radius);
 		if (minY >= maxY) throw new IllegalArgumentException("minY must be below maxY");
 	}

@@ -119,6 +119,7 @@ public final class StewardCommands {
 				StringArgumentType.word()).then(Commands.argument("entry", StringArgumentType.word()).executes(ctx -> {
 					// dev (the e2e check): place a library entry for a settlement 6 blocks in front of the player, as the settlement's owner, logged like a build
 					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
 					var p = src.getPlayerOrException();
 					String id = StringArgumentType.getString(ctx, "id");
 					var s = dev.larattalabs.steward.service.Settlements.store().get(id);
@@ -191,6 +192,7 @@ public final class StewardCommands {
 			.then(Commands.literal("resume").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.argument("group", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.word())
 				.then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200)).executes(ctx -> {
 					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
 					SettlementRunner runner = new SettlementRunner(src.getServer(), src.getLevel(), src.getPlayerOrException(), Permission.FULL, service(), 0);
 					runner.resume(StringArgumentType.getString(ctx, "group"), StringArgumentType.getString(ctx, "card"), IntegerArgumentType.getInteger(ctx, "buildings"),
 						DoubleArgumentType.getDouble(ctx, "budget"));
@@ -199,6 +201,7 @@ public final class StewardCommands {
 			.then(Commands.literal("build").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200))
 				.then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
 					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
 					var player = src.getPlayerOrException();
 					int n = IntegerArgumentType.getInteger(ctx, "buildings");
 					double budget = DoubleArgumentType.getDouble(ctx, "budget");
@@ -208,6 +211,7 @@ public final class StewardCommands {
 				})))))
 			.then(Commands.literal("card").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
 				CommandSourceStack src = ctx.getSource();
+				if (!host(src)) return 0;
 				String text = StringArgumentType.getString(ctx, "text");
 				src.sendSuccess(() -> Component.literal("Interpreting your description..."), false);
 				// the world's survival toggle, read (Architect API 1.2.0 Sites.survival())
@@ -225,6 +229,13 @@ public final class StewardCommands {
 				});
 				return 1;
 			})))));
+	}
+
+	/** The dev commands that spend are the host's too (a LAN guest may have command permission). */
+	private static boolean host(CommandSourceStack src) throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		String no = Actions.refusal(src.getPlayerOrException());
+		if (no != null) src.sendFailure(Component.literal(no));
+		return no == null;
 	}
 
 	private static int answer(CommandSourceStack src, Actions.Result r) {

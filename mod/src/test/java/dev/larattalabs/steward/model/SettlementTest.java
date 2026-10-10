@@ -172,4 +172,13 @@ class SettlementTest {
 		assertEquals(Permission.PROPOSALS, back.permission(), "a missing permission asks the player for everything");
 		assertEquals(List.of(), back.log());
 	}
+
+	@Test
+	void aSavedClaimWithoutItsDimensionIsRefused() {
+		SettlementStore st = new SettlementStore();
+		st.put(Settlement.founded("set_1", "Here", new Claim("minecraft:overworld", 0, 0, 64, -64, 320), Permission.FULL, Difficulty.PATRON, 1L));
+		var j = com.google.gson.JsonParser.parseString(st.toJson()).getAsJsonObject();
+		j.getAsJsonArray("settlements").get(0).getAsJsonObject().getAsJsonObject("claim").remove("dimension");
+		assertThrows(RuntimeException.class, () -> SettlementStore.fromJson(j.toString()));
+	}
 }

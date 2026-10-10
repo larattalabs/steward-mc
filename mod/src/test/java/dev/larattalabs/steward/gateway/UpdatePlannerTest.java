@@ -91,4 +91,12 @@ class UpdatePlannerTest {
 		var far = new dev.larattalabs.steward.model.Claim("minecraft:overworld", 2701, 0, 128, -64, 320);
 		assertEquals(Action.APPLY, UpdatePlanner.plan("Tavern", inside, Permission.FULL, far).action());
 	}
+
+	@Test
+	void anUpdateRefusedForNowThatAlsoLeavesTheClaimIsBlockedNotOffered() {
+		var claim = new dev.larattalabs.steward.model.Claim("minecraft:overworld", 0, 0, 48, -64, 320);
+		DeltaVerdict v = new DeltaVerdict(false, List.of(new Refusal(Reason.PLAYER_IN_BOX, "a player is in the way")), 34, 0, 0, parts(), List.of(), List.of(), Map.of(), Map.of(),
+			new BoundingBox(40, 64, 0, 52, 70, 8), Mode.INSTANT, List.of());
+		assertEquals(Action.BLOCKED, UpdatePlanner.plan("Tavern", v, Permission.PROPOSALS, claim).action());
+	}
 }

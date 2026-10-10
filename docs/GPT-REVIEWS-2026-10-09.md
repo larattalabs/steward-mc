@@ -5,7 +5,18 @@ below were checked against the code; "confirmed" means read in the source (or re
 
 ## Hardening slice (fix before phase 3)
 
-**All fixed, 2026-10-09** (commits 5915db1, 32055ac and the e2e commit after them). 140+ Java tests pass, and the free e2e check passes all 11 checks.
+**Fixed, 2026-10-09** (commits 5915db1, 32055ac and c87754c). A GPT fix-verification pass then found gaps; they are fixed in the commit after them:
+- approving massings was not counted as spending when the build could not be saved;
+- quitting during a rollback could drop the checkpoint (the session now ends at SERVER_STOPPING);
+- a temporarily refused update could slip past the claim check, and an approved update is now checked again before it is applied;
+- a cancel resumed after a restart could stay stuck, and a finished batch's sites are now logged first;
+- cancels are always sent rather than skipped on a cache miss;
+- raise ordering: an older failure is ignored, and a failed resume keeps the raised budget;
+- two lots that fit nowhere still held up the rest;
+- a claim without a dimension loaded;
+- dev commands bypassed the host-only rule.
+
+Still open (nit): after the 10-minute description timeout, a second description can run alongside a stuck first one. 144 Java tests pass.
 
 | # | Finding | Where | Status |
 |---|---------|-------|--------|
@@ -14,7 +25,7 @@ below were checked against the code; "confirmed" means read in the source (or re
 | H3 | Cancel during the bible never cancels it; cancel before the group ack loses the id; the slot is freed (and the save dropped) before Architect stops, so a replacement build can start and the old batch's placement log is lost | `Pipeline.step` Cancel, runner | fixed |
 | H4 | Start uses the player's level, not the settlement's dimension (Nether start builds in the Nether at overworld coords) | `Actions.start` | fixed |
 | H5 | Pending describe/runner callbacks survive leaving a world and write into the next one loaded | `Actions` card futures, runner closures | fixed |
-| H6 | Two describes run (and pay) at once; the older can overwrite the newer card, or change the card of a build already started | `Actions.describe` | fixed |
+| H6 | Two describes run (and pay) at once; the older can overwrite the newer card, or change the card of a build already started | `Actions.describe` | fixed, except: after the 10-minute timeout a second description can overlap a stuck first one (open) |
 | H7 | No settlement owner: on LAN a guest can describe/start (spend host budget), expand, undo, apply updates | `Actions`, `StewardCommands` | fixed |
 | H8 | Restored `BIBLE_RUNNING` only waits for an event that may already have been delivered; reread `Bibles.job` in resync | `ResyncRules` | fixed |
 | H9 | Budget raise committed locally before extend/resume succeed; failure unhandled | runner `ExtendAndResumeGroup` | fixed |

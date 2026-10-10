@@ -123,3 +123,13 @@ Not asks: shared UI extraction, schematic interchange and shape promotion wait u
 Answers to Steward's questions:
 - **`cancelGroup`** never throws synchronously. For an unknown group, or one already done, failed or cancelled, the future fails ("no group", "already <status>"). It also fails when the helper is not running. Treat a failed future plus a final `group(id)` as "already over". Steward does this.
 - **`bibles().cancel`** is fire-and-forget in 1.8/1.9, so a refusal is silent. On success the job is saved as cancelled and BIBLE_DONE fires once, caught up after a restart. A job that had already finished sends no new event. Reading `job(id)` after cancelling is right; Steward does. 0a makes cancel return a future.
+
+## Round 5 (2026-10-09): phase 3 needs
+
+| # | Ask | Why |
+|---|---|---|
+| C13 | **A design that becomes the next version of an existing entry**: a design request (as `remix`, but installed in place) whose result is the next version of the given entry. Its context is the placed site's current state, including the player's kept edits. | Change requests ("make the tavern creepier", 3c) need the update-available path, which works between versions of one entry. As far as Steward can see, a remix makes a new entry. |
+| C14 | **Revert**: confirm `applyDelta` to an older `toVersion` is supported, and that a version is kept while any site stands at it (`pinned`) or the settlement's change log refers to it | "Revert this building" (3c) and change history before autonomy |
+| C15 | **A shared UI library** with AgentCraft (world UI, screen kit, sprites), reversing "not now" | Steward adds in-world interfaces after AgentCraft's (nameplates, speech bubbles, building labels, a board): a fourth copy otherwise |
+| C16 | **Streets in survival construction batches** | Supplied (phase 4) needs the street built from materials; survival batches skip it today |
+| C17 | **Protected areas**: write bounds Architect enforces. A caller marks areas (or Architect detects player-changed cells) that no placement, delta, road or terrain operation of that owner touches. | "Natural blocks only" is a block type, not provenance: a player's dirt paths and landscaping count as natural. Needed before districts and terrain work. |

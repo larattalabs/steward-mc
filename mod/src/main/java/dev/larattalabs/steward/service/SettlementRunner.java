@@ -193,7 +193,9 @@ public final class SettlementRunner {
 	/** Raises the design budget and resumes a group paused at its soft budget. */
 	public String raise(double newBudgetUsd) {
 		if (state == null || (state.groupId() == null && !state.pausedForBudget())) return "There is no design group to fund yet.";
-		if (newBudgetUsd <= state.budgetUsd()) return String.format("The budget is already $%.0f; give a higher one.", state.budgetUsd());
+		// the same amount retries a paused build's resume (its cap was raised, the resume failed)
+		if (newBudgetUsd < state.budgetUsd() || (newBudgetUsd == state.budgetUsd() && !state.pausedForBudget()))
+			return String.format("The budget is already $%.0f; give a higher one.", state.budgetUsd());
 		// the soft pause is a share of the budget: a raise that leaves the spend above it pauses again at once (the phase 1 gate run did, from $30 to $35)
 		double atLeast = Pipeline.minimumRaise(state);
 		if (newBudgetUsd < atLeast) return String.format("At $%.0f the build would pause again at once (it pauses at %d%% and has spent $%.2f). Give at least $%.0f.",
@@ -240,6 +242,8 @@ public final class SettlementRunner {
 	private final Map<String, String> massingRefs = new HashMap<>();
 	/** Requests sent whose acknowledgement has not come: a cancel in the meantime is carried out when it comes. */
 	private boolean bibleInFlight, groupInFlight, queueInFlight;
+	/** The newest raise sent to Architect: an older raise's failure arriving late changes nothing. */
+	private int raiseSeq;
 	/** Events the runner raises itself while a step is being carried out; fed once it is done. */
 	private final java.util.ArrayDeque<Event> later = new java.util.ArrayDeque<>();
 	/** The world session the runner belongs to ({@link Session}). */
@@ -335,10 +339,16 @@ public final class SettlementRunner {
 			case REREAD_BIBLE -> api.bibles().job(bibleJobId).ifPresentOrElse(j -> { if (j.finished()) onBibleDone(j); },
 				() -> interrupted("the style bible (Architect no longer has its job)"));
 			case RESUME_CANCEL -> {
-				if (batchId != null) execute(new Pipeline.CancelBatch());
+				// the batch finished and is gone: what it placed is logged (undo needs it) before the cancel ends
+				if (batchId != null && seen == ResyncRules.BatchSeen.ABSENT && !placed.isEmpty()) {
+					if (!logPlaced(placedSites(sites, true), placed.size())) { logFailed(); return; }
+					batchId = null;
+					feed(new Pipeline.CancelConfirmed());
+				} else if (batchId != null) execute(new Pipeline.CancelBatch());
 				else if (groupId != null) execute(new Pipeline.CancelGroup(groupId));
 				else if (bibleJobId != null) execute(new Pipeline.CancelBible());
 				else feed(new Pipeline.CancelConfirmed());
+				drainLater();
 			}
 			case REREAD_GROUP -> api.designs().group(groupId).ifPresentOrElse(this::onGroup, () -> interrupted("design group " + groupId + " (Architect no longer has it)"));
 			case ADOPT_RUNNING_BATCH -> {
@@ -526,13 +536,21 @@ public final class SettlementRunner {
 		}
 		persist();
 		sendInbox(server, playerId);
+		drainLater();
+	}
+
+	private void drainLater() {
 		while (!later.isEmpty() && alive()) feed(later.poll());
+	}
+
+	private static String message(Throwable err) {
+		return err.getCause() != null ? err.getCause().getMessage() : err.getMessage();
 	}
 
 	/** Commands that ask Architect to spend on Claude or to change the world. */
 	private static boolean spends(Command c) {
 		return c instanceof Pipeline.RequestBible || c instanceof Pipeline.RequestGroup || c instanceof Pipeline.ExtendAndResumeGroup || c instanceof Pipeline.FitAndQueue
-			|| c instanceof Pipeline.ApproveStages;
+			|| c instanceof Pipeline.ApproveStages || c instanceof Pipeline.ApproveGroup;
 	}
 
 	/** The composite key the settlement's massing ghosts show under. */
@@ -699,36 +717,42 @@ public final class SettlementRunner {
 					api.designs().group(a.groupId()).ifPresent(this::onGroup);
 				});
 			}
-			case Pipeline.ExtendAndResumeGroup e -> api.designs().extendGroup(e.groupId(), e.groupBudgetUsd()).thenCompose(v -> api.designs().resumeGroup(e.groupId()))
-				.whenComplete((v, err) -> {
-					if (err != null) feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
+			case Pipeline.ExtendAndResumeGroup e -> {
+				int seq = ++raiseSeq;
+				api.designs().extendGroup(e.groupId(), e.groupBudgetUsd()).whenComplete((v, err) -> {
+					if (!alive() || seq != raiseSeq) return;
+					if (err != null) { feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), message(err), false)); return; }
+					api.designs().resumeGroup(e.groupId()).whenComplete((v2, err2) -> {
+						if (err2 != null && alive() && seq == raiseSeq) feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), message(err2), true));
+					});
 				});
+			}
 			case Pipeline.CancelBible cb -> {
-				if (bibleJobId != null && api.bibles().job(bibleJobId).isEmpty()) later.add(new Pipeline.CancelConfirmed());
-				else if (bibleJobId != null) {
+				if (bibleJobId != null) {
 					String id = bibleJobId;
 					api.bibles().cancel(id);
+					// a refused cancel is silent (Architect 1.8): an unknown job has nothing to stop
+					if (api.bibles().job(id).isEmpty()) later.add(new Pipeline.CancelConfirmed());
 					// a job that ended before the cancel reached it sends no second event: read it
 					api.bibles().job(id).filter(BibleJob::finished).ifPresent(this::onBibleDone);
 				} else if (!bibleInFlight) later.add(new Pipeline.CancelConfirmed());
 			}
 			case Pipeline.CancelGroup g -> {
 				String id = g.groupId() != null ? g.groupId() : groupId;
-				// Architect no longer has it (a restart lost it): nothing runs
-				if (id != null && api.designs().group(id).isEmpty()) later.add(new Pipeline.CancelConfirmed());
-				else if (id != null) api.designs().cancelGroup(id).whenComplete((v, err) -> {
-					// the group as it stands now: cancelled (or ended before the cancel), else its update comes as an event
+				// always sent: a group missing from the local view may still run at the helper. Its future fails for an unknown or finished group; then the
+				// group as it stands now decides (Architect: a failed future plus a final or missing group means it is over)
+				if (id != null) api.designs().cancelGroup(id).whenComplete((v, err) -> {
+					if (!alive()) return;
 					var now = api.designs().group(id);
-					if (now.isEmpty()) feed(new Pipeline.CancelConfirmed());
-					else if (now.get().status().isFinal()) onGroup(now.get());
+					if (now.isPresent() && now.get().status().isFinal()) onGroup(now.get());
+					else if (now.isEmpty() && err != null) feed(new Pipeline.CancelConfirmed());
 				});
 				else if (!groupInFlight) later.add(new Pipeline.CancelConfirmed());
 			}
 			case Pipeline.FitAndQueue f -> fitAndQueue(f.autoApprove());
 			case Pipeline.ApproveStages a -> approveStages();
 			case Pipeline.CancelBatch cb -> {
-				if (batchId != null && api.sites(server).batch(batchId).isEmpty()) later.add(new Pipeline.CancelConfirmed());
-				else if (batchId != null) cancelBatch(batchId);
+				if (batchId != null) cancelBatch(batchId);
 				else if (!queueInFlight) later.add(new Pipeline.CancelConfirmed());
 			}
 			case Pipeline.Notify n -> {
@@ -778,6 +802,7 @@ public final class SettlementRunner {
 	private void cancelBatch(String id) {
 		var sites = ArchitectApi.get().sites(server);
 		sites.cancelBatch(id).whenComplete((view, err) -> {
+			if (!alive()) return;
 			if (view != null) { onBatchDone(view); return; }
 			// refused: the batch ended before the cancel reached it, or Architect no longer has it
 			var now = sites.batch(id);
