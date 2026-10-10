@@ -57,3 +57,37 @@ walking and talking, districts), not narrowed to one loop first. The hardening s
 7. Growth triggers need rejection memory, cooldowns, coalescing and a planning allowance; start with one trigger.
 8. Claims: separate reserved territory, districts and editable areas; "natural blocks" is not player provenance — protected areas Architect enforces.
 9. Release track now: clean-profile install test, API-key setup, survival-obtainable Founding Stone, save migrations, host-only enforcement.
+
+## 3f districts and protected areas (2026-10-10)
+
+A review of commit 18451ab (3f), checked against the code; all twelve findings held and were fixed in the next commit.
+
+| # | Finding | Fix |
+|---|---|---|
+| D1 | Protected areas kept lots off but not the street; areas marked after the survey were not seen | A new street across one abandons the build with its name; at queue time the current areas drop the lots on them and any street piece across them |
+| D2 | A district's street was clamped to the town's claim | `BatchPlanner.build` takes the build's own land (the district's claim) |
+| D3 | Lantern posts stood outside the band the rules checked | District roads have no lanterns |
+| D4 | A founding interrupted by the world closing left a road nobody recorded, and the founding flag stuck | Callbacks are session-guarded; the flag clears at shutdown; `Districts.reconcile` takes up unrecorded district roads at start |
+| D5 | The link road could be lost to a restart, and was skipped on the already-logged path | Both paths link; `reconcile` lays missing links at start and every minute while the host is in the settlement |
+| D6 | Founding, building and undo had no shared busy guard | `SettlementRunner.busy` covers a road being laid and an undo running |
+| D7 | A failed save's road removal was not awaited | Awaited, reported truthfully, and retried by `reconcile` |
+| D8 | North/south roads were clamped in over lots | They go past the street's east end, else its west end, else refuse; never clamped |
+| D9 | A building count does not mean a street has room (a district's first street is one lot long) | Additions may reach past the street, which is extended to them; a land where an addition found no room counts as full for an hour |
+| D10 | Link roads stopped a column short of the street | They end on the column next to it |
+| D11 | Founding and layouts picked different streets when there were two | One rule, `Districts.streetOf`, everywhere |
+| D12 | An undo could give up a district whose link road still stood | Only when all its roads are gone and nothing else stands in it |
+
+**Verification, two rounds.** The first found five of the fixes partial and six new problems, among them one serious one: the start-up clean-up matched a road by its role text, so it could have taken up a building whose role read "district road". The second round fixes:
+- District roads carry their own `steward_mc:infra` marker, and only road sites with it are taken up.
+- Street extensions are keyed `street#N`, outside the lots' `type_n` ids, so a `street_market` lot is not a street.
+- Each street piece records its line in its ext (its box also holds lanterns, so its middle is not the line).
+- An undone link is remembered (`linkUndone`), and only a new build in the district lays it again.
+- A district with no road and nothing standing is given up even when its roads went earlier.
+- Protecting ground is refused while a build is under way.
+- The minute-by-minute reconcile runs before the proposal checks.
+- The settlement stays busy until a failed save's road has been taken up.
+- Founding refuses a road over a standing building.
+
+The second verification found these resolved, and one gap: a relink after a later build was not retried. Fixed by clearing the mark before the relink.
+
+Not migrated, and agreed by the review: `Road.link` has no format-3 migration, because format 3 has not shipped and no saved file holds a link road.

@@ -172,4 +172,21 @@ class SaveCompatTest {
 			"a building wholly in the district is checked against it");
 		assertEquals(town, s.claimFor(60, -5, 70, 5));
 	}
+
+	@Test
+	void aLinkUndoneIsRememberedUntilANewLinkIsLaid() {
+		Claim east = new Claim("minecraft:overworld", 113, 0, 48, -64, 320);
+		var founding = new Settlement.Road("r1", List.of(new Settlement.Pt(10, 0), new Settlement.Pt(66, 0)), 3, false);
+		var d = new Settlement.District("dst_1", "e", "E", east, 2L, List.of(founding)).withRoads(List.of(founding), true);
+		assertTrue(d.linkUndone());
+		assertFalse(d.linked());
+		assertEquals(founding, d.founding().orElseThrow());
+		var relinked = d.withRoad(new Settlement.Road("r2", List.of(new Settlement.Pt(66, 0), new Settlement.Pt(70, 0)), 3, true));
+		assertFalse(relinked.linkUndone());
+		assertTrue(relinked.linked());
+		SettlementStore st = new SettlementStore();
+		st.put(Settlement.founded("set_1", "Here", new Claim("minecraft:overworld", 0, 0, 64, -64, 320), Permission.PROPOSALS, Difficulty.PATRON, 1L)
+			.withLands(Settlement.Lands.NONE.next().withDistrict(d)));
+		assertTrue(SettlementStore.fromJson(st.toJson()).get("set_1").orElseThrow().lands().districts().get(0).linkUndone());
+	}
 }

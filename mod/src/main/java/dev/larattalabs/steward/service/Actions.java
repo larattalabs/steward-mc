@@ -265,6 +265,8 @@ public final class Actions {
 			// a square of 2 x amount + 1 around where the player stands, in this settlement's land; text: its label
 			Optional<Settlement> s = Settlements.store().get(id);
 			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			// a build's queued stages were checked against the areas when queued: protect once it is done
+			if (SettlementRunner.busy(id)) return Result.fail(s.get().name() + " is busy; protect ground once its build is done or cancelled.");
 			int r = (int) amount;
 			if (r < MIN_PROTECT || r > MAX_PROTECT) return Result.fail("A protected area reaches " + MIN_PROTECT + " to " + MAX_PROTECT + " blocks around you.");
 			var at = player.blockPosition();

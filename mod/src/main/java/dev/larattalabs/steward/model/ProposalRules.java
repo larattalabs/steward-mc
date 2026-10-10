@@ -110,15 +110,21 @@ public final class ProposalRules {
 
 	/**
 	 * Where the next building goes (phase 3f): the town while its street has room, else the first district with room ({@code district} its id); when none
-	 * has, {@code full}: the steward proposes a district instead.
+	 * has, {@code full}: the steward proposes a district instead. A street has room below {@link #STREET_FULL} buildings, unless an addition there lately
+	 * found none.
 	 *
 	 * @param districts each district's building count, oldest first
 	 */
 	public record Where(@org.jspecify.annotations.Nullable String district, boolean full) {}
 
 	public static Where where(int town, java.util.LinkedHashMap<String, Integer> districts) {
-		if (town < STREET_FULL) return new Where(null, false);
-		for (var e : districts.entrySet()) if (e.getValue() < STREET_FULL) return new Where(e.getKey(), false);
+		return where(town, districts, Set.of());
+	}
+
+	/** As above; {@code full} names the lands where an addition lately found no room ("" the town, else district ids), whatever their count. */
+	public static Where where(int town, java.util.LinkedHashMap<String, Integer> districts, Set<String> full) {
+		if (town < STREET_FULL && !full.contains("")) return new Where(null, false);
+		for (var e : districts.entrySet()) if (e.getValue() < STREET_FULL && !full.contains(e.getKey())) return new Where(e.getKey(), false);
 		return new Where(null, true);
 	}
 }

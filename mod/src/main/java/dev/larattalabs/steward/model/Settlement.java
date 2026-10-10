@@ -167,18 +167,26 @@ public record Settlement(
 	/** A point on the ground (x, z). */
 	public record Pt(int x, int z) {}
 
-	/** A road the steward laid: its Architect site, its centre line's corners and its width (layouts keep off it). */
-	public record Road(String siteId, List<Pt> points, int width) {
+	/**
+	 * A road the steward laid: its Architect site, its centre line's corners and its width (layouts keep off it); {@code link}: the road from a district's
+	 * edge to its own street (else the founding road from the town).
+	 */
+	public record Road(String siteId, List<Pt> points, int width, boolean link) {
 		public Road {
 			points = points == null ? List.of() : List.copyOf(points);
+		}
+
+		public Road(String siteId, List<Pt> points, int width) {
+			this(siteId, points, width, false);
 		}
 	}
 
 	/**
 	 * A district (phase 3f): a square of its own next to the village square, with a purpose, laid out and built like the town and linked to it by roads.
-	 * {@code direction} is where it lies from the stone (N, E, S, W); {@code roads} the roads laid for it, the founding road first.
+	 * {@code direction} is where it lies from the stone (N, E, S, W); {@code roads} the roads laid for it, the founding road first; {@code linkUndone}: the
+	 * player undid its link road, so it is not laid again by itself (a later build in the district lays it).
 	 */
-	public record District(String id, String name, String direction, Claim claim, long at, List<Road> roads) {
+	public record District(String id, String name, String direction, Claim claim, long at, List<Road> roads, boolean linkUndone) {
 		public District {
 			if (id == null || claim == null) throw new com.google.gson.JsonParseException("a district needs an id and a claim");
 			name = name == null || name.isBlank() ? id : name;
@@ -186,10 +194,28 @@ public record Settlement(
 			roads = roads == null ? List.of() : List.copyOf(roads);
 		}
 
+		/** The road it was founded with, while it stands in the record. */
+		public java.util.Optional<Road> founding() {
+			return roads.stream().filter(r -> !r.link()).findFirst();
+		}
+
+		public boolean linked() {
+			return roads.stream().anyMatch(Road::link);
+		}
+
+		public District(String id, String name, String direction, Claim claim, long at, List<Road> roads) {
+			this(id, name, direction, claim, at, roads, false);
+		}
+
+		public District withRoads(List<Road> l, boolean linkUndone) {
+			return new District(id, name, direction, claim, at, l, linkUndone);
+		}
+
+		/** With a road added (a link clears {@code linkUndone}). */
 		public District withRoad(Road r) {
 			List<Road> l = new ArrayList<>(roads);
 			l.add(r);
-			return new District(id, name, direction, claim, at, l);
+			return new District(id, name, direction, claim, at, l, linkUndone && !r.link());
 		}
 	}
 

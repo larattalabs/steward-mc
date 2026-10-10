@@ -100,6 +100,8 @@ class ProposalRulesTest {
 		two.put("dst_1", 12);
 		two.put("dst_2", 3);
 		assertEquals("dst_2", ProposalRules.where(14, two).district());
+		assertEquals(new ProposalRules.Where(null, true), ProposalRules.where(14, two, Set.of("dst_2")), "a district an addition found full is full at any count");
+		assertEquals("dst_2", ProposalRules.where(3, two, Set.of("")).district(), "so is the town");
 		two.put("dst_2", 12);
 		assertTrue(ProposalRules.where(14, two).full());
 	}

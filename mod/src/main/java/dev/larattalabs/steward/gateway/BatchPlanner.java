@@ -10,6 +10,7 @@ import dev.larattalabs.steward.layout.VillageLayout;
 import dev.larattalabs.steward.layout.VillageLayout.Front;
 import dev.larattalabs.steward.layout.VillageLayout.Lot;
 import dev.larattalabs.steward.model.Difficulty;
+import dev.larattalabs.steward.model.Claim;
 import dev.larattalabs.steward.model.Settlement;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -102,6 +103,16 @@ public final class BatchPlanner {
 	/** As above, tagging every item's ext with {@code steward_mc:build = buildId} so a restart can tell this build's sites from an earlier build's. */
 	public static Result build(Settlement s, VillageLayout.Plan plan, Set<String> landmarkIds, Map<String, String> entries, Map<String, LotFit> fits,
 		@Nullable ServerLevel level, boolean worldSurvival, boolean autoApprove, boolean includeStreet, @Nullable String buildId) {
+		return build(s, plan, landmarkIds, entries, fits, level, worldSurvival, autoApprove, includeStreet ? List.of(new int[] {plan.streetX0(), plan.streetX1()}) : List.of(),
+			buildId, s.claim());
+	}
+
+	/**
+	 * As above, with the street laid as {@code streetSpans} (x0..x1 pieces along the plan's street line: the whole street for a new one, the pieces an addition
+	 * reaches past an existing street's ends), kept inside {@code land} (the town's claim or the district's the build is in).
+	 */
+	public static Result build(Settlement s, VillageLayout.Plan plan, Set<String> landmarkIds, Map<String, String> entries, Map<String, LotFit> fits,
+		@Nullable ServerLevel level, boolean worldSurvival, boolean autoApprove, List<int[]> streetSpans, @Nullable String buildId, Claim land) {
 		Mode mode = modeFor(s.difficulty(), worldSurvival);
 		Map<String, Batch.Item> items = new LinkedHashMap<>();
 		List<String> skipped = new ArrayList<>();
@@ -125,10 +136,16 @@ public final class BatchPlanner {
 		}
 		List<Batch.StageSpec> specs = new ArrayList<>();
 		String note = null;
-		if (includeStreet) {
+		if (!streetSpans.isEmpty()) {
 			if (mode == Mode.INSTANT && !plan.lots().isEmpty()) {
-				items.put(STREET_KEY, Batch.Item.road(STREET_KEY, street(s, plan, level, buildId), "street", List.of()));
-				specs.add(new Batch.StageSpec("street", List.of(STREET_KEY)));
+				List<String> keys = new ArrayList<>();
+				for (int i = 0; i < streetSpans.size(); i++) {
+					// the first piece is the street; more pieces are its extensions, along the same line ("#" keeps them out of the lots' ids, type_n)
+					String key = i == 0 ? STREET_KEY : STREET_KEY + "#" + (i + 1);
+					items.put(key, Batch.Item.road(key, street(s, plan, streetSpans.get(i)[0], streetSpans.get(i)[1], land, level, buildId), "street", List.of()));
+					keys.add(key);
+				}
+				specs.add(new Batch.StageSpec("street", keys));
 			} else {
 				note = "the street was left out: roads can only be placed instantly (Patron in a world with survival off)";
 			}
@@ -149,15 +166,31 @@ public final class BatchPlanner {
 	/** The ext key that names the build a placed site belongs to. */
 	public static final String BUILD_EXT = "steward_mc:build";
 
+	/** Whether an item key is a street's: the street, or an extension an addition laid ({@code street#2}, ...). A lot's id ({@code street_market_1}) is not. */
+	public static boolean isStreet(@Nullable String itemKey) {
+		return itemKey != null && (itemKey.equals(STREET_KEY) || itemKey.startsWith(STREET_KEY + "#"));
+	}
+
+	/** The ext keys a street piece records its centre line and ends under (its written box also holds lanterns, so it is not the line). */
+	public static final String STREET_Z = "steward_mc:street_z", STREET_X0 = "steward_mc:street_x0", STREET_X1 = "steward_mc:street_x1";
+
 	/** The village's main street as a road request: two waypoints along the street, a little past the outer lots, kept inside the claim. */
 	static RoadRequest street(Settlement s, VillageLayout.Plan plan, @Nullable ServerLevel level, @Nullable String buildId) {
+		return street(s, plan, plan.streetX0(), plan.streetX1(), s.claim(), level, buildId);
+	}
+
+	/** A piece of the street (x0..x1 along its line) as a road request, kept inside {@code land}. */
+	static RoadRequest street(Settlement s, VillageLayout.Plan plan, int from, int to, Claim land, @Nullable ServerLevel level, @Nullable String buildId) {
 		// no run-out past the outer lots: in the phase 1 gate run the 4-block extension went over a drop (TOO_STEEP) and the whole street was refused
 		int pad = 0;
-		int x0 = Math.max(s.claim().centerX() - s.claim().radius(), plan.streetX0() - pad);
-		int x1 = Math.min(s.claim().centerX() + s.claim().radius(), plan.streetX1() + pad);
+		int x0 = Math.max(land.centerX() - land.radius(), from - pad);
+		int x1 = Math.min(land.centerX() + land.radius(), to + pad);
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
 		ext.addProperty("steward_mc:street", true);
+		ext.addProperty(STREET_Z, plan.streetZ());
+		ext.addProperty(STREET_X0, x0);
+		ext.addProperty(STREET_X1, x1);
 		if (buildId != null) ext.addProperty(BUILD_EXT, buildId);
 		return new RoadRequest(level, List.of(new BlockPos(x0, plan.streetY(), plan.streetZ()), new BlockPos(x1, plan.streetY(), plan.streetZ())), 3, null, null,
 			true, false, Mode.INSTANT, s.owner(), ext, null, false);

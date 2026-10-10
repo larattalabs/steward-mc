@@ -36,7 +36,10 @@ public final class Proposals {
 
 	public static void init() {
 		// settlement ids repeat across worlds: back-offs are one world's
-		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(s -> BACKOFF.clear());
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(s -> {
+			BACKOFF.clear();
+			FULL.clear();
+		});
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			if (server.getTickCount() % EVERY != 0) return;
 			for (ServerPlayer p : server.getPlayerList().getPlayers()) {
@@ -52,8 +55,11 @@ public final class Proposals {
 	static void consider(MinecraftServer server, ServerPlayer p, long now) {
 		if (Actions.refusal(p) != null) return;
 		var here = Settlements.at(p.level(), p.blockPosition());
+		if (here.isEmpty()) return;
+		// a district road an interrupted founding or link left, or a link not laid yet (its way was not loaded), is put right while the host is here
+		Districts.reconcile(server, here.get().id(), m -> p.sendSystemMessage(net.minecraft.network.chat.Component.literal(m)));
 		// proposals are additions: only for a settlement that has something standing (an addition faces its street)
-		if (here.isEmpty() || !here.get().described() || SettlementRunner.busy(here.get().id()) || here.get().lastUndoable().isEmpty()) return;
+		if (!here.get().described() || SettlementRunner.busy(here.get().id()) || here.get().lastUndoable().isEmpty()) return;
 		Settlement s = here.get();
 		var open = s.proposals().open();
 		// Autonomous and Full: a proposal already waiting is built once the allowance allows (raised, renewed, or the level just changed)
@@ -64,7 +70,7 @@ public final class Proposals {
 		}
 		// where a new building goes: the town while its street has room, else a district with room; when none has, a new district is proposed
 		var counts = Districts.counts(server, s);
-		var where = ProposalRules.where(counts.town(), counts.districts());
+		var where = ProposalRules.where(counts.town(), counts.districts(), full(s.id(), now));
 		List<Proposal> fresh;
 		if (where.full()) {
 			fresh = districtProposal(server, s, open, now);
@@ -84,6 +90,26 @@ public final class Proposals {
 			&& autonomously(server, p, saved, first, now)) return;
 		StewardVoice.say(server, s.id(), "I have an idea: " + first.title().toLowerCase() + ". " + first.why() + " See the inbox (Y).");
 		SettlementRunner.sendInbox(server, p.getUUID());
+	}
+
+	/** Lands (the town: "", or a district's id) where an addition found no room lately, per settlement: they count as full for a while. */
+	private static final Map<String, Long> FULL = new HashMap<>();
+	/** How long a land that had no room counts as full (it may have been cleared or expanded since). */
+	static final long FULL_MS = 60 * 60_000L;
+
+	/** An addition found no room in the town ({@code districtId} null) or a district. */
+	static void full(String settlementId, @org.jspecify.annotations.Nullable String districtId) {
+		FULL.put(settlementId + "#" + (districtId == null ? "" : districtId), System.currentTimeMillis());
+	}
+
+	/** The settlement's lands that had no room within {@link #FULL_MS}: "" the town, else district ids. */
+	static Set<String> full(String settlementId, long now) {
+		Set<String> out = new HashSet<>();
+		String prefix = settlementId + "#";
+		FULL.forEach((k, at) -> {
+			if (k.startsWith(prefix) && now - at < FULL_MS) out.add(k.substring(prefix.length()));
+		});
+		return out;
 	}
 
 	/** A district proposal (phase 3f) when the town's street and every district's are full: towards the first way one fits, not one the player declined. */

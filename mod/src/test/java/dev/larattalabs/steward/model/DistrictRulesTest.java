@@ -99,12 +99,12 @@ class DistrictRulesTest {
 		var dStreet = new DistrictRules.Street(c.centerZ(), c.centerX() - 30, c.centerX() + 30);
 		var link = DistrictRules.link(d, dStreet);
 		assertEquals(n.road().get(n.road().size() - 1), link.get(0));
-		assertEquals(new Settlement.Pt(dStreet.x0() - 2, dStreet.z()), link.get(link.size() - 1));
+		assertEquals(new Settlement.Pt(dStreet.x0() - 1, dStreet.z()), link.get(link.size() - 1), "next to the street's first cell");
 		assertNull(DistrictRules.roadProblem(link, List.of(c), List.of()));
 		// it stays in the margin and on the street's line, clear of the lots beside the street
 		for (int[] cell : DistrictRules.cells(link, 3)) {
 			boolean margin = cell[0] < c.centerX() - c.radius() + DistrictRules.MARGIN;
-			boolean streetLine = Math.abs(cell[1] - dStreet.z()) <= 1 && cell[0] < dStreet.x0();
+			boolean streetLine = Math.abs(cell[1] - dStreet.z()) <= 1 && cell[0] <= dStreet.x0();
 			assertTrue(margin || streetLine, cell[0] + "," + cell[1]);
 		}
 		var e = DistrictRules.place(TOWN, STREET, List.of(), List.of(), List.of(), "E", 48);
@@ -121,5 +121,28 @@ class DistrictRulesTest {
 		assertEquals(keys.size(), new java.util.HashSet<>(keys).size(), "no cell twice");
 		assertTrue(keys.contains("-1,-1") && keys.contains("5,4") && keys.contains("2,1"));
 		assertFalse(keys.contains("0,3"));
+	}
+
+	@Test
+	void northAndSouthGoRoundTheStreetsEndNeverOverALot() {
+		// the street reaches the east margin: the road goes round its west end, into the district along its east edge
+		var east = new DistrictRules.Street(10, -20, 62);
+		var p = DistrictRules.place(TOWN, east, List.of(), List.of(), List.of(), "N", 48);
+		assertTrue(p.ok(), p.note());
+		assertEquals(new Settlement.Pt(-21, 10), p.road().get(0));
+		for (int[] c : DistrictRules.cells(p.road(), 3)) assertTrue(c[0] <= east.x0() || Math.abs(c[1] - east.z()) > 1 || c[0] > east.x1(), "against the street's end, never along it");
+		assertTrue(p.road().stream().allMatch(pt -> pt.x() < east.x0()), "never over the lots, which end at the street's ends");
+		var d = district("dst_1", "N", p);
+		var link = DistrictRules.link(d, new DistrictRules.Street(d.claim().centerZ(), d.claim().centerX() - 30, d.claim().centerX() + 30));
+		assertEquals(d.claim().centerX() + 31, link.get(link.size() - 1).x(), "entered on the east side: the street's east end");
+		assertNull(DistrictRules.roadProblem(p.road(), List.of(TOWN, d.claim()), List.of()));
+		// a street from margin to margin leaves no way round
+		var both = DistrictRules.place(TOWN, new DistrictRules.Street(10, -62, 62), List.of(), List.of(), List.of(), "S", 48);
+		assertFalse(both.ok());
+		assertTrue(both.note().contains("no way round"), both.note());
+		// a big claim: the road is not pulled in to the village square's edge
+		var big = DistrictRules.place(ClaimRules.withRadius(TOWN, 512), new DistrictRules.Street(10, -100, 126), List.of(), List.of(), List.of(), "N", 48);
+		assertTrue(big.ok(), big.note());
+		assertEquals(128, big.road().get(1).x(), "two past the street's end");
 	}
 }

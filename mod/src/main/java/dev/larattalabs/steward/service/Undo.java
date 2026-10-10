@@ -20,6 +20,17 @@ public final class Undo {
 	private Undo() {
 	}
 
+	/** Settlements an undo is running for: they count as busy ({@link SettlementRunner#busy}). */
+	private static final java.util.Set<String> UNDOING = new java.util.HashSet<>();
+
+	static {
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(s -> UNDOING.clear());
+	}
+
+	public static boolean busy(String settlementId) {
+		return UNDOING.contains(settlementId);
+	}
+
 	/** Said when the undo happened but its history could not be saved. */
 	static final String UNLOGGED = "The settlement's history could not be saved: the undo happened, but its record is missing (see the log).";
 
@@ -54,6 +65,7 @@ public final class Undo {
 		say.accept("Removing " + ids.size() + " sites of \"" + entry.get().text() + "\" and restoring the land...");
 		var sites = ArchitectApi.get().sites(server);
 		RemoveOptions as = new RemoveOptions(false, s.owner());
+		UNDOING.add(s.id());
 		// a whole project is one site group: removeGroup does the newest-first removal over ticks (stages, survival refunds, the group's bookkeeping), the
 		// path Architect's gates prove exact. Only when the group holds nothing but this project's sites; else (a partial undo) site by site.
 		String group = entry.get().siteGroup();
@@ -63,7 +75,8 @@ public final class Undo {
 			sites.removeGroup(group, as).whenComplete((r, err) -> {
 				List<String> gone = err == null && r.removed() ? standing : standing.stream().filter(id -> sites.get(id).isEmpty()).toList();
 				if (!gone.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), gone, gone.size() == standing.size(), now)).ok()) say.accept(UNLOGGED);
-				districts(server, s, say);
+				UNDOING.remove(s.id());
+			districts(server, s, say);
 				if (err != null) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
 				else if (!r.removed()) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: blocked by "
 					+ (r.blockers().isEmpty() ? "something in a box" : String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
@@ -92,6 +105,7 @@ public final class Undo {
 		}
 		chain.whenComplete((stop, err) -> {
 			if (!removed.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), List.copyOf(removed), removed.size() == ids.size(), now)).ok()) say.accept(UNLOGGED);
+			UNDOING.remove(s.id());
 			districts(server, s, say);
 			if (err != null) {
 				Steward.LOGGER.warn("undo of {} failed", s.id(), err);

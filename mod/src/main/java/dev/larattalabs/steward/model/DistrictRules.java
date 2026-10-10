@@ -10,8 +10,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>A district is a square next to the village square (the square around the stone a street is laid out in), one each way. East and west, it is centred on
  * the town street's line, so its own street continues the town's and the road between them is straight. North and south, the road leaves the town street's
- * east end, runs along it to the district, and enters it along its west edge; the district sits so that edge takes the road. Every road runs where
- * layouts leave ground free: past a street's end, in the margin of a claim, or along a street's line between its end and the claim's edge.
+ * east end (its west end when the east is too near the claim's edge), runs past it to the district, and enters it along its west (east) edge; the district
+ * sits so that edge takes the road. Every road runs where layouts leave ground free: past a street's end (lots never reach past it), in a district's wider
+ * margin, or along a street's line between its end and the claim's edge. The roads have no lanterns, so what they write is the band {@link #cells} gives.
  */
 public final class DistrictRules {
 	public static final List<String> DIRECTIONS = List.of("N", "E", "S", "W");
@@ -102,14 +103,18 @@ public final class DistrictRules {
 				streetZ = s.z();
 			}
 			default -> {
-				// north or south: up the east side of the street's end (inside the village square), into the district along its west edge
-				int xr = Math.min(s.x1() + 2, cx + rv - 1);
-				dcx = xr - 2 + radius;
+				// north or south: past the street's east end (else its west end), inside the town's claim, then into the district along its west (east) edge.
+				// Lots never reach past a street's ends, so the road clears them; it is never pulled in over a lot to fit
+				boolean eastSide = s.x1() + 3 <= cx + town.radius();
+				if (!eastSide && s.x0() - 3 < cx - town.radius()) return Placement.refused("The town street runs to both edges of the claim: there is no way round it to the "
+					+ name + ". Expand the claim first.");
+				int xr = eastSide ? s.x1() + 2 : s.x0() - 2;
+				dcx = eastSide ? xr - 2 + radius : xr + 2 - radius;
 				boolean north = dir.equals("N");
 				dcz = north ? cz - rv - 1 - radius : cz + rv + 1 + radius;
 				int ez = north ? dcz + radius - 2 : dcz - radius + 2;
-				road.add(new Settlement.Pt(s.x1() + 1, s.z()));
-				if (xr != s.x1() + 1) road.add(new Settlement.Pt(xr, s.z()));
+				road.add(new Settlement.Pt(eastSide ? s.x1() + 1 : s.x0() - 1, s.z()));
+				road.add(new Settlement.Pt(xr, s.z()));
 				road.add(new Settlement.Pt(xr, ez));
 			}
 		}
@@ -130,15 +135,15 @@ public final class DistrictRules {
 
 	/**
 	 * The road linking a district's street to its edge (laid after the district's first build): from where the founding road ended, along the edge to the
-	 * street's line, then along it to the street's nearer end.
+	 * street's line, then along it to the street's nearer end (the column next to it: Architect does not pave past a line's end).
 	 */
 	public static List<Settlement.Pt> link(Settlement.District d, Street street) {
-		Settlement.Pt entry = d.roads().isEmpty() ? null : last(d.roads().get(0).points());
+		Settlement.Pt entry = d.founding().map(r -> last(r.points())).orElse(null);
 		if (entry == null) return List.of();
 		List<Settlement.Pt> pts = new ArrayList<>();
 		pts.add(entry);
-		// the band ends against the street's first cell
-		int endX = d.direction().equals("W") ? street.x1() + 2 : street.x0() - 2;
+		// entered on its west side: the street's west end; on its east side: its east end
+		int endX = entry.x() < d.claim().centerX() ? street.x0() - 1 : street.x1() + 1;
 		if (entry.z() != street.z()) pts.add(new Settlement.Pt(entry.x(), street.z()));
 		if (endX != pts.get(pts.size() - 1).x()) pts.add(new Settlement.Pt(endX, street.z()));
 		return pts.size() < 2 ? List.of() : List.copyOf(pts);

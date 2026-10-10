@@ -131,9 +131,10 @@ public final class SettlementRunner {
 	}
 
 	/** Whether a settlement has a runner that has not finished (a second one would spend twice). */
+	/** Whether the settlement is busy: being built, a district road being laid, or an undo running. One guard for everything that changes its sites. */
 	public static boolean busy(String settlementId) {
 		SettlementRunner r = ACTIVE.get(settlementId);
-		return r != null && (r.state == null || !r.state.phase().terminal());
+		return (r != null && (r.state == null || !r.state.phase().terminal())) || Districts.busy(settlementId) || Undo.busy(settlementId);
 	}
 
 	/** The runner of a settlement that is being built in this session (not persisted yet), or null. */
@@ -391,7 +392,7 @@ public final class SettlementRunner {
 	}
 
 	private List<String> placedSites(dev.larattalabs.architect.api.Sites sites, boolean withStreet) {
-		return sites.list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT)) && (withStreet || !BatchPlanner.STREET_KEY.equals(v.itemKey())))
+		return sites.list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT)) && (withStreet || !BatchPlanner.isStreet(v.itemKey())))
 			.map(dev.larattalabs.architect.api.SiteView::id).toList();
 	}
 
@@ -426,7 +427,11 @@ public final class SettlementRunner {
 		if (saved.isEmpty()) return DEV_ID.equals(settlement.id());
 		// logged already (a restart came between the log and dropping the checkpoint): not twice
 		java.util.Set<String> ids = new java.util.HashSet<>(siteIds);
-		if (saved.get().log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && new java.util.HashSet<>(e.siteIds()).equals(ids))) return true;
+		if (saved.get().log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && new java.util.HashSet<>(e.siteIds()).equals(ids))) {
+			// logged before a restart: the district's link may still be missing (a restart before it was laid is also put right when the world starts)
+			if (districtId != null) Districts.link(server, settlement.id(), districtId, this::say, true);
+			return true;
+		}
 		var sites = ArchitectApi.get().sites(server);
 		List<Settlement.SiteChange> changes = siteIds.stream().map(id -> {
 			var v = sites.get(id);
@@ -436,8 +441,8 @@ public final class SettlementRunner {
 		String where = districtId == null ? "" : saved.get().lands().district(districtId).map(d -> " in " + d.name()).orElse("");
 		boolean ok = Settlements.log(settlement.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings"
 			+ where + (notPlaced > 0 ? " (" + notPlaced + " not placed)" : ""), changes, siteGroupId, notPlaced > 0 ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE)).ok();
-		// a district's first build laid its street: a road links it to where the district's road ends
-		if (ok && districtId != null && newStreet) Districts.link(server, settlement.id(), districtId, this::say);
+		// a district's build laid its street: a road links it to where the district's road ends (nothing when it is linked already)
+		if (ok && districtId != null) Districts.link(server, settlement.id(), districtId, this::say, true);
 		return ok;
 	}
 
@@ -497,8 +502,6 @@ public final class SettlementRunner {
 	 * acknowledgement never came (a dropped link), so an accepted proposal is not given back.
 	 */
 	private boolean paidRequestAcked;
-	/** The settlement's street ends (x), found with its centre line: an addition stays between them. */
-	private int streetX0 = Integer.MIN_VALUE, streetX1 = Integer.MAX_VALUE;
 	private Group resumeGroup;
 
 	public SettlementRunner hooks(java.util.function.BooleanSupplier onStart, Runnable onNothingSpent, Runnable onAbandoned) {
@@ -573,10 +576,20 @@ public final class SettlementRunner {
 			var rules = district != null ? new VillageLayout.Rules(5, 3, 3, dev.larattalabs.steward.model.DistrictRules.MARGIN) : VillageLayout.Rules.defaults();
 			newStreet = !addition || (district != null && streetZ == null);
 			Integer line = district != null && streetZ == null && ("E".equals(district.direction()) || "W".equals(district.direction())) ? district.claim().centerZ() : null;
-			plan = !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ, streetX0, streetX1)
+			// an addition faces the street and may reach past its ends (the street is extended to it when it is queued)
+			plan = !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ)
 				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line) : VillageLayout.plan(claim, grid, specs, rules);
 			say("Layout: " + plan.lots().size() + " lots on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
-			if (plan.lots().isEmpty()) { abandon("No dry, flat room here. Try another spot."); return; }
+			if (plan.lots().isEmpty()) {
+				// an addition that found no room: the steward looks to a district (or proposes one) next time
+				if (addition && existing != null) Proposals.full(existing.id(), districtId);
+				abandon(addition ? "No room left " + (district != null ? "in " + district.name() : "in the town") + " for it." : "No dry, flat room here. Try another spot.");
+				return;
+			}
+			if (existing != null) {
+				String crossed = protectedCrossed(existing, plan, newStreet ? List.of(new int[] {plan.streetX0(), plan.streetX1()}) : List.of());
+				if (crossed != null) { abandon("The street would cross the protected area \"" + crossed + "\". Clear it, or protect less, and try again."); return; }
+			}
 			if (resumeGroup != null) {
 				groupId = resumeGroup.id();
 				state = new State(Pipeline.Phase.GROUP_RUNNING, settlement.id(), r.card(), resumeGroup.bible().id(), resumeGroup.bible().version(), groupId, Map.of(), 0,
@@ -622,20 +635,25 @@ public final class SettlementRunner {
 			if (!a.dimension().equals(dim)) continue;
 			for (int x = a.x0(); x <= a.x1(); x++) for (int z = a.z0(); z <= a.z1(); z++) if (grid.has(x, z)) grid.setBuilt(x, z, true);
 		}
-		for (var v : ArchitectApi.get().sites(server).list(s.owner())) {
+		var all = ArchitectApi.get().sites(server).list(s.owner());
+		for (var v : all) {
 			// a road's box spans its whole route: its cells were marked above
 			if (roads.contains(v.id())) continue;
 			var b = v.box();
 			for (int x = b.minX() - 1; x <= b.maxX() + 1; x++) for (int z = b.minZ() - 1; z <= b.maxZ() + 1; z++) if (grid.has(x, z)) grid.setBuilt(x, z, true);
-			// the street of where the build goes: the district's own, or the town's (not a district's)
-			var in = s.districtAt(dim, (b.minX() + b.maxX()) / 2, (b.minZ() + b.maxZ()) / 2);
-			boolean ours = district != null ? in.map(d -> d.id().equals(district.id())).orElse(false) : in.isEmpty();
-			if (BatchPlanner.STREET_KEY.equals(v.itemKey()) && ours) {
-				streetZ = (b.minZ() + b.maxZ()) / 2;
-				streetX0 = b.minX();
-				streetX1 = b.maxX();
-			}
 		}
+		// the street of where the build goes: the district's own, or the town's (the rule founding and links use too)
+		var street = Districts.streetOf(all, s, district);
+		if (street != null) streetZ = street.z();
+	}
+
+	/** The protected area the street pieces ({@code spans} along the plan's street line, 5 wide) or the plan's lots would cross, or null. */
+	private static @org.jspecify.annotations.Nullable String protectedCrossed(Settlement s, VillageLayout.Plan plan, List<int[]> spans) {
+		String dim = s.claim().dimension();
+		for (Settlement.Area a : s.lands().protect()) {
+			for (int[] sp : spans) if (a.overlaps(dim, sp[0], plan.streetZ() - 2, sp[1], plan.streetZ() + 2)) return a.label();
+		}
+		return null;
 	}
 
 	/** The id of the dev settlement {@code /steward build} and {@code resume} make (not saved). */
@@ -992,8 +1010,31 @@ public final class SettlementRunner {
 			fits.put(lot.id(), fit);
 			if (!fit.ok()) say("Fit " + lot.id() + " (" + entry + ") refused: " + fit.verdict().refusals().stream().map(r -> r.reason() + " " + r.message()).collect(Collectors.joining("; ")));
 		}
+		// the street: all of it for a new one; for an addition, the pieces its lots reach past the street's ends (the street as it stands now)
+		var now = Settlements.store().get(settlement.id()).orElse(settlement);
+		var district = districtId == null ? null : now.lands().district(districtId).orElse(null);
+		List<int[]> spans = new java.util.ArrayList<>();
+		if (newStreet) spans.add(new int[] {plan.streetX0(), plan.streetX1()});
+		else {
+			var street = Districts.streetOf(sites.list(settlement.owner()), now, district);
+			if (street != null && street.z() == plan.streetZ()) {
+				if (plan.streetX0() < street.x0()) spans.add(new int[] {plan.streetX0(), street.x0() - 1});
+				if (plan.streetX1() > street.x1()) spans.add(new int[] {street.x1() + 1, plan.streetX1()});
+			}
+		}
+		// ground protected since the survey: its lots are skipped, a street piece across it is left out
+		for (VillageLayout.Lot lot : plan.lots()) {
+			var a = now.lands().protect().stream().filter(x -> x.overlaps(now.claim().dimension(), lot.x(), lot.z(), lot.maxX(), lot.maxZ())).findFirst();
+			if (a.isPresent() && fits.remove(lot.id()) != null) say(lot.role() + " is left out: its lot is in the protected area \"" + a.get().label() + "\".");
+		}
+		spans.removeIf(sp -> {
+			String crossed = protectedCrossed(now, plan, List.of(sp));
+			if (crossed != null) say("A piece of the street is left out: it would cross the protected area \"" + crossed + "\".");
+			return crossed != null;
+		});
+		Claim land = district != null ? district.claim() : settlement.claim();
 		BatchPlanner.Result res = BatchPlanner.build(settlement, plan, landmarkIds, entries, fits, level,
-			dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), autoApprove, newStreet, buildId);
+			dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), autoApprove, spans, buildId, land);
 		if (res.note() != null) say(res.note());
 		if (!res.skippedLotIds().isEmpty()) say("Skipped lots (no design or no fit): " + res.skippedLotIds());
 		say("Placing " + res.batch().items().size() + " items...");
@@ -1077,8 +1118,8 @@ public final class SettlementRunner {
 	private void onBatchDone(BatchView b) {
 		if (batchId == null || !batchId.equals(b.id())) return;
 		// buildings only: the street is a road, reported on its own when it fails
-		long placed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED && !BatchPlanner.STREET_KEY.equals(i.itemKey())).count();
-		long failed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED && !BatchPlanner.STREET_KEY.equals(i.itemKey())).count();
+		long placed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED && !BatchPlanner.isStreet(i.itemKey())).count();
+		long failed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED && !BatchPlanner.isStreet(i.itemKey())).count();
 		b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).forEach(i -> say("Not placed: " + i.itemKey() + " (" + i.reason().map(Enum::name).orElse("?") + ") " + i.message()));
 		// every site of the build, street included, so an undo removes all of it
 		if (siteGroupId == null) siteGroupId = b.group();

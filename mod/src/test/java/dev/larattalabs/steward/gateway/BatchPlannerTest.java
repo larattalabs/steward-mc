@@ -183,4 +183,25 @@ class BatchPlannerTest {
 		assertEquals(p.lots().size(), r.batch().items().size());
 		assertTrue(r.batch().items().stream().noneMatch(i -> "street".equals(i.itemKey())));
 	}
+
+	@Test
+	void anAdditionsStreetPiecesStayInItsOwnLand() throws Exception {
+		Settlement s = settlement(Difficulty.PATRON);
+		VillageLayout.Plan p = plan(4);
+		Map<String, String> entries = new HashMap<>();
+		Map<String, LotFit> fits = new HashMap<>();
+		for (Lot l : p.lots()) { entries.put(l.id(), "gen_" + l.id()); fits.put(l.id(), okFit(l)); }
+		// a district's land, away from the town's claim: its street is clamped to it, not pulled back to the town
+		Claim land = new Claim("minecraft:overworld", p.streetX1() + 200, p.streetZ(), 48, -64, 320);
+		int a = land.centerX() - 20, b = land.centerX() + 20;
+		BatchPlanner.Result r = BatchPlanner.build(s, p, Set.of(), entries, fits, null, false, false, List.of(new int[] {a, a + 5}, new int[] {b - 5, b + 90}), null, land);
+		var streets = r.batch().items().stream().filter(i -> BatchPlanner.isStreet(i.itemKey())).toList();
+		assertEquals(List.of("street", "street#2"), streets.stream().map(Batch.Item::itemKey).toList());
+		assertEquals(a, streets.get(0).road().points().get(0).getX());
+		assertEquals(land.centerX() + land.radius(), streets.get(1).road().points().get(1).getX(), "clamped to the district's edge");
+		assertEquals(List.of("street", "street#2"), r.batch().stages().get(0).items());
+		assertFalse(BatchPlanner.isStreet("streets"));
+		assertFalse(BatchPlanner.isStreet("street_market_1"), "a lot of the street_market type is a building");
+		assertEquals(p.streetZ(), streets.get(0).road().ext().get(BatchPlanner.STREET_Z).getAsInt(), "the line is recorded (its box also holds lanterns)");
+	}
 }
