@@ -40,6 +40,12 @@ public class StewardClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.OpenDescribe.TYPE, (payload, ctx) -> ctx.client().gui.setScreen(
 			new dev.larattalabs.steward.client.screen.DescribeScreen(payload.settlementId(), payload.name(), payload.previous())));
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.Card.TYPE, (payload, ctx) -> ctx.client().gui.setScreen(new dev.larattalabs.steward.client.screen.CardScreen(payload)));
+		ClientPlayNetworking.registerGlobalReceiver(StewardNet.SettlementPanel.TYPE, (payload, ctx) -> {
+			var view = dev.larattalabs.steward.view.SettlementView.fromJson(payload.viewJson());
+			var screen = new dev.larattalabs.steward.client.screen.SettlementScreen(view);
+			ctx.client().gui.setScreen(screen);
+			if (!payload.siteId().isEmpty()) screen.openBuilding(payload.siteId());
+		});
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.OpenInbox.TYPE, (payload, ctx) -> ctx.client().gui.setScreen(new InboxScreen(payload.settlementId())));
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.PreviewDelta.TYPE, (payload, ctx) -> {
 			try {

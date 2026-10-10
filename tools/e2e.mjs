@@ -3,7 +3,8 @@
 // ports 8590/8591, the flat creative world "Steward E2E", no Claude), runs the steps, and prints one line per check: "ok <check>" or "FAIL <check>: why".
 // Exit 0 = no FAIL and at least one ok. A summary goes to artifacts/e2e/summary.json.
 //
-//   node tools/e2e.mjs free     $0, no Claude: claim and steward, expand, the inbox screen, a placed building's update and undo, a build restored after a restart
+//   node tools/e2e.mjs free     $0, no Claude: claim and steward, the save format, expand, the inbox screen, a placed building on the settlement screen and its panel,
+//                               its update and undo, a build restored after a restart
 //   node tools/e2e.mjs stub     the whole flow (describe, card, start, approvals, placement, a restart mid-build, undo) against Architect's stub sidecar;
 //                               needs the stub to answer card jobs, bibles and design groups (Architect 6c slice 0, ask C4): until then it fails at describe
 //
@@ -132,6 +133,10 @@ async function claimAndSteward() {
   if (after.length !== n + 1) return fail('claim', `no new settlement (${m})`), null;
   const s = after[after.length - 1];
   ok('claim', `${s.id}, ${2 * s.claim.radius + 1} across`);
+  // the settlements file is written in the current format (a v1 world migrates when loaded; its v1 file is kept as a backup)
+  const file = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-settlements.json'), 'utf8'));
+  if (file.format === 2 && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `2, every entry an operation${fs.existsSync(path.join(WORLD, 'steward-settlements.json.v1.bak')) ? ', v1 backup kept' : ''}`);
+  else fail('save format', `format ${file.format}`);
   let name = '';
   for (let i = 0; i < 10 && !/Steward/.test(name); i++) {
     if (i > 0) await sleep(1000);
@@ -167,6 +172,20 @@ async function placeUpdateUndo(id) {
   if (!placed) return fail('dev place', (await waitLog(from, /dev place refused[^\n]*/, 1) ?? ['no answer'])[0]);
   const site = placed[1];
   ok('dev place', site);
+  // the settlement screen (3a), opened as a player would by command, with the building just placed
+  await cmd(`/steward view ${id}`);
+  await sleep(1500);
+  const st = JSON.stringify(await dev.request('dev.state'));
+  const shot = await dev.request('dev.screenshot', { name: 'e2e-settlement', frames: 5 }, { timeoutMs: 120_000 });
+  if (/SettlementScreen/.test(st)) ok('settlement screen', shot.path ?? '');
+  else fail('settlement screen', st.slice(0, 160));
+  await cmd(`/steward view ${id} ${site}`);
+  await sleep(1500);
+  const bst = JSON.stringify(await dev.request('dev.state'));
+  const bshot = await dev.request('dev.screenshot', { name: 'e2e-building', frames: 5 }, { timeoutMs: 120_000 });
+  if (/BuildingScreen/.test(bst)) ok('building panel', bshot.path ?? '');
+  else fail('building panel', bst.slice(0, 160));
+  await dev.request('dev.key', { key: 'escape' });
   // a new version of the entry, built and checked by the kit, installed as the entry's next version
   const v2 = fs.mkdtempSync(path.join(os.tmpdir(), 'steward-e2e-v2-'));
   writeBlueprint(stubBlueprint(true), v2);

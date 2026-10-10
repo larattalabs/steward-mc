@@ -113,6 +113,8 @@ public final class StewardCommands {
 				return 1;
 			}))
 			.then(Commands.literal("expand").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "expand", "", "", 0))))
+			.then(Commands.literal("view").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "settlement", "", "", 0))
+				.then(Commands.argument("site", StringArgumentType.word()).executes(ctx -> decide(ctx, "building", StringArgumentType.getString(ctx, "site"), "", 0)))))
 			.then(Commands.literal("show").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "show", "", "", 0))))
 			.then(Commands.literal("hide").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "hide", "", "", 0))))
 			.then(Commands.literal("dev").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.literal("place").then(Commands.argument("id",

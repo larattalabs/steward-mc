@@ -138,6 +138,20 @@ public final class StewardNet {
 		}
 	}
 
+	/** Open the settlement screen with this view ({@link dev.larattalabs.steward.view.SettlementView} as JSON); {@code siteId} non-empty opens that building's panel. */
+	public record SettlementPanel(String viewJson, String siteId) implements CustomPacketPayload {
+		public static final Type<SettlementPanel> TYPE = new Type<>(id("settlement"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, SettlementPanel> CODEC = StreamCodec.of((buf, p) -> {
+			buf.writeUtf(p.viewJson, 1 << 20);
+			buf.writeUtf(p.siteId);
+		}, buf -> new SettlementPanel(buf.readUtf(1 << 20), buf.readUtf()));
+
+		@Override
+		public Type<SettlementPanel> type() {
+			return TYPE;
+		}
+	}
+
 	/** Show the delta ghost of a placed site going to {@code toVersion} (Architect's {@code ArchitectClientApi.previewDelta}) under {@code key}. */
 	public record PreviewDelta(String key, String siteId, int toVersion) implements CustomPacketPayload {
 		public static final Type<PreviewDelta> TYPE = new Type<>(id("preview_delta"));
@@ -223,6 +237,7 @@ public final class StewardNet {
 		s2c.register(OpenDescribe.TYPE, OpenDescribe.CODEC);
 		s2c.register(Card.TYPE, Card.CODEC);
 		s2c.register(PreviewDelta.TYPE, PreviewDelta.CODEC);
+		s2c.register(SettlementPanel.TYPE, SettlementPanel.CODEC);
 		var c2s = PayloadTypeRegistry.serverboundPlay();
 		c2s.register(Describe.TYPE, Describe.CODEC);
 		c2s.register(Start.TYPE, Start.CODEC);

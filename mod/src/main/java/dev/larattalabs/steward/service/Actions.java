@@ -178,7 +178,7 @@ public final class Actions {
 	/** A decision on the player's own build: approve, redirect, raise, cancel, show, hide; "card" shows the settlement's card again. */
 	public static Result decide(ServerPlayer player, String id, String action, String lot, String text, double amount) {
 		// looking is open to everyone; deciding is the host's
-		if (!List.of("card", "show", "hide", "update_preview").contains(action == null ? "" : action)) {
+		if (!List.of("card", "show", "hide", "update_preview", "settlement", "building").contains(action == null ? "" : action)) {
 			String no = refusal(player);
 			if (no != null) return Result.fail(no);
 		}
@@ -203,8 +203,16 @@ public final class Actions {
 			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
 			var res = Settlements.expand(id, System.currentTimeMillis());
 			if (!res.ok()) return Result.fail(res.error());
-			if (res.settlement().described()) sendCard(player, res.settlement());
+			// back to the screen it came from: the settlement screen ("settlement"), else the card
+			if ("settlement".equals(lot)) sendSettlement(player, res.settlement(), "");
+			else if (res.settlement().described()) sendCard(player, res.settlement());
 			return Result.ok(res.note());
+		}
+		if ("settlement".equals(action) || "building".equals(action)) {
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			sendSettlement(player, s.get(), "building".equals(action) && lot != null ? lot : "");
+			return Result.ok("");
 		}
 		if ("card".equals(action)) {
 			Optional<Settlement> s = Settlements.store().get(id);
@@ -236,13 +244,32 @@ public final class Actions {
 
 	// ------------------------------------------------------------------ screens
 
-	/** What a right-click on the steward or the Founding Stone opens: describe an undescribed settlement, the inbox while it is being built, else its card. */
+	/**
+	 * What a right-click on the steward or the Founding Stone opens: describe an undescribed settlement, the inbox while it is being built, its card while
+	 * nothing is built yet, else the settlement screen.
+	 */
 	public static void openFor(ServerPlayer p, Settlement s) {
 		if (!s.described()) ServerPlayNetworking.send(p, new StewardNet.OpenDescribe(s.id(), s.name(), ""));
 		else if (SettlementRunner.busy(s.id())) {
 			SettlementRunner.sendInbox(p.level().getServer(), p.getUUID());
 			ServerPlayNetworking.send(p, new StewardNet.OpenInbox(s.id()));
-		} else sendCard(p, s);
+		} else if (s.log().stream().noneMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED)) sendCard(p, s);
+		else sendSettlement(p, s, "");
+	}
+
+	/** Opens the settlement screen (or, with a site id, that building's panel) with the settlement's buildings as Architect has them now. Viewing is open to everyone. */
+	public static void sendSettlement(ServerPlayer p, Settlement s, String siteId) {
+		var sites = ArchitectApi.get().sites(p.level().getServer()).list(s.owner()).stream().map(Actions::site).toList();
+		var view = dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites);
+		ServerPlayNetworking.send(p, new StewardNet.SettlementPanel(view.toJson(), siteId == null ? "" : siteId));
+	}
+
+	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.SiteView v) {
+		var ext = v.ext();
+		java.util.function.Function<String, String> str = k -> ext != null && ext.has(k) && ext.get(k).isJsonPrimitive() ? ext.get(k).getAsString() : null;
+		var b = v.box();
+		return new dev.larattalabs.steward.view.SettlementView.Site(v.id(), v.kind(), v.itemKey(), str.apply("steward_mc:role"), str.apply("steward_mc:lot"), v.blueprintId(),
+			v.version(), v.headVersion(), v.deviations(), v.state().name().toLowerCase(), v.updating(), b.minX(), b.minZ(), b.maxX(), b.maxZ());
 	}
 
 	public static void sendCard(ServerPlayer p, Settlement s) {
