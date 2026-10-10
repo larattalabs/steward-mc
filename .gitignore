@@ -7,3 +7,4 @@ mod/logs/
 .claude/
 artifacts/
 logs/
+assets-src/out/

@@ -142,7 +142,20 @@ async function claimAndSteward() {
     if (i > 0) await sleep(1000);
     name = await cmd(`/data get entity @e[type=steward_mc:steward,tag=steward_mc.settlement.${s.id},limit=1] CustomName`);
   }
-  if (/Steward/.test(name)) ok('steward', 'named, tagged');
+  // a look at it, from three blocks in front
+  const pos = (await cmd(`/data get entity @e[type=steward_mc:steward,tag=steward_mc.settlement.${s.id},limit=1] Pos`)).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+  let shot = '';
+  if (pos) {
+    const [x, y, z] = pos.slice(1).map(Number);
+    // the describe screen the claim opened closes first (the first Escape leaves its text box, the second closes it)
+    await dev.request('dev.key', { key: 'escape' });
+    await sleep(200);
+    await dev.request('dev.key', { key: 'escape' });
+    await cmd(`/tp @p ${(x + 2).toFixed(1)} ${y.toFixed(1)} ${(z + 4).toFixed(1)} facing ${x.toFixed(1)} ${(y + 1.4).toFixed(1)} ${z.toFixed(1)}`);
+    await sleep(1500);
+    shot = (await dev.request('dev.screenshot', { name: 'e2e-steward', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  }
+  if (/Steward/.test(name)) ok('steward', `named, tagged${shot ? ', ' + shot : ''}`);
   else fail('steward', name || 'no steward_mc:steward');
   return s.id;
 }
