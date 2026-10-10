@@ -65,7 +65,7 @@ public final class ProgramPlanner {
 				// a landmark entry is one building; any further count of it joins the ordinary buildings
 				out.add(spec(ids, b, true));
 				landmarks++;
-				if (b.count() > 1) ordinary.add(new Building(b.role(), b.type(), b.count() - 1, b.footprint(), false, b.notes()));
+				if (b.count() > 1) ordinary.add(new Building(b.role(), b.type(), b.count() - 1, b.footprint(), false, b.notes(), b.placement()));
 			} else {
 				ordinary.add(b);
 			}
@@ -97,7 +97,7 @@ public final class ProgramPlanner {
 
 	private static LotSpec spec(Ids ids, Building b, boolean landmark) {
 		int[] f = FOOTPRINT.getOrDefault(b.footprint(), FOOTPRINT.get("M"));
-		return new LotSpec(ids.next(b.type()), b.type(), f[0], f[1] + LotBrief.APPROACH_MARGIN, b.role(), b.notes(), landmark);
+		return new LotSpec(ids.next(b.type()), b.type(), f[0], f[1] + LotBrief.APPROACH_MARGIN, b.role(), b.notes(), landmark, b.placement());
 	}
 
 	/** Readable, unique lot ids from the type ({@code slag_foundry_1}): the player types them in {@code /steward redirect}. */

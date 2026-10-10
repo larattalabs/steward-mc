@@ -30,7 +30,10 @@ public final class TerrainGrid {
 				ground[k] = nearestGround(s, h, w, i, j, h[k]);
 			}
 		}
-		return new Grid(s.minX(), s.minZ(), s.width(), s.depth(), ground, w);
+		// built: the top block is not natural terrain (the player's builds, an earlier build's sites); trees count as natural
+		boolean[] built = new boolean[h.length];
+		for (int k = 0; k < h.length; k++) built[k] = !w[k] && s.natural() != null && !s.natural().get(k) && !s.tree().get(k);
+		return new Grid(s.minX(), s.minZ(), s.width(), s.depth(), ground, w, built);
 	}
 
 	/** The lowest height among non-tree, non-water columns within 4 of (i, j), or {@code fallback} when there are none. */

@@ -107,4 +107,17 @@ class ProgramPlannerTest {
 		assertEquals("M", x.footprint());
 		assertEquals(List.of(), c.avoid(), "a missing list reads as empty");
 	}
+
+	@Test
+	void placementHintsReachTheLotsAndUnknownOnesAreDropped() {
+		JsonObject j = json("stilt_village");
+		var prog = j.getAsJsonArray("program");
+		prog.get(0).getAsJsonObject().addProperty("placement", "central");
+		prog.get(1).getAsJsonObject().addProperty("placement", "on_the_moon");
+		ConceptCard c = ConceptCard.parse(j);
+		assertEquals("central", c.program().get(0).placement());
+		assertNull(c.program().get(1).placement(), "an unknown hint reads as anywhere");
+		var r = ProgramPlanner.lots(c, 6, 1);
+		assertEquals("central", r.specs().get(0).placement());
+	}
 }

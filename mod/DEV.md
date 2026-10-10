@@ -134,4 +134,9 @@ buildings by the left arrow, budget $20 from the estimate, Start by Enter), the 
 placement. 3 buildings and the street placed (the street was refused on this slope before the run-out was removed). Spend $13.76: bible $1.36, the smokehouse landmark
 $4.03, the net racks $4.09 (a small building at landmark price: what C1/C2 address), the cottage about $3.7, massings and critiques the rest. About 70 minutes, the
 landmark designed alone first, then the other two. Fixed after: the finished message counted the street as a building.
+- Placement awareness (2026-10-09, before Architect 7a's site analysis takes over): program entries carry an optional `placement` (near_water, central, edge,
+  high_ground; the card screen shows it); `VillageLayout` orders central first and edge last, tries both street sides and directions, and scores each plan on the
+  hints (distance to water from the survey, to the claim's centre, ground height). The survey's `natural` mask marks built ground (the player's builds, earlier
+  sites) and no lot touches it. Each building's report critique names its two nearest neighbours. A live card ("a riverside mill town ...") filled the hints sensibly
+  (`fixtures/real/mill_town_placement.json`).
 

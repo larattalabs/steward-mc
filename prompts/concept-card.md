@@ -20,7 +20,9 @@ The fields are independent, so a change to one should not require changing anoth
   it specific to this settlement, not a generic village). Each entry: `role` in the settlement's own terms ("slag foundry",
   "overseer's keep"), `type` (an Architect preset `house`, `cabin`, `cottage`, `tower`, `shop`, `tavern`, `barn`, `smithy`, `chapel`,
   `gatehouse` when one honestly fits, otherwise a snake_case open type such as `slag_foundry`), `count`, `footprint` (S, M, L, XL),
-  `landmark`, and short `notes` on what makes it itself. Mark one landmark for an S or M settlement, at most two for L or XL; they
+  `landmark`, short `notes` on what makes it itself, and, when it matters, `placement`: `near_water` (docks, boathouses, mills),
+  `central` (the hall, the market, the shrine at the heart), `edge` (barns, lookouts, tanneries and other smelly trades), `high_ground`
+  (watchtowers, temples). Leave `placement` out for buildings that can stand anywhere. Mark one landmark for an S or M settlement, at most two for L or XL; they
   cost the most. Totals: about 6 buildings for S, 10 for M, 16 for L and XL. Homes and workplaces are usually several of one entry
   (`count`). A "hellish evil lair" has no tavern or chapel unless the player asked for one.
 - **story**: optional backstory. Leave `text` empty when the player gave none; do not invent a backstory.

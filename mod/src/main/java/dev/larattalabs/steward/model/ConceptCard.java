@@ -34,7 +34,14 @@ public record ConceptCard(
 	 * One entry of the building program: what the settlement needs built, in its own terms. {@code type} is an Architect preset or an open snake_case type;
 	 * {@code footprint} is S, M, L or XL.
 	 */
-	public record Building(String role, String type, int count, String footprint, boolean landmark, @Nullable String notes) {}
+	public record Building(String role, String type, int count, String footprint, boolean landmark, @Nullable String notes, @Nullable String placement) {
+		public Building(String role, String type, int count, String footprint, boolean landmark, @Nullable String notes) {
+			this(role, type, count, footprint, landmark, notes, null);
+		}
+	}
+
+	/** Where in the settlement a program entry wants to stand (the layout scores lots against the survey for it); null = anywhere. */
+	public static final List<String> PLACEMENTS = List.of("near_water", "central", "edge", "high_ground");
 
 	/** Architect's open-type rule (a preset name also matches it). */
 	public static final Pattern TYPE_SLUG = Pattern.compile("[a-z][a-z0-9_]{0,39}");
@@ -73,7 +80,8 @@ public record ConceptCard(
 			String type = b.type != null && TYPE_SLUG.matcher(b.type).matches() ? b.type : "custom";
 			String role = blank(b.role) ? type.replace('_', ' ') : b.role.strip();
 			String fp = FOOTPRINTS.contains(b.footprint) ? b.footprint : "M";
-			out.add(new Building(role, type, Math.max(1, Math.min(8, b.count)), fp, b.landmark, blank(b.notes) ? null : b.notes.strip()));
+			out.add(new Building(role, type, Math.max(1, Math.min(8, b.count)), fp, b.landmark, blank(b.notes) ? null : b.notes.strip(),
+				b.placement != null && PLACEMENTS.contains(b.placement) ? b.placement : null));
 		}
 		return out.isEmpty() ? null : List.copyOf(out);
 	}

@@ -46,7 +46,9 @@ test('the prompt offers exactly the Architect presets LotBrief knows', () => {
   const set = java.match(/ARCHITECT_TYPES = Set\.of\(([^)]*)\)/)[1].match(/"([a-z_]+)"/g).map((s) => s.slice(1, -1)).filter((t) => t !== 'custom');
   const prompt = fs.readFileSync(new URL('../prompts/concept-card.md', import.meta.url), 'utf8');
   const programLine = prompt.slice(prompt.indexOf('- **program**'), prompt.indexOf('- **story**'));
-  const offered = [...programLine.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]).filter((t) => set.includes(t) || !t.includes('_') && !['role', 'type', 'count', 'footprint', 'landmark', 'notes'].includes(t));
+  const placements = schema.properties.program.items.properties.placement.enum;
+  const fields = ['role', 'type', 'count', 'footprint', 'landmark', 'notes', 'placement'];
+  const offered = [...programLine.matchAll(/`([a-z_]+)`/g)].map((m) => m[1]).filter((t) => set.includes(t) || !t.includes('_') && !fields.includes(t) && !placements.includes(t));
   assert.deepEqual([...new Set(offered)].sort(), [...set].sort());
 });
 

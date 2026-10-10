@@ -136,4 +136,19 @@ class GroupPlannerTest {
 		GroupRequest g = GroupPlanner.build(s, plan(3), GroupPlanner.Options.forCard(s, "b", null).withCritiqueReport(false)).request();
 		for (var i : g.items()) assertNull(i.critique());
 	}
+
+	@Test
+	void eachCritiqueNamesTheNearestNeighbours() throws Exception {
+		Settlement s = settlement("crater_works");
+		var plan = dev.larattalabs.steward.layout.VillageLayout.plan(s.claim(), dev.larattalabs.steward.layout.Grid.flat(s.claim().centerX() - 128, s.claim().centerZ() - 128, 257, 257, 70),
+			ProgramPlanner.lots(s.card(), 6, 2).specs(), dev.larattalabs.steward.layout.VillageLayout.Rules.defaults());
+		var l = plan.lots().get(0);
+		var near = GroupPlanner.neighbours(plan, l, 2);
+		assertEquals(2, near.size());
+		var spec = GroupPlanner.reportSpec(s, l, near);
+		String role = spec.extraCriteria().get(spec.extraCriteria().size() - 1);
+		assertTrue(role.contains("beside its neighbours"), role);
+		assertTrue(role.contains(near.get(0).role()), role);
+		assertTrue(role.length() <= dev.larattalabs.architect.api.CritiqueSpec.MAX_CRITERION);
+	}
 }

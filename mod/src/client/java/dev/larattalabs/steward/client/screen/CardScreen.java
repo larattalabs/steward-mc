@@ -252,7 +252,14 @@ public final class CardScreen extends KitScreen {
 				Panels.pill(g, font, fp, rx + colW - fpw - 6 - (card.program().size() > fit ? 6 : 0), iy - 1, UiBits.muted());
 				String title = b.role() + (b.count() > 1 ? " ×" + b.count() : "") + (b.landmark() ? "  ★" : "");
 				g.text(font, TextUtil.ellipsize(font, title, colW - fpw - 26), rx + 15, iy, UiBits.ink(), false);
-				g.text(font, TextUtil.ellipsize(font, b.notes() == null ? b.type() : b.notes(), colW - 24), rx + 15, iy + 10, UiBits.muted(), false);
+				String where = b.placement() == null ? "" : switch (b.placement()) {
+					case "near_water" -> "by the water · ";
+					case "central" -> "at the heart · ";
+					case "edge" -> "on the outskirts · ";
+					case "high_ground" -> "on high ground · ";
+					default -> "";
+				};
+				g.text(font, TextUtil.ellipsize(font, where + (b.notes() == null ? b.type() : b.notes()), colW - 24), rx + 15, iy + 10, UiBits.muted(), false);
 			}
 			if (card.program().size() > fit) {
 				TextUtil.Scroll sc = new TextUtil.Scroll().update(card.program().size(), fit);

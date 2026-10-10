@@ -1,0 +1,106 @@
+{
+  "prompt": "a riverside mill town with a market square, a watchtower on the hill and tanneries kept downwind",
+  "card": {
+    "name": "Riverside Mill Town",
+    "site": {
+      "text": "a riverside town on a river bank, with a hill rising behind it for the watchtower",
+      "template": "waterfront",
+      "terrain": "find",
+      "size": "M"
+    },
+    "style": {
+      "text": "plain, unspecified; cozy working-town look in wood, stone and thatch",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "mill town with a market square, working trades and a lookout",
+      "template": "market_town"
+    },
+    "story": {
+      "text": ""
+    },
+    "program": [
+      {
+        "role": "water mill",
+        "type": "mill",
+        "count": 2,
+        "footprint": "M",
+        "landmark": true,
+        "placement": "near_water",
+        "notes": "Waterwheel in the river, grain mill with hoppers and a loading door; the town's centrepiece."
+      },
+      {
+        "role": "market square stalls",
+        "type": "shop",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "placement": "central",
+        "notes": "Open-fronted stalls around a square with a well."
+      },
+      {
+        "role": "watchtower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "placement": "high_ground",
+        "notes": "Tall lookout on the hill with a beacon brazier, overlooking the river."
+      },
+      {
+        "role": "tannery",
+        "type": "tannery",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "placement": "edge",
+        "notes": "Drying racks and cauldron vats, downwind and downstream at the far edge of town."
+      },
+      {
+        "role": "cottages",
+        "type": "cottage",
+        "count": 5,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Homes of millers, traders and tanners, clustered near the square."
+      },
+      {
+        "role": "granary barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "placement": "edge",
+        "notes": "Stores flour and grain from the mills."
+      },
+      {
+        "role": "riverside tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "placement": "near_water",
+        "notes": "Inn by the bridge or landing."
+      }
+    ],
+    "constraints": {
+      "near": "search",
+      "density": "med"
+    },
+    "avoid": [],
+    "interpretation": "A medium waterfront town on a river bank. The mills sit on the water, the market square is at the heart, the watchtower stands on a hill, and the tanneries are at the far edge downwind and downstream from the homes and market. Style was not given, so I used a rustic working-town look.",
+    "contradictions": [],
+    "assumptions": [
+      "Style is rustic since none was named.",
+      "Size M with medium density.",
+      "Existing terrain with a river and hill will be searched for, not sculpted.",
+      "Wind is not modelled, so 'downwind' is read as the far edge of town, downstream.",
+      "Added a granary barn and tavern to round out a mill town."
+    ]
+  },
+  "meta": {
+    "run": "2026-10-09 live, /steward card, Sonnet, claude login",
+    "costUsd": 0.028428,
+    "note": "placement hints: mills and tavern near_water, stalls central, watchtower high_ground, tannery and granary edge"
+  }
+}

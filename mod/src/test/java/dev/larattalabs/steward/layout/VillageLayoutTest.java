@@ -113,4 +113,49 @@ class VillageLayoutTest {
 		assertEquals((p.streetX1() - p.streetX0() + 1) * 3, cells.size());
 		assertEquals(p.streetX0(), cells.get(0)[0]);
 	}
+
+	private static LotSpec hinted(String id, String placement) {
+		return new LotSpec(id, "house", 13, 13, id, null, false, placement);
+	}
+
+	private static double toCentre(Lot l) {
+		return Math.hypot((l.x() + l.maxX()) / 2.0 - CLAIM.centerX(), (l.z() + l.maxZ()) / 2.0 - CLAIM.centerZ());
+	}
+
+	@Test
+	void aNearWaterBuildingStandsByTheLakeTheOthersNeedNot() {
+		// a lake along the east edge of the claim (x >= 45)
+		Grid g = flat();
+		for (int x = 45; x <= 64; x++) for (int z = -64; z <= 64; z++) g.set(x, z, 62, true);
+		List<LotSpec> specs = new ArrayList<>(specs(5, 13, 13));
+		specs.add(hinted("dock_1", "near_water"));
+		Plan p = VillageLayout.plan(CLAIM, g, specs, Rules.defaults());
+		Lot dock = p.lots().stream().filter(l -> l.id().equals("dock_1")).findFirst().orElseThrow();
+		int maxX = p.lots().stream().mapToInt(Lot::maxX).max().orElseThrow();
+		assertEquals(maxX, dock.maxX(), "the dock is the lot nearest the lake: " + p.lots());
+		assertTrue(45 - dock.maxX() <= 12, "within a few blocks of the water: " + dock);
+	}
+
+	@Test
+	void centralGoesToTheHeartAndEdgeToTheOutskirts() {
+		List<LotSpec> specs = new ArrayList<>();
+		specs.add(hinted("barn_1", "edge"));
+		specs.addAll(specs(6, 13, 13));
+		specs.add(hinted("hall_1", "central"));
+		Plan p = VillageLayout.plan(CLAIM, flat(), specs, Rules.defaults());
+		Lot hall = p.lots().stream().filter(l -> l.id().equals("hall_1")).findFirst().orElseThrow();
+		Lot barn = p.lots().stream().filter(l -> l.id().equals("barn_1")).findFirst().orElseThrow();
+		for (Lot l : p.lots()) assertTrue(toCentre(hall) <= toCentre(l), "the hall is the most central lot: " + l);
+		for (Lot l : p.lots()) assertTrue(toCentre(barn) >= toCentre(l) - 0.01, "the barn is the outermost lot: " + l);
+	}
+
+	@Test
+	void builtGroundIsNeverUsed() {
+		// the player's build covers the middle of the claim
+		Grid g = flat();
+		for (int x = -20; x <= 20; x++) for (int z = -20; z <= 20; z++) g.setBuilt(x, z, true);
+		Plan p = VillageLayout.plan(CLAIM, g, specs(6, 13, 13), Rules.defaults());
+		assertFalse(p.lots().isEmpty());
+		for (Lot l : p.lots()) for (int x = l.x(); x <= l.maxX(); x++) for (int z = l.z(); z <= l.maxZ(); z++) assertFalse(g.builtAt(x, z), "a lot on built ground: " + l);
+	}
 }

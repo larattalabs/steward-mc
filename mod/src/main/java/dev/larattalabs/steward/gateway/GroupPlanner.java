@@ -77,7 +77,7 @@ public final class GroupPlanner {
 			DesignRequest r = LotBrief.build(s, l, landmark ? LANDMARK_HEIGHT : ORDINARY_HEIGHT, null, null);
 			boolean anchor = l.id().equals(anchorId);
 			GroupRequest.Item item = new GroupRequest.Item(l.id(), r, landmark ? GroupRequest.Role.LANDMARK : GroupRequest.Role.ORDINARY, landmark && !anchor ? 1 : 2, anchor);
-			items.add(o.critiqueReport() ? item.critique(reportSpec(s, l)) : item);
+			items.add(o.critiqueReport() ? item.critique(reportSpec(s, l, neighbours(plan, l, 2))) : item);
 		}
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
@@ -93,11 +93,24 @@ public final class GroupPlanner {
 	 * a design): scores and issues for the inbox, no revision. The extra criteria carry facts about this lot that the critic should check.
 	 */
 	static CritiqueSpec reportSpec(Settlement s, Lot l) {
+		return reportSpec(s, l, List.of());
+	}
+
+	/** As above, the role criterion naming the nearest neighbours, so the critic judges whether the building sits well beside them. */
+	static CritiqueSpec reportSpec(Settlement s, Lot l, List<Lot> neighbours) {
 		List<String> extra = new ArrayList<>();
 		extra.add("The entrance is on the front (south) face and is easy to read and reach");
 		if (!s.card().avoid().isEmpty()) extra.add(clip("Avoids: " + String.join(", ", s.card().avoid())));
-		extra.add(clip("Reads as a " + l.role() + " in " + s.card().purpose().text()));
+		String beside = neighbours.isEmpty() ? "" : ", and sits well beside its neighbours, the " + String.join(" and the ", neighbours.stream().map(Lot::role).toList());
+		extra.add(clip("Reads as a " + l.role() + " in " + s.card().purpose().text() + beside));
 		return new CritiqueSpec(CritiqueMode.REPORT, null, null, null, null, null, null, List.of(), null, extra);
+	}
+
+	/** The {@code n} lots nearest to {@code l} (centre to centre), nearest first. */
+	static List<Lot> neighbours(VillageLayout.Plan plan, Lot l, int n) {
+		double cx = (l.x() + l.maxX()) / 2.0, cz = (l.z() + l.maxZ()) / 2.0;
+		return plan.lots().stream().filter(o -> !o.id().equals(l.id()))
+			.sorted(Comparator.comparingDouble(o -> Math.hypot((o.x() + o.maxX()) / 2.0 - cx, (o.z() + o.maxZ()) / 2.0 - cz))).limit(n).toList();
 	}
 
 	private static String clip(String t) {
@@ -133,6 +146,7 @@ public final class GroupPlanner {
 			j.addProperty("sizeX", l.sizeX());
 			j.addProperty("sizeZ", l.sizeZ());
 			j.addProperty("frontsStreetToThe", l.front().name().toLowerCase());
+			if (l.placement() != null) j.addProperty("placement", l.placement());
 			lots.add(j);
 		}
 		o.add("lots", lots);

@@ -45,7 +45,8 @@
           "count": { "type": "integer", "minimum": 1, "maximum": 8 },
           "footprint": { "enum": ["S", "M", "L", "XL"], "description": "Ground size: S about 11x9, M 14x12, L 18x15, XL 24x20 blocks." },
           "landmark": { "type": "boolean", "description": "A centrepiece, designed first on the stronger model. One for S and M settlements, two for L and XL." },
-          "notes": { "type": "string", "maxLength": 200, "description": "What makes this building itself: its function, details, and how it relates to the rest." }
+          "notes": { "type": "string", "maxLength": 200, "description": "What makes this building itself: its function, details, and how it relates to the rest." },
+          "placement": { "enum": ["near_water", "central", "edge", "high_ground"], "description": "Where it wants to stand: by the water (docks, mills), at the heart (a hall, a market), on the outskirts (barns, lookouts, smelly trades), on the high ground (watchtowers, temples). Leave it out for anywhere." }
         }
       }
     },
