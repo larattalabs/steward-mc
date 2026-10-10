@@ -46,6 +46,7 @@ Status (2026-10-09): written 2026-10-05; **phase 1 is nearly done** (the whole f
 | 2026-10-05 | Architect accepted A1-A9 (architect-mc commit a040e39). Its order is binding for Steward's phases: A9 phase 3, then A8, A1+A2, A3, A7, A4, A6, A5 (see "Architect constraints"). |
 | 2026-10-05 | Functional modules (farms, sorters, trading hall) come from a **verified catalog**, with later a simulation-verified path for Claude-designed ones. Claude composes and parametrises; it does not hand-wire redstone unverified. |
 | 2026-10-09 | **Phase order revised** (Noah): finish phase 1 (street, claim size and Expand), then phase 3's core, then phase 4, then phase 2 once Architect 7c lands (phase 2 is blocked; 3 and 4 are not). Cross-cutting first: copies as free variants, a $0 end-to-end gate, Architect's estimate in the UI. See "Review and order (2026-10-09)". |
+| 2026-10-09 | **Copies never cost quality** (Noah): designs are shared only with safeguards, adapted to their lot first, original as the fallback; the player can choose "all original". See "Copies, adaptations and originals". |
 | 2026-10-09 | **Claims grow** (Noah): the card's size sets the first claim, the player can expand it, and a settlement grows by **districts** (adjacent claims the steward proposes). See "Claims and growth". |
 
 ## Concept card
@@ -151,6 +152,36 @@ Each module is tested in the dev client before it ships (redstone and farms are 
 
 Later: Claude-designed modules pass a **simulation gate**: run the singleplayer server N ticks in a scratch area and count
 the output before the design is accepted.
+
+## Copies, adaptations and originals
+
+Each building of a settlement is one of three kinds. Sharing a design is how cost and time come down (a program's "x4" is four full designs today). It must never
+make a build buggy, broken or visibly cheap.
+
+| Kind | What it is | Cost | Massing approval |
+|---|---|---|---|
+| **Original** | designed for its own lot (against its 3D site once Architect 7b ships) | full | per lot |
+| **Adapted** | an existing design fitted to another lot by Architect's `fitToSite` (site variant, keep cells): same body, its base generated to the spot (stilt lengths, stepped foundation, a stair to the ground) | small (code, no Claude) | once per design |
+| **Copy** | a free variant on a pad lot (`makeVariant` / bible re-skin) | about zero | once per design |
+
+Rules:
+1. **Adapt first, original as the fallback.** For each lot, an existing design of its role is fitted first; an original is made when the fit or the checker fails,
+   or the lot is a landmark. **Architect's fit decides**, not a lot-type table: 7a's lot types (pad, cliff face, ravine span, canopy, cave interior, ledge, suspended)
+   only predict the cost. As fit modes improve, more lots get cheap adaptations without Steward changing.
+2. **Never forced.** A copy or adaptation that fails fit or the checker on its lot falls back to an original for that lot. Every variant is checked like a design.
+3. **No sameness.** Landmarks and buildings that appear once are never shared. At most 2-3 placements per design, then a new design (x6 becomes 2 designs x 3
+   placements). Each copy changes the palette and at least one exposed parameter (length, roof, porch side) where the design has them, plus mirror or rotation.
+4. **The player decides.** The card screen shows the mix and its cost before anything starts ("14 buildings: 4 original, 3 designs adapted to 7 lots, 3 shared")
+   and offers **"all original"** at the higher price.
+5. **Copies follow their source.** A copy records its source design (`variantOf`). When the source gets a new version (a free-text change, a re-design), its copies
+   and adaptations are offered as one update and applied per lot, keeping each lot's adaptation (phase 3; Architect 6d).
+6. **Reuse across settlements, by choice.** A proven design from another settlement (Architect 7c's promoted shapes) may be offered on a new card ("reuse the cottage
+   from Greywater Hamlet"), never applied automatically, and re-checked, refitted and re-skinned to the new bible.
+7. **Small buildings** skip the report critique (it only reports, it never changes the design). They keep their massing: the cheap shape step the player approves
+   and the detail pass binds to.
+
+Until Architect 7a/7b, Steward has pad lots only, so copies (Architect 6c slice 0, C1) are the first kind to arrive; adaptations and site-aware originals come with 7b.
+Estimates by kind come from Architect's calibrated `Designs.estimate` (C5).
 
 ## Claims and growth
 

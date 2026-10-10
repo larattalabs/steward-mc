@@ -68,3 +68,15 @@ on its side. **C3 lands in 7a**: its graph, lots, connectors, paths and props wo
 retires then. From 6c on, Architect ships slices of a few hours with short contracts (about 300 lines) and freezes the scope per slice. The slice-0 contract comes
 to Steward right after 6b ships.
 
+**Refined with Noah (2026-10-09), sent to Architect:** quality first (PLAN.md "Copies, adaptations and originals").
+- C1 copies have safeguards. Landmarks and single buildings are never copied. There is a cap of 2-3 placements per design. Each copy shows variation (palette, an
+  exposed parameter, mirror or rotation). Every variant goes through the checker. A failed fit falls back to an original. Each copy is linked to its source
+  (`variantOf`).
+- C2 is narrowed to skipping the report critique on small items only. Massings stay for every building.
+- The 7b rule is adapt first: `fitToSite` of an existing design, with an original as the fallback. Lot types only predict cost. Steward owns the policy: the copy
+  caps and the player's "all original" choice.
+- 6d: a new version of a source design is offered for its copies and adaptations as one update, applied per lot, keeping each lot's adaptation. C1's
+  representation carries this from the start.
+- 7c: promoted shapes may be offered across settlements, by the player's choice only, re-checked, refitted and re-skinned.
+- C5 estimates by kind (original / adapted / copy).
+
