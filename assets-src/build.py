@@ -1,4 +1,4 @@
-"""Regenerate Steward's art (the NPC skins).
+"""Regenerate Steward's art (the NPC skins, the item icons).
 
     uv run --with pillow==11.3.0 python assets-src/build.py           # build into assets-src/out
     uv run --with pillow==11.3.0 python assets-src/build.py --verify  # build twice with different hash seeds, assert byte-identical
@@ -18,6 +18,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE / "gen"))
 
+import items  # noqa: E402
 import skins  # noqa: E402
 from common import OUT  # noqa: E402
 
@@ -28,6 +29,7 @@ def build():
     if OUT.exists():
         shutil.rmtree(OUT)
     skins.build()
+    items.build()
 
 
 def digest():

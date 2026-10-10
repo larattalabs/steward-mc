@@ -4,5 +4,6 @@
   "key.category.steward_mc.steward": "Steward",
   "entity.steward_mc.steward": "Steward",
   "key.steward_mc.inspect": "Inspect a building",
-  "key.steward_mc.survey": "Survey the settlement"
+  "key.steward_mc.survey": "Survey the settlement",
+  "item.steward_mc.steward_ledger": "Steward's Ledger"
 }

@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    "minecraft:book",
+    "minecraft:gold_nugget",
+    "minecraft:green_dye"
+  ],
+  "result": {
+    "id": "steward_mc:steward_ledger"
+  }
+}

@@ -266,6 +266,16 @@ async function placeUpdateUndo(id) {
   }
   if (near) ok('steward walks', `${gap(near).toFixed(1)} blocks outside the updated building${before ? `, ${Math.hypot(near[0] - before[0], near[2] - before[2]).toFixed(1)} walked` : ''}; ${plateShot}`);
   else fail('steward walks', `not beside the building: ${JSON.stringify(await stewardPos())}, box ${JSON.stringify(box)}`);
+  // the steward's ledger (3d): right-click it anywhere for the settlement's screen
+  await cmd('/clear @p');
+  await cmd('/give @p steward_mc:steward_ledger');
+  await dev.request('dev.key', { mapping: 'key.use' });
+  await sleep(1500);
+  // the e2e settlement is never described, so the steward's first screen for it is the describe screen (once built and described: the settlement screen)
+  const ledger = (await dev.request('dev.state')).screen?.class ?? 'none';
+  if (/DescribeScreen|SettlementScreen/.test(ledger)) ok('ledger', `opens ${ledger.replace(/.*\./, '')}`);
+  else fail('ledger', `screen ${ledger}`);
+  await dev.request('dev.key', { key: 'escape' });
   // revert (3c): back to version 1 from the building panel (its third button, asked twice)
   await cmd(`/steward view ${id} ${site}`);
   await sleep(1500);
