@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "building",
+  "ingredients": [
+    "#minecraft:signs",
+    "minecraft:book"
+  ],
+  "result": {
+    "id": "steward_mc:settlement_board"
+  }
+}

@@ -30,6 +30,8 @@ public class StewardClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		Keys.ensureRegistered();
 		net.minecraft.client.renderer.entity.EntityRenderers.register(dev.larattalabs.steward.entity.StewardEntity.TYPE, dev.larattalabs.steward.client.entity.StewardRenderer::new);
+		net.minecraft.client.renderer.blockentity.BlockEntityRenderers.register(dev.larattalabs.steward.block.StewardBlocks.BOARD_ENTITY,
+			ctx -> new dev.larattalabs.steward.client.world.BoardRenderer());
 		HudElementRegistry.addLast(Steward.id("hud/inbox"), GuardedHud.of("steward.hud.inbox", new StewardHud()));
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			while (Keys.inbox.consumeClick()) {

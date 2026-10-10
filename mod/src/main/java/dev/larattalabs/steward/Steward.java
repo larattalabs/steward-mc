@@ -24,6 +24,7 @@ public class Steward implements ModInitializer {
 		dev.larattalabs.steward.net.StewardNet.init();
 		dev.larattalabs.steward.item.FoundingStone.init();
 		dev.larattalabs.steward.item.StewardLedger.init();
+		dev.larattalabs.steward.block.StewardBlocks.init();
 		dev.larattalabs.steward.service.Settlements.init();
 		dev.larattalabs.steward.entity.StewardNpc.init();
 		dev.larattalabs.steward.service.SettlementRunner.init();

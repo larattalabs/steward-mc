@@ -272,6 +272,24 @@ async function placeUpdateUndo(id) {
   }
   if (near) ok('steward walks', `${gap(near).toFixed(1)} blocks outside the updated building${before ? `, ${Math.hypot(near[0] - before[0], near[2] - before[2]).toFixed(1)} walked` : ''}; ${plateShot}`);
   else fail('steward walks', `not beside the building: ${JSON.stringify(await stewardPos())}, box ${JSON.stringify(box)}`);
+  // the settlement board (3d): a board four blocks north of the player, facing them; its slate lists the settlement; a right-click opens it
+  {
+    const mine = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+    if (mine) {
+      const [px, py, pz] = mine.slice(1).map((n) => Math.floor(Number(n)));
+      await cmd(`/setblock ${px} ${py + 1} ${pz - 4} steward_mc:settlement_board[facing=south]`);
+      await cmd(`/tp @p ${px + 0.5} ${py} ${pz + 0.5} facing ${px + 0.5} ${py + 1.5} ${pz - 3.6}`);
+      await sleep(2500);
+      const boardShot = (await dev.request('dev.screenshot', { name: 'e2e-board', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+      await dev.request('dev.key', { mapping: 'key.use' });
+      await sleep(1500);
+      const screen = (await dev.request('dev.state')).screen?.class ?? 'none';
+      if (/DescribeScreen|SettlementScreen/.test(screen)) ok('board', `opens ${screen.replace(/.*\./, '')}; ${boardShot}`);
+      else fail('board', `screen ${screen}`);
+      await dev.request('dev.key', { key: 'escape' });
+      await cmd(`/setblock ${px} ${py + 1} ${pz - 4} minecraft:air`);
+    }
+  }
   // the steward's ledger (3d): right-click it anywhere for the settlement's screen
   await cmd('/clear @p');
   await cmd('/give @p steward_mc:steward_ledger');
