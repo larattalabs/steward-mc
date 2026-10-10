@@ -14,7 +14,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 /**
  * One building's panel (docs/PLAN.md "Interface", phase 3a, read-only first): its role and state, the version of its design it stands at and the newest,
  * the player's edits that updates keep, where it stands, and the operations that touched it. Its actions arrive with the features behind them (a change
- * in your own words, revert, pin, make independent); today: preview an available update, back to the settlement. Client thread.
+ * in your own words, pin, make independent); today: preview an available update, go back to the version before (asks twice), back to the settlement.
+ * Client thread.
  */
 public final class BuildingScreen extends KitScreen {
 	private static final int ROW_H = 22;
@@ -22,6 +23,7 @@ public final class BuildingScreen extends KitScreen {
 	private final Building b;
 	private final SettlementScreen back;
 	private int scroll;
+	private boolean confirmRevert;
 
 	public BuildingScreen(SettlementView view, Building b, SettlementScreen back) {
 		super(b.role());
@@ -47,7 +49,8 @@ public final class BuildingScreen extends KitScreen {
 		String[] st = SettlementScreen.state(b);
 		UiBits.dotPill(g, font, st[0], st[1], cx, fy - 1, UiBits.ink());
 		fy += 16;
-		fy = fact(g, cx, fy, inner, "Design", b.entry() + ", version " + b.version() + (b.updateAvailable() ? " (version " + b.head() + " is ready)" : " (the newest)"));
+		fy = fact(g, cx, fy, inner, "Design", b.entry() + ", version " + b.version() + (b.updateAvailable() ? " (version " + b.head() + " is ready)"
+			: b.heldFrom() > 0 && b.head() > b.version() ? " (you went back from version " + b.heldFrom() + "; it is not offered again)" : b.head() > b.version() ? "" : " (the newest)"));
 		fy = fact(g, cx, fy, inner, "Your edits", b.edits() == 0 ? "none" : UiBits.plural(b.edits(), "block", "blocks")
 			+ " you changed; updates keep them");
 		fy = fact(g, cx, fy, inner, "Where", (b.maxX() - b.minX() + 1) + " x " + (b.maxZ() - b.minZ() + 1) + " at " + b.minX() + ", " + b.minZ()
@@ -81,13 +84,26 @@ public final class BuildingScreen extends KitScreen {
 			if (minecraft != null) minecraft.gui.setScreen(back);
 		}) + 6;
 		if (b.updateAvailable()) {
-			button(g, "Preview the update", 2, true, false, !b.updating(), bx, actionsY, mouseX, mouseY, () -> {
+			bx += button(g, "Preview the update", 2, true, false, !b.updating(), bx, actionsY, mouseX, mouseY, () -> {
 				ClientPlayNetworking.send(new StewardNet.Decide(view.id(), "update_preview", b.siteId(), "", 0));
 				say("Showing what changes...", false);
+			}) + 6;
+		}
+		if (b.revertible()) {
+			// asks twice: a revert rewrites the building (your own edits are kept)
+			String label = confirmRevert ? "Really go back to v" + b.previous() + "?" : "Back to version " + b.previous();
+			button(g, label, 3, false, confirmRevert, !b.updating() && !view.busy(), bx, actionsY, mouseX, mouseY, () -> {
+				if (!confirmRevert) {
+					confirmRevert = true;
+					return;
+				}
+				confirmRevert = false;
+				ClientPlayNetworking.send(new StewardNet.Decide(view.id(), "revert", b.siteId(), "", b.previous()));
+				say("Going back to version " + b.previous() + "...", false);
 			});
 		}
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, footerY - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
-		else UiBits.hints(g, font, cx, footerY - 4, false, "1", "back", "Esc", "close");
+		else UiBits.hints(g, font, cx, footerY - 4, false, "1-3", "act", "Esc", "close");
 	}
 
 	private int fact(GuiGraphicsExtractor g, int x, int y, int w, String label, String value) {

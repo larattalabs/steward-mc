@@ -4,7 +4,7 @@
 // Exit 0 = no FAIL and at least one ok. A summary goes to artifacts/e2e/summary.json.
 //
 //   node tools/e2e.mjs free     $0, no Claude: claim and steward, the save format, expand, the inbox screen, a placed building on the settlement screen and its panel,
-//                               its update and undo, a build restored after a restart
+//                               its update, revert and undo, a build restored after a restart
 //   node tools/e2e.mjs stub     the whole flow (describe, card, start, approvals, placement, a restart mid-build, undo) against Architect's stub sidecar;
 //                               needs the stub to answer card jobs, bibles and design groups (Architect 6c slice 0, ask C4): until then it fails at describe
 //
@@ -202,6 +202,20 @@ async function placeUpdateUndo(id) {
   const hist = await dev.request('dev.site.history', { site });
   if (upd && (hist.version ?? hist.site?.version) === inst.version) ok('update', `${site} -> v${inst.version} from the inbox`);
   else fail('update', `log ${upd ? 'ok' : 'silent'}, /steward updates said "${checked}", ${(logSince(0).match(/update check [^\n]*/g) ?? ['no update check']).at(-1)}, site ${JSON.stringify(hist).slice(0, 120)}`);
+  // revert (3c): back to version 1 from the building panel (its third button, asked twice)
+  await cmd(`/steward view ${id} ${site}`);
+  await sleep(1500);
+  from = logSize();
+  await dev.request('dev.key', { key: '3' });
+  await sleep(300);
+  await dev.request('dev.key', { key: '3' });
+  const rev = await waitLog(from, /Reverted dev building to version (\d+)/, 30_000);
+  await dev.request('dev.key', { key: 'escape' });
+  const after = await dev.request('dev.site.history', { site });
+  const v = after.version ?? after.site?.version;
+  const op = settlements().find((s) => s.id === id)?.log.at(-1);
+  if (rev && v === 1 && op?.kind === 'REVERTED') ok('revert', `${site} back to v1, logged ${op.op}`);
+  else fail('revert', `log ${rev ? rev[0] : (logSince(from).match(/Could not revert[^\n]*/) ?? ['silent'])[0]}, site v${v}, last op ${op?.kind}`);
   from = logSize();
   await cmd(`/steward undo ${id}`);
   await sleep(8000);

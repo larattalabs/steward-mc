@@ -214,6 +214,12 @@ public final class Actions {
 			sendSettlement(player, s.get(), "building".equals(action) && lot != null ? lot : "");
 			return Result.ok("");
 		}
+		if ("revert".equals(action)) {
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			if (SettlementRunner.busy(id)) return Result.fail(id + " is being built; revert once the build is done or cancelled.");
+			return Revert.start(player.level().getServer(), s.get(), lot == null ? "" : lot, (int) amount, player.getUUID());
+		}
 		if ("card".equals(action)) {
 			Optional<Settlement> s = Settlements.store().get(id);
 			if (s.isEmpty() || !s.get().described()) return Result.fail("No card for " + id + ".");
@@ -259,17 +265,18 @@ public final class Actions {
 
 	/** Opens the settlement screen (or, with a site id, that building's panel) with the settlement's buildings as Architect has them now. Viewing is open to everyone. */
 	public static void sendSettlement(ServerPlayer p, Settlement s, String siteId) {
-		var sites = ArchitectApi.get().sites(p.level().getServer()).list(s.owner()).stream().map(Actions::site).toList();
+		var api = ArchitectApi.get().sites(p.level().getServer());
+		var sites = api.list(s.owner()).stream().map(v -> site(api, v)).toList();
 		var view = dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites);
 		ServerPlayNetworking.send(p, new StewardNet.SettlementPanel(view.toJson(), siteId == null ? "" : siteId));
 	}
 
-	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.SiteView v) {
+	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.Sites sites, dev.larattalabs.architect.api.SiteView v) {
 		var ext = v.ext();
 		java.util.function.Function<String, String> str = k -> ext != null && ext.has(k) && ext.get(k).isJsonPrimitive() ? ext.get(k).getAsString() : null;
 		var b = v.box();
 		return new dev.larattalabs.steward.view.SettlementView.Site(v.id(), v.kind(), v.itemKey(), str.apply("steward_mc:role"), str.apply("steward_mc:lot"), v.blueprintId(),
-			v.version(), v.headVersion(), v.deviations(), v.state().name().toLowerCase(), v.updating(), b.minX(), b.minZ(), b.maxX(), b.maxZ());
+			v.version(), v.headVersion(), v.deviations(), v.state().name().toLowerCase(), v.updating(), b.minX(), b.minZ(), b.maxX(), b.maxZ(), Revert.previousVersion(sites, v.id()));
 	}
 
 	public static void sendCard(ServerPlayer p, Settlement s) {

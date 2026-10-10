@@ -173,6 +173,21 @@ public record Settlement(
 		return java.util.Optional.empty();
 	}
 
+	/**
+	 * The version a site was last reverted away from, while that revert is its newest version change (an update after it clears it); 0 when none. Updates up
+	 * to that version are not offered again: the player went back from it.
+	 */
+	public int revertedFrom(String siteId) {
+		for (int i = log.size() - 1; i >= 0; i--) {
+			LogEntry e = log.get(i);
+			if (e.outcome() == Outcome.FAILED || (e.kind() != Kind.REVERTED && e.kind() != Kind.UPDATED)) continue;
+			for (SiteChange c : e.changes()) {
+				if (c.siteId().equals(siteId)) return e.kind() == Kind.REVERTED ? Math.max(0, c.from()) : 0;
+			}
+		}
+		return 0;
+	}
+
 	/** Site ids recorded in the log for a kind, newest first (what an "undo last project" would remove). */
 	public List<String> siteIdsOf(Kind kind) {
 		List<String> out = new ArrayList<>();

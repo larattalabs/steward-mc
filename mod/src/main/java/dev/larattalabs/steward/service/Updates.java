@@ -86,6 +86,8 @@ public final class Updates {
 		for (OutdatedSite o : sites.outdated(s.owner())) {
 			String key = o.siteId() + "@" + o.headVersion();
 			if (SKIPPED.contains(key) || APPLYING.contains(o.siteId())) continue;
+			// the player reverted away from this version (or a newer one): not offered again; a version after it is
+			if (o.headVersion() <= s.revertedFrom(o.siteId())) continue;
 			var view = sites.get(o.siteId());
 			// a site of this owner in another dimension is not this settlement's
 			if (view.isPresent() && !view.get().dimension().identifier().toString().equals(s.claim().dimension())) continue;
@@ -108,7 +110,7 @@ public final class Updates {
 	}
 
 	/** The building's role as placed ("fishers' cottage"), else its lot id (sites placed before roles were recorded), else the site id. */
-	private static String lotOf(SiteView v) {
+	static String lotOf(SiteView v) {
 		if (v.ext() == null) return v.id();
 		if (v.ext().has("steward_mc:role")) return v.ext().get("steward_mc:role").getAsString();
 		return v.ext().has("steward_mc:lot") ? v.ext().get("steward_mc:lot").getAsString() : v.id();
@@ -184,6 +186,11 @@ public final class Updates {
 			// the next scan (next tick) offers what is left; not here, where an apply that completed inline would recurse
 			scanPending = true;
 		});
+	}
+
+	/** Scans again on the next tick (after a revert, or anything else that changes what is offered). */
+	public static void rescan() {
+		scanPending = true;
 	}
 
 	/** Takes an update's preview ghost away (it resolved, or was skipped). */

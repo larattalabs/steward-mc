@@ -21,9 +21,9 @@ class SettlementViewTest {
 	}
 
 	private static List<SettlementView.Site> sites() {
-		return List.of(new SettlementView.Site("s1", "building", "smokehouse_1", "smokehouse", "smokehouse_1", "gen_smokehouse", 1, 1, 0, "built", false, 90, -10, 104, 2),
-			new SettlementView.Site("s2", "building", "cottage_1", null, "cottage_1", "gen_cottage", 2, 3, 4, "built", false, 110, -8, 118, 0),
-			new SettlementView.Site("s3", "road", "street", null, null, "road", 1, 1, 0, "built", false, 80, -2, 130, 2));
+		return List.of(new SettlementView.Site("s1", "building", "smokehouse_1", "smokehouse", "smokehouse_1", "gen_smokehouse", 1, 1, 0, "built", false, 90, -10, 104, 2, 0),
+			new SettlementView.Site("s2", "building", "cottage_1", null, "cottage_1", "gen_cottage", 2, 3, 4, "built", false, 110, -8, 118, 0, 1),
+			new SettlementView.Site("s3", "road", "street", null, null, "road", 1, 1, 0, "built", false, 80, -2, 130, 2, 0));
 	}
 
 	@Test
@@ -59,5 +59,23 @@ class SettlementViewTest {
 	void itSurvivesTheTripAsJson() {
 		SettlementView v = SettlementView.of(settlement(), true, sites());
 		assertEquals(v, SettlementView.fromJson(v.toJson()));
+	}
+
+	@Test
+	void aRevertHoldsBackTheVersionItLeftUntilANewerOneComes() {
+		Settlement s = settlement(); // the cottage went 1 -> 2
+		assertTrue(SettlementView.of(s, false, sites()).building("s2").revertible(), "back to version 1");
+		s = s.withLog(Settlement.LogEntry.of(4L, Kind.REVERTED, "Reverted cottage to version 1", List.of(new SiteChange("s2", "cottage", 2, 1)), null, Outcome.DONE));
+		assertEquals(2, s.revertedFrom("s2"));
+		assertEquals(0, s.revertedFrom("s1"));
+		var cottageAt1 = new SettlementView.Site("s2", "building", "cottage_1", null, "cottage_1", "gen_cottage", 1, 2, 0, "built", false, 110, -8, 118, 0, 2);
+		assertFalse(SettlementView.of(s, false, List.of(cottageAt1)).building("s2").updateAvailable(), "version 2 is not offered again");
+		var newer = new SettlementView.Site("s2", "building", "cottage_1", null, "cottage_1", "gen_cottage", 1, 3, 0, "built", false, 110, -8, 118, 0, 2);
+		assertTrue(SettlementView.of(s, false, List.of(newer)).building("s2").updateAvailable(), "version 3 is");
+		// a failed revert holds nothing; an update after the revert clears it
+		Settlement failed = settlement().withLog(Settlement.LogEntry.of(4L, Kind.REVERTED, "Could not revert", List.of(new SiteChange("s2", "cottage", 2, 1)), null, Outcome.FAILED));
+		assertEquals(0, failed.revertedFrom("s2"));
+		s = s.withLog(Settlement.LogEntry.of(5L, Kind.UPDATED, "Updated cottage to version 3", List.of(new SiteChange("s2", "cottage", 1, 3)), null, Outcome.DONE));
+		assertEquals(0, s.revertedFrom("s2"));
 	}
 }
