@@ -32,6 +32,23 @@ public final class Undo {
 		say.accept("Removing " + ids.size() + " sites of \"" + entry.get().text() + "\" and restoring the land...");
 		var sites = ArchitectApi.get().sites(server);
 		RemoveOptions as = new RemoveOptions(false, s.owner());
+		// a whole project is one site group: removeGroup does the newest-first removal over ticks (stages, survival refunds, the group's bookkeeping), the
+		// path Architect's gates prove exact. Only when the group holds nothing but this project's sites; else (a partial undo) site by site.
+		String group = entry.get().siteGroup();
+		var g = group == null ? java.util.Optional.<dev.larattalabs.architect.api.SiteGroup>empty() : sites.group(group);
+		if (g.isPresent() && !g.get().sites().isEmpty() && entry.get().siteIds().containsAll(g.get().sites())) {
+			List<String> standing = List.copyOf(g.get().sites());
+			sites.removeGroup(group, as).whenComplete((r, err) -> {
+				List<String> gone = err == null && r.removed() ? standing : standing.stream().filter(id -> sites.get(id).isEmpty()).toList();
+				if (!gone.isEmpty()) Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.PROJECT_REMOVED,
+					"Undid " + gone.size() + " sites of \"" + entry.get().text() + "\"", gone));
+				if (err != null) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
+				else if (!r.removed()) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: blocked by "
+					+ (r.blockers().isEmpty() ? "something in a box" : String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
+				else say.accept("Undone: removed " + gone.size() + " sites, the land is restored.");
+			});
+			return true;
+		}
 		List<String> removed = new ArrayList<>();
 		CompletableFuture<String> chain = CompletableFuture.completedFuture(null);
 		for (String id : ids) {

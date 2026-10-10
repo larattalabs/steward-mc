@@ -337,7 +337,7 @@ public final class SettlementRunner {
 	/** Records the placed sites in the settlement's change log ({@code /steward undo} removes them). Dev builds are not saved settlements. */
 	private void logPlaced(List<String> siteIds, int buildings) {
 		if (siteIds.isEmpty() || Settlements.store().get(settlement.id()).isEmpty()) return;
-		Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings", siteIds));
+		Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings", siteIds, siteGroupId));
 	}
 
 	public State state() {
@@ -638,6 +638,7 @@ public final class SettlementRunner {
 		long failed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).count();
 		b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).forEach(i -> say("Not placed: " + i.itemKey() + " (" + i.reason().map(Enum::name).orElse("?") + ") " + i.message()));
 		// every site of the build, street included, so an undo removes all of it
+		if (siteGroupId == null) siteGroupId = b.group();
 		logPlaced(b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).flatMap(i -> i.siteId().stream()).toList(), (int) b.items().stream()
 			.filter(i -> i.status() == BatchView.ItemStatus.PLACED && !BatchPlanner.STREET_KEY.equals(i.itemKey())).count());
 		batchId = null;

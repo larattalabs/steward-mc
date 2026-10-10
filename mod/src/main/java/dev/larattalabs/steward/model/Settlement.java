@@ -23,8 +23,15 @@ public record Settlement(
 ) {
 	public enum Kind { FOUNDED, CARD_EDITED, RESKIN, RELAYOUT, PROJECT_PROPOSED, PROJECT_APPROVED, PROJECT_PLACED, PROJECT_REMOVED, PERMISSION_CHANGED, NOTE }
 
-	/** One line of the change log. {@code siteIds} are Architect site ids a later undo can remove. */
-	public record LogEntry(long at, Kind kind, String text, List<String> siteIds) {}
+	/**
+	 * One line of the change log. {@code siteIds} are Architect site ids a later undo can remove; {@code siteGroup} is the Architect site group a placed
+	 * project's batch made (undo removes it whole with {@code Sites.removeGroup}), null for older entries and other kinds.
+	 */
+	public record LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup) {
+		public LogEntry(long at, Kind kind, String text, List<String> siteIds) {
+			this(at, kind, text, siteIds, null);
+		}
+	}
 
 	public Settlement {
 		log = List.copyOf(log);
@@ -88,7 +95,8 @@ public record Settlement(
 			if (e.kind() == Kind.PROJECT_REMOVED) removed.addAll(e.siteIds());
 			if (e.kind() == Kind.PROJECT_PLACED) {
 				List<String> left = e.siteIds().stream().filter(id -> !removed.contains(id)).toList();
-				if (!left.isEmpty()) return java.util.Optional.of(new LogEntry(e.at(), e.kind(), e.text(), left));
+				// the group only while the project is whole: after a partial undo the rest goes site by site
+				if (!left.isEmpty()) return java.util.Optional.of(new LogEntry(e.at(), e.kind(), e.text(), left, left.size() == e.siteIds().size() ? e.siteGroup() : null));
 			}
 		}
 		return java.util.Optional.empty();

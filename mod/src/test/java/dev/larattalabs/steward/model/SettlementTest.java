@@ -145,4 +145,14 @@ class SettlementTest {
 		s = s.withLog(new Settlement.LogEntry(6L, Settlement.Kind.PROJECT_REMOVED, "Undid 1", List.of("s1")));
 		assertTrue(s.lastUndoable().isEmpty());
 	}
+
+	@Test
+	void aWholeProjectUndoesByItsSiteGroupAPartlyUndoneOneSiteBySite() throws Exception {
+		Settlement s = Settlement.found("set_1", card(), claim(0, 0), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		s = s.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "Placed 2 buildings", List.of("s1", "s2"), "grp_7"));
+		assertEquals("grp_7", s.lastUndoable().orElseThrow().siteGroup());
+		s = s.withLog(new Settlement.LogEntry(3L, Settlement.Kind.PROJECT_REMOVED, "Undid 1", List.of("s2")));
+		assertNull(s.lastUndoable().orElseThrow().siteGroup());
+		assertEquals(List.of("s1"), s.lastUndoable().orElseThrow().siteIds());
+	}
 }
