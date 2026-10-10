@@ -68,6 +68,19 @@ public final class BudgetPolicy {
 		};
 	}
 
+	/**
+	 * How many landmarks a build of {@code buildings} gets (the dearer model): the program's landmark flags, at most the size's typical count and one per
+	 * four buildings. One rule for the runner, the start hint and the card screen, so they never show different estimates.
+	 */
+	public static int landmarksFor(String size, int buildings, int flagged) {
+		return Math.max(0, Math.min(flagged, maxLandmarks(size, buildings)));
+	}
+
+	/** The cap {@link #landmarksFor} applies: the size's typical count, at most one per four buildings (at least one). */
+	public static int maxLandmarks(String size, int buildings) {
+		return Math.min(typicalLandmarks(size), Math.max(1, buildings / 4));
+	}
+
 	/** A default hard budget for a size: the high estimate rounded up to the next $5. The player can change it. */
 	public static double suggestedBudgetUsd(String size) {
 		Estimate e = estimate(typicalBuildings(size), typicalLandmarks(size));

@@ -404,7 +404,7 @@ public final class SettlementRunner {
 			Claim claim = new Claim(level.dimension().identifier().toString(), cx, cz, CLAIM_RADIUS, level.getMinY(), level.getMaxY());
 			settlement = existing != null ? existing : Settlement.found(DEV_ID, r.card(), claim, permission, Difficulty.PATRON, System.currentTimeMillis());
 			// landmarks run on the dearer model: the size's typical count, and at most one per four buildings
-			int maxLandmarks = Math.min(dev.larattalabs.steward.model.BudgetPolicy.typicalLandmarks(r.card().site().size()), Math.max(1, buildings / 4));
+			int maxLandmarks = dev.larattalabs.steward.model.BudgetPolicy.maxLandmarks(r.card().site().size(), buildings);
 			ProgramPlanner.Result program = ProgramPlanner.lots(r.card(), buildings, maxLandmarks);
 			if (!program.fromCard()) say("This card has no building program (it was described before programs existed), so this is a generic village. Describe it again to get buildings of its own.");
 			if (!program.leftOut().isEmpty()) say("Left out at " + buildings + " buildings: " + String.join(", ", program.leftOut()) + ".");

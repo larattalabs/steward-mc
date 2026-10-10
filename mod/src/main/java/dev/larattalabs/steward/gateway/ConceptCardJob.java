@@ -20,6 +20,8 @@ public final class ConceptCardJob {
 	public static final String MODEL = "claude-sonnet-5-5";
 	public static final double BUDGET_USD = 0.10;
 	public static final String TAG = "concept-card";
+	/** The longest description a player may give (the card screen and the command both hold to it). */
+	public static final int MAX_PROMPT = 1000;
 
 	private ConceptCardJob() {
 	}
@@ -34,6 +36,7 @@ public final class ConceptCardJob {
 	 */
 	public static JobSpec build(String prompt, Map<String, String> chips, Settings settings, String owner) {
 		if (prompt == null || prompt.isBlank()) throw new IllegalArgumentException("the prompt is empty");
+		if (prompt.length() > MAX_PROMPT) throw new IllegalArgumentException("the description is longer than " + MAX_PROMPT + " characters");
 		return new JobSpec("structured", userPrompt(prompt.strip(), chips, settings), systemPrompt(), MODEL, "low", schema(), List.of(),
 			BUDGET_USD, 4, owner, TAG, null, new JsonObject(), List.of());
 	}
