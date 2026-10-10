@@ -177,6 +177,11 @@ public final class Pipeline {
 		return Step.of(s.with(Phase.DONE), new Notify(label(s) + " is built: " + b.placed() + " buildings placed" + (b.skipped() > 0 ? ", " + b.skipped() + " skipped" : ""), false));
 	}
 
+	/** The smallest budget that lets a paused build go on: its spend sits under the soft pause again with $5 of room, rounded up to $5. */
+	public static double minimumRaise(State s) {
+		return Math.ceil((s.spentUsd() + 5) / BudgetPolicy.SOFT_FRACTION / 5.0) * 5.0;
+	}
+
 	/** What the pipeline is waiting for the player to decide, if anything (the inbox, and for now the {@code /steward approve|redirect|raise} commands, act on it). */
 	public enum Decision { NONE, BIBLE, MASSINGS, BUDGET, PLACEMENT }
 
@@ -222,8 +227,10 @@ public final class Pipeline {
 				if (s.phase() == Phase.AWAITING_MASSING_APPROVAL) yield Step.of(n.with(Phase.AWAITING_MASSING_APPROVAL));
 				yield Step.of(n.with(Phase.AWAITING_MASSING_APPROVAL), new Notify(g.awaiting().size() + " massings are ready: approve or redirect each.", true));
 			}
-			case "paused_budget" -> Step.of(n.with(Phase.GROUP_RUNNING),
-				new Notify(String.format("Paused at %d%% of the $%.0f budget (spent $%.2f). Raise the budget to continue.", (int) (BudgetPolicy.SOFT_FRACTION * 100), s.budgetUsd(), n.spentUsd()), true));
+			// Architect re-sends the paused status: ask once, on the way in
+			case "paused_budget" -> s.pausedForBudget() ? Step.of(n.with(Phase.GROUP_RUNNING)) : Step.of(n.with(Phase.GROUP_RUNNING),
+				new Notify(String.format("Paused at %d%% of the $%.0f budget (spent $%.2f). Raise the budget to at least $%.0f to continue.", (int) (BudgetPolicy.SOFT_FRACTION * 100), s.budgetUsd(),
+					n.spentUsd(), minimumRaise(n)), true));
 			case "held_usage" -> Step.of(n.with(Phase.GROUP_RUNNING), new Notify("Waiting for your Claude usage limit to reset" + (g.heldNote() == null ? "." : " (" + g.heldNote() + ")."), false));
 			case "done" -> Step.of(n.with(Phase.READY_TO_PLACE), new FitAndQueue(g.groupId(), !perm.needsApproval(Permission.Action.NEW_PROJECT)));
 			case "failed" -> Step.of(n.failed("the design group failed"), new Notify("The design group failed.", true));

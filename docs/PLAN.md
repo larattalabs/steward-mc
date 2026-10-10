@@ -213,6 +213,15 @@ or refused (the player stands in the box, an overlap): the steward waits until c
   a card, a massing ghost, 8+ buildings that pass checks and read as one place, placed through the ghost; Remove restores terrain
   exactly (Architect's snapshot box + 7); the spend meter matches the real cost.
 
+- **Gate run (2026-10-09, Opus session):** the stilt-village prompt, dev client, claude login, Proposals, Patron. Card with a 10-building program, 8 built (2 stilt houses left out
+  for the count); bible approved; 8 massings shown as ghosts and approved; a restart during the detail designs (restored, re-synced, carried on); the soft budget paused at 80% and was
+  raised; placement approved; 8 buildings placed in 4 stages; `/steward undo` removed the site group and the land matched the "before" screenshot. Read as one place (dark timber,
+  red trim, moss, lantern chimneys, stilts on every building). Spend: $31.03 on the meter (bible $1.16, massings $1.51, details $28.35), matching Architect's group cost plus the bible;
+  plus $1.58 for a first attempt the run's own bug stopped (a whole-sentence style broke the request's 40-character style field: fixed). Found and fixed: the style limit, repeated pause
+  messages, a raise that re-paused at once (now needs a budget that clears the pause), the street run-out over a drop (refused TOO_STEEP; no run-out now), the cost seeds (ordinary
+  buildings cost $2.5-4.6, not $0.8-2.5). **Not met yet:** the street (refused this run), a gallery check by Noah, and a card screen (the decisions are chat commands). Screenshots in
+  `docs/img/stilt-village*.jpg`.
+
 ### Phase 2: Macro sites and custom forms
 **Blocked on Architect A5** (macro kit + checker, nested sites child-inside-parent removed child-first, chunked snapshots and region
 programs for sites beyond the size cap). Macro kit in use: rift, sky city, crater, castle, ring wall. Sculpt vs find site, terrain

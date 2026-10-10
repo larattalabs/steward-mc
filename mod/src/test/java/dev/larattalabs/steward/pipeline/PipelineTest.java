@@ -238,4 +238,25 @@ class PipelineTest {
 		assertEquals(Phase.DONE, st.next().phase());
 		assertFalse(only(st, Notify.class).needsDecision(), "no approval is asked for what is already placed");
 	}
+
+	@Test
+	void aRepeatedBudgetPauseAsksOnce() throws Exception {
+		State s = groupRunning(Permission.PROPOSALS);
+		Step first = Pipeline.step(s, group("paused_budget", Map.of(), List.of(), 24), Permission.PROPOSALS);
+		assertTrue(only(first, Notify.class).needsDecision());
+		Step again = Pipeline.step(first.next(), group("paused_budget", Map.of(), List.of(), 24), Permission.PROPOSALS);
+		assertTrue(again.commands().isEmpty(), "commands: " + again.commands());
+		assertEquals(Pipeline.Decision.BUDGET, Pipeline.awaiting(again.next()));
+	}
+
+	@Test
+	void theMinimumRaiseClearsTheSoftPause() throws Exception {
+		State paused = Pipeline.step(groupRunning(Permission.PROPOSALS), group("paused_budget", Map.of(), List.of(), 24.9), Permission.PROPOSALS).next();
+		double min = Pipeline.minimumRaise(paused);
+		assertTrue(paused.spentUsd() < min * dev.larattalabs.steward.model.BudgetPolicy.SOFT_FRACTION - 4.99, "room under the new pause: " + min);
+		assertEquals(0.0, min % 5.0, 1e-9);
+		// the gate run: $31.03 spent at a $35 budget: (31.03 + 5) / 0.8 = 45.04, so $50
+		State gate = new State(Phase.GROUP_RUNNING, "set_4", paused.card(), "b", 1, "g", Map.of(), 1.16, 31.03, 35, true, null, null);
+		assertEquals(50.0, Pipeline.minimumRaise(gate), 1e-9);
+	}
 }

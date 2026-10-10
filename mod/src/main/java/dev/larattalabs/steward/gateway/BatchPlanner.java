@@ -150,7 +150,8 @@ public final class BatchPlanner {
 
 	/** The village's main street as a road request: two waypoints along the street, a little past the outer lots, kept inside the claim. */
 	static RoadRequest street(Settlement s, VillageLayout.Plan plan, @Nullable ServerLevel level, @Nullable String buildId) {
-		int pad = 4;
+		// no run-out past the outer lots: in the phase 1 gate run the 4-block extension went over a drop (TOO_STEEP) and the whole street was refused
+		int pad = 0;
 		int x0 = Math.max(s.claim().centerX() - s.claim().radius(), plan.streetX0() - pad);
 		int x1 = Math.min(s.claim().centerX() + s.claim().radius(), plan.streetX1() + pad);
 		JsonObject ext = new JsonObject();

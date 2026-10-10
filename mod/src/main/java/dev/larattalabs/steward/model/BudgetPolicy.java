@@ -6,11 +6,17 @@ package dev.larattalabs.steward.model;
  * exist (4b Java side), the UI uses those and this class just supplies defaults and the soft-budget threshold.
  *
  * <p>Seeds: a bible $1.2-2.0 and 5-8 min; an Opus design (landmark) $2.0-3.2 and 8-13 min; a Sonnet design $0.8-2.5 and 4-10 min, run in waves of 3.
+ *
+ * <p>Re-measured in Steward's phase 1 gate run (2026-10-09, a massing-first group with report critiques, "Stilt Swamp Fishing Village", 8 buildings): bibles $1.16-1.55,
+ * massings $0.19 each, the landmark's detail $3.72, the ordinary details $2.50-4.60 (report critique included). The ranges below cover both measurements; the design
+ * figures now include the report critique, so {@link #estimateWithCritiqueReports} adds nothing on top.
  */
 public final class BudgetPolicy {
 	public static final double BIBLE_LOW = 1.2, BIBLE_HIGH = 2.0;
-	public static final double LANDMARK_LOW = 2.0, LANDMARK_HIGH = 3.2;
-	public static final double ORDINARY_LOW = 0.8, ORDINARY_HIGH = 2.5;
+	public static final double LANDMARK_LOW = 3.0, LANDMARK_HIGH = 4.5;
+	public static final double ORDINARY_LOW = 2.0, ORDINARY_HIGH = 4.6;
+	/** A massing per building (massing-first groups). */
+	public static final double MASSING_LOW = 0.15, MASSING_HIGH = 0.25;
 	public static final int BIBLE_MIN_LOW = 5, BIBLE_MIN_HIGH = 8;
 	public static final int LANDMARK_MIN_LOW = 8, LANDMARK_MIN_HIGH = 13;
 	public static final int ORDINARY_MIN_LOW = 4, ORDINARY_MIN_HIGH = 10;
@@ -31,17 +37,16 @@ public final class BudgetPolicy {
 		int l = Math.max(0, Math.min(landmarks, buildings));
 		int ordinary = buildings - l;
 		int waves = (ordinary + WAVE_SIZE - 1) / WAVE_SIZE;
-		double low = BIBLE_LOW + l * LANDMARK_LOW + ordinary * ORDINARY_LOW;
-		double high = BIBLE_HIGH + l * LANDMARK_HIGH + ordinary * ORDINARY_HIGH;
+		double low = BIBLE_LOW + l * LANDMARK_LOW + ordinary * ORDINARY_LOW + buildings * MASSING_LOW;
+		double high = BIBLE_HIGH + l * LANDMARK_HIGH + ordinary * ORDINARY_HIGH + buildings * MASSING_HIGH;
 		int minLow = BIBLE_MIN_LOW + (l > 0 ? LANDMARK_MIN_LOW : 0) + waves * ORDINARY_MIN_LOW;
 		int minHigh = BIBLE_MIN_HIGH + (l > 0 ? LANDMARK_MIN_HIGH : 0) + waves * ORDINARY_MIN_HIGH;
 		return new Estimate(round1(low), round1(high), minLow, minHigh);
 	}
 
-	/** {@link #estimate(int, int)} plus a report-only critique on every building. Minutes are unchanged (the report runs inside the design's slot, within its own variance). */
+	/** {@link #estimate(int, int)} with a report-only critique on every building: the same, since the measured design figures include the report (2026-10-09). */
 	public static Estimate estimateWithCritiqueReports(int buildings, int landmarks) {
-		Estimate e = estimate(buildings, landmarks);
-		return new Estimate(round1(e.usdLow() + buildings * CRITIQUE_REPORT_LOW), round1(e.usdHigh() + buildings * CRITIQUE_REPORT_HIGH), e.minutesLow(), e.minutesHigh());
+		return estimate(buildings, landmarks);
 	}
 
 	/** Typical building and landmark counts per settlement size (S, M, L, XL). */

@@ -178,6 +178,10 @@ public final class SettlementRunner {
 	public String raise(double newBudgetUsd) {
 		if (state == null || state.groupId() == null) return "There is no design group to fund yet.";
 		if (newBudgetUsd <= state.budgetUsd()) return String.format("The budget is already $%.0f; give a higher one.", state.budgetUsd());
+		// the soft pause is a share of the budget: a raise that leaves the spend above it pauses again at once (the phase 1 gate run did, from $30 to $35)
+		double atLeast = Pipeline.minimumRaise(state);
+		if (newBudgetUsd < atLeast) return String.format("At $%.0f the build would pause again at once (it pauses at %d%% and has spent $%.2f). Give at least $%.0f.",
+			newBudgetUsd, (int) (dev.larattalabs.steward.model.BudgetPolicy.SOFT_FRACTION * 100), state.spentUsd(), atLeast);
 		feed(new Pipeline.BudgetRaised(newBudgetUsd));
 		return String.format("Budget raised to $%.0f.", newBudgetUsd);
 	}

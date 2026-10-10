@@ -113,3 +113,11 @@ Dev client, claude login, two card runs ($0.043 total), everything else $0:
   `ArchitectClientApi.previewComposite` in the MASSING tint) placed on their lots by `gateway/MassingPlacement` (centred, set back by the approach margin, turned to face the street; a
   preview approximation, the real spot comes from `fitToLot`), lists each in chat (lot, role, size, named parts) and clears them once decided. `/steward show|hide <id>` toggles them.
   Checked in a client 2026-10-09 with the earlier run's four real massings: shown, listed, rotated toward the street, hidden.
+
+## Phase 1 gate run (2026-10-09)
+Dev client, claude login (`secrets.json` opt-in, removed afterwards), a plains point by a lake at 401,941. Flow: `/steward claim` (dev), `describe` (card $0.028, program of 10),
+`start set_4 8 30` (bible, approve), 8 massings as ghosts (approve), quit and relaunch during the detail designs (restored at SERVER_STARTING, `REREAD_GROUP`, carried on), soft pause at
+$26.38 of $30 (raise to $35; paused again at once, now refused below `Pipeline.minimumRaise`), placement approval, 8 buildings placed, the street refused (TOO_STEEP past the outer lot,
+the run-out is gone now), `/steward undo` (`removeGroup` on g4: every stage undone; the land matches the before shot). Measured: bible $1.16, massings $1.51 (8), landmark detail $3.72,
+ordinary details $2.50-4.60; meter $31.03. See docs/PLAN.md phase 1 for what is still open.
+

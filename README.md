@@ -4,12 +4,14 @@
 A village, a castle, a rift settlement, a "repurposed meteor crater mining facility, hellish evil lair": you describe it, approve a concept card, and the steward designs a style bible,
 the buildings and their layout, then places them, keeps them up to date as you progress, and asks you before it spends or demolishes anything.
 
-> **Status: early development, not playable yet.** The pipeline now works end to end from the dev console: one sentence produced a concept card, a style bible, four designed buildings and a placed
-> street, in a forest with trees on every lot. There is no Founding Stone, steward NPC or in-game UI yet, so nothing here is ready to install. See [Status](#status).
+> **Status: early development, not ready to install.** The player flow works end to end in a dev client: a Founding Stone claim, one sentence turned into a concept card with its own
+> building program, a style bible, massings shown as ghosts on their lots for approval, eight designed buildings placed in stages, and an exact undo. The decisions are still chat commands
+> (no card screen, inbox or HUD yet). See [Status](#status).
 
-<img src="docs/img/first-village.jpg" alt="A street of mossy spruce buildings placed by one dev-console command in a forest, beside a river" width="100%">
+<img src="docs/img/stilt-village.jpg" alt="Dark timber stilt houses with red trim and mossy roofs, a lookout tower and a harbourmaster's hall on a grassy point by a lake" width="100%">
 
-*Dev-console run: "a small mossy forest village of spruce and stone" (tavern, house, shop, cottage; about $12 of Claude usage). Not a player-facing flow yet.*
+*Phase 1 gate run: "a fishing village built on stilts over a swamp, mossy and crooked" became "Stilt Swamp Fishing Village": a harbourmaster's hall, stilt houses, a drying-rack shed, a fish
+market, a dock house, a net mender's workshop and a lookout tower, designed and placed at the Proposals permission level with a restart in the middle; about $31 of Claude usage (claude login).*
 
 Steward is a **sibling mod to [Architect](https://github.com/larattalabs/architect-mc)** (Fabric, Minecraft 26.3), which provides the building generator, library, placement, survival construction and the
 region engine. Steward adds the director on top: concept card, layout, a persistent steward, permission levels, difficulty modes, and the evolve-over-time loop. Like Architect, it is singleplayer
@@ -29,7 +31,8 @@ your words -> concept card (site / style / purpose / story / constraints) -> you
 - **Generative first.** Claude does the design work from your prompt; bundled programs are inspiration and a free fallback, never the point.
 - **You stay in control.** Permission levels (Observer, Proposals, Autonomous, Full) decide what the steward may do without asking. Spending past 80% of the budget always asks.
 - **Everything is undoable and logged.** Placement goes through Architect's journal, so Remove restores the terrain exactly, in any order.
-- **Honest about cost.** Measured figures, not guesses: a style bible about $1.2-2, a landmark building $2-3.2, an ordinary building $0.8-2.5, a settlement of 8-20 buildings roughly $12-50 and 30-90 minutes.
+- **Honest about cost.** Measured figures, not guesses: a style bible about $1.2-2, a massing about $0.2, a landmark building $3-4.5, an ordinary building $2.5-4.6 with its report critique
+  (the phase 1 gate run: 8 buildings for $31). A settlement of 8-20 buildings is roughly $25-90 and 30-90 minutes; `describe` shows the estimate before anything is spent.
   A report critique adds $0.05-0.15 per building. (On a claude login these are notional plan usage, not dollars.)
 
 ## Status
