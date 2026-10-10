@@ -1,1 +1,5 @@
-{ "item.steward_mc.founding_stone": "Founding Stone" }
+{
+ "item.steward_mc.founding_stone": "Founding Stone",
+ "key.steward_mc.inbox": "Steward inbox",
+ "key.category.steward_mc.steward": "Steward"
+}

@@ -11,6 +11,10 @@ public class Steward implements ModInitializer {
 	public static final String MOD_ID = "steward_mc";
 	public static final Logger LOGGER = LoggerFactory.getLogger("steward");
 
+	public static net.minecraft.resources.Identifier id(String path) {
+		return net.minecraft.resources.Identifier.fromNamespaceAndPath(MOD_ID, path);
+	}
+
 	@Override
 	public void onInitialize() {
 		ArchitectGateway.Status status = ArchitectGateway.check();
