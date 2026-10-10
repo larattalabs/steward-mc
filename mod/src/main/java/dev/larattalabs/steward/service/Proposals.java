@@ -145,6 +145,8 @@ public final class Proposals {
 			String t = ProposalRules.typeOf(k);
 			if (t != null) out.add(t);
 		}
+		// and what waits in the inbox (a building the player asked for in talk is not proposed again by the rules)
+		for (Proposal p : s.proposals().open()) if (p.type() != null) out.add(p.type());
 		return out;
 	}
 
@@ -185,20 +187,19 @@ public final class Proposals {
 	 * As an accepted proposal's build starts: the proposal leaves the open ones for the accepted, and an autonomous build's budget is recorded against the week's
 	 * allowance, in one save. False when it cannot be saved (the build then does not start).
 	 */
-	static boolean recordAccepted(String settlementId, String key, double spendUsd, String what) {
+	static boolean recordAccepted(String settlementId, String key, Settlement.@org.jspecify.annotations.Nullable Spend spend) {
 		var s = Settlements.store().get(settlementId);
 		if (s.isEmpty()) return false;
 		var ps = s.get().proposals();
 		// checked again now, after the survey: the player may have declined it or lowered the allowance meanwhile
 		if (ps.open().stream().noneMatch(x -> x.key().equals(key))) return false;
-		if (spendUsd > 0 && !s.get().autonomy().allows(spendUsd, System.currentTimeMillis())) return false;
+		if (spend != null && !s.get().autonomy().allows(spend.usd(), System.currentTimeMillis())) return false;
 		List<String> accepted = new ArrayList<>(ps.accepted());
 		if (!accepted.contains(key)) accepted.add(key);
 		Settlement n = s.get().withProposals(new Settlement.Proposals(ps.open().stream().filter(x -> !x.key().equals(key)).toList(), ps.declined(), accepted, ps.lastAt()));
-		if (spendUsd > 0) n = n.withAutonomy(n.autonomy().with(new Settlement.Spend(System.currentTimeMillis(), spendUsd, what)));
+		if (spend != null) n = n.withAutonomy(n.autonomy().with(spend));
 		return Settlements.replace(n).ok();
 	}
-
 	/** Settlement#key -> when a proposal that could not be started (no room, a failed survey) may be tried on its own again. This session. */
 	private static final Map<String, Long> BACKOFF = new HashMap<>();
 	static final long BACKOFF_MS = 30 * 60_000L;
@@ -209,7 +210,7 @@ public final class Proposals {
 	}
 
 	/** A proposal's build ended before Architect took any paid request of it: the proposal waits again and its recorded spend is taken off. */
-	static void giveBack(String settlementId, Proposal given, String what) {
+	static void giveBack(String settlementId, Proposal given, Settlement.@org.jspecify.annotations.Nullable Spend spend) {
 		var s = Settlements.store().get(settlementId);
 		if (s.isEmpty()) return;
 		String key = given.key();
@@ -219,8 +220,9 @@ public final class Proposals {
 		List<Proposal> open = new ArrayList<>(ps.open());
 		if (proposal != null) open.add(proposal);
 		Settlement n = s.get().withProposals(new Settlement.Proposals(open, ps.declined(), ps.accepted().stream().filter(k -> !k.equals(key)).toList(), ps.lastAt()));
+		// only the spend this acceptance recorded (a build the player accepted recorded none)
 		var spends = new ArrayList<>(n.autonomy().spends());
-		for (int i = spends.size() - 1; i >= 0; i--) if (spends.get(i).what().equals(what)) { spends.remove(i); break; }
+		if (spend != null) spends.remove(spend);
 		if (!Settlements.replace(n.withAutonomy(new Settlement.Autonomy(n.autonomy().weeklyUsd(), spends))).ok()) {
 			dev.larattalabs.steward.Steward.LOGGER.warn("could not give proposal {} of {} back (the settlement could not be saved)", key, settlementId);
 		}

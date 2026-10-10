@@ -12,10 +12,12 @@ public final class TalkRules {
 	/** The longest thing the player may say to the steward at once. */
 	public static final int MAX_SAID = 300;
 
-	private static final Pattern GREETING = Pattern.compile("^(hi|hello|hey|hiya|good (morning|afternoon|evening)|greetings)\\b[\\s!.,]*(steward)?[\\s!.]*$");
-	private static final Pattern THANKS = Pattern.compile("^(thanks|thank you|cheers|ty|great|nice|perfect|good job|well done)\\b[^?]*$");
-	private static final Pattern STATUS = Pattern.compile("^(status|what('s| is| are) (you|going on|happening)( doing| up to)?|how('s| is) it going|what are you (doing|up to|working on))\\b[^?]*\\??$");
-	private static final Pattern HELP = Pattern.compile("^(help|\\?|what can (you|i) (do|ask|say)|how does this work|commands)\\b[^?]*\\??$");
+	/** Whole utterances only (an optional "steward" and punctuation): "thanks, now make the tavern creepier" is a request, not thanks. */
+	private static final String END = "(,? steward)?[\\s!.?]*$";
+	private static final Pattern GREETING = Pattern.compile("^(hi|hello|hey|hiya|good (morning|afternoon|evening)|greetings)" + END);
+	private static final Pattern THANKS = Pattern.compile("^(thanks|thank you|thanks a lot|cheers|ty|great|nice|perfect|good job|well done)" + END);
+	private static final Pattern STATUS = Pattern.compile("^(status|what('s| is) (going on|happening)|how('s| is) it going|what are you (doing|up to|working on))" + END);
+	private static final Pattern HELP = Pattern.compile("^(help|\\?|what can (you|i) (do|ask|say)|how does this work|commands)" + END);
 
 	private TalkRules() {
 	}

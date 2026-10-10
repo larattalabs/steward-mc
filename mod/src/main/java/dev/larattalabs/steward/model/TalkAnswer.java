@@ -35,7 +35,8 @@ public record TalkAnswer(String reply, Intent intent, ConceptCard.@Nullable Buil
 			intent = Intent.UNCLEAR;
 		}
 		ConceptCard.Building b = null;
-		if (intent == Intent.BUILDING && s.building() != null) {
+		var sb = s.building();
+		if (intent == Intent.BUILDING && sb != null && sb.role() != null && sb.type() != null && sb.footprint() != null) {
 			var clean = ConceptCard.sanitize(List.of(s.building()));
 			if (clean != null) {
 				var x = clean.get(0);

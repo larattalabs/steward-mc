@@ -82,6 +82,11 @@ public final class ProposalRules {
 
 	/** The building type a proposal key builds (what an accepted proposal adds to the settlement), or null for an unknown key. */
 	public static String typeOf(String key) {
+		// asked_<id>_<type>: a building the player asked for in talk
+		if (key.startsWith("asked_")) {
+			int i = key.indexOf('_', 6);
+			return i > 0 && i + 1 < key.length() ? key.substring(i + 1) : null;
+		}
 		return RULES.stream().filter(r -> r.key().equals(key)).map(Rule::type).findFirst().orElse(null);
 	}
 

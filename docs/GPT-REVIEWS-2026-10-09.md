@@ -91,3 +91,21 @@ A review of commit 18451ab (3f), checked against the code; all twelve findings h
 The second verification found these resolved, and one gap: a relink after a later build was not retried. Fixed by clearing the mark before the relink.
 
 Not migrated, and agreed by the review: `Road.link` has no format-3 migration, because format 3 has not shipped and no saved file holds a link road.
+
+## 3b talking to the steward (2026-10-10)
+
+A review of commit 98cf6d9 found eleven problems. They were checked against the code and fixed, and the fixes were verified twice.
+- **Spending:**
+  - A lost acknowledgement could let a second job overlap the first. A talk job's slot is now held for up to 3 minutes, and only its own answer frees it early.
+  - Giving a proposal back refunded spends by title, a bug older than talk: it could refund an unrelated autonomous build. Each autonomous acceptance now records one spend, and only that one is given back.
+  - Reopening a world no longer resets the hourly limit. The limit is kept per world folder.
+- **Coalescing:** a building the player asked for counts against the rules' proposals, both while it waits and after it is accepted (`asked_<id>_<type>`).
+- **Intents:**
+  - A named district must match one district exactly or uniquely; otherwise the steward asks which.
+  - The full-town path reuses a district proposal that is waiting, and skips ways the player declined.
+  - Every save result is checked before the steward confirms.
+  - A malformed answer is a failed answer, never an exception.
+  - Small talk matches whole sentences only, so "thanks, now make the tavern creepier" is a request.
+  - The cap on open proposals applies to every path.
+
+Accepted, as the verification agreed: the hourly count resets when the game restarts. A job that never reports frees its slot after 3 minutes, so the next question can overlap it. Each job is capped at $0.05 and is the player's own action.

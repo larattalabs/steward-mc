@@ -40,10 +40,16 @@ public final class Talk {
 	static final int MAX_OPEN_ASKED = 6;
 
 	/** A talk job in flight: whose settlement, who said it, what. */
-	private record Pending(String settlementId, UUID player, String said, int session) {}
+	private record Pending(String settlementId, UUID player, String said, int session, long sentAt) {}
 
 	private static final Map<String, Pending> PENDING = new HashMap<>();
-	private static final Set<String> THINKING = new HashSet<>();
+	/**
+	 * When each settlement's talk job was sent: one at a time. It frees when the job's answer comes, else after {@link #HOLD_MS} (a job that never reports,
+	 * or an acknowledgement that was lost: it may still run, so the next one waits its time out rather than overlap it at once).
+	 */
+	private static final Map<String, Long> THINKING = new HashMap<>();
+	static final long HOLD_MS = 3 * 60_000L;
+	/** Talk jobs sent in the past hour, per world and settlement; kept across a world's reopening in this game, so leaving and coming back resets nothing. */
 	private static final Map<String, ArrayDeque<Long>> RECENT = new HashMap<>();
 	/** The server of the world that is running (talk jobs finish on its thread). */
 	private static volatile @Nullable MinecraftServer server;
@@ -57,7 +63,6 @@ public final class Talk {
 			server = null;
 			PENDING.clear();
 			THINKING.clear();
-			RECENT.clear();
 		});
 		SiteEvents.JOB_DONE.register(job -> {
 			var srv = server;
@@ -78,9 +83,11 @@ public final class Talk {
 			answer(server, p.getUUID(), s.id(), "Describe " + s.name() + " to me first, then we can talk about what it needs.");
 			return Actions.Result.ok("");
 		}
-		if (THINKING.contains(s.id())) return Actions.Result.fail("The steward is still thinking about what you said last.");
 		long now = System.currentTimeMillis();
-		var recent = RECENT.computeIfAbsent(s.id(), k -> new ArrayDeque<>());
+		if (thinking(s.id(), now)) return Actions.Result.fail("The steward is still thinking about what you said last.");
+		// the world by its folder (names repeat between saves, settlement ids too)
+		String world = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).toAbsolutePath().normalize().toString();
+		var recent = RECENT.computeIfAbsent(world + "#" + s.id(), k -> new ArrayDeque<>());
 		while (!recent.isEmpty() && now - recent.peekFirst() > 3600_000L) recent.pollFirst();
 		if (recent.size() >= MAX_PER_HOUR) return Actions.Result.fail("That is a lot of talk for one hour: give the steward a while before the next question.");
 		var jobs = ArchitectApi.get().jobs();
@@ -88,15 +95,23 @@ public final class Talk {
 			answer(server, p.getUUID(), s.id(), "I cannot think that through right now: Architect's Claude link is off. The settlement screen still works.");
 			return Actions.Result.ok("");
 		}
+		dev.larattalabs.architect.api.JobSpec spec;
+		try {
+			spec = TalkJob.build(said, context(server, s), s.owner(), simAnswer());
+		} catch (RuntimeException e) {
+			Steward.LOGGER.warn("talk job for {} could not be made", s.id(), e);
+			return Actions.Result.fail("The steward could not take that in (see the log).");
+		}
 		recent.addLast(now);
-		THINKING.add(s.id());
+		THINKING.put(s.id(), now);
 		int session = Session.current();
-		Pending pending = new Pending(s.id(), p.getUUID(), said, session);
-		jobs.run(TalkJob.build(said, context(server, s), s.owner(), simAnswer())).whenComplete((id, err) -> {
+		Pending pending = new Pending(s.id(), p.getUUID(), said, session, now);
+		jobs.run(spec).whenComplete((id, err) -> {
 			if (!Session.is(session)) return;
 			if (err != null) {
-				THINKING.remove(s.id());
-				answer(server, p.getUUID(), s.id(), "I could not think that through: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
+				// the job may have started though its acknowledgement was lost: the slot stays held until its time is up, so a retry cannot overlap it at once
+				answer(server, p.getUUID(), s.id(), "I could not think that through: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
+					+ ". Give me a few minutes.");
 				return;
 			}
 			PENDING.put(id, pending);
@@ -118,7 +133,8 @@ public final class Talk {
 	private static void onDone(MinecraftServer server, Job job) {
 		Pending p = PENDING.remove(job.id());
 		if (p == null || !Session.is(p.session())) return;
-		THINKING.remove(p.settlementId());
+		// frees the slot only if it is still this job's (a newer one may hold it after this one's time ran out)
+		THINKING.remove(p.settlementId(), p.sentAt());
 		var r = TalkJob.interpret(job);
 		if (r.answer() == null) {
 			Steward.LOGGER.warn("talk job {} for {}: {}", job.id(), p.settlementId(), r.error());
@@ -139,8 +155,9 @@ public final class Talk {
 			case BUILDING -> reply = proposeBuilding(server, s, said, a, now);
 			case DISTRICT -> reply = proposeDistrict(server, s, said, a, now);
 			case CHANGE -> {
-				// change requests to a standing building come with Architect 0b: noted in the history meanwhile
-				Settlements.log(settlementId, new Settlement.LogEntry(now, Settlement.Kind.NOTE, "Asked to change " + a.changeTarget() + ": " + a.changeRequest(), List.of()));
+				// change requests to a standing building come with Architect 0b: noted in the history meanwhile (one line: no breaks from the answer)
+				String note = ("Asked to change " + a.changeTarget() + ": " + a.changeRequest()).replaceAll("\\s+", " ");
+				if (!Settlements.log(settlementId, new Settlement.LogEntry(now, Settlement.Kind.NOTE, note, List.of())).ok()) reply = "I could not note that down (the settlement could not be saved).";
 			}
 			default -> {
 			}
@@ -151,29 +168,39 @@ public final class Talk {
 
 	/** A building asked for: a proposal in the inbox (in the town, a district with room, or the district named); when there is no room, a district first. */
 	private static String proposeBuilding(MinecraftServer server, Settlement s, String said, TalkAnswer a, long now) {
-		var ps = s.proposals();
-		if (ps.open().size() >= MAX_OPEN_ASKED) return "The inbox already holds " + ps.open().size() + " ideas: decide on some of those first, then ask me again.";
 		String district = null;
 		if (a.district() != null) {
-			district = s.lands().districts().stream().filter(d -> d.name().equalsIgnoreCase(a.district()) || d.name().toLowerCase().contains(a.district().toLowerCase()))
-				.map(Settlement.District::id).findFirst().orElse(null);
+			// the district named: by its name, else the one name that contains it; none or several, and the steward asks
+			var named = s.lands().districts().stream().filter(d -> d.name().equalsIgnoreCase(a.district())).toList();
+			if (named.isEmpty()) named = s.lands().districts().stream().filter(d -> d.name().toLowerCase().contains(a.district().toLowerCase())).toList();
+			if (named.size() != 1) return named.isEmpty() ? "I do not know a district called " + a.district() + ". Which one did you mean?"
+				: "More than one district goes by " + a.district() + ": which one?";
+			district = named.get(0).id();
 		}
 		if (district == null) {
 			var counts = Districts.counts(server, s);
 			var where = ProposalRules.where(counts.town(), counts.districts(), Proposals.full(s.id(), now));
 			if (where.full()) {
-				String way = Districts.firstWay(server, s, List.of());
-				if (way == null) return "There is no room left in the town or its districts, and no way to found another. Expand the claim first.";
-				addProposal(s, Proposal.district(way, "You asked for " + a.building().role() + ", and the town's street is full.", now));
+				// a district first: the one already waiting, else the first way the player has not declined
+				var waiting = s.proposals().open().stream().filter(Proposal::foundsDistrict).findFirst();
+				if (waiting.isPresent()) return "The town's street is full, and " + waiting.get().title().toLowerCase() + " waits in the inbox: found it, then ask me again for the "
+					+ a.building().role() + ".";
+				java.util.Set<String> declined = new HashSet<>();
+				for (String d : DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) declined.add(d);
+				String way = Districts.firstWay(server, s, declined);
+				if (way == null) return "There is no room left in the town or its districts, and no way left to found another. Expand the claim first.";
+				String added = addProposal(s, Proposal.district(way, "You asked for " + a.building().role() + ", and the town's street is full.", now));
+				if (added != null) return added;
 				return "The town's street is full, so I proposed a district to the " + DistrictRules.directionName(way) + " first. Once it stands, ask me again for the "
 					+ a.building().role() + ".";
 			}
 			district = where.district();
 		}
 		String role = a.building().role();
-		Proposal p = new Proposal("asked_" + Long.toString(now, 36), Character.toUpperCase(role.charAt(0)) + role.substring(1), "You asked: \"" + clip(said, 120) + "\"",
-			a.building(), now, "asked", district, null);
-		return addProposal(s, p) ? a.reply() : "I could not save that idea; try again.";
+		Proposal p = new Proposal("asked_" + Long.toString(now, 36) + "_" + a.building().type(), Character.toUpperCase(role.charAt(0)) + role.substring(1),
+			"You asked: \"" + clip(said, 120) + "\"", a.building(), now, "asked", district, null);
+		String added = addProposal(s, p);
+		return added != null ? added : a.reply();
 	}
 
 	/** A district asked for: a proposal in the inbox, towards the way named or the first that fits. */
@@ -185,23 +212,34 @@ public final class Talk {
 				DistrictRules.RADII[0]);
 			if (!placed.ok()) return placed.note();
 		} else {
-			way = Districts.firstWay(server, s, List.of());
+			// any way: the first that fits and that the player has not declined
+			java.util.Set<String> declined = new HashSet<>();
+			for (String d : DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) declined.add(d);
+			way = Districts.firstWay(server, s, declined);
 			if (way == null) return "There is no way left to found a district that fits.";
 		}
 		String finalWay = way;
-		if (s.proposals().open().stream().anyMatch(x -> finalWay.equals(x.found()))) return "That district already waits in the inbox.";
+		if (s.proposals().open().stream().anyMatch(x -> finalWay.equals(x.found()))) return "A district to the " + DistrictRules.directionName(way) + " already waits in the inbox.";
 		Proposal p = Proposal.district(way, "You asked: \"" + clip(said, 120) + "\"", now);
 		if (a.district() != null) p = new Proposal(p.key(), Character.toUpperCase(a.district().charAt(0)) + a.district().substring(1) + " (" + DistrictRules.directionName(way)
 			+ ")", p.why(), null, now, p.trigger(), a.district(), way);
-		return addProposal(s, p) ? a.reply() : "I could not save that idea; try again.";
+		String added = addProposal(s, p);
+		return added != null ? added : a.reply();
 	}
 
-	/** Adds a proposal the player asked for (no cooldown: they asked), replacing one with the same key; a declined key asked for again is forgiven. */
-	private static boolean addProposal(Settlement s, Proposal p) {
+	/**
+	 * Adds a proposal the player asked for (no cooldown: they asked; a declined key asked for again by name is forgiven), at most {@link #MAX_OPEN_ASKED}
+	 * open. Null when it is saved, else what to tell the player.
+	 */
+	private static @Nullable String addProposal(Settlement s, Proposal p) {
 		var ps = s.proposals();
+		if (ps.open().stream().noneMatch(x -> x.key().equals(p.key())) && ps.open().size() >= MAX_OPEN_ASKED) {
+			return "The inbox already holds " + ps.open().size() + " ideas: decide on some of those first, then ask me again.";
+		}
 		List<Proposal> open = new ArrayList<>(ps.open().stream().filter(x -> !x.key().equals(p.key())).toList());
 		open.add(p);
-		return Settlements.proposals(s.id(), new Settlement.Proposals(open, ps.declined().stream().filter(k -> !k.equals(p.key())).toList(), ps.accepted(), ps.lastAt())).ok();
+		boolean ok = Settlements.proposals(s.id(), new Settlement.Proposals(open, ps.declined().stream().filter(k -> !k.equals(p.key())).toList(), ps.accepted(), ps.lastAt())).ok();
+		return ok ? null : "I could not save that idea (the settlement could not be saved).";
 	}
 
 	/** The steward says it: its speech bubble, and a chat line to the player. */
@@ -245,6 +283,11 @@ public final class Talk {
 
 	/** Whether a talk job of the settlement is in flight (for the screens). */
 	public static boolean thinking(String settlementId) {
-		return THINKING.contains(settlementId);
+		return thinking(settlementId, System.currentTimeMillis());
+	}
+
+	private static boolean thinking(String settlementId, long now) {
+		Long at = THINKING.get(settlementId);
+		return at != null && now - at < HOLD_MS;
 	}
 }

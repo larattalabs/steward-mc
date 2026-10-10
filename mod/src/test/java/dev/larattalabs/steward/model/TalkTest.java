@@ -32,6 +32,9 @@ class TalkTest {
 		assertTrue(TalkRules.local("add a library", FACTS).isEmpty());
 		assertTrue(TalkRules.local("hello, can you build a harbour?", FACTS).isEmpty());
 		assertTrue(TalkRules.local("thanks, now make the tavern creepier?", FACTS).isEmpty());
+		assertTrue(TalkRules.local("Thanks, now make the tavern creepier", FACTS).isEmpty(), "a request after thanks is still a request");
+		assertTrue(TalkRules.local("help me build a wall", FACTS).isEmpty());
+		assertTrue(TalkRules.local("Thanks, steward!", FACTS).isPresent());
 	}
 
 	@Test
@@ -78,5 +81,19 @@ class TalkTest {
 		assertTrue(spec.system().contains("**building**"));
 		assertEquals("object", spec.schema().get("type").getAsString());
 		assertFalse(spec.schema().has("$schema"));
+	}
+
+	@Test
+	void aBuildingMissingItsFieldsIsOnlyTalkNeverAnError() {
+		var a = TalkAnswer.parse(JsonParser.parseString("{\"reply\":\"Sure.\",\"intent\":\"building\",\"building\":{\"role\":\"mill\",\"type\":\"mill\"}}").getAsJsonObject());
+		assertEquals(Intent.CHAT, a.intent(), "no footprint");
+	}
+
+	@Test
+	void anAskedBuildingKeepsItsTypeInItsKey() {
+		assertEquals("library", ProposalRules.typeOf("asked_kz3v9_library"));
+		assertEquals("slag_foundry", ProposalRules.typeOf("asked_kz3v9_slag_foundry"));
+		assertNull(ProposalRules.typeOf("asked_kz3v9"));
+		assertEquals("farm", ProposalRules.typeOf("farm"));
 	}
 }

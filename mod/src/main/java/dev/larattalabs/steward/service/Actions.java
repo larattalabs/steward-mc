@@ -357,7 +357,7 @@ public final class Actions {
 				var pl = server.getPlayerList().getPlayer(who);
 				if (pl != null) pl.sendSystemMessage(Component.literal(msg));
 				StewardVoice.say(server, s.id(), msg);
-			}, () -> Proposals.recordAccepted(s.id(), key, 0, title));
+			}, () -> Proposals.recordAccepted(s.id(), key, null));
 			return no == null ? Result.ok("Laying the road to the new district...") : Result.fail(no);
 		}
 		if (s.lastUndoable().isEmpty()) return Result.fail("Nothing stands in " + s.name() + " yet: an addition goes beside its buildings and street.");
@@ -372,8 +372,10 @@ public final class Actions {
 		String title = p.get().title();
 		// in its district while that stands (else the town)
 		String district = p.get().district() != null && s.lands().district(p.get().district()).isPresent() ? p.get().district() : null;
-		new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, autonomous ? budget : 0, title),
-			() -> Proposals.giveBack(s.id(), p.get(), title), () -> Proposals.backOff(s.id(), key)).startAddition(s, p.get().building(), budget, district);
+		// the spend this acceptance records (autonomous only), and gives back if nothing was spent: this one, not another with the same title
+		Settlement.Spend spend = autonomous ? new Settlement.Spend(System.currentTimeMillis(), budget, title) : null;
+		new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, spend),
+			() -> Proposals.giveBack(s.id(), p.get(), spend), () -> Proposals.backOff(s.id(), key)).startAddition(s, p.get().building(), budget, district);
 		return Result.ok(String.format("Building %s for %s: one building beside what stands%s, budget $%d.", title.toLowerCase(), s.name(),
 			district == null ? "" : " in " + s.lands().district(district).map(Settlement.District::name).orElse("its district"), budget));
 	}

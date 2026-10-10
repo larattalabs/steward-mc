@@ -2,7 +2,6 @@ package dev.larattalabs.steward.gateway;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 import dev.larattalabs.architect.api.Job;
 import dev.larattalabs.architect.api.JobSpec;
@@ -72,8 +71,9 @@ public final class TalkJob {
 		if (r == null || !r.isJsonObject()) return new Result(null, "the talk job returned nothing");
 		try {
 			return new Result(TalkAnswer.parse(r.getAsJsonObject()), null);
-		} catch (JsonParseException | IllegalStateException | ClassCastException e) {
-			return new Result(null, "the answer could not be read: " + e.getMessage());
+		} catch (RuntimeException e) {
+			// whatever came back, a bad answer is a failed answer, never an exception on the server thread
+			return new Result(null, "the answer could not be read: " + e);
 		}
 	}
 
