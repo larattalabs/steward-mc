@@ -117,7 +117,17 @@ public final class StewardCommands {
 				.then(Commands.argument("site", StringArgumentType.word()).executes(ctx -> decide(ctx, "building", StringArgumentType.getString(ctx, "site"), "", 0)))))
 			.then(Commands.literal("show").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "show", "", "", 0))))
 			.then(Commands.literal("hide").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "hide", "", "", 0))))
-			.then(Commands.literal("dev").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.literal("say").then(Commands.argument("id",
+			.then(Commands.literal("dev").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.literal("ghost").then(Commands.argument("entry",
+				StringArgumentType.word()).then(Commands.argument("label", StringArgumentType.greedyString()).executes(ctx -> {
+					// dev (the e2e check): a labelled massing-style ghost of a library entry 12 blocks north of the player ("" label clears it)
+					var p = ctx.getSource().getPlayerOrException();
+					var at = p.blockPosition().relative(net.minecraft.core.Direction.NORTH, 12);
+					String label = StringArgumentType.getString(ctx, "label");
+					var layers = "-".equals(label) ? java.util.List.<dev.larattalabs.steward.net.StewardNet.Layer>of() : java.util.List.of(new dev.larattalabs.steward.net.StewardNet.Layer(
+						StringArgumentType.getString(ctx, "entry"), at.getX(), at.getY(), at.getZ(), "NONE", "MASSING", label, at.getX() + 4, at.getY() + 12, at.getZ() + 4));
+					net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.ShowLayers("steward_mc:dev_ghost", layers));
+					return 1;
+				})))).then(Commands.literal("say").then(Commands.argument("id",
 				StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
 					// dev (the e2e check): the settlement's steward says a line (its speech bubble)
 					dev.larattalabs.steward.service.StewardVoice.say(ctx.getSource().getServer(), StringArgumentType.getString(ctx, "id"), StringArgumentType.getString(ctx, "text"));

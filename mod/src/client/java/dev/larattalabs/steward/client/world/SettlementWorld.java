@@ -31,6 +31,14 @@ public final class SettlementWorld {
 	private static @Nullable SettlementView near;
 	private static @Nullable String hovered;
 	private static boolean survey;
+	/** Labels over ghost layers (the massings that wait for the player), by composite key. */
+	private static final java.util.Map<String, java.util.List<StewardNet.Layer>> GHOSTS = new java.util.HashMap<>();
+
+	public static void ghostLabels(String key, java.util.List<StewardNet.Layer> layers) {
+		var labelled = layers.stream().filter(l -> !l.label().isEmpty()).toList();
+		if (labelled.isEmpty()) GHOSTS.remove(key);
+		else GHOSTS.put(key, labelled);
+	}
 	/** How far a building can be looked at, and how far survey mode labels (blocks). */
 	static final double LOOK = 64, SURVEY = 96;
 
@@ -43,6 +51,7 @@ public final class SettlementWorld {
 	}
 
 	public static void clear() {
+		GHOSTS.clear();
 		near = null;
 		hovered = null;
 		survey = false;
@@ -87,12 +96,18 @@ public final class SettlementWorld {
 	}
 
 	public static void submit(LevelRenderContext ctx) {
-		SettlementView v = near;
-		if (v == null) return;
 		CameraRenderState camera = ctx.levelState().cameraRenderState;
 		Vec3 cam = camera.pos;
 		if (cam == null) return;
 		SubmitNodeCollector c = ctx.submitNodeCollector();
+		for (var layers : GHOSTS.values()) {
+			for (StewardNet.Layer l : layers) {
+				double d = Math.sqrt(cam.distanceToSqr(l.lx() + 0.5, l.ly(), l.lz() + 0.5));
+				if (d < SURVEY) pill(c, camera, l.lx() + 0.5, l.ly(), l.lz() + 0.5, l.label(), "massing · approve or redirect in the inbox", "waiting", false, d);
+			}
+		}
+		SettlementView v = near;
+		if (v == null) return;
 		for (SettlementView.Building b : v.buildings()) {
 			boolean on = b.siteId().equals(hovered);
 			double d = Math.sqrt(box(b).distanceToSqr(cam));
@@ -153,24 +168,30 @@ public final class SettlementWorld {
 
 	/** A label over the building: an ink pill with its role and, under it, its version or what waits. */
 	private static void label(SubmitNodeCollector c, CameraRenderState camera, SettlementView.Building b, boolean on, double dist) {
-		Font font = Minecraft.getInstance().font;
-		Kit.Padding pad = Kit.padding("nameplate");
-		String title = TextUtil.ellipsize(font, b.role(), 140);
 		String sub = b.updating() ? "updating" : b.updateAvailable() ? "update to v" + b.head() + " ready" : "v" + b.version() + (b.edits() > 0 ? " · " + b.edits() + " of your edits" : "");
 		if (on) sub += " · I to inspect";
+		String family = b.updateAvailable() ? "waiting" : b.updating() || !"built".equals(b.state()) ? "working" : "done";
+		pill(c, camera, (b.minX() + b.maxX() + 1) / 2.0, b.maxY() + 2.4, (b.minZ() + b.maxZ() + 1) / 2.0, b.role(), sub, family, on, dist);
+	}
+
+	/** An ink pill at a world point, facing the camera: a status dot and a title, a second line under it. */
+	private static void pill(SubmitNodeCollector c, CameraRenderState camera, double wx, double wy, double wz, String titleText, String sub, String family, boolean on,
+		double dist) {
+		Font font = Minecraft.getInstance().font;
+		Kit.Padding pad = Kit.padding("nameplate");
+		String title = TextUtil.ellipsize(font, titleText, 220);
 		int inner = Math.max(font.width(title) + 10, font.width(sub));
 		int w = inner + pad.left() + pad.right() + 2;
 		int h = pad.top() + 19 + pad.bottom() + 1;
 		int light = WorldUi.uiLight();
 		// a building's label reads from across the street: twice a nameplate's size, growing with the distance
 		float scale = (float) Math.max(2.0, Math.min(4.0, dist / 7));
-		double x = (b.minX() + b.maxX() + 1) / 2.0 - camera.pos.x, y = b.maxY() + 2.4 - camera.pos.y, z = (b.minZ() + b.maxZ() + 1) / 2.0 - camera.pos.z;
+		double x = wx - camera.pos.x, y = wy - camera.pos.y, z = wz - camera.pos.z;
 		PoseStack ps = new PoseStack();
 		WorldUi.billboard(ps, camera, x, y, z, scale, 0f, 0, 0, 0);
 		float x0 = -w / 2f, y0 = -h;
 		WorldUi.submitNineSlice(ps, c, WorldUi.Layer.SOLID, Kit.NAMEPLATE, x0, y0, w, h, 0xFFFFFFFF, light);
 		float tx = x0 + pad.left() + 1, ty = y0 + pad.top() + 1;
-		String family = b.updateAvailable() ? "waiting" : b.updating() || !"built".equals(b.state()) ? "working" : "done";
 		WorldUi.submitSprite(ps, c, WorldUi.Layer.OVERLAY, Kit.dot(family, false), tx + (inner - font.width(title) - 10) / 2f, ty + 1, 7, 7, 0.15f, 0xFFFFFFFF, light);
 		ps.pushPose();
 		double dd = Math.sqrt(x * x + y * y + z * z);

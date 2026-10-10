@@ -204,7 +204,13 @@ async function placeUpdateUndo(id) {
     const surveyShot = (await dev.request('dev.screenshot', { name: 'e2e-survey', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
     await dev.request('dev.key', { key: 'u' });
     if (mine) await cmd(`/tp @p ${mine[1]} ${mine[2]} ${mine[3]}`);
-    ok('in-world labels', `${lookShot}, ${surveyShot}`);
+    // a labelled massing ghost (the build's massings carry their lot's role and id)
+    await cmd(`/tp @p ${mine ? mine[1] : 0} ${mine ? mine[2] : 0} ${mine ? mine[3] : 0} facing ${mine ? mine[1] : 0} ${gy + 4} ${mine ? Number(mine[3]) - 12 : 0}`);
+    await cmd(`/steward dev ghost ${STUB} fisher's stilt house · cottage_1`);
+    await sleep(2500);
+    const ghostShot = (await dev.request('dev.screenshot', { name: 'e2e-massing-label', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+    await cmd(`/steward dev ghost ${STUB} -`);
+    ok('in-world labels', `${lookShot}, ${surveyShot}, ${ghostShot}`);
   }
   // the settlement screen (3a), opened as a player would by command, with the building just placed
   await cmd(`/steward view ${id}`);

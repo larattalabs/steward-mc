@@ -78,6 +78,7 @@ public class StewardClient implements ClientModInitializer {
 			}
 		});
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.ShowLayers.TYPE, (payload, ctx) -> {
+			dev.larattalabs.steward.client.world.SettlementWorld.ghostLabels(payload.key(), payload.layers());
 			var api = ArchitectClientApi.get();
 			if (payload.layers().isEmpty()) {
 				api.clearComposite(payload.key());

@@ -20,7 +20,12 @@ public final class StewardNet {
 	}
 
 	/** One ghost layer: a massing or library id at an origin (the rotated box's minimum corner), a Minecraft Rotation name and an Architect PreviewStyle name. */
-	public record Layer(String blueprintId, int x, int y, int z, String rotation, String style) {}
+	/** One ghost layer; {@code label} (may be empty) floats at ({@code lx}, {@code ly}, {@code lz}) over it: a massing's lot and role. */
+	public record Layer(String blueprintId, int x, int y, int z, String rotation, String style, String label, int lx, int ly, int lz) {
+		public Layer(String blueprintId, int x, int y, int z, String rotation, String style) {
+			this(blueprintId, x, y, z, rotation, style, "", x, y, z);
+		}
+	}
 
 	public record ShowLayers(String key, List<Layer> layers) implements CustomPacketPayload {
 		public static final Type<ShowLayers> TYPE = new Type<>(Identifier.fromNamespaceAndPath(Steward.MOD_ID, "show_layers"));
@@ -34,12 +39,17 @@ public final class StewardNet {
 				buf.writeVarInt(l.z());
 				buf.writeUtf(l.rotation());
 				buf.writeUtf(l.style());
+				buf.writeUtf(l.label());
+				buf.writeVarInt(l.lx());
+				buf.writeVarInt(l.ly());
+				buf.writeVarInt(l.lz());
 			}
 		}, buf -> {
 			String key = buf.readUtf();
 			int n = buf.readVarInt();
 			List<Layer> layers = new ArrayList<>(n);
-			for (int i = 0; i < n; i++) layers.add(new Layer(buf.readUtf(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readUtf(), buf.readUtf()));
+			for (int i = 0; i < n; i++) layers.add(new Layer(buf.readUtf(), buf.readVarInt(), buf.readVarInt(), buf.readVarInt(), buf.readUtf(), buf.readUtf(), buf.readUtf(),
+				buf.readVarInt(), buf.readVarInt(), buf.readVarInt()));
 			return new ShowLayers(key, List.copyOf(layers));
 		});
 

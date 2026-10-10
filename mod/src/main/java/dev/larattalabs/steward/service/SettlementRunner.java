@@ -684,7 +684,10 @@ public final class SettlementRunner {
 		for (LotMassing lm : shown) {
 			var m = lm.massing();
 			MassingPlacement at = MassingPlacement.on(lm.lot(), m.size().x(), m.size().z());
-			layers.add(new StewardNet.Layer(m.id() + "@" + m.version(), at.x(), at.y(), at.z(), at.rotation(), "MASSING"));
+			var lot = lm.lot();
+			// its label over the middle of its lot, above the massing's top
+			layers.add(new StewardNet.Layer(m.id() + "@" + m.version(), at.x(), at.y(), at.z(), at.rotation(), "MASSING", lot.role() + " · " + lot.id(), lot.x() + lot.sizeX() / 2,
+				lot.groundY() + m.size().y() + 2, lot.z() + lot.sizeZ() / 2));
 			lines.add(lm.lot().id() + ": " + lm.lot().role() + ", " + lm.detail());
 		}
 		if (layers.isEmpty()) return "No massings to show.";
