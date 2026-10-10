@@ -1,0 +1,10 @@
+{
+  "settlement": "Reedwick, a stilt village over a swamp, mossy and crooked, a fishing village",
+  "rule": "tower",
+  "answer": {
+    "title": "A crooked lookout over the reeds",
+    "why": "You have come far: a tall lookout would let Reedwick see boats and trouble across the swamp.",
+    "role": "reed lookout",
+    "notes": "A leaning timber tower on stilts with a lantern platform and a rope ladder."
+  }
+}

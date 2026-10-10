@@ -90,6 +90,8 @@ public final class Proposals {
 		var saved = res.settlement();
 		if (!first.foundsDistrict() && !saved.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && saved.autonomy().allows(estimate(first), now)
 			&& autonomously(server, p, saved, first, now)) return;
+		// in the settlement's own words when Claude can word it (the steward says it when they come), else in the rule's
+		if (ProposalWords.start(server, saved, first, p.getUUID())) return;
 		StewardVoice.say(server, s.id(), "I have an idea: " + first.title().toLowerCase() + ". " + first.why() + " See the inbox (Y).");
 		SettlementRunner.sendInbox(server, p.getUUID());
 	}

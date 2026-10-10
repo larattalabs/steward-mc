@@ -173,6 +173,7 @@ It covers:
 - describing through the card job (the stilt village fixture);
 - a 3-building build with a restart at the massings;
 - the bible kept;
+- seeds carried: the rules propose a farm, and the wording job (scripted) names it "A reed-thatched granary on stilts";
 - a talk job asking for a library, accepted and built in the reused bible;
 - a district proposed in talk and founded;
 - a building in the district laying its street and the link road;

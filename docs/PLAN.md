@@ -15,12 +15,12 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
 - **3c: revert is done.** Change requests wait for Architect 0b.
 - **3d: done.** Building labels on look-at (I to inspect), survey mode (U) with the claim's border, labelled massing ghosts, the steward's ledger, and the settlement board.
 - **3f: built** (2026-10-10): protected areas, districts with their roads (founded, linked, undone), building in a district, the steward proposing one when the town's street is full. A district's first build and its link road need a paid or stub run to be seen.
-- **3e: built**, rule-based and $0 until a build is accepted.
+- **3e: built.** The rules decide the proposals; Claude words them in the settlement's own terms (a few cents each); building one is paid as any build.
   - **Perception:** the player's tier comes from advancements, plus seeds, saplings, and animals in the claim.
   - **Proposals:** the steward proposes buildings the settlement lacks (farm, orchard, pens, launch tower, portal gatehouse, vault, smithy, workshop) and says why, within the guardrails (declined never again, three open at most, one per 20 minutes).
   - **Accepting** builds that one building beside what stands, with no new street, in the settlement's reused style bible.
   - **Autonomous and Full** build their own proposals within the weekly allowance ($500 by default). Settings sets the level and the allowance.
-  - **Still to come:** a Claude call that words proposals in the settlement's own style, once Architect's stub is there to test it for free.
+  - **Worded by Claude** (2026-10-10): the rules decide what to propose. A small job ($0.03 cap, `prompts/proposal-words.md`) then names and describes it in the settlement's own terms, and the steward puts it to the player. Only for proposals that wait for the player; without the Claude link the rule's wording stays.
 
 The free e2e check runs 32 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper, v0.12.2) runs the whole paid flow at $0, 20 checks: builds, talk, an addition, and a district's first build with its link road.
 
@@ -78,6 +78,7 @@ The free e2e check runs 32 checks, with a screenshot of each in-world piece. The
 | 2026-10-10 | **Protected areas, then districts** (Steward side; Architect enforces C17 from 0c): the player marks areas the steward never builds on. Steward keeps its layouts and roads off them now; when 0c ships, the areas also go to Architect as write bounds. Districts sit next to the village square (inside a big claim or beyond it) and are linked by a road along their shared edge. See phase 3f. |
 | 2026-10-10 | **One district each way, for now** (Claude; **pending Noah's OK**): the plan let a second district go past the first the same way. 3f allows one each way (four at most), because a road cannot yet pass through a district to reach the one beyond. Lifting it means routing roads through a district's margin or street; until then the steward proposes the next free way. |
 | 2026-10-10 | **Talking costs a few cents a question** (Claude; for Noah to confirm): each question the rules cannot answer is one Sonnet job (a $0.05 cap, usually 1-2 cents) on the player's own Claude link, like describing a settlement. There are at most 30 an hour per settlement. Talk never builds: what it proposes waits in the inbox. |
+| 2026-10-10 | **Proposals are worded by Claude** (Claude; for Noah to confirm): each proposal that waits for the player costs one small job (a $0.03 cap, usually 1-2 cents), spent on the player's own Claude link without them asking. The proposal guardrails bound it: one new proposal every 20 minutes at most, only while the host is in the settlement. Without the link, the rule's wording is used. |
 
 ## Concept card
 

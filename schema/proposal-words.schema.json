@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://larattalabs.dev/steward/proposal-words.schema.json",
+  "title": "A steward's proposal, in the settlement's own words",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["title", "why", "role"],
+  "properties": {
+    "title": {"type": "string", "minLength": 1, "maxLength": 60, "description": "The idea's name as the inbox shows it, in this settlement's terms (\"A reed-thatched granary\")."},
+    "why": {"type": "string", "minLength": 1, "maxLength": 200, "description": "One or two sentences in the steward's voice: what prompted it and what it would give the settlement."},
+    "role": {"type": "string", "minLength": 1, "maxLength": 60, "description": "What the building is, in this settlement's own terms."},
+    "notes": {"type": "string", "maxLength": 200, "description": "What makes this building itself here: its function and details, fitting the settlement's style."}
+  }
+}

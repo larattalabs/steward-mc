@@ -296,7 +296,13 @@ async function placeUpdateUndo(id) {
       const boardShot = (await dev.request('dev.screenshot', { name: 'e2e-board', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
       await dev.request('dev.key', { mapping: 'key.use' });
       await sleep(1500);
-      const screen = (await dev.request('dev.state')).screen?.class ?? 'none';
+      let screen = (await dev.request('dev.state')).screen?.class ?? 'none';
+      // once more if the click came before the board was in reach (it flaked once, 2026-10-10)
+      if (screen === 'none') {
+        await dev.request('dev.key', { mapping: 'key.use' });
+        await sleep(1500);
+        screen = (await dev.request('dev.state')).screen?.class ?? 'none';
+      }
       if (/DescribeScreen|SettlementScreen/.test(screen)) ok('board', `opens ${screen.replace(/.*\./, '')}; ${boardShot}`);
       else fail('board', `screen ${screen}`);
       await closeScreens();
@@ -635,6 +641,19 @@ async function stubFlow(id) {
   const spent = settlements().find((x) => x.id === id);
   if (spent?.bible?.id) ok('bible kept', `${spent.bible.id} v${spent.bible.version}`);
   else fail('bible kept', JSON.stringify(spent?.bible));
+  // a proposal worded in the settlement's own terms (3e): seeds make the rules propose a farm, the wording job (scripted) names it
+  await cmd(`/steward dev sim_answer proposal ${fixture('proposal-words/granary.json')}`);
+  await cmd(`/tp @p ${spent.claim.centerX + 6} 100 ${spent.claim.centerZ + 6}`);
+  await cmd('/give @p minecraft:wheat_seeds 16');
+  let farm = null;
+  for (let i = 0; i < 100 && !farm; i++) {
+    await sleep(1000);
+    farm = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key === 'farm' && /granary/i.test(p.title)) ?? null;
+  }
+  if (farm) ok('worded proposal', `${farm.title}: ${farm.why} (${farm.building.role})`);
+  else fail('worded proposal', JSON.stringify(settlements().find((x) => x.id === id)?.proposals?.open));
+  await cmd(`/clear @p`);
+  if (farm) await cmd(`/steward proposals ${id} decline farm`);
   // talk through the real talk job (its answer scripted): a library proposed, accepted, built in the settlement's own style
   await cmd(`/steward dev sim_answer talk ${fixture('talk/library.json')}`);
   from = logSize();

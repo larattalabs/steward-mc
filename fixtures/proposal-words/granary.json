@@ -1,0 +1,10 @@
+{
+  "settlement": "Reedwick, a stilt village over a swamp, mossy and crooked, a fishing village",
+  "rule": "farm",
+  "answer": {
+    "title": "A reed-thatched granary on stilts",
+    "why": "You carry seeds: a raised granary with a walled plot would keep Reedwick fed through the wet months.",
+    "role": "stilted granary",
+    "notes": "Raised on mossy piles above the damp, with a reed thatch, a drying loft and a small walled garden plot beside it."
+  }
+}
