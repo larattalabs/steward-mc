@@ -253,8 +253,9 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
 
 **Order:**
 1. Finish phase 1: the street confirmed, claim size from the card and Expand, Noah's gallery look.
-2. Cross-cutting: copies as free variants; the $0 end-to-end gate; Architect's estimate in the card screen; `UpdatePlanner` wired ("update available" in the
-   inbox when Architect has a newer version of a placed building).
+2. Cross-cutting: `UpdatePlanner` wired ("update available" in the inbox when Architect has a newer version of a placed building). Copies as free variants,
+   the stub helper for the $0 end-to-end gate, the calibrated estimate and exact massing ghosts arrive with **Architect 6c slice 0** (all of C1, C2, C4, C5 and C6
+   were taken; Steward adopts them, it does not build its own). Steward builds its end-to-end gate script now and points it at the stub once slice 0 ships.
 3. **Phase 3 core:** free-text change requests ("add a library wing, make it creepier"), the steward's proposals (tier, arrivals, resources), the steward walking to
    worksites and talking, districts.
 4. **Phase 4:** Supplied on Architect's survival construction sites (they exist), then Hardcore and Economy.
