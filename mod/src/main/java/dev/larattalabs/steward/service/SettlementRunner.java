@@ -92,7 +92,10 @@ public final class SettlementRunner {
 			}
 		});
 		net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
-			List.copyOf(ACTIVE.values()).forEach(r -> r.deliverUnread(handler.getPlayer())));
+			{
+				List.copyOf(ACTIVE.values()).forEach(r -> r.deliverUnread(handler.getPlayer()));
+				sendInbox(server, handler.getPlayer().getUUID());
+			});
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
 			ACTIVE.clear();
 			resyncPending = false;
@@ -446,6 +449,7 @@ public final class SettlementRunner {
 	private void abandon(String why) {
 		say(why);
 		if (claimedId != null) ACTIVE.remove(claimedId, this);
+		sendInbox(server, playerId);
 	}
 
 	private void apply(Pipeline.Step step) {
@@ -456,6 +460,7 @@ public final class SettlementRunner {
 		if (before == Pipeline.Phase.AWAITING_MASSING_APPROVAL && state.phase() != Pipeline.Phase.AWAITING_MASSING_APPROVAL) hideMassings();
 		for (Command c : step.commands()) execute(c);
 		persist();
+		sendInbox(server, playerId);
 	}
 
 	/** The composite key the settlement's massing ghosts show under. */
@@ -467,23 +472,66 @@ public final class SettlementRunner {
 	 * Sends the awaiting massings (or, when none wait, every massing of the group) to the player as ghosts on their lots, and with {@code describe} lists
 	 * each in chat: lot, role, size and named parts. Returns what to tell a command caller.
 	 */
-	public String showMassings(boolean describe) {
-		if (groupId == null || plan == null) return "No massings yet.";
+	/** A lot with its massing (the version the group item points at). */
+	private record LotMassing(VillageLayout.Lot lot, dev.larattalabs.architect.api.Massing massing) {
+		String detail() {
+			var m = massing;
+			return m.size().x() + "x" + m.size().z() + ", " + m.size().y() + " tall" + (m.parts().isEmpty() ? "" : " (" + String.join(", ", m.parts().keySet()) + ")");
+		}
+	}
+
+	/** The awaiting massings (or, when none wait, every massing of the group), with their lots. Empty when there is no group or Architect lost it. */
+	private List<LotMassing> massings() {
+		if (groupId == null || plan == null) return List.of();
 		var designs = ArchitectApi.get().designs();
 		Group g = designs.group(groupId).orElse(null);
-		if (g == null) return "Architect no longer has the design group.";
+		if (g == null) return List.of();
 		Set<String> waiting = Set.copyOf(lastAwaiting);
-		List<StewardNet.Layer> layers = new ArrayList<>();
-		List<String> lines = new ArrayList<>();
+		List<LotMassing> out = new ArrayList<>();
 		for (Group.Item it : g.items()) {
 			if (it.massing().isEmpty() || (!waiting.isEmpty() && !waiting.contains(it.itemKey()))) continue;
 			VillageLayout.Lot lot = plan.lots().stream().filter(l -> l.id().equals(it.itemKey())).findFirst().orElse(null);
 			var m = designs.massing(it.massing().get().id(), it.massing().get().version()).orElse(null);
-			if (lot == null || m == null) continue;
-			MassingPlacement at = MassingPlacement.on(lot, m.size().x(), m.size().z());
+			if (lot != null && m != null) out.add(new LotMassing(lot, m));
+		}
+		return out;
+	}
+
+	public UUID playerId() {
+		return playerId;
+	}
+
+	/** This build's inbox entry, or null before it has a settlement and a state (still reading the card or surveying) or once it is finished. */
+	public dev.larattalabs.steward.inbox.InboxModel.Entry inboxEntry() {
+		if (settlement == null || state == null || state.phase().terminal()) return null;
+		List<dev.larattalabs.steward.inbox.InboxModel.Lot> lots = Pipeline.awaiting(state) == Pipeline.Decision.MASSINGS
+			? massings().stream().map(lm -> new dev.larattalabs.steward.inbox.InboxModel.Lot(lm.lot().id(), lm.lot().role(), lm.detail())).toList() : List.of();
+		return dev.larattalabs.steward.inbox.InboxModel.entry(settlement.id(), settlement.name(), state, lots);
+	}
+
+	/** Sends a player their inbox: every unfinished build of theirs (an empty inbox clears the client's). */
+	public static void sendInbox(MinecraftServer server, UUID player) {
+		ServerPlayer p = server.getPlayerList().getPlayer(player);
+		if (p == null) return;
+		List<dev.larattalabs.steward.inbox.InboxModel.Entry> entries = new ArrayList<>();
+		for (SettlementRunner r : List.copyOf(ACTIVE.values())) {
+			if (!r.playerId.equals(player)) continue;
+			var e = r.inboxEntry();
+			if (e != null) entries.add(e);
+		}
+		net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new StewardNet.Inbox(List.copyOf(entries)));
+	}
+
+	public String showMassings(boolean describe) {
+		if (groupId == null || plan == null) return "No massings yet.";
+		List<LotMassing> shown = massings();
+		List<StewardNet.Layer> layers = new ArrayList<>();
+		List<String> lines = new ArrayList<>();
+		for (LotMassing lm : shown) {
+			var m = lm.massing();
+			MassingPlacement at = MassingPlacement.on(lm.lot(), m.size().x(), m.size().z());
 			layers.add(new StewardNet.Layer(m.id() + "@" + m.version(), at.x(), at.y(), at.z(), at.rotation(), "MASSING"));
-			lines.add(lot.id() + ": " + lot.role() + ", " + m.size().x() + "x" + m.size().z() + ", " + m.size().y() + " tall"
-				+ (m.parts().isEmpty() ? "" : " (" + String.join(", ", m.parts().keySet()) + ")"));
+			lines.add(lm.lot().id() + ": " + lm.lot().role() + ", " + lm.detail());
 		}
 		if (layers.isEmpty()) return "No massings to show.";
 		ServerPlayer p = server.getPlayerList().getPlayer(playerId);

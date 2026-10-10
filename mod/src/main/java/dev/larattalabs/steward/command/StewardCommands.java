@@ -9,6 +9,7 @@ import dev.larattalabs.steward.gateway.CardResult;
 import dev.larattalabs.steward.gateway.ConceptCardJob;
 import dev.larattalabs.steward.gateway.WorldMode;
 import dev.larattalabs.steward.model.Permission;
+import dev.larattalabs.steward.service.Actions;
 import dev.larattalabs.steward.service.CardService;
 import dev.larattalabs.steward.service.SettlementRunner;
 import com.mojang.brigadier.arguments.DoubleArgumentType;
@@ -43,7 +44,6 @@ import net.minecraft.network.chat.Component;
  * </pre>
  */
 public final class StewardCommands {
-	private static CardService cards;
 
 	private StewardCommands() {
 	}
@@ -89,44 +89,40 @@ public final class StewardCommands {
 				for (var s : all) ctx.getSource().sendSuccess(() -> Component.literal(s.id() + "  " + s.name() + "  at " + s.claim().centerX() + "," + s.claim().centerZ() + "  " + (s.described() ? s.card().site().text() + " / " + s.card().style().text() : "(not described)")), false);
 				return all.size();
 			}))
-			.then(Commands.literal("describe").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
-				CommandSourceStack src = ctx.getSource();
-				String id = StringArgumentType.getString(ctx, "id");
-				if (dev.larattalabs.steward.service.Settlements.store().get(id).isEmpty()) { src.sendFailure(Component.literal("No such settlement: " + id)); return 0; }
-				src.sendSuccess(() -> Component.literal("Interpreting your description..."), false);
-				boolean survival = WorldMode.survival(src.getServer()).orElse(false);
-				service().submit(StringArgumentType.getString(ctx, "text"), Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", dev.larattalabs.steward.service.Settlements.DEFAULT_RADIUS), "steward_mc:settlement/" + id).whenComplete((r, err) -> {
-					if (err != null) { src.sendFailure(Component.literal(String.valueOf(err.getMessage()))); return; }
-					if (!r.ok()) { src.sendFailure(Component.literal(r.error())); return; }
-					var res = dev.larattalabs.steward.service.Settlements.describe(id, r.card(), System.currentTimeMillis());
-					if (!res.ok()) { src.sendFailure(Component.literal(res.error())); return; }
-					for (String line : CardResult.lines(r.card(), r.cost())) src.sendSuccess(() -> Component.literal(line), false);
-					src.sendSuccess(() -> Component.literal(startHint(id, r.card())), false);
-				});
-				return 1;
-			}))))
-			.then(Commands.literal("start").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200)).executes(ctx -> {
-				CommandSourceStack src = ctx.getSource();
-				var s = dev.larattalabs.steward.service.Settlements.store().get(StringArgumentType.getString(ctx, "id"));
-				if (s.isEmpty()) { src.sendFailure(Component.literal("No such settlement (see /steward settlements).")); return 0; }
-				if (SettlementRunner.busy(s.get().id())) { src.sendFailure(Component.literal(s.get().id() + " is already being built.")); return 0; }
-				int n = IntegerArgumentType.getInteger(ctx, "buildings");
-				new SettlementRunner(src.getServer(), src.getLevel(), src.getPlayerOrException(), s.get().permission(), service(), n >= 8 ? 2 : 0).startExisting(s.get(), n, DoubleArgumentType.getDouble(ctx, "budget"));
-				return 1;
-			})))))
-			.then(Commands.literal("approve").then(Commands.argument("id", StringArgumentType.word()).executes(ctx ->
-				decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"), SettlementRunner::approve))))
+			.then(Commands.literal("describe").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx ->
+				answer(ctx.getSource(), Actions.describe(ctx.getSource().getPlayerOrException(), StringArgumentType.getString(ctx, "id"), StringArgumentType.getString(ctx, "text")))))))
+			.then(Commands.literal("start").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("buildings", IntegerArgumentType.integer(Actions.MIN_BUILDINGS,
+				Actions.MAX_BUILDINGS)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(Actions.MIN_BUDGET, Actions.MAX_BUDGET)).executes(ctx ->
+					answer(ctx.getSource(), Actions.start(ctx.getSource().getPlayerOrException(), StringArgumentType.getString(ctx, "id"), IntegerArgumentType.getInteger(ctx, "buildings"),
+						DoubleArgumentType.getDouble(ctx, "budget"))))))))
+			.then(Commands.literal("approve").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "approve", "", "", 0))))
 			.then(Commands.literal("redirect").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("lot", StringArgumentType.word())
-				.then(Commands.argument("notes", StringArgumentType.greedyString()).executes(ctx -> decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"),
-					r -> r.redirect(StringArgumentType.getString(ctx, "lot"), StringArgumentType.getString(ctx, "notes"))))))))
-			.then(Commands.literal("raise").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 500)).executes(ctx ->
-				decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"), r -> r.raise(DoubleArgumentType.getDouble(ctx, "budget")))))))
-			.then(Commands.literal("cancel").then(Commands.argument("id", StringArgumentType.word()).executes(ctx ->
-				decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"), SettlementRunner::cancel))))
-			.then(Commands.literal("show").then(Commands.argument("id", StringArgumentType.word()).executes(ctx ->
-				decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"), r -> r.showMassings(true)))))
-			.then(Commands.literal("hide").then(Commands.argument("id", StringArgumentType.word()).executes(ctx ->
-				decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"), r -> { r.hideMassings(); return "Hidden."; }))))
+				.then(Commands.argument("notes", StringArgumentType.greedyString()).executes(ctx -> decide(ctx, "redirect", StringArgumentType.getString(ctx, "lot"),
+					StringArgumentType.getString(ctx, "notes"), 0))))))
+			.then(Commands.literal("raise").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("budget", DoubleArgumentType.doubleArg(Actions.MIN_BUDGET,
+				Actions.MAX_RAISE)).executes(ctx -> decide(ctx, "raise", "", "", DoubleArgumentType.getDouble(ctx, "budget"))))))
+			.then(Commands.literal("cancel").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "cancel", "", "", 0))))
+			.then(Commands.literal("show").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "show", "", "", 0))))
+			.then(Commands.literal("hide").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "hide", "", "", 0))))
+			.then(Commands.literal("ui").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.argument("screen", StringArgumentType.word())
+				.then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
+					// dev: open a screen without the right-click (DevBridge cannot use entities)
+					var p = ctx.getSource().getPlayerOrException();
+					String id = StringArgumentType.getString(ctx, "id");
+					var s = dev.larattalabs.steward.service.Settlements.store().get(id);
+					switch (StringArgumentType.getString(ctx, "screen")) {
+						case "inbox" -> {
+							SettlementRunner.sendInbox(ctx.getSource().getServer(), p.getUUID());
+							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.OpenInbox(id));
+						}
+						case "describe" -> net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.OpenDescribe(id,
+							s.map(x -> x.name()).orElse(id), ""));
+						case "card" -> { if (s.isPresent() && s.get().described()) Actions.sendCard(p, s.get()); }
+						case "open" -> s.ifPresent(x -> Actions.openFor(p, x));
+						default -> { ctx.getSource().sendFailure(Component.literal("inbox, describe, card or open")); return 0; }
+					}
+					return 1;
+				}))))
 			.then(Commands.literal("undo").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
 				CommandSourceStack src = ctx.getSource();
 				var s = dev.larattalabs.steward.service.Settlements.store().get(StringArgumentType.getString(ctx, "id"));
@@ -173,33 +169,19 @@ public final class StewardCommands {
 			})))));
 	}
 
-	/** The start command to type for a freshly described card: its program's size and a budget at the high estimate, rounded up to $5. */
-	static String startHint(String id, dev.larattalabs.steward.model.ConceptCard c) {
-		int n = Math.min(12, dev.larattalabs.steward.gateway.ProgramPlanner.total(c));
-		int landmarks = (int) (c.hasProgram() ? Math.min(c.program().stream().filter(dev.larattalabs.steward.model.ConceptCard.Building::landmark).count(), Math.max(1, n / 4)) : 0);
-		var e = dev.larattalabs.steward.model.BudgetPolicy.estimateWithCritiqueReports(n, landmarks);
-		int budget = (int) (Math.ceil(e.usdHigh() / 5.0) * 5);
-		return String.format("Saved. Start building: /steward start %s %d %d (%d buildings, about $%.0f-%.0f and %d-%d minutes)", id, n, budget, n, e.usdLow(), e.usdHigh(), e.minutesLow(), e.minutesHigh());
+	private static int answer(CommandSourceStack src, Actions.Result r) {
+		if (r.message().isEmpty()) return r.ok() ? 1 : 0;
+		if (r.ok()) src.sendSuccess(() -> Component.literal(r.message()), false);
+		else src.sendFailure(Component.literal(r.message()));
+		return r.ok() ? 1 : 0;
 	}
 
-	/** Runs a player decision on the settlement's active build and reports what it did. */
-	private static int decide(CommandSourceStack src, String id, java.util.function.Function<SettlementRunner, String> action) {
-		SettlementRunner r = SettlementRunner.active(id);
-		if (r == null) {
-			src.sendFailure(Component.literal("Nothing is being built for " + id + " in this session (see /steward settlements)."));
-			return 0;
-		}
-		String out = action.apply(r);
-		src.sendSuccess(() -> Component.literal(out), false);
-		return 1;
+	private static int decide(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, String action, String lot, String text, double amount)
+		throws com.mojang.brigadier.exceptions.CommandSyntaxException {
+		return answer(ctx.getSource(), Actions.decide(ctx.getSource().getPlayerOrException(), StringArgumentType.getString(ctx, "id"), action, lot, text, amount));
 	}
 
-	private static synchronized CardService service() {
-		if (cards == null) {
-			cards = new CardService(ArchitectApi.get().jobs());
-			SiteEvents.JOB_DONE.register(cards::onDone);
-			Steward.LOGGER.info("card service ready");
-		}
-		return cards;
+	private static CardService service() {
+		return Actions.cards();
 	}
 }
