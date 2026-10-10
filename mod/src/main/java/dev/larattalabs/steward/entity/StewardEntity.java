@@ -76,6 +76,17 @@ public final class StewardEntity extends PathfinderMob {
 	public void bind(String settlementId, BlockPos home) {
 		this.settlementId = settlementId;
 		setHomeTo(home, HOME_RADIUS);
+		tagOwner();
+	}
+
+	/**
+	 * Architect's occupancy checks ignore an entity tagged {@code architect:owner=<owner>} when the request's owner is the same (Architect 0c, ask C18):
+	 * the steward then never holds up its own settlement's removals, deltas or placements. Until 0c it only steps out of the box first.
+	 */
+	private void tagOwner() {
+		if (settlementId.isEmpty()) return;
+		entityTags().removeIf(t -> t.startsWith("architect:owner="));
+		addTag("architect:owner=steward_mc:settlement/" + settlementId);
 	}
 
 	/** Walks to {@code pos} and works there, for {@code ticks} game ticks (0 = until told otherwise); null = home. */
@@ -131,6 +142,7 @@ public final class StewardEntity extends PathfinderMob {
 	protected void readAdditionalSaveData(ValueInput in) {
 		super.readAdditionalSaveData(in);
 		settlementId = in.getStringOr("settlement", "");
+		tagOwner();
 		in.getIntArray("home").filter(a -> a.length == 3).ifPresent(a -> setHomeTo(new BlockPos(a[0], a[1], a[2]), HOME_RADIUS));
 	}
 

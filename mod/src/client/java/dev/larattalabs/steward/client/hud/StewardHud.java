@@ -1,5 +1,8 @@
 package dev.larattalabs.steward.client.hud;
 
+import dev.larattalabs.labui.client.hud.UiBits;
+import dev.larattalabs.labui.client.ui.TextUtil;
+
 import dev.larattalabs.steward.client.screen.ClientInbox;
 import dev.larattalabs.steward.inbox.InboxModel;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElement;
@@ -21,7 +24,7 @@ public final class StewardHud implements HudElement {
 		long more = ClientInbox.waiting() - 1;
 		String tail = " waits for you" + (more > 0 ? " (+" + more + ")" : "");
 		int room = (int) (g.guiWidth() * 0.6) - mc.font.width("Steward: " + tail) - 30;
-		String text = "Steward: " + dev.larattalabs.steward.client.ui.TextUtil.ellipsize(mc.font, first.name(), Math.max(30, room)) + tail;
+		String text = "Steward: " + dev.larattalabs.labui.client.ui.TextUtil.ellipsize(mc.font, first.name(), Math.max(30, room)) + tail;
 		int x = 6;
 		int w = UiBits.dotPill(g, mc.font, "thinking", text, x, 6, UiBits.ink());
 		UiBits.keycap(g, mc.font, Keys.label(Keys.inbox), x + w + 4, 6);

@@ -1,13 +1,13 @@
 package dev.larattalabs.steward.client.screen;
 
 import com.mojang.blaze3d.platform.InputConstants;
-import dev.larattalabs.steward.client.hud.UiBits;
+import dev.larattalabs.labui.client.hud.UiBits;
 import dev.larattalabs.steward.client.text.TextFieldView;
 import dev.larattalabs.steward.client.text.TextModel;
-import dev.larattalabs.steward.client.ui.Kit;
-import dev.larattalabs.steward.client.ui.Panels;
-import dev.larattalabs.steward.client.ui.TextUtil;
-import dev.larattalabs.steward.client.ui.UiStyle;
+import dev.larattalabs.labui.client.ui.Kit;
+import dev.larattalabs.labui.client.ui.Panels;
+import dev.larattalabs.labui.client.ui.TextUtil;
+import dev.larattalabs.labui.client.ui.UiStyle;
 import dev.larattalabs.steward.inbox.InboxModel;
 import dev.larattalabs.steward.net.StewardNet;
 import dev.larattalabs.steward.service.Actions;

@@ -8,7 +8,7 @@ import dev.larattalabs.steward.client.hud.Keys;
 import dev.larattalabs.steward.client.hud.StewardHud;
 import dev.larattalabs.steward.client.screen.ClientInbox;
 import dev.larattalabs.steward.client.screen.InboxScreen;
-import dev.larattalabs.steward.client.ui.GuardedHud;
+import dev.larattalabs.labui.client.ui.GuardedHud;
 import dev.larattalabs.steward.net.StewardNet;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
@@ -30,7 +30,7 @@ public class StewardClient implements ClientModInitializer {
 	public void onInitializeClient() {
 		Keys.ensureRegistered();
 		net.minecraft.client.renderer.entity.EntityRenderers.register(dev.larattalabs.steward.entity.StewardEntity.TYPE, dev.larattalabs.steward.client.entity.StewardRenderer::new);
-		HudElementRegistry.addLast(Steward.id("hud/inbox"), GuardedHud.of("hud.inbox", new StewardHud()));
+		HudElementRegistry.addLast(Steward.id("hud/inbox"), GuardedHud.of("steward.hud.inbox", new StewardHud()));
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			while (Keys.inbox.consumeClick()) {
 				if (mc.player != null && mc.gui.screen() == null) mc.gui.setScreen(new InboxScreen(null));

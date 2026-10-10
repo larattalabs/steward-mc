@@ -16,6 +16,16 @@ repositories {
 	// outside builders it comes from GitHub Packages, which needs a token even for public packages (GITHUB_TOKEN with packages: read in
 	// Actions, a PAT with read:packages elsewhere).
 	mavenLocal()
+	// lab-ui, the shared UI library (dev.larattalabs:lab_ui), the same way as Architect: mavenLocal (cd ../../lab-ui && ./gradlew publishToMavenLocal), else
+	// GitHub Packages with the same token
+	maven {
+		url = uri('https://maven.pkg.github.com/larattalabs/lab-ui')
+		credentials {
+			username = providers.gradleProperty('gpr.user').orElse(providers.environmentVariable('GITHUB_ACTOR')).getOrElse('')
+			password = providers.gradleProperty('gpr.key').orElse(providers.environmentVariable('GITHUB_TOKEN')).getOrElse('')
+		}
+		content { includeGroup 'dev.larattalabs' }
+	}
 	maven {
 		url = uri('https://maven.pkg.github.com/larattalabs/architect-mc')
 		credentials {
@@ -61,6 +71,9 @@ dependencies {
 	// Architect's public API and mod (dev.larattalabs.architect.api). From mavenLocal (cd ../../architect-mc/mod && ./gradlew publishToMavenLocal) until
 	// Architect publishes to GitHub Packages. Pin the exact version: Architect's API is semver'd from 1.0.0 but the artifact is 0.x.
 	implementation "dev.larattalabs:architect_mc:${project.architect_version}"
+	// lab-ui: the screen kit, world UI and crash guard shared with Architect and AgentCraft; bundled jar-in-jar
+	implementation "dev.larattalabs:lab_ui:${project.lab_ui_version}"
+	include "dev.larattalabs:lab_ui:${project.lab_ui_version}"
 
 	testImplementation platform("org.junit:junit-bom:${project.junit_version}")
 	testImplementation "org.junit.jupiter:junit-jupiter"

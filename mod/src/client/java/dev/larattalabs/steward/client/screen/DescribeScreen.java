@@ -1,11 +1,11 @@
 package dev.larattalabs.steward.client.screen;
 
-import dev.larattalabs.steward.client.hud.UiBits;
+import dev.larattalabs.labui.client.hud.UiBits;
 import dev.larattalabs.steward.client.text.TextFieldView;
 import dev.larattalabs.steward.client.text.TextModel;
-import dev.larattalabs.steward.client.ui.Kit;
-import dev.larattalabs.steward.client.ui.Panels;
-import dev.larattalabs.steward.client.ui.TextUtil;
+import dev.larattalabs.labui.client.ui.Kit;
+import dev.larattalabs.labui.client.ui.Panels;
+import dev.larattalabs.labui.client.ui.TextUtil;
 import dev.larattalabs.steward.gateway.ConceptCardJob;
 import dev.larattalabs.steward.net.StewardNet;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;

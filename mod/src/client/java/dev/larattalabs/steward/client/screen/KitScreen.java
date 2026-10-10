@@ -1,10 +1,10 @@
 package dev.larattalabs.steward.client.screen;
 
-import dev.larattalabs.steward.client.hud.UiBits;
+import dev.larattalabs.labui.client.hud.UiBits;
 import dev.larattalabs.steward.client.text.TextFieldView;
 import dev.larattalabs.steward.client.text.TextKeys;
 import dev.larattalabs.steward.client.text.TextModel;
-import dev.larattalabs.steward.client.ui.UiStyle;
+import dev.larattalabs.labui.client.ui.UiStyle;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -79,7 +79,7 @@ public abstract class KitScreen extends Screen {
 	/** A small chip (the tab sprites, as Architect's set view draws its per-item Approve / Redirect): registers a click target, returns its width. */
 	protected int chip(GuiGraphicsExtractor g, String label, int x, int y, boolean on, boolean enabled, int mouseX, int mouseY, Runnable action) {
 		int w = font.width(label) + 12;
-		dev.larattalabs.steward.client.ui.Panels.sprite(g, on ? dev.larattalabs.steward.client.ui.Kit.TAB_ACTIVE : dev.larattalabs.steward.client.ui.Kit.TAB_INACTIVE, x, y, w,
+		dev.larattalabs.labui.client.ui.Panels.sprite(g, on ? dev.larattalabs.labui.client.ui.Kit.TAB_ACTIVE : dev.larattalabs.labui.client.ui.Kit.TAB_INACTIVE, x, y, w,
 			CHIP_H, enabled ? 0xFFFFFFFF : 0x90FFFFFF);
 		boolean hover = enabled && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + CHIP_H;
 		if (hover && !on) g.fill(x + 1, y + 1, x + w - 1, y + CHIP_H - 1, 0x14000000);
