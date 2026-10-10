@@ -17,7 +17,9 @@ import dev.larattalabs.steward.gateway.BatchPlanner;
 import dev.larattalabs.steward.gateway.CardResult;
 import dev.larattalabs.steward.gateway.ConceptCardJob;
 import dev.larattalabs.steward.gateway.GroupPlanner;
+import dev.larattalabs.steward.gateway.MassingPlacement;
 import dev.larattalabs.steward.gateway.ProgramPlanner;
+import dev.larattalabs.steward.net.StewardNet;
 import dev.larattalabs.steward.layout.Grid;
 import dev.larattalabs.steward.layout.TerrainGrid;
 import dev.larattalabs.steward.layout.VillageLayout;
@@ -139,7 +141,7 @@ public final class SettlementRunner {
 		return switch (Pipeline.awaiting(state)) {
 			case BIBLE -> "Waiting for you: /steward approve " + id + " to design the buildings with this style.";
 			case MASSINGS -> "Waiting for you: /steward approve " + id + " (all " + lastAwaiting.size() + " massings), or /steward redirect " + id + " <lot> <what to change> (lots: "
-				+ String.join(", ", lastAwaiting) + ").";
+				+ String.join(", ", lastAwaiting) + "). See them on their lots: /steward show " + id + ".";
 			case BUDGET -> String.format("Waiting for you: /steward raise %s <new budget in USD> (now $%.0f).", id, state.budgetUsd());
 			case PLACEMENT -> "Waiting for you: /steward approve " + id + " to place it.";
 			case NONE -> null;
@@ -183,7 +185,7 @@ public final class SettlementRunner {
 	public String cancel() {
 		if (state == null || state.phase().terminal()) return "Nothing to cancel.";
 		feed(new Pipeline.Cancel());
-		return "Cancelled. What is already placed stays (remove it with Architect's undo).";
+		return "Cancelled. What is already placed stays (remove it with /steward undo " + settlement.id() + ").";
 	}
 
 	private final MinecraftServer server;
@@ -443,9 +445,56 @@ public final class SettlementRunner {
 	}
 
 	private void apply(Pipeline.Step step) {
+		Pipeline.Phase before = state == null ? null : state.phase();
 		state = step.next();
+		// the massings show as ghosts on their lots while they wait for the player, and go when decided
+		if (state.phase() == Pipeline.Phase.AWAITING_MASSING_APPROVAL && before != Pipeline.Phase.AWAITING_MASSING_APPROVAL) showMassings(true);
+		if (before == Pipeline.Phase.AWAITING_MASSING_APPROVAL && state.phase() != Pipeline.Phase.AWAITING_MASSING_APPROVAL) hideMassings();
 		for (Command c : step.commands()) execute(c);
 		persist();
+	}
+
+	/** The composite key the settlement's massing ghosts show under. */
+	private String massingKey() {
+		return "steward_mc:massings/" + settlement.id();
+	}
+
+	/**
+	 * Sends the awaiting massings (or, when none wait, every massing of the group) to the player as ghosts on their lots, and with {@code describe} lists
+	 * each in chat: lot, role, size and named parts. Returns what to tell a command caller.
+	 */
+	public String showMassings(boolean describe) {
+		if (groupId == null || plan == null) return "No massings yet.";
+		var designs = ArchitectApi.get().designs();
+		Group g = designs.group(groupId).orElse(null);
+		if (g == null) return "Architect no longer has the design group.";
+		Set<String> waiting = Set.copyOf(lastAwaiting);
+		List<StewardNet.Layer> layers = new ArrayList<>();
+		List<String> lines = new ArrayList<>();
+		for (Group.Item it : g.items()) {
+			if (it.massing().isEmpty() || (!waiting.isEmpty() && !waiting.contains(it.itemKey()))) continue;
+			VillageLayout.Lot lot = plan.lots().stream().filter(l -> l.id().equals(it.itemKey())).findFirst().orElse(null);
+			var m = designs.massing(it.massing().get().id(), it.massing().get().version()).orElse(null);
+			if (lot == null || m == null) continue;
+			MassingPlacement at = MassingPlacement.on(lot, m.size().x(), m.size().z());
+			layers.add(new StewardNet.Layer(m.id() + "@" + m.version(), at.x(), at.y(), at.z(), at.rotation(), "MASSING"));
+			lines.add(lot.id() + ": " + lot.role() + ", " + m.size().x() + "x" + m.size().z() + ", " + m.size().y() + " tall"
+				+ (m.parts().isEmpty() ? "" : " (" + String.join(", ", m.parts().keySet()) + ")"));
+		}
+		if (layers.isEmpty()) return "No massings to show.";
+		ServerPlayer p = server.getPlayerList().getPlayer(playerId);
+		if (p == null) return "Your player is not online.";
+		net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new StewardNet.ShowLayers(massingKey(), List.copyOf(layers)));
+		if (describe) {
+			say(layers.size() + " massings are shown as blue ghosts on their lots (hide them: /steward hide " + settlement.id() + "):");
+			lines.forEach(l -> say("  " + l));
+		}
+		return "Showing " + layers.size() + " massings on their lots.";
+	}
+
+	public void hideMassings() {
+		ServerPlayer p = settlement == null ? null : server.getPlayerList().getPlayer(playerId);
+		if (p != null) net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new StewardNet.ShowLayers(massingKey(), List.of()));
 	}
 
 	private void feed(Event e) {

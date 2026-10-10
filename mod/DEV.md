@@ -109,3 +109,7 @@ Dev client, claude login, two card runs ($0.043 total), everything else $0:
 - Undo: `/steward undo <id>` (`service/Undo`) removes the newest placed project's sites newest first through `Sites.remove` as the settlement's owner (journal-backed, the land restored exactly),
   stops at the first site Architect refuses (the player's things in its box) and logs PROJECT_REMOVED; `Settlement.lastUndoable` leaves the rest of a partly undone project undoable. The street
   road is logged with its build, so undo removes it too. Refused while the settlement is being built.
+- Massing approval ghosts: when massings wait for the player, the runner sends them to the client (`net/StewardNet` `steward_mc:show_layers`; the client calls Architect's
+  `ArchitectClientApi.previewComposite` in the MASSING tint) placed on their lots by `gateway/MassingPlacement` (centred, set back by the approach margin, turned to face the street; a
+  preview approximation, the real spot comes from `fitToLot`), lists each in chat (lot, role, size, named parts) and clears them once decided. `/steward show|hide <id>` toggles them.
+  Checked in a client 2026-10-09 with the earlier run's four real massings: shown, listed, rotated toward the street, hidden.

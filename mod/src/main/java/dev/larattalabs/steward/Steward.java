@@ -15,6 +15,7 @@ public class Steward implements ModInitializer {
 	public void onInitialize() {
 		ArchitectGateway.Status status = ArchitectGateway.check();
 		LOGGER.info("Steward common init: {}", status.summary());
+		dev.larattalabs.steward.net.StewardNet.init();
 		dev.larattalabs.steward.item.FoundingStone.init();
 		dev.larattalabs.steward.service.Settlements.init();
 		dev.larattalabs.steward.entity.StewardNpc.init();
