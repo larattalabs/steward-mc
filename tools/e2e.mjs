@@ -175,6 +175,15 @@ async function claimAndSteward() {
   return s.id;
 }
 
+/** The Founding Stone can be crafted in survival (the release track): the game knows its recipe. */
+async function stoneRecipe() {
+  // taken first: the world keeps what the player learned in an earlier run
+  await cmd('/recipe take @p steward_mc:founding_stone');
+  const r = await cmd('/recipe give @p steward_mc:founding_stone');
+  if (/Unlocked 1 recipe|Unlocked|1 recipe/i.test(r)) ok('stone recipe', r);
+  else fail('stone recipe', r || 'no answer');
+}
+
 async function expand(id) {
   const a = await cmd(`/steward expand ${id}`);
   const b = await cmd(`/steward expand ${id}`);
@@ -290,8 +299,8 @@ async function placeUpdateUndo(id) {
     const mine = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
     if (mine) {
       const [px, py, pz] = mine.slice(1).map((n) => Math.floor(Number(n)));
-      await cmd(`/setblock ${px} ${py + 1} ${pz - 4} steward_mc:settlement_board[facing=south]`);
-      await cmd(`/tp @p ${px + 0.5} ${py} ${pz + 0.5} facing ${px + 0.5} ${py + 1.5} ${pz - 3.6}`);
+      await cmd(`/setblock ${px} ${py + 1} ${pz - 3} steward_mc:settlement_board[facing=south]`);
+      await cmd(`/tp @p ${px + 0.5} ${py} ${pz + 0.5} facing ${px + 0.5} ${py + 1.5} ${pz - 2.6}`);
       await sleep(2500);
       const boardShot = (await dev.request('dev.screenshot', { name: 'e2e-board', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
       await dev.request('dev.key', { mapping: 'key.use' });
@@ -308,10 +317,10 @@ async function placeUpdateUndo(id) {
         // what was in the way: the steward walks about (it may stand between the player and the board)
         const sp = (await cmd(`/data get entity @e[type=steward_mc:steward,tag=steward_mc.settlement.${id},limit=1] Pos`)).match(/\[([^\]]*)\]/)?.[1];
         const me = (await cmd('/data get entity @p Pos')).match(/\[([^\]]*)\]/)?.[1];
-        fail('board', `screen ${screen}; board at ${px},${py + 1},${pz - 4}, player ${me}, steward ${sp}`);
+        fail('board', `screen ${screen}; board at ${px},${py + 1},${pz - 3}, player ${me}, steward ${sp}`);
       }
       await closeScreens();
-      await cmd(`/setblock ${px} ${py + 1} ${pz - 4} minecraft:air`);
+      await cmd(`/setblock ${px} ${py + 1} ${pz - 3} minecraft:air`);
     }
   }
   // the steward's ledger (3d): right-click it anywhere for the settlement's screen
@@ -792,6 +801,7 @@ try {
   const id = await claimAndSteward();
   if (id) {
     await expand(id);
+    await stoneRecipe();
     await inboxScreen();
     if (mode === 'free') {
       await placeUpdateUndo(id);

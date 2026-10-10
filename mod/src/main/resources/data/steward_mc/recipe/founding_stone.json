@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " G ",
+    "SBS",
+    "SSS"
+  ],
+  "key": {
+    "G": "minecraft:gold_ingot",
+    "B": "minecraft:book",
+    "S": "minecraft:stone_bricks"
+  },
+  "result": {
+    "id": "steward_mc:founding_stone"
+  }
+}

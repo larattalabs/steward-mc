@@ -22,7 +22,7 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
   - **Autonomous and Full** build their own proposals within the weekly allowance ($500 by default). Settings sets the level and the allowance.
   - **Worded by Claude** (2026-10-10): the rules decide what to propose. A small job ($0.03 cap, `prompts/proposal-words.md`) then names and describes it in the settlement's own terms, and the steward puts it to the player. Only for proposals that wait for the player; without the Claude link the rule's wording stays.
 
-The free e2e check runs 32 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper) runs the whole paid flow at $0: 21 checks on v0.12.2, and 22 on Architect's 0b release candidate, which adds a change request designed, applied and reverted.
+The free e2e check runs 33 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper) runs the whole paid flow at $0: 21 checks on v0.12.2, and 22 on Architect's 0b release candidate, which adds a change request designed, applied and reverted.
 
 ## Principles
 
@@ -417,7 +417,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
    - **Known limitations on the card** (done 2026-10-10, `CardLimits`): before anything is spent, the card says what waits for Architect, under its facts and in chat. Buildings over water (a "village over a swamp" stands beside the water for now), cliffs and steep ground, large custom forms (built as a village on ordinary ground for now), and a program larger than one street.
    - Release track, whenever it fits after 3a:
      - API-key setup;
-     - a Founding Stone you can get in survival;
+     - a Founding Stone you can get in survival (done 2026-10-10: crafted from five stone bricks, a book and a gold ingot);
      - a clean-install test;
      - save migrations across matched Steward and Architect releases.
 4. **Architect slices as they land:**
