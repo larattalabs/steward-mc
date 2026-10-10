@@ -113,6 +113,32 @@ public final class StewardCommands {
 			.then(Commands.literal("expand").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "expand", "", "", 0))))
 			.then(Commands.literal("show").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "show", "", "", 0))))
 			.then(Commands.literal("hide").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "hide", "", "", 0))))
+			.then(Commands.literal("dev").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.literal("place").then(Commands.argument("id",
+				StringArgumentType.word()).then(Commands.argument("entry", StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check): place a library entry for a settlement 6 blocks in front of the player, as the settlement's owner, logged like a build
+					CommandSourceStack src = ctx.getSource();
+					var p = src.getPlayerOrException();
+					String id = StringArgumentType.getString(ctx, "id");
+					var s = dev.larattalabs.steward.service.Settlements.store().get(id);
+					if (s.isEmpty()) { src.sendFailure(Component.literal("No such settlement: " + id)); return 0; }
+					com.google.gson.JsonObject ext = new com.google.gson.JsonObject();
+					ext.addProperty("steward_mc:settlement", id);
+					ext.addProperty("steward_mc:lot", "dev_1");
+					ext.addProperty("steward_mc:role", "dev building");
+					var at = p.blockPosition().relative(net.minecraft.core.Direction.SOUTH, 6);
+					ArchitectApi.get().sites(src.getServer()).place(new dev.larattalabs.architect.api.PlaceRequest(StringArgumentType.getString(ctx, "entry"), src.getLevel(), at,
+						net.minecraft.world.level.block.Rotation.NONE, dev.larattalabs.architect.api.Mode.INSTANT, s.get().owner(), ext, false, null)).whenComplete((r, err) -> {
+							if (err != null || !r.placed()) {
+								p.sendSystemMessage(Component.literal("dev place refused: " + (err != null ? err.getMessage() : r.refusals())));
+								return;
+							}
+							String site = r.siteId().orElse("?");
+							dev.larattalabs.steward.service.Settlements.log(id, new dev.larattalabs.steward.model.Settlement.LogEntry(System.currentTimeMillis(),
+								dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED, "Placed 1 buildings (dev)", java.util.List.of(site)));
+							p.sendSystemMessage(Component.literal("dev placed " + site));
+						});
+					return 1;
+				})))))
 			.then(Commands.literal("ui").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.argument("screen", StringArgumentType.word())
 				.then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
 					// dev: open a screen without the right-click (DevBridge cannot use entities)

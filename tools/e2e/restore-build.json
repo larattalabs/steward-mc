@@ -1,0 +1,310 @@
+{
+ "format": 1,
+ "builds": [
+  {
+   "settlementId": "__SETTLEMENT__",
+   "buildId": "b1700000000000",
+   "playerId": "00000000-0000-0000-0000-000000000042",
+   "dimension": "minecraft:overworld",
+   "permission": "PROPOSALS",
+   "landmarks": 0,
+   "settlement": {
+    "id": "__SETTLEMENT__",
+    "name": "Ashfall Works",
+    "card": {
+     "name": "Ashfall Works",
+     "site": {
+      "text": "giant meteor crater",
+      "terrain": "sculpt",
+      "size": "L"
+     },
+     "style": {
+      "text": "hellish evil lair",
+      "template": "infernal"
+     },
+     "purpose": {
+      "text": "mining facility",
+      "template": "mining_outpost"
+     },
+     "story": {
+      "text": "repurposed after the impact"
+     },
+     "constraints": {
+      "near": "search",
+      "density": "med"
+     },
+     "avoid": [],
+     "interpretation": "A mining operation built into a huge impact crater, dressed as a hellish lair: scorched rock, red and black materials, glowing vents. I will find or carve a crater and put the work levels and ore halls on its terraces.",
+     "contradictions": [],
+     "assumptions": [
+      "size L because a crater needs room",
+      "no budget set"
+     ],
+     "program": [
+      {
+       "role": "overseer's keep",
+       "type": "overseers_keep",
+       "count": 1,
+       "footprint": "L",
+       "landmark": true,
+       "notes": "Black-stone tower on the crater rim watching over the works"
+      },
+      {
+       "role": "slag foundry",
+       "type": "slag_foundry",
+       "count": 1,
+       "footprint": "L",
+       "landmark": true,
+       "notes": "Smelting hall with lava channels and chimneys"
+      },
+      {
+       "role": "ore crusher",
+       "type": "ore_crusher",
+       "count": 2,
+       "footprint": "M",
+       "landmark": false,
+       "notes": "Heavy machinery sheds feeding the foundry"
+      },
+      {
+       "role": "mine head",
+       "type": "mine_head",
+       "count": 1,
+       "footprint": "M",
+       "landmark": false,
+       "notes": "Headframe over the shaft into the impact core"
+      },
+      {
+       "role": "worker barracks",
+       "type": "barracks",
+       "count": 4,
+       "footprint": "M",
+       "landmark": false,
+       "notes": "Grim bunk houses for the miners"
+      },
+      {
+       "role": "brimstone shrine",
+       "type": "shrine",
+       "count": 1,
+       "footprint": "S",
+       "landmark": false,
+       "notes": "A small altar to whatever fell from the sky"
+      }
+     ]
+    },
+    "claim": {
+     "dimension": "minecraft:overworld",
+     "centerX": 0,
+     "centerZ": 0,
+     "radius": 64,
+     "minY": -64,
+     "maxY": 320
+    },
+    "siteVersion": 1,
+    "styleVersion": 1,
+    "purposeVersion": 1,
+    "permission": "PROPOSALS",
+    "difficulty": "PATRON",
+    "log": [
+     {
+      "at": 1,
+      "kind": "FOUNDED",
+      "text": "Founded Ashfall Works",
+      "siteIds": []
+     }
+    ]
+   },
+   "state": {
+    "phase": "AWAITING_MASSING_APPROVAL",
+    "settlementId": "__SETTLEMENT__",
+    "card": {
+     "name": "Ashfall Works",
+     "site": {
+      "text": "giant meteor crater",
+      "terrain": "sculpt",
+      "size": "L"
+     },
+     "style": {
+      "text": "hellish evil lair",
+      "template": "infernal"
+     },
+     "purpose": {
+      "text": "mining facility",
+      "template": "mining_outpost"
+     },
+     "story": {
+      "text": "repurposed after the impact"
+     },
+     "constraints": {
+      "near": "search",
+      "density": "med"
+     },
+     "avoid": [],
+     "interpretation": "A mining operation built into a huge impact crater, dressed as a hellish lair: scorched rock, red and black materials, glowing vents. I will find or carve a crater and put the work levels and ore halls on its terraces.",
+     "contradictions": [],
+     "assumptions": [
+      "size L because a crater needs room",
+      "no budget set"
+     ],
+     "program": [
+      {
+       "role": "overseer's keep",
+       "type": "overseers_keep",
+       "count": 1,
+       "footprint": "L",
+       "landmark": true,
+       "notes": "Black-stone tower on the crater rim watching over the works"
+      },
+      {
+       "role": "slag foundry",
+       "type": "slag_foundry",
+       "count": 1,
+       "footprint": "L",
+       "landmark": true,
+       "notes": "Smelting hall with lava channels and chimneys"
+      },
+      {
+       "role": "ore crusher",
+       "type": "ore_crusher",
+       "count": 2,
+       "footprint": "M",
+       "landmark": false,
+       "notes": "Heavy machinery sheds feeding the foundry"
+      },
+      {
+       "role": "mine head",
+       "type": "mine_head",
+       "count": 1,
+       "footprint": "M",
+       "landmark": false,
+       "notes": "Headframe over the shaft into the impact core"
+      },
+      {
+       "role": "worker barracks",
+       "type": "barracks",
+       "count": 4,
+       "footprint": "M",
+       "landmark": false,
+       "notes": "Grim bunk houses for the miners"
+      },
+      {
+       "role": "brimstone shrine",
+       "type": "shrine",
+       "count": 1,
+       "footprint": "S",
+       "landmark": false,
+       "notes": "A small altar to whatever fell from the sky"
+      }
+     ]
+    },
+    "bibleId": "bib_1",
+    "bibleVersion": 2,
+    "groupId": "__GROUP__",
+    "items": {
+     "slag_foundry_1": "approval"
+    },
+    "bibleCostUsd": 1.4,
+    "spentUsd": 4.5,
+    "budgetUsd": 35.0,
+    "pausedForBudget": false
+   },
+   "plan": {
+    "lots": [
+     {
+      "id": "overseers_keep_1",
+      "type": "overseers_keep",
+      "x": 0,
+      "z": -21,
+      "sizeX": 18,
+      "sizeZ": 20,
+      "front": "SOUTH",
+      "groundY": 0,
+      "role": "overseer's keep",
+      "notes": "Black-stone tower on the crater rim watching over the works",
+      "landmark": true
+     },
+     {
+      "id": "slag_foundry_1",
+      "type": "slag_foundry",
+      "x": -18,
+      "z": 4,
+      "sizeX": 18,
+      "sizeZ": 20,
+      "front": "NORTH",
+      "groundY": 0,
+      "role": "slag foundry",
+      "notes": "Smelting hall with lava channels and chimneys",
+      "landmark": true
+     },
+     {
+      "id": "ore_crusher_1",
+      "type": "ore_crusher",
+      "x": 21,
+      "z": -18,
+      "sizeX": 14,
+      "sizeZ": 17,
+      "front": "SOUTH",
+      "groundY": 0,
+      "role": "ore crusher",
+      "notes": "Heavy machinery sheds feeding the foundry",
+      "landmark": false
+     },
+     {
+      "id": "mine_head_1",
+      "type": "mine_head",
+      "x": -35,
+      "z": 4,
+      "sizeX": 14,
+      "sizeZ": 17,
+      "front": "NORTH",
+      "groundY": 0,
+      "role": "mine head",
+      "notes": "Headframe over the shaft into the impact core",
+      "landmark": false
+     },
+     {
+      "id": "barracks_1",
+      "type": "barracks",
+      "x": 38,
+      "z": -18,
+      "sizeX": 14,
+      "sizeZ": 17,
+      "front": "SOUTH",
+      "groundY": 0,
+      "role": "worker barracks",
+      "notes": "Grim bunk houses for the miners",
+      "landmark": false
+     },
+     {
+      "id": "shrine_1",
+      "type": "shrine",
+      "x": -49,
+      "z": 4,
+      "sizeX": 11,
+      "sizeZ": 14,
+      "front": "NORTH",
+      "groundY": 0,
+      "role": "brimstone shrine",
+      "notes": "A small altar to whatever fell from the sky",
+      "landmark": false
+     }
+    ],
+    "streetZ": 1,
+    "streetX0": -49,
+    "streetX1": 51,
+    "streetY": 0,
+    "unplaced": []
+   },
+   "groupId": "__GROUP__",
+   "landmarkIds": [
+    "overseers_keep_1",
+    "slag_foundry_1"
+   ],
+   "decided": [
+    "overseers_keep_1"
+   ],
+   "lastAwaiting": [
+    "slag_foundry_1"
+   ]
+  }
+ ]
+}
