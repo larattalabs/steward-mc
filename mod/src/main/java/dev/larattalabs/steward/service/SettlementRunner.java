@@ -482,7 +482,10 @@ public final class SettlementRunner {
 	private Runnable onNothingSpent;
 	/** Run when the build never started (no room, a failed survey, a save that failed): an accepted proposal backs off. */
 	private Runnable onAbandoned;
-	/** Architect acknowledged a paid request of this build (a bible job or a design group): from then on it may have cost something. */
+	/**
+	 * A paid request of this build (a bible job or a design group) was sent to Architect: from then on it may have cost something, even if its
+	 * acknowledgement never came (a dropped link), so an accepted proposal is not given back.
+	 */
 	private boolean paidRequestAcked;
 	/** The settlement's street ends (x), found with its centre line: an addition stays between them. */
 	private int streetX0 = Integer.MIN_VALUE, streetX1 = Integer.MAX_VALUE;
@@ -628,8 +631,8 @@ public final class SettlementRunner {
 			&& settlement != null && Settlements.store().get(settlement.id()).isPresent()) {
 			Settlements.bible(settlement.id(), new Settlement.BibleRef(state.bibleId(), state.bibleVersion(), Settlements.store().get(settlement.id()).get().styleVersion()));
 		}
-		// ended before Architect took any paid request of it (a request refused, a cancel before the ack): an accepted proposal is given back. Once a bible job
-		// or a group was acknowledged it may have cost something, whatever the spend says
+		// ended before any paid request of it was sent (only setup steps ran): an accepted proposal is given back. Once a bible job or a group was asked for,
+		// it may have cost something, whatever the spend says or whether its acknowledgement came
 		if (before != null && !before.terminal() && state.phase().terminal() && state.phase() != Pipeline.Phase.DONE && !paidRequestAcked && onNothingSpent != null) {
 			onNothingSpent.run();
 			onNothingSpent = null;
@@ -809,6 +812,7 @@ public final class SettlementRunner {
 				say("Designing the style bible...");
 				BibleRequest req = new BibleRequest(b.prompt(), b.name(), settlement.owner(), new JsonObject(), null, b.budgetUsd(), List.of(), null, null);
 				bibleInFlight = true;
+				paidRequestAcked = true;
 				api.bibles().request(req).whenComplete((job, err) -> {
 					bibleInFlight = false;
 					if (err != null) { feed(new Pipeline.BibleDone(false, null, 0, 0, err.getMessage())); return; }
@@ -828,6 +832,7 @@ public final class SettlementRunner {
 				landmarkIds = built.request().items().stream().filter(i -> i.role() == GroupRequest.Role.LANDMARK).map(GroupRequest.Item::itemKey).collect(Collectors.toSet());
 				say("Designing " + built.request().items().size() + " buildings (massings first)...");
 				groupInFlight = true;
+				paidRequestAcked = true;
 				api.designs().requestGroup(built.request()).whenComplete((id, err) -> {
 					groupInFlight = false;
 					if (err != null) {

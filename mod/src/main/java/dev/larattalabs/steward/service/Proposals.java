@@ -35,6 +35,8 @@ public final class Proposals {
 	}
 
 	public static void init() {
+		// settlement ids repeat across worlds: back-offs are one world's
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(s -> BACKOFF.clear());
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			if (server.getTickCount() % EVERY != 0) return;
 			for (ServerPlayer p : server.getPlayerList().getPlayers()) {

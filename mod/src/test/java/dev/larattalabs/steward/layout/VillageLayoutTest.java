@@ -193,4 +193,12 @@ class VillageLayoutTest {
 		for (Lot l : p.lots()) assertTrue(l.x() >= -20 && l.maxX() <= 20, l.toString());
 		assertTrue(p.lots().size() <= 4, "two a side fit along 41 blocks: " + p.lots().size());
 	}
+
+	@Test
+	void anAdditionsStreetMayLieOffTheClaimsCentre() {
+		// centre x = 0, the street runs 10..33: the vault still fits along it
+		Plan p = VillageLayout.plan(CLAIM, flat(), specs(1, 11, 9), Rules.defaults(), 9, 10, 33);
+		assertEquals(1, p.lots().size());
+		assertTrue(p.lots().get(0).x() >= 10 && p.lots().get(0).maxX() <= 33, p.lots().get(0).toString());
+	}
 }

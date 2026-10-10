@@ -179,8 +179,10 @@ public final class VillageLayout {
 		List<Lot> placed = new ArrayList<>();
 		List<LotSpec> left = new ArrayList<>(specs);
 		// sides alternate; on each side the cursor moves outward from the centre, left and right in turn
-		int[] cursorNorth = {claim.centerX(), claim.centerX() - 1};
-		int[] cursorSouth = {claim.centerX(), claim.centerX() - 1};
+		// from the claim's centre, or the nearest point of the allowed stretch when the centre lies outside it (an addition's street)
+		int start = Math.max(xMin, Math.min(xMax, claim.centerX()));
+		int[] cursorNorth = {start, start - 1};
+		int[] cursorSouth = {start, start - 1};
 		boolean north = northFirst;
 		boolean[] dir = {true, true};
 		for (int guard = 0; guard < 4000 && !left.isEmpty(); guard++) {
