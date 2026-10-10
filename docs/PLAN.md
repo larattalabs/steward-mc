@@ -414,7 +414,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - **Road:** founding a district lays a road ($0) from the town street's nearer end (the stone, before there is a street) to the shared edge, along the verges the layouts leave free. A district's first build lays its own street; a second road then links the edge to it. Both are the settlement's sites, logged, and undone like any project.
      - **Builds:** a building can go to a district (its proposal says where); the layout surveys only the district's square, and keeps a wider margin there so the road along its edge stays clear. The town's layouts keep off its districts.
      - **Permission:** founding a district always asks, at every level (the steward proposes one when the town has no room). Undo removes a district's road, and the district itself once nothing else stands in it.
-   - Known limitations are shown on the card before spending. Lots over water and cliffs wait for Architect 7b, so a "village over a swamp" stands beside the water for now.
+   - **Known limitations on the card** (done 2026-10-10, `CardLimits`): before anything is spent, the card says what waits for Architect, under its facts and in chat. Buildings over water (a "village over a swamp" stands beside the water for now), cliffs and steep ground, large custom forms (built as a village on ordinary ground for now), and a program larger than one street.
    - Release track, whenever it fits after 3a:
      - API-key setup;
      - a Founding Stone you can get in survival;

@@ -100,6 +100,8 @@ public final class CardScreen extends KitScreen {
 	private List<String> wellLines(int w) {
 		List<String> out = new ArrayList<>();
 		wellColors = new ArrayList<>();
+		// what Steward cannot do yet for this card: first, before anything is spent
+		for (String l : dev.larattalabs.steward.model.CardLimits.of(card)) add(out, "Not yet: " + l, w, UiStyle.CLAY_DARK);
 		add(out, card.interpretation(), w, UiBits.ink());
 		for (ConceptCard.Contradiction c : card.contradictions()) add(out, "Tension: " + c.issue() + " → " + c.resolution(), w, UiStyle.CLAY_DARK);
 		for (String a : card.assumptions()) add(out, "Assumed: " + a, w, UiBits.muted());
@@ -208,11 +210,24 @@ public final class CardScreen extends KitScreen {
 			}
 			ly += 16;
 		}
+		// what Steward cannot do yet for this card, where it is read before Start (Noah: shown before spending)
+		for (String l : dev.larattalabs.steward.model.CardLimits.of(card)) {
+			if (ly + 10 > bodyBottom - 6) break;
+			// laid out as the facts above: the label in the same column, the text beside it
+			g.text(font, "Not yet", cx, ly, UiStyle.CLAY_DARK, false);
+			for (String line : TextUtil.wrapPlain(font, l, colW - 50)) {
+				if (ly + 10 > bodyBottom - 6) break;
+				g.text(font, line, cx + 50, ly, UiBits.ink(), false);
+				ly += 10;
+			}
+			ly += 6;
+		}
 		// right (or below): tabs for the buildings and the interpretation
 		int rx = twoCol ? cx + colW + 10 : cx;
 		int ry = twoCol ? bodyTop - 2 : ly + 4;
 		String t1 = "Builds · " + total;
-		String t2 = "Interpretation" + (card.assumptions().isEmpty() ? "" : " · " + card.assumptions().size() + " assumed");
+		int limits = dev.larattalabs.steward.model.CardLimits.of(card).size();
+		String t2 = "Interpretation" + (limits > 0 ? " · " + limits + " not yet" : card.assumptions().isEmpty() ? "" : " · " + card.assumptions().size() + " assumed");
 		int tx = rx;
 		tx += chip(g, t1, tx, ry, !showNotes, true, mouseX, mouseY, () -> showNotes = false) + 3;
 		chip(g, t2, tx, ry, showNotes, true, mouseX, mouseY, () -> showNotes = true);

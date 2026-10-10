@@ -637,7 +637,15 @@ async function stubFlow(id) {
   if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('describe', `no card: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
   const card = settlements().find((x) => x.id === id);
   ok('describe', `${card?.name}: ${(card?.card?.program ?? []).length} program entries (the scripted card through the card job)`);
+  // what waits for Architect, on the card before anything is spent: a stilt village over a swamp stands beside the water for now
+  const limit = logSince(0).match(/Not yet: (Buildings over water[^\n]*)/);
   await closeScreens();
+  await cmd(`/steward ui card ${id}`);
+  await sleep(1500);
+  const cardShot = (await dev.request('dev.screenshot', { name: 'e2e-card-limits', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await closeScreens();
+  if (limit) ok('card limits', `${limit[1].slice(0, 70)}; ${cardShot}`);
+  else fail('card limits', 'no "Not yet" line for the stilt village');
   from = logSize();
   await cmd(`/steward start ${id} 3 20`);
   const first = await buildThrough(id, from, 'first build', true);

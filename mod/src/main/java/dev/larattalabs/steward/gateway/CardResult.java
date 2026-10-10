@@ -40,6 +40,7 @@ public record CardResult(@Nullable ConceptCard card, @Nullable String error, Cos
 		if (c.story() != null && c.story().text() != null && !c.story().text().isBlank()) l.add("Story: " + c.story().text());
 		if (c.hasProgram()) l.add("Builds (" + ProgramPlanner.total(c) + "): " + programLine(c));
 		if (!c.avoid().isEmpty()) l.add("Avoid: " + String.join(", ", c.avoid()));
+		for (String x : dev.larattalabs.steward.model.CardLimits.of(c)) l.add("Not yet: " + x);
 		l.add(c.interpretation());
 		for (ConceptCard.Contradiction x : c.contradictions()) l.add("Tension: " + x.issue() + " -> " + x.resolution());
 		for (String a : c.assumptions()) l.add("Assumed: " + a);

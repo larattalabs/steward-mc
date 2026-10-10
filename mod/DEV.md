@@ -170,7 +170,7 @@ line (action, reason, write box).
 `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's helper in sim mode (v0.12.2: `ARCHITECT_SIDECAR_BACKEND=sim`, notional measured
 costs, never Claude). Job answers are scripted with `/steward dev sim_answer card|talk <json>` (`ext["architect:simAnswer"]`, checked against the job's schema).
 It covers:
-- describing through the card job (the stilt village fixture);
+- describing through the card job (the stilt village fixture), whose card says "Not yet: Buildings over water…" before Start;
 - a 3-building build with a restart at the massings;
 - the bible kept;
 - seeds carried: the rules propose a farm, and the wording job (scripted) names it "A reed-thatched granary on stilts";
@@ -180,7 +180,7 @@ It covers:
 - a building in the district laying its street and the link road;
 - undo.
 
-First passed 2026-10-10: **PASS 20 checks**. Latest: PASS 22 on Architect's versionOf RC (`ARCHITECT_JAR=.../architect_mc-0.14.0-rc-versionOf-695299f.jar node tools/e2e.mjs stub`).
+First passed 2026-10-10: **PASS 20 checks**. Latest: PASS 22 on 0.12.3 (with the card's limits); PASS 22 on Architect's versionOf RC (`ARCHITECT_JAR=.../architect_mc-0.14.0-rc-versionOf-695299f.jar node tools/e2e.mjs stub`).
 
 `ARCHITECT_JAR` (or `-Parchitect.jar`) builds and runs Steward against a local Architect jar, for the release candidates Architect asks Steward to check. Dev and e2e only; the build warns UNRELEASED. The run found two bugs, both fixed:
 - **The survey limit:** a radius-128 claim was surveyed as 257 x 257, past Architect's 256 x 256 full-resolution limit, so the survey came back at one column in four and the layout refused it. Builds now survey 255 x 255 at most (`ClaimRules.SURVEY_RADIUS`).
