@@ -347,6 +347,14 @@ public final class Actions {
 		var p = s.proposals().open().stream().filter(x -> x.key().equals(key)).findFirst();
 		if (p.isEmpty()) return Result.fail("No proposal " + key + " waits.");
 		if (SettlementRunner.busy(s.id())) return Result.fail(s.id() + " is being built; build the proposal once that is done.");
+		if (p.get().changes()) {
+			// a change to a standing building: designed as its next version, then offered as an update; always the player's call
+			if (autonomous) return Result.fail("A change waits for the player.");
+			int budget = Proposals.estimate(p.get());
+			String no = ChangeRequests.start(player.level().getServer(), player.getUUID(), s, p.get().changeSite(), p.get().changeNotes(), budget,
+				() -> Proposals.recordAccepted(s.id(), key, null));
+			return no == null ? Result.ok(String.format("Designing the change (up to $%d). The steward tells you when it is ready to preview.", budget)) : Result.fail(no);
+		}
 		if (p.get().foundsDistrict()) {
 			// a new district always waits for the player, whatever the permission level
 			if (autonomous) return Result.fail("A new district waits for the player.");

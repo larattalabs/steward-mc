@@ -160,3 +160,8 @@ Architect's 0a contract (architect-mc `docs/CONTRACT.md`, "Phase 6c slice 0a") i
 - **S-0a-5:** Greywater's 70 minutes were wall clock, including the approvals, two design waves and placement. The time estimate is recorded beside it, not judged against it.
 
 v0.12.2, the sim stub, is built first and Architect says when it is tagged. The rest of 0a comes as v0.13.0, API 1.10.0.
+
+**Consumer check of the 0b versionOf RC (2026-10-10):**
+- **Jar:** `architect_mc-0.14.0-rc-versionOf-695299f.jar`.
+- **Result:** Steward's stub e2e passes 22 checks. A change request goes through `versionOf`, then an update to v2, then a revert to v1.
+- **How Steward calls it:** by reflection, so one Steward jar runs on 0.12.2 with change requests off, and on 0b.

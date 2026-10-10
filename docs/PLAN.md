@@ -12,7 +12,7 @@ functional modules, villagers, animals, an inbox. Steward depends on Architect a
 Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah). The hardening slice from the GPT reviews is done. **Phase 3 is under way:**
 - **3a: done.** The change log as operations, save migrations, the settlement screen, and a read-only building panel.
 - **3b: done** (conversation 2026-10-10: right-click the steward to talk; small talk is answered for free, anything else by a talk job of a few cents that replies and can put a building or a district in the inbox, or note a change). The steward is its own mob with its own skin. It walks to its work and comes to find you when a decision waits. It sits and sleeps. It has a nameplate, a "!" and speech bubbles, ported from AgentCraft onto lab-ui.
-- **3c: revert is done.** Change requests wait for Architect 0b.
+- **3c: done on Architect's 0b RC** (2026-10-10). You can revert a building. You can also ask the steward to change one: a change proposal in the inbox; accepted, Architect's `versionOf` designs the building's next version, which Steward's updates offer for preview, apply keeping your edits, and revert. Change requests turn on by themselves when Architect 0b ships; until then they are noted in the history.
 - **3d: done.** Building labels on look-at (I to inspect), survey mode (U) with the claim's border, labelled massing ghosts, the steward's ledger, and the settlement board.
 - **3f: built** (2026-10-10): protected areas, districts with their roads (founded, linked, undone), building in a district, the steward proposing one when the town's street is full. A district's first build and its link road need a paid or stub run to be seen.
 - **3e: built.** The rules decide the proposals; Claude words them in the settlement's own terms (a few cents each); building one is paid as any build.
@@ -22,7 +22,7 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
   - **Autonomous and Full** build their own proposals within the weekly allowance ($500 by default). Settings sets the level and the allowance.
   - **Worded by Claude** (2026-10-10): the rules decide what to propose. A small job ($0.03 cap, `prompts/proposal-words.md`) then names and describes it in the settlement's own terms, and the steward puts it to the player. Only for proposals that wait for the player; without the Claude link the rule's wording stays.
 
-The free e2e check runs 32 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper, v0.12.2) runs the whole paid flow at $0, 20 checks: builds, talk, an addition, and a district's first build with its link road.
+The free e2e check runs 32 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper) runs the whole paid flow at $0: 21 checks on v0.12.2, and 22 on Architect's 0b release candidate, which adds a change request designed, applied and reverted.
 
 ## Principles
 

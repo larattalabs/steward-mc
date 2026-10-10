@@ -120,6 +120,11 @@ public final class StewardCommands {
 			.then(Commands.literal("proposals").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("decline").then(Commands.argument("key",
 				StringArgumentType.word()).executes(ctx -> decide(ctx, "proposal_decline", StringArgumentType.getString(ctx, "key"), "", 0)))).then(Commands.literal("accept")
 				.then(Commands.argument("key", StringArgumentType.word()).executes(ctx -> decide(ctx, "proposal_accept", StringArgumentType.getString(ctx, "key"), "", 0))))))
+			.then(Commands.literal("update").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("site",
+				StringArgumentType.word()).executes(ctx -> decide(ctx, "update_apply", StringArgumentType.getString(ctx, "site"), "", 0)))))
+			.then(Commands.literal("revert").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("site", StringArgumentType.word())
+				.then(Commands.argument("version", IntegerArgumentType.integer(1)).executes(ctx -> decide(ctx, "revert", StringArgumentType.getString(ctx, "site"), "",
+					IntegerArgumentType.getInteger(ctx, "version")))))))
 			.then(Commands.literal("talk").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("words",
 				StringArgumentType.greedyString()).executes(ctx -> decide(ctx, "talk", "", StringArgumentType.getString(ctx, "words"), 0)))))
 			.then(Commands.literal("district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("found").then(Commands.argument("way",

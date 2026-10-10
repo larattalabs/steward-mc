@@ -304,7 +304,12 @@ async function placeUpdateUndo(id) {
         screen = (await dev.request('dev.state')).screen?.class ?? 'none';
       }
       if (/DescribeScreen|SettlementScreen/.test(screen)) ok('board', `opens ${screen.replace(/.*\./, '')}; ${boardShot}`);
-      else fail('board', `screen ${screen}`);
+      else {
+        // what was in the way: the steward walks about (it may stand between the player and the board)
+        const sp = (await cmd(`/data get entity @e[type=steward_mc:steward,tag=steward_mc.settlement.${id},limit=1] Pos`)).match(/\[([^\]]*)\]/)?.[1];
+        const me = (await cmd('/data get entity @p Pos')).match(/\[([^\]]*)\]/)?.[1];
+        fail('board', `screen ${screen}; board at ${px},${py + 1},${pz - 4}, player ${me}, steward ${sp}`);
+      }
       await closeScreens();
       await cmd(`/setblock ${px} ${py + 1} ${pz - 4} minecraft:air`);
     }
@@ -671,6 +676,34 @@ async function stubFlow(id) {
   const addition = await buildThrough(id, from, 'addition');
   if (addition && reused) ok('addition', `${addition.steps.join(' > ')} > ${addition.placed} placed, the bible reused`);
   else if (addition) fail('addition', 'built, but the bible was not reused');
+  // a change request (3c, with Architect 0b's versionOf: the RC jar via ARCHITECT_JAR): asked in talk, accepted, designed as the next version, applied, reverted
+  if (process.env.ARCHITECT_JAR) {
+    const libSite = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteIds?.[0];
+    const change = { reply: 'A reading tower for the library: it is in the inbox.', intent: 'change', change: { target: "scholars' library", request: 'Add a slim reading tower on its east side, with tall windows.' } };
+    await cmd(`/steward dev sim_answer talk ${JSON.stringify(change)}`);
+    await cmd(`/steward talk ${id} give the library a reading tower`);
+    let cp = null;
+    for (let i = 0; i < 60 && !cp; i++) {
+      await sleep(1000);
+      cp = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('change_')) ?? null;
+    }
+    if (!cp) fail('change request', 'no change proposal');
+    else {
+      from = logSize();
+      await cmd(`/steward proposals ${id} accept ${cp.key}`);
+      const designed = await waitLog(from, /The change to the [^\n]* is designed/, 300_000);
+      await cmd(`/steward updates`);
+      await sleep(3000);
+      from = logSize();
+      await cmd(`/steward update ${id} ${cp.changeSite}`);
+      const updated = await waitLog(from, /Updated [^\n]* to version (\d+)/, 120_000);
+      from = logSize();
+      await cmd(`/steward revert ${id} ${cp.changeSite} 1`);
+      const reverted = await waitLog(from, /Reverted [^\n]* to version 1/, 120_000);
+      if (designed && updated && reverted) ok('change request', `${cp.title} (${cp.changeSite}${cp.changeSite === libSite ? ', the library' : ''}): designed, updated to v${updated[1]}, reverted to v1`);
+      else fail('change request', `designed ${!!designed}, updated ${!!updated}, reverted ${!!reverted}: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
+    }
+  }
   // a district through talk, founded; then a building in it lays its street and the link road
   await cmd(`/steward dev sim_answer talk ${fixture('talk/harbour.json')}`);
   const st = settlements().find((x) => x.id === id);

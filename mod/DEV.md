@@ -175,11 +175,14 @@ It covers:
 - the bible kept;
 - seeds carried: the rules propose a farm, and the wording job (scripted) names it "A reed-thatched granary on stilts";
 - a talk job asking for a library, accepted and built in the reused bible;
+- with `ARCHITECT_JAR` (Architect's 0b RC): a change request asked in talk, accepted, designed by `versionOf` as the library's next version, updated to v2, reverted to v1;
 - a district proposed in talk and founded;
 - a building in the district laying its street and the link road;
 - undo.
 
-First passed 2026-10-10: **PASS 20 checks**. The run found two bugs, both fixed:
+First passed 2026-10-10: **PASS 20 checks**. Latest: PASS 22 on Architect's versionOf RC (`ARCHITECT_JAR=.../architect_mc-0.14.0-rc-versionOf-695299f.jar node tools/e2e.mjs stub`).
+
+`ARCHITECT_JAR` (or `-Parchitect.jar`) builds and runs Steward against a local Architect jar, for the release candidates Architect asks Steward to check. Dev and e2e only; the build warns UNRELEASED. The run found two bugs, both fixed:
 - **The survey limit:** a radius-128 claim was surveyed as 257 x 257, past Architect's 256 x 256 full-resolution limit, so the survey came back at one column in four and the layout refused it. Builds now survey 255 x 255 at most (`ClaimRules.SURVEY_RADIUS`).
 - **A silent stall:** the exception was swallowed by the survey's future, so the build stopped without a word. The callback now says why it stopped.
 

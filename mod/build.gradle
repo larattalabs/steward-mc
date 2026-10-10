@@ -73,7 +73,15 @@ dependencies {
 
 	// Architect's public API and mod (dev.larattalabs.architect.api). From mavenLocal (cd ../../architect-mc/mod && ./gradlew publishToMavenLocal) until
 	// Architect publishes to GitHub Packages. Pin the exact version: Architect's API is semver'd from 1.0.0 but the artifact is 0.x.
-	implementation "dev.larattalabs:architect_mc:${project.architect_version}"
+	// ARCHITECT_JAR (or -Parchitect.jar): a local Architect jar instead, for a release candidate Architect asks Steward to check (dev and e2e only, never
+	// a release: the build says so)
+	def architectJar = providers.gradleProperty('architect.jar').orElse(providers.environmentVariable('ARCHITECT_JAR')).getOrNull()
+	if (architectJar) {
+		logger.warn("UNRELEASED: Architect from ${architectJar}, not ${project.architect_version}")
+		implementation files(architectJar)
+	} else {
+		implementation "dev.larattalabs:architect_mc:${project.architect_version}"
+	}
 	// lab-ui: the screen kit, world UI and crash guard shared with Architect and AgentCraft; bundled jar-in-jar
 	implementation "dev.larattalabs:lab_ui:${project.lab_ui_version}"
 	include "dev.larattalabs:lab_ui:${project.lab_ui_version}"

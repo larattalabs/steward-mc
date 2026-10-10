@@ -147,11 +147,7 @@ public final class Talk {
 		switch (a.intent()) {
 			case BUILDING -> reply = proposeBuilding(server, s, said, a, now);
 			case DISTRICT -> reply = proposeDistrict(server, s, said, a, now);
-			case CHANGE -> {
-				// change requests to a standing building come with Architect 0b: noted in the history meanwhile (one line: no breaks from the answer)
-				String note = ("Asked to change " + a.changeTarget() + ": " + a.changeRequest()).replaceAll("\\s+", " ");
-				if (!Settlements.log(settlementId, new Settlement.LogEntry(now, Settlement.Kind.NOTE, note, List.of())).ok()) reply = "I could not note that down (the settlement could not be saved).";
-			}
+			case CHANGE -> reply = proposeChange(server, s, said, a, now);
 			default -> {
 			}
 		}
@@ -194,6 +190,26 @@ public final class Talk {
 			"You asked: \"" + clip(said, 120) + "\"", a.building(), now, "asked", district, null);
 		String added = addProposal(s, p);
 		return added != null ? added : a.reply();
+	}
+
+	/**
+	 * A change to a standing building: with Architect's {@code versionOf}, a change proposal in the inbox (designing it is paid, so the player accepts it);
+	 * before that, noted in the history.
+	 */
+	private static String proposeChange(MinecraftServer server, Settlement s, String said, TalkAnswer a, long now) {
+		if (!ChangeRequests.available() || "settlement".equalsIgnoreCase(a.changeTarget())) {
+			String note = ("Asked to change " + a.changeTarget() + ": " + a.changeRequest()).replaceAll("\\s+", " ");
+			if (!Settlements.log(s.id(), new Settlement.LogEntry(now, Settlement.Kind.NOTE, note, List.of())).ok()) return "I could not note that down (the settlement could not be saved).";
+			return ChangeRequests.available() ? "I have noted it. Changing the whole settlement at once comes later: ask me about one building at a time." : a.reply();
+		}
+		var site = ChangeRequests.building(server, s, a.changeTarget());
+		if (site.isEmpty()) return "Which building do you mean? I could not tell which one is the " + a.changeTarget() + ".";
+		String name = Updates.lotOf(site.get());
+		if (ChangeRequests.designing(site.get().id())) return "A change to the " + name + " is being designed already.";
+		Proposal p = Proposal.change(site.get().id(), name, a.changeRequest(), said, now);
+		String added = addProposal(s, p);
+		if (added != null) return added;
+		return "A change to the " + name + ": I have drawn it up and put it in the inbox (about $" + Proposals.estimate(p) + " to design). Once designed, you preview it before it is applied.";
 	}
 
 	/** A district asked for: a proposal in the inbox, towards the way named or the first that fits. */
