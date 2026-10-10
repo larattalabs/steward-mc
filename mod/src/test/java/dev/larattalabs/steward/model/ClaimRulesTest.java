@@ -40,11 +40,16 @@ class ClaimRulesTest {
 	}
 
 	@Test
-	void expandGrowsOneStepAndStopsAtXl() {
+	void expandGrowsOneStepUpToTwoThousandBlocks() {
 		assertEquals(96, ClaimRules.expand(at(0, 0, 64), List.of()).radius());
-		var max = ClaimRules.expand(at(0, 0, 128), List.of());
-		assertEquals(128, max.radius());
+		assertEquals(256, ClaimRules.expand(at(0, 0, 128), List.of()).radius());
+		var k = ClaimRules.expand(at(0, 0, 256), List.of());
+		assertEquals(512, k.radius());
+		assertTrue(ClaimRules.side(k.radius()) >= 1000, "3XL is at least 1000 x 1000");
+		var max = ClaimRules.expand(at(0, 0, 1024), List.of());
+		assertEquals(1024, max.radius());
 		assertTrue(max.note().contains("districts"), max.note());
+		assertEquals(128, ClaimRules.growTo(at(0, 0, 64), ClaimRules.radiusFor("XL"), List.of()).radius(), "a card sizes up to XL only");
 		assertEquals(64, ClaimRules.expand(at(0, 0, 64), List.of(at(140, 0, 64))).radius(), "refused onto a neighbour");
 	}
 }

@@ -193,7 +193,10 @@ built in this order:
    described: S 97, M 129, L 193, XL 257 blocks across (radius 48, 64, 96, 128), or the explicit size. If the larger square would overlap a neighbour, the
    claim takes the largest size that fits and the card screen says so. A hamlet stays small; a crater lair gets room. The card screen shows the claim's size.
 2. **Expand** (phase 1 follow-up). A button on the card screen and the inbox grows the claim one step (to the next size, around the stone), refused with the reason
-   when it would overlap another settlement or pass XL. Free in Patron; in Supplied, Hardcore and Economy it costs resources (an "expansion" unlock, phase 4).
+   when it would overlap another settlement or pass 4XL. Past the card's XL come **2XL 513, 3XL 1025 and 4XL 2049** blocks across (Noah: at least 1000x1000): room
+   for districts and regions. A one-street village is still surveyed and laid out within 257x257 of the stone (`ClaimRules.VILLAGE_RADIUS`); the rest of a big claim is
+   for districts (phase 3) and region programs (phase 2, Architect's prepare step loads terrain at that scale). A big claim also keeps other settlements away: a 3XL
+   claim reserves a kilometre square. Free in Patron; in Supplied, Hardcore and Economy it costs resources (an "expansion" unlock, phase 4).
    A re-survey follows, so the next layout uses the new land. Shrinking is not offered while sites stand outside the smaller square.
 3. **Districts** (phase 3, with evolution). Past one claim, a settlement grows by **districts**: adjacent claims with their own purpose ("a harbour district east
    of town", "the mine quarter"), each laid out and built like a settlement, sharing the settlement's style bible and steward, linked by roads. The steward

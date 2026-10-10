@@ -9,9 +9,14 @@ import java.util.List;
  * size that fits and says why it stopped. Pure.
  */
 public final class ClaimRules {
-	/** The sizes, as radii around the Founding Stone: S 97, M 129, L 193, XL 257 blocks across. */
-	public static final List<String> SIZES = List.of("S", "M", "L", "XL");
-	public static final int[] RADII = {48, 64, 96, 128};
+	/**
+	 * The sizes, as radii around the Founding Stone: S 97, M 129, L 193, XL 257, 2XL 513, 3XL 1025, 4XL 2049 blocks across. A card sizes a settlement S to XL;
+	 * the larger sizes come by Expand and are room for districts and regions (a village street stays within {@link #VILLAGE_RADIUS}).
+	 */
+	public static final List<String> SIZES = List.of("S", "M", "L", "XL", "2XL", "3XL", "4XL");
+	public static final int[] RADII = {48, 64, 96, 128, 256, 512, 1024};
+	/** How far from the stone a one-street village is surveyed and laid out, whatever the claim's size (one street holds 12-16 buildings). */
+	public static final int VILLAGE_RADIUS = 128;
 
 	private ClaimRules() {
 	}
@@ -63,8 +68,8 @@ public final class ClaimRules {
 	public static Outcome expand(Claim claim, Collection<Claim> others) {
 		int next = Integer.MAX_VALUE;
 		for (int r : RADII) if (r > claim.radius()) next = Math.min(next, r);
-		if (next == Integer.MAX_VALUE) return new Outcome(claim.radius(), "The claim is already the largest size (XL, " + side(claim.radius()) + " x " + side(claim.radius())
-			+ "). Larger settlements grow by districts.");
+		if (next == Integer.MAX_VALUE) return new Outcome(claim.radius(), "The claim is already the largest size (4XL, " + side(claim.radius()) + " x " + side(claim.radius())
+			+ "). Beyond it a settlement grows by districts.");
 		Outcome o = growTo(claim, next, others);
 		return o.radius() == next ? new Outcome(next, "") : o;
 	}

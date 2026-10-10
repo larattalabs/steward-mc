@@ -402,7 +402,8 @@ public final class SettlementRunner {
 		int cz = existing != null ? existing.claim().centerZ() : origin.getZ();
 		ServerLevel level = level();
 		// the settlement's own claim (sized by its card, grown by Expand); a dev build uses the default
-		int rad = existing != null ? existing.claim().radius() : CLAIM_RADIUS;
+		// a one-street village stays near the stone even in a big claim (the rest of a big claim is room for districts and regions)
+		int rad = Math.min(dev.larattalabs.steward.model.ClaimRules.VILLAGE_RADIUS, existing != null ? existing.claim().radius() : CLAIM_RADIUS);
 		BoundingBox area = new BoundingBox(cx - rad, level.getMinY(), cz - rad, cx + rad, level.getMaxY(), cz + rad);
 		say("Surveying the land...");
 		ArchitectApi.get().survey().sample(level, area, 1, LoadPolicy.LOADED_ONLY).whenComplete((sample, err) -> {
@@ -414,7 +415,8 @@ public final class SettlementRunner {
 				lo = Math.min(lo, grid.heightAt(x, z)); hi = Math.max(hi, grid.heightAt(x, z));
 			}
 			Steward.LOGGER.info("survey: {}x{} columns, {} unusable (water or unloaded), {} loaded chunks, ground y {}..{}, trees {}", grid.width(), grid.depth(), wet, sample.chunksLoaded(), lo, hi, sample.tree().cardinality());
-			Claim claim = existing != null ? existing.claim() : new Claim(level.dimension().identifier().toString(), cx, cz, CLAIM_RADIUS, level.getMinY(), level.getMaxY());
+			Claim claim = existing != null ? dev.larattalabs.steward.model.ClaimRules.withRadius(existing.claim(), rad)
+				: new Claim(level.dimension().identifier().toString(), cx, cz, CLAIM_RADIUS, level.getMinY(), level.getMaxY());
 			settlement = existing != null ? existing : Settlement.found(DEV_ID, r.card(), claim, permission, Difficulty.PATRON, System.currentTimeMillis());
 			// landmarks run on the dearer model: the size's typical count, and at most one per four buildings
 			int maxLandmarks = dev.larattalabs.steward.model.BudgetPolicy.maxLandmarks(r.card().site().size(), buildings);
