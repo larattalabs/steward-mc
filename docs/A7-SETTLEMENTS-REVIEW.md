@@ -40,3 +40,19 @@ is still worth adding to Architect's reachability gate for the `villager` mover;
 
 ## Not asked
 No change to the phase split, the passes, the 3D volume, fit modes, connectors, generators, the scenario ladder or the deferred list.
+
+## Follow-up (2026-10-09, Opus session): alignment with Steward's revised order
+Architect briefed Steward on the Noah-approved settlements roadmap: 6b, then 6c (slice 0 = round 3 asks, then region passes, districts, natural forms, the new
+toolbox), then 7a (site analysis, non-box lots, settlement graph and nav.json, designed connectors, per-mover reachability, villager rules, C3 flat villages), then 7b
+(site-aware design, six fit modes, site variants, cap $90), then 7c (Claude plans settlements, cap $180). Six golden scenarios, no model judge.
+
+Nothing conflicts with Steward's phase 3 core and phase 4 running before phase 2. Four points sent back to settle:
+1. **6d timing**: once C3 makes plain villages regions (7a), evolving a village means evolving a region. 6d (region lot/connector delta apply, and adding lots or a
+   district to a realised region) should land with or right after 7a. Until then Steward evolves villages per site with checkDelta/applyDelta.
+2. **Districts split**: Steward proposes, claims and approves a district and writes its brief; Architect lays it out and links it. Before 7a, Steward's street layout;
+   after, Architect's "add a district to a region" API (asked to confirm it is on 6c/7a).
+3. **The steward walking**: a Steward mob entity (the mannequin cannot move). Vanilla pathing on flat villages before 7a, nav.json typed links after. The steward
+   mover set stays as SETTLEMENTS 15.2 says.
+4. **Program vs 7c**: the card's building program is the input to 7c's derived settlement brief. 7b site variants and C1 copies should share one representation
+   (program entry count to archetype plus variants).
+Phase 4 (Supplied/Hardcore on survival sites, terrain free, structures as BOM sites) matches. Steward adds the card's `fit` hint when 7b is near.
