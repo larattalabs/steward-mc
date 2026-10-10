@@ -70,7 +70,7 @@ public final class StewardEntity extends PathfinderMob {
 	}
 
 	public String settlementId() {
-		return settlementId;
+		return level().isClientSide() ? entityData.get(SETTLEMENT) : settlementId;
 	}
 
 	public void bind(String settlementId, BlockPos home) {
@@ -84,6 +84,7 @@ public final class StewardEntity extends PathfinderMob {
 	 * the steward then never holds up its own settlement's removals, deltas or placements. Until 0c it only steps out of the box first.
 	 */
 	private void tagOwner() {
+		entityData.set(SETTLEMENT, settlementId);
 		if (settlementId.isEmpty()) return;
 		entityTags().removeIf(t -> t.startsWith("architect:owner="));
 		addTag("architect:owner=steward_mc:settlement/" + settlementId);
@@ -159,11 +160,43 @@ public final class StewardEntity extends PathfinderMob {
 	private static final net.minecraft.network.syncher.EntityDataAccessor<Integer> BED = net.minecraft.network.syncher.SynchedEntityData.defineId(StewardEntity.class,
 		net.minecraft.network.syncher.EntityDataSerializers.INT);
 
+	/** The nameplate's activity line and its "!" (the player is needed), from {@link dev.larattalabs.steward.service.StewardStatus}. */
+	private static final net.minecraft.network.syncher.EntityDataAccessor<String> ACTIVITY = net.minecraft.network.syncher.SynchedEntityData.defineId(StewardEntity.class,
+		net.minecraft.network.syncher.EntityDataSerializers.STRING);
+	private static final net.minecraft.network.syncher.EntityDataAccessor<Boolean> NEEDS_YOU = net.minecraft.network.syncher.SynchedEntityData.defineId(StewardEntity.class,
+		net.minecraft.network.syncher.EntityDataSerializers.BOOLEAN);
+
 	@Override
 	protected void defineSynchedData(net.minecraft.network.syncher.SynchedEntityData.Builder b) {
 		super.defineSynchedData(b);
 		b.define(POSTURE, Poses.Posture.IDLE.ordinal());
 		b.define(BED, -1);
+		b.define(ACTIVITY, "");
+		b.define(SETTLEMENT, "");
+		b.define(NEEDS_YOU, false);
+	}
+
+	/** Its settlement id, synced: the client matches speech bubbles to their steward by it. */
+	private static final net.minecraft.network.syncher.EntityDataAccessor<String> SETTLEMENT = net.minecraft.network.syncher.SynchedEntityData.defineId(StewardEntity.class,
+		net.minecraft.network.syncher.EntityDataSerializers.STRING);
+
+	public String activity() {
+		return entityData.get(ACTIVITY);
+	}
+
+	public boolean needsYou() {
+		return entityData.get(NEEDS_YOU);
+	}
+
+	/** What it is doing itself, for the nameplate when no build or update speaks for it. */
+	private String doing() {
+		return switch (plan) {
+			case SLEEP -> settled ? "asleep" : "off to bed";
+			case SIT -> settled ? "resting" : "";
+			case WORK -> "looking it over";
+			case COME -> "coming to find you";
+			default -> "";
+		};
 	}
 
 	public Poses.Posture posture() {
@@ -190,6 +223,13 @@ public final class StewardEntity extends PathfinderMob {
 	private @Nullable BlockPos bed;
 	private boolean settled;
 	private int nextBedSearch;
+	/** The game time it stops talking (a line it said: it faces the nearest player and gestures). */
+	private long talkUntil;
+
+	/** It has just said something: for a few seconds it turns to the nearest player and talks. */
+	public void speak() {
+		talkUntil = level().getGameTime() + 70;
+	}
 	/** Seats and beds are looked for this far from home. */
 	static final int SEAT_RADIUS = 6, BED_RADIUS = 24;
 	/** It comes to find a player this far away at most (and only inside its settlement's claim). */
@@ -213,6 +253,11 @@ public final class StewardEntity extends PathfinderMob {
 		super.customServerAiStep(level);
 		if (plan == Plan.NONE) idleTicks++;
 		entityData.set(POSTURE, choosePosture().ordinal());
+		if (tickCount % 20 == 0 && !settlementId.isEmpty()) {
+			var st = dev.larattalabs.steward.service.StewardStatus.of(settlementId, doing());
+			entityData.set(ACTIVITY, st.activity());
+			entityData.set(NEEDS_YOU, st.needsYou());
+		}
 		entityData.set(BED, plan == Plan.SLEEP && settled && bed != null ? StewardSpots.bedFacing(level, bed).ordinal() : -1);
 		planAge++;
 	}
@@ -222,6 +267,11 @@ public final class StewardEntity extends PathfinderMob {
 		if (settled && plan == Plan.SLEEP) return Poses.Posture.LIE;
 		if (settled && plan == Plan.SIT) return Poses.Posture.SIT;
 		if (!getNavigation().isDone()) return Poses.Posture.WALK;
+		if (level().getGameTime() < talkUntil) {
+			Player p = level().getNearestPlayer(this, 12);
+			if (p != null) getLookControl().setLookAt(p, 30, 30);
+			return Poses.Posture.TALK;
+		}
 		return switch (plan) {
 			case COME -> {
 				Player p = comePlayer == null ? null : level().getPlayerByUUID(comePlayer);

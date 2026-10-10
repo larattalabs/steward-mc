@@ -45,6 +45,7 @@ public final class Revert {
 			Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.REVERTED, msg, List.of(new Settlement.SiteChange(siteId, lot, from,
 				ok ? r.toVersion() : toVersion)), null, ok ? Settlement.Outcome.DONE : Settlement.Outcome.FAILED));
 			if (ok) sites.get(siteId).ifPresent(v -> StewardMotion.visit(server, s, v.box()));
+			StewardVoice.say(server, s.id(), msg);
 			var p = server.getPlayerList().getPlayer(player);
 			if (p != null) {
 				p.sendSystemMessage(Component.literal("Steward (" + s.name() + "): " + msg));

@@ -152,6 +152,20 @@ public final class StewardNet {
 		}
 	}
 
+	/** The settlement's steward says this (a speech bubble over it, where the client has it loaded). */
+	public record StewardSay(String settlementId, String text) implements CustomPacketPayload {
+		public static final Type<StewardSay> TYPE = new Type<>(id("steward_say"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, StewardSay> CODEC = StreamCodec.of((buf, p) -> {
+			buf.writeUtf(p.settlementId);
+			buf.writeUtf(p.text, 2000);
+		}, buf -> new StewardSay(buf.readUtf(), buf.readUtf(2000)));
+
+		@Override
+		public Type<StewardSay> type() {
+			return TYPE;
+		}
+	}
+
 	/** Show the delta ghost of a placed site going to {@code toVersion} (Architect's {@code ArchitectClientApi.previewDelta}) under {@code key}. */
 	public record PreviewDelta(String key, String siteId, int toVersion) implements CustomPacketPayload {
 		public static final Type<PreviewDelta> TYPE = new Type<>(id("preview_delta"));
@@ -238,6 +252,7 @@ public final class StewardNet {
 		s2c.register(Card.TYPE, Card.CODEC);
 		s2c.register(PreviewDelta.TYPE, PreviewDelta.CODEC);
 		s2c.register(SettlementPanel.TYPE, SettlementPanel.CODEC);
+		s2c.register(StewardSay.TYPE, StewardSay.CODEC);
 		var c2s = PayloadTypeRegistry.serverboundPlay();
 		c2s.register(Describe.TYPE, Describe.CODEC);
 		c2s.register(Start.TYPE, Start.CODEC);

@@ -7,4 +7,8 @@ import net.minecraft.client.renderer.entity.state.HumanoidRenderState;
 public final class StewardRenderState extends HumanoidRenderState {
 	public final float[] channels = new float[Poses.N];
 	public Poses.Posture posture = Poses.Posture.IDLE;
+	public String activity = "";
+	public boolean needsYou;
+	public dev.larattalabs.labui.client.world.SpeechBubble.@org.jspecify.annotations.Nullable Layout bubble;
+	public float bubbleVisibility;
 }

@@ -151,7 +151,9 @@ async function claimAndSteward() {
     await dev.request('dev.key', { key: 'escape' });
     await sleep(200);
     await dev.request('dev.key', { key: 'escape' });
-    await cmd(`/tp @p ${(x + 2).toFixed(1)} ${y.toFixed(1)} ${(z + 4).toFixed(1)} facing ${x.toFixed(1)} ${(y + 1.4).toFixed(1)} ${z.toFixed(1)}`);
+    await cmd(`/tp @p ${(x + 2).toFixed(1)} ${y.toFixed(1)} ${(z + 4).toFixed(1)} facing ${x.toFixed(1)} ${(y + 1.8).toFixed(1)} ${z.toFixed(1)}`);
+    // a line in its speech bubble, for the picture
+    await cmd(`/steward dev say ${s.id} Welcome! Tell me what this place should be, and I will draw it up.`);
     await sleep(1500);
     shot = (await dev.request('dev.screenshot', { name: 'e2e-steward', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
   }
@@ -215,6 +217,20 @@ async function placeUpdateUndo(id) {
   };
   const before = await stewardPos();
   const checked = await cmd('/steward updates');
+  // the nameplate: an update waits, so it shows the "!" (a screenshot from in front of it)
+  // ...and back where the player stood: a player beside a building stops Architect rewriting it (the revert and undo below)
+  const look = async (name) => {
+    const p = await stewardPos();
+    const mine = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+    if (!p) return '';
+    await cmd(`/tp @p ${(p[0] + 2).toFixed(1)} ${p[1].toFixed(1)} ${(p[2] + 4).toFixed(1)} facing ${p[0].toFixed(1)} ${(p[1] + 1.8).toFixed(1)} ${p[2].toFixed(1)}`);
+    await sleep(1500);
+    const shot = (await dev.request('dev.screenshot', { name, frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+    if (mine) await cmd(`/tp @p ${mine[1]} ${mine[2]} ${mine[3]}`);
+    return shot;
+  };
+  await sleep(2500);
+  const plateShot = await look('e2e-steward-plate');
   await dev.request('dev.key', { key: 'y' });
   await sleep(1500);
   // the offset first: a small update can finish within the key press
@@ -233,7 +249,7 @@ async function placeUpdateUndo(id) {
     const now = await stewardPos();
     if (now && gap(now) > 0 && gap(now) <= 3.5) near = now;
   }
-  if (near) ok('steward walks', `${gap(near).toFixed(1)} blocks outside the updated building${before ? `, ${Math.hypot(near[0] - before[0], near[2] - before[2]).toFixed(1)} walked` : ''}`);
+  if (near) ok('steward walks', `${gap(near).toFixed(1)} blocks outside the updated building${before ? `, ${Math.hypot(near[0] - before[0], near[2] - before[2]).toFixed(1)} walked` : ''}; ${plateShot}`);
   else fail('steward walks', `not beside the building: ${JSON.stringify(await stewardPos())}, box ${JSON.stringify(box)}`);
   // revert (3c): back to version 1 from the building panel (its third button, asked twice)
   await cmd(`/steward view ${id} ${site}`);

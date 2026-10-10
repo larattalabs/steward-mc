@@ -34,6 +34,10 @@ public final class StewardRenderer extends HumanoidMobRenderer<StewardEntity, St
 		super.extractRenderState(e, s, partial);
 		for (int i = 0; i < Poses.N; i++) s.channels[i] = Mth.lerp(partial, e.posePrev[i], e.pose[i]);
 		s.posture = e.posture();
+		s.activity = e.activity();
+		s.needsYou = e.needsYou();
+		s.bubble = StewardVoices.layout(e.settlementId());
+		s.bubbleVisibility = s.bubble == null ? 0f : StewardVoices.visibility(e.settlementId(), partial);
 		var bed = e.bedFacing();
 		if (s.posture == Poses.Posture.LIE && bed != null) {
 			s.pose = Pose.SLEEPING;
@@ -48,6 +52,13 @@ public final class StewardRenderer extends HumanoidMobRenderer<StewardEntity, St
 	protected void setupRotations(StewardRenderState s, PoseStack stack, float bodyRot, float scale) {
 		super.setupRotations(s, stack, bodyRot, scale);
 		if (s.posture == Poses.Posture.SIT) stack.translate(0, -SIT_DROP, 0);
+	}
+
+	/** Its own nameplate stack (plate, speech bubble, "!") instead of vanilla's name tag. */
+	@Override
+	protected void submitNameDisplay(StewardRenderState s, PoseStack stack, net.minecraft.client.renderer.SubmitNodeCollector c,
+		net.minecraft.client.renderer.state.level.CameraRenderState camera) {
+		StewardPlate.submit(s, stack, c, camera);
 	}
 
 	@Override

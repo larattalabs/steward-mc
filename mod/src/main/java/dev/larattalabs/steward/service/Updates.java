@@ -186,6 +186,7 @@ public final class Updates {
 			Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.UPDATED, msg, List.of(change), null,
 				msg.startsWith("Updated") ? Settlement.Outcome.DONE : Settlement.Outcome.FAILED));
 			server.getPlayerList().getPlayers().forEach(pl -> pl.sendSystemMessage(Component.literal("Steward (" + s.name() + "): " + msg)));
+			StewardVoice.say(server, s.id(), msg);
 			// the next scan (next tick) offers what is left; not here, where an apply that completed inline would recurse
 			scanPending = true;
 		});

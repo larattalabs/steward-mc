@@ -941,6 +941,7 @@ public final class SettlementRunner {
 	private void say(String text) {
 		Steward.LOGGER.info("settlement: {}", text);
 		if (!Session.is(session)) return;
+		if (settlement != null) StewardVoice.say(server, settlement.id(), text);
 		ServerPlayer p = server.getPlayerList().getPlayer(playerId);
 		if (p != null) p.sendSystemMessage(Component.literal(text));
 		else if (unread.size() < 50) unread.add(text);

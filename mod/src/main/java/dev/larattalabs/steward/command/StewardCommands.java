@@ -117,7 +117,12 @@ public final class StewardCommands {
 				.then(Commands.argument("site", StringArgumentType.word()).executes(ctx -> decide(ctx, "building", StringArgumentType.getString(ctx, "site"), "", 0)))))
 			.then(Commands.literal("show").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "show", "", "", 0))))
 			.then(Commands.literal("hide").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "hide", "", "", 0))))
-			.then(Commands.literal("dev").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.literal("place").then(Commands.argument("id",
+			.then(Commands.literal("dev").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.literal("say").then(Commands.argument("id",
+				StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
+					// dev (the e2e check): the settlement's steward says a line (its speech bubble)
+					dev.larattalabs.steward.service.StewardVoice.say(ctx.getSource().getServer(), StringArgumentType.getString(ctx, "id"), StringArgumentType.getString(ctx, "text"));
+					return 1;
+				})))).then(Commands.literal("place").then(Commands.argument("id",
 				StringArgumentType.word()).then(Commands.argument("entry", StringArgumentType.word()).executes(ctx -> {
 					// dev (the e2e check): place a library entry for a settlement 6 blocks in front of the player, as the settlement's owner, logged like a build
 					CommandSourceStack src = ctx.getSource();
