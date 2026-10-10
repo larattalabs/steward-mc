@@ -21,7 +21,8 @@ public record Settlement(
 	Difficulty difficulty,
 	List<LogEntry> log,
 	Proposals proposals,
-	@Nullable BibleRef bible
+	@Nullable BibleRef bible,
+	Autonomy autonomy
 ) {
 	public enum Kind {
 		FOUNDED, CARD_EDITED, RESKIN, RELAYOUT, PROJECT_PROPOSED, PROJECT_APPROVED, PROJECT_PLACED, PROJECT_REMOVED, PERMISSION_CHANGED, NOTE,
@@ -101,6 +102,47 @@ public record Settlement(
 		styleVersion = Math.max(1, styleVersion);
 		purposeVersion = Math.max(1, purposeVersion);
 		proposals = proposals == null ? Proposals.NONE : proposals;
+		autonomy = autonomy == null ? Autonomy.DEFAULT : autonomy;
+	}
+
+	/**
+	 * What the steward may spend on its own (docs/PLAN.md "Reviews (2026-10-09)", Noah: $500 a week by default): at Autonomous and Full it builds its
+	 * proposals itself while the past week's own spending and the next build's budget fit {@code weeklyUsd}. {@code spends}: what it started on its own, newest
+	 * last (only the past week counts).
+	 */
+	public record Autonomy(double weeklyUsd, List<Spend> spends) {
+		public static final double DEFAULT_WEEKLY = 500;
+		public static final Autonomy DEFAULT = new Autonomy(DEFAULT_WEEKLY, List.of());
+		public static final long WEEK_MS = 7L * 24 * 3600_000;
+
+		public Autonomy {
+			weeklyUsd = weeklyUsd <= 0 || Double.isNaN(weeklyUsd) ? DEFAULT_WEEKLY : weeklyUsd;
+			spends = spends == null ? List.of() : List.copyOf(spends);
+		}
+
+		/** What the steward started on its own in the week before {@code now}. */
+		public double spentInWeek(long now) {
+			return spends.stream().filter(x -> now - x.at() < WEEK_MS).mapToDouble(Spend::usd).sum();
+		}
+
+		/** Whether a build of {@code usd} fits what is left of the week's allowance. */
+		public boolean allows(double usd, long now) {
+			return spentInWeek(now) + usd <= weeklyUsd + 1e-9;
+		}
+
+		/** With a spend added (spends older than a week are dropped). */
+		public Autonomy with(Spend s) {
+			List<Spend> l = new ArrayList<>(spends.stream().filter(x -> s.at() - x.at() < WEEK_MS).toList());
+			l.add(s);
+			return new Autonomy(weeklyUsd, l);
+		}
+	}
+
+	/** One build the steward started on its own: when, its budget, what. */
+	public record Spend(long at, double usd, String what) {}
+
+	public Settlement withAutonomy(Autonomy a) {
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible, a);
 	}
 
 	/**
@@ -119,7 +161,7 @@ public record Settlement(
 
 	/** The same settlement with its proposals replaced. */
 	public Settlement withProposals(Proposals p) {
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, p, bible);
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, p, bible, autonomy);
 	}
 
 	/**
@@ -129,12 +171,12 @@ public record Settlement(
 	public record BibleRef(String id, int version) {}
 
 	public Settlement withBible(BibleRef b) {
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, b);
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, b, autonomy);
 	}
 
 	/** A claim the player has marked with the Founding Stone but not yet described: no concept card until they do. */
 	public static Settlement founded(String id, String name, Claim claim, Permission permission, Difficulty difficulty, long now) {
-		return new Settlement(id, name, null, claim, 1, 1, 1, permission, difficulty, List.of(new LogEntry(now, Kind.FOUNDED, "Claimed " + name, List.of())), Proposals.NONE, null);
+		return new Settlement(id, name, null, claim, 1, 1, 1, permission, difficulty, List.of(new LogEntry(now, Kind.FOUNDED, "Claimed " + name, List.of())), Proposals.NONE, null, Autonomy.DEFAULT);
 	}
 
 	public boolean described() {
@@ -144,14 +186,14 @@ public record Settlement(
 	/** The player's description became a card (and, if the card names the settlement, its name). */
 	public Settlement withCard(ConceptCard c, long now) {
 		String n = c.name() == null || c.name().isBlank() ? name : c.name();
-		return new Settlement(id, n, c, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible)
+		return new Settlement(id, n, c, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible, autonomy)
 			.withLog(new LogEntry(now, Kind.CARD_EDITED, "Described as: " + c.site().text() + ", " + c.style().text(), List.of()));
 	}
 
 	public static Settlement found(String id, ConceptCard card, Claim claim, Permission permission, Difficulty difficulty, long now) {
 		String name = card.name() == null || card.name().isBlank() ? id : card.name();
 		return new Settlement(id, name, card, claim, 1, 1, 1, permission, difficulty,
-			List.of(new LogEntry(now, Kind.FOUNDED, "Founded " + name, List.of())), Proposals.NONE, null);
+			List.of(new LogEntry(now, Kind.FOUNDED, "Founded " + name, List.of())), Proposals.NONE, null, Autonomy.DEFAULT);
 	}
 
 	/** The Architect owner string for this settlement's sites: {@code steward_mc:settlement/<id>}. */
@@ -163,7 +205,7 @@ public record Settlement(
 	public Settlement withLog(LogEntry e) {
 		List<LogEntry> l = new ArrayList<>(log);
 		l.add(e.op() == null ? e.withOp("op_" + (l.size() + 1)) : e);
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, l, proposals, bible);
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, l, proposals, bible, autonomy);
 	}
 
 	/** A re-skin changes only the style (and the card's style field); layout and purpose versions stay. */
@@ -171,18 +213,18 @@ public record Settlement(
 		if (card == null) throw new IllegalStateException("describe the settlement first");
 		ConceptCard c = new ConceptCard(card.name(), card.site(), style, card.purpose(), card.story(), card.constraints(), card.avoid(),
 			card.interpretation(), card.contradictions(), card.assumptions(), card.program());
-		return new Settlement(id, name, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals, bible)
+		return new Settlement(id, name, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals, bible, autonomy)
 			.withLog(new LogEntry(now, Kind.RESKIN, "Style is now: " + style.text(), List.of()));
 	}
 
 	/** The claim grown (or set by the card's size); the change log says to what. */
 	public Settlement withClaim(Claim c, long now) {
-		return new Settlement(id, name, card, c, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible)
+		return new Settlement(id, name, card, c, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible, autonomy)
 			.withLog(new LogEntry(now, Kind.CLAIM_CHANGED, "Claim is now " + ClaimRules.side(c.radius()) + " x " + ClaimRules.side(c.radius()), List.of()));
 	}
 
 	public Settlement withPermission(Permission p, long now) {
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, p, difficulty, log, proposals, bible)
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, p, difficulty, log, proposals, bible, autonomy)
 			.withLog(new LogEntry(now, Kind.PERMISSION_CHANGED, "Permission: " + p, List.of()));
 	}
 

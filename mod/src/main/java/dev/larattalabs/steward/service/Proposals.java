@@ -60,6 +60,20 @@ public final class Proposals {
 		var res = Settlements.proposals(s.id(), new Settlement.Proposals(all, s.proposals().declined(), s.proposals().accepted(), now));
 		if (!res.ok()) return;
 		Proposal first = fresh.get(0);
+		// Autonomous and Full build their own proposals while the week's allowance holds (Noah: $500 a week by default); else the player decides
+		int estimate = estimate(first);
+		var saved = res.settlement();
+		if (!saved.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && saved.autonomy().allows(estimate, now)) {
+			var started = Actions.acceptProposal(p, saved, first.key());
+			if (started.ok()) {
+				var after = Settlements.store().get(s.id()).orElse(saved);
+				Settlements.autonomy(s.id(), after.autonomy().with(new Settlement.Spend(now, estimate, first.title())));
+				StewardVoice.say(server, s.id(), String.format("I am building %s: %s $%d of the week's $%.0f.", first.title().toLowerCase(), first.why(),
+					(int) Math.round(after.autonomy().spentInWeek(now) + estimate), after.autonomy().weeklyUsd()));
+				SettlementRunner.sendInbox(server, p.getUUID());
+				return;
+			}
+		}
 		StewardVoice.say(server, s.id(), "I have an idea: " + first.title().toLowerCase() + ". " + first.why() + " See the inbox (Y).");
 		SettlementRunner.sendInbox(server, p.getUUID());
 	}

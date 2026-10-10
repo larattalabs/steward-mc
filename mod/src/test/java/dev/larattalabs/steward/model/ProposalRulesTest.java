@@ -72,4 +72,22 @@ class ProposalRulesTest {
 			assertTrue(old.all().stream().allMatch(x -> x.proposals().equals(Settlement.Proposals.NONE)));
 		}
 	}
+
+	@Test
+	void theWeeklyAllowanceCountsOnlyThePastWeekAndOldSavesHave500() throws Exception {
+		long day = 24 * 3600_000L;
+		var a = Settlement.Autonomy.DEFAULT;
+		assertEquals(500, a.weeklyUsd());
+		a = a.with(new Settlement.Spend(NOW - 8 * day, 300, "old")).with(new Settlement.Spend(NOW - day, 300, "smithy"));
+		assertEquals(1, a.spends().size(), "a spend older than a week is dropped");
+		assertEquals(300, a.spentInWeek(NOW), 1e-9);
+		assertTrue(a.allows(200, NOW));
+		assertFalse(a.allows(200.01, NOW), "not a cent past the allowance");
+		assertTrue(a.allows(500, NOW + 7 * day), "a week on, the whole allowance again");
+		assertEquals(500, new Settlement.Autonomy(-1, null).weeklyUsd(), "a missing or bad allowance reads as the default");
+		try (var in = getClass().getClassLoader().getResourceAsStream("saves/v1/steward-settlements.json")) {
+			var old = SettlementStore.fromJson(new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8));
+			assertTrue(old.all().stream().allMatch(x -> x.autonomy().equals(Settlement.Autonomy.DEFAULT) && x.bible() == null));
+		}
+	}
 }

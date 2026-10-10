@@ -31,6 +31,8 @@ public final class Actions {
 	public static final int MIN_BUILDINGS = 1, MAX_BUILDINGS = 12;
 	public static final double MIN_BUDGET = 1, MAX_BUDGET = 200, MAX_RAISE = 500;
 	public static final int MAX_NOTES = 2000;
+	/** The weekly allowance's range (what the steward may spend on its own). */
+	public static final double MIN_ALLOWANCE = 5, MAX_ALLOWANCE = 5000;
 
 	private static CardService cards;
 	/** Settlements whose description is being read, with the request's token: one at a time per settlement, and only the newest may store its card. */
@@ -213,6 +215,27 @@ public final class Actions {
 			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
 			sendSettlement(player, s.get(), "building".equals(action) && lot != null ? lot : "");
 			return Result.ok("");
+		}
+		if ("permission".equals(action)) {
+			dev.larattalabs.steward.model.Permission p;
+			try {
+				p = dev.larattalabs.steward.model.Permission.valueOf(lot == null ? "" : lot);
+			} catch (IllegalArgumentException e) {
+				return Result.fail("Observer, Proposals, Autonomous or Full.");
+			}
+			var res = Settlements.permission(id, p, System.currentTimeMillis());
+			if (!res.ok()) return Result.fail(res.error());
+			sendSettlement(player, res.settlement(), "");
+			return Result.ok("Permission: " + p.name().toLowerCase() + ".");
+		}
+		if ("allowance".equals(action)) {
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			if (!(amount >= MIN_ALLOWANCE && amount <= MAX_ALLOWANCE)) return Result.fail(String.format("The weekly allowance is $%.0f to $%.0f.", MIN_ALLOWANCE, MAX_ALLOWANCE));
+			var res = Settlements.autonomy(id, new Settlement.Autonomy(amount, s.get().autonomy().spends()));
+			if (!res.ok()) return Result.fail(res.error());
+			sendSettlement(player, res.settlement(), "");
+			return Result.ok(String.format("The steward may spend up to $%.0f a week on its own (at Autonomous and Full).", amount));
 		}
 		if ("proposal_decline".equals(action) || "proposal_accept".equals(action)) {
 			Optional<Settlement> s = Settlements.store().get(id);

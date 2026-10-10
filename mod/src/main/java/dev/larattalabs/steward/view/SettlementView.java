@@ -14,7 +14,7 @@ import org.jspecify.annotations.Nullable;
  * {@link Site} so it is tested without a game.
  */
 public record SettlementView(String id, String name, boolean described, boolean busy, ClaimInfo claim, String permission, String difficulty,
-	List<Building> buildings, int roads, List<Op> history, int historyTotal) {
+	List<Building> buildings, int roads, List<Op> history, int historyTotal, double weeklyUsd, double spentWeekUsd) {
 
 	/** How many operations are sent (newest first); the rest stay in the log. */
 	public static final int MAX_HISTORY = 60;
@@ -77,7 +77,7 @@ public record SettlementView(String id, String name, boolean described, boolean 
 			history.add(new Op(e.op(), e.at(), e.kind().name(), e.text(), e.outcome().name(), e.recovery().name(), e.siteIds(), e.changes()));
 		}
 		return new SettlementView(s.id(), s.name(), s.described(), busy, claim, s.permission().name(), s.difficulty().name(), List.copyOf(buildings), roads,
-			List.copyOf(history), log.size());
+			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()));
 	}
 
 	public String toJson() {

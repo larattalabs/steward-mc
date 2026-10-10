@@ -103,6 +103,21 @@ public final class Settlements {
 		return store.all().stream().filter(x -> !x.id().equals(id)).map(Settlement::claim).toList();
 	}
 
+	/** Sets the permission level (logged). */
+	public static Result permission(String id, dev.larattalabs.steward.model.Permission p, long now) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		if (s.get().permission() == p) return Result.ok(s.get());
+		return commit(s, s.get().withPermission(p, now), "");
+	}
+
+	/** Replaces what the steward may spend on its own, and what it spent. */
+	public static Result autonomy(String id, Settlement.Autonomy a) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		return commit(s, s.get().withAutonomy(a), "");
+	}
+
 	/** Keeps the settlement's style bible (from its first build) for later builds. */
 	public static Result bible(String id, Settlement.BibleRef b) {
 		Optional<Settlement> s = store.get(id);

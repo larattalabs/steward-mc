@@ -472,7 +472,7 @@ public final class SettlementRunner {
 			c.contradictions(), c.assumptions(), List.of(building));
 		this.addition = true;
 		startExisting(new Settlement(s.id(), s.name(), card, s.claim(), s.siteVersion(), s.styleVersion(), s.purposeVersion(), s.permission(), s.difficulty(), s.log(),
-			s.proposals(), s.bible()), 1, budgetUsd);
+			s.proposals(), s.bible(), s.autonomy()), 1, budgetUsd);
 	}
 
 	/** Start from a settlement the player claimed with the Founding Stone and described: its claim and card are used, no card job runs. */

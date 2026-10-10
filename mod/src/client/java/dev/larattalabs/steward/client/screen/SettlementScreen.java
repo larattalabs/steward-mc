@@ -39,7 +39,11 @@ public final class SettlementScreen extends KitScreen {
 	}
 
 	private void send(String action, String lot, String what) {
-		ClientPlayNetworking.send(new StewardNet.Decide(view.id(), action, lot, "", 0));
+		send(action, lot, what, 0);
+	}
+
+	private void send(String action, String lot, String what, double amount) {
+		ClientPlayNetworking.send(new StewardNet.Decide(view.id(), action, lot, "", amount));
 		say(what + "...", false);
 	}
 
@@ -90,7 +94,7 @@ public final class SettlementScreen extends KitScreen {
 			case BUILDINGS -> drawBuildings(g, cx, bodyTop, inner, bodyH, mouseX, mouseY);
 			case HISTORY -> drawHistory(g, cx, bodyTop, inner, bodyH);
 			case CLAIM -> drawClaim(g, cx, bodyTop, inner, bodyH);
-			case SETTINGS -> drawSettings(g, cx, bodyTop, inner, bodyH);
+			case SETTINGS -> drawSettings(g, cx, bodyTop, inner, bodyH, mouseX, mouseY);
 		}
 		int bx = cx;
 		if (tab == Tab.CLAIM) bx += button(g, "Expand the claim", 1, true, false, !view.busy(), bx, actionsY, mouseX, mouseY, () -> send("expand", "settlement", "Expanding")) + 6;
@@ -289,23 +293,41 @@ public final class SettlementScreen extends KitScreen {
 			+ " the rest of a big claim is room for districts.");
 	}
 
-	private void drawSettings(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+	private void drawSettings(GuiGraphicsExtractor g, int x, int y, int w, int h, int mx, int my) {
 		Panels.inset(g, x, y, w, h);
 		int fx = x + 8, fy = y + 8, fw = w - 16;
-		fy = fact(g, fx, fy, fw, "Permission", switch (view.permission()) {
-			case "OBSERVER" -> "Observer: asks about everything";
-			case "PROPOSALS" -> "Proposals: you approve each project";
-			case "AUTONOMOUS" -> "Autonomous: asks only before demolitions and new districts";
-			case "FULL" -> "Full: acts on its own; the history can undo it";
+		// the permission level: a chip each, the current one lit (host only: the server refuses a guest)
+		g.text(font, "Permission", fx, fy + 3, UiBits.muted(), false);
+		int cx = fx + 90;
+		for (String p : new String[] {"OBSERVER", "PROPOSALS", "AUTONOMOUS", "FULL"}) {
+			String label = p.charAt(0) + p.substring(1).toLowerCase();
+			cx += chip(g, label, cx, fy, p.equals(view.permission()), true, mx, my, () -> send("permission", p, "Setting the permission")) + 3;
+		}
+		fy += CHIP_H + 4;
+		fy = fact(g, fx, fy, fw, "", switch (view.permission()) {
+			case "OBSERVER" -> "Asks about everything.";
+			case "PROPOSALS" -> "You approve each project; its ideas wait in the inbox.";
+			case "AUTONOMOUS" -> "Builds its own ideas within the weekly allowance; asks before demolitions and new districts.";
+			case "FULL" -> "Acts on its own within the weekly allowance; the history can undo it.";
 			default -> view.permission();
 		});
-		fy = fact(g, fx, fy, fw, "Difficulty", switch (view.difficulty()) {
+		// the weekly allowance: what it may spend on its own at Autonomous and Full
+		g.text(font, "Allowance", fx, fy + 3, UiBits.muted(), false);
+		String a = String.format("$%.0f a week", view.weeklyUsd());
+		g.text(font, a, fx + 90, fy + 3, UiBits.ink(), false);
+		int ax = fx + 90 + font.width(a) + 8;
+		ax += chip(g, "- $50", ax, fy, false, view.weeklyUsd() > 50, mx, my, () -> send("allowance", "", "Lowering the allowance", Math.max(dev.larattalabs.steward.service.Actions.MIN_ALLOWANCE,
+			view.weeklyUsd() - 50))) + 3;
+		chip(g, "+ $50", ax, fy, false, view.weeklyUsd() < dev.larattalabs.steward.service.Actions.MAX_ALLOWANCE, mx, my, () -> send("allowance", "", "Raising the allowance",
+			Math.min(dev.larattalabs.steward.service.Actions.MAX_ALLOWANCE, view.weeklyUsd() + 50)));
+		fy += CHIP_H + 4;
+		fy = fact(g, fx, fy, fw, "", String.format("Spent on its own this week: $%.0f.", view.spentWeekUsd()));
+		fact(g, fx, fy, fw, "Difficulty", switch (view.difficulty()) {
 			case "PATRON" -> "Patron: free, instant builds";
 			case "SUPPLIED" -> "Supplied: builds from a stockpile";
 			case "HARDCORE" -> "Hardcore: you gather everything";
 			default -> view.difficulty();
 		});
-		fact(g, fx, fy, fw, "Changing", "These are set when the settlement is founded; changing them, and the steward's weekly spending allowance, come with its proposals.");
 	}
 
 	// ------------------------------------------------------------------ input
