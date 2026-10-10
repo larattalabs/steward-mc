@@ -132,7 +132,12 @@ public final class Updates {
 			apply(server, s.get(), p);
 			n++;
 		}
-		return n == 0 ? "Nothing there can be applied (see why in the inbox)." : "Updating " + n + (n == 1 ? " building" : " buildings") + "...";
+		// what could not be applied now shows its current reason
+		if (n == 0) {
+			refresh(server, s.get());
+			server.getPlayerList().getPlayers().forEach(pl -> SettlementRunner.sendInbox(server, pl.getUUID()));
+		}
+		return n == 0 ? "Nothing there can be applied now (see why in the inbox)." : "Updating " + n + (n == 1 ? " building" : " buildings") + "...";
 	}
 
 	/** Stops offering these versions this session. */

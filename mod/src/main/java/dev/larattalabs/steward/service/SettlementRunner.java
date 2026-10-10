@@ -193,6 +193,7 @@ public final class SettlementRunner {
 	/** Raises the design budget and resumes a group paused at its soft budget. */
 	public String raise(double newBudgetUsd) {
 		if (state == null || (state.groupId() == null && !state.pausedForBudget())) return "There is no design group to fund yet.";
+		if (raiseInFlight) return "The last raise is still on its way to Architect; try again in a moment.";
 		// the same amount retries a paused build's resume (its cap was raised, the resume failed)
 		if (newBudgetUsd < state.budgetUsd() || (newBudgetUsd == state.budgetUsd() && !state.pausedForBudget()))
 			return String.format("The budget is already $%.0f; give a higher one.", state.budgetUsd());
@@ -244,6 +245,8 @@ public final class SettlementRunner {
 	private boolean bibleInFlight, groupInFlight, queueInFlight;
 	/** The newest raise sent to Architect: an older raise's failure arriving late changes nothing. */
 	private int raiseSeq;
+	/** A raise is on its way to Architect: the next waits for it, so a failure always goes back to a budget Architect confirmed. */
+	private boolean raiseInFlight;
 	/** Events the runner raises itself while a step is being carried out; fed once it is done. */
 	private final java.util.ArrayDeque<Event> later = new java.util.ArrayDeque<>();
 	/** The world session the runner belongs to ({@link Session}). */
@@ -501,7 +504,8 @@ public final class SettlementRunner {
 				say("Resuming group " + groupId + " with budget $" + resumeBudget);
 				var d = ArchitectApi.get().designs();
 				if (resumeGroup.status() == Group.Status.DONE) { say("The group is already done; placing."); apply(Pipeline.step(state, new Pipeline.GroupUpdate(groupId, "done", Map.of(), List.of(), resumeGroup.cost().usd(), null), permission)); return; }
-				d.extendGroup(groupId, resumeBudget).thenCompose(v -> d.resumeGroup(groupId)).whenComplete((v, e) -> { if (e != null) say("Resume failed: " + e.getMessage()); });
+				d.extendGroup(groupId, resumeBudget).thenCompose(v -> alive() ? d.resumeGroup(groupId) : java.util.concurrent.CompletableFuture.<Void>completedFuture(null))
+					.whenComplete((v, e) -> { if (e != null) say("Resume failed: " + e.getMessage()); });
 				noteMassings(resumeGroup);
 				for (Group.Item it : resumeGroup.items()) if (it.status() == dev.larattalabs.architect.api.Design.Status.DONE || it.stage().isPresent()) decided.add(decisionKey(it.itemKey()));
 				return;
@@ -554,6 +558,12 @@ public final class SettlementRunner {
 
 	private void drainLater() {
 		while (!later.isEmpty() && alive()) feed(later.poll());
+	}
+
+	/** Architect's helper refused a cancel because the thing is unknown or already final (its words, 1.8). */
+	private static boolean refusedAsOver(Throwable err) {
+		String m = String.valueOf(message(err)).toLowerCase();
+		return m.contains("no group") || m.contains("already");
 	}
 
 	private static String message(Throwable err) {
@@ -732,11 +742,18 @@ public final class SettlementRunner {
 			}
 			case Pipeline.ExtendAndResumeGroup e -> {
 				int seq = ++raiseSeq;
+				raiseInFlight = true;
 				api.designs().extendGroup(e.groupId(), e.groupBudgetUsd()).whenComplete((v, err) -> {
 					if (!alive() || seq != raiseSeq) return;
-					if (err != null) { feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), message(err), false)); return; }
+					if (err != null) {
+						raiseInFlight = false;
+						feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), message(err), false));
+						return;
+					}
 					api.designs().resumeGroup(e.groupId()).whenComplete((v2, err2) -> {
-						if (err2 != null && alive() && seq == raiseSeq) feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), message(err2), true));
+						if (!alive() || seq != raiseSeq) return;
+						raiseInFlight = false;
+						if (err2 != null) feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), message(err2), true));
 					});
 				});
 			}
@@ -758,7 +775,9 @@ public final class SettlementRunner {
 					if (!alive()) return;
 					var now = api.designs().group(id);
 					if (now.isPresent() && now.get().status().isFinal()) onGroup(now.get());
-					else if (now.isEmpty() && err != null) feed(new Pipeline.CancelConfirmed());
+					// only the helper's refusal ("no group", "already <status>") says it is over; a lost link or a timeout says nothing
+					else if (now.isEmpty() && err != null && refusedAsOver(err)) feed(new Pipeline.CancelConfirmed());
+					else if (err != null) say("Could not reach Architect to stop the design group (" + message(err) + "). It is cancelled when Architect answers; cancel again to stop waiting.");
 				});
 				else if (!groupInFlight) later.add(new Pipeline.CancelConfirmed());
 			}
