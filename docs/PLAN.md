@@ -9,7 +9,8 @@ It is a **sibling mod to Architect** (`larattalabs/architect-mc`). Architect is 
 construction engine. Steward is the director on top: concept, site, layout, a standing NPC, proactive upgrades,
 functional modules, villagers, animals, an inbox. Steward depends on Architect and does not copy it.
 
-Status: **plan only**, written 2026-10-05, revised the same day after Architect accepted asks A1-A9 (see "Architect constraints"). Nothing is built.
+Status (2026-10-09): written 2026-10-05; **phase 1 is nearly done** (the whole flow runs in a dev client through in-game screens; its gate run built and undid an
+8-building village, see phase 1 below and the README's Status). Phases 2-7 are ahead.
 
 ## Principles
 
@@ -44,6 +45,7 @@ Status: **plan only**, written 2026-10-05, revised the same day after Architect 
 | 2026-10-05 | **One sidecar.** Steward is a protocol client of Architect's sidecar (one Node helper, one SDK install, one auth). Steward owns the prompt, schema and card UX; the concept-card call goes through Architect's generic `job.run {schema, prompt, model}` (A8). |
 | 2026-10-05 | Architect accepted A1-A9 (architect-mc commit a040e39). Its order is binding for Steward's phases: A9 phase 3, then A8, A1+A2, A3, A7, A4, A6, A5 (see "Architect constraints"). |
 | 2026-10-05 | Functional modules (farms, sorters, trading hall) come from a **verified catalog**, with later a simulation-verified path for Claude-designed ones. Claude composes and parametrises; it does not hand-wire redstone unverified. |
+| 2026-10-09 | **Claims grow** (Noah): the card's size sets the first claim, the player can expand it, and a settlement grows by **districts** (adjacent claims the steward proposes). See "Claims and growth". |
 
 ## Concept card
 
@@ -148,6 +150,30 @@ Each module is tested in the dev client before it ships (redstone and farms are 
 
 Later: Claude-designed modules pass a **simulation gate**: run the singleplayer server N ticks in a scratch area and count
 the output before the design is accepted.
+
+## Claims and growth
+
+A claim is the land a settlement may touch (everything the steward writes stays inside it). It is a square around the Founding Stone today, fixed at 129x129
+(`Settlements.DEFAULT_RADIUS` 64); the model already takes any radius from 8 to 2048 and refuses claims that overlap another settlement. It grows in three ways,
+built in this order:
+
+1. **Size from the card** (phase 1 follow-up). The card's `site.size` (S, M, L, XL; the schema also allows explicit `{x, z}`) sets the claim when the settlement is
+   described: S 97, M 129, L 193, XL 257 blocks across (radius 48, 64, 96, 128), or the explicit size. If the larger square would overlap a neighbour, the
+   claim takes the largest size that fits and the card screen says so. A hamlet stays small; a crater lair gets room. The card screen shows the claim's size.
+2. **Expand** (phase 1 follow-up). A button on the card screen and the inbox grows the claim one step (to the next size, around the stone), refused with the reason
+   when it would overlap another settlement or pass XL. Free in Patron; in Supplied, Hardcore and Economy it costs resources (an "expansion" unlock, phase 4).
+   A re-survey follows, so the next layout uses the new land. Shrinking is not offered while sites stand outside the smaller square.
+3. **Districts** (phase 3, with evolution). Past one claim, a settlement grows by **districts**: adjacent claims with their own purpose ("a harbour district east
+   of town", "the mine quarter"), each laid out and built like a settlement, sharing the settlement's style bible and steward, linked by roads. The steward
+   proposes a district when the town runs out of room or a trigger fits (a resource found, a tier reached, animals nearby); the player can also ask in free text.
+   Permission levels apply as written above: Autonomous still asks before a new district. Districts are also how the single-street limit is lifted: one street
+   holds 12-16 buildings, a district adds its own street or region program.
+
+Large forms are not claims grown by hand: a crater, rift or sky city is a region program (phase 2, Architect 6b-7c) whose claim comes from the program's
+footprint (Architect has realised 1000x1000 regions), checked for overlap like any claim.
+
+Gates: (1) a card of each size claims the matching square and refuses or shrinks on overlap, unit-tested and seen in a client; (2) Expand grows, re-surveys and the
+next layout uses the new land, refusals named; (3) is part of phase 3's gate (a proposed district is approved, laid out next to the town, linked by a road, undone).
 
 ## Interface
 
