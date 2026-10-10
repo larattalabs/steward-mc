@@ -17,6 +17,11 @@ public final class ClaimRules {
 	public static final int[] RADII = {48, 64, 96, 128, 256, 512, 1024};
 	/** How far from the stone a one-street village is surveyed and laid out, whatever the claim's size (one street holds 12-16 buildings). */
 	public static final int VILLAGE_RADIUS = 128;
+	/**
+	 * How far from the stone a build surveys and lays out: Architect surveys every column only up to 256 x 256 (else one in four, which the layout cannot
+	 * use), so 255 x 255 at most.
+	 */
+	public static final int SURVEY_RADIUS = 127;
 
 	private ClaimRules() {
 	}

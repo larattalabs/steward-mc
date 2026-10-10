@@ -22,7 +22,7 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
   - **Autonomous and Full** build their own proposals within the weekly allowance ($500 by default). Settings sets the level and the allowance.
   - **Still to come:** a Claude call that words proposals in the settlement's own style, once Architect's stub is there to test it for free.
 
-The free e2e check runs 32 checks, with a screenshot of each in-world piece.
+The free e2e check runs 32 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper, v0.12.2) runs the whole paid flow at $0, 20 checks: builds, talk, an addition, and a district's first build with its link road.
 
 ## Principles
 

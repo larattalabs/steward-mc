@@ -52,4 +52,11 @@ class ClaimRulesTest {
 		assertEquals(128, ClaimRules.growTo(at(0, 0, 64), ClaimRules.radiusFor("XL"), List.of()).radius(), "a card sizes up to XL only");
 		assertEquals(64, ClaimRules.expand(at(0, 0, 64), List.of(at(140, 0, 64))).radius(), "refused onto a neighbour");
 	}
+
+	@org.junit.jupiter.api.Test
+	void aBuildSurveysWithinArchitectsFullResolutionLimit() {
+		// Architect surveys every column only up to 256 x 256; at 257 it falls back to one in four, which the layout refuses (found by the stub e2e)
+		org.junit.jupiter.api.Assertions.assertTrue(ClaimRules.side(ClaimRules.SURVEY_RADIUS) <= 256);
+		for (int r : DistrictRules.RADII) org.junit.jupiter.api.Assertions.assertTrue(ClaimRules.side(r) <= 256, "a district's survey too");
+	}
 }

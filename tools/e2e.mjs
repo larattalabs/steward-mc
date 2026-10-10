@@ -6,8 +6,9 @@
 //   node tools/e2e.mjs free     $0, no Claude: claim and steward, the save format, expand, the inbox screen, a placed building on the settlement screen and its panel,
 //                               its update, revert and undo, proposals, a protected area and a district with its road (founded and undone), a build restored after
 //                               a restart
-//   node tools/e2e.mjs stub     the whole flow (describe, card, start, approvals, placement, a restart mid-build, undo) against Architect's stub sidecar;
-//                               needs the stub to answer card jobs, bibles and design groups (Architect 6c slice 0, ask C4): until then it fails at describe
+//   node tools/e2e.mjs stub     the whole paid flow at $0 against Architect's helper in sim mode (v0.12.2, notional measured costs): describe through the card
+//                               job, a 3-building build with a restart mid-build, a library asked for in talk and built in the reused bible, a district
+//                               proposed in talk and founded, a building in it laying its street and link road, undo
 //
 // Never spends: the launcher refuses to start while the claude-login opt-in exists and strips credentials from the environment. Do not run it while a
 // Steward dev client uses mod/run (they share the game dir); it refuses then.
@@ -578,30 +579,140 @@ async function restartRestore() {
   else fail('cancel', `${left} builds left (${said})`);
 }
 
-async function stubFlow(id) {
-  // the whole flow against the stub sidecar (Architect 6c slice 0, C4); every wait is bounded
-  let from = logSize();
-  await cmd(`/steward describe ${id} an e2e hamlet: three cottages by a road`);
-  if (!(await waitLog(from, /Saved\. Start building/, 60_000))) return fail('describe', 'no card (the stub does not answer card jobs yet: Architect C4)');
-  ok('describe');
-  from = logSize();
-  await cmd(`/steward start ${id} 3 20`);
-  for (const step of ['style bible', 'massings', 'place']) {
-    const re = step === 'style bible' ? /Style bible ready/ : step === 'massings' ? /massings are ready/ : /Approve to place/;
-    if (!(await waitLog(from, re, 300_000))) return fail(step, 'not reached');
-    if (step === 'massings') {
+/**
+ * Drives one build through its decisions until it is built: approves the style bible, the massings and the placement as each comes (Proposals level), with
+ * a restart at the massings when asked. Returns the steps seen, or null when it stalls.
+ */
+async function buildThrough(id, from, label, restartAtMassings = false) {
+  const steps = [];
+  const end = Date.now() + 600_000;
+  let at = from;
+  while (Date.now() < end) {
+    const since = logSince(at);
+    const built = since.match(/is built: (\d+) buildings placed/);
+    if (built) return { steps, placed: Number(built[1]) };
+    const stopped = since.match(/The build stopped[^\n]*|No dry, flat room[^\n]*|No room left[^\n]*|Survey failed[^\n]*|Cancelled [^\n]*|The design group failed[^\n]*/);
+    if (stopped) {
+      fail(label, stopped[0]);
+      return null;
+    }
+    const m = since.match(/Style bible ready|massings are ready|Approve to place/);
+    if (!m) {
+      await sleep(1000);
+      continue;
+    }
+    steps.push(m[0]);
+    if (m[0] === 'massings are ready' && restartAtMassings) {
       await quit();
       launch();
       await connect();
-      if (await waitLog(0, new RegExp(`resume ${id}: [^\\n]*-> REREAD_GROUP`), 30_000)) ok('restart mid-build');
-      else fail('restart mid-build', 'no re-read');
+      if (await waitLog(0, new RegExp(`resume ${id}: [^\\n]*-> REREAD_GROUP`), 30_000)) ok('restart mid-build', label);
+      else fail('restart mid-build', `${label}: no re-read`);
+      restartAtMassings = false;
     }
-    from = logSize();
+    at = logSize();
     await cmd(`/steward approve ${id}`);
-    ok(step);
   }
-  if (await waitLog(from, /is built: [1-9]\d* buildings placed/, 300_000)) ok('placed');
-  else fail('placed', 'no finish');
+  fail(label, `stalled after ${steps.join(', ') || 'nothing'}`);
+  return null;
+}
+
+async function stubFlow(id) {
+  // the whole paid flow against Architect's sim helper (v0.12.2, notional measured costs, never Claude); every wait is bounded
+  const fixture = (f) => JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).card ?? JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).answer);
+  await cmd(`/steward dev sim_answer card ${fixture('stilt_village.json')}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a fishing village on stilts over a swamp`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('describe', `no card: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
+  const card = settlements().find((x) => x.id === id);
+  ok('describe', `${card?.name}: ${(card?.card?.program ?? []).length} program entries (the scripted card through the card job)`);
+  await closeScreens();
+  from = logSize();
+  await cmd(`/steward start ${id} 3 20`);
+  const first = await buildThrough(id, from, 'first build', true);
+  if (!first) return;
+  ok('first build', `${first.steps.join(' > ')} > ${first.placed} placed`);
+  const spent = settlements().find((x) => x.id === id);
+  if (spent?.bible?.id) ok('bible kept', `${spent.bible.id} v${spent.bible.version}`);
+  else fail('bible kept', JSON.stringify(spent?.bible));
+  // talk through the real talk job (its answer scripted): a library proposed, accepted, built in the settlement's own style
+  await cmd(`/steward dev sim_answer talk ${fixture('talk/library.json')}`);
+  from = logSize();
+  await cmd(`/steward talk ${id} we need a library for the scholars`);
+  let lib = null;
+  for (let i = 0; i < 60 && !lib; i++) {
+    await sleep(1000);
+    lib = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('asked_')) ?? null;
+  }
+  if (!lib) return fail('talk job', `no proposal: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
+  ok('talk job', `${lib.title} proposed (${lib.key})`);
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${lib.key}`);
+  const reused = await waitLog(from, /style bible is reused/, 60_000);
+  const addition = await buildThrough(id, from, 'addition');
+  if (addition && reused) ok('addition', `${addition.steps.join(' > ')} > ${addition.placed} placed, the bible reused`);
+  else if (addition) fail('addition', 'built, but the bible was not reused');
+  // a district through talk, founded; then a building in it lays its street and the link road
+  await cmd(`/steward dev sim_answer talk ${fixture('talk/harbour.json')}`);
+  const st = settlements().find((x) => x.id === id);
+  const [cx, cz] = [st.claim.centerX, st.claim.centerZ];
+  await cmd(`/tp @p ${cx + 120} 100 ${cz}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd(`/steward talk ${id} we need a harbour district out east`);
+  let prop = null;
+  for (let i = 0; i < 60 && !prop; i++) {
+    await sleep(1000);
+    prop = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.found === 'E') ?? null;
+  }
+  if (!prop) return fail('district by talk', 'no district proposal');
+  await cmd(`/steward proposals ${id} accept ${prop.key}`);
+  let d = null;
+  for (let i = 0; i < 20 && !d; i++) {
+    await sleep(1000);
+    d = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.direction === 'E') ?? null;
+  }
+  if (!d) return fail('district by talk', `not founded: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
+  ok('district by talk', `${d.name} founded with road ${d.roads[0].siteId}`);
+  const inHarbour = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', 'library.json'), 'utf8')).answer;
+  inHarbour.building = { ...inHarbour.building, role: "harbourmaster's office", type: 'harbour_office', footprint: 'M', placement: undefined };
+  // M: the sim's stand-in massing (the kit cabin) does not fit an S lot (11 x 9)
+  inHarbour.district = d.name;
+  inHarbour.reply = 'A harbourmaster\'s office in the harbour: it is in the inbox.';
+  await cmd(`/steward dev sim_answer talk ${JSON.stringify(inHarbour)}`);
+  await cmd(`/tp @p ${d.claim.centerX - 20} 100 ${d.claim.centerZ + 10}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd(`/steward talk ${id} put a harbourmaster's office in ${d.name}`);
+  let office = null;
+  for (let i = 0; i < 60 && !office; i++) {
+    await sleep(1000);
+    office = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('asked_') && p.district === d.id) ?? null;
+  }
+  if (!office) return fail('district build', 'no proposal in the district');
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${office.key}`);
+  const inDistrict = await buildThrough(id, from, 'district build');
+  if (!inDistrict) return;
+  let linked = null;
+  for (let i = 0; i < 20 && !linked; i++) {
+    await sleep(1000);
+    linked = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.id === d.id && (x.roads ?? []).some((r) => r.link)) ?? null;
+  }
+  const log = settlements().find((x) => x.id === id)?.log ?? [];
+  if (linked && log.some((e) => e.kind === 'ROAD_PLACED')) ok('district build', `${inDistrict.placed} placed in ${d.name}, its street linked by road ${linked.roads.find((r) => r.link).siteId}`);
+  else fail('district build', `built, but no link road (${JSON.stringify(linked?.roads ?? d.roads)})`);
+  // a picture of the district from above, in survey mode
+  await cmd('/gamemode spectator');
+  await cmd('/time set noon');
+  // above the ground the survey found, looking down on the district and its road
+  const groundY = Number((logSince(0).match(/survey: 97x97 columns[^\n]*ground y (-?\d+)/) ?? [0, 64])[1]);
+  await cmd(`/tp @p ${d.claim.centerX - 75} ${groundY + 45} ${d.claim.centerZ + 65} facing ${d.claim.centerX} ${groundY} ${d.claim.centerZ}`);
+  await dev.request('dev.key', { key: 'u' });
+  await sleep(3000);
+  const shot = (await dev.request('dev.screenshot', { name: 'e2e-stub-district', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.key', { key: 'u' });
+  await cmd('/gamemode creative');
+  ok('district picture', shot);
+  // undo the newest operation (the link road)
   await cmd(`/steward undo ${id}`);
   await sleep(10_000);
   if (settlements().find((s) => s.id === id)?.log.at(-1)?.kind === 'PROJECT_REMOVED') ok('undo');

@@ -38,7 +38,7 @@ public final class ConceptCardJob {
 		if (prompt == null || prompt.isBlank()) throw new IllegalArgumentException("the prompt is empty");
 		if (prompt.length() > MAX_PROMPT) throw new IllegalArgumentException("the description is longer than " + MAX_PROMPT + " characters");
 		return new JobSpec("structured", userPrompt(prompt.strip(), chips, settings), systemPrompt(), MODEL, "low", schema(), List.of(),
-			BUDGET_USD, 4, owner, TAG, null, new JsonObject(), List.of());
+			BUDGET_USD, 4, owner, TAG, null, SimAnswers.ext(SimAnswers.CARD), List.of());
 	}
 
 	static String userPrompt(String prompt, Map<String, String> chips, Settings s) {

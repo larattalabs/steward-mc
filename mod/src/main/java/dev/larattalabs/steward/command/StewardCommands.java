@@ -150,6 +150,14 @@ public final class StewardCommands {
 						StringArgumentType.getString(ctx, "entry"), at.getX(), at.getY(), at.getZ(), "NONE", "MASSING", label, at.getX() + 4, at.getY() + 12, at.getZ() + 4));
 					net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.ShowLayers("steward_mc:dev_ghost", layers));
 					return 1;
+				})))).then(Commands.literal("sim_answer").then(Commands.argument("kind", StringArgumentType.word()).then(Commands.argument("json",
+				StringArgumentType.greedyString()).executes(ctx -> {
+					// dev (the stub e2e check): the answer Architect's sim helper gives jobs of this kind (card, talk); "-" clears it
+					if (!host(ctx.getSource())) return 0;
+					String kind = StringArgumentType.getString(ctx, "kind"), json = StringArgumentType.getString(ctx, "json");
+					dev.larattalabs.steward.gateway.SimAnswers.set(kind, "-".equals(json) ? null : com.google.gson.JsonParser.parseString(json));
+					ctx.getSource().sendSuccess(() -> Component.literal("sim answer for " + kind + ("-".equals(json) ? " cleared" : " set")), false);
+					return 1;
 				})))).then(Commands.literal("talk_answer").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("json",
 				StringArgumentType.greedyString()).executes(ctx -> {
 					// dev (the e2e check): act on a made-up talk answer, as if the talk job had returned it (no Claude)

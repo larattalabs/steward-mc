@@ -167,7 +167,22 @@ It refuses to start while the claude-login opt-in exists or another Steward clie
 new version always differs from the placed one. Results go to `artifacts/e2e/summary.json`. On a failed update it prints Steward's `update check` log
 line (action, reason, write box).
 
-`node tools/e2e.mjs stub` runs the whole flow against Architect's stub helper; it works once Architect's slice 0a ships the stub (C4).
+`node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's helper in sim mode (v0.12.2: `ARCHITECT_SIDECAR_BACKEND=sim`, notional measured
+costs, never Claude). Job answers are scripted with `/steward dev sim_answer card|talk <json>` (`ext["architect:simAnswer"]`, checked against the job's schema).
+It covers:
+- describing through the card job (the stilt village fixture);
+- a 3-building build with a restart at the massings;
+- the bible kept;
+- a talk job asking for a library, accepted and built in the reused bible;
+- a district proposed in talk and founded;
+- a building in the district laying its street and the link road;
+- undo.
+
+First passed 2026-10-10: **PASS 20 checks**. The run found two bugs, both fixed:
+- **The survey limit:** a radius-128 claim was surveyed as 257 x 257, past Architect's 256 x 256 full-resolution limit, so the survey came back at one column in four and the layout refused it. Builds now survey 255 x 255 at most (`ClaimRules.SURVEY_RADIUS`).
+- **A silent stall:** the exception was swallowed by the survey's future, so the build stopped without a word. The callback now says why it stopped.
+
+Sim limitation: an S lot (11 x 9) always fails in the sim, because its stand-in massing is the kit cabin. It is reported to Architect, and the stub run uses M buildings in the district.
 
 Since then: the save format, the settlement screen and building panel, revert, the steward entity (walking to an updated building, sitting on a stair, sleeping in
 a bed, a migrated old mannequin), its nameplate with the "!" and its speech bubble, each with a screenshot in `artifacts/shots/`.

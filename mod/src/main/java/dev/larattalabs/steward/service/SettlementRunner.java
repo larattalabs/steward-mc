@@ -549,10 +549,26 @@ public final class SettlementRunner {
 		// the settlement's own claim (sized by its card, grown by Expand); a dev build uses the default
 		// a one-street village stays near the stone even in a big claim (the rest of a big claim is room for districts and regions)
 		int rad = district != null ? district.claim().radius()
-			: Math.min(dev.larattalabs.steward.model.ClaimRules.VILLAGE_RADIUS, existing != null ? existing.claim().radius() : CLAIM_RADIUS);
+			: Math.min(dev.larattalabs.steward.model.ClaimRules.SURVEY_RADIUS, existing != null ? existing.claim().radius() : CLAIM_RADIUS);
 		BoundingBox area = new BoundingBox(cx - rad, level.getMinY(), cz - rad, cx + rad, level.getMaxY(), cz + rad);
 		say("Surveying the land...");
 		ArchitectApi.get().survey().sample(level, area, 1, LoadPolicy.LOADED_ONLY).whenComplete((sample, err) -> {
+			// an exception in here would be swallowed by the future and leave the build silently stuck: it abandons the build, and says why
+			try {
+				afterSurvey(r, buildings, budgetUsd, district, rad, sample, err);
+			} catch (RuntimeException e) {
+				Steward.LOGGER.error("the build of {} failed after its survey", existing != null ? existing.id() : DEV_ID, e);
+				abandon("The build stopped after the survey: " + e);
+			}
+		});
+	}
+
+	private void afterSurvey(CardResult r, int buildings, double budgetUsd, Settlement.@org.jspecify.annotations.Nullable District district, int rad,
+		dev.larattalabs.architect.api.Sample sample, Throwable err) {
+		{
+			ServerLevel level = level();
+			int cx = district != null ? district.claim().centerX() : existing != null ? existing.claim().centerX() : origin.getX();
+			int cz = district != null ? district.claim().centerZ() : existing != null ? existing.claim().centerZ() : origin.getZ();
 			if (err != null) { abandon("Survey failed: " + err.getMessage()); return; }
 			Grid grid = TerrainGrid.fromSample(sample);
 			// what the settlement has built is taken ground (its buildings and its street), with a block's margin
@@ -609,7 +625,7 @@ public final class SettlementRunner {
 			var bible = existing != null && existing.bible() != null && existing.bible().styleVersion() == existing.styleVersion() ? existing.bible() : null;
 			if (bible != null) say("Designing in " + settlement.name() + "'s own style (its style bible is reused).");
 			apply(Pipeline.step(state, bible != null ? new Pipeline.CardApproved(r.card(), bible.id(), bible.version()) : new Pipeline.CardApproved(r.card()), permission));
-		});
+		}
 	}
 
 	/**

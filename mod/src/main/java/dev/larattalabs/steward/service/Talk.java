@@ -61,6 +61,7 @@ public final class Talk {
 		ServerLifecycleEvents.SERVER_STARTING.register(s -> server = s);
 		ServerLifecycleEvents.SERVER_STOPPING.register(s -> {
 			server = null;
+			dev.larattalabs.steward.gateway.SimAnswers.clear();
 			PENDING.clear();
 			THINKING.clear();
 		});
@@ -97,7 +98,7 @@ public final class Talk {
 		}
 		dev.larattalabs.architect.api.JobSpec spec;
 		try {
-			spec = TalkJob.build(said, context(server, s), s.owner(), simAnswer());
+			spec = TalkJob.build(said, context(server, s), s.owner(), dev.larattalabs.steward.gateway.SimAnswers.ext(dev.larattalabs.steward.gateway.SimAnswers.TALK));
 		} catch (RuntimeException e) {
 			Steward.LOGGER.warn("talk job for {} could not be made", s.id(), e);
 			return Actions.Result.fail("The steward could not take that in (see the log).");
@@ -120,14 +121,6 @@ public final class Talk {
 		});
 		StewardVoice.say(server, s.id(), "Let me think about that.");
 		return Actions.Result.ok("");
-	}
-
-	/** The scripted answer the $0 checks give Architect's sim (system property {@code steward.talk.simAnswer}), or an empty ext. */
-	private static JsonObject simAnswer() {
-		JsonObject ext = new JsonObject();
-		String sim = System.getProperty("steward.talk.simAnswer");
-		if (sim != null && !sim.isBlank()) ext.add("architect:simAnswer", com.google.gson.JsonParser.parseString(sim));
-		return ext;
 	}
 
 	private static void onDone(MinecraftServer server, Job job) {
