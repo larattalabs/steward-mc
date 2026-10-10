@@ -186,4 +186,11 @@ class VillageLayoutTest {
 		assertEquals(9, p.streetZ(), "the existing street, not a new line");
 		assertEquals(1, p.lots().size());
 	}
+
+	@Test
+	void anAdditionStaysBetweenItsStreetsEnds() {
+		Plan p = VillageLayout.plan(CLAIM, flat(), specs(6, 13, 12), Rules.defaults(), 9, -20, 20);
+		for (Lot l : p.lots()) assertTrue(l.x() >= -20 && l.maxX() <= 20, l.toString());
+		assertTrue(p.lots().size() <= 4, "two a side fit along 41 blocks: " + p.lots().size());
+	}
 }

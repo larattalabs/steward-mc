@@ -229,7 +229,7 @@ public final class Pipeline {
 
 	private static Step cancelling(State s, Event e) {
 		return switch (e) {
-			case BibleDone b -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + ".", false));
+			case BibleDone b -> Step.of(s.withBibleCost(b.costUsd()).with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + ".", false));
 			case GroupUpdate g when List.of("done", "failed", "cancelled").contains(g.status()) ->
 				Step.of(s.withProgress(g.items(), s.bibleCostUsd() + g.costUsd(), false, null).with(Phase.CANCELLED), new Notify(String.format("Cancelled %s (spent $%.2f).",
 					label(s), s.bibleCostUsd() + g.costUsd()), false));
@@ -272,7 +272,8 @@ public final class Pipeline {
 	}
 
 	private static Step bibleDone(State s, BibleDone b, Permission perm) {
-		if (!b.ok() || b.bibleId() == null) return Step.of(s.failed("the style bible failed: " + (b.error() == null ? "unknown" : b.error())), new Notify("The style bible could not be made: " + b.error(), true));
+		if (!b.ok() || b.bibleId() == null) return Step.of(s.withBibleCost(b.costUsd()).failed("the style bible failed: " + (b.error() == null ? "unknown" : b.error())),
+			new Notify("The style bible could not be made: " + b.error(), true));
 		State n = s.withBible(b.bibleId(), b.version()).withBibleCost(b.costUsd());
 		if (perm.needsApproval(Permission.Action.NEW_PROJECT)) {
 			return Step.of(n.with(Phase.AWAITING_BIBLE_APPROVAL), new Notify("Style bible ready for " + label(s) + ": review its sheet and approve to start designing.", true));

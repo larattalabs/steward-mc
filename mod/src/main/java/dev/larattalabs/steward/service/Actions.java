@@ -295,6 +295,7 @@ public final class Actions {
 		var p = s.proposals().open().stream().filter(x -> x.key().equals(key)).findFirst();
 		if (p.isEmpty()) return Result.fail("No proposal " + key + " waits.");
 		if (SettlementRunner.busy(s.id())) return Result.fail(s.id() + " is being built; build the proposal once that is done.");
+		if (s.lastUndoable().isEmpty()) return Result.fail("Nothing stands in " + s.name() + " yet: an addition goes beside its buildings and street.");
 		if (reading(s.id())) return Result.fail("The steward is still reading a description of " + s.id() + ".");
 		if (!SettlementRunner.canSave()) return Result.fail("Builds cannot be saved in this world (steward-builds.json could not be read; see the log), so none is started.");
 		MinecraftServer server = player.level().getServer();
@@ -305,7 +306,7 @@ public final class Actions {
 		if (autonomous && !s.autonomy().allows(budget, System.currentTimeMillis())) return Result.fail("Past this week's allowance.");
 		String title = p.get().title();
 		new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, autonomous ? budget : 0, title),
-			() -> Proposals.giveBack(s.id(), key, title)).startAddition(s, p.get().building(), budget);
+			() -> Proposals.giveBack(s.id(), key, title), () -> Proposals.backOff(s.id(), key)).startAddition(s, p.get().building(), budget);
 		return Result.ok(String.format("Building %s for %s: one building beside what stands, budget $%d.", title.toLowerCase(), s.name(), budget));
 	}
 

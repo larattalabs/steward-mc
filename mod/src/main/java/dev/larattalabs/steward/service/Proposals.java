@@ -56,8 +56,9 @@ public final class Proposals {
 		var open = s.proposals().open();
 		// Autonomous and Full: a proposal already waiting is built once the allowance allows (raised, renewed, or the level just changed)
 		if (!s.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && !open.isEmpty()) {
-			Proposal waiting = open.get(0);
-			if (s.autonomy().allows(estimate(waiting), now) && autonomously(server, p, s, waiting, now)) return;
+			// the first one not backing off (one that found no room waits a while, so it does not hold the others up)
+			var waiting = open.stream().filter(x -> BACKOFF.getOrDefault(s.id() + "#" + x.key(), 0L) <= now).findFirst();
+			if (waiting.isPresent() && s.autonomy().allows(estimate(waiting.get()), now) && autonomously(server, p, s, waiting.get(), now)) return;
 		}
 		List<Proposal> fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open, s.proposals().lastAt(), now);
 		if (fresh.isEmpty()) return;
@@ -126,6 +127,9 @@ public final class Proposals {
 		var s = Settlements.store().get(settlementId);
 		if (s.isEmpty()) return false;
 		var ps = s.get().proposals();
+		// checked again now, after the survey: the player may have declined it or lowered the allowance meanwhile
+		if (ps.open().stream().noneMatch(x -> x.key().equals(key))) return false;
+		if (spendUsd > 0 && !s.get().autonomy().allows(spendUsd, System.currentTimeMillis())) return false;
 		List<String> accepted = new ArrayList<>(ps.accepted());
 		if (!accepted.contains(key)) accepted.add(key);
 		Settlement n = s.get().withProposals(new Settlement.Proposals(ps.open().stream().filter(x -> !x.key().equals(key)).toList(), ps.declined(), accepted, ps.lastAt()));
@@ -133,7 +137,16 @@ public final class Proposals {
 		return Settlements.replace(n).ok();
 	}
 
-	/** A proposal's build ended having spent nothing: the proposal waits again and its recorded spend is taken off. */
+	/** Settlement#key -> when a proposal that could not be started (no room, a failed survey) may be tried on its own again. This session. */
+	private static final Map<String, Long> BACKOFF = new HashMap<>();
+	static final long BACKOFF_MS = 30 * 60_000L;
+
+	/** A proposal's build never started: the steward tries another before this one again. */
+	static void backOff(String settlementId, String key) {
+		BACKOFF.put(settlementId + "#" + key, System.currentTimeMillis() + BACKOFF_MS);
+	}
+
+	/** A proposal's build ended before Architect took any paid request of it: the proposal waits again and its recorded spend is taken off. */
 	static void giveBack(String settlementId, String key, String what) {
 		var s = Settlements.store().get(settlementId);
 		if (s.isEmpty()) return;
@@ -144,7 +157,9 @@ public final class Proposals {
 		Settlement n = s.get().withProposals(new Settlement.Proposals(open, ps.declined(), ps.accepted().stream().filter(k -> !k.equals(key)).toList(), ps.lastAt()));
 		var spends = new ArrayList<>(n.autonomy().spends());
 		for (int i = spends.size() - 1; i >= 0; i--) if (spends.get(i).what().equals(what)) { spends.remove(i); break; }
-		Settlements.replace(n.withAutonomy(new Settlement.Autonomy(n.autonomy().weeklyUsd(), spends)));
+		if (!Settlements.replace(n.withAutonomy(new Settlement.Autonomy(n.autonomy().weeklyUsd(), spends))).ok()) {
+			dev.larattalabs.steward.Steward.LOGGER.warn("could not give proposal {} of {} back (the settlement could not be saved)", key, settlementId);
+		}
 	}
 
 	/** One inbox entry per settlement with proposals waiting. */

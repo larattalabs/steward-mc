@@ -71,6 +71,11 @@ public final class VillageLayout {
 
 	/** As {@link #plan(Claim, Grid, List, Rules)}, on the given street ({@code streetZ}) when there is one: an addition faces the settlement's own street. */
 	public static Plan plan(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, @Nullable Integer streetZ) {
+		return plan(claim, grid, specs, rules, streetZ, Integer.MIN_VALUE, Integer.MAX_VALUE);
+	}
+
+	/** As above, with lots kept between {@code xLo} and {@code xHi}: an addition stays along its street, which it does not extend. */
+	public static Plan plan(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, @Nullable Integer streetZ, int xLo, int xHi) {
 		// placement hints order the specs: the street fills from its middle outward, so "central" goes first and "edge" last
 		List<LotSpec> ordered = new ArrayList<>(specs);
 		ordered.sort(Comparator.comparingInt(VillageLayout::orderOf));
@@ -82,7 +87,7 @@ public final class VillageLayout {
 		for (int dz = dz0; dz <= dz1; dz += 4) {
 			for (boolean northFirst : new boolean[] {true, false}) {
 				for (boolean eastFirst : new boolean[] {true, false}) {
-					Plan p = tryStreetSkipping(claim, grid, ordered, rules, claim.centerZ() + dz, northFirst, eastFirst);
+					Plan p = tryStreetSkipping(claim, grid, ordered, rules, claim.centerZ() + dz, northFirst, eastFirst, xLo, xHi);
 					// more lots first, then how well the lots meet their placement hints, then the least slope, then closer to the claim centre
 					long score = p.lots().size() * 1_000_000L + hintScore(p, grid, claim, waterDist) - slopeTotal(p, grid) * 10L - Math.abs(dz);
 					if (score > bestScore) {
@@ -141,17 +146,17 @@ public final class VillageLayout {
 	/** How many lots in a row may be dropped without the street gaining one before skipping stops (each drop re-lays the street). */
 	private static final int MAX_STALE_DROPS = 3;
 
-	private static Plan tryStreetSkipping(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, int streetZ, boolean northFirst, boolean eastFirst) {
+	private static Plan tryStreetSkipping(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, int streetZ, boolean northFirst, boolean eastFirst, int xLo, int xHi) {
 		List<LotSpec> use = new ArrayList<>(specs);
 		List<LotSpec> dropped = new ArrayList<>();
-		Plan best = tryStreet(claim, grid, use, rules, streetZ, northFirst, eastFirst);
+		Plan best = tryStreet(claim, grid, use, rules, streetZ, northFirst, eastFirst, xLo, xHi);
 		Plan p = best;
 		int stale = 0;
 		while (!p.unplaced().isEmpty() && use.size() > 1) {
 			use.remove(p.unplaced().get(0));
 			dropped.add(p.unplaced().get(0));
 			int before = p.lots().size();
-			p = tryStreet(claim, grid, use, rules, streetZ, northFirst, eastFirst);
+			p = tryStreet(claim, grid, use, rules, streetZ, northFirst, eastFirst, xLo, xHi);
 			// no better for several drops in a row: the street is simply full, not held up (one or two blockers in a row are skipped)
 			if (p.lots().size() > before) stale = 0;
 			else if (++stale >= MAX_STALE_DROPS) break;
@@ -164,10 +169,10 @@ public final class VillageLayout {
 		return best;
 	}
 
-	private static Plan tryStreet(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, int streetZ, boolean northFirst, boolean eastFirst) {
+	private static Plan tryStreet(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, int streetZ, boolean northFirst, boolean eastFirst, int xLo, int xHi) {
 		int m = rules.claimMargin();
-		int xMin = claim.centerX() - claim.radius() + m;
-		int xMax = claim.centerX() + claim.radius() - m;
+		int xMin = Math.max(xLo, claim.centerX() - claim.radius() + m);
+		int xMax = Math.min(xHi, claim.centerX() + claim.radius() - m);
 		int zMin = claim.centerZ() - claim.radius() + m;
 		int zMax = claim.centerZ() + claim.radius() - m;
 		int halfStreet = rules.streetWidth() / 2;

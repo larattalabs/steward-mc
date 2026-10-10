@@ -346,4 +346,16 @@ class PipelineTest {
 		assertEquals(35.0, g.budgetUsd(), 1e-9, "the whole budget goes to the designs");
 		assertEquals(Phase.GROUP_RUNNING, st.next().phase());
 	}
+
+	@Test
+	void aBibleThatFailsOrIsCancelledKeepsItsCost() throws Exception {
+		State running = Pipeline.step(started(), new CardApproved(card()), Permission.PROPOSALS).next();
+		State failed = Pipeline.step(running, new BibleDone(false, null, 0, 1.25, "boom"), Permission.PROPOSALS).next();
+		assertEquals(Phase.FAILED, failed.phase());
+		assertEquals(1.25, failed.spentUsd(), 1e-9);
+		State cancelling = Pipeline.step(running, new Cancel(), Permission.PROPOSALS).next();
+		State cancelled = Pipeline.step(cancelling, new BibleDone(false, null, 0, 0.8, "CANCELLED"), Permission.PROPOSALS).next();
+		assertEquals(Phase.CANCELLED, cancelled.phase());
+		assertEquals(0.8, cancelled.spentUsd(), 1e-9);
+	}
 }

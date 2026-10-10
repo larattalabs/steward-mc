@@ -480,11 +480,18 @@ public final class SettlementRunner {
 	 */
 	private java.util.function.BooleanSupplier onStart;
 	private Runnable onNothingSpent;
+	/** Run when the build never started (no room, a failed survey, a save that failed): an accepted proposal backs off. */
+	private Runnable onAbandoned;
+	/** Architect acknowledged a paid request of this build (a bible job or a design group): from then on it may have cost something. */
+	private boolean paidRequestAcked;
+	/** The settlement's street ends (x), found with its centre line: an addition stays between them. */
+	private int streetX0 = Integer.MIN_VALUE, streetX1 = Integer.MAX_VALUE;
 	private Group resumeGroup;
 
-	public SettlementRunner hooks(java.util.function.BooleanSupplier onStart, Runnable onNothingSpent) {
+	public SettlementRunner hooks(java.util.function.BooleanSupplier onStart, Runnable onNothingSpent, Runnable onAbandoned) {
 		this.onStart = onStart;
 		this.onNothingSpent = onNothingSpent;
+		this.onAbandoned = onAbandoned;
 		return this;
 	}
 	private double resumeBudget;
@@ -539,7 +546,8 @@ public final class SettlementRunner {
 			if (!program.fromCard()) say("This card has no building program (it was described before programs existed), so this is a generic village. Describe it again to get buildings of its own.");
 			if (!program.leftOut().isEmpty()) say("Left out at " + buildings + " buildings: " + String.join(", ", program.leftOut()) + ".");
 			List<VillageLayout.LotSpec> specs = program.specs();
-			plan = VillageLayout.plan(claim, grid, specs, VillageLayout.Rules.defaults(), addition ? streetZ : null);
+			plan = addition ? VillageLayout.plan(claim, grid, specs, VillageLayout.Rules.defaults(), streetZ, streetX0, streetX1)
+				: VillageLayout.plan(claim, grid, specs, VillageLayout.Rules.defaults());
 			say("Layout: " + plan.lots().size() + " lots on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
 			if (plan.lots().isEmpty()) { abandon("No dry, flat room here. Try another spot."); return; }
 			if (resumeGroup != null) {
@@ -569,7 +577,11 @@ public final class SettlementRunner {
 		for (var v : ArchitectApi.get().sites(server).list(s.owner())) {
 			var b = v.box();
 			for (int x = b.minX() - 1; x <= b.maxX() + 1; x++) for (int z = b.minZ() - 1; z <= b.maxZ() + 1; z++) if (grid.has(x, z)) grid.setBuilt(x, z, true);
-			if (BatchPlanner.STREET_KEY.equals(v.itemKey())) streetZ = (b.minZ() + b.maxZ()) / 2;
+			if (BatchPlanner.STREET_KEY.equals(v.itemKey())) {
+				streetZ = (b.minZ() + b.maxZ()) / 2;
+				streetX0 = b.minX();
+				streetX1 = b.maxX();
+			}
 		}
 	}
 
@@ -590,10 +602,14 @@ public final class SettlementRunner {
 	/** Gives up before the pipeline started: says why and frees the slot. */
 	private void abandon(String why) {
 		say(why);
-		// it never started: an accepted proposal is given back (it was recorded only if onStart ran)
+		// it never started: an accepted proposal is given back (it was recorded only if onStart ran), and backs off before it is tried again
 		if (onNothingSpent != null && state != null) {
 			onNothingSpent.run();
 			onNothingSpent = null;
+		}
+		if (onAbandoned != null) {
+			onAbandoned.run();
+			onAbandoned = null;
 		}
 		if (claimedId != null) ACTIVE.remove(claimedId, this);
 		sendInbox(server, playerId);
@@ -612,8 +628,9 @@ public final class SettlementRunner {
 			&& settlement != null && Settlements.store().get(settlement.id()).isPresent()) {
 			Settlements.bible(settlement.id(), new Settlement.BibleRef(state.bibleId(), state.bibleVersion(), Settlements.store().get(settlement.id()).get().styleVersion()));
 		}
-		// ended having spent nothing (a failed request, a cancel before any design): an accepted proposal is given back
-		if (before != null && !before.terminal() && state.phase().terminal() && state.phase() != Pipeline.Phase.DONE && state.spentUsd() <= 0 && onNothingSpent != null) {
+		// ended before Architect took any paid request of it (a request refused, a cancel before the ack): an accepted proposal is given back. Once a bible job
+		// or a group was acknowledged it may have cost something, whatever the spend says
+		if (before != null && !before.terminal() && state.phase().terminal() && state.phase() != Pipeline.Phase.DONE && !paidRequestAcked && onNothingSpent != null) {
 			onNothingSpent.run();
 			onNothingSpent = null;
 		}
@@ -798,6 +815,7 @@ public final class SettlementRunner {
 					// cancelled while the request was on its way (or this runner belongs to a closed world): stop the job now
 					if (!alive() || state.phase().terminal()) { if (!job.finished()) api.bibles().cancel(job.id()); return; }
 					bibleJobId = job.id();
+					paidRequestAcked = true;
 					persist();
 					if (state.phase() == Pipeline.Phase.CANCELLING && !job.finished()) api.bibles().cancel(job.id());
 					// the job as it stood at the ack: a fast or cached bible may already be done, and BIBLE_DONE fired before we knew its id
@@ -820,6 +838,7 @@ public final class SettlementRunner {
 					}
 					if (!alive() || state.phase().terminal()) { api.designs().cancelGroup(id); return; }
 					groupId = id;
+					paidRequestAcked = true;
 					persist();
 					if (state.phase() == Pipeline.Phase.CANCELLING) { execute(new Pipeline.CancelGroup(id)); return; }
 					// catch up on updates that fired before we knew the id (repeats are harmless: approvals are deduplicated)
