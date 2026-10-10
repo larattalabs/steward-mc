@@ -397,12 +397,25 @@ public final class SettlementRunner {
 		unread.clear();
 	}
 
-	/** Records the placed sites in the settlement's change log ({@code /steward undo} removes them). Dev builds are not saved settlements. */
-	/** Returns false when the log could not be saved (the build then stays unfinished, so a restart logs it again from the sites). */
+	/**
+	 * Records the placed sites in the settlement's change log as one operation, each site from version 0 to the version it stands at ({@code /steward undo}
+	 * removes them). Dev builds are not saved settlements. Returns false when the log could not be saved (the build then stays unfinished, so a restart logs it
+	 * again from the sites).
+	 */
 	private boolean logPlaced(List<String> siteIds, int buildings) {
+		return logPlaced(siteIds, buildings, 0);
+	}
+
+	private boolean logPlaced(List<String> siteIds, int buildings, int notPlaced) {
 		if (siteIds.isEmpty() || Settlements.store().get(settlement.id()).isEmpty()) return true;
-		return Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings", siteIds,
-			siteGroupId)).ok();
+		var sites = ArchitectApi.get().sites(server);
+		List<Settlement.SiteChange> changes = siteIds.stream().map(id -> {
+			var v = sites.get(id);
+			String lot = v.map(x -> extString(x.ext(), "steward_mc:role")).orElse(null);
+			return new Settlement.SiteChange(id, lot, 0, v.map(dev.larattalabs.architect.api.SiteView::version).orElse(1));
+		}).toList();
+		return Settlements.log(settlement.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings"
+			+ (notPlaced > 0 ? " (" + notPlaced + " not placed)" : ""), changes, siteGroupId, notPlaced > 0 ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE)).ok();
 	}
 
 	private void logFailed() {
@@ -868,7 +881,7 @@ public final class SettlementRunner {
 		b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).forEach(i -> say("Not placed: " + i.itemKey() + " (" + i.reason().map(Enum::name).orElse("?") + ") " + i.message()));
 		// every site of the build, street included, so an undo removes all of it
 		if (siteGroupId == null) siteGroupId = b.group();
-		if (!logPlaced(b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).flatMap(i -> i.siteId().stream()).toList(), (int) placed)) {
+		if (!logPlaced(b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).flatMap(i -> i.siteId().stream()).toList(), (int) placed, (int) failed)) {
 			logFailed();
 			return;
 		}

@@ -20,6 +20,18 @@ public final class Undo {
 	private Undo() {
 	}
 
+	/** The operation an undo logs: each removed site to version 0 (the version it stood at is in the placing entry); partial when it stopped early. */
+	private static Settlement.LogEntry removed(Settlement.LogEntry placed, List<String> gone, boolean whole) {
+		java.util.Map<String, Settlement.SiteChange> before = new java.util.HashMap<>();
+		for (Settlement.SiteChange c : placed.changes()) before.put(c.siteId(), c);
+		List<Settlement.SiteChange> changes = gone.stream().map(id -> {
+			var b = before.get(id);
+			return new Settlement.SiteChange(id, b == null ? null : b.lot(), b == null ? -1 : b.to(), 0);
+		}).toList();
+		return Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_REMOVED, "Undid " + gone.size() + " sites of \"" + placed.text() + "\"" + (placed.op() == null
+			? "" : " (" + placed.op() + ")"), changes, null, whole ? Settlement.Outcome.DONE : Settlement.Outcome.PARTIAL);
+	}
+
 	/** Starts the undo; {@code say} gets progress and the result. Returns false (having said why) when there is nothing to undo. */
 	public static boolean lastProject(MinecraftServer server, Settlement s, Consumer<String> say) {
 		var entry = s.lastUndoable();
@@ -40,8 +52,7 @@ public final class Undo {
 			List<String> standing = List.copyOf(g.get().sites());
 			sites.removeGroup(group, as).whenComplete((r, err) -> {
 				List<String> gone = err == null && r.removed() ? standing : standing.stream().filter(id -> sites.get(id).isEmpty()).toList();
-				if (!gone.isEmpty()) Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.PROJECT_REMOVED,
-					"Undid " + gone.size() + " sites of \"" + entry.get().text() + "\"", gone));
+				if (!gone.isEmpty()) Settlements.log(s.id(), removed(entry.get(), gone, gone.size() == standing.size()));
 				if (err != null) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
 				else if (!r.removed()) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: blocked by "
 					+ (r.blockers().isEmpty() ? "something in a box" : String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
@@ -69,8 +80,7 @@ public final class Undo {
 			});
 		}
 		chain.whenComplete((stop, err) -> {
-			if (!removed.isEmpty()) Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.PROJECT_REMOVED,
-				"Undid " + removed.size() + " sites of \"" + entry.get().text() + "\"", List.copyOf(removed)));
+			if (!removed.isEmpty()) Settlements.log(s.id(), removed(entry.get(), List.copyOf(removed), removed.size() == ids.size()));
 			if (err != null) {
 				Steward.LOGGER.warn("undo of {} failed", s.id(), err);
 				say.accept("Undo stopped after " + removed.size() + " of " + ids.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));

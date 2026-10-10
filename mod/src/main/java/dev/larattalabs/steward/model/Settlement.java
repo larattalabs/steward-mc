@@ -21,15 +21,67 @@ public record Settlement(
 	Difficulty difficulty,
 	List<LogEntry> log
 ) {
-	public enum Kind { FOUNDED, CARD_EDITED, RESKIN, RELAYOUT, PROJECT_PROPOSED, PROJECT_APPROVED, PROJECT_PLACED, PROJECT_REMOVED, PERMISSION_CHANGED, NOTE }
+	public enum Kind {
+		FOUNDED, CARD_EDITED, RESKIN, RELAYOUT, PROJECT_PROPOSED, PROJECT_APPROVED, PROJECT_PLACED, PROJECT_REMOVED, PERMISSION_CHANGED, NOTE,
+		/** A placed building moved to another version of its design (an update; later a change request). */
+		UPDATED,
+		/** A building moved back to an earlier version. */
+		REVERTED,
+		/** The claim's size changed. */
+		CLAIM_CHANGED
+	}
+
+	/** How an operation ended. */
+	public enum Outcome { DONE, PARTIAL, FAILED }
+
+	/** How an operation is undone: a placed project is removed, an updated building goes back to its earlier version; the rest have nothing to undo. */
+	public enum Recovery { UNDO_PROJECT, REVERT_VERSION, NONE }
 
 	/**
-	 * One line of the change log. {@code siteIds} are Architect site ids a later undo can remove; {@code siteGroup} is the Architect site group a placed
-	 * project's batch made (undo removes it whole with {@code Sites.removeGroup}), null for older entries and other kinds.
+	 * What one operation did to one site: from version {@code from} to {@code to}. 0 = the site did not stand (placed: from 0) or stands no more (removed: to
+	 * 0); -1 = not recorded (entries migrated from before operations).
 	 */
-	public record LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup) {
+	public record SiteChange(String siteId, @Nullable String lot, int from, int to) {}
+
+	/**
+	 * One operation in the change log (docs/PLAN.md "Reviews (2026-10-09)": change history before autonomy). {@code siteIds} are the Architect sites it
+	 * touched; {@code siteGroup} the site group a placed project's batch made (undo removes it whole); {@code op} its id in the settlement ({@code op_<n>},
+	 * given when logged); {@code changes} the version change of each site; {@code outcome} how it ended. Entries written before operations have no op,
+	 * changes or outcome: they read as done with no recorded versions.
+	 */
+	public record LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup, @Nullable String op, List<SiteChange> changes,
+		@Nullable Outcome outcome) {
+		public LogEntry {
+			siteIds = siteIds == null ? List.of() : List.copyOf(siteIds);
+			changes = changes == null ? List.of() : List.copyOf(changes);
+			outcome = outcome == null ? Outcome.DONE : outcome;
+			text = text == null ? "" : text;
+		}
+
+		public LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup) {
+			this(at, kind, text, siteIds, siteGroup, null, List.of(), Outcome.DONE);
+		}
+
 		public LogEntry(long at, Kind kind, String text, List<String> siteIds) {
 			this(at, kind, text, siteIds, null);
+		}
+
+		/** An operation with its version changes; its sites are the changes' sites. */
+		public static LogEntry of(long at, Kind kind, String text, List<SiteChange> changes, @Nullable String siteGroup, Outcome outcome) {
+			return new LogEntry(at, kind, text, changes.stream().map(SiteChange::siteId).toList(), siteGroup, null, changes, outcome);
+		}
+
+		public Recovery recovery() {
+			if (outcome == Outcome.FAILED) return Recovery.NONE;
+			return switch (kind) {
+				case PROJECT_PLACED -> Recovery.UNDO_PROJECT;
+				case UPDATED, REVERTED -> changes.stream().anyMatch(c -> c.from() > 0) ? Recovery.REVERT_VERSION : Recovery.NONE;
+				default -> Recovery.NONE;
+			};
+		}
+
+		LogEntry withOp(String id) {
+			return new LogEntry(at, kind, text, siteIds, siteGroup, id, changes, outcome);
 		}
 	}
 
@@ -39,7 +91,10 @@ public record Settlement(
 		name = name == null || name.isBlank() ? id : name;
 		permission = permission == null ? Permission.PROPOSALS : permission;
 		difficulty = difficulty == null ? Difficulty.PATRON : difficulty;
-		log = log == null ? List.of() : List.copyOf(log);
+		// every operation has an id: entries made without one (the founding entry) get theirs by position
+		List<LogEntry> l = new ArrayList<>(log == null ? List.of() : log);
+		for (int i = 0; i < l.size(); i++) if (l.get(i).op() == null) l.set(i, l.get(i).withOp("op_" + (i + 1)));
+		log = List.copyOf(l);
 		siteVersion = Math.max(1, siteVersion);
 		styleVersion = Math.max(1, styleVersion);
 		purposeVersion = Math.max(1, purposeVersion);
@@ -72,9 +127,10 @@ public record Settlement(
 		return "steward_mc:settlement/" + id;
 	}
 
+	/** Appends an operation, giving it the next {@code op_<n>} id when it has none. */
 	public Settlement withLog(LogEntry e) {
 		List<LogEntry> l = new ArrayList<>(log);
-		l.add(e);
+		l.add(e.op() == null ? e.withOp("op_" + (l.size() + 1)) : e);
 		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, l);
 	}
 
@@ -90,7 +146,7 @@ public record Settlement(
 	/** The claim grown (or set by the card's size); the change log says to what. */
 	public Settlement withClaim(Claim c, long now) {
 		return new Settlement(id, name, card, c, siteVersion, styleVersion, purposeVersion, permission, difficulty, log)
-			.withLog(new LogEntry(now, Kind.NOTE, "Claim is now " + ClaimRules.side(c.radius()) + " x " + ClaimRules.side(c.radius()), List.of()));
+			.withLog(new LogEntry(now, Kind.CLAIM_CHANGED, "Claim is now " + ClaimRules.side(c.radius()) + " x " + ClaimRules.side(c.radius()), List.of()));
 	}
 
 	public Settlement withPermission(Permission p, long now) {
@@ -110,7 +166,8 @@ public record Settlement(
 			if (e.kind() == Kind.PROJECT_PLACED) {
 				List<String> left = e.siteIds().stream().filter(id -> !removed.contains(id)).toList();
 				// the group only while the project is whole: after a partial undo the rest goes site by site
-				if (!left.isEmpty()) return java.util.Optional.of(new LogEntry(e.at(), e.kind(), e.text(), left, left.size() == e.siteIds().size() ? e.siteGroup() : null));
+				if (!left.isEmpty()) return java.util.Optional.of(new LogEntry(e.at(), e.kind(), e.text(), left, left.size() == e.siteIds().size() ? e.siteGroup() : null, e.op(),
+					e.changes().stream().filter(c -> left.contains(c.siteId())).toList(), e.outcome()));
 			}
 		}
 		return java.util.Optional.empty();

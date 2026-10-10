@@ -1,0 +1,442 @@
+{
+  "format": 1,
+  "settlements": [
+    {
+      "id": "set_1",
+      "name": "The Brimstone Pit",
+      "card": {
+        "name": "The Brimstone Pit",
+        "site": {
+          "text": "giant meteor crater",
+          "terrain": "sculpt"
+        },
+        "style": {
+          "text": "hellish evil lair",
+          "template": "infernal"
+        },
+        "purpose": {
+          "text": "mining facility",
+          "template": "mining_outpost"
+        },
+        "story": {
+          "text": ""
+        },
+        "constraints": {
+          "near": "search",
+          "density": "med",
+          "difficulty": "patron"
+        },
+        "avoid": [],
+        "interpretation": "I read the site as a giant meteor crater sculpted into the land, the look as a hellish evil lair in an infernal style (nether brick, blackstone, lava glow), and the purpose as a working mining facility. \"Repurposed\" is kept as the idea that the crater is reused by a dark master, though I added no backstory. The program centres on an overseer\u0027s keep on the rim, with foundry, crushers, mine head and barracks down the slopes.",
+        "contradictions": [],
+        "assumptions": [
+          "Size M, about 10 buildings, fitting a 64-block claim radius.",
+          "Medium density.",
+          "No tavern or chapel beyond a dark shrine, since it is an evil lair.",
+          "Placement is searched for a spot with room for the crater.",
+          "Story left empty since none was given beyond \u0027repurposed\u0027."
+        ],
+        "program": [
+          {
+            "role": "overseer\u0027s keep",
+            "type": "tower",
+            "count": 1,
+            "footprint": "L",
+            "landmark": true,
+            "notes": "Jagged dark fortress on the crater rim overlooking the pit; lava-lit windows, spikes, banners."
+          },
+          {
+            "role": "slag foundry",
+            "type": "slag_foundry",
+            "count": 1,
+            "footprint": "L",
+            "landmark": false,
+            "notes": "Smelts ore with lava channels and chimneys; glows red, vents smoke."
+          },
+          {
+            "role": "ore crusher",
+            "type": "ore_crusher",
+            "count": 2,
+            "footprint": "M",
+            "landmark": false,
+            "notes": "Hoppers, pistons and grindstones processing meteor ore; sits on terraces."
+          },
+          {
+            "role": "mine head",
+            "type": "mine_head",
+            "count": 1,
+            "footprint": "M",
+            "landmark": false,
+            "notes": "Winch and scaffold headframe over the central shaft at the crater floor."
+          },
+          {
+            "role": "worker barracks",
+            "type": "house",
+            "count": 4,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Cramped blackstone bunks with iron bars, set into the crater slope."
+          },
+          {
+            "role": "brimstone shrine",
+            "type": "chapel",
+            "count": 1,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Dark altar to the lair\u0027s master, nether brick, soul fire and skulls."
+          },
+          {
+            "role": "ore storehouse",
+            "type": "barn",
+            "count": 1,
+            "footprint": "M",
+            "landmark": false,
+            "notes": "Stockpiles of ingots and raw ore behind iron doors and guarded."
+          }
+        ]
+      },
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 40,
+        "centerZ": 60,
+        "radius": 64,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1791586978530,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": []
+        },
+        {
+          "at": 1791590729764,
+          "kind": "CARD_EDITED",
+          "text": "Described as: giant meteor crater, hellish evil lair",
+          "siteIds": []
+        }
+      ]
+    },
+    {
+      "id": "set_2",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 300,
+        "centerZ": 300,
+        "radius": 64,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1791590835274,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": []
+        }
+      ]
+    },
+    {
+      "id": "set_3",
+      "name": "Smugglers\u0027 Cove",
+      "card": {
+        "name": "Smugglers\u0027 Cove",
+        "site": {
+          "text": "carved into sea cliffs, with tunnels cut into the rock and hidden docks at the waterline",
+          "template": "cliff_face",
+          "terrain": "find",
+          "size": "M"
+        },
+        "style": {
+          "text": "lantern-lit tunnels, damp stone, weathered dark timber, rope and barrels, hidden and shadowy"
+        },
+        "purpose": {
+          "text": "smugglers\u0027 cove for hiding contraband and ships, with hidden docks"
+        },
+        "story": {
+          "text": ""
+        },
+        "constraints": {
+          "near": "search",
+          "density": "med",
+          "difficulty": "patron"
+        },
+        "avoid": [
+          "castle"
+        ],
+        "interpretation": "Site: a cove cut into sea cliffs, with tunnels in the rock and docks at the waterline. Style: lantern-lit, damp stone and dark timber, kept shadowy and hidden. Purpose: a smugglers\u0027 hideout for ships and contraband. No castle or keep appears in the buildings. I made it medium-sized with about ten buildings, one centrepiece tavern, and the existing sea cliffs used rather than reshaped.",
+        "contradictions": [],
+        "assumptions": [
+          "Size is M, since none was given.",
+          "Terrain uses existing sea cliffs (find) rather than sculpting.",
+          "Density is medium.",
+          "No backstory was given, so none was added.",
+          "Location is searched for, since the player did not say spawn or here."
+        ],
+        "program": [
+          {
+            "role": "harbourmaster\u0027s den",
+            "type": "tavern",
+            "count": 1,
+            "footprint": "L",
+            "landmark": true,
+            "notes": "Cliff-hollow tavern and meeting hall above the main dock; lantern-lit, with a hidden back exit."
+          },
+          {
+            "role": "hidden dock",
+            "type": "dock",
+            "count": 2,
+            "footprint": "M",
+            "landmark": false,
+            "notes": "Timber piers tucked in sea caves, with mooring posts and lanterns."
+          },
+          {
+            "role": "contraband warehouse",
+            "type": "warehouse",
+            "count": 2,
+            "footprint": "M",
+            "landmark": false,
+            "notes": "Cave storage packed with barrels, crates and chests; one has a false wall."
+          },
+          {
+            "role": "smugglers\u0027 quarters",
+            "type": "cabin",
+            "count": 3,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Bunks and chests carved into tunnel walls."
+          },
+          {
+            "role": "lookout post",
+            "type": "tower",
+            "count": 1,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Cliff-top lookout disguised among rocks to signal incoming ships."
+          },
+          {
+            "role": "chandlery and fence",
+            "type": "shop",
+            "count": 1,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Trades ship supplies and stolen goods from a tunnel alcove."
+          }
+        ]
+      },
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 599,
+        "centerZ": 599,
+        "radius": 128,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1791590928079,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": []
+        },
+        {
+          "at": 1791602254321,
+          "kind": "CARD_EDITED",
+          "text": "Described as: carved into sea cliffs, with tunnels cut into the rock and hidden docks at the waterline, lantern-lit tunnels, damp stone, weathered dark timber, rope and barrels, hidden and shadowy",
+          "siteIds": []
+        },
+        {
+          "at": 1791606026173,
+          "kind": "NOTE",
+          "text": "Claim is now 193 x 193",
+          "siteIds": []
+        },
+        {
+          "at": 1791606030480,
+          "kind": "NOTE",
+          "text": "Claim is now 257 x 257",
+          "siteIds": []
+        }
+      ]
+    },
+    {
+      "id": "set_4",
+      "name": "Greywater Hamlet",
+      "card": {
+        "name": "Greywater Hamlet",
+        "site": {
+          "text": "small hamlet on the shore of a lake, with docks reaching into the water",
+          "template": "waterfront",
+          "terrain": "find"
+        },
+        "style": {
+          "text": "weathered grey timber, nets drying on racks, smoke from a smokehouse",
+          "template": "rustic"
+        },
+        "purpose": {
+          "text": "small fishing hamlet: catching, drying and smoking fish for the village"
+        },
+        "story": {
+          "text": ""
+        },
+        "constraints": {
+          "near": "search",
+          "density": "low",
+          "difficulty": "patron"
+        },
+        "avoid": [],
+        "interpretation": "You asked for a small lakeside fishing hamlet. I took the site as a waterfront on existing lake shore, the style as rustic with weathered grey timber, and the purpose as fishing with drying and smoking of the catch. The program is about six buildings: a smokehouse as the centrepiece, three cottages, a net-drying rack area and a boathouse with a pier. No backstory was given, so none is added.",
+        "contradictions": [],
+        "assumptions": [
+          "Size S because it is a small hamlet.",
+          "Density low for a sparse hamlet.",
+          "Location is searched for a suitable lake, since you did not say near spawn or here.",
+          "Rustic style template used for the weathered timber look.",
+          "Terrain left as found, with no sculpting."
+        ],
+        "program": [
+          {
+            "role": "smokehouse",
+            "type": "smokehouse",
+            "count": 1,
+            "footprint": "M",
+            "landmark": true,
+            "notes": "Grey plank walls, chimney with constant campfire smoke, hanging fish racks inside; the hamlet\u0027s centrepiece."
+          },
+          {
+            "role": "fishers\u0027 cottage",
+            "type": "cottage",
+            "count": 3,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Weathered grey timber, low roofs, barrels and oars by the door."
+          },
+          {
+            "role": "net-drying racks",
+            "type": "net_rack",
+            "count": 1,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Open frames of fence and string-like cobweb-free netting near the shore."
+          },
+          {
+            "role": "jetty boathouse",
+            "type": "boathouse",
+            "count": 1,
+            "footprint": "M",
+            "landmark": false,
+            "notes": "Open to the water, boats moored beside a pier."
+          }
+        ]
+      },
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 401,
+        "centerZ": 941,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1791595869162,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": []
+        },
+        {
+          "at": 1791595885227,
+          "kind": "CARD_EDITED",
+          "text": "Described as: a village on stilts over a swamp, boardwalks linking platforms above murky water, mossy, crooked, weathered timber, leaning stilts, hanging vines, moss and mud, dim lantern light",
+          "siteIds": []
+        },
+        {
+          "at": 1791600635969,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 8 buildings",
+          "siteIds": [
+            "s5",
+            "s6",
+            "s9",
+            "s7",
+            "s11",
+            "s8",
+            "s12",
+            "s10"
+          ],
+          "siteGroup": "g4"
+        },
+        {
+          "at": 1791600671172,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 8 sites of \"Placed 8 buildings\"",
+          "siteIds": [
+            "s5",
+            "s6",
+            "s7",
+            "s8",
+            "s9",
+            "s10",
+            "s11",
+            "s12"
+          ]
+        },
+        {
+          "at": 1791603130367,
+          "kind": "CARD_EDITED",
+          "text": "Described as: small hamlet on the shore of a lake, with docks reaching into the water, weathered grey timber, nets drying on racks, smoke from a smokehouse",
+          "siteIds": []
+        },
+        {
+          "at": 1791605469780,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 3 buildings",
+          "siteIds": [
+            "s13",
+            "s14",
+            "s15",
+            "r4"
+          ],
+          "siteGroup": "g5"
+        },
+        {
+          "at": 1791606139201,
+          "kind": "NOTE",
+          "text": "Claim is now 193 x 193",
+          "siteIds": []
+        },
+        {
+          "at": 1791606620754,
+          "kind": "NOTE",
+          "text": "Updated cottage_1 to version 2 (2 blocks).",
+          "siteIds": [
+            "s14"
+          ]
+        }
+      ]
+    }
+  ],
+  "nextSerial": 5
+}

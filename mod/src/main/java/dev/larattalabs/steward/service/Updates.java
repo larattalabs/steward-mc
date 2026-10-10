@@ -158,6 +158,7 @@ public final class Updates {
 			clearPreview(server, p.siteId());
 			String msg;
 			String key = p.siteId() + "@" + p.to();
+			var change = new Settlement.SiteChange(p.siteId(), p.lot(), p.from(), p.to());
 			if (err != null) {
 				String why = err.getCause() != null ? err.getCause().getMessage() : err.getMessage();
 				FAILED.put(key, why);
@@ -169,8 +170,11 @@ public final class Updates {
 				FAILED.remove(key);
 				msg = "Updated " + p.lot() + " to version " + r.toVersion() + " (" + r.written() + " blocks" + (r.kept().isEmpty() ? "" : ", " + r.kept().size() + " of your edits kept")
 					+ ").";
-				Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, msg, List.of(p.siteId())));
+				change = new Settlement.SiteChange(p.siteId(), p.lot(), p.from(), r.toVersion());
 			}
+			// failed ones too: the history says what was tried
+			Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.UPDATED, msg, List.of(change), null,
+				msg.startsWith("Updated") ? Settlement.Outcome.DONE : Settlement.Outcome.FAILED));
 			server.getPlayerList().getPlayers().forEach(pl -> pl.sendSystemMessage(Component.literal("Steward (" + s.name() + "): " + msg)));
 			// the next scan (next tick) offers what is left; not here, where an apply that completed inline would recurse
 			scanPending = true;
