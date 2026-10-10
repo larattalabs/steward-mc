@@ -126,7 +126,7 @@ public final class BatchPlanner {
 		String note = null;
 		if (includeStreet) {
 			if (mode == Mode.INSTANT && !plan.lots().isEmpty()) {
-				items.put(STREET_KEY, Batch.Item.road(STREET_KEY, street(s, plan, level), "street", List.of()));
+				items.put(STREET_KEY, Batch.Item.road(STREET_KEY, street(s, plan, level, buildId), "street", List.of()));
 				specs.add(new Batch.StageSpec("street", List.of(STREET_KEY)));
 			} else {
 				note = "the street was left out: roads can only be placed instantly (Patron in a world with survival off)";
@@ -149,13 +149,14 @@ public final class BatchPlanner {
 	public static final String BUILD_EXT = "steward_mc:build";
 
 	/** The village's main street as a road request: two waypoints along the street, a little past the outer lots, kept inside the claim. */
-	static RoadRequest street(Settlement s, VillageLayout.Plan plan, @Nullable ServerLevel level) {
+	static RoadRequest street(Settlement s, VillageLayout.Plan plan, @Nullable ServerLevel level, @Nullable String buildId) {
 		int pad = 4;
 		int x0 = Math.max(s.claim().centerX() - s.claim().radius(), plan.streetX0() - pad);
 		int x1 = Math.min(s.claim().centerX() + s.claim().radius(), plan.streetX1() + pad);
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
 		ext.addProperty("steward_mc:street", true);
+		if (buildId != null) ext.addProperty(BUILD_EXT, buildId);
 		return new RoadRequest(level, List.of(new BlockPos(x0, plan.streetY(), plan.streetZ()), new BlockPos(x1, plan.streetY(), plan.streetZ())), 3, null, null,
 			true, false, Mode.INSTANT, s.owner(), ext, null, false);
 	}

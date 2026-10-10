@@ -77,6 +77,23 @@ public record Settlement(
 			.withLog(new LogEntry(now, Kind.PERMISSION_CHANGED, "Permission: " + p, List.of()));
 	}
 
+	/**
+	 * The newest placed project that is not undone yet: a PROJECT_PLACED entry with a site a later PROJECT_REMOVED did not remove (an undo stopped by the
+	 * player's things in a box leaves the rest of its project undoable). Empty when there is nothing to undo.
+	 */
+	public java.util.Optional<LogEntry> lastUndoable() {
+		java.util.Set<String> removed = new java.util.HashSet<>();
+		for (int i = log.size() - 1; i >= 0; i--) {
+			LogEntry e = log.get(i);
+			if (e.kind() == Kind.PROJECT_REMOVED) removed.addAll(e.siteIds());
+			if (e.kind() == Kind.PROJECT_PLACED) {
+				List<String> left = e.siteIds().stream().filter(id -> !removed.contains(id)).toList();
+				if (!left.isEmpty()) return java.util.Optional.of(new LogEntry(e.at(), e.kind(), e.text(), left));
+			}
+		}
+		return java.util.Optional.empty();
+	}
+
 	/** Site ids recorded in the log for a kind, newest first (what an "undo last project" would remove). */
 	public List<String> siteIdsOf(Kind kind) {
 		List<String> out = new ArrayList<>();

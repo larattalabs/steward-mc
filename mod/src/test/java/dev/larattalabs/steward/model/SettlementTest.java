@@ -129,4 +129,20 @@ class SettlementTest {
 		assertFalse(old.contains("nextSerial"));
 		assertEquals("set_2", SettlementStore.fromJson(old).nextId());
 	}
+
+	@Test
+	void undoTakesTheNewestProjectAndAPartialUndoLeavesTheRest() throws Exception {
+		Settlement s = Settlement.found("set_1", card(), claim(0, 0), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		assertTrue(s.lastUndoable().isEmpty());
+		s = s.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "Placed 2 buildings", List.of("s1", "s2", "road1")));
+		s = s.withLog(new Settlement.LogEntry(3L, Settlement.Kind.PROJECT_PLACED, "Placed 1 buildings", List.of("s3")));
+		assertEquals(List.of("s3"), s.lastUndoable().orElseThrow().siteIds());
+		s = s.withLog(new Settlement.LogEntry(4L, Settlement.Kind.PROJECT_REMOVED, "Undid 1", List.of("s3")));
+		assertEquals(List.of("s1", "s2", "road1"), s.lastUndoable().orElseThrow().siteIds());
+		// stopped by a blocker after removing the road and s2
+		s = s.withLog(new Settlement.LogEntry(5L, Settlement.Kind.PROJECT_REMOVED, "Undid 2", List.of("road1", "s2")));
+		assertEquals(List.of("s1"), s.lastUndoable().orElseThrow().siteIds());
+		s = s.withLog(new Settlement.LogEntry(6L, Settlement.Kind.PROJECT_REMOVED, "Undid 1", List.of("s1")));
+		assertTrue(s.lastUndoable().isEmpty());
+	}
 }

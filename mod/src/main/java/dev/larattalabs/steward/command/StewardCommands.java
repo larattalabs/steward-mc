@@ -32,6 +32,7 @@ import net.minecraft.network.chat.Component;
  * /steward redirect &lt;id&gt; &lt;lot&gt; &lt;notes&gt;           send one massing back with notes
  * /steward raise &lt;id&gt; &lt;budget&gt;                    raise the budget of a build paused at its soft budget
  * /steward cancel &lt;id&gt;                            stop the build (what is placed stays)
+ * /steward undo &lt;id&gt;                              remove the newest placed project and restore the land exactly
  * dev (cheats):
  * /steward claim                                   claim the land under you, as the Founding Stone does
  * /steward survey                                  survey around you and try four test lots
@@ -121,6 +122,13 @@ public final class StewardCommands {
 				decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"), r -> r.raise(DoubleArgumentType.getDouble(ctx, "budget")))))))
 			.then(Commands.literal("cancel").then(Commands.argument("id", StringArgumentType.word()).executes(ctx ->
 				decide(ctx.getSource(), StringArgumentType.getString(ctx, "id"), SettlementRunner::cancel))))
+			.then(Commands.literal("undo").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
+				CommandSourceStack src = ctx.getSource();
+				var s = dev.larattalabs.steward.service.Settlements.store().get(StringArgumentType.getString(ctx, "id"));
+				if (s.isEmpty()) { src.sendFailure(Component.literal("No such settlement (see /steward settlements).")); return 0; }
+				if (SettlementRunner.busy(s.get().id())) { src.sendFailure(Component.literal(s.get().id() + " is being built; cancel it first (/steward cancel " + s.get().id() + ").")); return 0; }
+				return dev.larattalabs.steward.service.Undo.lastProject(src.getServer(), s.get(), line -> src.sendSuccess(() -> Component.literal(line), false)) ? 1 : 0;
+			})))
 			.then(Commands.literal("resume").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.argument("group", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.word())
 				.then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200)).executes(ctx -> {
 					CommandSourceStack src = ctx.getSource();

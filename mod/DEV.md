@@ -106,4 +106,6 @@ Dev client, claude login, two card runs ($0.043 total), everything else $0:
 - **Steward NPC:** spawning through the summon command failed when run from inside a command (`/steward claim`): vanilla queues a nested command until the outer one ends, so the
   entity was missing when checked and was never named. The mannequin is now loaded from entity data and added in Java. Checked: named gold "Steward", tagged, the claim says it appeared.
   The right-click itself still cannot be driven from DevBridge.
-
+- Undo: `/steward undo <id>` (`service/Undo`) removes the newest placed project's sites newest first through `Sites.remove` as the settlement's owner (journal-backed, the land restored exactly),
+  stops at the first site Architect refuses (the player's things in its box) and logs PROJECT_REMOVED; `Settlement.lastUndoable` leaves the rest of a partly undone project undoable. The street
+  road is logged with its build, so undo removes it too. Refused while the settlement is being built.

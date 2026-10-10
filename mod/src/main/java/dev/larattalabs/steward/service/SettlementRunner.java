@@ -294,7 +294,7 @@ public final class SettlementRunner {
 			}
 			case FINISH_FROM_BATCH -> onBatchDone(batch.get());
 			case FINISH_FROM_SITES -> {
-				logPlaced(placed);
+				logPlaced(placedSites(sites, true), placed.size());
 				batchId = null;
 				feed(new Pipeline.BatchDone(placed.size(), Math.max(0, plan.lots().size() - placed.size())));
 			}
@@ -309,7 +309,11 @@ public final class SettlementRunner {
 
 	/** The building sites this build placed: tagged with its build id (the street road is not a building). */
 	private List<String> placedSites(dev.larattalabs.architect.api.Sites sites) {
-		return sites.list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT)) && !BatchPlanner.STREET_KEY.equals(v.itemKey()))
+		return placedSites(sites, false);
+	}
+
+	private List<String> placedSites(dev.larattalabs.architect.api.Sites sites, boolean withStreet) {
+		return sites.list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT)) && (withStreet || !BatchPlanner.STREET_KEY.equals(v.itemKey())))
 			.map(dev.larattalabs.architect.api.SiteView::id).toList();
 	}
 
@@ -328,10 +332,10 @@ public final class SettlementRunner {
 		unread.clear();
 	}
 
-	/** Records the placed sites in the settlement's change log (a later "undo the last project" removes them). Dev builds are not saved settlements. */
-	private void logPlaced(List<String> siteIds) {
+	/** Records the placed sites in the settlement's change log ({@code /steward undo} removes them). Dev builds are not saved settlements. */
+	private void logPlaced(List<String> siteIds, int buildings) {
 		if (siteIds.isEmpty() || Settlements.store().get(settlement.id()).isEmpty()) return;
-		Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + siteIds.size() + " buildings", siteIds));
+		Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings", siteIds));
 	}
 
 	public State state() {
@@ -584,8 +588,9 @@ public final class SettlementRunner {
 		long placed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).count();
 		long failed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).count();
 		b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).forEach(i -> say("Not placed: " + i.itemKey() + " (" + i.reason().map(Enum::name).orElse("?") + ") " + i.message()));
-		logPlaced(b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED && !BatchPlanner.STREET_KEY.equals(i.itemKey()))
-			.flatMap(i -> i.siteId().stream()).toList());
+		// every site of the build, street included, so an undo removes all of it
+		logPlaced(b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).flatMap(i -> i.siteId().stream()).toList(), (int) b.items().stream()
+			.filter(i -> i.status() == BatchView.ItemStatus.PLACED && !BatchPlanner.STREET_KEY.equals(i.itemKey())).count());
 		batchId = null;
 		feed(new Pipeline.BatchDone((int) placed, (int) failed));
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
