@@ -15,9 +15,12 @@ repositories {
 	// Architect's public API (dev.larattalabs:architect_mc). Locally: cd ../../architect-mc/mod && ./gradlew publishToMavenLocal. In CI and for
 	// outside builders it comes from GitHub Packages, which needs a token even for public packages (GITHUB_TOKEN with packages: read in
 	// Actions, a PAT with read:packages elsewhere).
-	mavenLocal()
-	// lab-ui, the shared UI library (dev.larattalabs:lab_ui), the same way as Architect: mavenLocal (cd ../../lab-ui && ./gradlew publishToMavenLocal), else
-	// GitHub Packages with the same token
+	mavenLocal {
+		// never lab-ui from here: a local publish may come from a checkout past its release tag (settings.gradle picks a tagged checkout or the release)
+		content { excludeModule 'dev.larattalabs', 'lab_ui' }
+	}
+	// lab-ui, the shared UI library (dev.larattalabs:lab_ui): a clean checkout at its release tag (settings.gradle), else the release from GitHub Packages
+	// with the same token
 	maven {
 		url = uri('https://maven.pkg.github.com/larattalabs/lab-ui')
 		credentials {

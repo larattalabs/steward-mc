@@ -177,3 +177,18 @@ Then:
 - proposals: `/steward dev describe` gives the settlement a sample card; the player carries seeds; within a minute a farm is proposed, shown in the inbox, then declined and remembered.
 
 Last run: 2026-10-10: **PASS 24 checks**.
+
+## lab-ui
+
+lab-ui (`dev.larattalabs:lab_ui`), the shared client UI library, is bundled jar-in-jar. `mod/settings.gradle` decides where Gradle gets it, with the same rule as
+AgentCraft and Architect:
+1. **A lab-ui checkout at the release.** It is used only when it is clean and its HEAD is exactly at the tag `v<lab_ui_version>`. Checkouts are looked for at
+   `../../lab-ui` from `mod/` and at `~/Developer/LarattaLabs/lab-ui`.
+2. **For lab-ui development,** `-Plab_ui.dir=<path>` or `LAB_UI_DIR=<path>` forces a checkout, with an UNRELEASED warning (don't ship that build).
+   `-Plab_ui.dir=none` turns checkouts off.
+3. **Otherwise the release from GitHub Packages,** fetched once into the Gradle cache, after which `--offline` works:
+   `GRADLE_USER_HOME=$PWD/../.gradle-home GITHUB_TOKEN=$(gh auth token) ./gradlew build` from `mod/`.
+   Never commit or export the token.
+
+Maven Local never supplies lab-ui, because a local publish may come from a checkout past its tag. Fetched this way on 2026-10-10: the release jar differed
+from the local publish.
