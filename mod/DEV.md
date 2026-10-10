@@ -172,4 +172,8 @@ line (action, reason, write box).
 Since then: the save format, the settlement screen and building panel, revert, the steward entity (walking to an updated building, sitting on a stair, sleeping in
 a bed, a migrated old mannequin), its nameplate with the "!" and its speech bubble, each with a screenshot in `artifacts/shots/`.
 
-Last run: 2026-10-10: **PASS 19 checks**.
+Then:
+- the in-world interface: the look-at label, survey mode, a labelled massing ghost, the ledger and the board;
+- proposals: `/steward dev describe` gives the settlement a sample card; the player carries seeds; within a minute a farm is proposed, shown in the inbox, then declined and remembered.
+
+Last run: 2026-10-10: **PASS 24 checks**.

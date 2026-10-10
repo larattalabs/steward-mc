@@ -14,8 +14,14 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
 - **3b: done**, except conversation. The steward is its own mob with its own skin. It walks to its work and comes to find you when a decision waits. It sits and sleeps. It has a nameplate, a "!" and speech bubbles, ported from AgentCraft onto lab-ui.
 - **3c: revert is done.** Change requests wait for Architect 0b.
 - **3d: done.** Building labels on look-at (I to inspect), survey mode (U) with the claim's border, labelled massing ghosts, the steward's ledger, and the settlement board.
+- **3e: built**, rule-based and $0 until a build is accepted.
+  - **Perception:** the player's tier comes from advancements, plus seeds, saplings, and animals in the claim.
+  - **Proposals:** the steward proposes buildings the settlement lacks (farm, orchard, pens, launch tower, portal gatehouse, vault, smithy, workshop) and says why, within the guardrails (declined never again, three open at most, one per 20 minutes).
+  - **Accepting** builds that one building beside what stands, with no new street, in the settlement's reused style bible.
+  - **Autonomous and Full** build their own proposals within the weekly allowance ($500 by default). Settings sets the level and the allowance.
+  - **Still to come:** a Claude call that words proposals in the settlement's own style, once Architect's stub is there to test it for free.
 
-The free e2e check runs 22 checks, with a screenshot of each in-world piece.
+The free e2e check runs 24 checks, with a screenshot of each in-world piece.
 
 ## Principles
 
@@ -382,7 +388,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - **Revert now:** a building goes back to an earlier version with `Sites.revert`, and Steward pins the versions its change log refers to (Architect 0a caller pins).
      - **Change requests with Architect 0b** (`DesignRequest.versionOf`): free text scoped to a building or the settlement becomes the next version of the building's design, previewed as a delta ghost, applied, and revertible.
    - **3d. In-world interface** (done 2026-10-10). Building labels, survey mode, labelled massings, the settlement board, the ledger.
-   - **3e. Perception and proposals.** The guardrails decided with Noah apply: rejected proposals are remembered, with cooldowns and coalescing, a planning allowance, and a spending allowance per settlement ($500 a week by default).
+   - **3e. Perception and proposals** (built 2026-10-10, rule-based; the Claude wording waits for the stub). The guardrails decided with Noah apply: rejected proposals are remembered, with cooldowns and coalescing, a planning allowance, and a spending allowance per settlement ($500 a week by default).
      - The progression tier and triggers.
      - Proposals with guardrails: a rejected proposal is remembered, with cooldowns, coalescing, and a planning allowance per settlement.
      - Permission levels act on their own only within the change history (3a) and the allowance.
