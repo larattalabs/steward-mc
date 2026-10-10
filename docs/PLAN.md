@@ -370,7 +370,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - The settlement screen and a read-only building panel.
    - **3b. The steward as a character.**
      - Its own mob entity replaces the mannequin, with a migration.
-     - Nameplate, "!", speech bubbles.
+     - Nameplate, "!", speech bubbles, on lab-ui (they wait for its v0.1.0; the entity, walking and conversation do not).
      - Walking to the building it works on.
      - Conversation by right-click.
    - **3c. Change requests and revert.**
@@ -397,8 +397,14 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
 5. **Phase 4:** Supplied on Architect's survival construction sites, then Hardcore and Economy. This needs streets in construction batches, which survival skips today.
 6. **Phase 2** when Architect 7c lands (big custom forms as region programs); phases 5-7 after.
 
-Cross-mod: the UI kit exists three times (AgentCraft, Architect, Steward), and the in-world UI would be a fourth. A small shared library is now needed ("Interface");
-it goes to the AgentCraft and Architect sessions before Steward ports the world UI (3b).
+Cross-mod: **lab-ui** (decided by Noah, 2026-10-09).
+- **What it is:** a shared UI library, `larattalabs/lab-ui`. It is MIT, mod id `lab_ui`, packages `dev.larattalabs.labui`, published on GitHub Packages and bundled jar-in-jar.
+- **v0.1.0** is extracted from AgentCraft:
+  - WorldUi, TextDepth, LeaderGaps, Guard/GuardedHud, PlateStack, SpeechBubble;
+  - the screen kit and its sprites.
+- **Steward's in-world UI (3b, 3d)** builds on it rather than porting a copy.
+- **Steward's ported screen kit** moves onto lab-ui once v0.1.0 is out, in its own commit.
+- **Licence:** files derived from AgentCraft keep both copyright lines, "AgentCraft contributors" and "Laratta Labs (AgentCraft Worlds changes)".
 
 ## Reviews (2026-10-09)
 
