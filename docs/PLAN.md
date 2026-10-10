@@ -48,6 +48,7 @@ and the free e2e check are built. Independent reviews found budget, cancel and o
 | 2026-10-09 | **Phase order revised** (Noah): finish phase 1 (street, claim size and Expand), then phase 3's core, then phase 4, then phase 2 once Architect 7c lands (phase 2 is blocked; 3 and 4 are not). Cross-cutting first: copies as free variants, a $0 end-to-end gate, Architect's estimate in the UI. See "Review and order (2026-10-09)". |
 | 2026-10-09 | **Copies never cost quality** (Noah): designs are shared only with safeguards, adapted to their lot first, original as the fallback; the player can choose "all original". See "Copies, adaptations and originals". |
 | 2026-10-09 | **Hardening before phase 3** (Noah): the review findings are fixed first. Adopted from the plan review: cost and wait targets, a shorter Architect critical path, change history before autonomy. **Declined:** narrowing phase 3; it keeps its full scope. See "Reviews (2026-10-09)". |
+| 2026-10-09 | **Settlement and building interfaces** (Noah): a settlement screen, a panel for each building, and in-world interfaces after AgentCraft (the steward's nameplate and speech bubbles, building labels on look-at, survey mode, a settlement board, a ledger). Phase 3 core. See "Interface". |
 | 2026-10-09 | **Claims grow** (Noah): the card's size sets the first claim, the player can expand it, and a settlement grows by **districts** (adjacent claims the steward proposes). See "Claims and growth". |
 
 ## Concept card
@@ -213,11 +214,70 @@ next layout uses the new land, refusals named; (3) is part of phase 3's gate (a 
 
 ## Interface
 
-- **Founding Stone** item: placing it opens the concept card form, claims a radius, and spawns the steward.
-- **Concept card form**: one prompt box, optional chips per field, the interpretation, regenerate/lock per field, spend estimate.
-- **Inbox + HUD + hub** from AgentCraft: decisions with options, a HUD line while anything needs you, "since you were away",
-  toasts, a change log with undo. Remote use: an in-game overlay lets you decide without walking to the steward.
-- **Steward conversation**: right-click for free text ("add a library wing, make it creepier").
+Decided with Noah, 2026-10-09. There are three layers: screens for detail and actions, the HUD for "something needs you", and **in-world interfaces** so the settlement explains
+itself where it stands, in the way of AgentCraft's in-world UI. Everything in-world is drawn by the client from state the server sends. Nothing is placed as blocks except the
+board and ledger the player chooses to place.
+
+**Built (phase 1):**
+- The Founding Stone.
+- The describe screen.
+- The card screen.
+- The inbox: the decisions of a running build, and updates.
+- A HUD line and the `Y` key.
+- Massing and update-preview ghosts.
+- The steward as a static mannequin that opens describe, the inbox or the card.
+
+After a build there is no screen for the settlement or for one building, and in the world there are no labels and no claim border.
+
+**Screens:**
+- **Settlement screen**, opened from the steward, the board, the ledger or the inbox. Tabs:
+  - **Buildings:** a list and a top-down map. Each building shows its role, state, version and source (original, adapted or copy) and has a badge when it has an update.
+  - **History:** the change log, each operation with undo or revert.
+  - **Claim:** size, Expand, and later districts.
+  - **Settings:** permission level, difficulty, budget and "all original".
+
+  The inbox stays for decisions only.
+- **Building panel**, opened from the list, the map, or by looking at a building in the world and pressing the inspect key. Right-click is not used, since it would clash with doors and chests.
+  - **Shows:** role and notes, the style bible, version and history, the source design and the buildings that share it, the player's edits that updates keep, and cost.
+  - **Actions:**
+    - ask for a change in your own words (scoped to this building);
+    - preview a pending update as a ghost;
+    - revert to an earlier version;
+    - "pin this version" and "make this one independent" (copies);
+    - remove;
+    - highlight.
+
+  Each action arrives with the feature behind it. A read-only panel comes first.
+- **Concept card form**, still to do: per-field chips, regenerate or lock per field, and Architect's estimate.
+
+**In-world (after AgentCraft's world UI, ported like the screen kit):**
+- **The steward:**
+  - a nameplate with a status dot and an activity line ("designing 3 buildings", "waiting for you");
+  - a pulsing "!" when a decision waits;
+  - **speech bubbles** for what it says, instead of chat lines (chat keeps a short log);
+  - particles for its state.
+
+  When it walks (phase 3) it goes to the building it is working on, so where it stands says what it is doing.
+- **Building labels:** look at a building and a label appears at its entrance with its role, its state or version, and a badge for an update or a pending change. The building gets a light outline, and the inspect key opens the panel. Labels show only on look-at, or for all buildings in **survey mode** (a key, or while the settlement screen is open), so the settlement is not cluttered. AgentCraft's plate declutter (no overlaps, the targeted one in full) carries over.
+- **Claim and lots:**
+  - In survey mode, the claim border and the lots are drawn on the ground, with district edges once districts exist.
+  - Massing ghosts get a label for each lot (role and size) and approve or redirect by look-at.
+  - The update ghost is labelled.
+- **Settlement board:** a wall-panel block like AgentCraft's village board. It shows one card per building with its stage, the spend meter and the decisions that wait. Right-click opens the settlement screen. The steward offers it as the first prop (the player places it, or a build includes it).
+- **Steward's ledger:** an item that opens the settlement screen and the inbox from anywhere. This is the "remote overlay" for when you are far from the steward.
+- **HUD:** the inbox line and toasts ("Smithy updated", "3 massings ready"). In survey mode, a small legend.
+
+**Steward conversation:** right-click the steward for free text ("add a library wing, make it creepier"). The reply comes in its speech bubble, and any proposal goes to the inbox.
+
+**Shared UI code:** this would be the fourth copy of the world UI (AgentCraft, Architect's ghosts, Steward's screens and now its world UI). The "shared UI extraction"
+deferred after the review now has an observed need. The plan is to port AgentCraft's `WorldUi`, nameplate, bubble and declutter into Steward, and to raise a small shared
+library with AgentCraft and Architect before the copies drift further.
+
+**Order:** in phase 3, as part of its core:
+1. The settlement screen and a read-only building panel. Change requests, the change history and the copy choices need them.
+2. In-world: the steward's nameplate and speech bubbles, building labels on look-at, survey mode, and labelled massings.
+3. The settlement board and the ledger.
+4. The building panel's actions, as change requests, revert and copy controls land (copies after Architect slice 0b).
 
 ## Boundary with Architect
 
@@ -378,7 +438,8 @@ operators, macro checker. Terrain operators only ever go through Architect's sna
 
 ### Phase 3: Perception, proactivity, evolution
 Progression tier, read-only perception tools, event triggers, steward proposals, free-text change requests, delta preview and apply,
-permission levels, inbox/HUD/hub.
+permission levels, the settlement screen and building panel, the in-world interface (the steward's nameplate and bubbles, building labels, survey mode,
+the board and the ledger; see "Interface"), the steward walking and talking, districts.
 - **Gate:** advancing a tier produces a sensible proposal; an approved patch applies only the delta; each permission level
   behaves as specified; the log can undo any change (operations with versions and recovery, revert, demolition asks first: "Reviews (2026-10-09)").
 
