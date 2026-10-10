@@ -22,12 +22,19 @@ and the free e2e check are built. Independent reviews found budget, cancel and o
    Claude owns "where" through code and iterates against the checker, not by placing blocks one at a time.
 3. **Everything is undoable and logged.** Snapshots, the Architect "never touches player blocks" rule, a change log,
    and permission levels up to full autonomy. Full autonomy is only safe because of this.
-4. **Cost and time are a product constraint.** Architect's real 4b gate run (2026-10-05) measured: a bible $1.2-2.0 and 5-8 min, an Opus design
-   (landmark) $2.0-3.2 and 8-13 min, a Sonnet design $0.8-2.5 and 4-10 min, in waves of 3. An 8-20 building settlement is roughly **$12-50 and
-   30-90 minutes**, about twice the earlier estimate (which came from single Opus designs). See `BudgetPolicy` and the soft budget below. Model tiering, parallel jobs, massing-first, a spend meter and a budget cap are phase-1 features.
+4. **Cost and time are a product constraint.** Measured in Steward's own runs (2026-10-09):
+   - a bible costs $1.2-1.6;
+   - a massing about $0.19;
+   - a landmark $3.7;
+   - an ordinary building $2.5-4.6;
+   - 8 buildings came to $31, and Greywater's 3 unique buildings to $13.76 and about 70 minutes.
+
+   **Targets** (provisional, "Reviews (2026-10-09)"): a useful starter settlement under $5, and the first usable result within 15 minutes. Architect measures where
+   cost and time go (C7) and bounds small buildings (C8). See `BudgetPolicy` and the soft budget below. Model tiering, parallel jobs, massing-first, a spend meter
+   and a hard budget cap are built.
 5. **Vanilla blocks in templates.** Keeps Architect's rule. Any mod block (an "assisted" tier) is a deliberate,
    opt-in exception decided per module (open question 2).
-6. **Singleplayer only**, same sidecar architecture as Architect and AgentCraft (local Node sidecar, Claude Agent
+6. **Singleplayer only** (LAN guests may watch, only the host directs the steward; enforced since 2026-10-09), same sidecar architecture as Architect and AgentCraft (local Node sidecar, Claude Agent
    SDK, WebSocket to the mod). Auth: API key is the supported path; the opt-in claude-login flag is personal use only
    (Agent SDK terms). Per Architect's decision log.
 7. **Normal-first.** The steward only acts inside a claimed settlement. Nothing runs in a world that has no
@@ -187,9 +194,9 @@ Estimates by kind come from Architect's calibrated `Designs.estimate` (C5).
 
 ## Claims and growth
 
-A claim is the land a settlement may touch (everything the steward writes stays inside it). It is a square around the Founding Stone today, fixed at 129x129
-(`Settlements.DEFAULT_RADIUS` 64); the model already takes any radius from 8 to 2048 and refuses claims that overlap another settlement. It grows in three ways,
-built in this order:
+A claim is the land a settlement may touch (everything the steward writes stays inside it). It is a square around the Founding Stone. The stone claims 129x129
+(`Settlements.DEFAULT_RADIUS` 64), and describing then grows it to the card's size. The model takes any radius from 8 to 2048 and refuses claims that overlap
+another settlement. It grows in three ways; 1 and 2 are built (2026-10-09), 3 is phase 3:
 
 1. **Size from the card** (phase 1 follow-up). The card's `site.size` (S, M, L, XL; the schema also allows explicit `{x, z}`) sets the claim when the settlement is
    described: S 97, M 129, L 193, XL 257 blocks across (radius 48, 64, 96, 128), or the explicit size. If the larger square would overlap a neighbour, the
@@ -273,11 +280,12 @@ After a build there is no screen for the settlement or for one building, and in 
 deferred after the review now has an observed need. The plan is to port AgentCraft's `WorldUi`, nameplate, bubble and declutter into Steward, and to raise a small shared
 library with AgentCraft and Architect before the copies drift further.
 
-**Order:** in phase 3, as part of its core:
-1. The settlement screen and a read-only building panel. Change requests, the change history and the copy choices need them.
-2. In-world: the steward's nameplate and speech bubbles, building labels on look-at, survey mode, and labelled massings.
-3. The settlement board and the ledger.
-4. The building panel's actions, as change requests, revert and copy controls land (copies after Architect slice 0b).
+**Order:** in phase 3's steps (see "Review and order"):
+- **3a:** the settlement screen and a read-only building panel.
+- **3b:** the steward's nameplate, "!" and bubbles.
+- **3c:** the panel's change and revert actions.
+- **3d:** building labels, survey mode, labelled massings, the board and the ledger.
+- **After Architect 0b:** the copy controls.
 
 ## Boundary with Architect
 
@@ -346,17 +354,36 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
    does. Every bug of the gate run (the style field limit, repeated pause messages, a raise that paused again, a summon nested in a command) would have shown there.
 5. **Duplicated logic.** In-game estimates come from Architect's `Designs.estimate` (`BudgetPolicy` stays the fallback); the village layout moves to Architect (2).
 
-**Order:**
-1. Finish phase 1: the street confirmed (done), claim size from the card and Expand (done), Noah's gallery look.
-2. Cross-cutting: `UpdatePlanner` wired ("update available" in the inbox when Architect has a newer version of a placed building). Copies as free variants,
-   the stub helper for the $0 end-to-end gate, the calibrated estimate and exact massing ghosts arrive with **Architect 6c slice 0** (all of C1, C2, C4, C5 and C6
-   were taken; Steward adopts them, it does not build its own). Steward builds its end-to-end gate script now and points it at the stub once slice 0 ships.
-3. **Phase 3 core:** free-text change requests ("add a library wing, make it creepier"), the steward's proposals (tier, arrivals, resources), the steward walking to
-   worksites and talking, districts.
-4. **Phase 4:** Supplied on Architect's survival construction sites (they exist), then Hardcore and Economy.
-5. **Phase 2** when Architect 7c lands (big custom forms as region programs); phases 5-7 after.
+**Order** (updated 2026-10-09, after the hardening and Architect's round 4 order):
+1. Phase 1: **done** (gate passed; street, claim size and Expand built).
+2. Cross-cutting: **done** on Steward's side. This covers update available, the free e2e check (11/11) and the hardening slice.
+3. **Phase 3** (full scope, Noah), in steps. Each step ships on its own, with tests and an e2e check.
+   - **3a. Foundations.**
+     - The change log becomes operations: sites, versions before and after, the outcome, how to recover.
+     - Save format versions and migrations: old-world fixtures and a backup before a migration. Districts, operations, copies and the new steward entity all change the saves.
+     - The settlement screen and a read-only building panel.
+   - **3b. The steward as a character.**
+     - Its own mob entity replaces the mannequin, with a migration.
+     - Nameplate, "!", speech bubbles.
+     - Walking to the building it works on.
+     - Conversation by right-click.
+   - **3c. Change requests.** Free text scoped to a building or the settlement: a new version of the building's design, previewed as a delta ghost, applied, and revertible (needs Architect C13, C14).
+   - **3d. In-world interface.** Building labels, survey mode, labelled massings, the settlement board, the ledger.
+   - **3e. Perception and proposals.**
+     - The progression tier and triggers.
+     - Proposals with guardrails: a rejected proposal is remembered, with cooldowns, coalescing, and a planning allowance per settlement.
+     - Permission levels act on their own only within the change history (3a) and the allowance.
+   - **3f. Districts.** Several claims per settlement with stable ids, roads between them (Architect `placeRoad`), and undo.
+4. **Architect slices as they land:**
+   - **0a:** the stub turns on `e2e.mjs stub`, which then runs before every push. Also estimates by kind in the card screen, exact massing ghosts, and operation keys (C9: an interrupted request is adopted, not repeated).
+   - **0b:** copies with safeguards, small buildings with bounded effort, and the cost benchmark against the targets.
+   - **0c:** placement polish.
+   - **V (flat village):** new settlements use Architect's lots, door paths, square and props. Existing ones keep `VillageLayout` until the joint 7a/6d gate (C12).
+5. **Phase 4:** Supplied on Architect's survival construction sites, then Hardcore and Economy. This needs streets in construction batches, which survival skips today.
+6. **Phase 2** when Architect 7c lands (big custom forms as region programs); phases 5-7 after.
 
-Cross-mod: the UI kit now exists three times (AgentCraft, Architect, Steward). A small shared library would stop them drifting; to decide before the kits grow further.
+Cross-mod: the UI kit exists three times (AgentCraft, Architect, Steward), and the in-world UI would be a fourth. A small shared library is now needed ("Interface");
+it goes to the AgentCraft and Architect sessions before Steward ports the world UI (3b).
 
 ## Reviews (2026-10-09)
 
