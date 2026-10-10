@@ -122,14 +122,15 @@ public final class StewardNet {
 	}
 
 	/** A settlement's concept card to show (and start from), as the card's JSON (the screen parses it with {@code ConceptCard.parse}). {@code busy}: a build is running. */
-	public record Card(String settlementId, String name, String cardJson, boolean busy) implements CustomPacketPayload {
+	public record Card(String settlementId, String name, String cardJson, boolean busy, int claimRadius) implements CustomPacketPayload {
 		public static final Type<Card> TYPE = new Type<>(id("card"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, Card> CODEC = StreamCodec.of((buf, p) -> {
 			buf.writeUtf(p.settlementId);
 			buf.writeUtf(p.name);
 			buf.writeUtf(p.cardJson, 32767);
 			buf.writeBoolean(p.busy);
-		}, buf -> new Card(buf.readUtf(), buf.readUtf(), buf.readUtf(32767), buf.readBoolean()));
+			buf.writeVarInt(p.claimRadius);
+		}, buf -> new Card(buf.readUtf(), buf.readUtf(), buf.readUtf(32767), buf.readBoolean(), buf.readVarInt()));
 
 		@Override
 		public Type<Card> type() {

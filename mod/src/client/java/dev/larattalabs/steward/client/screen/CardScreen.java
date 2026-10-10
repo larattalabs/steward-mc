@@ -186,7 +186,8 @@ public final class CardScreen extends KitScreen {
 		int cx = x + pad.left();
 		int top = y + pad.top();
 		Panels.header(g, font, payload.name(), cx - 2, top - 2, inner + 4);
-		String meta = "concept card · size " + size + " · terrain " + card.site().terrain();
+		int side = dev.larattalabs.steward.model.ClaimRules.side(payload.claimRadius());
+		String meta = "claim " + side + "×" + side + " (" + dev.larattalabs.steward.model.ClaimRules.sizeOf(payload.claimRadius()) + ") · terrain " + card.site().terrain();
 		g.text(font, meta, cx + inner - font.width(meta), top, UiBits.muted(), false);
 		int bodyTop = top + 18;
 		int controlsTop = y + h - pad.bottom() - controlsH;
@@ -307,8 +308,15 @@ public final class CardScreen extends KitScreen {
 		} else {
 			ax += button(g, sent ? "Starting..." : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::start) + 6;
 		}
-		button(g, "Describe again", 2, false, false, !sent && !payload.busy(), ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new DescribeScreen(
-			payload.settlementId(), payload.name(), "")));
+		ax += button(g, "Describe again", 2, false, false, !sent && !payload.busy(), ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new DescribeScreen(
+			payload.settlementId(), payload.name(), ""))) + 6;
+		// grow the claim a size step (the server answers with the card again, the new size in its header)
+		boolean maxed = payload.claimRadius() >= dev.larattalabs.steward.model.ClaimRules.RADII[dev.larattalabs.steward.model.ClaimRules.RADII.length - 1];
+		String ex = "Expand claim";
+		if (ax + buttonWidth(ex, 3) <= cx + inner) button(g, ex, 3, false, false, !sent && !maxed, ax, cy, mouseX, mouseY, () -> {
+			ClientPlayNetworking.send(new StewardNet.Decide(payload.settlementId(), "expand", "", "", 0));
+			say("Growing the claim...", false);
+		});
 		int fy = y + h - pad.bottom() - 8;
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, fy - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
 		else {

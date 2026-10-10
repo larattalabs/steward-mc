@@ -105,6 +105,7 @@ public final class Actions {
 					return;
 				}
 				for (String line : CardResult.lines(r.card(), r.cost())) p.sendSystemMessage(Component.literal(line));
+				p.sendSystemMessage(Component.literal(res.note()));
 				p.sendSystemMessage(Component.literal(startHint(id, r.card())));
 				sendCard(p, res.settlement());
 			});
@@ -130,6 +131,14 @@ public final class Actions {
 
 	/** A decision on the player's own build: approve, redirect, raise, cancel, show, hide; "card" shows the settlement's card again. */
 	public static Result decide(ServerPlayer player, String id, String action, String lot, String text, double amount) {
+		if ("expand".equals(action)) {
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			var res = Settlements.expand(id, System.currentTimeMillis());
+			if (!res.ok()) return Result.fail(res.error());
+			if (res.settlement().described()) sendCard(player, res.settlement());
+			return Result.ok(res.note());
+		}
 		if ("card".equals(action)) {
 			Optional<Settlement> s = Settlements.store().get(id);
 			if (s.isEmpty() || !s.get().described()) return Result.fail("No card for " + id + ".");
@@ -171,7 +180,7 @@ public final class Actions {
 
 	public static void sendCard(ServerPlayer p, Settlement s) {
 		// the whole card as JSON: the screen lays it out in sections (it is common code, the client parses it with ConceptCard.parse)
-		ServerPlayNetworking.send(p, new StewardNet.Card(s.id(), s.name(), CARD_GSON.toJson(s.card()), SettlementRunner.busy(s.id())));
+		ServerPlayNetworking.send(p, new StewardNet.Card(s.id(), s.name(), CARD_GSON.toJson(s.card()), SettlementRunner.busy(s.id()), s.claim().radius()));
 	}
 
 	/** The start command to type for a freshly described card: its program's size and a budget at the high estimate, rounded up to $5. */

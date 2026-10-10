@@ -79,6 +79,12 @@ public record Settlement(
 			.withLog(new LogEntry(now, Kind.RESKIN, "Style is now: " + style.text(), List.of()));
 	}
 
+	/** The claim grown (or set by the card's size); the change log says to what. */
+	public Settlement withClaim(Claim c, long now) {
+		return new Settlement(id, name, card, c, siteVersion, styleVersion, purposeVersion, permission, difficulty, log)
+			.withLog(new LogEntry(now, Kind.NOTE, "Claim is now " + ClaimRules.side(c.radius()) + " x " + ClaimRules.side(c.radius()), List.of()));
+	}
+
 	public Settlement withPermission(Permission p, long now) {
 		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, p, difficulty, log)
 			.withLog(new LogEntry(now, Kind.PERMISSION_CHANGED, "Permission: " + p, List.of()));

@@ -268,7 +268,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
 | Card screen | No per-field chips or regenerate/lock per field. |
 | Update flow | `UpdatePlanner` is coded, not wired or run. |
 | Survival worlds | Supplied and Hardcore never tried. |
-| Claims | Fixed 129x129 (see "Claims and growth"). |
+| Claims | Size from the card and Expand built (2026-10-09); districts are phase 3 (see "Claims and growth"). |
 | Gates | No $0 end-to-end gate; every flow check so far was hand-run. |
 
 **Weakest points and what changes:**
@@ -283,7 +283,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
 5. **Duplicated logic.** In-game estimates come from Architect's `Designs.estimate` (`BudgetPolicy` stays the fallback); the village layout moves to Architect (2).
 
 **Order:**
-1. Finish phase 1: the street confirmed, claim size from the card and Expand, Noah's gallery look.
+1. Finish phase 1: the street confirmed (done), claim size from the card and Expand (done), Noah's gallery look.
 2. Cross-cutting: `UpdatePlanner` wired ("update available" in the inbox when Architect has a newer version of a placed building). Copies as free variants,
    the stub helper for the $0 end-to-end gate, the calibrated estimate and exact massing ghosts arrive with **Architect 6c slice 0** (all of C1, C2, C4, C5 and C6
    were taken; Steward adopts them, it does not build its own). Steward builds its end-to-end gate script now and points it at the stub once slice 0 ships.

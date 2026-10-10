@@ -34,6 +34,7 @@ import net.minecraft.network.chat.Component;
  * /steward raise &lt;id&gt; &lt;budget&gt;                    raise the budget of a build paused at its soft budget
  * /steward cancel &lt;id&gt;                            stop the build (what is placed stays)
  * /steward show|hide &lt;id&gt;                         show or hide the build's massings as ghosts on their lots
+ * /steward expand &lt;id&gt;                            grow the claim one size step (S 97, M 129, L 193, XL 257 across)
  * /steward undo &lt;id&gt;                              remove the newest placed project and restore the land exactly
  * dev (cheats):
  * /steward claim                                   claim the land under you, as the Founding Stone does
@@ -102,6 +103,7 @@ public final class StewardCommands {
 			.then(Commands.literal("raise").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("budget", DoubleArgumentType.doubleArg(Actions.MIN_BUDGET,
 				Actions.MAX_RAISE)).executes(ctx -> decide(ctx, "raise", "", "", DoubleArgumentType.getDouble(ctx, "budget"))))))
 			.then(Commands.literal("cancel").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "cancel", "", "", 0))))
+			.then(Commands.literal("expand").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "expand", "", "", 0))))
 			.then(Commands.literal("show").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "show", "", "", 0))))
 			.then(Commands.literal("hide").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "hide", "", "", 0))))
 			.then(Commands.literal("ui").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.argument("screen", StringArgumentType.word())

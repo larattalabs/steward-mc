@@ -2,6 +2,7 @@ package dev.larattalabs.steward.service;
 
 import dev.larattalabs.steward.Steward;
 import dev.larattalabs.steward.model.Claim;
+import dev.larattalabs.steward.model.ClaimRules;
 import dev.larattalabs.steward.model.ConceptCard;
 import dev.larattalabs.steward.model.Difficulty;
 import dev.larattalabs.steward.model.Permission;
@@ -66,12 +67,33 @@ public final class Settlements {
 		return save() ? Result.ok(s) : Result.fail("Could not save the settlement.");
 	}
 
+	/** Stores the card and sizes the claim from it (it only grows, and only where it overlaps no one); {@link Result#note()} says how the claim came out. */
 	public static Result describe(String id, ConceptCard card, long now) {
 		Optional<Settlement> s = store.get(id);
 		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
 		Settlement n = s.get().withCard(card, now);
+		ClaimRules.Outcome o = ClaimRules.growTo(n.claim(), ClaimRules.radiusFor(card.site().size()), others(id));
+		if (o.changed(n.claim())) n = n.withClaim(ClaimRules.withRadius(n.claim(), o.radius()), now);
 		store.put(n);
-		return save() ? Result.ok(n) : Result.fail("Could not save the settlement.");
+		String note = o.note().isEmpty() ? "Claim: " + ClaimRules.side(n.claim().radius()) + " x " + ClaimRules.side(n.claim().radius()) + " (" + ClaimRules.sizeOf(n.claim().radius())
+			+ ")." : o.note();
+		return save() ? new Result(n, null, note) : Result.fail("Could not save the settlement.");
+	}
+
+	/** Grows the claim one size step (Expand); refused, with the reason, past XL or onto a neighbour. */
+	public static Result expand(String id, long now) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		ClaimRules.Outcome o = ClaimRules.expand(s.get().claim(), others(id));
+		if (!o.changed(s.get().claim())) return Result.fail(o.note());
+		Settlement n = s.get().withClaim(ClaimRules.withRadius(s.get().claim(), o.radius()), now);
+		store.put(n);
+		return save() ? new Result(n, null, "The claim is now " + ClaimRules.side(o.radius()) + " x " + ClaimRules.side(o.radius()) + " (" + ClaimRules.sizeOf(o.radius())
+			+ "). The next build surveys the new land.") : Result.fail("Could not save the settlement.");
+	}
+
+	private static java.util.List<Claim> others(String id) {
+		return store.all().stream().filter(x -> !x.id().equals(id)).map(Settlement::claim).toList();
 	}
 
 	/** Appends a change-log entry to a saved settlement. */
@@ -94,9 +116,9 @@ public final class Settlements {
 		}
 	}
 
-	public record Result(Settlement settlement, String error) {
-		static Result ok(Settlement s) { return new Result(s, null); }
-		static Result fail(String e) { return new Result(null, e); }
+	public record Result(Settlement settlement, String error, String note) {
+		static Result ok(Settlement s) { return new Result(s, null, ""); }
+		static Result fail(String e) { return new Result(null, e, ""); }
 		public boolean ok() { return settlement != null; }
 	}
 }

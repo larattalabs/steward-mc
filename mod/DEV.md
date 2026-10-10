@@ -139,4 +139,8 @@ landmark designed alone first, then the other two. Fixed after: the finished mes
   hints (distance to water from the survey, to the claim's centre, ground height). The survey's `natural` mask marks built ground (the player's builds, earlier
   sites) and no lot touches it. Each building's report critique names its two nearest neighbours. A live card ("a riverside mill town ...") filled the hints sensibly
   (`fixtures/real/mill_town_placement.json`).
+- Claims (2026-10-09, PLAN "Claims and growth" steps 1-2): `model/ClaimRules` (pure) sizes a claim from the card when it is described (S 97, M 129, L 193, XL 257
+  across), only ever growing, taking the largest size that overlaps no other settlement and naming the neighbour that stopped it. Expand (card screen button 3,
+  `/steward expand <id>`) grows one step, refused past XL ("larger settlements grow by districts") or onto a neighbour. The runner surveys and lays out in the
+  settlement's own claim. Checked in a client: 129 to 193 by the card's button, 257 by the command, then refused.
 
