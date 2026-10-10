@@ -41,8 +41,11 @@ public final class Actions {
 	public static void init() {
 		ServerPlayNetworking.registerGlobalReceiver(StewardNet.Describe.TYPE, (p, ctx) -> reply(ctx.player(), describe(ctx.player(), p.settlementId(), p.text())));
 		ServerPlayNetworking.registerGlobalReceiver(StewardNet.Start.TYPE, (p, ctx) -> reply(ctx.player(), start(ctx.player(), p.settlementId(), p.buildings(), p.budgetUsd())));
-		ServerPlayNetworking.registerGlobalReceiver(StewardNet.Decide.TYPE, (p, ctx) -> reply(ctx.player(), decide(ctx.player(), p.settlementId(), p.action(), p.lot(), p.text(),
-			p.amount())));
+		ServerPlayNetworking.registerGlobalReceiver(StewardNet.Decide.TYPE, (p, ctx) -> {
+			reply(ctx.player(), decide(ctx.player(), p.settlementId(), p.action(), p.lot(), p.text(), p.amount()));
+			// always answer with the inbox: the screen waits for it, and a refused decision must show as still waiting
+			SettlementRunner.sendInbox(ctx.player().level().getServer(), ctx.player().getUUID());
+		});
 	}
 
 	/** An immediate answer: what to show the player now. */
@@ -57,7 +60,7 @@ public final class Actions {
 	}
 
 	private static void reply(ServerPlayer p, Result r) {
-		p.sendSystemMessage(Component.literal(r.message()));
+		if (!r.message().isEmpty()) p.sendSystemMessage(Component.literal(r.message()));
 	}
 
 	public static synchronized CardService cards() {
@@ -87,7 +90,11 @@ public final class Actions {
 				ServerPlayer p = server.getPlayerList().getPlayer(who);
 				if (err != null || !r.ok()) {
 					String why = err != null ? String.valueOf(err.getCause() != null ? err.getCause().getMessage() : err.getMessage()) : r.error();
-					if (p != null) p.sendSystemMessage(Component.literal("The card could not be made: " + why));
+					if (p != null) {
+						p.sendSystemMessage(Component.literal("The card could not be made: " + why));
+						// back to the words, so the player can try again without retyping
+						ServerPlayNetworking.send(p, new StewardNet.OpenDescribe(id, s.get().name(), words));
+					}
 					return;
 				}
 				var res = Settlements.describe(id, r.card(), System.currentTimeMillis());
@@ -172,9 +179,9 @@ public final class Actions {
 				if (b.landmark()) flagged++;
 			}
 		}
-		List<String> lines = CardResult.lines(c, new dev.larattalabs.architect.api.Cost(0, 0, 0, 0, 0, 0));
-		// the last line is the parse's cost (zero here, the card is from the store)
-		lines = lines.subList(0, lines.size() - 1);
+		// without the parse's cost (zero here, the card is from the store) and the program summary (the screen lists the program itself)
+		List<String> lines = CardResult.lines(c, new dev.larattalabs.architect.api.Cost(0, 0, 0, 0, 0, 0)).stream()
+			.filter(l -> !l.startsWith("Cost: ") && !l.startsWith("Builds (")).toList();
 		String size = c.site().size() == null ? "M" : c.site().size();
 		ServerPlayNetworking.send(p, new StewardNet.Card(s.id(), s.name(), List.copyOf(lines), List.copyOf(program), size, ProgramPlanner.total(c), flagged, c.hasProgram(),
 			SettlementRunner.busy(s.id())));

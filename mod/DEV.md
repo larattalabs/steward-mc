@@ -120,4 +120,11 @@ Dev client, claude login (`secrets.json` opt-in, removed afterwards), a plains p
 $26.38 of $30 (raise to $35; paused again at once, now refused below `Pipeline.minimumRaise`), placement approval, 8 buildings placed, the street refused (TOO_STEEP past the outer lot,
 the run-out is gone now), `/steward undo` (`removeGroup` on g4: every stage undone; the land matches the before shot). Measured: bible $1.16, massings $1.51 (8), landmark detail $3.72,
 ordinary details $2.50-4.60; meter $31.03. See docs/PLAN.md phase 1 for what is still open.
+- In-game UI (2026-10-09), on Architect's client kit ported into `client/{ui,text,hud}` (panels, text field, buttons, keys; `steward_mc` sprites): `screen/KitScreen` (kit buttons with number
+  keys, one text field, never pauses or blurs), `InboxScreen` (`Y`; every build in progress, left/right between them; approve the bible, approve or redirect massings with notes and toggle
+  their ghosts, raise a paused budget from the minimum that clears the pause, place, cancel asks twice), `DescribeScreen` (the player's words; a failed card reopens it with the words),
+  `CardScreen` (the card and its program, buildings -/+ and budget with the runner's own estimate, Start), and the HUD line top left while something waits. The server sends the inbox after
+  every step, on join and after every decision (`ClientInbox` holds it; screens never change it themselves). The Founding Stone opens the describe screen; the steward opens describe, inbox or
+  card (`Actions.openFor`). Dev: `/steward ui <inbox|describe|card|open|sample> <id>` (sample = a made-up inbox for screenshots). Checked in a client: every screen, keyboard driven, and a real
+  describe through the screen ($0.045, `fixtures/real/smugglers_cove_program.json`).
 

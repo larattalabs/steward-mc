@@ -99,6 +99,7 @@ public final class StewardNpc {
 		}
 	}
 
+	/** Right-click: the screen that fits the settlement (describe it, its inbox while it is built, else its card); chat for a steward without one. */
 	static void talk(ServerPlayer p, Entity npc) {
 		Optional<String> id = settlementOf(npc);
 		Optional<Settlement> s = id.flatMap(i -> Settlements.store().get(i));
@@ -106,6 +107,12 @@ public final class StewardNpc {
 			p.sendSystemMessage(Component.literal("Steward: I have no settlement to look after."));
 			return;
 		}
+		dev.larattalabs.steward.service.Actions.openFor(p, s.get());
+	}
+
+	/** The settlement's status as chat lines (kept for a player without the client mod's screens). */
+	static void status(ServerPlayer p, Optional<Settlement> s) {
+		if (s.isEmpty()) return;
 		Settlement st = s.get();
 		p.sendSystemMessage(Component.literal("Steward of " + st.name() + " (" + st.id() + ")"));
 		if (!st.described()) {

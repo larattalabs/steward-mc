@@ -53,7 +53,9 @@ public final class FoundingStone extends Item {
 		}
 		boolean npc = dev.larattalabs.steward.entity.StewardNpc.spawn((net.minecraft.server.level.ServerLevel) level, at.above(), r.settlement());
 		int side = Settlements.DEFAULT_RADIUS * 2 + 1;
-		player.sendSystemMessage(Component.literal("Claimed " + side + " x " + side + " blocks as " + r.settlement().id() + ". Describe it: /steward describe " + r.settlement().id() + " <your words>" + (npc ? "" : " (the steward could not appear)")));
+		player.sendSystemMessage(Component.literal("Claimed " + side + " x " + side + " blocks as " + r.settlement().id() + "." + (npc ? "" : " (The steward could not appear.)")));
+		// the describe screen opens at once (the steward reopens it later)
+		dev.larattalabs.steward.service.Actions.openFor(player, r.settlement());
 		return true;
 	}
 }

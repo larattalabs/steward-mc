@@ -119,7 +119,19 @@ public final class StewardCommands {
 							s.map(x -> x.name()).orElse(id), ""));
 						case "card" -> { if (s.isPresent() && s.get().described()) Actions.sendCard(p, s.get()); }
 						case "open" -> s.ifPresent(x -> Actions.openFor(p, x));
-						default -> { ctx.getSource().sendFailure(Component.literal("inbox, describe, card or open")); return 0; }
+						case "sample" -> {
+							// a made-up inbox for screenshots: no build is touched, decisions from it come back as "nothing is being built"
+							var lots = java.util.List.of(new dev.larattalabs.steward.inbox.InboxModel.Lot("tavern_1", "harbourmaster's hall", "14x13, 18 tall (stilts, common_room, lodging, roof, porch)"),
+								new dev.larattalabs.steward.inbox.InboxModel.Lot("cabin_1", "fisher's stilt house", "10x9, 13 tall (stilts, hut, roof, chimney, porch)"),
+								new dev.larattalabs.steward.inbox.InboxModel.Lot("tower_1", "lookout tower", "8x8, 21 tall (stilts, shaft, crown, roof)"));
+							var a1 = new dev.larattalabs.steward.inbox.InboxModel.Entry(id, "Stilt Swamp Fishing Village", "MASSINGS", "3 massings wait for you: approve them, or send one back with notes.",
+								java.util.List.of("Buildings: 3 approval", "Spent $3.12 of $35"), lots, 35, 3.12, 10);
+							var a2 = new dev.larattalabs.steward.inbox.InboxModel.Entry(id + "_b", "Lantern Shore", "BUDGET", "Paused at 80% of the $30 budget. Raise it to at least $40 to go on.",
+								java.util.List.of("Buildings: 5 done, 2 detail", "Spent $26.38 of $30"), java.util.List.of(), 30, 26.38, 40);
+							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.Inbox(java.util.List.of(a1, a2)));
+							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.OpenInbox(id));
+						}
+						default -> { ctx.getSource().sendFailure(Component.literal("inbox, describe, card, open or sample")); return 0; }
 					}
 					return 1;
 				}))))

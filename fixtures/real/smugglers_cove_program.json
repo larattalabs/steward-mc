@@ -1,0 +1,95 @@
+{
+  "prompt": "a smugglers' cove carved into sea cliffs, lantern-lit tunnels and hidden docks, no castle",
+  "card": {
+    "name": "Smugglers' Cove",
+    "site": {
+      "text": "carved into sea cliffs, with tunnels cut into the rock and hidden docks at the waterline",
+      "template": "cliff_face",
+      "terrain": "find",
+      "size": "M"
+    },
+    "style": {
+      "text": "lantern-lit tunnels, damp stone, weathered dark timber, rope and barrels, hidden and shadowy",
+      "template": null
+    },
+    "purpose": {
+      "text": "smugglers' cove for hiding contraband and ships, with hidden docks",
+      "template": null
+    },
+    "program": [
+      {
+        "role": "harbourmaster's den",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Cliff-hollow tavern and meeting hall above the main dock; lantern-lit, with a hidden back exit."
+      },
+      {
+        "role": "hidden dock",
+        "type": "dock",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Timber piers tucked in sea caves, with mooring posts and lanterns."
+      },
+      {
+        "role": "contraband warehouse",
+        "type": "warehouse",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Cave storage packed with barrels, crates and chests; one has a false wall."
+      },
+      {
+        "role": "smugglers' quarters",
+        "type": "cabin",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Bunks and chests carved into tunnel walls."
+      },
+      {
+        "role": "lookout post",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Cliff-top lookout disguised among rocks to signal incoming ships."
+      },
+      {
+        "role": "chandlery and fence",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Trades ship supplies and stolen goods from a tunnel alcove."
+      }
+    ],
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [
+      "castle"
+    ],
+    "interpretation": "Site: a cove cut into sea cliffs, with tunnels in the rock and docks at the waterline. Style: lantern-lit, damp stone and dark timber, kept shadowy and hidden. Purpose: a smugglers' hideout for ships and contraband. No castle or keep appears in the buildings. I made it medium-sized with about ten buildings, one centrepiece tavern, and the existing sea cliffs used rather than reshaped.",
+    "contradictions": [],
+    "assumptions": [
+      "Size is M, since none was given.",
+      "Terrain uses existing sea cliffs (find) rather than sculpting.",
+      "Density is medium.",
+      "No backstory was given, so none was added.",
+      "Location is searched for, since the player did not say spawn or here."
+    ]
+  },
+  "meta": {
+    "run": "2026-10-09 live, through the describe screen, Sonnet, claude login",
+    "costUsd": 0.045221,
+    "turns": 3
+  }
+}
