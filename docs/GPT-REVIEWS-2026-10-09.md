@@ -109,3 +109,13 @@ A review of commit 98cf6d9 found eleven problems. They were checked against the 
   - The cap on open proposals applies to every path.
 
 Accepted, as the verification agreed: the hourly count resets when the game restarts. A job that never reports frees its slot after 3 minutes, so the next question can overlap it. Each job is capped at $0.05 and is the player's own action.
+
+## 3e wording and 3c change requests (2026-10-10)
+
+There were no findings in the proposal wording. Change requests had four, all fixed and verified:
+- **No second charge after a lost answer:** a request is given back to the inbox only on a definite refusal, one typed with a reason other than `WORLD_STOPPED`. After a lost answer it stays accepted, because the design may still come, as an update.
+- **Acceptance saved first:** acceptance is saved before anything is sent, so nothing is spent if the save fails.
+- **The settlement's own look:** a change carries the settlement's bible at its saved version. It is refused while the style has changed since that bible was made.
+- **Outcomes kept:** the design id is logged when Architect takes the request, and the outcome is logged with its cost.
+
+Not added: recovery of an in-flight change across a restart. Its version still installs and the updates offer it; only the outcome note is lost.

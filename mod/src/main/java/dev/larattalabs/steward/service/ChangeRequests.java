@@ -82,15 +82,19 @@ public final class ChangeRequests {
 
 	/**
 	 * Designs the next version of {@code siteId}'s building from {@code notes}, at most {@code budgetUsd}. Returns null when it was sent, else why not.
-	 * {@code onSent} runs when Architect took the request (the proposal is accepted then); a refusal says why.
+	 * {@code accept} saves the acceptance (the proposal leaves the inbox) before anything is sent: nothing is spent unless that is saved. A definite refusal
+	 * gives the proposal back ({@code giveBack}); a request whose answer was lost may still be designed, so it is not given back (no second charge).
 	 */
-	public static @Nullable String start(MinecraftServer server, UUID player, Settlement s, String siteId, String notes, double budgetUsd, Runnable onSent) {
+	public static @Nullable String start(MinecraftServer server, UUID player, Settlement s, String siteId, String notes, double budgetUsd,
+		java.util.function.BooleanSupplier accept, Runnable giveBack) {
 		if (VERSION_OF == null) return "Changing a building that stands needs Architect 0b.";
 		if (BY_SITE.containsKey(siteId)) return "A change of that building is already being designed.";
 		var view = ArchitectApi.get().sites(server).get(siteId);
 		if (view.isEmpty()) return "That building no longer stands.";
 		SiteView v = view.get();
 		if (v.owner() == null || !v.owner().equals(s.owner())) return "That building is not " + s.name() + "'s.";
+		// a change keeps the settlement's look: its style bible, as approved; after a new description there is none until a build makes one
+		if (s.bible() == null || s.bible().styleVersion() != s.styleVersion()) return s.name() + "'s style changed since its bible was made: build something first, so the steward has the new style, then ask again.";
 		String name = Updates.lotOf(v);
 		DesignRequest req;
 		try {
@@ -99,18 +103,29 @@ public final class ChangeRequests {
 			Steward.LOGGER.warn("change request for {} could not be made", siteId, e);
 			return "The change could not be put to Architect (see the log).";
 		}
+		// saved before anything is sent: an acceptance that cannot be saved spends nothing
+		if (!accept.getAsBoolean()) return "Could not save the settlement, so the change is not designed.";
 		int session = Session.current();
 		BY_SITE.put(siteId, "");
 		ArchitectApi.get().designs().request(req).whenComplete((id, err) -> {
 			if (!Session.is(session)) return;
 			if (err != null) {
 				BY_SITE.remove(siteId);
-				tell(server, player, s.id(), "Architect would not design the change to the " + name + ": " + refusal(err));
+				if (definite(err)) {
+					giveBack.run();
+					tell(server, player, s.id(), "Architect would not design the change to the " + name + ": " + refusal(err) + ". It is back in the inbox.");
+				} else {
+					// the request may have arrived and be designed anyway: not given back, so it cannot be paid twice; its version shows as an update if it comes
+					Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "Asked for a change to the " + name
+						+ "; Architect's answer was lost (" + refusal(err) + ")", List.of(siteId)));
+					tell(server, player, s.id(), "I lost Architect's answer about the change to the " + name + ". If it was designed, it shows as an update; if none comes, ask me again.");
+				}
 				return;
 			}
 			BY_SITE.put(siteId, id);
 			PENDING.put(id, new Pending(s.id(), siteId, name, player, session));
-			onSent.run();
+			Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "Designing a change to the " + name + " (design " + id
+				+ "): " + clip(notes, 160), List.of(siteId)));
 			// it may already be done
 			ArchitectApi.get().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(d -> onDone(server, d));
 		});
@@ -133,9 +148,10 @@ public final class ChangeRequests {
 		ext.addProperty("steward_mc:change", true);
 		String text = "A change to the " + Updates.lotOf(v) + " that stands in " + s.name() + ": " + notes.strip()
 			+ (c == null ? "" : " Keep it in the settlement's style (" + c.style().text() + ").") + " Keep its entrance and footprint unless the change needs otherwise.";
-		var bible = s.bible() != null && s.bible().styleVersion() == s.styleVersion() ? s.bible().id() : null;
 		DesignRequest base = new DesignRequest(type, c == null ? "rustic" : LotBrief.styleLabel(c), null, List.of(), size, null,
-			text.length() > LotBrief.MAX_NOTES ? text.substring(0, LotBrief.MAX_NOTES) : text, null, s.owner(), ext, null, budgetUsd, bible, null);
+			text.length() > LotBrief.MAX_NOTES ? text.substring(0, LotBrief.MAX_NOTES) : text, null, s.owner(), ext, null, budgetUsd, null, null)
+			// the settlement's own bible, at the version it kept (not the newest)
+			.withBible(s.bible().id(), s.bible().version());
 		return (DesignRequest) VERSION_OF.invoke(base, v.blueprintId(), v.id());
 	}
 
@@ -143,14 +159,18 @@ public final class ChangeRequests {
 		Pending p = PENDING.remove(d.id());
 		if (p == null || !Session.is(p.session())) return;
 		BY_SITE.remove(p.siteId());
+		String cost = String.format(" ($%.2f)", d.cost().usd());
 		if (d.status() == Design.Status.DONE) {
 			Settlements.log(p.settlementId(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "Designed a change to the " + p.building()
-				+ " (its next version is offered as an update)", List.of(p.siteId())));
+				+ cost + ": its next version is offered as an update", List.of(p.siteId())));
 			// the new version makes the building outdated: the updates offer it (preview, apply keeping edits, revert)
 			Updates.rescan();
 			tell(server, p.player(), p.settlementId(), "The change to the " + p.building() + " is designed. It waits in the inbox as an update: preview it, then apply it.");
 		} else {
-			tell(server, p.player(), p.settlementId(), "The change to the " + p.building() + " could not be designed: " + d.error().orElse(d.status().name().toLowerCase()) + ".");
+			String why = d.error().orElse(d.status().name().toLowerCase());
+			Settlements.log(p.settlementId(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The change to the " + p.building()
+				+ " could not be designed" + cost + ": " + clip(why, 160), List.of(p.siteId())));
+			tell(server, p.player(), p.settlementId(), "The change to the " + p.building() + " could not be designed: " + why + ".");
 		}
 	}
 
@@ -177,6 +197,23 @@ public final class ChangeRequests {
 		var pl = server.getPlayerList().getPlayer(player);
 		var s = Settlements.store().get(settlementId);
 		if (pl != null) pl.sendSystemMessage(net.minecraft.network.chat.Component.literal("[" + s.map(Settlement::name).orElse("Steward") + "] " + text));
+	}
+
+	/** Architect refused for certain (a typed refusal: it has a reason), as against an answer that was lost (a timeout, a dropped link). */
+	static boolean definite(Throwable err) {
+		Throwable e = err.getCause() != null ? err.getCause() : err;
+		try {
+			// WORLD_STOPPED (0a) is typed too, but the helper's work goes on: the design may still be made, so it is not a refusal
+			Object reason = e.getClass().getMethod("reason").invoke(e);
+			return reason != null && !"WORLD_STOPPED".equals(String.valueOf(reason));
+		} catch (ReflectiveOperationException x) {
+			return false;
+		}
+	}
+
+	private static String clip(String t, int max) {
+		String one = t.replaceAll("\\s+", " ").strip();
+		return one.length() <= max ? one : one.substring(0, max - 1) + "…";
 	}
 
 	private static int clamp(int v, int lo, int hi) {

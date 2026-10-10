@@ -352,7 +352,7 @@ public final class Actions {
 			if (autonomous) return Result.fail("A change waits for the player.");
 			int budget = Proposals.estimate(p.get());
 			String no = ChangeRequests.start(player.level().getServer(), player.getUUID(), s, p.get().changeSite(), p.get().changeNotes(), budget,
-				() -> Proposals.recordAccepted(s.id(), key, null));
+				() -> Proposals.recordAccepted(s.id(), key, null), () -> Proposals.giveBack(s.id(), p.get(), null));
 			return no == null ? Result.ok(String.format("Designing the change (up to $%d). The steward tells you when it is ready to preview.", budget)) : Result.fail(no);
 		}
 		if (p.get().foundsDistrict()) {
