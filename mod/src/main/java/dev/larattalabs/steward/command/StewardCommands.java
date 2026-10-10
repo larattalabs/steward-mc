@@ -120,6 +120,8 @@ public final class StewardCommands {
 			.then(Commands.literal("proposals").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("decline").then(Commands.argument("key",
 				StringArgumentType.word()).executes(ctx -> decide(ctx, "proposal_decline", StringArgumentType.getString(ctx, "key"), "", 0)))).then(Commands.literal("accept")
 				.then(Commands.argument("key", StringArgumentType.word()).executes(ctx -> decide(ctx, "proposal_accept", StringArgumentType.getString(ctx, "key"), "", 0))))))
+			.then(Commands.literal("talk").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("words",
+				StringArgumentType.greedyString()).executes(ctx -> decide(ctx, "talk", "", StringArgumentType.getString(ctx, "words"), 0)))))
 			.then(Commands.literal("district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("found").then(Commands.argument("way",
 				StringArgumentType.word()).executes(ctx -> decide(ctx, "district_found", StringArgumentType.getString(ctx, "way"), "", 0)).then(Commands.argument("name",
 				StringArgumentType.greedyString()).executes(ctx -> decide(ctx, "district_found", StringArgumentType.getString(ctx, "way"), StringArgumentType.getString(ctx, "name"), 0)))))))
@@ -147,6 +149,16 @@ public final class StewardCommands {
 					var layers = "-".equals(label) ? java.util.List.<dev.larattalabs.steward.net.StewardNet.Layer>of() : java.util.List.of(new dev.larattalabs.steward.net.StewardNet.Layer(
 						StringArgumentType.getString(ctx, "entry"), at.getX(), at.getY(), at.getZ(), "NONE", "MASSING", label, at.getX() + 4, at.getY() + 12, at.getZ() + 4));
 					net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.ShowLayers("steward_mc:dev_ghost", layers));
+					return 1;
+				})))).then(Commands.literal("talk_answer").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("json",
+				StringArgumentType.greedyString()).executes(ctx -> {
+					// dev (the e2e check): act on a made-up talk answer, as if the talk job had returned it (no Claude)
+					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
+					String id = StringArgumentType.getString(ctx, "id");
+					if (dev.larattalabs.steward.service.Settlements.store().get(id).isEmpty()) { src.sendFailure(Component.literal("No such settlement: " + id)); return 0; }
+					var a = dev.larattalabs.steward.model.TalkAnswer.parse(com.google.gson.JsonParser.parseString(StringArgumentType.getString(ctx, "json")).getAsJsonObject());
+					dev.larattalabs.steward.service.Talk.act(src.getServer(), src.getPlayerOrException().getUUID(), id, "(dev)", a);
 					return 1;
 				})))).then(Commands.literal("propose_district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("way",
 				StringArgumentType.word()).executes(ctx -> {
@@ -209,6 +221,7 @@ public final class StewardCommands {
 						case "describe" -> net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.OpenDescribe(id,
 							s.map(x -> x.name()).orElse(id), ""));
 						case "card" -> { if (s.isPresent() && s.get().described()) Actions.sendCard(p, s.get()); }
+						case "talk" -> s.ifPresent(x -> net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.OpenTalk(x.id(), x.name())));
 						case "open" -> s.ifPresent(x -> Actions.openFor(p, x));
 						case "sample" -> {
 							// a made-up inbox for screenshots: no build is touched, decisions from it come back as "nothing is being built"

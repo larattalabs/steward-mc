@@ -1,0 +1,11 @@
+{
+  "said": "make the tavern creepier",
+  "answer": {
+    "reply": "A creepier tavern: I have noted it. Changing a building that stands comes once Architect can redesign one.",
+    "intent": "change",
+    "change": {
+      "target": "tavern",
+      "request": "Make the tavern creepier: darker wood, cobwebs, dim lanterns, a crooked sign."
+    }
+  }
+}

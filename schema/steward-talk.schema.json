@@ -1,0 +1,117 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://larattalabs.dev/steward/steward-talk.schema.json",
+  "title": "What the steward makes of something the player said",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "reply",
+    "intent"
+  ],
+  "properties": {
+    "reply": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "description": "What the steward says back, in its own voice, one or two short sentences. Never promise what the intent does not do."
+    },
+    "intent": {
+      "enum": [
+        "chat",
+        "building",
+        "district",
+        "change",
+        "undo",
+        "unclear"
+      ],
+      "description": "chat: talk or a question; building: the player asks for a new building; district: a new district; change: a change to a building or the settlement that stands; undo: take something back; unclear: you could not tell."
+    },
+    "building": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "type",
+        "footprint",
+        "landmark"
+      ],
+      "properties": {
+        "role": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 60,
+          "description": "What the building is, in the settlement's own terms (\"slag foundry\", \"overseer's keep\")."
+        },
+        "type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "description": "An Architect preset (house, cabin, cottage, tower, shop, tavern, barn, smithy, chapel, gatehouse) when one fits, else an open type in snake_case (slag_foundry)."
+        },
+        "footprint": {
+          "enum": [
+            "S",
+            "M",
+            "L",
+            "XL"
+          ],
+          "description": "Ground size: S about 11x9, M 14x12, L 18x15, XL 24x20 blocks."
+        },
+        "landmark": {
+          "type": "boolean",
+          "description": "A centrepiece, designed first on the stronger model. One for S and M settlements, two for L and XL."
+        },
+        "notes": {
+          "type": "string",
+          "maxLength": 200,
+          "description": "What makes this building itself: its function, details, and how it relates to the rest."
+        },
+        "placement": {
+          "enum": [
+            "near_water",
+            "central",
+            "edge",
+            "high_ground"
+          ],
+          "description": "Where it wants to stand: by the water (docks, mills), at the heart (a hall, a market), on the outskirts (barns, lookouts, smelly trades), on the high ground (watchtowers, temples). Leave it out for anywhere."
+        }
+      },
+      "description": "With intent building: the one building asked for, in this settlement's own terms."
+    },
+    "way": {
+      "enum": [
+        "N",
+        "E",
+        "S",
+        "W"
+      ],
+      "description": "With intent district: the way they named from the town, if any."
+    },
+    "district": {
+      "type": "string",
+      "maxLength": 40,
+      "description": "With intent district: a name for it, when they gave one (\"the harbour\"). With intent building: the existing district it should stand in, by name, when they said so."
+    },
+    "change": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "request"
+      ],
+      "properties": {
+        "target": {
+          "type": "string",
+          "maxLength": 60,
+          "description": "The building it is about (its role as listed), or \"settlement\"."
+        },
+        "request": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "description": "The change, in the player's words, made specific."
+        }
+      },
+      "description": "With intent change: what to change."
+    }
+  }
+}

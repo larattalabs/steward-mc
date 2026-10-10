@@ -1,0 +1,15 @@
+{
+  "said": "add a library where the scholars can read",
+  "answer": {
+    "reply": "A library for the scholars: I have drawn it up and put it in the inbox for you to approve.",
+    "intent": "building",
+    "building": {
+      "role": "scholars' library",
+      "type": "library",
+      "footprint": "M",
+      "landmark": false,
+      "notes": "Tall shelved hall with reading alcoves and a lantern-lit study.",
+      "placement": "central"
+    }
+  }
+}

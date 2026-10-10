@@ -242,6 +242,11 @@ public final class Actions {
 			sendSettlement(player, res.settlement(), "");
 			return Result.ok(String.format("The steward may spend up to $%.0f a week on its own (at Autonomous and Full).", amount));
 		}
+		if ("talk".equals(action)) {
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			return Talk.say(player.level().getServer(), player, s.get(), text);
+		}
 		if ("district_found".equals(action)) {
 			// lot: the way from the town and the size, "E" or "E:M"; text: a name ("" names it by its way)
 			Optional<Settlement> s = Settlements.store().get(id);
@@ -348,7 +353,7 @@ public final class Actions {
 			MinecraftServer server = player.level().getServer();
 			UUID who = player.getUUID();
 			String title = p.get().title();
-			String no = Districts.found(server, player, s, p.get().found(), "S", "", msg -> {
+			String no = Districts.found(server, player, s, p.get().found(), "S", p.get().district() == null ? "" : p.get().district(), msg -> {
 				var pl = server.getPlayerList().getPlayer(who);
 				if (pl != null) pl.sendSystemMessage(Component.literal(msg));
 				StewardVoice.say(server, s.id(), msg);
@@ -368,7 +373,7 @@ public final class Actions {
 		// in its district while that stands (else the town)
 		String district = p.get().district() != null && s.lands().district(p.get().district()).isPresent() ? p.get().district() : null;
 		new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, autonomous ? budget : 0, title),
-			() -> Proposals.giveBack(s.id(), key, title), () -> Proposals.backOff(s.id(), key)).startAddition(s, p.get().building(), budget, district);
+			() -> Proposals.giveBack(s.id(), p.get(), title), () -> Proposals.backOff(s.id(), key)).startAddition(s, p.get().building(), budget, district);
 		return Result.ok(String.format("Building %s for %s: one building beside what stands%s, budget $%d.", title.toLowerCase(), s.name(),
 			district == null ? "" : " in " + s.lands().district(district).map(Settlement.District::name).orElse("its district"), budget));
 	}

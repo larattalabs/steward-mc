@@ -177,6 +177,20 @@ public final class StewardNet {
 		}
 	}
 
+	/** Open the talk box for a settlement's steward (a right-click on it). */
+	public record OpenTalk(String settlementId, String name) implements CustomPacketPayload {
+		public static final Type<OpenTalk> TYPE = new Type<>(id("open_talk"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, OpenTalk> CODEC = StreamCodec.of((buf, p) -> {
+			buf.writeUtf(p.settlementId);
+			buf.writeUtf(p.name);
+		}, buf -> new OpenTalk(buf.readUtf(), buf.readUtf()));
+
+		@Override
+		public Type<OpenTalk> type() {
+			return TYPE;
+		}
+	}
+
 	/** The settlement's steward says this (a speech bubble over it, where the client has it loaded). */
 	public record StewardSay(String settlementId, String text) implements CustomPacketPayload {
 		public static final Type<StewardSay> TYPE = new Type<>(id("steward_say"));
@@ -278,6 +292,7 @@ public final class StewardNet {
 		s2c.register(PreviewDelta.TYPE, PreviewDelta.CODEC);
 		s2c.register(SettlementPanel.TYPE, SettlementPanel.CODEC);
 		s2c.register(StewardSay.TYPE, StewardSay.CODEC);
+		s2c.register(OpenTalk.TYPE, OpenTalk.CODEC);
 		s2c.register(SettlementNear.TYPE, SettlementNear.CODEC);
 		var c2s = PayloadTypeRegistry.serverboundPlay();
 		c2s.register(Describe.TYPE, Describe.CODEC);

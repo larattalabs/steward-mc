@@ -1,0 +1,7 @@
+{
+  "said": "nice weather today huh",
+  "answer": {
+    "reply": "It is. Good weather for building, if you have anything in mind.",
+    "intent": "chat"
+  }
+}

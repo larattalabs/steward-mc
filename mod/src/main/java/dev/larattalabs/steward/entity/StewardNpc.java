@@ -129,6 +129,11 @@ public final class StewardNpc {
 			p.sendSystemMessage(Component.literal("Steward: I have no settlement to look after."));
 			return;
 		}
+		// a described settlement that is not being built: the talk box (it opens the settlement screen, the card and the inbox too); else what waits
+		if (s.get().described() && !dev.larattalabs.steward.service.SettlementRunner.busy(s.get().id())) {
+			net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.OpenTalk(s.get().id(), s.get().name()));
+			return;
+		}
 		dev.larattalabs.steward.service.Actions.openFor(p, s.get());
 	}
 

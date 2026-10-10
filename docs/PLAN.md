@@ -11,7 +11,7 @@ functional modules, villagers, animals, an inbox. Steward depends on Architect a
 
 Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah). The hardening slice from the GPT reviews is done. **Phase 3 is under way:**
 - **3a: done.** The change log as operations, save migrations, the settlement screen, and a read-only building panel.
-- **3b: done**, except conversation. The steward is its own mob with its own skin. It walks to its work and comes to find you when a decision waits. It sits and sleeps. It has a nameplate, a "!" and speech bubbles, ported from AgentCraft onto lab-ui.
+- **3b: done** (conversation 2026-10-10: right-click the steward to talk; small talk is answered for free, anything else by a talk job of a few cents that replies and can put a building or a district in the inbox, or note a change). The steward is its own mob with its own skin. It walks to its work and comes to find you when a decision waits. It sits and sleeps. It has a nameplate, a "!" and speech bubbles, ported from AgentCraft onto lab-ui.
 - **3c: revert is done.** Change requests wait for Architect 0b.
 - **3d: done.** Building labels on look-at (I to inspect), survey mode (U) with the claim's border, labelled massing ghosts, the steward's ledger, and the settlement board.
 - **3f: built** (2026-10-10): protected areas, districts with their roads (founded, linked, undone), building in a district, the steward proposing one when the town's street is full. A district's first build and its link road need a paid or stub run to be seen.
@@ -22,7 +22,7 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
   - **Autonomous and Full** build their own proposals within the weekly allowance ($500 by default). Settings sets the level and the allowance.
   - **Still to come:** a Claude call that words proposals in the settlement's own style, once Architect's stub is there to test it for free.
 
-The free e2e check runs 29 checks, with a screenshot of each in-world piece.
+The free e2e check runs 32 checks, with a screenshot of each in-world piece.
 
 ## Principles
 
@@ -77,6 +77,7 @@ The free e2e check runs 29 checks, with a screenshot of each in-world piece.
 | 2026-10-09 | **Claims grow** (Noah): the card's size sets the first claim, the player can expand it, and a settlement grows by **districts** (adjacent claims the steward proposes). See "Claims and growth". |
 | 2026-10-10 | **Protected areas, then districts** (Steward side; Architect enforces C17 from 0c): the player marks areas the steward never builds on. Steward keeps its layouts and roads off them now; when 0c ships, the areas also go to Architect as write bounds. Districts sit next to the village square (inside a big claim or beyond it) and are linked by a road along their shared edge. See phase 3f. |
 | 2026-10-10 | **One district each way, for now** (Claude; **pending Noah's OK**): the plan let a second district go past the first the same way. 3f allows one each way (four at most), because a road cannot yet pass through a district to reach the one beyond. Lifting it means routing roads through a district's margin or street; until then the steward proposes the next free way. |
+| 2026-10-10 | **Talking costs a few cents a question** (Claude; for Noah to confirm): each question the rules cannot answer is one Sonnet job (a $0.05 cap, usually 1-2 cents) on the player's own Claude link, like describing a settlement. There are at most 30 an hour per settlement. Talk never builds: what it proposes waits in the inbox. |
 
 ## Concept card
 
@@ -295,6 +296,15 @@ After a build there is no screen for the settlement or for one building, and in 
 - **HUD:** the inbox line and toasts ("Smithy updated", "3 massings ready"). In survey mode, a small legend.
 
 **Steward conversation:** right-click the steward for free text ("add a library wing, make it creepier"). The reply comes in its speech bubble, and any proposal goes to the inbox.
+Built (2026-10-10): the talk box (`TalkScreen`, also `/steward talk <id> <words>`).
+- **$0:** greetings, thanks, "what are you doing" and "help" are answered by `TalkRules`.
+- **The talk job:** anything else goes to `prompts/steward-talk.md` with `schema/steward-talk.schema.json`, using Sonnet at low effort with a $0.05 cap. It returns one reply and one intent.
+  - **building:** a proposal in the inbox, in the town, in a district with room or in the one named. When there is no room anywhere, a district is proposed first.
+  - **district:** a proposal towards the way named, or the first that fits.
+  - **change:** noted in the history until Architect 0b.
+  - **undo:** points to the History tab.
+  - **chat** and **unclear:** a reply only.
+- **Limits:** nothing is built from talk without the inbox. There are at most 30 talk jobs an hour per settlement, one at a time, host only.
 
 **Shared UI code:** this would be the fourth copy of the world UI (AgentCraft, Architect's ghosts, Steward's screens and now its world UI). The "shared UI extraction"
 deferred after the review now has an observed need. The plan is to port AgentCraft's `WorldUi`, nameplate, bubble and declutter into Steward, and to raise a small shared

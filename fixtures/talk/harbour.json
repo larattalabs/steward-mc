@@ -1,0 +1,9 @@
+{
+  "said": "we need a harbour district out east",
+  "answer": {
+    "reply": "A harbour district to the east: the proposal is in the inbox. Founding it lays a road and costs nothing.",
+    "intent": "district",
+    "way": "E",
+    "district": "the harbour"
+  }
+}

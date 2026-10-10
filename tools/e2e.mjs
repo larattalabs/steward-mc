@@ -499,6 +499,47 @@ async function districts(id) {
   await closeScreens();
 }
 
+/**
+ * Talking to the steward (3b): a question it answers itself ($0), then made-up talk answers (no Claude) that put a building and a district in the inbox and
+ * note a change; the talk box, with the conversation, in a picture.
+ */
+async function talk(id) {
+  await closeScreens();
+  const name = settlements().find((x) => x.id === id)?.name ?? id;
+  let from = logSize();
+  await cmd(`/steward talk ${id} what are you doing?`);
+  const status = await waitLog(from, new RegExp(`\\[${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\] (I am [^\n]*)`), 10_000);
+  if (status) ok('talk status', status[1]);
+  else fail('talk status', logSince(from).slice(-300));
+  const answer = (f) => JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', f), 'utf8')).answer);
+  await cmd(`/steward dev talk_answer ${id} ${answer('library.json')}`);
+  await cmd(`/steward dev talk_answer ${id} ${answer('creepier.json')}`);
+  await cmd(`/steward dev talk_answer ${id} ${answer('harbour.json')}`);
+  await sleep(500);
+  const st = settlements().find((x) => x.id === id);
+  const lib = st?.proposals?.open?.find((p) => p.key.startsWith('asked_'));
+  const harbour = st?.proposals?.open?.find((p) => p.key === 'district_E');
+  const note = (st?.log ?? []).find((e) => e.kind === 'NOTE' && /Asked to change tavern/.test(e.text));
+  if (lib && /library/i.test(lib.title) && harbour && /harbour/i.test(harbour.title) && note) ok('talk acts', `${lib.title} and ${harbour.title} in the inbox; "${note.text.slice(0, 60)}" noted`);
+  else fail('talk acts', `building ${JSON.stringify(lib)}, district ${JSON.stringify(harbour)}, note ${JSON.stringify(note)}`);
+  await cmd(`/steward ui talk ${id}`);
+  await sleep(1500);
+  // said in the box this time: the player's line and the answer, in the picture
+  from = logSize();
+  await dev.request('dev.type', { text: 'hello' });
+  await dev.request('dev.key', { key: 'enter' });
+  const typed = await waitLog(from, /\] Hello! Tell me what/, 10_000);
+  await sleep(800);
+  const screen = (await dev.request('dev.state')).screen?.class ?? 'none';
+  const shot = (await dev.request('dev.screenshot', { name: 'e2e-talk', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  if (/TalkScreen/.test(screen) && typed) ok('talk box', `said "hello" in the box, answered; ${shot}`);
+  else fail('talk box', `screen ${screen}`);
+  await closeScreens();
+  // leave the inbox as it was
+  if (lib) await cmd(`/steward proposals ${id} decline ${lib.key}`);
+  if (harbour) await cmd(`/steward proposals ${id} decline district_E`);
+}
+
 /** A world from before the steward entity: its mannequin stewards become steward_mc:steward when their chunks load. */
 async function migratedSteward() {
   const first = settlements()[0];
@@ -587,6 +628,7 @@ try {
       await stewardLife(id);
       await proposals(id);
       await districts(id);
+      await talk(id);
     }
     else await stubFlow(id);
   }

@@ -66,7 +66,8 @@ public final class Proposals {
 		// Autonomous and Full: a proposal already waiting is built once the allowance allows (raised, renewed, or the level just changed)
 		if (!s.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && !open.isEmpty()) {
 			// the first one not backing off (one that found no room waits a while, so it does not hold the others up); a new district always waits for the player
-			var waiting = open.stream().filter(x -> !x.foundsDistrict() && BACKOFF.getOrDefault(s.id() + "#" + x.key(), 0L) <= now).findFirst();
+			// what the player asked for in talk waits for them too (the steward told them so)
+			var waiting = open.stream().filter(x -> !x.foundsDistrict() && !"asked".equals(x.trigger()) && BACKOFF.getOrDefault(s.id() + "#" + x.key(), 0L) <= now).findFirst();
 			if (waiting.isPresent() && s.autonomy().allows(estimate(waiting.get()), now) && autonomously(server, p, s, waiting.get(), now)) return;
 		}
 		// where a new building goes: the town while its street has room, else a district with room; when none has, a new district is proposed
@@ -208,11 +209,13 @@ public final class Proposals {
 	}
 
 	/** A proposal's build ended before Architect took any paid request of it: the proposal waits again and its recorded spend is taken off. */
-	static void giveBack(String settlementId, String key, String what) {
+	static void giveBack(String settlementId, Proposal given, String what) {
 		var s = Settlements.store().get(settlementId);
 		if (s.isEmpty()) return;
+		String key = given.key();
 		var ps = s.get().proposals();
-		var proposal = ps.open().stream().anyMatch(x -> x.key().equals(key)) ? null : ProposalRules.find(key);
+		// the proposal as it was accepted (an asked-for building, its district), not one made again from the rules
+		var proposal = ps.open().stream().anyMatch(x -> x.key().equals(key)) ? null : given;
 		List<Proposal> open = new ArrayList<>(ps.open());
 		if (proposal != null) open.add(proposal);
 		Settlement n = s.get().withProposals(new Settlement.Proposals(open, ps.declined(), ps.accepted().stream().filter(k -> !k.equals(key)).toList(), ps.lastAt()));

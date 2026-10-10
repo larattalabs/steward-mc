@@ -58,10 +58,17 @@ public class StewardClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.OpenDescribe.TYPE, (payload, ctx) -> ctx.client().gui.setScreen(
 			new dev.larattalabs.steward.client.screen.DescribeScreen(payload.settlementId(), payload.name(), payload.previous())));
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.Card.TYPE, (payload, ctx) -> ctx.client().gui.setScreen(new dev.larattalabs.steward.client.screen.CardScreen(payload)));
-		ClientPlayNetworking.registerGlobalReceiver(StewardNet.StewardSay.TYPE, (payload, ctx) -> dev.larattalabs.steward.client.entity.StewardVoices.say(payload.settlementId(),
-			payload.text()));
+		ClientPlayNetworking.registerGlobalReceiver(StewardNet.StewardSay.TYPE, (payload, ctx) -> {
+			dev.larattalabs.steward.client.entity.StewardVoices.say(payload.settlementId(), payload.text());
+			dev.larattalabs.steward.client.screen.TalkScreen.heard(payload.settlementId(), payload.text());
+		});
+		ClientPlayNetworking.registerGlobalReceiver(StewardNet.OpenTalk.TYPE, (payload, ctx) -> ctx.client().gui.setScreen(
+			new dev.larattalabs.steward.client.screen.TalkScreen(payload.settlementId(), payload.name())));
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> dev.larattalabs.steward.client.entity.StewardVoices.tick());
-		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> dev.larattalabs.steward.client.entity.StewardVoices.clear());
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> {
+			dev.larattalabs.steward.client.entity.StewardVoices.clear();
+			dev.larattalabs.steward.client.screen.TalkScreen.clear();
+		});
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.SettlementPanel.TYPE, (payload, ctx) -> {
 			var view = dev.larattalabs.steward.view.SettlementView.fromJson(payload.viewJson());
 			var screen = new dev.larattalabs.steward.client.screen.SettlementScreen(view);
