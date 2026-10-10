@@ -58,12 +58,12 @@ public final class StewardEntity extends PathfinderMob {
 
 	@Override
 	protected void registerGoals() {
-		goalSelector.addGoal(1, new WorkGoal());
+		goalSelector.addGoal(1, new LifeGoal());
 		goalSelector.addGoal(2, new LookAtPlayerGoal(this, Player.class, 8.0F));
 		goalSelector.addGoal(3, new WaterAvoidingRandomStrollGoal(this, 0.5) {
 			@Override
 			public boolean canUse() {
-				return work == null && super.canUse();
+				return plan == Plan.NONE && super.canUse();
 			}
 		});
 		goalSelector.addGoal(4, new RandomLookAroundGoal(this));
@@ -143,53 +143,274 @@ public final class StewardEntity extends PathfinderMob {
 		super.readAdditionalSaveData(in);
 		settlementId = in.getStringOr("settlement", "");
 		tagOwner();
+		// saved while seated or lying: it loads standing (the plan is picked again)
+		setNoGravity(false);
 		in.getIntArray("home").filter(a -> a.length == 3).ifPresent(a -> setHomeTo(new BlockPos(a[0], a[1], a[2]), HOME_RADIUS));
 	}
 
-	/** To the work place while there is one, else back within its home; it stops near the target and faces it. */
-	final class WorkGoal extends Goal {
-		private int repath;
+	// ------------------------------------------------------------------ what it does
 
-		WorkGoal() {
+	/** What the steward is up to, picked by {@link LifeGoal} (in this order): a player waits on a decision, work, night, a seat, home. */
+	enum Plan { COME, WORK, SLEEP, SIT, HOME, NONE }
+
+	private static final net.minecraft.network.syncher.EntityDataAccessor<Integer> POSTURE = net.minecraft.network.syncher.SynchedEntityData.defineId(StewardEntity.class,
+		net.minecraft.network.syncher.EntityDataSerializers.INT);
+	/** The bed's facing while it lies in one (a Direction ordinal, -1 none): the client lays the body along it. */
+	private static final net.minecraft.network.syncher.EntityDataAccessor<Integer> BED = net.minecraft.network.syncher.SynchedEntityData.defineId(StewardEntity.class,
+		net.minecraft.network.syncher.EntityDataSerializers.INT);
+
+	@Override
+	protected void defineSynchedData(net.minecraft.network.syncher.SynchedEntityData.Builder b) {
+		super.defineSynchedData(b);
+		b.define(POSTURE, Poses.Posture.IDLE.ordinal());
+		b.define(BED, -1);
+	}
+
+	public Poses.Posture posture() {
+		return Poses.Posture.of(entityData.get(POSTURE));
+	}
+
+	public net.minecraft.core.@Nullable Direction bedFacing() {
+		int d = entityData.get(BED);
+		return d < 0 ? null : net.minecraft.core.Direction.values()[d];
+	}
+
+	/** Client: the pose channels, eased towards the posture's every tick ({@code prev} for the frame between ticks). */
+	public final float[] pose = new float[Poses.N];
+	public final float[] posePrev = new float[Poses.N];
+
+	private Plan plan = Plan.NONE;
+	private int planAge;
+	/** Ticks spent idle at home (a seat is taken after a while). */
+	private int idleTicks;
+	private net.minecraft.world.phys.@Nullable Vec3 comeSpot;
+	private net.minecraft.world.phys.@Nullable Vec3 comeFor;
+	private java.util.@Nullable UUID comePlayer;
+	private @Nullable BlockPos seat;
+	private @Nullable BlockPos bed;
+	private boolean settled;
+	private int nextBedSearch;
+	/** Seats and beds are looked for this far from home. */
+	static final int SEAT_RADIUS = 6, BED_RADIUS = 24;
+	/** It comes to find a player this far away at most (and only inside its settlement's claim). */
+	static final double COME_RANGE = 64;
+	/** How long it sits before getting up (ticks). */
+	static final int SIT_TICKS = 20 * 45;
+	/** How long it idles at home before it looks for a seat (ticks). */
+	static final int IDLE_BEFORE_SIT = 20 * 30;
+
+	@Override
+	public void tick() {
+		super.tick();
+		if (level().isClientSide()) {
+			System.arraycopy(pose, 0, posePrev, 0, Poses.N);
+			Poses.ease(pose, Poses.target(posture()));
+		}
+	}
+
+	@Override
+	protected void customServerAiStep(net.minecraft.server.level.ServerLevel level) {
+		super.customServerAiStep(level);
+		if (plan == Plan.NONE) idleTicks++;
+		entityData.set(POSTURE, choosePosture().ordinal());
+		entityData.set(BED, plan == Plan.SLEEP && settled && bed != null ? StewardSpots.bedFacing(level, bed).ordinal() : -1);
+		planAge++;
+	}
+
+	/** The posture for what it is doing now. */
+	private Poses.Posture choosePosture() {
+		if (settled && plan == Plan.SLEEP) return Poses.Posture.LIE;
+		if (settled && plan == Plan.SIT) return Poses.Posture.SIT;
+		if (!getNavigation().isDone()) return Poses.Posture.WALK;
+		return switch (plan) {
+			case COME -> {
+				Player p = comePlayer == null ? null : level().getPlayerByUUID(comePlayer);
+				// it says its piece when the player is close, then waits
+				yield p != null && distanceToSqr(p) < 4.5 * 4.5 && (planAge / 60) % 3 == 0 ? Poses.Posture.TALK : Poses.Posture.WAIT;
+			}
+			// looking the building over, now and then a hand to the chin
+			case WORK -> (planAge / 100) % 4 == 3 ? Poses.Posture.THINK : Poses.Posture.REVIEW;
+			default -> (tickCount / 200) % 7 == 6 ? Poses.Posture.THINK : Poses.Posture.IDLE;
+		};
+	}
+
+	/** Who it should go and find, and where they stand, or null (no decision waits, the player is elsewhere). */
+	private @Nullable Player summoner() {
+		if (settlementId.isEmpty()) return null;
+		var who = dev.larattalabs.steward.service.Summons.waitingFor(settlementId);
+		if (who.isEmpty()) return null;
+		Player p = level().getPlayerByUUID(who.get());
+		if (p == null || distanceToSqr(p) > COME_RANGE * COME_RANGE) return null;
+		var s = dev.larattalabs.steward.service.Settlements.store().get(settlementId);
+		if (s.isEmpty() || !s.get().claim().contains(level().dimension().identifier().toString(), p.getBlockX(), p.getBlockY(), p.getBlockZ())) return null;
+		return p;
+	}
+
+	private Plan pick() {
+		if (summoner() != null) return Plan.COME;
+		if (work != null) return Plan.WORK;
+		BlockPos home = hasHome() ? getHomePosition() : blockPosition();
+		if (level().isDarkOutside()) {
+			// a bed is looked for at most every ten seconds (the search reads a wide box)
+			if ((bed == null || !(level().getBlockState(bed).getBlock() instanceof net.minecraft.world.level.block.BedBlock)) && tickCount >= nextBedSearch) {
+				nextBedSearch = tickCount + 200;
+				bed = StewardSpots.bed(level(), home, BED_RADIUS);
+			}
+			if (bed != null) return Plan.SLEEP;
+		} else {
+			bed = null;
+		}
+		if (plan == Plan.SIT && planAge < SIT_TICKS) return Plan.SIT;
+		if (idleTicks > IDLE_BEFORE_SIT && plan != Plan.SIT) {
+			seat = StewardSpots.seat(level(), home, SEAT_RADIUS);
+			if (seat != null) return Plan.SIT;
+		}
+		if (hasHome() && distanceToSqr(home.getX() + 0.5, home.getY(), home.getZ() + 0.5) > HOME_RADIUS * HOME_RADIUS) return Plan.HOME;
+		return Plan.NONE;
+	}
+
+	private void setPlan(Plan p) {
+		if (p == plan) return;
+		if (settled) {
+			// up off the seat or out of the bed
+			noPhysics = false;
+			setNoGravity(false);
+			setPos(getX(), Math.floor(getY()) + 1, getZ());
+		}
+		plan = p;
+		planAge = 0;
+		settled = false;
+		comeSpot = null;
+		comeFor = null;
+		if (p != Plan.NONE) idleTicks = 0;
+		getNavigation().stop();
+	}
+
+	/** Where it walks for its plan, or null (it stays). */
+	private net.minecraft.world.phys.@Nullable Vec3 target() {
+		return switch (plan) {
+			case COME -> {
+				Player p = summoner();
+				if (p == null) yield null;
+				comePlayer = p.getUUID();
+				// a spot near the player, kept until they move off (AgentCraft's fan-out round the player)
+				if (comeSpot == null || comeFor == null || comeFor.distanceTo(p.position()) > StewardSpots.FOLLOW_SLACK) {
+					comeSpot = StewardSpots.userSpot(level(), p.position(), position());
+					comeFor = p.position();
+				}
+				yield comeSpot;
+			}
+			case WORK -> work == null ? null : net.minecraft.world.phys.Vec3.atBottomCenterOf(work);
+			case SLEEP -> bed == null ? null : net.minecraft.world.phys.Vec3.atBottomCenterOf(bed);
+			case SIT -> seat == null ? null : net.minecraft.world.phys.Vec3.atBottomCenterOf(seat);
+			case HOME -> hasHome() ? net.minecraft.world.phys.Vec3.atBottomCenterOf(getHomePosition()) : null;
+			case NONE -> null;
+		};
+	}
+
+	/** How close is close enough for each plan. */
+	private double reach() {
+		return switch (plan) {
+			case COME -> 0.8;
+			case WORK -> WORK_REACH;
+			case SLEEP, SIT -> 1.6;
+			case HOME -> HOME_RADIUS - 2;
+			case NONE -> 0;
+		};
+	}
+
+	/** Arrived where it sits or sleeps: onto the seat or into the bed. */
+	private void settle() {
+		if (plan == Plan.SIT && seat != null) {
+			// on a stair: a little forward of its raised back, facing down the step (AgentCraft's sit point); a slab: its middle
+			var st = level().getBlockState(seat);
+			double x = seat.getX() + 0.5, z = seat.getZ() + 0.5;
+			float yaw = getYRot();
+			if (st.getBlock() instanceof net.minecraft.world.level.block.StairBlock) {
+				var f = st.getValue(net.minecraft.world.level.block.StairBlock.FACING);
+				x -= f.getStepX() * 0.15;
+				z -= f.getStepZ() * 0.15;
+				yaw = f.getOpposite().toYRot();
+			}
+			hold(x, seat.getY() + 0.5, z, yaw);
+		} else if (plan == Plan.SLEEP && bed != null) {
+			// on the mattress of the foot half: the renderer lays the body from there towards the head (checked from above in the e2e)
+			var facing = StewardSpots.bedFacing(level(), bed);
+			BlockPos foot = bed.relative(facing.getOpposite());
+			hold(foot.getX() + 0.5, foot.getY() + 0.6875, foot.getZ() + 0.5, facing.getOpposite().toYRot());
+		}
+	}
+
+	/** Settles at a spot: no physics while seated or lying, so a stair's back or the bed does not push it off. */
+	private void hold(double x, double y, double z, float yaw) {
+		snapTo(x, y, z, yaw, 0);
+		setYHeadRot(yaw);
+		yBodyRot = yaw;
+		setDeltaMovement(net.minecraft.world.phys.Vec3.ZERO);
+		noPhysics = true;
+		setNoGravity(true);
+		settled = true;
+	}
+
+	/** Picks the plan every second, walks to its place, settles, faces what it attends to. Other goals (strolling, looking about) run when it has none. */
+	final class LifeGoal extends Goal {
+		private int repath;
+		private int think;
+
+		LifeGoal() {
 			setFlags(EnumSet.of(Flag.MOVE, Flag.LOOK));
 		}
 
-		private @Nullable BlockPos target() {
-			if (work != null && workUntil > 0 && level().getGameTime() >= workUntil) work = null;
-			if (work != null) return work;
-			return hasHome() ? getHomePosition() : null;
-		}
-
-		private double reach() {
-			return work != null ? WORK_REACH : HOME_RADIUS;
-		}
+		private int nextCheck;
 
 		@Override
 		public boolean canUse() {
-			BlockPos t = target();
-			return t != null && distanceToSqr(t.getX() + 0.5, t.getY(), t.getZ() + 0.5) > reach() * reach();
+			// once a second: picking reads the world (seats, and at night beds)
+			if (tickCount < nextCheck) return false;
+			nextCheck = tickCount + 20;
+			if (work != null && workUntil > 0 && level().getGameTime() >= workUntil) work = null;
+			Plan p = pick();
+			setPlan(p);
+			return p != Plan.NONE;
 		}
 
 		@Override
 		public boolean canContinueToUse() {
-			BlockPos t = target();
-			double stop = work != null ? 1.0 : HOME_RADIUS - 2;
-			return t != null && distanceToSqr(t.getX() + 0.5, t.getY(), t.getZ() + 0.5) > stop * stop && !getNavigation().isStuck();
+			return plan != Plan.NONE;
 		}
 
 		@Override
 		public void start() {
 			repath = 0;
+			think = 0;
 		}
 
 		@Override
 		public void tick() {
-			BlockPos t = target();
-			if (t == null) return;
-			getLookControl().setLookAt(t.getX() + 0.5, t.getY() + 1, t.getZ() + 0.5);
+			if (--think <= 0) {
+				think = 20;
+				if (work != null && workUntil > 0 && level().getGameTime() >= workUntil) work = null;
+				Plan p = pick();
+				setPlan(p);
+				if (p == Plan.NONE) return;
+			}
+			var t = target();
+			if (plan == Plan.COME && comePlayer != null) {
+				Player pl = level().getPlayerByUUID(comePlayer);
+				if (pl != null) getLookControl().setLookAt(pl, 30, 30);
+			} else if (t != null && !settled) {
+				getLookControl().setLookAt(t.x, t.y + 1, t.z);
+			}
+			if (settled || t == null) return;
+			double r = reach();
+			if (distanceToSqr(t) <= r * r) {
+				getNavigation().stop();
+				settle();
+				return;
+			}
 			if (--repath <= 0) {
 				repath = 20;
-				getNavigation().moveTo(t.getX() + 0.5, t.getY(), t.getZ() + 0.5, 0.7);
+				getNavigation().moveTo(t.x, t.y, t.z, plan == Plan.COME ? 0.8 : 0.7);
 			}
 		}
 

@@ -179,6 +179,10 @@ async function inboxScreen() {
 }
 
 async function placeUpdateUndo(id) {
+  // the building stands 6 blocks south of the player, 9 x 9 from there (dev place, rotation none)
+  const me = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+  const box = me ? { x0: Math.floor(Number(me[1])), z0: Math.floor(Number(me[3])) + 6 } : null;
+  if (box) Object.assign(box, { x1: box.x0 + 8, z1: box.z0 + 8 });
   let from = logSize();
   await cmd(`/steward dev place ${id} ${STUB}`);
   const placed = await waitLog(from, /dev placed (s\d+)/, 30_000);
@@ -221,15 +225,16 @@ async function placeUpdateUndo(id) {
   const hist = await dev.request('dev.site.history', { site });
   if (upd && (hist.version ?? hist.site?.version) === inst.version) ok('update', `${site} -> v${inst.version} from the inbox`);
   else fail('update', `log ${upd ? 'ok' : 'silent'}, /steward updates said "${checked}", ${(logSince(0).match(/update check [^\n]*/g) ?? ['no update check']).at(-1)}, site ${JSON.stringify(hist).slice(0, 120)}`);
-  // the steward goes to look at the building it updated (3b)
-  let moved = 0;
-  for (let i = 0; i < 10 && before && moved < 2; i++) {
+  // the steward goes to look at the building it updated (3b): it ends up beside it, outside its footprint
+  const gap = (p) => Math.hypot(Math.max(box.x0 - p[0], 0, p[0] - (box.x1 + 1)), Math.max(box.z0 - p[2], 0, p[2] - (box.z1 + 1)));
+  let near = null;
+  for (let i = 0; i < 15 && box && !near; i++) {
     await sleep(1000);
     const now = await stewardPos();
-    if (now) moved = Math.hypot(now[0] - before[0], now[2] - before[2]);
+    if (now && gap(now) > 0 && gap(now) <= 3.5) near = now;
   }
-  if (moved >= 2) ok('steward walks', `${moved.toFixed(1)} blocks to the updated building`);
-  else fail('steward walks', before ? `moved ${moved.toFixed(1)}` : 'no steward position');
+  if (near) ok('steward walks', `${gap(near).toFixed(1)} blocks outside the updated building${before ? `, ${Math.hypot(near[0] - before[0], near[2] - before[2]).toFixed(1)} walked` : ''}`);
+  else fail('steward walks', `not beside the building: ${JSON.stringify(await stewardPos())}, box ${JSON.stringify(box)}`);
   // revert (3c): back to version 1 from the building panel (its third button, asked twice)
   await cmd(`/steward view ${id} ${site}`);
   await sleep(1500);
@@ -261,6 +266,55 @@ async function playerUuid() {
   if (!m) throw new Error(`no player UUID (${r})`);
   const hex = m.slice(1).map((n) => (Number(n) >>> 0).toString(16).padStart(8, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** The steward's life at home (3b): it sits on a stair near its stone when idle, and lies in a bed there at night. */
+async function stewardLife(id) {
+  const st = settlements().find((x) => x.id === id);
+  if (!st) return;
+  const at = async () => {
+    const r = await cmd(`/data get entity @e[type=steward_mc:steward,tag=steward_mc.settlement.${id},limit=1] Pos`);
+    const m = r.match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+    return m ? m.slice(1).map(Number) : null;
+  };
+  const cx = st.claim.centerX, cz = st.claim.centerZ;
+  const ground = (await at())?.[1] ?? 0;
+  const gy = Math.floor(ground);
+  // a stair four blocks east of the stone, facing it
+  await cmd(`/setblock ${cx + 4} ${gy} ${cz} minecraft:oak_stairs[facing=east]`);
+  let p = null;
+  for (let i = 0; i < 120; i++) {
+    await sleep(1000);
+    p = await at();
+    if (p && Math.abs(p[0] - (cx + 4.5)) < 0.3 && Math.abs(p[2] - (cz + 0.5)) < 0.3 && Math.abs(p[1] - (gy + 0.5)) < 0.1) break; // on the seat, a little forward of the step
+    p = null;
+  }
+  if (p) {
+    await cmd(`/tp @p ${cx + 1.5} ${gy} ${cz + 3.5} facing ${cx + 4.5} ${gy + 1} ${cz + 0.5}`);
+    await sleep(1500);
+    const shot = await dev.request('dev.screenshot', { name: 'e2e-steward-sits', frames: 5 }, { timeoutMs: 120_000 });
+    ok('steward sits', shot.path ?? '');
+  } else fail('steward sits', `not on the stair at ${cx + 4},${gy},${cz}: ${JSON.stringify(await at())}`);
+  // night: a bed five blocks west of the stone
+  await cmd(`/setblock ${cx + 4} ${gy} ${cz} minecraft:air`);
+  await cmd(`/setblock ${cx - 5} ${gy} ${cz} minecraft:red_bed[facing=north,part=head]`);
+  await cmd(`/setblock ${cx - 5} ${gy} ${cz + 1} minecraft:red_bed[facing=north,part=foot]`);
+  await cmd('/time set midnight');
+  let b = null;
+  for (let i = 0; i < 40; i++) {
+    await sleep(1000);
+    b = await at();
+    if (b && Math.abs(b[0] - (cx - 4.5)) < 0.3 && Math.abs(b[2] - (cz + 1.5)) < 0.3 && b[1] > gy + 0.5) break; // on the foot half, lying towards the head
+    b = null;
+  }
+  if (b) {
+    // from above, the foot end towards the bottom of the picture: the head should lie on the pillow
+    await cmd(`/tp @p ${cx - 4.5} ${gy + 5} ${cz + 3.2} facing ${cx - 4.5} ${gy} ${cz + 0.4}`);
+    await sleep(1500);
+    const shot = await dev.request('dev.screenshot', { name: 'e2e-steward-sleeps', frames: 5 }, { timeoutMs: 120_000 });
+    ok('steward sleeps', shot.path ?? '');
+  } else fail('steward sleeps', `not in the bed at ${cx - 5},${gy},${cz}: ${JSON.stringify(await at())}`);
+  await cmd('/time set day');
 }
 
 /** A world from before the steward entity: its mannequin stewards become steward_mc:steward when their chunks load. */
@@ -346,7 +400,10 @@ try {
   if (id) {
     await expand(id);
     await inboxScreen();
-    if (mode === 'free') await placeUpdateUndo(id);
+    if (mode === 'free') {
+      await placeUpdateUndo(id);
+      await stewardLife(id);
+    }
     else await stubFlow(id);
   }
   await migratedSteward();
