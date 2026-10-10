@@ -128,3 +128,10 @@ ordinary details $2.50-4.60; meter $31.03. See docs/PLAN.md phase 1 for what is 
   card (`Actions.openFor`). Dev: `/steward ui <inbox|describe|card|open|sample> <id>` (sample = a made-up inbox for screenshots). Checked in a client: every screen, keyboard driven, and a real
   describe through the screen ($0.045, `fixtures/real/smugglers_cove_program.json`).
 
+## Rerun through the screens (2026-10-09)
+Greywater Hamlet on the gate run's plains point, claude login, everything through the screens: describe screen ($0.013, a 6-building program), card screen (3
+buildings by the left arrow, budget $20 from the estimate, Start by Enter), the HUD line, the inbox by `Y` for the bible, the massings (ghosts on their lots) and
+placement. 3 buildings and the street placed (the street was refused on this slope before the run-out was removed). Spend $13.76: bible $1.36, the smokehouse landmark
+$4.03, the net racks $4.09 (a small building at landmark price: what C1/C2 address), the cottage about $3.7, massings and critiques the rest. About 70 minutes, the
+landmark designed alone first, then the other two. Fixed after: the finished message counted the street as a building.
+

@@ -262,8 +262,8 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
 
 | Gap | State |
 |---|---|
-| Street | Refused once (TOO_STEEP past the outer lot); the run-out is gone, the next run confirms it. |
-| Phase 1 gate | Waits on the street and Noah's look at the gallery. |
+| Street | Fixed: placed in the rerun (2026-10-09, Greywater Hamlet, same slope that refused it before). |
+| Phase 1 gate | Waits on Noah's look at the gallery (`docs/img/stilt-village*.jpg`, `docs/img/greywater-hamlet.jpg`). |
 | Steward NPC | A static mannequin: no walking, no skin of its own, no conversation; the right-click is not tested by hand. |
 | Card screen | No per-field chips or regenerate/lock per field. |
 | Update flow | `UpdatePlanner` is coded, not wired or run. |

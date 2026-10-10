@@ -705,8 +705,9 @@ public final class SettlementRunner {
 
 	private void onBatchDone(BatchView b) {
 		if (batchId == null || !batchId.equals(b.id())) return;
-		long placed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).count();
-		long failed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).count();
+		// buildings only: the street is a road, reported on its own when it fails
+		long placed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED && !BatchPlanner.STREET_KEY.equals(i.itemKey())).count();
+		long failed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED && !BatchPlanner.STREET_KEY.equals(i.itemKey())).count();
 		b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).forEach(i -> say("Not placed: " + i.itemKey() + " (" + i.reason().map(Enum::name).orElse("?") + ") " + i.message()));
 		// every site of the build, street included, so an undo removes all of it
 		if (siteGroupId == null) siteGroupId = b.group();
