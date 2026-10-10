@@ -60,6 +60,9 @@ public final class Actions {
 	}
 
 	/** An immediate answer: what to show the player now. */
+	/** A protected area reaches this far around the player (2 x r + 1 across), and a settlement has at most this many. */
+	static final int MIN_PROTECT = 2, MAX_PROTECT = 32, MAX_AREAS = 16;
+
 	public record Result(boolean ok, String message) {
 		static Result ok(String m) {
 			return new Result(true, m);
@@ -239,6 +242,48 @@ public final class Actions {
 			sendSettlement(player, res.settlement(), "");
 			return Result.ok(String.format("The steward may spend up to $%.0f a week on its own (at Autonomous and Full).", amount));
 		}
+		if ("district_found".equals(action)) {
+			// lot: the way from the town and the size, "E" or "E:M"; text: a name ("" names it by its way)
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			if (!s.get().described()) return Result.fail("Describe " + id + " first.");
+			String[] parts = (lot == null ? "" : lot).toUpperCase(java.util.Locale.ROOT).split(":");
+			String dir = parts[0], size = parts.length > 1 ? parts[1] : "S";
+			if (!dev.larattalabs.steward.model.DistrictRules.SIZES.contains(size)) return Result.fail("A district is S (97 across) or M (129 across).");
+			String name = text == null ? "" : text.strip();
+			if (name.length() > 40) return Result.fail("A district's name is at most 40 characters.");
+			MinecraftServer server = player.level().getServer();
+			java.util.UUID who = player.getUUID();
+			String no = Districts.found(server, player, s.get(), dir, size, name, msg -> {
+				var p = server.getPlayerList().getPlayer(who);
+				if (p != null) p.sendSystemMessage(net.minecraft.network.chat.Component.literal(msg));
+				StewardVoice.say(server, id, msg);
+			});
+			return no == null ? Result.ok("Laying the road to the new district...") : Result.fail(no);
+		}
+		if ("protect".equals(action)) {
+			// a square of 2 x amount + 1 around where the player stands, in this settlement's land; text: its label
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			int r = (int) amount;
+			if (r < MIN_PROTECT || r > MAX_PROTECT) return Result.fail("A protected area reaches " + MIN_PROTECT + " to " + MAX_PROTECT + " blocks around you.");
+			var at = player.blockPosition();
+			String dim = player.level().dimension().identifier().toString();
+			if (!s.get().contains(dim, at.getX(), at.getY(), at.getZ())) return Result.fail("Stand in " + s.get().name() + " to protect ground there.");
+			if (s.get().lands().protect().size() >= MAX_AREAS) return Result.fail("At most " + MAX_AREAS + " protected areas; clear one first.");
+			String label = text == null || text.isBlank() ? "around " + at.getX() + "," + at.getZ() : text.strip();
+			if (label.length() > 40) return Result.fail("A label is at most 40 characters.");
+			var res = Settlements.protect(id, label, dim, at.getX() - r, at.getZ() - r, at.getX() + r, at.getZ() + r, System.currentTimeMillis());
+			if (!res.ok()) return Result.fail(res.error());
+			sendSettlement(player, res.settlement(), "");
+			return Result.ok(res.note());
+		}
+		if ("unprotect".equals(action)) {
+			var res = Settlements.unprotect(id, lot == null ? "" : lot, System.currentTimeMillis());
+			if (!res.ok()) return Result.fail(res.error());
+			sendSettlement(player, res.settlement(), "");
+			return Result.ok(res.note());
+		}
 		if ("proposal_decline".equals(action) || "proposal_accept".equals(action)) {
 			Optional<Settlement> s = Settlements.store().get(id);
 			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
@@ -295,6 +340,19 @@ public final class Actions {
 		var p = s.proposals().open().stream().filter(x -> x.key().equals(key)).findFirst();
 		if (p.isEmpty()) return Result.fail("No proposal " + key + " waits.");
 		if (SettlementRunner.busy(s.id())) return Result.fail(s.id() + " is being built; build the proposal once that is done.");
+		if (p.get().foundsDistrict()) {
+			// a new district always waits for the player, whatever the permission level
+			if (autonomous) return Result.fail("A new district waits for the player.");
+			MinecraftServer server = player.level().getServer();
+			UUID who = player.getUUID();
+			String title = p.get().title();
+			String no = Districts.found(server, player, s, p.get().found(), "S", "", msg -> {
+				var pl = server.getPlayerList().getPlayer(who);
+				if (pl != null) pl.sendSystemMessage(Component.literal(msg));
+				StewardVoice.say(server, s.id(), msg);
+			}, () -> Proposals.recordAccepted(s.id(), key, 0, title));
+			return no == null ? Result.ok("Laying the road to the new district...") : Result.fail(no);
+		}
 		if (s.lastUndoable().isEmpty()) return Result.fail("Nothing stands in " + s.name() + " yet: an addition goes beside its buildings and street.");
 		if (reading(s.id())) return Result.fail("The steward is still reading a description of " + s.id() + ".");
 		if (!SettlementRunner.canSave()) return Result.fail("Builds cannot be saved in this world (steward-builds.json could not be read; see the log), so none is started.");
@@ -305,9 +363,12 @@ public final class Actions {
 		int budget = Proposals.estimate(p.get());
 		if (autonomous && !s.autonomy().allows(budget, System.currentTimeMillis())) return Result.fail("Past this week's allowance.");
 		String title = p.get().title();
+		// in its district while that stands (else the town)
+		String district = p.get().district() != null && s.lands().district(p.get().district()).isPresent() ? p.get().district() : null;
 		new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, autonomous ? budget : 0, title),
-			() -> Proposals.giveBack(s.id(), key, title), () -> Proposals.backOff(s.id(), key)).startAddition(s, p.get().building(), budget);
-		return Result.ok(String.format("Building %s for %s: one building beside what stands, budget $%d.", title.toLowerCase(), s.name(), budget));
+			() -> Proposals.giveBack(s.id(), key, title), () -> Proposals.backOff(s.id(), key)).startAddition(s, p.get().building(), budget, district);
+		return Result.ok(String.format("Building %s for %s: one building beside what stands%s, budget $%d.", title.toLowerCase(), s.name(),
+			district == null ? "" : " in " + s.lands().district(district).map(Settlement.District::name).orElse("its district"), budget));
 	}
 
 	// ------------------------------------------------------------------ screens

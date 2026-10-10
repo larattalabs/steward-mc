@@ -292,7 +292,7 @@ public final class StewardEntity extends PathfinderMob {
 		Player p = level().getPlayerByUUID(who.get());
 		if (p == null || distanceToSqr(p) > COME_RANGE * COME_RANGE) return null;
 		var s = dev.larattalabs.steward.service.Settlements.store().get(settlementId);
-		if (s.isEmpty() || !s.get().claim().contains(level().dimension().identifier().toString(), p.getBlockX(), p.getBlockY(), p.getBlockZ())) return null;
+		if (s.isEmpty() || !s.get().contains(level().dimension().identifier().toString(), p.getBlockX(), p.getBlockY(), p.getBlockZ())) return null;
 		return p;
 	}
 

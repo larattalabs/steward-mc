@@ -15,6 +15,8 @@ import java.util.Set;
  */
 public final class ProposalRules {
 	public static final int MAX_OPEN = 3;
+	/** Buildings a street holds before new ones go to a district (one street holds 12-16). */
+	public static final int STREET_FULL = 12;
 	public static final long COOLDOWN_MS = 20 * 60_000L;
 
 	/** What the steward sees: the player's tier and what they carry; animals gathering in the claim, by kind. */
@@ -54,7 +56,7 @@ public final class ProposalRules {
 	 * @param lastAt when the last proposal was made (epoch ms; 0 none)
 	 */
 	public static List<Proposal> propose(Signs s, Set<String> types, Set<String> declined, List<Proposal> open, long lastAt, long now) {
-		if (open.size() >= MAX_OPEN || (lastAt > 0 && now - lastAt < COOLDOWN_MS)) return List.of();
+		if (!room(open, lastAt, now)) return List.of();
 		Set<String> openKeys = new java.util.HashSet<>();
 		for (Proposal p : open) openKeys.add(p.key());
 		List<Proposal> out = new ArrayList<>();
@@ -65,6 +67,11 @@ public final class ProposalRules {
 			break;
 		}
 		return out;
+	}
+
+	/** Whether a new proposal may be made now: fewer than {@link #MAX_OPEN} open, and the cooldown since the last one is over. */
+	public static boolean room(List<Proposal> open, long lastAt, long now) {
+		return open.size() < MAX_OPEN && !(lastAt > 0 && now - lastAt < COOLDOWN_MS);
 	}
 
 	/** The proposal a key stands for (made now), or null for an unknown key: a proposal given back after a build that never spent. */
@@ -99,5 +106,19 @@ public final class ProposalRules {
 			case "pens" -> "animals";
 			default -> "tier";
 		};
+	}
+
+	/**
+	 * Where the next building goes (phase 3f): the town while its street has room, else the first district with room ({@code district} its id); when none
+	 * has, {@code full}: the steward proposes a district instead.
+	 *
+	 * @param districts each district's building count, oldest first
+	 */
+	public record Where(@org.jspecify.annotations.Nullable String district, boolean full) {}
+
+	public static Where where(int town, java.util.LinkedHashMap<String, Integer> districts) {
+		if (town < STREET_FULL) return new Where(null, false);
+		for (var e : districts.entrySet()) if (e.getValue() < STREET_FULL) return new Where(e.getKey(), false);
+		return new Where(null, true);
 	}
 }

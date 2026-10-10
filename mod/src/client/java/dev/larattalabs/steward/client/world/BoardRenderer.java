@@ -50,7 +50,8 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 		s.facing = bs.hasProperty(SettlementBoardBlock.FACING) ? bs.getValue(SettlementBoardBlock.FACING) : Direction.NORTH;
 		SettlementView v = SettlementWorld.near();
 		var p = be.getBlockPos();
-		s.view = v != null && Math.abs(p.getX() - v.claim().centerX()) <= v.claim().radius() && Math.abs(p.getZ() - v.claim().centerZ()) <= v.claim().radius() ? v : null;
+		s.view = v != null && (Math.abs(p.getX() - v.claim().centerX()) <= v.claim().radius() && Math.abs(p.getZ() - v.claim().centerZ()) <= v.claim().radius()
+			|| v.districts().stream().anyMatch(d -> Math.abs(p.getX() - d.centerX()) <= d.radius() && Math.abs(p.getZ() - d.centerZ()) <= d.radius())) ? v : null;
 	}
 
 	@Override

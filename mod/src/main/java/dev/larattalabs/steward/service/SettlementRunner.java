@@ -298,6 +298,8 @@ public final class SettlementRunner {
 		this.decided.addAll(b.decided());
 		this.lastAwaiting = b.lastAwaiting();
 		this.addition = b.addition();
+		this.districtId = b.districtId();
+		this.newStreet = b.laysStreet();
 	}
 
 	private ServerLevel level() {
@@ -312,7 +314,7 @@ public final class SettlementRunner {
 		if (settlement == null || state == null || plan == null) return true;
 		if (state.phase().terminal()) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition));
+			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -431,8 +433,12 @@ public final class SettlementRunner {
 			String lot = v.map(x -> extString(x.ext(), "steward_mc:role")).orElse(null);
 			return new Settlement.SiteChange(id, lot, 0, v.map(dev.larattalabs.architect.api.SiteView::version).orElse(1));
 		}).toList();
-		return Settlements.log(settlement.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings"
-			+ (notPlaced > 0 ? " (" + notPlaced + " not placed)" : ""), changes, siteGroupId, notPlaced > 0 ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE)).ok();
+		String where = districtId == null ? "" : saved.get().lands().district(districtId).map(d -> " in " + d.name()).orElse("");
+		boolean ok = Settlements.log(settlement.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings"
+			+ where + (notPlaced > 0 ? " (" + notPlaced + " not placed)" : ""), changes, siteGroupId, notPlaced > 0 ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE)).ok();
+		// a district's first build laid its street: a road links it to where the district's road ends
+		if (ok && districtId != null && newStreet) Districts.link(server, settlement.id(), districtId, this::say);
+		return ok;
 	}
 
 	private void logFailed() {
@@ -472,6 +478,10 @@ public final class SettlementRunner {
 	private Settlement existing;
 	/** An addition to a built settlement (a proposal's building): no new street, and the settlement's style bible is reused. */
 	private boolean addition;
+	/** The district the build is in (its square is surveyed and laid out), or null for the town. */
+	private @org.jspecify.annotations.Nullable String districtId;
+	/** Whether the build lays a street: a whole settlement, or a district's first build. */
+	private boolean newStreet = true;
 	/** The settlement's street (its centre line), found by {@link #markSites}: an addition is laid out on it. */
 	private @org.jspecify.annotations.Nullable Integer streetZ;
 	/**
@@ -504,12 +514,18 @@ public final class SettlementRunner {
 	 * what stands (the layout keeps off the settlement's sites), with no new street, in the settlement's own style bible when it has one.
 	 */
 	public void startAddition(Settlement s, dev.larattalabs.steward.model.ConceptCard.Building building, double budgetUsd) {
+		startAddition(s, building, budgetUsd, null);
+	}
+
+	/** As above, in district {@code districtId} (its first building lays its street), or the town when null. */
+	public void startAddition(Settlement s, dev.larattalabs.steward.model.ConceptCard.Building building, double budgetUsd, @org.jspecify.annotations.Nullable String districtId) {
+		this.districtId = districtId;
 		var c = s.card();
 		var card = new dev.larattalabs.steward.model.ConceptCard(c.name(), c.site(), c.style(), c.purpose(), c.story(), c.constraints(), c.avoid(), c.interpretation(),
 			c.contradictions(), c.assumptions(), List.of(building));
 		this.addition = true;
 		startExisting(new Settlement(s.id(), s.name(), card, s.claim(), s.siteVersion(), s.styleVersion(), s.purposeVersion(), s.permission(), s.difficulty(), s.log(),
-			s.proposals(), s.bible(), s.autonomy()), 1, budgetUsd);
+			s.proposals(), s.bible(), s.autonomy(), s.lands()), 1, budgetUsd);
 	}
 
 	/** Start from a settlement the player claimed with the Founding Stone and described: its claim and card are used, no card job runs. */
@@ -521,26 +537,30 @@ public final class SettlementRunner {
 	}
 
 	private void surveyAndStart(CardResult r, int buildings, double budgetUsd) {
-		int cx = existing != null ? existing.claim().centerX() : origin.getX();
-		int cz = existing != null ? existing.claim().centerZ() : origin.getZ();
+		// a district's build surveys and lays out the district's own square
+		var district = existing != null && districtId != null ? existing.lands().district(districtId).orElse(null) : null;
+		if (districtId != null && district == null) { abandon("That district is gone."); return; }
+		int cx = district != null ? district.claim().centerX() : existing != null ? existing.claim().centerX() : origin.getX();
+		int cz = district != null ? district.claim().centerZ() : existing != null ? existing.claim().centerZ() : origin.getZ();
 		ServerLevel level = level();
 		// the settlement's own claim (sized by its card, grown by Expand); a dev build uses the default
 		// a one-street village stays near the stone even in a big claim (the rest of a big claim is room for districts and regions)
-		int rad = Math.min(dev.larattalabs.steward.model.ClaimRules.VILLAGE_RADIUS, existing != null ? existing.claim().radius() : CLAIM_RADIUS);
+		int rad = district != null ? district.claim().radius()
+			: Math.min(dev.larattalabs.steward.model.ClaimRules.VILLAGE_RADIUS, existing != null ? existing.claim().radius() : CLAIM_RADIUS);
 		BoundingBox area = new BoundingBox(cx - rad, level.getMinY(), cz - rad, cx + rad, level.getMaxY(), cz + rad);
 		say("Surveying the land...");
 		ArchitectApi.get().survey().sample(level, area, 1, LoadPolicy.LOADED_ONLY).whenComplete((sample, err) -> {
 			if (err != null) { abandon("Survey failed: " + err.getMessage()); return; }
 			Grid grid = TerrainGrid.fromSample(sample);
 			// what the settlement has built is taken ground (its buildings and its street), with a block's margin
-			if (existing != null) markSites(grid, existing);
+			if (existing != null) markSites(grid, existing, district);
 			int wet = 0, lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
 			for (int z = grid.z0(); z < grid.z0() + grid.depth(); z++) for (int x = grid.x0(); x < grid.x0() + grid.width(); x++) {
 				if (grid.waterAt(x, z)) { wet++; continue; }
 				lo = Math.min(lo, grid.heightAt(x, z)); hi = Math.max(hi, grid.heightAt(x, z));
 			}
 			Steward.LOGGER.info("survey: {}x{} columns, {} unusable (water or unloaded), {} loaded chunks, ground y {}..{}, trees {}", grid.width(), grid.depth(), wet, sample.chunksLoaded(), lo, hi, sample.tree().cardinality());
-			Claim claim = existing != null ? dev.larattalabs.steward.model.ClaimRules.withRadius(existing.claim(), rad)
+			Claim claim = district != null ? district.claim() : existing != null ? dev.larattalabs.steward.model.ClaimRules.withRadius(existing.claim(), rad)
 				: new Claim(level.dimension().identifier().toString(), cx, cz, CLAIM_RADIUS, level.getMinY(), level.getMaxY());
 			settlement = existing != null ? existing : Settlement.found(DEV_ID, r.card(), claim, permission, Difficulty.PATRON, System.currentTimeMillis());
 			// landmarks run on the dearer model: the size's typical count, and at most one per four buildings
@@ -549,8 +569,12 @@ public final class SettlementRunner {
 			if (!program.fromCard()) say("This card has no building program (it was described before programs existed), so this is a generic village. Describe it again to get buildings of its own.");
 			if (!program.leftOut().isEmpty()) say("Left out at " + buildings + " buildings: " + String.join(", ", program.leftOut()) + ".");
 			List<VillageLayout.LotSpec> specs = program.specs();
-			plan = addition ? VillageLayout.plan(claim, grid, specs, VillageLayout.Rules.defaults(), streetZ, streetX0, streetX1)
-				: VillageLayout.plan(claim, grid, specs, VillageLayout.Rules.defaults());
+			// a district keeps a wider margin (the road along its edge); its first building lays its street, east and west on the town street's line
+			var rules = district != null ? new VillageLayout.Rules(5, 3, 3, dev.larattalabs.steward.model.DistrictRules.MARGIN) : VillageLayout.Rules.defaults();
+			newStreet = !addition || (district != null && streetZ == null);
+			Integer line = district != null && streetZ == null && ("E".equals(district.direction()) || "W".equals(district.direction())) ? district.claim().centerZ() : null;
+			plan = !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ, streetX0, streetX1)
+				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line) : VillageLayout.plan(claim, grid, specs, rules);
 			say("Layout: " + plan.lots().size() + " lots on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
 			if (plan.lots().isEmpty()) { abandon("No dry, flat room here. Try another spot."); return; }
 			if (resumeGroup != null) {
@@ -575,12 +599,38 @@ public final class SettlementRunner {
 		});
 	}
 
-	/** Marks the settlement's standing sites as built ground (a block's margin round each), so a layout keeps off them. */
-	private void markSites(Grid grid, Settlement s) {
+	/**
+	 * Marks the settlement's standing sites as built ground (a block's margin round each), so a layout keeps off them, and finds the street the build faces
+	 * (the district's, or the town's). The roads the steward laid, the player's protected areas and, for a town build, its districts' squares are taken too.
+	 */
+	private void markSites(Grid grid, Settlement s, Settlement.@org.jspecify.annotations.Nullable District district) {
+		String dim = s.claim().dimension();
+		java.util.Set<String> roads = new java.util.HashSet<>();
+		for (Settlement.District d : s.lands().districts()) {
+			for (Settlement.Road r : d.roads()) {
+				roads.add(r.siteId());
+				for (int[] c : dev.larattalabs.steward.model.DistrictRules.cells(r.points(), r.width() + 2)) if (grid.has(c[0], c[1])) grid.setBuilt(c[0], c[1], true);
+			}
+			if (district == null) {
+				Claim c = d.claim();
+				for (int x = c.centerX() - c.radius(); x <= c.centerX() + c.radius(); x++) for (int z = c.centerZ() - c.radius(); z <= c.centerZ() + c.radius(); z++) {
+					if (grid.has(x, z)) grid.setBuilt(x, z, true);
+				}
+			}
+		}
+		for (Settlement.Area a : s.lands().protect()) {
+			if (!a.dimension().equals(dim)) continue;
+			for (int x = a.x0(); x <= a.x1(); x++) for (int z = a.z0(); z <= a.z1(); z++) if (grid.has(x, z)) grid.setBuilt(x, z, true);
+		}
 		for (var v : ArchitectApi.get().sites(server).list(s.owner())) {
+			// a road's box spans its whole route: its cells were marked above
+			if (roads.contains(v.id())) continue;
 			var b = v.box();
 			for (int x = b.minX() - 1; x <= b.maxX() + 1; x++) for (int z = b.minZ() - 1; z <= b.maxZ() + 1; z++) if (grid.has(x, z)) grid.setBuilt(x, z, true);
-			if (BatchPlanner.STREET_KEY.equals(v.itemKey())) {
+			// the street of where the build goes: the district's own, or the town's (not a district's)
+			var in = s.districtAt(dim, (b.minX() + b.maxX()) / 2, (b.minZ() + b.maxZ()) / 2);
+			boolean ours = district != null ? in.map(d -> d.id().equals(district.id())).orElse(false) : in.isEmpty();
+			if (BatchPlanner.STREET_KEY.equals(v.itemKey()) && ours) {
 				streetZ = (b.minZ() + b.maxZ()) / 2;
 				streetX0 = b.minX();
 				streetX1 = b.maxX();
@@ -660,7 +710,8 @@ public final class SettlementRunner {
 	 */
 	private net.minecraft.core.@org.jspecify.annotations.Nullable BlockPos workPlace() {
 		if (state == null || plan == null || state.phase().terminal()) return null;
-		var home = new net.minecraft.core.BlockPos(settlement.claim().centerX(), plan.streetY(), settlement.claim().centerZ());
+		Claim at = districtId == null ? settlement.claim() : settlement.lands().district(districtId).map(Settlement.District::claim).orElse(settlement.claim());
+		var home = new net.minecraft.core.BlockPos(at.centerX(), plan.streetY(), at.centerZ());
 		return switch (state.phase()) {
 			case AWAITING_MASSING_APPROVAL -> plan.lots().stream().filter(l -> lastAwaiting.contains(l.id())).findFirst()
 				.map(l -> StewardMotion.outside(l.x(), l.groundY(), l.z(), l.x() + l.sizeX() - 1, l.z() + l.sizeZ() - 1, home)).orElse(null);
@@ -942,7 +993,7 @@ public final class SettlementRunner {
 			if (!fit.ok()) say("Fit " + lot.id() + " (" + entry + ") refused: " + fit.verdict().refusals().stream().map(r -> r.reason() + " " + r.message()).collect(Collectors.joining("; ")));
 		}
 		BatchPlanner.Result res = BatchPlanner.build(settlement, plan, landmarkIds, entries, fits, level,
-			dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), autoApprove, !addition, buildId);
+			dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), autoApprove, newStreet, buildId);
 		if (res.note() != null) say(res.note());
 		if (!res.skippedLotIds().isEmpty()) say("Skipped lots (no design or no fit): " + res.skippedLotIds());
 		say("Placing " + res.batch().items().size() + " items...");

@@ -47,7 +47,20 @@ public final class UpdatePlanner {
 	 * @param claim the settlement's claim: an update that would write outside it is blocked (a new wing could reach a neighbour's land); null = not checked
 	 */
 	public static Plan plan(String building, DeltaVerdict v, Permission p, dev.larattalabs.steward.model.@org.jspecify.annotations.Nullable Claim claim) {
+		return plan(building, v, p, claim, java.util.List.of());
+	}
+
+	/** As above; an update that would write on one of {@code areas} (the player's protected areas) is blocked. */
+	public static Plan plan(String building, DeltaVerdict v, Permission p, dev.larattalabs.steward.model.@org.jspecify.annotations.Nullable Claim claim,
+		java.util.List<dev.larattalabs.steward.model.Settlement.Area> areas) {
 		PlayerEdits edits = editsFor(p);
+		if (knownBox(v)) {
+			for (var a : areas) {
+				if (a.overlaps(a.dimension(), v.box().minX(), v.box().minZ(), v.box().maxX(), v.box().maxZ()) && (claim == null || a.dimension().equals(claim.dimension()))) {
+					return new Plan(Action.BLOCKED, building + " cannot be updated: the new version reaches into the protected area \"" + a.label() + "\".", edits);
+				}
+			}
+		}
 		// before the refusals: a delta refused only for now (a player in the way) must not be offered when it also leaves the claim
 		if (claim != null && knownBox(v) && !claim.containsBox(claim.dimension(), v.box().minX(), v.box().minY(), v.box().minZ(), v.box().maxX(), v.box().maxY(),
 			v.box().maxZ())) {

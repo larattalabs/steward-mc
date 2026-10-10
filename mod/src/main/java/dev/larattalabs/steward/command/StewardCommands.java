@@ -120,6 +120,14 @@ public final class StewardCommands {
 			.then(Commands.literal("proposals").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("decline").then(Commands.argument("key",
 				StringArgumentType.word()).executes(ctx -> decide(ctx, "proposal_decline", StringArgumentType.getString(ctx, "key"), "", 0)))).then(Commands.literal("accept")
 				.then(Commands.argument("key", StringArgumentType.word()).executes(ctx -> decide(ctx, "proposal_accept", StringArgumentType.getString(ctx, "key"), "", 0))))))
+			.then(Commands.literal("district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("found").then(Commands.argument("way",
+				StringArgumentType.word()).executes(ctx -> decide(ctx, "district_found", StringArgumentType.getString(ctx, "way"), "", 0)).then(Commands.argument("name",
+				StringArgumentType.greedyString()).executes(ctx -> decide(ctx, "district_found", StringArgumentType.getString(ctx, "way"), StringArgumentType.getString(ctx, "name"), 0)))))))
+			.then(Commands.literal("protect").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("here").then(Commands.argument("reach",
+				com.mojang.brigadier.arguments.IntegerArgumentType.integer(1, 64)).executes(ctx -> decide(ctx, "protect", "", "", com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "reach")))
+				.then(Commands.argument("label", StringArgumentType.greedyString()).executes(ctx -> decide(ctx, "protect", "", StringArgumentType.getString(ctx, "label"),
+					com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "reach")))))).then(Commands.literal("clear").then(Commands.argument("area",
+				StringArgumentType.word()).executes(ctx -> decide(ctx, "unprotect", StringArgumentType.getString(ctx, "area"), "", 0))))))
 			.then(Commands.literal("dev").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.literal("describe").then(Commands.argument("id",
 				StringArgumentType.word()).executes(ctx -> {
 					// dev (the e2e check): a fixed sample card, without the Claude call a description makes
@@ -140,7 +148,14 @@ public final class StewardCommands {
 						StringArgumentType.getString(ctx, "entry"), at.getX(), at.getY(), at.getZ(), "NONE", "MASSING", label, at.getX() + 4, at.getY() + 12, at.getZ() + 4));
 					net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.ShowLayers("steward_mc:dev_ghost", layers));
 					return 1;
-				})))).then(Commands.literal("say").then(Commands.argument("id",
+				})))).then(Commands.literal("site").then(Commands.argument("site",
+				StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check): whether a site stands, as Architect's API has it (roads included)
+					String site = StringArgumentType.getString(ctx, "site");
+					var v = ArchitectApi.get().sites(ctx.getSource().getServer()).get(site);
+					ctx.getSource().sendSuccess(() -> Component.literal(v.map(x -> "site " + site + " stands (" + x.kind() + ")").orElse("site " + site + " is gone")), false);
+					return 1;
+				}))).then(Commands.literal("say").then(Commands.argument("id",
 				StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
 					// dev (the e2e check): the settlement's steward says a line (its speech bubble)
 					dev.larattalabs.steward.service.StewardVoice.say(ctx.getSource().getServer(), StringArgumentType.getString(ctx, "id"), StringArgumentType.getString(ctx, "text"));

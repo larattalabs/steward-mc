@@ -93,7 +93,7 @@ public final class SettlementScreen extends KitScreen {
 		switch (tab) {
 			case BUILDINGS -> drawBuildings(g, cx, bodyTop, inner, bodyH, mouseX, mouseY);
 			case HISTORY -> drawHistory(g, cx, bodyTop, inner, bodyH);
-			case CLAIM -> drawClaim(g, cx, bodyTop, inner, bodyH);
+			case CLAIM -> drawClaim(g, cx, bodyTop, inner, bodyH, mouseX, mouseY);
 			case SETTINGS -> drawSettings(g, cx, bodyTop, inner, bodyH, mouseX, mouseY);
 		}
 		int bx = cx;
@@ -225,6 +225,10 @@ public final class SettlementScreen extends KitScreen {
 			case "CLAIM_CHANGED" -> "Claim";
 			case "RESKIN" -> "Restyled";
 			case "PERMISSION_CHANGED" -> "Permission";
+			case "DISTRICT_FOUNDED" -> "District";
+			case "DISTRICT_REMOVED" -> "District";
+			case "ROAD_PLACED" -> "Road";
+			case "PROTECTED_CHANGED" -> "Protected";
 			default -> "Note";
 		};
 	}
@@ -281,16 +285,69 @@ public final class SettlementScreen extends KitScreen {
 		return y + 4;
 	}
 
-	private void drawClaim(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+	/** The size a district founded from the Claim tab takes (S or M). */
+	private String districtSize = "S";
+
+	private void drawClaim(GuiGraphicsExtractor g, int x, int y, int w, int h, int mx, int my) {
 		Panels.inset(g, x, y, w, h);
 		var c = view.claim();
-		int fx = x + 8, fy = y + 8, fw = w - 16;
-		fy = fact(g, fx, fy, fw, "Size", c.side() + " x " + c.side() + " blocks (" + c.size() + ")");
-		fy = fact(g, fx, fy, fw, "Centre", c.centerX() + ", " + c.centerZ() + " in " + c.dimension().replace("minecraft:", ""));
+		int fx = x + 8, fy = y + 8, fw = w - 16, bottom = y + h - 4;
+		fy = fact(g, fx, fy, fw, "Size", c.side() + " x " + c.side() + " blocks (" + c.size() + "), centred on " + c.centerX() + ", " + c.centerZ() + " in "
+			+ c.dimension().replace("minecraft:", ""));
 		fy = fact(g, fx, fy, fw, "In use", UiBits.plural(view.buildings().size(), "building", "buildings") + (view.roads() > 0 ? ", "
-			+ UiBits.plural(view.roads(), "road", "roads") : ""));
-		fact(g, fx, fy, fw, "Growing", "Expand takes the next size, up to 2049 x 2049, where no other settlement is. A street of buildings stays within 257 x 257 of the stone;"
-			+ " the rest of a big claim is room for districts.");
+			+ UiBits.plural(view.roads(), "road", "roads") : "") + ". A street holds about 12; past that, a district gives the next ones a street of their own.");
+		// districts: one each way, founded with a road to the town ($0)
+		g.text(font, "Districts", fx, fy, UiBits.muted(), false);
+		int lx = fx + 90;
+		if (view.districts().isEmpty()) {
+			g.text(font, "None yet.", lx, fy, UiBits.ink(), false);
+			fy += 12;
+		}
+		for (var d : view.districts()) {
+			if (fy + 10 > bottom) break;
+			String line = d.name() + " · " + d.side() + " x " + d.side() + " · " + UiBits.plural(d.buildings(), "building", "buildings")
+				+ (d.roads() > 1 ? " · street linked" : "");
+			g.text(font, TextUtil.ellipsize(font, line, fw - 90), lx, fy, UiBits.ink(), false);
+			fy += 11;
+		}
+		if (fy + CHIP_H <= bottom) {
+			int bx = lx;
+			g.text(font, "Found", fx, fy + 3, UiBits.muted(), false);
+			for (String way : new String[] {"N", "E", "S", "W"}) {
+				boolean taken = view.districts().stream().anyMatch(d -> d.direction().equals(way));
+				String label = switch (way) {
+					case "N" -> "North";
+					case "E" -> "East";
+					case "S" -> "South";
+					default -> "West";
+				};
+				bx += chip(g, label, bx, fy, false, !taken && !view.busy(), mx, my, () -> send("district_found", way + ":" + districtSize, "Founding a district")) + 3;
+			}
+			bx += 6;
+			for (String size : new String[] {"S", "M"}) bx += chip(g, size, bx, fy, districtSize.equals(size), true, mx, my, () -> districtSize = size) + 3;
+			fy += CHIP_H + 6;
+		}
+		// protected areas: ground the steward never builds on
+		if (fy + 10 <= bottom) {
+			g.text(font, "Protected", fx, fy + 3, UiBits.muted(), false);
+			int bx = lx;
+			bx += chip(g, "Protect 8 around me", bx, fy, false, true, mx, my, () -> send("protect", "", "Protecting the ground around you", 8)) + 3;
+			chip(g, "16", bx, fy, false, true, mx, my, () -> send("protect", "", "Protecting the ground around you", 16));
+			fy += CHIP_H + 4;
+		}
+		var areas = view.areas();
+		for (int i = 0; i < areas.size(); i++) {
+			var a = areas.get(i);
+			if (fy + CHIP_H > bottom) {
+				g.text(font, "and " + (areas.size() - i) + " more (/steward protect)", lx, fy, UiBits.muted(), false);
+				break;
+			}
+			String line = a.label() + " · " + (a.x1() - a.x0() + 1) + " x " + (a.z1() - a.z0() + 1);
+			int cw = font.width("Clear") + 12;
+			g.text(font, TextUtil.ellipsize(font, line, fw - 90 - cw - 6), lx, fy + 3, UiBits.ink(), false);
+			chip(g, "Clear", x + w - 8 - cw, fy, false, true, mx, my, () -> send("unprotect", a.id(), "Clearing the protected area"));
+			fy += CHIP_H + 2;
+		}
 	}
 
 	private void drawSettings(GuiGraphicsExtractor g, int x, int y, int w, int h, int mx, int my) {

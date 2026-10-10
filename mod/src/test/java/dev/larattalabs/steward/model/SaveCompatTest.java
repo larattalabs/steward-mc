@@ -117,4 +117,59 @@ class SaveCompatTest {
 		s = s.withLog(Settlement.LogEntry.of(4L, Kind.REVERTED, "r", List.of(new Settlement.SiteChange("s1", "inn", 2, 1)), null, Outcome.DONE));
 		assertEquals(3, s.revertedFrom("s1"), "3 -> 2 -> 1 still holds 3");
 	}
+
+	@Test
+	void theV2SettlementsOfARealWorldLoadWithNoLands(@TempDir Path dir) throws Exception {
+		Path f = dir.resolve("steward-settlements.json");
+		Files.writeString(f, fixture("v2/steward-settlements.json"));
+		SettlementStore st = SettlementStore.load(f);
+		assertEquals(2, st.readFormat());
+		Settlement hamlet = st.get("set_43").orElseThrow();
+		assertEquals("E2E Hamlet", hamlet.name());
+		assertEquals(Settlement.Lands.NONE, hamlet.lands());
+		assertEquals(List.of(hamlet.claim()), hamlet.claims());
+		assertEquals(Kind.REVERTED, hamlet.log().get(5).kind());
+		assertTrue(hamlet.lastUndoable().isPresent(), "the build placed after the undo is still undoable");
+		assertTrue(Files.exists(dir.resolve("steward-settlements.json.v2.bak")));
+		st.save(f);
+		SettlementStore again = SettlementStore.load(f);
+		assertEquals(SettlementStore.FORMAT, again.readFormat());
+		assertEquals(hamlet, again.get("set_43").orElseThrow());
+	}
+
+	@Test
+	void landsRoundTripAndCountAsTheSettlements() {
+		Claim town = new Claim("minecraft:overworld", 0, 0, 64, -64, 320);
+		Claim east = new Claim("minecraft:overworld", 113, 0, 48, -64, 320);
+		Settlement s = Settlement.founded("set_1", "Here", town, Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		var road = new Settlement.Road("s9", List.of(new Settlement.Pt(10, 0), new Settlement.Pt(64, 0)), 3);
+		s = s.withLands(s.lands().next().withDistrict(new Settlement.District("dst_1", "Harbour", "E", east, 2L, List.of(road)))
+			.next().withArea(new Settlement.Area("pa_2", "garden", "minecraft:overworld", 5, 5, -5, -5, 3L)));
+		SettlementStore st = new SettlementStore();
+		st.put(s);
+		Settlement back = SettlementStore.fromJson(st.toJson()).get("set_1").orElseThrow();
+		assertEquals(s.lands(), back.lands());
+		assertEquals(-5, back.lands().protect().get(0).x0(), "corners are normalised");
+		assertEquals("set_1", st.at("minecraft:overworld", 150, 70, 0).orElseThrow().id(), "a point in a district is the settlement's");
+		assertEquals("dst_1", back.districtAt("minecraft:overworld", 150, 0).orElseThrow().id());
+		assertTrue(back.protectedAt("minecraft:overworld", 0, 0).isPresent());
+		// another settlement may not overlap the district
+		Settlement other = Settlement.founded("set_2", "There", new Claim("minecraft:overworld", 200, 0, 48, -64, 320), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		assertThrows(IllegalArgumentException.class, () -> st.put(other));
+	}
+
+	@Test
+	void aFoundedDistrictIsUndoneByItsRoadAndItsBuildingsByTheirOwnLand() {
+		Claim town = new Claim("minecraft:overworld", 0, 0, 64, -64, 320);
+		Claim east = new Claim("minecraft:overworld", 113, 0, 48, -64, 320);
+		Settlement s = Settlement.founded("set_1", "Here", town, Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		s = s.withLog(new Settlement.LogEntry(2L, Kind.DISTRICT_FOUNDED, "Founded the east district", List.of("road1")));
+		assertEquals(Recovery.UNDO_PROJECT, s.log().get(1).recovery());
+		assertEquals(List.of("road1"), s.lastUndoable().orElseThrow().siteIds(), "the road is what an undo takes");
+		s = s.withLog(new Settlement.LogEntry(3L, Kind.PROJECT_REMOVED, "Undid", List.of("road1")));
+		assertTrue(s.lastUndoable().isEmpty());
+		assertEquals(east, s.withLands(s.lands().withDistrict(new Settlement.District("dst_1", "e", "E", east, 2L, List.of()))).claimFor(100, -5, 110, 5),
+			"a building wholly in the district is checked against it");
+		assertEquals(town, s.claimFor(60, -5, 70, 5));
+	}
 }

@@ -90,4 +90,28 @@ class ProposalRulesTest {
 			assertTrue(old.all().stream().allMatch(x -> x.autonomy().equals(Settlement.Autonomy.DEFAULT) && x.bible() == null));
 		}
 	}
+
+	@Test
+	void buildingsGoToTheTownThenADistrictWithRoomThenANewDistrict() {
+		var none = new java.util.LinkedHashMap<String, Integer>();
+		assertEquals(new ProposalRules.Where(null, false), ProposalRules.where(11, none));
+		assertTrue(ProposalRules.where(12, none).full(), "a full street with no district: propose one");
+		var two = new java.util.LinkedHashMap<String, Integer>();
+		two.put("dst_1", 12);
+		two.put("dst_2", 3);
+		assertEquals("dst_2", ProposalRules.where(14, two).district());
+		two.put("dst_2", 12);
+		assertTrue(ProposalRules.where(14, two).full());
+	}
+
+	@Test
+	void aDistrictProposalHasNoBuildingAndRoundTrips() {
+		Proposal d = Proposal.district("E", "full", 5L);
+		assertTrue(d.foundsDistrict());
+		assertNull(d.type());
+		assertEquals("district_E", d.key());
+		var json = new com.google.gson.Gson().toJson(d);
+		assertEquals(d, new com.google.gson.Gson().fromJson(json, Proposal.class));
+		assertThrows(com.google.gson.JsonParseException.class, () -> new Proposal("x", "x", "", null, 1L, "", null, null));
+	}
 }

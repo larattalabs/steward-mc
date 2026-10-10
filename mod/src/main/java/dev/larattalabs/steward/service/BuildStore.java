@@ -35,7 +35,23 @@ public final class BuildStore {
 	 */
 	public record Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement, Pipeline.State state,
 		VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId, List<String> landmarkIds,
-		List<String> decided, List<String> lastAwaiting, boolean addition) {
+		List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street) {
+		/**
+		 * As saved before districts: a build in the town ({@code districtId} null), laying a street unless it is an addition ({@code street} null reads
+		 * as that).
+		 */
+		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
+			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,
+			List<String> landmarkIds, List<String> decided, List<String> lastAwaiting, boolean addition) {
+			this(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId, landmarkIds,
+				decided, lastAwaiting, addition, null, null);
+		}
+
+		/** Whether the build lays a street. */
+		public boolean laysStreet() {
+			return street != null ? street : !addition;
+		}
+
 		/** Builds saved before additions (a proposal's one building, no new street) read as whole settlements. */
 		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
 			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,

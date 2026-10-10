@@ -14,7 +14,17 @@ import org.jspecify.annotations.Nullable;
  * {@link Site} so it is tested without a game.
  */
 public record SettlementView(String id, String name, boolean described, boolean busy, ClaimInfo claim, String permission, String difficulty,
-	List<Building> buildings, int roads, List<Op> history, int historyTotal, double weeklyUsd, double spentWeekUsd) {
+	List<Building> buildings, int roads, List<Op> history, int historyTotal, double weeklyUsd, double spentWeekUsd, List<DistrictInfo> districts, List<AreaInfo> areas) {
+	public SettlementView {
+		districts = districts == null ? List.of() : districts;
+		areas = areas == null ? List.of() : areas;
+	}
+
+	/** A district (phase 3f): where it lies ({@code direction} N, E, S, W), its square, and how many buildings stand in it. */
+	public record DistrictInfo(String id, String name, String direction, int centerX, int centerZ, int radius, int side, int buildings, int roads) {}
+
+	/** An area the player protected (columns x0..x1, z0..z1). */
+	public record AreaInfo(String id, String label, int x0, int z0, int x1, int z1) {}
 
 	/** How many operations are sent (newest first); the rest stay in the log. */
 	public static final int MAX_HISTORY = 60;
@@ -28,7 +38,7 @@ public record SettlementView(String id, String name, boolean described, boolean 
 	 * keep; {@code state} Architect's site state (planned, building, built, ...); the box is its footprint in world x/z.
 	 */
 	public record Building(String siteId, String role, @Nullable String lot, String entry, int version, int head, int edits, String state, boolean updating,
-		int minX, int minZ, int maxX, int maxZ, List<String> ops, int previous, int heldFrom, int minY, int maxY) {
+		int minX, int minZ, int maxX, int maxZ, List<String> ops, int previous, int heldFrom, int minY, int maxY, @Nullable String district) {
 		/** A newer version the player has not reverted away from. */
 		public boolean updateAvailable() {
 			return head > version && head > heldFrom;
@@ -59,6 +69,7 @@ public record SettlementView(String id, String name, boolean described, boolean 
 		ClaimInfo claim = new ClaimInfo(c.dimension(), c.centerX(), c.centerZ(), c.radius(), ClaimRules.side(c.radius()), ClaimRules.sizeOf(c.radius()));
 		List<Settlement.LogEntry> log = s.log();
 		List<Building> buildings = new ArrayList<>();
+		java.util.Map<String, Integer> perDistrict = new java.util.HashMap<>();
 		int roads = 0;
 		for (Site x : sites) {
 			if (!"building".equals(x.kind())) {
@@ -67,8 +78,11 @@ public record SettlementView(String id, String name, boolean described, boolean 
 			}
 			List<String> ops = log.stream().filter(e -> e.siteIds().contains(x.id())).map(Settlement.LogEntry::op).toList();
 			String role = x.role() != null && !x.role().isBlank() ? x.role() : x.lot() != null ? x.lot() : x.entry();
+			var at = s.districtAt(c.dimension(), (x.minX() + x.maxX()) / 2, (x.minZ() + x.maxZ()) / 2);
+			at.ifPresent(d -> perDistrict.merge(d.id(), 1, Integer::sum));
+			String in = at.map(Settlement.District::name).orElse(null);
 			buildings.add(new Building(x.id(), role, x.lot(), x.entry(), x.version(), x.head(), x.deviations(), x.state(), x.updating(), x.minX(), x.minZ(), x.maxX(),
-				x.maxZ(), ops, x.previous(), s.revertedFrom(x.id()), x.minY(), x.maxY()));
+				x.maxZ(), ops, x.previous(), s.revertedFrom(x.id()), x.minY(), x.maxY(), in));
 		}
 		buildings.sort(Comparator.comparing(Building::role).thenComparing(Building::siteId));
 		List<Op> history = new ArrayList<>();
@@ -76,8 +90,15 @@ public record SettlementView(String id, String name, boolean described, boolean 
 			Settlement.LogEntry e = log.get(i);
 			history.add(new Op(e.op(), e.at(), e.kind().name(), e.text(), e.outcome().name(), e.recovery().name(), e.siteIds(), e.changes()));
 		}
+		List<DistrictInfo> districts = new ArrayList<>();
+		for (Settlement.District d : s.lands().districts()) {
+			var dc = d.claim();
+			int n = perDistrict.getOrDefault(d.id(), 0);
+			districts.add(new DistrictInfo(d.id(), d.name(), d.direction(), dc.centerX(), dc.centerZ(), dc.radius(), ClaimRules.side(dc.radius()), n, d.roads().size()));
+		}
+		List<AreaInfo> areas = s.lands().protect().stream().map(a -> new AreaInfo(a.id(), a.label(), a.x0(), a.z0(), a.x1(), a.z1())).toList();
 		return new SettlementView(s.id(), s.name(), s.described(), busy, claim, s.permission().name(), s.difficulty().name(), List.copyOf(buildings), roads,
-			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()));
+			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()), List.copyOf(districts), areas);
 	}
 
 	public String toJson() {

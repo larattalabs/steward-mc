@@ -115,7 +115,14 @@ public final class SettlementWorld {
 			outline(c, b, cam, on, (float) d);
 			label(c, camera, b, on, d);
 		}
-		if (survey) border(c, v.claim(), cam);
+		if (survey) {
+			var cl = v.claim();
+			border(c, cl.centerX() - cl.radius(), cl.centerZ() - cl.radius(), cl.centerX() + cl.radius() + 1, cl.centerZ() + cl.radius() + 1, UiStyle.withAlpha(UiStyle.CLAY, 0x60), cam);
+			// the districts' squares, and the ground the player protected
+			for (var d : v.districts()) border(c, d.centerX() - d.radius(), d.centerZ() - d.radius(), d.centerX() + d.radius() + 1, d.centerZ() + d.radius() + 1,
+				UiStyle.withAlpha(UiStyle.BRASS, 0x70), cam);
+			for (var a : v.areas()) border(c, a.x0(), a.z0(), a.x1() + 1, a.z1() + 1, UiStyle.withAlpha(UiStyle.SAGE, 0x90), cam);
+		}
 	}
 
 	/** The building's box: thin bars along its twelve edges, brass when looked at, cream in survey mode. */
@@ -134,12 +141,9 @@ public final class SettlementWorld {
 	}
 
 	/** The claim's border in survey mode: a low clay curtain along its edges, on the ground, where it is within reach. */
-	private static void border(SubmitNodeCollector c, SettlementView.ClaimInfo claim, Vec3 cam) {
+	private static void border(SubmitNodeCollector c, int x0, int z0, int x1, int z1, int col, Vec3 cam) {
 		var level = Minecraft.getInstance().level;
 		if (level == null) return;
-		int r = claim.radius();
-		int x0 = claim.centerX() - r, x1 = claim.centerX() + r + 1, z0 = claim.centerZ() - r, z1 = claim.centerZ() + r + 1;
-		int col = UiStyle.withAlpha(UiStyle.CLAY, 0x60);
 		int reach = 160;
 		c.submitCustomGeometry(new PoseStack(), RenderTypes.debugFilledBox(), (pose, vc) -> {
 			for (int i = 0; i < 4; i++) {

@@ -26,11 +26,14 @@ import java.util.Optional;
  */
 public final class SettlementStore {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-	/** 2 (2026-10-09): the change log holds operations (op ids, version changes, outcomes). */
-	public static final int FORMAT = 2;
+	/**
+	 * 2 (2026-10-09): the change log holds operations (op ids, version changes, outcomes). 3 (2026-10-10): settlements have lands (districts, protected
+	 * areas); a format-2 file reads with none.
+	 */
+	public static final int FORMAT = 3;
 
 	/** Step {@code i} upgrades format {@code i + 1} to {@code i + 2}, on the file's JSON. */
-	private static final List<java.util.function.Consumer<JsonObject>> MIGRATIONS = List.of(SettlementStore::v1ToV2);
+	private static final List<java.util.function.Consumer<JsonObject>> MIGRATIONS = List.of(SettlementStore::v1ToV2, SettlementStore::v2ToV3);
 
 	/** The format the file had when read (equal to {@link #FORMAT} unless it was migrated). */
 	private int readFormat = FORMAT;
@@ -50,11 +53,12 @@ public final class SettlementStore {
 		return Optional.ofNullable(byId.get(id));
 	}
 
-	/** Adds or replaces. A new settlement whose claim overlaps another's in the same dimension is refused. */
+	/** Adds or replaces. A settlement whose claim or districts overlap another's claim or districts in the same dimension is refused. */
 	public void put(Settlement s) {
 		for (Settlement o : byId.values()) {
-			if (!o.id().equals(s.id()) && o.claim().overlaps(s.claim())) {
-				throw new IllegalArgumentException("claim overlaps settlement " + o.id());
+			if (o.id().equals(s.id())) continue;
+			for (Claim a : s.claims()) for (Claim b : o.claims()) {
+				if (a.overlaps(b)) throw new IllegalArgumentException("claim overlaps settlement " + o.id());
 			}
 		}
 		byId.put(s.id(), s);
@@ -79,9 +83,9 @@ public final class SettlementStore {
 		}
 	}
 
-	/** The settlement whose claim contains a point, if any. */
+	/** The settlement whose claim or one of whose districts contains a point, if any. */
 	public Optional<Settlement> at(String dim, int x, int y, int z) {
-		return byId.values().stream().filter(s -> s.claim().contains(dim, x, y, z)).findFirst();
+		return byId.values().stream().filter(s -> s.contains(dim, x, y, z)).findFirst();
 	}
 
 	public String toJson() {
@@ -144,6 +148,10 @@ public final class SettlementStore {
 				}
 			}
 		}
+	}
+
+	/** Format 2 to 3: nothing to rewrite; a settlement without {@code lands} reads with no districts and no protected areas. */
+	static void v2ToV3(JsonObject file) {
 	}
 
 	public void save(Path file) throws IOException {

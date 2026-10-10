@@ -4,7 +4,8 @@
 // Exit 0 = no FAIL and at least one ok. A summary goes to artifacts/e2e/summary.json.
 //
 //   node tools/e2e.mjs free     $0, no Claude: claim and steward, the save format, expand, the inbox screen, a placed building on the settlement screen and its panel,
-//                               its update, revert and undo, a build restored after a restart
+//                               its update, revert and undo, proposals, a protected area and a district with its road (founded and undone), a build restored after
+//                               a restart
 //   node tools/e2e.mjs stub     the whole flow (describe, card, start, approvals, placement, a restart mid-build, undo) against Architect's stub sidecar;
 //                               needs the stub to answer card jobs, bibles and design groups (Architect 6c slice 0, ask C4): until then it fails at describe
 //
@@ -145,7 +146,8 @@ async function claimAndSteward() {
   ok('claim', `${s.id}, ${2 * s.claim.radius + 1} across`);
   // the settlements file is written in the current format (a v1 world migrates when loaded; its v1 file is kept as a backup)
   const file = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-settlements.json'), 'utf8'));
-  if (file.format === 2 && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `2, every entry an operation${fs.existsSync(path.join(WORLD, 'steward-settlements.json.v1.bak')) ? ', v1 backup kept' : ''}`);
+  const backups = fs.readdirSync(WORLD).filter((f) => /^steward-settlements\.json\.v\d+\.bak$/.test(f)).map((f) => f.match(/v\d+/)[0]);
+  if (file.format === 3 && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `3, every entry an operation${backups.length ? ', backups kept: ' + backups.join(' ') : ''}`);
   else fail('save format', `format ${file.format}`);
   let name = '';
   for (let i = 0; i < 10 && !/Steward/.test(name); i++) {
@@ -418,6 +420,69 @@ async function proposals(id) {
   else fail('proposal declined', JSON.stringify(after));
 }
 
+/**
+ * Districts and protected areas (3f): a protected area on the west road's way refuses that district by name; the east district is founded with its road
+ * ($0, no Claude), shown in survey mode, and undone (the road goes, then the district, its land free again).
+ */
+async function districts(id) {
+  const st = settlements().find((x) => x.id === id);
+  if (!st) return;
+  const cx = st.claim.centerX, cz = st.claim.centerZ;
+  await closeScreens();
+  // a protected area 60 blocks west of the stone, across the west road's way
+  await cmd(`/tp @p ${cx - 60} 100 ${cz}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd(`/tp @p ${cx - 60} ~ ${cz}`);
+  await cmd(`/steward protect ${id} here 3 e2e garden`);
+  await sleep(500);
+  await closeScreens();
+  const area = settlements().find((x) => x.id === id)?.lands?.protect?.find((a) => a.label === 'e2e garden');
+  if (!area) return fail('protected area', 'not saved');
+  const west = await cmd(`/steward district ${id} found W`);
+  if (/protected area "e2e garden"/.test(west)) ok('protected area', `${area.id} ${area.x1 - area.x0 + 1} x ${area.z1 - area.z0 + 1}; the west district is refused: ${west}`);
+  else fail('protected area', `west district: ${west}`);
+  // the east district: stand between the stone and it, so the road's way is loaded
+  await cmd(`/tp @p ${cx + 90} 100 ${cz + 12}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  const east = await cmd(`/steward district ${id} found E e2e harbour`);
+  let d = null;
+  for (let i = 0; i < 20 && !d; i++) {
+    await sleep(1000);
+    d = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.direction === 'E') ?? null;
+  }
+  const founded = settlements().find((x) => x.id === id)?.log.at(-1);
+  const road = d?.roads?.[0]?.siteId;
+  const standing = road && /stands \(road\)/.test(await cmd(`/steward dev site ${road}`));
+  if (!d || founded?.kind !== 'DISTRICT_FOUNDED' || !standing) return fail('district', `${east}; district ${JSON.stringify(d)}, last op ${founded?.kind}, road standing ${standing}`);
+  ok('district', `${d.id} "${d.name}" ${2 * d.claim.radius + 1} across at ${d.claim.centerX},${d.claim.centerZ}, road ${road} (${founded.op})`);
+  // survey mode: the claim, the district's square and the road, from above the town's east edge
+  const gy = Number(((await cmd(`/data get entity @p Pos`)).match(/, (-?[\d.]+)d, /) ?? [0, 64])[1]);
+  // a spectator does not fall: the picture is taken from above
+  await cmd('/gamemode spectator');
+  await cmd(`/tp @p ${cx + 100} ${Math.floor(gy) + 40} ${cz + 70} facing ${cx + 165} ${Math.floor(gy)} ${cz}`);
+  await dev.request('dev.key', { key: 'u' });
+  await sleep(2500);
+  const shot = (await dev.request('dev.screenshot', { name: 'e2e-district', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.key', { key: 'u' });
+  await cmd('/gamemode creative');
+  ok('district survey', shot);
+  // undo: the founding is the newest operation, its road goes and the district with it
+  await cmd(`/tp @p ${cx + 90} ${Math.floor(gy)} ${cz + 12}`);
+  await cmd(`/steward undo ${id}`);
+  let after = null;
+  for (let i = 0; i < 20; i++) {
+    await sleep(1000);
+    after = settlements().find((x) => x.id === id);
+    if (!(after?.lands?.districts ?? []).length) break;
+  }
+  const kinds = (after?.log ?? []).slice(-2).map((e) => e.kind);
+  const roadLeft = !/is gone/.test(await cmd(`/steward dev site ${road}`));
+  if (!(after?.lands?.districts ?? []).length && !roadLeft && kinds.join() === 'PROJECT_REMOVED,DISTRICT_REMOVED') ok('district undo', `road ${road} removed, district given up`);
+  else fail('district undo', `districts ${JSON.stringify(after?.lands?.districts)}, road standing ${roadLeft}, last ops ${kinds}`);
+  await cmd(`/steward protect ${id} clear ${area.id}`);
+  await closeScreens();
+}
+
 /** A world from before the steward entity: its mannequin stewards become steward_mc:steward when their chunks load. */
 async function migratedSteward() {
   const first = settlements()[0];
@@ -505,6 +570,7 @@ try {
       await placeUpdateUndo(id);
       await stewardLife(id);
       await proposals(id);
+      await districts(id);
     }
     else await stubFlow(id);
   }

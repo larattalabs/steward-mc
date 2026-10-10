@@ -14,6 +14,7 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
 - **3b: done**, except conversation. The steward is its own mob with its own skin. It walks to its work and comes to find you when a decision waits. It sits and sleeps. It has a nameplate, a "!" and speech bubbles, ported from AgentCraft onto lab-ui.
 - **3c: revert is done.** Change requests wait for Architect 0b.
 - **3d: done.** Building labels on look-at (I to inspect), survey mode (U) with the claim's border, labelled massing ghosts, the steward's ledger, and the settlement board.
+- **3f: built** (2026-10-10): protected areas, districts with their roads (founded, linked, undone), building in a district, the steward proposing one when the town's street is full. A district's first build and its link road need a paid or stub run to be seen.
 - **3e: built**, rule-based and $0 until a build is accepted.
   - **Perception:** the player's tier comes from advancements, plus seeds, saplings, and animals in the claim.
   - **Proposals:** the steward proposes buildings the settlement lacks (farm, orchard, pens, launch tower, portal gatehouse, vault, smithy, workshop) and says why, within the guardrails (declined never again, three open at most, one per 20 minutes).
@@ -21,7 +22,7 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
   - **Autonomous and Full** build their own proposals within the weekly allowance ($500 by default). Settings sets the level and the allowance.
   - **Still to come:** a Claude call that words proposals in the settlement's own style, once Architect's stub is there to test it for free.
 
-The free e2e check runs 24 checks, with a screenshot of each in-world piece.
+The free e2e check runs 28 checks, with a screenshot of each in-world piece.
 
 ## Principles
 
@@ -74,6 +75,7 @@ The free e2e check runs 24 checks, with a screenshot of each in-world piece.
 - A release track, whenever it fits (after 3a at the earliest).
 - Known limitations show on the card before spending (lots over water wait for Architect 7b). |
 | 2026-10-09 | **Claims grow** (Noah): the card's size sets the first claim, the player can expand it, and a settlement grows by **districts** (adjacent claims the steward proposes). See "Claims and growth". |
+| 2026-10-10 | **Protected areas, then districts** (Steward side; Architect enforces C17 from 0c): the player marks areas the steward never builds on. Steward keeps its layouts and roads off them now; when 0c ships, the areas also go to Architect as write bounds. Districts sit next to the village square (inside a big claim or beyond it) and are linked by a road along their shared edge. See phase 3f. |
 
 ## Concept card
 
@@ -392,8 +394,14 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - The progression tier and triggers.
      - Proposals with guardrails: a rejected proposal is remembered, with cooldowns, coalescing, and a planning allowance per settlement.
      - Permission levels act on their own only within the change history (3a) and the allowance.
-   - **3f. Districts.** Several claims per settlement with stable ids, roads between them (Architect `placeRoad`), and undo.
-   - Protected areas (C17), before districts and terrain work: areas the player marks, or Architect detects from the player's edits, are never written by the steward.
+   - **Protected areas** (C17), before districts and terrain work: areas the player marks (a square around where they stand, from the Claim tab or `/steward protect`) are never written by the steward.
+     - Steward side now: a layout treats protected ground as taken, a road that would cross one is refused with its name, survey mode draws them.
+     - Architect side with 0c: the areas become write bounds on the settlement's placements, deltas, roads and terrain operations. Detecting the player's own edits comes with 6c.
+   - **3f. Districts.** Several claims per settlement with stable ids (`dst_<n>`), roads between them (Architect `placeRoad`), and undo.
+     - **Where:** a district is a square (S 97 or M 129 across) next to the village square (the 257x257 or smaller square a street is laid out in), one each way: north, east, south, west. East and west, it is centred on the town street's line, so its street continues the town's. It may lie inside a big claim or beyond it; it never overlaps another settlement's claim or district, the village square or another district of its own. (More than one each way waits until roads can pass through a district.)
+     - **Road:** founding a district lays a road ($0) from the town street's nearer end (the stone, before there is a street) to the shared edge, along the verges the layouts leave free. A district's first build lays its own street; a second road then links the edge to it. Both are the settlement's sites, logged, and undone like any project.
+     - **Builds:** a building can go to a district (its proposal says where); the layout surveys only the district's square, and keeps a wider margin there so the road along its edge stays clear. The town's layouts keep off its districts.
+     - **Permission:** founding a district always asks, at every level (the steward proposes one when the town has no room). Undo removes a district's road, and the district itself once nothing else stands in it.
    - Known limitations are shown on the card before spending. Lots over water and cliffs wait for Architect 7b, so a "village over a swamp" stands beside the water for now.
    - Release track, whenever it fits after 3a:
      - API-key setup;

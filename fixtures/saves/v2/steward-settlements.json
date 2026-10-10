@@ -1,0 +1,274 @@
+{
+  "format": 2,
+  "nextSerial": 44,
+  "settlements": [
+    {
+      "id": "set_1",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 900,
+        "centerZ": 0,
+        "radius": 128,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1791606884294,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791606884403,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791606884414,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 257 x 257",
+          "siteIds": [],
+          "op": "op_3",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791606886049,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 1 buildings (dev)",
+          "siteIds": [
+            "s1"
+          ],
+          "op": "op_4",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791606888778,
+          "kind": "UPDATED",
+          "text": "Updated dev building to version 2 (1 blocks).",
+          "siteIds": [
+            "s1"
+          ],
+          "op": "op_5",
+          "changes": [
+            {
+              "siteId": "s1",
+              "lot": "dev building",
+              "from": -1,
+              "to": 2
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791606889852,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Placed 1 buildings (dev)\"",
+          "siteIds": [
+            "s1"
+          ],
+          "op": "op_6",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      }
+    },
+    {
+      "id": "set_43",
+      "name": "E2E Hamlet",
+      "card": {
+        "name": "E2E Hamlet",
+        "site": {
+          "text": "a meadow by a stream",
+          "terrain": "find",
+          "size": "M"
+        },
+        "style": {
+          "text": "timber cottages with thatched roofs"
+        },
+        "purpose": {
+          "text": "a quiet hamlet"
+        },
+        "constraints": {
+          "density": "low"
+        },
+        "avoid": [],
+        "interpretation": "a few cottages and a well",
+        "contradictions": [],
+        "assumptions": [],
+        "program": [
+          {
+            "role": "cottage",
+            "type": "cottage",
+            "count": 3,
+            "footprint": "S",
+            "landmark": false
+          }
+        ]
+      },
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 38700,
+        "centerZ": 0,
+        "radius": 128,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 2,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1791622254462,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791622256486,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791622256494,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 257 x 257",
+          "siteIds": [],
+          "op": "op_3",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791622258074,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 1 buildings (dev)",
+          "siteIds": [
+            "s45"
+          ],
+          "op": "op_4",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791622276511,
+          "kind": "UPDATED",
+          "text": "Updated dev building to version 2 (1 blocks).",
+          "siteIds": [
+            "s45"
+          ],
+          "op": "op_5",
+          "changes": [
+            {
+              "siteId": "s45",
+              "lot": "dev building",
+              "from": 1,
+              "to": 2
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791622288008,
+          "kind": "REVERTED",
+          "text": "Reverted dev building to version 1 (1 blocks).",
+          "siteIds": [
+            "s45"
+          ],
+          "op": "op_6",
+          "changes": [
+            {
+              "siteId": "s45",
+              "lot": "dev building",
+              "from": 2,
+              "to": 1
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791622289024,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Placed 1 buildings (dev)\" (op_4)",
+          "siteIds": [
+            "s45"
+          ],
+          "op": "op_7",
+          "changes": [
+            {
+              "siteId": "s45",
+              "from": 1,
+              "to": 0
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791622388979,
+          "kind": "CARD_EDITED",
+          "text": "Described as: a meadow by a stream, timber cottages with thatched roofs",
+          "siteIds": [],
+          "op": "op_8",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791622389022,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 1 buildings (dev)",
+          "siteIds": [
+            "s46"
+          ],
+          "op": "op_9",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [
+          "farm"
+        ],
+        "accepted": [],
+        "lastAt": 1791622428443
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      }
+    }
+  ]
+}

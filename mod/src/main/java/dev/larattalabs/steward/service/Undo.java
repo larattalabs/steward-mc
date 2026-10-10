@@ -63,6 +63,7 @@ public final class Undo {
 			sites.removeGroup(group, as).whenComplete((r, err) -> {
 				List<String> gone = err == null && r.removed() ? standing : standing.stream().filter(id -> sites.get(id).isEmpty()).toList();
 				if (!gone.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), gone, gone.size() == standing.size(), now)).ok()) say.accept(UNLOGGED);
+				districts(server, s, say);
 				if (err != null) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
 				else if (!r.removed()) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: blocked by "
 					+ (r.blockers().isEmpty() ? "something in a box" : String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
@@ -91,6 +92,7 @@ public final class Undo {
 		}
 		chain.whenComplete((stop, err) -> {
 			if (!removed.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), List.copyOf(removed), removed.size() == ids.size(), now)).ok()) say.accept(UNLOGGED);
+			districts(server, s, say);
 			if (err != null) {
 				Steward.LOGGER.warn("undo of {} failed", s.id(), err);
 				say.accept("Undo stopped after " + removed.size() + " of " + ids.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
@@ -101,6 +103,13 @@ public final class Undo {
 			}
 		});
 		return true;
+	}
+
+	/** A district whose road an undo took, with nothing else standing in it, is given up. */
+	private static void districts(MinecraftServer server, Settlement s, Consumer<String> say) {
+		if (s.lands().districts().isEmpty()) return;
+		String more = Districts.afterUndo(server, s.id());
+		if (!more.isEmpty()) say.accept(more);
 	}
 
 	private static String blockedText(String siteId, RemoveResult r) {

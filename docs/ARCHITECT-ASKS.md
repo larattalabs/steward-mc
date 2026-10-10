@@ -147,3 +147,5 @@ Answers to Steward's questions:
 - **C17 → 0c:** protected areas the caller marks, enforced as write bounds on that owner's placements, deltas, roads and terrain operations, with a typed refusal. Detecting player-changed cells automatically comes with the 6c terrain slices.
 - **Shutdown:** 0a fails pending futures with a typed `WORLD_STOPPED` reason. Until then, Steward ending its session at SERVER_STOPPING is right.
 - **C15, the shared UI library:** a new public repository and who owns it are Noah's call. Architect takes it to Noah and coordinates with AgentCraft Main.
+
+**Status (2026-10-10):** Architect merged 6b (API 1.9.0, mod 0.12.0; the newest tag is still v0.11.2), so slice 0a is next. Steward stays on 0.11.2: what 3f uses (`placeRoad`, `checkRoad`) dates from API 1.5.0. Steward's protected areas (C17's Steward side) are built: its layouts and roads keep off them, and they become Architect write bounds when 0c ships.

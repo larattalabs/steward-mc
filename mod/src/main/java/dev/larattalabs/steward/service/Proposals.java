@@ -58,11 +58,20 @@ public final class Proposals {
 		var open = s.proposals().open();
 		// Autonomous and Full: a proposal already waiting is built once the allowance allows (raised, renewed, or the level just changed)
 		if (!s.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && !open.isEmpty()) {
-			// the first one not backing off (one that found no room waits a while, so it does not hold the others up)
-			var waiting = open.stream().filter(x -> BACKOFF.getOrDefault(s.id() + "#" + x.key(), 0L) <= now).findFirst();
+			// the first one not backing off (one that found no room waits a while, so it does not hold the others up); a new district always waits for the player
+			var waiting = open.stream().filter(x -> !x.foundsDistrict() && BACKOFF.getOrDefault(s.id() + "#" + x.key(), 0L) <= now).findFirst();
 			if (waiting.isPresent() && s.autonomy().allows(estimate(waiting.get()), now) && autonomously(server, p, s, waiting.get(), now)) return;
 		}
-		List<Proposal> fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open, s.proposals().lastAt(), now);
+		// where a new building goes: the town while its street has room, else a district with room; when none has, a new district is proposed
+		var counts = Districts.counts(server, s);
+		var where = ProposalRules.where(counts.town(), counts.districts());
+		List<Proposal> fresh;
+		if (where.full()) {
+			fresh = districtProposal(server, s, open, now);
+		} else {
+			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open, s.proposals().lastAt(), now).stream()
+				.map(x -> x.in(where.district())).toList();
+		}
 		if (fresh.isEmpty()) return;
 		List<Proposal> all = new ArrayList<>(open);
 		all.addAll(fresh);
@@ -71,10 +80,22 @@ public final class Proposals {
 		Proposal first = fresh.get(0);
 		// Autonomous and Full build their own proposals while the week's allowance holds (Noah: $500 a week by default); else the player decides
 		var saved = res.settlement();
-		if (!saved.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && saved.autonomy().allows(estimate(first), now)
+		if (!first.foundsDistrict() && !saved.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && saved.autonomy().allows(estimate(first), now)
 			&& autonomously(server, p, saved, first, now)) return;
 		StewardVoice.say(server, s.id(), "I have an idea: " + first.title().toLowerCase() + ". " + first.why() + " See the inbox (Y).");
 		SettlementRunner.sendInbox(server, p.getUUID());
+	}
+
+	/** A district proposal (phase 3f) when the town's street and every district's are full: towards the first way one fits, not one the player declined. */
+	static List<Proposal> districtProposal(MinecraftServer server, Settlement s, List<Proposal> open, long now) {
+		if (!ProposalRules.room(open, s.proposals().lastAt(), now) || open.stream().anyMatch(Proposal::foundsDistrict)) return List.of();
+		if (s.lands().districts().size() >= dev.larattalabs.steward.model.DistrictRules.DIRECTIONS.size()) return List.of();
+		Set<String> skip = new HashSet<>();
+		for (String d : dev.larattalabs.steward.model.DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) skip.add(d);
+		String way = Districts.firstWay(server, s, skip);
+		if (way == null) return List.of();
+		return List.of(Proposal.district(way, "The town's street is full: a district to the " + dev.larattalabs.steward.model.DistrictRules.directionName(way)
+			+ " gives the next buildings a street of their own. Founding it lays a road and costs nothing.", now));
 	}
 
 	/** The building types the settlement has or has planned: its card's program and the proposals it accepted. */
@@ -104,7 +125,7 @@ public final class Proposals {
 		Map<String, Integer> animals = new HashMap<>();
 		String dim = p.level().dimension().identifier().toString();
 		for (Animal a : p.level().getEntitiesOfClass(Animal.class, p.getBoundingBox().inflate(ANIMALS_NEAR))) {
-			if (!s.claim().contains(dim, a.getBlockX(), a.getBlockY(), a.getBlockZ())) continue;
+			if (!s.contains(dim, a.getBlockX(), a.getBlockY(), a.getBlockZ())) continue;
 			animals.merge(BuiltInRegistries.ENTITY_TYPE.getKey(a.getType()).toString(), 1, Integer::sum);
 		}
 		return new ProposalRules.Signs(Progress.tier(done), seeds, saplings, animals);
@@ -170,14 +191,16 @@ public final class Proposals {
 		for (Settlement s : Settlements.store().all()) {
 			if (s.proposals().open().isEmpty()) continue;
 			// the cost first, where the row never cuts it
-			var ideas = s.proposals().open().stream().map(p -> new InboxModel.Lot(p.key(), p.title(), "proposal", false, true, "about $" + estimate(p) + " · " + p.why())).toList();
+			var ideas = s.proposals().open().stream().map(p -> new InboxModel.Lot(p.key(), p.title(), "proposal", false, true, (p.foundsDistrict() ? "free" : "about $" + estimate(p))
+				+ (p.district() == null ? "" : " · in " + s.lands().district(p.district()).map(Settlement.District::name).orElse("a district")) + " · " + p.why())).toList();
 			out.add(InboxModel.proposals(s.id(), s.name(), ideas));
 		}
 		return out;
 	}
 
-	/** About what building a proposal costs (the high estimate of one building, rounded up to $5): its budget when accepted. */
+	/** About what building a proposal costs (the high estimate of one building, rounded up to $5): its budget when accepted. A district costs nothing. */
 	public static int estimate(Proposal p) {
+		if (p.foundsDistrict()) return 0;
 		var e = dev.larattalabs.steward.model.BudgetPolicy.estimate(1, 0);
 		return (int) (Math.ceil(e.usdHigh() / 5.0) * 5);
 	}

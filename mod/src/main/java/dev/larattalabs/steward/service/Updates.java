@@ -96,7 +96,7 @@ public final class Updates {
 			if (view.isPresent() && !view.get().dimension().identifier().toString().equals(s.claim().dimension())) continue;
 			String lot = view.map(Updates::lotOf).orElse(o.siteId());
 			DeltaVerdict v = sites.checkDelta(UpdatePlanner.request(o.siteId(), o.headVersion(), UpdatePlanner.editsFor(s.permission()), s.owner()));
-			UpdatePlanner.Plan plan = UpdatePlanner.plan(lot, v, s.permission(), s.claim());
+			UpdatePlanner.Plan plan = UpdatePlanner.plan(lot, v, s.permission(), landFor(s, v), s.lands().protect());
 			if (plan.action() == UpdatePlanner.Action.APPLY && FAILED.containsKey(key)) {
 				plan = new UpdatePlanner.Plan(UpdatePlanner.Action.ASK, lot + " could not be updated by itself (" + FAILED.get(key) + "); update to try again.", plan.playerEdits());
 			}
@@ -110,6 +110,12 @@ public final class Updates {
 		}
 		if (pending.isEmpty()) PENDING.remove(s.id());
 		else PENDING.put(s.id(), List.copyOf(pending));
+	}
+
+	/** The claim an update is checked against: the town's or the district's the building stands in. */
+	static dev.larattalabs.steward.model.Claim landFor(Settlement s, DeltaVerdict v) {
+		var b = v.box();
+		return b == null ? s.claim() : s.claimFor(b.minX(), b.minZ(), b.maxX(), b.maxZ());
 	}
 
 	/** The building's role as placed ("fishers' cottage"), else its lot id (sites placed before roles were recorded), else the site id. */
@@ -131,7 +137,7 @@ public final class Updates {
 			// checked again now: the offer may be old, and the world (or the claim) has changed since
 			var sites = ArchitectApi.get().sites(server);
 			DeltaVerdict now = sites.checkDelta(UpdatePlanner.request(p.siteId(), p.to(), UpdatePlanner.editsFor(s.get().permission()), s.get().owner()));
-			UpdatePlanner.Plan plan = UpdatePlanner.plan(p.lot(), now, s.get().permission(), s.get().claim());
+			UpdatePlanner.Plan plan = UpdatePlanner.plan(p.lot(), now, s.get().permission(), landFor(s.get(), now), s.get().lands().protect());
 			if (plan.action() == UpdatePlanner.Action.BLOCKED || !now.ok()) continue;
 			FAILED.remove(p.siteId() + "@" + p.to());
 			apply(server, s.get(), p);

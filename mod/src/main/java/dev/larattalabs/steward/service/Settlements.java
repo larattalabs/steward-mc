@@ -10,6 +10,7 @@ import dev.larattalabs.steward.model.Settlement;
 import dev.larattalabs.steward.model.SettlementStore;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.core.BlockPos;
@@ -104,8 +105,62 @@ public final class Settlements {
 		return Result.fail("Could not save the settlement.");
 	}
 
-	private static java.util.List<Claim> others(String id) {
-		return store.all().stream().filter(x -> !x.id().equals(id)).map(Settlement::claim).toList();
+	/** The other settlements' claims and districts. */
+	public static java.util.List<Claim> others(String id) {
+		return store.all().stream().filter(x -> !x.id().equals(id)).flatMap(x -> x.claims().stream()).toList();
+	}
+
+	/** Adds a district ({@code make} gets its new id, {@code dst_<n>}) and logs its founding (its road the operation's site); saved, or nothing changes. */
+	public static Result addDistrict(String id, java.util.function.Function<String, Settlement.District> make, String text, long now) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		Settlement.Lands l = s.get().lands().next();
+		Settlement.District d = make.apply("dst_" + l.serial());
+		Settlement n = s.get().withLands(l.withDistrict(d)).withLog(new Settlement.LogEntry(now, Settlement.Kind.DISTRICT_FOUNDED, text,
+			d.roads().stream().map(Settlement.Road::siteId).toList()));
+		try {
+			return commit(s, n, "");
+		} catch (IllegalArgumentException e) {
+			return Result.fail("The district overlaps another settlement (" + e.getMessage() + ").");
+		}
+	}
+
+	/** Replaces a district (a road added or dropped); logged when {@code entry} is given. */
+	public static Result updateDistrict(String id, Settlement.District d, Settlement.@org.jspecify.annotations.Nullable LogEntry entry) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		Settlement n = s.get().withLands(s.get().lands().withDistrict(d));
+		return commit(s, entry == null ? n : n.withLog(entry), "");
+	}
+
+	/** Drops a district (logged). */
+	public static Result removeDistrict(String id, String districtId, String text, long now) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		if (s.get().lands().district(districtId).isEmpty()) return Result.fail("No district " + districtId + ".");
+		return commit(s, s.get().withLands(s.get().lands().withoutDistrict(districtId)).withLog(new Settlement.LogEntry(now, Settlement.Kind.DISTRICT_REMOVED, text, List.of())), "");
+	}
+
+	/** Protects an area ({@code pa_<n>}, logged). */
+	public static Result protect(String id, String label, String dim, int x0, int z0, int x1, int z1, long now) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		Settlement.Lands l = s.get().lands().next();
+		Settlement.Area a = new Settlement.Area("pa_" + l.serial(), label, dim, x0, z0, x1, z1, now);
+		Settlement n = s.get().withLands(l.withArea(a)).withLog(new Settlement.LogEntry(now, Settlement.Kind.PROTECTED_CHANGED, "Protected \"" + a.label() + "\" ("
+			+ (a.x1() - a.x0() + 1) + " x " + (a.z1() - a.z0() + 1) + " at " + a.x0() + "," + a.z0() + ")", List.of()));
+		return commit(s, n, "Protected \"" + a.label() + "\": the steward will not build there.");
+	}
+
+	/** Clears a protected area (logged). */
+	public static Result unprotect(String id, String areaId, long now) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		var a = s.get().lands().protect().stream().filter(x -> x.id().equals(areaId)).findFirst();
+		if (a.isEmpty()) return Result.fail("No protected area " + areaId + ".");
+		Settlement n = s.get().withLands(s.get().lands().withoutArea(areaId)).withLog(new Settlement.LogEntry(now, Settlement.Kind.PROTECTED_CHANGED,
+			"No longer protected: \"" + a.get().label() + "\"", List.of()));
+		return commit(s, n, "\"" + a.get().label() + "\" is no longer protected.");
 	}
 
 	/** Replaces a saved settlement as a whole (saved, or nothing changes). */

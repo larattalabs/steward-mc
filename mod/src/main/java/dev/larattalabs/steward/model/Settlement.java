@@ -22,7 +22,8 @@ public record Settlement(
 	List<LogEntry> log,
 	Proposals proposals,
 	@Nullable BibleRef bible,
-	Autonomy autonomy
+	Autonomy autonomy,
+	Lands lands
 ) {
 	public enum Kind {
 		FOUNDED, CARD_EDITED, RESKIN, RELAYOUT, PROJECT_PROPOSED, PROJECT_APPROVED, PROJECT_PLACED, PROJECT_REMOVED, PERMISSION_CHANGED, NOTE,
@@ -31,7 +32,20 @@ public record Settlement(
 		/** A building moved back to an earlier version. */
 		REVERTED,
 		/** The claim's size changed. */
-		CLAIM_CHANGED
+		CLAIM_CHANGED,
+		/** A district was founded: its road is the operation's site (undone like a project; the district goes with it once nothing else stands there). */
+		DISTRICT_FOUNDED,
+		/** A district was given up (its road undone and nothing standing in it). */
+		DISTRICT_REMOVED,
+		/** A road the steward laid (a district's street linked to its edge). */
+		ROAD_PLACED,
+		/** A protected area was marked or cleared. */
+		PROTECTED_CHANGED;
+
+		/** Whether an operation of this kind put sites in the world that an undo removes. */
+		public boolean placesSites() {
+			return this == PROJECT_PLACED || this == DISTRICT_FOUNDED || this == ROAD_PLACED;
+		}
 	}
 
 	/** How an operation ended. */
@@ -78,7 +92,7 @@ public record Settlement(
 		public Recovery recovery() {
 			if (outcome == Outcome.FAILED) return Recovery.NONE;
 			return switch (kind) {
-				case PROJECT_PLACED -> Recovery.UNDO_PROJECT;
+				case PROJECT_PLACED, DISTRICT_FOUNDED, ROAD_PLACED -> Recovery.UNDO_PROJECT;
 				case UPDATED, REVERTED -> changes.stream().anyMatch(c -> c.from() > 0) ? Recovery.REVERT_VERSION : Recovery.NONE;
 				default -> Recovery.NONE;
 			};
@@ -104,6 +118,136 @@ public record Settlement(
 		purposeVersion = Math.max(1, purposeVersion);
 		proposals = proposals == null ? Proposals.NONE : proposals;
 		autonomy = autonomy == null ? Autonomy.DEFAULT : autonomy;
+		lands = lands == null ? Lands.NONE : lands;
+	}
+
+	/**
+	 * Land beyond the settlement's claim and land it must leave alone (docs/PLAN.md phase 3f): its districts, the areas the player protected, and the
+	 * serial their ids come from ({@code dst_<n>}, {@code pa_<n>}; it only grows, so an id is never reused). Files from before districts read with none.
+	 */
+	public record Lands(List<District> districts, List<Area> protect, int serial) {
+		public static final Lands NONE = new Lands(List.of(), List.of(), 0);
+
+		public Lands {
+			districts = districts == null ? List.of() : List.copyOf(districts);
+			protect = protect == null ? List.of() : List.copyOf(protect);
+			serial = Math.max(0, serial);
+		}
+
+		public java.util.Optional<District> district(String id) {
+			return districts.stream().filter(d -> d.id().equals(id)).findFirst();
+		}
+
+		public Lands withDistrict(District d) {
+			List<District> l = new ArrayList<>(districts.stream().filter(x -> !x.id().equals(d.id())).toList());
+			l.add(d);
+			return new Lands(l, protect, serial);
+		}
+
+		public Lands withoutDistrict(String id) {
+			return new Lands(districts.stream().filter(x -> !x.id().equals(id)).toList(), protect, serial);
+		}
+
+		public Lands withArea(Area a) {
+			List<Area> l = new ArrayList<>(protect);
+			l.add(a);
+			return new Lands(districts, l, serial);
+		}
+
+		public Lands withoutArea(String id) {
+			return new Lands(districts, protect.stream().filter(x -> !x.id().equals(id)).toList(), serial);
+		}
+
+		/** With one more id used ({@code serial + 1} is the id just taken). */
+		public Lands next() {
+			return new Lands(districts, protect, serial + 1);
+		}
+	}
+
+	/** A point on the ground (x, z). */
+	public record Pt(int x, int z) {}
+
+	/** A road the steward laid: its Architect site, its centre line's corners and its width (layouts keep off it). */
+	public record Road(String siteId, List<Pt> points, int width) {
+		public Road {
+			points = points == null ? List.of() : List.copyOf(points);
+		}
+	}
+
+	/**
+	 * A district (phase 3f): a square of its own next to the village square, with a purpose, laid out and built like the town and linked to it by roads.
+	 * {@code direction} is where it lies from the stone (N, E, S, W); {@code roads} the roads laid for it, the founding road first.
+	 */
+	public record District(String id, String name, String direction, Claim claim, long at, List<Road> roads) {
+		public District {
+			if (id == null || claim == null) throw new com.google.gson.JsonParseException("a district needs an id and a claim");
+			name = name == null || name.isBlank() ? id : name;
+			direction = direction == null ? "E" : direction;
+			roads = roads == null ? List.of() : List.copyOf(roads);
+		}
+
+		public District withRoad(Road r) {
+			List<Road> l = new ArrayList<>(roads);
+			l.add(r);
+			return new District(id, name, direction, claim, at, l);
+		}
+	}
+
+	/** An area the player protected: the steward never builds on it (columns x0..x1, z0..z1, every height). */
+	public record Area(String id, String label, String dimension, int x0, int z0, int x1, int z1, long at) {
+		public Area {
+			if (id == null || dimension == null) throw new com.google.gson.JsonParseException("a protected area needs an id and a dimension");
+			label = label == null || label.isBlank() ? id : label;
+			int ax = Math.min(x0, x1), bx = Math.max(x0, x1), az = Math.min(z0, z1), bz = Math.max(z0, z1);
+			x0 = ax;
+			x1 = bx;
+			z0 = az;
+			z1 = bz;
+		}
+
+		public boolean contains(String dim, int x, int z) {
+			return dimension.equals(dim) && x >= x0 && x <= x1 && z >= z0 && z <= z1;
+		}
+
+		/** Whether it shares a column with the box x0..x1, z0..z1. */
+		public boolean overlaps(String dim, int ax, int az, int bx, int bz) {
+			return dimension.equals(dim) && Math.min(ax, bx) <= x1 && Math.max(ax, bx) >= x0 && Math.min(az, bz) <= z1 && Math.max(az, bz) >= z0;
+		}
+	}
+
+	/** The claim and every district's: all the land the settlement may build on. */
+	public List<Claim> claims() {
+		List<Claim> l = new ArrayList<>();
+		l.add(claim);
+		for (District d : lands.districts()) l.add(d.claim());
+		return l;
+	}
+
+	/** Whether a point lies in the claim or one of its districts. */
+	public boolean contains(String dim, int x, int y, int z) {
+		return claims().stream().anyMatch(c -> c.contains(dim, x, y, z));
+	}
+
+	/** The district a point lies in, if any (the town's own square comes first: a district inside a big claim still counts as the district). */
+	public java.util.Optional<District> districtAt(String dim, int x, int z) {
+		return lands.districts().stream().filter(d -> d.claim().contains(dim, x, d.claim().minY(), z)).findFirst();
+	}
+
+	/** The protected area a point lies in, if any. */
+	public java.util.Optional<Area> protectedAt(String dim, int x, int z) {
+		return lands.protect().stream().filter(a -> a.contains(dim, x, z)).findFirst();
+	}
+
+	/** The claim (the town's or a district's) a box's columns lie wholly in, else the town's claim (a box that straddles them is checked against it). */
+	public Claim claimFor(int x0, int z0, int x1, int z1) {
+		for (Claim c : claims()) {
+			if (c.contains(c.dimension(), Math.min(x0, x1), c.minY(), Math.min(z0, z1)) && c.contains(c.dimension(), Math.max(x0, x1), c.minY(), Math.max(z0, z1))) return c;
+		}
+		return claim;
+	}
+
+	public Settlement withLands(Lands l) {
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible, autonomy, l);
 	}
 
 	/**
@@ -143,7 +287,7 @@ public record Settlement(
 	public record Spend(long at, double usd, String what) {}
 
 	public Settlement withAutonomy(Autonomy a) {
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible, a);
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible, a, lands);
 	}
 
 	/**
@@ -162,7 +306,7 @@ public record Settlement(
 
 	/** The same settlement with its proposals replaced. */
 	public Settlement withProposals(Proposals p) {
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, p, bible, autonomy);
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, p, bible, autonomy, lands);
 	}
 
 	/**
@@ -172,12 +316,12 @@ public record Settlement(
 	public record BibleRef(String id, int version, int styleVersion) {}
 
 	public Settlement withBible(BibleRef b) {
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, b, autonomy);
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, b, autonomy, lands);
 	}
 
 	/** A claim the player has marked with the Founding Stone but not yet described: no concept card until they do. */
 	public static Settlement founded(String id, String name, Claim claim, Permission permission, Difficulty difficulty, long now) {
-		return new Settlement(id, name, null, claim, 1, 1, 1, permission, difficulty, List.of(new LogEntry(now, Kind.FOUNDED, "Claimed " + name, List.of())), Proposals.NONE, null, Autonomy.DEFAULT);
+		return new Settlement(id, name, null, claim, 1, 1, 1, permission, difficulty, List.of(new LogEntry(now, Kind.FOUNDED, "Claimed " + name, List.of())), Proposals.NONE, null, Autonomy.DEFAULT, Lands.NONE);
 	}
 
 	public boolean described() {
@@ -188,14 +332,14 @@ public record Settlement(
 	public Settlement withCard(ConceptCard c, long now) {
 		String n = c.name() == null || c.name().isBlank() ? name : c.name();
 		// a new description is a new style: its bible is made afresh
-		return new Settlement(id, n, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals, null, autonomy)
+		return new Settlement(id, n, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals, null, autonomy, lands)
 			.withLog(new LogEntry(now, Kind.CARD_EDITED, "Described as: " + c.site().text() + ", " + c.style().text(), List.of()));
 	}
 
 	public static Settlement found(String id, ConceptCard card, Claim claim, Permission permission, Difficulty difficulty, long now) {
 		String name = card.name() == null || card.name().isBlank() ? id : card.name();
 		return new Settlement(id, name, card, claim, 1, 1, 1, permission, difficulty,
-			List.of(new LogEntry(now, Kind.FOUNDED, "Founded " + name, List.of())), Proposals.NONE, null, Autonomy.DEFAULT);
+			List.of(new LogEntry(now, Kind.FOUNDED, "Founded " + name, List.of())), Proposals.NONE, null, Autonomy.DEFAULT, Lands.NONE);
 	}
 
 	/** The Architect owner string for this settlement's sites: {@code steward_mc:settlement/<id>}. */
@@ -207,7 +351,7 @@ public record Settlement(
 	public Settlement withLog(LogEntry e) {
 		List<LogEntry> l = new ArrayList<>(log);
 		l.add(e.op() == null ? e.withOp("op_" + (l.size() + 1)) : e);
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, l, proposals, bible, autonomy);
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, l, proposals, bible, autonomy, lands);
 	}
 
 	/** A re-skin changes only the style (and the card's style field); layout and purpose versions stay. */
@@ -215,18 +359,18 @@ public record Settlement(
 		if (card == null) throw new IllegalStateException("describe the settlement first");
 		ConceptCard c = new ConceptCard(card.name(), card.site(), style, card.purpose(), card.story(), card.constraints(), card.avoid(),
 			card.interpretation(), card.contradictions(), card.assumptions(), card.program());
-		return new Settlement(id, name, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals, null, autonomy)
+		return new Settlement(id, name, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals, null, autonomy, lands)
 			.withLog(new LogEntry(now, Kind.RESKIN, "Style is now: " + style.text(), List.of()));
 	}
 
 	/** The claim grown (or set by the card's size); the change log says to what. */
 	public Settlement withClaim(Claim c, long now) {
-		return new Settlement(id, name, card, c, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible, autonomy)
+		return new Settlement(id, name, card, c, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible, autonomy, lands)
 			.withLog(new LogEntry(now, Kind.CLAIM_CHANGED, "Claim is now " + ClaimRules.side(c.radius()) + " x " + ClaimRules.side(c.radius()), List.of()));
 	}
 
 	public Settlement withPermission(Permission p, long now) {
-		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, p, difficulty, log, proposals, bible, autonomy)
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, p, difficulty, log, proposals, bible, autonomy, lands)
 			.withLog(new LogEntry(now, Kind.PERMISSION_CHANGED, "Permission: " + p, List.of()));
 	}
 
@@ -239,7 +383,7 @@ public record Settlement(
 		for (int i = log.size() - 1; i >= 0; i--) {
 			LogEntry e = log.get(i);
 			if (e.kind() == Kind.PROJECT_REMOVED) removed.addAll(e.siteIds());
-			if (e.kind() == Kind.PROJECT_PLACED) {
+			if (e.kind().placesSites()) {
 				List<String> left = e.siteIds().stream().filter(id -> !removed.contains(id)).toList();
 				// the group only while the project is whole: after a partial undo the rest goes site by site
 				if (!left.isEmpty()) return java.util.Optional.of(new LogEntry(e.at(), e.kind(), e.text(), left, left.size() == e.siteIds().size() ? e.siteGroup() : null, e.op(),
