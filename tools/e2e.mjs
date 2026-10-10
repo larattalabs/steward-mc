@@ -481,6 +481,22 @@ async function districts(id) {
   else fail('district undo', `districts ${JSON.stringify(after?.lands?.districts)}, road standing ${roadLeft}, last ops ${kinds}`);
   await cmd(`/steward protect ${id} clear ${area.id}`);
   await closeScreens();
+  // the same through a proposal (the steward proposes a district when the town's street is full): accepted, it is founded and the proposal recorded
+  await cmd(`/tp @p ${cx + 90} ${Math.floor(gy)} ${cz + 12}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd(`/steward dev propose_district ${id} E`);
+  const accepted = await cmd(`/steward proposals ${id} accept district_E`);
+  let viaProposal = null;
+  for (let i = 0; i < 20 && !viaProposal; i++) {
+    await sleep(1000);
+    viaProposal = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.direction === 'E') ?? null;
+  }
+  const ps = settlements().find((x) => x.id === id)?.proposals;
+  if (viaProposal && ps?.accepted?.includes('district_E') && !ps.open.some((p) => p.key === 'district_E')) ok('district proposal', `accepted: ${viaProposal.id} founded, the proposal recorded`);
+  else fail('district proposal', `${accepted}; district ${JSON.stringify(viaProposal)}, proposals ${JSON.stringify(ps)}`);
+  await cmd(`/steward undo ${id}`);
+  await sleep(4000);
+  await closeScreens();
 }
 
 /** A world from before the steward entity: its mannequin stewards become steward_mc:steward when their chunks load. */

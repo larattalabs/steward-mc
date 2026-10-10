@@ -148,6 +148,14 @@ public final class StewardCommands {
 						StringArgumentType.getString(ctx, "entry"), at.getX(), at.getY(), at.getZ(), "NONE", "MASSING", label, at.getX() + 4, at.getY() + 12, at.getZ() + 4));
 					net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.ShowLayers("steward_mc:dev_ghost", layers));
 					return 1;
+				})))).then(Commands.literal("propose_district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("way",
+				StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check): a district proposal now, to accept like any other
+					if (!host(ctx.getSource())) return 0;
+					String r = dev.larattalabs.steward.service.Proposals.proposeDistrict(StringArgumentType.getString(ctx, "id"),
+						StringArgumentType.getString(ctx, "way").toUpperCase(java.util.Locale.ROOT), System.currentTimeMillis());
+					ctx.getSource().sendSuccess(() -> Component.literal(r), false);
+					return 1;
 				})))).then(Commands.literal("site").then(Commands.argument("site",
 				StringArgumentType.word()).executes(ctx -> {
 					// dev (the e2e check): whether a site stands, as Architect's API has it (roads included)

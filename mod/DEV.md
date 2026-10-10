@@ -175,9 +175,9 @@ a bed, a migrated old mannequin), its nameplate with the "!" and its speech bubb
 Then:
 - the in-world interface: the look-at label, survey mode, a labelled massing ghost, the ledger and the board;
 - proposals: `/steward dev describe` gives the settlement a sample card; the player carries seeds; within a minute a farm is proposed, shown in the inbox, then declined and remembered;
-- districts (3f): a protected area across the west road's way refuses that district by name; the east district is founded with its road ($0), seen in survey mode, and undone (the road, then the district).
+- districts (3f): a protected area across the west road's way refuses that district by name; the east district is founded with its road ($0), seen in survey mode, and undone (the road, then the district); a district proposal accepted founds one.
 
-Last run: 2026-10-10: **PASS 28 checks**.
+Last run: 2026-10-10: **PASS 29 checks**.
 
 ## lab-ui
 

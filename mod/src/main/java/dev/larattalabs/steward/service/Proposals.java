@@ -56,8 +56,9 @@ public final class Proposals {
 		if (Actions.refusal(p) != null) return;
 		var here = Settlements.at(p.level(), p.blockPosition());
 		if (here.isEmpty()) return;
-		// a district road an interrupted founding or link left, or a link not laid yet (its way was not loaded), is put right while the host is here
-		Districts.reconcile(server, here.get().id(), m -> p.sendSystemMessage(net.minecraft.network.chat.Component.literal(m)));
+		// a district road an interrupted founding or link left, or a link not laid yet (its way was not loaded), is put right while the host is here; it says
+		// so in the log (a link that keeps failing would otherwise repeat in chat every minute)
+		Districts.reconcile(server, here.get().id(), m -> dev.larattalabs.steward.Steward.LOGGER.info("{}: {}", here.get().id(), m));
 		// proposals are additions: only for a settlement that has something standing (an addition faces its street)
 		if (!here.get().described() || SettlementRunner.busy(here.get().id()) || here.get().lastUndoable().isEmpty()) return;
 		Settlement s = here.get();
@@ -110,6 +111,17 @@ public final class Proposals {
 			if (k.startsWith(prefix) && now - at < FULL_MS) out.add(k.substring(prefix.length()));
 		});
 		return out;
+	}
+
+	/** Adds a district proposal towards {@code way} now (dev: the e2e check, without filling a street first). */
+	public static String proposeDistrict(String settlementId, String way, long now) {
+		var s = Settlements.store().get(settlementId);
+		if (s.isEmpty()) return "No such settlement: " + settlementId;
+		List<Proposal> all = new ArrayList<>(s.get().proposals().open().stream().filter(x -> !x.key().equals("district_" + way)).toList());
+		all.add(Proposal.district(way, "The town's street is full (dev).", now));
+		var ps = s.get().proposals();
+		var res = Settlements.proposals(settlementId, new Settlement.Proposals(all, ps.declined().stream().filter(k -> !k.equals("district_" + way)).toList(), ps.accepted(), ps.lastAt()));
+		return res.ok() ? "proposed district_" + way : res.error();
 	}
 
 	/** A district proposal (phase 3f) when the town's street and every district's are full: towards the first way one fits, not one the player declined. */

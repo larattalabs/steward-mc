@@ -22,7 +22,7 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
   - **Autonomous and Full** build their own proposals within the weekly allowance ($500 by default). Settings sets the level and the allowance.
   - **Still to come:** a Claude call that words proposals in the settlement's own style, once Architect's stub is there to test it for free.
 
-The free e2e check runs 28 checks, with a screenshot of each in-world piece.
+The free e2e check runs 29 checks, with a screenshot of each in-world piece.
 
 ## Principles
 
@@ -76,6 +76,7 @@ The free e2e check runs 28 checks, with a screenshot of each in-world piece.
 - Known limitations show on the card before spending (lots over water wait for Architect 7b). |
 | 2026-10-09 | **Claims grow** (Noah): the card's size sets the first claim, the player can expand it, and a settlement grows by **districts** (adjacent claims the steward proposes). See "Claims and growth". |
 | 2026-10-10 | **Protected areas, then districts** (Steward side; Architect enforces C17 from 0c): the player marks areas the steward never builds on. Steward keeps its layouts and roads off them now; when 0c ships, the areas also go to Architect as write bounds. Districts sit next to the village square (inside a big claim or beyond it) and are linked by a road along their shared edge. See phase 3f. |
+| 2026-10-10 | **One district each way, for now** (Claude; **pending Noah's OK**): the plan let a second district go past the first the same way. 3f allows one each way (four at most), because a road cannot yet pass through a district to reach the one beyond. Lifting it means routing roads through a district's margin or street; until then the steward proposes the next free way. |
 
 ## Concept card
 
