@@ -80,3 +80,11 @@ to Steward right after 6b ships.
 - 7c: promoted shapes may be offered across settlements, by the player's choice only, re-checked, refitted and re-skinned.
 - C5 estimates by kind (original / adapted / copy).
 
+**Accepted by Architect (2026-10-09):**
+- Every variant already passes the full kit check: the sidecar's VariantRunner runs `checkDesign` and refuses to install a variant that fails.
+- Slice 0 adds the fall-back to an original when a copy fails fit or the checker on its lot.
+- C1 copies carry `variantOf` and the source version from the start.
+- C2 is narrowed: only the report critique is skipped, massings stay.
+- C5 estimates by kind.
+- Adapt first (7b), updates follow the source (6d) and card-only reuse (7c) are recorded for their phases.
+- 6b's release waits on a performance regression fix (megaA ticks of 93-103 ms against 6a's 28 ms), so slice 0 comes a little later.
