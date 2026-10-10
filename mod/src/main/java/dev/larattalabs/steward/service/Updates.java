@@ -95,6 +95,7 @@ public final class Updates {
 			if (plan.action() == UpdatePlanner.Action.APPLY && FAILED.containsKey(key)) {
 				plan = new UpdatePlanner.Plan(UpdatePlanner.Action.ASK, lot + " could not be updated by itself (" + FAILED.get(key) + "); update to try again.", plan.playerEdits());
 			}
+			Steward.LOGGER.info("update check {} {} v{} -> v{}: {} ({}), writes {}", s.id(), o.siteId(), o.version(), o.headVersion(), plan.action(), plan.text(), v.box());
 			switch (plan.action()) {
 				case NOTHING -> {
 				}

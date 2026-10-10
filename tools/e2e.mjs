@@ -102,9 +102,11 @@ function stubBlueprint(extraLantern) {
   return bp;
 }
 
+/** A fresh entry every run (only this script uses it): the update check installs a version that must differ from the one placed. */
 function ensureStubEntry() {
   const dir = path.join(GAME, 'architect', 'library', STUB);
-  if (!fs.existsSync(path.join(dir, `${STUB}.nbt`))) writeBlueprint(stubBlueprint(false), dir);
+  fs.rmSync(dir, { recursive: true, force: true });
+  writeBlueprint(stubBlueprint(false), dir);
 }
 
 // ------------------------------------------------------------------ steps
@@ -123,12 +125,18 @@ async function preflight() {
 async function claimAndSteward() {
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} 0 0 1 false @p`);
+  // the far chunks load after the teleport: claim (and look for the steward) once they are in
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
   const m = await cmd('/steward claim');
   const after = settlements();
   if (after.length !== n + 1) return fail('claim', `no new settlement (${m})`), null;
   const s = after[after.length - 1];
   ok('claim', `${s.id}, ${2 * s.claim.radius + 1} across`);
-  const name = await cmd(`/data get entity @e[type=minecraft:mannequin,tag=steward_mc.settlement.${s.id},limit=1] CustomName`);
+  let name = '';
+  for (let i = 0; i < 10 && !/Steward/.test(name); i++) {
+    if (i > 0) await sleep(1000);
+    name = await cmd(`/data get entity @e[type=minecraft:mannequin,tag=steward_mc.settlement.${s.id},limit=1] CustomName`);
+  }
   if (/Steward/.test(name)) ok('steward', 'named, tagged');
   else fail('steward', name || 'no mannequin');
   return s.id;
@@ -164,16 +172,17 @@ async function placeUpdateUndo(id) {
   writeBlueprint(stubBlueprint(true), v2);
   const inst = await dev.request('dev.entry.installVersion', { entry: STUB, dir: v2, by: 'design', summary: 'e2e: a second lantern' });
   if (!inst.ok) return fail('update', `installVersion: ${JSON.stringify(inst).slice(0, 160)}`);
-  await cmd('/steward updates');
+  const checked = await cmd('/steward updates');
   await dev.request('dev.key', { key: 'y' });
   await sleep(1500);
-  await dev.request('dev.key', { key: '1' });
+  // the offset first: a small update can finish within the key press
   from = logSize();
+  await dev.request('dev.key', { key: '1' });
   const upd = await waitLog(from, /Updated dev building to version (\d+)/, 30_000);
   await dev.request('dev.key', { key: 'escape' });
   const hist = await dev.request('dev.site.history', { site });
   if (upd && (hist.version ?? hist.site?.version) === inst.version) ok('update', `${site} -> v${inst.version} from the inbox`);
-  else fail('update', `log ${upd ? 'ok' : 'silent'}, site ${JSON.stringify(hist).slice(0, 160)}`);
+  else fail('update', `log ${upd ? 'ok' : 'silent'}, /steward updates said "${checked}", ${(logSince(0).match(/update check [^\n]*/g) ?? ['no update check']).at(-1)}, site ${JSON.stringify(hist).slice(0, 120)}`);
   from = logSize();
   await cmd(`/steward undo ${id}`);
   await sleep(8000);
@@ -184,19 +193,35 @@ async function placeUpdateUndo(id) {
   else fail('undo', `standing ${standing}, last log ${last?.kind}`);
 }
 
+/** The player's UUID, from {@code /data get entity @p UUID} ("... [I; a, b, c, d]"): the restored build must be this player's, or cancel refuses it. */
+async function playerUuid() {
+  const r = await cmd('/data get entity @p UUID');
+  const m = r.match(/\[I;\s*(-?\d+),\s*(-?\d+),\s*(-?\d+),\s*(-?\d+)\]/);
+  if (!m) throw new Error(`no player UUID (${r})`);
+  const hex = m.slice(1).map((n) => (Number(n) >>> 0).toString(16).padStart(8, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 async function restartRestore() {
+  const uuid = await playerUuid();
   await quit();
-  const tpl = fs.readFileSync(path.join(ROOT, 'tools', 'e2e', 'restore-build.json'), 'utf8').replaceAll('__SETTLEMENT__', 'e2e_restore').replaceAll('__GROUP__', 'grp_e2e_missing');
+  const tpl = fs.readFileSync(path.join(ROOT, 'tools', 'e2e', 'restore-build.json'), 'utf8').replaceAll('__SETTLEMENT__', 'e2e_restore').replaceAll('__GROUP__', 'grp_e2e_missing')
+    .replaceAll('00000000-0000-0000-0000-000000000042', uuid);
   fs.writeFileSync(path.join(WORLD, 'steward-builds.json'), tpl);
   launch();
   await connect();
   const m = await waitLog(0, /resume e2e_restore: phase (\w+)[^\n]*-> (\w+)/, 30_000);
   if (m && m[2] === 'REREAD_GROUP' && /interrupted/.test(logSince(0))) ok('restart', `restored at ${m[1]}, re-read, reported interrupted`);
   else fail('restart', m ? m[0] : 'no resume line');
-  await cmd('/steward cancel e2e_restore');
-  const left = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.length;
+  const said = await cmd('/steward cancel e2e_restore');
+  // the group is gone at Architect, so the cancel confirms at once; allow a moment for the save
+  let left = -1;
+  for (let i = 0; i < 5 && left !== 0; i++) {
+    if (i > 0) await sleep(1000);
+    left = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.length;
+  }
   if (left === 0) ok('cancel', 'the restored build is dropped');
-  else fail('cancel', `${left} builds left`);
+  else fail('cancel', `${left} builds left (${said})`);
 }
 
 async function stubFlow(id) {
@@ -221,7 +246,7 @@ async function stubFlow(id) {
     await cmd(`/steward approve ${id}`);
     ok(step);
   }
-  if (await waitLog(from, /is built: \d+ buildings placed/, 300_000)) ok('placed');
+  if (await waitLog(from, /is built: [1-9]\d* buildings placed/, 300_000)) ok('placed');
   else fail('placed', 'no finish');
   await cmd(`/steward undo ${id}`);
   await sleep(10_000);

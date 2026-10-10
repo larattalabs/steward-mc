@@ -87,5 +87,8 @@ class UpdatePlannerTest {
 		UpdatePlanner.Plan p = UpdatePlanner.plan("Tavern", outside, Permission.FULL, claim);
 		assertEquals(Action.BLOCKED, p.action());
 		assertTrue(p.text().contains("claim"), p.text());
+		// the empty box at the origin is Architect's "no write box", not a place: not blocked
+		var far = new dev.larattalabs.steward.model.Claim("minecraft:overworld", 2701, 0, 128, -64, 320);
+		assertEquals(Action.APPLY, UpdatePlanner.plan("Tavern", inside, Permission.FULL, far).action());
 	}
 }

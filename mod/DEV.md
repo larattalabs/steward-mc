@@ -151,3 +151,22 @@ landmark designed alone first, then the other two. Fixed after: the finished mes
   client at $0: a hand-made v2 of Greywater Hamlet's cottage (a loom and a barrel; built and checked by the kit, installed with `dev.entry.installVersion`) was
   found at world load, offered, applied from the inbox, logged; the site is at v2 with nothing left to apply.
 
+
+## End-to-end check ($0)
+
+`node tools/e2e.mjs free` launches its own client (`tools/run-e2e-client.sh`: ports 8590/8591, the flat creative world "Steward E2E", no credentials). It
+runs 11 checks:
+- status;
+- claim and the steward NPC;
+- Expand twice;
+- the inbox screen;
+- a kit-built building placed, then updated to a new version from the inbox, then undone;
+- a build restored after a restart (with the player's real UUID put into `tools/e2e/restore-build.json`), then cancelled.
+
+It refuses to start while the claude-login opt-in exists or another Steward client uses `mod/run`. The test entry `e2e_stub` is rewritten each run, so its
+new version always differs from the placed one. Results go to `artifacts/e2e/summary.json`. On a failed update it prints Steward's `update check` log
+line (action, reason, write box).
+
+`node tools/e2e.mjs stub` runs the whole flow against Architect's stub helper; it works once Architect's slice 0a ships the stub (C4).
+
+Last run: 2026-10-09, after the hardening slice: **PASS 11 checks**.

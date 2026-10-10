@@ -88,3 +88,38 @@ to Steward right after 6b ships.
 - C5 estimates by kind.
 - Adapt first (7b), updates follow the source (6d) and card-only reuse (7c) are recorded for their phases.
 - 6b's release waits on a performance regression fix (megaA ticks of 93-103 ms against 6a's 28 ms), so slice 0 comes a little later.
+
+## Round 4 (2026-10-09): from the GPT-6.1 reviews
+
+Independent reviews of Steward's code and plan (`docs/GPT-REVIEWS-2026-10-09.md`). Noah adopted their points on cost and wait, Architect's critical path, and
+change history before autonomy. These are the Architect side of them.
+
+| # | Ask | Why |
+|---|---|---|
+| C7 | **Where cost and time go, per stage**: bible, massing, detail, repair rounds, critique, queueing, usage holds, for each group (on `Group` and in the job log), and a benchmark of a settlement of unique buildings next to a repeat-heavy one | Copies help repeat-heavy villages only. Greywater Hamlet (3 unique buildings) cost $13.76 and took about 70 minutes. Steward sets provisional targets: a useful starter settlement under $5, the first usable result within 15 minutes. It needs to know which stage to cut. |
+| C8 | **Bounded effort for small buildings**: a lower repair-round and token cap for S footprints (sheds, racks, stalls), and reusable kit components they can be built from | A $4 drying rack is the cost problem in one building |
+| C9 | **Caller operation ids**: an idempotency key on `bibles().request`, `designs().requestGroup` and `sites().queue` (the same key returns the same job, group or batch), and a lookup by key | Steward now saves a build before it asks Architect for anything. A crash between the request and the ack still leaves the build saying "interrupted" while the paid job runs on. With a key, Steward finds and adopts it instead. |
+| C10 | **A narrow flat-settlement slice early**: lots, a path from each door to the street, one shared space (a square or well) and a few props, for a flat claim, before the full terrain, hydrology and connector catalogue | Village quality waits behind a large amount of terrain work. This slice alone makes Steward's settlements read as places. |
+| C11 | **6c slice 0 split** into parts that ship on their own: consumer support (C4 stub, C5 estimates, C6 massing fit, durable batches), reuse (C1, C2), placement polish | Its scope grew well past "cost and API polish"; Steward's $0 e2e gate waits only on the stub |
+| C12 | **VillageLayout retires behind a joint gate** with 7a/6d: an existing Steward settlement migrates onto Architect's lots and still updates (6d) and undoes | Retiring it on 7a alone could strand settlements built before |
+
+Not asks: shared UI extraction, schematic interchange and shape promotion wait until an observed problem needs them.
+
+**Architect's answer (2026-10-09): all of C7-C12 taken**, recorded in architect-mc PLAN.md "Steward round 4". Order after 6b ships:
+- **0a consumer support:**
+  - the C4 stub (first: Steward's $0 gate waits on it), C5, C6;
+  - durable batches;
+  - C9 idempotency keys with lookup by key;
+  - the C7 per-stage cost and time breakdown;
+  - group event seq, cost.byKind;
+  - `Bibles.cancel` returning a future.
+- **0b reuse and bounded effort:**
+  - C1 with safeguards, C2, C8;
+  - the C7 benchmark of unique against repeat-heavy settlements, against Steward's targets (under $5, 15 minutes).
+- **0c placement polish:** minLotSize, partial roads, groundHeight, typed field refusals, the extendGroup warning.
+- **V, flat village (C10):** lots, door-to-street paths, a shared square or well, props.
+- Then the 6c terrain slices, then 7a. C12's joint 7a/6d retirement gate is recorded.
+
+Answers to Steward's questions:
+- **`cancelGroup`** never throws synchronously. For an unknown group, or one already done, failed or cancelled, the future fails ("no group", "already <status>"). It also fails when the helper is not running. Treat a failed future plus a final `group(id)` as "already over". Steward does this.
+- **`bibles().cancel`** is fire-and-forget in 1.8/1.9, so a refusal is silent. On success the job is saved as cancelled and BIBLE_DONE fires once, caught up after a restart. A job that had already finished sends no new event. Reading `job(id)` after cancelling is right; Steward does. 0a makes cancel return a future.

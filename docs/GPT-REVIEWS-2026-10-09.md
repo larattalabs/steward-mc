@@ -5,21 +5,23 @@ below were checked against the code; "confirmed" means read in the source (or re
 
 ## Hardening slice (fix before phase 3)
 
+**All fixed, 2026-10-09** (commits 5915db1, 32055ac and the e2e commit after them). 140+ Java tests pass, and the free e2e check passes all 11 checks.
+
 | # | Finding | Where | Status |
 |---|---------|-------|--------|
-| H1 | Redirected lot stays in `decided`: its new massing can never be approved or redirected again (survives restart) | `SettlementRunner` ApproveGroup | confirmed |
-| H2 | Budget is not a hard cap: bible always asks $3 (`BIBLE_HIGH*1.5`) whatever the budget; a raise extends the group to the whole new total, not total minus bible; a $0 group can be requested | `Pipeline.cardApproved`, `BudgetRaised`, `requestGroup` | confirmed |
-| H3 | Cancel during the bible never cancels it; cancel before the group ack loses the id; the slot is freed (and the save dropped) before Architect stops, so a replacement build can start and the old batch's placement log is lost | `Pipeline.step` Cancel, runner | confirmed |
-| H4 | Start uses the player's level, not the settlement's dimension (Nether start builds in the Nether at overworld coords) | `Actions.start` | confirmed |
-| H5 | Pending describe/runner callbacks survive leaving a world and write into the next one loaded | `Actions` card futures, runner closures | plausible, needs a world token |
-| H6 | Two describes run (and pay) at once; the older can overwrite the newer card, or change the card of a build already started | `Actions.describe` | confirmed |
-| H7 | No settlement owner: on LAN a guest can describe/start (spend host budget), expand, undo, apply updates | `Actions`, `StewardCommands` | confirmed; fix = host-only mutations (singleplayer is the supported mode) |
-| H8 | Restored `BIBLE_RUNNING` only waits for an event that may already have been delivered; reread `Bibles.job` in resync | `ResyncRules` | plausible |
-| H9 | Budget raise committed locally before extend/resume succeed; failure unhandled | runner `ExtendAndResumeGroup` | confirmed |
-| H10 | Updates: no check that the delta box stays inside the claim; refresh runs recursively from inline completions and retries failures | `Updates.refresh/apply` | plausible |
-| H11 | Layout retries `left.get(0)` forever: one unplaceable lot blocks every later one (probe: blocked landmark → 0 lots) | `VillageLayout.plan` | confirmed |
-| H12 | Persistence: failed saves still mutate memory; spending continues after a corrupt/unsaveable builds file; failed settlement log then deletes the checkpoint (undo lost); incomplete nested records load | `Settlements`, `BuildStore`, `SettlementStore` | plausible |
-| H13 | Update preview ghosts never cleared; e2e update check captures the log offset too late; e2e placement accepts 0 buildings | client, `tools/e2e.mjs` | nit |
+| H1 | Redirected lot stays in `decided`: its new massing can never be approved or redirected again (survives restart) | `SettlementRunner` ApproveGroup | fixed |
+| H2 | Budget is not a hard cap: bible always asks $3 (`BIBLE_HIGH*1.5`) whatever the budget; a raise extends the group to the whole new total, not total minus bible; a $0 group can be requested | `Pipeline.cardApproved`, `BudgetRaised`, `requestGroup` | fixed |
+| H3 | Cancel during the bible never cancels it; cancel before the group ack loses the id; the slot is freed (and the save dropped) before Architect stops, so a replacement build can start and the old batch's placement log is lost | `Pipeline.step` Cancel, runner | fixed |
+| H4 | Start uses the player's level, not the settlement's dimension (Nether start builds in the Nether at overworld coords) | `Actions.start` | fixed |
+| H5 | Pending describe/runner callbacks survive leaving a world and write into the next one loaded | `Actions` card futures, runner closures | fixed |
+| H6 | Two describes run (and pay) at once; the older can overwrite the newer card, or change the card of a build already started | `Actions.describe` | fixed |
+| H7 | No settlement owner: on LAN a guest can describe/start (spend host budget), expand, undo, apply updates | `Actions`, `StewardCommands` | fixed |
+| H8 | Restored `BIBLE_RUNNING` only waits for an event that may already have been delivered; reread `Bibles.job` in resync | `ResyncRules` | fixed |
+| H9 | Budget raise committed locally before extend/resume succeed; failure unhandled | runner `ExtendAndResumeGroup` | fixed |
+| H10 | Updates: no check that the delta box stays inside the claim; refresh runs recursively from inline completions and retries failures | `Updates.refresh/apply` | fixed |
+| H11 | Layout retries `left.get(0)` forever: one unplaceable lot blocks every later one (probe: blocked landmark → 0 lots) | `VillageLayout.plan` | fixed |
+| H12 | Persistence: failed saves still mutate memory; spending continues after a corrupt/unsaveable builds file; failed settlement log then deletes the checkpoint (undo lost); incomplete nested records load | `Settlements`, `BuildStore`, `SettlementStore` | fixed |
+| H13 | Update preview ghosts never cleared; e2e update check captures the log offset too late; e2e placement accepts 0 buildings | client, `tools/e2e.mjs` | fixed |
 
 Later, not this slice: street feasibility scored before spending (layout dry-runs the road); caller operation ids from Architect so an interrupted ack
 is reconciled without a second paid job.

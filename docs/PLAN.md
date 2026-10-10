@@ -9,8 +9,8 @@ It is a **sibling mod to Architect** (`larattalabs/architect-mc`). Architect is 
 construction engine. Steward is the director on top: concept, site, layout, a standing NPC, proactive upgrades,
 functional modules, villagers, animals, an inbox. Steward depends on Architect and does not copy it.
 
-Status (2026-10-09): written 2026-10-05; **phase 1 is nearly done** (the whole flow runs in a dev client through in-game screens; its gate run built and undid an
-8-building village, see phase 1 below and the README's Status). Phases 2-7 are ahead.
+Status (2026-10-09): written 2026-10-05; **phase 1 is done** (gate passed, Noah; the whole flow runs in a dev client through in-game screens). Update available
+and the free e2e check are built. Independent reviews found budget, cancel and ownership bugs, fixed in a hardening slice (see "Reviews (2026-10-09)"). Phase 3 is next.
 
 ## Principles
 
@@ -47,6 +47,7 @@ Status (2026-10-09): written 2026-10-05; **phase 1 is nearly done** (the whole f
 | 2026-10-05 | Functional modules (farms, sorters, trading hall) come from a **verified catalog**, with later a simulation-verified path for Claude-designed ones. Claude composes and parametrises; it does not hand-wire redstone unverified. |
 | 2026-10-09 | **Phase order revised** (Noah): finish phase 1 (street, claim size and Expand), then phase 3's core, then phase 4, then phase 2 once Architect 7c lands (phase 2 is blocked; 3 and 4 are not). Cross-cutting first: copies as free variants, a $0 end-to-end gate, Architect's estimate in the UI. See "Review and order (2026-10-09)". |
 | 2026-10-09 | **Copies never cost quality** (Noah): designs are shared only with safeguards, adapted to their lot first, original as the fallback; the player can choose "all original". See "Copies, adaptations and originals". |
+| 2026-10-09 | **Hardening before phase 3** (Noah): the review findings are fixed first. Adopted from the plan review: cost and wait targets, a shorter Architect critical path, change history before autonomy. **Declined:** narrowing phase 3; it keeps its full scope. See "Reviews (2026-10-09)". |
 | 2026-10-09 | **Claims grow** (Noah): the card's size sets the first claim, the player can expand it, and a settlement grows by **districts** (adjacent claims the steward proposes). See "Claims and growth". |
 
 ## Concept card
@@ -297,6 +298,46 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
 
 Cross-mod: the UI kit now exists three times (AgentCraft, Architect, Steward). A small shared library would stop them drifting; to decide before the kits grow further.
 
+## Reviews (2026-10-09)
+
+Three GPT-6.1 reviews (code, plan, boundaries): `docs/GPT-REVIEWS-2026-10-09.md`.
+
+**Hardening slice (done, 2026-10-09):**
+- The budget is a hard cap. The bible's cap fits within it, and a bible that uses it up pauses before the group. A raise extends the group to the total less the bible's cost. A raise Architect refuses goes back.
+- Cancel goes through a cancelling state. The bible job, the group (also one acknowledged late) and the batch's rollback stop first, and the build keeps its slot meanwhile. What stayed placed is logged for undo.
+- Decisions are remembered per massing version, so a redirected building can be decided again.
+- Builds are saved before Architect is asked for anything, and nothing is spent on a build that cannot be saved.
+- Callbacks from a closed world change nothing.
+- A build starts in its settlement's own dimension.
+- One description runs at a time per settlement.
+- Only the host directs the steward (on a dedicated server, operators).
+- Updates are blocked outside the claim. One that removes parts is a demolition, which Autonomous asks about. A failed update is not retried by itself.
+- The layout no longer stalls on one lot that fits nowhere.
+- Settlement saves never diverge from memory, and incomplete saved records are refused.
+- The e2e timing and identity bugs are fixed.
+
+**Adopted from the plan review (Noah):**
+1. **Cost and wait are the product problem.** Copies only help repeat-heavy villages, and Greywater (3 unique buildings) cost $13.76 and took about 70 minutes.
+   - Provisional targets: a useful starter settlement **under $5**, and the **first usable result within 15 minutes**. Larger projects stay asynchronous, with honest estimates and usable partial results.
+   - Architect measures cost and time per stage (ask C7).
+   - Small buildings get bounded effort and kit components (C8).
+   - The one-third saving from copies is a hypothesis until it is measured under the real 2-3 placement cap and fallback rate.
+2. **A shorter Architect critical path.**
+   - A narrow flat-settlement slice (lots, door paths, a shared space, props) comes before the full terrain work (C10).
+   - 6c slice 0 is split into parts that ship on their own (C11).
+   - `VillageLayout` retires only behind a joint migration and evolution gate with 7a/6d (C12).
+   - Shared UI extraction, schematic interchange and shape promotion wait for an observed need.
+3. **Change history before autonomy.** Before Autonomous or Full act on their own (automatic updates, proposals carried out), these are needed:
+   - The change log records **operations**: the affected sites, the versions before and after, the outcome, and how to recover.
+   - Any change can be reverted (a site back to its previous version), not only a whole project removed.
+   - A change that removes parts asks first; this is done for updates.
+   - Failed or partial projects stay in the inbox.
+   - Caller operation ids let an interrupted request be found again rather than paid for twice (C9).
+
+   This is how phase 3's gate ("the log can undo any change") is met.
+
+**Not adopted:** narrowing phase 3 to one loop first. Phase 3 keeps change requests, proposals, the steward walking and talking, and districts.
+
 ## Phases
 
 Each phase ends at a gate checked in a dev client (DevBridge), never in a real world, using an independent gate-verifier.
@@ -339,7 +380,7 @@ operators, macro checker. Terrain operators only ever go through Architect's sna
 Progression tier, read-only perception tools, event triggers, steward proposals, free-text change requests, delta preview and apply,
 permission levels, inbox/HUD/hub.
 - **Gate:** advancing a tier produces a sensible proposal; an approved patch applies only the delta; each permission level
-  behaves as specified; the log can undo any change.
+  behaves as specified; the log can undo any change (operations with versions and recovery, revert, demolition asks first: "Reviews (2026-10-09)").
 
 ### Phase 4: Difficulty modes and economy
 Supplied and Hardcore on Architect survival sites, stockpile and requests, Economy unlocks.

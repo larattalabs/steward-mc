@@ -48,7 +48,7 @@ public final class UpdatePlanner {
 	 */
 	public static Plan plan(String building, DeltaVerdict v, Permission p, dev.larattalabs.steward.model.@org.jspecify.annotations.Nullable Claim claim) {
 		PlayerEdits edits = editsFor(p);
-		if (v.ok() && claim != null && v.box() != null && !claim.containsBox(claim.dimension(), v.box().minX(), v.box().minY(), v.box().minZ(), v.box().maxX(), v.box().maxY(),
+		if (v.ok() && claim != null && knownBox(v) && !claim.containsBox(claim.dimension(), v.box().minX(), v.box().minY(), v.box().minZ(), v.box().maxX(), v.box().maxY(),
 			v.box().maxZ())) {
 			return new Plan(Action.BLOCKED, building + " cannot be updated: the new version reaches outside the settlement's claim (expand the claim first).", edits);
 		}
@@ -65,6 +65,15 @@ public final class UpdatePlanner {
 		boolean removes = v.parts().values().stream().anyMatch(d -> d.status() == PartStatus.REMOVED);
 		boolean ask = costs || p.needsApproval(Permission.Action.UPGRADE) || (removes && p.needsApproval(Permission.Action.DEMOLISH));
 		return new Plan(ask ? Action.ASK : Action.APPLY, text, edits);
+	}
+
+	/**
+	 * Whether the verdict says where it writes. Architect 1.8 returns the empty box at the origin when its check has no write box (seen live: a one-lantern
+	 * delta came back with box 0,0,0..0,0,0), so that box means unknown, not "writes at the origin".
+	 */
+	static boolean knownBox(DeltaVerdict v) {
+		var b = v.box();
+		return b != null && !(b.minX() == 0 && b.minY() == 0 && b.minZ() == 0 && b.maxX() == 0 && b.maxY() == 0 && b.maxZ() == 0);
 	}
 
 	/** "3 parts changed (roof, porch, +wing), 2 cells kept, needs 140 dirt, refunds 80 planks". */

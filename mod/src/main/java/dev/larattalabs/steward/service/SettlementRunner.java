@@ -704,7 +704,8 @@ public final class SettlementRunner {
 					if (err != null) feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
 				});
 			case Pipeline.CancelBible cb -> {
-				if (bibleJobId != null) {
+				if (bibleJobId != null && api.bibles().job(bibleJobId).isEmpty()) later.add(new Pipeline.CancelConfirmed());
+				else if (bibleJobId != null) {
 					String id = bibleJobId;
 					api.bibles().cancel(id);
 					// a job that ended before the cancel reached it sends no second event: read it
@@ -713,7 +714,9 @@ public final class SettlementRunner {
 			}
 			case Pipeline.CancelGroup g -> {
 				String id = g.groupId() != null ? g.groupId() : groupId;
-				if (id != null) api.designs().cancelGroup(id).whenComplete((v, err) -> {
+				// Architect no longer has it (a restart lost it): nothing runs
+				if (id != null && api.designs().group(id).isEmpty()) later.add(new Pipeline.CancelConfirmed());
+				else if (id != null) api.designs().cancelGroup(id).whenComplete((v, err) -> {
 					// the group as it stands now: cancelled (or ended before the cancel), else its update comes as an event
 					var now = api.designs().group(id);
 					if (now.isEmpty()) feed(new Pipeline.CancelConfirmed());
@@ -724,7 +727,8 @@ public final class SettlementRunner {
 			case Pipeline.FitAndQueue f -> fitAndQueue(f.autoApprove());
 			case Pipeline.ApproveStages a -> approveStages();
 			case Pipeline.CancelBatch cb -> {
-				if (batchId != null) cancelBatch(batchId);
+				if (batchId != null && api.sites(server).batch(batchId).isEmpty()) later.add(new Pipeline.CancelConfirmed());
+				else if (batchId != null) cancelBatch(batchId);
 				else if (!queueInFlight) later.add(new Pipeline.CancelConfirmed());
 			}
 			case Pipeline.Notify n -> {
