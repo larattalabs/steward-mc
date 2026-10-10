@@ -149,3 +149,14 @@ Answers to Steward's questions:
 - **C15, the shared UI library:** a new public repository and who owns it are Noah's call. Architect takes it to Noah and coordinates with AgentCraft Main.
 
 **Status (2026-10-10):** Architect published v0.12.0 (API 1.9.0, phase 6b: region previews, check and design, nudge, volume survey, IR format 2, `PlaceRequest.pathStyle`, `Reason.PLAYER_BLOCKS`). Next: v0.12.1 (lab-ui switch, no API change), then slice 0a with the stub sidecar first. Steward stays on 0.11.2: what 3f uses (`placeRoad`, `checkRoad`) dates from API 1.5.0. Steward's protected areas (C17's Steward side) are built: its layouts and roads keep off them, and they become Architect write bounds when 0c ships.
+
+## Slice 0a contract review (2026-10-10)
+
+Architect's 0a contract (architect-mc `docs/CONTRACT.md`, "Phase 6c slice 0a") is frozen with Steward's answers:
+- **S-0a-1:** a scripted card in `ext["architect:simAnswer"]`, validated against the schema, is enough for `e2e.mjs stub`. Once v0.12.2 is tagged, `run-e2e-client.sh` switches to `ARCHITECT_SIDECAR_BACKEND=sim` with `simCosts: "measured"`.
+- **S-0a-2:** for approval ghosts, the same rotation and an origin within ±2 are good enough.
+- **S-0a-3:** the first group that pins a bible version carries its cost; the bible line names the job ids it counts, so Steward does not count that cost twice.
+- **S-0a-4:** a key re-used with a different body fails with `OP_KEY_CONFLICT`.
+- **S-0a-5:** Greywater's 70 minutes were wall clock, including the approvals, two design waves and placement. The time estimate is recorded beside it, not judged against it.
+
+v0.12.2, the sim stub, is built first and Architect says when it is tagged. The rest of 0a comes as v0.13.0, API 1.10.0.
