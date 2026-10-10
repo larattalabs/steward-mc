@@ -9,8 +9,12 @@ It is a **sibling mod to Architect** (`larattalabs/architect-mc`). Architect is 
 construction engine. Steward is the director on top: concept, site, layout, a standing NPC, proactive upgrades,
 functional modules, villagers, animals, an inbox. Steward depends on Architect and does not copy it.
 
-Status (2026-10-09): written 2026-10-05; **phase 1 is done** (gate passed, Noah; the whole flow runs in a dev client through in-game screens). Update available
-and the free e2e check are built. Independent reviews found budget, cancel and ownership bugs, fixed in a hardening slice (see "Reviews (2026-10-09)"). Phase 3 is next.
+Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah). The hardening slice from the GPT reviews is done. **Phase 3 is under way:**
+- **3a: done.** The change log as operations, save migrations, the settlement screen, and a read-only building panel.
+- **3b: done**, except conversation. The steward is its own mob with its own skin. It walks to its work and comes to find you when a decision waits. It sits and sleeps. It has a nameplate, a "!" and speech bubbles, ported from AgentCraft onto lab-ui.
+- **3c: revert is done.** Change requests wait for Architect 0b.
+
+The free e2e check runs 19 checks.
 
 ## Principles
 
@@ -368,12 +372,12 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - The change log becomes operations: sites, versions before and after, the outcome, how to recover.
      - Save format versions and migrations: old-world fixtures and a backup before a migration. Districts, operations, copies and the new steward entity all change the saves.
      - The settlement screen and a read-only building panel.
-   - **3b. The steward as a character.**
+   - **3b. The steward as a character** (done 2026-10-10 apart from conversation; AgentCraft's skin tooling, poses, look-at, come-find-you, seats and nights, nameplate and "!" ported):
      - Its own mob entity replaces the mannequin, with a migration.
      - Nameplate, "!", speech bubbles, on lab-ui (they wait for its v0.1.0; the entity, walking and conversation do not).
      - Walking to the building it works on.
      - Conversation by right-click.
-   - **3c. Change requests and revert.**
+   - **3c. Change requests and revert** (revert done 2026-10-10):
      - **Revert now:** a building goes back to an earlier version with `Sites.revert`, and Steward pins the versions its change log refers to (Architect 0a caller pins).
      - **Change requests with Architect 0b** (`DesignRequest.versionOf`): free text scoped to a building or the settlement becomes the next version of the building's design, previewed as a delta ghost, applied, and revertible.
    - **3d. In-world interface.** Building labels, survey mode, labelled massings, the settlement board, the ledger.

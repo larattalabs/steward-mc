@@ -169,4 +169,7 @@ line (action, reason, write box).
 
 `node tools/e2e.mjs stub` runs the whole flow against Architect's stub helper; it works once Architect's slice 0a ships the stub (C4).
 
-Last run: 2026-10-09, after the hardening slice: **PASS 11 checks**.
+Since then: the save format, the settlement screen and building panel, revert, the steward entity (walking to an updated building, sitting on a stair, sleeping in
+a bed, a migrated old mannequin), its nameplate with the "!" and its speech bubble, each with a screenshot in `artifacts/shots/`.
+
+Last run: 2026-10-10: **PASS 19 checks**.

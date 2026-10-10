@@ -34,8 +34,8 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 - **Java:** from `mod/`, `JAVA_HOME=/opt/homebrew/opt/openjdk@25 GRADLE_USER_HOME=$PWD/../.gradle-home ./gradlew build --offline` (compile, unit tests, jar).
   Architect and lab-ui come from Maven Local (`./gradlew publishToMavenLocal` in each) or GitHub Packages (a token with `read:packages`).
 - **Tools:** `npm test` (the concept card schema against the fixtures).
-- **End to end ($0):** `node tools/e2e.mjs free`, after the jar is built. It runs its own client and checks the claim, the steward, Expand, the screens, an
-  update, revert, undo, a migrated old steward and a restored build; results in `artifacts/e2e/summary.json`, screenshots in `artifacts/shots/`. It refuses
+- **End to end ($0):** `node tools/e2e.mjs free`, after the jar is built. It runs its own client and checks the claim, the steward (its nameplate, bubble and "!"), Expand,
+  the screens, an update (the steward walks to it), revert, undo, the steward sitting and sleeping, a migrated old steward and a restored build; results in `artifacts/e2e/summary.json`, screenshots in `artifacts/shots/`. It refuses
   to start while the claude-login opt-in exists or another Steward client uses `mod/run`. `node tools/e2e.mjs stub` waits for Architect slice 0a's stub.
 - **Art:** `uv run --with pillow==11.3.0 python assets-src/build.py --verify`, then `--sync` to copy into the mod.
 - **Dev client:** `./gradlew runClient --offline` from `mod/`; drive it with `node ../architect-mc/tools/devcli.mjs ... --port 8491` and
