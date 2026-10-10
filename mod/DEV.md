@@ -93,3 +93,17 @@ delete it afterwards), and the client must start from a scrubbed environment so 
   site groups, placed sites; not finished batches): re-read the group, wait for the batch, adopt a running batch, finish from the batch or from this build's sites (every placed item carries
   `ext.steward_mc:build`, so an earlier build's sites never count), queue again, or tell the player the restart interrupted a request. A finished build logs PROJECT_PLACED with its site ids on the
   settlement; what the steward said while its player was away is delivered when they join. Settlements now load at SERVER_STARTING too.
+
+## Live check (2026-10-09, Opus review follow-up)
+Dev client, claude login, two card runs ($0.043 total), everything else $0:
+- **Restart:** a builds file with one build at massing approval was restored at SERVER_STARTING (logged before Architect's placement queue loaded), re-synced on the first tick
+  (`REREAD_GROUP`; the fake group was reported as interrupted), and both messages reached the player on join. `/steward cancel` dropped it from `steward-builds.json`.
+- **Decision commands:** `status`, `approve`, `redirect`, `cancel` answer as designed. A refused approval used to leave the pipeline past the decision; it now forgets the decision and
+  re-reads the group (only where the player decides, so automatic approvals cannot loop).
+- **Card program:** the crater prompt (`fixtures/real/crater_works_program.json`, $0.028) gave a sound program but echoes the system prompt's worked example, so it proves little. An unseen
+  prompt, "a quiet lakeside town of glassblowers and lantern makers" (`fixtures/real/lantern_shore_program.json`, $0.015), gave a glassworks landmark, glassblower and lantern-maker
+  workshops, artisan cottages, a market, an inn and a boathouse: specific to the place, no generic chapel.
+- **Steward NPC:** spawning through the summon command failed when run from inside a command (`/steward claim`): vanilla queues a nested command until the outer one ends, so the
+  entity was missing when checked and was never named. The mannequin is now loaded from entity data and added in Java. Checked: named gold "Steward", tagged, the claim says it appeared.
+  The right-click itself still cannot be driven from DevBridge.
+

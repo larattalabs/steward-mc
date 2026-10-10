@@ -4,11 +4,16 @@ import dev.larattalabs.steward.Steward;
 import dev.larattalabs.steward.model.Settlement;
 import dev.larattalabs.steward.service.SettlementRunner;
 import dev.larattalabs.steward.service.Settlements;
-import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.ChatFormatting;
-import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.StringTag;
+import net.minecraft.resources.Identifier;
+import net.minecraft.world.entity.EntitySpawnReason;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -17,7 +22,6 @@ import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.decoration.Mannequin;
-import net.minecraft.world.phys.AABB;
 
 /**
  * The steward as a world citizen: vanilla's persistent, player-shaped {@code minecraft:mannequin} entity, tagged with its settlement. It is saved with the world, survives relogs and is
@@ -59,29 +63,40 @@ public final class StewardNpc {
 	}
 
 	/**
-	 * Spawns the steward for a settlement at {@code at}. The summon command is the supported way to set a mannequin's {@code immovable} and {@code hide_description} (their setters are
-	 * private); the name is set in Java afterwards, and the result is checked by finding the tagged entity, since a rejected summon does not throw.
+	 * Spawns the steward for a settlement at {@code at}. The mannequin is loaded from entity data, the supported way to set its {@code immovable} and
+	 * {@code hide_description} (their setters are private), then named and added in Java. (Not through the summon command: run from inside another command,
+	 * such as {@code /steward claim}, vanilla queues it until that command ends, so the entity did not exist yet when we looked for it.)
 	 */
 	public static boolean spawn(ServerLevel level, BlockPos at, Settlement s) {
-		String settlementTag = SETTLEMENT_TAG_PREFIX + s.id();
-		String cmd = String.format("summon minecraft:mannequin %d %d %d {immovable:1b,hide_description:1b,Invulnerable:1b,Tags:[\"%s\",\"%s\"]}",
-			at.getX(), at.getY(), at.getZ(), TAG, settlementTag);
+		CompoundTag tag = new CompoundTag();
+		tag.putBoolean("immovable", true);
+		tag.putBoolean("hide_description", true);
+		tag.putBoolean("Invulnerable", true);
+		ListTag tags = new ListTag();
+		tags.add(StringTag.valueOf(TAG));
+		tags.add(StringTag.valueOf(SETTLEMENT_TAG_PREFIX + s.id()));
+		tag.put("Tags", tags);
 		try {
-			CommandSourceStack src = level.getServer().createCommandSourceStack().withLevel(level).withSuppressedOutput();
-			level.getServer().getCommands().performPrefixedCommand(src, cmd);
+			var type = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace("mannequin"));
+			Entity e = EntityType.loadEntityRecursive(type, tag, level, EntitySpawnReason.EVENT, x -> {
+				x.snapTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, 0, 0);
+				return x;
+			});
+			if (!(e instanceof Mannequin m)) {
+				Steward.LOGGER.error("the steward of {} could not be made (got {})", s.id(), e);
+				return false;
+			}
+			m.setCustomName(Component.literal("Steward").withStyle(ChatFormatting.GOLD));
+			m.setCustomNameVisible(true);
+			if (!level.addFreshEntity(m)) {
+				Steward.LOGGER.error("the steward of {} could not be added at {}", s.id(), at);
+				return false;
+			}
+			return true;
 		} catch (RuntimeException e) {
-			Steward.LOGGER.error("could not spawn the steward: {}", e.toString());
+			Steward.LOGGER.error("could not spawn the steward of {}: {}", s.id(), e.toString());
 			return false;
 		}
-		List<Mannequin> found = level.getEntitiesOfClass(Mannequin.class, new AABB(at).inflate(2), m -> m.entityTags().contains(settlementTag));
-		if (found.isEmpty()) {
-			Steward.LOGGER.error("the steward of {} did not appear at {} (summon rejected)", s.id(), at);
-			return false;
-		}
-		Mannequin m = found.get(0);
-		m.setCustomName(Component.literal("Steward").withStyle(ChatFormatting.GOLD));
-		m.setCustomNameVisible(true);
-		return true;
 	}
 
 	static void talk(ServerPlayer p, Entity npc) {

@@ -486,8 +486,17 @@ public final class SettlementRunner {
 				a.redirect().forEach((k, v) -> { if (decided.add(k)) redirect.put(k, v); });
 				List<String> cancel = a.cancel().stream().filter(decided::add).toList();
 				if (approve.isEmpty() && redirect.isEmpty() && cancel.isEmpty()) break;
-				api.designs().approveGroup(a.groupId(), approve, redirect, cancel, settlement.owner())
-					.whenComplete((r, err) -> { if (err != null) say("Approve failed: " + err.getMessage()); });
+				api.designs().approveGroup(a.groupId(), approve, redirect, cancel, settlement.owner()).whenComplete((r, err) -> {
+					if (err == null) return;
+					say("Architect did not take that decision: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
+					// automatic approvals are not retried (a refusal would repeat on every update)
+					if (!permission.needsApproval(Permission.Action.NEW_PROJECT)) return;
+					// the player's decision: forget it and re-read the group, so the pipeline waits for it again instead of moving on
+					approve.forEach(decided::remove);
+					redirect.keySet().forEach(decided::remove);
+					cancel.forEach(decided::remove);
+					api.designs().group(a.groupId()).ifPresent(this::onGroup);
+				});
 			}
 			case Pipeline.ExtendAndResumeGroup e -> api.designs().extendGroup(e.groupId(), e.newBudgetUsd()).thenCompose(v -> api.designs().resumeGroup(e.groupId()));
 			case Pipeline.CancelGroup g -> api.designs().cancelGroup(g.groupId());

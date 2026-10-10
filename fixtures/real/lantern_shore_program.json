@@ -1,0 +1,104 @@
+{
+  "prompt": "a quiet lakeside town of glassblowers and lantern makers, warm light at night, no walls",
+  "card": {
+    "name": "Lantern Shore",
+    "site": {
+      "text": "a quiet town on the shore of a lake, open to the water, no walls",
+      "template": "waterfront",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "warm, cozy, glowing lantern light at night, glass and timber, soft amber palette",
+      "template": null
+    },
+    "purpose": {
+      "text": "a craft town of glassblowers and lantern makers",
+      "template": null
+    },
+    "program": [
+      {
+        "role": "glassblowers' hall",
+        "type": "glassworks",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Furnace hall with glass-roofed kiln, chimneys, display of colored glass; lit warmly at night."
+      },
+      {
+        "role": "glassblower's workshop",
+        "type": "workshop",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Small kiln, glass panes in windows, shelves of bottles."
+      },
+      {
+        "role": "lantern maker's workshop",
+        "type": "workshop",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Hanging lanterns under eaves, workbenches, stacks of finished lanterns."
+      },
+      {
+        "role": "artisan cottage",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Homes for craftspeople, each with a lantern at the door and glass windows."
+      },
+      {
+        "role": "lakeside market stall",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Sells glass and lanterns, open front facing the water."
+      },
+      {
+        "role": "quiet inn",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Cozy, warm-lit, with a terrace over the lake."
+      },
+      {
+        "role": "fishing dock and boathouse",
+        "type": "boathouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Pier with moored boats and hanging lanterns."
+      }
+    ],
+    "constraints": {
+      "near": "search",
+      "density": "low",
+      "difficulty": "patron"
+    },
+    "avoid": [
+      "walls",
+      "fortifications"
+    ],
+    "story": {
+      "text": ""
+    },
+    "interpretation": "A small, peaceful town on a lake shore with open edges and no walls. Its look is warm and glowing, built around glass and lantern light. Its purpose is crafting glass and lanterns, so the buildings are workshops, homes, a market, an inn and a dock.",
+    "contradictions": [],
+    "assumptions": [
+      "Size S-M, about 12 buildings, low density for a quiet feel.",
+      "Terrain: use an existing lakeshore rather than sculpting.",
+      "Location: searched for a suitable lake, not tied to spawn.",
+      "Style uses a custom warm glass-and-timber look, not a template.",
+      "No backstory was given, so none was added."
+    ]
+  },
+  "meta": {
+    "run": "2026-10-09 live, Java path /steward card, Sonnet, claude login",
+    "costUsd": 0.014887,
+    "turns": 2,
+    "note": "a prompt unlike the system prompt's example: checks that the program is specific to the settlement"
+  }
+}

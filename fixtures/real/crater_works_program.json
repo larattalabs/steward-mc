@@ -1,0 +1,101 @@
+{
+  "prompt": "repurposed giant meteor crater mining facility, hellish evil lair",
+  "card": {
+    "name": "The Brimstone Pit",
+    "site": {
+      "text": "giant meteor crater",
+      "template": null,
+      "terrain": "sculpt"
+    },
+    "style": {
+      "text": "hellish evil lair",
+      "template": "infernal"
+    },
+    "purpose": {
+      "text": "mining facility",
+      "template": "mining_outpost"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "program": [
+      {
+        "role": "overseer's keep",
+        "type": "tower",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Jagged dark fortress on the crater rim overlooking the pit; lava-lit windows, spikes, banners."
+      },
+      {
+        "role": "slag foundry",
+        "type": "slag_foundry",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Smelts ore with lava channels and chimneys; glows red, vents smoke."
+      },
+      {
+        "role": "ore crusher",
+        "type": "ore_crusher",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Hoppers, pistons and grindstones processing meteor ore; sits on terraces."
+      },
+      {
+        "role": "mine head",
+        "type": "mine_head",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Winch and scaffold headframe over the central shaft at the crater floor."
+      },
+      {
+        "role": "worker barracks",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Cramped blackstone bunks with iron bars, set into the crater slope."
+      },
+      {
+        "role": "brimstone shrine",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Dark altar to the lair's master, nether brick, soul fire and skulls."
+      },
+      {
+        "role": "ore storehouse",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stockpiles of ingots and raw ore behind iron doors and guarded."
+      }
+    ],
+    "interpretation": "I read the site as a giant meteor crater sculpted into the land, the look as a hellish evil lair in an infernal style (nether brick, blackstone, lava glow), and the purpose as a working mining facility. \"Repurposed\" is kept as the idea that the crater is reused by a dark master, though I added no backstory. The program centres on an overseer's keep on the rim, with foundry, crushers, mine head and barracks down the slopes.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, about 10 buildings, fitting a 64-block claim radius.",
+      "Medium density.",
+      "No tavern or chapel beyond a dark shrine, since it is an evil lair.",
+      "Placement is searched for a spot with room for the crater.",
+      "Story left empty since none was given beyond 'repurposed'."
+    ]
+  },
+  "meta": {
+    "run": "2026-10-09 live, Java path /steward describe, Sonnet, claude login",
+    "costUsd": 0.02777,
+    "turns": 2,
+    "note": "the prompt's own worked example: the program echoes it closely, so this fixture checks schema validity, not generalisation"
+  }
+}
