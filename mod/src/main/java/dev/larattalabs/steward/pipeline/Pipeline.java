@@ -21,8 +21,9 @@ public final class Pipeline {
 	}
 
 	public enum Phase {
-		AWAITING_CARD_APPROVAL, BIBLE_RUNNING, AWAITING_BIBLE_APPROVAL, GROUP_RUNNING, AWAITING_MASSING_APPROVAL, READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING, DONE, FAILED,
-		CANCELLED;
+		AWAITING_CARD_APPROVAL, BIBLE_RUNNING, AWAITING_BIBLE_APPROVAL, GROUP_RUNNING, AWAITING_MASSING_APPROVAL, READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING,
+		/** Cancelled by the player, waiting for Architect to stop what it runs (a bible job, the group, the batch's rollback): the build keeps its slot. */
+		CANCELLING, DONE, FAILED, CANCELLED;
 
 		public boolean terminal() {
 			return this == DONE || this == FAILED || this == CANCELLED;
@@ -64,6 +65,10 @@ public final class Pipeline {
 			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, b, false, heldNote, failure);
 		}
 
+		State paused(double budget) {
+			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budget, true, heldNote, failure);
+		}
+
 		State failed(String why) {
 			return new State(Phase.FAILED, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, why);
 		}
@@ -71,7 +76,8 @@ public final class Pipeline {
 
 	// ------------------------------------------------------------------ events
 
-	public sealed interface Event permits CardApproved, BibleDone, BibleApproved, GroupUpdate, MassingDecision, BudgetRaised, BatchQueued, PlacementApproved, BatchDone, Cancel {}
+	public sealed interface Event permits CardApproved, BibleDone, BibleApproved, GroupUpdate, MassingDecision, BudgetRaised, BudgetRaiseFailed, BatchQueued, PlacementApproved,
+		BatchDone, Cancel, CancelConfirmed {}
 
 	/** The player approved (or edited and approved) the concept card. */
 	public record CardApproved(ConceptCard card) implements Event {}
@@ -92,6 +98,9 @@ public final class Pipeline {
 
 	public record BudgetRaised(double newBudgetUsd) implements Event {}
 
+	/** Architect did not take a raise (extend or resume failed): the budget goes back and the build stays paused. */
+	public record BudgetRaiseFailed(double previousBudgetUsd, String why) implements Event {}
+
 	/** Architect accepted the placement batch (its stages wait for approval unless the permission level places them as they come). */
 	public record BatchQueued(String batchId) implements Event {}
 
@@ -100,11 +109,16 @@ public final class Pipeline {
 
 	public record BatchDone(int placed, int skipped) implements Event {}
 
+	/** The player cancelled; a second cancel while cancelling stops waiting for Architect. */
 	public record Cancel() implements Event {}
+
+	/** Nothing of this build runs at Architect any more (its cancellation finished, or there was nothing to stop). */
+	public record CancelConfirmed() implements Event {}
 
 	// ---------------------------------------------------------------- commands
 
-	public sealed interface Command permits RequestBible, RequestGroup, ApproveGroup, ExtendAndResumeGroup, FitAndQueue, ApproveStages, CancelGroup, CancelBatch, Notify {}
+	public sealed interface Command permits RequestBible, RequestGroup, ApproveGroup, ExtendAndResumeGroup, FitAndQueue, ApproveStages, CancelBible, CancelGroup, CancelBatch,
+		Notify {}
 
 	public record RequestBible(String prompt, String name, double budgetUsd) implements Command {}
 
@@ -113,7 +127,8 @@ public final class Pipeline {
 
 	public record ApproveGroup(String groupId, List<String> approve, Map<String, String> redirect, List<String> cancel) implements Command {}
 
-	public record ExtendAndResumeGroup(String groupId, double newBudgetUsd) implements Command {}
+	/** {@code groupBudgetUsd} is the group's own cap: the project's budget less what the bible cost (Architect counts the group without it). */
+	public record ExtendAndResumeGroup(String groupId, double groupBudgetUsd, double previousBudgetUsd) implements Command {}
 
 	/** Fit every designed lot with fitToLot and queue the placement batch; {@code autoApprove} places stages as they come. */
 	public record FitAndQueue(String groupId, boolean autoApprove) implements Command {}
@@ -121,7 +136,11 @@ public final class Pipeline {
 	/** Approve every planned stage of the queued batch, in order. */
 	public record ApproveStages() implements Command {}
 
-	public record CancelGroup(String groupId) implements Command {}
+	/** Stop the style bible job (the adapter knows its id; one that is acknowledged later is cancelled on arrival). */
+	public record CancelBible() implements Command {}
+
+	/** {@code groupId} is null when the group's ack has not come yet: the adapter cancels it on arrival. */
+	public record CancelGroup(@Nullable String groupId) implements Command {}
 
 	/** Stop the placement batch (what is placed stays; the change log can undo it). */
 	public record CancelBatch() implements Command {}
@@ -139,12 +158,7 @@ public final class Pipeline {
 
 	public static Step step(State s, Event e, Permission perm) {
 		if (s.phase().terminal()) return Step.of(s);
-		if (e instanceof Cancel) {
-			State c = s.with(Phase.CANCELLED);
-			Notify n = new Notify("Cancelled " + label(s), false);
-			if (s.phase() == Phase.AWAITING_PLACEMENT_APPROVAL || s.phase() == Phase.PLACING) return Step.of(c, new CancelBatch(), n);
-			return s.groupId() != null ? Step.of(c, new CancelGroup(s.groupId()), n) : Step.of(c, n);
-		}
+		if (e instanceof Cancel) return cancel(s);
 		return switch (s.phase()) {
 			case AWAITING_CARD_APPROVAL -> e instanceof CardApproved a ? cardApproved(s, a) : Step.of(s);
 			case BIBLE_RUNNING -> e instanceof BibleDone b ? bibleDone(s, b, perm) : Step.of(s);
@@ -152,7 +166,11 @@ public final class Pipeline {
 			case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> switch (e) {
 				case GroupUpdate g -> groupUpdate(s, g, perm);
 				case MassingDecision d when s.phase() == Phase.AWAITING_MASSING_APPROVAL -> Step.of(s.with(Phase.GROUP_RUNNING), new ApproveGroup(s.groupId(), d.approve(), d.redirect(), d.cancel()));
-				case BudgetRaised b when s.groupId() != null -> Step.of(s.withBudget(b.newBudgetUsd()), new ExtendAndResumeGroup(s.groupId(), b.newBudgetUsd()));
+				// paused before the group was requested (the bible used the budget up): the raise requests it
+				case BudgetRaised b when s.groupId() == null && s.pausedForBudget() -> requestGroup(s.withBudget(b.newBudgetUsd()));
+				case BudgetRaised b when s.groupId() != null -> Step.of(s.withBudget(b.newBudgetUsd()),
+					new ExtendAndResumeGroup(s.groupId(), b.newBudgetUsd() - s.bibleCostUsd(), s.budgetUsd()));
+				case BudgetRaiseFailed f -> Step.of(s.paused(f.previousBudgetUsd()), new Notify("The budget could not be raised: " + f.why(), true));
 				default -> Step.of(s);
 			};
 			case READY_TO_PLACE -> switch (e) {
@@ -169,6 +187,37 @@ public final class Pipeline {
 				default -> Step.of(s);
 			};
 			case PLACING -> e instanceof BatchDone b ? built(s, b) : Step.of(s);
+			case CANCELLING -> cancelling(s, e);
+			default -> Step.of(s);
+		};
+	}
+
+	/**
+	 * Cancel: what runs at Architect is stopped first, and the build holds its slot (CANCELLING) until Architect says it stopped, so a second build cannot
+	 * spend alongside it and what a rolled-back batch placed is still logged for undo. Nothing running: cancelled at once.
+	 */
+	private static Step cancel(State s) {
+		Notify n = new Notify("Cancelling " + label(s) + "...", false);
+		return switch (s.phase()) {
+			case BIBLE_RUNNING -> Step.of(s.with(Phase.CANCELLING), new CancelBible(), n);
+			case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> s.groupId() == null && s.pausedForBudget()
+				? Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s), false))
+				: Step.of(s.with(Phase.CANCELLING), new CancelGroup(s.groupId()), n);
+			case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING -> Step.of(s.with(Phase.CANCELLING), new CancelBatch(), n);
+			// a second cancel: stop waiting for Architect (it said nothing back)
+			case CANCELLING -> Step.of(s.with(Phase.CANCELLED), new Notify("Stopped waiting for Architect; " + label(s) + " is cancelled.", false));
+			default -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s), false));
+		};
+	}
+
+	private static Step cancelling(State s, Event e) {
+		return switch (e) {
+			case BibleDone b -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + ".", false));
+			case GroupUpdate g when List.of("done", "failed", "cancelled").contains(g.status()) ->
+				Step.of(s.withProgress(g.items(), s.bibleCostUsd() + g.costUsd(), false, null).with(Phase.CANCELLED), new Notify(String.format("Cancelled %s (spent $%.2f).",
+					label(s), s.bibleCostUsd() + g.costUsd()), false));
+			case BatchDone b -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + (b.placed() > 0 ? ": " + b.placed() + " buildings placed before it stopped stay (undo removes them)." : "."), false));
+			case CancelConfirmed c -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + ".", false));
 			default -> Step.of(s);
 		};
 	}
@@ -197,8 +246,8 @@ public final class Pipeline {
 
 	private static Step cardApproved(State s, CardApproved a) {
 		State n = new State(Phase.BIBLE_RUNNING, s.settlementId(), a.card(), null, null, null, Map.of(), 0, 0, s.budgetUsd(), false, null, null);
-		// the bible is a small share of the budget: its measured cost is $1.2-2.0
-		return Step.of(n, new RequestBible(biblePrompt(a.card()), a.card().name() == null ? s.settlementId() : a.card().name(), BudgetPolicy.BIBLE_HIGH * 1.5));
+		// the bible is a small share of the budget (its measured cost is $1.2-2.0), never more than the whole of it
+		return Step.of(n, new RequestBible(biblePrompt(a.card()), a.card().name() == null ? s.settlementId() : a.card().name(), Math.min(BudgetPolicy.BIBLE_HIGH * 1.5, s.budgetUsd())));
 	}
 
 	private static Step bibleDone(State s, BibleDone b, Permission perm) {
@@ -210,8 +259,17 @@ public final class Pipeline {
 		return requestGroup(n);
 	}
 
+	/** The smallest group budget worth requesting (a little more than one massing). */
+	static final double MIN_GROUP_USD = 0.5;
+
 	private static Step requestGroup(State s) {
-		double groupBudget = Math.max(0, s.budgetUsd() - s.spentUsd());
+		double groupBudget = s.budgetUsd() - s.spentUsd();
+		// the bible used the budget up: pause before asking Architect for anything (a raise requests the group)
+		if (groupBudget < MIN_GROUP_USD) {
+			State p = s.with(Phase.GROUP_RUNNING).paused(s.budgetUsd());
+			return Step.of(p, new Notify(String.format("The style bible used $%.2f of the $%.0f budget, which leaves too little to design. Raise the budget to at least $%.0f to continue.",
+				s.spentUsd(), s.budgetUsd(), minimumRaise(p)), true));
+		}
 		return Step.of(s.with(Phase.GROUP_RUNNING), new RequestGroup(s.bibleId(), s.bibleVersion(), groupBudget));
 	}
 

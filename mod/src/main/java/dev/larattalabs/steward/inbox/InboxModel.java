@@ -86,6 +86,7 @@ public final class InboxModel {
 			case PLACING, AWAITING_PLACEMENT_APPROVAL -> "Placing the settlement.";
 			case DONE -> "Built.";
 			case FAILED -> "Failed.";
+			case CANCELLING -> "Cancelling: waiting for Architect to stop.";
 			case CANCELLED -> "Cancelled.";
 		};
 	}

@@ -118,6 +118,11 @@ public final class SettlementRunner {
 		if (!builds.all().isEmpty()) Steward.LOGGER.info("restored {} unfinished build(s)", builds.all().size());
 	}
 
+	/** Whether builds can be saved in this world (its builds file was readable): a build that cannot be saved is not started, since a restart could spend twice. */
+	public static boolean canSave() {
+		return buildsFile != null;
+	}
+
 	/** Whether a settlement has a runner that has not finished (a second one would spend twice). */
 	public static boolean busy(String settlementId) {
 		SettlementRunner r = ACTIVE.get(settlementId);
@@ -187,7 +192,7 @@ public final class SettlementRunner {
 
 	/** Raises the design budget and resumes a group paused at its soft budget. */
 	public String raise(double newBudgetUsd) {
-		if (state == null || state.groupId() == null) return "There is no design group to fund yet.";
+		if (state == null || (state.groupId() == null && !state.pausedForBudget())) return "There is no design group to fund yet.";
 		if (newBudgetUsd <= state.budgetUsd()) return String.format("The budget is already $%.0f; give a higher one.", state.budgetUsd());
 		// the soft pause is a share of the budget: a raise that leaves the spend above it pauses again at once (the phase 1 gate run did, from $30 to $35)
 		double atLeast = Pipeline.minimumRaise(state);
@@ -199,8 +204,11 @@ public final class SettlementRunner {
 
 	public String cancel() {
 		if (state == null || state.phase().terminal()) return "Nothing to cancel.";
+		boolean second = state.phase() == Pipeline.Phase.CANCELLING;
 		feed(new Pipeline.Cancel());
-		return "Cancelled. What is already placed stays (remove it with /steward undo " + settlement.id() + ").";
+		if (second) return "Stopped waiting for Architect.";
+		return state.phase() == Pipeline.Phase.CANCELLING ? "Cancelling: stopping what runs first. What is already placed stays (remove it with /steward undo " + settlement.id() + ")."
+			: "Cancelled.";
 	}
 
 	private final MinecraftServer server;
@@ -223,8 +231,19 @@ public final class SettlementRunner {
 	private Set<String> landmarkIds = Set.of();
 	/** The settlement id this runner holds in {@link #ACTIVE} while it is starting, before the settlement itself is known. */
 	private String claimedId;
-	/** lots already approved or redirected: Architect re-sends the awaiting status while an approval is in flight, and a second approve of the same item fails. */
+	/**
+	 * Massings already approved, redirected or cancelled, as {@code lot@massing id@version}: Architect re-sends the awaiting status while a decision is in
+	 * flight, and a second decision on the same massing fails. A redirect makes a new massing version, which is decided afresh.
+	 */
 	private final Set<String> decided = new java.util.HashSet<>();
+	/** Each lot's current massing ({@code id@version}), from the last group update. */
+	private final Map<String, String> massingRefs = new HashMap<>();
+	/** Requests sent whose acknowledgement has not come: a cancel in the meantime is carried out when it comes. */
+	private boolean bibleInFlight, groupInFlight, queueInFlight;
+	/** Events the runner raises itself while a step is being carried out; fed once it is done. */
+	private final java.util.ArrayDeque<Event> later = new java.util.ArrayDeque<>();
+	/** The world session the runner belongs to ({@link Session}). */
+	private final int session = Session.current();
 	/** The lots whose massings Architect last reported as awaiting approval. */
 	private List<String> lastAwaiting = List.of();
 	/** The Architect site group the placement batch made (finished batches are not kept across restarts; the group is). */
@@ -273,17 +292,25 @@ public final class SettlementRunner {
 	}
 
 	/** Saves the build (or drops it once finished). Called after every step and whenever an Architect id arrives. */
-	private void persist() {
-		if (settlement == null || state == null || plan == null) return;
+	private boolean persist() {
+		if (!alive()) return false;
+		if (settlement == null || state == null || plan == null) return true;
 		if (state.phase().terminal()) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
 			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting));
-		if (buildsFile == null) return;
+		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
+			return true;
 		} catch (java.io.IOException e) {
 			Steward.LOGGER.warn("could not save {}", buildsFile, e);
+			return false;
 		}
+	}
+
+	/** Whether this runner still owns its slot in the running world: a callback for a closed world, or for a runner replaced since, changes nothing. */
+	private boolean alive() {
+		return Session.is(session) && claimedId != null && ACTIVE.get(claimedId) == this;
 	}
 
 	/** After a restart: gather what Architect kept, let {@link ResyncRules} decide, and carry it out. Bible and group results also arrive as Architect's catch-up events. */
@@ -298,10 +325,21 @@ public final class SettlementRunner {
 		List<ResyncRules.StageSeen> stages = siteGroupId == null ? List.of() : sites.group(siteGroupId).map(g -> g.stages().stream()
 			.filter(st -> batchId == null || batchId.equals(st.batchId())).map(st -> new ResyncRules.StageSeen(st.name(), st.state().terminal())).toList()).orElse(List.of());
 		List<String> placed = placedSites(sites);
-		ResyncRules.Action action = ResyncRules.decide(state.phase(), bibleJobId != null, groupId != null, batchId != null, seen, running.isPresent(), stages, placed.size());
+		// no decision is in flight after a restart: one that reached Architect is no longer awaiting, one that did not is asked for (or made) again
+		decided.clear();
+		ResyncRules.Action action = ResyncRules.decide(state.phase(), bibleJobId != null, groupId != null, batchId != null, seen, running.isPresent(), stages, placed.size(),
+			state.groupId() == null && state.pausedForBudget());
 		Steward.LOGGER.info("resume {}: phase {}, batch {}, stages {}, placed {} -> {}", settlement.id(), state.phase(), seen, stages.size(), placed.size(), action);
 		switch (action) {
 			case NONE, WAIT_FOR_BATCH -> { }
+			case REREAD_BIBLE -> api.bibles().job(bibleJobId).ifPresentOrElse(j -> { if (j.finished()) onBibleDone(j); },
+				() -> interrupted("the style bible (Architect no longer has its job)"));
+			case RESUME_CANCEL -> {
+				if (batchId != null) execute(new Pipeline.CancelBatch());
+				else if (groupId != null) execute(new Pipeline.CancelGroup(groupId));
+				else if (bibleJobId != null) execute(new Pipeline.CancelBible());
+				else feed(new Pipeline.CancelConfirmed());
+			}
 			case REREAD_GROUP -> api.designs().group(groupId).ifPresentOrElse(this::onGroup, () -> interrupted("design group " + groupId + " (Architect no longer has it)"));
 			case ADOPT_RUNNING_BATCH -> {
 				batchId = running.get().id();
@@ -311,13 +349,13 @@ public final class SettlementRunner {
 			}
 			case FINISH_FROM_BATCH -> onBatchDone(batch.get());
 			case FINISH_FROM_SITES -> {
-				logPlaced(placedSites(sites, true), placed.size());
+				if (!logPlaced(placedSites(sites, true), placed.size())) { logFailed(); return; }
 				batchId = null;
 				feed(new Pipeline.BatchDone(placed.size(), Math.max(0, plan.lots().size() - placed.size())));
 			}
 			case REQUEUE -> fitAndQueue(!permission.needsApproval(Permission.Action.NEW_PROJECT));
 			case INTERRUPTED -> interrupted(switch (state.phase()) {
-				case BIBLE_RUNNING -> "the style bible request";
+				case BIBLE_RUNNING -> "the style bible request (it may still be made and charged)";
 				case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> "the design group request";
 				default -> "the placement";
 			});
@@ -350,9 +388,15 @@ public final class SettlementRunner {
 	}
 
 	/** Records the placed sites in the settlement's change log ({@code /steward undo} removes them). Dev builds are not saved settlements. */
-	private void logPlaced(List<String> siteIds, int buildings) {
-		if (siteIds.isEmpty() || Settlements.store().get(settlement.id()).isEmpty()) return;
-		Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings", siteIds, siteGroupId));
+	/** Returns false when the log could not be saved (the build then stays unfinished, so a restart logs it again from the sites). */
+	private boolean logPlaced(List<String> siteIds, int buildings) {
+		if (siteIds.isEmpty() || Settlements.store().get(settlement.id()).isEmpty()) return true;
+		return Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings", siteIds,
+			siteGroupId)).ok();
+	}
+
+	private void logFailed() {
+		say("Could not save the settlement's change log, so this build stays open (nothing is lost). Reopen the world to finish it.");
 	}
 
 	public State state() {
@@ -435,7 +479,8 @@ public final class SettlementRunner {
 				var d = ArchitectApi.get().designs();
 				if (resumeGroup.status() == Group.Status.DONE) { say("The group is already done; placing."); apply(Pipeline.step(state, new Pipeline.GroupUpdate(groupId, "done", Map.of(), List.of(), resumeGroup.cost().usd(), null), permission)); return; }
 				d.extendGroup(groupId, resumeBudget).thenCompose(v -> d.resumeGroup(groupId)).whenComplete((v, e) -> { if (e != null) say("Resume failed: " + e.getMessage()); });
-				for (Group.Item it : resumeGroup.items()) if (it.status() == dev.larattalabs.architect.api.Design.Status.DONE || it.stage().isPresent()) decided.add(it.itemKey());
+				noteMassings(resumeGroup);
+				for (Group.Item it : resumeGroup.items()) if (it.status() == dev.larattalabs.architect.api.Design.Status.DONE || it.stage().isPresent()) decided.add(decisionKey(it.itemKey()));
 				return;
 			}
 			state = State.start(settlement.id(), r.card(), budgetUsd);
@@ -470,9 +515,24 @@ public final class SettlementRunner {
 		// the massings show as ghosts on their lots while they wait for the player, and go when decided
 		if (state.phase() == Pipeline.Phase.AWAITING_MASSING_APPROVAL && before != Pipeline.Phase.AWAITING_MASSING_APPROVAL) showMassings(true);
 		if (before == Pipeline.Phase.AWAITING_MASSING_APPROVAL && state.phase() != Pipeline.Phase.AWAITING_MASSING_APPROVAL) hideMassings();
-		for (Command c : step.commands()) execute(c);
+		// saved before anything is asked of Architect: a crash after a request then restores a build that knows it asked (and says it was interrupted)
+		// rather than one that asks, and pays, again
+		boolean saved = persist();
+		if (!saved && step.commands().stream().anyMatch(SettlementRunner::spends)) {
+			say("Could not save the build, so nothing more is spent on it. Cancel it (/steward cancel " + state.settlementId() + ") and check the world's folder can be written.");
+			for (Command c : step.commands()) if (!spends(c)) execute(c);
+		} else {
+			for (Command c : step.commands()) execute(c);
+		}
 		persist();
 		sendInbox(server, playerId);
+		while (!later.isEmpty() && alive()) feed(later.poll());
+	}
+
+	/** Commands that ask Architect to spend on Claude or to change the world. */
+	private static boolean spends(Command c) {
+		return c instanceof Pipeline.RequestBible || c instanceof Pipeline.RequestGroup || c instanceof Pipeline.ExtendAndResumeGroup || c instanceof Pipeline.FitAndQueue
+			|| c instanceof Pipeline.ApproveStages;
 	}
 
 	/** The composite key the settlement's massing ghosts show under. */
@@ -574,7 +634,7 @@ public final class SettlementRunner {
 	}
 
 	private void feed(Event e) {
-		if (state == null) return;
+		if (state == null || !alive()) return;
 		apply(Pipeline.step(state, e, permission));
 	}
 
@@ -584,14 +644,17 @@ public final class SettlementRunner {
 			case Pipeline.RequestBible b -> {
 				say("Designing the style bible...");
 				BibleRequest req = new BibleRequest(b.prompt(), b.name(), settlement.owner(), new JsonObject(), null, b.budgetUsd(), List.of(), null, null);
+				bibleInFlight = true;
 				api.bibles().request(req).whenComplete((job, err) -> {
-					if (err != null) feed(new Pipeline.BibleDone(false, null, 0, 0, err.getMessage()));
-					else {
-						bibleJobId = job.id();
-						persist();
-						// the job as it stood at the ack: a fast or cached bible may already be done, and BIBLE_DONE fired before we knew its id
-						if (job.finished()) onBibleDone(job);
-					}
+					bibleInFlight = false;
+					if (err != null) { feed(new Pipeline.BibleDone(false, null, 0, 0, err.getMessage())); return; }
+					// cancelled while the request was on its way (or this runner belongs to a closed world): stop the job now
+					if (!alive() || state.phase().terminal()) { if (!job.finished()) api.bibles().cancel(job.id()); return; }
+					bibleJobId = job.id();
+					persist();
+					if (state.phase() == Pipeline.Phase.CANCELLING && !job.finished()) api.bibles().cancel(job.id());
+					// the job as it stood at the ack: a fast or cached bible may already be done, and BIBLE_DONE fired before we knew its id
+					if (job.finished()) onBibleDone(job);
 				});
 			}
 			case Pipeline.RequestGroup g -> {
@@ -599,21 +662,32 @@ public final class SettlementRunner {
 				GroupPlanner.Built built = GroupPlanner.build(settlement, plan, o);
 				landmarkIds = built.request().items().stream().filter(i -> i.role() == GroupRequest.Role.LANDMARK).map(GroupRequest.Item::itemKey).collect(Collectors.toSet());
 				say("Designing " + built.request().items().size() + " buildings (massings first)...");
+				groupInFlight = true;
 				api.designs().requestGroup(built.request()).whenComplete((id, err) -> {
-					if (err != null) { say("Group failed: " + err.getMessage()); feed(new Pipeline.Cancel()); }
-					else {
-						groupId = id;
-						persist();
-						// catch up on updates that fired before we knew the id (repeats are harmless: approvals are deduplicated)
-						api.designs().group(id).ifPresent(this::onGroup);
+					groupInFlight = false;
+					if (err != null) {
+						say("Group failed: " + err.getMessage());
+						// nothing reached Architect: the cancel finishes at once
+						feed(new Pipeline.Cancel());
+						return;
 					}
+					if (!alive() || state.phase().terminal()) { api.designs().cancelGroup(id); return; }
+					groupId = id;
+					persist();
+					if (state.phase() == Pipeline.Phase.CANCELLING) { execute(new Pipeline.CancelGroup(id)); return; }
+					// catch up on updates that fired before we knew the id (repeats are harmless: approvals are deduplicated)
+					api.designs().group(id).ifPresent(this::onGroup);
 				});
 			}
 			case Pipeline.ApproveGroup a -> {
-				List<String> approve = a.approve().stream().filter(decided::add).toList();
+				List<String> approve = a.approve().stream().filter(l -> decided.add(decisionKey(l))).toList();
 				Map<String, String> redirect = new LinkedHashMap<>();
-				a.redirect().forEach((k, v) -> { if (decided.add(k)) redirect.put(k, v); });
-				List<String> cancel = a.cancel().stream().filter(decided::add).toList();
+				a.redirect().forEach((k, v) -> { if (decided.add(decisionKey(k))) redirect.put(k, v); });
+				List<String> cancel = a.cancel().stream().filter(l -> decided.add(decisionKey(l))).toList();
+				Map<String, String> keys = new HashMap<>();
+				for (String l : approve) keys.put(l, decisionKey(l));
+				for (String l : redirect.keySet()) keys.put(l, decisionKey(l));
+				for (String l : cancel) keys.put(l, decisionKey(l));
 				if (approve.isEmpty() && redirect.isEmpty() && cancel.isEmpty()) break;
 				api.designs().approveGroup(a.groupId(), approve, redirect, cancel, settlement.owner()).whenComplete((r, err) -> {
 					if (err == null) return;
@@ -621,17 +695,38 @@ public final class SettlementRunner {
 					// automatic approvals are not retried (a refusal would repeat on every update)
 					if (!permission.needsApproval(Permission.Action.NEW_PROJECT)) return;
 					// the player's decision: forget it and re-read the group, so the pipeline waits for it again instead of moving on
-					approve.forEach(decided::remove);
-					redirect.keySet().forEach(decided::remove);
-					cancel.forEach(decided::remove);
+					keys.values().forEach(decided::remove);
 					api.designs().group(a.groupId()).ifPresent(this::onGroup);
 				});
 			}
-			case Pipeline.ExtendAndResumeGroup e -> api.designs().extendGroup(e.groupId(), e.newBudgetUsd()).thenCompose(v -> api.designs().resumeGroup(e.groupId()));
-			case Pipeline.CancelGroup g -> api.designs().cancelGroup(g.groupId());
+			case Pipeline.ExtendAndResumeGroup e -> api.designs().extendGroup(e.groupId(), e.groupBudgetUsd()).thenCompose(v -> api.designs().resumeGroup(e.groupId()))
+				.whenComplete((v, err) -> {
+					if (err != null) feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
+				});
+			case Pipeline.CancelBible cb -> {
+				if (bibleJobId != null) {
+					String id = bibleJobId;
+					api.bibles().cancel(id);
+					// a job that ended before the cancel reached it sends no second event: read it
+					api.bibles().job(id).filter(BibleJob::finished).ifPresent(this::onBibleDone);
+				} else if (!bibleInFlight) later.add(new Pipeline.CancelConfirmed());
+			}
+			case Pipeline.CancelGroup g -> {
+				String id = g.groupId() != null ? g.groupId() : groupId;
+				if (id != null) api.designs().cancelGroup(id).whenComplete((v, err) -> {
+					// the group as it stands now: cancelled (or ended before the cancel), else its update comes as an event
+					var now = api.designs().group(id);
+					if (now.isEmpty()) feed(new Pipeline.CancelConfirmed());
+					else if (now.get().status().isFinal()) onGroup(now.get());
+				});
+				else if (!groupInFlight) later.add(new Pipeline.CancelConfirmed());
+			}
 			case Pipeline.FitAndQueue f -> fitAndQueue(f.autoApprove());
 			case Pipeline.ApproveStages a -> approveStages();
-			case Pipeline.CancelBatch cb -> { if (batchId != null) api.sites(server).cancelBatch(batchId); }
+			case Pipeline.CancelBatch cb -> {
+				if (batchId != null) cancelBatch(batchId);
+				else if (!queueInFlight) later.add(new Pipeline.CancelConfirmed());
+			}
 			case Pipeline.Notify n -> {
 				String hint = n.needsDecision() ? hint() : null;
 				say(hint == null ? n.text() : n.text() + " " + hint);
@@ -661,13 +756,29 @@ public final class SettlementRunner {
 		if (res.note() != null) say(res.note());
 		if (!res.skippedLotIds().isEmpty()) say("Skipped lots (no design or no fit): " + res.skippedLotIds());
 		say("Placing " + res.batch().items().size() + " items...");
+		queueInFlight = true;
 		sites.queue(res.batch()).whenComplete((id, err) -> {
+			queueInFlight = false;
 			if (err != null) { say("Queue failed: " + err.getMessage()); feed(new Pipeline.Cancel()); return; }
+			if (!alive() || state.phase().terminal()) { sites.cancelBatch(id); return; }
 			batchId = id;
 			siteGroupId = sites.batch(id).map(BatchView::group).orElse(null);
+			if (state.phase() == Pipeline.Phase.CANCELLING) { persist(); cancelBatch(id); return; }
 			feed(new Pipeline.BatchQueued(id));
 			// a batch that finished before we knew its id (everything placed in the queue's first pass)
 			sites.batch(id).filter(b -> !b.running()).ifPresent(this::onBatchDone);
+		});
+	}
+
+	/** Cancels the placement batch; its rollback ends in BATCH_DONE (and the future), which logs what stayed placed and finishes the cancel. */
+	private void cancelBatch(String id) {
+		var sites = ArchitectApi.get().sites(server);
+		sites.cancelBatch(id).whenComplete((view, err) -> {
+			if (view != null) { onBatchDone(view); return; }
+			// refused: the batch ended before the cancel reached it, or Architect no longer has it
+			var now = sites.batch(id);
+			if (now.isPresent() && !now.get().running()) onBatchDone(now.get());
+			else if (now.isEmpty()) feed(new Pipeline.CancelConfirmed());
 		});
 	}
 
@@ -698,6 +809,9 @@ public final class SettlementRunner {
 
 	private void onGroup(Group g) {
 		if (groupId == null || !groupId.equals(g.id())) return;
+		// cancelling a placement: the (finished) group's updates do not end it, the batch's rollback does
+		if (state != null && state.phase() == Pipeline.Phase.CANCELLING && (batchId != null || queueInFlight)) return;
+		noteMassings(g);
 		Map<String, String> items = new LinkedHashMap<>();
 		for (Group.Item it : g.items()) {
 			String stage = it.stage().map(Group.Stage::wire).orElse(it.status().name().toLowerCase());
@@ -708,6 +822,15 @@ public final class SettlementRunner {
 		feed(new Pipeline.GroupUpdate(g.id(), g.status().wire(), items, g.awaiting(), g.cost().usd(), held));
 	}
 
+	private void noteMassings(Group g) {
+		for (Group.Item it : g.items()) it.massing().ifPresent(m -> massingRefs.put(it.itemKey(), m.toString()));
+	}
+
+	/** The key a decision on a lot's current massing is remembered under. */
+	private String decisionKey(String lot) {
+		return lot + "@" + massingRefs.getOrDefault(lot, "?");
+	}
+
 	private void onBatchDone(BatchView b) {
 		if (batchId == null || !batchId.equals(b.id())) return;
 		// buildings only: the street is a road, reported on its own when it fails
@@ -716,8 +839,10 @@ public final class SettlementRunner {
 		b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).forEach(i -> say("Not placed: " + i.itemKey() + " (" + i.reason().map(Enum::name).orElse("?") + ") " + i.message()));
 		// every site of the build, street included, so an undo removes all of it
 		if (siteGroupId == null) siteGroupId = b.group();
-		logPlaced(b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).flatMap(i -> i.siteId().stream()).toList(), (int) b.items().stream()
-			.filter(i -> i.status() == BatchView.ItemStatus.PLACED && !BatchPlanner.STREET_KEY.equals(i.itemKey())).count());
+		if (!logPlaced(b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).flatMap(i -> i.siteId().stream()).toList(), (int) placed)) {
+			logFailed();
+			return;
+		}
 		batchId = null;
 		feed(new Pipeline.BatchDone((int) placed, (int) failed));
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
@@ -725,6 +850,7 @@ public final class SettlementRunner {
 
 	private void say(String text) {
 		Steward.LOGGER.info("settlement: {}", text);
+		if (!Session.is(session)) return;
 		ServerPlayer p = server.getPlayerList().getPlayer(playerId);
 		if (p != null) p.sendSystemMessage(Component.literal(text));
 		else if (unread.size() < 50) unread.add(text);

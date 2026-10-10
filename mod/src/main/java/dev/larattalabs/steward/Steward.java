@@ -19,6 +19,8 @@ public class Steward implements ModInitializer {
 	public void onInitialize() {
 		ArchitectGateway.Status status = ArchitectGateway.check();
 		LOGGER.info("Steward common init: {}", status.summary());
+		// first: the session changes before any other listener of the same lifecycle event runs
+		dev.larattalabs.steward.service.Session.init();
 		dev.larattalabs.steward.net.StewardNet.init();
 		dev.larattalabs.steward.item.FoundingStone.init();
 		dev.larattalabs.steward.service.Settlements.init();

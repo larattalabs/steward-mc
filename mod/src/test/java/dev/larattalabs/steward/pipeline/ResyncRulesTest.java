@@ -14,7 +14,11 @@ class ResyncRulesTest {
 
 	@Test
 	void designPhasesRereadOrReportAnInterruptedRequest() {
-		assertEquals(ResyncRules.Action.NONE, ResyncRules.decide(Phase.BIBLE_RUNNING, true, false, false, ResyncRules.BatchSeen.ABSENT, false, NO_STAGES, 0), "the bible arrives as a catch-up event");
+		assertEquals(ResyncRules.Action.REREAD_BIBLE, ResyncRules.decide(Phase.BIBLE_RUNNING, true, false, false, ResyncRules.BatchSeen.ABSENT, false, NO_STAGES, 0),
+			"the job is read again: its DONE event may already have been delivered");
+		assertEquals(ResyncRules.Action.NONE, ResyncRules.decide(Phase.GROUP_RUNNING, true, false, false, ResyncRules.BatchSeen.ABSENT, false, NO_STAGES, 0, true),
+			"paused before the group was requested: wait for the raise");
+		assertEquals(ResyncRules.Action.RESUME_CANCEL, ResyncRules.decide(Phase.CANCELLING, false, true, true, ResyncRules.BatchSeen.RUNNING, false, NO_STAGES, 0));
 		assertEquals(INTERRUPTED, ResyncRules.decide(Phase.BIBLE_RUNNING, false, false, false, ResyncRules.BatchSeen.ABSENT, false, NO_STAGES, 0));
 		assertEquals(REREAD_GROUP, ResyncRules.decide(Phase.AWAITING_MASSING_APPROVAL, true, true, false, ResyncRules.BatchSeen.ABSENT, false, NO_STAGES, 0));
 		assertEquals(INTERRUPTED, ResyncRules.decide(Phase.GROUP_RUNNING, true, false, false, ResyncRules.BatchSeen.ABSENT, false, NO_STAGES, 0));

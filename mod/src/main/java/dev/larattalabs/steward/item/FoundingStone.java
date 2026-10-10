@@ -41,6 +41,11 @@ public final class FoundingStone extends Item {
 
 	/** The stone's effect (also behind {@code /steward claim}): claims the area around {@code at} for the player, with feedback. */
 	public static boolean claim(ServerPlayer player, net.minecraft.world.level.Level level, BlockPos at) {
+		String no = dev.larattalabs.steward.service.Actions.refusal(player);
+		if (no != null) {
+			player.sendSystemMessage(Component.literal(no));
+			return false;
+		}
 		var existing = Settlements.at(level, at);
 		if (existing.isPresent()) {
 			player.sendSystemMessage(Component.literal("This land already belongs to " + existing.get().name() + " (" + existing.get().id() + ")."));

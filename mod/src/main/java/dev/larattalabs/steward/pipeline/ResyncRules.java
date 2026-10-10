@@ -19,6 +19,8 @@ public final class ResyncRules {
 	public enum Action {
 		/** Nothing to do: wait for events (or for the player). */
 		NONE,
+		/** Re-read the bible job: its DONE event may have been delivered before the build was saved, and is not sent again. */
+		REREAD_BIBLE,
 		/** Re-read the design group and feed it to the pipeline. */
 		REREAD_GROUP,
 		/** The batch is still queued or placing: keep waiting for it. */
@@ -31,6 +33,8 @@ public final class ResyncRules {
 		FINISH_FROM_SITES,
 		/** Placement never reached Architect: fit and queue again. */
 		REQUEUE,
+		/** The build was being cancelled: cancel again whatever it still knows of and wait, or finish when nothing is left. */
+		RESUME_CANCEL,
 		/** An id the build needs was never saved (the restart came between a request and its ack): the player cancels and starts again. */
 		INTERRUPTED
 	}
@@ -43,9 +47,16 @@ public final class ResyncRules {
 	 */
 	public static Action decide(Pipeline.Phase phase, boolean hasBibleJob, boolean hasGroup, boolean hasBatch, BatchSeen batch, boolean ownerBatchRunning,
 		List<StageSeen> stages, int placedSites) {
+		return decide(phase, hasBibleJob, hasGroup, hasBatch, batch, ownerBatchRunning, stages, placedSites, false);
+	}
+
+	/** @param pausedBeforeGroup the bible used the budget up and the build waits for a raise before it requests its group */
+	public static Action decide(Pipeline.Phase phase, boolean hasBibleJob, boolean hasGroup, boolean hasBatch, BatchSeen batch, boolean ownerBatchRunning,
+		List<StageSeen> stages, int placedSites, boolean pausedBeforeGroup) {
 		return switch (phase) {
-			case BIBLE_RUNNING -> hasBibleJob ? Action.NONE : Action.INTERRUPTED;
-			case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> hasGroup ? Action.REREAD_GROUP : Action.INTERRUPTED;
+			case BIBLE_RUNNING -> hasBibleJob ? Action.REREAD_BIBLE : Action.INTERRUPTED;
+			case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> hasGroup ? Action.REREAD_GROUP : pausedBeforeGroup ? Action.NONE : Action.INTERRUPTED;
+			case CANCELLING -> Action.RESUME_CANCEL;
 			case READY_TO_PLACE -> {
 				if (ownerBatchRunning) yield Action.ADOPT_RUNNING_BATCH;
 				// the queue call got through and the batch finished before the restart: never place a second copy

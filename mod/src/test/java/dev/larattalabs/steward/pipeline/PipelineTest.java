@@ -113,7 +113,8 @@ class PipelineTest {
 		assertFalse(r.next().pausedForBudget());
 		assertEquals(60.0, r.next().budgetUsd());
 		ExtendAndResumeGroup e = only(r, ExtendAndResumeGroup.class);
-		assertEquals(60.0, e.newBudgetUsd());
+		assertEquals(60.0 - 1.4, e.groupBudgetUsd(), 1e-9, "the group's cap leaves out what the bible cost, so the total stays $60");
+		assertEquals(35.0, e.previousBudgetUsd());
 	}
 
 	@Test
@@ -147,9 +148,14 @@ class PipelineTest {
 	void cancellingStopsTheGroupAndFreezesThePipeline() throws Exception {
 		State s = groupRunning(Permission.PROPOSALS);
 		Step st = Pipeline.step(s, new Cancel(), Permission.PROPOSALS);
-		assertEquals(Phase.CANCELLED, st.next().phase());
-		assertEquals("g1", s.groupId() == null ? "g1" : only(st, CancelGroup.class).groupId());
-		Step again = Pipeline.step(st.next(), new GroupUpdate("g1", "done", Map.of(), List.of(), 1, null), Permission.PROPOSALS);
+		assertEquals(Phase.CANCELLING, st.next().phase(), "the build keeps its slot until Architect stops");
+		assertFalse(st.next().phase().terminal());
+		only(st, CancelGroup.class);
+		assertEquals(Phase.CANCELLING, Pipeline.step(st.next(), group("running", Map.of(), List.of(), 1), Permission.PROPOSALS).next().phase());
+		Step stopped = Pipeline.step(st.next(), group("cancelled", Map.of(), List.of(), 1.2), Permission.PROPOSALS);
+		assertEquals(Phase.CANCELLED, stopped.next().phase());
+		assertEquals(1.4 + 1.2, stopped.next().spentUsd(), 1e-9);
+		Step again = Pipeline.step(stopped.next(), new GroupUpdate("g1", "done", Map.of(), List.of(), 1, null), Permission.PROPOSALS);
 		assertTrue(again.commands().isEmpty(), "a terminal pipeline ignores events");
 		assertEquals(Phase.CANCELLED, again.next().phase());
 	}
@@ -258,5 +264,65 @@ class PipelineTest {
 		// the gate run: $31.03 spent at a $35 budget: (31.03 + 5) / 0.8 = 45.04, so $50
 		State gate = new State(Phase.GROUP_RUNNING, "set_4", paused.card(), "b", 1, "g", Map.of(), 1.16, 31.03, 35, true, null, null);
 		assertEquals(50.0, Pipeline.minimumRaise(gate), 1e-9);
+	}
+
+	@Test
+	void theBibleNeverAsksForMoreThanTheWholeBudget() throws Exception {
+		Step st = Pipeline.step(State.start("set_1", card(), 1.0), new CardApproved(card()), Permission.PROPOSALS);
+		assertEquals(1.0, only(st, RequestBible.class).budgetUsd(), 1e-9);
+	}
+
+	@Test
+	void aBibleThatUsesTheBudgetUpPausesBeforeTheGroupAndARaiseRequestsIt() throws Exception {
+		State s = Pipeline.step(State.start("set_1", card(), 2.0), new CardApproved(card()), Permission.FULL).next();
+		Step st = Pipeline.step(s, new BibleDone(true, "bib_1", 1, 1.8, null), Permission.FULL);
+		assertTrue(st.commands().stream().noneMatch(RequestGroup.class::isInstance), "no group on $0.20: " + st.commands());
+		assertEquals(Pipeline.Decision.BUDGET, Pipeline.awaiting(st.next()));
+		assertTrue(only(st, Notify.class).needsDecision());
+		Step raised = Pipeline.step(st.next(), new BudgetRaised(10), Permission.FULL);
+		assertEquals(10.0 - 1.8, only(raised, RequestGroup.class).budgetUsd(), 1e-9);
+		// cancelling while paused there: nothing runs at Architect
+		assertEquals(Phase.CANCELLED, Pipeline.step(st.next(), new Cancel(), Permission.FULL).next().phase());
+	}
+
+	@Test
+	void aRaiseArchitectRefusesGoesBackAndStaysPaused() throws Exception {
+		State paused = Pipeline.step(groupRunning(Permission.PROPOSALS), group("paused_budget", Map.of(), List.of(), 26), Permission.PROPOSALS).next();
+		State raised = Pipeline.step(paused, new BudgetRaised(50), Permission.PROPOSALS).next();
+		assertFalse(raised.pausedForBudget());
+		Step failed = Pipeline.step(raised, new BudgetRaiseFailed(35, "boom"), Permission.PROPOSALS);
+		assertEquals(35.0, failed.next().budgetUsd());
+		assertEquals(Pipeline.Decision.BUDGET, Pipeline.awaiting(failed.next()));
+		assertTrue(only(failed, Notify.class).text().contains("boom"));
+	}
+
+	@Test
+	void cancellingTheBibleStopsItAndWaitsForItsEnd() throws Exception {
+		State s = Pipeline.step(started(), new CardApproved(card()), Permission.PROPOSALS).next();
+		Step st = Pipeline.step(s, new Cancel(), Permission.PROPOSALS);
+		assertEquals(Phase.CANCELLING, st.next().phase());
+		only(st, CancelBible.class);
+		assertEquals(Phase.CANCELLED, Pipeline.step(st.next(), new BibleDone(false, null, 0, 0.3, "CANCELLED"), Permission.PROPOSALS).next().phase());
+	}
+
+	@Test
+	void cancellingAPlacementWaitsForTheRollbackAndSaysWhatStayed() throws Exception {
+		State ready = Pipeline.step(groupRunning(Permission.FULL), group("done", Map.of(), List.of(), 20), Permission.FULL).next();
+		State placing = Pipeline.step(ready, new BatchQueued("b1"), Permission.FULL).next();
+		Step st = Pipeline.step(placing, new Cancel(), Permission.FULL);
+		assertEquals(Phase.CANCELLING, st.next().phase());
+		Step done = Pipeline.step(st.next(), new BatchDone(2, 5), Permission.FULL);
+		assertEquals(Phase.CANCELLED, done.next().phase());
+		assertTrue(only(done, Notify.class).text().contains("2 buildings"));
+		// before the queue's ack: cancelled on arrival by the adapter, the pipeline only waits
+		only(Pipeline.step(ready, new Cancel(), Permission.FULL), CancelBatch.class);
+	}
+
+	@Test
+	void aSecondCancelStopsWaitingAndConfirmationFinishes() throws Exception {
+		State cancelling = Pipeline.step(groupRunning(Permission.PROPOSALS), new Cancel(), Permission.PROPOSALS).next();
+		assertEquals(Phase.CANCELLED, Pipeline.step(cancelling, new Cancel(), Permission.PROPOSALS).next().phase());
+		assertEquals(Phase.CANCELLED, Pipeline.step(cancelling, new CancelConfirmed(), Permission.PROPOSALS).next().phase());
+		assertEquals(Pipeline.Decision.NONE, Pipeline.awaiting(cancelling));
 	}
 }

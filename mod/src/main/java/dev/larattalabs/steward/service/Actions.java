@@ -33,6 +33,13 @@ public final class Actions {
 	public static final int MAX_NOTES = 2000;
 
 	private static CardService cards;
+	/** Settlements whose description is being read, with the request's token: one at a time per settlement, and only the newest may store its card. */
+	private static final Map<String, Reading> describing = new java.util.HashMap<>();
+	/** How long a description may be read before another may replace it (a job that never ends does not lock the settlement). */
+	private static final long READING_MS = 10 * 60_000;
+
+	private record Reading(long token, long since) {}
+	private static long nextToken;
 	private static final com.google.gson.Gson CARD_GSON = new com.google.gson.Gson();
 
 	private Actions() {
@@ -40,6 +47,7 @@ public final class Actions {
 
 	/** Registers the client-to-server payload handlers (Fabric runs them on the server thread). */
 	public static void init() {
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(s -> describing.clear());
 		ServerPlayNetworking.registerGlobalReceiver(StewardNet.Describe.TYPE, (p, ctx) -> reply(ctx.player(), describe(ctx.player(), p.settlementId(), p.text())));
 		ServerPlayNetworking.registerGlobalReceiver(StewardNet.Start.TYPE, (p, ctx) -> reply(ctx.player(), start(ctx.player(), p.settlementId(), p.buildings(), p.budgetUsd())));
 		ServerPlayNetworking.registerGlobalReceiver(StewardNet.Decide.TYPE, (p, ctx) -> {
@@ -58,6 +66,16 @@ public final class Actions {
 		static Result fail(String m) {
 			return new Result(false, m);
 		}
+	}
+
+	/**
+	 * Who may direct a world's steward: singleplayer (and LAN) is the supported mode, so only the world's host, whose Claude budget a build spends; on a dedicated
+	 * server, operators. Null when {@code p} may; else why not.
+	 */
+	public static String refusal(ServerPlayer p) {
+		MinecraftServer server = p.level().getServer();
+		if (server.isDedicatedServer()) return server.getPlayerList().isOp(p.nameAndId()) ? null : "Only an operator can direct the steward on this server.";
+		return server.isSingleplayerOwner(p.nameAndId()) ? null : "Only the host of this world can direct its steward (its builds spend the host's Claude budget).";
 	}
 
 	private static void reply(ServerPlayer p, Result r) {
@@ -79,15 +97,24 @@ public final class Actions {
 	public static Result describe(ServerPlayer player, String id, String text) {
 		Optional<Settlement> s = Settlements.store().get(id);
 		if (s.isEmpty()) return Result.fail("No such settlement: " + id + " (see /steward settlements).");
+		String no = refusal(player);
+		if (no != null) return Result.fail(no);
 		if (SettlementRunner.busy(id)) return Result.fail(id + " is being built; describe it again once the build is done or cancelled.");
+		if (reading(id)) return Result.fail("The steward is still reading your last description of " + id + ".");
 		String words = text == null ? "" : text.strip();
 		if (words.isEmpty()) return Result.fail("Say what to build first.");
 		if (words.length() > ConceptCardJob.MAX_PROMPT) return Result.fail("That is longer than " + ConceptCardJob.MAX_PROMPT + " characters.");
 		MinecraftServer server = player.level().getServer();
 		UUID who = player.getUUID();
 		boolean survival = WorldMode.survival(server).orElse(false);
+		long token = ++nextToken;
+		int session = Session.current();
+		describing.put(id, new Reading(token, System.currentTimeMillis()));
 		cards().submit(words, Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", Settlements.DEFAULT_RADIUS), s.get().owner())
 			.whenComplete((r, err) -> {
+				// a world closed since (its settlement ids repeat in the next world), or a newer request: this result is not stored
+				if (!Session.is(session) || (describing.get(id) == null || describing.get(id).token() != token)) return;
+				describing.remove(id);
 				ServerPlayer p = server.getPlayerList().getPlayer(who);
 				if (err != null || !r.ok()) {
 					String why = err != null ? String.valueOf(err.getCause() != null ? err.getCause().getMessage() : err.getMessage()) : r.error();
@@ -96,6 +123,11 @@ public final class Actions {
 						// back to the words, so the player can try again without retyping
 						ServerPlayNetworking.send(p, new StewardNet.OpenDescribe(id, s.get().name(), words));
 					}
+					return;
+				}
+				// start is refused while a description is read, so no build began meanwhile; checked again all the same
+				if (SettlementRunner.busy(id)) {
+					if (p != null) p.sendSystemMessage(Component.literal(id + " started building while the description was read; the new card was not saved."));
 					return;
 				}
 				var res = Settlements.describe(id, r.card(), System.currentTimeMillis());
@@ -112,17 +144,31 @@ public final class Actions {
 		return Result.ok("Interpreting your description...");
 	}
 
+	private static boolean reading(String id) {
+		Reading r = describing.get(id);
+		return r != null && System.currentTimeMillis() - r.since() < READING_MS;
+	}
+
 	// ------------------------------------------------------------------ start
 
 	public static Result start(ServerPlayer player, String id, int buildings, double budgetUsd) {
 		Optional<Settlement> s = Settlements.store().get(id);
 		if (s.isEmpty()) return Result.fail("No such settlement: " + id + " (see /steward settlements).");
+		String no = refusal(player);
+		if (no != null) return Result.fail(no);
 		if (!s.get().described()) return Result.fail("Describe " + id + " first.");
 		if (SettlementRunner.busy(id)) return Result.fail(id + " is already being built.");
+		if (reading(id)) return Result.fail("The steward is still reading the description of " + id + "; start once its card is in.");
+		if (!SettlementRunner.canSave()) return Result.fail("Builds cannot be saved in this world (steward-builds.json could not be read; see the log), so none is started.");
 		if (buildings < MIN_BUILDINGS || buildings > MAX_BUILDINGS) return Result.fail("Buildings must be " + MIN_BUILDINGS + " to " + MAX_BUILDINGS + ".");
 		if (!(budgetUsd >= MIN_BUDGET && budgetUsd <= MAX_BUDGET)) return Result.fail(String.format("The budget must be $%.0f to $%.0f.", MIN_BUDGET, MAX_BUDGET));
 		String size = s.get().card().site().size();
-		new SettlementRunner(player.level().getServer(), player.level(), player, s.get().permission(), cards(), BudgetPolicy.maxLandmarks(size, buildings))
+		// the settlement's own dimension, wherever the player stands
+		MinecraftServer server = player.level().getServer();
+		var level = server.getLevel(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,
+			net.minecraft.resources.Identifier.parse(s.get().claim().dimension())));
+		if (level == null) return Result.fail("The dimension of " + id + " (" + s.get().claim().dimension() + ") is not loaded.");
+		new SettlementRunner(server, level, player, s.get().permission(), cards(), BudgetPolicy.maxLandmarks(size, buildings))
 			.startExisting(s.get(), buildings, budgetUsd);
 		return Result.ok(String.format("Starting %s: %d buildings, budget $%.0f.", s.get().name(), buildings, budgetUsd));
 	}
@@ -131,6 +177,11 @@ public final class Actions {
 
 	/** A decision on the player's own build: approve, redirect, raise, cancel, show, hide; "card" shows the settlement's card again. */
 	public static Result decide(ServerPlayer player, String id, String action, String lot, String text, double amount) {
+		// looking is open to everyone; deciding is the host's
+		if (!List.of("card", "show", "hide", "update_preview").contains(action == null ? "" : action)) {
+			String no = refusal(player);
+			if (no != null) return Result.fail(no);
+		}
 		switch (action == null ? "" : action) {
 			case "update_apply" -> {
 				return Result.ok(Updates.approve(player.level().getServer(), id, lot == null ? "" : lot));

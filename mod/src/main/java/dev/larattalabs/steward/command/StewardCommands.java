@@ -105,6 +105,8 @@ public final class StewardCommands {
 				Actions.MAX_RAISE)).executes(ctx -> decide(ctx, "raise", "", "", DoubleArgumentType.getDouble(ctx, "budget"))))))
 			.then(Commands.literal("cancel").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "cancel", "", "", 0))))
 			.then(Commands.literal("updates").executes(ctx -> {
+				var no = Actions.refusal(ctx.getSource().getPlayerOrException());
+				if (no != null) { ctx.getSource().sendFailure(Component.literal(no)); return 0; }
 				// look again for newer versions of placed buildings (they are found at world load and when Architect announces a version)
 				dev.larattalabs.steward.service.Updates.refreshAll(ctx.getSource().getServer());
 				ctx.getSource().sendSuccess(() -> Component.literal("Checked for building updates: see the inbox (Y)."), false);
@@ -179,6 +181,8 @@ public final class StewardCommands {
 				}))))
 			.then(Commands.literal("undo").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
 				CommandSourceStack src = ctx.getSource();
+				var no = Actions.refusal(src.getPlayerOrException());
+				if (no != null) { src.sendFailure(Component.literal(no)); return 0; }
 				var s = dev.larattalabs.steward.service.Settlements.store().get(StringArgumentType.getString(ctx, "id"));
 				if (s.isEmpty()) { src.sendFailure(Component.literal("No such settlement (see /steward settlements).")); return 0; }
 				if (SettlementRunner.busy(s.get().id())) { src.sendFailure(Component.literal(s.get().id() + " is being built; cancel it first (/steward cancel " + s.get().id() + ").")); return 0; }
