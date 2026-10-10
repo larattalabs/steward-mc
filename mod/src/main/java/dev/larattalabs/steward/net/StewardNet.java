@@ -152,6 +152,21 @@ public final class StewardNet {
 		}
 	}
 
+	/**
+	 * The settlement the player stands in, for the in-world interface (building labels, survey mode): its view as JSON, or "" when the player left every
+	 * claim. Sent when it changes.
+	 */
+	public record SettlementNear(String viewJson) implements CustomPacketPayload {
+		public static final Type<SettlementNear> TYPE = new Type<>(id("settlement_near"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, SettlementNear> CODEC = StreamCodec.of((buf, p) -> buf.writeUtf(p.viewJson, 1 << 20),
+			buf -> new SettlementNear(buf.readUtf(1 << 20)));
+
+		@Override
+		public Type<SettlementNear> type() {
+			return TYPE;
+		}
+	}
+
 	/** The settlement's steward says this (a speech bubble over it, where the client has it loaded). */
 	public record StewardSay(String settlementId, String text) implements CustomPacketPayload {
 		public static final Type<StewardSay> TYPE = new Type<>(id("steward_say"));
@@ -253,6 +268,7 @@ public final class StewardNet {
 		s2c.register(PreviewDelta.TYPE, PreviewDelta.CODEC);
 		s2c.register(SettlementPanel.TYPE, SettlementPanel.CODEC);
 		s2c.register(StewardSay.TYPE, StewardSay.CODEC);
+		s2c.register(SettlementNear.TYPE, SettlementNear.CODEC);
 		var c2s = PayloadTypeRegistry.serverboundPlay();
 		c2s.register(Describe.TYPE, Describe.CODEC);
 		c2s.register(Start.TYPE, Start.CODEC);

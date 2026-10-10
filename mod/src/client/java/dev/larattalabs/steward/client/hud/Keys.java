@@ -12,6 +12,8 @@ import net.minecraft.client.input.KeyEvent;
  */
 public final class Keys {
 	public static KeyMapping inbox;
+	/** Open the panel of the building the crosshair is on ({@code I}); survey mode, every building labelled and the claim's border ({@code U}). */
+	public static KeyMapping inspect, survey;
 	private static boolean registered;
 
 	private Keys() {
@@ -29,6 +31,8 @@ public final class Keys {
 			cat = new KeyMapping.Category(Steward.id("steward"));
 		}
 		inbox = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.steward_mc.inbox", InputConstants.Type.KEYBOARD, InputConstants.KEY_Y, cat, 1));
+		inspect = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.steward_mc.inspect", InputConstants.Type.KEYBOARD, InputConstants.KEY_I, cat, 2));
+		survey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.steward_mc.survey", InputConstants.Type.KEYBOARD, InputConstants.KEY_U, cat, 3));
 	}
 
 	/**

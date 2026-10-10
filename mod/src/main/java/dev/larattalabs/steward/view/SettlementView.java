@@ -28,7 +28,7 @@ public record SettlementView(String id, String name, boolean described, boolean 
 	 * keep; {@code state} Architect's site state (planned, building, built, ...); the box is its footprint in world x/z.
 	 */
 	public record Building(String siteId, String role, @Nullable String lot, String entry, int version, int head, int edits, String state, boolean updating,
-		int minX, int minZ, int maxX, int maxZ, List<String> ops, int previous, int heldFrom) {
+		int minX, int minZ, int maxX, int maxZ, List<String> ops, int previous, int heldFrom, int minY, int maxY) {
 		/** A newer version the player has not reverted away from. */
 		public boolean updateAvailable() {
 			return head > version && head > heldFrom;
@@ -46,7 +46,12 @@ public record SettlementView(String id, String name, boolean described, boolean 
 	/** A site as the server reads it from Architect ({@code SiteView}), reduced to what the view needs. */
 	/** {@code previous}: the version it stood at before this one (0: none, it was placed at this one). */
 	public record Site(String id, String kind, @Nullable String itemKey, @Nullable String role, @Nullable String lot, String entry, int version, int head, int deviations,
-		String state, boolean updating, int minX, int minZ, int maxX, int maxZ, int previous) {}
+		String state, boolean updating, int minX, int minZ, int maxX, int maxZ, int previous, int minY, int maxY) {
+		public Site(String id, String kind, @Nullable String itemKey, @Nullable String role, @Nullable String lot, String entry, int version, int head, int deviations,
+			String state, boolean updating, int minX, int minZ, int maxX, int maxZ, int previous) {
+			this(id, kind, itemKey, role, lot, entry, version, head, deviations, state, updating, minX, minZ, maxX, maxZ, previous, 0, 0);
+		}
+	}
 
 	/** Roads (the street) are counted, not listed: the screen is about buildings. */
 	public static SettlementView of(Settlement s, boolean busy, List<Site> sites) {
@@ -63,7 +68,7 @@ public record SettlementView(String id, String name, boolean described, boolean 
 			List<String> ops = log.stream().filter(e -> e.siteIds().contains(x.id())).map(Settlement.LogEntry::op).toList();
 			String role = x.role() != null && !x.role().isBlank() ? x.role() : x.lot() != null ? x.lot() : x.entry();
 			buildings.add(new Building(x.id(), role, x.lot(), x.entry(), x.version(), x.head(), x.deviations(), x.state(), x.updating(), x.minX(), x.minZ(), x.maxX(),
-				x.maxZ(), ops, x.previous(), s.revertedFrom(x.id())));
+				x.maxZ(), ops, x.previous(), s.revertedFrom(x.id()), x.minY(), x.maxY()));
 		}
 		buildings.sort(Comparator.comparing(Building::role).thenComparing(Building::siteId));
 		List<Op> history = new ArrayList<>();

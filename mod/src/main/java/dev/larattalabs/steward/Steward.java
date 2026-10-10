@@ -28,6 +28,7 @@ public class Steward implements ModInitializer {
 		dev.larattalabs.steward.service.SettlementRunner.init();
 		dev.larattalabs.steward.service.Actions.init();
 		dev.larattalabs.steward.service.Updates.init();
+		dev.larattalabs.steward.service.SettlementSync.init();
 		StewardCommands.init();
 	}
 }

@@ -191,6 +191,21 @@ async function placeUpdateUndo(id) {
   if (!placed) return fail('dev place', (await waitLog(from, /dev place refused[^\n]*/, 1) ?? ['no answer'])[0]);
   const site = placed[1];
   ok('dev place', site);
+  // the in-world interface (3d): looking at the building outlines and labels it; survey mode (U) labels all and shows the claim's border
+  if (box) {
+    const mine = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+    const gy = mine ? Math.floor(Number(mine[2])) : 0;
+    await cmd(`/tp @p ${box.x0 + 4.5} ${gy} ${box.z1 + 10} facing ${box.x0 + 4.5} ${gy + 3} ${box.z0 + 4}`);
+    await sleep(3500); // the settlement's buildings reach the client every two seconds
+    const lookShot = (await dev.request('dev.screenshot', { name: 'e2e-look', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+    await dev.request('dev.key', { key: 'u' });
+    await cmd(`/tp @p ${box.x0 + 4.5} ${gy + 6} ${box.z1 + 20} facing ${box.x0 + 4.5} ${gy + 4} ${box.z0}`);
+    await sleep(1500);
+    const surveyShot = (await dev.request('dev.screenshot', { name: 'e2e-survey', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+    await dev.request('dev.key', { key: 'u' });
+    if (mine) await cmd(`/tp @p ${mine[1]} ${mine[2]} ${mine[3]}`);
+    ok('in-world labels', `${lookShot}, ${surveyShot}`);
+  }
   // the settlement screen (3a), opened as a player would by command, with the building just placed
   await cmd(`/steward view ${id}`);
   await sleep(1500);

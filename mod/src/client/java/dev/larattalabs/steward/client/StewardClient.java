@@ -35,7 +35,22 @@ public class StewardClient implements ClientModInitializer {
 			while (Keys.inbox.consumeClick()) {
 				if (mc.player != null && mc.gui.screen() == null) mc.gui.setScreen(new InboxScreen(null));
 			}
+			dev.larattalabs.steward.client.world.SettlementWorld.tick(mc);
+			while (Keys.inspect.consumeClick()) {
+				if (mc.player != null && mc.gui.screen() == null && !dev.larattalabs.steward.client.world.SettlementWorld.inspect()) {
+					mc.player.sendOverlayMessage(Component.literal("Look at one of the settlement's buildings to inspect it."));
+				}
+			}
+			while (Keys.survey.consumeClick()) {
+				if (mc.player == null || mc.gui.screen() != null) continue;
+				boolean on = dev.larattalabs.steward.client.world.SettlementWorld.toggleSurvey();
+				mc.player.sendOverlayMessage(Component.literal(on ? "Survey: every building labelled, the claim's border shown" : "Survey off"));
+			}
 		});
+		net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents.COLLECT_SUBMITS.register(ctx -> dev.larattalabs.labui.ui.Guard.run("steward.world",
+			() -> dev.larattalabs.steward.client.world.SettlementWorld.submit(ctx)));
+		ClientPlayNetworking.registerGlobalReceiver(StewardNet.SettlementNear.TYPE, (payload, ctx) -> dev.larattalabs.steward.client.world.SettlementWorld.set(payload.viewJson()));
+		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> dev.larattalabs.steward.client.world.SettlementWorld.clear());
 		ClientPlayConnectionEvents.DISCONNECT.register((handler, mc) -> ClientInbox.clear());
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.Inbox.TYPE, (payload, ctx) -> ClientInbox.set(payload.entries()));
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.OpenDescribe.TYPE, (payload, ctx) -> ctx.client().gui.setScreen(

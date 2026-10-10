@@ -265,10 +265,14 @@ public final class Actions {
 
 	/** Opens the settlement screen (or, with a site id, that building's panel) with the settlement's buildings as Architect has them now. Viewing is open to everyone. */
 	public static void sendSettlement(ServerPlayer p, Settlement s, String siteId) {
-		var api = ArchitectApi.get().sites(p.level().getServer());
+		ServerPlayNetworking.send(p, new StewardNet.SettlementPanel(view(p.level().getServer(), s).toJson(), siteId == null ? "" : siteId));
+	}
+
+	/** The settlement as its screens show it, with its buildings as Architect has them now. */
+	public static dev.larattalabs.steward.view.SettlementView view(MinecraftServer server, Settlement s) {
+		var api = ArchitectApi.get().sites(server);
 		var sites = api.list(s.owner()).stream().map(v -> site(api, v)).toList();
-		var view = dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites);
-		ServerPlayNetworking.send(p, new StewardNet.SettlementPanel(view.toJson(), siteId == null ? "" : siteId));
+		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites);
 	}
 
 	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.Sites sites, dev.larattalabs.architect.api.SiteView v) {
@@ -276,7 +280,8 @@ public final class Actions {
 		java.util.function.Function<String, String> str = k -> ext != null && ext.has(k) && ext.get(k).isJsonPrimitive() ? ext.get(k).getAsString() : null;
 		var b = v.box();
 		return new dev.larattalabs.steward.view.SettlementView.Site(v.id(), v.kind(), v.itemKey(), str.apply("steward_mc:role"), str.apply("steward_mc:lot"), v.blueprintId(),
-			v.version(), v.headVersion(), v.deviations(), v.state().name().toLowerCase(), v.updating(), b.minX(), b.minZ(), b.maxX(), b.maxZ(), Revert.previousVersion(sites, v.id()));
+			v.version(), v.headVersion(), v.deviations(), v.state().name().toLowerCase(), v.updating(), b.minX(), b.minZ(), b.maxX(), b.maxZ(), Revert.previousVersion(sites, v.id()),
+			b.minY(), b.maxY());
 	}
 
 	public static void sendCard(ServerPlayer p, Settlement s) {
