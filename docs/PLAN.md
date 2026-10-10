@@ -373,7 +373,9 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - Nameplate, "!", speech bubbles.
      - Walking to the building it works on.
      - Conversation by right-click.
-   - **3c. Change requests.** Free text scoped to a building or the settlement: a new version of the building's design, previewed as a delta ghost, applied, and revertible (needs Architect C13, C14).
+   - **3c. Change requests and revert.**
+     - **Revert now:** a building goes back to an earlier version with `Sites.revert`, and Steward pins the versions its change log refers to (Architect 0a caller pins).
+     - **Change requests with Architect 0b** (`DesignRequest.versionOf`): free text scoped to a building or the settlement becomes the next version of the building's design, previewed as a delta ghost, applied, and revertible.
    - **3d. In-world interface.** Building labels, survey mode, labelled massings, the settlement board, the ledger.
    - **3e. Perception and proposals.** The guardrails decided with Noah apply: rejected proposals are remembered, with cooldowns and coalescing, a planning allowance, and a spending allowance per settlement ($500 a week by default).
      - The progression tier and triggers.

@@ -133,3 +133,17 @@ Answers to Steward's questions:
 | C15 | **A shared UI library** with AgentCraft (world UI, screen kit, sprites), reversing "not now" | Steward adds in-world interfaces after AgentCraft's (nameplates, speech bubbles, building labels, a board): a fourth copy otherwise |
 | C16 | **Streets in survival construction batches** | Supplied (phase 4) needs the street built from materials; survival batches skip it today |
 | C17 | **Protected areas**: write bounds Architect enforces. A caller marks areas (or Architect detects player-changed cells) that no placement, delta, road or terrain operation of that owner touches. | "Natural blocks only" is a block type, not provenance: a player's dirt paths and landscaping count as natural. Needed before districts and terrain work. |
+
+**Architect's answer (2026-10-09)**, recorded in architect-mc PLAN.md "Steward round 5". The order stays 0a → 0b → 0c → V → terrain; 6b is close.
+
+- **C13 → 0b:** `DesignRequest.versionOf(entryId[, siteId])`. It designs a change request with the entry and, when a site is given, the site's current state and kept edits as context. The result is installed as the next version, then checkDelta, applyDelta and outdated work as usual. Nothing for callers exists before that: `entry.installVersion by:'design'` is internal, and a remix makes a new entry.
+- **C14, available now:**
+  - `Sites.revert(siteId, toVersion, actor)` (1.7.0), and applyDelta to an older version.
+    - Instant mode undoes last-in-first-out where it can, else writes a forward delta.
+    - Survival always writes a paid forward delta.
+  - A version is pinned while any site stands at it, and never garbage-collected.
+  - 0a adds caller pins: `Library.pinVersion/unpinVersion(entryId, version, owner)`.
+- **C16 → 0c:** roads and paths in survival construction batches, with a bill of materials.
+- **C17 → 0c:** protected areas the caller marks, enforced as write bounds on that owner's placements, deltas, roads and terrain operations, with a typed refusal. Detecting player-changed cells automatically comes with the 6c terrain slices.
+- **Shutdown:** 0a fails pending futures with a typed `WORLD_STOPPED` reason. Until then, Steward ending its session at SERVER_STOPPING is right.
+- **C15, the shared UI library:** a new public repository and who owns it are Noah's call. Architect takes it to Noah and coordinates with AgentCraft Main.
