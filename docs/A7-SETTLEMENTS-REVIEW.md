@@ -56,3 +56,7 @@ Nothing conflicts with Steward's phase 3 core and phase 4 running before phase 2
 4. **Program vs 7c**: the card's building program is the input to 7c's derived settlement brief. 7b site variants and C1 copies should share one representation
    (program entry count to archetype plus variants).
 Phase 4 (Supplied/Hardcore on survival sites, terrain free, structures as BOM sites) matches. Steward adds the card's `fit` hint when 7b is near.
+**Agreed by Architect (2026-10-09, architect-mc SETTLEMENTS.md "Agreed with Steward")**: all four. 6d ships right after 7a as follow-on slices (region lot and
+connector delta apply; adding lots or a district to a realised region), per-site delta until then. The district split as proposed; "add a district to an existing
+region" is on the list (6c layout, 7a graph links). The steward mover after 7a. One repeat representation (program count to archetype plus variants) for C1 and 7b;
+the card's program feeds 7c's derived brief.
