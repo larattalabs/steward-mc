@@ -33,6 +33,7 @@ public final class Actions {
 	public static final int MAX_NOTES = 2000;
 
 	private static CardService cards;
+	private static final com.google.gson.Gson CARD_GSON = new com.google.gson.Gson();
 
 	private Actions() {
 	}
@@ -139,7 +140,7 @@ public final class Actions {
 		if (r == null) return Result.fail("Nothing is being built for " + id + " in this session (see /steward settlements).");
 		if (!r.playerId().equals(player.getUUID())) return Result.fail("That build belongs to another player.");
 		return switch (action == null ? "" : action) {
-			case "approve" -> Result.ok(r.approve());
+			case "approve" -> Result.ok(lot == null || lot.isEmpty() ? r.approve() : r.approveLot(lot));
 			case "redirect" -> {
 				String notes = text == null ? "" : text.strip();
 				if (notes.isEmpty()) yield Result.fail("Say what should change.");
@@ -169,22 +170,8 @@ public final class Actions {
 	}
 
 	public static void sendCard(ServerPlayer p, Settlement s) {
-		ConceptCard c = s.card();
-		List<String> program = new ArrayList<>();
-		int flagged = 0;
-		if (c.hasProgram()) {
-			for (ConceptCard.Building b : c.program()) {
-				program.add(b.role() + (b.count() > 1 ? " x" + b.count() : "") + (b.landmark() ? " (landmark, " + b.footprint() + ")" : ", " + b.footprint())
-					+ (b.notes() == null ? "" : ": " + b.notes()));
-				if (b.landmark()) flagged++;
-			}
-		}
-		// without the parse's cost (zero here, the card is from the store) and the program summary (the screen lists the program itself)
-		List<String> lines = CardResult.lines(c, new dev.larattalabs.architect.api.Cost(0, 0, 0, 0, 0, 0)).stream()
-			.filter(l -> !l.startsWith("Cost: ") && !l.startsWith("Builds (")).toList();
-		String size = c.site().size() == null ? "M" : c.site().size();
-		ServerPlayNetworking.send(p, new StewardNet.Card(s.id(), s.name(), List.copyOf(lines), List.copyOf(program), size, ProgramPlanner.total(c), flagged, c.hasProgram(),
-			SettlementRunner.busy(s.id())));
+		// the whole card as JSON: the screen lays it out in sections (it is common code, the client parses it with ConceptCard.parse)
+		ServerPlayNetworking.send(p, new StewardNet.Card(s.id(), s.name(), CARD_GSON.toJson(s.card()), SettlementRunner.busy(s.id())));
 	}
 
 	/** The start command to type for a freshly described card: its program's size and a budget at the high estimate, rounded up to $5. */

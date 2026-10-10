@@ -22,9 +22,9 @@ import org.jspecify.annotations.Nullable;
  */
 public abstract class KitScreen extends Screen {
 	/** A button laid out this frame. */
-	protected record Btn(String label, int number, boolean primary, boolean danger, boolean enabled, int x, int y, int w, Runnable action) {
+	protected record Btn(String label, int number, boolean primary, boolean danger, boolean enabled, int x, int y, int w, int h, Runnable action) {
 		boolean hit(double mx, double my) {
-			return mx >= x && mx < x + w && my >= y && my < y + 20;
+			return mx >= x && mx < x + w && my >= y && my < y + h;
 		}
 	}
 
@@ -67,11 +67,29 @@ public abstract class KitScreen extends Screen {
 	protected int button(GuiGraphicsExtractor g, String label, int number, boolean primary, boolean danger, boolean enabled, int x, int y, int mouseX, int mouseY,
 		Runnable action) {
 		int w = UiBits.buttonWidth(font, label, number);
-		Btn b = new Btn(label, number, primary, danger, enabled, x, y, w, action);
+		Btn b = new Btn(label, number, primary, danger, enabled, x, y, w, 20, action);
 		UiBits.button(g, font, label, number, x, y, w, primary, !enabled ? UiBits.ButtonState.DISABLED : b.hit(mouseX, mouseY) ? UiBits.ButtonState.HOVER
 			: UiBits.ButtonState.NORMAL, danger);
 		buttons.add(b);
 		return w;
+	}
+
+	public static final int CHIP_H = 14;
+
+	/** A small chip (the tab sprites, as Architect's set view draws its per-item Approve / Redirect): registers a click target, returns its width. */
+	protected int chip(GuiGraphicsExtractor g, String label, int x, int y, boolean on, boolean enabled, int mouseX, int mouseY, Runnable action) {
+		int w = font.width(label) + 12;
+		dev.larattalabs.steward.client.ui.Panels.sprite(g, on ? dev.larattalabs.steward.client.ui.Kit.TAB_ACTIVE : dev.larattalabs.steward.client.ui.Kit.TAB_INACTIVE, x, y, w,
+			CHIP_H, enabled ? 0xFFFFFFFF : 0x90FFFFFF);
+		boolean hover = enabled && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + CHIP_H;
+		if (hover && !on) g.fill(x + 1, y + 1, x + w - 1, y + CHIP_H - 1, 0x14000000);
+		g.text(font, label, x + 6, y + 3, !enabled ? 0xFFA39B8E : UiBits.ink(), false);
+		buttons.add(new Btn(label, 0, false, false, enabled, x, y, w, CHIP_H, action));
+		return w;
+	}
+
+	protected int chipWidth(String label) {
+		return font.width(label) + 12;
 	}
 
 	protected int buttonWidth(String label, int number) {

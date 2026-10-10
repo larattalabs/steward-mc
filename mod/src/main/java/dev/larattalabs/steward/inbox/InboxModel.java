@@ -13,8 +13,16 @@ public final class InboxModel {
 	private InboxModel() {
 	}
 
-	/** A lot waiting for a decision: its id (what a redirect names), its role and a short description (size, named parts). */
-	public record Lot(String id, String role, String detail) {}
+	/**
+	 * One building of the build: its lot id (what a redirect names), its role, its stage as Architect reports it ({@code massing}, {@code approval},
+	 * {@code detail}, {@code done}, {@code failed}, or "" before the design group), whether it is a landmark, whether its massing waits for the player, and a
+	 * short description (the massing's size and named parts, when known).
+	 */
+	public record Lot(String id, String role, String stage, boolean landmark, boolean waiting, String detail) {
+		public Lot(String id, String role, String detail) {
+			this(id, role, "approval", false, true, detail);
+		}
+	}
 
 	/**
 	 * @param decision a {@link Pipeline.Decision} name ({@code NONE} when the build is just working)
@@ -27,16 +35,22 @@ public final class InboxModel {
 			lots = List.copyOf(lots);
 		}
 
+		/** Buildings done (designed, or placed once placing). */
+		public long done() {
+			return lots.stream().filter(l -> "done".equals(l.stage())).count();
+		}
+
 		public boolean waiting() {
 			return !Pipeline.Decision.NONE.name().equals(decision);
 		}
 	}
 
+	/** @param waitingLots every building of the build (the ones whose massing waits marked {@code waiting}) */
 	public static Entry entry(String settlementId, String name, Pipeline.State s, List<Lot> waitingLots) {
 		Pipeline.Decision d = Pipeline.awaiting(s);
 		String headline = switch (d) {
 			case BIBLE -> "The style bible is ready. Approve it to design the buildings.";
-			case MASSINGS -> waitingLots.size() + " massings wait for you: approve them, or send one back with notes.";
+			case MASSINGS -> waitingLots.stream().filter(Lot::waiting).count() + " massings wait for you: approve them, or send one back with notes.";
 			case BUDGET -> String.format("Paused at %d%% of the $%.0f budget. Raise it to at least $%.0f to go on.", (int) (BudgetPolicy.SOFT_FRACTION * 100), s.budgetUsd(),
 				Pipeline.minimumRaise(s));
 			case PLACEMENT -> "The designs are done and fitted to their lots. Approve to place them.";
@@ -47,8 +61,7 @@ public final class InboxModel {
 		if (!counts.isEmpty()) lines.add("Buildings: " + counts.entrySet().stream().map(e -> e.getValue() + " " + e.getKey()).reduce((a, b) -> a + ", " + b).orElse(""));
 		lines.add(String.format("Spent $%.2f of $%.0f", s.spentUsd(), s.budgetUsd()));
 		if (s.heldNote() != null) lines.add("Waiting for your Claude usage limit to reset (" + s.heldNote() + ")");
-		return new Entry(settlementId, name, d.name(), headline, lines, d == Pipeline.Decision.MASSINGS ? waitingLots : List.of(), s.budgetUsd(), s.spentUsd(),
-			Pipeline.minimumRaise(s));
+		return new Entry(settlementId, name, d.name(), headline, lines, waitingLots, s.budgetUsd(), s.spentUsd(), Pipeline.minimumRaise(s));
 	}
 
 	static String working(Pipeline.Phase p) {

@@ -44,7 +44,6 @@ class InboxModelTest {
 		State paused = Pipeline.step(s, new Pipeline.GroupUpdate("g", "paused_budget", Map.of(), List.of(), 24, null), Permission.PROPOSALS).next();
 		InboxModel.Entry b = InboxModel.entry("set_4", "Stilt", paused, lots);
 		assertEquals("BUDGET", b.decision());
-		assertTrue(b.lots().isEmpty(), "lots only for massings");
 		assertEquals(Pipeline.minimumRaise(paused), b.minRaiseUsd());
 		assertTrue(b.headline().contains("$" + (int) Pipeline.minimumRaise(paused)), b.headline());
 	}

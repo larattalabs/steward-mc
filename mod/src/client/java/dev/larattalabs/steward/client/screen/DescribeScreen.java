@@ -17,8 +17,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * and by the steward of an undescribed settlement. Client thread.
  */
 public final class DescribeScreen extends KitScreen {
-	private static final String EXAMPLES = "e.g. \"a fishing village built on stilts over a swamp, mossy and crooked\", \"a quiet lakeside town of glassblowers and lantern"
-		+ " makers, no walls\", \"repurposed giant meteor crater mining facility, hellish evil lair\"";
+	private static final String EXAMPLES = "e.g. \"a fishing village on stilts over a swamp, mossy and crooked\" or \"repurposed meteor crater mining facility, hellish evil lair\"";
 	private final String settlementId;
 	private final String name;
 	private boolean sent;
@@ -48,7 +47,7 @@ public final class DescribeScreen extends KitScreen {
 
 	@Override
 	protected void draw(GuiGraphicsExtractor g, int mouseX, int mouseY) {
-		int w = Math.min(420, width - 16);
+		int w = Math.min(380, width - 16);
 		Kit.Padding pad = Kit.padding("panel_paper");
 		int inner = w - pad.left() - pad.right();
 		TextFieldView.Style st = new TextFieldView.Style(null, 0, "what should this place be?", null, (field == null ? 0 : field.length()) + "/" + ConceptCardJob.MAX_PROMPT,

@@ -66,6 +66,9 @@ public final class StewardNet {
 				for (InboxModel.Lot l : e.lots()) {
 					buf.writeUtf(l.id());
 					buf.writeUtf(l.role());
+					buf.writeUtf(l.stage());
+					buf.writeBoolean(l.landmark());
+					buf.writeBoolean(l.waiting());
 					buf.writeUtf(l.detail());
 				}
 				buf.writeDouble(e.budgetUsd());
@@ -80,7 +83,7 @@ public final class StewardNet {
 				List<String> lines = readStrings(buf);
 				int m = buf.readVarInt();
 				List<InboxModel.Lot> lots = new ArrayList<>(m);
-				for (int j = 0; j < m; j++) lots.add(new InboxModel.Lot(buf.readUtf(), buf.readUtf(), buf.readUtf()));
+				for (int j = 0; j < m; j++) lots.add(new InboxModel.Lot(buf.readUtf(), buf.readUtf(), buf.readUtf(), buf.readBoolean(), buf.readBoolean(), buf.readUtf()));
 				out.add(new InboxModel.Entry(id, name, decision, headline, lines, lots, buf.readDouble(), buf.readDouble(), buf.readDouble()));
 			}
 			return new Inbox(List.copyOf(out));
@@ -118,24 +121,15 @@ public final class StewardNet {
 		}
 	}
 
-	/**
-	 * A settlement's concept card to show (and start from): the card as lines, the program as lines, and what the screen needs for its estimate (the size,
-	 * the program's total and landmark flags; the screen applies {@code BudgetPolicy.landmarksFor} like the runner). {@code busy}: a build is running.
-	 */
-	public record Card(String settlementId, String name, List<String> lines, List<String> program, String size, int programTotal, int flaggedLandmarks, boolean hasProgram,
-		boolean busy) implements CustomPacketPayload {
+	/** A settlement's concept card to show (and start from), as the card's JSON (the screen parses it with {@code ConceptCard.parse}). {@code busy}: a build is running. */
+	public record Card(String settlementId, String name, String cardJson, boolean busy) implements CustomPacketPayload {
 		public static final Type<Card> TYPE = new Type<>(id("card"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, Card> CODEC = StreamCodec.of((buf, p) -> {
 			buf.writeUtf(p.settlementId);
 			buf.writeUtf(p.name);
-			writeStrings(buf, p.lines);
-			writeStrings(buf, p.program);
-			buf.writeUtf(p.size);
-			buf.writeVarInt(p.programTotal);
-			buf.writeVarInt(p.flaggedLandmarks);
-			buf.writeBoolean(p.hasProgram);
+			buf.writeUtf(p.cardJson, 32767);
 			buf.writeBoolean(p.busy);
-		}, buf -> new Card(buf.readUtf(), buf.readUtf(), readStrings(buf), readStrings(buf), buf.readUtf(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readBoolean()));
+		}, buf -> new Card(buf.readUtf(), buf.readUtf(), buf.readUtf(32767), buf.readBoolean()));
 
 		@Override
 		public Type<Card> type() {

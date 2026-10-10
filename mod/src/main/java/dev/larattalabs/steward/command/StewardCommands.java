@@ -121,13 +121,20 @@ public final class StewardCommands {
 						case "open" -> s.ifPresent(x -> Actions.openFor(p, x));
 						case "sample" -> {
 							// a made-up inbox for screenshots: no build is touched, decisions from it come back as "nothing is being built"
-							var lots = java.util.List.of(new dev.larattalabs.steward.inbox.InboxModel.Lot("tavern_1", "harbourmaster's hall", "14x13, 18 tall (stilts, common_room, lodging, roof, porch)"),
-								new dev.larattalabs.steward.inbox.InboxModel.Lot("cabin_1", "fisher's stilt house", "10x9, 13 tall (stilts, hut, roof, chimney, porch)"),
-								new dev.larattalabs.steward.inbox.InboxModel.Lot("tower_1", "lookout tower", "8x8, 21 tall (stilts, shaft, crown, roof)"));
+							var lots = java.util.List.of(
+								new dev.larattalabs.steward.inbox.InboxModel.Lot("tavern_1", "harbourmaster's hall", "approval", true, true, "14x13, 18 tall (stilts, common_room, lodging, roof, porch)"),
+								new dev.larattalabs.steward.inbox.InboxModel.Lot("cabin_1", "fisher's stilt house", "approval", false, true, "10x9, 13 tall (stilts, hut, roof, chimney, porch)"),
+								new dev.larattalabs.steward.inbox.InboxModel.Lot("tower_1", "lookout tower", "approval", false, true, "8x8, 21 tall (stilts, shaft, crown, roof)"),
+								new dev.larattalabs.steward.inbox.InboxModel.Lot("shed_1", "drying rack shed", "massing", false, false, "11x9 lot"));
+							var lots2 = java.util.List.of(
+								new dev.larattalabs.steward.inbox.InboxModel.Lot("glassworks_1", "glassblowers' hall", "done", true, false, "18x15 lot"),
+								new dev.larattalabs.steward.inbox.InboxModel.Lot("workshop_1", "glassblower's workshop", "done", false, false, "14x12 lot"),
+								new dev.larattalabs.steward.inbox.InboxModel.Lot("workshop_2", "lantern maker's workshop", "detail", false, false, "14x12 lot"),
+								new dev.larattalabs.steward.inbox.InboxModel.Lot("cottage_1", "artisan cottage", "detail", false, false, "11x9 lot"));
 							var a1 = new dev.larattalabs.steward.inbox.InboxModel.Entry(id, "Stilt Swamp Fishing Village", "MASSINGS", "3 massings wait for you: approve them, or send one back with notes.",
 								java.util.List.of("Buildings: 3 approval", "Spent $3.12 of $35"), lots, 35, 3.12, 10);
 							var a2 = new dev.larattalabs.steward.inbox.InboxModel.Entry(id + "_b", "Lantern Shore", "BUDGET", "Paused at 80% of the $30 budget. Raise it to at least $40 to go on.",
-								java.util.List.of("Buildings: 5 done, 2 detail", "Spent $26.38 of $30"), java.util.List.of(), 30, 26.38, 40);
+								java.util.List.of("Buildings: 2 done, 2 detail", "Spent $26.38 of $30"), lots2, 30, 26.38, 40);
 							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.Inbox(java.util.List.of(a1, a2)));
 							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.OpenInbox(id));
 						}

@@ -169,6 +169,14 @@ public final class SettlementRunner {
 		};
 	}
 
+	/** Approves one awaiting massing (the others stay waiting). */
+	public String approveLot(String lot) {
+		if (state == null || Pipeline.awaiting(state) != Pipeline.Decision.MASSINGS) return "No massing is waiting for approval.";
+		if (!lastAwaiting.contains(lot)) return "Lot " + lot + " is not waiting.";
+		feed(new Pipeline.MassingDecision(List.of(lot), Map.of(), List.of()));
+		return "Approved " + lot + ".";
+	}
+
 	/** Sends one awaiting massing back with the player's notes (the others stay waiting). */
 	public String redirect(String lot, String notes) {
 		if (state == null || Pipeline.awaiting(state) != Pipeline.Decision.MASSINGS) return "No massing is waiting for approval.";
@@ -504,8 +512,19 @@ public final class SettlementRunner {
 	/** This build's inbox entry, or null before it has a settlement and a state (still reading the card or surveying) or once it is finished. */
 	public dev.larattalabs.steward.inbox.InboxModel.Entry inboxEntry() {
 		if (settlement == null || state == null || state.phase().terminal()) return null;
-		List<dev.larattalabs.steward.inbox.InboxModel.Lot> lots = Pipeline.awaiting(state) == Pipeline.Decision.MASSINGS
-			? massings().stream().map(lm -> new dev.larattalabs.steward.inbox.InboxModel.Lot(lm.lot().id(), lm.lot().role(), lm.detail())).toList() : List.of();
+		// every building, with its stage; the waiting massings with their size and parts
+		Map<String, String> details = new java.util.HashMap<>();
+		boolean massingsWait = Pipeline.awaiting(state) == Pipeline.Decision.MASSINGS;
+		if (massingsWait) for (LotMassing lm : massings()) details.put(lm.lot().id(), lm.detail());
+		List<dev.larattalabs.steward.inbox.InboxModel.Lot> lots = new ArrayList<>();
+		if (plan != null) {
+			for (VillageLayout.Lot l : plan.lots()) {
+				String stage = state.items().getOrDefault(l.id(), "");
+				boolean waits = massingsWait && lastAwaiting.contains(l.id());
+				lots.add(new dev.larattalabs.steward.inbox.InboxModel.Lot(l.id(), l.role(), stage, landmarkIds.contains(l.id()) || l.landmark(), waits,
+					details.getOrDefault(l.id(), l.sizeX() + "x" + (l.sizeZ() - dev.larattalabs.steward.gateway.LotBrief.APPROACH_MARGIN) + " lot")));
+			}
+		}
 		return dev.larattalabs.steward.inbox.InboxModel.entry(settlement.id(), settlement.name(), state, lots);
 	}
 
