@@ -118,6 +118,7 @@ public final class BatchPlanner {
 			JsonObject ext = new JsonObject();
 			ext.addProperty("steward_mc:settlement", s.id());
 			ext.addProperty("steward_mc:lot", l.id());
+			ext.addProperty("steward_mc:role", l.role());
 			if (buildId != null) ext.addProperty(BUILD_EXT, buildId);
 			PlaceRequest r = new PlaceRequest(entry, level, fit.origin(), fit.rotation(), mode, s.owner(), ext, false, null);
 			items.put(l.id(), new Batch.Item(l.id(), r, stageOf.get(l.id()), List.of()));

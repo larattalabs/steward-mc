@@ -40,6 +40,11 @@ public final class InboxModel {
 			return lots.stream().filter(l -> "done".equals(l.stage())).count();
 		}
 
+		/** Unique in the inbox: a settlement can have a build in progress and updates waiting at once. */
+		public String key() {
+			return "UPDATE".equals(decision) ? settlementId + "#updates" : settlementId;
+		}
+
 		public boolean waiting() {
 			return !Pipeline.Decision.NONE.name().equals(decision);
 		}
@@ -62,6 +67,14 @@ public final class InboxModel {
 		lines.add(String.format("Spent $%.2f of $%.0f", s.spentUsd(), s.budgetUsd()));
 		if (s.heldNote() != null) lines.add("Waiting for your Claude usage limit to reset (" + s.heldNote() + ")");
 		return new Entry(settlementId, name, d.name(), headline, lines, waitingLots, s.budgetUsd(), s.spentUsd(), Pipeline.minimumRaise(s));
+	}
+
+	/** A settlement's waiting updates: one lot per building (its id is the site id, {@code waiting} when it can be applied). */
+	public static Entry updates(String settlementId, String name, List<Lot> buildings) {
+		long ready = buildings.stream().filter(Lot::waiting).count();
+		String headline = ready == 0 ? "Updates are available but cannot be applied right now (see each building)."
+			: ready + (ready == 1 ? " building has" : " buildings have") + " a newer version: update, preview the change, or skip. Your own edits are kept.";
+		return new Entry(settlementId, name, "UPDATE", headline, List.of(), buildings, 0, 0, 0);
 	}
 
 	static String working(Pipeline.Phase p) {

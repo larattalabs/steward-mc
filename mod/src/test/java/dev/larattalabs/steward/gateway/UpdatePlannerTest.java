@@ -65,6 +65,7 @@ class UpdatePlannerTest {
 		assertEquals(PlayerEdits.KEEP, UpdatePlanner.editsFor(Permission.PROPOSALS));
 		assertEquals(PlayerEdits.KEEP, UpdatePlanner.editsFor(Permission.FULL));
 		assertEquals(PlayerEdits.REFUSE, UpdatePlanner.editsFor(Permission.OBSERVER));
-		assertEquals(PlayerEdits.KEEP, UpdatePlanner.request("s1", 2, PlayerEdits.KEEP).playerEdits());
+		assertEquals(PlayerEdits.KEEP, UpdatePlanner.request("s1", 2, PlayerEdits.KEEP, "steward_mc:settlement/set_1").playerEdits());
+		assertEquals("steward_mc:settlement/set_1", UpdatePlanner.request("s1", 2, PlayerEdits.KEEP, "steward_mc:settlement/set_1").owner(), "the settlement asks as the owner (OVERLAP_OWNED otherwise)");
 	}
 }

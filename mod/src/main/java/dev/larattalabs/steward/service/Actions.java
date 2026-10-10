@@ -131,6 +131,22 @@ public final class Actions {
 
 	/** A decision on the player's own build: approve, redirect, raise, cancel, show, hide; "card" shows the settlement's card again. */
 	public static Result decide(ServerPlayer player, String id, String action, String lot, String text, double amount) {
+		switch (action == null ? "" : action) {
+			case "update_apply" -> {
+				return Result.ok(Updates.approve(player.level().getServer(), id, lot == null ? "" : lot));
+			}
+			case "update_skip" -> {
+				return Result.ok(Updates.skip(player.level().getServer(), id, lot == null ? "" : lot));
+			}
+			case "update_preview" -> {
+				var p = Updates.pending(id).stream().filter(x -> x.siteId().equals(lot)).findFirst();
+				if (p.isEmpty()) return Result.fail("No update waiting for " + lot + ".");
+				ServerPlayNetworking.send(player, new StewardNet.PreviewDelta("steward_mc:update/" + lot, lot, p.get().to()));
+				return Result.ok("Showing what changes on " + p.get().lot() + " (added, removed, changed and kept blocks).");
+			}
+			default -> {
+			}
+		}
 		if ("expand".equals(action)) {
 			Optional<Settlement> s = Settlements.store().get(id);
 			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");

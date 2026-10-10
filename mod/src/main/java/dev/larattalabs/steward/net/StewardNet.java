@@ -138,6 +138,21 @@ public final class StewardNet {
 		}
 	}
 
+	/** Show the delta ghost of a placed site going to {@code toVersion} (Architect's {@code ArchitectClientApi.previewDelta}) under {@code key}. */
+	public record PreviewDelta(String key, String siteId, int toVersion) implements CustomPacketPayload {
+		public static final Type<PreviewDelta> TYPE = new Type<>(id("preview_delta"));
+		public static final StreamCodec<RegistryFriendlyByteBuf, PreviewDelta> CODEC = StreamCodec.of((buf, p) -> {
+			buf.writeUtf(p.key);
+			buf.writeUtf(p.siteId);
+			buf.writeVarInt(p.toVersion);
+		}, buf -> new PreviewDelta(buf.readUtf(), buf.readUtf(), buf.readVarInt()));
+
+		@Override
+		public Type<PreviewDelta> type() {
+			return TYPE;
+		}
+	}
+
 	// ------------------------------------------------------------------ client to server (validated in Actions)
 
 	public record Describe(String settlementId, String text) implements CustomPacketPayload {
@@ -207,6 +222,7 @@ public final class StewardNet {
 		s2c.register(OpenInbox.TYPE, OpenInbox.CODEC);
 		s2c.register(OpenDescribe.TYPE, OpenDescribe.CODEC);
 		s2c.register(Card.TYPE, Card.CODEC);
+		s2c.register(PreviewDelta.TYPE, PreviewDelta.CODEC);
 		var c2s = PayloadTypeRegistry.serverboundPlay();
 		c2s.register(Describe.TYPE, Describe.CODEC);
 		c2s.register(Start.TYPE, Start.CODEC);

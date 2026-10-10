@@ -29,8 +29,9 @@ public final class UpdatePlanner {
 	/** Refusals that no retry fixes (the building must be re-placed or the situation changed by the player). */
 	private static final List<Reason> PERMANENT = List.of(Reason.FRAME_CHANGED, Reason.VERSION_GONE, Reason.COVERED, Reason.PLAYER_EDITS, Reason.BLOCK_ENTITIES);
 
-	public static DeltaRequest request(String siteId, int toVersion, PlayerEdits edits) {
-		return new DeltaRequest(siteId, toVersion, edits, null, null, false, new com.google.gson.JsonObject());
+	/** {@code owner}: the settlement's owner string; Architect refuses a delta of an owned site from any other caller (OVERLAP_OWNED, found live). */
+	public static DeltaRequest request(String siteId, int toVersion, PlayerEdits edits, String owner) {
+		return new DeltaRequest(siteId, toVersion, edits, null, null, false, new com.google.gson.JsonObject(), owner);
 	}
 
 	/** KEEP never destroys player work; only an Observer-level settlement asks to refuse instead (so the player decides first). */

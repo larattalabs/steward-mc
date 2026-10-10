@@ -35,6 +35,7 @@ import net.minecraft.network.chat.Component;
  * /steward cancel &lt;id&gt;                            stop the build (what is placed stays)
  * /steward show|hide &lt;id&gt;                         show or hide the build's massings as ghosts on their lots
  * /steward expand &lt;id&gt;                            grow the claim one size step (S 97, M 129, L 193, XL 257 across)
+ * /steward updates                                look again for newer versions of placed buildings (the inbox offers them)
  * /steward undo &lt;id&gt;                              remove the newest placed project and restore the land exactly
  * dev (cheats):
  * /steward claim                                   claim the land under you, as the Founding Stone does
@@ -103,6 +104,12 @@ public final class StewardCommands {
 			.then(Commands.literal("raise").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("budget", DoubleArgumentType.doubleArg(Actions.MIN_BUDGET,
 				Actions.MAX_RAISE)).executes(ctx -> decide(ctx, "raise", "", "", DoubleArgumentType.getDouble(ctx, "budget"))))))
 			.then(Commands.literal("cancel").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "cancel", "", "", 0))))
+			.then(Commands.literal("updates").executes(ctx -> {
+				// look again for newer versions of placed buildings (they are found at world load and when Architect announces a version)
+				dev.larattalabs.steward.service.Updates.refreshAll(ctx.getSource().getServer());
+				ctx.getSource().sendSuccess(() -> Component.literal("Checked for building updates: see the inbox (Y)."), false);
+				return 1;
+			}))
 			.then(Commands.literal("expand").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "expand", "", "", 0))))
 			.then(Commands.literal("show").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "show", "", "", 0))))
 			.then(Commands.literal("hide").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "hide", "", "", 0))))

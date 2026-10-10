@@ -143,4 +143,11 @@ landmark designed alone first, then the other two. Fixed after: the finished mes
   across), only ever growing, taking the largest size that overlaps no other settlement and naming the neighbour that stopped it. Expand (card screen button 3,
   `/steward expand <id>`) grows one step, refused past XL ("larger settlements grow by districts") or onto a neighbour. The runner surveys and lays out in the
   settlement's own claim. Checked in a client: 129 to 193 by the card's button, 257 by the command, then refused.
+- Update available (2026-10-09): `service/Updates` finds a settlement's outdated buildings at world load (`Sites.outdated`, after Architect's SERVER_STARTED) and on
+  `ENTRY_VERSIONED`, checks each delta (as the settlement's owner: without it Architect refuses OVERLAP_OWNED, a bug of the never-run `UpdatePlanner` found live), and by
+  the permission level applies it at once (Autonomous and Full, no materials) or offers it in the inbox ("update available": per building Update / Preview, Update
+  all, Skip these versions; the preview is Architect's delta ghost). The player's edits are kept. Applied updates are logged on the settlement. `/steward updates`
+  looks again (Architect's dev `installVersion` does not fire ENTRY_VERSIONED). Placements now record `steward_mc:role` so updates name the building. Checked in a
+  client at $0: a hand-made v2 of Greywater Hamlet's cottage (a loom and a barrel; built and checked by the kit, installed with `dev.entry.installVersion`) was
+  found at world load, offered, applied from the inbox, logged; the site is at v2 with nothing left to apply.
 

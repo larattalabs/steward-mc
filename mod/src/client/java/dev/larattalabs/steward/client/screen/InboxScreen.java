@@ -48,9 +48,11 @@ public final class InboxScreen extends KitScreen {
 	private InboxModel.@Nullable Entry selected() {
 		List<InboxModel.Entry> all = ClientInbox.entries();
 		if (all.isEmpty()) return null;
+		for (InboxModel.Entry e : all) if (e.key().equals(selectedId)) return e;
+		// opened for a settlement: its build first, else its updates
 		for (InboxModel.Entry e : all) if (e.settlementId().equals(selectedId)) return e;
 		InboxModel.Entry pick = all.stream().filter(InboxModel.Entry::waiting).findFirst().orElse(all.get(0));
-		selectedId = pick.settlementId();
+		selectedId = pick.key();
 		return pick;
 	}
 
@@ -66,7 +68,8 @@ public final class InboxScreen extends KitScreen {
 	}
 
 	private void send(String action, String lot, String text, double amount, String what) {
-		ClientPlayNetworking.send(new StewardNet.Decide(selectedId, action, lot, text, amount));
+		InboxModel.Entry e = selected();
+		ClientPlayNetworking.send(new StewardNet.Decide(e == null ? selectedId : e.settlementId(), action, lot, text, amount));
 		sentAtVersion = ClientInbox.version();
 		say(what + "...", false);
 		confirmCancel = false;
@@ -115,12 +118,14 @@ public final class InboxScreen extends KitScreen {
 			case "MASSINGS" -> new String[] {"waiting", "massings"};
 			case "BUDGET" -> new String[] {"waiting", "budget paused"};
 			case "PLACEMENT" -> new String[] {"waiting", "ready to place"};
+			case "UPDATE" -> new String[] {"done", "update available"};
 			default -> new String[] {"working", "working"};
 		};
 	}
 
 	/** A building's dot family and stage word. */
 	private static String[] stage(InboxModel.Lot l) {
+		if ("update".equals(l.stage())) return l.waiting() ? new String[] {"done", "update"} : new String[] {"error", "cannot update now"};
 		if (l.waiting()) return new String[] {"waiting", "massing ready"};
 		return switch (l.stage()) {
 			case "done" -> new String[] {"done", "designed"};
@@ -207,14 +212,14 @@ public final class InboxScreen extends KitScreen {
 			ry += 14;
 			for (InboxModel.Entry en : group) {
 				if (ry + ROW_H > y + h) break;
-				boolean sel = en.settlementId().equals(selectedId);
+				boolean sel = en == selected();
 				boolean hov = mx >= x && mx < x + w && my >= ry - 2 && my < ry + ROW_H - 2;
 				if (sel) g.fill(x + 2, ry - 2, x + w - 2, ry + ROW_H - 3, 0x30B4553A);
 				else if (hov) g.fill(x + 2, ry - 2, x + w - 2, ry + ROW_H - 3, 0x14000000);
 				Panels.dot(g, pill(en)[0], x + 6, ry + 1, false);
 				g.text(font, TextUtil.ellipsize(font, en.name(), w - 22), x + 16, ry, needs ? UiBits.ink() : UiBits.muted(), false);
 				g.text(font, TextUtil.ellipsize(font, pill(en)[1], w - 22), x + 16, ry + 10, UiBits.muted(), false);
-				listIds.add(en.settlementId());
+				listIds.add(en.key());
 				listRows.add(new int[] {ry - 2, ry + ROW_H - 2});
 				ry += ROW_H;
 			}
@@ -233,16 +238,19 @@ public final class InboxScreen extends KitScreen {
 		// the pill, the name, the spend
 		String[] p = pill(e);
 		int pw = UiBits.dotPill(g, font, p[0], p[1], x, y - 1, UiBits.ink());
-		String spend = String.format("$%.2f of $%.0f", e.spentUsd(), e.budgetUsd());
+		String spend = "UPDATE".equals(e.decision()) ? "" : String.format("$%.2f of $%.0f", e.spentUsd(), e.budgetUsd());
 		g.text(font, spend, x + w - font.width(spend), y + 1, e.spentUsd() >= e.budgetUsd() * 0.8 ? UiStyle.CLAY_DARK : UiBits.muted(), false);
 		g.text(font, TextUtil.ellipsize(font, e.name(), w - pw - font.width(spend) - 14), x + pw + 6, y + 1, UiBits.ink(), false);
 		y += 14;
-		// progress: buildings designed
-		int total = Math.max(1, e.lots().size());
-		String prog = e.done() + " of " + e.lots().size() + " designed";
-		Panels.progress(g, x, y + 1, w - font.width(prog) - 8, (double) e.done() / total, e.waiting() ? "clay" : "sage");
-		g.text(font, prog, x + w - font.width(prog), y, UiBits.muted(), false);
-		y += 12;
+		boolean update = "UPDATE".equals(e.decision());
+		if (!update) {
+			// progress: buildings designed
+			int total = Math.max(1, e.lots().size());
+			String prog = e.done() + " of " + e.lots().size() + " designed";
+			Panels.progress(g, x, y + 1, w - font.width(prog) - 8, (double) e.done() / total, e.waiting() ? "clay" : "sage");
+			g.text(font, prog, x + w - font.width(prog), y, UiBits.muted(), false);
+			y += 12;
+		}
 		for (String l : TextUtil.wrapPlain(font, e.headline(), w)) {
 			g.text(font, l, x, y, e.waiting() ? UiStyle.CLAY_DARK : UiBits.ink(), false);
 			y += 10;
@@ -262,7 +270,19 @@ public final class InboxScreen extends KitScreen {
 				String[] st = stage(l);
 				Panels.dot(g, st[0], x + 5, ry + 1, false);
 				int actionsW = 0;
-				if (massings && l.waiting()) {
+				if ("UPDATE".equals(e.decision()) && sentAtVersion < 0) {
+					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
+					int cy = ry + (20 - CHIP_H) / 2 - 1;
+					String pv = "Preview";
+					ax -= chipWidth(pv);
+					chip(g, pv, ax, cy, false, true, mx, my, () -> send("update_preview", l.id(), "", 0, "Showing the change on " + l.role()));
+					if (l.waiting()) {
+						String up = "Update";
+						ax -= chipWidth(up) + 3;
+						chip(g, up, ax, cy, true, true, mx, my, () -> send("update_apply", l.id(), "", 0, "Updating " + l.role()));
+					}
+					actionsW = x + w - ax + 4;
+				} else if (massings && l.waiting()) {
 					// a fixed column on the right, the chips centred on the two-line row
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
 					int cy = ry + (20 - CHIP_H) / 2 - 1;
@@ -279,7 +299,7 @@ public final class InboxScreen extends KitScreen {
 				// short: the lot, the stage, the size (the named parts are in the redirect prompt)
 				String size = l.detail().contains(" (") ? l.detail().substring(0, l.detail().indexOf(" (")) : l.detail();
 				// with chips on the row its stage goes without saying
-				String sub = l.id() + (actionsW > 0 ? "" : " · " + st[1]) + (size.isEmpty() ? "" : " · " + size.replace(", ", " · "));
+				String sub = "update".equals(l.stage()) ? l.detail() : l.id() + (actionsW > 0 ? "" : " · " + st[1]) + (size.isEmpty() ? "" : " · " + size.replace(", ", " · "));
 				g.text(font, TextUtil.ellipsize(font, sub, w - 20 - actionsW), x + 15, ry + 10, UiBits.muted(), false);
 			}
 			if (e.lots().size() > fit) {
@@ -334,6 +354,12 @@ public final class InboxScreen extends KitScreen {
 				bx += button(g, "Raise the budget", 1, true, false, idle, bx, y, mx, my, this::submitField) + 6;
 			}
 			case "PLACEMENT" -> bx += button(g, "Place it", 1, true, false, idle, bx, y, mx, my, () -> send("approve", "", "", 0, "Placing " + e.name())) + 6;
+			case "UPDATE" -> {
+				long n = e.lots().stream().filter(InboxModel.Lot::waiting).count();
+				bx += button(g, "Update all " + n, 1, true, false, idle && n > 0, bx, y, mx, my, () -> send("update_apply", "", "", 0, "Updating " + n + " buildings")) + 6;
+				bx += button(g, "Skip these versions", 2, false, false, idle, bx, y, mx, my, () -> send("update_skip", "", "", 0, "Skipping")) + 6;
+				return;
+			}
 			default -> {
 			}
 		}
@@ -362,7 +388,7 @@ public final class InboxScreen extends KitScreen {
 		if (e.key() == InputConstants.KEY_DOWN || e.key() == InputConstants.KEY_RIGHT) i = (i + 1) % all.size();
 		else if (e.key() == InputConstants.KEY_UP || e.key() == InputConstants.KEY_LEFT) i = (i - 1 + all.size()) % all.size();
 		else return false;
-		select(all.get(i).settlementId());
+		select(all.get(i).key());
 		return true;
 	}
 

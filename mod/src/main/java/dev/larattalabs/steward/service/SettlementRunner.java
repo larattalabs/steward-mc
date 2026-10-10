@@ -542,6 +542,7 @@ public final class SettlementRunner {
 			var e = r.inboxEntry();
 			if (e != null) entries.add(e);
 		}
+		entries.addAll(Updates.inboxEntries());
 		net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new StewardNet.Inbox(List.copyOf(entries)));
 	}
 

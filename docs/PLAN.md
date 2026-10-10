@@ -266,10 +266,10 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
 | Gap | State |
 |---|---|
 | Street | Fixed: placed in the rerun (2026-10-09, Greywater Hamlet, same slope that refused it before). |
-| Phase 1 gate | Waits on Noah's look at the gallery (`docs/img/stilt-village*.jpg`, `docs/img/greywater-hamlet.jpg`). |
+| Phase 1 gate | **Passed** (Noah, 2026-10-09). |
 | Steward NPC | A static mannequin: no walking, no skin of its own, no conversation; the right-click is not tested by hand. |
 | Card screen | No per-field chips or regenerate/lock per field. |
-| Update flow | `UpdatePlanner` is coded, not wired or run. |
+| Update flow | Wired and run (2026-10-09): "update available" in the inbox; see DEV.md. |
 | Survival worlds | Supplied and Hardcore never tried. |
 | Claims | Size from the card and Expand built (2026-10-09); districts are phase 3 (see "Claims and growth"). |
 | Gates | No $0 end-to-end gate; every flow check so far was hand-run. |
