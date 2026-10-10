@@ -66,6 +66,11 @@ public final class VillageLayout {
 	}
 
 	public static Plan plan(Claim claim, Grid grid, List<LotSpec> specs, Rules rules) {
+		return plan(claim, grid, specs, rules, null);
+	}
+
+	/** As {@link #plan(Claim, Grid, List, Rules)}, on the given street ({@code streetZ}) when there is one: an addition faces the settlement's own street. */
+	public static Plan plan(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, @Nullable Integer streetZ) {
 		// placement hints order the specs: the street fills from its middle outward, so "central" goes first and "edge" last
 		List<LotSpec> ordered = new ArrayList<>(specs);
 		ordered.sort(Comparator.comparingInt(VillageLayout::orderOf));
@@ -73,7 +78,8 @@ public final class VillageLayout {
 		Plan best = null;
 		long bestScore = Long.MIN_VALUE;
 		int r = claim.radius() - rules.claimMargin();
-		for (int dz = -r / 2; dz <= r / 2; dz += 4) {
+		int dz0 = streetZ == null ? -r / 2 : streetZ - claim.centerZ(), dz1 = streetZ == null ? r / 2 : dz0;
+		for (int dz = dz0; dz <= dz1; dz += 4) {
 			for (boolean northFirst : new boolean[] {true, false}) {
 				for (boolean eastFirst : new boolean[] {true, false}) {
 					Plan p = tryStreetSkipping(claim, grid, ordered, rules, claim.centerZ() + dz, northFirst, eastFirst);

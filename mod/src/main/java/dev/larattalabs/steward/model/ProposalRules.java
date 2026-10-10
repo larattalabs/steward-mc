@@ -67,6 +67,12 @@ public final class ProposalRules {
 		return out;
 	}
 
+	/** The proposal a key stands for (made now), or null for an unknown key: a proposal given back after a build that never spent. */
+	public static Proposal find(String key) {
+		return RULES.stream().filter(r -> r.key().equals(key)).findFirst().map(r -> new Proposal(r.key(), r.title(), r.why(),
+			new ConceptCard.Building(r.role(), r.type(), 1, r.footprint(), false, r.notes(), null), System.currentTimeMillis(), trigger(r.key()))).orElse(null);
+	}
+
 	/** The building type a proposal key builds (what an accepted proposal adds to the settlement), or null for an unknown key. */
 	public static String typeOf(String key) {
 		return RULES.stream().filter(r -> r.key().equals(key)).map(Rule::type).findFirst().orElse(null);

@@ -169,7 +169,7 @@ public record Settlement(
 	 * The settlement's style bible (Architect's id and version), kept from its first build: later builds (a proposal, an addition) reuse it, so they match
 	 * the settlement and do not pay for a new one. Null until a build made one.
 	 */
-	public record BibleRef(String id, int version) {}
+	public record BibleRef(String id, int version, int styleVersion) {}
 
 	public Settlement withBible(BibleRef b) {
 		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, b, autonomy);
@@ -187,7 +187,8 @@ public record Settlement(
 	/** The player's description became a card (and, if the card names the settlement, its name). */
 	public Settlement withCard(ConceptCard c, long now) {
 		String n = c.name() == null || c.name().isBlank() ? name : c.name();
-		return new Settlement(id, n, c, claim, siteVersion, styleVersion, purposeVersion, permission, difficulty, log, proposals, bible, autonomy)
+		// a new description is a new style: its bible is made afresh
+		return new Settlement(id, n, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals, null, autonomy)
 			.withLog(new LogEntry(now, Kind.CARD_EDITED, "Described as: " + c.site().text() + ", " + c.style().text(), List.of()));
 	}
 
@@ -214,7 +215,7 @@ public record Settlement(
 		if (card == null) throw new IllegalStateException("describe the settlement first");
 		ConceptCard c = new ConceptCard(card.name(), card.site(), style, card.purpose(), card.story(), card.constraints(), card.avoid(),
 			card.interpretation(), card.contradictions(), card.assumptions(), card.program());
-		return new Settlement(id, name, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals, bible, autonomy)
+		return new Settlement(id, name, c, claim, siteVersion, styleVersion + 1, purposeVersion, permission, difficulty, log, proposals, null, autonomy)
 			.withLog(new LogEntry(now, Kind.RESKIN, "Style is now: " + style.text(), List.of()));
 	}
 

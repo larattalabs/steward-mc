@@ -223,6 +223,8 @@ public final class Actions {
 			} catch (IllegalArgumentException e) {
 				return Result.fail("Observer, Proposals, Autonomous or Full.");
 			}
+			// a build in progress keeps the level it started with: change it once that build is done or cancelled
+			if (SettlementRunner.busy(id)) return Result.fail(id + " is being built; change its permission once that build is done or cancelled.");
 			var res = Settlements.permission(id, p, System.currentTimeMillis());
 			if (!res.ok()) return Result.fail(res.error());
 			sendSettlement(player, res.settlement(), "");
@@ -282,6 +284,14 @@ public final class Actions {
 	 * 80% of it as any build does). Checked like a start.
 	 */
 	static Result acceptProposal(ServerPlayer player, Settlement s, String key) {
+		return acceptProposal(player, s, key, false);
+	}
+
+	/**
+	 * {@code autonomous}: the steward accepts it on its own, within the week's allowance. The acceptance (and an autonomous build's spend) is saved in one commit
+	 * as the build starts, and given back if the build ends having spent nothing, so a failed start costs neither the proposal nor the allowance.
+	 */
+	static Result acceptProposal(ServerPlayer player, Settlement s, String key, boolean autonomous) {
 		var p = s.proposals().open().stream().filter(x -> x.key().equals(key)).findFirst();
 		if (p.isEmpty()) return Result.fail("No proposal " + key + " waits.");
 		if (SettlementRunner.busy(s.id())) return Result.fail(s.id() + " is being built; build the proposal once that is done.");
@@ -291,14 +301,12 @@ public final class Actions {
 		var level = server.getLevel(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,
 			net.minecraft.resources.Identifier.parse(s.claim().dimension())));
 		if (level == null) return Result.fail("The dimension of " + s.id() + " is not loaded.");
-		var ps = s.proposals();
-		List<String> accepted = new ArrayList<>(ps.accepted());
-		accepted.add(key);
-		var res = Settlements.proposals(s.id(), new Settlement.Proposals(ps.open().stream().filter(x -> !x.key().equals(key)).toList(), ps.declined(), accepted, ps.lastAt()));
-		if (!res.ok()) return Result.fail(res.error());
 		int budget = Proposals.estimate(p.get());
-		new SettlementRunner(server, level, player, s.permission(), cards(), 0).startAddition(res.settlement(), p.get().building(), budget);
-		return Result.ok(String.format("Building %s for %s: one building beside what stands, budget $%d.", p.get().title().toLowerCase(), s.name(), budget));
+		if (autonomous && !s.autonomy().allows(budget, System.currentTimeMillis())) return Result.fail("Past this week's allowance.");
+		String title = p.get().title();
+		new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, autonomous ? budget : 0, title),
+			() -> Proposals.giveBack(s.id(), key, title)).startAddition(s, p.get().building(), budget);
+		return Result.ok(String.format("Building %s for %s: one building beside what stands, budget $%d.", title.toLowerCase(), s.name(), budget));
 	}
 
 	// ------------------------------------------------------------------ screens

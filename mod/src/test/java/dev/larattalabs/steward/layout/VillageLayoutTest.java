@@ -179,4 +179,11 @@ class VillageLayoutTest {
 		assertEquals(4, p.lots().size());
 		assertEquals(java.util.Set.of("keep_1", "keep_2"), p.unplaced().stream().map(LotSpec::id).collect(java.util.stream.Collectors.toSet()));
 	}
+
+	@Test
+	void anAdditionIsLaidOutOnTheSettlementsOwnStreet() {
+		Plan p = VillageLayout.plan(CLAIM, flat(), specs(1, 13, 12), Rules.defaults(), 9);
+		assertEquals(9, p.streetZ(), "the existing street, not a new line");
+		assertEquals(1, p.lots().size());
+	}
 }

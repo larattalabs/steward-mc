@@ -108,6 +108,13 @@ public final class Settlements {
 		return store.all().stream().filter(x -> !x.id().equals(id)).map(Settlement::claim).toList();
 	}
 
+	/** Replaces a saved settlement as a whole (saved, or nothing changes). */
+	public static Result replace(Settlement n) {
+		Optional<Settlement> s = store.get(n.id());
+		if (s.isEmpty()) return Result.fail("No such settlement: " + n.id());
+		return commit(s, n, "");
+	}
+
 	/** Sets the permission level (logged). */
 	public static Result permission(String id, dev.larattalabs.steward.model.Permission p, long now) {
 		Optional<Settlement> s = store.get(id);

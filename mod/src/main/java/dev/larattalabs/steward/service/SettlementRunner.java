@@ -472,7 +472,21 @@ public final class SettlementRunner {
 	private Settlement existing;
 	/** An addition to a built settlement (a proposal's building): no new street, and the settlement's style bible is reused. */
 	private boolean addition;
+	/** The settlement's street (its centre line), found by {@link #markSites}: an addition is laid out on it. */
+	private @org.jspecify.annotations.Nullable Integer streetZ;
+	/**
+	 * For an accepted proposal: run when the pipeline is about to start (it records the acceptance and the spend; false = it could not, and nothing starts),
+	 * and when the build ends having spent nothing (it gives the proposal and the spend back). Not kept across a restart.
+	 */
+	private java.util.function.BooleanSupplier onStart;
+	private Runnable onNothingSpent;
 	private Group resumeGroup;
+
+	public SettlementRunner hooks(java.util.function.BooleanSupplier onStart, Runnable onNothingSpent) {
+		this.onStart = onStart;
+		this.onNothingSpent = onNothingSpent;
+		return this;
+	}
 	private double resumeBudget;
 
 	/**
@@ -525,7 +539,7 @@ public final class SettlementRunner {
 			if (!program.fromCard()) say("This card has no building program (it was described before programs existed), so this is a generic village. Describe it again to get buildings of its own.");
 			if (!program.leftOut().isEmpty()) say("Left out at " + buildings + " buildings: " + String.join(", ", program.leftOut()) + ".");
 			List<VillageLayout.LotSpec> specs = program.specs();
-			plan = VillageLayout.plan(claim, grid, specs, VillageLayout.Rules.defaults());
+			plan = VillageLayout.plan(claim, grid, specs, VillageLayout.Rules.defaults(), addition ? streetZ : null);
 			say("Layout: " + plan.lots().size() + " lots on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
 			if (plan.lots().isEmpty()) { abandon("No dry, flat room here. Try another spot."); return; }
 			if (resumeGroup != null) {
@@ -541,8 +555,10 @@ public final class SettlementRunner {
 				for (Group.Item it : resumeGroup.items()) if (it.status() == dev.larattalabs.architect.api.Design.Status.DONE || it.stage().isPresent()) decided.add(decisionKey(it.itemKey()));
 				return;
 			}
+			// an accepted proposal records itself now (acceptance, spend), or does not start
+			if (onStart != null && !onStart.getAsBoolean()) { abandon("Could not save the settlement, so nothing is built."); return; }
 			state = State.start(settlement.id(), r.card(), budgetUsd);
-			var bible = existing != null ? existing.bible() : null;
+			var bible = existing != null && existing.bible() != null && existing.bible().styleVersion() == existing.styleVersion() ? existing.bible() : null;
 			if (bible != null) say("Designing in " + settlement.name() + "'s own style (its style bible is reused).");
 			apply(Pipeline.step(state, bible != null ? new Pipeline.CardApproved(r.card(), bible.id(), bible.version()) : new Pipeline.CardApproved(r.card()), permission));
 		});
@@ -553,6 +569,7 @@ public final class SettlementRunner {
 		for (var v : ArchitectApi.get().sites(server).list(s.owner())) {
 			var b = v.box();
 			for (int x = b.minX() - 1; x <= b.maxX() + 1; x++) for (int z = b.minZ() - 1; z <= b.maxZ() + 1; z++) if (grid.has(x, z)) grid.setBuilt(x, z, true);
+			if (BatchPlanner.STREET_KEY.equals(v.itemKey())) streetZ = (b.minZ() + b.maxZ()) / 2;
 		}
 	}
 
@@ -573,6 +590,11 @@ public final class SettlementRunner {
 	/** Gives up before the pipeline started: says why and frees the slot. */
 	private void abandon(String why) {
 		say(why);
+		// it never started: an accepted proposal is given back (it was recorded only if onStart ran)
+		if (onNothingSpent != null && state != null) {
+			onNothingSpent.run();
+			onNothingSpent = null;
+		}
 		if (claimedId != null) ACTIVE.remove(claimedId, this);
 		sendInbox(server, playerId);
 	}
@@ -585,6 +607,16 @@ public final class SettlementRunner {
 		if (before == Pipeline.Phase.AWAITING_MASSING_APPROVAL && state.phase() != Pipeline.Phase.AWAITING_MASSING_APPROVAL) hideMassings();
 		// saved before anything is asked of Architect: a crash after a request then restores a build that knows it asked (and says it was interrupted)
 		// rather than one that asks, and pays, again
+		// the style bible the player approved (or that needed no approval) is the settlement's from now on: its later builds reuse it
+		if ((before == Pipeline.Phase.BIBLE_RUNNING || before == Pipeline.Phase.AWAITING_BIBLE_APPROVAL) && state.phase() == Pipeline.Phase.GROUP_RUNNING && state.bibleId() != null
+			&& settlement != null && Settlements.store().get(settlement.id()).isPresent()) {
+			Settlements.bible(settlement.id(), new Settlement.BibleRef(state.bibleId(), state.bibleVersion(), Settlements.store().get(settlement.id()).get().styleVersion()));
+		}
+		// ended having spent nothing (a failed request, a cancel before any design): an accepted proposal is given back
+		if (before != null && !before.terminal() && state.phase().terminal() && state.phase() != Pipeline.Phase.DONE && state.spentUsd() <= 0 && onNothingSpent != null) {
+			onNothingSpent.run();
+			onNothingSpent = null;
+		}
 		boolean saved = persist();
 		if (!saved && step.commands().stream().anyMatch(SettlementRunner::spends)) {
 			say("Could not save the build, so nothing more is spent on it. Cancel it (/steward cancel " + state.settlementId() + ") and check the world's folder can be written.");
@@ -939,10 +971,7 @@ public final class SettlementRunner {
 		if (bibleJobId == null || !bibleJobId.equals(job.id())) return;
 		bibleJobId = null;
 		boolean ok = job.status() == BibleJob.Status.DONE;
-		// the settlement keeps it: its later builds reuse it
-		if (ok && job.bibleId() != null && Settlements.store().get(settlement.id()).isPresent()) {
-			Settlements.bible(settlement.id(), new Settlement.BibleRef(job.bibleId(), job.version()));
-		}
+
 		feed(new Pipeline.BibleDone(ok, ok ? job.bibleId() : null, job.version(), job.cost().usd(), job.error().orElse(job.status().name())));
 	}
 

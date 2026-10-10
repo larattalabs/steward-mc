@@ -50,9 +50,15 @@ public final class Proposals {
 	static void consider(MinecraftServer server, ServerPlayer p, long now) {
 		if (Actions.refusal(p) != null) return;
 		var here = Settlements.at(p.level(), p.blockPosition());
-		if (here.isEmpty() || !here.get().described() || SettlementRunner.busy(here.get().id())) return;
+		// proposals are additions: only for a settlement that has something standing (an addition faces its street)
+		if (here.isEmpty() || !here.get().described() || SettlementRunner.busy(here.get().id()) || here.get().lastUndoable().isEmpty()) return;
 		Settlement s = here.get();
 		var open = s.proposals().open();
+		// Autonomous and Full: a proposal already waiting is built once the allowance allows (raised, renewed, or the level just changed)
+		if (!s.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && !open.isEmpty()) {
+			Proposal waiting = open.get(0);
+			if (s.autonomy().allows(estimate(waiting), now) && autonomously(server, p, s, waiting, now)) return;
+		}
 		List<Proposal> fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open, s.proposals().lastAt(), now);
 		if (fresh.isEmpty()) return;
 		List<Proposal> all = new ArrayList<>(open);
@@ -61,19 +67,9 @@ public final class Proposals {
 		if (!res.ok()) return;
 		Proposal first = fresh.get(0);
 		// Autonomous and Full build their own proposals while the week's allowance holds (Noah: $500 a week by default); else the player decides
-		int estimate = estimate(first);
 		var saved = res.settlement();
-		if (!saved.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && saved.autonomy().allows(estimate, now)) {
-			var started = Actions.acceptProposal(p, saved, first.key());
-			if (started.ok()) {
-				var after = Settlements.store().get(s.id()).orElse(saved);
-				Settlements.autonomy(s.id(), after.autonomy().with(new Settlement.Spend(now, estimate, first.title())));
-				StewardVoice.say(server, s.id(), String.format("I am building %s: %s $%d of the week's $%.0f.", first.title().toLowerCase(), first.why(),
-					(int) Math.round(after.autonomy().spentInWeek(now) + estimate), after.autonomy().weeklyUsd()));
-				SettlementRunner.sendInbox(server, p.getUUID());
-				return;
-			}
-		}
+		if (!saved.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && saved.autonomy().allows(estimate(first), now)
+			&& autonomously(server, p, saved, first, now)) return;
 		StewardVoice.say(server, s.id(), "I have an idea: " + first.title().toLowerCase() + ". " + first.why() + " See the inbox (Y).");
 		SettlementRunner.sendInbox(server, p.getUUID());
 	}
@@ -111,12 +107,53 @@ public final class Proposals {
 		return new ProposalRules.Signs(Progress.tier(done), seeds, saplings, animals);
 	}
 
+	/** Starts a proposal on the steward's own authority; the spend is recorded as the build starts ({@link #recordAccepted}). */
+	private static boolean autonomously(MinecraftServer server, ServerPlayer p, Settlement s, Proposal pr, long now) {
+		int estimate = estimate(pr);
+		var started = Actions.acceptProposal(p, s, pr.key(), true);
+		if (!started.ok()) return false;
+		StewardVoice.say(server, s.id(), String.format("I am building %s on my own: %s It takes up to $%d of the week's $%.0f allowance.", pr.title().toLowerCase(), pr.why(),
+			estimate, s.autonomy().weeklyUsd()));
+		SettlementRunner.sendInbox(server, p.getUUID());
+		return true;
+	}
+
+	/**
+	 * As an accepted proposal's build starts: the proposal leaves the open ones for the accepted, and an autonomous build's budget is recorded against the week's
+	 * allowance, in one save. False when it cannot be saved (the build then does not start).
+	 */
+	static boolean recordAccepted(String settlementId, String key, double spendUsd, String what) {
+		var s = Settlements.store().get(settlementId);
+		if (s.isEmpty()) return false;
+		var ps = s.get().proposals();
+		List<String> accepted = new ArrayList<>(ps.accepted());
+		if (!accepted.contains(key)) accepted.add(key);
+		Settlement n = s.get().withProposals(new Settlement.Proposals(ps.open().stream().filter(x -> !x.key().equals(key)).toList(), ps.declined(), accepted, ps.lastAt()));
+		if (spendUsd > 0) n = n.withAutonomy(n.autonomy().with(new Settlement.Spend(System.currentTimeMillis(), spendUsd, what)));
+		return Settlements.replace(n).ok();
+	}
+
+	/** A proposal's build ended having spent nothing: the proposal waits again and its recorded spend is taken off. */
+	static void giveBack(String settlementId, String key, String what) {
+		var s = Settlements.store().get(settlementId);
+		if (s.isEmpty()) return;
+		var ps = s.get().proposals();
+		var proposal = ps.open().stream().anyMatch(x -> x.key().equals(key)) ? null : ProposalRules.find(key);
+		List<Proposal> open = new ArrayList<>(ps.open());
+		if (proposal != null) open.add(proposal);
+		Settlement n = s.get().withProposals(new Settlement.Proposals(open, ps.declined(), ps.accepted().stream().filter(k -> !k.equals(key)).toList(), ps.lastAt()));
+		var spends = new ArrayList<>(n.autonomy().spends());
+		for (int i = spends.size() - 1; i >= 0; i--) if (spends.get(i).what().equals(what)) { spends.remove(i); break; }
+		Settlements.replace(n.withAutonomy(new Settlement.Autonomy(n.autonomy().weeklyUsd(), spends)));
+	}
+
 	/** One inbox entry per settlement with proposals waiting. */
 	public static List<InboxModel.Entry> inboxEntries() {
 		List<InboxModel.Entry> out = new ArrayList<>();
 		for (Settlement s : Settlements.store().all()) {
 			if (s.proposals().open().isEmpty()) continue;
-			var ideas = s.proposals().open().stream().map(p -> new InboxModel.Lot(p.key(), p.title(), "proposal", false, true, p.why() + " About $" + estimate(p) + ".")).toList();
+			// the cost first, where the row never cuts it
+			var ideas = s.proposals().open().stream().map(p -> new InboxModel.Lot(p.key(), p.title(), "proposal", false, true, "about $" + estimate(p) + " · " + p.why())).toList();
 			out.add(InboxModel.proposals(s.id(), s.name(), ideas));
 		}
 		return out;

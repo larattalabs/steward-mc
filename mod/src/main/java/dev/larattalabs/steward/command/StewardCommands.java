@@ -123,7 +123,9 @@ public final class StewardCommands {
 			.then(Commands.literal("dev").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.literal("describe").then(Commands.argument("id",
 				StringArgumentType.word()).executes(ctx -> {
 					// dev (the e2e check): a fixed sample card, without the Claude call a description makes
+					if (!host(ctx.getSource())) return 0;
 					String id = StringArgumentType.getString(ctx, "id");
+					if (SettlementRunner.busy(id)) { ctx.getSource().sendFailure(Component.literal(id + " is being built.")); return 0; }
 					var card = dev.larattalabs.steward.model.ConceptCard.parse(com.google.gson.JsonParser.parseString(SAMPLE_CARD).getAsJsonObject());
 					var r = dev.larattalabs.steward.service.Settlements.describe(id, card, System.currentTimeMillis());
 					ctx.getSource().sendSuccess(() -> Component.literal(r.ok() ? "described " + id : r.error()), false);
