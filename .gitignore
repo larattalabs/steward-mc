@@ -6,3 +6,4 @@ mod/logs/
 .gradle-home/
 .claude/
 artifacts/
+logs/
