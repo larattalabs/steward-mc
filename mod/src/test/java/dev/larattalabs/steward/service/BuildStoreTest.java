@@ -78,4 +78,23 @@ class BuildStoreTest {
 		assertThrows(JsonParseException.class, () -> BuildStore.fromJson("{\"format\":1,\"builds\":[{\"settlementId\":\"set_1\"}]}"));
 		assertThrows(JsonParseException.class, () -> BuildStore.fromJson("{\"format\":9,\"builds\":[]}"));
 	}
+
+	@Test
+	void anEntryWithoutItsPlayerDimensionOrPermissionIsRefusedAndOldFieldsTakeDefaults() {
+		BuildStore st = new BuildStore();
+		st.put(saved());
+		for (String field : List.of("playerId", "dimension", "permission")) {
+			var j = JsonParser.parseString(st.toJson()).getAsJsonObject();
+			j.getAsJsonArray("builds").get(0).getAsJsonObject().remove(field);
+			assertThrows(JsonParseException.class, () -> BuildStore.fromJson(j.toString()), field);
+		}
+		// a card without its lists and lots without roles (older saves) read with their defaults
+		var j = JsonParser.parseString(st.toJson()).getAsJsonObject();
+		var b = j.getAsJsonArray("builds").get(0).getAsJsonObject();
+		b.getAsJsonObject("settlement").getAsJsonObject("card").remove("avoid");
+		b.getAsJsonObject("plan").getAsJsonArray("lots").get(0).getAsJsonObject().remove("role");
+		BuildStore.Saved r = BuildStore.fromJson(j.toString()).all().get(0);
+		assertEquals(List.of(), r.settlement().card().avoid());
+		assertEquals(r.plan().lots().get(0).type(), r.plan().lots().get(0).role());
+	}
 }

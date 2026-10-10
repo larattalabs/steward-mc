@@ -40,7 +40,18 @@ public final class UpdatePlanner {
 	}
 
 	public static Plan plan(String building, DeltaVerdict v, Permission p) {
+		return plan(building, v, p, null);
+	}
+
+	/**
+	 * @param claim the settlement's claim: an update that would write outside it is blocked (a new wing could reach a neighbour's land); null = not checked
+	 */
+	public static Plan plan(String building, DeltaVerdict v, Permission p, dev.larattalabs.steward.model.@org.jspecify.annotations.Nullable Claim claim) {
 		PlayerEdits edits = editsFor(p);
+		if (v.ok() && claim != null && v.box() != null && !claim.containsBox(claim.dimension(), v.box().minX(), v.box().minY(), v.box().minZ(), v.box().maxX(), v.box().maxY(),
+			v.box().maxZ())) {
+			return new Plan(Action.BLOCKED, building + " cannot be updated: the new version reaches outside the settlement's claim (expand the claim first).", edits);
+		}
 		if (!v.ok()) {
 			boolean permanent = v.refusals().stream().anyMatch(r -> PERMANENT.contains(r.reason()));
 			String why = v.refusals().stream().map(Refusal::message).collect(Collectors.joining("; "));
@@ -50,7 +61,9 @@ public final class UpdatePlanner {
 		String text = building + " has an update: " + summary(v);
 		// survival costs materials, so the player always decides; creative upgrades follow the permission level
 		boolean costs = !v.bom().isEmpty();
-		boolean ask = costs || p.needsApproval(Permission.Action.UPGRADE);
+		// a version that takes parts away is a demolition, which Autonomous asks about
+		boolean removes = v.parts().values().stream().anyMatch(d -> d.status() == PartStatus.REMOVED);
+		boolean ask = costs || p.needsApproval(Permission.Action.UPGRADE) || (removes && p.needsApproval(Permission.Action.DEMOLISH));
 		return new Plan(ask ? Action.ASK : Action.APPLY, text, edits);
 	}
 

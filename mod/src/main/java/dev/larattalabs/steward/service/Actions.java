@@ -192,7 +192,7 @@ public final class Actions {
 			case "update_preview" -> {
 				var p = Updates.pending(id).stream().filter(x -> x.siteId().equals(lot)).findFirst();
 				if (p.isEmpty()) return Result.fail("No update waiting for " + lot + ".");
-				ServerPlayNetworking.send(player, new StewardNet.PreviewDelta("steward_mc:update/" + lot, lot, p.get().to()));
+				ServerPlayNetworking.send(player, new StewardNet.PreviewDelta(Updates.previewKey(lot), lot, p.get().to()));
 				return Result.ok("Showing what changes on " + p.get().lot() + " (added, removed, changed and kept blocks).");
 			}
 			default -> {

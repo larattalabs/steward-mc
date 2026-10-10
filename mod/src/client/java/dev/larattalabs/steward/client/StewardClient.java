@@ -43,7 +43,10 @@ public class StewardClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.OpenInbox.TYPE, (payload, ctx) -> ctx.client().gui.setScreen(new InboxScreen(payload.settlementId())));
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.PreviewDelta.TYPE, (payload, ctx) -> {
 			try {
-				ArchitectClientApi.get().previewDelta(payload.key(), payload.siteId(), payload.toVersion());
+				var api = ArchitectClientApi.get();
+				// one update preview at a time: the one shown before goes
+				for (String k : java.util.List.copyOf(api.compositeKeys())) if (k.startsWith("steward_mc:update/") && !k.equals(payload.key())) api.clearComposite(k);
+				api.previewDelta(payload.key(), payload.siteId(), payload.toVersion());
 			} catch (RuntimeException e) {
 				if (ctx.player() != null) ctx.player().sendSystemMessage(Component.literal("Steward: could not show the change: " + e.getMessage()));
 			}

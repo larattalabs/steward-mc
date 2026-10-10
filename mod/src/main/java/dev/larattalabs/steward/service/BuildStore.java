@@ -69,7 +69,10 @@ public final class BuildStore {
 		if (f.format != FORMAT) throw new JsonParseException("unsupported builds format " + f.format);
 		BuildStore s = new BuildStore();
 		for (Saved b : f.builds) {
-			if (b == null || b.settlementId() == null || b.buildId() == null || b.state() == null || b.plan() == null || b.settlement() == null) throw new JsonParseException("incomplete build entry");
+			if (b == null || b.settlementId() == null || b.buildId() == null || b.state() == null || b.plan() == null || b.settlement() == null || b.playerId() == null
+				|| b.dimension() == null || b.permission() == null || b.state().phase() == null || b.plan().lots() == null) {
+				throw new JsonParseException("incomplete build entry");
+			}
 			s.put(b);
 		}
 		return s;

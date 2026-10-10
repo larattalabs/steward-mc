@@ -25,6 +25,14 @@ public record ConceptCard(
 	List<String> assumptions,
 	@Nullable List<Building> program
 ) {
+	/** Lists a stored card lacks (written before they existed) read as empty: Gson calls this, so every card has them. */
+	public ConceptCard {
+		avoid = avoid == null ? List.of() : avoid;
+		contradictions = contradictions == null ? List.of() : contradictions;
+		assumptions = assumptions == null ? List.of() : assumptions;
+		interpretation = interpretation == null ? "" : interpretation;
+	}
+
 	public record Field(String text, String template, String terrain, String size) {}
 	public record Story(String text) {}
 	public record Constraints(String near, String density, Double budgetUsd, String difficulty) {}

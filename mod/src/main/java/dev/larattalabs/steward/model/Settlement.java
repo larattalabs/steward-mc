@@ -33,8 +33,16 @@ public record Settlement(
 		}
 	}
 
+	/** Also what a saved settlement is read through (Gson calls it): a missing id or claim is refused, missing settings take their safe defaults. */
 	public Settlement {
-		log = List.copyOf(log);
+		if (id == null || claim == null) throw new com.google.gson.JsonParseException("a settlement needs an id and a claim");
+		name = name == null || name.isBlank() ? id : name;
+		permission = permission == null ? Permission.PROPOSALS : permission;
+		difficulty = difficulty == null ? Difficulty.PATRON : difficulty;
+		log = log == null ? List.of() : List.copyOf(log);
+		siteVersion = Math.max(1, siteVersion);
+		styleVersion = Math.max(1, styleVersion);
+		purposeVersion = Math.max(1, purposeVersion);
 	}
 
 	/** A claim the player has marked with the Founding Stone but not yet described: no concept card until they do. */

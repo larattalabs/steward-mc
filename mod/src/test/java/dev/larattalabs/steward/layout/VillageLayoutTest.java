@@ -158,4 +158,14 @@ class VillageLayoutTest {
 		assertFalse(p.lots().isEmpty());
 		for (Lot l : p.lots()) for (int x = l.x(); x <= l.maxX(); x++) for (int z = l.z(); z <= l.maxZ(); z++) assertFalse(g.builtAt(x, z), "a lot on built ground: " + l);
 	}
+
+	@Test
+	void aLotThatFitsNowhereDoesNotHoldUpTheOthers() {
+		List<LotSpec> l = new ArrayList<>();
+		l.add(new LotSpec("keep_1", "keep", 140, 30)); // wider than the claim: fits nowhere
+		l.addAll(specs(4, 14, 12));
+		Plan p = VillageLayout.plan(CLAIM, flat(), l, Rules.defaults());
+		assertEquals(4, p.lots().size(), "the four that fit are laid out");
+		assertEquals(List.of("keep_1"), p.unplaced().stream().map(LotSpec::id).toList());
+	}
 }

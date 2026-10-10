@@ -155,4 +155,21 @@ class SettlementTest {
 		assertNull(s.lastUndoable().orElseThrow().siteGroup());
 		assertEquals(List.of("s1"), s.lastUndoable().orElseThrow().siteIds());
 	}
+
+	@Test
+	void aSavedSettlementWithoutAClaimIsRefusedAndMissingSettingsTakeSafeDefaults() {
+		SettlementStore st = new SettlementStore();
+		st.put(Settlement.founded("set_1", "Here", new Claim("minecraft:overworld", 0, 0, 64, -64, 320), Permission.FULL, Difficulty.PATRON, 1L));
+		var noClaim = com.google.gson.JsonParser.parseString(st.toJson()).getAsJsonObject();
+		noClaim.getAsJsonArray("settlements").get(0).getAsJsonObject().remove("claim");
+		// Gson wraps what the constructor throws; loading treats any RuntimeException as a corrupt file and leaves it untouched
+		assertThrows(RuntimeException.class, () -> SettlementStore.fromJson(noClaim.toString()));
+		var old = com.google.gson.JsonParser.parseString(st.toJson()).getAsJsonObject();
+		var s0 = old.getAsJsonArray("settlements").get(0).getAsJsonObject();
+		s0.remove("permission");
+		s0.remove("log");
+		Settlement back = SettlementStore.fromJson(old.toString()).get("set_1").orElseThrow();
+		assertEquals(Permission.PROPOSALS, back.permission(), "a missing permission asks the player for everything");
+		assertEquals(List.of(), back.log());
+	}
 }

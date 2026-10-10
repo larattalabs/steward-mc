@@ -21,6 +21,10 @@ public final class VillageLayout {
 	 * own terms ({@code role}, {@code notes}) and whether it is a landmark (both from the card's program; a spec without one is its type and not a landmark).
 	 */
 	public record LotSpec(String id, String type, int sizeX, int sizeZ, String role, @Nullable String notes, boolean landmark, @Nullable String placement) {
+		public LotSpec {
+			role = role == null ? type : role;
+		}
+
 		public LotSpec(String id, String type, int sizeX, int sizeZ) {
 			this(id, type, sizeX, sizeZ, type, null, false, null);
 		}
@@ -32,6 +36,11 @@ public final class VillageLayout {
 
 	public record Lot(String id, String type, int x, int z, int sizeX, int sizeZ, Front front, int groundY, String role, @Nullable String notes, boolean landmark,
 		@Nullable String placement) {
+		/** Saved lots without a role (written before roles existed) take their type. */
+		public Lot {
+			role = role == null ? type : role;
+		}
+
 		public Lot(String id, String type, int x, int z, int sizeX, int sizeZ, Front front, int groundY) {
 			this(id, type, x, z, sizeX, sizeZ, front, groundY, type, null, false, null);
 		}
@@ -67,7 +76,7 @@ public final class VillageLayout {
 		for (int dz = -r / 2; dz <= r / 2; dz += 4) {
 			for (boolean northFirst : new boolean[] {true, false}) {
 				for (boolean eastFirst : new boolean[] {true, false}) {
-					Plan p = tryStreet(claim, grid, ordered, rules, claim.centerZ() + dz, northFirst, eastFirst);
+					Plan p = tryStreetSkipping(claim, grid, ordered, rules, claim.centerZ() + dz, northFirst, eastFirst);
 					// more lots first, then how well the lots meet their placement hints, then the least slope, then closer to the claim centre
 					long score = p.lots().size() * 1_000_000L + hintScore(p, grid, claim, waterDist) - slopeTotal(p, grid) * 10L - Math.abs(dz);
 					if (score > bestScore) {
@@ -117,6 +126,31 @@ public final class VillageLayout {
 			}
 		}
 		return score;
+	}
+
+	/**
+	 * {@link #tryStreet}, and when a lot fits nowhere (the street fills in order, so it would hold up every lot after it), again without it: the lot is left
+	 * out and the rest are laid out. Usually the first try places everything and nothing is repeated.
+	 */
+	private static Plan tryStreetSkipping(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, int streetZ, boolean northFirst, boolean eastFirst) {
+		List<LotSpec> use = new ArrayList<>(specs);
+		List<LotSpec> dropped = new ArrayList<>();
+		Plan best = tryStreet(claim, grid, use, rules, streetZ, northFirst, eastFirst);
+		Plan p = best;
+		while (!p.unplaced().isEmpty() && use.size() > 1) {
+			use.remove(p.unplaced().get(0));
+			dropped.add(p.unplaced().get(0));
+			int before = p.lots().size();
+			p = tryStreet(claim, grid, use, rules, streetZ, northFirst, eastFirst);
+			// no better without it: the street is simply full, not held up
+			if (p.lots().size() <= before) break;
+			if (p.lots().size() > best.lots().size()) {
+				List<LotSpec> out = new ArrayList<>(p.unplaced());
+				out.addAll(dropped);
+				best = new Plan(p.lots(), p.streetZ(), p.streetX0(), p.streetX1(), p.streetY(), List.copyOf(out));
+			}
+		}
+		return best;
 	}
 
 	private static Plan tryStreet(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, int streetZ, boolean northFirst, boolean eastFirst) {

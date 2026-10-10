@@ -24,9 +24,10 @@ import net.minecraft.server.MinecraftServer;
  * "Update available" for a settlement's placed buildings (Architect delta apply, API 1.7.0): when a building's library entry gets a newer version, the
  * steward checks the delta ({@code checkDelta}) and, by the settlement's permission level ({@link UpdatePlanner}), applies it at once (Autonomous and Full,
  * when it costs no materials) or offers it in the inbox (approve one or all, preview the change as a ghost, skip). The player's own edits to a building are
- * kept. Outdated buildings are found at world load ({@code Sites.outdated}, since version events are missed while the world is closed) and on every
- * {@code ENTRY_VERSIONED}. Pending updates live in memory and are found again after a restart; a skipped version is not offered again this session. Server
- * thread.
+ * kept. Outdated buildings are found at world load ({@code Sites.outdated}, since version events are missed while the world is closed) and after every
+ * {@code ENTRY_VERSIONED}, on the next tick (several versions, or applies finishing inline, make one scan). Pending updates live in memory and are found again
+ * after a restart; a skipped version is not offered again this session. An update that would write outside the claim is blocked; one that failed on its own
+ * is not retried by itself (it waits in the inbox for the player). Server thread.
  */
 public final class Updates {
 	/** One building with a newer version: what the delta does and what Steward does with it. */
@@ -35,6 +36,10 @@ public final class Updates {
 	private static final Map<String, List<Pending>> PENDING = new LinkedHashMap<>();
 	/** {@code siteId@version}: offers the player skipped (this session). */
 	private static final Set<String> SKIPPED = new HashSet<>();
+	/** Sites with an apply on its way: not offered or applied again until it ends. */
+	private static final Set<String> APPLYING = new HashSet<>();
+	/** {@code siteId@version}: applies that failed, with why. Not applied automatically again (the player can retry from the inbox). */
+	private static final Map<String, String> FAILED = new java.util.HashMap<>();
 	private static volatile boolean scanPending;
 	private static volatile MinecraftServer server;
 
@@ -42,10 +47,7 @@ public final class Updates {
 	}
 
 	public static void init() {
-		SiteEvents.ENTRY_VERSIONED.register((entry, from) -> {
-			MinecraftServer s = server;
-			if (s != null) refreshAll(s);
-		});
+		SiteEvents.ENTRY_VERSIONED.register((entry, from) -> scanPending = true);
 		// after Architect loads its sites (SERVER_STARTED), on the first tick
 		ServerLifecycleEvents.SERVER_STARTED.register(s -> {
 			server = s;
@@ -60,6 +62,8 @@ public final class Updates {
 			server = null;
 			PENDING.clear();
 			SKIPPED.clear();
+			APPLYING.clear();
+			FAILED.clear();
 			scanPending = false;
 		});
 	}
@@ -80,10 +84,17 @@ public final class Updates {
 		var sites = ArchitectApi.get().sites(server);
 		List<Pending> pending = new ArrayList<>();
 		for (OutdatedSite o : sites.outdated(s.owner())) {
-			if (SKIPPED.contains(o.siteId() + "@" + o.headVersion())) continue;
-			String lot = sites.get(o.siteId()).map(Updates::lotOf).orElse(o.siteId());
+			String key = o.siteId() + "@" + o.headVersion();
+			if (SKIPPED.contains(key) || APPLYING.contains(o.siteId())) continue;
+			var view = sites.get(o.siteId());
+			// a site of this owner in another dimension is not this settlement's
+			if (view.isPresent() && !view.get().dimension().identifier().toString().equals(s.claim().dimension())) continue;
+			String lot = view.map(Updates::lotOf).orElse(o.siteId());
 			DeltaVerdict v = sites.checkDelta(UpdatePlanner.request(o.siteId(), o.headVersion(), UpdatePlanner.editsFor(s.permission()), s.owner()));
-			UpdatePlanner.Plan plan = UpdatePlanner.plan(lot, v, s.permission());
+			UpdatePlanner.Plan plan = UpdatePlanner.plan(lot, v, s.permission(), s.claim());
+			if (plan.action() == UpdatePlanner.Action.APPLY && FAILED.containsKey(key)) {
+				plan = new UpdatePlanner.Plan(UpdatePlanner.Action.ASK, lot + " could not be updated by itself (" + FAILED.get(key) + "); update to try again.", plan.playerEdits());
+			}
 			switch (plan.action()) {
 				case NOTHING -> {
 				}
@@ -111,6 +122,7 @@ public final class Updates {
 		for (Pending p : list) {
 			if (!siteId.isEmpty() && !p.siteId().equals(siteId)) continue;
 			if (p.action() == UpdatePlanner.Action.BLOCKED) continue;
+			FAILED.remove(p.siteId() + "@" + p.to());
 			apply(server, s.get(), p);
 			n++;
 		}
@@ -120,7 +132,11 @@ public final class Updates {
 	/** Stops offering these versions this session. */
 	public static String skip(MinecraftServer server, String settlementId, String siteId) {
 		List<Pending> list = PENDING.getOrDefault(settlementId, List.of());
-		for (Pending p : list) if (siteId.isEmpty() || p.siteId().equals(siteId)) SKIPPED.add(p.siteId() + "@" + p.to());
+		for (Pending p : list) {
+			if (!siteId.isEmpty() && !p.siteId().equals(siteId)) continue;
+			SKIPPED.add(p.siteId() + "@" + p.to());
+			clearPreview(server, p.siteId());
+		}
 		Settlements.store().get(settlementId).ifPresent(s -> refresh(server, s));
 		server.getPlayerList().getPlayers().forEach(pl -> SettlementRunner.sendInbox(server, pl.getUUID()));
 		return "Skipped; it is offered again when a newer version comes.";
@@ -128,19 +144,42 @@ public final class Updates {
 
 	private static void apply(MinecraftServer server, Settlement s, Pending p) {
 		var sites = ArchitectApi.get().sites(server);
+		if (!APPLYING.add(p.siteId())) return;
+		int session = Session.current();
 		sites.applyDelta(UpdatePlanner.request(p.siteId(), p.to(), UpdatePlanner.editsFor(s.permission()), s.owner())).whenComplete((r, err) -> {
+			if (!Session.is(session)) return;
+			APPLYING.remove(p.siteId());
+			clearPreview(server, p.siteId());
 			String msg;
-			if (err != null) msg = "Could not update " + p.lot() + ": " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage());
-			else if (!r.applied()) msg = "Could not update " + p.lot() + " (refused).";
-			else {
+			String key = p.siteId() + "@" + p.to();
+			if (err != null) {
+				String why = err.getCause() != null ? err.getCause().getMessage() : err.getMessage();
+				FAILED.put(key, why);
+				msg = "Could not update " + p.lot() + ": " + why;
+			} else if (!r.applied()) {
+				FAILED.put(key, "refused");
+				msg = "Could not update " + p.lot() + " (refused).";
+			} else {
+				FAILED.remove(key);
 				msg = "Updated " + p.lot() + " to version " + r.toVersion() + " (" + r.written() + " blocks" + (r.kept().isEmpty() ? "" : ", " + r.kept().size() + " of your edits kept")
 					+ ").";
 				Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, msg, List.of(p.siteId())));
 			}
 			server.getPlayerList().getPlayers().forEach(pl -> pl.sendSystemMessage(Component.literal("Steward (" + s.name() + "): " + msg)));
-			Settlements.store().get(s.id()).ifPresent(x -> refresh(server, x));
-			server.getPlayerList().getPlayers().forEach(pl -> SettlementRunner.sendInbox(server, pl.getUUID()));
+			// the next scan (next tick) offers what is left; not here, where an apply that completed inline would recurse
+			scanPending = true;
 		});
+	}
+
+	/** Takes an update's preview ghost away (it resolved, or was skipped). */
+	private static void clearPreview(MinecraftServer server, String siteId) {
+		var clear = new dev.larattalabs.steward.net.StewardNet.ShowLayers(previewKey(siteId), List.of());
+		server.getPlayerList().getPlayers().forEach(pl -> net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(pl, clear));
+	}
+
+	/** The composite key an update's preview shows under. */
+	public static String previewKey(String siteId) {
+		return "steward_mc:update/" + siteId;
 	}
 
 	/** The pending updates of a settlement, for the inbox. */

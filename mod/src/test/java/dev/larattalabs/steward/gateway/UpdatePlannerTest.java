@@ -68,4 +68,24 @@ class UpdatePlannerTest {
 		assertEquals(PlayerEdits.KEEP, UpdatePlanner.request("s1", 2, PlayerEdits.KEEP, "steward_mc:settlement/set_1").playerEdits());
 		assertEquals("steward_mc:settlement/set_1", UpdatePlanner.request("s1", 2, PlayerEdits.KEEP, "steward_mc:settlement/set_1").owner(), "the settlement asks as the owner (OVERLAP_OWNED otherwise)");
 	}
+
+	@Test
+	void aVersionThatRemovesAPartIsADemolitionAutonomousAsksAbout() {
+		var removes = Map.of("wing", new PartDelta("wing", PartStatus.REMOVED, 0, 30, 0, BOX, null));
+		DeltaVerdict v = verdict(true, List.of(), 0, 30, 0, removes);
+		assertEquals(Action.ASK, UpdatePlanner.plan("Tavern", v, Permission.AUTONOMOUS).action());
+		assertEquals(Action.APPLY, UpdatePlanner.plan("Tavern", v, Permission.FULL).action());
+	}
+
+	@Test
+	void anUpdateReachingOutsideTheClaimIsBlocked() {
+		var claim = new dev.larattalabs.steward.model.Claim("minecraft:overworld", 0, 0, 48, -64, 320);
+		DeltaVerdict inside = verdict(true, List.of(), 34, 1, 9, parts());
+		assertEquals(Action.APPLY, UpdatePlanner.plan("Tavern", inside, Permission.FULL, claim).action());
+		DeltaVerdict outside = new DeltaVerdict(true, List.of(), 34, 0, 0, parts(), List.of(), List.of(), Map.of(), Map.of(), new BoundingBox(40, 64, 0, 52, 70, 8),
+			Mode.INSTANT, List.of());
+		UpdatePlanner.Plan p = UpdatePlanner.plan("Tavern", outside, Permission.FULL, claim);
+		assertEquals(Action.BLOCKED, p.action());
+		assertTrue(p.text().contains("claim"), p.text());
+	}
 }
