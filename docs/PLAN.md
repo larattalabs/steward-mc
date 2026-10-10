@@ -13,8 +13,9 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
 - **3a: done.** The change log as operations, save migrations, the settlement screen, and a read-only building panel.
 - **3b: done**, except conversation. The steward is its own mob with its own skin. It walks to its work and comes to find you when a decision waits. It sits and sleeps. It has a nameplate, a "!" and speech bubbles, ported from AgentCraft onto lab-ui.
 - **3c: revert is done.** Change requests wait for Architect 0b.
+- **3d: done.** Building labels on look-at (I to inspect), survey mode (U) with the claim's border, labelled massing ghosts, the steward's ledger, and the settlement board.
 
-The free e2e check runs 19 checks.
+The free e2e check runs 22 checks, with a screenshot of each in-world piece.
 
 ## Principles
 
@@ -380,7 +381,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
    - **3c. Change requests and revert** (revert done 2026-10-10):
      - **Revert now:** a building goes back to an earlier version with `Sites.revert`, and Steward pins the versions its change log refers to (Architect 0a caller pins).
      - **Change requests with Architect 0b** (`DesignRequest.versionOf`): free text scoped to a building or the settlement becomes the next version of the building's design, previewed as a delta ghost, applied, and revertible.
-   - **3d. In-world interface.** Building labels, survey mode, labelled massings, the settlement board, the ledger.
+   - **3d. In-world interface** (done 2026-10-10). Building labels, survey mode, labelled massings, the settlement board, the ledger.
    - **3e. Perception and proposals.** The guardrails decided with Noah apply: rejected proposals are remembered, with cooldowns and coalescing, a planning allowance, and a spending allowance per settlement ($500 a week by default).
      - The progression tier and triggers.
      - Proposals with guardrails: a rejected proposal is remembered, with cooldowns, coalescing, and a planning allowance per settlement.
