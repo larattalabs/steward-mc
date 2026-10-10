@@ -40,6 +40,9 @@ public final class Undo {
 			return false;
 		}
 		List<String> ids = new ArrayList<>(entry.get().siteIds());
+		// the steward never stands in what is removed (a named mob in a box stops Architect)
+		var all = ArchitectApi.get().sites(server);
+		for (String id : ids) all.get(id).ifPresent(v -> StewardMotion.clear(server, s, v.box()));
 		java.util.Collections.reverse(ids); // newest first
 		say.accept("Removing " + ids.size() + " sites of \"" + entry.get().text() + "\" and restoring the land...");
 		var sites = ArchitectApi.get().sites(server);

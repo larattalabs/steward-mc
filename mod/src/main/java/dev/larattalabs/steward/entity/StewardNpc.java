@@ -4,16 +4,11 @@ import dev.larattalabs.steward.Steward;
 import dev.larattalabs.steward.model.Settlement;
 import dev.larattalabs.steward.service.SettlementRunner;
 import dev.larattalabs.steward.service.Settlements;
+import java.util.List;
 import java.util.Optional;
 import net.fabricmc.fabric.api.event.player.UseEntityCallback;
 import net.minecraft.ChatFormatting;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.StringTag;
-import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.EntitySpawnReason;
-import net.minecraft.world.entity.EntityType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
@@ -24,8 +19,9 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.decoration.Mannequin;
 
 /**
- * The steward as a world citizen: vanilla's persistent, player-shaped {@code minecraft:mannequin} entity, tagged with its settlement. It is saved with the world, survives relogs and is
- * right-clickable; no custom entity type, no custom renderer. (A custom skin, walking to worksites and a conversation screen come later.)
+ * The steward as a world citizen: {@link StewardEntity}, a persistent player-shaped mob of its settlement that walks to its work. Stewards spawned before it
+ * existed were vanilla {@code minecraft:mannequin} entities tagged with their settlement; each is replaced by a {@link StewardEntity} in place when it loads.
+ * The tags stay on the new entity, so selectors that found the old one find it too.
  */
 public final class StewardNpc {
 	public static final String TAG = "steward_mc.steward";
@@ -34,10 +30,26 @@ public final class StewardNpc {
 	private StewardNpc() {
 	}
 
+	/** Old mannequin stewards seen loading, replaced on the next tick (an entity is not added from inside another's load). */
+	private static final java.util.List<Mannequin> OLD = new java.util.ArrayList<>();
+
 	public static void init() {
+		net.fabricmc.fabric.api.object.builder.v1.entity.FabricDefaultAttributeRegistry.register(StewardEntity.TYPE, StewardEntity.attributes());
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerEntityEvents.ENTITY_LOAD.register((entity, level) -> {
+			if (entity instanceof Mannequin m && m.entityTags().contains(TAG)) OLD.add(m);
+		});
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
+			if (OLD.isEmpty()) return;
+			List<Mannequin> todo = List.copyOf(OLD);
+			OLD.clear();
+			for (Mannequin m : todo) if (m.isAlive() && m.level() instanceof ServerLevel l) replace(l, m);
+		});
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(server -> OLD.clear());
+		// the old mannequins, until they are replaced (a click on the new entity goes through its own mobInteract)
 		UseEntityCallback.EVENT.register((player, level, hand, entity, hit) -> {
 			// entity tags are not synced to the client, so the client returns PASS for both hands and the server sees two interacts: act on one
 			if (level.isClientSide() || !(player instanceof ServerPlayer sp)) return InteractionResult.PASS;
+			if (entity instanceof StewardEntity) return InteractionResult.PASS;
 			return switch (use(entity.entityTags().contains(TAG), hand == InteractionHand.MAIN_HAND)) {
 				case TALK -> {
 					talk(sp, entity);
@@ -57,38 +69,42 @@ public final class StewardNpc {
 		return mainHand ? Use.TALK : Use.SWALLOW;
 	}
 
-	/** The settlement id an NPC belongs to, from its tags. */
+	/** The settlement id a steward belongs to: its own field, or (an old mannequin) its tags. */
 	public static Optional<String> settlementOf(Entity e) {
+		if (e instanceof StewardEntity s && !s.settlementId().isEmpty()) return Optional.of(s.settlementId());
 		return e.entityTags().stream().filter(t -> t.startsWith(SETTLEMENT_TAG_PREFIX)).map(t -> t.substring(SETTLEMENT_TAG_PREFIX.length())).findFirst();
 	}
 
-	/**
-	 * Spawns the steward for a settlement at {@code at}. The mannequin is loaded from entity data, the supported way to set its {@code immovable} and
-	 * {@code hide_description} (their setters are private), then named and added in Java. (Not through the summon command: run from inside another command,
-	 * such as {@code /steward claim}, vanilla queues it until that command ends, so the entity did not exist yet when we looked for it.)
-	 */
+	/** Replaces an old mannequin steward by a {@link StewardEntity} where it stands, with the same settlement, name and tags. */
+	static void replace(ServerLevel level, Mannequin old) {
+		Optional<String> id = settlementOf(old);
+		if (id.isEmpty()) return;
+		BlockPos at = old.blockPosition();
+		StewardEntity n = make(level, at, id.get());
+		if (n == null) return;
+		n.setYRot(old.getYRot());
+		old.discard();
+		if (level.addFreshEntity(n)) Steward.LOGGER.info("the steward of {} is now a steward_mc:steward at {}", id.get(), at);
+		else Steward.LOGGER.error("the steward of {} could not be replaced at {}", id.get(), at);
+	}
+
+	private static StewardEntity make(ServerLevel level, BlockPos at, String settlementId) {
+		StewardEntity e = StewardEntity.TYPE.create(level, EntitySpawnReason.EVENT);
+		if (e == null) return null;
+		e.snapTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, 0, 0);
+		e.bind(settlementId, at);
+		e.addTag(TAG);
+		e.addTag(SETTLEMENT_TAG_PREFIX + settlementId);
+		e.setCustomName(Component.literal("Steward").withStyle(ChatFormatting.GOLD));
+		e.setCustomNameVisible(true);
+		return e;
+	}
+
+	/** Spawns the steward for a settlement at {@code at} (its home: it keeps near and comes back to it). */
 	public static boolean spawn(ServerLevel level, BlockPos at, Settlement s) {
-		CompoundTag tag = new CompoundTag();
-		tag.putBoolean("immovable", true);
-		tag.putBoolean("hide_description", true);
-		tag.putBoolean("Invulnerable", true);
-		ListTag tags = new ListTag();
-		tags.add(StringTag.valueOf(TAG));
-		tags.add(StringTag.valueOf(SETTLEMENT_TAG_PREFIX + s.id()));
-		tag.put("Tags", tags);
 		try {
-			var type = BuiltInRegistries.ENTITY_TYPE.getValue(Identifier.withDefaultNamespace("mannequin"));
-			Entity e = EntityType.loadEntityRecursive(type, tag, level, EntitySpawnReason.EVENT, x -> {
-				x.snapTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, 0, 0);
-				return x;
-			});
-			if (!(e instanceof Mannequin m)) {
-				Steward.LOGGER.error("the steward of {} could not be made (got {})", s.id(), e);
-				return false;
-			}
-			m.setCustomName(Component.literal("Steward").withStyle(ChatFormatting.GOLD));
-			m.setCustomNameVisible(true);
-			if (!level.addFreshEntity(m)) {
+			StewardEntity e = make(level, at, s.id());
+			if (e == null || !level.addFreshEntity(e)) {
 				Steward.LOGGER.error("the steward of {} could not be added at {}", s.id(), at);
 				return false;
 			}

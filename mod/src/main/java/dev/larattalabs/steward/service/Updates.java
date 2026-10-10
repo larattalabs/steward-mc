@@ -159,6 +159,7 @@ public final class Updates {
 		var sites = ArchitectApi.get().sites(server);
 		if (!APPLYING.add(p.siteId())) return;
 		int session = Session.current();
+		sites.get(p.siteId()).ifPresent(v -> StewardMotion.clear(server, s, v.box()));
 		sites.applyDelta(UpdatePlanner.request(p.siteId(), p.to(), UpdatePlanner.editsFor(s.permission()), s.owner())).whenComplete((r, err) -> {
 			if (!Session.is(session)) return;
 			APPLYING.remove(p.siteId());
@@ -178,6 +179,8 @@ public final class Updates {
 				msg = "Updated " + p.lot() + " to version " + r.toVersion() + " (" + r.written() + " blocks" + (r.kept().isEmpty() ? "" : ", " + r.kept().size() + " of your edits kept")
 					+ ").";
 				change = new Settlement.SiteChange(p.siteId(), p.lot(), p.from(), r.toVersion());
+				// the steward goes to look at it
+				sites.get(p.siteId()).ifPresent(v -> StewardMotion.visit(server, s, v.box()));
 			}
 			// failed ones too: the history says what was tried
 			Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.UPDATED, msg, List.of(change), null,

@@ -553,7 +553,36 @@ public final class SettlementRunner {
 		}
 		persist();
 		sendInbox(server, playerId);
+		moveSteward();
 		drainLater();
+	}
+
+	/** Where the steward last went for this build, so it is told only when that changes. */
+	private net.minecraft.core.@org.jspecify.annotations.Nullable BlockPos stewardAt;
+	private boolean stewardSent;
+
+	/**
+	 * Where the steward works for the build's phase: by the first lot whose massing waits for the player, at the end of the street while it is fitted and
+	 * placed, else home (the bible and the designs are made at its table). Never inside a lot or on the street, which would hold their placement up.
+	 */
+	private net.minecraft.core.@org.jspecify.annotations.Nullable BlockPos workPlace() {
+		if (state == null || plan == null || state.phase().terminal()) return null;
+		var home = new net.minecraft.core.BlockPos(settlement.claim().centerX(), plan.streetY(), settlement.claim().centerZ());
+		return switch (state.phase()) {
+			case AWAITING_MASSING_APPROVAL -> plan.lots().stream().filter(l -> lastAwaiting.contains(l.id())).findFirst()
+				.map(l -> StewardMotion.outside(l.x(), l.groundY(), l.z(), l.x() + l.sizeX() - 1, l.z() + l.sizeZ() - 1, home)).orElse(null);
+			case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING -> new net.minecraft.core.BlockPos(plan.streetX1() + 4, plan.streetY(), plan.streetZ());
+			default -> null;
+		};
+	}
+
+	private void moveSteward() {
+		if (settlement == null || !alive()) return;
+		var at = workPlace();
+		if (stewardSent && java.util.Objects.equals(at, stewardAt)) return;
+		stewardSent = true;
+		stewardAt = at;
+		StewardMotion.workAt(server, settlement, at, 0);
 	}
 
 	private void drainLater() {

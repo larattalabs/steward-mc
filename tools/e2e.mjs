@@ -140,10 +140,10 @@ async function claimAndSteward() {
   let name = '';
   for (let i = 0; i < 10 && !/Steward/.test(name); i++) {
     if (i > 0) await sleep(1000);
-    name = await cmd(`/data get entity @e[type=minecraft:mannequin,tag=steward_mc.settlement.${s.id},limit=1] CustomName`);
+    name = await cmd(`/data get entity @e[type=steward_mc:steward,tag=steward_mc.settlement.${s.id},limit=1] CustomName`);
   }
   if (/Steward/.test(name)) ok('steward', 'named, tagged');
-  else fail('steward', name || 'no mannequin');
+  else fail('steward', name || 'no steward_mc:steward');
   return s.id;
 }
 
@@ -191,6 +191,12 @@ async function placeUpdateUndo(id) {
   writeBlueprint(stubBlueprint(true), v2);
   const inst = await dev.request('dev.entry.installVersion', { entry: STUB, dir: v2, by: 'design', summary: 'e2e: a second lantern' });
   if (!inst.ok) return fail('update', `installVersion: ${JSON.stringify(inst).slice(0, 160)}`);
+  const stewardPos = async () => {
+    const r = await cmd(`/data get entity @e[type=steward_mc:steward,tag=steward_mc.settlement.${id},limit=1] Pos`);
+    const m = r.match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+    return m ? m.slice(1).map(Number) : null;
+  };
+  const before = await stewardPos();
   const checked = await cmd('/steward updates');
   await dev.request('dev.key', { key: 'y' });
   await sleep(1500);
@@ -202,6 +208,15 @@ async function placeUpdateUndo(id) {
   const hist = await dev.request('dev.site.history', { site });
   if (upd && (hist.version ?? hist.site?.version) === inst.version) ok('update', `${site} -> v${inst.version} from the inbox`);
   else fail('update', `log ${upd ? 'ok' : 'silent'}, /steward updates said "${checked}", ${(logSince(0).match(/update check [^\n]*/g) ?? ['no update check']).at(-1)}, site ${JSON.stringify(hist).slice(0, 120)}`);
+  // the steward goes to look at the building it updated (3b)
+  let moved = 0;
+  for (let i = 0; i < 10 && before && moved < 2; i++) {
+    await sleep(1000);
+    const now = await stewardPos();
+    if (now) moved = Math.hypot(now[0] - before[0], now[2] - before[2]);
+  }
+  if (moved >= 2) ok('steward walks', `${moved.toFixed(1)} blocks to the updated building`);
+  else fail('steward walks', before ? `moved ${moved.toFixed(1)}` : 'no steward position');
   // revert (3c): back to version 1 from the building panel (its third button, asked twice)
   await cmd(`/steward view ${id} ${site}`);
   await sleep(1500);
@@ -233,6 +248,22 @@ async function playerUuid() {
   if (!m) throw new Error(`no player UUID (${r})`);
   const hex = m.slice(1).map((n) => (Number(n) >>> 0).toString(16).padStart(8, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
+/** A world from before the steward entity: its mannequin stewards become steward_mc:steward when their chunks load. */
+async function migratedSteward() {
+  const first = settlements()[0];
+  if (!first) return;
+  await cmd(`/tp @p ${first.claim.centerX} 100 ${first.claim.centerZ}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  let found = '';
+  for (let i = 0; i < 10 && !/Steward/.test(found); i++) {
+    await sleep(1000);
+    found = await cmd(`/data get entity @e[type=steward_mc:steward,tag=steward_mc.settlement.${first.id},limit=1] CustomName`);
+  }
+  const old = await cmd(`/data get entity @e[type=minecraft:mannequin,tag=steward_mc.settlement.${first.id},limit=1] CustomName`);
+  if (/Steward/.test(found) && !/Steward/.test(old)) ok('steward migrated', `${first.id}: a steward_mc:steward, no mannequin`);
+  else fail('steward migrated', `new: ${found || 'none'}; old: ${old || 'none'}`);
 }
 
 async function restartRestore() {
@@ -305,6 +336,7 @@ try {
     if (mode === 'free') await placeUpdateUndo(id);
     else await stubFlow(id);
   }
+  await migratedSteward();
   await restartRestore();
 } catch (e) {
   fail('run', e.message);

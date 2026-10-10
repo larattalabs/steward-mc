@@ -34,6 +34,7 @@ public final class Revert {
 		if (toVersion < 1 || toVersion == from) return Actions.Result.fail("It stands at version " + from + " already.");
 		String lot = Updates.lotOf(site.get());
 		int session = Session.current();
+		StewardMotion.clear(server, s, site.get().box());
 		sites.revert(siteId, toVersion, null).whenComplete((r, err) -> {
 			if (!Session.is(session)) return;
 			boolean ok = err == null && r.applied();
@@ -43,6 +44,7 @@ public final class Revert {
 				+ " of your edits kept") + ")." : "Could not revert " + lot + ": " + why;
 			Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.REVERTED, msg, List.of(new Settlement.SiteChange(siteId, lot, from,
 				ok ? r.toVersion() : toVersion)), null, ok ? Settlement.Outcome.DONE : Settlement.Outcome.FAILED));
+			if (ok) sites.get(siteId).ifPresent(v -> StewardMotion.visit(server, s, v.box()));
 			var p = server.getPlayerList().getPlayer(player);
 			if (p != null) {
 				p.sendSystemMessage(Component.literal("Steward (" + s.name() + "): " + msg));
