@@ -428,7 +428,18 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - **Change requests:** they run on the release, through versionOf.
      - **Benchmark (Architect):** a 3-unique starter cost $9.14 and a copies-plus-smalls starter $8.28. Under $5 is not reached: detail design is about 80% of the cost.
    - **0c** (v0.15.0, adopted 2026-10-11): **protected areas are Architect's write bounds now.** Every area a player marks is also marked with `Sites.protect` under the settlement's owner, kept the same at each change and when a world starts; Steward's layouts and roads still keep off them first. Surveys read the ground under trees (`Sample.ground`). District roads are partial: a stretch the ground will not take is a gap, said to the player, not a refused road. Still open: survival roads (C16) for Supplied settlements, phase 4.
-   - **V (flat village):** new settlements use Architect's lots, door paths, square and props. Existing ones keep `VillageLayout` until the joint 7a/6d gate (C12).
+   - **V (flat village, Architect v0.16.0; adoption designed 2026-10-11, not built):** new settlements use Architect's lots, door paths, square and props. Existing ones keep `VillageLayout` until the joint 7a/6d gate (C12). What a realised V village leaves (a $0 spike, `/steward dev v_spike`, `mod/DEV.md`):
+     - **Lots:** one building site per lot (itemKey `lot:<id>`, ext only `architect_mc:lot`; Steward's tags stay on the region's ext).
+     - **Street:** two road sites (`road:street_w`, `road:street_e`, split at the square).
+     - **Region:** one region with its own site group, realised over time with no done event (its state is read), undone by `Regions.remove`; no operation keys on plan or realise.
+     - **Design:**
+       - **Which builds:** Patron, a card whose terrain is flat or as found, a flat claim, and a settlement's first whole build. Supplied, Hardcore, additions and sculpted sites keep today's path. The choice is saved with the build.
+       - **Pipeline:** the state machine stays. The plan replaces `VillageLayout.plan`; designs per placed lot as today (with copies); `fitToLot` on the entrance; `realise(lotEntries)` replaces the batch, with the region's state read until it is placed.
+       - **Undo and saves:** the change log records the region id, and undo calls `Regions.remove`. That is settlements format 4, with a fixture and a SaveCompat test.
+       - **V towns afterwards:** their street is the `road:street_*` sites (`Districts.streetOf` reads them), so additions, districts and proposals work as in other towns. A lot's role comes from the region's plan.
+       - **Recovery:** a restart finds the region by its owner and the build's tag.
+       - **Asks for Architect:** each lot's ext carried to its site; operation keys on plan and realise.
+       - **Checks:** a stub e2e of plan, designs, realise, restart and undo on a V settlement, with one settlement kept on the legacy path; then a GPT review.
 5. **Phase 4:** Supplied on Architect's survival construction sites, then Hardcore and Economy. This needs streets in construction batches, which survival skips today.
 6. **Phase 2** when Architect 7c lands (big custom forms as region programs); phases 5-7 after.
 

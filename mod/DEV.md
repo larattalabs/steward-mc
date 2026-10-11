@@ -214,3 +214,13 @@ AgentCraft and Architect:
 
 Maven Local never supplies lab-ui, because a local publish may come from a checkout past its tag. Fetched this way on 2026-10-10: the release jar differed
 from the local publish.
+
+## Slice V spike (2026-10-11, $0)
+
+`/steward dev v_spike <id> plan|realise|dump` (host, dev only) plans Architect's `flat_village` from the settlement's card program, realises every lot with the e2e test entry, and dumps to `run/steward-v-spike.json`. On a flat stub world, 7 cottages over a 193 x 193 claim gave:
+- **Plan:** stages ground, street, lots, props; all 7 lots placed, fronts south and north along one east-west street; each lot's ext `architect_mc:village` carries its entrance, lane, slot and villager; the anchors include the bell at the square.
+- **Sites:**
+  - each building is its own site, itemKey `lot:cottage_1`, ext `architect_mc:lot` only;
+  - the street is `road:street_w` and `road:street_e` (it breaks at the square);
+  - everything is in the region's site group.
+- **Region:** the region keeps Steward's ext (settlement, build). After 60 s it was still PLACING, with 6 of 7 lots placed.

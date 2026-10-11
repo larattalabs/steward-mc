@@ -155,6 +155,21 @@ public final class StewardCommands {
 						StringArgumentType.getString(ctx, "entry"), at.getX(), at.getY(), at.getZ(), "NONE", "MASSING", label, at.getX() + 4, at.getY() + 12, at.getZ() + 4));
 					net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.ShowLayers("steward_mc:dev_ghost", layers));
 					return 1;
+				})))).then(Commands.literal("v_spike").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("step", StringArgumentType.word())
+				.executes(ctx -> {
+					// dev (a spike, 2026-10-11): Architect's flat village on this settlement: plan, realise (every lot the e2e test entry), dump
+					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
+					var p = src.getPlayerOrException();
+					var s = dev.larattalabs.steward.service.Settlements.store().get(StringArgumentType.getString(ctx, "id"));
+					if (s.isEmpty() || !s.get().described()) { src.sendFailure(Component.literal("a described settlement")); return 0; }
+					java.util.function.Consumer<String> say = m -> p.sendSystemMessage(Component.literal(m));
+					switch (StringArgumentType.getString(ctx, "step")) {
+						case "plan" -> dev.larattalabs.steward.service.VSpike.plan(p, s.get(), 7, say);
+						case "realise" -> dev.larattalabs.steward.service.VSpike.realise(p, s.get(), "e2e_stub", say);
+						default -> dev.larattalabs.steward.service.VSpike.dump(p, s.get(), say);
+					}
+					return 1;
 				})))).then(Commands.literal("use").then(Commands.argument("pos", net.minecraft.commands.arguments.coordinates.BlockPosArgument.blockPos()).executes(ctx -> {
 					// dev (the e2e check): the player right-clicks the block at pos, server side (when the client's click misses its aim)
 					if (!host(ctx.getSource())) return 0;
