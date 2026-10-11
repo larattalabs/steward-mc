@@ -179,3 +179,10 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **Told Architect:** pass, tag it.
 - **Benchmark (Architect, $18.69 of $35):** a 3-unique starter cost $9.14, a copies-plus-smalls starter $8.28. The first usable result came at 7.5 and 14.7 minutes. Under $5 is not reached: detail design is about 80% of the cost.
 - **Defaults proposed for Steward:** copies on at copyCap 3, and S items as SMALL. They are adopted with v0.14.0.
+
+**Consumer check of the 0c RC (2026-10-11):**
+- **Jar:** `architect_mc-0.15.0.jar`, sha256 e15848c6…
+- **Result:** Steward builds against it and its unit tests pass. The stub e2e passes 26 checks and the free e2e 33.
+- **Told Architect:** pass, tag it.
+- **Free paths:** no objection to dirt, coarse dirt, podzol, mycelium and rooted dirt becoming free path ground in V.
+- **Next for Steward:** with 0c, protected areas go to `Sites.protect` as write bounds, and Steward keeps its own layout and road checks.
