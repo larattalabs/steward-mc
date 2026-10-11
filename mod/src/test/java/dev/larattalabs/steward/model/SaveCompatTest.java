@@ -79,6 +79,26 @@ class SaveCompatTest {
 	}
 
 	@Test
+	void aVillageBuildCheckpointLoadsAndKeepsItsRegion() throws Exception {
+		// a flat village build (Architect V) placing: the v1 file's build with the fields V added (its plan and region, keyed); a restart finds it by these
+		BuildStore b = BuildStore.fromJson(fixture("v2/steward-builds.json"));
+		var saved = b.all().get(0);
+		assertEquals(dev.larattalabs.steward.pipeline.Pipeline.Phase.PLACING, saved.state().phase());
+		assertEquals("pmv43ofpj2efb43", saved.vPlan());
+		assertEquals("rg3", saved.vRegion());
+		assertEquals("region:rg3", saved.siteGroupId());
+		assertTrue(saved.usesKeys(), "keyed: its realise is found by its key");
+		// written again as it is
+		BuildStore again = BuildStore.fromJson(b.toJson());
+		assertEquals(saved.vPlan(), again.all().get(0).vPlan());
+		assertEquals(saved.vRegion(), again.all().get(0).vRegion());
+		// the v1 file has none of it: an ordinary build
+		var old = BuildStore.fromJson(fixture("v1/steward-builds.json")).all().get(0);
+		assertNull(old.vPlan());
+		assertNull(old.vRegion());
+	}
+
+	@Test
 	void operationsGetIdsVersionsAndRecovery() {
 		Settlement s = Settlement.founded("set_1", "Here", new Claim("minecraft:overworld", 0, 0, 64, -64, 320), Permission.PROPOSALS, Difficulty.PATRON, 1L);
 		s = s.withLog(Settlement.LogEntry.of(2L, Kind.PROJECT_PLACED, "Placed 2 buildings", List.of(new Settlement.SiteChange("s1", "inn", 0, 1),

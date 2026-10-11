@@ -9,7 +9,7 @@ It is a **sibling mod to Architect** (`larattalabs/architect-mc`). Architect is 
 construction engine. Steward is the director on top: concept, site, layout, a standing NPC, proactive upgrades,
 functional modules, villagers, animals, an inbox. Steward depends on Architect and does not copy it.
 
-Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah). The hardening slice from the GPT reviews is done. **Phase 3 is under way:**
+Status (2026-10-11): written 2026-10-05; **phase 1 is done** (gate passed, Noah). The hardening slice from the GPT reviews is done. **Phase 3 is under way:**
 - **3a: done.** The change log as operations, save migrations, the settlement screen, and a read-only building panel.
 - **3b: done** (conversation 2026-10-10: right-click the steward to talk; small talk is answered for free, anything else by a talk job of a few cents that replies and can put a building or a district in the inbox, or note a change). The steward is its own mob with its own skin. It walks to its work and comes to find you when a decision waits. It sits and sleeps. It has a nameplate, a "!" and speech bubbles, ported from AgentCraft onto lab-ui.
 - **3c: done on Architect's 0b RC** (2026-10-10). You can revert a building. You can also ask the steward to change one: a change proposal in the inbox; accepted, Architect's `versionOf` designs the building's next version, which Steward's updates offer for preview, apply keeping your edits, and revert. Change requests turn on by themselves when Architect 0b ships; until then they are noted in the history.
@@ -21,6 +21,8 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
   - **Accepting** builds that one building beside what stands, with no new street, in the settlement's reused style bible.
   - **Autonomous and Full** build their own proposals within the weekly allowance ($500 by default). Settings sets the level and the allowance.
   - **Worded by Claude** (2026-10-10): the rules decide what to propose. A small job ($0.03 cap, `prompts/proposal-words.md`) then names and describes it in the settlement's own terms, and the steward puts it to the player. Only for proposals that wait for the player; without the Claude link the rule's wording stays.
+
+- **Architect's flat village (V): done** (2026-10-11, on Architect 0.17.0, slice X). A new Patron settlement on flat Overworld ground is laid out and placed by Architect: its lots, lanes, square and props. Its buildings are Steward's designs, tagged with their roles. Plan and realise are keyed, cancel works like undo, and a world-start sweep takes up any village no build holds. Three GPT review rounds; the REMOVING busy check waits for Architect 0.17.1 (C23).
 
 The free e2e check runs 34 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper) runs the whole paid flow at $0: 21 checks on v0.12.2, and 22 on Architect's 0b release candidate, which adds a change request designed, applied and reverted.
 
@@ -433,7 +435,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - **Change requests:** they run on the release, through versionOf.
      - **Benchmark (Architect):** a 3-unique starter cost $9.14 and a copies-plus-smalls starter $8.28. Under $5 is not reached: detail design is about 80% of the cost.
    - **0c** (v0.15.0, adopted 2026-10-11): **protected areas are Architect's write bounds now.** Every area a player marks is also marked with `Sites.protect` under the settlement's owner, kept the same at each change and when a world starts; Steward's layouts and roads still keep off them first. Surveys read the ground under trees (`Sample.ground`). District roads are partial: a stretch the ground will not take is a gap, said to the player, not a refused road. Still open: survival roads (C16) for Supplied settlements, phase 4.
-   - **V (flat village, Architect v0.16.0; adoption designed 2026-10-11, not built):** new settlements use Architect's lots, door paths, square and props. Existing ones keep `VillageLayout` until the joint 7a/6d gate (C12). What a realised V village leaves (a $0 spike, `/steward dev v_spike`, `mod/DEV.md`):
+   - **V (flat village, Architect v0.16.0; built 2026-10-11 on 0.17.0, slice X, which carries Steward's lot tags, keys on plan and realise, and removal tombstones; the design below is as planned, with recovery by key instead of by tag):** new settlements use Architect's lots, door paths, square and props. Existing ones keep `VillageLayout` until the joint 7a/6d gate (C12). What a realised V village leaves (a $0 spike, `/steward dev v_spike`, `mod/DEV.md`):
      - **Lots:** one building site per lot (itemKey `lot:<id>`, ext only `architect_mc:lot`; Steward's tags stay on the region's ext).
      - **Street:** two road sites (`road:street_w`, `road:street_e`, split at the square).
      - **Region:** one region with its own site group, realised over time with no done event (its state is read), undone by `Regions.remove`; no operation keys on plan or realise.
