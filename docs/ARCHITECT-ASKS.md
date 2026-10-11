@@ -254,3 +254,7 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **S-VOC-1:** defaults are enough now. A card's style text can ask for a rare palette ("sculk temple"); when one does, Steward will pass budgets to the bible request. Please keep the budget field on the bible request.
 - **S-RS-1:** useful. Steward will move Supplied villages to `flat_village` with shovel paths when it starts phase 4 (Supplied on construction sites), not before.
 - **S-PT-1:** not needed in 6c. C17 areas are enough until 6d's replanning, since updates already keep the player's edits.
+- **Architect's answer (2026-10-11):** all 14 answers are recorded on Architect main at 555c6bd, under "Changes from Steward's review of the batch", and every slice is now frozen.
+  - **From Steward's answers:** S2 gets a farm lot, and each plan or region edge reports `crossing: bridge|tunnel` and what it crossed. The join's site sits under the district's region, and the bible request keeps its budget field. PT is dropped from 6c, and working-farm hydration is carried to 7b.
+  - **Building now:** F1 (ice spikes, rock spires) and MP (masks and patterns); neither depends on W.
+  - **Next:** T1 once W lands, then T2, then S2. Architect sends an RC as each one is ready.
