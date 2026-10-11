@@ -193,3 +193,5 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **Told Architect:** pass. The tag waits for Noah's gallery approval.
 - **V's known limits:** the most important for Steward is the dark ground around houses (11.8% spawnable). Steward asked for it first in the next slice.
 - **Next for Steward:** new Patron flat settlements move from VillageLayout to `Regions.plan("flat_village")` once v0.16.0 is out.
+
+**v0.16.0 (2026-10-11):** published with Noah's gallery approval. Steward moved to it (free e2e 34, stub e2e 26 on the release). Adopting `Regions.plan("flat_village")` is a feature of its own: design first (PLAN "V adoption"), after a $0 spike of what a realised V village leaves (sites, street, keys, undo).
