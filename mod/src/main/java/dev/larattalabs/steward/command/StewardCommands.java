@@ -155,7 +155,16 @@ public final class StewardCommands {
 						StringArgumentType.getString(ctx, "entry"), at.getX(), at.getY(), at.getZ(), "NONE", "MASSING", label, at.getX() + 4, at.getY() + 12, at.getZ() + 4));
 					net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.ShowLayers("steward_mc:dev_ghost", layers));
 					return 1;
-				})))).then(Commands.literal("sim_answer").then(Commands.argument("kind", StringArgumentType.word()).then(Commands.argument("json",
+				})))).then(Commands.literal("use").then(Commands.argument("pos", net.minecraft.commands.arguments.coordinates.BlockPosArgument.blockPos()).executes(ctx -> {
+					// dev (the e2e check): the player right-clicks the block at pos, server side (when the client's click misses its aim)
+					if (!host(ctx.getSource())) return 0;
+					var p = ctx.getSource().getPlayerOrException();
+					var pos = net.minecraft.commands.arguments.coordinates.BlockPosArgument.getLoadedBlockPos(ctx, "pos");
+					var hit = new net.minecraft.world.phys.BlockHitResult(net.minecraft.world.phys.Vec3.atCenterOf(pos), net.minecraft.core.Direction.SOUTH, pos, false);
+					var r = p.level().getBlockState(pos).useWithoutItem(p.level(), p, hit);
+					ctx.getSource().sendSuccess(() -> Component.literal("used " + pos.toShortString() + ": " + r), false);
+					return 1;
+				}))).then(Commands.literal("sim_answer").then(Commands.argument("kind", StringArgumentType.word()).then(Commands.argument("json",
 				StringArgumentType.greedyString()).executes(ctx -> {
 					// dev (the stub e2e check): the answer Architect's sim helper gives jobs of this kind (card, talk); "-" clears it
 					if (!host(ctx.getSource())) return 0;

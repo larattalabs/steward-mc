@@ -72,7 +72,10 @@ public final class Undo {
 		var g = group == null ? java.util.Optional.<dev.larattalabs.architect.api.SiteGroup>empty() : sites.group(group);
 		if (g.isPresent() && !g.get().sites().isEmpty() && entry.get().siteIds().containsAll(g.get().sites())) {
 			List<String> standing = List.copyOf(g.get().sites());
+			int session = Session.current();
 			sites.removeGroup(group, as).whenComplete((r, err) -> {
+				// the world closing mid-undo is not its outcome: what Architect finished is read again after the restart (the undo can be run again)
+				if (!Session.is(session) || SettlementRunner.worldStopped(err)) { UNDOING.remove(s.id()); return; }
 				List<String> gone = err == null && r.removed() ? standing : standing.stream().filter(id -> sites.get(id).isEmpty()).toList();
 				if (!gone.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), gone, gone.size() == standing.size(), now)).ok()) say.accept(UNLOGGED);
 				UNDOING.remove(s.id());
@@ -103,7 +106,9 @@ public final class Undo {
 				});
 			});
 		}
+		int session = Session.current();
 		chain.whenComplete((stop, err) -> {
+			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { UNDOING.remove(s.id()); return; }
 			if (!removed.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), List.copyOf(removed), removed.size() == ids.size(), now)).ok()) say.accept(UNLOGGED);
 			UNDOING.remove(s.id());
 			districts(server, s, say);

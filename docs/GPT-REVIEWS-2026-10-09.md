@@ -119,3 +119,23 @@ There were no findings in the proposal wording. Change requests had four, all fi
 - **Outcomes kept:** the design id is logged when Architect takes the request, and the outcome is logged with its cost.
 
 Not added: recovery of an in-flight change across a restart. Its version still installs and the updates offer it; only the outcome note is lost.
+
+## Operation keys on Architect 0.13 (2026-10-10)
+
+The review of commit dbc2b1a found eight problems. Two fix rounds were verified, and a third fix went in without a verification of its own:
+- **Cancelling:**
+  - a cancel with no id saved looks the requests up by key and stops what runs before it ends (`cancelByKeys`);
+  - a cancel waits for a lookup that is out;
+  - a failed lookup keeps the build saved, retries, and then says the cancel waits.
+- **Lost answers in play:** a timeout or a dropped link is looked up by key instead of failing the build. Only Architect's own words count as a lost answer: "connection lost", "not connected", timeouts, `SIDECAR_UNAVAILABLE`. Two lookups per build at most; past that, the build stays saved and is reported.
+- **Adoption:**
+  - a keyed build takes over only a batch carrying its build tag;
+  - a placement waiting to be queued looks its key up first;
+  - `OP_KEY_CONFLICT` is looked up and adopted;
+  - an adopted group gets its landmarks back.
+- **Undo:** it ignores `WORLD_STOPPED` and is session-fenced.
+- **Old keys:** Architect keeps a key 30 days after its work ends. A build older than 25 days never re-sends on an empty lookup.
+
+The third fix closes what the second verification left: the third lost answer in a build ended it while Architect might still be charging. It was checked by the e2e only (free 33, stub 24).
+
+Not changed: the dev-only `/steward resume` path, which players never use.

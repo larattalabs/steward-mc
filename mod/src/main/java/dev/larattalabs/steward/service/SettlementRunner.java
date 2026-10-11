@@ -251,6 +251,11 @@ public final class SettlementRunner {
 	private final Map<String, String> massingRefs = new HashMap<>();
 	/** Requests sent whose acknowledgement has not come: a cancel in the meantime is carried out when it comes. */
 	private boolean bibleInFlight, groupInFlight, queueInFlight;
+	/** A lookup by operation key is out (recoverByKey, cancelByKeys): a cancel does not end before it is back, as it may find work to stop. */
+	private boolean recovering;
+	/** Lost answers looked up by key in play, this build: bounded, so a refusal mistaken for a lost answer cannot loop. */
+	private int liveRecoveries;
+	static final int MAX_LIVE_RECOVERIES = 2;
 	/** The newest raise sent to Architect: an older raise's failure arriving late changes nothing. */
 	private int raiseSeq;
 	/** A raise is on its way to Architect: the next waits for it, so a failure always goes back to a budget Architect confirmed. */
@@ -339,8 +344,9 @@ public final class SettlementRunner {
 		say("Picking up the build of " + settlement.name() + " where it stopped (" + state.phase().name().toLowerCase().replace('_', ' ') + ").");
 		var batch = batchId == null ? java.util.Optional.<BatchView>empty() : sites.batch(batchId);
 		ResyncRules.BatchSeen seen = batch.isEmpty() ? ResyncRules.BatchSeen.ABSENT : batch.get().running() ? ResyncRules.BatchSeen.RUNNING : ResyncRules.BatchSeen.FINISHED;
+		// this build's running batch: by its build tag (a keyed build's only), or for builds from before keys by its lots
 		var running = sites.batches(settlement.owner()).stream().filter(BatchView::running).filter(b -> buildId.equals(extString(b.ext(), BatchPlanner.BUILD_EXT))
-			|| b.items().stream().anyMatch(i -> plan.lots().stream().anyMatch(l -> l.id().equals(i.itemKey())))).findFirst();
+			|| (!keyed && b.items().stream().anyMatch(i -> plan.lots().stream().anyMatch(l -> l.id().equals(i.itemKey()))))).findFirst();
 		List<ResyncRules.StageSeen> stages = siteGroupId == null ? List.of() : sites.group(siteGroupId).map(g -> g.stages().stream()
 			.filter(st -> batchId == null || batchId.equals(st.batchId())).map(st -> new ResyncRules.StageSeen(st.name(), st.state().terminal())).toList()).orElse(List.of());
 		List<String> placed = placedSites(sites);
@@ -362,6 +368,8 @@ public final class SettlementRunner {
 				} else if (batchId != null) execute(new Pipeline.CancelBatch());
 				else if (groupId != null) execute(new Pipeline.CancelGroup(groupId));
 				else if (bibleJobId != null) execute(new Pipeline.CancelBible());
+				// nothing saved: whatever Architect received is found by its key and stopped first
+				else if (keyed) cancelByKeys();
 				else feed(new Pipeline.CancelConfirmed());
 				drainLater();
 			}
@@ -378,7 +386,13 @@ public final class SettlementRunner {
 				batchId = null;
 				feed(new Pipeline.BatchDone(placed.size(), Math.max(0, plan.lots().size() - placed.size())));
 			}
-			case REQUEUE -> fitAndQueue(!permission.needsApproval(Permission.Action.NEW_PROJECT));
+			case REQUEUE -> {
+				// a placement Architect received (running or ended) is taken over, not fitted and sent again with another body
+				var byKey = keyed ? sites.batchByKey(settlement.owner(), opKey("batch")) : java.util.Optional.<BatchView>empty();
+				if (byKey.isPresent()) { say("Architect had the placement: picking it up."); adoptBatch(byKey.get()); }
+				else if (!keyed || mayResend()) fitAndQueue(!permission.needsApproval(Permission.Action.NEW_PROJECT));
+				else interrupted("the placement (too long ago to look up safely)");
+			}
 			case INTERRUPTED -> recoverByKey();
 		}
 	}
@@ -411,20 +425,45 @@ public final class SettlementRunner {
 	 * reported interrupted as before.
 	 */
 	private void recoverByKey() {
-		recoverByKey(0);
+		recoverByKey(0, false);
 	}
 
 	/** Lookups need the helper connected, which it may not be yet just after a restart: tried again every 5 s, six times, before giving up. */
 	private static final int RECOVER_TRIES = 6;
+	/** Architect keeps an operation key at least 30 days after its work ends: older than this, an empty lookup proves nothing, so nothing is sent again. */
+	static final long KEY_TRUST_MS = 25L * 24 * 3600_000;
 
-	private void recoverLater(int attempt, String what, Throwable err) {
+	private void recoverLater(int attempt, boolean live, String what, Throwable err) {
 		if (attempt + 1 >= RECOVER_TRIES) { interrupted(what + ": " + message(err)); return; }
+		recovering = true;
 		java.util.concurrent.CompletableFuture.delayedExecutor(5, java.util.concurrent.TimeUnit.SECONDS).execute(() -> server.execute(() -> {
-			if (alive()) recoverByKey(attempt + 1);
+			recovering = false;
+			if (alive()) recoverByKey(attempt + 1, live);
 		}));
 	}
 
-	private void recoverByKey(int attempt) {
+	/** When the build began (its id is "b" + the time), or 0 when that cannot be read. */
+	long startedAt() {
+		try {
+			return Long.parseLong(buildId.substring(1));
+		} catch (RuntimeException e) {
+			return 0;
+		}
+	}
+
+	/** Whether a request that Architect has no record of may be sent again: the build uses keys, and is young enough that its keys are still kept. */
+	private boolean mayResend() {
+		long at = startedAt();
+		return keyed && at > 0 && System.currentTimeMillis() - at < KEY_TRUST_MS;
+	}
+
+	/**
+	 * A request was sent but its id never saved (a restart came between the two, or its acknowledgement was lost, {@code live}): Architect is asked for
+	 * it by its operation key. Found, it is adopted (or, when the build is being cancelled or has ended, cancelled). Never received, it is sent again under
+	 * the same key (so it can only be made once), unless the build is ending or too old for its keys to be trusted. Builds from before keys are reported
+	 * interrupted as before.
+	 */
+	private void recoverByKey(int attempt, boolean live) {
 		if (!keyed) {
 			interrupted(switch (state.phase()) {
 				case BIBLE_RUNNING -> "the style bible request (it may still be made and charged)";
@@ -436,50 +475,137 @@ public final class SettlementRunner {
 		var api = ArchitectApi.get();
 		String owner = settlement.owner();
 		switch (state.phase()) {
-			case BIBLE_RUNNING -> api.bibles().jobByKey(owner, opKey("bible")).whenComplete((job, err) -> {
+			case BIBLE_RUNNING -> { recovering = true; api.bibles().jobByKey(owner, opKey("bible")).whenComplete((job, err) -> {
+				recovering = false;
 				if (!alive()) return;
-				if (err != null) { recoverLater(attempt, "the style bible request (it may still be made and charged)", err); return; }
+				if (err != null) { recoverLater(attempt, live, "the style bible request (it may still be made and charged)", err); return; }
+				// the phase may have moved on while the lookup was out (a cancel): handled with what was found
+				if (state.phase() != Pipeline.Phase.BIBLE_RUNNING) { settleFound(job.map(j -> j.id()).orElse(null), null, null); return; }
 				if (job.isPresent()) {
 					say("Architect had the style bible request: picking it up.");
 					bibleJobId = job.get().id();
 					paidRequestAcked = true;
 					persist();
 					if (job.get().finished()) onBibleDone(job.get());
-				} else {
+				} else if (mayResend()) {
 					say("The style bible request never reached Architect: asking again.");
 					execute(Pipeline.bibleRequest(state));
-				}
-			});
-			case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> api.designs().groupByKey(owner, opKey("group")).whenComplete((g, err) -> {
+				} else interrupted("the style bible request (too long ago to look up safely)");
+			}); }
+			case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> { recovering = true; api.designs().groupByKey(owner, opKey("group")).whenComplete((g, err) -> {
+				recovering = false;
 				if (!alive()) return;
-				if (err != null) { recoverLater(attempt, "the design group request", err); return; }
+				if (err != null) { recoverLater(attempt, live, "the design group request", err); return; }
+				if (state.phase() != Pipeline.Phase.GROUP_RUNNING && state.phase() != Pipeline.Phase.AWAITING_MASSING_APPROVAL) {
+					settleFound(null, g.map(Group::id).orElse(null), null);
+					return;
+				}
 				if (g.isPresent()) {
 					say("Architect had the design group request: picking it up.");
-					groupId = g.get().id();
-					paidRequestAcked = true;
-					persist();
-					onGroup(g.get());
-				} else {
+					adoptGroup(g.get());
+				} else if (mayResend()) {
 					say("The design group request never reached Architect: asking again.");
 					execute(Pipeline.groupRequest(state));
-				}
-			});
+				} else interrupted("the design group request (too long ago to look up safely)");
+			}); }
+			case CANCELLING -> cancelByKeys();
 			default -> {
 				var b = api.sites(server).batchByKey(owner, opKey("batch"));
-				if (b.isEmpty()) { interrupted("the placement"); return; }
+				if (b.isEmpty()) {
+					// in play (its acknowledgement lost) the placement is simply asked for again, under the same key; after a restart, said as before
+					if (live && mayResend()) fitAndQueue(!permission.needsApproval(Permission.Action.NEW_PROJECT));
+					else interrupted("the placement");
+					return;
+				}
 				say("Architect had the placement: picking it up.");
-				batchId = b.get().id();
-				siteGroupId = b.get().group();
-				persist();
-				if (b.get().running()) {
-					if (state.phase() == Pipeline.Phase.READY_TO_PLACE) feed(new Pipeline.BatchQueued(batchId));
-				} else onBatchDone(b.get());
+				adoptBatch(b.get());
 			}
 		}
 	}
 
+	/** Takes over a group Architect had: its id, which items are landmarks (the landmark stage comes first), and its state. */
+	private void adoptGroup(Group g) {
+		groupId = g.id();
+		landmarkIds = g.items().stream().filter(i -> i.role() == GroupRequest.Role.LANDMARK).map(Group.Item::itemKey).collect(Collectors.toSet());
+		paidRequestAcked = true;
+		persist();
+		if (state.phase() == Pipeline.Phase.CANCELLING) { execute(new Pipeline.CancelGroup(g.id())); return; }
+		onGroup(g);
+	}
+
+	/** Takes over a batch Architect had: running, it is this build's placement; finished, its outcome. */
+	private void adoptBatch(BatchView b) {
+		batchId = b.id();
+		siteGroupId = b.group();
+		persist();
+		if (b.running()) {
+			if (state.phase() == Pipeline.Phase.READY_TO_PLACE) feed(new Pipeline.BatchQueued(batchId));
+		} else onBatchDone(b);
+	}
+
+	/** The build moved on (a cancel) while a lookup was out: what was found is stopped, and a cancel in progress learns there is nothing more to wait for. */
+	private void settleFound(@org.jspecify.annotations.Nullable String jobId, @org.jspecify.annotations.Nullable String foundGroup,
+		@org.jspecify.annotations.Nullable String foundBatch) {
+		var api = ArchitectApi.get();
+		if (jobId != null) { bibleJobId = jobId; persist(); }
+		if (foundGroup != null) { groupId = foundGroup; persist(); }
+		if (foundBatch != null) { batchId = foundBatch; persist(); }
+		if (state.phase() == Pipeline.Phase.CANCELLING) {
+			if (jobId != null) execute(new Pipeline.CancelBible());
+			else if (foundGroup != null) execute(new Pipeline.CancelGroup(foundGroup));
+			else if (foundBatch != null) execute(new Pipeline.CancelBatch());
+			else feed(new Pipeline.CancelConfirmed());
+		} else if (state.phase().terminal()) {
+			// ended meanwhile: nothing may keep running for it
+			if (jobId != null) api.bibles().cancel(jobId);
+			if (foundGroup != null) api.designs().cancelGroup(foundGroup);
+			if (foundBatch != null) api.sites(server).cancelBatch(foundBatch);
+		}
+	}
+
+	/**
+	 * A cancel restored with no id saved: any of this build's requests Architect received is found by its key and stopped (a placed part is logged, as
+	 * undo needs it) before the cancel ends, so nothing keeps running, or charging, for a build that is gone.
+	 */
+	private void cancelByKeys() {
+		cancelByKeys(0);
+	}
+
+	private void cancelByKeys(int attempt) {
+		var api = ArchitectApi.get();
+		String owner = settlement.owner();
+		recovering = true;
+		api.bibles().jobByKey(owner, opKey("bible")).thenCombine(api.designs().groupByKey(owner, opKey("group")), (job, g) -> new Object[] {job, g})
+			.whenComplete((pair, err) -> server.execute(() -> {
+				recovering = false;
+				if (!alive()) return;
+				// a lookup that failed (the helper away) proves nothing: the cancel waits and asks again, keeping the build saved
+				if (err != null || pair == null) {
+					if (attempt + 1 >= RECOVER_TRIES) {
+						say("The cancel is waiting for Architect (" + (err == null ? "no answer" : message(err)) + "); the build stays saved. Cancel again later.");
+						return;
+					}
+					recovering = true;
+					java.util.concurrent.CompletableFuture.delayedExecutor(5, java.util.concurrent.TimeUnit.SECONDS).execute(() -> server.execute(() -> {
+						recovering = false;
+						if (alive()) cancelByKeys(attempt + 1);
+					}));
+					return;
+				}
+				@SuppressWarnings("unchecked") var job = (java.util.Optional<dev.larattalabs.architect.api.BibleJob>) pair[0];
+				@SuppressWarnings("unchecked") var g = (java.util.Optional<Group>) pair[1];
+				var b = api.sites(server).batchByKey(owner, opKey("batch"));
+				if (b.isPresent() && !b.get().running()) {
+					List<String> placed = placedSites(api.sites(server), true);
+					if (!placed.isEmpty() && !logPlaced(placed, placedSites(api.sites(server)).size())) { logFailed(); return; }
+				}
+				settleFound(job.filter(j -> !j.finished()).map(j -> j.id()).orElse(null), g.filter(x -> !x.status().isFinal()).map(Group::id).orElse(null),
+					b.filter(BatchView::running).map(BatchView::id).orElse(null));
+			}));
+	}
+
 	private void interrupted(String what) {
-		say("The restart interrupted " + what + ". Cancel this build with /steward cancel " + settlement.id() + " and start it again.");
+		say("The build lost track of " + what + ". Cancel it with /steward cancel " + settlement.id() + " (what Architect received is found and stopped) and start it again.");
 	}
 
 	void deliverUnread(ServerPlayer p) {
@@ -851,6 +977,26 @@ public final class SettlementRunner {
 		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.WORLD_STOPPED;
 	}
 
+	/**
+	 * An answer lost on its way rather than a refusal: a timeout, the helper's link dropped or not connected. The request may have arrived and be at work,
+	 * so it is looked up by its key instead of being taken as failed.
+	 */
+	static boolean uncertain(@org.jspecify.annotations.Nullable Throwable err) {
+		if (err == null) return false;
+		Throwable e = err.getCause() != null ? err.getCause() : err;
+		if (e instanceof java.util.concurrent.TimeoutException) return true;
+		if (e instanceof dev.larattalabs.architect.api.ArchitectRefused r) return r.reason() == dev.larattalabs.architect.api.Reason.SIDECAR_UNAVAILABLE;
+		// Architect's words for a link that went (SidecarLink: "sidecar connection lost: ..."), or an answer that never came; not any message that
+		// happens to hold "link" (a bible named "blinkhaven")
+		String m = String.valueOf(e.getMessage()).toLowerCase();
+		return m.contains("connection lost") || m.contains("not connected") || m.contains("timed out") || m.startsWith("timeout") || m.contains("sidecar link lost");
+	}
+
+	static boolean keyConflict(@org.jspecify.annotations.Nullable Throwable err) {
+		Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
+		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.OP_KEY_CONFLICT;
+	}
+
 	/** Architect's helper refused a cancel because the thing is unknown or already final (its words, 1.8). */
 	private static boolean refusedAsOver(Throwable err) {
 		String m = String.valueOf(message(err)).toLowerCase();
@@ -987,6 +1133,13 @@ public final class SettlementRunner {
 					bibleInFlight = false;
 					// the world closing is not the bible failing: the build stays saved, and the request is found by its key after the restart
 					if (worldStopped(err)) return;
+					// an answer lost on the way (a timeout, a dropped link) is not a refusal: the request may have arrived, so it is looked up by its key
+					if (err != null && uncertain(err) && keyed && alive()) {
+						// looked up by key; past the bound, kept saved and reported (the request may still be at work and charging: never dropped)
+						if (liveRecoveries++ < MAX_LIVE_RECOVERIES) { say("Architect's answer was lost: looking the style bible request up."); recoverByKey(0, true); }
+						else interrupted("the style bible request (Architect's answers keep getting lost; it may still be made and charged)");
+						return;
+					}
 					if (err != null) { feed(new Pipeline.BibleDone(false, null, 0, 0, err.getMessage())); return; }
 					// cancelled while the request was on its way (or this runner belongs to a closed world): stop the job now
 					if (!alive() || state.phase().terminal()) { if (!job.finished()) api.bibles().cancel(job.id()); return; }
@@ -1008,6 +1161,11 @@ public final class SettlementRunner {
 				api.designs().requestGroup(built.request().withOpKey(opKey("group"))).whenComplete((id, err) -> {
 					groupInFlight = false;
 					if (worldStopped(err)) return;
+					if (err != null && uncertain(err) && keyed && alive()) {
+						if (liveRecoveries++ < MAX_LIVE_RECOVERIES) { say("Architect's answer was lost: looking the design group request up."); recoverByKey(0, true); }
+						else interrupted("the design group request (Architect's answers keep getting lost; it may still be at work)");
+						return;
+					}
 					if (err != null) {
 						say("Group failed: " + err.getMessage());
 						// nothing reached Architect: the cancel finishes at once
@@ -1068,7 +1226,7 @@ public final class SettlementRunner {
 					if (api.bibles().job(id).isEmpty()) later.add(new Pipeline.CancelConfirmed());
 					// a job that ended before the cancel reached it sends no second event: read it
 					api.bibles().job(id).filter(BibleJob::finished).ifPresent(this::onBibleDone);
-				} else if (!bibleInFlight) later.add(new Pipeline.CancelConfirmed());
+				} else if (!bibleInFlight && !recovering) { if (keyed) cancelByKeys(); else later.add(new Pipeline.CancelConfirmed()); }
 			}
 			case Pipeline.CancelGroup g -> {
 				String id = g.groupId() != null ? g.groupId() : groupId;
@@ -1082,13 +1240,13 @@ public final class SettlementRunner {
 					else if (now.isEmpty() && err != null && refusedAsOver(err)) feed(new Pipeline.CancelConfirmed());
 					else if (err != null) say("Could not reach Architect to stop the design group (" + message(err) + "). It is cancelled when Architect answers; cancel again to stop waiting.");
 				});
-				else if (!groupInFlight) later.add(new Pipeline.CancelConfirmed());
+				else if (!groupInFlight && !recovering) { if (keyed) cancelByKeys(); else later.add(new Pipeline.CancelConfirmed()); }
 			}
 			case Pipeline.FitAndQueue f -> fitAndQueue(f.autoApprove());
 			case Pipeline.ApproveStages a -> approveStages();
 			case Pipeline.CancelBatch cb -> {
 				if (batchId != null) cancelBatch(batchId);
-				else if (!queueInFlight) later.add(new Pipeline.CancelConfirmed());
+				else if (!queueInFlight && !recovering) { if (keyed) cancelByKeys(); else later.add(new Pipeline.CancelConfirmed()); }
 			}
 			case Pipeline.Notify n -> {
 				String hint = n.needsDecision() ? hint() : null;
@@ -1146,6 +1304,12 @@ public final class SettlementRunner {
 		sites.queue(res.batch().withOpKey(opKey("batch"))).whenComplete((id, err) -> {
 			queueInFlight = false;
 			if (worldStopped(err)) return;
+			// lost on the way, or the same key with another body (a placement already there): looked up by its key and taken over
+			if (err != null && (uncertain(err) || keyConflict(err)) && keyed && alive()) {
+				if (liveRecoveries++ < MAX_LIVE_RECOVERIES) { say("Architect's answer about the placement was lost: looking it up."); recoverByKey(0, true); }
+				else interrupted("the placement (Architect's answers keep getting lost; it may still be at work)");
+				return;
+			}
 			if (err != null) { say("Queue failed: " + err.getMessage()); feed(new Pipeline.Cancel()); return; }
 			if (!alive() || state.phase().terminal()) { sites.cancelBatch(id); return; }
 			batchId = id;
