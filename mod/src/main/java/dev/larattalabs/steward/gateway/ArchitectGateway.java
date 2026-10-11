@@ -10,8 +10,11 @@ import java.util.Set;
 public final class ArchitectGateway {
 	/** The Architect API major version Steward is written against. */
 	public static final int REQUIRED_MAJOR = 1;
-	/** The oldest minor version Steward runs on: it calls groups, batches, critique and delta apply (API 1.8.0 = Architect 0.11.0; fabric.mod.json says the same). */
-	public static final int REQUIRED_MINOR = 8;
+	/**
+	 * The oldest minor version Steward runs on: groups, batches, critique and delta apply (1.8.0), and the flat village with tagged lots, keyed plan and
+	 * realise and removal tombstones (API 1.14.0 = Architect 0.17.0; fabric.mod.json says the same).
+	 */
+	public static final int REQUIRED_MINOR = 14;
 	/** Features Steward cannot work without (names from ArchitectApi.features()). */
 	public static final Set<String> REQUIRED_FEATURES = Set.of("designs", "sites", "events");
 

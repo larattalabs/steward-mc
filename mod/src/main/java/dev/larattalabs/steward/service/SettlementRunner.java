@@ -92,6 +92,12 @@ public final class SettlementRunner {
 					Steward.LOGGER.error("could not resume the build of {}", r.claimedId, e);
 				}
 			}
+			// villages no build or history entry holds (cancelled twice before Architect answered, a history that could not be saved): taken up
+			try {
+				VillageSweep.sweep(server);
+			} catch (RuntimeException e) {
+				Steward.LOGGER.error("could not look for villages left without a build", e);
+			}
 		});
 		// a village region has no done event: its state is read once a second while it is placed
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
@@ -375,8 +381,18 @@ public final class SettlementRunner {
 			switch (state.phase()) {
 				case AWAITING_PLACEMENT_APPROVAL -> { }
 				case READY_TO_PLACE -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) queueVillage(!permission.needsApproval(Permission.Action.NEW_PROJECT)); }
-				// not found by its key: realised again under the same key (Architect answers a realise it has with that region, never a second one)
-				default -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) realiseVillage(); }
+				// not found by its key: realised again under the same key (Architect answers a realise it has with that region, never a second one), unless
+				// something of it is in the world without its record (a batch of this build in any state, or a site, tiles included, of a region Architect
+				// does not list): then it is not placed twice
+				default -> {
+					if (vRegionId != null) watchVillage();
+					else if (findVillage()) { }
+					else if (sites.batches(settlement.owner()).stream().anyMatch(b -> buildId.equals(extString(b.ext(), BatchPlanner.BUILD_EXT)))
+						|| sites.list(settlement.owner(), true).stream().anyMatch(x -> x.region() != null && api.regions().get(x.region()).isEmpty())) {
+						interrupted("the village's placement (something of it is in the world, but Architect has no record of it)");
+					}
+					else realiseVillage();
+				}
 			}
 			return;
 		}
@@ -456,6 +472,11 @@ public final class SettlementRunner {
 	private boolean keyed = true;
 
 	/** The operation key of this build's {@code kind} of request (bible, group, batch): Architect finds the request by it after a restart (C9). */
+	/** Whether a build with this id is running (restored or new) this session. */
+	static boolean running(String buildId) {
+		return ACTIVE.values().stream().anyMatch(r -> buildId.equals(r.buildId));
+	}
+
 	String opKey(String kind) {
 		return "steward." + buildId + "." + kind;
 	}
@@ -1576,30 +1597,13 @@ public final class SettlementRunner {
 	 * undo would; when that stops, the entry stays and undo takes it up once it is clear.
 	 */
 	private void takeUpOrphan(String regionId) {
-		String sid = settlement.id();
-		Steward.LOGGER.warn("village region {} was realised for {}'s ended build {}: taking it up", regionId, sid, buildId);
-		var saved = Settlements.store().get(sid);
-		List<String> ids = regionSites(regionId);
-		var sites = ArchitectApi.get().sites(server);
-		List<Settlement.SiteChange> changes = ids.stream().map(id -> new Settlement.SiteChange(id, null, 0, sites.get(id).map(dev.larattalabs.architect.api.SiteView::version).orElse(1))).toList();
-		var entry = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "A village placed after its build ended (being taken up)", changes,
-			dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + regionId, Settlement.Outcome.PARTIAL);
-		if (saved.isEmpty() || ids.isEmpty() || !Settlements.log(sid, entry).ok()) {
-			// no entry to keep it by (nothing of it shows, or the history could not be saved): removed as it is; a refusal is in the server log
-			ArchitectApi.get().regions().remove(regionId, new RemoveOptions(false, settlement.owner())).whenComplete((r, err) -> {
-				if (err != null || !r.removed()) Steward.LOGGER.warn("village region {} of {} could not be taken up: {}", regionId, sid, err != null ? err.toString() : r.blockers());
-			});
-			return;
-		}
-		Undo.region(server, Settlements.store().get(sid).orElse(saved.get()), entry, regionId, Map.of(), this::say, ok -> { });
+		Steward.LOGGER.warn("village region {} was realised for {}'s ended build {}: taking it up", regionId, settlement.id(), buildId);
+		Settlements.store().get(settlement.id()).ifPresent(saved -> VillageSweep.takeUp(server, saved, regionId, this::say));
 	}
 
 	/** The region's sites as Steward records them: its streets and buildings, or (when it left nothing else) the ground tiles it wrote. */
 	private List<String> regionSites(String regionId) {
-		var sites = ArchitectApi.get().sites(server);
-		List<String> shown = sites.list(settlement.owner()).stream().filter(x -> regionId.equals(x.region())).map(dev.larattalabs.architect.api.SiteView::id).toList();
-		return !shown.isEmpty() ? shown
-			: sites.list(settlement.owner(), true).stream().filter(x -> regionId.equals(x.region())).map(dev.larattalabs.architect.api.SiteView::id).toList();
+		return VillageSweep.sitesOf(server, settlement.owner(), regionId);
 	}
 
 	/** Reads the village's state while it is placed; once placed (wholly or in part), its sites are logged under the region and the build ends. */
@@ -1675,10 +1679,9 @@ public final class SettlementRunner {
 		});
 	}
 
-	/** The history entry that placed this region, while it is the newest undoable one. */
+	/** The history entry that placed this region (its newest), whichever entry is the newest undoable one. */
 	private java.util.Optional<Settlement.LogEntry> regionEntry(String regionId) {
-		String group = dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + regionId;
-		return Settlements.store().get(settlement.id()).flatMap(Settlement::lastUndoable).filter(e -> group.equals(e.siteGroup()));
+		return Settlements.store().get(settlement.id()).flatMap(s -> VillageSweep.entryOf(s, regionId));
 	}
 
 	private void onBatchDone(BatchView b) {

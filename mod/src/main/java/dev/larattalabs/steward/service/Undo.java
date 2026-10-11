@@ -138,7 +138,13 @@ public final class Undo {
 	 * Returns false (having said why) when it is refused before anything is asked.
 	 */
 	public static boolean region(MinecraftServer server, Settlement s, Settlement.LogEntry entry, String region, java.util.Map<String, Integer> now,
-		Consumer<String> say, Consumer<Boolean> done) {
+		Consumer<String> say, Consumer<Boolean> whenDone) {
+		// the settlement is busy while its land is rewritten (no build surveys it half restored), whoever asked: undo, a cancel, the sweep
+		UNDOING.add(s.id());
+		Consumer<Boolean> done = ok -> {
+			UNDOING.remove(s.id());
+			whenDone.accept(ok);
+		};
 		var regions = ArchitectApi.get().regions();
 		List<String> regionSites = List.copyOf(entry.siteIds());
 		// removed already (Architect's tombstone, 1.14 C22): its answer, or the save of it, was lost; the entry is retired now
