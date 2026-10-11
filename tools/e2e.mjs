@@ -689,7 +689,7 @@ async function buildThrough(id, from, label, restartAtMassings = false) {
   let at = from;
   while (Date.now() < end) {
     const since = logSince(at);
-    const built = since.match(/is built: (\d+) buildings placed/);
+    const built = since.match(/is built(?: in part)?: (\d+) buildings placed/);
     if (built) return { steps, placed: Number(built[1]) };
     const stopped = since.match(/The build stopped[^\n]*|No dry, flat room[^\n]*|No room left[^\n]*|Survey failed[^\n]*|Cancelled [^\n]*|The design group failed[^\n]*/);
     if (stopped) {

@@ -375,7 +375,14 @@ public final class SettlementRunner {
 			switch (state.phase()) {
 				case AWAITING_PLACEMENT_APPROVAL -> { }
 				case READY_TO_PLACE -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) queueVillage(!permission.needsApproval(Permission.Action.NEW_PROJECT)); }
-				default -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) realiseVillage(); }
+				default -> {
+					if (vRegionId != null) watchVillage();
+					else if (findVillage()) { }
+					// no region, but a batch of this build or a site of a region Architect does not list: it ran (its record was lost), so it is not realised twice
+					else if (running.isPresent() || sites.list(settlement.owner()).stream().anyMatch(x -> x.region() != null
+						&& api.regions().get(x.region()).isEmpty())) interrupted("the village's placement");
+					else realiseVillage();
+				}
 			}
 			return;
 		}
@@ -1528,8 +1535,8 @@ public final class SettlementRunner {
 				if (!Session.is(session)) return;
 				queueInFlight = false;
 				if (worldStopped(err)) return;
-				// the build ended (cancelled while this was asked, or replaced): a village realised for it after all is taken up, not left without a history
-				if (!alive()) {
+				// the build ended (cancelled while this was asked, twice, or replaced): a village realised for it after all is taken up, not left without a history
+				if (!alive() || state == null || switch (state.phase()) { case DONE, FAILED, CANCELLED -> true; default -> false; }) {
 					if (err == null) takeUpOrphan(id);
 					return;
 				}
@@ -1568,12 +1575,19 @@ public final class SettlementRunner {
 		String owner = settlement.owner();
 		String sid = settlement.id();
 		Steward.LOGGER.warn("village region {} was realised for {}'s ended build {}: taking it up", regionId, sid, buildId);
+		// its sites are read before the removal (a removal hides them at once, before their land is restored)
+		List<String> ids = regionSites(regionId);
 		ArchitectApi.get().regions().remove(regionId, new RemoveOptions(false, owner)).whenComplete((r, err) -> server.execute(() -> {
 			if (worldStopped(err)) return;
 			if (err == null && r.removed()) return;
 			String why = err != null ? message(err) : String.join(", ", r.blockers());
-			Settlements.log(sid, new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "A village (Architect region " + regionId
-				+ ") was placed after its build ended and could not be taken up: " + why, List.of()));
+			// it stays: in the history under its region, so undo takes it up once it is clear
+			var sites = ArchitectApi.get().sites(server);
+			List<Settlement.SiteChange> changes = ids.stream().map(id -> new Settlement.SiteChange(id, null, 0, sites.get(id).map(dev.larattalabs.architect.api.SiteView::version).orElse(1))).toList();
+			Settlements.log(sid, ids.isEmpty()
+				? new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "A village (Architect region " + regionId + ") was placed after its build ended and could not be taken up: " + why, List.of())
+				: Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "A village placed after its build ended (it could not be taken up: " + why + ")",
+					changes, dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + regionId, Settlement.Outcome.PARTIAL));
 		}));
 	}
 
@@ -1602,8 +1616,10 @@ public final class SettlementRunner {
 		// the region's sites (its street and buildings; its ground when it left nothing else): undo removes the region whole, ground, lanes, square and props too
 		List<String> sites = regionSites(vRegionId);
 		if (sites.isEmpty()) {
-			// nothing of it is in the world: its record is dropped, so it does not count as something standing
+			// nothing of it is in the world: its record is dropped, so it does not count as something standing; the history says it failed
 			ArchitectApi.get().regions().remove(vRegionId, new RemoveOptions(false, settlement.owner()));
+			Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The village was not placed ("
+				+ (note != null ? note : "nothing of it stands") + ")", List.of()));
 		} else if (!logPlaced(sites, (int) placed, (int) skipped, note)) { logFailed(); return; }
 		feed(new Pipeline.BatchDone((int) placed, (int) skipped));
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
@@ -1616,15 +1632,16 @@ public final class SettlementRunner {
 			return;
 		}
 		String id = vRegionId;
+		// what it placed, read before the removal (a removal hides its sites at once, before their land is restored)
+		var v = ArchitectApi.get().regions().get(id);
+		int placed = v.map(x -> (int) x.lots().stream().filter(l -> "placed".equalsIgnoreCase(String.valueOf(l.state()))).count()).orElse(0);
+		int skipped = v.map(x -> x.lots().size()).orElse(0) - placed;
+		List<String> sites = regionSites(id);
 		ArchitectApi.get().regions().remove(id, new RemoveOptions(false, settlement.owner())).whenComplete((r, err) -> server.execute(() -> {
 			if (!alive() || worldStopped(err)) return;
 			if (err != null || !r.removed()) {
 				// it stays: logged under the region, so undo takes it up once it is clear, and the cancel ends
 				String why = err != null ? message(err) : String.join(", ", r.blockers());
-				var v = ArchitectApi.get().regions().get(id);
-				int placed = v.map(x -> (int) x.lots().stream().filter(l -> "placed".equalsIgnoreCase(String.valueOf(l.state()))).count()).orElse(0);
-				int skipped = v.map(x -> x.lots().size()).orElse(0) - placed;
-				List<String> sites = regionSites(id);
 				if (!sites.isEmpty() && !logPlaced(sites, placed, skipped, "cancelled; it could not be taken up: " + why)) { logFailed(); return; }
 				say("The village could not be taken up (" + why + "). What it placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
 				feed(new Pipeline.BatchDone(placed, skipped));

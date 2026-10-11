@@ -219,3 +219,8 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **S-X-1:** the plan's ext is enough. Steward plans once per build, so its lot tags (`steward_mc:settlement`, `lot`, `role`, `build`, `styleVersion`) are all known at plan time. Steward won't use `lotExt` on realise. Keep it only if it costs nothing.
 - **S-X-2:** 4 KB is plenty. Steward's lot ext is about 250 bytes.
 - **When X ships:** Steward tags lots in the plan and drops the `architect_mc:lot` fallbacks and the plan-side role lookup. It plans and realises with `steward.<build>.vplan` and `.vrealise` keys, and on a restart finds the region by key instead of by owner and build tag.
+
+**C22 (sent 2026-10-11), from the GPT check of Steward's V fixes:**
+- **(a) Retrying a removal that failed.** A region or group removal moves its members into pending records before restoring their blocks. When a restore fails and the removal is run again, the retry drops members missing from the active maps without checking the pending records (`Groups.java` ~601). It can then answer `removed=true` with the land not restored. The retry should finish the pending restorations, or refuse until it can.
+- **(b) A removal Steward didn't see finish.** If a region removal completes but Steward loses the answer or fails to save it, a later `Regions.remove` of that region refuses because the region is unknown. Steward then can't tell "already removed" from "never existed". Steward asks for one of two things: the removal answering `removed=true` again for a region it already removed, or `Regions.get` keeping a REMOVED record.
+- **Until then:** Steward trusts `removed=true` only from the first removal. A region undo that stops leaves its history entry as it was, so it can be run again.

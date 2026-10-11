@@ -240,7 +240,10 @@ public final class Pipeline {
 	}
 
 	private static Step built(State s, BatchDone b) {
-		return Step.of(s.with(Phase.DONE), new Notify(label(s) + " is built: " + b.placed() + " buildings placed" + (b.skipped() > 0 ? ", " + b.skipped() + " skipped" : ""), false));
+		// said as it is: nothing placed is not built, some skipped is built in part
+		if (b.placed() == 0) return Step.of(s.with(Phase.DONE), new Notify("Nothing of " + label(s) + " was placed" + (b.skipped() > 0 ? " (" + b.skipped() + " skipped)" : "") + ".", false));
+		return Step.of(s.with(Phase.DONE), new Notify(label(s) + (b.skipped() > 0 ? " is built in part: " : " is built: ") + b.placed() + " buildings placed"
+			+ (b.skipped() > 0 ? ", " + b.skipped() + " skipped" : ""), false));
 	}
 
 	/** The smallest budget that lets a paused build go on: its spend sits under the soft pause again with $5 of room, rounded up to $5. */
