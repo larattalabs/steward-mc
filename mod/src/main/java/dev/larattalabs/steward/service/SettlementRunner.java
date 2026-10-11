@@ -154,14 +154,12 @@ public final class SettlementRunner {
 
 	/** Whether a settlement has a runner that has not finished (a second one would spend twice). */
 	/**
-	 * Whether the settlement is busy: being built, a district road being laid, an undo running, or a village of it being removed (Architect restores its
-	 * land over ticks, also a removal it resumed after a restart or one asked for without Steward's undo). One guard for everything that changes its sites.
+	 * Whether the settlement is busy: being built, a district road being laid, or an undo running. One guard for everything that changes its sites. (A village
+	 * removal Architect resumed after a restart is not counted: its region can stay REMOVING after it ends, Architect 0.17.0; ask C23.)
 	 */
 	public static boolean busy(String settlementId) {
 		SettlementRunner r = ACTIVE.get(settlementId);
-		return (r != null && (r.state == null || !r.state.phase().terminal())) || Districts.busy(settlementId) || Undo.busy(settlementId)
-			|| ArchitectApi.get().regions().list("steward_mc:settlement/" + settlementId).stream()
-				.anyMatch(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVING);
+		return (r != null && (r.state == null || !r.state.phase().terminal())) || Districts.busy(settlementId) || Undo.busy(settlementId);
 	}
 
 	/** The runner of a settlement that is being built in this session (not persisted yet), or null. */

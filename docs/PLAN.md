@@ -82,6 +82,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-10-11 | **No third review of the last operation-key fix** (Noah): it keeps a build saved after a third lost answer, and the free and stub e2e checks are enough for it. |
 | 2026-10-11 | **Build the V path now; approve V's and W's gallery shas; fence-post lamps by default** (Noah): Architect's flat village is adopted for new Patron flat settlements now (W lights the ground around houses next). Noah also wants **lighting that follows the settlement's theme and style** (asked of Architect: bible-styled lamps as early as the plan allows). |
 | 2026-10-11 | **The V path waits for slice X** (Noah): the V adoption (972a37e, 1592600, f167d16; free e2e 34, stub 30) stays local until Architect's slice X (C19 lot tags, C20 keys on plan and realise, C22 removal retries and tombstones) ships. The last GPT check found restart and failed-save cases that X removes; Steward builds on X, gets one more review, then pushes. |
+| 2026-10-11 | **Push the V path on X without the REMOVING busy check** (Noah): the last GPT check found that a region removal resumed after a restart can stay REMOVING forever (Architect 0.17.0), which would lock the settlement. Steward drops the check, asks Architect C23, and puts the check back once C23 ships. The gap this leaves (a build surveying land Architect is still restoring after a restart or failed save) is rare. |
 
 ## Concept card
 
