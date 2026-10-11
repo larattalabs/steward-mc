@@ -135,7 +135,7 @@ public final class Actions {
 					if (p != null) p.sendSystemMessage(Component.literal(id + " started building while the description was read; the new card was not saved."));
 					return;
 				}
-				var res = Settlements.describe(id, r.card(), System.currentTimeMillis());
+				var res = Settlements.describe(id, r.card(), System.currentTimeMillis(), dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false));
 				if (p == null) return;
 				if (!res.ok()) {
 					p.sendSystemMessage(Component.literal(res.error()));

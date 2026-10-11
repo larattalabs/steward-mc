@@ -142,7 +142,8 @@ public final class StewardCommands {
 					String id = StringArgumentType.getString(ctx, "id");
 					if (SettlementRunner.busy(id)) { ctx.getSource().sendFailure(Component.literal(id + " is being built.")); return 0; }
 					var card = dev.larattalabs.steward.model.ConceptCard.parse(com.google.gson.JsonParser.parseString(SAMPLE_CARD).getAsJsonObject());
-					var r = dev.larattalabs.steward.service.Settlements.describe(id, card, System.currentTimeMillis());
+					var r = dev.larattalabs.steward.service.Settlements.describe(id, card, System.currentTimeMillis(),
+						dev.larattalabs.steward.gateway.WorldMode.survival(ctx.getSource().getServer()).orElse(false));
 					ctx.getSource().sendSuccess(() -> Component.literal(r.ok() ? "described " + id : r.error()), false);
 					return r.ok() ? 1 : 0;
 				}))).then(Commands.literal("ghost").then(Commands.argument("entry",

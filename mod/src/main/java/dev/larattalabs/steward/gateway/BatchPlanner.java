@@ -136,20 +136,20 @@ public final class BatchPlanner {
 		}
 		List<Batch.StageSpec> specs = new ArrayList<>();
 		String note = null;
-		if (!streetSpans.isEmpty()) {
-			if (mode == Mode.INSTANT && !plan.lots().isEmpty()) {
-				List<String> keys = new ArrayList<>();
-				for (int i = 0; i < streetSpans.size(); i++) {
-					// the first piece is the street; more pieces are its extensions, along the same line ("#" keeps them out of the lots' ids, type_n)
-					String key = i == 0 ? STREET_KEY : STREET_KEY + "#" + (i + 1);
-					items.put(key, Batch.Item.road(key, street(s, plan, streetSpans.get(i)[0], streetSpans.get(i)[1], land, level, buildId), "street", List.of()));
-					keys.add(key);
-				}
-				specs.add(new Batch.StageSpec("street", keys));
-			} else {
-				note = "the street was left out: roads can only be placed instantly (Patron in a world with survival off)";
+		// construction (survival, or Supplied): one crate feeds the whole build, street included (Architect C16: a road in a shared-crate batch is built from
+		// it; a dirt path on grass is free, fill and lanterns cost their items)
+		boolean construction = mode == Mode.CONSTRUCTION;
+		if (!streetSpans.isEmpty() && !plan.lots().isEmpty()) {
+			List<String> keys = new ArrayList<>();
+			for (int i = 0; i < streetSpans.size(); i++) {
+				// the first piece is the street; more pieces are its extensions, along the same line ("#" keeps them out of the lots' ids, type_n)
+				String key = i == 0 ? STREET_KEY : STREET_KEY + "#" + (i + 1);
+				items.put(key, Batch.Item.road(key, street(s, plan, streetSpans.get(i)[0], streetSpans.get(i)[1], land, level, buildId, mode), "street", List.of()));
+				keys.add(key);
 			}
+			specs.add(new Batch.StageSpec("street", keys));
 		}
+		if (construction) note = "built from materials: one crate feeds the whole build (its street first), filled by hand or by hoppers";
 		for (StageDef sd : stageDefs) {
 			List<String> ids = sd.lotIds().stream().filter(items::containsKey).toList();
 			if (!ids.isEmpty()) specs.add(new Batch.StageSpec(sd.name(), ids));
@@ -158,7 +158,7 @@ public final class BatchPlanner {
 		ext.addProperty("steward_mc:settlement", s.id());
 		if (buildId != null) ext.addProperty(BUILD_EXT, buildId);
 		Batch b = new Batch(null, s.owner(), ext, null, new ArrayList<>(items.values()), specs, Batch.WaitPolicy.DEFAULT,
-			dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY, null, false, autoApprove, false, null);
+			dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY, null, false, autoApprove, construction, null);
 		return new Result(b, List.copyOf(skipped), note);
 	}
 
@@ -177,11 +177,11 @@ public final class BatchPlanner {
 
 	/** The village's main street as a road request: two waypoints along the street, a little past the outer lots, kept inside the claim. */
 	static RoadRequest street(Settlement s, VillageLayout.Plan plan, @Nullable ServerLevel level, @Nullable String buildId) {
-		return street(s, plan, plan.streetX0(), plan.streetX1(), s.claim(), level, buildId);
+		return street(s, plan, plan.streetX0(), plan.streetX1(), s.claim(), level, buildId, Mode.INSTANT);
 	}
 
-	/** A piece of the street (x0..x1 along its line) as a road request, kept inside {@code land}. */
-	static RoadRequest street(Settlement s, VillageLayout.Plan plan, int from, int to, Claim land, @Nullable ServerLevel level, @Nullable String buildId) {
+	/** A piece of the street (x0..x1 along its line) as a road request, kept inside {@code land}, placed as the build's lots are ({@code mode}). */
+	static RoadRequest street(Settlement s, VillageLayout.Plan plan, int from, int to, Claim land, @Nullable ServerLevel level, @Nullable String buildId, Mode mode) {
 		// no run-out past the outer lots: in the phase 1 gate run the 4-block extension went over a drop (TOO_STEEP) and the whole street was refused
 		int pad = 0;
 		int x0 = Math.max(land.centerX() - land.radius(), from - pad);
@@ -194,7 +194,7 @@ public final class BatchPlanner {
 		ext.addProperty(STREET_X1, x1);
 		if (buildId != null) ext.addProperty(BUILD_EXT, buildId);
 		return new RoadRequest(level, List.of(new BlockPos(x0, plan.streetY(), plan.streetZ()), new BlockPos(x1, plan.streetY(), plan.streetZ())), 3, null, null,
-			true, false, Mode.INSTANT, s.owner(), ext, null, false);
+			true, false, mode, s.owner(), ext, null, false);
 	}
 
 	/** A fit is placeable when it has no refusal, or only temporary ones (player or mob in the box, chunks not loaded): the queue waits for those. */

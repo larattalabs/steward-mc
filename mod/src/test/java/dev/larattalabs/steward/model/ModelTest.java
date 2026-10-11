@@ -90,6 +90,19 @@ class ModelTest {
 	}
 
 	@Test
+	void survivalWorldsBuildNothingFree() {
+		assertEquals(Difficulty.SUPPLIED, Difficulty.forWorld(Difficulty.PATRON, true), "Patron in a survival world is Supplied");
+		assertEquals(Difficulty.PATRON, Difficulty.forWorld(Difficulty.PATRON, false));
+		assertEquals(Difficulty.HARDCORE, Difficulty.forWorld(Difficulty.HARDCORE, true));
+		assertEquals(Difficulty.SUPPLIED, Difficulty.forWorld(Difficulty.SUPPLIED, false), "Supplied stays Supplied in creative");
+		Settlement s = Settlement.founded("set_1", "Here", new Claim("minecraft:overworld", 0, 0, 64, -64, 320), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		assertSame(s, s.withDifficulty(Difficulty.PATRON, 2L), "no change, no history");
+		Settlement t = s.withDifficulty(Difficulty.SUPPLIED, 2L);
+		assertEquals(Difficulty.SUPPLIED, t.difficulty());
+		assertEquals("Difficulty: Supplied", t.log().get(t.log().size() - 1).text());
+	}
+
+	@Test
 	void gatewayStatusChecksMajorVersionAndFeatures() {
 		Set<String> ok = Set.of("designs", "sites", "events", "survey");
 		assertTrue(ArchitectGateway.Status.evaluate("1.14.0", ok).ok());

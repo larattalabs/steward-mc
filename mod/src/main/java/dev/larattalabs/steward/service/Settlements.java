@@ -64,7 +64,9 @@ public final class Settlements {
 		if (file == null) return Result.fail("Settlements are disabled in this world (its settlements file could not be read).");
 		String dim = level.dimension().identifier().toString();
 		Claim claim = new Claim(dim, center.getX(), center.getZ(), DEFAULT_RADIUS, level.getMinY(), level.getMaxY());
-		Settlement s = Settlement.founded(store.nextId(), name, claim, Permission.PROPOSALS, Difficulty.PATRON, now);
+		// in a survival world nothing is built free: a new settlement is Supplied until its card says otherwise
+		boolean survival = level.getServer() != null && dev.larattalabs.steward.gateway.WorldMode.survival(level.getServer()).orElse(false);
+		Settlement s = Settlement.founded(store.nextId(), name, claim, Permission.PROPOSALS, Difficulty.forWorld(Difficulty.PATRON, survival), now);
 		try {
 			return commit(Optional.empty(), s, "");
 		} catch (IllegalArgumentException e) {
@@ -74,14 +76,27 @@ public final class Settlements {
 
 	/** Stores the card and sizes the claim from it (it only grows, and only where it overlaps no one); {@link Result#note()} says how the claim came out. */
 	public static Result describe(String id, ConceptCard card, long now) {
+		return describe(id, card, now, false);
+	}
+
+	/** Whether Supplied and Hardcore are built (docs/PLAN.md phase 4): until then a creative world's settlements are Patron whatever their card asks. */
+	static final boolean SUPPLY_BUILT = false;
+
+	/** As {@link #describe(String, ConceptCard, long)}, the card's difficulty taken by the world's rule ({@link Difficulty#forWorld}). */
+	public static Result describe(String id, ConceptCard card, long now, boolean worldSurvival) {
 		Optional<Settlement> s = store.get(id);
 		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
-		Settlement n = s.get().withCard(card, now);
+		Difficulty asked = card.difficultyOr(s.get().difficulty());
+		// until phase 4 (the stockpile and the steward's requests) is built, a creative world builds free whatever the card asks
+		Difficulty d = !worldSurvival && !SUPPLY_BUILT ? Difficulty.PATRON : Difficulty.forWorld(asked, worldSurvival);
+		Settlement n = s.get().withCard(card, now).withDifficulty(d, now);
+		String rule = d == asked ? "" : worldSurvival ? " In a survival world nothing is built free, so " + n.name() + " is Supplied: the steward asks for its materials."
+			: " Building from your materials (" + asked.name().toLowerCase(java.util.Locale.ROOT) + ") comes with a later version; " + n.name() + " builds free for now.";
 		ClaimRules.Outcome o = ClaimRules.growTo(n.claim(), ClaimRules.radiusFor(card.site().size()), others(id));
 		if (o.changed(n.claim())) n = n.withClaim(ClaimRules.withRadius(n.claim(), o.radius()), now);
 		String note = o.note().isEmpty() ? "Claim: " + ClaimRules.side(n.claim().radius()) + " x " + ClaimRules.side(n.claim().radius()) + " (" + ClaimRules.sizeOf(n.claim().radius())
 			+ ")." : o.note();
-		return commit(s, n, note);
+		return commit(s, n, note + rule);
 	}
 
 	/** Grows the claim one size step (Expand); refused, with the reason, past XL or onto a neighbour. */

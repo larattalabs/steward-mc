@@ -395,6 +395,13 @@ public record Settlement(
 			.withLog(new LogEntry(now, Kind.CLAIM_CHANGED, "Claim is now " + ClaimRules.side(c.radius()) + " x " + ClaimRules.side(c.radius()), List.of()));
 	}
 
+	/** The settlement's difficulty (from its card, by the world's rule): noted in the history when it changes. */
+	public Settlement withDifficulty(Difficulty d, long now) {
+		if (d == difficulty) return this;
+		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, permission, d, log, proposals, bible, autonomy, lands)
+			.withLog(new LogEntry(now, Kind.NOTE, "Difficulty: " + d.name().charAt(0) + d.name().substring(1).toLowerCase(java.util.Locale.ROOT), List.of()));
+	}
+
 	public Settlement withPermission(Permission p, long now) {
 		return new Settlement(id, name, card, claim, siteVersion, styleVersion, purposeVersion, p, difficulty, log, proposals, bible, autonomy, lands)
 			.withLog(new LogEntry(now, Kind.PERMISSION_CHANGED, "Permission: " + p, List.of()));

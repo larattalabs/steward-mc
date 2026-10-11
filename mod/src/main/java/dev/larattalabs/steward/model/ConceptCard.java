@@ -100,7 +100,12 @@ public record ConceptCard(
 
 	/** The card's difficulty, or {@code fallback} when it names none. */
 	public Difficulty difficultyOr(Difficulty fallback) {
-		return constraints.difficulty == null ? fallback : Difficulty.parse(constraints.difficulty);
+		if (constraints.difficulty == null || constraints.difficulty.isBlank()) return fallback;
+		try {
+			return Difficulty.parse(constraints.difficulty);
+		} catch (IllegalArgumentException e) {
+			return fallback;
+		}
 	}
 
 	private static boolean blank(@Nullable String s) {

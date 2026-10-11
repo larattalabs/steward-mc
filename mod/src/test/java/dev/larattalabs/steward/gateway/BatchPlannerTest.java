@@ -172,7 +172,8 @@ class BatchPlannerTest {
 	}
 
 	@Test
-	void noStreetInConstructionModeAndTheResultSaysWhy() throws Exception {
+	void aConstructionBuildSharesOneCrateWithItsStreetFirst() throws Exception {
+		// survival or Supplied: one crate feeds the build; its street is a construction road in it (Architect C16), first, and the result says so
 		Settlement s = settlement(Difficulty.SUPPLIED);
 		VillageLayout.Plan p = plan(4);
 		Map<String, String> entries = new HashMap<>();
@@ -180,8 +181,15 @@ class BatchPlannerTest {
 		for (Lot l : p.lots()) { entries.put(l.id(), "gen_" + l.id()); fits.put(l.id(), okFit(l)); }
 		BatchPlanner.Result r = BatchPlanner.build(s, p, Set.of(), entries, fits, null, false, false, true);
 		assertNotNull(r.note());
-		assertEquals(p.lots().size(), r.batch().items().size());
-		assertTrue(r.batch().items().stream().noneMatch(i -> "street".equals(i.itemKey())));
+		assertTrue(r.batch().sharedCrate(), "one crate for the build");
+		assertEquals(p.lots().size() + 1, r.batch().items().size());
+		assertEquals("street", r.batch().stages().get(0).name());
+		Batch.Item street = r.batch().items().stream().filter(i -> "street".equals(i.itemKey())).findFirst().orElseThrow();
+		assertEquals(Mode.CONSTRUCTION, street.road().mode());
+		// Patron in creative: instant, no crate
+		BatchPlanner.Result free = BatchPlanner.build(settlement(Difficulty.PATRON), p, Set.of(), entries, fits, null, false, false, true);
+		assertFalse(free.batch().sharedCrate());
+		assertNull(free.note());
 	}
 
 	@Test
