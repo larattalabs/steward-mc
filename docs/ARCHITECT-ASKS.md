@@ -195,3 +195,16 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **Next for Steward:** new Patron flat settlements move from VillageLayout to `Regions.plan("flat_village")` once v0.16.0 is out.
 
 **v0.16.0 (2026-10-11):** published with Noah's gallery approval. Steward moved to it (free e2e 34, stub e2e 26 on the release). Adopting `Regions.plan("flat_village")` is a feature of its own: design first (PLAN "V adoption"), after a $0 spike of what a realised V village leaves (sites, street, keys, undo).
+
+## Round 6 (2026-10-11): V adoption and the next batch
+
+| Ask | What | Why |
+|---|---|---|
+| C19 | A lot's ext (Steward's `steward_mc:lot`, `steward_mc:role`, `steward_mc:build`) carried onto the lot's site at realise. | A realised V lot's site has only `architect_mc:lot`; Steward's panels, updates and history name buildings from its tags. |
+| C20 | `opKey` on `RegionPlanRequest` and `RealiseRequest`. | A realise interrupted by a restart, found by key as groups and batches are (C9). |
+| C21 | Bible-styled lighting (7a §8.3) early: the bible's `light` role chooses the fixture (lantern posts, soul lanterns, end rods, hanging lanterns, wall lamps). | Noah: lighting options that follow the settlement's theme and style. |
+
+**Slice W review (sent 2026-10-11):**
+- **S-W-1:** frozen water counts as water. Steward reads `Sample.frozen` as water too.
+- **S-W-2:** up to 4 lamps per lot is fine. Each lot's lamp positions are asked for on the lot's ext.
+- **Noah's calls:** V's and W's gallery shas both approved; fence-post lamps by default.

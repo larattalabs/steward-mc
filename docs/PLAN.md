@@ -80,6 +80,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-10-10 | **Talking costs a few cents a question** (Claude; approved by Noah 2026-10-10): each question the rules cannot answer is one Sonnet job (a $0.05 cap, usually 1-2 cents) on the player's own Claude link, like describing a settlement. There are at most 30 an hour per settlement. Talk never builds: what it proposes waits in the inbox. |
 | 2026-10-10 | **Proposals are worded by Claude** (Claude; approved by Noah 2026-10-10): each proposal that waits for the player costs one small job (a $0.03 cap, usually 1-2 cents), spent on the player's own Claude link without them asking. The proposal guardrails bound it: one new proposal every 20 minutes at most, only while the host is in the settlement. Without the link, the rule's wording is used. |
 | 2026-10-11 | **No third review of the last operation-key fix** (Noah): it keeps a build saved after a third lost answer, and the free and stub e2e checks are enough for it. |
+| 2026-10-11 | **Build the V path now; approve V's and W's gallery shas; fence-post lamps by default** (Noah): Architect's flat village is adopted for new Patron flat settlements now (W lights the ground around houses next). Noah also wants **lighting that follows the settlement's theme and style** (asked of Architect: bible-styled lamps as early as the plan allows). |
 
 ## Concept card
 
