@@ -233,3 +233,8 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 **Slice X RC (0.17.0, API 1.14.0; slice/X e2443ec; sha256 5559bfa7…), consumer check 2026-10-11: pass.** Steward builds against it unchanged. The stub e2e on 8590/8591, with the RC in the client, passed 30 checks, including the village: planned, approved, 5 buildings placed on region rg1 (7 sites), its street standing as a road, and undone whole.
 
 **C23 (sent 2026-10-11), from the last GPT check of Steward's V path on 0.17.0:** a region removal that resumes after a restart can leave the region REMOVING for good. `Groups` reloads the group removal without its completion future (`Groups.java` ~896), and the region's state is cleared only in that future's callback (`RegionsImpl.java` ~1825). Steward asks that the resumed removal end the region as REMOVED, or report it as stopped, the same as one that never restarted. Until then, Steward doesn't treat a REMOVING region as keeping its settlement busy (Noah, 2026-10-11).
+- **Architect's answer (2026-10-11):** C23 is confirmed: `Groups.load` rebuilt removals without their completion future. The fix ships as patch v0.17.1, with no API change.
+  - A resumed removal ends the region as an uninterrupted one does: REMOVED with removedAt, or stopped on failure.
+  - It is driven from the removal's own saved state, so it survives repeated restarts.
+  - New gate items: a restart mid-removal then finishing, a restart then an injected failure then a retry, two restarts, and the group-only case.
+  - **When 0.17.1 ships:** Steward passes the RC through its consumer check, pins 0.17.1, raises its minimum Architect version to it, and puts the REMOVING busy check back.
