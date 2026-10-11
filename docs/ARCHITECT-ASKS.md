@@ -258,3 +258,11 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
   - **From Steward's answers:** S2 gets a farm lot, and each plan or region edge reports `crossing: bridge|tunnel` and what it crossed. The join's site sits under the district's region, and the bible request keeps its budget field. PT is dropped from 6c, and working-farm hydration is carried to 7b.
   - **Building now:** F1 (ice spikes, rock spires) and MP (masks and patterns); neither depends on W.
   - **Next:** T1 once W lands, then T2, then S2. Architect sends an RC as each one is ready.
+
+## Round 7 (2026-10-11): phase 4, Supplied settlements
+
+| Ask | What | Why |
+|---|---|---|
+| C24 | **A settlement stockpile.** One store per owner (a settlement) that every construction item of that owner draws from: groups, batch roads, standalone construction roads (`placeRoad` CONSTRUCTION, refused today without a shared crate), and construction deltas (updates and reverts, which place a crate of their own today). Its parts: one or more crate blocks the owner names, kept across groups and builds; the caller sets the order sites are fed (a priority, or batch order); one ledger per owner; `Sites.stock(owner)`; refunds (deconstruct, undo) delivered into it rather than dropped at a crate cell, with what didn't fit dropped. | Noah wants a settlement-wide storehouse (2026-10-11), as a colony sim has. A crate per group means a new crate for every build, update and road, and refunds lie on the ground. |
+| C25 | **Waiting status in the API.** On `Stock`, or on `SiteView` for a construction site: whether it is waiting for materials, and the next items it needs, in build order (`nextNeeded: [{item, count}]`). Plus an event when a site starts or stops waiting. | The steward names what's needed next, and comes to find the player after a long wait. Today that is only on the crate screen and HUD. |
+| C26 | **The BOM with foundation and approach before placing,** or an estimate of them on `Verdict`. | The card says what a Supplied build will cost before it is approved. `Verdict.bom` covers the template only. |

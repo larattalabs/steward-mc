@@ -86,6 +86,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-10-11 | **The V path waits for slice X** (Noah): the V adoption (972a37e, 1592600, f167d16; free e2e 34, stub 30) stays local until Architect's slice X (C19 lot tags, C20 keys on plan and realise, C22 removal retries and tombstones) ships. The last GPT check found restart and failed-save cases that X removes; Steward builds on X, gets one more review, then pushes. |
 | 2026-10-11 | **Push the V path on X without the REMOVING busy check** (Noah): the last GPT check found that a region removal resumed after a restart can stay REMOVING forever (Architect 0.17.0), which would lock the settlement. Steward drops the check, asks Architect C23, and puts the check back once C23 ships. The gap this leaves (a build surveying land Architect is still restoring after a restart or failed save) is rare. |
 | 2026-10-11 | **Farm water and ladders** (Noah, Architect's S-H-1 and S-T2-2): a decorative farm on a dry claim gets a small contained pond beside it. Working farms (later, automated ones) are built for yield instead: water spaced so every farmland block is hydrated (one source per 9x9, channels on that spacing), not a pond for looks. Paths only players use (lookouts, watchtowers) may climb steep spots by ladder; villager paths never do. |
+| 2026-10-11 | **Phase 4's shape** (Noah): Supplied settlements draw from a settlement stockpile, one store for every build, update, road and refund (Architect ask C24), not a crate per build. In a survival-toggle world only Supplied and Hardcore exist; Patron is where the toggle is off. The steward asks for materials all three ways: its bubble names what's next, the inbox shows the bill, and it comes to find you after a long wait. Hardcore's difference is decided later. |
 
 ## Concept card
 
@@ -547,6 +548,22 @@ the board and the ledger; see "Interface"), the steward walking and talking, dis
 ### Phase 4: Difficulty modes and economy
 Supplied and Hardcore on Architect survival sites, stockpile and requests, Economy unlocks.
 - **Gate:** a survival dev world where a site is fed from the stockpile and the refund matches.
+
+**Design (2026-10-11, Noah's choices; not built).** What Architect 0.17 has: construction sites fed from a crate (hoppers or "insert from inventory"), a crate shared by one batch's group, roads in such a batch (C16: dirt paths on grass free; fill, gravel, lamps paid), deconstruct with refunds, `Sites.stock(group)` and `SITE_PROGRESS`/`SITE_BUILT`. Survey: `mod/DEV.md` is not needed; the facts are in ask C24's "why".
+- **Difficulty:** the card's difficulty is the settlement's (today every settlement is Patron: `ConceptCard.difficultyOr` is never called). In a world where Architect's survival toggle is on, only Supplied and Hardcore: nothing is built free. Patron stays where the toggle is off (creative, or turned off by an op). Hardcore is built as Supplied until its difference is decided (Noah: later).
+- **The stockpile (Noah):** one store per settlement that every build, street, district road, update, revert and refund draws from or returns to: a storehouse, as a colony sim has, not a crate per build. It needs Architect ask C24; phase 4 waits for it.
+- **Requests (Noah: all three):**
+  - the steward's bubble and the talk box name the next few items a waiting build needs;
+  - the inbox and the settlement screen show the bill (delivered, still needed, by building);
+  - after a build has waited 10 minutes with the player online, the steward comes to find them, once per wait, as it does for decisions.
+- **Layout:** Steward's own (`VillageLayout`) in survival. Architect's flat village refuses survival until its RS slice (API 1.30), and before 7a RS gives shovel paths only, no props or lamps (S-RS-1).
+- **Updates and reverts in survival** are paid forward deltas from the stockpile (never journal-revertible); the inbox shows their bill before they are applied.
+- **Before C24 (Steward only, $0):**
+  - wire the card's difficulty into the settlement, with the survival rule above;
+  - in a survival world, give each build one shared crate with its street included (today each building gets its own crate and the street is left out with a note);
+  - a district road is refused there as a standalone construction road, so it goes as a one-road batch with a shared crate;
+  - Steward's statuses read `Sites.stock` and `SITE_PROGRESS`.
+- **Checks:** a survival e2e (the stockpile fed by the dev hook `dev.crate.insert`, a build finished from it, an undo whose refund matches), and a GPT review (it spends the player's materials).
 
 ### Phase 5: Functional modules
 Verified catalog: crop farm, storage hall with sorting, then the rest. "You have seeds" offer. Spine/connectors.
