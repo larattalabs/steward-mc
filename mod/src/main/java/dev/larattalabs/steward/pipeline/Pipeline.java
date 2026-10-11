@@ -121,7 +121,11 @@ public final class Pipeline {
 	/** The player approved placing the designed settlement (every planned stage, in order). */
 	public record PlacementApproved() implements Event {}
 
-	public record BatchDone(int placed, int skipped) implements Event {}
+	public record BatchDone(int placed, int skipped, @Nullable String note) implements Event {
+		public BatchDone(int placed, int skipped) {
+			this(placed, skipped, null);
+		}
+	}
 
 	/** The player cancelled; a second cancel while cancelling stops waiting for Architect. */
 	public record Cancel() implements Event {}
@@ -240,10 +244,11 @@ public final class Pipeline {
 	}
 
 	private static Step built(State s, BatchDone b) {
-		// said as it is: nothing placed is not built, some skipped is built in part
-		if (b.placed() == 0) return Step.of(s.with(Phase.DONE), new Notify("Nothing of " + label(s) + " was placed" + (b.skipped() > 0 ? " (" + b.skipped() + " skipped)" : "") + ".", false));
-		return Step.of(s.with(Phase.DONE), new Notify(label(s) + (b.skipped() > 0 ? " is built in part: " : " is built: ") + b.placed() + " buildings placed"
-			+ (b.skipped() > 0 ? ", " + b.skipped() + " skipped" : ""), false));
+		// said as it is: no building placed is not built; some skipped, or a part that failed besides the buildings ({@code note}), is built in part
+		String more = (b.skipped() > 0 ? ", " + b.skipped() + " skipped" : "") + (b.note() != null ? " (" + b.note() + ")" : "");
+		if (b.placed() == 0) return Step.of(s.with(Phase.DONE), new Notify("No building of " + label(s) + " was placed" + more + ".", false));
+		return Step.of(s.with(Phase.DONE), new Notify(label(s) + (b.skipped() > 0 || b.note() != null ? " is built in part: " : " is built: ") + b.placed()
+			+ " buildings placed" + more, false));
 	}
 
 	/** The smallest budget that lets a paused build go on: its spend sits under the soft pause again with $5 of room, rounded up to $5. */

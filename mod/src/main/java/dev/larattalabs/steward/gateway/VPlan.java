@@ -58,8 +58,16 @@ public final class VPlan {
 		return placed.stream().anyMatch(l -> l.front() == net.minecraft.core.Direction.EAST || l.front() == net.minecraft.core.Direction.WEST);
 	}
 
-	/** The program's {@code params}: the card's program lots as Steward lays them out ({@code villager} left to Architect, which infers it from the type). */
+	/** The program's {@code params} without Steward's tags on the lots (the dev spike). */
 	public static JsonObject params(List<VillageLayout.LotSpec> specs) {
+		return params(specs, null, null);
+	}
+
+	/**
+	 * The program's {@code params}: the card's program lots as Steward lays them out ({@code villager} left to Architect, which infers it from the type), each
+	 * with Steward's tags (Architect 1.14 C19 puts them on the lot's site, as a batch lot carries them: settlement, lot, role, build).
+	 */
+	public static JsonObject params(List<VillageLayout.LotSpec> specs, @Nullable String settlementId, @Nullable String buildId) {
 		JsonArray lots = new JsonArray();
 		for (var l : specs) {
 			JsonObject o = new JsonObject();
@@ -73,6 +81,14 @@ public final class VPlan {
 			o.addProperty("landmark", l.landmark());
 			if (l.placement() != null) o.addProperty("placement", l.placement());
 			if (l.notes() != null) o.addProperty("brief", l.notes());
+			if (settlementId != null) {
+				JsonObject ext = new JsonObject();
+				ext.addProperty("steward_mc:settlement", settlementId);
+				ext.addProperty("steward_mc:lot", l.id());
+				ext.addProperty("steward_mc:role", l.role());
+				if (buildId != null) ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
+				o.add("ext", ext);
+			}
 			lots.add(o);
 		}
 		JsonObject params = new JsonObject();

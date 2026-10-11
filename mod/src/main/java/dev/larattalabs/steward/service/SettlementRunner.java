@@ -375,14 +375,8 @@ public final class SettlementRunner {
 			switch (state.phase()) {
 				case AWAITING_PLACEMENT_APPROVAL -> { }
 				case READY_TO_PLACE -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) queueVillage(!permission.needsApproval(Permission.Action.NEW_PROJECT)); }
-				default -> {
-					if (vRegionId != null) watchVillage();
-					else if (findVillage()) { }
-					// no region, but a batch of this build or a site of a region Architect does not list: it ran (its record was lost), so it is not realised twice
-					else if (running.isPresent() || sites.list(settlement.owner()).stream().anyMatch(x -> x.region() != null
-						&& api.regions().get(x.region()).isEmpty())) interrupted("the village's placement");
-					else realiseVillage();
-				}
+				// not found by its key: realised again under the same key (Architect answers a realise it has with that region, never a second one)
+				default -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) realiseVillage(); }
 			}
 			return;
 		}
@@ -885,8 +879,8 @@ public final class SettlementRunner {
 		var bible = existing != null && existing.bible() != null && existing.bible().styleVersion() == existing.styleVersion() ? existing.bible() : null;
 		int session = Session.current();
 		ArchitectApi.get().regions().plan(new dev.larattalabs.architect.api.RegionPlanRequest(dev.larattalabs.steward.gateway.VPlan.PROGRAM,
-			dev.larattalabs.steward.gateway.VPlan.params(specs), level, box, null, bible == null ? null : bible.id(), bible == null ? null : bible.version(),
-			LoadPolicy.LOADED_ONLY, settlement.owner(), ext)).whenComplete((rp, err) -> server.execute(() -> {
+			dev.larattalabs.steward.gateway.VPlan.params(specs, settlement.id(), buildId), level, box, null, bible == null ? null : bible.id(),
+			bible == null ? null : bible.version(), LoadPolicy.LOADED_ONLY, settlement.owner(), ext, opKey("vplan"))).whenComplete((rp, err) -> server.execute(() -> {
 				if (!Session.is(session) || !alive()) return;
 				if (worldStopped(err)) return;
 				if (err != null) { abandon("Architect could not lay out the village: " + message(err)); return; }
@@ -1530,7 +1524,8 @@ public final class SettlementRunner {
 		queueInFlight = true;
 		ServerPlayer actor = server.getPlayerList().getPlayer(playerId);
 		int session = Session.current();
-		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, Mode.INSTANT, actor, lotEntries, null, true, null, false, ext))
+		// keyed: asked again (a restart, a lost answer) it is the same realise, never a second village
+		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, Mode.INSTANT, actor, lotEntries, null, true, null, false, ext, 0, opKey("vrealise")))
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
 				queueInFlight = false;
@@ -1541,8 +1536,8 @@ public final class SettlementRunner {
 					return;
 				}
 				if (err != null) {
-					// a lost answer may have started it: looked up by the build's tag
-					if (uncertain(err) && findVillage()) return;
+					// a lost answer, or the key asked with another body (the player who placed it changed): looked up by its key
+					if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
 					say("Architect could not place the village: " + message(err));
 					feed(new Pipeline.Cancel());
 					return;
@@ -1561,34 +1556,42 @@ public final class SettlementRunner {
 		watchVillage();
 	}
 
-	/** This build's village region, found by its owner and the build's tag (a restart came, or an answer was lost, before its id was saved). */
+	/**
+	 * This build's village region (a restart came, or an answer was lost, before its id was saved): by its realise key, or (a village realised before keys)
+	 * by its owner and the build's tag. A removed one (its tombstone) is not this build's placement.
+	 */
 	private boolean findVillage() {
-		var found = ArchitectApi.get().regions().list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT))).findFirst();
+		var regions = ArchitectApi.get().regions();
+		var found = regions.realiseByKey(settlement.owner(), opKey("vrealise"))
+			.or(() -> regions.list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT))).findFirst())
+			.filter(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVED);
 		if (found.isEmpty()) return false;
 		say("Architect had the village: picking it up.");
 		adoptVillage(found.get().id());
 		return true;
 	}
 
-	/** A region realised for a build that has ended: removed whole; when that is refused, the history says so and undo can't reach it (the region list can). */
+	/**
+	 * A region realised for a build that has ended: logged under its region first (a restart, or undo, finds it by that entry), then taken up whole as an
+	 * undo would; when that stops, the entry stays and undo takes it up once it is clear.
+	 */
 	private void takeUpOrphan(String regionId) {
-		String owner = settlement.owner();
 		String sid = settlement.id();
 		Steward.LOGGER.warn("village region {} was realised for {}'s ended build {}: taking it up", regionId, sid, buildId);
-		// its sites are read before the removal (a removal hides them at once, before their land is restored)
+		var saved = Settlements.store().get(sid);
 		List<String> ids = regionSites(regionId);
-		ArchitectApi.get().regions().remove(regionId, new RemoveOptions(false, owner)).whenComplete((r, err) -> server.execute(() -> {
-			if (worldStopped(err)) return;
-			if (err == null && r.removed()) return;
-			String why = err != null ? message(err) : String.join(", ", r.blockers());
-			// it stays: in the history under its region, so undo takes it up once it is clear
-			var sites = ArchitectApi.get().sites(server);
-			List<Settlement.SiteChange> changes = ids.stream().map(id -> new Settlement.SiteChange(id, null, 0, sites.get(id).map(dev.larattalabs.architect.api.SiteView::version).orElse(1))).toList();
-			Settlements.log(sid, ids.isEmpty()
-				? new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "A village (Architect region " + regionId + ") was placed after its build ended and could not be taken up: " + why, List.of())
-				: Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "A village placed after its build ended (it could not be taken up: " + why + ")",
-					changes, dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + regionId, Settlement.Outcome.PARTIAL));
-		}));
+		var sites = ArchitectApi.get().sites(server);
+		List<Settlement.SiteChange> changes = ids.stream().map(id -> new Settlement.SiteChange(id, null, 0, sites.get(id).map(dev.larattalabs.architect.api.SiteView::version).orElse(1))).toList();
+		var entry = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "A village placed after its build ended (being taken up)", changes,
+			dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + regionId, Settlement.Outcome.PARTIAL);
+		if (saved.isEmpty() || ids.isEmpty() || !Settlements.log(sid, entry).ok()) {
+			// no entry to keep it by (nothing of it shows, or the history could not be saved): removed as it is; a refusal is in the server log
+			ArchitectApi.get().regions().remove(regionId, new RemoveOptions(false, settlement.owner())).whenComplete((r, err) -> {
+				if (err != null || !r.removed()) Steward.LOGGER.warn("village region {} of {} could not be taken up: {}", regionId, sid, err != null ? err.toString() : r.blockers());
+			});
+			return;
+		}
+		Undo.region(server, Settlements.store().get(sid).orElse(saved.get()), entry, regionId, Map.of(), this::say, ok -> { });
 	}
 
 	/** The region's sites as Steward records them: its streets and buildings, or (when it left nothing else) the ground tiles it wrote. */
@@ -1621,35 +1624,61 @@ public final class SettlementRunner {
 			Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The village was not placed ("
 				+ (note != null ? note : "nothing of it stands") + ")", List.of()));
 		} else if (!logPlaced(sites, (int) placed, (int) skipped, note)) { logFailed(); return; }
-		feed(new Pipeline.BatchDone((int) placed, (int) skipped));
+		feed(new Pipeline.BatchDone((int) placed, (int) skipped, note == null ? null : note.substring(4)));
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
 	}
 
-	/** Cancelling a village: one being placed is removed whole (what it placed goes, the land restored); one not realised yet ends at once. */
+	/**
+	 * Cancelling a village: one not realised yet ends at once. One realised is logged under its region first (a restart, or undo, finds it by that entry),
+	 * then taken up whole as an undo would (what it placed goes, the land restored); when that stops, the entry stays, undo takes it up once it is clear,
+	 * and the cancel ends.
+	 */
 	private void cancelVillage() {
 		if (vRegionId == null) {
 			if (!queueInFlight) later.add(new Pipeline.CancelConfirmed());
 			return;
 		}
 		String id = vRegionId;
-		// what it placed, read before the removal (a removal hides its sites at once, before their land is restored)
-		var v = ArchitectApi.get().regions().get(id);
+		var regions = ArchitectApi.get().regions();
+		var v = regions.get(id);
 		int placed = v.map(x -> (int) x.lots().stream().filter(l -> "placed".equalsIgnoreCase(String.valueOf(l.state()))).count()).orElse(0);
 		int skipped = v.map(x -> x.lots().size()).orElse(0) - placed;
-		List<String> sites = regionSites(id);
-		ArchitectApi.get().regions().remove(id, new RemoveOptions(false, settlement.owner())).whenComplete((r, err) -> server.execute(() -> {
-			if (!alive() || worldStopped(err)) return;
-			if (err != null || !r.removed()) {
-				// it stays: logged under the region, so undo takes it up once it is clear, and the cancel ends
-				String why = err != null ? message(err) : String.join(", ", r.blockers());
-				if (!sites.isEmpty() && !logPlaced(sites, placed, skipped, "cancelled; it could not be taken up: " + why)) { logFailed(); return; }
-				say("The village could not be taken up (" + why + "). What it placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
-				feed(new Pipeline.BatchDone(placed, skipped));
+		var entry = regionEntry(id);
+		if (entry.isEmpty()) {
+			List<String> sites = regionSites(id);
+			if (!sites.isEmpty()) {
+				if (!logPlaced(sites, placed, skipped, "being cancelled")) { logFailed(); return; }
+				entry = regionEntry(id);
+			}
+		}
+		if (entry.isEmpty()) {
+			// nothing of it shows in the world: its record is removed (a tombstone, or no region, is gone already)
+			regions.remove(id, new RemoveOptions(false, settlement.owner())).whenComplete((r, err) -> server.execute(() -> {
+				if (!alive() || worldStopped(err)) return;
+				boolean gone = (err == null && r.removed()) || regions.get(id).map(x -> x.state() == dev.larattalabs.architect.api.RegionState.REMOVED).orElse(true);
+				if (!gone) { say("The village could not be taken up yet (" + (err != null ? message(err) : String.join(", ", r.blockers())) + "); cancel again once it is clear."); return; }
+				vRegionId = null;
+				feed(new Pipeline.CancelConfirmed());
+			}));
+			return;
+		}
+		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
+		Undo.region(server, saved, entry.get(), id, Map.of(), this::say, ok -> {
+			if (ok == null || !alive()) return;
+			if (ok) {
+				vRegionId = null;
+				feed(new Pipeline.CancelConfirmed());
 				return;
 			}
-			vRegionId = null;
-			feed(new Pipeline.CancelConfirmed());
-		}));
+			say("What the village placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
+			feed(new Pipeline.BatchDone(placed, skipped));
+		});
+	}
+
+	/** The history entry that placed this region, while it is the newest undoable one. */
+	private java.util.Optional<Settlement.LogEntry> regionEntry(String regionId) {
+		String group = dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + regionId;
+		return Settlements.store().get(settlement.id()).flatMap(Settlement::lastUndoable).filter(e -> group.equals(e.siteGroup()));
 	}
 
 	private void onBatchDone(BatchView b) {

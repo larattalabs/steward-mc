@@ -654,6 +654,10 @@ async function villageFlow() {
   const region = placedOp?.siteGroup;
   if (planned && /^region:/.test(region ?? '') && built.placed > 0 && placedOp.outcome === 'DONE') ok('village', `${built.steps.join(' > ')} > ${built.placed} placed on Architect's flat village (${region}, ${placedOp.siteIds.length} sites)`);
   else return fail('village', `planned ${!!planned}, history ${JSON.stringify(placedOp)?.slice(0, 160)}`);
+  // its buildings carry Steward's tags (Architect 1.14 C19): the history names each by its role from the card, not Architect's lot id
+  const roles = (placedOp.changes ?? []).map((c) => c.lot).filter(Boolean);
+  if (roles.length === built.placed && roles.every((r) => !/_\d+$/.test(r))) ok('village tags', roles.join(', '));
+  else fail('village tags', JSON.stringify(placedOp.changes ?? []).slice(0, 200));
   // its street is a town street to Steward (additions and districts work on it)
   const street = await cmd(`/steward dev site ${placedOp.siteIds.find((x) => /^r/.test(x)) ?? 'none'}`);
   if (/stands \(road\)/.test(street)) ok('village street', street);

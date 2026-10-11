@@ -141,7 +141,13 @@ class PipelineTest {
 		assertEquals(Phase.PLACING, placing.phase());
 		Step done = Pipeline.step(placing, new BatchDone(11, 1), Permission.FULL);
 		assertEquals(Phase.DONE, done.next().phase());
-		assertTrue(only(done, Notify.class).text().contains("11 buildings placed, 1 skipped"));
+		assertTrue(only(done, Notify.class).text().contains("is built in part: 11 buildings placed, 1 skipped"));
+		assertTrue(only(Pipeline.step(placing, new BatchDone(5, 0), Permission.FULL), Notify.class).text().contains("is built: 5 buildings placed"));
+		// a village whose buildings all stood but whose lanes or props failed is built in part; one with no building placed is not built
+		String partial = only(Pipeline.step(placing, new BatchDone(5, 0, "village is partial: 5 of 5 lots placed"), Permission.FULL), Notify.class).text();
+		assertTrue(partial.contains("is built in part: 5 buildings placed (village is partial"), partial);
+		String none = only(Pipeline.step(placing, new BatchDone(0, 5, "village is failed: 0 of 5 lots placed"), Permission.FULL), Notify.class).text();
+		assertTrue(none.startsWith("No building of") && !none.contains("is built"), none);
 	}
 
 	@Test

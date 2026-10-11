@@ -71,28 +71,8 @@ public final class Undo {
 		// a flat village (Architect V) is one region: removed whole, its ground, street, lanes, square and props with its buildings
 		String region = dev.larattalabs.steward.gateway.VPlan.regionOf(entry.get().siteGroup());
 		if (region != null) {
-			List<String> regionSites = List.copyOf(entry.get().siteIds());
-			// the region is removed whole: only when everything in it is this entry's (a site another build put in it would go too)
-			var others = sites.list(s.owner()).stream().filter(v -> region.equals(v.region())).map(dev.larattalabs.architect.api.SiteView::id)
-				.filter(id -> !regionSites.contains(id)).toList();
-			if (!others.isEmpty()) {
-				UNDOING.remove(s.id());
-				say.accept("Undo stopped: the village also holds " + String.join(", ", others) + ", which \"" + entry.get().text() + "\" did not place.");
-				return false;
-			}
-			int session = Session.current();
-			ArchitectApi.get().regions().remove(region, as).whenComplete((r, err) -> server.execute(() -> {
-				if (!Session.is(session) || SettlementRunner.worldStopped(err)) { UNDOING.remove(s.id()); return; }
-				// done only when Architect says the region is removed (a site leaves the list before its land is restored); a removal that stopped keeps the
-				// entry as it was, region and all, so running undo again finishes it
-				if (err == null && r.removed() && !Settlements.log(s.id(), removed(entry.get(), regionSites, true, now)).ok()) say.accept(UNLOGGED);
-				UNDOING.remove(s.id());
-				districts(server, s, say);
-				if (err != null || !r.removed()) say.accept("Undo stopped: " + (err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
-					: "blocked by " + String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
-				else say.accept("Undone: the village is taken up, the land restored.");
-			}));
-			return true;
+			// the world closing mid-undo (null) is not its outcome: the undo can be run again after the restart
+			return region(server, s, entry.get(), region, now, say, ok -> UNDOING.remove(s.id()));
 		}
 		String group = entry.get().siteGroup();
 		var g = group == null ? java.util.Optional.<dev.larattalabs.architect.api.SiteGroup>empty() : sites.group(group);
@@ -151,6 +131,47 @@ public final class Undo {
 	}
 
 	/** A district whose road an undo took, with nothing else standing in it, is given up. */
+	/**
+	 * Takes up a flat village (Architect V) whole, its ground, street, lanes, square and props with its buildings, for the history entry that placed it: an
+	 * undo, and a cancel (which logs the village first, so a restart finds it by this entry). {@code done} gets true when it is taken up and the entry
+	 * retired, false when it stopped (the entry stays as it was, region and all, so it can be run again), null when the world closed meanwhile.
+	 * Returns false (having said why) when it is refused before anything is asked.
+	 */
+	public static boolean region(MinecraftServer server, Settlement s, Settlement.LogEntry entry, String region, java.util.Map<String, Integer> now,
+		Consumer<String> say, Consumer<Boolean> done) {
+		var regions = ArchitectApi.get().regions();
+		List<String> regionSites = List.copyOf(entry.siteIds());
+		// removed already (Architect's tombstone, 1.14 C22): its answer, or the save of it, was lost; the entry is retired now
+		if (regions.get(region).filter(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVED).isPresent()) {
+			if (!Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
+			districts(server, s, say);
+			say.accept("Undone: the village was taken up already, the land restored.");
+			done.accept(true);
+			return true;
+		}
+		// removed whole: only when everything in it is this entry's (a site another build put in it would go too)
+		var others = ArchitectApi.get().sites(server).list(s.owner()).stream().filter(v -> region.equals(v.region())).map(dev.larattalabs.architect.api.SiteView::id)
+			.filter(id -> !regionSites.contains(id)).toList();
+		if (!others.isEmpty()) {
+			say.accept("Undo stopped: the village also holds " + String.join(", ", others) + ", which \"" + entry.text() + "\" did not place.");
+			done.accept(false);
+			return false;
+		}
+		int session = Session.current();
+		regions.remove(region, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> server.execute(() -> {
+			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
+			// taken up only when Architect says so (1.14 C22: a retried removal finishes the restorations it left, or answers not removed)
+			boolean ok = err == null && r.removed();
+			if (ok && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
+			districts(server, s, say);
+			if (!ok) say.accept("Undo stopped: " + (err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
+				: "blocked by " + String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
+			else say.accept("Undone: the village is taken up, the land restored.");
+			done.accept(ok);
+		}));
+		return true;
+	}
+
 	private static void districts(MinecraftServer server, Settlement s, Consumer<String> say) {
 		if (s.lands().districts().isEmpty()) return;
 		String more = Districts.afterUndo(server, s.id());

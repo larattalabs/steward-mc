@@ -48,6 +48,13 @@ class VPlanTest {
 		assertEquals("central", hall.get("placement").getAsString());
 		assertEquals("the heart of it", hall.get("brief").getAsString());
 		assertFalse(hall.has("villager"), "Architect infers it from the type");
+		assertFalse(hall.has("ext"), "no tags without a settlement");
+		JsonObject tagged = VPlan.params(SPECS, "set_9", "b42").getAsJsonArray("lots").get(1).getAsJsonObject().getAsJsonObject("ext");
+		assertEquals("set_9", tagged.get("steward_mc:settlement").getAsString());
+		assertEquals("cottage_1", tagged.get("steward_mc:lot").getAsString());
+		assertEquals("farmhouse", tagged.get("steward_mc:role").getAsString());
+		assertEquals("b42", tagged.get(BatchPlanner.BUILD_EXT).getAsString());
+		assertTrue(tagged.toString().length() < 4096, "within Architect's 4 KB a lot");
 	}
 
 	@Test
