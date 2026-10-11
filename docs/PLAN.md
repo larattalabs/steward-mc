@@ -549,7 +549,7 @@ the board and the ledger; see "Interface"), the steward walking and talking, dis
 Supplied and Hardcore on Architect survival sites, stockpile and requests, Economy unlocks.
 - **Gate:** a survival dev world where a site is fed from the stockpile and the refund matches.
 
-**Design (2026-10-11, Noah's choices; not built).** What Architect 0.17 has: construction sites fed from a crate (hoppers or "insert from inventory"), a crate shared by one batch's group, roads in such a batch (C16: dirt paths on grass free; fill, gravel, lamps paid), deconstruct with refunds, `Sites.stock(group)` and `SITE_PROGRESS`/`SITE_BUILT`. Survey: `mod/DEV.md` is not needed; the facts are in ask C24's "why".
+**Design (2026-10-11, Noah's choices; not built).** What Architect 0.17 has: construction sites fed from a crate (hoppers or "insert from inventory"), a crate shared by one batch's group, roads in such a batch (C16: dirt paths on grass free; fill, gravel, lamps paid), deconstruct with refunds, `Sites.stock(group)` and `SITE_PROGRESS`/`SITE_BUILT`.
 - **Difficulty:** the card's difficulty is the settlement's (today every settlement is Patron: `ConceptCard.difficultyOr` is never called). In a world where Architect's survival toggle is on, only Supplied and Hardcore: nothing is built free. Patron stays where the toggle is off (creative, or turned off by an op). Hardcore is built as Supplied until its difference is decided (Noah: later).
 - **The stockpile (Noah):** one store per settlement that every build, street, district road, update, revert and refund draws from or returns to: a storehouse, as a colony sim has, not a crate per build. It needs Architect ask C24; phase 4 waits for it.
 - **Requests (Noah: all three):**
