@@ -229,3 +229,5 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
   - (b) Removing an already-removed region or group answers removed=true again and writes nothing. `Regions.get` keeps a REMOVED tombstone with its finish time, which survives a reload and is kept as long as opKey records are.
   - The gate injects a restore failure mid-removal and checks that a retry restores the world exactly, or refuses.
   - **When X ships:** Steward's region undo reads the tombstone and retires an entry whose region is already REMOVED.
+
+**Slice X RC (0.17.0, API 1.14.0; slice/X e2443ec; sha256 5559bfa7…), consumer check 2026-10-11: pass.** Steward builds against it unchanged. The stub e2e on 8590/8591, with the RC in the client, passed 30 checks, including the village: planned, approved, 5 buildings placed on region rg1 (7 sites), its street standing as a road, and undone whole.
