@@ -654,6 +654,12 @@ async function buildThrough(id, from, label, restartAtMassings = false) {
   return null;
 }
 
+/** Farm animals out of the way: a pig standing on a lot holds its placement up for Architect's 10-minute wait (it happened, on the V RC). */
+async function clearAnimals() {
+  await cmd('/gamerule doMobSpawning false');
+  for (const t of ['pig', 'cow', 'sheep', 'chicken', 'rabbit', 'horse']) await cmd(`/kill @e[type=minecraft:${t}]`);
+}
+
 async function stubFlow(id) {
   // the whole paid flow against Architect's sim helper (v0.12.2, notional measured costs, never Claude); every wait is bounded
   const fixture = (f) => JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).card ?? JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).answer);
@@ -677,6 +683,7 @@ async function stubFlow(id) {
   await dev.request('dev.api.dropAck', { msgType: 'bible.request' });
   from = logSize();
   // seven buildings: with Architect 0b's copies, two of the fisher's huts copy a hut design ($0)
+  await clearAnimals();
   await cmd(`/steward start ${id} 7 40`);
   if (await waitLog(from, /Designing the style bible/, 60_000)) {
     await sleep(3000);
@@ -723,6 +730,7 @@ async function stubFlow(id) {
   }
   if (!lib) return fail('talk job', `no proposal: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
   ok('talk job', `${lib.title} proposed (${lib.key})`);
+  await clearAnimals();
   from = logSize();
   await cmd(`/steward proposals ${id} accept ${lib.key}`);
   const reused = await waitLog(from, /style bible is reused/, 60_000);
@@ -795,6 +803,7 @@ async function stubFlow(id) {
     office = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('asked_') && p.district === d.id) ?? null;
   }
   if (!office) return fail('district build', 'no proposal in the district');
+  await clearAnimals();
   from = logSize();
   await cmd(`/steward proposals ${id} accept ${office.key}`);
   const inDistrict = await buildThrough(id, from, 'district build');

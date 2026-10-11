@@ -186,3 +186,10 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **Told Architect:** pass, tag it.
 - **Free paths:** no objection to dirt, coarse dirt, podzol, mycelium and rooted dirt becoming free path ground in V.
 - **Next for Steward:** with 0c, protected areas go to `Sites.protect` as write bounds, and Steward keeps its own layout and road checks.
+
+**Consumer check of the slice V RC (2026-10-11):**
+- **Jar:** `architect_mc-0.16.0.jar`, sha256 cf6c20f4…
+- **Result:** Steward builds against it and its unit tests pass. The stub e2e passes 26 checks; a first attempt failed on a pig standing on a lot, and the stub run now clears farm animals before each build. The free e2e passes 34.
+- **Told Architect:** pass. The tag waits for Noah's gallery approval.
+- **V's known limits:** the most important for Steward is the dark ground around houses (11.8% spawnable). Steward asked for it first in the next slice.
+- **Next for Steward:** new Patron flat settlements move from VillageLayout to `Regions.plan("flat_village")` once v0.16.0 is out.
