@@ -35,13 +35,23 @@ public final class BuildStore {
 	 */
 	public record Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement, Pipeline.State state,
 		VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId, List<String> landmarkIds,
-		List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street, @Nullable Boolean keyed) {
+		List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street, @Nullable Boolean keyed,
+		@Nullable String vPlan, @Nullable String vRegion) {
+		/** As saved before Architect's flat village: Steward's own layout. */
+		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
+			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,
+			List<String> landmarkIds, List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street,
+			@Nullable Boolean keyed) {
+			this(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId, landmarkIds,
+				decided, lastAwaiting, addition, districtId, street, keyed, null, null);
+		}
+
 		/** As saved before operation keys: such a build's requests were sent without one, so they cannot be looked up by it. */
 		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
 			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,
 			List<String> landmarkIds, List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street) {
 			this(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId, landmarkIds,
-				decided, lastAwaiting, addition, districtId, street, null);
+				decided, lastAwaiting, addition, districtId, street, null, null, null);
 		}
 
 		/** Whether its requests carry operation keys (C9): an interrupted one is then found again by its key. */

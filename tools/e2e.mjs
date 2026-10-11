@@ -135,7 +135,15 @@ async function preflight() {
   ok('preflight', 'no credentials, no other client');
 }
 
+let spikesCleared = false;
+
 async function claimAndSteward() {
+  // the world is kept between runs: a region a dev spike realised would put its lots in this run's inbox
+  if (!spikesCleared) {
+    spikesCleared = true;
+    const said = await cmd('/steward dev v_spike all remove');
+    if (!/removing 0 /.test(said)) await sleep(5000);
+  }
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} 0 0 1 false @p`);
   // the far chunks load after the teleport: claim (and look for the steward) once they are in
@@ -617,6 +625,60 @@ async function restartRestore() {
 }
 
 /**
+ * A settlement on Architect's flat village (slice V, 0.16): a Patron card on flat ground plans a village (its lots, lanes, square and props), its buildings
+ * are designed as ever, the village is realised as one region (its street road:street_*), logged under the region, and undone whole.
+ */
+async function villageFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 6000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'V Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little hamlet`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('village', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  const planned = await waitLog(from, /Laying out the village[^\n]*/, 60_000);
+  const built = await buildThrough(id, from, 'village');
+  if (!built) return;
+  const st = settlements().find((x) => x.id === id);
+  const placedOp = (st?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const region = placedOp?.siteGroup;
+  if (planned && /^region:/.test(region ?? '')) ok('village', `${built.steps.join(' > ')} > ${built.placed} placed on Architect's flat village (${region}, ${placedOp.siteIds.length} sites)`);
+  else return fail('village', `planned ${!!planned}, history ${JSON.stringify(placedOp)?.slice(0, 160)}`);
+  // its street is a town street to Steward (additions and districts work on it)
+  const street = await cmd(`/steward dev site ${placedOp.siteIds.find((x) => /^r/.test(x)) ?? 'none'}`);
+  ok('village street', street);
+  // a picture of it
+  await cmd('/gamemode spectator');
+  await cmd('/time set noon');
+  await cmd(`/tp @p ${st.claim.centerX - 30} 110 ${st.claim.centerZ + 40} facing ${st.claim.centerX} 64 ${st.claim.centerZ}`);
+  await sleep(3000);
+  const shot = (await dev.request('dev.screenshot', { name: 'e2e-village', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await cmd('/gamemode creative');
+  ok('village picture', shot);
+  await cmd(`/steward undo ${id}`);
+  // the region removed whole: the history says so, and the village's street is gone with its buildings
+  let last = null;
+  for (let i = 0; i < 60 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  const streetLeft = await cmd(`/steward dev site ${placedOp.siteIds.find((x) => /^r/.test(x)) ?? 'none'}`);
+  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placedOp.siteIds.length && /is gone/.test(streetLeft)) {
+    ok('village undo', `${last.text} (${last.siteIds.length} sites); ${streetLeft}`);
+  } else fail('village undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${placedOp.siteIds.length} sites), ${streetLeft}`);
+}
+
+/**
  * Drives one build through its decisions until it is built: approves the style bible, the massings and the placement as each comes (Proposals level), with
  * a restart at the massings when asked. Returns the steps seen, or null when it stalls.
  */
@@ -663,6 +725,8 @@ async function clearAnimals() {
 async function stubFlow(id) {
   // the whole paid flow against Architect's sim helper (v0.12.2, notional measured costs, never Claude); every wait is bounded
   const fixture = (f) => JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).card ?? JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).answer);
+  // this settlement stays on Steward's own layout (additions, districts and the rest below rest on it); villageFlow builds one on Architect's flat village
+  await cmd(`/steward dev layout ${id} legacy`);
   await cmd(`/steward dev sim_answer card ${fixture('stilt_village.json')}`);
   let from = logSize();
   await cmd(`/steward describe ${id} a fishing village on stilts over a swamp`);
@@ -858,7 +922,10 @@ try {
       await districts(id);
       await talk(id);
     }
-    else await stubFlow(id);
+    else {
+      await stubFlow(id);
+      await villageFlow();
+    }
   }
   await migratedSteward();
   await restartRestore();

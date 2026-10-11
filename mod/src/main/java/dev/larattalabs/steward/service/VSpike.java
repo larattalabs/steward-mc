@@ -8,6 +8,7 @@ import dev.larattalabs.architect.api.LoadPolicy;
 import dev.larattalabs.architect.api.Mode;
 import dev.larattalabs.architect.api.RealiseRequest;
 import dev.larattalabs.architect.api.RegionPlanRequest;
+import dev.larattalabs.architect.api.RemoveOptions;
 import dev.larattalabs.steward.gateway.ProgramPlanner;
 import dev.larattalabs.steward.model.ClaimRules;
 import dev.larattalabs.steward.model.Settlement;
@@ -100,6 +101,22 @@ public final class VSpike {
 				lastRegion = id;
 				say.accept("v_spike: realising region " + id);
 			}));
+	}
+
+	/** Takes up every region a spike realised, in any settlement (the e2e world must not keep them: their lots show as updates in its inbox). */
+	public static void removeAll(ServerPlayer p, Consumer<String> say) {
+		var server = p.level().getServer();
+		int n = 0;
+		for (Settlement s : Settlements.store().all()) {
+			for (var v : ArchitectApi.get().regions().list(s.owner())) {
+				if (v.ext() == null || !v.ext().has("steward_mc:build") || !"spike".equals(v.ext().get("steward_mc:build").getAsString())) continue;
+				n++;
+				String id = v.id();
+				ArchitectApi.get().regions().remove(id, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> server.execute(() ->
+					say.accept("v_spike: " + id + (err == null ? " removed" : " not removed: " + err))));
+			}
+		}
+		say.accept("v_spike: removing " + n + " spike region(s)");
 	}
 
 	public static void dump(ServerPlayer p, Settlement s, Consumer<String> say) {

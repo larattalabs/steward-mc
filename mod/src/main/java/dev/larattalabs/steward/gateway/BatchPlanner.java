@@ -168,7 +168,8 @@ public final class BatchPlanner {
 
 	/** Whether an item key is a street's: the street, or an extension an addition laid ({@code street#2}, ...). A lot's id ({@code street_market_1}) is not. */
 	public static boolean isStreet(@Nullable String itemKey) {
-		return itemKey != null && (itemKey.equals(STREET_KEY) || itemKey.startsWith(STREET_KEY + "#"));
+		// and a flat village's street (Architect V: road:street_w, road:street_e, split at its square)
+		return itemKey != null && (itemKey.equals(STREET_KEY) || itemKey.startsWith(STREET_KEY + "#") || itemKey.startsWith("road:street"));
 	}
 
 	/** The ext keys a street piece records its centre line and ends under (its written box also holds lanterns, so it is not the line). */

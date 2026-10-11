@@ -68,6 +68,23 @@ public final class Undo {
 		UNDOING.add(s.id());
 		// a whole project is one site group: removeGroup does the newest-first removal over ticks (stages, survival refunds, the group's bookkeeping), the
 		// path Architect's gates prove exact. Only when the group holds nothing but this project's sites; else (a partial undo) site by site.
+		// a flat village (Architect V) is one region: removed whole, its ground, street, lanes, square and props with its buildings
+		String region = dev.larattalabs.steward.gateway.VPlan.regionOf(entry.get().siteGroup());
+		if (region != null) {
+			List<String> regionSites = List.copyOf(entry.get().siteIds());
+			int session = Session.current();
+			ArchitectApi.get().regions().remove(region, as).whenComplete((r, err) -> server.execute(() -> {
+				if (!Session.is(session) || SettlementRunner.worldStopped(err)) { UNDOING.remove(s.id()); return; }
+				List<String> gone = regionSites.stream().filter(id -> sites.get(id).isEmpty()).toList();
+				if (!gone.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), gone, gone.size() == regionSites.size(), now)).ok()) say.accept(UNLOGGED);
+				UNDOING.remove(s.id());
+				districts(server, s, say);
+				if (err != null || !r.removed()) say.accept("Undo stopped: " + (err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
+					: "blocked by " + String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
+				else say.accept("Undone: the village is taken up, the land restored.");
+			}));
+			return true;
+		}
 		String group = entry.get().siteGroup();
 		var g = group == null ? java.util.Optional.<dev.larattalabs.architect.api.SiteGroup>empty() : sites.group(group);
 		if (g.isPresent() && !g.get().sites().isEmpty() && entry.get().siteIds().containsAll(g.get().sites())) {

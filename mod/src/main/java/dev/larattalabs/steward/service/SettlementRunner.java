@@ -10,6 +10,8 @@ import dev.larattalabs.architect.api.FitOptions;
 import dev.larattalabs.architect.api.Group;
 import dev.larattalabs.architect.api.GroupRequest;
 import dev.larattalabs.architect.api.LoadPolicy;
+import dev.larattalabs.architect.api.Mode;
+import dev.larattalabs.architect.api.RemoveOptions;
 import dev.larattalabs.architect.api.LotFit;
 import dev.larattalabs.architect.api.SiteEvents;
 import dev.larattalabs.steward.Steward;
@@ -91,6 +93,17 @@ public final class SettlementRunner {
 				}
 			}
 		});
+		// a village region has no done event: its state is read once a second while it is placed
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
+			if (server.getTickCount() % 20 != 0) return;
+			for (SettlementRunner r : List.copyOf(ACTIVE.values())) {
+				try {
+					r.watchVillage();
+				} catch (RuntimeException e) {
+					Steward.LOGGER.error("could not read the village of {}", r.claimedId, e);
+				}
+			}
+		});
 		net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.JOIN.register((handler, sender, server) ->
 			{
 				List.copyOf(ACTIVE.values()).forEach(r -> r.deliverUnread(handler.getPlayer()));
@@ -98,6 +111,7 @@ public final class SettlementRunner {
 			});
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
 			ACTIVE.clear();
+			dev.larattalabs.steward.gateway.VPlan.clear();
 			resyncPending = false;
 			builds = new BuildStore();
 			buildsFile = null;
@@ -307,6 +321,8 @@ public final class SettlementRunner {
 		this.districtId = b.districtId();
 		this.newStreet = b.laysStreet();
 		this.keyed = b.usesKeys();
+		this.vPlanId = b.vPlan();
+		this.vRegionId = b.vRegion();
 	}
 
 	private ServerLevel level() {
@@ -321,7 +337,7 @@ public final class SettlementRunner {
 		if (settlement == null || state == null || plan == null) return true;
 		if (state.phase().terminal()) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed));
+			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -352,6 +368,17 @@ public final class SettlementRunner {
 		List<String> placed = placedSites(sites);
 		// no decision is in flight after a restart: one that reached Architect is no longer awaiting, one that did not is asked for (or made) again
 		decided.clear();
+		// a village's placement is its region: read again, found by the build's tag, or realised when it never was
+		if (village() && switch (state.phase()) { case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING, CANCELLING -> true; default -> false; }) {
+			Steward.LOGGER.info("resume {}: village {} (region {}), phase {}", settlement.id(), vPlanId, vRegionId, state.phase());
+			switch (state.phase()) {
+				case CANCELLING -> { if (vRegionId != null) cancelVillage(); else if (!findVillage()) feed(new Pipeline.CancelConfirmed()); }
+				case AWAITING_PLACEMENT_APPROVAL -> { }
+				case READY_TO_PLACE -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) queueVillage(!permission.needsApproval(Permission.Action.NEW_PROJECT)); }
+				default -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) interrupted("the village's placement"); }
+			}
+			return;
+		}
 		ResyncRules.Action action = ResyncRules.decide(state.phase(), bibleJobId != null, groupId != null, batchId != null, seen, running.isPresent(), stages, placed.size(),
 			state.groupId() == null && state.pausedForBudget());
 		Steward.LOGGER.info("resume {}: phase {}, batch {}, stages {}, placed {} -> {}", settlement.id(), state.phase(), seen, stages.size(), placed.size(), action);
@@ -409,6 +436,13 @@ public final class SettlementRunner {
 
 	private static String extString(JsonObject ext, String key) {
 		return ext != null && ext.has(key) && ext.get(key).isJsonPrimitive() ? ext.get(key).getAsString() : null;
+	}
+
+	/** Architect's flat village (slice V) this build is laid out on: its plan, and the region once realised. Null for Steward's own layout. */
+	private @org.jspecify.annotations.Nullable String vPlanId, vRegionId;
+
+	private boolean village() {
+		return vPlanId != null;
 	}
 
 	/** Whether this build's requests carry operation keys: every build started now; one restored from before keys does not. */
@@ -639,7 +673,12 @@ public final class SettlementRunner {
 		var sites = ArchitectApi.get().sites(server);
 		List<Settlement.SiteChange> changes = siteIds.stream().map(id -> {
 			var v = sites.get(id);
+			// a village lot's site carries Architect's lot id only: its role is the plan's
 			String lot = v.map(x -> extString(x.ext(), "steward_mc:role")).orElse(null);
+			if (lot == null) {
+				String lotId = v.map(x -> extString(x.ext(), "architect_mc:lot")).orElse(null);
+				if (lotId != null && plan != null) lot = plan.lots().stream().filter(l -> l.id().equals(lotId)).map(VillageLayout.Lot::role).findFirst().orElse(lotId);
+			}
 			return new Settlement.SiteChange(id, lot, 0, v.map(dev.larattalabs.architect.api.SiteView::version).orElse(1));
 		}).toList();
 		String where = districtId == null ? "" : saved.get().lands().district(districtId).map(d -> " in " + d.name()).orElse("");
@@ -796,9 +835,52 @@ public final class SettlementRunner {
 			var rules = district != null ? new VillageLayout.Rules(5, 3, 3, dev.larattalabs.steward.model.DistrictRules.MARGIN) : VillageLayout.Rules.defaults();
 			newStreet = !addition || (district != null && streetZ == null);
 			Integer line = district != null && streetZ == null && ("E".equals(district.direction()) || "W".equals(district.direction())) ? district.claim().centerZ() : null;
+			// Architect's flat village (slice V) for a Patron settlement's first whole build on flat ground: its lots, lanes, square and props
+			boolean stands = existing != null && !ArchitectApi.get().sites(server).list(existing.owner()).isEmpty();
+			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(),
+				dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), addition, districtId, r.card().site().terrain(), stands, lo, hi)) {
+				planVillage(r, buildings, budgetUsd, district, claim, specs);
+				return;
+			}
 			// an addition faces the street and may reach past its ends (the street is extended to it when it is queued)
 			plan = !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ)
 				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line) : VillageLayout.plan(claim, grid, specs, rules);
+			continueWithPlan(r, budgetUsd, district);
+		}
+	}
+
+	/** Asks Architect for the flat village over the claim, then goes on with its lots as the plan. */
+	private void planVillage(CardResult r, int buildings, double budgetUsd, Settlement.@org.jspecify.annotations.Nullable District district, Claim claim,
+		List<VillageLayout.LotSpec> specs) {
+		ServerLevel level = level();
+		var box = new BoundingBox(claim.centerX() - claim.radius(), level.getMinY(), claim.centerZ() - claim.radius(), claim.centerX() + claim.radius(), level.getMaxY(),
+			claim.centerZ() + claim.radius());
+		JsonObject ext = new JsonObject();
+		ext.addProperty("steward_mc:settlement", settlement.id());
+		ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
+		say("Laying out the village (Architect's flat village: lots, lanes, a square)...");
+		var bible = existing != null && existing.bible() != null && existing.bible().styleVersion() == existing.styleVersion() ? existing.bible() : null;
+		int session = Session.current();
+		ArchitectApi.get().regions().plan(new dev.larattalabs.architect.api.RegionPlanRequest(dev.larattalabs.steward.gateway.VPlan.PROGRAM,
+			dev.larattalabs.steward.gateway.VPlan.params(specs), level, box, null, bible == null ? null : bible.id(), bible == null ? null : bible.version(),
+			LoadPolicy.LOADED_ONLY, settlement.owner(), ext)).whenComplete((rp, err) -> server.execute(() -> {
+				if (!Session.is(session) || !alive()) return;
+				if (worldStopped(err)) return;
+				if (err != null) { abandon("Architect could not lay out the village: " + message(err)); return; }
+				vPlanId = rp.planId();
+				plan = dev.larattalabs.steward.gateway.VPlan.toPlan(rp, specs);
+				try {
+					continueWithPlan(r, budgetUsd, district);
+				} catch (RuntimeException e) {
+					Steward.LOGGER.error("the build of {} failed after its village plan", settlement.id(), e);
+					abandon("The build stopped after the village plan: " + e);
+				}
+			}));
+	}
+
+	/** With the plan made (Steward's layout or Architect's village): checks it, then starts the designs. */
+	private void continueWithPlan(CardResult r, double budgetUsd, Settlement.@org.jspecify.annotations.Nullable District district) {
+		{
 			say("Layout: " + plan.lots().size() + " lots on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
 			if (plan.lots().isEmpty()) {
 				// an addition that found no room: the steward looks to a district (or proposes one) next time
@@ -1243,9 +1325,10 @@ public final class SettlementRunner {
 				else if (!groupInFlight && !recovering) { if (keyed) cancelByKeys(); else later.add(new Pipeline.CancelConfirmed()); }
 			}
 			case Pipeline.FitAndQueue f -> fitAndQueue(f.autoApprove());
-			case Pipeline.ApproveStages a -> approveStages();
+			case Pipeline.ApproveStages a -> { if (village()) realiseVillage(); else approveStages(); }
 			case Pipeline.CancelBatch cb -> {
-				if (batchId != null) cancelBatch(batchId);
+				if (village()) cancelVillage();
+				else if (batchId != null) cancelBatch(batchId);
 				else if (!queueInFlight && !recovering) { if (keyed) cancelByKeys(); else later.add(new Pipeline.CancelConfirmed()); }
 			}
 			case Pipeline.Notify n -> {
@@ -1256,6 +1339,7 @@ public final class SettlementRunner {
 	}
 
 	private void fitAndQueue(boolean autoApprove) {
+		if (village()) { queueVillage(autoApprove); return; }
 		var api = ArchitectApi.get();
 		Group g = api.designs().group(groupId).orElse(null);
 		if (g == null) { say("The group disappeared."); return; }
@@ -1382,6 +1466,112 @@ public final class SettlementRunner {
 	/** The key a decision on a lot's current massing is remembered under. */
 	private String decisionKey(String lot) {
 		return lot + "@" + massingRefs.getOrDefault(lot, "?");
+	}
+
+	// ------------------------------------------------------------------ Architect's flat village (slice V)
+
+	/**
+	 * The designs are done: the village is realised with them on its lots (Architect places the ground, the street, the lots and the props). When placing
+	 * needs the player's approval, it waits for it first (the approval then realises it).
+	 */
+	private void queueVillage(boolean autoApprove) {
+		if (autoApprove) realiseVillage();
+		else feed(new Pipeline.BatchQueued(VPLAN_PENDING));
+	}
+
+	/** What the pipeline holds as the batch of a village waiting for the player's approval to be placed. */
+	static final String VPLAN_PENDING = "village:pending";
+
+	private void realiseVillage() {
+		if (vRegionId != null || queueInFlight) return;
+		var api = ArchitectApi.get();
+		Group g = groupId == null ? null : api.designs().group(groupId).orElse(null);
+		if (g == null) { say("The group disappeared."); return; }
+		Map<String, String> entries = new LinkedHashMap<>();
+		for (Group.Item it : g.items()) it.entryId().ifPresent(e -> entries.put(it.itemKey(), e));
+		// only the planned lots, each with its design (a copy included); a lot with none stays a pad
+		Map<String, String> lotEntries = new LinkedHashMap<>();
+		for (VillageLayout.Lot l : plan.lots()) if (entries.containsKey(l.id())) lotEntries.put(l.id(), entries.get(l.id()));
+		var missing = plan.lots().stream().map(VillageLayout.Lot::id).filter(id -> !lotEntries.containsKey(id)).toList();
+		if (!missing.isEmpty()) say("Left as pads (no design): " + String.join(", ", missing));
+		JsonObject ext = new JsonObject();
+		ext.addProperty("steward_mc:settlement", settlement.id());
+		ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
+		say("Placing the village (" + lotEntries.size() + " buildings, its street, lanes and square)...");
+		queueInFlight = true;
+		ServerPlayer actor = server.getPlayerList().getPlayer(playerId);
+		int session = Session.current();
+		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, Mode.INSTANT, actor, lotEntries, null, true, null, false, ext))
+			.whenComplete((id, err) -> server.execute(() -> {
+				if (!Session.is(session)) return;
+				queueInFlight = false;
+				if (!alive() || worldStopped(err)) return;
+				if (err != null) {
+					// a lost answer may have started it: looked up by the build's tag
+					if (uncertain(err) && findVillage()) return;
+					say("Architect could not place the village: " + message(err));
+					feed(new Pipeline.Cancel());
+					return;
+				}
+				adoptVillage(id);
+			}));
+	}
+
+	/** Takes the realised region as this build's placement. */
+	private void adoptVillage(String regionId) {
+		vRegionId = regionId;
+		siteGroupId = dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + regionId;
+		persist();
+		if (state.phase() == Pipeline.Phase.CANCELLING) { cancelVillage(); return; }
+		if (state.phase() == Pipeline.Phase.READY_TO_PLACE) feed(new Pipeline.BatchQueued(regionId));
+		watchVillage();
+	}
+
+	/** This build's village region, found by its owner and the build's tag (a restart came, or an answer was lost, before its id was saved). */
+	private boolean findVillage() {
+		var found = ArchitectApi.get().regions().list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT))).findFirst();
+		if (found.isEmpty()) return false;
+		say("Architect had the village: picking it up.");
+		adoptVillage(found.get().id());
+		return true;
+	}
+
+	/** Reads the village's state while it is placed; once placed (wholly or in part), its sites are logged under the region and the build ends. */
+	void watchVillage() {
+		if (!village() || vRegionId == null || state == null || !alive()) return;
+		if (state.phase() != Pipeline.Phase.PLACING && state.phase() != Pipeline.Phase.READY_TO_PLACE) return;
+		var v = ArchitectApi.get().regions().get(vRegionId);
+		if (v.isEmpty()) return;
+		var st = v.get().state();
+		if (st != dev.larattalabs.architect.api.RegionState.PLACED && st != dev.larattalabs.architect.api.RegionState.PARTIAL
+			&& st != dev.larattalabs.architect.api.RegionState.FAILED) return;
+		long placed = v.get().lots().stream().filter(l -> "placed".equalsIgnoreCase(String.valueOf(l.state()))).count();
+		long skipped = v.get().lots().size() - placed;
+		if (st != dev.larattalabs.architect.api.RegionState.PLACED) say("The village is " + st.name().toLowerCase() + ": " + placed + " of " + v.get().lots().size() + " lots placed.");
+		// every site of the region (buildings, street, lanes, square, props): undo removes the region whole
+		List<String> sites = ArchitectApi.get().sites(server).list(settlement.owner()).stream().filter(x -> vRegionId.equals(x.region()))
+			.map(dev.larattalabs.architect.api.SiteView::id).toList();
+		if (!logPlaced(sites, (int) placed, (int) skipped)) { logFailed(); return; }
+		feed(new Pipeline.BatchDone((int) placed, (int) skipped));
+		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
+	}
+
+	/** Cancelling a village: one being placed is removed whole (what it placed goes, the land restored); one not realised yet ends at once. */
+	private void cancelVillage() {
+		if (vRegionId == null) {
+			if (!queueInFlight) later.add(new Pipeline.CancelConfirmed());
+			return;
+		}
+		String id = vRegionId;
+		ArchitectApi.get().regions().remove(id, new RemoveOptions(false, settlement.owner())).whenComplete((r, err) -> server.execute(() -> {
+			if (!alive()) return;
+			if (err != null || !r.removed()) {
+				say("The village could not be taken up yet (" + (err != null ? message(err) : String.join(", ", r.blockers())) + "); cancel again once it is clear.");
+				return;
+			}
+			vRegionId = null;
+			feed(new Pipeline.CancelConfirmed());
+		}));
 	}
 
 	private void onBatchDone(BatchView b) {

@@ -155,12 +155,25 @@ public final class StewardCommands {
 						StringArgumentType.getString(ctx, "entry"), at.getX(), at.getY(), at.getZ(), "NONE", "MASSING", label, at.getX() + 4, at.getY() + 12, at.getZ() + 4));
 					net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.ShowLayers("steward_mc:dev_ghost", layers));
 					return 1;
+				})))).then(Commands.literal("layout").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("which", StringArgumentType.word())
+				.executes(ctx -> {
+					// dev (the e2e check): which layout this settlement's builds take: "legacy" (Steward's own) or "village" (Architect's flat village when it applies)
+					if (!host(ctx.getSource())) return 0;
+					String id = StringArgumentType.getString(ctx, "id");
+					boolean legacy = "legacy".equals(StringArgumentType.getString(ctx, "which"));
+					dev.larattalabs.steward.gateway.VPlan.legacy(id, legacy);
+					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "Architect's flat village when it applies")), false);
+					return 1;
 				})))).then(Commands.literal("v_spike").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("step", StringArgumentType.word())
 				.executes(ctx -> {
 					// dev (a spike, 2026-10-11): Architect's flat village on this settlement: plan, realise (every lot the e2e test entry), dump
 					CommandSourceStack src = ctx.getSource();
 					if (!host(src)) return 0;
 					var p = src.getPlayerOrException();
+					if ("remove".equals(StringArgumentType.getString(ctx, "step"))) {
+						dev.larattalabs.steward.service.VSpike.removeAll(p, m -> p.sendSystemMessage(Component.literal(m)));
+						return 1;
+					}
 					var s = dev.larattalabs.steward.service.Settlements.store().get(StringArgumentType.getString(ctx, "id"));
 					if (s.isEmpty() || !s.get().described()) { src.sendFailure(Component.literal("a described settlement")); return 0; }
 					java.util.function.Consumer<String> say = m -> p.sendSystemMessage(Component.literal(m));

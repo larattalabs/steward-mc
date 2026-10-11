@@ -208,3 +208,14 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **S-W-1:** frozen water counts as water. Steward reads `Sample.frozen` as water too.
 - **S-W-2:** up to 4 lamps per lot is fine. Each lot's lamp positions are asked for on the lot's ext.
 - **Noah's calls:** V's and W's gallery shas both approved; fence-post lamps by default.
+
+**Architect's answer (2026-10-11):**
+- **C21:** it is in W, which is already building. The bible's `light` role picks the fixture from six: a lantern post (the default), a soul-lantern post, a torch post, an end rod, a sea-lantern bollard, and a hanging lantern on a post and arm. Coverage is computed from each fixture's own light level. The gallery shows S7 under rustic, infernal and coastal or sky bibles for Noah. Wall lamps stay in 7b, on the design side.
+- **C19 and C20:** drafted as slice X (wave 1, $0, depends on V only), CONTRACT.md "Phase 6c slice X" at 7ec7194.
+  - A plan's `lots` entry carries `ext`, which reaches `LotSpec.ext` and then the site. A trailing `lotExt` goes on `RealiseRequest`. The limit is 4 KB a lot.
+  - A trailing `opKey` goes on plan and realise, with `planByKey` and `realiseByKey`.
+
+**Slice X review (sent 2026-10-11):**
+- **S-X-1:** the plan's ext is enough. Steward plans once per build, so its lot tags (`steward_mc:settlement`, `lot`, `role`, `build`, `styleVersion`) are all known at plan time. Steward won't use `lotExt` on realise. Keep it only if it costs nothing.
+- **S-X-2:** 4 KB is plenty. Steward's lot ext is about 250 bytes.
+- **When X ships:** Steward tags lots in the plan and drops the `architect_mc:lot` fallbacks and the plan-side role lookup. It plans and realises with `steward.<build>.vplan` and `.vrealise` keys, and on a restart finds the region by key instead of by owner and build tag.

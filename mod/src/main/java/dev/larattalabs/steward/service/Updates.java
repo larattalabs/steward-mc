@@ -122,7 +122,9 @@ public final class Updates {
 	static String lotOf(SiteView v) {
 		if (v.ext() == null) return v.id();
 		if (v.ext().has("steward_mc:role")) return v.ext().get("steward_mc:role").getAsString();
-		return v.ext().has("steward_mc:lot") ? v.ext().get("steward_mc:lot").getAsString() : v.id();
+		if (v.ext().has("steward_mc:lot")) return v.ext().get("steward_mc:lot").getAsString();
+		// a flat village's lot (Architect V) carries Architect's lot id
+		return v.ext().has("architect_mc:lot") ? v.ext().get("architect_mc:lot").getAsString().replace('_', ' ') : v.id();
 	}
 
 	/** Applies one pending update (or, with an empty {@code siteId}, every one that can be applied). Returns what to tell the player now. */
