@@ -92,9 +92,11 @@ public final class SettlementRunner {
 					Steward.LOGGER.error("could not resume the build of {}", r.claimedId, e);
 				}
 			}
-			// villages no build or history entry holds (cancelled twice before Architect answered, a history that could not be saved): taken up
+			// villages no build or history entry holds (cancelled twice before Architect answered, a history that could not be saved): taken up; never
+			// when the builds could not be read (a build that did not resume is not an orphan)
 			try {
-				VillageSweep.sweep(server);
+				if (canSave()) VillageSweep.sweep(server);
+				else Steward.LOGGER.warn("the builds could not be read, so villages without a build are not looked for this session");
 			} catch (RuntimeException e) {
 				Steward.LOGGER.error("could not look for villages left without a build", e);
 			}
@@ -151,10 +153,15 @@ public final class SettlementRunner {
 	}
 
 	/** Whether a settlement has a runner that has not finished (a second one would spend twice). */
-	/** Whether the settlement is busy: being built, a district road being laid, or an undo running. One guard for everything that changes its sites. */
+	/**
+	 * Whether the settlement is busy: being built, a district road being laid, an undo running, or a village of it being removed (Architect restores its
+	 * land over ticks, also a removal it resumed after a restart or one asked for without Steward's undo). One guard for everything that changes its sites.
+	 */
 	public static boolean busy(String settlementId) {
 		SettlementRunner r = ACTIVE.get(settlementId);
-		return (r != null && (r.state == null || !r.state.phase().terminal())) || Districts.busy(settlementId) || Undo.busy(settlementId);
+		return (r != null && (r.state == null || !r.state.phase().terminal())) || Districts.busy(settlementId) || Undo.busy(settlementId)
+			|| ArchitectApi.get().regions().list("steward_mc:settlement/" + settlementId).stream()
+				.anyMatch(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVING);
 	}
 
 	/** The runner of a settlement that is being built in this session (not persisted yet), or null. */
