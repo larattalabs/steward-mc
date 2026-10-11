@@ -79,6 +79,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-10-10 | **One district each way, for now** (Claude; approved by Noah 2026-10-10): the plan let a second district go past the first the same way. 3f allows one each way (four at most), because a road cannot yet pass through a district to reach the one beyond. Lifting it means routing roads through a district's margin or street; until then the steward proposes the next free way. |
 | 2026-10-10 | **Talking costs a few cents a question** (Claude; approved by Noah 2026-10-10): each question the rules cannot answer is one Sonnet job (a $0.05 cap, usually 1-2 cents) on the player's own Claude link, like describing a settlement. There are at most 30 an hour per settlement. Talk never builds: what it proposes waits in the inbox. |
 | 2026-10-10 | **Proposals are worded by Claude** (Claude; approved by Noah 2026-10-10): each proposal that waits for the player costs one small job (a $0.03 cap, usually 1-2 cents), spent on the player's own Claude link without them asking. The proposal guardrails bound it: one new proposal every 20 minutes at most, only while the host is in the settlement. Without the link, the rule's wording is used. |
+| 2026-10-11 | **No third review of the last operation-key fix** (Noah): it keeps a build saved after a third lost answer, and the free and stub e2e checks are enough for it. |
 
 ## Concept card
 
