@@ -272,3 +272,14 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
   - **Scope:** C24 as asked, with existing worlds' per-build crates migrated. C25 adds a per-site waiting status with `nextNeeded`, plus events when a site starts or stops waiting. C26 gives the full BOM before placing, or a Verdict estimate with an accuracy bar.
   - RS (region survival) will build on Y's stockpile instead of its own region crate.
   - Steward's $0 interim work doesn't conflict with Y.
+
+**Slice Y contract review (Architect main e8264ab, "Phase 6c slice Y: settlement stockpile"; sent 2026-10-11):** it fits Steward's phase 4 design.
+- **S-Y-1:** a blocked target keeps its reservation for transient blockers (a player in a cell, a support not built yet). The exception: a target whose whole frontier is in unloaded chunks doesn't reserve. Builds use LOADED_ONLY, so with the player at one end of a town, a far house first in the feed order would otherwise starve every target near them.
+- **S-Y-2:** a reorder list. Steward's order is the street, then landmarks, then the build's stages; a player's "build this one first" moves one target to the front.
+- **S-Y-3:** accept only what a build needs, for Y1. A general storehouse (putting materials away ahead of the next build) can come after phase 4, if players want it.
+- **S-Y-4:** summing each item's `check` `bomFull`, `checkRoad` and `checkDelta` is enough. Steward checks every lot already.
+- **S-Y-5:** 100 ticks is fine. Steward's own "come and find you" waits 10 minutes from `waitingSince`.
+- **S-Y-6:** one dimension per stockpile. A settlement and its districts are in one dimension.
+- **S-Y-7:** drop the region crate (`crateAt`, `RegionView.crate`) from RS; a region draws from the stockpile.
+- **One gap:** a settlement can be abandoned (its builds undone and claim released). Its stockpile then needs to be dissolved: every remaining unit, reserved or not, handed to a player (or dropped at a crate), and the crates restored, in one call. `removeStockpileCrate` refuses while stock is over capacity, and refuses the last crate with targets building.
+- **Coordinator decisions on N-Y-1 and N-Y-2:** 27 stacks a crate, and Y1 before Y2, both fine with Steward. They're relayed to Noah.
