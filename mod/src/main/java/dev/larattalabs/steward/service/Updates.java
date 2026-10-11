@@ -123,8 +123,31 @@ public final class Updates {
 		if (v.ext() == null) return v.id();
 		if (v.ext().has("steward_mc:role")) return v.ext().get("steward_mc:role").getAsString();
 		if (v.ext().has("steward_mc:lot")) return v.ext().get("steward_mc:lot").getAsString();
-		// a flat village's lot (Architect V) carries Architect's lot id
-		return v.ext().has("architect_mc:lot") ? v.ext().get("architect_mc:lot").getAsString().replace('_', ' ') : v.id();
+		// a flat village's lot (Architect V) carries Architect's lot id only: its role is the one the history recorded when it was placed
+		String lot = lotIdOf(v);
+		if (lot == null) return v.id();
+		String role = recordedRole(v);
+		return role != null ? role : lot.replace('_', ' ');
+	}
+
+	/** The lot id a building stands on: Steward's tag, or Architect's on a flat village's lot (it names the card's lot, {@code cottage_2}). */
+	public static @org.jspecify.annotations.Nullable String lotIdOf(SiteView v) {
+		if (v.ext() == null) return null;
+		if (v.ext().has("steward_mc:lot")) return v.ext().get("steward_mc:lot").getAsString();
+		return v.ext().has("architect_mc:lot") ? v.ext().get("architect_mc:lot").getAsString() : null;
+	}
+
+	/** The role the owner's history recorded for this site when it was placed (a flat village's lots carry no Steward tags until Architect's slice X). */
+	static @org.jspecify.annotations.Nullable String recordedRole(SiteView v) {
+		String prefix = "steward_mc:settlement/";
+		if (v.owner() == null || !v.owner().startsWith(prefix)) return null;
+		var s = Settlements.store().get(v.owner().substring(prefix.length()));
+		if (s.isEmpty()) return null;
+		for (var e : s.get().log()) {
+			if (e.kind() != dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED) continue;
+			for (var c : e.changes()) if (c.siteId().equals(v.id()) && c.lot() != null) return c.lot();
+		}
+		return null;
 	}
 
 	/** Applies one pending update (or, with an empty {@code siteId}, every one that can be applied). Returns what to tell the player now. */

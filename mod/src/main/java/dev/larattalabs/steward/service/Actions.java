@@ -422,7 +422,7 @@ public final class Actions {
 		var ext = v.ext();
 		java.util.function.Function<String, String> str = k -> ext != null && ext.has(k) && ext.get(k).isJsonPrimitive() ? ext.get(k).getAsString() : null;
 		var b = v.box();
-		return new dev.larattalabs.steward.view.SettlementView.Site(v.id(), v.kind(), v.itemKey(), str.apply("steward_mc:role"), str.apply("steward_mc:lot"), v.blueprintId(),
+		return new dev.larattalabs.steward.view.SettlementView.Site(v.id(), v.kind(), v.itemKey(), str.apply("steward_mc:role") != null ? str.apply("steward_mc:role") : Updates.recordedRole(v), Updates.lotIdOf(v), v.blueprintId(),
 			v.version(), v.headVersion(), v.deviations(), v.state().name().toLowerCase(), v.updating(), b.minX(), b.minZ(), b.maxX(), b.maxZ(), Revert.previousVersion(sites, v.id()),
 			b.minY(), b.maxY());
 	}

@@ -21,17 +21,18 @@ class VPlanTest {
 
 	@Test
 	void onlyAPatronSettlementsFirstWholeBuildOnFlatGround() {
-		assertTrue(VPlan.applies("set_1", Difficulty.PATRON, false, false, null, "find", false, 64, 70));
-		assertTrue(VPlan.applies("set_1", Difficulty.PATRON, false, false, null, "flat", false, 64, 64));
-		assertFalse(VPlan.applies("set_1", Difficulty.SUPPLIED, false, false, null, "flat", false, 64, 64), "Supplied keeps today's path");
-		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, true, false, null, "flat", false, 64, 64), "a survival world");
-		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, true, null, "flat", false, 64, 64), "an addition");
-		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, false, "dst_1", "flat", false, 64, 64), "a district");
-		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, false, null, "sculpt", false, 64, 64), "a sculpted form");
-		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, false, null, "flat", true, 64, 64), "something stands");
-		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, false, null, "find", false, 60, 80), "not flat");
+		assertTrue(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, null, "find", false, 64, 70));
+		assertTrue(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, null, "flat", false, 64, 64));
+		assertFalse(VPlan.applies("set_1", Difficulty.SUPPLIED, false, true, false, null, "flat", false, 64, 64), "Supplied keeps today's path");
+		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, true, true, false, null, "flat", false, 64, 64), "a survival world");
+		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, true, true, null, "flat", false, 64, 64), "an addition");
+		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, "dst_1", "flat", false, 64, 64), "a district");
+		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, null, "sculpt", false, 64, 64), "a sculpted form");
+		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, null, "flat", true, 64, 64), "something stands");
+		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, false, false, null, "flat", false, 64, 64), "not the Overworld");
+		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, null, "find", false, 60, 80), "not flat");
 		VPlan.legacy("set_1", true);
-		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, false, null, "flat", false, 64, 64), "set to Steward's own layout");
+		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, null, "flat", false, 64, 64), "set to Steward's own layout");
 		VPlan.clear();
 	}
 
@@ -73,5 +74,14 @@ class VPlanTest {
 		assertEquals(List.of("hall_1", "cottage_2"), plan.unplaced().stream().map(VillageLayout.LotSpec::id).toList());
 		assertEquals("rg7", VPlan.regionOf("region:rg7"));
 		assertNull(VPlan.regionOf("g12"));
+	}
+
+	@Test
+	void aNorthSouthStreetIsSetAside() {
+		var south = new LotSpec("cottage_1", "lots", new BoundingBox(100, 65, 195, 110, 96, 208), 65, Direction.SOUTH, null, new BlockSize(11, 24, 9), new JsonObject());
+		var east = new LotSpec("cottage_2", "lots", new BoundingBox(120, 65, 195, 133, 96, 205), 65, Direction.EAST, null, new BlockSize(14, 24, 11), new JsonObject());
+		assertFalse(VPlan.northSouth(List.of(south)), "lots facing north or south line an east-west street");
+		assertTrue(VPlan.northSouth(List.of(south, east)), "a lot facing east lines a north-south street");
+		assertFalse(VPlan.northSouth(List.of()));
 	}
 }

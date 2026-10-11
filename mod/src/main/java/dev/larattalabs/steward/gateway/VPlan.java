@@ -39,14 +39,23 @@ public final class VPlan {
 	}
 
 	/**
-	 * Whether a build uses the flat village: Patron (no materials) in a world without survival, a settlement's first whole build (not an addition, not in a
-	 * district, nothing standing), a card whose terrain is flat or as found (a sculpted form is a region program of its own), and flat ground.
+	 * Whether a build uses the flat village: Patron (no materials) in a world without survival, in the Overworld (Architect's regions are Overworld only), a
+	 * settlement's first whole build (not an addition, not in a district, nothing standing), a card whose terrain is flat or as found (a sculpted form is a
+	 * region program of its own), and flat ground.
 	 */
-	public static boolean applies(String settlementId, Difficulty difficulty, boolean worldSurvival, boolean addition, @Nullable String districtId, String terrain,
-		boolean somethingStands, int groundLow, int groundHigh) {
+	public static boolean applies(String settlementId, Difficulty difficulty, boolean worldSurvival, boolean overworld, boolean addition, @Nullable String districtId,
+		String terrain, boolean somethingStands, int groundLow, int groundHigh) {
 		if (LEGACY.contains(settlementId)) return false;
-		return difficulty == Difficulty.PATRON && !worldSurvival && !addition && districtId == null && !"sculpt".equals(terrain) && !somethingStands
+		return difficulty == Difficulty.PATRON && !worldSurvival && overworld && !addition && districtId == null && !"sculpt".equals(terrain) && !somethingStands
 			&& groundHigh - groundLow <= FLAT_RANGE;
+	}
+
+	/**
+	 * Whether Architect laid the street north-south (its lots face east or west). Steward's plan, its designs' sizes (width along an east-west street) and its
+	 * later growth (additions, districts) know only an east-west street, so such a plan is set aside for Steward's own layout before anything is spent.
+	 */
+	public static boolean northSouth(List<LotSpec> placed) {
+		return placed.stream().anyMatch(l -> l.front() == net.minecraft.core.Direction.EAST || l.front() == net.minecraft.core.Direction.WEST);
 	}
 
 	/** The program's {@code params}: the card's program lots as Steward lays them out ({@code villager} left to Architect, which infers it from the type). */

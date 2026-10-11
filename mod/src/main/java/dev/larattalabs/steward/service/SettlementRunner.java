@@ -368,16 +368,22 @@ public final class SettlementRunner {
 		List<String> placed = placedSites(sites);
 		// no decision is in flight after a restart: one that reached Architect is no longer awaiting, one that did not is asked for (or made) again
 		decided.clear();
-		// a village's placement is its region: read again, found by the build's tag, or realised when it never was
-		if (village() && switch (state.phase()) { case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING, CANCELLING -> true; default -> false; }) {
+		// a village's placement is its region: read again, found by the build's tag, or realised when it never was. Architect keeps its regions over a
+		// restart, so a placement approved but not found was never realised: it is realised now, with the designs already made
+		if (village() && switch (state.phase()) { case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING -> true; default -> false; }) {
 			Steward.LOGGER.info("resume {}: village {} (region {}), phase {}", settlement.id(), vPlanId, vRegionId, state.phase());
 			switch (state.phase()) {
-				case CANCELLING -> { if (vRegionId != null) cancelVillage(); else if (!findVillage()) feed(new Pipeline.CancelConfirmed()); }
 				case AWAITING_PLACEMENT_APPROVAL -> { }
 				case READY_TO_PLACE -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) queueVillage(!permission.needsApproval(Permission.Action.NEW_PROJECT)); }
-				default -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) interrupted("the village's placement"); }
+				default -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) realiseVillage(); }
 			}
 			return;
+		}
+		// a village being cancelled: its region, when it has one, is taken up; else the cancel goes on as any build's (a bible or group still running is stopped)
+		if (village() && state.phase() == Pipeline.Phase.CANCELLING) {
+			if (vRegionId != null) { cancelVillage(); return; }
+			// found: adopting it takes it up (the build is cancelling)
+			if (findVillage()) return;
 		}
 		ResyncRules.Action action = ResyncRules.decide(state.phase(), bibleJobId != null, groupId != null, batchId != null, seen, running.isPresent(), stages, placed.size(),
 			state.groupId() == null && state.pausedForBudget());
@@ -659,6 +665,11 @@ public final class SettlementRunner {
 	}
 
 	private boolean logPlaced(List<String> siteIds, int buildings, int notPlaced) {
+		return logPlaced(siteIds, buildings, notPlaced, null);
+	}
+
+	/** {@code note}: why the placement fell short beyond the lots it skipped (a village region partial or failed); it makes the entry partial. */
+	private boolean logPlaced(List<String> siteIds, int buildings, int notPlaced, @org.jspecify.annotations.Nullable String note) {
 		if (siteIds.isEmpty()) return true;
 		// a dev build has no saved settlement; any other build's settlement must be there, or its sites would never reach the undo log
 		var saved = Settlements.store().get(settlement.id());
@@ -683,7 +694,8 @@ public final class SettlementRunner {
 		}).toList();
 		String where = districtId == null ? "" : saved.get().lands().district(districtId).map(d -> " in " + d.name()).orElse("");
 		boolean ok = Settlements.log(settlement.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings"
-			+ where + (notPlaced > 0 ? " (" + notPlaced + " not placed)" : ""), changes, siteGroupId, notPlaced > 0 ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE)).ok();
+			+ where + (notPlaced > 0 ? " (" + notPlaced + " not placed)" : "") + (note != null ? " (" + note + ")" : ""), changes, siteGroupId,
+			notPlaced > 0 || note != null ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE)).ok();
 		// a district's build laid its street: a road links it to where the district's road ends (nothing when it is linked already)
 		if (ok && districtId != null) Districts.link(server, settlement.id(), districtId, this::say, true);
 		return ok;
@@ -836,22 +848,26 @@ public final class SettlementRunner {
 			newStreet = !addition || (district != null && streetZ == null);
 			Integer line = district != null && streetZ == null && ("E".equals(district.direction()) || "W".equals(district.direction())) ? district.claim().centerZ() : null;
 			// Architect's flat village (slice V) for a Patron settlement's first whole build on flat ground: its lots, lanes, square and props
-			boolean stands = existing != null && !ArchitectApi.get().sites(server).list(existing.owner()).isEmpty();
+			// standing: any site, or a region (one whose only sites are its ground tiles is hidden from the sites' list)
+			boolean stands = existing != null && (!ArchitectApi.get().sites(server).list(existing.owner()).isEmpty()
+				|| ArchitectApi.get().regions().list(existing.owner()).stream().anyMatch(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVING));
+			// an addition faces the street and may reach past its ends (the street is extended to it when it is queued)
+			java.util.function.Supplier<VillageLayout.Plan> own = () -> !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ)
+				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line) : VillageLayout.plan(claim, grid, specs, rules);
 			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(),
-				dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), addition, districtId, r.card().site().terrain(), stands, lo, hi)) {
-				planVillage(r, buildings, budgetUsd, district, claim, specs);
+				dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), level.dimension() == net.minecraft.world.level.Level.OVERWORLD, addition, districtId,
+				r.card().site().terrain(), stands, lo, hi)) {
+				planVillage(r, buildings, budgetUsd, district, claim, specs, own);
 				return;
 			}
-			// an addition faces the street and may reach past its ends (the street is extended to it when it is queued)
-			plan = !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ)
-				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line) : VillageLayout.plan(claim, grid, specs, rules);
+			plan = own.get();
 			continueWithPlan(r, budgetUsd, district);
 		}
 	}
 
 	/** Asks Architect for the flat village over the claim, then goes on with its lots as the plan. */
 	private void planVillage(CardResult r, int buildings, double budgetUsd, Settlement.@org.jspecify.annotations.Nullable District district, Claim claim,
-		List<VillageLayout.LotSpec> specs) {
+		List<VillageLayout.LotSpec> specs, java.util.function.Supplier<VillageLayout.Plan> own) {
 		ServerLevel level = level();
 		var box = new BoundingBox(claim.centerX() - claim.radius(), level.getMinY(), claim.centerZ() - claim.radius(), claim.centerX() + claim.radius(), level.getMaxY(),
 			claim.centerZ() + claim.radius());
@@ -867,9 +883,15 @@ public final class SettlementRunner {
 				if (!Session.is(session) || !alive()) return;
 				if (worldStopped(err)) return;
 				if (err != null) { abandon("Architect could not lay out the village: " + message(err)); return; }
-				vPlanId = rp.planId();
-				plan = dev.larattalabs.steward.gateway.VPlan.toPlan(rp, specs);
 				try {
+					// a north-south street: Steward's designs and growth know an east-west one, so its own layout is used (nothing is spent yet)
+					if (dev.larattalabs.steward.gateway.VPlan.northSouth(rp.lots())) {
+						Steward.LOGGER.info("village plan {} runs north-south: Steward's own layout instead", rp.planId());
+						plan = own.get();
+					} else {
+						vPlanId = rp.planId();
+						plan = dev.larattalabs.steward.gateway.VPlan.toPlan(rp, specs);
+					}
 					continueWithPlan(r, budgetUsd, district);
 				} catch (RuntimeException e) {
 					Steward.LOGGER.error("the build of {} failed after its village plan", settlement.id(), e);
@@ -1505,7 +1527,12 @@ public final class SettlementRunner {
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
 				queueInFlight = false;
-				if (!alive() || worldStopped(err)) return;
+				if (worldStopped(err)) return;
+				// the build ended (cancelled while this was asked, or replaced): a village realised for it after all is taken up, not left without a history
+				if (!alive()) {
+					if (err == null) takeUpOrphan(id);
+					return;
+				}
 				if (err != null) {
 					// a lost answer may have started it: looked up by the build's tag
 					if (uncertain(err) && findVillage()) return;
@@ -1536,6 +1563,28 @@ public final class SettlementRunner {
 		return true;
 	}
 
+	/** A region realised for a build that has ended: removed whole; when that is refused, the history says so and undo can't reach it (the region list can). */
+	private void takeUpOrphan(String regionId) {
+		String owner = settlement.owner();
+		String sid = settlement.id();
+		Steward.LOGGER.warn("village region {} was realised for {}'s ended build {}: taking it up", regionId, sid, buildId);
+		ArchitectApi.get().regions().remove(regionId, new RemoveOptions(false, owner)).whenComplete((r, err) -> server.execute(() -> {
+			if (worldStopped(err)) return;
+			if (err == null && r.removed()) return;
+			String why = err != null ? message(err) : String.join(", ", r.blockers());
+			Settlements.log(sid, new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "A village (Architect region " + regionId
+				+ ") was placed after its build ended and could not be taken up: " + why, List.of()));
+		}));
+	}
+
+	/** The region's sites as Steward records them: its streets and buildings, or (when it left nothing else) the ground tiles it wrote. */
+	private List<String> regionSites(String regionId) {
+		var sites = ArchitectApi.get().sites(server);
+		List<String> shown = sites.list(settlement.owner()).stream().filter(x -> regionId.equals(x.region())).map(dev.larattalabs.architect.api.SiteView::id).toList();
+		return !shown.isEmpty() ? shown
+			: sites.list(settlement.owner(), true).stream().filter(x -> regionId.equals(x.region())).map(dev.larattalabs.architect.api.SiteView::id).toList();
+	}
+
 	/** Reads the village's state while it is placed; once placed (wholly or in part), its sites are logged under the region and the build ends. */
 	void watchVillage() {
 		if (!village() || vRegionId == null || state == null || !alive()) return;
@@ -1547,11 +1596,15 @@ public final class SettlementRunner {
 			&& st != dev.larattalabs.architect.api.RegionState.FAILED) return;
 		long placed = v.get().lots().stream().filter(l -> "placed".equalsIgnoreCase(String.valueOf(l.state()))).count();
 		long skipped = v.get().lots().size() - placed;
-		if (st != dev.larattalabs.architect.api.RegionState.PLACED) say("The village is " + st.name().toLowerCase() + ": " + placed + " of " + v.get().lots().size() + " lots placed.");
-		// every site of the region (buildings, street, lanes, square, props): undo removes the region whole
-		List<String> sites = ArchitectApi.get().sites(server).list(settlement.owner()).stream().filter(x -> vRegionId.equals(x.region()))
-			.map(dev.larattalabs.architect.api.SiteView::id).toList();
-		if (!logPlaced(sites, (int) placed, (int) skipped)) { logFailed(); return; }
+		boolean whole = st == dev.larattalabs.architect.api.RegionState.PLACED;
+		String note = whole ? null : "the village is " + st.name().toLowerCase() + ": " + placed + " of " + v.get().lots().size() + " lots placed";
+		if (note != null) say("The " + note.substring(4) + ".");
+		// the region's sites (its street and buildings; its ground when it left nothing else): undo removes the region whole, ground, lanes, square and props too
+		List<String> sites = regionSites(vRegionId);
+		if (sites.isEmpty()) {
+			// nothing of it is in the world: its record is dropped, so it does not count as something standing
+			ArchitectApi.get().regions().remove(vRegionId, new RemoveOptions(false, settlement.owner()));
+		} else if (!logPlaced(sites, (int) placed, (int) skipped, note)) { logFailed(); return; }
 		feed(new Pipeline.BatchDone((int) placed, (int) skipped));
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
 	}
@@ -1564,9 +1617,17 @@ public final class SettlementRunner {
 		}
 		String id = vRegionId;
 		ArchitectApi.get().regions().remove(id, new RemoveOptions(false, settlement.owner())).whenComplete((r, err) -> server.execute(() -> {
-			if (!alive()) return;
+			if (!alive() || worldStopped(err)) return;
 			if (err != null || !r.removed()) {
-				say("The village could not be taken up yet (" + (err != null ? message(err) : String.join(", ", r.blockers())) + "); cancel again once it is clear.");
+				// it stays: logged under the region, so undo takes it up once it is clear, and the cancel ends
+				String why = err != null ? message(err) : String.join(", ", r.blockers());
+				var v = ArchitectApi.get().regions().get(id);
+				int placed = v.map(x -> (int) x.lots().stream().filter(l -> "placed".equalsIgnoreCase(String.valueOf(l.state()))).count()).orElse(0);
+				int skipped = v.map(x -> x.lots().size()).orElse(0) - placed;
+				List<String> sites = regionSites(id);
+				if (!sites.isEmpty() && !logPlaced(sites, placed, skipped, "cancelled; it could not be taken up: " + why)) { logFailed(); return; }
+				say("The village could not be taken up (" + why + "). What it placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
+				feed(new Pipeline.BatchDone(placed, skipped));
 				return;
 			}
 			vRegionId = null;

@@ -72,11 +72,20 @@ public final class Undo {
 		String region = dev.larattalabs.steward.gateway.VPlan.regionOf(entry.get().siteGroup());
 		if (region != null) {
 			List<String> regionSites = List.copyOf(entry.get().siteIds());
+			// the region is removed whole: only when everything in it is this entry's (a site another build put in it would go too)
+			var others = sites.list(s.owner()).stream().filter(v -> region.equals(v.region())).map(dev.larattalabs.architect.api.SiteView::id)
+				.filter(id -> !regionSites.contains(id)).toList();
+			if (!others.isEmpty()) {
+				UNDOING.remove(s.id());
+				say.accept("Undo stopped: the village also holds " + String.join(", ", others) + ", which \"" + entry.get().text() + "\" did not place.");
+				return false;
+			}
 			int session = Session.current();
 			ArchitectApi.get().regions().remove(region, as).whenComplete((r, err) -> server.execute(() -> {
 				if (!Session.is(session) || SettlementRunner.worldStopped(err)) { UNDOING.remove(s.id()); return; }
-				List<String> gone = regionSites.stream().filter(id -> sites.get(id).isEmpty()).toList();
-				if (!gone.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), gone, gone.size() == regionSites.size(), now)).ok()) say.accept(UNLOGGED);
+				// done only when Architect says the region is removed (a site leaves the list before its land is restored); a removal that stopped keeps the
+				// entry as it was, region and all, so running undo again finishes it
+				if (err == null && r.removed() && !Settlements.log(s.id(), removed(entry.get(), regionSites, true, now)).ok()) say.accept(UNLOGGED);
 				UNDOING.remove(s.id());
 				districts(server, s, say);
 				if (err != null || !r.removed()) say.accept("Undo stopped: " + (err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())

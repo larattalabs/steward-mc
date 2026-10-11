@@ -652,11 +652,12 @@ async function villageFlow() {
   const st = settlements().find((x) => x.id === id);
   const placedOp = (st?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
   const region = placedOp?.siteGroup;
-  if (planned && /^region:/.test(region ?? '')) ok('village', `${built.steps.join(' > ')} > ${built.placed} placed on Architect's flat village (${region}, ${placedOp.siteIds.length} sites)`);
+  if (planned && /^region:/.test(region ?? '') && built.placed > 0 && placedOp.outcome === 'DONE') ok('village', `${built.steps.join(' > ')} > ${built.placed} placed on Architect's flat village (${region}, ${placedOp.siteIds.length} sites)`);
   else return fail('village', `planned ${!!planned}, history ${JSON.stringify(placedOp)?.slice(0, 160)}`);
   // its street is a town street to Steward (additions and districts work on it)
   const street = await cmd(`/steward dev site ${placedOp.siteIds.find((x) => /^r/.test(x)) ?? 'none'}`);
-  ok('village street', street);
+  if (/stands \(road\)/.test(street)) ok('village street', street);
+  else fail('village street', street);
   // a picture of it
   await cmd('/gamemode spectator');
   await cmd('/time set noon');

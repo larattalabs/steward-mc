@@ -135,7 +135,8 @@ public final class ChangeRequests {
 	/** The request: the building's own kind and size, the settlement's style and bible, the change in the notes, as the next version of its entry. */
 	static DesignRequest request(Settlement s, SiteView v, String notes, double budgetUsd) throws ReflectiveOperationException {
 		var c = s.card();
-		String lot = v.ext() != null && v.ext().has("steward_mc:lot") ? v.ext().get("steward_mc:lot").getAsString() : "custom";
+		String lotId = Updates.lotIdOf(v);
+		String lot = lotId != null ? lotId : "custom";
 		String type = lot.replaceFirst("_\\d+$", "");
 		if (!dev.larattalabs.steward.model.ConceptCard.TYPE_SLUG.matcher(type).matches()) type = "custom";
 		var b = v.box();
