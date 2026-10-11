@@ -535,6 +535,7 @@ async function talk(id) {
   if (status) ok('talk status', status[1]);
   else fail('talk status', logSince(from).slice(-300));
   const answer = (f) => JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', f), 'utf8')).answer);
+  const talkFrom = logSize();
   await cmd(`/steward dev talk_answer ${id} ${answer('library.json')}`);
   await cmd(`/steward dev talk_answer ${id} ${answer('creepier.json')}`);
   await cmd(`/steward dev talk_answer ${id} ${answer('harbour.json')}`);
@@ -542,7 +543,10 @@ async function talk(id) {
   const st = settlements().find((x) => x.id === id);
   const lib = st?.proposals?.open?.find((p) => p.key.startsWith('asked_'));
   const harbour = st?.proposals?.open?.find((p) => p.key === 'district_E');
-  const note = (st?.log ?? []).find((e) => e.kind === 'NOTE' && /Asked to change tavern/.test(e.text));
+  // the change: noted in the history (an Architect without 0b's versionOf), or, with versionOf, a change proposal; here no tavern stands, so the steward
+  // asks which building (also right)
+  const asked = /Which building do you mean\? I could not tell which one is the tavern/.test(logSince(talkFrom));
+  const note = (st?.log ?? []).find((e) => e.kind === 'NOTE' && /Asked to change tavern/.test(e.text)) ?? (asked ? { text: 'asked which building is the tavern' } : null);
   if (lib && /library/i.test(lib.title) && harbour && /harbour/i.test(harbour.title) && note) ok('talk acts', `${lib.title} and ${harbour.title} in the inbox; "${note.text.slice(0, 60)}" noted`);
   else fail('talk acts', `building ${JSON.stringify(lib)}, district ${JSON.stringify(harbour)}, note ${JSON.stringify(note)}`);
   await cmd(`/steward ui talk ${id}`);

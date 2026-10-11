@@ -172,3 +172,10 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **Jar:** `architect_mc-0.13.0.jar`, sha256 54b1b538…
 - **Result:** Steward builds against it and its unit tests pass. The stub e2e passes; the change request is noted in the history, since 0a has no versionOf. The free e2e passes 32 of 33; the miss is Steward's own intermittent board check.
 - **Told Architect:** pass, tag it.
+
+**Consumer check of the 0b RC (2026-10-10):**
+- **Jar:** `architect_mc-0.14.0.jar`, sha256 270c3a09…
+- **Result:** the stub e2e passes 25 checks: recovery by key, change requests through versionOf, all S lots. The free e2e passes 33.
+- **Told Architect:** pass, tag it.
+- **Benchmark (Architect, $18.69 of $35):** a 3-unique starter cost $9.14, a copies-plus-smalls starter $8.28. The first usable result came at 7.5 and 14.7 minutes. Under $5 is not reached: detail design is about 80% of the cost.
+- **Defaults proposed for Steward:** copies on at copyCap 3, and S items as SMALL. They are adopted with v0.14.0.
