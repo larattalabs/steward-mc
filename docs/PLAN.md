@@ -81,6 +81,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-10-10 | **Proposals are worded by Claude** (Claude; approved by Noah 2026-10-10): each proposal that waits for the player costs one small job (a $0.03 cap, usually 1-2 cents), spent on the player's own Claude link without them asking. The proposal guardrails bound it: one new proposal every 20 minutes at most, only while the host is in the settlement. Without the link, the rule's wording is used. |
 | 2026-10-11 | **No third review of the last operation-key fix** (Noah): it keeps a build saved after a third lost answer, and the free and stub e2e checks are enough for it. |
 | 2026-10-11 | **Build the V path now; approve V's and W's gallery shas; fence-post lamps by default** (Noah): Architect's flat village is adopted for new Patron flat settlements now (W lights the ground around houses next). Noah also wants **lighting that follows the settlement's theme and style** (asked of Architect: bible-styled lamps as early as the plan allows). |
+| 2026-10-11 | **The V path waits for slice X** (Noah): the V adoption (972a37e, 1592600, f167d16; free e2e 34, stub 30) stays local until Architect's slice X (C19 lot tags, C20 keys on plan and realise, C22 removal retries and tombstones) ships. The last GPT check found restart and failed-save cases that X removes; Steward builds on X, gets one more review, then pushes. |
 
 ## Concept card
 
