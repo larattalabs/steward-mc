@@ -27,7 +27,9 @@ public final class TerrainGrid {
 			for (int i = 0; i < s.width(); i++) {
 				int k = s.index(i, j);
 				if (w[k] || !s.tree().get(k)) continue;
-				ground[k] = nearestGround(s, h, w, i, j, h[k]);
+				// Architect 0.15 reads the ground under the tree itself (Sample.ground); from an older survey it is the trunk's top, so it is estimated
+				int g = s.ground() == null ? Sample.MISSING : s.ground()[k];
+				ground[k] = g != Sample.MISSING && g < s.height()[k] ? g + 1 : nearestGround(s, h, w, i, j, h[k]);
 			}
 		}
 		// built: the top block is not natural terrain (the player's builds, an earlier build's sites); trees count as natural

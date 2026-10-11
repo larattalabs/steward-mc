@@ -117,7 +117,7 @@ public final class Districts {
 			}
 			LAYING.remove(s.id());
 			onFounded.run();
-			say.accept("Founded " + label + ", linked to the town by a road. Its first building lays its street.");
+			say.accept("Founded " + label + ", linked to the town by a road. Its first building lays its street." + gaps(r));
 		});
 		return null;
 	}
@@ -370,12 +370,20 @@ public final class Districts {
 		ext.addProperty("steward_mc:settlement", s.id());
 		ext.addProperty("steward_mc:role", role);
 		ext.addProperty(INFRA, role);
-		return new RoadRequest(level, points, DistrictRules.ROAD_WIDTH, null, null, false, true, Mode.INSTANT, s.owner(), ext, actor, false);
+		// partial (Architect 0.15): a stretch it cannot lay (too steep, deep water) is left as a gap and said, instead of refusing the whole road
+		return new RoadRequest(level, points, DistrictRules.ROAD_WIDTH, null, null, false, true, Mode.INSTANT, s.owner(), ext, actor, false).withPartial(true);
 	}
 
 	static @Nullable ServerLevel level(MinecraftServer server, String dimension) {
 		return server.getLevel(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,
 			net.minecraft.resources.Identifier.parse(dimension)));
+	}
+
+	/** What a partial road left out, for the player ("" when nothing). */
+	static String gaps(dev.larattalabs.architect.api.PlaceResult r) {
+		if (r.skipped().isEmpty()) return "";
+		return " The road has " + (r.skipped().size() == 1 ? "a gap" : r.skipped().size() + " gaps") + " where the ground would not take it (" + String.join("; ",
+			r.skipped().stream().limit(3).map(String::valueOf).toList()) + ").";
 	}
 
 	private static String reasons(List<dev.larattalabs.architect.api.Refusal> refusals) {

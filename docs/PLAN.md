@@ -22,7 +22,7 @@ Status (2026-10-10): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
   - **Autonomous and Full** build their own proposals within the weekly allowance ($500 by default). Settings sets the level and the allowance.
   - **Worded by Claude** (2026-10-10): the rules decide what to propose. A small job ($0.03 cap, `prompts/proposal-words.md`) then names and describes it in the settlement's own terms, and the steward puts it to the player. Only for proposals that wait for the player; without the Claude link the rule's wording stays.
 
-The free e2e check runs 33 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper) runs the whole paid flow at $0: 21 checks on v0.12.2, and 22 on Architect's 0b release candidate, which adds a change request designed, applied and reverted.
+The free e2e check runs 34 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper) runs the whole paid flow at $0: 21 checks on v0.12.2, and 22 on Architect's 0b release candidate, which adds a change request designed, applied and reverted.
 
 ## Principles
 
@@ -408,7 +408,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - Permission levels act on their own only within the change history (3a) and the allowance.
    - **Protected areas** (C17), before districts and terrain work: areas the player marks (a square around where they stand, from the Claim tab or `/steward protect`) are never written by the steward.
      - Steward side now: a layout treats protected ground as taken, a road that would cross one is refused with its name, survey mode draws them.
-     - Architect side with 0c: the areas become write bounds on the settlement's placements, deltas, roads and terrain operations. Detecting the player's own edits comes with 6c.
+     - Architect side (done with 0c, 2026-10-11): the areas are write bounds on the settlement's placements, deltas, roads and terrain operations (`Protection`); a placement into one is refused PROTECTED. Detecting the player's own edits comes with 6c.
    - **3f. Districts.** Several claims per settlement with stable ids (`dst_<n>`), roads between them (Architect `placeRoad`), and undo.
      - **Where:** a district is a square (S 97 or M 129 across) next to the village square (the 257x257 or smaller square a street is laid out in), one each way: north, east, south, west. East and west, it is centred on the town street's line, so its street continues the town's. It may lie inside a big claim or beyond it; it never overlaps another settlement's claim or district, the village square or another district of its own. (More than one each way waits until roads can pass through a district.)
      - **Road:** founding a district lays a road ($0) from the town street's nearer end (the stone, before there is a street) to the shared edge, along the verges the layouts leave free. A district's first build lays its own street; a second road then links the edge to it. Both are the settlement's sites, logged, and undone like any project.
@@ -427,7 +427,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - **Small buildings:** S lots run Architect's bounded SMALL pass (`smallBySize`).
      - **Change requests:** they run on the release, through versionOf.
      - **Benchmark (Architect):** a 3-unique starter cost $9.14 and a copies-plus-smalls starter $8.28. Under $5 is not reached: detail design is about 80% of the cost.
-   - **0c:** placement polish.
+   - **0c** (v0.15.0, adopted 2026-10-11): **protected areas are Architect's write bounds now.** Every area a player marks is also marked with `Sites.protect` under the settlement's owner, kept the same at each change and when a world starts; Steward's layouts and roads still keep off them first. Surveys read the ground under trees (`Sample.ground`). District roads are partial: a stretch the ground will not take is a gap, said to the player, not a refused road. Still open: survival roads (C16) for Supplied settlements, phase 4.
    - **V (flat village):** new settlements use Architect's lots, door paths, square and props. Existing ones keep `VillageLayout` until the joint 7a/6d gate (C12).
 5. **Phase 4:** Supplied on Architect's survival construction sites, then Hardcore and Economy. This needs streets in construction batches, which survival skips today.
 6. **Phase 2** when Architect 7c lands (big custom forms as region programs); phases 5-7 after.

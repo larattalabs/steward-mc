@@ -464,6 +464,17 @@ async function districts(id) {
   const west = await cmd(`/steward district ${id} found W`);
   if (/protected area "e2e garden"/.test(west)) ok('protected area', `${area.id} ${area.x1 - area.x0 + 1} x ${area.z1 - area.z0 + 1}; the west district is refused: ${west}`);
   else fail('protected area', `west district: ${west}`);
+  // Architect's write bounds (C17, 0.15): a building placed into a protected area is refused by Architect itself, not only kept off by Steward's layouts
+  await cmd(`/steward protect ${id} here 10 e2e lawn`);
+  await closeScreens();
+  const lawn = settlements().find((x) => x.id === id)?.lands?.protect?.find((a) => a.label === 'e2e lawn');
+  let pfrom = logSize();
+  await cmd(`/steward dev place ${id} ${STUB}`);
+  const refused = await waitLog(pfrom, /dev place refused: [^\n]*/, 20_000);
+  if (refused && /PROTECTED/.test(refused[0])) ok('architect bounds', refused[0].slice(0, 120));
+  else fail('architect bounds', refused ? refused[0] : (logSince(pfrom).match(/dev placed \S+/) ?? ['no answer'])[0]);
+  if (lawn) await cmd(`/steward protect ${id} clear ${lawn.id}`);
+  await closeScreens();
   // the east district: stand between the stone and it, so the road's way is loaded
   await cmd(`/tp @p ${cx + 90} 100 ${cz + 12}`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });

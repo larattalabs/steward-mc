@@ -282,12 +282,15 @@ public final class Actions {
 			if (label.length() > 40) return Result.fail("A label is at most 40 characters.");
 			var res = Settlements.protect(id, label, dim, at.getX() - r, at.getZ() - r, at.getX() + r, at.getZ() + r, System.currentTimeMillis());
 			if (!res.ok()) return Result.fail(res.error());
+			// Architect's write bounds too (C17): nothing of the settlement writes there, whatever Steward's own checks miss
+			if (!Protection.sync(player.level().getServer(), id)) Steward.LOGGER.warn("protected area of {} saved, but Architect did not take it (see above)", id);
 			sendSettlement(player, res.settlement(), "");
 			return Result.ok(res.note());
 		}
 		if ("unprotect".equals(action)) {
 			var res = Settlements.unprotect(id, lot == null ? "" : lot, System.currentTimeMillis());
 			if (!res.ok()) return Result.fail(res.error());
+			Protection.sync(player.level().getServer(), id);
 			sendSettlement(player, res.settlement(), "");
 			return Result.ok(res.note());
 		}
