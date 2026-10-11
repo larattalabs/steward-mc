@@ -238,3 +238,19 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
   - It is driven from the removal's own saved state, so it survives repeated restarts.
   - New gate items: a restart mid-removal then finishing, a restart then an injected failure then a retry, two restarts, and the group-only case.
   - **When 0.17.1 ships:** Steward passes the RC through its consumer check, pins 0.17.1, raises its minimum Architect version to it, and puts the REMOVING busy check back.
+
+**Architect's open questions for Steward, answered 2026-10-11 (CONTRACT "Open questions for Steward"; S-W-1 and S-W-2 were answered with the W review):**
+- **S-T1-1:** 120 s worst case is acceptable, shown as "laying out the village". Steward's claims are at most 257 across (survey radius 127), and districts at most 129. Steward sets no timeout below 120 s on a plan.
+- **S-MP-1:** only through bibles and bundled programs for now. The card has no ground-cover field. Revisit with phase 2's custom forms.
+- **S-T2-1:** infer movers from the end nodes' lot kinds. The card doesn't name them, and Steward may override per edge later.
+- **S-T2-2 (Noah):** ladders on for player-only edges (lookouts, watchtowers). Villager edges never use them.
+- **S-B-1:** one region per stroke, as drafted. A Steward history entry holds one region, so one undo per stroke matches.
+- **S-B-2:** not needed in 6c. Per-settlement C17 areas are enough; keep owner `*` deferred.
+- **S-S2-1:** a fair stand-in. A hillside card typically asks for a landmark, a hall, a craft building or two, a store and dwellings, which matches. A farm would make it closer still.
+- **S-T3-1:** stone bridges and plain tunnels are acceptable until 7a. Please report which edges crossed water or rock (in the plan or the region), so Steward's card and history can say so.
+- **S-H-1 (Noah):** yes, a small contained pond beside a decorative farm lot when the claim has none. It stays on the lot, never outside the claim or in a protected area, and is removed with the region. Working farms are different and are built for yield: water spaced so every farmland block is hydrated (a source per 9x9, channels on that spacing), designed into the farm rather than added as a pond. That's for Steward's functional-module farms and later automated ones (7b / modules).
+- **S-D-1:** survey candidates are enough. Steward's districts are its own (3f) until the joint gate. Phase 2 waits for 7c anyway, so there's nothing to wait for on Steward's side.
+- **S-D-2:** this matches: Steward proposes and approves, Architect lays out. Steward needs the join's site under the district's region, so that undoing the district removes its join.
+- **S-VOC-1:** defaults are enough now. A card's style text can ask for a rare palette ("sculk temple"); when one does, Steward will pass budgets to the bible request. Please keep the budget field on the bible request.
+- **S-RS-1:** useful. Steward will move Supplied villages to `flat_village` with shovel paths when it starts phase 4 (Supplied on construction sites), not before.
+- **S-PT-1:** not needed in 6c. C17 areas are enough until 6d's replanning, since updates already keep the player's edits.
