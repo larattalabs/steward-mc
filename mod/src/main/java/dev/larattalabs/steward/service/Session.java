@@ -12,11 +12,16 @@ public final class Session {
 	private Session() {
 	}
 
+	/** A phase of SERVER_STOPPING that runs before the default one, where Architect fails its pending futures (WORLD_STOPPED, API 1.10). */
+	private static final net.minecraft.resources.Identifier FIRST = net.minecraft.resources.Identifier.fromNamespaceAndPath("steward_mc", "session_ends_first");
+
 	public static void init() {
 		ServerLifecycleEvents.SERVER_STARTING.register(s -> generation++);
 		// at STOPPING, before Architect clears its caches and fails pending futures: a callback that runs during the shutdown must not read those failures
-		// as "nothing runs any more" and drop a build's checkpoint
-		ServerLifecycleEvents.SERVER_STOPPING.register(s -> generation++);
+		// as "nothing runs any more" and drop a build's checkpoint. In a phase of its own ahead of the default, so it does not depend on which mod loaded
+		// first (Architect's listener ran first and a pending bible request failed the build, found by the stub e2e on 0.13.0)
+		ServerLifecycleEvents.SERVER_STOPPING.addPhaseOrdering(FIRST, net.fabricmc.fabric.api.event.Event.DEFAULT_PHASE);
+		ServerLifecycleEvents.SERVER_STOPPING.register(FIRST, s -> generation++);
 	}
 
 	public static int current() {

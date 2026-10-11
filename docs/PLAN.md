@@ -421,7 +421,7 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - a clean-install test;
      - save migrations across matched Steward and Architect releases.
 4. **Architect slices as they land:**
-   - **0a:** the stub turns on `e2e.mjs stub`, which then runs before every push. Also estimates by kind in the card screen, exact massing ghosts, and operation keys (C9: an interrupted request is adopted, not repeated).
+   - **0a** (v0.13.0, adopted 2026-10-10): **operation keys done.** Every bible, group and batch request carries one, and a request interrupted by a restart is found and adopted, or sent again under the same key; builds saved before keys are reported as before. The session now ends ahead of Architect's WORLD_STOPPED sweep, so a world closing never fails a build. Still to adopt: estimates by kind in the card screen, the massing ghosts via `fitMassingToLot` (up to 3 off), and pins for the versions the change log refers to.
    - **0b:** copies with safeguards, small buildings with bounded effort, and the cost benchmark against the targets.
    - **0c:** placement polish.
    - **V (flat village):** new settlements use Architect's lots, door paths, square and props. Existing ones keep `VillageLayout` until the joint 7a/6d gate (C12).

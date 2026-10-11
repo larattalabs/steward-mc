@@ -358,4 +358,19 @@ class PipelineTest {
 		assertEquals(Phase.CANCELLED, cancelled.phase());
 		assertEquals(0.8, cancelled.spentUsd(), 1e-9);
 	}
+
+	@Test
+	void theBibleAndGroupRequestsCanBeMadeAgainTheSame() {
+		// after a restart a request that never reached Architect is sent again under its operation key: it must be the request the build made
+		var card = dev.larattalabs.steward.model.ConceptCard.parse(com.google.gson.JsonParser.parseString(
+			"{\"site\":{\"text\":\"a meadow\",\"terrain\":\"flat\"},\"style\":{\"text\":\"timber\"},\"purpose\":{\"text\":\"a hamlet\"},\"constraints\":{}}")
+			.getAsJsonObject());
+		var start = Pipeline.State.start("set_1", card, 20);
+		var step = Pipeline.step(start, new Pipeline.CardApproved(card), dev.larattalabs.steward.model.Permission.PROPOSALS);
+		var sent = step.commands().stream().filter(c -> c instanceof Pipeline.RequestBible).findFirst().orElseThrow();
+		assertEquals(sent, Pipeline.bibleRequest(step.next()));
+		var reuse = Pipeline.step(start, new Pipeline.CardApproved(card, "bib_1", 2), dev.larattalabs.steward.model.Permission.PROPOSALS);
+		var group = reuse.commands().stream().filter(c -> c instanceof Pipeline.RequestGroup).findFirst().orElseThrow();
+		assertEquals(group, Pipeline.groupRequest(reuse.next()));
+	}
 }

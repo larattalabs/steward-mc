@@ -655,8 +655,21 @@ async function stubFlow(id) {
   await closeScreens();
   if (limit) ok('card limits', `${limit[1].slice(0, 70)}; ${cardShot}`);
   else fail('card limits', 'no "Not yet" line for the stilt village');
+  // an operation key (C9, Architect 0.13): the bible request's acknowledgement is dropped, the game stops before the id is saved, and after the restart the
+  // steward finds the request by its key and picks it up (never asks, or pays, twice)
+  await dev.request('dev.api.dropAck', { msgType: 'bible.request' });
   from = logSize();
   await cmd(`/steward start ${id} 3 20`);
+  if (await waitLog(from, /Designing the style bible/, 60_000)) {
+    await sleep(3000);
+    await quit();
+    launch();
+    await connect();
+    const adopted = await waitLog(0, /Architect had the style bible request: picking it up|never reached Architect: asking again|The restart interrupted[^\n]*/, 90_000);
+    if (adopted && /picking it up/.test(adopted[0])) ok('recovered by key', 'the bible request whose ack was lost, found by its operation key after a restart');
+    else fail('recovered by key', adopted ? adopted[0] : 'no word after the restart');
+  } else fail('recovered by key', 'the bible was never requested');
+  from = 0;
   const first = await buildThrough(id, from, 'first build', true);
   if (!first) return;
   ok('first build', `${first.steps.join(' > ')} > ${first.placed} placed`);

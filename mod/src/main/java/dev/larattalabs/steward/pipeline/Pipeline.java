@@ -268,7 +268,17 @@ public final class Pipeline {
 		}
 		State n = new State(Phase.BIBLE_RUNNING, s.settlementId(), a.card(), null, null, null, Map.of(), 0, 0, s.budgetUsd(), false, null, null);
 		// the bible is a small share of the budget (its measured cost is $1.2-2.0), never more than the whole of it
-		return Step.of(n, new RequestBible(biblePrompt(a.card()), a.card().name() == null ? s.settlementId() : a.card().name(), Math.min(BudgetPolicy.BIBLE_HIGH * 1.5, s.budgetUsd())));
+		return Step.of(n, bibleRequest(n));
+	}
+
+	/** The style bible request of a build in BIBLE_RUNNING: the same every time it is made (an operation key finds it again after a restart). */
+	public static RequestBible bibleRequest(State s) {
+		return new RequestBible(biblePrompt(s.card()), s.card().name() == null ? s.settlementId() : s.card().name(), Math.min(BudgetPolicy.BIBLE_HIGH * 1.5, s.budgetUsd()));
+	}
+
+	/** The design group request of a build in GROUP_RUNNING: what is left of the budget, in its bible. */
+	public static RequestGroup groupRequest(State s) {
+		return new RequestGroup(s.bibleId(), s.bibleVersion(), s.budgetUsd() - s.spentUsd());
 	}
 
 	private static Step bibleDone(State s, BibleDone b, Permission perm) {
@@ -292,7 +302,7 @@ public final class Pipeline {
 			return Step.of(p, new Notify(String.format("The style bible used $%.2f of the $%.0f budget, which leaves too little to design. Raise the budget to at least $%.0f to continue.",
 				s.spentUsd(), s.budgetUsd(), minimumRaise(p)), true));
 		}
-		return Step.of(s.with(Phase.GROUP_RUNNING), new RequestGroup(s.bibleId(), s.bibleVersion(), groupBudget));
+		return Step.of(s.with(Phase.GROUP_RUNNING), groupRequest(s));
 	}
 
 	private static Step groupUpdate(State s, GroupUpdate g, Permission perm) {

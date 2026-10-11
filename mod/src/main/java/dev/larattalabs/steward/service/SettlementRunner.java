@@ -301,6 +301,7 @@ public final class SettlementRunner {
 		this.addition = b.addition();
 		this.districtId = b.districtId();
 		this.newStreet = b.laysStreet();
+		this.keyed = b.usesKeys();
 	}
 
 	private ServerLevel level() {
@@ -315,7 +316,7 @@ public final class SettlementRunner {
 		if (settlement == null || state == null || plan == null) return true;
 		if (state.phase().terminal()) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet));
+			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -378,11 +379,7 @@ public final class SettlementRunner {
 				feed(new Pipeline.BatchDone(placed.size(), Math.max(0, plan.lots().size() - placed.size())));
 			}
 			case REQUEUE -> fitAndQueue(!permission.needsApproval(Permission.Action.NEW_PROJECT));
-			case INTERRUPTED -> interrupted(switch (state.phase()) {
-				case BIBLE_RUNNING -> "the style bible request (it may still be made and charged)";
-				case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> "the design group request";
-				default -> "the placement";
-			});
+			case INTERRUPTED -> recoverByKey();
 		}
 	}
 
@@ -398,6 +395,87 @@ public final class SettlementRunner {
 
 	private static String extString(JsonObject ext, String key) {
 		return ext != null && ext.has(key) && ext.get(key).isJsonPrimitive() ? ext.get(key).getAsString() : null;
+	}
+
+	/** Whether this build's requests carry operation keys: every build started now; one restored from before keys does not. */
+	private boolean keyed = true;
+
+	/** The operation key of this build's {@code kind} of request (bible, group, batch): Architect finds the request by it after a restart (C9). */
+	String opKey(String kind) {
+		return "steward." + buildId + "." + kind;
+	}
+
+	/**
+	 * A request was sent but its id never saved (the game stopped between the two): Architect is asked for it by its operation key. Found, it is adopted;
+	 * never received, it is sent again under the same key (so it can only be made once). Builds from before keys, or a helper that is not connected, are
+	 * reported interrupted as before.
+	 */
+	private void recoverByKey() {
+		recoverByKey(0);
+	}
+
+	/** Lookups need the helper connected, which it may not be yet just after a restart: tried again every 5 s, six times, before giving up. */
+	private static final int RECOVER_TRIES = 6;
+
+	private void recoverLater(int attempt, String what, Throwable err) {
+		if (attempt + 1 >= RECOVER_TRIES) { interrupted(what + ": " + message(err)); return; }
+		java.util.concurrent.CompletableFuture.delayedExecutor(5, java.util.concurrent.TimeUnit.SECONDS).execute(() -> server.execute(() -> {
+			if (alive()) recoverByKey(attempt + 1);
+		}));
+	}
+
+	private void recoverByKey(int attempt) {
+		if (!keyed) {
+			interrupted(switch (state.phase()) {
+				case BIBLE_RUNNING -> "the style bible request (it may still be made and charged)";
+				case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> "the design group request";
+				default -> "the placement";
+			});
+			return;
+		}
+		var api = ArchitectApi.get();
+		String owner = settlement.owner();
+		switch (state.phase()) {
+			case BIBLE_RUNNING -> api.bibles().jobByKey(owner, opKey("bible")).whenComplete((job, err) -> {
+				if (!alive()) return;
+				if (err != null) { recoverLater(attempt, "the style bible request (it may still be made and charged)", err); return; }
+				if (job.isPresent()) {
+					say("Architect had the style bible request: picking it up.");
+					bibleJobId = job.get().id();
+					paidRequestAcked = true;
+					persist();
+					if (job.get().finished()) onBibleDone(job.get());
+				} else {
+					say("The style bible request never reached Architect: asking again.");
+					execute(Pipeline.bibleRequest(state));
+				}
+			});
+			case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> api.designs().groupByKey(owner, opKey("group")).whenComplete((g, err) -> {
+				if (!alive()) return;
+				if (err != null) { recoverLater(attempt, "the design group request", err); return; }
+				if (g.isPresent()) {
+					say("Architect had the design group request: picking it up.");
+					groupId = g.get().id();
+					paidRequestAcked = true;
+					persist();
+					onGroup(g.get());
+				} else {
+					say("The design group request never reached Architect: asking again.");
+					execute(Pipeline.groupRequest(state));
+				}
+			});
+			default -> {
+				var b = api.sites(server).batchByKey(owner, opKey("batch"));
+				if (b.isEmpty()) { interrupted("the placement"); return; }
+				say("Architect had the placement: picking it up.");
+				batchId = b.get().id();
+				siteGroupId = b.get().group();
+				persist();
+				if (b.get().running()) {
+					if (state.phase() == Pipeline.Phase.READY_TO_PLACE) feed(new Pipeline.BatchQueued(batchId));
+				} else onBatchDone(b.get());
+			}
+		}
 	}
 
 	private void interrupted(String what) {
@@ -767,6 +845,12 @@ public final class SettlementRunner {
 		while (!later.isEmpty() && alive()) feed(later.poll());
 	}
 
+	/** Architect failed a pending request because the world is closing (API 1.10): not an outcome of the request. */
+	static boolean worldStopped(@org.jspecify.annotations.Nullable Throwable err) {
+		Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
+		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.WORLD_STOPPED;
+	}
+
 	/** Architect's helper refused a cancel because the thing is unknown or already final (its words, 1.8). */
 	private static boolean refusedAsOver(Throwable err) {
 		String m = String.valueOf(message(err)).toLowerCase();
@@ -895,11 +979,14 @@ public final class SettlementRunner {
 		switch (c) {
 			case Pipeline.RequestBible b -> {
 				say("Designing the style bible...");
-				BibleRequest req = new BibleRequest(b.prompt(), b.name(), settlement.owner(), new JsonObject(), null, b.budgetUsd(), List.of(), null, null);
+				// keyed by the build: after a restart the request is found again (adopted), never sent twice
+				BibleRequest req = new BibleRequest(b.prompt(), b.name(), settlement.owner(), new JsonObject(), null, b.budgetUsd(), List.of(), null, null).withOpKey(opKey("bible"));
 				bibleInFlight = true;
 				paidRequestAcked = true;
 				api.bibles().request(req).whenComplete((job, err) -> {
 					bibleInFlight = false;
+					// the world closing is not the bible failing: the build stays saved, and the request is found by its key after the restart
+					if (worldStopped(err)) return;
 					if (err != null) { feed(new Pipeline.BibleDone(false, null, 0, 0, err.getMessage())); return; }
 					// cancelled while the request was on its way (or this runner belongs to a closed world): stop the job now
 					if (!alive() || state.phase().terminal()) { if (!job.finished()) api.bibles().cancel(job.id()); return; }
@@ -918,8 +1005,9 @@ public final class SettlementRunner {
 				say("Designing " + built.request().items().size() + " buildings (massings first)...");
 				groupInFlight = true;
 				paidRequestAcked = true;
-				api.designs().requestGroup(built.request()).whenComplete((id, err) -> {
+				api.designs().requestGroup(built.request().withOpKey(opKey("group"))).whenComplete((id, err) -> {
 					groupInFlight = false;
+					if (worldStopped(err)) return;
 					if (err != null) {
 						say("Group failed: " + err.getMessage());
 						// nothing reached Architect: the cancel finishes at once
@@ -1055,8 +1143,9 @@ public final class SettlementRunner {
 		if (!res.skippedLotIds().isEmpty()) say("Skipped lots (no design or no fit): " + res.skippedLotIds());
 		say("Placing " + res.batch().items().size() + " items...");
 		queueInFlight = true;
-		sites.queue(res.batch()).whenComplete((id, err) -> {
+		sites.queue(res.batch().withOpKey(opKey("batch"))).whenComplete((id, err) -> {
 			queueInFlight = false;
+			if (worldStopped(err)) return;
 			if (err != null) { say("Queue failed: " + err.getMessage()); feed(new Pipeline.Cancel()); return; }
 			if (!alive() || state.phase().terminal()) { sites.cancelBatch(id); return; }
 			batchId = id;

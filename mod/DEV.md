@@ -170,6 +170,7 @@ line (action, reason, write box).
 `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's helper in sim mode (v0.12.2: `ARCHITECT_SIDECAR_BACKEND=sim`, notional measured
 costs, never Claude). Job answers are scripted with `/steward dev sim_answer card|talk <json>` (`ext["architect:simAnswer"]`, checked against the job's schema).
 It covers:
+- (0.13.0) a bible request whose acknowledgement is dropped (`dev.api.dropAck`), the game restarted before its id is saved: found by its operation key and picked up;
 - describing through the card job (the stilt village fixture), whose card says "Not yet: Buildings over water…" before Start;
 - a 3-building build with a restart at the massings;
 - the bible kept;

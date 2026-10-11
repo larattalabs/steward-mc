@@ -74,6 +74,8 @@ class SaveCompatTest {
 		BuildStore b = BuildStore.fromJson(fixture("v1/steward-builds.json"));
 		assertEquals(1, b.all().size());
 		assertEquals(dev.larattalabs.steward.pipeline.Pipeline.Phase.AWAITING_MASSING_APPROVAL, b.all().get(0).state().phase());
+		// sent before operation keys: an interrupted request of it is never looked up (or sent again) by a key it never had
+		assertFalse(b.all().get(0).usesKeys());
 	}
 
 	@Test
