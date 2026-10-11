@@ -433,7 +433,9 @@ public final class Actions {
 	public static String startHint(String id, ConceptCard c) {
 		int n = Math.min(MAX_BUILDINGS, ProgramPlanner.total(c));
 		int flagged = c.hasProgram() ? (int) c.program().stream().filter(ConceptCard.Building::landmark).count() : 0;
-		var e = BudgetPolicy.estimate(n, BudgetPolicy.landmarksFor(c.site().size(), n, flagged));
+		int landmarks = BudgetPolicy.landmarksFor(c.site().size(), n, flagged);
+		// copies of a design are free: only the designs are estimated
+		var e = ProgramPlanner.estimate(c, n, landmarks);
 		int budget = (int) (Math.ceil(e.usdHigh() / 5.0) * 5);
 		return String.format("Saved. Start building: /steward start %s %d %d (%d buildings, about $%.0f-%.0f and %d-%d minutes)", id, n, budget, n, e.usdLow(), e.usdHigh(),
 			e.minutesLow(), e.minutesHigh());

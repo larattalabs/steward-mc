@@ -57,7 +57,8 @@ public final class CardScreen extends KitScreen {
 	}
 
 	private BudgetPolicy.Estimate estimate() {
-		return BudgetPolicy.estimate(buildings, BudgetPolicy.landmarksFor(size, buildings, flagged));
+		// copies of a design are free (Architect 0b): only the designs are estimated
+		return dev.larattalabs.steward.gateway.ProgramPlanner.estimate(card, buildings, BudgetPolicy.landmarksFor(size, buildings, flagged));
 	}
 
 	private int suggestedBudget() {
@@ -312,8 +313,9 @@ public final class CardScreen extends KitScreen {
 		var e = estimate();
 		int lm = BudgetPolicy.landmarksFor(size, buildings, flagged);
 		String range = String.format("About $%.0f–%.0f", e.usdLow(), e.usdHigh());
-		String rest = String.format(" · %d–%d min%s · asks again at %d%% of the budget", e.minutesLow(), e.minutesHigh(), lm > 0 ? " · " + lm + " landmark" + (lm > 1 ? "s" : "") : "",
-			(int) (BudgetPolicy.SOFT_FRACTION * 100));
+		int copies = dev.larattalabs.steward.gateway.ProgramPlanner.copies(card, buildings, lm);
+		String rest = String.format(" · %d–%d min%s%s · asks again at %d%% of the budget", e.minutesLow(), e.minutesHigh(), lm > 0 ? " · " + lm + " landmark" + (lm > 1 ? "s" : "") : "",
+			copies > 0 ? " · " + copies + (copies == 1 ? " copy" : " copies") + " free" : "", (int) (BudgetPolicy.SOFT_FRACTION * 100));
 		g.text(font, range, cx, cy, UiBits.ink(), false);
 		g.text(font, TextUtil.ellipsize(font, rest, inner - font.width(range)), cx + font.width(range), cy, UiBits.muted(), false);
 		cy += 14;

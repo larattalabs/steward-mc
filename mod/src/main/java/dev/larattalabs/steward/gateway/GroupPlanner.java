@@ -28,13 +28,23 @@ public final class GroupPlanner {
 	private GroupPlanner() {
 	}
 
-	public record Options(String bibleId, @Nullable Integer bibleVersion, double budgetUsd, int concurrency, int maxRedirects, int landmarks, boolean critiqueReport) {
+	/** {@code copies}: like lots copy one design ($0, {@link dev.larattalabs.steward.layout.CopyPlan}) and S lots run the SMALL pass (Architect 0b). */
+	public record Options(String bibleId, @Nullable Integer bibleVersion, double budgetUsd, int concurrency, int maxRedirects, int landmarks, boolean critiqueReport,
+		boolean copies) {
 		public Options(String bibleId, @Nullable Integer bibleVersion, double budgetUsd, int concurrency, int maxRedirects, int landmarks) {
-			this(bibleId, bibleVersion, budgetUsd, concurrency, maxRedirects, landmarks, true);
+			this(bibleId, bibleVersion, budgetUsd, concurrency, maxRedirects, landmarks, true, true);
+		}
+
+		public Options(String bibleId, @Nullable Integer bibleVersion, double budgetUsd, int concurrency, int maxRedirects, int landmarks, boolean critiqueReport) {
+			this(bibleId, bibleVersion, budgetUsd, concurrency, maxRedirects, landmarks, critiqueReport, true);
+		}
+
+		public Options withCopies(boolean on) {
+			return new Options(bibleId, bibleVersion, budgetUsd, concurrency, maxRedirects, landmarks, critiqueReport, on);
 		}
 
 		public Options withCritiqueReport(boolean on) {
-			return new Options(bibleId, bibleVersion, budgetUsd, concurrency, maxRedirects, landmarks, on);
+			return new Options(bibleId, bibleVersion, budgetUsd, concurrency, maxRedirects, landmarks, on, copies);
 		}
 
 		/** Defaults for a card: its budget if the player set one, else the size-scaled suggestion; landmarks per the typical count for the size. */
@@ -68,6 +78,9 @@ public final class GroupPlanner {
 		List<Lot> ordered = new ArrayList<>();
 		for (Lot l : lots) if (landmarkIds.contains(l.id())) ordered.add(l);
 		for (Lot l : lots) if (!landmarkIds.contains(l.id())) ordered.add(l);
+		// $0 copies (Architect 0b): of each run of like lots, every third designs and the others copy it; only lots that make it into the group
+		java.util.Map<String, String> copyOf = o.copies() ? dev.larattalabs.steward.layout.CopyPlan.copies(dev.larattalabs.steward.layout.CopyPlan.ofLots(
+			ordered.subList(0, Math.min(ordered.size(), GroupRequest.MAX_ITEMS)), landmarkIds)) : java.util.Map.of();
 		for (Lot l : ordered) {
 			if (items.size() >= GroupRequest.MAX_ITEMS) {
 				omitted.add(l.id());
@@ -77,14 +90,20 @@ public final class GroupPlanner {
 			DesignRequest r = LotBrief.build(s, l, landmark ? LANDMARK_HEIGHT : ORDINARY_HEIGHT, null, null);
 			boolean anchor = l.id().equals(anchorId);
 			GroupRequest.Item item = new GroupRequest.Item(l.id(), r, landmark ? GroupRequest.Role.LANDMARK : GroupRequest.Role.ORDINARY, landmark && !anchor ? 1 : 2, anchor);
-			items.add(o.critiqueReport() ? item.critique(reportSpec(s, l, neighbours(plan, l, 2))) : item);
+			String archetype = copyOf.get(l.id());
+			// a copy is not designed: no critique of its own; it follows its archetype's massing approval
+			if (archetype != null) items.add(item.copyOf(archetype).critique(dev.larattalabs.architect.api.CritiqueSpec.OFF));
+			else items.add(o.critiqueReport() ? item.critique(reportSpec(s, l, neighbours(plan, l, 2))) : item);
 		}
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
 		ext.addProperty("steward_mc:styleVersion", s.styleVersion());
 		GroupRequest req = new GroupRequest(LotBrief.clip(s.name(), LotBrief.MAX_GROUP_NAME), o.bibleId(), o.bibleVersion(), s.owner(), ext, o.concurrency(), o.budgetUsd(), items)
 			.withMassingFirst(GroupRequest.ApprovalUi.OWNER, o.maxRedirects())
-			.withContext(context(s, plan));
+			.withContext(context(s, plan))
+			// Noah's defaults with Architect 0b (2026-10-10): up to three placements per design, and S lots (11 x 9) on the bounded SMALL pass
+			.withCopyCap(dev.larattalabs.steward.layout.CopyPlan.CAP)
+			.withSmallBySize(o.copies());
 		return new Built(req, List.copyOf(omitted));
 	}
 

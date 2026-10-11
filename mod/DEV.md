@@ -172,11 +172,11 @@ costs, never Claude). Job answers are scripted with `/steward dev sim_answer car
 It covers:
 - (0.13.0) a bible request whose acknowledgement is dropped (`dev.api.dropAck`), the game restarted before its id is saved: found by its operation key and picked up;
 - describing through the card job (the stilt village fixture), whose card says "Not yet: Buildings over water…" before Start;
-- a 3-building build with a restart at the massings;
+- a 7-building build with a restart at the massings: two fisher's huts copy the first hut's design ($0, Architect 0b), and the S lots run the SMALL pass;
 - the bible kept;
 - seeds carried: the rules propose a farm, and the wording job (scripted) names it "A reed-thatched granary on stilts";
 - a talk job asking for a library, accepted and built in the reused bible;
-- with `ARCHITECT_JAR` (Architect's 0b RC): a change request asked in talk, accepted, designed by `versionOf` as the library's next version, updated to v2, reverted to v1;
+- a change request asked in talk, accepted, designed by `versionOf` as the library's next version, updated to v2, reverted to v1;
 - a district proposed in talk and founded;
 - a building in the district laying its street and the link road;
 - undo.

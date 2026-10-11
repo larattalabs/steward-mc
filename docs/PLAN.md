@@ -422,7 +422,11 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
      - save migrations across matched Steward and Architect releases.
 4. **Architect slices as they land:**
    - **0a** (v0.13.0, adopted 2026-10-10): **operation keys done.** Every bible, group and batch request carries one, and a request interrupted by a restart is found and adopted, or sent again under the same key; builds saved before keys are reported as before. The session now ends ahead of Architect's WORLD_STOPPED sweep, so a world closing never fails a build. Still to adopt: estimates by kind in the card screen, the massing ghosts via `fitMassingToLot` (up to 3 off), and pins for the versions the change log refers to.
-   - **0b:** copies with safeguards, small buildings with bounded effort, and the cost benchmark against the targets.
+   - **0b** (v0.14.0, adopted 2026-10-11): **copies and small buildings on, change requests on the release.**
+     - **Copies:** like lots (the same role, type and size) copy one design, up to three placements per design (`CopyPlan`). The card's estimate counts only the designs and says how many copies are free.
+     - **Small buildings:** S lots run Architect's bounded SMALL pass (`smallBySize`).
+     - **Change requests:** they run on the release, through versionOf.
+     - **Benchmark (Architect):** a 3-unique starter cost $9.14 and a copies-plus-smalls starter $8.28. Under $5 is not reached: detail design is about 80% of the cost.
    - **0c:** placement polish.
    - **V (flat village):** new settlements use Architect's lots, door paths, square and props. Existing ones keep `VillageLayout` until the joint 7a/6d gate (C12).
 5. **Phase 4:** Supplied on Architect's survival construction sites, then Hardcore and Economy. This needs streets in construction batches, which survival skips today.

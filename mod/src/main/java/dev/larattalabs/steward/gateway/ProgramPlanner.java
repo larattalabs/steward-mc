@@ -109,4 +109,18 @@ public final class ProgramPlanner {
 			return type + "_" + i;
 		}
 	}
+
+	/**
+	 * The estimate of building {@code buildings} of the card: only the designs are paid, so copies (like lots copying one design, {@link
+	 * dev.larattalabs.steward.layout.CopyPlan}) count for nothing.
+	 */
+	public static dev.larattalabs.steward.model.BudgetPolicy.Estimate estimate(ConceptCard c, int buildings, int landmarks) {
+		int copies = dev.larattalabs.steward.layout.CopyPlan.copies(dev.larattalabs.steward.layout.CopyPlan.ofSpecs(lots(c, buildings, landmarks).specs())).size();
+		return dev.larattalabs.steward.model.BudgetPolicy.estimate(Math.max(1, buildings - copies), landmarks);
+	}
+
+	/** How many of {@code buildings} are $0 copies. */
+	public static int copies(ConceptCard c, int buildings, int landmarks) {
+		return dev.larattalabs.steward.layout.CopyPlan.copies(dev.larattalabs.steward.layout.CopyPlan.ofSpecs(lots(c, buildings, landmarks).specs())).size();
+	}
 }

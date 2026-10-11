@@ -665,7 +665,8 @@ async function stubFlow(id) {
   // steward finds the request by its key and picks it up (never asks, or pays, twice)
   await dev.request('dev.api.dropAck', { msgType: 'bible.request' });
   from = logSize();
-  await cmd(`/steward start ${id} 3 20`);
+  // seven buildings: with Architect 0b's copies, two of the fisher's huts copy a hut design ($0)
+  await cmd(`/steward start ${id} 7 40`);
   if (await waitLog(from, /Designing the style bible/, 60_000)) {
     await sleep(3000);
     await quit();
@@ -679,6 +680,11 @@ async function stubFlow(id) {
   const first = await buildThrough(id, from, 'first build', true);
   if (!first) return;
   ok('first build', `${first.steps.join(' > ')} > ${first.placed} placed`);
+  // the copies (Architect 0b): the helper's log names them for this group
+  const helperLog = path.join(GAME, 'architect', 'sidecar-data', 'logs', 'sidecar.log');
+  const copyLines = fs.existsSync(helperLog) ? fs.readFileSync(helperLog, 'utf8').split('\n').filter((l) => / copies \S+ \(gen_/.test(l)).slice(-2) : [];
+  if (copyLines.length) ok('copies', copyLines.map((l) => l.replace(/^.*group \S+: /, '')).join('; ').slice(0, 160));
+  else fail('copies', 'no copy in the helper log');
   const spent = settlements().find((x) => x.id === id);
   if (spent?.bible?.id) ok('bible kept', `${spent.bible.id} v${spent.bible.version}`);
   else fail('bible kept', JSON.stringify(spent?.bible));
@@ -713,7 +719,7 @@ async function stubFlow(id) {
   if (addition && reused) ok('addition', `${addition.steps.join(' > ')} > ${addition.placed} placed, the bible reused`);
   else if (addition) fail('addition', 'built, but the bible was not reused');
   // a change request (3c, with Architect 0b's versionOf: the RC jar via ARCHITECT_JAR): asked in talk, accepted, designed as the next version, applied, reverted
-  if (process.env.ARCHITECT_JAR) {
+  {
     const libSite = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteIds?.[0];
     const change = { reply: 'A reading tower for the library: it is in the inbox.', intent: 'change', change: { target: "scholars' library", request: 'Add a slim reading tower on its east side, with tall windows.' } };
     await cmd(`/steward dev sim_answer talk ${JSON.stringify(change)}`);
