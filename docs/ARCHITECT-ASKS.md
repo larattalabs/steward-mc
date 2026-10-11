@@ -167,3 +167,8 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **How Steward calls it:** by reflection, so one Steward jar runs on 0.12.2 with change requests off, and on 0b.
 
 **v0.12.3 (2026-10-10):** the sim fits each request's maxSize, so S lots go through approval to done. The stub e2e uses S buildings again. Architect's note on C6 `fitMassingToLot`: a 180°-rotated detail may land up to 3 off, not 2, and the approach length and groundY are not checked. That is fine for approval ghosts; Steward does not rely on ±2 exactly.
+
+**Consumer check of the 0a RC (2026-10-10):**
+- **Jar:** `architect_mc-0.13.0.jar`, sha256 54b1b538…
+- **Result:** Steward builds against it and its unit tests pass. The stub e2e passes; the change request is noted in the history, since 0a has no versionOf. The free e2e passes 32 of 33; the miss is Steward's own intermittent board check.
+- **Told Architect:** pass, tag it.

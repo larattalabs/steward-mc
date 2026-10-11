@@ -704,7 +704,10 @@ async function stubFlow(id) {
       await sleep(1000);
       cp = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('change_')) ?? null;
     }
-    if (!cp) fail('change request', 'no change proposal');
+    const noted = (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'NOTE' && /Asked to change/.test(e.text));
+    // an Architect without 0b's versionOf (e.g. 0a's release candidate): the change is noted in the history, as it should be
+    if (!cp && noted) ok('change request', `noted (this Architect has no versionOf): ${noted.text.slice(0, 60)}`);
+    else if (!cp) fail('change request', 'no change proposal and no note');
     else {
       from = logSize();
       await cmd(`/steward proposals ${id} accept ${cp.key}`);

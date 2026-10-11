@@ -180,7 +180,7 @@ It covers:
 - a building in the district laying its street and the link road;
 - undo.
 
-First passed 2026-10-10: **PASS 20 checks**. Latest: PASS 22 on 0.12.3 (with the card's limits); PASS 22 on Architect's versionOf RC (`ARCHITECT_JAR=.../architect_mc-0.14.0-rc-versionOf-695299f.jar node tools/e2e.mjs stub`).
+First passed 2026-10-10: **PASS 20 checks**. Latest: PASS 22 on 0.12.3 (with the card's limits). On Architect's 0a RC (v0.13.0, 2026-10-10): stub 24 checks with the change request noted (0a has no versionOf), and free 32 of 33, the board check its only miss; PASS 22 on Architect's versionOf RC (`ARCHITECT_JAR=.../architect_mc-0.14.0-rc-versionOf-695299f.jar node tools/e2e.mjs stub`).
 
 `ARCHITECT_JAR` (or `-Parchitect.jar`) builds and runs Steward against a local Architect jar, for the release candidates Architect asks Steward to check. Dev and e2e only; the build warns UNRELEASED. The run found two bugs, both fixed:
 - **The survey limit:** a radius-128 claim was surveyed as 257 x 257, past Architect's 256 x 256 full-resolution limit, so the survey came back at one column in four and the layout refused it. Builds now survey 255 x 255 at most (`ClaimRules.SURVEY_RADIUS`).
@@ -197,7 +197,7 @@ Then:
 - districts (3f): a protected area across the west road's way refuses that district by name; the east district is founded with its road ($0), seen in survey mode, and undone (the road, then the district); a district proposal accepted founds one;
 - talking (3b): "what are you doing?" answered for $0; made-up talk answers (`/steward dev talk_answer`, the `fixtures/talk` answers) put a library and a harbour district in the inbox and note a change to the tavern; the talk box with "hello" typed into it and answered.
 
-Last run: 2026-10-10: **PASS 33 checks**, twice in a row: the Founding Stone's recipe added, and the board check fixed. The board stood at the edge of reach, about 4.4 blocks away, so its right-click missed about half the time; it is a block closer now.
+Last run: 2026-10-10: **PASS 33 checks**, twice in a row: the Founding Stone's recipe added, and the board check fixed. The board stood at the edge of reach, about 4.4 blocks away, so its right-click missed about half the time; it is a block closer now. That was not the whole cause: it missed once more from 3.4 blocks, with the steward behind the player. It is still intermittent and under watch. The board itself works by hand and in most runs.
 
 ## lab-ui
 
