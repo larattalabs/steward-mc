@@ -139,3 +139,16 @@ The review of commit dbc2b1a found eight problems. Two fix rounds were verified,
 The third fix closes what the second verification left: the third lost answer in a build ended it while Architect might still be charging. It was checked by the e2e only (free 33, stub 24).
 
 Not changed: the dev-only `/steward resume` path, which players never use.
+
+## V adoption (2026-10-11): three rounds, held for slice X
+
+The first review found ten problems, nine of them real (cancel, restart, undo, history, north-south, metadata). They were fixed in 1592600 and f167d16. The second and last check still found these open; Noah held the V path until X ships:
+- **P1:** an Architect retry of a failed removal is trusted (`Undo` region branch). Resolved by C22(a).
+- **P1:** a cancel reads the village's sites before its removal but doesn't save them; a restart mid-removal loses them (`cancelVillage`). With C22, a retried removal finishes the restoration, so Steward's record matters less.
+- **P1:** a refused orphan's history entry ignores a failed save (`takeUpOrphan`).
+- **P2:** the guard against realising twice misses a finished batch and ground-only tiles. Use every batch of the build and `list(owner, true)`, or C20's `realiseByKey`.
+- **P2:** completion ignores a region's non-building failures. A PARTIAL region whose buildings all stood still says "is built", and "Nothing was placed" ignores ground and roads left behind.
+- **P2, both checks:** a removal that finished without Steward seeing it keeps a stale entry (C22(b) tombstone).
+- **The tests would still miss:** V restarts during cancel or approved placement, blocked removals, late realise answers, and partial regions.
+
+When X ships: tag lots in the plan (C19), key plan and realise (C20), read the tombstones (C22), fix the rest, then one more review.
