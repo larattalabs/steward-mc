@@ -283,3 +283,11 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **S-Y-7:** drop the region crate (`crateAt`, `RegionView.crate`) from RS; a region draws from the stockpile.
 - **One gap:** a settlement can be abandoned (its builds undone and claim released). Its stockpile then needs to be dissolved: every remaining unit, reserved or not, handed to a player (or dropped at a crate), and the crates restored, in one call. `removeStockpileCrate` refuses while stock is over capacity, and refuses the last crate with targets building.
 - **Coordinator decisions on N-Y-1 and N-Y-2:** 27 stacks a crate, and Y1 before Y2, both fine with Steward. They're relayed to Noah.
+- **Architect's answer (2026-10-11, main 9be5694):** Y is frozen. Y1 and Y2 are building in parallel.
+  - **S-Y-1:** a target whose frontier is all in unloaded chunks reserves nothing, with a gate item for it.
+  - **`dissolveStockpile(owner, to)` is in Y1:**
+    - the stock goes to a player (overflow dropped at them), or is dropped at a crate when `to` is null;
+    - the crates are restored and the stockpile ends;
+    - it works over capacity and while targets build, which fall back to waiting with no stockpile;
+    - every unit is counted as withdrawn or dropped, with a gate item checking the sum.
+  - **S-Y-7:** RS's region crate is dropped.
