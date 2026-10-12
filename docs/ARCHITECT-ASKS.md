@@ -299,3 +299,13 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **For Steward:** when a version is published, run the free and stub e2e on it, and send what fails as a patch ask.
 
 **C23 RC (v0.17.1, API 1.14.0; fix/c23-resumed-removal 1783125; sha256 add4b3d9…), consumer check 2026-10-11: pass.** Steward builds against it unchanged. The stub e2e on 8590/8591 with the RC in the client passed 31 checks, including the village placed and undone whole.
+
+**Zones and the long-term direction (heads-up sent 2026-10-11; Architect's audit at main 4c95f6a, PLAN "Keep open: zones and the long-term direction"):** nothing Architect is freezing closes these off.
+- **Owners:** a free string on records, never part of an id, so a later `transferOwner` is additive. It would move opKeys, tombstones, C17 areas and Y1's stockpile and ledger. Y1's stockpile is keyed by its own id, with the owner as an attribute.
+- **A rule for every slice from now on:** no id derived from an owner string, and no "owner never changes" assumption in a persisted format.
+- **Candidate asks, for when Zones is designed:**
+  - `Survey.biome` per column (T1's fields could carry it);
+  - districts that follow a boundary (a biome edge, a river, a ridge; Architect's D);
+  - zone walls with gates (7a);
+  - several related bibles in one settlement;
+  - damage and repair as journal-backed operations.
