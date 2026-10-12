@@ -798,6 +798,11 @@ async function survivalFlow() {
     let sp = await ledger();
     if (!sp || sp.crates < 1) return fail('stockpile', 'no stockpile after the build was placed');
     ok('stockpile', `${sp.crates} crate; the build needs ${units(sp.need)} units of ${Object.keys(sp.need).length} kinds`);
+    // the bill said before placing (Architect's full bill per lot, and the street's) matches what the stockpile then owes
+    const bill = logSince(from).match(/From materials it needs (about )?(\d+) items[^\n]*/);
+    const owed = units(sp.outstanding);
+    if (bill && Math.abs(Number(bill[2]) - owed) <= Math.max(5, owed * 0.05)) ok('bill', `${bill[0].slice(0, 160)} (owed ${owed})`);
+    else fail('bill', bill ? `said ${bill[2]}, owed ${owed}` : 'no bill said before placing');
     // the steward names what a waiting build needs (Architect's waiting status, after 100 starved ticks)
     const asked = await waitLog(from, /waits for materials: [^\n]*/, 90_000);
     if (asked) ok('material request', asked[0]);

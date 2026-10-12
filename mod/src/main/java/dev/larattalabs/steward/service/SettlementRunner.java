@@ -1439,6 +1439,9 @@ public final class SettlementRunner {
 		// from materials (phase 4): the settlement's stockpile feeds the build, made first when there is none (else the build keeps its own crate)
 		if (res.batch().sharedCrate() && Stockpiles.ensure(server, now, this::say, clearOf(plan, sites.list(now.owner()), now)) != null) {
 			say("The stockpile feeds this build: the street first, then the landmarks, then the rest.");
+			// the whole bill before anything is placed (Architect C26: each lot's template, foundation and approach; the street's road)
+			String bill = billOf(res.batch(), fits, sites);
+			if (bill != null) say(bill);
 		}
 		else if (res.note() != null) say(res.note());
 		if (!res.skippedLotIds().isEmpty()) say("Skipped lots (no design or no fit): " + res.skippedLotIds());
@@ -1728,6 +1731,36 @@ public final class SettlementRunner {
 				} else say(nothingToCancel(server, saved));
 			});
 		}
+	}
+
+	/**
+	 * What a build from materials needs in all, in words: each placed lot's full bill (its template, foundation and approach; the template's when Architect
+	 * could not plan the rest) and each road's. Null when nothing is known.
+	 */
+	static @org.jspecify.annotations.Nullable String billOf(dev.larattalabs.architect.api.Batch batch, Map<String, LotFit> fits, dev.larattalabs.architect.api.Sites sites) {
+		Map<net.minecraft.world.item.Item, Integer> total = new HashMap<>();
+		boolean exact = true;
+		for (var item : batch.items()) {
+			if (item.road() != null) {
+				try {
+					sites.checkRoad(item.road()).bom().forEach((k, v) -> total.merge(k, v, Integer::sum));
+				} catch (RuntimeException e) {
+					exact = false;
+				}
+				continue;
+			}
+			LotFit f = fits.get(item.itemKey());
+			if (f == null) continue;
+			var v = f.verdict();
+			var bom = v.bomFull() != null && !v.bomFull().isEmpty() ? v.bomFull() : v.bom();
+			if (!v.bomExact()) exact = false;
+			bom.forEach((k, n) -> total.merge(k, n, Integer::sum));
+		}
+		if (total.isEmpty()) return null;
+		int units = total.values().stream().mapToInt(Integer::intValue).sum();
+		List<Map.Entry<net.minecraft.world.item.Item, Integer>> list = new java.util.ArrayList<>(total.entrySet());
+		list.sort((a, b) -> b.getValue() - a.getValue());
+		return "From materials it needs " + (exact ? "" : "about ") + units + " items of " + total.size() + " kinds: " + Stockpiles.items(list, 6) + ".";
 	}
 
 	/**
