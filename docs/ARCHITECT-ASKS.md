@@ -340,3 +340,5 @@ Held until zones is designed: zone walls with gates (7a), several related bibles
     - a shore district, a ridge district and an outpost;
     - reloads identical, named refusals, an exact undo for each.
   - **Order:** D may split into D1 (survey-candidate districts, `beside`) and D2 (C27, outposts, C28; D2 needs T2's routing). D starts after T2, which follows T1.
+
+**v0.19.0 (F1 + MP, API 1.16.0; published 2026-10-12, checked after release): pass.** Steward builds against it unchanged: stub e2e 31, free e2e 37. The free run's one failure was the test world (a cow in the proposal check's test placement); that check now clears farm animals first. Nothing to patch.

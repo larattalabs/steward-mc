@@ -428,7 +428,8 @@ async function stewardLife(id) {
 /** Proposals (3e): a described settlement and a player carrying seeds: within a minute the steward proposes a farm; declined, it is remembered. */
 async function proposals(id) {
   await cmd(`/steward dev describe ${id}`);
-  // proposals are additions to a settlement that has something standing
+  // proposals are additions to a settlement that has something standing (a farm animal in the box refuses the placement: cleared first)
+  await clearAnimals();
   await cmd(`/steward dev place ${id} ${STUB}`);
   await cmd('/give @p minecraft:wheat_seeds 16');
   let open = null;
