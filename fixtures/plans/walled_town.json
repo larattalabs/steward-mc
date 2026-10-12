@@ -1,0 +1,37 @@
+{
+  "prompt": "A walled market town with a gatehouse on each road.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "marketwall",
+      "style": { "pending": "marketwall" },
+      "zones": [
+        {
+          "id": "town",
+          "kind": "standard",
+          "required": true,
+          "label": "Marketwall",
+          "purpose": "market",
+          "program": {
+            "template": "flat_village",
+            "params": {
+              "lots": [
+                { "id": "market_hall_1", "type": "market_hall", "role": "market_hall", "label": "market hall", "size": [17, 15], "landmark": true, "placement": "central" },
+                { "id": "cottage_1", "type": "cottage", "role": "merchant_house", "label": "merchant's house", "size": [9, 9] },
+                { "id": "cottage_2", "type": "cottage", "role": "merchant_house", "label": "merchant's house", "size": [9, 9] }
+              ]
+            }
+          },
+          "where": { "near": { "anchor": "stone" } }
+        }
+      ],
+      "connectors": [
+        { "id": "town_wall", "kind": "wall", "required": true, "label": "the town wall", "notes": "A stone wall round the town, with a gatehouse where each road leaves it." }
+      ]
+    },
+    "waits": [
+      { "part": "town_wall", "words": "The town wall and its gatehouses: walls come with a later Architect release; the town is built first and the wall is offered when it can be." }
+    ],
+    "summary": "A small market town round a central market hall, with merchants' houses on its street. The wall and its gatehouses wait for Architect's walls."
+  }
+}

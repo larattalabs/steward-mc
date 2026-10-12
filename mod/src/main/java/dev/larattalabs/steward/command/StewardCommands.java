@@ -167,6 +167,33 @@ public final class StewardCommands {
 					dev.larattalabs.steward.gateway.VPlan.legacy(id, legacy);
 					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "Architect's flat village when it applies")), false);
 					return 1;
+				})))).then(Commands.literal("record_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.greedyString())
+				.executes(ctx -> {
+					// dev (tools/record-plans.mjs, a paid run Noah approved): the plan writer on a recorded card (JSON); its answer written to
+					// <gameDir>/steward-cards/<label>.plan.json. No land (the cards were recorded without one); the anchors a town has before its street
+					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
+					String label = StringArgumentType.getString(ctx, "label"), card = StringArgumentType.getString(ctx, "card");
+					if (!label.matches("[a-z0-9_]{1,64}")) { src.sendFailure(Component.literal("a label is a-z, 0-9 and _")); return 0; }
+					var out = src.getServer().getServerDirectory().resolve("steward-cards").resolve(label + ".plan.json");
+					dev.larattalabs.steward.service.PlanWriter.write(card, null, java.util.List.of("stone", "player"), null).whenComplete((r, err) -> {
+						var o = new com.google.gson.JsonObject();
+						if (err != null) o.addProperty("error", String.valueOf(err.getMessage()));
+						else {
+							if (r.error() != null) o.addProperty("error", r.error());
+							if (r.answer() != null) o.add("answer", r.answer());
+							o.addProperty("usd", r.usd());
+						}
+						try {
+							java.nio.file.Files.createDirectories(out.getParent());
+							java.nio.file.Files.writeString(out, new com.google.gson.GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(o));
+						} catch (java.io.IOException e) {
+							Steward.LOGGER.warn("record_plan {}: {}", label, e.toString());
+						}
+						Steward.LOGGER.info("record_plan {}: {}", label, o.has("error") ? o.get("error").getAsString() : String.format("$%.4f", o.get("usd").getAsDouble()));
+					});
+					src.sendSuccess(() -> Component.literal("composing " + label), false);
+					return 1;
 				})))).then(Commands.literal("record_card").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString())
 				.executes(ctx -> {
 					// dev (tools/record-cards.mjs, a paid run Noah approved): the card job on these words, its card written to <gameDir>/steward-cards/<label>.json

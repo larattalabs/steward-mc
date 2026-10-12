@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "steward/plan-writer",
+  "title": "The plan writer's answer: a plan/0 composition, and what waits in plain words",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["plan", "waits", "summary"],
+  "properties": {
+    "plan": {
+      "type": "object",
+      "description": "The composition, in Architect's plan/0 schema (given in the system prompt). Checked against it after the answer."
+    },
+    "waits": {
+      "type": "array",
+      "maxItems": 16,
+      "description": "What the player asked for that the plan can't build yet (a part of a reserved or unknown kind), one line each in plain words for the card, with the part's id.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["part", "words"],
+        "properties": {
+          "part": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,47}$" },
+          "words": { "type": "string", "minLength": 1, "maxLength": 240 }
+        }
+      }
+    },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 600, "description": "The plan in a few plain sentences, addressed to the player." }
+  }
+}
