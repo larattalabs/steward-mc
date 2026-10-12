@@ -389,3 +389,12 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
 - **Two gaps in plan/0:**
   - **(a) A lot's free-text label.** A lot's `role` is a slug, but the card's roles are free text ("fisher's hut"), so a lot needs `label` (text80), as zones and connectors have.
   - **(b) A style not made yet.** `bibleRef` needs an existing bible, but a plan is composed before its bible is made. Please allow a pending form, `{pending: "<tag>"}`, checked as provisional, like an undesigned building.
+- **Architect's answer (2026-10-12, main d776b6c, CONTRACT "Changes from Steward's review of P0"):** all of it is taken.
+  - **Lots:** `label` (text80).
+  - **Styles:** `style` takes `{pending: "<slug>"}`, provisional with cost and palette ranges; the approval rebinds when the bible exists.
+  - **Width:** `width` 1-5 on street, road and path (defaults 3, 3, 1).
+  - **Answers:** each echoes its part's `ext`.
+  - **Artifact:** it records each provisional part's cost range and fit box; above the range, `realiseApproved` refuses `ARTIFACT_STALE`.
+  - **Retention:** artifacts are kept while pinned (`pinArtifact` / `unpinArtifact`) or referenced, with tombstones (`ARTIFACT_UNAPPROVED`).
+  - **Anchors:** Steward's are documented; an unsupplied anchor is `malformed (UNKNOWN_REF)`.
+  - **Freeze:** after Steward's one fixtures round. Additive optional members are allowed until then.
