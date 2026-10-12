@@ -27,7 +27,12 @@ public final class ConceptCardJob {
 	}
 
 	/** What the parser is told about the world besides the player's words. */
-	public record Settings(boolean worldSurvival, String defaultDifficulty, int claimRadius) {}
+	/** {@code land}: what the land round the stone is like (biomes by side, water, slope; {@code Land}), or null when it was not read. */
+	public record Settings(boolean worldSurvival, String defaultDifficulty, int claimRadius, @org.jspecify.annotations.Nullable String land) {
+		public Settings(boolean worldSurvival, String defaultDifficulty, int claimRadius) {
+			this(worldSurvival, defaultDifficulty, claimRadius, null);
+		}
+	}
 
 	/**
 	 * @param prompt the player's free text
@@ -58,6 +63,7 @@ public final class ConceptCardJob {
 		b.append("\nSettings: world is ").append(s.worldSurvival() ? "survival" : "creative")
 			.append("; default difficulty ").append(s.defaultDifficulty())
 			.append("; claim radius ").append(s.claimRadius()).append(" blocks.\n");
+		if (s.land() != null && !s.land().isBlank()) b.append("\nThe land round the founding stone (a survey, not the player's words): ").append(s.land()).append("\n");
 		return b.toString();
 	}
 

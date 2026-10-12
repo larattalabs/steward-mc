@@ -2,7 +2,8 @@
 
 Used as the `system` text of a `structured` job (`job.run`, schema = `schema/concept-card.schema.json`, model Sonnet, low effort, a
 budget of a few cents). The user prompt is the player's text, plus any chip values they already filled, plus a short settings block
-(difficulty setting, whether the world is survival, the claim radius). No tools, no world data: this call only interprets words.
+(difficulty setting, whether the world is survival, the claim radius), and, when the land round the stone was surveyed, a line saying what is there
+(each side's biomes, where the water is, which way the ground rises). No tools: this call interprets words, with that line as its only world data.
 
 ## System prompt
 
@@ -41,4 +42,9 @@ use `find` when existing land could work; `flat` for ordinary settlements. Size:
 `interpretation` is one short paragraph in plain words addressed to the player, saying what you took each field to mean. List any
 **contradictions** (for example a friendly farm town in a hellish style) with how you resolved them: usually by keeping both and
 saying how. List **assumptions** for anything you filled in because the prompt was silent. If chip values are provided they win over
-your reading of the free text. Never refuse a style or theme; interpret it with vanilla Minecraft in mind. Output only the card.
+your reading of the free text. Never refuse a style or theme; interpret it with vanilla Minecraft in mind.
+
+When a line about the land round the founding stone is given, use it where the player refers to the land ("the jungle side", "by the lake",
+"up the hill"): say in the site `text` what lies where, and in a building's `notes` which side it belongs on ("on the jungle side, east").
+Never claim land the line does not show; if the player asks for something the land lacks (a harbour with no water near), list it under
+contradictions and say how you resolved it. Without that line, take the player's words as they are. Output only the card.

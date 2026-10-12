@@ -116,7 +116,9 @@ public final class Actions {
 		long token = ++nextToken;
 		int session = Session.current();
 		describing.put(id, new Reading(token, System.currentTimeMillis()));
-		cards().submit(words, Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", Settlements.DEFAULT_RADIUS), s.get().owner())
+		// what the land round the stone is like goes with the words (the jungle side, by the lake), read first; the card job starts when it is
+		Land.around(server, s.get(), land -> cards().submit(words, Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", Settlements.DEFAULT_RADIUS,
+			land), s.get().owner())
 			.whenComplete((r, err) -> {
 				// a world closed since (its settlement ids repeat in the next world), or a newer request: this result is not stored
 				if (!Session.is(session) || (describing.get(id) == null || describing.get(id).token() != token)) return;
@@ -146,7 +148,7 @@ public final class Actions {
 				p.sendSystemMessage(Component.literal(res.note()));
 				p.sendSystemMessage(Component.literal(startHint(id, r.card())));
 				sendCard(p, res.settlement());
-			});
+			}));
 		return Result.ok("Interpreting your description...");
 	}
 

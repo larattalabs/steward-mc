@@ -16,6 +16,8 @@ const OPT_IN = path.join(GAME, 'architect', 'sidecar-data', 'secrets.json');
 const OUT_DIR = path.join(GAME, 'steward-cards');
 const CARDS = path.join(ROOT, 'fixtures', 'strange-asks', 'cards');
 const PORT = 8491;
+// the DevBridge token is in this game dir (Architect's client library looks in its own repo's run dir otherwise)
+process.env.ARCHITECT_GAME_DIR = GAME;
 const cap = Number(process.argv[2]);
 if (!(cap > 0 && cap <= 100)) {
   console.error('usage: node tools/record-cards.mjs <capUsd> (the spend cap Noah approved)');
