@@ -89,6 +89,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-10-11 | **Phase 4's shape** (Noah): Supplied settlements draw from a settlement stockpile, one store for every build, update, road and refund (Architect ask C24), not a crate per build. In a survival-toggle world only Supplied and Hardcore exist; Patron is where the toggle is off. The steward asks for materials all three ways: its bubble names what's next, the inbox shows the bill, and it comes to find you after a long wait. Hardcore's difference is decided later. |
 | 2026-10-11 | **Zones next after phase 4; a living world in view** (Noah): a settlement in parts (zones with their own purpose, style and program, placed by biome, divided by walls with gates) is the step after phase 4, with Noah's desert/jungle settlement as its acceptance test. Conflict, war and conquest, agent-driven settlements, multiplayer and an evolving world are long-term ideas, not planned. Designs keep them open: faction ownership, territory that moves, a settlement's mind in its saved state, damage as an operation ("Long-term direction"). |
 | 2026-10-11 | **Where a district goes** (Noah): the player's pointing first, then where the prompt says, then where the district's purpose belongs on the land, then today's squares as the fallback. Districts take the shape of their land once Architect can, and survey mode previews a district with its reason before it is founded. The Steward-only part (pointing, prompt and purpose placement on height, water and trees, the preview) is the first step of zones. |
+| 2026-10-12 | **Ship phase 4 before Architect's C29** (Noah): the last review held phase 4 on Architect's removal accounting (a target being removed still draws from the stockpile, refund tallied early; fixed in C29, after 0.21.0). Steward fixed its own findings (a second cancel waits for the rollback, crates clear a change's real footprint, a stopped undo reports overflow) and ships; it adopts C29 when it comes. The window is a player standing in a cancelled build while it is taken up, and the per-build crates already on main have the same gap. |
 
 ## Concept card
 
@@ -552,7 +553,19 @@ the board and the ledger; see "Interface"), the steward walking and talking, dis
 Supplied and Hardcore on Architect survival sites, stockpile and requests, Economy unlocks.
 - **Gate:** a survival dev world where a site is fed from the stockpile and the refund matches.
 
-**Design (2026-10-11, Noah's choices; not built).** What Architect 0.17 has: construction sites fed from a crate (hoppers or "insert from inventory"), a crate shared by one batch's group, roads in such a batch (C16: dirt paths on grass free; fill, gravel, lamps paid), deconstruct with refunds, `Sites.stock(group)` and `SITE_PROGRESS`/`SITE_BUILT`.
+**Built (2026-10-12, on Architect 0.20.0):**
+- the stockpile is made before a build from materials: two crates by the stone, clear of lots, streets and protected ground, with older crates adopted;
+- `/steward stockpile <id> [add]`;
+- district roads, updates and reverts draw from it;
+- the steward asks for materials (its bubble and chat, once a minute at most), the bill shows on the Claim tab, and it comes to find you after 10 minutes;
+- feed order: street, then landmarks, then the rest;
+- a cancelled build takes up its own construction sites;
+- refund and adoption overflow are said;
+- `Difficulty.effective`.
+
+Survival e2e: 629 units delivered, consumed and refunded on undo. Three GPT review rounds. Waits on Architect C29 (pause by API; a removed target leaves the feed). Still to do: the full bill on the card before approval (C26 `bomFull`), the bill as an inbox entry, and Hardcore's difference.
+
+**Design (2026-10-11, Noah's choices).** What Architect 0.17 has: construction sites fed from a crate (hoppers or "insert from inventory"), a crate shared by one batch's group, roads in such a batch (C16: dirt paths on grass free; fill, gravel, lamps paid), deconstruct with refunds, `Sites.stock(group)` and `SITE_PROGRESS`/`SITE_BUILT`.
 - **Difficulty:** the card's difficulty is the settlement's (today every settlement is Patron: `ConceptCard.difficultyOr` is never called). In a world where Architect's survival toggle is on, only Supplied and Hardcore: nothing is built free. Patron stays where the toggle is off (creative, or turned off by an op). Hardcore is built as Supplied until its difference is decided (Noah: later).
 - **The stockpile (Noah):** one store per settlement that every build, street, district road, update, revert and refund draws from or returns to: a storehouse, as a colony sim has, not a crate per build. It needs Architect ask C24; phase 4 waits for it.
 - **Requests (Noah: all three):**

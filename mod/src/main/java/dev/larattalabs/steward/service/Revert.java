@@ -44,7 +44,7 @@ public final class Revert {
 		int session = Session.current();
 		StewardMotion.clear(server, s, site.get().box());
 		// in a survival world a revert is a forward change built from materials: from the settlement's stockpile, not a crate of its own
-		if (!Stockpiles.forConstruction(server, s, m -> StewardVoice.say(server, s.id(), m), site.get().box())) {
+		if (!Stockpiles.forConstruction(server, s, m -> StewardVoice.say(server, s.id(), m), Stockpiles.changing(server, s, siteId, toVersion))) {
 			return Actions.Result.fail("In a survival world a revert is built from materials, and " + s.name() + " has no stockpile: add a crate with /steward stockpile " + s.id()
 				+ " add, then revert again.");
 		}

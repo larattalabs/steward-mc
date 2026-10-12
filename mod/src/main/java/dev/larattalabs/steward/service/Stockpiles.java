@@ -136,6 +136,22 @@ public final class Stockpiles {
 				|| z > changing.maxZ() + CHANGE_MARGIN)) != null;
 	}
 
+	/**
+	 * The ground a change of {@code siteId} to {@code version} covers: the building as it stands and the box Architect's check says the change writes
+	 * ({@code DeltaVerdict.box}), together; the standing box alone when the check cannot say.
+	 */
+	public static net.minecraft.world.level.levelgen.structure.@Nullable BoundingBox changing(MinecraftServer server, Settlement s, String siteId, int version) {
+		var sites = ArchitectApi.get().sites(server);
+		var standing = sites.get(siteId).map(dev.larattalabs.architect.api.SiteView::box).orElse(null);
+		try {
+			var writes = sites.checkDelta(dev.larattalabs.steward.gateway.UpdatePlanner.request(siteId, version, dev.larattalabs.steward.gateway.UpdatePlanner.editsFor(s.permission()), s.owner())).box();
+			if (writes == null) return standing;
+			return standing == null ? writes : net.minecraft.world.level.levelgen.structure.BoundingBox.encapsulatingBoxes(List.of(standing, writes)).orElse(standing);
+		} catch (RuntimeException e) {
+			return standing;
+		}
+	}
+
 	/** How far round a changing building a crate keeps (a change may add a wing or a storey: Steward's change requests allow 4 more each way). */
 	static final int CHANGE_MARGIN = 6;
 

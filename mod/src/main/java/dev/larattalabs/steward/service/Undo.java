@@ -53,7 +53,8 @@ public final class Undo {
 		int overflowBefore = overflow(server, s);
 		Consumer<String> say = line -> {
 			sayTo.accept(line);
-			if (!line.startsWith("Undone")) return;
+			// any end of the undo: done, or stopped part way (what it took up before it stopped refunded too)
+			if (!line.startsWith("Undone") && !line.startsWith("Undo stopped")) return;
 			int more = overflow(server, s) - overflowBefore;
 			var sp = Stockpiles.of(server, s);
 			if (more > 0 && sp.isPresent() && !sp.get().crates().isEmpty()) {

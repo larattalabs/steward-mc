@@ -244,6 +244,9 @@ public final class SettlementRunner {
 	public String cancel() {
 		if (state == null || state.phase().terminal()) return nothingToCancel(server, settlement);
 		boolean second = state.phase() == Pipeline.Phase.CANCELLING;
+		// a placement still rolling back: a second cancel would end the build before what it placed is recorded (no undo could reach it, and from
+		// materials it would go on using the stockpile), so it waits for the rollback
+		if (second && batchId != null) return "Still stopping: what the build placed is being recorded first, so it can be undone. It ends on its own.";
 		feed(new Pipeline.Cancel());
 		if (second) return "Stopped waiting for Architect.";
 		return state.phase() == Pipeline.Phase.CANCELLING ? "Cancelling: stopping what runs first. What is already placed stays (remove it with /steward undo " + settlement.id() + ")."
