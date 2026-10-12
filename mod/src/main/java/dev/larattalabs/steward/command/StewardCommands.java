@@ -167,6 +167,35 @@ public final class StewardCommands {
 					dev.larattalabs.steward.gateway.VPlan.legacy(id, legacy);
 					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "Architect's flat village when it applies")), false);
 					return 1;
+				})))).then(Commands.literal("record_card").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString())
+				.executes(ctx -> {
+					// dev (tools/record-cards.mjs, a paid run Noah approved): the card job on these words, its card written to <gameDir>/steward-cards/<label>.json
+					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
+					String label = StringArgumentType.getString(ctx, "label"), text = StringArgumentType.getString(ctx, "text");
+					if (!label.matches("[a-z0-9_]{1,64}")) { src.sendFailure(Component.literal("a label is a-z, 0-9 and _")); return 0; }
+					boolean survival = WorldMode.survival(src.getServer()).orElse(false);
+					var out = src.getServer().getServerDirectory().resolve("steward-cards").resolve(label + ".json");
+					service().submit(text, Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", dev.larattalabs.steward.service.Settlements.DEFAULT_RADIUS), null)
+						.whenComplete((r, err) -> {
+							var o = new com.google.gson.JsonObject();
+							o.addProperty("prompt", text);
+							if (err != null) o.addProperty("error", String.valueOf(err.getMessage()));
+							else if (!r.ok()) o.addProperty("error", r.error());
+							else {
+								o.add("card", com.google.gson.JsonParser.parseString(dev.larattalabs.steward.service.Actions.cardJson(r.card())));
+								o.addProperty("usd", r.cost().usd());
+							}
+							try {
+								java.nio.file.Files.createDirectories(out.getParent());
+								java.nio.file.Files.writeString(out, new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(o));
+							} catch (java.io.IOException e) {
+								Steward.LOGGER.warn("record_card {}: {}", label, e.toString());
+							}
+							Steward.LOGGER.info("record_card {}: {}", label, o.has("error") ? o.get("error").getAsString() : String.format("$%.4f", r.cost().usd()));
+						});
+					src.sendSuccess(() -> Component.literal("recording " + label), false);
+					return 1;
 				})))).then(Commands.literal("stockpile").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
 					// dev (the e2e check): the settlement's stockpile ledger as JSON, one line: "stockpile <id> {...}" or "stockpile <id> none"
 					if (!host(ctx.getSource())) return 0;

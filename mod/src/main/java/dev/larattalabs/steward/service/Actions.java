@@ -477,6 +477,11 @@ public final class Actions {
 			b.minY(), b.maxY());
 	}
 
+	/** A card as the JSON the screens and the fixtures use. */
+	public static String cardJson(dev.larattalabs.steward.model.ConceptCard c) {
+		return CARD_GSON.toJson(c);
+	}
+
 	public static void sendCard(ServerPlayer p, Settlement s) {
 		// the whole card as JSON: the screen lays it out in sections (it is common code, the client parses it with ConceptCard.parse)
 		ServerPlayNetworking.send(p, new StewardNet.Card(s.id(), s.name(), CARD_GSON.toJson(s.card()), SettlementRunner.busy(s.id()), s.claim().radius()));
