@@ -297,3 +297,5 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 - **RC checks remain** for slices that change behaviour Steward relies on (removal, world stop, item accounting): C23 (v0.17.1), Y1 and Y2. W, F1, MP and the terrain slices don't get one.
 - **Batched tags:** 2-3 slices per tag, so Steward adopts fewer, larger version jumps.
 - **For Steward:** when a version is published, run the free and stub e2e on it, and send what fails as a patch ask.
+
+**C23 RC (v0.17.1, API 1.14.0; fix/c23-resumed-removal 1783125; sha256 add4b3d9…), consumer check 2026-10-11: pass.** Steward builds against it unchanged. The stub e2e on 8590/8591 with the RC in the client passed 31 checks, including the village placed and undone whole.
