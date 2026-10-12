@@ -815,7 +815,10 @@ async function survivalFlow() {
     }
     if (!done) return fail('supplied build', `not all built: ${JSON.stringify(sp?.sites?.map((x) => x.state))}, still needed ${units(sp?.need)}`);
     ok('supplied build', `${sp.sites.length} sites built from the stockpile: ${units(sp.delivered)} delivered, ${units(sp.consumed)} consumed`);
-    // undo: what the builds consumed comes back into the stockpile (what does not fit is dropped and counted as overflow)
+    // undo: what the builds consumed comes back into the stockpile (what does not fit is dropped and counted as overflow); off the street and lots first
+    // (Architect holds a removal while a player stands in what it removes), near enough that their chunks stay loaded
+    const here = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${here.centerX} ~ ${here.centerZ + 60}`);
     const before = sp;
     from = logSize();
     await cmd(`/steward undo ${id}`);

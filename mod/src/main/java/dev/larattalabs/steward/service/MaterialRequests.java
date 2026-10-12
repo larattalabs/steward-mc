@@ -75,7 +75,7 @@ public final class MaterialRequests {
 		Long said = SAID.get(wait.targetId());
 		if (said != null && said == wait.waitingSince()) return;
 		SAID.put(wait.targetId(), wait.waitingSince());
-		StewardVoice.say(srv, s.get().id(), "The " + nameOf(site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
+		tell(srv, s.get(), "The " + nameOf(site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
 	}
 
 	/** Reads each settlement's waiting targets: one waiting {@link #LONG_WAIT_TICKS} sends the steward to a player in the settlement, once per wait. */
@@ -106,7 +106,19 @@ public final class MaterialRequests {
 			if (had == null || had.since() != longest.waitingSince()) {
 				var target = sites.get(longest.targetId());
 				String what = target.map(MaterialRequests::nameOf).orElse("build");
-				StewardVoice.say(srv, s.id(), "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
+				tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
+			}
+		}
+	}
+
+	/** Said by the steward (its bubble) and in the chat of the players in the settlement (who may not be near it); in the log too. */
+	private static void tell(MinecraftServer srv, Settlement s, String text) {
+		Steward.LOGGER.info("materials {}: {}", s.id(), text);
+		StewardVoice.say(srv, s.id(), text);
+		for (ServerPlayer p : srv.getPlayerList().getPlayers()) {
+			var at = p.blockPosition();
+			if (s.contains(p.level().dimension().identifier().toString(), at.getX(), at.getY(), at.getZ())) {
+				p.sendSystemMessage(net.minecraft.network.chat.Component.literal("[" + s.name() + "] " + text));
 			}
 		}
 	}
