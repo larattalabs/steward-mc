@@ -117,6 +117,40 @@ public final class Stockpiles {
 		return out;
 	}
 
+	/**
+	 * The stockpile's ledger as JSON (dev: the e2e check): crates, stock, the builds' outstanding bill and what is still needed beyond the stock, the
+	 * ledger's delivered, consumed and returned, and each of the settlement's sites with its state. Items by id.
+	 */
+	public static com.google.gson.JsonObject json(MinecraftServer server, Settlement s, Stockpile sp) {
+		var o = new com.google.gson.JsonObject();
+		o.addProperty("crates", sp.crates().size());
+		o.add("stock", items(sp.stock()));
+		o.add("outstanding", items(sp.outstanding()));
+		var need = new java.util.LinkedHashMap<Item, Integer>();
+		for (var e : shortfall(sp)) need.put(e.getKey(), e.getValue());
+		o.add("need", items(need));
+		o.add("delivered", items(sp.delivered()));
+		o.add("consumed", items(sp.consumed()));
+		o.add("returned", items(sp.returned()));
+		o.add("refundOverflow", items(sp.refundOverflow()));
+		var sites = new com.google.gson.JsonArray();
+		for (var v : ArchitectApi.get().sites(server).list(s.owner())) {
+			var x = new com.google.gson.JsonObject();
+			x.addProperty("id", v.id());
+			x.addProperty("kind", v.kind());
+			x.addProperty("state", v.state().name());
+			sites.add(x);
+		}
+		o.add("sites", sites);
+		return o;
+	}
+
+	private static com.google.gson.JsonObject items(Map<Item, Integer> m) {
+		var o = new com.google.gson.JsonObject();
+		for (var e : m.entrySet()) if (e.getValue() != 0) o.addProperty(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(e.getKey()).toString(), e.getValue());
+		return o;
+	}
+
 	/** "12 oak planks, 4 glass and 3 more" for the first {@code n}. */
 	public static String items(List<Map.Entry<Item, Integer>> list, int n) {
 		List<String> parts = new ArrayList<>();

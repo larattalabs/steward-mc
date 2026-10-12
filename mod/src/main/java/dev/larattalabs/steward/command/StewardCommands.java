@@ -167,7 +167,17 @@ public final class StewardCommands {
 					dev.larattalabs.steward.gateway.VPlan.legacy(id, legacy);
 					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "Architect's flat village when it applies")), false);
 					return 1;
-				})))).then(Commands.literal("v_spike").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("step", StringArgumentType.word())
+				})))).then(Commands.literal("stockpile").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check): the settlement's stockpile ledger as JSON, one line: "stockpile <id> {...}" or "stockpile <id> none"
+					if (!host(ctx.getSource())) return 0;
+					String id = StringArgumentType.getString(ctx, "id");
+					var s = dev.larattalabs.steward.service.Settlements.store().get(id);
+					var server = ctx.getSource().getServer();
+					String json = s.flatMap(x -> dev.larattalabs.steward.service.Stockpiles.of(server, x).map(sp -> dev.larattalabs.steward.service.Stockpiles.json(server, x, sp).toString()))
+						.orElse("none");
+					ctx.getSource().sendSuccess(() -> Component.literal("stockpile " + id + " " + json), false);
+					return 1;
+				}))).then(Commands.literal("v_spike").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("step", StringArgumentType.word())
 				.executes(ctx -> {
 					// dev (a spike, 2026-10-11): Architect's flat village on this settlement: plan, realise (every lot the e2e test entry), dump
 					CommandSourceStack src = ctx.getSource();

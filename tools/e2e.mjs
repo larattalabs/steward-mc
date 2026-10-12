@@ -759,6 +759,80 @@ async function buildThrough(id, from, label, restartAtMassings = false) {
   return null;
 }
 
+/**
+ * Phase 4, Supplied (Architect 0.20's stockpile): in a world with Architect's survival toggle on, a new settlement is Supplied; its build makes the
+ * settlement's stockpile, the steward names what a waiting build needs, the builds finish from what goes into the stockpile, and an undo returns to it what
+ * they consumed. The toggle is turned off again whatever happens.
+ */
+async function survivalFlow() {
+  await cmd('/architect survival on');
+  try {
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 9000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = 'Supply Hamlet';
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a little hamlet`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('supplied', 'no card');
+    await closeScreens();
+    await clearAnimals();
+    const diff = settlements().find((x) => x.id === id)?.difficulty;
+    if (diff !== 'SUPPLIED') return fail('supplied', `difficulty ${diff} in a survival world`);
+    ok('supplied', `${id} is Supplied in a survival world`);
+    from = logSize();
+    await cmd(`/steward start ${id} 2 30`);
+    const built = await buildThrough(id, from, 'supplied build');
+    if (!built) return;
+    const ledger = async () => {
+      const r = await cmd(`/steward dev stockpile ${id}`);
+      const m = r.match(/stockpile \S+ (\{.*\})/);
+      return m ? JSON.parse(m[1]) : null;
+    };
+    const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    let sp = await ledger();
+    if (!sp || sp.crates < 1) return fail('stockpile', 'no stockpile after the build was placed');
+    ok('stockpile', `${sp.crates} crate; the build needs ${units(sp.need)} units of ${Object.keys(sp.need).length} kinds`);
+    // the steward names what a waiting build needs (Architect's waiting status, after 100 starved ticks)
+    const asked = await waitLog(from, /waits for materials: [^\n]*/, 90_000);
+    if (asked) ok('material request', asked[0]);
+    else fail('material request', 'the steward did not say what a waiting build needs');
+    // fill the stockpile with what is still needed (as much as fits; the builds draw it down), until every site stands
+    const owner = `steward_mc:settlement/${id}`;
+    const deadline = Date.now() + 600_000;
+    let done = false;
+    while (Date.now() < deadline) {
+      sp = await ledger();
+      const sites = sp?.sites ?? [];
+      done = sites.length > 0 && sites.every((x) => x.state === 'BUILT');
+      if (done) break;
+      if (Object.keys(sp?.need ?? {}).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+      await sleep(3000);
+    }
+    if (!done) return fail('supplied build', `not all built: ${JSON.stringify(sp?.sites?.map((x) => x.state))}, still needed ${units(sp?.need)}`);
+    ok('supplied build', `${sp.sites.length} sites built from the stockpile: ${units(sp.delivered)} delivered, ${units(sp.consumed)} consumed`);
+    // undo: what the builds consumed comes back into the stockpile (what does not fit is dropped and counted as overflow)
+    const before = sp;
+    from = logSize();
+    await cmd(`/steward undo ${id}`);
+    const undone = await waitLog(from, /Undone: [^\n]*|Undo stopped[^\n]*/, 600_000);
+    sp = await ledger();
+    const off = [];
+    for (const [item, used] of Object.entries(before.consumed)) {
+      const back = (sp?.returned?.[item] ?? 0) + (sp?.refundOverflow?.[item] ?? 0) - (before.returned?.[item] ?? 0) - (before.refundOverflow?.[item] ?? 0);
+      if (back !== used) off.push(`${item} ${back}/${used}`);
+    }
+    if (undone && /Undone/.test(undone[0]) && off.length === 0) ok('refund', `${undone[0]}; every consumed unit came back (${units(before.consumed)})`);
+    else fail('refund', `${undone ? undone[0] : 'no undo'}; refunds off: ${off.slice(0, 8).join(', ')}`);
+  } finally {
+    await cmd('/architect survival off');
+  }
+}
+
 /** Farm animals out of the way: a pig standing on a lot holds its placement up for Architect's 10-minute wait (it happened, on the V RC). */
 async function clearAnimals() {
   await cmd('/gamerule doMobSpawning false');
@@ -968,6 +1042,7 @@ try {
     else {
       await stubFlow(id);
       await villageFlow();
+      await survivalFlow();
     }
   }
   await migratedSteward();
