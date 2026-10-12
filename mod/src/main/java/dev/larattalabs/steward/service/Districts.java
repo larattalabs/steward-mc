@@ -300,7 +300,8 @@ public final class Districts {
 		for (String dir : DistrictRules.DIRECTIONS) {
 			if (skip.contains(dir)) continue;
 			var p = DistrictRules.place(s.claim(), street, s.lands().districts(), Settlements.others(s.id()), s.lands().protect(), dir, DistrictRules.RADII[0]);
-			if (p.ok()) squares.put(dir, p.claim());
+			// a side whose road would run over a building is not one founding could take
+			if (p.ok() && overBuilding(server, s, p.road()) == null) squares.put(dir, p.claim());
 		}
 		List<String> free = List.copyOf(squares.keySet());
 		dev.larattalabs.steward.model.DistrictSite.Standing stand = null;

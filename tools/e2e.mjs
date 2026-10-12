@@ -543,7 +543,8 @@ async function districts(id) {
     return { made, why, said };
   };
   const here = await placedBy('district here', 'here e2e south quarter', [cx, cz + rv + 20]);
-  if (here.made?.direction === 'S' && /where you stand/.test(here.why)) ok('district here', `${here.made.name}: ${here.why}`);
+  // the south side, unless an earlier check's building stands on its road's way (then the nearest side founding can take)
+  if (here.made && /where you stand/.test(here.why)) ok('district here', `${here.made.name} to the ${here.made.direction}: ${here.why}`);
   else fail('district here', `${here.said}; made ${JSON.stringify(here.made)}, said "${here.why}"`);
   const auto = await placedBy('district auto', 'auto e2e lumber camp', [cx, cz]);
   if (auto.made && auto.why) ok('district auto', `${auto.made.name} to the ${auto.made.direction}: ${auto.why}`);
