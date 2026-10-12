@@ -39,6 +39,7 @@ public final class Proposals {
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPED.register(s -> {
 			BACKOFF.clear();
 			FULL.clear();
+			CHOOSING.clear();
 		});
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			if (server.getTickCount() % EVERY != 0) return;
@@ -75,7 +76,9 @@ public final class Proposals {
 		var where = ProposalRules.where(counts.town(), counts.districts(), full(s.id(), now));
 		List<Proposal> fresh;
 		if (where.full()) {
-			fresh = districtProposal(server, s, open, now);
+			// a district: its side is chosen from the land (a look at it can take a moment); offered when chosen
+			proposeDistrictFromLand(server, p.getUUID(), s, open, now);
+			return;
 		} else {
 			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open, s.proposals().lastAt(), now).stream()
 				.map(x -> x.in(where.district())).toList();
@@ -127,16 +130,40 @@ public final class Proposals {
 		return res.ok() ? "proposed district_" + way : res.error();
 	}
 
-	/** A district proposal (phase 3f) when the town's street and every district's are full: towards the first way one fits, not one the player declined. */
-	static List<Proposal> districtProposal(MinecraftServer server, Settlement s, List<Proposal> open, long now) {
-		if (!ProposalRules.room(open, s.proposals().lastAt(), now) || open.stream().anyMatch(Proposal::foundsDistrict)) return List.of();
-		if (s.lands().districts().size() >= dev.larattalabs.steward.model.DistrictRules.DIRECTIONS.size()) return List.of();
+	/** Settlements whose district proposal is being chosen (a look at the land), so a second is not started meanwhile. */
+	private static final Set<String> CHOOSING = new HashSet<>();
+
+	/**
+	 * A district proposal (phase 3f) when the town's street and every district's are full, on a side the player has not declined: the side whose ground suits
+	 * the settlement's purpose and buildings best (a fishing town's next district by the water; docs/PLAN.md "Zones", first step), else the first that fits.
+	 */
+	static void proposeDistrictFromLand(MinecraftServer server, java.util.UUID player, Settlement s, List<Proposal> open, long now) {
+		if (!ProposalRules.room(open, s.proposals().lastAt(), now) || open.stream().anyMatch(Proposal::foundsDistrict)) return;
+		if (s.lands().districts().size() >= dev.larattalabs.steward.model.DistrictRules.DIRECTIONS.size() || !CHOOSING.add(s.id())) return;
 		Set<String> skip = new HashSet<>();
 		for (String d : dev.larattalabs.steward.model.DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) skip.add(d);
-		String way = Districts.firstWay(server, s, skip);
-		if (way == null) return List.of();
-		return List.of(Proposal.district(way, "The town's street is full: a district to the " + dev.larattalabs.steward.model.DistrictRules.directionName(way)
-			+ " gives the next buildings a street of their own. Founding it lays a road and costs nothing.", now));
+		Districts.choose(server, s, dev.larattalabs.steward.model.DistrictSite.fromWords(purposeWords(s)), null, skip, c -> {
+			CHOOSING.remove(s.id());
+			var now2 = Settlements.store().get(s.id());
+			if (c.way() == null || now2.isEmpty() || now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
+			String side = dev.larattalabs.steward.model.DistrictRules.directionName(c.way());
+			Proposal d = Proposal.district(c.way(), "The town's street is full: a district to the " + side + (c.why().isEmpty() ? "" : ", " + c.why() + ",")
+				+ " gives the next buildings a street of their own. Founding it lays a road and costs nothing.", now);
+			var ps = now2.get().proposals();
+			List<Proposal> all = new ArrayList<>(ps.open());
+			all.add(d);
+			if (!Settlements.proposals(s.id(), new Settlement.Proposals(all, ps.declined(), ps.accepted(), now)).ok()) return;
+			StewardVoice.say(server, s.id(), "I have an idea: " + d.title().toLowerCase() + ". " + d.why() + " See the inbox (Y).");
+			SettlementRunner.sendInbox(server, player);
+		});
+	}
+
+	/** What the settlement is for, in words: its card's purpose and its buildings' roles (what ground its next district should look for). */
+	static String purposeWords(Settlement s) {
+		if (s.card() == null) return "";
+		StringBuilder b = new StringBuilder(s.card().purpose().text());
+		if (s.card().hasProgram()) s.card().program().forEach(x -> b.append(' ').append(x.role()));
+		return b.toString();
 	}
 
 	/** The building types the settlement has or has planned: its card's program and the proposals it accepted. */
