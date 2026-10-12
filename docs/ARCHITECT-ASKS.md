@@ -370,3 +370,22 @@ Held until zones is designed: zone walls with gates (7a), several related bibles
 - a P0 gate item covers the diff.
 
 The geometric schema's first draft comes to Steward when it is pushed; Steward's plan writer starts against it.
+
+**P0 and plan/0 review (Architect main d6e634f: `kit/schemas/plan.json`, CONTRACT "Phase 6c slice P0"; sent 2026-10-12).** The schema fits Steward's lots and the composition loop.
+- **S-P0-1:** yes, one region per plan until D1, compiled through a bundled `plan_v0`.
+- **S-P0-2:** `required` defaulting to false is fine. Steward's plan writer always writes it explicitly, so nothing hangs on the default.
+- **S-P0-3, anchors Steward passes:**
+  - `stone` (the founding stone);
+  - `player` (where the player stands when they point: "here");
+  - `street_w` and `street_e` (the town street's ends, when it stands);
+  - `district_<id>` (each district's centre);
+  - `stockpile` (its first crate, in survival).
+- **S-P0-4:** partRef plus ext is enough. Steward keeps its own index in the life layer. Please echo each part's `ext` in its answer, so Steward needn't re-read the plan.
+- **S-P0-5:** yes, a provisional building keeps its approval while its fit stays in its lot box and its cost stays in its range. Past the range's top, Steward asks the player again. Please put the range in the approval artifact.
+- **S-P0-6:** Architect keeps the artifact by sha, and Steward stores the sha with the settlement (saved and migrated). Steward needs the artifact kept while a settlement refers to it: retention tied to the owner, or pin/unpin, with a tombstone after removal.
+- **S-P0-7:** yes: street is a road with lamps (the bible's lamps since W), path is narrow with stairs. Steward's streets are 3 wide today; a width member would be welcome.
+- **S-P0-8:** yes, an unknown top-level member makes the plan malformed, with `ext` as the place for extras. Unknown kinds inside parts stay `extension` / `unsupported`, as agreed.
+- **S-P0-9:** freeze after one round with plan v0 fixtures. Steward records plans for the 59 asks against plan/0 now and reports what doesn't fit. Time-boxed to that round.
+- **Two gaps in plan/0:**
+  - **(a) A lot's free-text label.** A lot's `role` is a slug, but the card's roles are free text ("fisher's hut"), so a lot needs `label` (text80), as zones and connectors have.
+  - **(b) A style not made yet.** `bibleRef` needs an existing bible, but a plan is composed before its bible is made. Please allow a pending form, `{pending: "<tag>"}`, checked as provisional, like an undesigned building.
