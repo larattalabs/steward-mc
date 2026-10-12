@@ -1,0 +1,520 @@
+{
+  "about": "Strange asks: what players might say to the steward, each with the capabilities it needs (capabilities.json). The gap map ranks capabilities by the asks they would unlock: node tools/strange-asks.mjs. Add asks players really type.",
+  "asks": [
+    {
+      "id": "desert_jungle_wall",
+      "category": "zones",
+      "ask": "On the edge between the desert and the jungle: a wall down the middle, the jungle side growing spices and medicine, the desert side mining and glassmaking.",
+      "needs": [
+        "zones",
+        "biome_aware",
+        "land_placed_districts",
+        "walls_gates"
+      ]
+    },
+    {
+      "id": "old_new_town",
+      "category": "zones",
+      "ask": "An old medieval quarter by the river and a newer art deco quarter on the hill.",
+      "needs": [
+        "zones",
+        "style_by_part",
+        "steep_ground"
+      ]
+    },
+    {
+      "id": "rival_families",
+      "category": "relations",
+      "ask": "Two feuding families on either side of the river, each with their own manor, farms and guards.",
+      "needs": [
+        "zones",
+        "relations",
+        "land_placed_districts"
+      ]
+    },
+    {
+      "id": "walled_town",
+      "category": "zones",
+      "ask": "A walled market town with a gatehouse on each road.",
+      "needs": [
+        "walls_gates"
+      ]
+    },
+    {
+      "id": "twin_villages",
+      "category": "zones",
+      "ask": "Two villages, one of fishermen on the coast and one of shepherds inland, joined by a road.",
+      "needs": [
+        "zones",
+        "biome_aware"
+      ]
+    },
+    {
+      "id": "treetop_village",
+      "category": "where",
+      "ask": "A village up in the jungle canopy, the huts joined by rope bridges.",
+      "needs": [
+        "off_ground",
+        "aerial_connectors"
+      ]
+    },
+    {
+      "id": "dwarven_hold",
+      "category": "where",
+      "ask": "A dwarven hold carved inside the mountain: great halls, forges and deep mines.",
+      "needs": [
+        "carved_interiors",
+        "working_modules"
+      ]
+    },
+    {
+      "id": "sky_monastery",
+      "category": "where",
+      "ask": "A monastery on a floating island, reached by a long stair.",
+      "needs": [
+        "sculpted_forms",
+        "aerial_connectors"
+      ]
+    },
+    {
+      "id": "underwater_domes",
+      "category": "where",
+      "ask": "Glass domes on the sea floor, a colony under the waves.",
+      "needs": [
+        "underwater"
+      ]
+    },
+    {
+      "id": "pirate_cove",
+      "category": "where",
+      "ask": "A pirate cove: docks on stilts over the lagoon and a hidden cave for the treasure.",
+      "needs": [
+        "over_water",
+        "secrets",
+        "carved_interiors"
+      ]
+    },
+    {
+      "id": "swamp_stilts",
+      "category": "where",
+      "ask": "A witch village on stilts in the swamp.",
+      "needs": [
+        "over_water"
+      ]
+    },
+    {
+      "id": "cliff_monks",
+      "category": "where",
+      "ask": "Monks' cells built into the cliff face above the sea.",
+      "needs": [
+        "steep_ground",
+        "carved_interiors"
+      ]
+    },
+    {
+      "id": "terraced_hill",
+      "category": "where",
+      "ask": "A terraced hill town with switchback streets.",
+      "needs": [
+        "steep_ground"
+      ]
+    },
+    {
+      "id": "crater_mine",
+      "category": "where",
+      "ask": "A mining facility in a giant meteor crater, dressed as a hellish lair.",
+      "needs": [
+        "sculpted_forms",
+        "working_modules"
+      ]
+    },
+    {
+      "id": "nether_outpost",
+      "category": "where",
+      "ask": "A Nether outpost with a portal to its twin village in the overworld.",
+      "needs": [
+        "other_dimensions"
+      ]
+    },
+    {
+      "id": "end_city_ruins",
+      "category": "where",
+      "ask": "Rebuild a ruined End city and settle it.",
+      "needs": [
+        "other_dimensions",
+        "ruin_style"
+      ]
+    },
+    {
+      "id": "mushroom_town",
+      "category": "where",
+      "ask": "Houses inside giant mushrooms on a mushroom island.",
+      "needs": [
+        "off_ground",
+        "sculpted_forms"
+      ]
+    },
+    {
+      "id": "ice_village",
+      "category": "where",
+      "ask": "An igloo village on a frozen lake.",
+      "needs": [
+        "over_water"
+      ]
+    },
+    {
+      "id": "ring_city",
+      "category": "shape",
+      "ask": "A ring city around a crater lake, every house facing the water.",
+      "needs": [
+        "free_layouts",
+        "sculpted_forms"
+      ]
+    },
+    {
+      "id": "spiral_town",
+      "category": "shape",
+      "ask": "A town that spirals up a hill to a temple at the top.",
+      "needs": [
+        "free_layouts",
+        "steep_ground"
+      ]
+    },
+    {
+      "id": "grid_city",
+      "category": "shape",
+      "ask": "A planned grid city with numbered avenues.",
+      "needs": [
+        "free_layouts",
+        "big_program"
+      ]
+    },
+    {
+      "id": "organic_hamlet",
+      "category": "shape",
+      "ask": "A hamlet that looks like it grew over centuries, crooked lanes and all.",
+      "needs": [
+        "free_layouts"
+      ]
+    },
+    {
+      "id": "castle_city",
+      "category": "shape",
+      "ask": "One giant castle that is the whole settlement, the shops and homes inside its walls.",
+      "needs": [
+        "megastructure"
+      ]
+    },
+    {
+      "id": "arcology",
+      "category": "shape",
+      "ask": "A single tower arcology, every floor a different district.",
+      "needs": [
+        "megastructure",
+        "zones"
+      ]
+    },
+    {
+      "id": "nomad_camp",
+      "category": "shape",
+      "ask": "A nomad camp of tents that packs up and moves with the seasons.",
+      "needs": [
+        "moving",
+        "timed_changes"
+      ]
+    },
+    {
+      "id": "ship_town",
+      "category": "shape",
+      "ask": "A town on a giant ship.",
+      "needs": [
+        "moving",
+        "megastructure"
+      ]
+    },
+    {
+      "id": "metropolis",
+      "category": "shape",
+      "ask": "A sprawling capital city of two hundred buildings.",
+      "needs": [
+        "big_program",
+        "free_layouts"
+      ]
+    },
+    {
+      "id": "lone_hermit",
+      "category": "shape",
+      "ask": "Just a hermit's hut and a garden.",
+      "needs": [
+        "street_village"
+      ]
+    },
+    {
+      "id": "ruined_empire",
+      "category": "rules",
+      "ask": "The ruins of an old empire, with survivors living among them.",
+      "needs": [
+        "ruin_style"
+      ]
+    },
+    {
+      "id": "one_block",
+      "category": "rules",
+      "ask": "Everything built only of copper, in every stage of oxidation.",
+      "needs": [
+        "hard_rules"
+      ]
+    },
+    {
+      "id": "no_right_angles",
+      "category": "rules",
+      "ask": "A town with no right angles anywhere.",
+      "needs": [
+        "hard_rules",
+        "free_layouts"
+      ]
+    },
+    {
+      "id": "upside_down",
+      "category": "rules",
+      "ask": "An upside-down village hanging from a cliff overhang.",
+      "needs": [
+        "hard_rules",
+        "off_ground",
+        "steep_ground"
+      ]
+    },
+    {
+      "id": "no_two_alike",
+      "category": "rules",
+      "ask": "No two houses alike.",
+      "needs": [
+        "variety_control"
+      ]
+    },
+    {
+      "id": "row_houses",
+      "category": "rules",
+      "ask": "Identical row houses for the workers.",
+      "needs": [
+        "variety_control"
+      ]
+    },
+    {
+      "id": "looks_old",
+      "category": "rules",
+      "ask": "Make it look a thousand years old.",
+      "needs": [
+        "ruin_style",
+        "one_style"
+      ]
+    },
+    {
+      "id": "camp_to_city",
+      "category": "time",
+      "ask": "Start as a survivors' camp and grow into a walled city.",
+      "needs": [
+        "growth_arc",
+        "walls_gates"
+      ]
+    },
+    {
+      "id": "winter_festival",
+      "category": "time",
+      "ask": "A town that decorates itself for a winter festival.",
+      "needs": [
+        "timed_changes"
+      ]
+    },
+    {
+      "id": "falls_to_ruin",
+      "category": "time",
+      "ask": "It slowly falls into ruin unless I visit and care for it.",
+      "needs": [
+        "decay_over_time"
+      ]
+    },
+    {
+      "id": "boom_town",
+      "category": "time",
+      "ask": "A gold-rush boom town that grows fast around the mine.",
+      "needs": [
+        "growth_arc",
+        "working_modules"
+      ]
+    },
+    {
+      "id": "mining_town",
+      "category": "function",
+      "ask": "A working mining town with minecarts down to the mine.",
+      "needs": [
+        "working_modules"
+      ]
+    },
+    {
+      "id": "farm_village",
+      "category": "function",
+      "ask": "A farming village that feeds my base.",
+      "needs": [
+        "working_modules"
+      ]
+    },
+    {
+      "id": "redstone_gate",
+      "category": "function",
+      "ask": "A fortress with a redstone drawbridge.",
+      "needs": [
+        "redstone",
+        "walls_gates"
+      ]
+    },
+    {
+      "id": "sorting_warehouse",
+      "category": "function",
+      "ask": "A trading post with an automatic sorting warehouse.",
+      "needs": [
+        "redstone",
+        "economy"
+      ]
+    },
+    {
+      "id": "trade_hub",
+      "category": "function",
+      "ask": "A trading hub where every villager buys and sells something different.",
+      "needs": [
+        "economy",
+        "inhabitants"
+      ]
+    },
+    {
+      "id": "harbour",
+      "category": "function",
+      "ask": "A harbour town with docks and a lighthouse.",
+      "needs": [
+        "over_water"
+      ]
+    },
+    {
+      "id": "survival_village",
+      "category": "function",
+      "ask": "A small village I build up from my own materials.",
+      "needs": [
+        "survival_materials"
+      ]
+    },
+    {
+      "id": "mage_exiles",
+      "category": "who",
+      "ask": "A town of exiled mages, every tower a different school of magic.",
+      "needs": [
+        "inhabitants",
+        "zones"
+      ]
+    },
+    {
+      "id": "cat_sanctuary",
+      "category": "who",
+      "ask": "A cat sanctuary run by a grumpy old librarian.",
+      "needs": [
+        "inhabitants"
+      ]
+    },
+    {
+      "id": "hidden_village",
+      "category": "who",
+      "ask": "A hidden village nobody can find, behind a waterfall.",
+      "needs": [
+        "secrets",
+        "carved_interiors"
+      ]
+    },
+    {
+      "id": "secret_tunnels",
+      "category": "who",
+      "ask": "A tavern with secret tunnels to the smugglers' dock.",
+      "needs": [
+        "secrets",
+        "carved_interiors",
+        "over_water"
+      ]
+    },
+    {
+      "id": "around_my_house",
+      "category": "who",
+      "ask": "Build a village around my house.",
+      "needs": [
+        "build_around"
+      ]
+    },
+    {
+      "id": "around_my_tree",
+      "category": "who",
+      "ask": "A grove village around the big oak I planted.",
+      "needs": [
+        "build_around"
+      ]
+    },
+    {
+      "id": "war_camp",
+      "category": "relations",
+      "ask": "A war camp besieging the castle on the next hill.",
+      "needs": [
+        "relations",
+        "steep_ground"
+      ]
+    },
+    {
+      "id": "border_fort",
+      "category": "relations",
+      "ask": "A border fort guarding the pass against the settlement to the north.",
+      "needs": [
+        "relations",
+        "walls_gates",
+        "steep_ground"
+      ]
+    },
+    {
+      "id": "conquered_town",
+      "category": "relations",
+      "ask": "Take over the abandoned village nearby and rebuild it in our style.",
+      "needs": [
+        "relations",
+        "ruin_style"
+      ]
+    },
+    {
+      "id": "fishing_village",
+      "category": "plain",
+      "ask": "A small fishing village by the lake.",
+      "needs": [
+        "street_village"
+      ]
+    },
+    {
+      "id": "market_town",
+      "category": "plain",
+      "ask": "A cosy market town with a tavern, a smithy and a bakery.",
+      "needs": [
+        "flat_village",
+        "one_style"
+      ]
+    },
+    {
+      "id": "harvest_hamlet",
+      "category": "plain",
+      "ask": "A harvest hamlet with a big barn and a windmill.",
+      "needs": [
+        "flat_village"
+      ]
+    },
+    {
+      "id": "two_districts",
+      "category": "plain",
+      "ask": "A town with a craftsmen's district to the east.",
+      "needs": [
+        "street_village",
+        "square_districts"
+      ]
+    }
+  ]
+}

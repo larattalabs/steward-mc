@@ -586,6 +586,14 @@ Noah's example: a settlement at a desert's edge with a jungle. A wall divides th
 - **Walls with gates (Architect 7a, typed connectors):** a wall along a zone's boundary, with gates where roads cross, in the bible's style.
 - **Checks:** Noah's example as the e2e acceptance (stub), with the two sides' styles and programs told apart in its pictures.
 
+### Strange asks: the gap map (started 2026-10-11)
+How much freedom a player has is measured, not guessed. `fixtures/strange-asks/` holds about 60 strange asks: where (treetops, inside a mountain, under the sea), shape (a ring city, one giant castle, a nomad camp), rules (only copper, no right angles), time (a camp that becomes a city), function, who lives there, relations, and plain ones. Each lists the capabilities it needs, and each capability says whether it is built now, built as a nearest version (and what that is), or waits (and for which step).
+- **The gap map:** `node tools/strange-asks.mjs` ranks the capabilities by the asks they would unlock (report in `artifacts/strange-asks/`). On 2026-10-11: 5 built, 12 as a nearest version, 42 wait. Most needed: steep ground, free layouts (rings, spirals, organic), zones, building over water, working modules, walls. `npm test` keeps the files consistent.
+- **The nearest version, honestly:** every ask not built today should get a card that says what waits and what is built instead. `StrangeAsksTest` reads each ask's words through `CardLimits` and holds the count at its baseline: 6 of 54 on 2026-10-11. Raise it as `CardLimits` learns, toward all of them.
+- **Next (paid, with Noah's approval and a cap):** record the real card the card job writes for each ask (about $0.03 each). The honesty check then runs on real cards, and the record shows how Claude reads strange asks.
+- **The direction it points to:** Claude composes a settlement from shared parts that Architect checks and builds (zones, volumes, connectors, rules, stages), rather than one fixed program per kind of ask. Architect 7c is the start of it.
+- **Keeping it current:** add asks players really type; change a capability's status when the step that brings it ships.
+
 ## Long-term direction: a living world of settlements (Noah, 2026-10-11; not planned yet)
 Ideas for later, kept in view so today's designs don't close them off: conflict within and between settlements, war and conquest, agent-driven settlements, multiplayer, a world of settlements that evolves, wars and shifts.
 - **Already pointing this way:**
