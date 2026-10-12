@@ -121,7 +121,7 @@ Today's fixed programs (Steward's street layout, Architect's `flat_village`) sta
 
 All six questions are answered in `architect-mc/docs/COMPOSITION-ANSWERS.md` and folded in above: the two layers, one whole-plan check, locators and explicit tolerances, the order and owners of the new blocks, rule checks as a separate verifier after VOC, and `flat_village` kept as a program usable as a named template. Architect's SETTLEMENTS section 10 (7c) converges on this plan: 7c's own composer stays only for standalone use, and 7a to 7c are drafted against the shared schema.
 
-## 9. Questions for Noah
+## 9. Noah's answers (2026-10-12)
 
-1. **Creative passes cost money.** Should the steward compose creatively for every ask, or only when the ask calls for it (with a plain ask kept cheap)? Is there a per-settlement or per-ask cap for composing?
-2. **How strange is too strange?** When an ask needs a building block that doesn't exist yet, should the steward build the nearest version and say so (today's way), or wait and ask?
+1. **When to compose, and the cap.** Claude decides: one call reads the ask and either picks a shortcut (the street village or `flat_village`) for a plain ask, or composes a full plan when the ask calls for it. Composing and repair for one plan are capped at about **$1**, inside the settlement's budget. At the cap, the steward shows its best plan with what is still missing.
+2. **A required part that needs a building block that doesn't exist yet.** By default the town is built now and the missing part stays in the settlement's plan as **pending**. When Architect ships that block (the capability catalogue says so), the steward proposes adding the part ("Walls can be built now: shall I raise the town wall?"), approved like any proposal. The alternative offered is to **wait**: the settlement stays a plan until the block exists, then builds whole. Optional parts that can't be built are dropped and listed on the card.
