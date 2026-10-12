@@ -87,6 +87,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-10-11 | **Push the V path on X without the REMOVING busy check** (Noah): the last GPT check found that a region removal resumed after a restart can stay REMOVING forever (Architect 0.17.0), which would lock the settlement. Steward drops the check, asks Architect C23, and puts the check back once C23 ships. The gap this leaves (a build surveying land Architect is still restoring after a restart or failed save) is rare. |
 | 2026-10-11 | **Farm water and ladders** (Noah, Architect's S-H-1 and S-T2-2): a decorative farm on a dry claim gets a small contained pond beside it. Working farms (later, automated ones) are built for yield instead: water spaced so every farmland block is hydrated (one source per 9x9, channels on that spacing), not a pond for looks. Paths only players use (lookouts, watchtowers) may climb steep spots by ladder; villager paths never do. |
 | 2026-10-11 | **Phase 4's shape** (Noah): Supplied settlements draw from a settlement stockpile, one store for every build, update, road and refund (Architect ask C24), not a crate per build. In a survival-toggle world only Supplied and Hardcore exist; Patron is where the toggle is off. The steward asks for materials all three ways: its bubble names what's next, the inbox shows the bill, and it comes to find you after a long wait. Hardcore's difference is decided later. |
+| 2026-10-11 | **Zones next after phase 4; a living world in view** (Noah): a settlement in parts (zones with their own purpose, style and program, placed by biome, divided by walls with gates) is the step after phase 4, with Noah's desert/jungle settlement as its acceptance test. Conflict, war and conquest, agent-driven settlements, multiplayer and an evolving world are long-term ideas, not planned. Designs keep them open: faction ownership, territory that moves, a settlement's mind in its saved state, damage as an operation ("Long-term direction"). |
 
 ## Concept card
 
@@ -449,7 +450,8 @@ undo, the inbox with its HUD line and key, builds that survive a restart, the sp
        - **Asks for Architect:** each lot's ext carried to its site; operation keys on plan and realise.
        - **Checks:** a stub e2e of plan, designs, realise, restart and undo on a V settlement, with one settlement kept on the legacy path; then a GPT review.
 5. **Phase 4:** Supplied on Architect's survival construction sites, then Hardcore and Economy. This needs streets in construction batches, which survival skips today.
-6. **Phase 2** when Architect 7c lands (big custom forms as region programs); phases 5-7 after.
+6. **Zones** (after phase 4; Noah 2026-10-11): a settlement in parts, each with its own identity, placed by the land. Its acceptance test is Noah's example: found a settlement on the edge between a desert and a jungle, with a wall dividing the two sides and each side specialising in its own kind of thing. See "Zones" under the phases.
+7. **Phase 2** when Architect 7c lands (big custom forms as region programs); phases 5-7 after.
 
 Cross-mod: **lab-ui** (decided by Noah, 2026-10-09).
 - **What it is:** a shared UI library, `larattalabs/lab-ui`. It is MIT, mod id `lab_ui`, packages `dev.larattalabs.labui`, published on GitHub Packages and bundled jar-in-jar.
@@ -575,6 +577,30 @@ Housing, trading hall with offer reading, animal detection and wing.
 
 ### Phase 7: Simulation-verified custom modules
 Claude-designed modules pass the tick-simulation gate before acceptance.
+
+### Zones: settlements in parts (planned, after phase 4)
+Noah's example: a settlement at a desert's edge with a jungle. A wall divides the two sides, and each specialises in its own kind of thing. The freedom comes from Claude deciding what each part is and how the parts relate, and from the layout reading the real ground. Claude decides meaning, and Steward's and Architect's code decides places.
+- **The card in parts (Steward):** one settlement story; under it, zones (districts) each with a purpose, a style and a program, and how they relate (rivals, trade partners, one guarding the other). Each zone gets its own style bible, kept related to the others, so the settlement reads as one. The card's limits say what waits.
+- **Biomes in the survey (Architect ask + Steward):** the survey reports biomes per column, and the card call is told what is there ("the desert edge runs north-south 40 blocks east"). Without it, "the jungle side" means nothing to the layout.
+- **Zones placed by the land (Architect):** districts laid along a biome edge (or a river, a ridge) instead of fixed squares north, east, south and west. Architect's district work on survey candidates (S-D-1) is the start.
+- **Walls with gates (Architect 7a, typed connectors):** a wall along a zone's boundary, with gates where roads cross, in the bible's style.
+- **Checks:** Noah's example as the e2e acceptance (stub), with the two sides' styles and programs told apart in its pictures.
+
+## Long-term direction: a living world of settlements (Noah, 2026-10-11; not planned yet)
+Ideas for later, kept in view so today's designs don't close them off: conflict within and between settlements, war and conquest, agent-driven settlements, multiplayer, a world of settlements that evolves, wars and shifts.
+- **Already pointing this way:**
+  - the history of operations, with versions (a world that remembers);
+  - Architect's versions and repair that keeps the player's edits (war damage is repaired);
+  - the phase 4 stockpile (something to defend, and to raid);
+  - "rules decide, Claude words it", as proposals do;
+  - server-held state.
+- **Agents, cheaply:** settlements act through a rule-based simulation, deterministic and logged. Claude gives them intent, diplomacy and story. A world of warring settlements on Claude calls alone would be costly and, in multiplayer, unfair.
+- **Design choices to keep open from now on:**
+  1. **Ownership:** a settlement owned by a faction (a player, a team, or an agent) with members, not one fixed player; and sites handed to a new owner on conquest (an Architect ask when it is designed).
+  2. **Territory that moves:** claims that shrink, are contested, and change hands, with districts as the unit that can be captured. Today claims only grow and never overlap.
+  3. **A settlement's mind in its saved state:** its goals, relations with neighbours and memory live with the settlement (the history log is the start), not in a chat session.
+  4. **Damage as an ordinary event:** damage, repair, rebuilding and ruins are operations in the history like any other.
+  5. **Districts keep an identity of their own:** who holds them, what they make, how they see their neighbours. That is what makes the zones step above a step toward this.
 
 ## Risks
 
