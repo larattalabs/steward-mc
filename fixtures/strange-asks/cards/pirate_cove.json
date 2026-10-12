@@ -1,0 +1,101 @@
+{
+  "prompt": "A pirate cove: docks on stilts over the lagoon and a hidden cave for the treasure.",
+  "card": {
+    "name": "Pirate Cove",
+    "site": {
+      "text": "A sheltered pirate cove with a lagoon, docks on stilts over the water and a hidden cave in the surrounding cliffs.",
+      "template": "waterfront",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Weathered pirate look: dark spruce and oak planks, rope, barrels, lanterns, tattered sails, mossy stone in the cave.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "Hideout for pirates with a dock for ships and a hidden cave to stash treasure.",
+      "template": "port"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "I read this as a small waterfront cove: a lagoon with stilt docks, a pirate hideout in rustic weathered wood style, and a hidden treasure cave in the cliff. Size is M, using existing land and water where possible. The program has stilt docks, a captain's hall as the centrepiece, shacks, a boathouse, a lookout and the treasure cave.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M with medium density since none was given.",
+      "Existing terrain with a lagoon and cliff is used; no sculpting.",
+      "Search for a suitable site, as no location was named.",
+      "Style taken as rustic weathered wood with pirate touches."
+    ],
+    "program": [
+      {
+        "role": "stilt docks",
+        "type": "dock",
+        "count": 2,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Plank piers on stilts over the lagoon with moored ships, barrels and crates.",
+        "placement": "near_water"
+      },
+      {
+        "role": "captain's hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Large stilt hall at the head of the docks; the captain's quarters and a rowdy common room.",
+        "placement": "central"
+      },
+      {
+        "role": "treasure cave",
+        "type": "treasure_cave",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Hidden cave in the cliff with a concealed entrance, chests, and traps.",
+        "placement": "edge"
+      },
+      {
+        "role": "pirate shacks",
+        "type": "cabin",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small stilt shacks with hammocks and sea chests.",
+        "placement": "near_water"
+      },
+      {
+        "role": "boathouse",
+        "type": "boathouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Covered slip for small boats and ship repairs.",
+        "placement": "near_water"
+      },
+      {
+        "role": "lookout tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Crow's-nest watch over the lagoon mouth.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "smuggler's store",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stash of supplies, rum and plunder for trade."
+      }
+    ]
+  },
+  "usd": 0.015723
+}

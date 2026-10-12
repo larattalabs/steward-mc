@@ -487,7 +487,8 @@
       "category": "plain",
       "ask": "A small fishing village by the lake.",
       "needs": [
-        "street_village"
+        "street_village",
+        "over_water"
       ]
     },
     {

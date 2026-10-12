@@ -1,0 +1,126 @@
+{
+  "prompt": "A planned grid city with numbered avenues.",
+  "card": {
+    "name": "Grid City of Numbered Avenues",
+    "site": {
+      "text": "A planned grid city with numbered avenues, laid out on level ground in regular blocks",
+      "terrain": "flat",
+      "size": "L",
+      "template": null
+    },
+    "style": {
+      "text": "Orderly, uniform streetscape with consistent materials; numbered avenue signs at every corner",
+      "template": null
+    },
+    "purpose": {
+      "text": "A planned city to live, trade and govern in",
+      "template": "market_town"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for a planned grid city with numbered avenues. I took that as a large, level, orderly city of regular blocks, with avenues numbered by signs. The style is uniform and tidy rather than a named theme, and the purpose is a market town for living and trading, with a city hall and market hall as centrepieces.",
+    "contradictions": [],
+    "assumptions": [
+      "Size L, to fit a grid within the 64-block claim radius",
+      "Style left open: uniform materials, no named theme",
+      "Purpose read as market town with civic buildings",
+      "Medium density",
+      "No story given"
+    ],
+    "program": [
+      {
+        "role": "city hall",
+        "type": "town_hall",
+        "count": 1,
+        "footprint": "XL",
+        "landmark": true,
+        "notes": "Civic centrepiece at the middle of the grid, facing the main plaza",
+        "placement": "central"
+      },
+      {
+        "role": "grand market hall",
+        "type": "shop",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Covered market on the central plaza",
+        "placement": "central"
+      },
+      {
+        "role": "townhouses",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Uniform terraced homes lining the numbered avenues"
+      },
+      {
+        "role": "apartment blocks",
+        "type": "house",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Taller multi-storey homes near the centre"
+      },
+      {
+        "role": "corner shops",
+        "type": "shop",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Street-corner stores at avenue crossings"
+      },
+      {
+        "role": "tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Public house on a busy crossing"
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Workshop district on the edge",
+        "placement": "edge"
+      },
+      {
+        "role": "granary",
+        "type": "barn",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Food store at the city edge",
+        "placement": "edge"
+      },
+      {
+        "role": "chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Small chapel on a quiet block"
+      },
+      {
+        "role": "gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Entry where Avenue 1 meets the city edge",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.015772
+}

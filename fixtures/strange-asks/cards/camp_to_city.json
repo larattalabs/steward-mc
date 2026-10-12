@@ -1,0 +1,121 @@
+{
+  "prompt": "Start as a survivors' camp and grow into a walled city.",
+  "card": {
+    "name": "Survivors' Camp to Walled City",
+    "site": {
+      "text": "Starts as a small survivors' camp on level ground and grows outward into a walled city within the claim",
+      "template": "ring_wall",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Makeshift and improvised at the core (timber, scrap, patched walls) hardening into solid stone-and-timber city architecture toward the outside",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A survivors' refuge that grows from a camp into a defended, self-sufficient walled city",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You want a settlement that reads as a growth story: a ragged survivors' camp at the centre, with a proper wall and city built around it. I took the site as a ring wall on level ground within the 64-block claim, a rustic style that goes from improvised to solid, and a home-base purpose. No backstory was given, so none was added.",
+    "contradictions": [
+      {
+        "issue": "Camp and walled city are two stages, but only one build is made",
+        "resolution": "Both are shown at once: the camp stays as the core, with newer city buildings and the wall around it."
+      }
+    ],
+    "assumptions": [
+      "Size M, fitting a 64-block claim radius",
+      "Medium density",
+      "Rustic style chosen to carry the improvised-to-solid look",
+      "Terrain is flat since no landform was requested"
+    ],
+    "program": [
+      {
+        "role": "founders' hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Oldest, patched-together gathering hall at the camp's heart; communal hearth, bunks, notice board.",
+        "placement": "central"
+      },
+      {
+        "role": "survivor shelters",
+        "type": "cabin",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Crude lean-to style cabins ringed around the old campfire; some patched with scrap."
+      },
+      {
+        "role": "townhouses",
+        "type": "house",
+        "count": 3,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Newer sturdier homes built as the city grew, stone footings and timber upper floors."
+      },
+      {
+        "role": "campfire plaza",
+        "type": "market_square",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Original camp fire pit, now an open square with stalls.",
+        "placement": "central"
+      },
+      {
+        "role": "gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Main gate in the city wall, with portcullis and guard room.",
+        "placement": "edge"
+      },
+      {
+        "role": "watchtower",
+        "type": "tower",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Wall towers overlooking approaches.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Forge for tools and wall repairs."
+      },
+      {
+        "role": "granary and farm barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Food stores and crop plots just inside the wall.",
+        "placement": "edge"
+      },
+      {
+        "role": "infirmary chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Place of healing and quiet."
+      }
+    ]
+  },
+  "usd": 0.016947
+}

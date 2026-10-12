@@ -1,0 +1,93 @@
+{
+  "prompt": "A hidden village nobody can find, behind a waterfall.",
+  "card": {
+    "name": "Hidden Falls",
+    "site": {
+      "text": "A hidden village tucked in a cave-like hollow behind a waterfall, in a cliff face with a curtain of falling water as its only entrance.",
+      "template": "cliff_face",
+      "terrain": "find",
+      "size": "M"
+    },
+    "style": {
+      "text": "Rustic, secretive hideaway: mossy stone, spruce and oak timber, lanterns glowing behind the water, vines and ferns.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A secret, peaceful home for a small hidden community that nobody can find.",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "Site is a cliff face with a waterfall curtain hiding a hollow behind it, using existing terrain if a waterfall exists. Style is a rustic, mossy hideaway. Purpose is a peaceful secret home base. Medium size, with the elder's hall as the centrepiece.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M since none was given.",
+      "Style taken as rustic and mossy to suit a hidden spot.",
+      "Purpose taken as a quiet home base for a small community.",
+      "Terrain 'find': a cliff with a waterfall is looked for; one is sculpted only if none exists.",
+      "Density medium."
+    ],
+    "program": [
+      {
+        "role": "elder's hall",
+        "type": "house",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Largest building, facing the waterfall curtain; lantern-lit, mossy stone and timber.",
+        "placement": "central"
+      },
+      {
+        "role": "hidden dwellings",
+        "type": "cabin",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small timber homes tucked against the cave walls, ladders and ledges between them."
+      },
+      {
+        "role": "cottage homes",
+        "type": "cottage",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Cozy homes with small herb gardens and moss."
+      },
+      {
+        "role": "waterfall lookout",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Watches the water curtain from inside; a quiet sentry post.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "mushroom and herb garden",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Indoor growing hall for food in the dim cave, with glow berries and mushrooms.",
+        "placement": "edge"
+      },
+      {
+        "role": "hearth tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Shared gathering place for the villagers.",
+        "placement": "central"
+      }
+    ]
+  },
+  "usd": 0.01493
+}

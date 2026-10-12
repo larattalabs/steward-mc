@@ -1,0 +1,75 @@
+{
+  "prompt": "A small village I build up from my own materials.",
+  "card": {
+    "name": "Homegrown Village",
+    "site": {
+      "text": "A small village on ordinary level ground within the claim.",
+      "template": "village",
+      "terrain": "flat",
+      "size": "S"
+    },
+    "style": {
+      "text": "Plain, homely build from whatever materials the player supplies; no strong theme given.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A small village the player builds up themselves from their own materials.",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "low",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A small, flat-ground village (size S) that you grow yourself from your own materials. I read it as a simple home base with a rustic, homely look, a central hall, a few cottages, a workshop and a storehouse. Density is low and the difficulty is patron, from your settings.",
+    "contradictions": [],
+    "assumptions": [
+      "Style defaults to rustic since none was given.",
+      "Purpose treated as a home base.",
+      "Density low for a small village.",
+      "Location not specified, so the site is searched within the claim.",
+      "Building mix invented as a modest starter set."
+    ],
+    "program": [
+      {
+        "role": "founder's hall",
+        "type": "house",
+        "count": 1,
+        "footprint": "M",
+        "landmark": true,
+        "notes": "Main gathering and storage hall at the heart of the village.",
+        "placement": "central"
+      },
+      {
+        "role": "villager homes",
+        "type": "cottage",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small modest homes around the hall."
+      },
+      {
+        "role": "workshop",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Place for crafting and tools."
+      },
+      {
+        "role": "storehouse barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Holds supplies and farm goods.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.011896
+}

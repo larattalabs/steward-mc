@@ -1,0 +1,104 @@
+{
+  "prompt": "A single tower arcology, every floor a different district.",
+  "card": {
+    "name": "The Stacked City",
+    "site": {
+      "text": "A single enormous tower arcology rising from level ground, with every floor a different district of the city.",
+      "terrain": "flat",
+      "template": null
+    },
+    "style": {
+      "text": "Layered vertical city; each district has its own palette and lighting, tied together by a cohesive tower shell of stone, glass and iron.",
+      "template": null
+    },
+    "purpose": {
+      "text": "A self-contained vertical city housing homes, markets, farms, crafts and civic life in one tower.",
+      "template": null
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "high",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for one tower that holds a whole city. I read the site as a single huge tower on flat ground, with style left open: each floor gets its own look inside a shared shell. Purpose is a self-sufficient vertical city, so the program is the tower itself (the landmark) plus the district floors it contains.",
+    "contradictions": [],
+    "assumptions": [
+      "Size XL, since a whole city is stacked in one tower.",
+      "Districts chosen: market, residential, farm, workshop, garden/temple, observatory.",
+      "Density high, as the vertical city is packed.",
+      "Claim radius 64 is ample for one tower footprint."
+    ],
+    "program": [
+      {
+        "role": "arcology tower",
+        "type": "arcology_tower",
+        "count": 1,
+        "footprint": "XL",
+        "landmark": true,
+        "notes": "The whole city: a tall tower with stacked floors, each a distinct district, linked by central stairs and shafts. Designed as one structure with a glass-crowned top.",
+        "placement": "central"
+      },
+      {
+        "role": "ground-level gatehouse and lobby",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Entrance plaza at the tower base, leads to the central stairwell."
+      },
+      {
+        "role": "market district floor",
+        "type": "market_floor",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Stalls, shops and a tavern ring under lanterns."
+      },
+      {
+        "role": "residential district floor",
+        "type": "residential_floor",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Dense rows of small apartments along corridors."
+      },
+      {
+        "role": "hydroponic farm floor",
+        "type": "farm_floor",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Crop beds, water channels, glowstone grow lights."
+      },
+      {
+        "role": "forge and workshop district",
+        "type": "workshop_floor",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Smithies, smelters and crafting benches."
+      },
+      {
+        "role": "temple and garden floor",
+        "type": "garden_floor",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Open-air garden and chapel near the top."
+      },
+      {
+        "role": "observatory summit",
+        "type": "observatory",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Glass-domed lookout capping the tower."
+      }
+    ]
+  },
+  "usd": 0.015669
+}

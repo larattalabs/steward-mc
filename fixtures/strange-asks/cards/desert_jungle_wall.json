@@ -1,0 +1,125 @@
+{
+  "prompt": "On the edge between the desert and the jungle: a wall down the middle, the jungle side growing spices and medicine, the desert side mining and glassmaking.",
+  "card": {
+    "name": "Spice and Glass Wall Town",
+    "site": {
+      "text": "A settlement straddling the border between desert and jungle, split lengthwise by a great wall down the middle: jungle on one side, desert on the other.",
+      "terrain": "find",
+      "size": "L",
+      "template": null
+    },
+    "style": {
+      "text": "Two-faced: sandstone, cut sandstone and terracotta on the desert side; mossy stone, jungle wood and leaves on the jungle side, joined by the shared wall.",
+      "template": null
+    },
+    "purpose": {
+      "text": "A twin-sided trade town: jungle side grows spices and medicine, desert side mines and makes glass.",
+      "template": null
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for a town on the desert-jungle border with a wall down the middle. I took the wall as the central spine of the site, with jungle growing spices and medicine on one side and the desert mining and making glass on the other. The two halves get matching but different looks, and a gate and market in the middle connect them.",
+    "contradictions": [],
+    "assumptions": [
+      "Size L, medium density, since none was given.",
+      "The founding stone's land line was not provided, so I took the desert/jungle border as described.",
+      "Used existing terrain at the biome edge rather than reshaping it.",
+      "Added a gatehouse, market and inn as the crossing point between the halves."
+    ],
+    "program": [
+      {
+        "role": "border wall gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Great gate in the dividing wall where goods pass between jungle and desert; toll room and wall walk.",
+        "placement": "central"
+      },
+      {
+        "role": "wall watchtower",
+        "type": "tower",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Set into the wall, one overlooking each side.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "spice terrace farm",
+        "type": "barn",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Jungle side: terraced beds, drying racks and storehouse for spices."
+      },
+      {
+        "role": "herbalist's apothecary",
+        "type": "shop",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Jungle side: medicine brewing, hanging herbs, brewing stands and potions."
+      },
+      {
+        "role": "jungle grower's cottage",
+        "type": "cottage",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Jungle side: stilted wood homes among the trees."
+      },
+      {
+        "role": "glassworks",
+        "type": "glass_works",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Desert side: kilns and furnaces turning sand to glass, with glass windows and a display hall."
+      },
+      {
+        "role": "mine head",
+        "type": "mine_head",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Desert side: shaft entrance and ore carts, on the outer edge.",
+        "placement": "edge"
+      },
+      {
+        "role": "miner's house",
+        "type": "house",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Desert side: sandstone homes for miners and glassmakers."
+      },
+      {
+        "role": "border market",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Beside the gate, where spices, medicine, glass and ore are traded.",
+        "placement": "central"
+      },
+      {
+        "role": "caravan inn",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Resting place for traders crossing the wall.",
+        "placement": "central"
+      }
+    ]
+  },
+  "usd": 0.032099
+}

@@ -1,0 +1,120 @@
+{
+  "prompt": "Two villages, one of fishermen on the coast and one of shepherds inland, joined by a road.",
+  "card": {
+    "name": "Fishermen and Shepherds",
+    "site": {
+      "text": "Two villages joined by a road: a fishing village on the coast and a shepherds' village inland, linked by a road running between them.",
+      "template": "village",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Humble, weathered working villages: timber, thatch, stone, wool and nets, with a rustic pastoral coastal feel.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A fishing village on the coast and a shepherding village inland, each making a living from its own trade and connected by a road.",
+      "template": "farm_town"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for two small villages: fishermen on the coast and shepherds inland, joined by a road. I treated this as one village-style settlement in two clusters, with existing coast and grassland used where possible, a rustic look, and a mix of homes and trade buildings in each cluster plus an inn halfway along the road.",
+    "contradictions": [],
+    "assumptions": [
+      "Size L, since there are two villages and a road within the 64-block claim radius.",
+      "Rustic style chosen because none was given.",
+      "Terrain: find a coast and inland pasture; no sculpting.",
+      "Medium density.",
+      "Added a wayside inn on the road as a link between the villages.",
+      "Search for a spot, since no location was named."
+    ],
+    "program": [
+      {
+        "role": "harbour master's hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Coastal village hub with a lantern-lit pier view; where catches are tallied and the fishermen gather.",
+        "placement": "near_water"
+      },
+      {
+        "role": "fishermen's cottage",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Coastal village; small timber homes with nets, barrels and drying racks outside.",
+        "placement": "near_water"
+      },
+      {
+        "role": "boathouse",
+        "type": "cabin",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Coastal village; boats and gear stored at the water's edge with a short jetty.",
+        "placement": "near_water"
+      },
+      {
+        "role": "smokehouse and fish market",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Coastal village; smoked and salted fish sold from stalls.",
+        "placement": "central"
+      },
+      {
+        "role": "shepherds' cottage",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Inland village; low thatched homes with small pens beside them."
+      },
+      {
+        "role": "sheepfold and shearing barn",
+        "type": "barn",
+        "count": 2,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Inland village; fenced fold and barn for shearing and wool storage.",
+        "placement": "edge"
+      },
+      {
+        "role": "weaver's workshop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Inland village; looms and wool dyed in bright colours.",
+        "placement": "central"
+      },
+      {
+        "role": "hilltop lookout",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Inland village; shepherds watch the flocks from here.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "wayside inn",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Midway along the road between the two villages; a resting place for travellers carrying fish and wool."
+      }
+    ]
+  },
+  "usd": 0.017478
+}

@@ -1,0 +1,91 @@
+{
+  "prompt": "An upside-down village hanging from a cliff overhang.",
+  "card": {
+    "name": "Overhang Hanging Village",
+    "site": {
+      "text": "An upside-down village hanging from a cliff overhang, buildings suspended beneath the rock ceiling",
+      "template": "cliff_face",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Rustic timber and stone, lanterns and chains, built to hang from above",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A secluded home base village living beneath a cliff overhang",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "Site is a village hung beneath a cliff overhang, using an existing overhang if one is found. Style is rustic timber and stone with chains and lanterns. Purpose is a quiet home base. The program is a hall, hanging cabins, a winch house, a lookout, a chain workshop and a ceiling garden, all suspended from the rock above.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M with medium density",
+      "Rustic style chosen as the prompt gave none",
+      "Home base purpose assumed",
+      "Needs an existing overhang; terrain left as find",
+      "No backstory given"
+    ],
+    "program": [
+      {
+        "role": "overhang hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Largest hanging building, chained to the overhang ceiling; the communal heart with lantern-lit windows.",
+        "placement": "central"
+      },
+      {
+        "role": "hanging homes",
+        "type": "cabin",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small cabins inverted from the rock ceiling, roofs against the stone, floors facing the drop."
+      },
+      {
+        "role": "winch house",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Lift and rope station linking the village to the cliff top and ground.",
+        "placement": "edge"
+      },
+      {
+        "role": "lookout tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Slim tower hanging down from the overhang edge for watching the valley.",
+        "placement": "edge"
+      },
+      {
+        "role": "chain-bridge workshop",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Forges chains and fittings that keep the village hanging; connects homes via bridges."
+      },
+      {
+        "role": "hanging garden",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Glow berries and vines grown from the ceiling as food source."
+      }
+    ]
+  },
+  "usd": 0.014313
+}

@@ -1,0 +1,109 @@
+{
+  "prompt": "A town with no right angles anywhere.",
+  "card": {
+    "name": "The Curving Town",
+    "site": {
+      "text": "A town on level ground where streets, walls and plots curve and flow; no right angles anywhere in the layout.",
+      "terrain": "flat",
+      "size": "M",
+      "template": null
+    },
+    "style": {
+      "text": "Organic and flowing: rounded, curved walls, circular and oval footprints, domed or swooping roofs, winding lanes, no square corners.",
+      "template": null
+    },
+    "purpose": {
+      "text": "A general-purpose town to live in, with homes, a market and a few workplaces.",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [
+      "right angles",
+      "square corners",
+      "straight grid streets"
+    ],
+    "interpretation": "You asked for a town with no right angles. I took that as the whole layout and every building: curving lanes, round and oval footprints, and domed or swooping roofs. I made it a medium general-purpose home town on flat ground, since you gave no other purpose or setting.",
+    "contradictions": [
+      {
+        "issue": "Minecraft is built on a block grid, so true non-right angles are impossible.",
+        "resolution": "Use diagonals, stepped arcs and circles to approximate curves, avoiding visible square corners in plans and rooflines."
+      }
+    ],
+    "assumptions": [
+      "Medium size, as none was given.",
+      "Purpose is a general home town, since none was stated.",
+      "Flat terrain with no sculpting.",
+      "Style is custom organic and curved, with no template."
+    ],
+    "program": [
+      {
+        "role": "town hall",
+        "type": "open_hall",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Round or oval hall with a domed roof, at the heart of curving lanes.",
+        "placement": "central"
+      },
+      {
+        "role": "round houses",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Circular or oval plans with conical or domed roofs, set at varied angles."
+      },
+      {
+        "role": "curved cottages",
+        "type": "cottage",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Kidney-shaped or crescent plans hugging the lanes."
+      },
+      {
+        "role": "marketplace shops",
+        "type": "shop",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Crescent-shaped stalls around a round plaza.",
+        "placement": "central"
+      },
+      {
+        "role": "round tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Circular common room with a curved bar."
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Oval forge with a rounded chimney.",
+        "placement": "edge"
+      },
+      {
+        "role": "barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Oval barn with a barrel-vaulted roof.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.015258
+}

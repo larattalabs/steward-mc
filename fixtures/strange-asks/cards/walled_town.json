@@ -1,0 +1,99 @@
+{
+  "prompt": "A walled market town with a gatehouse on each road.",
+  "card": {
+    "name": "Marketwall",
+    "site": {
+      "text": "A walled town on level ground, enclosed by a defensive wall with a gatehouse where each road enters",
+      "template": "ring_wall",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Plain medieval market town: timber and stone, wall of stone brick, banners and lanterns",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "A market town where traders and townsfolk buy and sell goods",
+      "template": "market_town"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A flat-land walled market town in a plain medieval look, enclosed by a wall with a gatehouse at each road. I assumed four roads, so four gatehouses, with a market hall and square at the centre and homes, an inn, a smithy and a chapel inside the wall.",
+    "contradictions": [],
+    "assumptions": [
+      "Four roads enter the town, so four gatehouses",
+      "Medium size",
+      "Medieval style, as none was given",
+      "Medium density",
+      "Wall form follows the ring_wall template"
+    ],
+    "program": [
+      {
+        "role": "road gatehouse",
+        "type": "gatehouse",
+        "count": 4,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "One at each road entrance through the wall; arched passage, portcullis, guard room above.",
+        "placement": "edge"
+      },
+      {
+        "role": "market hall",
+        "type": "shop",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Covered trading hall facing the market square, the heart of the town.",
+        "placement": "central"
+      },
+      {
+        "role": "merchant stalls",
+        "type": "shop",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Open-fronted stalls around the square.",
+        "placement": "central"
+      },
+      {
+        "role": "tavern and inn",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Lodging for travelling traders, near the main road."
+      },
+      {
+        "role": "townhouse",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Homes of merchants and townsfolk with shopfronts below."
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Tools and horseshoes for market goers."
+      },
+      {
+        "role": "chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Small town chapel off the square."
+      }
+    ]
+  },
+  "usd": 0.014069
+}

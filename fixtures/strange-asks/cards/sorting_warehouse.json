@@ -1,0 +1,110 @@
+{
+  "prompt": "A trading post with an automatic sorting warehouse.",
+  "card": {
+    "name": "Sorting House Trading Post",
+    "site": {
+      "text": "An ordinary trading post on level ground, compact around a central yard where carts and traders arrive.",
+      "terrain": "flat",
+      "size": "M",
+      "template": null
+    },
+    "style": {
+      "text": "Practical, workmanlike trading post with timber and stone, with redstone-and-hopper machinery hinted at in the warehouse; no specific theme given.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A trading post with an automatic sorting warehouse that receives goods and sorts them into chests by item type.",
+      "template": "trading_hub"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "budgetUsd": 0.1,
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A medium trading post on flat ground, with a large central warehouse that sorts goods automatically using hoppers and redstone. Around it are a trading hall, stalls, an inn, a stable, homes for workers and a gatehouse. Style was not given, so I used a plain rustic look.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density.",
+      "Rustic style since none was named.",
+      "Flat terrain; no particular site was described.",
+      "Location is searched for, as no spot was given.",
+      "Budget set to the $0.1 shown."
+    ],
+    "program": [
+      {
+        "role": "automatic sorting warehouse",
+        "type": "sorting_warehouse",
+        "count": 1,
+        "footprint": "XL",
+        "landmark": true,
+        "notes": "Intake hoppers and water-stream or minecart feed, banks of labelled item-sorter chests, overflow chests, visible redstone sorting lines. Large loading doors on the yard.",
+        "placement": "central"
+      },
+      {
+        "role": "trading hall",
+        "type": "shop",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Main counter and stalls where villagers trade; stocked from the warehouse next door.",
+        "placement": "central"
+      },
+      {
+        "role": "stall row",
+        "type": "shop",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Open-fronted market stalls by the yard selling food, tools and goods."
+      },
+      {
+        "role": "factor's office",
+        "type": "house",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Ledgers, maps and a lectern; the manager of the post lives upstairs."
+      },
+      {
+        "role": "traders' inn",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Beds and a hearth for travelling merchants."
+      },
+      {
+        "role": "stable and cart shed",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Horses, llamas and carts for arriving caravans.",
+        "placement": "edge"
+      },
+      {
+        "role": "workers' cottages",
+        "type": "cottage",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Homes for warehouse hands."
+      },
+      {
+        "role": "gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Entry where goods are checked and tolls are taken.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.016049
+}

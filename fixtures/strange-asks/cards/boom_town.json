@@ -1,0 +1,116 @@
+{
+  "prompt": "A gold-rush boom town that grows fast around the mine.",
+  "card": {
+    "name": "Goldvein Boomtown",
+    "site": {
+      "text": "A sprawling town on a hillside sloping down from a mine entrance, streets spreading outward from the mine head",
+      "terrain": "find",
+      "template": null
+    },
+    "style": {
+      "text": "Wild-west frontier boom town: weathered spruce and oak planks, false-front buildings, lanterns, rough hasty additions, tents and scaffolding",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "Gold-rush mining boom town that grows fast around the mine",
+      "template": "mining_outpost"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "high",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "I read this as a frontier gold-rush town: a hillside mine at the centre with buildings spreading outward in a hasty, crowded way. Style is a rough wild-west rustic look, purpose is a mining outpost that doubles as a boom town, and the density is high to give the sense of fast growth. No backstory was given, so none was added.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, fitting a 64-block claim radius",
+      "Wild-west frontier look chosen for 'gold-rush'",
+      "High density to show fast growth",
+      "Existing hilly terrain used, no sculpting",
+      "Difficulty patron from the world default settings"
+    ],
+    "program": [
+      {
+        "role": "mine head and winch house",
+        "type": "mine_head",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Timber headframe over the main shaft with ore carts and a winch; the town grows around it",
+        "placement": "central"
+      },
+      {
+        "role": "assay office and bank",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Sturdy stone-and-plank building with gold scales and a vault",
+        "placement": "central"
+      },
+      {
+        "role": "saloon",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Big false-front saloon with balcony and piano, busiest building in town",
+        "placement": "central"
+      },
+      {
+        "role": "general store",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Supplies, picks, barrels and crates out front"
+      },
+      {
+        "role": "miners' shacks",
+        "type": "cabin",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Hasty, mismatched small cabins and tent-like lean-tos, clustered near the mine"
+      },
+      {
+        "role": "boarding house",
+        "type": "house",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Two-storey rooms for rent, newly built"
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Repairs picks and cart rails"
+      },
+      {
+        "role": "sheriff's office and jail",
+        "type": "house",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small office with barred cells"
+      },
+      {
+        "role": "stamp mill and sluice",
+        "type": "mill",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Crushes ore, runs sluice troughs for gold washing",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.016301
+}

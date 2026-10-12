@@ -1,0 +1,107 @@
+{
+  "prompt": "A town on a giant ship.",
+  "card": {
+    "name": "Ship Town",
+    "site": {
+      "text": "A town built on and in a giant ship, a huge hull with decks, masts and a stern castle, resting on water or land",
+      "terrain": "sculpt",
+      "template": null
+    },
+    "style": {
+      "text": "Weathered seafaring: dark oak hull planking, spruce decks, wool sails, lanterns and rope details",
+      "template": null
+    },
+    "purpose": {
+      "text": "A living town aboard a great ship: homes, trade and crew life",
+      "template": null
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for a town on a giant ship. I took the site as a custom sculpted ship hull (no template fits), with a weathered seafaring wooden style, and a general living-town purpose with homes, trade and crew facilities. Size is M, with a captain's hall as the centrepiece.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, about 10 buildings",
+      "Ship rests in water or on land, whichever the site offers",
+      "Style is classic wooden sailing ship",
+      "Purpose is a general living town, not military"
+    ],
+    "program": [
+      {
+        "role": "captain's hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Stern castle command hall with big windows, chart room and lantern-lit deck",
+        "placement": "high_ground"
+      },
+      {
+        "role": "crew quarters",
+        "type": "house",
+        "count": 3,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Bunk-filled dwellings built into the hull and upper deck"
+      },
+      {
+        "role": "cabins",
+        "type": "cabin",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small family cabins along the main deck"
+      },
+      {
+        "role": "deck market",
+        "type": "shop",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stalls and shops for trade goods, near the mast",
+        "placement": "central"
+      },
+      {
+        "role": "galley tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Mess hall and kitchen below deck with barrels and hanging lanterns"
+      },
+      {
+        "role": "shipwright's smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Repairs, anchors and chains"
+      },
+      {
+        "role": "crow's nest lookout",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Atop the main mast",
+        "placement": "high_ground"
+      },
+      {
+        "role": "cargo hold storehouse",
+        "type": "barn",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Crates, barrels and stores deep in the hull",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.01495
+}

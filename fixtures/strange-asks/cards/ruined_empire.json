@@ -1,0 +1,108 @@
+{
+  "prompt": "The ruins of an old empire, with survivors living among them.",
+  "card": {
+    "name": "Ashes of the Empire",
+    "site": {
+      "text": "Sprawling ruins of an old imperial city on existing land, with survivors' camp tucked among broken walls and toppled columns",
+      "terrain": "find",
+      "template": null
+    },
+    "style": {
+      "text": "The ruins of an old empire: weathered, mossy and cracked stone, broken columns and arches, with makeshift survivor patches of timber, cloth and lantern light",
+      "template": "ruined"
+    },
+    "purpose": {
+      "text": "A settlement of survivors living among the ruins of an old empire",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "Site is a large ruined imperial city on land that already exists, so no sculpting. Style is ruined stone with improvised survivor repairs. Purpose is a survivors' home base. Program mixes imperial ruins with a few lived-in buildings. No backstory was given, so none is added.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density",
+      "Placed near by searching for suitable land",
+      "No named enemies or threats, so only a lookout and barricaded gate",
+      "Ruins are mostly imperial stone with timber patches"
+    ],
+    "program": [
+      {
+        "role": "collapsed imperial hall",
+        "type": "imperial_hall_ruin",
+        "count": 1,
+        "footprint": "XL",
+        "landmark": true,
+        "notes": "Great broken hall with half a dome, fallen columns and a partly roofed corner the survivors use as a gathering place.",
+        "placement": "central"
+      },
+      {
+        "role": "survivor shelters",
+        "type": "cabin",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Timber and cloth lean-tos built into ruined walls."
+      },
+      {
+        "role": "ruined watchtower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Cracked imperial tower, repaired at the top as a lookout.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "scavengers' workshop",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Forge set in a vaulted ruin, reworking salvaged metal."
+      },
+      {
+        "role": "communal kitchen and hearth",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Open fire under a surviving arch with long tables.",
+        "placement": "central"
+      },
+      {
+        "role": "garden plots and storehouse",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Crops grown in a collapsed courtyard, store in a patched cellar.",
+        "placement": "edge"
+      },
+      {
+        "role": "toppled monument",
+        "type": "monument_ruin",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Broken statue of an emperor, a place of memory with vines."
+      },
+      {
+        "role": "gatehouse remnant",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Broken arch gate, barricaded with timber.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.016122
+}

@@ -1,0 +1,100 @@
+{
+  "prompt": "A fortress with a redstone drawbridge.",
+  "card": {
+    "name": "Drawbridge Fortress",
+    "site": {
+      "text": "A fortress on level ground, with a moat or ditch around the walls and a drawbridge across it at the main gate.",
+      "template": "fortress",
+      "terrain": "flat",
+      "size": "M"
+    },
+    "style": {
+      "text": "Stone-built medieval fortress with redstone-powered mechanisms.",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "A defensive fortress, guarded and held against attackers.",
+      "template": "fortress"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You want a medieval stone fortress on flat ground, surrounded by a moat, with a working redstone drawbridge at its gate. I read the purpose as defence, sized it M, and planned a keep, a gatehouse that holds the drawbridge machinery, corner towers and garrison buildings.",
+    "contradictions": [],
+    "assumptions": [
+      "Medieval stone style, since none was given.",
+      "Size M with medium density.",
+      "Moat added so the drawbridge has something to span.",
+      "No backstory was given, so none is invented."
+    ],
+    "program": [
+      {
+        "role": "main keep",
+        "type": "tower",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Central stronghold with great hall and lord's quarters; tallest structure.",
+        "placement": "central"
+      },
+      {
+        "role": "drawbridge gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Houses the redstone drawbridge mechanism (pistons or chain-style lift), with a portcullis behind it. Faces the moat.",
+        "placement": "edge"
+      },
+      {
+        "role": "corner watchtower",
+        "type": "tower",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Wall corner towers with arrow slits and battlement access.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "barracks",
+        "type": "house",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Bunks for the garrison, near the gate."
+      },
+      {
+        "role": "armoury smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Forges and stores weapons and armour."
+      },
+      {
+        "role": "stables and granary",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Horses and supplies for a siege.",
+        "placement": "edge"
+      },
+      {
+        "role": "garrison mess",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Dining hall and gathering place for soldiers."
+      }
+    ]
+  },
+  "usd": 0.014621
+}

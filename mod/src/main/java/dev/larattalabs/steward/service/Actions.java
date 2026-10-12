@@ -481,7 +481,8 @@ public final class Actions {
 
 	/** A card as the JSON the screens and the fixtures use. */
 	public static String cardJson(dev.larattalabs.steward.model.ConceptCard c) {
-		return CARD_GSON.toJson(c);
+		// nulls kept: the schema requires the nullable fields (a template of null) to be there
+		return new com.google.gson.GsonBuilder().serializeNulls().create().toJson(c);
 	}
 
 	public static void sendCard(ServerPlayer p, Settlement s) {

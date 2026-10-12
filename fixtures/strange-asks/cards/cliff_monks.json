@@ -1,0 +1,90 @@
+{
+  "prompt": "Monks' cells built into the cliff face above the sea.",
+  "card": {
+    "name": "Cliffside Monastery",
+    "site": {
+      "text": "Monks' cells built into the cliff face above the sea",
+      "template": "cliff_face",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Austere carved stone, simple monastic look, lantern light, weathered by sea wind",
+      "template": null
+    },
+    "purpose": {
+      "text": "A monastery of monks living and praying in cells cut into the cliff",
+      "template": "monastery"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "low"
+    },
+    "avoid": [],
+    "interpretation": "You described monks' cells carved into a sea cliff. I took the site as a cliff face over the water, the style as austere carved stone, and the purpose as a monastery. The program is a small, sparse set of buildings: cells on ledges, a chapel, refectory, scriptorium, bell tower and a landing.",
+    "contradictions": [],
+    "assumptions": [
+      "Size S/M: about 10 buildings is too many for a small cliff, so kept to a compact set",
+      "Style was not specified; chose austere weathered stone",
+      "Existing cliff terrain is used rather than sculpted",
+      "Density low to suit a quiet monastery",
+      "No backstory given"
+    ],
+    "program": [
+      {
+        "role": "cliff chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Largest hall, carved into the cliff at its heart with a window facing the sea",
+        "placement": "central"
+      },
+      {
+        "role": "monks' cells",
+        "type": "cell",
+        "count": 5,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small rooms cut into the rock face on ledges, each with a bed, lectern and sea window"
+      },
+      {
+        "role": "refectory",
+        "type": "hall",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Shared dining hall with kitchen, near the chapel"
+      },
+      {
+        "role": "scriptorium and library",
+        "type": "library",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Bookshelves, lecterns and lanterns for copying manuscripts"
+      },
+      {
+        "role": "bell tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Atop the cliff, overlooking the sea",
+        "placement": "high_ground"
+      },
+      {
+        "role": "sea stair landing",
+        "type": "dock",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small landing at the cliff foot reached by a carved stair",
+        "placement": "near_water"
+      }
+    ]
+  },
+  "usd": 0.014062
+}

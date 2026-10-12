@@ -1,0 +1,67 @@
+{
+  "prompt": "Just a hermit's hut and a garden.",
+  "card": {
+    "name": "Hermit's Hut and Garden",
+    "site": {
+      "text": "A small clearing on ordinary level ground, with a hut and a garden plot beside it.",
+      "terrain": "flat",
+      "size": "S",
+      "template": null
+    },
+    "style": {
+      "text": "Humble, secluded and weathered: rough timber, stone and moss, with a quiet lived-in mood.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A solitary hermit's dwelling with a garden to live from.",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "low",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for a hermit's hut and a garden, so this is a very small, quiet settlement: one hut, one garden and a tiny woodshed. I took the site as a flat clearing, the style as rustic and humble, and the purpose as a simple home. Density is low to keep it feeling remote.",
+    "contradictions": [],
+    "assumptions": [
+      "Size is S because the prompt describes only a hut and a garden.",
+      "Style is rustic, since you named none.",
+      "A small woodshed was added to support the hermit's way of life; remove it if you want only the hut and garden.",
+      "Location is left open (search) because you did not say near spawn or here.",
+      "Difficulty is patron, per the default setting."
+    ],
+    "program": [
+      {
+        "role": "hermit's hut",
+        "type": "cabin",
+        "count": 1,
+        "footprint": "S",
+        "landmark": true,
+        "notes": "One-room dwelling with a bed, hearth, small table, bookshelf and a lantern by the door. Modest and a little weathered.",
+        "placement": "central"
+      },
+      {
+        "role": "garden plot",
+        "type": "garden",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Fenced vegetable and herb beds with a water source, a composter and a few flowers, tended beside the hut."
+      },
+      {
+        "role": "woodshed",
+        "type": "shed",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small open-sided lean-to for firewood and tools, kept against the hut's wall or nearby.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.012874
+}

@@ -1,0 +1,111 @@
+{
+  "prompt": "A border fort guarding the pass against the settlement to the north.",
+  "card": {
+    "name": "Pass Border Fort",
+    "site": {
+      "text": "A border fort set across a mountain pass, blocking the route north toward the neighbouring settlement.",
+      "template": "fortress",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Sturdy, practical stone military look: stone brick and cobblestone walls, dark timber, banners, torch and lantern lighting.",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "Guard the pass against the settlement to the north; a garrisoned border defence.",
+      "template": "fortress"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "budgetUsd": 0.1,
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "I read this as a medium fortress built across a mountain pass, facing north toward the rival settlement. Style is a plain medieval military look, purpose is a garrisoned border defence, and there is no backstory since you gave none. The program is a gate, wall towers, a keep, barracks and the support buildings a garrison needs.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density.",
+      "Medieval stone style since none was named.",
+      "Existing terrain with a pass is used; the fort faces north.",
+      "Difficulty patron from world settings.",
+      "No backstory invented."
+    ],
+    "program": [
+      {
+        "role": "commander's keep",
+        "type": "tower",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Fortified keep on the south side of the pass, overlooking the wall and the northern approach.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "north gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Portcullis gate closing the pass road, facing north.",
+        "placement": "edge"
+      },
+      {
+        "role": "wall watchtower",
+        "type": "tower",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Flank the wall on each side of the pass with archer platforms.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "garrison barracks",
+        "type": "house",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Bunks, chests for gear, behind the wall."
+      },
+      {
+        "role": "armoury smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Repairs weapons and armour; anvil and grindstone."
+      },
+      {
+        "role": "mess hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Soldiers' canteen with long tables and hearth.",
+        "placement": "central"
+      },
+      {
+        "role": "granary and stores",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Food, arrows and supplies.",
+        "placement": "edge"
+      },
+      {
+        "role": "stables",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Horses for patrols and messengers.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.015537
+}

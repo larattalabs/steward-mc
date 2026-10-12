@@ -1,0 +1,100 @@
+{
+  "prompt": "A Nether outpost with a portal to its twin village in the overworld.",
+  "card": {
+    "name": "Nether Outpost of the Twin Portal",
+    "site": {
+      "text": "A Nether outpost on a level ledge, built around a portal gate that links to a twin village in the overworld",
+      "terrain": "flat",
+      "size": "M",
+      "template": null
+    },
+    "style": {
+      "text": "Nether look: blackstone, basalt, crimson wood, nether brick, glowstone and lava-lit glow",
+      "template": "infernal"
+    },
+    "purpose": {
+      "text": "An outpost guarding and supplying a portal link to its twin village in the overworld",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "Site is a Nether outpost on level ground at medium size, centred on a portal. Style is the infernal Nether palette. Purpose is a home base that guards and supplies the portal link to its twin overworld village. The program is a portal gatehouse landmark with supporting barracks, depot, forge, farm, hall and watchtower. The overworld twin village is not built here; only this side is designed.",
+    "contradictions": [],
+    "assumptions": [
+      "Only the Nether outpost is built; the overworld twin village is a separate settlement.",
+      "Size M and medium density, since none was given.",
+      "Difficulty patron from the world settings.",
+      "No backstory was given, so none was invented."
+    ],
+    "program": [
+      {
+        "role": "portal gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Frames the obsidian portal to the overworld twin village; the heart of the outpost, with a lit approach.",
+        "placement": "central"
+      },
+      {
+        "role": "watchtower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Lookout over the portal and surroundings, glowstone beacon.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "outpost barracks",
+        "type": "house",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Sleeping quarters for guards and travellers, blackstone and crimson planks."
+      },
+      {
+        "role": "trader's depot",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stores and trades goods carried between the Nether and the overworld."
+      },
+      {
+        "role": "forge",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Lava-fed forge for tools and gear, nether brick."
+      },
+      {
+        "role": "crimson fungus farm",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Fungus and wart growing for food and fuel.",
+        "placement": "edge"
+      },
+      {
+        "role": "traveller's hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Rest stop for those passing through the portal.",
+        "placement": "central"
+      }
+    ]
+  },
+  "usd": 0.015393
+}

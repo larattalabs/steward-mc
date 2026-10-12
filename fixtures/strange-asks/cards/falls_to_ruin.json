@@ -1,0 +1,113 @@
+{
+  "prompt": "It slowly falls into ruin unless I visit and care for it.",
+  "card": {
+    "name": "The Tended Hold",
+    "site": {
+      "text": "An ordinary settlement on level ground within the claim, left open for the player's own choice of place.",
+      "template": "village",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Weathered, half-overgrown stone and timber that looks cared for in places and slowly crumbling in others; moss, cracked bricks, vines.",
+      "template": "ruined"
+    },
+    "purpose": {
+      "text": "A home base the player keeps alive by visiting and caring for it; it decays when neglected.",
+      "template": "home_base"
+    },
+    "story": {
+      "text": "It slowly falls into ruin unless I visit and care for it."
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You gave only a story: the place decays unless you visit and care for it. I read that as a home base in a ruined style, so it looks tended in places and crumbling in others. Site is ordinary flat ground, medium size, with no specific place named.",
+    "contradictions": [
+      {
+        "issue": "Decay over time depends on game mechanics, not on a built structure.",
+        "resolution": "The card shows a ruined, partly repaired look; the actual decay over time is left to later modules."
+      }
+    ],
+    "assumptions": [
+      "Size M, medium density.",
+      "Home base purpose, since you return to care for it.",
+      "Ruined style chosen for the sense of decay.",
+      "Flat village layout on level ground.",
+      "Location is searched near the claim."
+    ],
+    "program": [
+      {
+        "role": "keeper's hall",
+        "type": "house",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "The heart of the place, where the player returns; best-kept building, with a hearth and a bed.",
+        "placement": "central"
+      },
+      {
+        "role": "keepers' cottages",
+        "type": "cottage",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes in varying states of repair, some with fallen roofs and mossy walls."
+      },
+      {
+        "role": "workshop and smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Where repairs are made; tool racks and anvil, partly collapsed chimney."
+      },
+      {
+        "role": "storehouse",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stores repair materials: stone, timber, glass; sagging roof.",
+        "placement": "edge"
+      },
+      {
+        "role": "gardens and orchard shed",
+        "type": "cabin",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Overgrown plots a visitor could tend."
+      },
+      {
+        "role": "old chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Half-ruined, roof open to the sky, a quiet place of remembrance.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Leaning entrance, the first sight of how neglected the place is."
+      },
+      {
+        "role": "lookout tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Cracked tower overlooking the claim.",
+        "placement": "high_ground"
+      }
+    ]
+  },
+  "usd": 0.016426
+}

@@ -1,0 +1,95 @@
+{
+  "prompt": "A ring city around a crater lake, every house facing the water.",
+  "card": {
+    "name": "Crater Lake Ring City",
+    "site": {
+      "text": "A ring city circling a crater lake, with every house facing the water",
+      "terrain": "sculpt",
+      "size": "L",
+      "template": null
+    },
+    "style": {
+      "text": "Not specified; a warm, cohesive medieval look in stone, timber and slate roofs, with lantern light reflecting on the lake",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "A residential lakeside town where people live around a shared water centre",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You want a ring-shaped city around a crater lake, with every house facing the water. I took the site as a custom sculpted crater with a lake in the middle and the town on its rim, sized L. The style was not given, so I chose a medieval look. The purpose is a residential home town. The program is mostly houses and cottages turned inward, plus a lake hall, boathouse, shops and a gatehouse.",
+    "contradictions": [],
+    "assumptions": [
+      "Style was not given, so I assumed medieval.",
+      "Purpose was not given, so I assumed a residential home base.",
+      "Size set to L for a full ring around a lake.",
+      "Crater and lake need sculpting since none was specified in the land.",
+      "Density set to medium."
+    ],
+    "program": [
+      {
+        "role": "lakeside houses",
+        "type": "house",
+        "count": 8,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Set in an unbroken ring on the crater rim, doors and windows facing the lake.",
+        "placement": "near_water"
+      },
+      {
+        "role": "ring cottages",
+        "type": "cottage",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Smaller homes filling gaps in the ring, all facing the water.",
+        "placement": "near_water"
+      },
+      {
+        "role": "lake hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Grand hall on the ring with a terrace overlooking the lake; the town's gathering place.",
+        "placement": "central"
+      },
+      {
+        "role": "boathouse and jetty",
+        "type": "boathouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Wooden jetty reaching into the crater lake with boats.",
+        "placement": "near_water"
+      },
+      {
+        "role": "market shops",
+        "type": "shop",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Stalls along the ring street near the hall.",
+        "placement": "central"
+      },
+      {
+        "role": "gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Outer entrance through the ring on the outward side.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.014768
+}

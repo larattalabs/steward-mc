@@ -1,0 +1,102 @@
+{
+  "prompt": "Rebuild a ruined End city and settle it.",
+  "card": {
+    "name": "Restored End City",
+    "site": {
+      "text": "A ruined End city, rebuilt in place on a rise of land with towers climbing over a central terrace",
+      "terrain": "find",
+      "template": null
+    },
+    "style": {
+      "text": "End city look: purpur blocks and pillars, end stone bricks, magenta and pale yellow accents, end rods for light, with restored sections replacing the ruin",
+      "template": null
+    },
+    "purpose": {
+      "text": "Settle the rebuilt End city as a lived-in home base for the player",
+      "template": "home_base"
+    },
+    "story": {
+      "text": "The city was ruined and is being rebuilt and resettled."
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "budgetUsd": 0.1,
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked to rebuild a ruined End city and live in it. I read the site as a custom End-city form built on existing land, the style as classic purpur End city architecture, and the purpose as a home base. The backstory is just that the city was ruined and is now restored. The program is about 10 buildings at medium size with a tall spire keep as the centrepiece.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, since none was given.",
+      "Terrain uses existing land rather than sculpting.",
+      "Purpose taken as a home base because you said 'settle it'.",
+      "Density medium.",
+      "Total about 10 buildings including 3 dwellings."
+    ],
+    "program": [
+      {
+        "role": "Grand spire keep",
+        "type": "tower",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Tallest purpur tower with end rod crown and a lookout; the heart of the rebuilt city.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "Dwellings",
+        "type": "house",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small purpur homes with end rod lighting and bedrooms, linked by bridges.",
+        "placement": "central"
+      },
+      {
+        "role": "Spire towers",
+        "type": "tower",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Slender purpur towers with stairs and storage floors.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "Gathering hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Communal hall for meals and meeting.",
+        "placement": "central"
+      },
+      {
+        "role": "Shulker vault",
+        "type": "storage_vault",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Storage hall with chests and shulker-box shelves."
+      },
+      {
+        "role": "Ship dock",
+        "type": "airship_dock",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Open platform at the edge with a ship-like prow, in the End city manner.",
+        "placement": "edge"
+      },
+      {
+        "role": "Workshop",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Crafting and brewing room with anvil and brewing stands."
+      }
+    ]
+  },
+  "usd": 0.033581
+}

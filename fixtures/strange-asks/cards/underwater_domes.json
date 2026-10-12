@@ -1,0 +1,99 @@
+{
+  "prompt": "Glass domes on the sea floor, a colony under the waves.",
+  "card": {
+    "name": "Drowned Dome Colony",
+    "site": {
+      "text": "A colony of glass domes on the sea floor, a colony under the waves",
+      "terrain": "find",
+      "template": null
+    },
+    "style": {
+      "text": "Glass domes, prismarine and sea lanterns, copper accents, cool blue-green light filtering through the water",
+      "template": null
+    },
+    "purpose": {
+      "text": "A self-contained underwater colony where people live, work and farm beneath the waves",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "Site is a custom sea-floor form: a cluster of glass domes on the ocean bed, using existing seabed. Style is a prismarine, glass and sea-lantern look with copper accents. Purpose is a home-base colony for living and working underwater. No backstory was given. Program is about 10 buildings for a medium colony with one great central dome.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density",
+      "Needs a deep ocean area with a reasonably flat floor; search will look for one",
+      "Domes linked by glass tunnels or open spaces between them",
+      "Style details (prismarine, sea lanterns, copper) were filled in by me"
+    ],
+    "program": [
+      {
+        "role": "central habitat dome",
+        "type": "great_dome",
+        "count": 1,
+        "footprint": "XL",
+        "landmark": true,
+        "notes": "Largest glass dome at the heart; gathering hall, kelp garden and sea lantern ceiling light. Air-lock entrance.",
+        "placement": "central"
+      },
+      {
+        "role": "residential pods",
+        "type": "dome_house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small glass domes with prismarine floors, bunks, and a window onto the seabed."
+      },
+      {
+        "role": "kelp and sea-crop farm dome",
+        "type": "greenhouse_dome",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Glass dome with kelp, sea pickles and water-filled planters for food."
+      },
+      {
+        "role": "air-lock gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Entrance chamber with doors and bubble column lift to the surface.",
+        "placement": "edge"
+      },
+      {
+        "role": "workshop and forge dome",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Copper and prismarine crafting, tools and repairs."
+      },
+      {
+        "role": "observation tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Tall glass spire watching the deep for threats and wonders.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "market and mess dome",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Shared eating and trading space lit by sea lanterns.",
+        "placement": "central"
+      }
+    ]
+  },
+  "usd": 0.015556
+}

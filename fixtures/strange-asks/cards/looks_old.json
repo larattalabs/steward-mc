@@ -1,0 +1,99 @@
+{
+  "prompt": "Make it look a thousand years old.",
+  "card": {
+    "name": "Thousand-Year Hold",
+    "site": {
+      "text": "An ordinary settlement on existing land, left open by the player; sited on level or gently rolling ground near the founding stone.",
+      "template": "village",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Look a thousand years old: weathered, mossy, cracked and crumbling stone, overgrown with vines, partly collapsed walls and roofs, worn paths.",
+      "template": "ruined"
+    },
+    "purpose": {
+      "text": "A lived-in home base that has endured for ages, with some buildings still in use among the ruins.",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You only gave a mood, so I took \"a thousand years old\" as the style: weathered ruined stone, moss and vines, partial collapse. The site is a plain village on existing land, the purpose is a home base, and there is no backstory. The program is a medium set of buildings that look ancient and half-fallen, with a few still usable.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density, within the 64-block claim.",
+      "Site is a village on find terrain, since none was given.",
+      "Purpose is a home base, so some buildings remain usable.",
+      "Medieval-style architecture underneath the ruin and decay.",
+      "No backstory invented."
+    ],
+    "program": [
+      {
+        "role": "ancient great hall",
+        "type": "house",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Half-collapsed hall at the heart, moss-covered stone, broken roof, one wing still sheltered and usable.",
+        "placement": "central"
+      },
+      {
+        "role": "weathered cottages",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Old homes with sagging roofs, mossy cobblestone, vines, and gaps in the walls."
+      },
+      {
+        "role": "crumbling watchtower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Leaning tower with a broken top, overgrown with ivy.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "old chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Roofless nave, cracked windows, a surviving altar."
+      },
+      {
+        "role": "derelict smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Cold forge, rusted fittings, collapsed chimney."
+      },
+      {
+        "role": "fallen barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Collapsed timber barn at the edge, reclaimed by grass.",
+        "placement": "edge"
+      },
+      {
+        "role": "broken gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Ruined arch marking the entrance, partly fallen."
+      }
+    ]
+  },
+  "usd": 0.015544
+}

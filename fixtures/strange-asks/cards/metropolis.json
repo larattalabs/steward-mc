@@ -1,0 +1,148 @@
+{
+  "prompt": "A sprawling capital city of two hundred buildings.",
+  "card": {
+    "name": "The Sprawling Capital",
+    "site": {
+      "text": "A sprawling capital city on broad, level ground, spread across the whole claim",
+      "terrain": "flat",
+      "template": null
+    },
+    "style": {
+      "text": "Not specified; a grand medieval capital of stone and timber",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "Capital city: seat of government, trade and dense urban life",
+      "template": null
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "high",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for a sprawling capital city of two hundred buildings. I took it as a large, dense, level-ground city in a medieval look with a palace at its heart, a cathedral, markets, guilds, homes and defences. The program lists building types with counts; the homes and workshops stand in for the many repeated buildings of the districts.",
+    "contradictions": [
+      {
+        "issue": "Two hundred buildings will not fit in a 64-block claim radius (about 128x128 blocks) at normal sizes, and the program is capped at 16 entries",
+        "resolution": "Kept the program to the main building types with counts and set density high; small buildings can fill out districts, and the total will likely fall short of 200 within the claim."
+      }
+    ],
+    "assumptions": [
+      "Size XL, as the largest available",
+      "Medieval style, since none was given",
+      "Terrain flat, as an ordinary city site",
+      "Density high to approach the requested building count",
+      "Location searched for, since no spot was named"
+    ],
+    "program": [
+      {
+        "role": "royal palace",
+        "type": "palace",
+        "count": 1,
+        "footprint": "XL",
+        "landmark": true,
+        "notes": "Seat of government at the heart; towers, throne hall, courtyard",
+        "placement": "central"
+      },
+      {
+        "role": "grand cathedral",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "XL",
+        "landmark": true,
+        "notes": "Tall spire, visible across the city",
+        "placement": "high_ground"
+      },
+      {
+        "role": "city gatehouse",
+        "type": "gatehouse",
+        "count": 2,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Main entrances on the outer edge",
+        "placement": "edge"
+      },
+      {
+        "role": "market hall",
+        "type": "shop",
+        "count": 2,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Covered trade halls around the central square",
+        "placement": "central"
+      },
+      {
+        "role": "townhouse",
+        "type": "house",
+        "count": 8,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Dense rows of citizens' homes; represents the residential districts"
+      },
+      {
+        "role": "cottage",
+        "type": "cottage",
+        "count": 6,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Smaller dwellings of the poorer quarters"
+      },
+      {
+        "role": "guild hall",
+        "type": "guild_hall",
+        "count": 3,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Merchant, craft and scholar guilds"
+      },
+      {
+        "role": "tavern",
+        "type": "tavern",
+        "count": 3,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Inns for travelers and locals"
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Armorers and toolsmiths"
+      },
+      {
+        "role": "barracks",
+        "type": "barracks",
+        "count": 2,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "City guard",
+        "placement": "edge"
+      },
+      {
+        "role": "watchtower",
+        "type": "tower",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Along the walls",
+        "placement": "high_ground"
+      },
+      {
+        "role": "granary and barn",
+        "type": "barn",
+        "count": 2,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Food stores for the population",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.01793
+}

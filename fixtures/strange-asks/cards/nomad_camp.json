@@ -1,0 +1,104 @@
+{
+  "prompt": "A nomad camp of tents that packs up and moves with the seasons.",
+  "card": {
+    "name": "Seasonal Nomad Camp",
+    "site": {
+      "text": "An open, level clearing of grass or plains where tents can be pitched in a loose ring around a central fire, with room to be struck and moved.",
+      "terrain": "flat",
+      "size": "M",
+      "template": null
+    },
+    "style": {
+      "text": "Portable and weathered: wool and hide tents on wooden poles, rope, hay bales, banners, lanterns and campfires; warm earthy colours.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A nomad camp that packs up and moves with the seasons, a mobile home base for a travelling people and their herds.",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "low",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "I read this as a medium, low-density camp of tents on flat open ground, in a rustic, portable style, working as a mobile home base. Buildings are light tents, wagons and a corral, so it looks like it could be packed up. No backstory was given, so none is added.",
+    "contradictions": [
+      {
+        "issue": "A camp that moves can't be permanently built in a world.",
+        "resolution": "Built as one season's encampment, with wagons, bundled goods and bare fire pits suggesting it can be struck and moved."
+      }
+    ],
+    "assumptions": [
+      "Size M with low density, since tents are sparse.",
+      "Rustic style chosen as the nearest template.",
+      "Home base chosen as the purpose template.",
+      "Flat terrain, no sculpting needed."
+    ],
+    "program": [
+      {
+        "role": "elder's council tent",
+        "type": "tent_hall",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Largest tent beside the central fire; banners, rugs, map table showing seasonal routes.",
+        "placement": "central"
+      },
+      {
+        "role": "family tent",
+        "type": "tent",
+        "count": 4,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Wool tents with beds, chests and rugs; each a different colour."
+      },
+      {
+        "role": "gathering fire",
+        "type": "campfire_circle",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Ring of logs for seating around a campfire.",
+        "placement": "central"
+      },
+      {
+        "role": "pack-animal corral",
+        "type": "corral",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Fenced pen for horses, sheep or camels with hay.",
+        "placement": "edge"
+      },
+      {
+        "role": "cart and supply wagon",
+        "type": "wagon",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Covered wagons loaded with crates and barrels, ready to roll."
+      },
+      {
+        "role": "trader's tent",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Open-fronted stall with barter goods."
+      },
+      {
+        "role": "cooking and drying racks",
+        "type": "cookhouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Smoking racks, cauldron, furs and hides drying."
+      }
+    ]
+  },
+  "usd": 0.015747
+}

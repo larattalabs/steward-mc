@@ -1,0 +1,75 @@
+{
+  "prompt": "No two houses alike.",
+  "card": {
+    "name": "Unique Houses Village",
+    "site": {
+      "text": "An ordinary village on level ground; the player gave no site, so a plain village layout is used.",
+      "template": "village",
+      "terrain": "flat",
+      "size": "M"
+    },
+    "style": {
+      "text": "Mixed, hand-built look where every house has its own shape, roof, and materials.",
+      "template": null
+    },
+    "purpose": {
+      "text": "A home base village for living in, where each home is individual.",
+      "template": "home_base"
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [
+      "Identical or repeated house designs"
+    ],
+    "interpretation": "You only asked that no two houses be alike. I took that as a rule for the whole village: every house gets its own shape, roof, and materials. Site, style, and purpose were left open, so I picked a medium village on level ground with a mixed hand-built look and a home-base purpose. Difficulty is patron, as in your settings.",
+    "contradictions": [],
+    "assumptions": [
+      "Medium village size",
+      "Flat, ordinary terrain",
+      "No set style; varied materials per house",
+      "Home base purpose",
+      "Medium density",
+      "Search for a suitable spot, since no location was given"
+    ],
+    "program": [
+      {
+        "role": "unique homes",
+        "type": "house",
+        "count": 6,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "No two alike: each differs in footprint shape, roof form, wall materials, and details such as porches, chimneys, or upper floors."
+      },
+      {
+        "role": "larger family houses",
+        "type": "cottage",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Each distinct from every other house in massing, roof pitch, and palette."
+      },
+      {
+        "role": "village hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Gathering place at the heart of the village, with its own character.",
+        "placement": "central"
+      },
+      {
+        "role": "workshop",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Small working smithy that serves the homes.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.01226
+}

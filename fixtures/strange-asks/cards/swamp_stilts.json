@@ -1,0 +1,100 @@
+{
+  "prompt": "A witch village on stilts in the swamp.",
+  "card": {
+    "name": "Stilt Hollow",
+    "site": {
+      "text": "A village on stilts in the swamp, huts and platforms raised above murky water on timber piles, linked by rope bridges and boardwalks.",
+      "terrain": "find",
+      "template": null
+    },
+    "style": {
+      "text": "Witchy swamp look: dark oak and spruce, mangrove, moss, vines, lanterns and soul lanterns, mushrooms, cauldrons, candles, green and purple glow.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A witch village: a coven's home with potion brewing, herb gathering and spell work.",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A swamp village of witch huts raised on stilts over the water, medium size. I read the style as a rustic, mossy, dark-wood witchy look, and the purpose as a coven's home base with brewing and ritual spaces. It uses existing swamp terrain, so nothing is reshaped.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density.",
+      "Uses existing swamp water and land rather than sculpting.",
+      "No backstory given, so none added.",
+      "Rustic chosen as nearest style template, with witchy details in text."
+    ],
+    "program": [
+      {
+        "role": "coven mother's hut",
+        "type": "cottage",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Largest stilt house, tall crooked roof, cauldron on the porch, brewing stand and bookshelves inside, hanging lanterns.",
+        "placement": "central"
+      },
+      {
+        "role": "witch huts",
+        "type": "cabin",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small stilt huts with bed, cauldron, flower pots, and a ladder down to the water."
+      },
+      {
+        "role": "brewing house",
+        "type": "potion_brewery",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Rows of brewing stands, cauldrons, barrels and shelves of potion bottles."
+      },
+      {
+        "role": "herb drying shed",
+        "type": "cabin",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Hanging herbs, mushrooms and vines, farmland planter boxes on the deck.",
+        "placement": "edge"
+      },
+      {
+        "role": "coven circle platform",
+        "type": "ritual_platform",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Open raised deck with soul lanterns and candles, a ring of cauldrons.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "boathouse and jetty",
+        "type": "boathouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Boats moored under the stilts, fishing racks.",
+        "placement": "near_water"
+      },
+      {
+        "role": "watch perch",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Tall stilt lookout with a lantern.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.015769
+}

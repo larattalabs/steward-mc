@@ -1,0 +1,116 @@
+{
+  "prompt": "A town with a craftsmen's district to the east.",
+  "card": {
+    "name": "Craftsmen's Town",
+    "site": {
+      "text": "An ordinary town on level ground, with a craftsmen's district on the east side.",
+      "template": "village",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Warm, practical medieval look with timber, stone and plank roofs.",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "A town for living and trade, with its crafting workshops grouped in an eastern district.",
+      "template": "market_town"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A medium medieval market town on flat land, with a central square and civic buildings. The craftsmen's district sits on the east side: smithy, carpenter, mason, potter, weaver and tanner. Homes, a tavern and a chapel fill out the rest.",
+    "contradictions": [],
+    "assumptions": [
+      "Style is medieval since none was given.",
+      "Size is M, density medium.",
+      "Purpose is a market town, since crafts and trade fit a craftsmen's district.",
+      "No land line was given, so east is taken as true east of the founding stone."
+    ],
+    "program": [
+      {
+        "role": "town hall",
+        "type": "house",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Civic heart of the town, facing the central square.",
+        "placement": "central"
+      },
+      {
+        "role": "market stalls",
+        "type": "shop",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Stalls around the square selling goods from the craftsmen.",
+        "placement": "central"
+      },
+      {
+        "role": "tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Near the square, with a common room and rooms upstairs.",
+        "placement": "central"
+      },
+      {
+        "role": "townhouse",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Homes for townsfolk in the western and central parts."
+      },
+      {
+        "role": "chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Small chapel on slightly higher ground.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Forge in the eastern craftsmen's district, with an open yard and anvil."
+      },
+      {
+        "role": "carpenter's workshop",
+        "type": "cottage",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Eastern district; timber stacks and a covered work area."
+      },
+      {
+        "role": "mason's and potter's workshops",
+        "type": "shop",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Eastern district; stone blocks and kilns outside."
+      },
+      {
+        "role": "weaver's and tanner's workshop",
+        "type": "cabin",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Eastern district, on the outer edge because of the smell.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.015649
+}

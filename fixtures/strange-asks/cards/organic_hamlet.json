@@ -1,0 +1,99 @@
+{
+  "prompt": "A hamlet that looks like it grew over centuries, crooked lanes and all.",
+  "card": {
+    "name": "Centuries Hamlet",
+    "site": {
+      "text": "A hamlet that grew organically over centuries, with crooked lanes and irregular lots on existing land",
+      "template": "village",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Aged, layered medieval look: mismatched additions, weathered timber, stone and plaster, patched roofs, moss and worn paths",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "A lived-in hamlet for a small farming and crafting community",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You want a small hamlet that looks like it grew bit by bit over centuries. I took the site as a village-style layout on natural land, with winding lanes and uneven lots. The style is an aged medieval look with mismatched materials and later additions. Its purpose is a lived-in home community, medium density, with about 10 buildings around a central hall and green.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, about 10 buildings, inside the 64-block claim",
+      "Style read as aged medieval",
+      "Purpose read as a lived-in home community with some farming",
+      "No backstory invented",
+      "Location chosen by search"
+    ],
+    "program": [
+      {
+        "role": "old village hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Oldest building, stone base with timber additions of later ages, stands where the lanes meet",
+        "placement": "central"
+      },
+      {
+        "role": "cottages",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Each different in age and shape, leaning, with patched roofs and added lean-tos"
+      },
+      {
+        "role": "farmhouse",
+        "type": "house",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Rambling, extended over generations, with a small garden"
+      },
+      {
+        "role": "old chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stone, small, with a mismatched later tower or porch"
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Soot-stained, open forge on a lane corner"
+      },
+      {
+        "role": "barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Weathered, patched with different timber",
+        "placement": "edge"
+      },
+      {
+        "role": "well and green",
+        "type": "well",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small irregular green with a well where lanes bend",
+        "placement": "central"
+      }
+    ]
+  },
+  "usd": 0.014652
+}

@@ -1,0 +1,148 @@
+{
+  "prompt": "A trading hub where every villager buys and sells something different.",
+  "card": {
+    "name": "Many Stalls Market",
+    "site": {
+      "text": "An ordinary settlement on level ground, laid out around a central market square with stalls and shops radiating out along lanes.",
+      "template": "village",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Warm, welcoming market-town look: timber and plaster, striped awnings, hanging signs and lanterns. Each shop is distinguishable by its wares and signage.",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "A trading hub where every villager buys and sells something different; each shop specialises in its own goods.",
+      "template": "trading_hub"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "I read this as a medium market-town on flat ground: a village-style layout around a central square, medieval in look, built as a trading hub. \"Every villager buys and sells something different\" became one specialist shop per villager profession (farmer, butcher, smith, librarian and so on), each with its own wares and signage, plus a central trading hall, a tavern, homes and a warehouse.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, flat ground, medium density.",
+      "Medieval style since none was given.",
+      "Each shop maps to a vanilla villager profession.",
+      "No backstory given, so none added.",
+      "Search for a suitable location since no spot was named."
+    ],
+    "program": [
+      {
+        "role": "trading hall",
+        "type": "shop",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Large covered market hall at the square's heart; the exchange where merchants gather, with a bell and notice boards.",
+        "placement": "central"
+      },
+      {
+        "role": "farmer's produce stall",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Crops, bread and seeds; crates and barrels out front."
+      },
+      {
+        "role": "butcher and fishmonger",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Meat, fish and smoked goods; smoker and hanging racks.",
+        "placement": "near_water"
+      },
+      {
+        "role": "weaponsmith and armorer",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Forge, anvil, and weapons and armor on display."
+      },
+      {
+        "role": "toolsmith",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Tools and iron goods; grindstone and smithing table."
+      },
+      {
+        "role": "librarian's bookshop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Enchanted books and maps; lecterns and bookshelves."
+      },
+      {
+        "role": "cartographer's map house",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Maps and compasses; cartography table, wall maps."
+      },
+      {
+        "role": "cleric's apothecary",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Potions and brewing goods; brewing stands, herb bundles."
+      },
+      {
+        "role": "shepherd's wool and dye shop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Wool, dyes and banners; colorful cloth hung out."
+      },
+      {
+        "role": "fletcher's workshop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Bows, arrows and sticks; fletching table."
+      },
+      {
+        "role": "tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Traders rest and swap news near the square.",
+        "placement": "central"
+      },
+      {
+        "role": "merchants' lodging",
+        "type": "house",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Homes for the shopkeepers above or beside their stalls."
+      },
+      {
+        "role": "warehouse",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Storage for goods and carts at the outskirts.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.019244
+}

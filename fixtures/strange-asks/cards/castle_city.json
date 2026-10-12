@@ -1,0 +1,135 @@
+{
+  "prompt": "One giant castle that is the whole settlement, the shops and homes inside its walls.",
+  "card": {
+    "name": "Castle Town",
+    "site": {
+      "text": "One giant castle that is the whole settlement, with shops and homes inside its walls",
+      "template": "castle",
+      "terrain": "flat",
+      "size": "XL"
+    },
+    "style": {
+      "text": "Classic medieval stone castle",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "A walled castle that serves as a whole living settlement, with homes and shops inside",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "high",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "The whole settlement is a single giant castle: a walled keep-and-courtyard town on ordinary level ground, sized XL to fit within your 64-block claim. Shops and homes stand inside the walls. I took the look as classic medieval stone since you gave no style, and the purpose as a home base that also lives like a small town.",
+    "contradictions": [],
+    "assumptions": [
+      "Style is medieval stone, as none was given",
+      "Purpose is home base with shops and homes",
+      "Size is XL because the castle is giant",
+      "Density is high, as everything is packed inside the walls",
+      "Terrain is flat ground; no sculpting asked for",
+      "Location is searched, as no spot was named"
+    ],
+    "program": [
+      {
+        "role": "Great keep",
+        "type": "tower",
+        "count": 1,
+        "footprint": "XL",
+        "landmark": true,
+        "notes": "Tallest building, the castle's heart with a great hall, throne room and battlements.",
+        "placement": "central"
+      },
+      {
+        "role": "Main gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Barbican with portcullis and murder holes; the only way in through the curtain wall."
+      },
+      {
+        "role": "Corner wall towers",
+        "type": "tower",
+        "count": 4,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Round towers at each corner of the curtain wall, linked by a wall walk.",
+        "placement": "edge"
+      },
+      {
+        "role": "Townsfolk houses",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Timber and stone homes packed along inner lanes against the walls."
+      },
+      {
+        "role": "Cottages",
+        "type": "cottage",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes for servants and craftsmen near the walls."
+      },
+      {
+        "role": "Market shops",
+        "type": "shop",
+        "count": 3,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stalls and shopfronts around the courtyard square: general goods, baker, tailor.",
+        "placement": "central"
+      },
+      {
+        "role": "Castle tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Gathering place off the courtyard with rooms upstairs.",
+        "placement": "central"
+      },
+      {
+        "role": "Smithy and armoury",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Forge for weapons and armour, set by the barracks."
+      },
+      {
+        "role": "Garrison barracks",
+        "type": "house",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Bunks and training yard for the castle guard."
+      },
+      {
+        "role": "Castle chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Small stone chapel with stained glass in a quiet corner."
+      },
+      {
+        "role": "Stables and storehouse",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Horses, hay and stores kept near the gate.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.017583
+}

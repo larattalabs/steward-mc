@@ -1,0 +1,99 @@
+{
+  "prompt": "A village up in the jungle canopy, the huts joined by rope bridges.",
+  "card": {
+    "name": "Canopy Village",
+    "site": {
+      "text": "A village up in the jungle canopy, huts on platforms among the tree crowns, joined by rope bridges",
+      "terrain": "find",
+      "size": "M",
+      "template": null
+    },
+    "style": {
+      "text": "Rustic jungle huts of wood, bamboo and leaves, with vines, lanterns and rope railings",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A home village living in the treetops",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You want a medium village built high in the jungle trees, with huts on platforms joined by rope bridges. I used existing jungle trees where possible rather than reshaping terrain, a rustic wood-and-leaf look, and a home-village purpose with homes, a communal hall, lookout and storage.",
+    "contradictions": [],
+    "assumptions": [
+      "Medium size, about 10 buildings",
+      "Needs a jungle area with tall trees; large trees will be used or added if the land is short",
+      "Rustic style and home-village purpose chosen since none were given",
+      "Rope bridges are treated as connecting paths, not separate buildings"
+    ],
+    "program": [
+      {
+        "role": "elder's great hut",
+        "type": "house",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Largest platform built around a huge jungle trunk, hub where most rope bridges meet.",
+        "placement": "central"
+      },
+      {
+        "role": "canopy huts",
+        "type": "cabin",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes on separate tree platforms, each linked by rope bridge."
+      },
+      {
+        "role": "gathering platform",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Open communal hall with lanterns and a fire pit area.",
+        "placement": "central"
+      },
+      {
+        "role": "lookout post",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Perch above the leaves on the tallest tree.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "storehouse",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Raised storage for fruit, cocoa and tools; winch and rope lift to the ground."
+      },
+      {
+        "role": "healer's hut",
+        "type": "cottage",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Herb planters, hanging vines and potions."
+      },
+      {
+        "role": "canopy workshop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Rope and bamboo crafting, trade goods."
+      }
+    ]
+  },
+  "usd": 0.014685
+}

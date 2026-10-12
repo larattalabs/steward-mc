@@ -1,0 +1,111 @@
+{
+  "prompt": "Take over the abandoned village nearby and rebuild it in our style.",
+  "card": {
+    "name": "Reclaimed Village",
+    "site": {
+      "text": "The abandoned village nearby, taken over and rebuilt on its existing ground within the claim radius",
+      "template": "village",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Rebuilt in 'our style' (not specified): a warm, homely medieval look in wood, stone and thatch",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "Take over and rebuild an abandoned village as a home base for the player's group",
+      "template": "home_base"
+    },
+    "story": {
+      "text": "The village was abandoned and is now taken over and rebuilt."
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "budgetUsd": 0.1,
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You want the nearby abandoned village taken over and rebuilt. I kept the site as that existing village on its own ground, within your 64-block claim. \"Our style\" wasn't described, so I used a warm medieval look. Purpose is a home base, with homes, a hall, a smithy, a market, a barn, a tower and a gate.",
+    "contradictions": [],
+    "assumptions": [
+      "Style 'our style' is unspecified; assumed medieval.",
+      "Purpose assumed to be a home base.",
+      "Size assumed M.",
+      "Density assumed medium.",
+      "Budget taken from the remaining USD budget of $0.1.",
+      "Exact village location is unknown, so it will be searched for near the player."
+    ],
+    "program": [
+      {
+        "role": "village hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Gathering hall at the heart, restored from the old central building; hearth, long tables",
+        "placement": "central"
+      },
+      {
+        "role": "homes",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Rebuilt on the old house plots, one per member"
+      },
+      {
+        "role": "cottages",
+        "type": "cottage",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Smaller dwellings with gardens"
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Forge and anvil for tools and repairs"
+      },
+      {
+        "role": "market stall",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Trading and storage near the square",
+        "placement": "central"
+      },
+      {
+        "role": "barn and fields",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Crops and animals",
+        "placement": "edge"
+      },
+      {
+        "role": "watchtower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Lookout over the approaches",
+        "placement": "high_ground"
+      },
+      {
+        "role": "gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Entrance on the road in",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.015328
+}

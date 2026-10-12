@@ -1,0 +1,94 @@
+{
+  "prompt": "A farming village that feeds my base.",
+  "card": {
+    "name": "Harvest Hamlet",
+    "site": {
+      "text": "A farming village on gentle, open ground with room for fields around it",
+      "template": "village",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Warm, homely rural look: timber, thatch-like roofs, hay, flower boxes, lanterns",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A farming village that feeds the player's base",
+      "template": "farm_town"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "low",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A small, medium-sized rustic farming village on flat land within the 64-block claim, with homes, barns, a mill and a central granary that stores food for your base. Farm fields surround the buildings, so the layout is spread out.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, as none was given",
+      "Rustic style, as a fitting default for farming",
+      "Low density to leave room for fields",
+      "Flat terrain, no sculpting",
+      "Placement is searched, as no spot was named",
+      "Difficulty is patron, the world default"
+    ],
+    "program": [
+      {
+        "role": "granary hall",
+        "type": "barn",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Large storage hall with chests of crops and a loading area where food is collected for the base.",
+        "placement": "central"
+      },
+      {
+        "role": "farmhouse",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Farmers' homes with beds, a small kitchen garden and a chest."
+      },
+      {
+        "role": "crop barn",
+        "type": "barn",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Hay, seed and tool storage beside the fields.",
+        "placement": "edge"
+      },
+      {
+        "role": "animal pens and stable",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Cows, sheep, pigs and chickens in fenced pens.",
+        "placement": "edge"
+      },
+      {
+        "role": "windmill and bakery",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Mill grinds wheat; bakery makes bread. Stands by water if any.",
+        "placement": "near_water"
+      },
+      {
+        "role": "well and market stall",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Village well with a produce stall.",
+        "placement": "central"
+      }
+    ]
+  },
+  "usd": 0.013759
+}

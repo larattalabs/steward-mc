@@ -1,0 +1,131 @@
+{
+  "prompt": "An old medieval quarter by the river and a newer art deco quarter on the hill.",
+  "card": {
+    "name": "Two Quarters on the River and Hill",
+    "site": {
+      "text": "An old quarter on the riverbank and a newer quarter on the hill above it, two districts linked by streets and stairs.",
+      "terrain": "find",
+      "template": null
+    },
+    "style": {
+      "text": "Old quarter: medieval timber, stone and thatch. New quarter: art deco, with geometric symmetry, stepped setbacks, gold and black accents, quartz and polished stone, and lantern/sea lantern lighting.",
+      "template": null
+    },
+    "purpose": {
+      "text": "A mixed town where people live, trade and gather, with the old quarter as the working riverside and the new quarter as the civic and residential district.",
+      "template": "market_town"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You described two districts: an old medieval quarter by the river and a newer art deco quarter on the hill. I read the site as one town split across riverbank and hillside, sized M, using existing land. The style is deliberately two looks, medieval below and art deco above. Purpose is a mixed market town: working riverside below, civic and residential above. The program has about 10 buildings, with a town hall and a deco tower as landmarks.",
+    "contradictions": [
+      {
+        "issue": "Two different styles in one settlement (medieval and art deco).",
+        "resolution": "Kept both: medieval for the riverside quarter, art deco for the hill quarter, joined by stairs and streets. Style template left null."
+      }
+    ],
+    "assumptions": [
+      "Size M, medium density.",
+      "Terrain: existing land with a river and a hill is used; nothing is sculpted.",
+      "Purpose taken as a mixed market town since none was given.",
+      "No backstory invented.",
+      "Both a river and a hill are needed nearby; the search will look for them."
+    ],
+    "program": [
+      {
+        "role": "old town hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Medieval timber-framed guild hall at the heart of the old quarter, facing the river.",
+        "placement": "central"
+      },
+      {
+        "role": "art deco civic tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Stepped setback tower with gold trim and quartz, crowning the hill and visible from the old quarter.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "medieval townhouse",
+        "type": "house",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Timber and thatch homes in the old quarter, closely packed along lanes."
+      },
+      {
+        "role": "riverside tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Old quarter inn with a terrace over the water.",
+        "placement": "near_water"
+      },
+      {
+        "role": "quayside warehouse",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stone and timber store by the river for goods.",
+        "placement": "near_water"
+      },
+      {
+        "role": "old smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Medieval forge in the old quarter.",
+        "placement": "edge"
+      },
+      {
+        "role": "old chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Small medieval stone chapel with bell turret."
+      },
+      {
+        "role": "art deco apartment block",
+        "type": "house",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Symmetrical multi-storey flats with setbacks, black and gold accents, on the hill."
+      },
+      {
+        "role": "deco shop arcade",
+        "type": "shop",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Stylish storefronts with geometric facades and glowing signage on the hill street.",
+        "placement": "central"
+      },
+      {
+        "role": "deco cinema or theatre",
+        "type": "art_deco_theatre",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Marquee-fronted entertainment hall with vertical fins and sea lantern lighting."
+      }
+    ]
+  },
+  "usd": 0.019279
+}

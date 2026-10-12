@@ -1,0 +1,109 @@
+{
+  "prompt": "A working mining town with minecarts down to the mine.",
+  "card": {
+    "name": "Minecart Mining Town",
+    "site": {
+      "text": "A working town on a hillside with a mine entrance at the base, minecart rails running down to the mine",
+      "terrain": "find",
+      "template": null
+    },
+    "style": {
+      "text": "Practical, rustic working-town look: timber, stone, and iron details, with lanterns along the rails",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A working mining town with minecarts down to the mine",
+      "template": "mining_outpost"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A medium working mining town on a slope, with the mine entrance at the bottom and minecart rails running down to it. Style is rustic and practical. The town is the mine's support: homes, a smelter, an assay office, a tavern and storage, centred on a cart station and a headframe. No backstory given.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density",
+      "Rustic style, since 'working' suggested a practical look",
+      "Existing sloped terrain is used rather than sculpted",
+      "Difficulty is patron from the settings",
+      "Search for a suitable spot, since no location was given"
+    ],
+    "program": [
+      {
+        "role": "mine head and lift house",
+        "type": "mine_head",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Timber headframe over the main shaft where the minecart rails descend into the mine; the town's centrepiece",
+        "placement": "edge"
+      },
+      {
+        "role": "minecart station",
+        "type": "rail_station",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Loading platform and rail yard where carts leave for the mine and ore comes up",
+        "placement": "central"
+      },
+      {
+        "role": "miners' cottages",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes for miners, set along the cart track"
+      },
+      {
+        "role": "smelter and smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Smelts ore and repairs tools and rails"
+      },
+      {
+        "role": "assay office and ore store",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Weighs and stores ore, buys and sells goods"
+      },
+      {
+        "role": "miners' tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Gathering place for shift workers",
+        "placement": "central"
+      },
+      {
+        "role": "foreman's house",
+        "type": "house",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Overlooks the mine head and the rails",
+        "placement": "high_ground"
+      },
+      {
+        "role": "tool shed and storehouse",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stores timber, tools and spare rails",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.015264
+}

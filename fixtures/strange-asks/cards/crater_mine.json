@@ -1,0 +1,98 @@
+{
+  "prompt": "A mining facility in a giant meteor crater, dressed as a hellish lair.",
+  "card": {
+    "name": "Meteor Crater Hellmine",
+    "site": {
+      "text": "giant meteor crater",
+      "terrain": "sculpt",
+      "template": null
+    },
+    "style": {
+      "text": "hellish lair",
+      "template": "infernal"
+    },
+    "purpose": {
+      "text": "mining facility",
+      "template": "mining_outpost"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A huge meteor crater is carved into the land, with the mine in its pit and the lair on its rim. Style is infernal: blackstone, nether brick, lava glow. Purpose is a working mine, so the buildings are about extracting and smelting ore, with overseers and workers.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density, with the crater filling most of the 64-block claim.",
+      "No tavern or chapel, since a hellish lair does not need them.",
+      "Terrain is sculpted because a crater does not occur naturally."
+    ],
+    "program": [
+      {
+        "role": "overseer's keep",
+        "type": "tower",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Spiked basalt keep on the crater rim, lava-lit windows, looks down over the whole pit.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "mine head",
+        "type": "mine_head",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Winch frame and shaft over the crater floor, ore carts, chains descending into the dark.",
+        "placement": "central"
+      },
+      {
+        "role": "slag foundry",
+        "type": "slag_foundry",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Lava channels, blast furnaces, smoking chimneys; processes ore from the shaft."
+      },
+      {
+        "role": "ore crusher",
+        "type": "ore_crusher",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Heavy stone mills with hoppers and rails feeding the foundry."
+      },
+      {
+        "role": "worker barracks",
+        "type": "barracks",
+        "count": 4,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Grim bunkhouses cut into the crater wall, soot-black, with iron bars.",
+        "placement": "edge"
+      },
+      {
+        "role": "brimstone shrine",
+        "type": "shrine",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small altar of nether brick and crimson fire to the lair's dark master.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "ore store and armoury",
+        "type": "warehouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Locked vault for ore and guards' weapons."
+      }
+    ]
+  },
+  "usd": 0.014653
+}

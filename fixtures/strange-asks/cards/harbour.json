@@ -1,0 +1,112 @@
+{
+  "prompt": "A harbour town with docks and a lighthouse.",
+  "card": {
+    "name": "Lighthouse Harbour",
+    "site": {
+      "text": "A harbour town on a shoreline with docks reaching into the water and a lighthouse on the point.",
+      "template": "waterfront",
+      "terrain": "find",
+      "size": "M"
+    },
+    "style": {
+      "text": "Weathered coastal look: timber, stone and plank docks, with lantern light after dark.",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "A working harbour town for fishing and shipping.",
+      "template": "port"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for a harbour town with docks and a lighthouse. I took the site as a waterfront on a medium-sized shoreline, using natural coast. The look is a plain coastal medieval style, and the purpose is a working port. The lighthouse is the single centrepiece, and the docks, boathouse, warehouse and fishermen's homes cluster around the water.",
+    "contradictions": [],
+    "assumptions": [
+      "Size is M since none was given.",
+      "Style is a weathered coastal medieval look, as none was named.",
+      "Density is medium.",
+      "The lighthouse stands on a headland or the highest point by the water.",
+      "Placement is searched for, as no location was given."
+    ],
+    "program": [
+      {
+        "role": "lighthouse",
+        "type": "tower",
+        "count": 1,
+        "footprint": "M",
+        "landmark": true,
+        "notes": "Tall stone tower on the headland with a lantern room at the top that shines over the water.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "main dock and pier",
+        "type": "dock",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Long plank pier with moorings, crates and lamp posts; boats tied alongside.",
+        "placement": "near_water"
+      },
+      {
+        "role": "fishermen's cottage",
+        "type": "cottage",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes with drying racks and nets by the quay.",
+        "placement": "near_water"
+      },
+      {
+        "role": "boathouse",
+        "type": "boathouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Covered slip for boats and tackle.",
+        "placement": "near_water"
+      },
+      {
+        "role": "harbourmaster's office",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Overlooks the docks; ledgers and a notice board.",
+        "placement": "central"
+      },
+      {
+        "role": "warehouse",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stores cargo near the pier; barrels and crates.",
+        "placement": "near_water"
+      },
+      {
+        "role": "harbour tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Sailors' inn with rooms upstairs.",
+        "placement": "central"
+      },
+      {
+        "role": "townsfolk house",
+        "type": "house",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Homes set back from the shore."
+      }
+    ]
+  },
+  "usd": 0.015686
+}

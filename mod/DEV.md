@@ -224,3 +224,10 @@ from the local publish.
   - the street is `road:street_w` and `road:street_e` (it breaks at the square);
   - everything is in the region's site group.
 - **Region:** the region keeps Steward's ext (settlement, build). After 60 s it was still PLACING, with 6 of 7 lots placed.
+
+## Strange asks: real cards (2026-10-12, paid, Noah approved with a $40 cap)
+`node tools/record-cards.mjs 40` recorded the card Claude writes for each of the 59 strange asks (`fixtures/strange-asks/cards/`) on Noah's claude login. The script made the opt-in for the run and removed it after; the client started from a scrubbed environment.
+- **Cost:** $0.96 in all ($0.013-0.032 a card). The first attempt spent nothing: the script looked for the DevBridge token in Architect's run dir, which `ARCHITECT_GAME_DIR` now fixes.
+- **Schema:** every card validates (`npm test`). The recorder now keeps null fields, which the schema requires.
+- **What the cards show:** read through `CardLimits`, 22 of the 55 asks not built today say what waits; the ask's words alone gave 6. Claude spells out the place ("piers reaching out over the water"), which the limits catch. The fishing village's card wanted piers over the water, so that ask now needs `over_water`.
+- **Still silent (33):** walls, free layouts, hard rules, time, working modules, inhabitants and relations, which `CardLimits` doesn't know about yet.

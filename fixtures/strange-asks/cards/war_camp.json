@@ -1,0 +1,105 @@
+{
+  "prompt": "A war camp besieging the castle on the next hill.",
+  "card": {
+    "name": "Siege Camp Below the Castle Hill",
+    "site": {
+      "text": "A war camp on a hill facing the castle on the next hill, sitting on existing high ground with open slopes toward the besieged castle.",
+      "terrain": "find",
+      "template": null
+    },
+    "style": {
+      "text": "Rough, temporary military camp: wood palisades, canvas tents in wool, banners, torches and campfires, muddy trodden ground.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A war camp laying siege to the castle on the next hill, housing troops, commanders, siege engines and supplies.",
+      "template": null
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "Site: a camp on a hill facing another hill with a castle, using existing land. Style: a rough, temporary rustic military camp of tents and palisades. Purpose: besieging the castle, so troops, commanders, siege engines and supplies. No backstory was given. Medium size with about 10 buildings, nothing built on the castle itself.",
+    "contradictions": [
+      {
+        "issue": "The besieged castle on the next hill is not part of this settlement and may not exist in the world.",
+        "resolution": "Only the camp is designed, oriented toward the neighbouring hill; the castle is treated as existing scenery."
+      }
+    ],
+    "assumptions": [
+      "Size M, about 10 buildings.",
+      "Medium density, camp spread loosely.",
+      "Search for a hill with another hill nearby, since no spot was given.",
+      "Style is rustic, a makeshift camp rather than permanent architecture.",
+      "Difficulty is patron, from the world defaults."
+    ],
+    "program": [
+      {
+        "role": "commander's pavilion",
+        "type": "war_pavilion",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Large striped tent-hall with a war table, maps and banners; faces the castle.",
+        "placement": "central"
+      },
+      {
+        "role": "soldiers' tents",
+        "type": "tent",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Wool tents with bedrolls, weapon racks and campfires between them."
+      },
+      {
+        "role": "siege workshop",
+        "type": "siege_workshop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Open-sided shed where catapults and rams are built; unfinished engines outside, on the castle-facing side.",
+        "placement": "edge"
+      },
+      {
+        "role": "watch lookout",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Timber tower with a view of the castle walls.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "field forge",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Repairs weapons and armor; anvil, grindstone, barrels of arrows."
+      },
+      {
+        "role": "supply tent and stables",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Food crates, hay and horses at the rear, away from the castle.",
+        "placement": "edge"
+      },
+      {
+        "role": "field hospital",
+        "type": "tent",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Beds, cauldrons and bandage chests."
+      }
+    ]
+  },
+  "usd": 0.016424
+}

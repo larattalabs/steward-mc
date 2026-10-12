@@ -1,0 +1,108 @@
+{
+  "prompt": "A town that spirals up a hill to a temple at the top.",
+  "card": {
+    "name": "Spiral Hill Town",
+    "site": {
+      "text": "A town that spirals up a hill, its main road winding around the slope in a rising spiral to the summit",
+      "template": "hilltop",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Warm, timeless hill-town look: stone and timber, pale plaster, terracotta-style roofs, with a grand temple crowning the top",
+      "template": null
+    },
+    "purpose": {
+      "text": "A pilgrimage town whose life climbs toward the temple at the summit",
+      "template": null
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med"
+    },
+    "avoid": [],
+    "interpretation": "You asked for a town whose road spirals up a hill to a temple at the top. I read the site as a hilltop settlement using an existing hill, the style as a warm stone-and-timber hill town, and the purpose as a pilgrimage town where everything leads toward the temple. Medium size, with the temple as the one landmark.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density.",
+      "Style not given, so a warm stone-and-timber hill town look.",
+      "Purpose inferred as a pilgrimage town.",
+      "An existing hill will be found rather than sculpted.",
+      "Difficulty is patron, from the settings.",
+      "No backstory given."
+    ],
+    "program": [
+      {
+        "role": "summit temple",
+        "type": "temple",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Crowns the hill, visible from every turn of the spiral; broad steps and a terrace overlooking the town.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "spiral road gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Marks the start of the spiral road at the foot of the hill.",
+        "placement": "edge"
+      },
+      {
+        "role": "townhouse",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Stepped along the spiral road, facing uphill toward the temple."
+      },
+      {
+        "role": "cottage",
+        "type": "cottage",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes tucked between the turns of the road."
+      },
+      {
+        "role": "pilgrim's inn",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Rest stop at the lower third of the climb."
+      },
+      {
+        "role": "market shop",
+        "type": "shop",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Along the road, selling offerings and goods.",
+        "placement": "central"
+      },
+      {
+        "role": "wayside shrine",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small shrine at the midpoint of the climb."
+      },
+      {
+        "role": "watchtower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Just below the temple, overlooking the spiral.",
+        "placement": "high_ground"
+      }
+    ]
+  },
+  "usd": 0.015534
+}

@@ -1,0 +1,82 @@
+{
+  "prompt": "Houses inside giant mushrooms on a mushroom island.",
+  "card": {
+    "name": "Mushroom Island Hamlet",
+    "site": {
+      "text": "A mushroom island, with homes set inside giant mushrooms rising from the mycelium",
+      "template": "island",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Giant mushrooms: red and brown caps, white stems, glowing and whimsical, hollowed out into homes",
+      "template": null
+    },
+    "purpose": {
+      "text": "A cozy residential community of homes inside giant mushrooms",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You want a small residential settlement on a mushroom island where the houses are hollowed-out giant mushrooms. I read the site as an existing mushroom island (found, not sculpted), the style as a whimsical giant-mushroom look, and the purpose as a home base, with mushroom houses around a larger communal hall.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density, about 10 buildings within the 64-block claim.",
+      "Purpose taken as a home base since only houses were mentioned.",
+      "An existing mushroom island is used if one is near; otherwise terrain would need sculpting.",
+      "Added a hall, garden, boathouse and lookout to support the homes."
+    ],
+    "program": [
+      {
+        "role": "mushroom house",
+        "type": "house",
+        "count": 5,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Hollowed giant mushroom stem and cap; round rooms, door in stem, windows in cap, glowstone lighting."
+      },
+      {
+        "role": "great mushroom hall",
+        "type": "mushroom_hall",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Largest mushroom, a communal hall with a wide cap and spiral stairs inside the stem.",
+        "placement": "central"
+      },
+      {
+        "role": "spore garden",
+        "type": "cottage",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Small mushroom-farm cottage tending crops of mushrooms."
+      },
+      {
+        "role": "lakeside boathouse",
+        "type": "cabin",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small mushroom-capped shed for boats at the shore.",
+        "placement": "near_water"
+      },
+      {
+        "role": "cap-top lookout",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Tall thin mushroom stem with a lookout in the cap.",
+        "placement": "high_ground"
+      }
+    ]
+  },
+  "usd": 0.014133
+}

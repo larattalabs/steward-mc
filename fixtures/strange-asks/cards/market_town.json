@@ -1,0 +1,101 @@
+{
+  "prompt": "A cosy market town with a tavern, a smithy and a bakery.",
+  "card": {
+    "name": "Cosy Market Town",
+    "site": {
+      "text": "An ordinary cosy town on level ground, laid out around a central market square.",
+      "template": "village",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Cosy, warm and homely: timber-framed cottages, lantern light, flower boxes.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A cosy market town with a tavern, a smithy and a bakery.",
+      "template": "market_town"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A medium, cosy market town on flat ground within the 64-block claim, centred on a market square. The tavern, smithy and bakery you named are included, along with a market hall, stalls, cottages and a granary to make it a working town. The look is warm rustic timber and lantern light. No backstory was given.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, since none was given.",
+      "Rustic style chosen for 'cosy'.",
+      "Added a market hall, stalls, cottages and a granary to support the market town.",
+      "Medium density.",
+      "Difficulty set to patron from the default setting."
+    ],
+    "program": [
+      {
+        "role": "market hall",
+        "type": "shop",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Open-fronted trading hall with stalls facing the market square; the heart of the town.",
+        "placement": "central"
+      },
+      {
+        "role": "tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Warm hearth, lantern-lit common room, rooms upstairs, sign over the door.",
+        "placement": "central"
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Forge, anvil and open work yard; stands slightly off the square."
+      },
+      {
+        "role": "bakery",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Brick oven, bread display in the window, hay sacks and barrels.",
+        "placement": "central"
+      },
+      {
+        "role": "market stalls",
+        "type": "shop",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small stalls for produce, cloth and tools around the square.",
+        "placement": "central"
+      },
+      {
+        "role": "townsfolk cottage",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes with gardens and flower boxes along the lanes."
+      },
+      {
+        "role": "granary barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stores grain for the bakery and market goods.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.014808
+}

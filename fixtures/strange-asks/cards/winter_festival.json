@@ -1,0 +1,109 @@
+{
+  "prompt": "A town that decorates itself for a winter festival.",
+  "card": {
+    "name": "Frostlight Festival Town",
+    "site": {
+      "text": "An ordinary snug town on level ground, laid out around a central festival square",
+      "template": "village",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Cozy winter festival look: snow-dusted roofs, spruce and white wool, lanterns, garlands, red and green banners, warm glowing light",
+      "template": "nordic"
+    },
+    "purpose": {
+      "text": "A welcoming town that decorates itself for a winter festival and gathers its people for celebration",
+      "template": null
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for a town that dresses up for a winter festival. I took the site as a small, flat village around a festival square, the style as a cozy snowy look with lanterns and garlands (Nordic base), and the purpose as a welcoming celebration town. The buildings centre on a festival hall and a decorated tree square, with homes, a few festive shops, a chapel of lights, a sleigh stable and an ice rink.",
+    "contradictions": [],
+    "assumptions": [
+      "Medium size, fitting the 64-block claim",
+      "Flat ground, no terrain sculpting",
+      "Nordic style used as the base for winter",
+      "No backstory invented",
+      "Medium density",
+      "Location is searched for, since no spot was named"
+    ],
+    "program": [
+      {
+        "role": "festival hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Great timber hall facing the square, hung with garlands and lanterns, long feast tables and a big hearth",
+        "placement": "central"
+      },
+      {
+        "role": "festival tree and square",
+        "type": "festival_square",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Open square with a tall decorated spruce, lantern posts, and market stalls",
+        "placement": "central"
+      },
+      {
+        "role": "townsfolk homes",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Snow-capped cottages with wreaths on doors, lanterns, and candle-lit windows"
+      },
+      {
+        "role": "bakery and sweet shop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Festival cookies and warm drinks, stall at the front"
+      },
+      {
+        "role": "toymaker's workshop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Carved gifts and decorations, colourful window displays"
+      },
+      {
+        "role": "chapel of lights",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small shrine with a lit beacon-like lantern tower for the festival",
+        "placement": "high_ground"
+      },
+      {
+        "role": "sleigh stable",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stores sleighs, hay and decorations for the season",
+        "placement": "edge"
+      },
+      {
+        "role": "ice rink",
+        "type": "ice_rink",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Frozen pond with benches and a warming hut beside it"
+      }
+    ]
+  },
+  "usd": 0.016083
+}

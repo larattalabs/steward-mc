@@ -188,7 +188,7 @@ public final class StewardCommands {
 							}
 							try {
 								java.nio.file.Files.createDirectories(out.getParent());
-								java.nio.file.Files.writeString(out, new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(o));
+								java.nio.file.Files.writeString(out, new com.google.gson.GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(o));
 							} catch (java.io.IOException e) {
 								Steward.LOGGER.warn("record_card {}: {}", label, e.toString());
 							}

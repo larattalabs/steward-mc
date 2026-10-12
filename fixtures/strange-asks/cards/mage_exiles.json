@@ -1,0 +1,134 @@
+{
+  "prompt": "A town of exiled mages, every tower a different school of magic.",
+  "card": {
+    "name": "Enclave of the Exiled Mages",
+    "site": {
+      "text": "A town of towers on ordinary ground, sized to fit within the 64-block claim",
+      "template": "village",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Arcane and varied: each tower has its own palette and motifs matching its school of magic, tied together by a shared stone base and a sense of exile",
+      "template": null
+    },
+    "purpose": {
+      "text": "A refuge and community for exiled mages, where each school of magic keeps its own tower",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "I took this as a medium town built flat on ordinary ground inside your 64-block claim. Its character is a ring of distinct wizard towers, one per school of magic, around a shared conclave hall. The style is arcane and varied: each tower has its own palette and theme, and a common stone base unites them. Purpose is a home base for the exiles, with a library, an inn and modest dwellings. No backstory was given, so none is added.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M with medium density",
+      "Seven schools: fire, water, death, enchantment, nature, alchemy, astral",
+      "Flat terrain; no sculpting needed",
+      "Purpose treated as home_base",
+      "Search for a suitable site since no location was named"
+    ],
+    "program": [
+      {
+        "role": "Conclave hall",
+        "type": "hall",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Where the exiled schools meet; round council chamber with a ring of seats and a floor sigil.",
+        "placement": "central"
+      },
+      {
+        "role": "Pyromancy tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Evocation/fire school: red nether brick, blackstone, lava-lit braziers, open flame top."
+      },
+      {
+        "role": "Hydromancy tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Water school: prismarine, dark oak, glass, pools and drip channels.",
+        "placement": "near_water"
+      },
+      {
+        "role": "Necromancy tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Death school: deepslate, bone, soul lanterns, crypt cellar.",
+        "placement": "edge"
+      },
+      {
+        "role": "Enchantment tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Enchanting school: purple and gold, bookshelves, enchanting tables, amethyst crown.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "Naturalist tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Nature school: moss, oak, vines, azalea, a tree growing through the middle."
+      },
+      {
+        "role": "Alchemy tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Potion school: brewing stands, copper, cauldrons, green glass."
+      },
+      {
+        "role": "Astral observatory tower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Divination/sky school: quartz, dark blue, glass dome, telescope and star charts.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "Library archive",
+        "type": "house",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Shared salvaged books and tomes from lost academies."
+      },
+      {
+        "role": "Apprentice dwellings",
+        "type": "cottage",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Modest homes for students and servants clustered around the towers."
+      },
+      {
+        "role": "Exile's inn",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Common gathering place for mages of rival schools.",
+        "placement": "central"
+      }
+    ]
+  },
+  "usd": 0.018734
+}

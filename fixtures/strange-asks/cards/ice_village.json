@@ -1,0 +1,93 @@
+{
+  "prompt": "An igloo village on a frozen lake.",
+  "card": {
+    "name": "Frozen Lake Igloo Village",
+    "site": {
+      "text": "A village of igloos sitting on a frozen lake, ice sheet surrounding the buildings",
+      "template": "village",
+      "terrain": "find",
+      "size": "M"
+    },
+    "style": {
+      "text": "Snow and ice igloos with packed ice, snow blocks and spruce accents, warm lantern glow against the cold",
+      "template": "nordic"
+    },
+    "purpose": {
+      "text": "A cozy home base village for living on the ice, with fishing and shared warmth",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You want a medium-sized village of igloos standing on a frozen lake. I took the site as a village on existing ice, the look as snowy Nordic with lantern warmth, and the purpose as a cozy home base with fishing. No backstory was given.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M with medium density",
+      "Existing frozen lake will be found; no sculpting",
+      "Purpose read as home base with fishing",
+      "Nordic style chosen to fit snow and ice",
+      "Search for a frozen lake since no location was named"
+    ],
+    "program": [
+      {
+        "role": "elder's great igloo",
+        "type": "igloo_hall",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Largest dome at the heart, shared hearth, lanterns, gathering space",
+        "placement": "central"
+      },
+      {
+        "role": "family igloo",
+        "type": "igloo_house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Snow-block domes with beds, short entrance tunnels, furnace and chest"
+      },
+      {
+        "role": "fishing hut",
+        "type": "cabin",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Ice-hole fishing, barrels, drying racks",
+        "placement": "edge"
+      },
+      {
+        "role": "hearth tavern igloo",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Warm communal eating place with campfire and stew",
+        "placement": "central"
+      },
+      {
+        "role": "storehouse igloo",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Stored fish, furs and supplies in barrels and chests"
+      },
+      {
+        "role": "lookout post",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Ice-block watch tower over the lake",
+        "placement": "high_ground"
+      }
+    ]
+  },
+  "usd": 0.014153
+}

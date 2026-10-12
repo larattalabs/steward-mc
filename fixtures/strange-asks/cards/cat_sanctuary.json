@@ -1,0 +1,101 @@
+{
+  "prompt": "A cat sanctuary run by a grumpy old librarian.",
+  "card": {
+    "name": "Whisker Hollow Cat Sanctuary",
+    "site": {
+      "text": "A small, cozy village-style compound on gentle existing land, within the 64-block claim, with garden courtyards for cats to roam.",
+      "template": "village",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Cozy, bookish and slightly crotchety: warm wood, shelves, lanterns, wool carpets, cat-sized nooks and perches.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A cat sanctuary that shelters and feeds strays, run by a grumpy old librarian who also keeps a library.",
+      "template": null
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "budgetUsd": 0.1,
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "I read this as a small, cozy village-style sanctuary in a rustic bookish style, centred on the librarian's library-home with cat dorms, a feeding hall, a garden, a sick bay and a fish shed. Size is M, with medium density. Terrain is existing land. The grumpiness shows in signs and details only.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, medium density.",
+      "Rustic style chosen to fit a cozy bookish mood.",
+      "No backstory given, so none invented.",
+      "Fish shed placed by water if any is near.",
+      "Budget set to the remaining $0.1."
+    ],
+    "program": [
+      {
+        "role": "librarian's library and home",
+        "type": "house",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Tall bookshelves, lectern, reading nooks, a grumpy sign or two; the librarian's bed upstairs; cats sleeping on shelves.",
+        "placement": "central"
+      },
+      {
+        "role": "cat dormitory",
+        "type": "cabin",
+        "count": 3,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Rows of cat beds, wool carpets, window perches and cat doors via trapdoors."
+      },
+      {
+        "role": "feeding hall",
+        "type": "cottage",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Fish troughs (cauldrons/barrels), food stores, water bowls.",
+        "placement": "central"
+      },
+      {
+        "role": "cat playground garden",
+        "type": "cat_garden",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Fenced yard with climbing trees, hay bales, flowers, scratching posts, fish pond."
+      },
+      {
+        "role": "vet and sick bay",
+        "type": "cottage",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Quiet infirmary with brewing stand, beds and curtains."
+      },
+      {
+        "role": "fish shed",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Fishing supplies and smoked fish for feeding the cats.",
+        "placement": "near_water"
+      },
+      {
+        "role": "gatehouse with donations desk",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Entry arch with 'No Dogs' sign and adoption desk.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.01606
+}

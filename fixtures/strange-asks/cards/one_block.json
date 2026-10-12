@@ -1,0 +1,109 @@
+{
+  "prompt": "Everything built only of copper, in every stage of oxidation.",
+  "card": {
+    "name": "Verdigris Reach",
+    "site": {
+      "text": "A settlement on ordinary level ground, terraced gently so its buildings can step from bright new copper at the centre to deeply weathered green at the edges.",
+      "terrain": "flat",
+      "size": "M",
+      "template": null
+    },
+    "style": {
+      "text": "Everything built only of copper, in every stage of oxidation: bright cut copper, exposed, weathered and oxidized variants, waxed and unwaxed, shading from orange to teal-green.",
+      "template": null
+    },
+    "purpose": {
+      "text": "A showcase home base and gathering place celebrating copper and its oxidation, with workshops and homes.",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "budgetUsd": 0.1,
+      "difficulty": "patron"
+    },
+    "avoid": [
+      "Any building material other than copper and its oxidation variants"
+    ],
+    "interpretation": "You asked for a settlement built only from copper in every stage of oxidation. I took the site as ordinary flat ground, the style as an all-copper palette running from bright orange to oxidized teal, and the purpose as a home base with homes and workshops. No backstory was given, so none was added. Buildings step through the oxidation stages, newest at the centre, most weathered at the edges.",
+    "contradictions": [
+      {
+        "issue": "Only copper is allowed, but buildings usually need other materials (doors, glass, floors, light).",
+        "resolution": "Copper and its variants carry the walls, roofs, floors, stairs, slabs, doors, trapdoors, bulbs and lightning rods; glass and non-copper items are avoided where possible."
+      }
+    ],
+    "assumptions": [
+      "Medium size, about 10 buildings' worth of settlement, since none was given.",
+      "Purpose taken as home base, since the prompt named none.",
+      "Terrain is flat, with no specific site form requested.",
+      "Density is medium.",
+      "Search for a suitable location, since no spot was named."
+    ],
+    "program": [
+      {
+        "role": "Founders' copper hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Central gathering hall in bright new copper, with a roof aged to exposed and weathered copper.",
+        "placement": "central"
+      },
+      {
+        "role": "Copper smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Workshop with copper bulb lights and lightning rod chimney; semi-weathered."
+      },
+      {
+        "role": "Weathered cottages",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Homes each at a different stage of oxidation, from exposed to fully oxidized."
+      },
+      {
+        "role": "Oxidized watchtower",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Tall tower fully oxidized, teal-green, topped with lightning rod.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "Copper chapel of ageing",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Shrine showing all four oxidation stages in a gradient from floor to spire."
+      },
+      {
+        "role": "Trading shop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small waxed-copper shop kept bright.",
+        "placement": "central"
+      },
+      {
+        "role": "Copper-roofed barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Storage barn, weathered copper.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.017406
+}

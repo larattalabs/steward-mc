@@ -1,0 +1,104 @@
+{
+  "prompt": "Build a village around my house.",
+  "card": {
+    "name": "Village Around My House",
+    "site": {
+      "text": "A village built around the player's existing house, which stays at the centre, on the land at this spot",
+      "template": "village",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Cozy medieval village look with timber, stone and plank roofs, matching a friendly home settlement",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "A home village that grows around the player's own house",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "here",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [
+      "Demolishing or altering the player's existing house"
+    ],
+    "interpretation": "You want a village that grows around your existing house, so the house is the centre and stays untouched. I read the site as a village on the land here, using the existing terrain, within your 64 block claim. Style is a friendly medieval look, since you gave none. Purpose is a home base. The program is a modest mix of homes, a tavern, a smithy, a barn and a chapel, with a well square as the one centrepiece.",
+    "contradictions": [],
+    "assumptions": [
+      "Medium size, about 10 buildings, with medium density",
+      "Medieval style since none was given",
+      "Home base purpose: a cozy living village",
+      "Existing terrain is used with no sculpting",
+      "Your house is the centre and is not rebuilt",
+      "Difficulty is patron, from the default setting"
+    ],
+    "program": [
+      {
+        "role": "village well and green",
+        "type": "well_square",
+        "count": 1,
+        "footprint": "S",
+        "landmark": true,
+        "notes": "Small gathering square with a well, near the player's house; paths radiate from here.",
+        "placement": "central"
+      },
+      {
+        "role": "villager cottage",
+        "type": "cottage",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes with gardens facing the paths around the player's house."
+      },
+      {
+        "role": "family house",
+        "type": "house",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Larger two-storey homes set along the main path."
+      },
+      {
+        "role": "village tavern",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Warm common room near the green.",
+        "placement": "central"
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Open forge with anvil and grindstone, on the village side away from homes.",
+        "placement": "edge"
+      },
+      {
+        "role": "farm barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Barn with crop plots and animal pens.",
+        "placement": "edge"
+      },
+      {
+        "role": "chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small chapel with bell, on a rise if one is available.",
+        "placement": "high_ground"
+      }
+    ]
+  },
+  "usd": 0.014916
+}

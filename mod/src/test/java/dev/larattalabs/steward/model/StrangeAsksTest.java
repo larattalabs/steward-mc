@@ -18,12 +18,19 @@ import org.junit.jupiter.api.Test;
  */
 class StrangeAsksTest {
 	/** Asks not built today whose words make the card say what waits (raise it as CardLimits learns; never lower it). */
-	static final int HONEST_BASELINE = 6;
+	static final int HONEST_BASELINE = 22;
 
 	private static JsonObject json(String name) throws Exception {
 		try (InputStream in = StrangeAsksTest.class.getClassLoader().getResourceAsStream("strange-asks/" + name)) {
 			assertNotNull(in, name);
 			return JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject();
+		}
+	}
+
+	private static ConceptCard recorded(String id) throws Exception {
+		try (InputStream in = StrangeAsksTest.class.getClassLoader().getResourceAsStream("strange-asks/cards/" + id + ".json")) {
+			if (in == null) return null;
+			return ConceptCard.parse(JsonParser.parseString(new String(in.readAllBytes(), StandardCharsets.UTF_8)).getAsJsonObject().getAsJsonObject("card"));
 		}
 	}
 
@@ -36,14 +43,17 @@ class StrangeAsksTest {
 	void theCardSaysWhatWaitsForTheStrangeAsks() throws Exception {
 		var caps = json("capabilities.json").getAsJsonObject("capabilities");
 		Map<String, Integer> rank = Map.of("now", 0, "nearest", 1, "waits", 2);
-		int notBuilt = 0, honest = 0;
+		int notBuilt = 0, honest = 0, real = 0;
 		List<String> silent = new ArrayList<>(), falseAlarm = new ArrayList<>();
 		for (var e : json("asks.json").getAsJsonArray("asks")) {
 			var a = e.getAsJsonObject();
 			int worst = 0;
 			for (var n : a.getAsJsonArray("needs")) worst = Math.max(worst, rank.get(caps.getAsJsonObject(n.getAsString()).get("status").getAsString()));
-			List<String> limits = CardLimits.of(cardOf(a.get("ask").getAsString()));
 			String id = a.get("id").getAsString();
+			// the real card Claude wrote for it (tools/record-cards.mjs), else the ask's own words as a card's
+			ConceptCard card = recorded(id);
+			if (card != null) real++;
+			List<String> limits = CardLimits.of(card != null ? card : cardOf(a.get("ask").getAsString()));
 			if (worst == 0) {
 				if (!limits.isEmpty()) falseAlarm.add(id + ": " + limits);
 			} else {
@@ -52,7 +62,7 @@ class StrangeAsksTest {
 				else silent.add(id);
 			}
 		}
-		System.out.println("strange asks: " + honest + " of " + notBuilt + " not built today say what waits; silent: " + silent);
+		System.out.println("strange asks (" + real + " real cards): " + honest + " of " + notBuilt + " not built today say what waits; silent: " + silent);
 		assertEquals(List.of(), falseAlarm, "an ask built today gets no limit");
 		assertTrue(honest >= HONEST_BASELINE, honest + " of " + notBuilt + " say what waits, below the baseline " + HONEST_BASELINE + "; silent: " + silent);
 	}

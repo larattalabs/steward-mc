@@ -1,0 +1,57 @@
+{
+  "prompt": "Identical row houses for the workers.",
+  "card": {
+    "name": "Workers' Row",
+    "site": {
+      "text": "Level ground with a straight street lined by terraced rows of houses",
+      "template": "village",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Plain, uniform, utilitarian: identical repeated facades, simple materials",
+      "template": null
+    },
+    "purpose": {
+      "text": "Housing for workers: identical row houses",
+      "template": null
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "high",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for identical row houses for workers. I took the site as flat ground with a straight street, the style as plain and uniform, and the purpose as worker housing. The program is eight identical houses plus a small shared well so the row has a heart.",
+    "contradictions": [],
+    "assumptions": [
+      "Size S, since only a single row of housing was described",
+      "Density high because row houses are tightly packed",
+      "Added one communal well as the only non-house building",
+      "No story given, so none invented",
+      "Style left as a custom plain look, with no template"
+    ],
+    "program": [
+      {
+        "role": "worker row house",
+        "type": "house",
+        "count": 8,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Identical terraced houses sharing the same plan, facade and roof, lined up along one street."
+      },
+      {
+        "role": "communal well",
+        "type": "well",
+        "count": 1,
+        "footprint": "S",
+        "landmark": true,
+        "notes": "Shared well and small square at the end of the street.",
+        "placement": "central"
+      }
+    ]
+  },
+  "usd": 0.010594
+}

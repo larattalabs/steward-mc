@@ -1,0 +1,83 @@
+{
+  "prompt": "A harvest hamlet with a big barn and a windmill.",
+  "card": {
+    "name": "Harvest Hamlet",
+    "site": {
+      "text": "A small hamlet on gentle, open farmland, with the barn and windmill standing out on the edges of the fields.",
+      "template": "village",
+      "terrain": "flat"
+    },
+    "style": {
+      "text": "Warm rustic farm look: timber frames, thatch and plank roofs, hay bales, wheat fields, lanterns.",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A harvest hamlet: a farming community that grows, stores and mills grain.",
+      "template": "farm_town"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "low",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for a harvest hamlet with a big barn and a windmill. I read the site as a small village on open farmland, the style as rustic, and the purpose as a farm town. The big barn is the centrepiece landmark, and the windmill stands beside it as a second key building. Around them are farmhouses, a granary and a few small farm buildings. Size is S, kept small and low density.",
+    "contradictions": [],
+    "assumptions": [
+      "Size S: a hamlet is small.",
+      "Flat, open land is available nearby, so no terrain sculpting.",
+      "Rustic style, since none was named.",
+      "Low density, so the fields have room.",
+      "No backstory was given, so none was invented."
+    ],
+    "program": [
+      {
+        "role": "great harvest barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Big hayloft barn with wide doors, stacked hay and grain bins; the hamlet's centrepiece, facing the fields.",
+        "placement": "edge"
+      },
+      {
+        "role": "windmill",
+        "type": "windmill",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Tall tower with large sails on a rise, to catch the wind; grinds the harvest, with a flour store at the base.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "farmhouse",
+        "type": "cottage",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes with thatch roofs, kitchen gardens and a well."
+      },
+      {
+        "role": "granary",
+        "type": "granary",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Raised storehouse for sacks of grain, close to the windmill and barn."
+      },
+      {
+        "role": "farmers' hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Harvest feast hall and gathering place at the heart of the hamlet.",
+        "placement": "central"
+      }
+    ]
+  },
+  "usd": 0.014285
+}

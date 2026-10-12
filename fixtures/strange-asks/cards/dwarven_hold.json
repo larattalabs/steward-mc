@@ -1,0 +1,116 @@
+{
+  "prompt": "A dwarven hold carved inside the mountain: great halls, forges and deep mines.",
+  "card": {
+    "name": "Deepforge Hold",
+    "site": {
+      "text": "A hold carved inside the mountain, with halls and tunnels cut into the rock and an entrance in the mountainside.",
+      "template": "underground",
+      "terrain": "find",
+      "size": "L"
+    },
+    "style": {
+      "text": "Dwarven: dark stone, deepslate and polished blackstone, gold accents, lava and lantern light, heavy carved pillars.",
+      "template": "dwarven"
+    },
+    "purpose": {
+      "text": "A dwarven hold for living, crafting and mining: great halls, forges and deep mines.",
+      "template": "mining_outpost"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You want a dwarven hold inside a mountain. I took the site as an underground settlement cut into existing mountain rock, large in size, with a dwarven look of dark stone, gold and lava light. Its purpose is living and working: great halls, forges and deep mines, so the program centres on a great hall, a grand forge and a mine head, with homes, barracks, a mead hall and a gate.",
+    "contradictions": [],
+    "assumptions": [
+      "Size L, since a hold with halls, forges and mines is large.",
+      "Terrain: find an existing mountain rather than sculpt one.",
+      "Medium density and patron difficulty from the settings.",
+      "No backstory given, so none added."
+    ],
+    "program": [
+      {
+        "role": "great hall",
+        "type": "great_hall",
+        "count": 1,
+        "footprint": "XL",
+        "landmark": true,
+        "notes": "Vast pillared feast and moot hall with long tables, a high seat and braziers.",
+        "placement": "central"
+      },
+      {
+        "role": "grand forge",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Lava-fed forges, anvils and quenching channels; the hold's heart of industry.",
+        "placement": "central"
+      },
+      {
+        "role": "smithies",
+        "type": "smithy",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Smaller workshops for tools, armour and gem-cutting."
+      },
+      {
+        "role": "mine head",
+        "type": "mine_head",
+        "count": 1,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "Lift and shaft down to the deep mines, with minecart rails and ore sorting."
+      },
+      {
+        "role": "smelter and ore store",
+        "type": "smelter",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Furnaces and stockpiles of ore and ingots beside the mine head."
+      },
+      {
+        "role": "dwarf dwellings",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Rock-cut family homes with stone beds, hearths and carved doors."
+      },
+      {
+        "role": "barracks",
+        "type": "barracks",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Guard quarters near the main gate, with weapon racks.",
+        "placement": "edge"
+      },
+      {
+        "role": "mead hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Barrels and a stone hearth for off-shift miners."
+      },
+      {
+        "role": "mountain gate",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Massive carved stone doors set in the mountainside.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.03945
+}

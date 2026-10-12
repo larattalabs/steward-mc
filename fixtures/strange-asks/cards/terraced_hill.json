@@ -1,0 +1,103 @@
+{
+  "prompt": "A terraced hill town with switchback streets.",
+  "card": {
+    "name": "Switchback Terrace Town",
+    "site": {
+      "text": "A terraced hill town with switchback streets climbing the slope in stepped levels",
+      "template": "hilltop",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Warm, lived-in hill town: stone retaining walls, timber and plaster houses, tiled roofs, lantern-lit stairs",
+      "template": "medieval"
+    },
+    "purpose": {
+      "text": "A place to live and gather: a hill town with homes, trade and a seat of community on the summit",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "budgetUsd": 0.1,
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You described a town built up a slope in terraces joined by zigzag streets. I read the site as a hilltop on existing hillside, the style as warm medieval stone and timber, and the purpose as a general home base. The program is a medium settlement with a hall on the summit, houses stepping down the terraces, and a few workplaces along the switchbacks.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, since none was stated",
+      "Medieval style assumed as a neutral fit for a hill town",
+      "Purpose set to a general home base",
+      "Existing hillside used rather than sculpting",
+      "Density medium",
+      "Budget set to the remaining $0.1"
+    ],
+    "program": [
+      {
+        "role": "hilltop hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Crowning the top terrace, overlooks every switchback and the valley below.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "terrace houses",
+        "type": "house",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Stepped into the slope, each on its own terrace with a small garden or stair frontage."
+      },
+      {
+        "role": "hillside cottages",
+        "type": "cottage",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Tucked beside the switchback bends on the middle terraces."
+      },
+      {
+        "role": "market shop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Opens onto a wide landing on the middle terrace.",
+        "placement": "central"
+      },
+      {
+        "role": "smithy",
+        "type": "smithy",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Mid-level terrace, sheltered by a retaining wall.",
+        "placement": "edge"
+      },
+      {
+        "role": "terrace chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Small chapel on a high terrace with a view down the streets.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "gatehouse at the foot",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Marks where the lowest switchback begins.",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.015368
+}

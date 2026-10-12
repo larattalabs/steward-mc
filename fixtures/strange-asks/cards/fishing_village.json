@@ -1,0 +1,76 @@
+{
+  "prompt": "A small fishing village by the lake.",
+  "card": {
+    "name": "Lakeside Fishing Village",
+    "site": {
+      "text": "A small village on the shore of a lake, with piers reaching out over the water",
+      "template": "waterfront",
+      "terrain": "find",
+      "size": "S"
+    },
+    "style": {
+      "text": "Humble, weathered timber and thatch with a rustic seaside feel, lantern-lit at night",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A small fishing village where villagers live and work the lake catch",
+      "template": "port"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "low",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "You asked for a small fishing village by a lake. I took the site as a small waterfront settlement on existing shoreline, rustic in style, with a port-like purpose of fishing and living by the water. No backstory was given, so none is added. The program is a pier and boathouse, a few fishers' cottages, a smokehouse market and a net-mender's workshop.",
+    "contradictions": [],
+    "assumptions": [
+      "Style is rustic since none was named",
+      "Size S because 'small' was stated",
+      "Density low for a small village",
+      "Existing lakeshore is used without reshaping terrain",
+      "Purpose uses the port template as the closest fit"
+    ],
+    "program": [
+      {
+        "role": "fishing pier and boathouse",
+        "type": "boathouse",
+        "count": 1,
+        "footprint": "M",
+        "landmark": true,
+        "notes": "Long wooden pier with moored boats and a covered boat shed; the village's centrepiece",
+        "placement": "near_water"
+      },
+      {
+        "role": "fishers' cottage",
+        "type": "cottage",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes with drying racks and nets by the door"
+      },
+      {
+        "role": "smokehouse and fish market",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Smokes and sells the catch; barrels and hanging fish",
+        "placement": "central"
+      },
+      {
+        "role": "net-mender's workshop",
+        "type": "cabin",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Nets, rope and floats stacked outside",
+        "placement": "near_water"
+      }
+    ]
+  },
+  "usd": 0.012904
+}

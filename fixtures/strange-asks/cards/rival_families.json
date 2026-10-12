@@ -1,0 +1,104 @@
+{
+  "prompt": "Two feuding families on either side of the river, each with their own manor, farms and guards.",
+  "card": {
+    "name": "The Feuding Banks",
+    "site": {
+      "text": "A river running through the middle, with a family estate on each bank, facing one another across the water",
+      "terrain": "find",
+      "template": null
+    },
+    "style": {
+      "text": "Rustic manor-country look, with each family distinguished by its own colours and banners",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "Two rival family estates, each with a manor, farms and guards, kept apart by the river",
+      "template": "farm_town"
+    },
+    "story": {
+      "text": "Two families feud across the river."
+    },
+    "constraints": {
+      "near": "search",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "Site is a river with a family estate on each bank, using existing land. Style is rustic manor country, with each family given its own colours. Purpose is a farming settlement with two rival halves, each having a manor, farms and guards. Story is the feud, kept as given. Medium density.",
+    "contradictions": [
+      {
+        "issue": "Two hostile households in one settlement",
+        "resolution": "Mirrored halves on each bank, with guard towers facing the water and no shared market or tavern."
+      }
+    ],
+    "assumptions": [
+      "Size M, flat-ish land found near a river.",
+      "Rustic style chosen as the fit for manors and farms.",
+      "No bridge assumed, as the families are feuding.",
+      "Roughly 15 buildings spread evenly across both banks."
+    ],
+    "program": [
+      {
+        "role": "west bank manor",
+        "type": "manor_house",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Seat of the first family, in its own colours, windows and balcony facing the river and the rival manor.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "east bank manor",
+        "type": "manor_house",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Seat of the second family, in contrasting colours, facing the first manor across the water.",
+        "placement": "high_ground"
+      },
+      {
+        "role": "family farmhouse",
+        "type": "cottage",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "One per bank, with a farmer's home by the fields."
+      },
+      {
+        "role": "crop fields and barn",
+        "type": "barn",
+        "count": 2,
+        "footprint": "L",
+        "landmark": false,
+        "notes": "One per bank, with fields and animal pens behind each manor.",
+        "placement": "edge"
+      },
+      {
+        "role": "guard house",
+        "type": "tower",
+        "count": 2,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "One per bank, watching the river and the crossing.",
+        "placement": "near_water"
+      },
+      {
+        "role": "retainers' cottages",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Two per bank, homes of servants and farmhands."
+      },
+      {
+        "role": "guard barracks",
+        "type": "house",
+        "count": 2,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "One per bank, near the manor, with beds and armour racks."
+      }
+    ]
+  },
+  "usd": 0.015337
+}

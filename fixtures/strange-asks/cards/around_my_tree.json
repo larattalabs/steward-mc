@@ -1,0 +1,92 @@
+{
+  "prompt": "A grove village around the big oak I planted.",
+  "card": {
+    "name": "Oakheart Grove",
+    "site": {
+      "text": "A grove village built around the big oak the player planted, houses and paths ringed among the trees",
+      "template": "village",
+      "terrain": "find"
+    },
+    "style": {
+      "text": "Woodland grove: oak and spruce timber, leaf roofs, moss, lanterns among the branches",
+      "template": "rustic"
+    },
+    "purpose": {
+      "text": "A peaceful grove village to live in, centred on the planted oak",
+      "template": "home_base"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "here",
+      "density": "med",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A village laid out in a ring around your planted oak, using the existing land at your spot. Style is a rustic woodland look, purpose is a calm home base, and the buildings are a hall facing the oak plus cottages, a woodcutter, a herb shop, a shrine and a barn.",
+    "contradictions": [],
+    "assumptions": [
+      "Size is M, as none was given",
+      "Style read as rustic woodland",
+      "Purpose read as a home base",
+      "Oak is at the claim centre, village sits within the 64-block claim",
+      "No backstory invented"
+    ],
+    "program": [
+      {
+        "role": "oak warden's hall",
+        "type": "tavern",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Gathering hall facing the big oak, open timber frame, lanterns hung from branches",
+        "placement": "central"
+      },
+      {
+        "role": "grove cottage",
+        "type": "cottage",
+        "count": 4,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small homes among the trees, mossy roofs, ringed around the oak"
+      },
+      {
+        "role": "woodcutter's cabin",
+        "type": "cabin",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Sapling beds and log stacks",
+        "placement": "edge"
+      },
+      {
+        "role": "herb garden shop",
+        "type": "shop",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Sells flowers, saplings and herbs"
+      },
+      {
+        "role": "grove shrine",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small open shrine of leaves and stone",
+        "placement": "high_ground"
+      },
+      {
+        "role": "orchard barn",
+        "type": "barn",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Storage and animal pens",
+        "placement": "edge"
+      }
+    ]
+  },
+  "usd": 0.013659
+}

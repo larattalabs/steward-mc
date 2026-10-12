@@ -36,3 +36,16 @@ test('an ask is as far as its furthest need', () => {
   const g = gaps(caps2, [{ id: 'x', needs: ['a', 'c'] }, { id: 'y', needs: ['b', 'c'] }]);
   assert.deepEqual(g.map((e) => [e.id, e.needed, e.alone]), [['c', 2, 1], ['b', 1, 0]]);
 });
+
+test('every recorded card of a strange ask validates against the card schema', async () => {
+  const fs = await import('node:fs');
+  const Ajv = (await import('ajv/dist/2020.js')).default;
+  const schema = JSON.parse(fs.readFileSync(new URL('../schema/concept-card.schema.json', import.meta.url)));
+  const validate = new Ajv({ allErrors: true, strict: true }).compile(schema);
+  const dir = new URL('../fixtures/strange-asks/cards/', import.meta.url);
+  for (const f of fs.readdirSync(dir).filter((n) => n.endsWith('.json'))) {
+    const { prompt, card } = JSON.parse(fs.readFileSync(new URL(f, dir)));
+    assert.ok(asks.some((a) => a.ask === prompt), `${f}: its prompt is not an ask`);
+    assert.ok(validate(card), `${f}: ${JSON.stringify(validate.errors)}`);
+  }
+});

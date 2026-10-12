@@ -1,0 +1,101 @@
+{
+  "prompt": "A monastery on a floating island, reached by a long stair.",
+  "card": {
+    "name": "Stair Monastery",
+    "site": {
+      "text": "a floating island, reached by a long stair",
+      "template": "island",
+      "terrain": "sculpt",
+      "size": "M"
+    },
+    "style": {
+      "text": "serene, quiet stone cloister in the sky; pale stone, weathered wood, lanterns, hanging greenery",
+      "template": null
+    },
+    "purpose": {
+      "text": "a monastery",
+      "template": "monastery"
+    },
+    "story": {
+      "text": ""
+    },
+    "constraints": {
+      "near": "search",
+      "density": "low",
+      "difficulty": "patron"
+    },
+    "avoid": [],
+    "interpretation": "A monastery (purpose) set on a floating island (custom-shaped sky island, sculpted since it doesn't exist naturally). The long stair is part of the site, rising to a gatehouse at the island's edge. I read the style as a calm, pale-stone cloister in the sky, and the program is a chapel, cells, refectory, scriptorium, garden and observatory.",
+    "contradictions": [],
+    "assumptions": [
+      "Size M, low density for a quiet monastery.",
+      "Style not specified; assumed a serene pale-stone cloister look.",
+      "The long stair rises from the ground below to the gatehouse.",
+      "No backstory given, so none added."
+    ],
+    "program": [
+      {
+        "role": "abbey chapel",
+        "type": "chapel",
+        "count": 1,
+        "footprint": "L",
+        "landmark": true,
+        "notes": "Main church at the island's heart with a bell tower and tall windows open to the sky.",
+        "placement": "central"
+      },
+      {
+        "role": "stair gatehouse",
+        "type": "gatehouse",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Where the long stair arrives on the island; the monastery's only entrance.",
+        "placement": "edge"
+      },
+      {
+        "role": "monks' cells",
+        "type": "cabin",
+        "count": 3,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Small plain sleeping cells arranged around a cloister."
+      },
+      {
+        "role": "refectory",
+        "type": "house",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Dining hall and kitchen with a long table.",
+        "placement": "central"
+      },
+      {
+        "role": "scriptorium library",
+        "type": "house",
+        "count": 1,
+        "footprint": "M",
+        "landmark": false,
+        "notes": "Bookshelves, lecterns, lantern-lit writing room."
+      },
+      {
+        "role": "herb garden and greenhouse",
+        "type": "cottage",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Walled garden with crops and flowers, tended by the monks.",
+        "placement": "edge"
+      },
+      {
+        "role": "stargazing observatory",
+        "type": "tower",
+        "count": 1,
+        "footprint": "S",
+        "landmark": false,
+        "notes": "Open-topped lookout on the highest point of the island.",
+        "placement": "high_ground"
+      }
+    ]
+  },
+  "usd": 0.014823
+}
