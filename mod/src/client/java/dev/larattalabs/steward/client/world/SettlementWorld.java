@@ -122,6 +122,12 @@ public final class SettlementWorld {
 			for (var d : v.districts()) border(c, d.centerX() - d.radius(), d.centerZ() - d.radius(), d.centerX() + d.radius() + 1, d.centerZ() + d.radius() + 1,
 				UiStyle.withAlpha(UiStyle.BRASS, 0x70), cam);
 			for (var a : v.areas()) border(c, a.x0(), a.z0(), a.x1() + 1, a.z1() + 1, UiStyle.withAlpha(UiStyle.SAGE, 0x90), cam);
+			// a district waiting in the inbox: where it would go, before it is founded
+			for (var d : v.proposed()) {
+				border(c, d.centerX() - d.radius(), d.centerZ() - d.radius(), d.centerX() + d.radius() + 1, d.centerZ() + d.radius() + 1, UiStyle.withAlpha(UiStyle.CREAM, 0x80), cam);
+				double dist = Math.hypot(d.centerX() + 0.5 - cam.x, d.centerZ() + 0.5 - cam.z);
+				pill(c, camera, d.centerX() + 0.5, cam.y + 2, d.centerZ() + 0.5, "Proposed: " + d.name(), "found it or decline it in the inbox", "waiting", false, dist);
+			}
 		}
 	}
 

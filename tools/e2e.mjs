@@ -553,6 +553,17 @@ async function districts(id) {
   await cmd(`/tp @p ${cx + 90} ${Math.floor(gy)} ${cz + 12}`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
   await cmd(`/steward dev propose_district ${id} E`);
+  // survey mode previews it before it is founded: its square and a "Proposed" label, from above the town's east edge
+  await cmd('/gamemode spectator');
+  await cmd(`/tp @p ${cx + 100} ${Math.floor(gy) + 40} ${cz + 70} facing ${cx + 165} ${Math.floor(gy)} ${cz}`);
+  await sleep(1500);
+  await dev.request('dev.key', { key: 'u' });
+  await sleep(2500);
+  const pshot = (await dev.request('dev.screenshot', { name: 'e2e-district-proposed', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.key', { key: 'u' });
+  await cmd('/gamemode creative');
+  await cmd(`/tp @p ${cx + 90} ${Math.floor(gy)} ${cz + 12}`);
+  ok('district preview', pshot);
   const accepted = await cmd(`/steward proposals ${id} accept district_E`);
   let viaProposal = null;
   for (let i = 0; i < 20 && !viaProposal; i++) {

@@ -430,7 +430,17 @@ public final class Actions {
 	public static dev.larattalabs.steward.view.SettlementView view(MinecraftServer server, Settlement s) {
 		var api = ArchitectApi.get().sites(server);
 		var sites = api.list(s.owner()).stream().map(v -> site(api, v)).toList();
-		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites);
+		// where each district waiting in the inbox would go: survey mode shows it before it is founded
+		List<dev.larattalabs.steward.view.SettlementView.DistrictInfo> proposed = new ArrayList<>();
+		var street = Districts.townStreet(server, s);
+		for (var p : s.proposals().open()) {
+			if (p.found() == null) continue;
+			var at = dev.larattalabs.steward.model.DistrictRules.place(s.claim(), street, s.lands().districts(), Settlements.others(s.id()), s.lands().protect(), p.found(),
+				dev.larattalabs.steward.model.DistrictRules.RADII[0]);
+			if (at.ok()) proposed.add(new dev.larattalabs.steward.view.SettlementView.DistrictInfo(p.key(), p.title(), p.found(), at.claim().centerX(), at.claim().centerZ(),
+				at.claim().radius(), dev.larattalabs.steward.model.ClaimRules.side(at.claim().radius()), 0, 0));
+		}
+		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed);
 	}
 
 	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.Sites sites, dev.larattalabs.architect.api.SiteView v) {
