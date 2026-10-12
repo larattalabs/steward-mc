@@ -281,6 +281,22 @@ public final class Actions {
 			String no = Districts.found(server, player, s.get(), dir, size, name, say);
 			return no == null ? Result.ok("Laying the road to the new district...") : Result.fail(no);
 		}
+		if ("stockpile".equals(action) || "stockpile_add".equals(action)) {
+			// phase 4: what the settlement's stockpile holds and what its builds still need; "add": a crate where the player stands
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			MinecraftServer server = player.level().getServer();
+			if ("stockpile_add".equals(action)) {
+				var at = player.blockPosition();
+				if (!s.get().contains(player.level().dimension().identifier().toString(), at.getX(), at.getY(), at.getZ())) {
+					return Result.fail("Stand in " + s.get().name() + " to add a crate to its stockpile.");
+				}
+				return Result.ok(Stockpiles.addCrate(server, s.get(), at));
+			}
+			var sp = Stockpiles.of(server, s.get());
+			if (sp.isEmpty()) return Result.ok(s.get().name() + " has no stockpile: it is made when a build is placed from materials (a survival world).");
+			return Result.ok(String.join("\n", Stockpiles.bill(sp.get(), 8)));
+		}
 		if ("protect".equals(action)) {
 			// a square of 2 x amount + 1 around where the player stands, in this settlement's land; text: its label
 			Optional<Settlement> s = Settlements.store().get(id);

@@ -76,9 +76,9 @@ public final class Districts {
 		Runnable onFounded) {
 		if (LAYING.contains(s.id())) return "A road of " + s.name() + " is being laid; try again in a moment.";
 		if (SettlementRunner.busy(s.id())) return s.name() + " is busy (a build or an undo); found a district once that is done.";
-		// in a survival world nothing is built free, and a road built from materials needs the settlement's stockpile (docs/PLAN.md phase 4, ask C24)
-		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) {
-			return "Districts in a survival world wait for the settlement's stockpile: their roads are built from your materials, and that comes with a later version.";
+		// in a survival world nothing is built free: the road is built from the settlement's stockpile (Architect C24), made first when there is none
+		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && Stockpiles.ensure(server, s, say) == null) {
+			return "A district's road in a survival world is built from " + s.name() + "'s stockpile, and none could be made.";
 		}
 		ServerLevel level = level(server, s.claim().dimension());
 		if (level == null) return "The dimension of " + s.id() + " is not loaded.";
@@ -450,7 +450,9 @@ public final class Districts {
 		ext.addProperty("steward_mc:role", role);
 		ext.addProperty(INFRA, role);
 		// partial (Architect 0.15): a stretch it cannot lay (too steep, deep water) is left as a gap and said, instead of refusing the whole road
-		return new RoadRequest(level, points, DistrictRules.ROAD_WIDTH, null, null, false, true, Mode.INSTANT, s.owner(), ext, actor, false).withPartial(true);
+		// in a survival world from materials, fed by the settlement's stockpile (Architect C24); else placed at once
+		Mode mode = dev.larattalabs.steward.gateway.WorldMode.survival(level.getServer()).orElse(false) ? Mode.CONSTRUCTION : Mode.INSTANT;
+		return new RoadRequest(level, points, DistrictRules.ROAD_WIDTH, null, null, false, true, mode, s.owner(), ext, actor, false).withPartial(true);
 	}
 
 	static @Nullable ServerLevel level(MinecraftServer server, String dimension) {

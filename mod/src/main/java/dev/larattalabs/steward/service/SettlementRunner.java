@@ -1137,7 +1137,7 @@ public final class SettlementRunner {
 		return m.contains("no group") || m.contains("already");
 	}
 
-	private static String message(Throwable err) {
+	static String message(Throwable err) {
 		return err.getCause() != null ? err.getCause().getMessage() : err.getMessage();
 	}
 
@@ -1433,7 +1433,9 @@ public final class SettlementRunner {
 		Claim land = district != null ? district.claim() : settlement.claim();
 		BatchPlanner.Result res = BatchPlanner.build(settlement, plan, landmarkIds, entries, fits, level,
 			dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), autoApprove, spans, buildId, land);
-		if (res.note() != null) say(res.note());
+		// from materials (phase 4): the settlement's stockpile feeds the build, made first when there is none (else the build keeps its own crate)
+		if (res.batch().sharedCrate() && Stockpiles.ensure(server, now, this::say) != null) say("The stockpile feeds this build: the street first, then the landmarks, then the rest.");
+		else if (res.note() != null) say(res.note());
 		if (!res.skippedLotIds().isEmpty()) say("Skipped lots (no design or no fit): " + res.skippedLotIds());
 		say("Placing " + res.batch().items().size() + " items...");
 		queueInFlight = true;
