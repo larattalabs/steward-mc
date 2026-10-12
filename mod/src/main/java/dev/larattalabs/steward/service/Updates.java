@@ -195,7 +195,13 @@ public final class Updates {
 		int session = Session.current();
 		sites.get(p.siteId()).ifPresent(v -> StewardMotion.clear(server, s, v.box()));
 		// in a survival world the change is built from materials: from the settlement's stockpile (made first when there is none), not a crate of its own
-		Stockpiles.forConstruction(server, s, m -> StewardVoice.say(server, s.id(), m));
+		var standing = sites.get(p.siteId()).map(dev.larattalabs.architect.api.SiteView::box).orElse(null);
+		if (!Stockpiles.forConstruction(server, s, m -> StewardVoice.say(server, s.id(), m), standing)) {
+			APPLYING.remove(p.siteId());
+			StewardVoice.say(server, s.id(), "The update of the " + p.lot() + " is built from materials, and " + s.name() + " has no stockpile: add a crate with /steward stockpile "
+				+ s.id() + " add, then apply it again.");
+			return;
+		}
 		sites.applyDelta(UpdatePlanner.request(p.siteId(), p.to(), UpdatePlanner.editsFor(s.permission()), s.owner())).whenComplete((r, err) -> {
 			if (!Session.is(session)) return;
 			APPLYING.remove(p.siteId());

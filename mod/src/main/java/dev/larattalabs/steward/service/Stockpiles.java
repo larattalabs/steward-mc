@@ -79,7 +79,7 @@ public final class Stockpiles {
 				// a second crate beside it: one holds 27 stacks, and a small build already wants about 30 kinds (its refunds would not fit)
 				for (int[] d : new int[][] {{0, 1}, {1, 0}, {0, -1}, {-1, 0}}) {
 					int x2 = x + d[0], z2 = z + d[1];
-					if (!free.test(x2, z2)) continue;
+					if (!free.test(x2, z2) || s.lands().protect().stream().anyMatch(a -> a.contains(s.claim().dimension(), x2, z2))) continue;
 					try {
 						sp = sites.addStockpileCrate(s.owner(), level.dimension(), new BlockPos(x2, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x2, z2), z2));
 						break;
@@ -126,11 +126,18 @@ public final class Stockpiles {
 	 * Before a change built from materials outside a build (an update, a revert): in a survival world, the settlement's stockpile, made when there is none
 	 * (off the town's street), so the change draws from it rather than a crate of its own. Nothing in a world without survival.
 	 */
-	public static void forConstruction(MinecraftServer server, Settlement s, Consumer<String> say) {
-		if (!dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) return;
+	public static boolean forConstruction(MinecraftServer server, Settlement s, Consumer<String> say,
+		net.minecraft.world.level.levelgen.structure.@Nullable BoundingBox changing) {
+		if (!dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) return true;
 		var street = Districts.streetOf(ArchitectApi.get().sites(server).list(s.owner()), s, null);
-		ensure(server, s, say, (x, z) -> street == null || !(Math.abs(z - street.z()) <= 3 && x >= street.x0() - 3 && x <= street.x1() + 3));
+		// off the town's street, and well clear of the building that changes (a new version may be larger than the one that stands)
+		return ensure(server, s, say, (x, z) -> (street == null || !(Math.abs(z - street.z()) <= 3 && x >= street.x0() - 3 && x <= street.x1() + 3))
+			&& (changing == null || x < changing.minX() - CHANGE_MARGIN || x > changing.maxX() + CHANGE_MARGIN || z < changing.minZ() - CHANGE_MARGIN
+				|| z > changing.maxZ() + CHANGE_MARGIN)) != null;
 	}
+
+	/** How far round a changing building a crate keeps (a change may add a wing or a storey: Steward's change requests allow 4 more each way). */
+	static final int CHANGE_MARGIN = 6;
 
 	/** Adds a crate at {@code at} (where the player stands): more room in the store. Returns what to tell the player. */
 	public static String addCrate(MinecraftServer server, Settlement s, BlockPos at) {
@@ -140,9 +147,10 @@ public final class Stockpiles {
 		try {
 			boolean fresh = of(server, s).isEmpty();
 			Stockpile sp = fresh ? sites.createStockpile(new StockpileRequest(s.owner(), level.dimension(), List.of(at))) : sites.addStockpileCrate(s.owner(), level.dimension(), at);
-			// a new stockpile takes in the crates older builds left
-			if (fresh) sp = adopt(server, s, sp, m -> { });
-			return s.name() + "'s stockpile has " + sp.crates().size() + (sp.crates().size() == 1 ? " crate" : " crates") + " (" + sp.capacityStacks() + " stacks).";
+			// a new stockpile takes in the crates older builds left (what did not fit is said with the answer)
+			StringBuilder dropped = new StringBuilder();
+			if (fresh) sp = adopt(server, s, sp, m -> dropped.append(' ').append(m));
+			return s.name() + "'s stockpile has " + sp.crates().size() + (sp.crates().size() == 1 ? " crate" : " crates") + " (" + sp.capacityStacks() + " stacks)." + dropped;
 		} catch (UnsupportedOperationException | LinkageError e) {
 			return "This Architect has no stockpiles (it needs 0.20).";
 		} catch (RuntimeException e) {

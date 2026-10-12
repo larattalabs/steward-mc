@@ -1704,7 +1704,8 @@ public final class SettlementRunner {
 		b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).forEach(i -> say("Not placed: " + i.itemKey() + " (" + i.reason().map(Enum::name).orElse("?") + ") " + i.message()));
 		// every site of the build, street included, so an undo removes all of it
 		if (siteGroupId == null) siteGroupId = b.group();
-		if (!logPlaced(b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).flatMap(i -> i.siteId().stream()).toList(), (int) placed, (int) failed)) {
+		List<String> placedIds = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).flatMap(i -> i.siteId().stream()).toList();
+		if (!logPlaced(placedIds, (int) placed, (int) failed)) {
 			logFailed();
 			return;
 		}
@@ -1714,10 +1715,14 @@ public final class SettlementRunner {
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
 		// a cancelled build from materials: what it started building would go on taking the stockpile's materials, so it is taken up (what it used comes
 		// back), as an undo would; what stands finished stays with the rest
-		if (cancelled && unfinishedConstruction(server, settlement) > 0) {
+		// only this build's own sites: the newest undoable entry must be exactly what this batch placed (else nothing is taken up, and the player is told)
+		if (cancelled && !placedIds.isEmpty() && unfinished(server, placedIds) > 0) {
 			Settlements.store().get(settlement.id()).ifPresent(saved -> {
-				say("The cancelled build's construction sites are taken up; what they used goes back to the stockpile.");
-				Undo.lastProject(server, saved, this::say);
+				var last = saved.lastUndoable();
+				if (last.isPresent() && new java.util.HashSet<>(last.get().siteIds()).equals(new java.util.HashSet<>(placedIds))) {
+					say("The cancelled build's construction sites are taken up; what they used goes back to the stockpile.");
+					Undo.lastProject(server, saved, this::say);
+				} else say(nothingToCancel(server, saved));
 			});
 		}
 	}
@@ -1739,6 +1744,14 @@ public final class SettlementRunner {
 	static String nothingToCancel(MinecraftServer server, @org.jspecify.annotations.Nullable Settlement s) {
 		if (s == null || unfinishedConstruction(server, s) == 0) return "Nothing to cancel.";
 		return "Nothing to cancel: the placed buildings are being built from the stockpile. /steward undo " + s.id() + " takes them up and gives back what they used.";
+	}
+
+	/** How many of these sites are not built yet. */
+	static int unfinished(MinecraftServer server, List<String> siteIds) {
+		var sites = ArchitectApi.get().sites(server);
+		int n = 0;
+		for (String id : siteIds) if (sites.get(id).filter(v -> !"BUILT".equals(v.state().name())).isPresent()) n++;
+		return n;
 	}
 
 	/** How many of the settlement's construction sites (buildings and roads) are not built yet. */

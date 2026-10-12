@@ -344,3 +344,9 @@ Held until zones is designed: zone walls with gates (7a), several related bibles
 **v0.19.0 (F1 + MP, API 1.16.0; published 2026-10-12, checked after release): pass.** Steward builds against it unchanged: stub e2e 31, free e2e 37. The free run's one failure was the test world (a cow in the proposal check's test placement); that check now clears farm animals first. Nothing to patch.
 
 **Y1 RC (v0.20.0, API 1.17.0; slice/Y1 072eaaa; sha256 9584b4a7…), consumer check 2026-10-12: pass (regression only).** Steward builds against it unchanged. With the RC in the client, stub e2e 31 and free e2e 37 pass. Steward has no phase 4 flow yet, so the stockpile itself (feed, refunds, waiting, dissolve) is tested when phase 4 is built on the published 0.20.0, and what fails then is a patch ask.
+
+## Round 9 (2026-10-12): phase 4 on 0.20.0, the first patch ask
+
+| Ask | What | Why |
+|---|---|---|
+| C29 | **(a) A target being removed stops drawing from the stockpile.** When a removal (`remove`, `removeGroup`, `undoStage`, region removal) starts on a stockpile target, it leaves the feed at once (no more reservations or consumption). Its refund is tallied when its restore completes, not at the removal's start (`Groups.java` ~850 snapshots it first, so units consumed while the removal waits for a player are neither refunded nor counted). **(b) Pause and resume a construction target by API:** `Sites.pause(targetId, boolean)`, as the crate screen's button does. A paused target reserves nothing (Y1's rule) and keeps its state. | Steward's GPT review of phase 4: a cancelled Supplied build is taken up by an undo, and while that removal waits (a player standing in it), its sites keep consuming the settlement's materials, with a stale refund. With (b), Steward freezes a cancelled build's targets before taking them up. |

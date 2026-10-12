@@ -48,7 +48,20 @@ public final class Undo {
 	}
 
 	/** Starts the undo; {@code say} gets progress and the result. Returns false (having said why) when there is nothing to undo. */
-	public static boolean lastProject(MinecraftServer server, Settlement s, Consumer<String> say) {
+	public static boolean lastProject(MinecraftServer server, Settlement s, Consumer<String> sayTo) {
+		// a refund that did not fit in the stockpile drops beside its crate: said with the undo's result, so it is picked up before it despawns
+		int overflowBefore = overflow(server, s);
+		Consumer<String> say = line -> {
+			sayTo.accept(line);
+			if (!line.startsWith("Undone")) return;
+			int more = overflow(server, s) - overflowBefore;
+			var sp = Stockpiles.of(server, s);
+			if (more > 0 && sp.isPresent() && !sp.get().crates().isEmpty()) {
+				var c = sp.get().crates().get(0);
+				sayTo.accept(more + " refunded items did not fit in the stockpile and lie beside its crate at " + c.getX() + ", " + c.getY() + ", " + c.getZ()
+					+ ": pick them up, or add a crate (/steward stockpile " + s.id() + " add) and put them in.");
+			}
+		};
 		var entry = s.lastUndoable();
 		if (entry.isEmpty()) {
 			say.accept("Nothing to undo for " + s.name() + ".");
@@ -176,6 +189,11 @@ public final class Undo {
 			done.accept(ok);
 		}));
 		return true;
+	}
+
+	/** The units of refunds that did not fit in the settlement's stockpile so far (0 without one). */
+	private static int overflow(MinecraftServer server, Settlement s) {
+		return Stockpiles.of(server, s).map(sp -> sp.refundOverflow().values().stream().mapToInt(Integer::intValue).sum()).orElse(0);
 	}
 
 	private static void districts(MinecraftServer server, Settlement s, Consumer<String> say) {
