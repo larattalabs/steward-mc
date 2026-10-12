@@ -582,7 +582,7 @@ Claude-designed modules pass the tick-simulation gate before acceptance.
 ### Zones: settlements in parts (planned, after phase 4)
 Noah's example: a settlement at a desert's edge with a jungle. A wall divides the two sides, and each specialises in its own kind of thing. The freedom comes from Claude deciding what each part is and how the parts relate, and from the layout reading the real ground. Claude decides meaning, and Steward's and Architect's code decides places.
 - **The card in parts (Steward):** one settlement story; under it, zones (districts) each with a purpose, a style and a program, and how they relate (rivals, trade partners, one guarding the other). Each zone gets its own style bible, kept related to the others, so the settlement reads as one. The card's limits say what waits.
-- **Biomes in the survey (Architect ask + Steward):** the survey reports biomes per column, and the card call is told what is there ("the desert edge runs north-south 40 blocks east"). Without it, "the jungle side" means nothing to the layout.
+- **Biomes in the survey:** Architect's `Sample` already has a biome per 4x4 columns (`biomeAt`), so Steward reads them now (district sides, 2026-10-11). Still to do: tell the card call what is there ("the desert edge runs north-south 40 blocks east").
 - **Zones placed by the land (Architect):** districts laid along a biome edge (or a river, a ridge) instead of fixed squares north, east, south and west. Architect's district work on survey candidates (S-D-1) is the start.
 - **Walls with gates (Architect 7a, typed connectors):** a wall along a zone's boundary, with gates where roads cross, in the bible's style.
 - **Checks:** Noah's example as the e2e acceptance (stub), with the two sides' styles and programs told apart in its pictures.
@@ -596,11 +596,16 @@ Noah's example: a settlement at a desert's edge with a jungle. A wall divides th
 - **The link follows the land:** across a river a bridge (Architect reports crossings), up a hill a switchback, between zones a wall with a gate. A far district is an outpost reached by a road, not a neighbour.
 - **The player stays in charge:** before founding, survey mode shows the district on the ground with a line saying why ("on the shore, for the harbour"). The player approves it, or says in talk "no, by the lake" and Steward places it again. This applies to proposals and asks alike.
 - **When:**
-  - **now, Steward only:** pointing; prompt and purpose placement on what the survey already sees (height, water, trees); the preview with its reason;
-  - **with an Architect ask:** biomes in the survey, for "the jungle side" and biome affinities;
+  - **now, Steward only:** pointing; prompt and purpose placement on what the survey already sees (height, water, trees, biomes: `Sample.biomeAt`, no ask needed); the preview with its reason;
   - **with Architect's district slice:** districts shaped by the land;
   - **with Architect's crossings, paths and 7a:** bridges, switchbacks, walls with gates.
 - **Order:** the Steward-only part can go before the rest of zones; it makes districts less mechanical now and is what zones build on.
+- **Built (2026-10-12):**
+  - `DistrictSite` reads the ground a district wants from words: water, trees, high, low or flat ground, and biomes.
+  - `Districts.choose` surveys each free side's square (every 4th column, loaded chunks) and picks a side: the one said, then where the player stands, then the best ground, then today's order. It skips sides whose road would run over a building.
+  - Talk proposals and `/steward district <id> found here|auto` say why a side was chosen.
+  - e2e (free): "here" and "auto" checks.
+  - **Still to do:** the preview in survey mode; "no, by the lake" placing it again; the steward's own district proposal using the card's left-out buildings.
 
 ### Strange asks: the gap map (started 2026-10-11)
 How much freedom a player has is measured, not guessed. `fixtures/strange-asks/` holds about 60 strange asks: where (treetops, inside a mountain, under the sea), shape (a ring city, one giant castle, a nomad camp), rules (only copper, no right angles), time (a camp that becomes a city), function, who lives there, relations, and plain ones. Each lists the capabilities it needs, and each capability says whether it is built now, built as a nearest version (and what that is), or waits (and for which step).
