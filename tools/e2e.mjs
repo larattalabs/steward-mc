@@ -822,7 +822,13 @@ async function survivalFlow() {
     const before = sp;
     from = logSize();
     await cmd(`/steward undo ${id}`);
-    const undone = await waitLog(from, /Undone: [^\n]*|Undo stopped[^\n]*/, 600_000);
+    // the undo's own lines go to the command's sender after the command returned (the dev bridge has stopped listening by then): read the history
+    let last = null;
+    for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(2000);
+      last = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    const undone = last?.kind === 'PROJECT_REMOVED' ? [`Undone: ${last.text}`] : null;
     sp = await ledger();
     const off = [];
     for (const [item, used] of Object.entries(before.consumed)) {
