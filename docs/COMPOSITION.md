@@ -4,7 +4,7 @@ Joint design for Steward and Architect. Drafted by Steward on 2026-10-12, from N
 
 > Support all of it: planned, ideas and not-planned-at-all. Don't be deterministic about it where we can avoid it, and don't hardcode ways to handle each situation unless we need to. Claude should be able to get creative and work things out.
 
-**Status:** a draft for Architect's review. Nothing in it is built yet. Steward's PLAN and Architect's PLAN refer to it once Architect has answered.
+**Status:** v2, with Architect's answers folded in. They are in `architect-mc/docs/COMPOSITION-ANSWERS.md` (main bfb9895), and that file's "Revisions" section, reviewed by GPT-6.1, wins over its earlier text. Both teams adopt it. Architect drafts slice P0 (the plan check) against this version. Nothing is built yet. Noah's two questions are in section 9.
 
 ## 1. The principle
 
@@ -20,77 +20,78 @@ Today's fixed programs (Steward's street layout, Architect's `flat_village`) sta
 
 ## 2. The loop
 
-1. **Words.** The player describes the place in their own words. With the words go the land round the stone, the settlement as it stands, and the history.
-2. **Plan.** Claude writes a composition (section 3). It describes places by meaning ("along the biome edge", "a ring round the lake", "the hilltop") or, where shape matters, as a rough sketch in relative units. It does not give world coordinates.
-3. **Check.** Architect fits the plan to the land and checks it as a dry run, with nothing placed. For every part the check answers one of:
-   - **fits**, with the resolved geometry and the cost;
-   - **adjusted**, saying how it moved or shrank;
-   - **refused**, with a typed reason and what would make it fit;
-   - **unsupported**, naming the building block that doesn't exist yet.
-4. **Repair.** Claude reads the answers and revises the plan. The rounds and their cost are capped (Steward's budgets).
-5. **Honest card.** What still can't be done after repair is said to the player on the card, in Claude's words: what waits, why, and what is built instead. That replaces Steward guessing from words (`CardLimits` stays only as a fallback).
-6. **Approval, then the build.** The approved plan is saved with the settlement, and builds, growth and changes execute it. Once a plan is approved it is deterministic: a restart, an undo or a resumed build replays the same plan.
-7. **Life.** Later changes (growth, festivals, repairs, conflicts) are new plans or plan revisions, made the same way.
+1. **Words.** The player's words, with the land round the stone (`Land`, built), the settlement as it stands, and the history.
+2. **Plan.** Claude writes a composition (section 3) through Steward's plan writer. It describes places with Architect's locators, and adds a relative sketch only where shape matters. It never gives world coordinates.
+3. **Check.** `Regions.checkPlan(plan)` (Architect slice P0) is a $0 dry run of the whole plan against one survey snapshot, in a virtual world. It is asynchronous, cancellable, capped and cached. Each part gets one answer:
+   - `fits`, with the resolved geometry and the cost;
+   - `adjusted`, with how far it moved;
+   - `refused`: it can't fit, so it says why and what would fit;
+   - `unsupported`: no such building block;
+   - `blocked`: it depends on a part that didn't fit;
+   - `malformed`: a schema error in a known part;
+   - `incomplete`: the check ran out of budget or time. This is never treated as `fits`.
 
-## 3. The plan (a draft vocabulary)
+   With every answer, Architect returns its **capability catalogue**: the building blocks and locators it knows. It sends a light preview first, and images on request.
+4. **Repair.** Claude revises the plan from the answers. The loop is bounded by **total work and spend**: composing, bibles, building design and any program authoring together, not rounds alone. It stops on repeated failures or oscillation.
+5. **Honest approval.** What can't be done is said in Claude's words. A part the plan marks **required** that comes back `unsupported` or `refused` **blocks approval**, until the player approves a concrete reduced revision. Any part dropped or substituted is shown in what the player approves. `CardLimits` stays only as a fallback.
+6. **Approval binds a resolved artifact.** What is approved is the checked plan as Architect resolved it: its geometry, IR, blobs, blueprint versions, fits, links and frozen inputs. Buildings not designed yet are marked **provisional**, with a cost range. If the terrain or protected ground changes before the build, the artifact is checked again.
+7. **Replay.** Resuming keeps the artifact's identity. Architect commits that **a shipped op's semantics never change**: new behaviour is a new op kind, held by its frozen goldens. Checking an approved intent again on a newer kit makes a new revision.
+8. **Life.** Growth, festivals, repairs and conflicts are new plans, or revisions of one, made the same way.
 
-A plan is JSON that Claude writes against a schema. The shape is a first guess, for Architect to shape:
+## 3. The plan: two layers
+
+**The geometric layer (Architect owns it: schema, compiler and capability catalogue).** It is versioned like the IR and validated by the kit as JSON Schema with typed refusals. It freezes before Steward writes its plan writer. Parts have stable ids and revision refs.
 
 | Part | What it holds |
 |---|---|
-| `story` | The settlement's identity and voice. Already on the card. |
-| `zones[]` | Each zone's `id`, `purpose`, `style` (a bible or a variant of one), `program` (its buildings), `where` (a description of the place, or a relation to another zone or feature), `size`, and `relations` to other zones (rival, guards, trades with, sacred to). |
-| `connectors[]` | Each connector's `kind` (`street`, `path`, `wall`, `gate`, `bridge`, `tunnel`, `ladder`, `stair`, `rail`, `channel`, `rope_bridge`...), `from`/`to`/`along` (zones, features, or a sketch), `style`, and `function` (walkable, defensive, carries water...). |
-| `forms[]` | Volumes that are not buildings: `raise`, `carve`, `float`, `flatten`, `terrace`, `pond`, `hollow`, `spire`, each with `where` and `size`. Architect's terrain, regions and F1 already do some of these. |
-| `rules[]` | Constraints Claude invents from the words, in a checkable form, with a scope: a palette rule ("copper family only"), a shape rule ("no right-angle corners"), a variety rule ("no two houses alike" or "identical rows"), a height cap... |
-| `stages[]` | A growth arc: what comes first, what each stage adds, and what starts the next one (a population, a resource, the player's go-ahead, time). |
-| `schedule[]` | Timed or conditional versions: a festival dressing applied and removed, seasonal changes, decay unless visited. |
-| `secrets[]` | Hidden parts: rooms, concealed entrances, tunnels, with who knows about them. Design-side. |
-| `notes` | What Claude wants that no field holds yet. It is kept and shown, and a check answers it with "unsupported". This is how the vocabulary learns what to grow. |
+| `zones[]` | Each zone's `id`, `program` (its buildings, or a named template such as `flat_village`), `style` (a bible ref), place (a locator), size, and tolerances. |
+| `connectors[]` | 7a's settlement graph and connector catalogue (street, path, wall, gate, bridge, tunnel, ladder, stair, rail, channel... plus `auto`): `from`/`to`/`along`, style, function. |
+| `forms[]` | Volumes that are not buildings: raise, carve, float, terrace, pond, spire... (terrain, regions, F1). |
+| `rules[]` | A finite, versioned rule vocabulary, verified on the fitted output with evidence. **Palette**: a block family with a share, exempting terrain and support. **Shape**: at the outline or footprint level, for example "no right angles". **Variety**: measured on the built output, for example "no two alike". **Density** and height caps. A required rule that can't be verified blocks readiness. The critique judges taste only. |
+| construction dependencies, hidden-room geometry | What must stand before what, and where a secret is built. |
+| unknown kinds | A bounded `extension` envelope, answered `unsupported {block}`, never refused as malformed. This is how the vocabulary learns what to grow. |
 
-## 4. Building blocks: what exists, what is planned, what is new
+**Places (locators).** v0 has a small, deterministic vocabulary: `adjacent`, `along <feature>` (a biome edge, shore, river, ridge or street), `around <feature>`, `inside`, and `near <anchor>`. Features come from the survey. Anchors and units are defined, coordinates are quantised, and tie-breaking is stable. A relative sketch is optional. **Tolerances are explicit per part**: hard or soft, with defaults stated in the schema, and contract promises win (C27's "within 4 cells"). There is no blanket scale or deform.
+
+**The life layer (Steward owns it).** It holds the `story`, the `stages` (a growth arc: what comes first, what each stage adds, what starts the next), the `schedule` (timed or conditional versions: a festival, seasons, decay), `relations` (between zones and settlements), and `secrets` (who knows of a hidden part; Architect owns its geometry). Steward maps each stage or scheduled version to a geometric plan, or a revision of one, and checks it. Free-text `notes` are kept and shown, but never treated as a verified requirement.
+
+## 4. Building blocks, in Architect's order
 
 **Exists or is building:**
+- V and X (regions);
+- T1 (terrain passes);
+- MP (masks and patterns);
+- F1 (natural forms);
+- 0c, Y1, Y2 and C29 (construction, stockpile);
+- 0b (versions);
+- T2 (routing), building;
+- F2 (scatter and stamps), building;
+- B (brushes), building;
+- D1 (districts on survey candidates) and D2 (C27: districts along a boundary, outposts), next after T2;
+- T3 (crossings) and H (fluids), planned;
+- 7a (typed connectors) and 7c (big forms, bible format 3), planned.
 
-| Building block | Architect slice | Status |
+**New, by Architect's answer:**
+
+| Building block | Where | Whose design |
 |---|---|---|
-| Survey: height, water, trees, biomes | Sample, T1 | exists (biomes at 4x4; Steward uses them) |
-| Regions on a claim, realised, undone whole | V, X | exists |
-| Terrain passes, relief, blended pad edges | T1 | exists (0.21.0) |
-| Masks and patterns from bibles | MP | exists (0.19.0) |
-| Generated natural forms (spires, ice spikes) | F1 | exists (0.19.0) |
-| Construction from materials, stockpile, refunds | 0c, Y1, Y2, C29 | exists; C29 building |
-| Versions, deltas and revert | 0b and earlier | exists |
-| Routing: paths over terrain, ladders on player-only edges | T2 | building |
-| Scatter and stamps | F2 | building |
-| Brushes | B | building |
-| Districts on survey candidates; districts that follow a boundary; outposts | D (C27) | next after T2 |
-| Crossings: bridges and tunnels | T3 | planned |
-| Fluids: ponds, channels, wells | H | planned |
-| Typed connectors: walls, gates, rails... | 7a | planned |
-| Big custom forms as region programs; bible format 3 (related bibles) | 7c | planned |
+| **Plan check v0 (P0)** | Right after T2. It covers regions, lots, roads and T2 routing; districts answer `unsupported` until D1, and brushes join after B. | Architect's; Steward reviews |
+| **Free layouts (FL)** | Its own slice after D2: zones plus a path network fitted to locators and sketches | Architect's |
+| **Rule checks** | After VOC: a separate deterministic verifier in the kit checker, not the critique | Architect's |
+| **Schedules** | Mostly Steward (the life layer). **Scheduled revert**, applying a version and later reverting it exactly with a policy for edits made in between, is its own Architect contract. | Steward's, plus a contract |
+| **Relocation** | Its own contract: crash-safe placement at the destination, removal at the source, materials | Architect's |
+| **Other surfaces** | 7b (attach to a cliff, carve into it) and F3 (trees, mushrooms) | already planned |
+| **Under water** | After H: an air-pocket or dome form with containment checks | Architect's |
+| **Other dimensions** | A later infrastructure slice: survey, regions and stockpiles are mostly dimension-generic already; portals and linking are new | Architect's, later |
+| **transferOwner** | Its own contract: it spans opKeys, protections, tombstones, stockpiles and ledgers | when Steward needs it |
 
-**New (asks to open):**
-
-| Building block | What it unlocks |
-|---|---|
-| **Plan check**: a dry run of a whole composition with per-part answers (section 2, step 3) | The loop itself: Claude can repair, and the card is honest |
-| **Free layouts**: zones and a path network fitted to a sketch or a relation (ring, spiral, grid, organic), not one street | Ring cities, spirals, grids, hamlets that grew |
-| **Rule checks** in design checking: palette, shape and variety rules a design must pass | "Only copper", "no right angles", "no two alike" |
-| **Schedules**: a version applied and removed on a calendar or a condition | Festivals, seasons, decay |
-| **Relocation**: a settlement or zone taken up and placed elsewhere, its history kept | Nomad camps |
-| **Other surfaces**: building on trees, giant mushrooms, cliff faces and overhangs, and on what other parts built | Treetop and cliff villages, upside-down builds |
-| **Under water**: building below a fluid surface with air pockets | Domes, sunken towns |
-| **Other dimensions**: survey, regions and stockpiles in the Nether and the End; settlements linked by portals | Nether outposts, End cities |
-| **Ownership that moves**: `transferOwner`, already kept open | Conquest and factions (long term) |
-
-Steward's own parts:
-- the plan schema and the composing prompt;
+**Steward's parts:**
+- the plan writer (the composing prompt);
 - the repair loop and its budget;
-- the honest card;
-- stages (growth), relations and simulation, the long-term direction;
+- the honest approval;
+- the life layer (stages, schedule, relations, who knows a secret);
 - functional modules, inhabitants and economy (phases 5 to 7);
-- variety control and building around the player's things, as plan rules.
+- building around the player's things, as a plan constraint (protected ground plus a locator).
 
 ## 5. What stays deterministic
 
@@ -105,23 +106,20 @@ Steward's own parts:
 
 `fixtures/strange-asks/` holds 59 asks, the capabilities each needs, and the real card Claude wrote for each. The measure for both mods is how many asks are satisfied by composition: checked, buildable, honest about the rest.
 - **Today:** 4 asks are built, 13 as a nearest version, and 42 wait. 22 of 55 cards are honest, using Steward's word rules.
-- **Each new building block** should move a row of the gap map (`node tools/strange-asks.mjs`). Each composition milestone reruns the asks through the loop. That run is paid, for a few dollars, with Noah's approval.
+- **Each new building block** should move a row of the gap map (`node tools/strange-asks.mjs`).
+- **Focused fixtures:** recorded-plan fixtures prove the compiler covers a block. They run in each slice's CI at $0.
+- **Batch evaluation:** the 59-ask corpus measures composition quality, with Claude composing. It is rerun at milestones, paid, for a few dollars, with Noah's approval.
 
-## 7. Order (a proposal)
+## 7. Order (agreed)
 
-1. **Plan v0 (Steward).** A schema that expresses what is built today (a street village, a flat village, square and placed districts, stages as proposals), with Claude writing it. The card shows the plan. Execution still uses today's paths. $0 to build; one paid recording of the strange asks.
-2. **Plan check v0 (Architect).** A dry run for the parts that exist (regions, roads, lots, districts), with per-part answers including "unsupported". The loop and the honest card go live.
-3. **Building blocks in Architect's order**, each one adding a plan part and a check: T2 routing, D districts (C27), T3 and H, 7a connectors, free layouts, rule checks, then 7c. The new asks in section 4 are placed in that order by Architect.
-4. **Steward's life parts:** stages and schedules, relations, phases 5 to 7.
+1. **Plan v0 (Steward).** The plan writer expresses today's builds (a street village, `flat_village` as a named template, districts, stages as proposals) against Architect's geometric schema, once it is frozen. The card shows the plan, and execution still uses today's paths. One paid batch evaluation of the strange asks follows.
+2. **P0, plan check v0 (Architect), right after T2:** `checkPlan` with per-part answers for regions, lots, roads and routing; `unsupported` for the rest; the capability catalogue; the preview.
+3. **The 6c remainder, each block adding its plan part and check:** S2, T3, H, HY, D1 and D2, FL, VOC with rule checks, S3, F3, RS.
+4. **Then:** 7a (connectors), 7b (surfaces) and 7c (format 3, authoring); the contracts for relocation, scheduled revert, under water, dimensions and transferOwner; Steward's life parts and phases 5 to 7.
 
-## 8. Questions for Architect
+## 8. Architect's answers (2026-10-12)
 
-1. Does the "composition plus check" split fit how 7a to 7c are drafted? What should change in them?
-2. Is the plan best checked as one call (a dry run of the whole composition), or part by part through the existing check calls?
-3. What form should a sketch take (a relative polyline, a zone graph, both), and how loose should fitting be?
-4. Which of the new building blocks (section 4) can go where in your order, and which are your design rather than an ask?
-5. Rule checks: inside design checking (the bible's critique), or a separate verifier?
-6. Shortcuts: should `flat_village` stay a program, or become a composition Architect ships as a named template?
+All six questions are answered in `architect-mc/docs/COMPOSITION-ANSWERS.md` and folded in above: the two layers, one whole-plan check, locators and explicit tolerances, the order and owners of the new blocks, rule checks as a separate verifier after VOC, and `flat_village` kept as a program usable as a named template. Architect's SETTLEMENTS section 10 (7c) converges on this plan: 7c's own composer stays only for standalone use, and 7a to 7c are drafted against the shared schema.
 
 ## 9. Questions for Noah
 
