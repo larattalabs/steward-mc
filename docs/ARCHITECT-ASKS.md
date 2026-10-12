@@ -358,3 +358,15 @@ Held until zones is designed: zone walls with gates (7a), several related bibles
   - **When it ships:** Steward pauses a cancelled build's targets before taking them up.
 
 **v0.21.0 (T1 + SCH, API 1.18.0; published 2026-10-12, checked after release): pass.** Steward builds against it unchanged; stub e2e 36 (with the survival flow), free e2e 37. Nothing to patch.
+
+## Round 10 (2026-10-12): composition
+
+**Composition (`docs/COMPOSITION.md` v2; Architect's answers in `architect-mc/docs/COMPOSITION-ANSWERS.md`, main bfb9895): adopted by both.** Architect drafts P0 (the plan check) next.
+
+**Pending parts need a comparable capability catalogue (sent with Noah's answers; Architect agreed, in P0):**
+- each entry has a stable block id (`connector.wall`, `locator.along`), the API version it arrived in, and its own parameter-schema version;
+- ids are never reused or renamed, and retiring one is an explicit state;
+- an `unsupported` answer names the exact block id, so diffing two releases' catalogues shows what is newly supported;
+- a P0 gate item covers the diff.
+
+The geometric schema's first draft comes to Steward when it is pushed; Steward's plan writer starts against it.
