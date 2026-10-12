@@ -291,3 +291,9 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
     - it works over capacity and while targets build, which fall back to waiting with no stockpile;
     - every unit is counted as withdrawn or dropped, with a gate item checking the sum.
   - **S-Y-7:** RS's region crate is dropped.
+
+**Architect's release process (relayed by the Architect coordinator, 2026-10-11, as Noah's decision):**
+- **Release first, check after:** most slices merge and publish without an RC check from Steward. Steward tests the published version, and what it finds becomes a patch release.
+- **RC checks remain** for slices that change behaviour Steward relies on (removal, world stop, item accounting): C23 (v0.17.1), Y1 and Y2. W, F1, MP and the terrain slices don't get one.
+- **Batched tags:** 2-3 slices per tag, so Steward adopts fewer, larger version jumps.
+- **For Steward:** when a version is published, run the free and stub e2e on it, and send what fails as a patch ask.
