@@ -14,7 +14,8 @@ public final class Summons {
 
 	public static Optional<UUID> waitingFor(String settlementId) {
 		SettlementRunner r = SettlementRunner.active(settlementId);
-		if (r == null || r.state() == null || r.state().phase().terminal()) return Optional.empty();
-		return Pipeline.awaiting(r.state()) == Pipeline.Decision.NONE ? Optional.empty() : Optional.of(r.playerId());
+		// a decision waits for the player who started the build; else a build that has waited long for materials (phase 4)
+		if (r != null && r.state() != null && !r.state().phase().terminal() && Pipeline.awaiting(r.state()) != Pipeline.Decision.NONE) return Optional.of(r.playerId());
+		return MaterialRequests.longWaitFor(settlementId);
 	}
 }

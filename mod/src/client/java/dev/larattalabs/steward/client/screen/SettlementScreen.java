@@ -296,6 +296,8 @@ public final class SettlementScreen extends KitScreen {
 			+ c.dimension().replace("minecraft:", ""));
 		fy = fact(g, fx, fy, fw, "In use", UiBits.plural(view.buildings().size(), "building", "buildings") + (view.roads() > 0 ? ", "
 			+ UiBits.plural(view.roads(), "road", "roads") : "") + ". A street holds about 12; past that, a district gives the next ones a street of their own.");
+		// built from materials: what the stockpile holds and what the builds still need
+		if (!view.stockpile().isEmpty()) fy = fact(g, fx, fy, fw, "Stockpile", String.join(" ", view.stockpile()).replaceFirst("^Stockpile: ", ""));
 		// districts: one each way, founded with a road to the town ($0)
 		g.text(font, "Districts", fx, fy, UiBits.muted(), false);
 		int lx = fx + 90;

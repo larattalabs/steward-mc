@@ -36,6 +36,7 @@ public class Steward implements ModInitializer {
 		dev.larattalabs.steward.service.Talk.init();
 		dev.larattalabs.steward.service.ProposalWords.init();
 		dev.larattalabs.steward.service.ChangeRequests.init();
+		dev.larattalabs.steward.service.MaterialRequests.init();
 		dev.larattalabs.steward.service.Protection.init();
 		StewardCommands.init();
 	}

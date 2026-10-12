@@ -456,7 +456,8 @@ public final class Actions {
 			if (at.ok()) proposed.add(new dev.larattalabs.steward.view.SettlementView.DistrictInfo(p.key(), p.title(), p.found(), at.claim().centerX(), at.claim().centerZ(),
 				at.claim().radius(), dev.larattalabs.steward.model.ClaimRules.side(at.claim().radius()), 0, 0));
 		}
-		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed);
+		List<String> stock = Stockpiles.of(server, s).map(sp -> Stockpiles.bill(sp, 6)).orElse(List.of());
+		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock);
 	}
 
 	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.Sites sites, dev.larattalabs.architect.api.SiteView v) {
