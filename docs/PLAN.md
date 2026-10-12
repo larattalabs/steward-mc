@@ -88,6 +88,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-10-11 | **Farm water and ladders** (Noah, Architect's S-H-1 and S-T2-2): a decorative farm on a dry claim gets a small contained pond beside it. Working farms (later, automated ones) are built for yield instead: water spaced so every farmland block is hydrated (one source per 9x9, channels on that spacing), not a pond for looks. Paths only players use (lookouts, watchtowers) may climb steep spots by ladder; villager paths never do. |
 | 2026-10-11 | **Phase 4's shape** (Noah): Supplied settlements draw from a settlement stockpile, one store for every build, update, road and refund (Architect ask C24), not a crate per build. In a survival-toggle world only Supplied and Hardcore exist; Patron is where the toggle is off. The steward asks for materials all three ways: its bubble names what's next, the inbox shows the bill, and it comes to find you after a long wait. Hardcore's difference is decided later. |
 | 2026-10-11 | **Zones next after phase 4; a living world in view** (Noah): a settlement in parts (zones with their own purpose, style and program, placed by biome, divided by walls with gates) is the step after phase 4, with Noah's desert/jungle settlement as its acceptance test. Conflict, war and conquest, agent-driven settlements, multiplayer and an evolving world are long-term ideas, not planned. Designs keep them open: faction ownership, territory that moves, a settlement's mind in its saved state, damage as an operation ("Long-term direction"). |
+| 2026-10-11 | **Where a district goes** (Noah): the player's pointing first, then where the prompt says, then where the district's purpose belongs on the land, then today's squares as the fallback. Districts take the shape of their land once Architect can, and survey mode previews a district with its reason before it is founded. The Steward-only part (pointing, prompt and purpose placement on height, water and trees, the preview) is the first step of zones. |
 
 ## Concept card
 
@@ -585,6 +586,21 @@ Noah's example: a settlement at a desert's edge with a jungle. A wall divides th
 - **Zones placed by the land (Architect):** districts laid along a biome edge (or a river, a ridge) instead of fixed squares north, east, south and west. Architect's district work on survey candidates (S-D-1) is the start.
 - **Walls with gates (Architect 7a, typed connectors):** a wall along a zone's boundary, with gates where roads cross, in the bible's style.
 - **Checks:** Noah's example as the e2e acceptance (stub), with the two sides' styles and programs told apart in its pictures.
+
+**First step: where a district goes (Noah, 2026-10-11).** Districts stop being only squares beside the town. A district's place comes from the first of these that applies:
+1. **Where the player points:** "found the market district here", standing on the spot (or with the Founding Stone). The clearest signal, and the player always has the last word.
+2. **Where the prompt says:** "the harbour on the coast", "a mine up in the hills", "across the river", "on the jungle side". Claude turns the words into a description of the place (near water, high ground, a biome, a side of a landmark), and Steward finds the survey's candidate areas that match it. Claude describes; it never picks coordinates.
+3. **Where its purpose belongs,** when the prompt says what but not where: a harbour wants a shore, farms flat land near water, a mine hills and stone, a lumber camp forest, a temple a high point. Candidate areas are scored on it.
+4. **Today's rule,** when nothing points anywhere ("we need more room"): a square north, east, south or west, where there is room, on the town street's line.
+- **Shape:** a district takes the shape of its land (a terrace bounded by the slope, a shore by the water, a valley between ridges, a biome by its edge) once Architect's districts on survey candidates land. Until then, squares.
+- **The link follows the land:** across a river a bridge (Architect reports crossings), up a hill a switchback, between zones a wall with a gate. A far district is an outpost reached by a road, not a neighbour.
+- **The player stays in charge:** before founding, survey mode shows the district on the ground with a line saying why ("on the shore, for the harbour"). The player approves it, or says in talk "no, by the lake" and Steward places it again. This applies to proposals and asks alike.
+- **When:**
+  - **now, Steward only:** pointing; prompt and purpose placement on what the survey already sees (height, water, trees); the preview with its reason;
+  - **with an Architect ask:** biomes in the survey, for "the jungle side" and biome affinities;
+  - **with Architect's district slice:** districts shaped by the land;
+  - **with Architect's crossings, paths and 7a:** bridges, switchbacks, walls with gates.
+- **Order:** the Steward-only part can go before the rest of zones; it makes districts less mechanical now and is what zones build on.
 
 ### Strange asks: the gap map (started 2026-10-11)
 How much freedom a player has is measured, not guessed. `fixtures/strange-asks/` holds about 60 strange asks: where (treetops, inside a mountain, under the sea), shape (a ring city, one giant castle, a nomad camp), rules (only copper, no right angles), time (a camp that becomes a city), function, who lives there, relations, and plain ones. Each lists the capabilities it needs, and each capability says whether it is built now, built as a nearest version (and what that is), or waits (and for which step).
