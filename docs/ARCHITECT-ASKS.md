@@ -331,3 +331,12 @@ Steward's answer on chunk tickets: fine. Steward builds with LOADED_ONLY, and a 
 | C28 | **Biomes per column** in the survey, optional. Steward reads `Sample.biomeAt` (4x4) today, which is enough to choose a side. A finer biome edge would help C27 draw the boundary; Architect's choice whether C27 needs it. | The biome edge as a district's border. |
 
 Held until zones is designed: zone walls with gates (7a), several related bibles in one settlement (7c).
+- **Architect's answer (2026-10-12, main b8d4ab2, slice D's "Steward round 8 additions"):**
+  - **C27 as specified:** a shape mask, a bounding claim, a join and a street line. It is deterministic across reloads, refusals are named, and the district and its join are one region with one undo.
+  - **Outposts:** their road corridor is settlement land, undone with the outpost.
+  - **C28:** left to D's builder, who adds it only if edge tracing needs it and records why not otherwise.
+  - **Gate:**
+    - a desert/jungle edge district within 4 cells of the edge;
+    - a shore district, a ridge district and an outpost;
+    - reloads identical, named refusals, an exact undo for each.
+  - **Order:** D may split into D1 (survey-candidate districts, `beside`) and D2 (C27, outposts, C28; D2 needs T2's routing). D starts after T2, which follows T1.
