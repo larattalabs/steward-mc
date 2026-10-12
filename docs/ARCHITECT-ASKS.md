@@ -311,3 +311,5 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
   - damage and repair as journal-backed operations.
 
 **v0.18.0 (W + Y2, API 1.15.0; published 2026-10-11, checked after release): pass.** Steward builds against it unchanged; stub e2e 31, free e2e 34. Nothing to patch. Steward doesn't use Y2's `Sites.waiting`/`SITE_WAITING` or `Verdict.bomFull` yet; they come with phase 4's requests.
+
+**Architect paused (relayed by the Architect coordinator, 2026-10-11, as Noah's decision).** v0.18.0 is current. F1 + MP are nearly ready as v0.19.0, and Y1 (the stockpile), T1 and headless gates are in progress. Nothing is waiting on Steward. Phase 4 waits for Y1 until Architect resumes.
