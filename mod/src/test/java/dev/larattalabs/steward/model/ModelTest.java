@@ -95,6 +95,11 @@ class ModelTest {
 		assertEquals(Difficulty.PATRON, Difficulty.forWorld(Difficulty.PATRON, false));
 		assertEquals(Difficulty.HARDCORE, Difficulty.forWorld(Difficulty.HARDCORE, true));
 		assertEquals(Difficulty.SUPPLIED, Difficulty.forWorld(Difficulty.SUPPLIED, false), "Supplied stays Supplied in creative");
+		assertEquals(Difficulty.SUPPLIED, Difficulty.forWorld(Difficulty.ECONOMY, true), "Economy is built as Supplied in survival");
+		// what a build is placed by now: free outside survival (until phase 4 is offered there), the world's rule in it
+		assertEquals(Difficulty.PATRON, Difficulty.effective(Difficulty.SUPPLIED, false), "survival turned off: free");
+		assertEquals(Difficulty.SUPPLIED, Difficulty.effective(Difficulty.PATRON, true), "survival turned on: from materials");
+		assertEquals(Difficulty.HARDCORE, Difficulty.effective(Difficulty.HARDCORE, true));
 		Settlement s = Settlement.founded("set_1", "Here", new Claim("minecraft:overworld", 0, 0, 64, -64, 320), Permission.PROPOSALS, Difficulty.PATRON, 1L);
 		assertSame(s, s.withDifficulty(Difficulty.PATRON, 2L), "no change, no history");
 		Settlement t = s.withDifficulty(Difficulty.SUPPLIED, 2L);

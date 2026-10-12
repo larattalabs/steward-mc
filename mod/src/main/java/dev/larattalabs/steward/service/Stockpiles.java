@@ -28,8 +28,16 @@ import org.jspecify.annotations.Nullable;
  * crates older builds left. Server thread.
  */
 public final class Stockpiles {
-	/** Where the first crate may go, around the founding stone (the claim's centre): beside it, then further out. */
-	private static final int[][] FIRST_CRATE = {{2, 0}, {-2, 0}, {0, 2}, {0, -2}, {2, 2}, {-2, -2}, {2, -2}, {-2, 2}, {4, 0}, {-4, 0}, {0, 4}, {0, -4}};
+	/** How far from the founding stone the first crates may go. */
+	private static final int REACH = 8;
+
+	/** The cells around the stone (the claim's centre), nearest first, from 2 out to {@link #REACH}. */
+	static List<int[]> around() {
+		List<int[]> out = new ArrayList<>();
+		for (int dx = -REACH; dx <= REACH; dx++) for (int dz = -REACH; dz <= REACH; dz++) if (Math.max(Math.abs(dx), Math.abs(dz)) >= 2) out.add(new int[] {dx, dz});
+		out.sort(Comparator.comparingInt((int[] o) -> o[0] * o[0] + o[1] * o[1]).thenComparingInt(o -> o[0]).thenComparingInt(o -> o[1]));
+		return out;
+	}
 
 	private Stockpiles() {
 	}
@@ -48,20 +56,30 @@ public final class Stockpiles {
 	 * crates older builds left folded into it. Null (having said why) when it can't be made; the build then keeps its own crate.
 	 */
 	public static @Nullable Stockpile ensure(MinecraftServer server, Settlement s, Consumer<String> say) {
+		return ensure(server, s, say, (x, z) -> true);
+	}
+
+	/**
+	 * As above, its crates only on cells {@code free} allows (a build's lots and street, and protected ground, are not: a crate there would block what is
+	 * being built). With a stockpile already, older crates are folded in again (idempotent), so one adoption that failed is retried.
+	 */
+	public static @Nullable Stockpile ensure(MinecraftServer server, Settlement s, Consumer<String> say, java.util.function.BiPredicate<Integer, Integer> free) {
 		var have = of(server, s);
-		if (have.isPresent()) return have.get();
+		if (have.isPresent()) return adopt(server, s, have.get(), say);
 		ServerLevel level = level(server, s);
 		if (level == null) return null;
 		var sites = ArchitectApi.get().sites(server);
 		String last = null;
-		for (int[] o : FIRST_CRATE) {
+		for (int[] o : around()) {
 			int x = s.claim().centerX() + o[0], z = s.claim().centerZ() + o[1];
+			if (!free.test(x, z) || !s.lands().protect().stream().noneMatch(a -> a.contains(s.claim().dimension(), x, z))) continue;
 			BlockPos at = new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
 			try {
 				Stockpile sp = sites.createStockpile(new StockpileRequest(s.owner(), level.dimension(), List.of(at)));
 				// a second crate beside it: one holds 27 stacks, and a small build already wants about 30 kinds (its refunds would not fit)
 				for (int[] d : new int[][] {{0, 1}, {1, 0}, {0, -1}, {-1, 0}}) {
 					int x2 = x + d[0], z2 = z + d[1];
+					if (!free.test(x2, z2)) continue;
 					try {
 						sp = sites.addStockpileCrate(s.owner(), level.dimension(), new BlockPos(x2, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x2, z2), z2));
 						break;
@@ -69,12 +87,7 @@ public final class Stockpiles {
 						// that cell is taken: the next
 					}
 				}
-				// the crates builds placed before the stockpile: their stock joins it
-				try {
-					sp = sites.adoptCrates(s.owner());
-				} catch (RuntimeException e) {
-					Steward.LOGGER.warn("stockpile of {}: older crates not adopted: {}", s.id(), e.toString());
-				}
+				sp = adopt(server, s, sp, say);
 				say.accept(s.name() + "'s stockpile is " + (sp.crates().size() == 1 ? "the crate" : "the " + sp.crates().size() + " crates") + " at " + at.getX() + ", " + at.getY() + ", " + at.getZ()
 					+ ": every build draws its materials from it. Fill it by hand or with hoppers; add crates with /steward stockpile " + s.id() + " add.");
 				return sp;
@@ -88,14 +101,47 @@ public final class Stockpiles {
 		return null;
 	}
 
+	/**
+	 * Folds the crates older builds left into the stockpile (Architect's adoptCrates: idempotent). What did not fit is dropped at a crate: the player is told
+	 * how much, and where.
+	 */
+	private static Stockpile adopt(MinecraftServer server, Settlement s, Stockpile sp, Consumer<String> say) {
+		int droppedBefore = sp.dropped().values().stream().mapToInt(Integer::intValue).sum();
+		try {
+			Stockpile after = ArchitectApi.get().sites(server).adoptCrates(s.owner());
+			int dropped = after.dropped().values().stream().mapToInt(Integer::intValue).sum() - droppedBefore;
+			if (dropped > 0 && !after.crates().isEmpty()) {
+				BlockPos c = after.crates().get(0);
+				say.accept(dropped + " items from older builds' crates did not fit in the stockpile and lie beside its crate at " + c.getX() + ", " + c.getY() + ", " + c.getZ()
+					+ ": pick them up, or add a crate (/steward stockpile " + s.id() + " add) and put them in.");
+			}
+			return after;
+		} catch (RuntimeException e) {
+			Steward.LOGGER.warn("stockpile of {}: older crates not adopted: {}", s.id(), e.toString());
+			return sp;
+		}
+	}
+
+	/**
+	 * Before a change built from materials outside a build (an update, a revert): in a survival world, the settlement's stockpile, made when there is none
+	 * (off the town's street), so the change draws from it rather than a crate of its own. Nothing in a world without survival.
+	 */
+	public static void forConstruction(MinecraftServer server, Settlement s, Consumer<String> say) {
+		if (!dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) return;
+		var street = Districts.streetOf(ArchitectApi.get().sites(server).list(s.owner()), s, null);
+		ensure(server, s, say, (x, z) -> street == null || !(Math.abs(z - street.z()) <= 3 && x >= street.x0() - 3 && x <= street.x1() + 3));
+	}
+
 	/** Adds a crate at {@code at} (where the player stands): more room in the store. Returns what to tell the player. */
 	public static String addCrate(MinecraftServer server, Settlement s, BlockPos at) {
 		ServerLevel level = level(server, s);
 		if (level == null) return "The dimension of " + s.name() + " is not loaded.";
 		var sites = ArchitectApi.get().sites(server);
 		try {
-			Stockpile sp = of(server, s).isPresent() ? sites.addStockpileCrate(s.owner(), level.dimension(), at)
-				: sites.createStockpile(new StockpileRequest(s.owner(), level.dimension(), List.of(at)));
+			boolean fresh = of(server, s).isEmpty();
+			Stockpile sp = fresh ? sites.createStockpile(new StockpileRequest(s.owner(), level.dimension(), List.of(at))) : sites.addStockpileCrate(s.owner(), level.dimension(), at);
+			// a new stockpile takes in the crates older builds left
+			if (fresh) sp = adopt(server, s, sp, m -> { });
 			return s.name() + "'s stockpile has " + sp.crates().size() + (sp.crates().size() == 1 ? " crate" : " crates") + " (" + sp.capacityStacks() + " stacks).";
 		} catch (UnsupportedOperationException | LinkageError e) {
 			return "This Architect has no stockpiles (it needs 0.20).";

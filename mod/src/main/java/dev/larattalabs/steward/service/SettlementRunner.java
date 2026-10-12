@@ -242,7 +242,7 @@ public final class SettlementRunner {
 	}
 
 	public String cancel() {
-		if (state == null || state.phase().terminal()) return "Nothing to cancel.";
+		if (state == null || state.phase().terminal()) return nothingToCancel(server, settlement);
 		boolean second = state.phase() == Pipeline.Phase.CANCELLING;
 		feed(new Pipeline.Cancel());
 		if (second) return "Stopped waiting for Architect.";
@@ -1434,7 +1434,9 @@ public final class SettlementRunner {
 		BatchPlanner.Result res = BatchPlanner.build(settlement, plan, landmarkIds, entries, fits, level,
 			dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), autoApprove, spans, buildId, land);
 		// from materials (phase 4): the settlement's stockpile feeds the build, made first when there is none (else the build keeps its own crate)
-		if (res.batch().sharedCrate() && Stockpiles.ensure(server, now, this::say) != null) say("The stockpile feeds this build: the street first, then the landmarks, then the rest.");
+		if (res.batch().sharedCrate() && Stockpiles.ensure(server, now, this::say, clearOf(plan, sites.list(now.owner()), now)) != null) {
+			say("The stockpile feeds this build: the street first, then the landmarks, then the rest.");
+		}
 		else if (res.note() != null) say(res.note());
 		if (!res.skippedLotIds().isEmpty()) say("Skipped lots (no design or no fit): " + res.skippedLotIds());
 		say("Placing " + res.batch().items().size() + " items...");
@@ -1707,8 +1709,43 @@ public final class SettlementRunner {
 			return;
 		}
 		batchId = null;
+		boolean cancelled = state.phase() == Pipeline.Phase.CANCELLING;
 		feed(new Pipeline.BatchDone((int) placed, (int) failed));
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
+		// a cancelled build from materials: what it started building would go on taking the stockpile's materials, so it is taken up (what it used comes
+		// back), as an undo would; what stands finished stays with the rest
+		if (cancelled && unfinishedConstruction(server, settlement) > 0) {
+			Settlements.store().get(settlement.id()).ifPresent(saved -> {
+				say("The cancelled build's construction sites are taken up; what they used goes back to the stockpile.");
+				Undo.lastProject(server, saved, this::say);
+			});
+		}
+	}
+
+	/**
+	 * The cells a stockpile crate may take: off this build's lots and street (a margin of 1 round a lot, 3 round the street's line), and off the town's
+	 * street as it stands (a crate there would block what is built, and nobody but its owner can move it).
+	 */
+	static java.util.function.BiPredicate<Integer, Integer> clearOf(VillageLayout.Plan plan, List<dev.larattalabs.architect.api.SiteView> standing, Settlement s) {
+		var street = Districts.streetOf(standing, s, null);
+		return (x, z) -> {
+			for (VillageLayout.Lot l : plan.lots()) if (x >= l.x() - 1 && x <= l.maxX() + 1 && z >= l.z() - 1 && z <= l.maxZ() + 1) return false;
+			if (Math.abs(z - plan.streetZ()) <= 3 && x >= plan.streetX0() - 3 && x <= plan.streetX1() + 3) return false;
+			return street == null || !(Math.abs(z - street.z()) <= 3 && x >= street.x0() - 3 && x <= street.x1() + 3);
+		};
+	}
+
+	/** "Nothing to cancel", and when buildings are still being built from the stockpile, how to take them up (an undo refunds what they used). */
+	static String nothingToCancel(MinecraftServer server, @org.jspecify.annotations.Nullable Settlement s) {
+		if (s == null || unfinishedConstruction(server, s) == 0) return "Nothing to cancel.";
+		return "Nothing to cancel: the placed buildings are being built from the stockpile. /steward undo " + s.id() + " takes them up and gives back what they used.";
+	}
+
+	/** How many of the settlement's construction sites (buildings and roads) are not built yet. */
+	static int unfinishedConstruction(MinecraftServer server, Settlement s) {
+		int n = 0;
+		for (var v : ArchitectApi.get().sites(server).list(s.owner())) if (!"BUILT".equals(v.state().name())) n++;
+		return n;
 	}
 
 	private void say(String text) {

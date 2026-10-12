@@ -43,6 +43,8 @@ public final class Revert {
 		String lot = Updates.lotOf(site.get());
 		int session = Session.current();
 		StewardMotion.clear(server, s, site.get().box());
+		// in a survival world a revert is a forward change built from materials: from the settlement's stockpile, not a crate of its own
+		Stockpiles.forConstruction(server, s, m -> StewardVoice.say(server, s.id(), m));
 		sites.revert(siteId, toVersion, null).whenComplete((r, err) -> {
 			if (!Session.is(session)) return;
 			boolean ok = err == null && r.applied();

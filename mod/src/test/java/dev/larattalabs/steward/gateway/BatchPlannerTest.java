@@ -142,7 +142,7 @@ class BatchPlannerTest {
 		BoundingBox b = BatchPlanner.lotBox(lots.get(1), 24);
 		fits.put(lots.get(1).id(), new LotFit(new BlockPos(0, 0, 0), Rotation.NONE, b, Optional.empty(),
 			new Verdict(List.of(new Refusal(Reason.LOT_TOO_SMALL, "too small")), List.of(), false, Map.of(), Optional.empty(), Optional.empty())));
-		BatchPlanner.Result r = BatchPlanner.build(s, p, Set.of(), entries, fits, null, false, true);
+		BatchPlanner.Result r = BatchPlanner.build(s, p, Set.of(), entries, fits, null, true, true);
 		assertEquals(2, r.batch().items().size());
 		assertEquals(Set.of(lots.get(0).id(), lots.get(1).id()), new HashSet<>(r.skippedLotIds()));
 		assertTrue(r.batch().autoApprove());
@@ -179,13 +179,18 @@ class BatchPlannerTest {
 		Map<String, String> entries = new HashMap<>();
 		Map<String, LotFit> fits = new HashMap<>();
 		for (Lot l : p.lots()) { entries.put(l.id(), "gen_" + l.id()); fits.put(l.id(), okFit(l)); }
-		BatchPlanner.Result r = BatchPlanner.build(s, p, Set.of(), entries, fits, null, false, false, true);
+		BatchPlanner.Result r = BatchPlanner.build(s, p, Set.of(), entries, fits, null, true, false, true);
 		assertNotNull(r.note());
 		assertTrue(r.batch().sharedCrate(), "one crate for the build");
 		assertEquals(p.lots().size() + 1, r.batch().items().size());
 		assertEquals("street", r.batch().stages().get(0).name());
 		Batch.Item street = r.batch().items().stream().filter(i -> "street".equals(i.itemKey())).findFirst().orElseThrow();
 		assertEquals(Mode.CONSTRUCTION, street.road().mode());
+		// the items' order is the stockpile's feed order: the street first, then the lots stage by stage
+		assertEquals("street", r.batch().items().get(0).itemKey(), "the street is fed first");
+		List<String> lotOrder = r.batch().items().stream().skip(1).map(Batch.Item::itemKey).toList();
+		List<String> stageOrder = r.batch().stages().stream().skip(1).flatMap(st -> st.items().stream()).toList();
+		assertEquals(stageOrder, lotOrder);
 		// Patron in creative: instant, no crate
 		BatchPlanner.Result free = BatchPlanner.build(settlement(Difficulty.PATRON), p, Set.of(), entries, fits, null, false, false, true);
 		assertFalse(free.batch().sharedCrate());

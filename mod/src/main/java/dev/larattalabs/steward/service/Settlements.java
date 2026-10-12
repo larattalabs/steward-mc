@@ -79,16 +79,13 @@ public final class Settlements {
 		return describe(id, card, now, false);
 	}
 
-	/** Whether Supplied and Hardcore are built (docs/PLAN.md phase 4): until then a creative world's settlements are Patron whatever their card asks. */
-	static final boolean SUPPLY_BUILT = false;
-
 	/** As {@link #describe(String, ConceptCard, long)}, the card's difficulty taken by the world's rule ({@link Difficulty#forWorld}). */
 	public static Result describe(String id, ConceptCard card, long now, boolean worldSurvival) {
 		Optional<Settlement> s = store.get(id);
 		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
 		Difficulty asked = card.difficultyOr(s.get().difficulty());
 		// until phase 4 (the stockpile and the steward's requests) is built, a creative world builds free whatever the card asks
-		Difficulty d = !worldSurvival && !SUPPLY_BUILT ? Difficulty.PATRON : Difficulty.forWorld(asked, worldSurvival);
+		Difficulty d = Difficulty.effective(asked, worldSurvival);
 		Settlement n = s.get().withCard(card, now).withDifficulty(d, now);
 		String rule = d == asked ? "" : worldSurvival ? " In a survival world nothing is built free, so " + n.name() + " is Supplied: the steward asks for its materials."
 			: " Building from your materials (" + asked.name().toLowerCase(java.util.Locale.ROOT) + ") comes with a later version; " + n.name() + " builds free for now.";

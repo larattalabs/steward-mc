@@ -30,6 +30,9 @@ public final class MaterialRequests {
 	private static final Map<String, Long> SAID = new HashMap<>();
 	/** Settlements with a long wait: the player the steward goes to find, and the wait's start (said once per wait). */
 	private static final Map<String, LongWait> LONG = new HashMap<>();
+	/** When each settlement last told its players about materials (game ticks): at most once a minute (each small delivery can start a new wait). */
+	private static final Map<String, Long> TOLD = new HashMap<>();
+	static final long TELL_EVERY_TICKS = 1_200;
 
 	private record LongWait(UUID player, long since) {}
 
@@ -44,6 +47,7 @@ public final class MaterialRequests {
 			server = null;
 			SAID.clear();
 			LONG.clear();
+			TOLD.clear();
 		});
 		try {
 			SiteEvents.SITE_WAITING.register(MaterialRequests::onWaiting);
@@ -75,6 +79,10 @@ public final class MaterialRequests {
 		Long said = SAID.get(wait.targetId());
 		if (said != null && said == wait.waitingSince()) return;
 		SAID.put(wait.targetId(), wait.waitingSince());
+		long now = srv.overworld().getGameTime();
+		Long last = TOLD.get(s.get().id());
+		if (last != null && now - last < TELL_EVERY_TICKS) return;
+		TOLD.put(s.get().id(), now);
 		tell(srv, s.get(), "The " + nameOf(site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
 	}
 

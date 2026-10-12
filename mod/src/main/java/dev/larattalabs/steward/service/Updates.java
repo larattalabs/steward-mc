@@ -194,6 +194,8 @@ public final class Updates {
 		if (!APPLYING.add(p.siteId())) return;
 		int session = Session.current();
 		sites.get(p.siteId()).ifPresent(v -> StewardMotion.clear(server, s, v.box()));
+		// in a survival world the change is built from materials: from the settlement's stockpile (made first when there is none), not a crate of its own
+		Stockpiles.forConstruction(server, s, m -> StewardVoice.say(server, s.id(), m));
 		sites.applyDelta(UpdatePlanner.request(p.siteId(), p.to(), UpdatePlanner.editsFor(s.permission()), s.owner())).whenComplete((r, err) -> {
 			if (!Session.is(session)) return;
 			APPLYING.remove(p.siteId());

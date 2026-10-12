@@ -113,7 +113,8 @@ public final class BatchPlanner {
 	 */
 	public static Result build(Settlement s, VillageLayout.Plan plan, Set<String> landmarkIds, Map<String, String> entries, Map<String, LotFit> fits,
 		@Nullable ServerLevel level, boolean worldSurvival, boolean autoApprove, List<int[]> streetSpans, @Nullable String buildId, Claim land) {
-		Mode mode = modeFor(s.difficulty(), worldSurvival);
+		// the difficulty by the world's rule now (a world can switch survival on or off between builds)
+		Mode mode = modeFor(Difficulty.effective(s.difficulty(), worldSurvival), worldSurvival);
 		Map<String, Batch.Item> items = new LinkedHashMap<>();
 		List<String> skipped = new ArrayList<>();
 		List<StageDef> stageDefs = stages(plan, landmarkIds);
@@ -157,7 +158,11 @@ public final class BatchPlanner {
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
 		if (buildId != null) ext.addProperty(BUILD_EXT, buildId);
-		Batch b = new Batch(null, s.owner(), ext, null, new ArrayList<>(items.values()), specs, Batch.WaitPolicy.DEFAULT,
+		// the batch's item order is the stockpile's feed order (Architect C24): the street first, then each stage's lots in stage order (the landmarks first)
+		List<Batch.Item> ordered = new ArrayList<>();
+		for (var e : items.entrySet()) if (isStreet(e.getKey())) ordered.add(e.getValue());
+		for (StageDef sd : stageDefs) for (String id : sd.lotIds()) if (items.containsKey(id)) ordered.add(items.get(id));
+		Batch b = new Batch(null, s.owner(), ext, null, ordered, specs, Batch.WaitPolicy.DEFAULT,
 			dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY, null, false, autoApprove, construction, null);
 		return new Result(b, List.copyOf(skipped), note);
 	}

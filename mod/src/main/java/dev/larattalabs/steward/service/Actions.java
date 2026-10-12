@@ -288,8 +288,9 @@ public final class Actions {
 			MinecraftServer server = player.level().getServer();
 			if ("stockpile_add".equals(action)) {
 				var at = player.blockPosition();
-				if (!s.get().contains(player.level().dimension().identifier().toString(), at.getX(), at.getY(), at.getZ())) {
-					return Result.fail("Stand in " + s.get().name() + " to add a crate to its stockpile.");
+				// in the town itself, not a district: a district can be undone and its land released, and a stockpile crate does not go with it
+				if (!s.get().claim().contains(player.level().dimension().identifier().toString(), at.getX(), at.getY(), at.getZ())) {
+					return Result.fail("Stand in " + s.get().name() + "'s town (not a district) to add a crate to its stockpile.");
 				}
 				return Result.ok(Stockpiles.addCrate(server, s.get(), at));
 			}
@@ -344,6 +345,13 @@ public final class Actions {
 			return Result.ok("");
 		}
 		SettlementRunner r = SettlementRunner.active(id);
+		if (r == null && "cancel".equals(action)) {
+			// no build running: buildings may still be going up from the stockpile (an undo takes them up)
+			var s = Settlements.store().get(id);
+			if (s.isPresent() && SettlementRunner.unfinishedConstruction(player.level().getServer(), s.get()) > 0) {
+				return Result.fail(SettlementRunner.nothingToCancel(player.level().getServer(), s.get()));
+			}
+		}
 		if (r == null) return Result.fail("Nothing is being built for " + id + " in this session (see /steward settlements).");
 		if (!r.playerId().equals(player.getUUID())) return Result.fail("That build belongs to another player.");
 		return switch (action == null ? "" : action) {

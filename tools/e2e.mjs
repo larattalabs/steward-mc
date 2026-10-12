@@ -788,6 +788,7 @@ async function survivalFlow() {
     await cmd(`/steward start ${id} 2 30`);
     const built = await buildThrough(id, from, 'supplied build');
     if (!built) return;
+    if (built.placed < 2) return fail('supplied build', `${built.placed} of 2 buildings placed`);
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);

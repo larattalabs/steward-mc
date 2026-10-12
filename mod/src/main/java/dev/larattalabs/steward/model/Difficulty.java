@@ -20,7 +20,20 @@ public enum Difficulty {
 	 * (docs/PLAN.md phase 4, Noah 2026-10-11); elsewhere what was asked.
 	 */
 	public static Difficulty forWorld(Difficulty asked, boolean worldSurvival) {
-		return worldSurvival && asked == PATRON ? SUPPLIED : asked;
+		// Noah: in survival, Supplied or Hardcore only (Economy is built as Supplied until it is designed)
+		return worldSurvival && (asked == PATRON || asked == ECONOMY) ? SUPPLIED : asked;
+	}
+
+	/** Whether building from materials (phase 4: the stockpile and the steward's requests) is offered outside survival worlds yet. */
+	public static final boolean SUPPLY_BUILT = false;
+
+	/**
+	 * The difficulty a build is placed by now: the settlement's, by the world's rule, read when it builds (a world can switch survival on or off between
+	 * builds). Outside survival, until {@link #SUPPLY_BUILT}, everything is built free.
+	 */
+	public static Difficulty effective(Difficulty settlement, boolean worldSurvival) {
+		if (!worldSurvival && !SUPPLY_BUILT) return PATRON;
+		return forWorld(settlement, worldSurvival);
 	}
 
 	/** Whether this difficulty may use instant placement in a world whose survival toggle is {@code worldSurvival}. */
