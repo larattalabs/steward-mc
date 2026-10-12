@@ -124,9 +124,14 @@ public final class SettlementWorld {
 			for (var a : v.areas()) border(c, a.x0(), a.z0(), a.x1() + 1, a.z1() + 1, UiStyle.withAlpha(UiStyle.SAGE, 0x90), cam);
 			// a district waiting in the inbox: where it would go, before it is founded
 			for (var d : v.proposed()) {
-				border(c, d.centerX() - d.radius(), d.centerZ() - d.radius(), d.centerX() + d.radius() + 1, d.centerZ() + d.radius() + 1, UiStyle.withAlpha(UiStyle.CREAM, 0x80), cam);
-				double dist = Math.hypot(d.centerX() + 0.5 - cam.x, d.centerZ() + 0.5 - cam.z);
-				pill(c, camera, d.centerX() + 0.5, cam.y + 2, d.centerZ() + 0.5, "Proposed: " + d.name(), "found it or decline it in the inbox", "waiting", false, dist);
+				border(c, d.centerX() - d.radius(), d.centerZ() - d.radius(), d.centerX() + d.radius() + 1, d.centerZ() + d.radius() + 1, UiStyle.withAlpha(UiStyle.CREAM, 0xC0), cam,
+					true);
+				// on the ground at its middle (the client's own height map; a few blocks up, so it clears grass and the odd tree)
+				var lvl = Minecraft.getInstance().level;
+				double gy = lvl == null ? cam.y : lvl.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE, d.centerX(), d.centerZ()) + 3;
+				double dist = Math.sqrt(cam.distanceToSqr(d.centerX() + 0.5, gy, d.centerZ() + 0.5));
+				// read from survey height: about twice a building label's size at the same distance
+				pill(c, camera, d.centerX() + 0.5, gy, d.centerZ() + 0.5, "Proposed: " + d.name(), "found it or decline it in the inbox", "waiting", false, dist, 32f, 3.5);
 			}
 		}
 	}
@@ -148,6 +153,11 @@ public final class SettlementWorld {
 
 	/** The claim's border in survey mode: a low clay curtain along its edges, on the ground, where it is within reach. */
 	private static void border(SubmitNodeCollector c, int x0, int z0, int x1, int z1, int col, Vec3 cam) {
+		border(c, x0, z0, x1, z1, col, cam, false);
+	}
+
+	/** As above; {@code dashed}: 3 blocks on, 2 off, taller (what is only proposed, not founded). */
+	private static void border(SubmitNodeCollector c, int x0, int z0, int x1, int z1, int col, Vec3 cam, boolean dashed) {
 		var level = Minecraft.getInstance().level;
 		if (level == null) return;
 		int reach = 160;
@@ -164,13 +174,17 @@ public final class SettlementWorld {
 				double camAlong = alongX ? cam.x : cam.z, camAcross = alongX ? cam.z : cam.x;
 				if (Math.abs(camAcross - fixed) > reach) continue;
 				int a0 = (int) Math.max(from, Math.floor(camAlong - reach)), a1 = (int) Math.min(to, Math.ceil(camAlong + reach));
-				for (int a = a0; a < a1; a += 2) {
+				int step = dashed ? 5 : 2, len = dashed ? 3 : 2;
+				float high = dashed ? 2.5f : 1.5f;
+				// dashes keep to the square's own grid, so they don't crawl as the player moves
+				if (dashed) a0 = from + Math.floorDiv(a0 - from, step) * step;
+				for (int a = a0; a < a1; a += step) {
 					int gx = alongX ? a : fixed, gz = alongX ? fixed : a;
 					int g = level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, gx, gz);
 					float y = (float) (g - cam.y);
-					float s = (float) (a - camAlong), e = s + 2, f = (float) (fixed - camAcross);
-					if (alongX) cube(pose, vc, s, y, f - 0.02f, e, y + 1.5f, f + 0.02f, col);
-					else cube(pose, vc, f - 0.02f, y, s, f + 0.02f, y + 1.5f, e, col);
+					float s = (float) (a - camAlong), e = s + Math.min(len, to - a), f = (float) (fixed - camAcross);
+					if (alongX) cube(pose, vc, s, y, f - 0.02f, e, y + high, f + 0.02f, col);
+					else cube(pose, vc, f - 0.02f, y, s, f + 0.02f, y + high, e, col);
 				}
 			}
 		});
@@ -187,6 +201,18 @@ public final class SettlementWorld {
 	/** An ink pill at a world point, facing the camera: a status dot and a title, a second line under it. */
 	private static void pill(SubmitNodeCollector c, CameraRenderState camera, double wx, double wy, double wz, String titleText, String sub, String family, boolean on,
 		double dist) {
+		pill(c, camera, wx, wy, wz, titleText, sub, family, on, dist, 4.0f);
+	}
+
+	/** As above, growing with the distance up to {@code maxScale} (a district's label reads from a hundred blocks off). */
+	private static void pill(SubmitNodeCollector c, CameraRenderState camera, double wx, double wy, double wz, String titleText, String sub, String family, boolean on,
+		double dist, float maxScale) {
+		pill(c, camera, wx, wy, wz, titleText, sub, family, on, dist, maxScale, 7);
+	}
+
+	/** As above; the label grows by one nameplate size per {@code per} blocks of distance. */
+	private static void pill(SubmitNodeCollector c, CameraRenderState camera, double wx, double wy, double wz, String titleText, String sub, String family, boolean on,
+		double dist, float maxScale, double per) {
 		Font font = Minecraft.getInstance().font;
 		Kit.Padding pad = Kit.padding("nameplate");
 		String title = TextUtil.ellipsize(font, titleText, 220);
@@ -195,7 +221,7 @@ public final class SettlementWorld {
 		int h = pad.top() + 19 + pad.bottom() + 1;
 		int light = WorldUi.uiLight();
 		// a building's label reads from across the street: twice a nameplate's size, growing with the distance
-		float scale = (float) Math.max(2.0, Math.min(4.0, dist / 7));
+		float scale = (float) Math.max(2.0, Math.min(maxScale, dist / per));
 		double x = wx - camera.pos.x, y = wy - camera.pos.y, z = wz - camera.pos.z;
 		PoseStack ps = new PoseStack();
 		WorldUi.billboard(ps, camera, x, y, z, scale, 0f, 0, 0, 0);
