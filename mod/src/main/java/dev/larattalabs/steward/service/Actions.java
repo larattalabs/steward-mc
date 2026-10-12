@@ -117,7 +117,15 @@ public final class Actions {
 		int session = Session.current();
 		describing.put(id, new Reading(token, System.currentTimeMillis()));
 		// what the land round the stone is like goes with the words (the jungle side, by the lake), read first; the card job starts when it is
-		Land.around(server, s.get(), land -> cards().submit(words, Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", Settlements.DEFAULT_RADIUS,
+		Land.around(server, s.get(), land -> describeWith(land, words, id, survival, s.get(), server, who, token, session));
+		return Result.ok("Interpreting your description...");
+	}
+
+	private static void describeWith(@org.jspecify.annotations.Nullable String land, String words, String id, boolean survival, Settlement settlement, MinecraftServer server,
+		UUID who, long token, int session) {
+		dev.larattalabs.steward.Steward.LOGGER.info("land round {}: {}", id, land == null ? "(not read)" : land);
+		var s = Optional.of(settlement);
+		cards().submit(words, Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", Settlements.DEFAULT_RADIUS,
 			land), s.get().owner())
 			.whenComplete((r, err) -> {
 				// a world closed since (its settlement ids repeat in the next world), or a newer request: this result is not stored
@@ -148,8 +156,7 @@ public final class Actions {
 				p.sendSystemMessage(Component.literal(res.note()));
 				p.sendSystemMessage(Component.literal(startHint(id, r.card())));
 				sendCard(p, res.settlement());
-			}));
-		return Result.ok("Interpreting your description...");
+			});
 	}
 
 	private static boolean reading(String id) {
