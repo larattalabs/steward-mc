@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 import java.util.UUID;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.network.chat.Component;
@@ -259,11 +260,25 @@ public final class Actions {
 			if (name.length() > 40) return Result.fail("A district's name is at most 40 characters.");
 			MinecraftServer server = player.level().getServer();
 			java.util.UUID who = player.getUUID();
-			String no = Districts.found(server, player, s.get(), dir, size, name, msg -> {
+			Consumer<String> say = msg -> {
 				var p = server.getPlayerList().getPlayer(who);
 				if (p != null) p.sendSystemMessage(net.minecraft.network.chat.Component.literal(msg));
 				StewardVoice.say(server, id, msg);
-			});
+			};
+			// "here": the side nearest where the player stands; "auto": the side whose ground suits the district's name best ("the harbour": by the water)
+			if (dir.equals("HERE") || dir.equals("AUTO")) {
+				var site = dir.equals("AUTO") ? dev.larattalabs.steward.model.DistrictSite.fromWords(name) : dev.larattalabs.steward.model.DistrictSite.ANYWHERE;
+				Districts.choose(server, s.get(), site, dir.equals("HERE") ? player.blockPosition() : null, java.util.Set.of(), c -> {
+					if (c.way() == null) { say.accept("No side of " + s.get().name() + " has room for a district."); return; }
+					say.accept("To the " + dev.larattalabs.steward.model.DistrictRules.directionName(c.way()) + (c.why().isEmpty() ? "." : ": " + c.why() + "."));
+					var now = Settlements.store().get(id);
+					var p = server.getPlayerList().getPlayer(who);
+					String no = now.isEmpty() ? "No such settlement: " + id + "." : Districts.found(server, p, now.get(), c.way(), size, name, say);
+					if (no != null) say.accept(no);
+				});
+				return Result.ok(dir.equals("HERE") ? "Finding the side nearest you..." : "Looking at the land around " + s.get().name() + "...");
+			}
+			String no = Districts.found(server, player, s.get(), dir, size, name, say);
 			return no == null ? Result.ok("Laying the road to the new district...") : Result.fail(no);
 		}
 		if ("protect".equals(action)) {

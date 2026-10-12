@@ -288,6 +288,80 @@ public final class Districts {
 		return null;
 	}
 
+	/**
+	 * Chooses the side of the town for a district (docs/PLAN.md "Zones", first step): the way said, else where the player stands ({@code standing}), else the
+	 * free side whose ground suits {@code site} best (each free side's square is surveyed, loaded chunks only), else today's order. {@code then} gets the
+	 * choice on the server thread (its way null when no side fits). Sides in {@code skip} (declined, or waiting already) are not considered.
+	 */
+	public static void choose(MinecraftServer server, Settlement s, dev.larattalabs.steward.model.DistrictSite site, @Nullable BlockPos standing,
+		java.util.Collection<String> skip, Consumer<dev.larattalabs.steward.model.DistrictSite.Choice> then) {
+		var street = townStreet(server, s);
+		java.util.Map<String, Claim> squares = new java.util.LinkedHashMap<>();
+		for (String dir : DistrictRules.DIRECTIONS) {
+			if (skip.contains(dir)) continue;
+			var p = DistrictRules.place(s.claim(), street, s.lands().districts(), Settlements.others(s.id()), s.lands().protect(), dir, DistrictRules.RADII[0]);
+			if (p.ok()) squares.put(dir, p.claim());
+		}
+		List<String> free = List.copyOf(squares.keySet());
+		dev.larattalabs.steward.model.DistrictSite.Standing stand = null;
+		if (standing != null) {
+			java.util.Map<String, Double> dist = new java.util.LinkedHashMap<>();
+			for (var e : squares.entrySet()) {
+				Claim c = e.getValue();
+				int dx = Math.max(0, Math.abs(standing.getX() - c.centerX()) - c.radius()), dz = Math.max(0, Math.abs(standing.getZ() - c.centerZ()) - c.radius());
+				dist.put(e.getKey(), Math.hypot(dx, dz));
+			}
+			stand = new dev.larattalabs.steward.model.DistrictSite.Standing(dist);
+		}
+		// nothing to survey: the way said, where they stand, or no wish about the ground
+		ServerLevel level = level(server, s.claim().dimension());
+		if (level == null || free.isEmpty() || stand != null || (site.way() != null && free.contains(site.way())) || !site.caresAboutGround()) {
+			then.accept(site.choose(free, java.util.Map.of(), 0, stand));
+			return;
+		}
+		List<String> keys = new ArrayList<>(free);
+		keys.add("town");
+		List<java.util.concurrent.CompletableFuture<dev.larattalabs.architect.api.Sample>> samples = new ArrayList<>();
+		for (String k : keys) {
+			Claim c = k.equals("town") ? DistrictRules.villageSquare(s.claim()) : squares.get(k);
+			var box = new net.minecraft.world.level.levelgen.structure.BoundingBox(c.centerX() - c.radius(), level.getMinY(), c.centerZ() - c.radius(), c.centerX() + c.radius(),
+				level.getMaxY(), c.centerZ() + c.radius());
+			samples.add(ArchitectApi.get().survey().sample(level, box, PROFILE_RESOLUTION, dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY));
+		}
+		int session = Session.current();
+		java.util.concurrent.CompletableFuture.allOf(samples.toArray(new java.util.concurrent.CompletableFuture[0])).whenComplete((v, err) -> server.execute(() -> {
+			if (!Session.is(session)) return;
+			java.util.Map<String, dev.larattalabs.steward.model.DistrictSite.Profile> profiles = new java.util.LinkedHashMap<>();
+			double town = 0;
+			for (int i = 0; i < keys.size(); i++) {
+				var f = samples.get(i);
+				if (f.isCompletedExceptionally()) continue;
+				var p = profile(f.join());
+				if (keys.get(i).equals("town")) town = p.height();
+				else profiles.put(keys.get(i), p);
+			}
+			if (err != null) Steward.LOGGER.warn("district survey of {}: {}", s.id(), err.toString());
+			then.accept(site.choose(free, profiles, town, null));
+		}));
+	}
+
+	/** The survey's step when sizing up a side for a district (every 4th column: enough to tell water, trees, height and biome). */
+	static final int PROFILE_RESOLUTION = 4;
+
+	/** What a surveyed square is like. */
+	static dev.larattalabs.steward.model.DistrictSite.Profile profile(dev.larattalabs.architect.api.Sample sm) {
+		var b = new dev.larattalabs.steward.model.DistrictSite.ProfileBuilder();
+		for (int j = 0; j < sm.depth(); j++) {
+			for (int i = 0; i < sm.width(); i++) {
+				int k = sm.index(i, j);
+				boolean read = !sm.isMissing(i, j) && sm.height()[k] != dev.larattalabs.architect.api.Sample.MISSING;
+				int g = read ? (sm.ground() != null && sm.ground()[k] != dev.larattalabs.architect.api.Sample.MISSING ? sm.ground()[k] : sm.height()[k]) : 0;
+				b.add(read, read && (sm.water().get(k) || sm.frozen().get(k)), read && sm.tree().get(k), g, read ? sm.biomeAt(sm.worldX(i), sm.worldZ(j)) : null);
+			}
+		}
+		return b.build();
+	}
+
 	/** The town's street (not a district's): its centre line and ends, or null before there is one. */
 	public static DistrictRules.@Nullable Street townStreet(MinecraftServer server, Settlement s) {
 		return streetOf(ArchitectApi.get().sites(server).list(s.owner()), s, null);

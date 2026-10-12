@@ -23,6 +23,7 @@ import java.util.Set;
 import java.util.UUID;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.network.chat.Component;
+import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import org.jspecify.annotations.Nullable;
@@ -146,7 +147,11 @@ public final class Talk {
 		String reply = a.reply();
 		switch (a.intent()) {
 			case BUILDING -> reply = proposeBuilding(server, s, said, a, now);
-			case DISTRICT -> reply = proposeDistrict(server, s, said, a, now);
+			case DISTRICT -> {
+				// the side may need a look at the land first: it answers when it has chosen
+				proposeDistrict(server, player, s, said, a, now);
+				return;
+			}
 			case CHANGE -> reply = proposeChange(server, s, said, a, now);
 			default -> {
 			}
@@ -213,27 +218,51 @@ public final class Talk {
 	}
 
 	/** A district asked for: a proposal in the inbox, towards the way named or the first that fits. */
-	private static String proposeDistrict(MinecraftServer server, Settlement s, String said, TalkAnswer a, long now) {
-		if (s.lands().districts().size() >= DistrictRules.DIRECTIONS.size()) return "There is a district every way already.";
+	/** "Here", "where I stand": the player points at the place. */
+	private static final java.util.regex.Pattern HERE = java.util.regex.Pattern.compile("\\b(here|where i('m| am)( standing)?|where i stand)\\b");
+
+	/**
+	 * A district asked for: a proposal in the inbox, on the side said, else the side nearest where the player stands (when they say "here"), else the free
+	 * side whose ground suits what they asked for ("a harbour": by the water; docs/PLAN.md "Zones", first step), else the first free side. The reply comes
+	 * once the side is chosen (a look at the land can take a moment).
+	 */
+	private static void proposeDistrict(MinecraftServer server, UUID player, Settlement s, String said, TalkAnswer a, long now) {
+		if (s.lands().districts().size() >= DistrictRules.DIRECTIONS.size()) { answer(server, player, s.id(), "There is a district every way already."); return; }
 		String way = a.way();
 		if (way != null) {
 			var placed = DistrictRules.place(s.claim(), Districts.townStreet(server, s), s.lands().districts(), Settlements.others(s.id()), s.lands().protect(), way,
 				DistrictRules.RADII[0]);
-			if (!placed.ok()) return placed.note();
-		} else {
-			// any way: the first that fits and that the player has not declined
-			java.util.Set<String> declined = new HashSet<>();
-			for (String d : DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) declined.add(d);
-			way = Districts.firstWay(server, s, declined);
-			if (way == null) return "There is no way left to found a district that fits.";
+			if (!placed.ok()) { answer(server, player, s.id(), placed.note()); return; }
+			answer(server, player, s.id(), offerDistrict(s, said, a, way, "", now));
+			SettlementRunner.sendInbox(server, player);
+			return;
 		}
-		String finalWay = way;
-		if (s.proposals().open().stream().anyMatch(x -> finalWay.equals(x.found()))) return "A district to the " + DistrictRules.directionName(way) + " already waits in the inbox.";
-		Proposal p = Proposal.district(way, "You asked: \"" + clip(said, 120) + "\"", now);
-		if (a.district() != null) p = new Proposal(p.key(), Character.toUpperCase(a.district().charAt(0)) + a.district().substring(1) + " (" + DistrictRules.directionName(way)
-			+ ")", p.why(), null, now, p.trigger(), a.district(), way);
+		// any side the player has not declined and that is not waiting already
+		java.util.Set<String> skip = new HashSet<>();
+		for (String d : DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) skip.add(d);
+		for (Proposal o : s.proposals().open()) if (o.found() != null) skip.add(o.found());
+		var site = dev.larattalabs.steward.model.DistrictSite.fromWords(said + " " + (a.district() == null ? "" : a.district()));
+		var p = server.getPlayerList().getPlayer(player);
+		BlockPos standing = p != null && HERE.matcher(said.toLowerCase(java.util.Locale.ROOT)).find() ? p.blockPosition() : null;
+		Districts.choose(server, s, site, standing, skip, c -> {
+			var now2 = Settlements.store().get(s.id());
+			if (now2.isEmpty()) return;
+			String reply = c.way() == null ? "There is no way left to found a district that fits." : offerDistrict(now2.get(), said, a, c.way(), c.why(), now);
+			answer(server, player, s.id(), reply);
+			SettlementRunner.sendInbox(server, player);
+		});
+	}
+
+	/** The district's proposal, on {@code way}, saying why that side ({@code why}, "" for none); returns the reply. */
+	private static String offerDistrict(Settlement s, String said, TalkAnswer a, String way, String why, long now) {
+		if (s.proposals().open().stream().anyMatch(x -> way.equals(x.found()))) return "A district to the " + DistrictRules.directionName(way) + " already waits in the inbox.";
+		String side = DistrictRules.directionName(way);
+		Proposal p = Proposal.district(way, "You asked: \"" + clip(said, 120) + "\"" + (why.isEmpty() ? "" : ". To the " + side + ": " + why), now);
+		if (a.district() != null) p = new Proposal(p.key(), Character.toUpperCase(a.district().charAt(0)) + a.district().substring(1) + " (" + side + ")", p.why(), null, now,
+			p.trigger(), a.district(), way);
 		String added = addProposal(s, p);
-		return added != null ? added : a.reply();
+		if (added != null) return added;
+		return why.isEmpty() ? a.reply() : a.reply() + " I would put it to the " + side + ", " + why + ".";
 	}
 
 	/**

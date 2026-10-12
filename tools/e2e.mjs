@@ -523,6 +523,31 @@ async function districts(id) {
   else fail('district undo', `districts ${JSON.stringify(after?.lands?.districts)}, road standing ${roadLeft}, last ops ${kinds}`);
   await cmd(`/steward protect ${id} clear ${area.id}`);
   await closeScreens();
+  // where a district goes (Zones, first step): "here" takes the side nearest where the player stands; "auto" reads the ground for what the name asks
+  const rv = Math.min(128, st.claim.radius);
+  const placedBy = async (check, args, standAt) => {
+    await cmd(`/tp @p ${standAt[0]} 100 ${standAt[1]}`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await cmd(`/tp @p ${standAt[0]} ~ ${standAt[1]}`);
+    const before = (settlements().find((x) => x.id === id)?.lands?.districts ?? []).length;
+    const from = logSize();
+    const said = await cmd(`/steward district ${id} found ${args}`);
+    let made = null;
+    for (let i = 0; i < 30 && !made; i++) {
+      await sleep(1000);
+      const ds = settlements().find((x) => x.id === id)?.lands?.districts ?? [];
+      if (ds.length > before) made = ds.at(-1);
+    }
+    const why = (logSince(from).match(/To the (north|east|south|west)[^\n]*/) ?? [''])[0];
+    if (made) await cmd(`/steward undo ${id}`), await sleep(4000), await closeScreens();
+    return { made, why, said };
+  };
+  const here = await placedBy('district here', 'here e2e south quarter', [cx, cz + rv + 20]);
+  if (here.made?.direction === 'S' && /where you stand/.test(here.why)) ok('district here', `${here.made.name}: ${here.why}`);
+  else fail('district here', `${here.said}; made ${JSON.stringify(here.made)}, said "${here.why}"`);
+  const auto = await placedBy('district auto', 'auto e2e lumber camp', [cx, cz]);
+  if (auto.made && auto.why) ok('district auto', `${auto.made.name} to the ${auto.made.direction}: ${auto.why}`);
+  else fail('district auto', `${auto.said}; made ${JSON.stringify(auto.made)}, said "${auto.why}"`);
   // the same through a proposal (the steward proposes a district when the town's street is full): accepted, it is founded and the proposal recorded
   await cmd(`/tp @p ${cx + 90} ${Math.floor(gy)} ${cz + 12}`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
