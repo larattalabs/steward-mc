@@ -356,3 +356,5 @@ Held until zones is designed: zone walls with gates (7a), several related bibles
   - **Gate:** a removal waiting on a player (with and without a restart), pause and resume, undoStage and region removal.
   - **Release:** a minor release after v0.21.0 (T1 + SCH), with an RC check (it touches accounting).
   - **When it ships:** Steward pauses a cancelled build's targets before taking them up.
+
+**v0.21.0 (T1 + SCH, API 1.18.0; published 2026-10-12, checked after release): pass.** Steward builds against it unchanged; stub e2e 36 (with the survival flow), free e2e 37. Nothing to patch.
