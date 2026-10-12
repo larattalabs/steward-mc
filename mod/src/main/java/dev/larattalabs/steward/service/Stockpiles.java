@@ -59,13 +59,23 @@ public final class Stockpiles {
 			BlockPos at = new BlockPos(x, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
 			try {
 				Stockpile sp = sites.createStockpile(new StockpileRequest(s.owner(), level.dimension(), List.of(at)));
+				// a second crate beside it: one holds 27 stacks, and a small build already wants about 30 kinds (its refunds would not fit)
+				for (int[] d : new int[][] {{0, 1}, {1, 0}, {0, -1}, {-1, 0}}) {
+					int x2 = x + d[0], z2 = z + d[1];
+					try {
+						sp = sites.addStockpileCrate(s.owner(), level.dimension(), new BlockPos(x2, level.getHeight(Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x2, z2), z2));
+						break;
+					} catch (RuntimeException e) {
+						// that cell is taken: the next
+					}
+				}
 				// the crates builds placed before the stockpile: their stock joins it
 				try {
 					sp = sites.adoptCrates(s.owner());
 				} catch (RuntimeException e) {
 					Steward.LOGGER.warn("stockpile of {}: older crates not adopted: {}", s.id(), e.toString());
 				}
-				say.accept(s.name() + "'s stockpile is the crate at " + at.getX() + ", " + at.getY() + ", " + at.getZ()
+				say.accept(s.name() + "'s stockpile is " + (sp.crates().size() == 1 ? "the crate" : "the " + sp.crates().size() + " crates") + " at " + at.getX() + ", " + at.getY() + ", " + at.getZ()
 					+ ": every build draws its materials from it. Fill it by hand or with hoppers; add crates with /steward stockpile " + s.id() + " add.");
 				return sp;
 			} catch (UnsupportedOperationException | LinkageError e) {
