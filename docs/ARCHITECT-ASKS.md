@@ -313,3 +313,21 @@ v0.12.2, the sim stub, is built first and Architect says when it is tagged. The 
 **v0.18.0 (W + Y2, API 1.15.0; published 2026-10-11, checked after release): pass.** Steward builds against it unchanged; stub e2e 31, free e2e 34. Nothing to patch. Steward doesn't use Y2's `Sites.waiting`/`SITE_WAITING` or `Verdict.bomFull` yet; they come with phase 4's requests.
 
 **Architect paused (relayed by the Architect coordinator, 2026-10-11, as Noah's decision).** v0.18.0 is current. F1 + MP are nearly ready as v0.19.0, and Y1 (the stockpile), T1 and headless gates are in progress. Nothing is waiting on Steward. Phase 4 waits for Y1 until Architect resumes.
+
+## Round 8 (2026-10-12): zones, the first asks
+
+The Architect coordinator's sync (2026-10-12):
+- **Y1** (stockpile) is ready as v0.20.0 / API 1.17.0; its RC comes to Steward within hours.
+- **F1 + MP** are v0.19.0, with no Steward RC check.
+- **T1** is in its gate. T2, F2, B and S2 follow T1.
+- Only Y1 touches Steward's behaviour.
+- Stockpile targets keep no chunk tickets.
+
+Steward's answer on chunk tickets: fine. Steward builds with LOADED_ONLY, and a build progressing only while a player is near suits it.
+
+| Ask | What | Why |
+|---|---|---|
+| C27 | **Districts that follow a boundary** (into slice D's contract before it builds). Steward gives the town's claim, the other claims and protected areas, a size, a side or anchor point, and the boundary to follow: a biome edge (between two named biome families), a river or shore, or a ridge. Architect returns the district's shape (a polygon or mask, not a square), its bounding claim for overlap checks, where its road joins the town, and its own street line. Requirements: <ul><li>stable across a reload;</li><li>a refusal names its reason (no such edge within reach, overlaps, protected);</li><li>undone as one operation with its road (a region, as V's).</li></ul> Also: a district not touching the town (an outpost), reached by a road over unclaimed land, with the road's corridor as the settlement's land. | Zones (Steward PLAN): Noah's desert/jungle settlement divides along the biome edge, a harbour district follows the shore, and a mine district sits on the ridge. Today Steward's districts are squares beside the town, chosen by side (`DistrictSite`, 2026-10-12). |
+| C28 | **Biomes per column** in the survey, optional. Steward reads `Sample.biomeAt` (4x4) today, which is enough to choose a side. A finer biome edge would help C27 draw the boundary; Architect's choice whether C27 needs it. | The biome edge as a district's border. |
+
+Held until zones is designed: zone walls with gates (7a), several related bibles in one settlement (7c).
