@@ -965,7 +965,8 @@ async function stubFlow(id) {
   const composed = await waitLog(from, new RegExp(`plan for ${id}: ([^\n]*)`), 240_000);
   const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
   const wallWaits = plans[id]?.pending?.find((x) => x.part === 'town_wall');
-  if (wallWaits?.block === 'connector.wall' && /Not yet: The town wall/.test(logSince(from))) ok('composition', `${plans[id].overall} after ${plans[id].rounds} repair(s); the wall waits on ${wallWaits.block}`);
+  const schemaBy = (logSince(from).match(/plan writer: the schema ([^\n(]*)/) ?? [0, '?'])[1].trim();
+  if (wallWaits?.block === 'connector.wall' && /Not yet: The town wall/.test(logSince(from))) ok('composition', `${plans[id].overall} after ${plans[id].rounds} repair(s); the wall waits on ${wallWaits.block}; the schema ${schemaBy}`);
   else fail('composition', `${composed ? composed[1] : 'no plan'}; ${JSON.stringify(plans[id] ?? null)?.slice(0, 200)}`);
   // what waits for Architect, on the card before anything is spent: a stilt village over a swamp stands beside the water for now
   const limit = logSince(0).match(/Not yet: (Buildings over water[^\n]*)/);
