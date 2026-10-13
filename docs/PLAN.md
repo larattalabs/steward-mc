@@ -565,7 +565,7 @@ Supplied and Hardcore on Architect survival sites, stockpile and requests, Econo
 - refund and adoption overflow are said;
 - `Difficulty.effective`.
 
-Survival e2e: 629 units delivered, consumed and refunded on undo. Three GPT review rounds. Waits on Architect C29 (pause by API; a removed target leaves the feed). Still to do: the full bill on the card before approval (C26 `bomFull`), the bill as an inbox entry, and Hardcore's difference.
+Survival e2e: 629 units delivered, consumed and refunded on undo. Three GPT review rounds. On Architect 0.22.0 (C29): a removed target leaves the feed, and a cancelled build's targets are paused before they are taken up. Still to do: the full bill on the card before approval (C26 `bomFull`), the bill as an inbox entry, and Hardcore's difference.
 
 **Design (2026-10-11, Noah's choices).** What Architect 0.17 has: construction sites fed from a crate (hoppers or "insert from inventory"), a crate shared by one batch's group, roads in such a batch (C16: dirt paths on grass free; fill, gravel, lamps paid), deconstruct with refunds, `Sites.stock(group)` and `SITE_PROGRESS`/`SITE_BUILT`.
 - **Difficulty:** the card's difficulty is the settlement's (today every settlement is Patron: `ConceptCard.difficultyOr` is never called). In a world where Architect's survival toggle is on, only Supplied and Hardcore: nothing is built free. Patron stays where the toggle is off (creative, or turned off by an op). Hardcore is built as Supplied until its difference is decided (Noah: later).

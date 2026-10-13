@@ -1726,6 +1726,15 @@ public final class SettlementRunner {
 			Settlements.store().get(settlement.id()).ifPresent(saved -> {
 				var last = saved.lastUndoable();
 				if (last.isPresent() && new java.util.HashSet<>(last.get().siteIds()).equals(new java.util.HashSet<>(placedIds))) {
+					// frozen first (Architect 0.22 Sites.pause): they take nothing more from the stockpile while the removal waits (a player standing in one)
+					var sites = ArchitectApi.get().sites(server);
+					for (String id : placedIds) {
+						try {
+							sites.pause(id, true);
+						} catch (RuntimeException e) {
+							// built already, or being removed: nothing to freeze
+						}
+					}
 					say("The cancelled build's construction sites are taken up; what they used goes back to the stockpile.");
 					Undo.lastProject(server, saved, this::say);
 				} else say(nothingToCancel(server, saved));
