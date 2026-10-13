@@ -2,7 +2,7 @@
 
 Used as the `system` text of a `structured` job (schema = `schema/plan-writer.schema.json`; Sonnet, medium effort; a budget of up to $0.50 a call,
 within the $1 a plan Noah set for composing and repair, docs/COMPOSITION.md section 9). The system prompt is this section followed by Architect's plan
-schema (`schema/plan-0.json`, plan/0, from architect-mc main d776b6c), so it is cached. The user prompt is the settlement's concept card (JSON), the
+schema (`schema/plan-0.json`, plan/0, from architect-mc main 3df6aef, frozen 2026-10-12), so it is cached. The user prompt is the settlement's concept card (JSON), the
 line about the land round the founding stone, and the anchors the caller supplies.
 
 ## System prompt

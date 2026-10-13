@@ -43,7 +43,9 @@ public final class PlanWriterJob {
 		String md = resource("steward/prompts/plan-writer.md");
 		int i = md.indexOf("## System prompt");
 		if (i < 0) throw new IllegalStateException("plan-writer.md has no '## System prompt' section");
-		return md.substring(i + "## System prompt".length()).strip() + "\n\n## Architect's plan schema (plan/0)\n\n" + resource("steward/schema/plan-0.json");
+		// the schema compact (Architect's jobs take at most 50,000 characters of system prompt; pretty-printed it is over)
+		String schema = new com.google.gson.Gson().toJson(JsonParser.parseString(resource("steward/schema/plan-0.json")));
+		return md.substring(i + "## System prompt".length()).strip() + "\n\n## Architect's plan schema (plan/0)\n\n" + schema;
 	}
 
 	public static JsonObject schema() {

@@ -1,4 +1,4 @@
-// Checks a plan writer's answer against its own schema and Architect's plan/0 (schema/plan-0.json, from architect-mc main d776b6c). Pure.
+// Checks a plan writer's answer against its own schema and Architect's plan/0 (schema/plan-0.json, from architect-mc main 3df6aef, frozen 2026-10-12). Pure.
 import fs from 'node:fs';
 import Ajv from 'ajv/dist/2020.js';
 

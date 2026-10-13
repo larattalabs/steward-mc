@@ -422,3 +422,10 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
   - zones: `district` (the reserved `{districts}` program wasn't found);
   - rules: `stacked_floors` (an arcology), `suspended` (an upside-down village).
 - **Steward's side:** the organic hamlet's layout was dropped silently. The plan writer's prompt now says a layout other than one street is always written as a part and said in `waits`.
+- **plan/0 frozen (Architect main 3df6aef, 2026-10-12):**
+  - layouts: `program.lots.layout` takes `street | ring | spiral | grid | organic`, the others reserved until FL as `layout.*`, and rule R4b keeps a layout out of connector and rule kinds;
+  - zones: `zone.district` is a reserved alias of `program.districts`;
+  - eight new reserved kinds;
+  - the demand ranking is recorded; the catalogue has 72 entries.
+  
+  Steward is on it (`schema/plan-0.json`, sent compact: Architect's jobs take at most 50,000 characters of system prompt, and a test keeps 4,000 spare). The five plans that used ad-hoc layout kinds, or none, are re-recorded ($0.23) and name `ring`, `grid` and `organic`.

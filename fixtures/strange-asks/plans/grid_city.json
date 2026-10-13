@@ -3,19 +3,23 @@
   "answer": {
     "plan": {
       "schemaVersion": "plan/0",
-      "planId": "grid_city_numbered_avenues",
+      "planId": "grid-city-numbered-avenues",
       "style": {
         "pending": "grid_city_numbered_avenues"
       },
       "zones": [
         {
-          "id": "city",
+          "id": "grid_city",
+          "kind": "standard",
           "required": true,
-          "label": "Grid city",
+          "label": "Grid city of numbered avenues",
           "purpose": "market",
+          "notes": "Planned city of regular blocks on level ground; avenues numbered by signs at every corner; uniform materials. Avenue 1 meets the city edge at the gatehouse.",
+          "style": {
+            "pending": "grid_city_numbered_avenues"
+          },
           "program": {
-            "layout": "street",
-            "shared": "square",
+            "layout": "grid",
             "lots": [
               {
                 "id": "town_hall_1",
@@ -28,8 +32,7 @@
                 ],
                 "landmark": true,
                 "placement": "central",
-                "villager": "job",
-                "brief": "Civic centrepiece at the middle of the grid, facing the main plaza"
+                "brief": "Civic centrepiece at the middle of the grid, facing the main plaza."
               },
               {
                 "id": "shop_1",
@@ -42,8 +45,7 @@
                 ],
                 "landmark": true,
                 "placement": "central",
-                "villager": "trading_hall",
-                "brief": "Covered market on the central plaza"
+                "brief": "Covered market on the central plaza."
               },
               {
                 "id": "house_1",
@@ -54,8 +56,7 @@
                   9,
                   9
                 ],
-                "villager": "dwelling",
-                "brief": "Uniform terraced home lining a numbered avenue"
+                "brief": "Uniform terraced home lining a numbered avenue."
               },
               {
                 "id": "house_2",
@@ -66,8 +67,7 @@
                   9,
                   9
                 ],
-                "villager": "dwelling",
-                "brief": "Uniform terraced home lining a numbered avenue"
+                "brief": "Uniform terraced home lining a numbered avenue."
               },
               {
                 "id": "house_3",
@@ -78,8 +78,7 @@
                   9,
                   9
                 ],
-                "villager": "dwelling",
-                "brief": "Uniform terraced home lining a numbered avenue"
+                "brief": "Uniform terraced home lining a numbered avenue."
               },
               {
                 "id": "house_4",
@@ -90,32 +89,29 @@
                   9,
                   9
                 ],
-                "villager": "dwelling",
-                "brief": "Uniform terraced home lining a numbered avenue"
+                "brief": "Uniform terraced home lining a numbered avenue."
               },
               {
                 "id": "house_5",
                 "type": "house",
-                "role": "apartment_block",
+                "role": "apartment",
                 "label": "apartment block",
                 "size": [
                   13,
                   11
                 ],
-                "villager": "dwelling",
-                "brief": "Taller multi-storey homes near the centre"
+                "brief": "Taller multi-storey homes near the centre."
               },
               {
                 "id": "house_6",
                 "type": "house",
-                "role": "apartment_block",
+                "role": "apartment",
                 "label": "apartment block",
                 "size": [
                   13,
                   11
                 ],
-                "villager": "dwelling",
-                "brief": "Taller multi-storey homes near the centre"
+                "brief": "Taller multi-storey homes near the centre."
               },
               {
                 "id": "shop_2",
@@ -126,8 +122,7 @@
                   9,
                   9
                 ],
-                "villager": "job",
-                "brief": "Street-corner store at an avenue crossing"
+                "brief": "Street-corner store at an avenue crossing."
               },
               {
                 "id": "shop_3",
@@ -138,8 +133,7 @@
                   9,
                   9
                 ],
-                "villager": "job",
-                "brief": "Street-corner store at an avenue crossing"
+                "brief": "Street-corner store at an avenue crossing."
               },
               {
                 "id": "shop_4",
@@ -150,8 +144,7 @@
                   9,
                   9
                 ],
-                "villager": "job",
-                "brief": "Street-corner store at an avenue crossing"
+                "brief": "Street-corner store at an avenue crossing."
               },
               {
                 "id": "tavern_1",
@@ -162,8 +155,7 @@
                   13,
                   11
                 ],
-                "villager": "job",
-                "brief": "Public house on a busy crossing"
+                "brief": "Public house on a busy crossing."
               },
               {
                 "id": "smithy_1",
@@ -175,8 +167,7 @@
                   11
                 ],
                 "placement": "edge",
-                "villager": "job",
-                "brief": "Workshop district on the edge"
+                "brief": "Workshop district on the edge."
               },
               {
                 "id": "barn_1",
@@ -188,8 +179,7 @@
                   15
                 ],
                 "placement": "edge",
-                "villager": "none",
-                "brief": "Food store at the city edge"
+                "brief": "Food store at the city edge."
               },
               {
                 "id": "chapel_1",
@@ -200,8 +190,7 @@
                   13,
                   11
                 ],
-                "villager": "none",
-                "brief": "Small chapel on a quiet block"
+                "brief": "Small chapel on a quiet block."
               },
               {
                 "id": "gatehouse_1",
@@ -213,62 +202,22 @@
                   11
                 ],
                 "placement": "edge",
-                "villager": "none",
-                "brief": "Entry where Avenue 1 meets the city edge"
+                "brief": "Entry where Avenue 1 meets the city edge."
               }
             ]
-          },
-          "where": {
-            "inside": {
-              "claim": true
-            }
-          },
-          "notes": "Level ground; regular blocks, medium density."
+          }
         }
       ],
-      "connectors": [
-        {
-          "id": "avenue_grid",
-          "kind": "grid",
-          "required": true,
-          "label": "Numbered avenue grid",
-          "from": {
-            "anchor": "claim_w"
-          },
-          "to": {
-            "anchor": "claim_e"
-          },
-          "params": {
-            "avenues": "numbered",
-            "pattern": "regular_blocks",
-            "signsAtCorners": true
-          },
-          "notes": "A true grid of regular blocks with numbered avenue signs at every corner, Avenue 1 ending at the gatehouse."
-        }
-      ],
-      "rules": [
-        {
-          "id": "uniform_materials",
-          "kind": "palette",
-          "required": false,
-          "label": "Uniform materials",
-          "notes": "Consistent materials across the whole streetscape."
-        }
-      ],
-      "notes": "The street layout gives one main street with a shared square; the full grid and avenue signs wait for later blocks."
+      "notes": "The grid layout is reserved (layout.grid, slice FL). Numbered avenue signs at every corner are a style detail for the bible, carried here in notes."
     },
     "waits": [
       {
-        "part": "avenue_grid",
-        "words": "The full grid of regular blocks with numbered avenue signs at every corner: only a single street layout is built now; the grid and signs are offered when the block exists."
-      },
-      {
-        "part": "uniform_materials",
-        "words": "The uniform-materials rule: palette rules come with a later Architect release; the style bible will carry consistent materials meanwhile."
+        "part": "grid_city",
+        "words": "The regular grid of numbered avenues: grid layouts come with a later Architect release (slice FL). The city's buildings are planned, and the grid is built when that block exists."
       }
     ],
-    "summary": "A level, orderly market town of 16 buildings in one zone: a city hall and grand market hall at the centre, townhouses, apartment blocks, corner shops, a tavern, chapel, and a smithy, granary and gatehouse at the edge. It is laid out on a street with a central square. The full numbered-avenue grid and the uniform-materials rule can't be built yet and are kept pending."
+    "summary": "A large, orderly market-town city on level ground: city hall and grand market hall at the centre, townhouses, apartment blocks, corner shops and a tavern around them, and smithy, granary and gatehouse at the edge. The grid of numbered avenues is written as a grid layout, which Architect can't build yet, so it waits until that arrives; the avenue signs are left to the style."
   },
-  "usd": 0.03611,
+  "usd": 0.034084,
   "errors": []
 }
