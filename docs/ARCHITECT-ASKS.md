@@ -429,3 +429,5 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
   - the demand ranking is recorded; the catalogue has 72 entries.
   
   Steward is on it (`schema/plan-0.json`, sent compact: Architect's jobs take at most 50,000 characters of system prompt, and a test keeps 4,000 spare). The five plans that used ad-hoc layout kinds, or none, are re-recorded ($0.23) and name `ring`, `grid` and `organic`.
+
+**v0.24.0 (B, terrain brushes, API 1.21.0; published 2026-10-12, checked after release): pass.** Steward builds against it unchanged; stub e2e 37, free e2e 37. Nothing to patch.
