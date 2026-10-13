@@ -511,13 +511,18 @@ async function playerBuilds(id) {
   const stands = site && /stands/.test(await cmd(`/steward dev site ${site}`));
   if (site && stands && logged?.kind === 'BUILD_ADOPTED') ok('player build adopted', `${adopted[1].slice(0, 120)}; history: ${logged.text}`);
   else return fail('player build adopted', `${adopted?.[1] ?? 'no answer'}; site standing ${stands}; last op ${logged?.kind}`);
-  from = logSize();
+  // the undo's result read from the history (the dev bridge doesn't hear a reply that comes after the command returns)
   await cmd(`/steward undo ${id}`);
-  const undone = await waitLog(from, /Undone: the steward no longer looks after it[^\n]*|Undo stopped[^\n]*/, 120_000);
+  let undone = null;
+  for (let i = 0; i < 60 && !undone; i++) {
+    await sleep(1000);
+    const last = settlements().find((x) => x.id === id)?.log.at(-1);
+    if (last?.kind === 'PROJECT_REMOVED' && last.siteIds?.includes(site)) undone = last;
+  }
   const siteGone = !/stands/.test(await cmd(`/steward dev site ${site}`));
   const hutStands = /passed/i.test(await cmd(`/execute if block ${x0} ${y + 2} ${z0} minecraft:oak_planks`));
-  if (undone && /Undone/.test(undone[0]) && siteGone && hutStands) ok('player build let go', `${undone[0]}; ${site} gone, the hut stands`);
-  else fail('player build let go', `${undone ? undone[0] : 'no answer'}; site gone ${siteGone}; hut stands ${hutStands}`);
+  if (undone && siteGone && hutStands) ok('player build let go', `${undone.text}; ${site} gone, the hut stands`);
+  else fail('player build let go', `history ${undone ? undone.text : 'no undo entry'}; site gone ${siteGone}; hut stands ${hutStands}`);
   const released = await cmd(`/steward builds ${id} release ${bid}`);
   await cmd(`/fill ${x0} ${y} ${z0} ${x0 + 6} ${y + 4} ${z0 + 6} minecraft:air`);
   if (/Released/.test(released)) ok('player build released', released);
@@ -962,7 +967,7 @@ async function planCheckFlow() {
 /** Farm animals out of the way: a pig standing on a lot holds its placement up for Architect's 10-minute wait (it happened, on the V RC). */
 async function clearAnimals() {
   await cmd('/gamerule doMobSpawning false');
-  for (const t of ['pig', 'cow', 'sheep', 'chicken', 'rabbit', 'horse']) await cmd(`/kill @e[type=minecraft:${t}]`);
+  for (const t of ['pig', 'cow', 'sheep', 'chicken', 'rabbit', 'horse', 'donkey', 'mule', 'llama', 'goat']) await cmd(`/kill @e[type=minecraft:${t}]`);
 }
 
 async function stubFlow(id) {
