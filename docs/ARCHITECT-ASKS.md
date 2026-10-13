@@ -459,3 +459,13 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
   - **Adopting a build as a site** is likely slice **PT2**, right after PT.
   - **Refusals** name the build (id, kind) and the blocking positions.
   - The draft comes to Steward for review.
+
+**PT contract review (Architect main 3882afc, "Phase 6c slice PT"; sent 2026-10-13):** it fits Noah's direction. The coordinator's four Noah-level calls match his stated intent: a torch counts as natural, a half-built house has a 10-minute grace, the placer may consent, and the thresholds stay at their defaults.
+- **S-PT-2:** a new `PLAYER_BUILD` reason. Its meaning differs from `PLAYER_BLOCKS`.
+- **S-PT-3:** per-request consent by build id is enough for v0. Steward's change requests carry the asking player as the actor.
+- **S-PT-4:** builds are hard keep-outs in every plan by default, door clearance included, except a build named in the request's consent (an adopted one, or "replace my shed").
+- **S-PT-5:** `builds()` and `BUILD_CHANGED` are enough, with two additions:
+  - `builds(box)` by area (a settlement's claim);
+  - the build's placer (UUID) on its view, so the steward can say "your house" or "Alex's barn".
+- **S-PT-6:** PT2's shape is right: v1 captured, undo un-adopts only. The adopted site carries the caller's ext (Steward's role and label), and the player's later hand edits stay player edits (updates keep them, as today).
+- **One more:** a PATH build should not block a road. A road may cross or join a player's path without consent, as long as it doesn't remove it, so roads link up with the paths players lay.
