@@ -400,3 +400,11 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
   - **Freeze:** after Steward's one fixtures round. Additive optional members are allowed until then.
 
 **C29 RC (v0.22.0, API 1.19.0; slice/C29 5603402; sha256 1348a18a…), consumer check 2026-10-12: pass.** Steward builds against it unchanged. With the RC in the client, the stub e2e passed 37 checks, including the survival flow: the bill 629, the stockpile asked, 629 delivered and consumed, and 629 refunded on undo. When v0.22.0 ships, Steward pauses a cancelled build's targets (`Sites.pause`) before taking them up.
+
+**v0.22.0 (C29, API 1.19.0; published 2026-10-12, checked after release): pass on a rerun; one intermittent stall reported (C30).** Steward is on it (requires >= 0.22.0) and pauses a cancelled build's targets (`Sites.pause`). Free e2e 37. The stub e2e failed once and passed 37 on a rerun.
+
+**C30 (sent 2026-10-12): a build's last stage sometimes never reaches "placed".** In one stub run, two batches stalled the same way.
+- **Creative, INSTANT:** set_193's g193. Stage district_2 went "approved -> placing", its site s718 was "Placed ... over ticks", and the stage never logged "placing -> placed". The batch never finished. Its earlier stages each reached "placed" within a second.
+- **Survival:** set_195's g195. After the street stage, the landmarks stage started placing only when survival was turned off ten minutes later. The street was waiting for 2 lanterns and 2 fences; it is unclear whether a stage now waits for the one before it to be built, or this is the same stall.
+- **Evidence:** steward-mc `artifacts/e2e/client.log`, 18:19:23-18:39:28 (local evidence, not committed).
+- The RC (sha256 1348a18a…) passed the same flow. The published jar has a different sha (1f10a1e2…) though only docs commits separate the two, and a rerun on the published jar passed. So it looks intermittent: a race in stage completion.
