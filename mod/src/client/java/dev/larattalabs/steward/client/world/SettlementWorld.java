@@ -122,6 +122,14 @@ public final class SettlementWorld {
 			for (var d : v.districts()) border(c, d.centerX() - d.radius(), d.centerZ() - d.radius(), d.centerX() + d.radius() + 1, d.centerZ() + d.radius() + 1,
 				UiStyle.withAlpha(UiStyle.BRASS, 0x70), cam);
 			for (var a : v.areas()) border(c, a.x0(), a.z0(), a.x1() + 1, a.z1() + 1, UiStyle.withAlpha(UiStyle.SAGE, 0x90), cam);
+			// the player's own builds (Architect PT): kept like protected ground, named where they stand
+			for (var b : v.playerBuilds()) {
+				border(c, b.minX(), b.minZ(), b.maxX() + 1, b.maxZ() + 1, UiStyle.withAlpha(UiStyle.SAGE, 0xC0), cam);
+				double bx = (b.minX() + b.maxX() + 1) / 2.0, bz = (b.minZ() + b.maxZ() + 1) / 2.0, by = b.maxY() + 2;
+				double dist = Math.sqrt(cam.distanceToSqr(bx, by, bz));
+				if (dist < SURVEY) pill(c, camera, bx, by, bz, b.name(), b.provisional() ? "still going up · kept as you build it" : "yours · kept as you built it", "done",
+					false, dist);
+			}
 			// a district waiting in the inbox: where it would go, before it is founded
 			for (var d : v.proposed()) {
 				border(c, d.centerX() - d.radius(), d.centerZ() - d.radius(), d.centerX() + d.radius() + 1, d.centerZ() + d.radius() + 1, UiStyle.withAlpha(UiStyle.CREAM, 0xC0), cam,

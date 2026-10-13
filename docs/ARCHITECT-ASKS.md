@@ -486,3 +486,10 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
 - the market town is realised from its approved artifact (rg2) and removed whole ("removal done: REMOVED").
 
 The one failure was the e2e's own: its player stood inside the plan, so the removal waited for the player past the check's 300 s. The flow now moves the player off first and waits 660 s. Architect's CI on Steward's 59 plans: none crashed or malformed, and every part in `waits` came back unsupported or blocked. Steward looks at the 7 other non-fitting parts (a lotless zone, terraces inside zones, no river or ocean on the test claim, the spiral road) when the plan writer goes live.
+
+**PT RC (v0.27.0, API 1.24.0; slice/PT 47b69bc; sha256 ef37aeeb…), consumer check 2026-10-13: pass.** Built against it with `ARCHITECT_JAR`: stub e2e 41 (with the live composition check: a described settlement's plan checked, the wall kept pending on `connector.wall`) and free e2e 37. Published as v0.27.0; Steward moves to >= 0.27.0 (API 1.24) and uses builds: the settlement screen and survey mode show them, the plan writer gets them as features, `/steward builds <id> [claim <reach> | release <build>]`.
+
+### C33 (2026-10-13): room for the plan schema in a job's system prompt
+The plan writer's system prompt is its instructions plus plan/0 in full, so the schema is cached and Claude knows every block. With PT's build features it reached 48,148 of the 50,000 characters `job.system` allows. Steward now leaves out the catalogue's bookkeeping fields (`sinceApi`, `schemaVersion`, a `def` that is just `#/$defs/<id>`), which brings it to about 44,800, but every new block adds about 1,000 more, so a few slices from now it won't fit.
+- **The ask:** raise `job.system`'s limit for structured jobs (to 120,000, say; it is cached, so its cost is the first call's), or give jobs a cached reference to a schema Architect already holds (`systemRefs: ["plan/0"]`) so callers don't send it.
+- Either is fine for Steward. Until then Steward slims the prompt further if it must (descriptions kept, since Claude reads them).

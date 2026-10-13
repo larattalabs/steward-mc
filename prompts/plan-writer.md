@@ -2,8 +2,9 @@
 
 Used as the `system` text of a `structured` job (schema = `schema/plan-writer.schema.json`; Sonnet, medium effort; a budget of up to $0.50 a call,
 within the $1 a plan Noah set for composing and repair, docs/COMPOSITION.md section 9). The system prompt is this section followed by Architect's plan
-schema (`schema/plan-0.json`, plan/0, from architect-mc main 3df6aef, frozen 2026-10-12), so it is cached. The user prompt is the settlement's concept card (JSON), the
-line about the land round the founding stone, and the anchors the caller supplies.
+schema (`schema/plan-0.json`, plan/0, from architect-mc v0.27.0, frozen 2026-10-12 with PT's additive build features), so it is cached. The user prompt is the settlement's concept card (JSON), the
+line about the land round the founding stone, the anchors the caller supplies, and the player's own builds in the claim (Architect PT, C32), when there
+are any.
 
 ## System prompt
 
@@ -32,6 +33,10 @@ Writing the plan:
 - **Layouts.** A layout that is not one street (a ring, a spiral, a grid, a hamlet that grew organically, floors stacked in one tower) is never
   just left out: write it as a part of the kind the catalogue reserves for it, or, if it reserves none, of the kind you think it needs, and say it
   in `waits`.
+- **The player's own builds.** What the player built by hand is listed with its id. Every part keeps clear of it, and its door's apron stays open; you
+  never change it. Build round it where the card or the land suggests it: name it as a feature `{build: {id}}` (near, along, around), a target
+  `{build: id}` (adjacent), or a road's endpoint `{build: id, port: "door"}` so a street reaches its door. A path the player laid can be joined, never
+  rebuilt.
 - **Required.** Mark every part `required` true or false. A part is required when the ask is about it ("a walled town": the wall); a flourish is not.
 - **Notes.** Put what no field can hold in the part's `notes` (or the plan's), in a sentence.
 

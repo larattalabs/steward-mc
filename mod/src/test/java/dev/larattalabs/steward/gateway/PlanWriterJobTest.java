@@ -22,4 +22,12 @@ class PlanWriterJobTest {
 		assertTrue(u.contains("{\"name\":\"X\"}") && u.contains("north: plains 100%.") && u.contains("stone, player"));
 		assertTrue(PlanWriterJob.userPrompt("{}", null, List.of("stone")).contains("not surveyed"));
 	}
+
+	@Test
+	void theUserPromptListsThePlayersBuildsOnlyWhenThereAreAny() {
+		String line = "- build-3: Noah's house, 9x11 and 7 high, 12 south and 4 east of the stone, a door facing north";
+		String u = PlanWriterJob.userPrompt("{}", null, List.of("stone"), List.of(line));
+		assertTrue(u.contains(line) && u.contains("{build: id}"));
+		assertFalse(PlanWriterJob.userPrompt("{}", null, List.of("stone")).contains("own builds"));
+	}
 }

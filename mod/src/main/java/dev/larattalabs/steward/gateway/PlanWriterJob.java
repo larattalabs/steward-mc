@@ -26,15 +26,16 @@ public final class PlanWriterJob {
 
 	/** {@code card}: the concept card as JSON; {@code land}: the land line or null; {@code anchors}: the anchor names the caller will supply. */
 	public static JobSpec build(String card, @Nullable String land, List<String> anchors, @Nullable String owner) {
-		return build(card, land, anchors, owner, null, null);
+		return build(card, land, anchors, List.of(), owner, null, null);
 	}
 
 	/**
 	 * A repair round when {@code previous} (the last plan) and {@code answers} (Architect's check of it, one line a part) are given: the plan is revised so
 	 * the refused and malformed parts fit (their {@code wouldFit} where given), what fits is kept, and unsupported parts stay as they are (they wait).
 	 */
-	public static JobSpec build(String card, @Nullable String land, List<String> anchors, @Nullable String owner, @Nullable String previous, @Nullable String answers) {
-		String user = userPrompt(card, land, anchors);
+	public static JobSpec build(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner, @Nullable String previous,
+		@Nullable String answers) {
+		String user = userPrompt(card, land, anchors, builds);
 		if (previous != null && answers != null) {
 			user += "\nYour previous plan:\n" + previous + "\n\nArchitect's check of it, part by part:\n" + answers
 				+ "\nRevise the plan: make the refused and malformed parts fit (use wouldFit where it is given), keep what fits as it is, and keep the unsupported parts"
@@ -45,10 +46,16 @@ public final class PlanWriterJob {
 	}
 
 	static String userPrompt(String card, @Nullable String land, List<String> anchors) {
+		return userPrompt(card, land, anchors, List.of());
+	}
+
+	/** {@code builds}: one line a player's build in the claim ({@code PlayerBuilds.promptLines}), which every plan keeps and may build round. */
+	static String userPrompt(String card, @Nullable String land, List<String> anchors, List<String> builds) {
 		StringBuilder b = new StringBuilder();
 		b.append("The settlement's concept card:\n").append(card.strip()).append("\n\n");
 		b.append("The land round the founding stone: ").append(land == null || land.isBlank() ? "not surveyed" : land).append("\n");
 		b.append("Anchors you may name: ").append(String.join(", ", anchors)).append(" (and Architect's own: claim_center, claim_n, claim_e, claim_s, claim_w).\n");
+		if (!builds.isEmpty()) b.append("The player's own builds in the claim (kept as they are; name them as {build: id}):\n").append(String.join("\n", builds)).append("\n");
 		return b.toString();
 	}
 
@@ -58,8 +65,24 @@ public final class PlanWriterJob {
 		int i = md.indexOf("## System prompt");
 		if (i < 0) throw new IllegalStateException("plan-writer.md has no '## System prompt' section");
 		// the schema compact (Architect's jobs take at most 50,000 characters of system prompt; pretty-printed it is over)
-		String schema = new com.google.gson.Gson().toJson(JsonParser.parseString(resource("steward/schema/plan-0.json")));
+		JsonObject plan0 = JsonParser.parseString(resource("steward/schema/plan-0.json")).getAsJsonObject();
+		slimCatalogue(plan0);
+		String schema = new com.google.gson.Gson().toJson(plan0);
 		return md.substring(i + "## System prompt".length()).strip() + "\n\n## Architect's plan schema (plan/0)\n\n" + schema;
+	}
+
+	/**
+	 * The catalogue entries without what only Architect's bookkeeping reads (sinceApi, schemaVersion, and a def that is just {@code #/$defs/<id>}), so the
+	 * prompt stays inside Architect's 50,000-character system limit as the schema grows. The schema itself is unchanged.
+	 */
+	static void slimCatalogue(JsonObject plan0) {
+		if (!plan0.has("x-catalogue") || !plan0.getAsJsonObject("x-catalogue").has("entries")) return;
+		for (var e : plan0.getAsJsonObject("x-catalogue").getAsJsonArray("entries")) {
+			JsonObject o = e.getAsJsonObject();
+			o.remove("sinceApi");
+			o.remove("schemaVersion");
+			if (o.has("def") && o.has("id") && o.get("def").getAsString().equals("#/$defs/" + o.get("id").getAsString())) o.remove("def");
+		}
 	}
 
 	public static JsonObject schema() {

@@ -292,6 +292,32 @@ public final class Actions {
 			String no = Districts.found(server, player, s.get(), dir, size, name, say);
 			return no == null ? Result.ok("Laying the road to the new district...") : Result.fail(no);
 		}
+		if ("builds".equals(action) || "build_claim".equals(action) || "build_release".equals(action)) {
+			// the player's own builds in the claim (Architect PT): listed; "claim my build" for one built before tracking; released when it is no longer to be kept
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			MinecraftServer server = player.level().getServer();
+			try {
+				if ("build_claim".equals(action)) {
+					if (!s.get().contains(player.level().dimension().identifier().toString(), player.getBlockX(), player.getBlockY(), player.getBlockZ()))
+						return Result.fail("Stand in " + s.get().name() + "'s claim, by the build, to claim it.");
+					// from the player's feet up (they stand on its floor): a claim marks every non-air cell, and the ground under the build is not theirs
+					int r = (int) amount, x = player.getBlockX(), y = player.getBlockY(), z = player.getBlockZ();
+					var b = ArchitectApi.get().sites(server).claimBuild(player.level().dimension(),
+						new net.minecraft.world.level.levelgen.structure.BoundingBox(x - r, y, z - r, x + r, y + Math.min(31, 2 * r), z + r), player);
+					return Result.ok("Claimed " + PlayerBuilds.name(server, b) + " (" + b.id() + ", " + b.cells() + " blocks): the steward builds round it and never over it.");
+				}
+				if ("build_release".equals(action)) {
+					var b = ArchitectApi.get().sites(server).releaseBuild(lot, player);
+					return Result.ok("Released " + b.id() + ": it is no longer kept from builds.");
+				}
+			} catch (dev.larattalabs.architect.api.ArchitectRefused e) {
+				return Result.fail(e.getMessage());
+			}
+			var builds = PlayerBuilds.in(server, s.get());
+			if (builds.isEmpty()) return Result.ok("No builds of yours in " + s.get().name() + "'s claim (little blocks and touched-up ground don't count).");
+			return Result.ok("Your builds in " + s.get().name() + " (kept as you built them):\n" + String.join("\n", PlayerBuilds.promptLines(server, s.get(), builds)));
+		}
 		if ("stockpile".equals(action) || "stockpile_add".equals(action)) {
 			// phase 4: what the settlement's stockpile holds and what its builds still need; "add": a crate where the player stands
 			Optional<Settlement> s = Settlements.store().get(id);
@@ -476,7 +502,10 @@ public final class Actions {
 				at.claim().radius(), dev.larattalabs.steward.model.ClaimRules.side(at.claim().radius()), 0, 0));
 		}
 		List<String> stock = Stockpiles.of(server, s).map(sp -> Stockpiles.bill(sp, 6)).orElse(List.of());
-		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock);
+		var builds = PlayerBuilds.in(server, s).stream().map(b -> new dev.larattalabs.steward.view.SettlementView.PlayerBuildInfo(b.id(), PlayerBuilds.name(server, b),
+			b.bounds().minX(), b.bounds().minY(), b.bounds().minZ(), b.bounds().maxX(), b.bounds().maxY(), b.bounds().maxZ(),
+			b.state() == dev.larattalabs.architect.api.BuildState.PROVISIONAL)).toList();
+		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock, builds);
 	}
 
 	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.Sites sites, dev.larattalabs.architect.api.SiteView v) {

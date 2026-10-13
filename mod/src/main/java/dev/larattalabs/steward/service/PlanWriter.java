@@ -23,12 +23,12 @@ public final class PlanWriter {
 
 	/** Composes a plan for {@code card} (JSON). Fails at once when Architect's Claude link is not up. */
 	public static CompletableFuture<PlanWriterJob.Result> write(String card, @Nullable String land, List<String> anchors, @Nullable String owner) {
-		return write(card, land, anchors, owner, null, null);
+		return write(card, land, anchors, List.of(), owner, null, null);
 	}
 
 	/** A repair round: {@code previous} the last plan, {@code answers} Architect's check of it (see {@link PlanWriterJob#build}). */
-	public static CompletableFuture<PlanWriterJob.Result> write(String card, @Nullable String land, List<String> anchors, @Nullable String owner, @Nullable String previous,
-		@Nullable String answers) {
+	public static CompletableFuture<PlanWriterJob.Result> write(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner,
+		@Nullable String previous, @Nullable String answers) {
 		var jobs = ArchitectApi.get().jobs();
 		if (!registered) {
 			SiteEvents.JOB_DONE.register(PlanWriter::onDone);
@@ -36,7 +36,7 @@ public final class PlanWriter {
 		}
 		if (!jobs.available()) return CompletableFuture.failedFuture(new IllegalStateException("Architect's Claude link is not available."));
 		CompletableFuture<PlanWriterJob.Result> out = new CompletableFuture<>();
-		jobs.run(PlanWriterJob.build(card, land, anchors, owner, previous, answers)).whenComplete((id, err) -> {
+		jobs.run(PlanWriterJob.build(card, land, anchors, builds, owner, previous, answers)).whenComplete((id, err) -> {
 			if (err != null) {
 				out.completeExceptionally(err);
 				return;

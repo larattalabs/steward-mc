@@ -54,7 +54,8 @@ public final class Composer {
 
 	private static void round(MinecraftServer server, UUID player, Settlement s, String cardJson, @Nullable String land, int session, int round, double spent,
 		@Nullable String previous, @Nullable String answers, @Nullable String lastAnswers) {
-		PlanWriter.write(cardJson, land, ANCHORS, s.owner(), previous, answers).whenComplete((r, err) -> server.execute(() -> {
+		var builds = PlayerBuilds.promptLines(server, s, PlayerBuilds.in(server, s));
+		PlanWriter.write(cardJson, land, ANCHORS, builds, s.owner(), previous, answers).whenComplete((r, err) -> server.execute(() -> {
 			if (!Session.is(session)) return;
 			if (err != null || r.answer() == null || !r.answer().has("plan") || !r.answer().get("plan").isJsonObject()) {
 				done(s, "The plan could not be composed (" + (err != null ? String.valueOf(err.getMessage()) : r.error() != null ? r.error() : "no plan in the answer") + "): the build takes today's layout.", server, player);

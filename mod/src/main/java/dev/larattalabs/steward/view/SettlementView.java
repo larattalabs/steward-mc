@@ -15,15 +15,20 @@ import org.jspecify.annotations.Nullable;
  */
 public record SettlementView(String id, String name, boolean described, boolean busy, ClaimInfo claim, String permission, String difficulty,
 	List<Building> buildings, int roads, List<Op> history, int historyTotal, double weeklyUsd, double spentWeekUsd, List<DistrictInfo> districts, List<AreaInfo> areas,
-	List<DistrictInfo> proposed, List<String> stockpile) {
+	List<DistrictInfo> proposed, List<String> stockpile, List<PlayerBuildInfo> playerBuilds) {
 	public SettlementView {
 		districts = districts == null ? List.of() : districts;
 		// districts waiting in the inbox, where they would go (survey mode previews them)
 		proposed = proposed == null ? List.of() : proposed;
 		// a Supplied settlement's stockpile: what it holds and what its builds still need (phase 4), empty without one
 		stockpile = stockpile == null ? List.of() : stockpile;
+		// the player's own builds in the claim (Architect PT): kept as they are by every build
+		playerBuilds = playerBuilds == null ? List.of() : playerBuilds;
 		areas = areas == null ? List.of() : areas;
 	}
+
+	/** A player's own build in the claim (Architect PT, C32): its id, its name ("Noah's house"), its columns, and whether it is still being built. */
+	public record PlayerBuildInfo(String id, String name, int minX, int minY, int minZ, int maxX, int maxY, int maxZ, boolean provisional) {}
 
 	/** A district (phase 3f): where it lies ({@code direction} N, E, S, W), its square, and how many buildings stand in it. */
 	public record DistrictInfo(String id, String name, String direction, int centerX, int centerZ, int radius, int side, int buildings, int roads) {}
@@ -80,6 +85,12 @@ public record SettlementView(String id, String name, boolean described, boolean 
 
 	/** As above, with the stockpile's bill in lines. */
 	public static SettlementView of(Settlement s, boolean busy, List<Site> sites, List<DistrictInfo> proposed, List<String> stockpile) {
+		return of(s, busy, sites, proposed, stockpile, List.of());
+	}
+
+	/** As above, with the player's own builds in the claim. */
+	public static SettlementView of(Settlement s, boolean busy, List<Site> sites, List<DistrictInfo> proposed, List<String> stockpile,
+		List<PlayerBuildInfo> playerBuilds) {
 		var c = s.claim();
 		ClaimInfo claim = new ClaimInfo(c.dimension(), c.centerX(), c.centerZ(), c.radius(), ClaimRules.side(c.radius()), ClaimRules.sizeOf(c.radius()));
 		List<Settlement.LogEntry> log = s.log();
@@ -113,7 +124,7 @@ public record SettlementView(String id, String name, boolean described, boolean 
 		}
 		List<AreaInfo> areas = s.lands().protect().stream().map(a -> new AreaInfo(a.id(), a.label(), a.x0(), a.z0(), a.x1(), a.z1())).toList();
 		return new SettlementView(s.id(), s.name(), s.described(), busy, claim, s.permission().name(), s.difficulty().name(), List.copyOf(buildings), roads,
-			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()), List.copyOf(districts), areas, List.copyOf(proposed), List.copyOf(stockpile));
+			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()), List.copyOf(districts), areas, List.copyOf(proposed), List.copyOf(stockpile), List.copyOf(playerBuilds));
 	}
 
 	public String toJson() {

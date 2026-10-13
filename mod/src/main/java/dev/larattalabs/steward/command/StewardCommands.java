@@ -130,6 +130,10 @@ public final class StewardCommands {
 			.then(Commands.literal("district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("found").then(Commands.argument("way",
 				StringArgumentType.word()).executes(ctx -> decide(ctx, "district_found", StringArgumentType.getString(ctx, "way"), "", 0)).then(Commands.argument("name",
 				StringArgumentType.greedyString()).executes(ctx -> decide(ctx, "district_found", StringArgumentType.getString(ctx, "way"), StringArgumentType.getString(ctx, "name"), 0)))))))
+			.then(Commands.literal("builds").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "builds", "", "", 0))
+				.then(Commands.literal("claim").then(Commands.argument("reach", IntegerArgumentType.integer(1, 15)).executes(ctx -> decide(ctx, "build_claim", "", "",
+					IntegerArgumentType.getInteger(ctx, "reach"))))).then(Commands.literal("release").then(Commands.argument("build", StringArgumentType.word())
+						.executes(ctx -> decide(ctx, "build_release", StringArgumentType.getString(ctx, "build"), "", 0))))))
 			.then(Commands.literal("stockpile").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "stockpile", "", "", 0))
 				.then(Commands.literal("add").executes(ctx -> decide(ctx, "stockpile_add", "", "", 0)))))
 			.then(Commands.literal("protect").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("here").then(Commands.argument("reach",

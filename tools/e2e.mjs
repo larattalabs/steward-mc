@@ -456,6 +456,49 @@ async function proposals(id) {
  * Districts and protected areas (3f): a protected area on the west road's way refuses that district by name; the east district is founded with its road
  * ($0, no Claude), shown in survey mode, and undone (the road goes, then the district, its land free again).
  */
+/**
+ * The player's own builds (Architect PT, 0.27): a hut put up in a corner of the claim (by command, so not tracked), claimed as the player's ("claim my
+ * build"), listed, shown on the settlement screen and in survey mode, then released and taken down.
+ */
+async function playerBuilds(id) {
+  const st = settlements().find((x) => x.id === id);
+  if (!st) return;
+  const r = st.claim.radius, x0 = st.claim.centerX - r + 6, z0 = st.claim.centerZ - r + 6;
+  await closeScreens();
+  await cmd(`/tp @p ${x0 + 3} 100 ${z0 + 3}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd(`/tp @p ${x0 + 3} ~ ${z0 + 3}`);
+  await sleep(1000);
+  const y = Math.floor(Number(((await cmd(`/data get entity @p Pos`)).match(/, (-?[\d.]+)d, /) ?? [0, 64])[1]));
+  // a 7x7 hut, 5 high, with a door on its south side
+  await cmd(`/fill ${x0} ${y} ${z0} ${x0 + 6} ${y + 4} ${z0 + 6} minecraft:oak_planks hollow`);
+  await cmd(`/setblock ${x0 + 3} ${y} ${z0 + 6} minecraft:oak_door[half=lower,facing=south]`);
+  await cmd(`/setblock ${x0 + 3} ${y + 1} ${z0 + 6} minecraft:oak_door[half=upper,facing=south]`);
+  await cmd(`/tp @p ${x0 + 3} ${y} ${z0 + 3}`);
+  const claimed = await cmd(`/steward builds ${id} claim 4`);
+  const bid = (claimed.match(/\((build-\d+)/) ?? [])[1];
+  if (!bid) return fail('player build', claimed);
+  const listed = await cmd(`/steward builds ${id}`);
+  if (listed.includes(bid)) ok('player build', `${claimed.slice(0, 110)}; listed: ${listed.split('\n')[1]?.slice(0, 90)}`);
+  else fail('player build', listed.slice(0, 200));
+  await cmd(`/steward ui settlement ${id}`);
+  await sleep(1500);
+  const screenShot = (await dev.request('dev.screenshot', { name: 'e2e-player-build-screen', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await closeScreens();
+  await cmd('/gamemode spectator');
+  await cmd(`/tp @p ${x0 + 3} ${y + 16} ${z0 + 22} facing ${x0 + 3} ${y + 2} ${z0 + 3}`);
+  await dev.request('dev.key', { key: 'u' });
+  await sleep(2500);
+  const surveyShot = (await dev.request('dev.screenshot', { name: 'e2e-player-build-survey', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.key', { key: 'u' });
+  await cmd('/gamemode creative');
+  ok('player build shown', `${screenShot}, ${surveyShot}`);
+  const released = await cmd(`/steward builds ${id} release ${bid}`);
+  await cmd(`/fill ${x0} ${y} ${z0} ${x0 + 6} ${y + 4} ${z0 + 6} minecraft:air`);
+  if (/Released/.test(released)) ok('player build released', released);
+  else fail('player build released', released);
+}
+
 async function districts(id) {
   const st = settlements().find((x) => x.id === id);
   if (!st) return;
@@ -1103,6 +1146,7 @@ try {
       await stewardLife(id);
       await proposals(id);
       await districts(id);
+      await playerBuilds(id);
       await talk(id);
     }
     else {
