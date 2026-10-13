@@ -1087,7 +1087,7 @@ async function stubFlow(id) {
     else {
       from = logSize();
       await cmd(`/steward proposals ${id} accept ${cp.key}`);
-      const designed = await waitLog(from, /The change to the [^\n]* is designed/, 300_000);
+      const designed = await waitLog(from, /The change to [^\n]* is designed/, 300_000);
       await cmd(`/steward updates`);
       await sleep(3000);
       from = logSize();
@@ -1122,7 +1122,7 @@ async function stubFlow(id) {
       else {
         from = logSize();
         await cmd(`/steward proposals ${id} accept ${cp.key}`);
-        const designed = await waitLog(from, /The change to the [^\n]* is designed/, 300_000);
+        const designed = await waitLog(from, /The change to [^\n]* is designed/, 300_000);
         from = logSize();
         await cmd('/steward updates');
         const offer = await waitLog(from, new RegExp(`update check ${id} ${took[1]} v1 -> v\\d+: (\\w+) \\(([^\\n]*)`), 60_000);

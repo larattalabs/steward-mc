@@ -95,7 +95,7 @@ public final class ChangeRequests {
 		if (v.owner() == null || !v.owner().equals(s.owner())) return "That building is not " + s.name() + "'s.";
 		// a change keeps the settlement's look: its style bible, as approved; after a new description there is none until a build makes one
 		if (s.bible() == null || s.bible().styleVersion() != s.styleVersion()) return s.name() + "'s style changed since its bible was made: build something first, so the steward has the new style, then ask again.";
-		String name = Updates.lotOf(v);
+		String name = the(v);
 		DesignRequest req;
 		try {
 			req = request(s, v, notes, budgetUsd);
@@ -113,18 +113,18 @@ public final class ChangeRequests {
 				BY_SITE.remove(siteId);
 				if (definite(err)) {
 					giveBack.run();
-					tell(server, player, s.id(), "Architect would not design the change to the " + name + ": " + refusal(err) + ". It is back in the inbox.");
+					tell(server, player, s.id(), "Architect would not design the change to " + name + ": " + refusal(err) + ". It is back in the inbox.");
 				} else {
 					// the request may have arrived and be designed anyway: not given back, so it cannot be paid twice; its version shows as an update if it comes
-					Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "Asked for a change to the " + name
+					Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "Asked for a change to " + name
 						+ "; Architect's answer was lost (" + refusal(err) + ")", List.of(siteId)));
-					tell(server, player, s.id(), "I lost Architect's answer about the change to the " + name + ". If it was designed, it shows as an update; if none comes, ask me again.");
+					tell(server, player, s.id(), "I lost Architect's answer about the change to " + name + ". If it was designed, it shows as an update; if none comes, ask me again.");
 				}
 				return;
 			}
 			BY_SITE.put(siteId, id);
 			PENDING.put(id, new Pending(s.id(), siteId, name, player, session));
-			Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "Designing a change to the " + name + " (design " + id
+			Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "Designing a change to " + name + " (design " + id
 				+ "): " + clip(notes, 160), List.of(siteId)));
 			// it may already be done
 			ArchitectApi.get().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(d -> onDone(server, d));
@@ -147,7 +147,7 @@ public final class ChangeRequests {
 		ext.addProperty("steward_mc:settlement", s.id());
 		ext.addProperty("steward_mc:lot", lot);
 		ext.addProperty("steward_mc:change", true);
-		String text = "A change to the " + Updates.lotOf(v) + " that stands in " + s.name() + ": " + notes.strip()
+		String text = "A change to " + the(v) + " that stands in " + s.name() + ": " + notes.strip()
 			+ (adopted(v) ? " This is the player's own build, which the steward looks after: keep every block they placed as it is, in its own style, and add or"
 				+ " change only what the change asks for."
 				: (c == null ? "" : " Keep it in the settlement's style (" + c.style().text() + ").") + " Keep its entrance and footprint unless the change needs otherwise.");
@@ -155,7 +155,14 @@ public final class ChangeRequests {
 			text.length() > LotBrief.MAX_NOTES ? text.substring(0, LotBrief.MAX_NOTES) : text, null, s.owner(), ext, null, budgetUsd, null, null)
 			// the settlement's own bible, at the version it kept (not the newest)
 			.withBible(s.bible().id(), s.bible().version());
+		// a player's own build keeps its own style: no settlement bible (its palette would replace theirs)
+		if (adopted(v)) base = base.withBible(null, null);
 		return (DesignRequest) VERSION_OF.invoke(base, v.blueprintId(), v.id());
+	}
+
+	/** "the scholars' library", but "noahlaratta's house": a player's own build is named by its owner, without an article. */
+	static String the(SiteView v) {
+		return adopted(v) ? Updates.lotOf(v) : "the " + Updates.lotOf(v);
 	}
 
 	/** A player's build the steward took on (Architect PT2): its site carries Architect's adoption mark. */
@@ -169,16 +176,16 @@ public final class ChangeRequests {
 		BY_SITE.remove(p.siteId());
 		String cost = String.format(" ($%.2f)", d.cost().usd());
 		if (d.status() == Design.Status.DONE) {
-			Settlements.log(p.settlementId(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "Designed a change to the " + p.building()
+			Settlements.log(p.settlementId(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "Designed a change to " + p.building()
 				+ cost + ": its next version is offered as an update", List.of(p.siteId())));
 			// the new version makes the building outdated: the updates offer it (preview, apply keeping edits, revert)
 			Updates.rescan();
-			tell(server, p.player(), p.settlementId(), "The change to the " + p.building() + " is designed. It waits in the inbox as an update: preview it, then apply it.");
+			tell(server, p.player(), p.settlementId(), "The change to " + p.building() + " is designed. It waits in the inbox as an update: preview it, then apply it.");
 		} else {
 			String why = d.error().orElse(d.status().name().toLowerCase());
-			Settlements.log(p.settlementId(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The change to the " + p.building()
+			Settlements.log(p.settlementId(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The change to " + p.building()
 				+ " could not be designed" + cost + ": " + clip(why, 160), List.of(p.siteId())));
-			tell(server, p.player(), p.settlementId(), "The change to the " + p.building() + " could not be designed: " + why + ".");
+			tell(server, p.player(), p.settlementId(), "The change to " + p.building() + " could not be designed: " + why + ".");
 		}
 	}
 

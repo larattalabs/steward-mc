@@ -209,12 +209,12 @@ public final class Talk {
 		}
 		var site = ChangeRequests.building(server, s, a.changeTarget());
 		if (site.isEmpty()) return "Which building do you mean? I could not tell which one is the " + a.changeTarget() + ".";
-		String name = Updates.lotOf(site.get());
-		if (ChangeRequests.designing(site.get().id())) return "A change to the " + name + " is being designed already.";
+		String name = ChangeRequests.the(site.get());
+		if (ChangeRequests.designing(site.get().id())) return "A change to " + name + " is being designed already.";
 		Proposal p = Proposal.change(site.get().id(), name, a.changeRequest(), said, now);
 		String added = addProposal(s, p);
 		if (added != null) return added;
-		return "A change to the " + name + ": I have drawn it up and put it in the inbox (about $" + Proposals.estimate(p) + " to design). Once designed, you preview it before it is applied.";
+		return "A change to " + name + ": I have drawn it up and put it in the inbox (about $" + Proposals.estimate(p) + " to design). Once designed, you preview it before it is applied.";
 	}
 
 	/** A district asked for: a proposal in the inbox, towards the way named or the first that fits. */

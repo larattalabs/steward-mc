@@ -29,9 +29,9 @@ public record Proposal(String key, String title, String why, ConceptCard.@Nullab
 		this(key, title, why, building, at, trigger, district, found, null, null);
 	}
 
-	/** A change to a standing building (phase 3c): its next version, designed from {@code notes} (Architect's {@code versionOf}); it always waits for the player. */
+	/** A change to a standing building (phase 3c): its next version, designed from {@code notes} (Architect's {@code versionOf}); it always waits for the player. {@code buildingName} carries its article where it takes one ("the scholars' library", "noahlaratta's house"). */
 	public static Proposal change(String siteId, String buildingName, String notes, String said, long at) {
-		return new Proposal("change_" + Long.toString(at, 36), "Change the " + buildingName, "You asked: \"" + (said.length() > 120 ? said.substring(0, 119) + "…" : said)
+		return new Proposal("change_" + Long.toString(at, 36), "Change " + buildingName, "You asked: \"" + (said.length() > 120 ? said.substring(0, 119) + "…" : said)
 			+ "\"", null, at, "asked", null, null, siteId, notes);
 	}
 
