@@ -300,7 +300,7 @@ public final class SettlementScreen extends KitScreen {
 		if (!view.stockpile().isEmpty()) fy = fact(g, fx, fy, fw, "Stockpile", String.join(" ", view.stockpile()).replaceFirst("^Stockpile: ", ""));
 		// what the player built by hand in the claim (Architect PT): the steward builds round it and never over it
 		if (!view.playerBuilds().isEmpty()) fy = fact(g, fx, fy, fw, "Hand-built", String.join(", ", view.playerBuilds().stream()
-			.map(b -> b.title() + " by " + b.by() + (b.provisional() ? " (still going up)" : "")).toList()) + ": kept as built.");
+			.map(b -> what(b) + " by " + b.by() + (b.provisional() ? " (still going up)" : "")).toList()) + ": kept as built.");
 		// districts: one each way, founded with a road to the town ($0)
 		g.text(font, "Districts", fx, fy, UiBits.muted(), false);
 		int lx = fx + 90;
@@ -418,6 +418,12 @@ public final class SettlementScreen extends KitScreen {
 	public boolean mouseScrolled(double mx, double my, double dx, double dy) {
 		scroll = Math.max(0, scroll - (int) Math.signum(dy));
 		return true;
+	}
+
+	/** Under the "Hand-built" label: "House", or "A build" when Architect can't tell what it is. */
+	private static String what(SettlementView.PlayerBuildInfo b) {
+		String kind = b.title().replaceFirst("^Hand-built ?", "");
+		return kind.isEmpty() ? "A build" : Character.toUpperCase(kind.charAt(0)) + kind.substring(1);
 	}
 
 	@Override
