@@ -460,24 +460,31 @@ async function proposals(id) {
  * The player's own builds (Architect PT, 0.27): a hut put up in a corner of the claim (by command, so not tracked), claimed as the player's ("claim my
  * build"), listed, shown on the settlement screen and in survey mode, then released and taken down.
  */
-async function playerBuilds(id) {
+/** A 7x7 plank hut (its bottom row the floor, a door on its south side) put up by command in a corner of the claim and claimed as the player's. */
+async function buildHut(id, check, corner = [6, 6]) {
   const st = settlements().find((x) => x.id === id);
-  if (!st) return;
-  const r = st.claim.radius, x0 = st.claim.centerX - r + 6, z0 = st.claim.centerZ - r + 6;
+  if (!st) return null;
+  const r = st.claim.radius, x0 = st.claim.centerX - r + corner[0], z0 = st.claim.centerZ - r + corner[1];
   await closeScreens();
   await cmd(`/tp @p ${x0 + 3} 100 ${z0 + 3}`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
   await cmd(`/tp @p ${x0 + 3} ~ ${z0 + 3}`);
   await sleep(1000);
   const y = Math.floor(Number(((await cmd(`/data get entity @p Pos`)).match(/, (-?[\d.]+)d, /) ?? [0, 64])[1]));
-  // a 7x7 hut, 5 high (its bottom row the floor), with a door on its south side standing on the floor
   await cmd(`/fill ${x0} ${y} ${z0} ${x0 + 6} ${y + 4} ${z0 + 6} minecraft:oak_planks hollow`);
   await cmd(`/setblock ${x0 + 3} ${y + 1} ${z0 + 6} minecraft:oak_door[half=lower,facing=south]`);
   await cmd(`/setblock ${x0 + 3} ${y + 2} ${z0 + 6} minecraft:oak_door[half=upper,facing=south]`);
   await cmd(`/tp @p ${x0 + 3} ${y} ${z0 + 3}`);
   const claimed = await cmd(`/steward builds ${id} claim 4`);
   const bid = (claimed.match(/\((build-\d+)/) ?? [])[1];
-  if (!bid) return fail('player build', claimed);
+  if (!bid) { fail(check, claimed); return null; }
+  return { x0, y, z0, bid, claimed };
+}
+
+async function playerBuilds(id) {
+  const hut = await buildHut(id, 'player build');
+  if (!hut) return;
+  const { x0, y, z0, bid, claimed } = hut;
   const listed = await cmd(`/steward builds ${id}`);
   // its door: Architect C34 (a claimed hut with a door on its floor still comes back OTHER with no entrance; reported, Architect's to fix)
   if (listed.includes(bid)) ok('player build', `${claimed.slice(0, 110)}; listed: ${listed.split('\n')[1]?.slice(0, 90)}`);
@@ -1088,6 +1095,42 @@ async function stubFlow(id) {
       const reverted = await waitLog(from, /Reverted [^\n]* to version 1/, 120_000);
       if (designed && updated && reverted) ok('change request', `${cp.title} (${cp.changeSite}${cp.changeSite === libSite ? ', the library' : ''}): designed, updated to v${updated[1]}, reverted to v1`);
       else fail('change request', `designed ${!!designed}, updated ${!!updated}, reverted ${!!reverted}: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
+    }
+  }
+  // "add a floor to my house" (Architect PT2): a claimed hut taken on, a change asked in talk and designed as its next version (the sim); the offer says
+  // how many of the blocks as the player made them it changes, and asks even though it is free; then the hut is let go and released
+  {
+    const hut = await buildHut(id, 'adopted change', [12, 12]);
+    if (hut) {
+      await cmd(`/tp @p ${hut.x0 + 3} ${hut.y} ${hut.z0 + 14}`);
+      from = logSize();
+      await cmd(`/steward builds ${id} adopt ${hut.bid}`);
+      const took = await waitLog(from, new RegExp(`adopt ${id} ${hut.bid}: [^\\n]*\\((\\S+), \\d+ blocks\\)`), 60_000);
+      const role = settlements().find((x) => x.id === id)?.log.at(-1)?.text?.match(/Took on (.*) \(build-/)?.[1];
+      const change = { reply: 'A second floor for your hut: it is in the inbox.', intent: 'change', change: { target: role ?? 'build', request: 'Add a second floor with a window on each side.' } };
+      await cmd(`/steward dev sim_answer talk ${JSON.stringify(change)}`);
+      await cmd(`/steward talk ${id} add a floor to my hut`);
+      let cp = null;
+      for (let i = 0; i < 60 && !cp; i++) {
+        await sleep(1000);
+        cp = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('change_') && p.changeSite === took?.[1]) ?? null;
+      }
+      if (!took || !cp) fail('adopted change', `adopted ${took ? took[1] : 'no'}; proposal ${cp ? cp.key : 'none'}`);
+      else {
+        from = logSize();
+        await cmd(`/steward proposals ${id} accept ${cp.key}`);
+        const designed = await waitLog(from, /The change to the [^\n]* is designed/, 300_000);
+        from = logSize();
+        await cmd('/steward updates');
+        const offer = await waitLog(from, new RegExp(`update check ${id} ${took[1]} v1 -> v\\d+: (\\w+) \\(([^\\n]*)`), 60_000);
+        if (designed && offer && offer[1] === 'ASK' && /as you made it/.test(offer[2])) ok('adopted change', offer[2].slice(0, 160));
+        else fail('adopted change', `designed ${!!designed}; ${offer ? offer[0].slice(0, 200) : 'no update check'}`);
+      }
+      // let it go (the adoption is the newest undoable) and take the hut down
+      await cmd(`/steward undo ${id}`);
+      for (let i = 0; i < 30 && /stands/.test(await cmd(`/steward dev site ${took?.[1] ?? 'none'}`)); i++) await sleep(1000);
+      await cmd(`/steward builds ${id} release ${hut.bid}`);
+      await cmd(`/fill ${hut.x0} ${hut.y} ${hut.z0} ${hut.x0 + 6} ${hut.y + 4} ${hut.z0 + 6} minecraft:air`);
     }
   }
   // a district through talk, founded; then a building in it lays its street and the link road

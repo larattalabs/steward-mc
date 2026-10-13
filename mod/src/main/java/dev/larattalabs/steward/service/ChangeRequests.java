@@ -148,12 +148,19 @@ public final class ChangeRequests {
 		ext.addProperty("steward_mc:lot", lot);
 		ext.addProperty("steward_mc:change", true);
 		String text = "A change to the " + Updates.lotOf(v) + " that stands in " + s.name() + ": " + notes.strip()
-			+ (c == null ? "" : " Keep it in the settlement's style (" + c.style().text() + ").") + " Keep its entrance and footprint unless the change needs otherwise.";
+			+ (adopted(v) ? " This is the player's own build, which the steward looks after: keep every block they placed as it is, in its own style, and add or"
+				+ " change only what the change asks for."
+				: (c == null ? "" : " Keep it in the settlement's style (" + c.style().text() + ").") + " Keep its entrance and footprint unless the change needs otherwise.");
 		DesignRequest base = new DesignRequest(type, c == null ? "rustic" : LotBrief.styleLabel(c), null, List.of(), size, null,
 			text.length() > LotBrief.MAX_NOTES ? text.substring(0, LotBrief.MAX_NOTES) : text, null, s.owner(), ext, null, budgetUsd, null, null)
 			// the settlement's own bible, at the version it kept (not the newest)
 			.withBible(s.bible().id(), s.bible().version());
 		return (DesignRequest) VERSION_OF.invoke(base, v.blueprintId(), v.id());
+	}
+
+	/** A player's build the steward took on (Architect PT2): its site carries Architect's adoption mark. */
+	static boolean adopted(SiteView v) {
+		return v.ext() != null && v.ext().has("architect_mc:adopted");
 	}
 
 	private static void onDone(MinecraftServer server, Design d) {

@@ -73,11 +73,15 @@ public final class UpdatePlanner {
 		}
 		if (v.added() + v.removed() + v.changed() == 0) return new Plan(Action.NOTHING, building + ": nothing to write.", edits);
 		String text = building + " has an update: " + summary(v);
+		// a player's own build the steward looks after (Architect PT2): how much of it as they made it the change touches, and they always decide
+		boolean theirs = v.capturedTotal() > 0;
+		if (theirs) text += v.capturedChanged() == 0 ? ". It keeps every block of the build as you made it."
+			: ". It changes " + v.capturedChanged() + " of the " + v.capturedTotal() + " blocks of the build as you made it.";
 		// survival costs materials, so the player always decides; creative upgrades follow the permission level
 		boolean costs = !v.bom().isEmpty();
 		// a version that takes parts away is a demolition, which Autonomous asks about
 		boolean removes = v.parts().values().stream().anyMatch(d -> d.status() == PartStatus.REMOVED);
-		boolean ask = costs || p.needsApproval(Permission.Action.UPGRADE) || (removes && p.needsApproval(Permission.Action.DEMOLISH));
+		boolean ask = theirs || costs || p.needsApproval(Permission.Action.UPGRADE) || (removes && p.needsApproval(Permission.Action.DEMOLISH));
 		return new Plan(ask ? Action.ASK : Action.APPLY, text, edits);
 	}
 

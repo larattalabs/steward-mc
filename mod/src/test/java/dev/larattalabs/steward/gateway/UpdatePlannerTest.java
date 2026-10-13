@@ -38,6 +38,18 @@ class UpdatePlannerTest {
 	}
 
 	@Test
+	void aChangeToThePlayersOwnBuildSaysHowMuchOfItChangesAndAlwaysAsks() {
+		DeltaVerdict v = new DeltaVerdict(true, List.of(), 120, 0, 3, parts(), List.of(), List.of(), Map.of(), Map.of(), BOX, Mode.INSTANT, List.of(), 3, 297);
+		var plan = UpdatePlanner.plan("Noah's house", v, Permission.FULL);
+		assertEquals(Action.ASK, plan.action(), "never applied by itself, even at Full");
+		assertTrue(plan.text().contains("changes 3 of the 297 blocks of the build as you made it"), plan.text());
+		DeltaVerdict untouched = new DeltaVerdict(true, List.of(), 120, 0, 0, parts(), List.of(), List.of(), Map.of(), Map.of(), BOX, Mode.INSTANT, List.of(), 0, 297);
+		assertTrue(UpdatePlanner.plan("Noah's house", untouched, Permission.FULL).text().contains("keeps every block"));
+		// any other building: no such line
+		assertFalse(UpdatePlanner.plan("Tavern", verdict(true, List.of(), 34, 1, 9, parts()), Permission.PROPOSALS).text().contains("as you made it"));
+	}
+
+	@Test
 	void theSummaryNamesChangedPartsAndSkipsUnchangedOnes() {
 		String s = UpdatePlanner.summary(verdict(true, List.of(), 34, 1, 9, parts()));
 		assertTrue(s.startsWith("2 parts changed (+wing, roof)"), s);
