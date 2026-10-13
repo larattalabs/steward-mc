@@ -468,7 +468,8 @@ async function buildHut(id, check, corner = [6, 6]) {
   await closeScreens();
   await cmd(`/tp @p ${x0 + 3} 100 ${z0 + 3}`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
-  await cmd(`/tp @p ${x0 + 3} ~ ${z0 + 3}`);
+  // on the ground (a player out of spectator mode keeps flying, and a hut built where they hover floats: Architect C34b)
+  await cmd(`/spreadplayers ${x0 + 3} ${z0 + 3} 0 1 false @p`);
   await sleep(1000);
   const y = Math.floor(Number(((await cmd(`/data get entity @p Pos`)).match(/, (-?[\d.]+)d, /) ?? [0, 64])[1]));
   await cmd(`/fill ${x0} ${y} ${z0} ${x0 + 6} ${y + 4} ${z0 + 6} minecraft:oak_planks hollow`);
@@ -486,8 +487,8 @@ async function playerBuilds(id) {
   if (!hut) return;
   const { x0, y, z0, bid, claimed } = hut;
   const listed = await cmd(`/steward builds ${id}`);
-  // its door: Architect C34 (a claimed hut with a door on its floor still comes back OTHER with no entrance; reported, Architect's to fix)
-  if (listed.includes(bid)) ok('player build', `${claimed.slice(0, 110)}; listed: ${listed.split('\n')[1]?.slice(0, 90)}`);
+  // a house with its door (Architect C34)
+  if (listed.includes(bid) && !/no door/.test(listed)) ok('player build', `${claimed.slice(0, 110)}; listed: ${listed.split('\n')[1]?.slice(0, 90)}`);
   else fail('player build', listed.slice(0, 200));
   // the settlement screen, opened from outside the hut (as a player would, by command)
   await cmd(`/tp @p ${x0 + 3} ${y} ${z0 + 14}`);
@@ -976,6 +977,8 @@ async function planCheckFlow() {
 async function clearAnimals() {
   await cmd('/gamerule doMobSpawning false');
   for (const t of ['pig', 'cow', 'sheep', 'chicken', 'rabbit', 'horse', 'donkey', 'mule', 'llama', 'goat']) await cmd(`/kill @e[type=minecraft:${t}]`);
+  // and what they drop: an item on a lot refuses its placement too (raw beef and feathers held up the library)
+  await cmd('/kill @e[type=minecraft:item]');
 }
 
 async function stubFlow(id) {
