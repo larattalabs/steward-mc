@@ -398,3 +398,5 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
   - **Retention:** artifacts are kept while pinned (`pinArtifact` / `unpinArtifact`) or referenced, with tombstones (`ARTIFACT_UNAPPROVED`).
   - **Anchors:** Steward's are documented; an unsupplied anchor is `malformed (UNKNOWN_REF)`.
   - **Freeze:** after Steward's one fixtures round. Additive optional members are allowed until then.
+
+**C29 RC (v0.22.0, API 1.19.0; slice/C29 5603402; sha256 1348a18a…), consumer check 2026-10-12: pass.** Steward builds against it unchanged. With the RC in the client, the stub e2e passed 37 checks, including the survival flow: the bill 629, the stockpile asked, 629 delivered and consumed, and 629 refunded on undo. When v0.22.0 ships, Steward pauses a cancelled build's targets (`Sites.pause`) before taking them up.
