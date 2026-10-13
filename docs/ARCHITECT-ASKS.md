@@ -453,3 +453,9 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
     - the plan writer gets them as features;
     - the steward says it will build around them;
     - a change request can name one ("my house").
+- **Architect's answer (2026-10-13):** Noah's refinement is folded into the PT draft.
+  - **Builds:** stable id, outline, doors and a guessed kind, with a rule for what counts that includes hysteresis, so builds don't flicker. They are kept, and they are plan features (near, adjacent, around, a road to a door, a district round one), added to plan/0 additively.
+  - **Incidental blocks** count as natural and are cleared without refusal. Claim and release are in.
+  - **Adopting a build as a site** is likely slice **PT2**, right after PT.
+  - **Refusals** name the build (id, kind) and the blocking positions.
+  - The draft comes to Steward for review.
