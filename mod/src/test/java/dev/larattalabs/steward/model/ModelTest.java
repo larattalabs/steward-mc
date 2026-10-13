@@ -110,11 +110,11 @@ class ModelTest {
 	@Test
 	void gatewayStatusChecksMajorVersionAndFeatures() {
 		Set<String> ok = Set.of("designs", "sites", "events", "survey");
-		assertTrue(ArchitectGateway.Status.evaluate("1.19.0", ok).ok());
-		assertTrue(ArchitectGateway.Status.evaluate("1.20.2", ok).ok());
-		assertFalse(ArchitectGateway.Status.evaluate("1.18.0", ok).ok(), "pausing a cancelled build needs C29 (1.19)");
+		assertTrue(ArchitectGateway.Status.evaluate("1.23.0", ok).ok());
+		assertTrue(ArchitectGateway.Status.evaluate("1.24.2", ok).ok());
+		assertFalse(ArchitectGateway.Status.evaluate("1.22.0", ok).ok(), "the plan check needs P0 (1.23)");
 		assertFalse(ArchitectGateway.Status.evaluate("2.0.0", ok).ok());
-		assertFalse(ArchitectGateway.Status.evaluate("1.19.0", Set.of("sites", "events")).ok());
+		assertFalse(ArchitectGateway.Status.evaluate("1.23.0", Set.of("sites", "events")).ok());
 		assertFalse(ArchitectGateway.Status.evaluate("x.y", ok).ok());
 	}
 }
