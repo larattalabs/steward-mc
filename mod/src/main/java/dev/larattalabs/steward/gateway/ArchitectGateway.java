@@ -12,9 +12,9 @@ public final class ArchitectGateway {
 	public static final int REQUIRED_MAJOR = 1;
 	/**
 	 * The oldest minor version Steward runs on: groups, batches, critique and delta apply (1.8.0), and the flat village with tagged lots, keyed plan and
-	 * realise and removal tombstones (1.14.0), the settlement stockpile with its waiting status (1.17.0), pausing a construction target (1.19.0), the plan check (1.23.0), and the player's own builds (API 1.24.0 = Architect 0.27.0; fabric.mod.json says the same).
+	 * realise and removal tombstones (1.14.0), the settlement stockpile with its waiting status (1.17.0), pausing a construction target (1.19.0), the plan check (1.23.0), the player's own builds (1.24.0), and adopting one as a site (API 1.26.0 = Architect 0.29.0; fabric.mod.json says the same).
 	 */
-	public static final int REQUIRED_MINOR = 24;
+	public static final int REQUIRED_MINOR = 26;
 	/** Features Steward cannot work without (names from ArchitectApi.features()). */
 	public static final Set<String> REQUIRED_FEATURES = Set.of("designs", "sites", "events");
 

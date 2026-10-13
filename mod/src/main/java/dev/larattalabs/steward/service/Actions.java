@@ -292,6 +292,19 @@ public final class Actions {
 			String no = Districts.found(server, player, s.get(), dir, size, name, say);
 			return no == null ? Result.ok("Laying the road to the new district...") : Result.fail(no);
 		}
+		if ("build_adopt".equals(action)) {
+			// "look after my house" (Architect PT2): the player's build becomes one of the settlement's buildings, unchanged
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			MinecraftServer server = player.level().getServer();
+			UUID who = player.getUUID();
+			PlayerBuilds.adopt(server, player, s.get(), lot, line -> {
+				var p = server.getPlayerList().getPlayer(who);
+				if (p != null) p.sendSystemMessage(Component.literal(line));
+				dev.larattalabs.steward.Steward.LOGGER.info("adopt {} {}: {}", id, lot, line);
+			});
+			return Result.ok("Taking on " + lot + "...");
+		}
 		if ("builds".equals(action) || "build_claim".equals(action) || "build_release".equals(action)) {
 			// the player's own builds in the claim (Architect PT): listed; "claim my build" for one built before tracking; released when it is no longer to be kept
 			Optional<Settlement> s = Settlements.store().get(id);
@@ -502,7 +515,7 @@ public final class Actions {
 				at.claim().radius(), dev.larattalabs.steward.model.ClaimRules.side(at.claim().radius()), 0, 0));
 		}
 		List<String> stock = Stockpiles.of(server, s).map(sp -> Stockpiles.bill(sp, 6)).orElse(List.of());
-		var builds = PlayerBuilds.in(server, s).stream().map(b -> new dev.larattalabs.steward.view.SettlementView.PlayerBuildInfo(b.id(), PlayerBuilds.title(b), PlayerBuilds.by(server, b),
+		var builds = PlayerBuilds.in(server, s).stream().filter(b -> b.siteId() == null).map(b -> new dev.larattalabs.steward.view.SettlementView.PlayerBuildInfo(b.id(), PlayerBuilds.title(b), PlayerBuilds.by(server, b),
 			b.bounds().minX(), b.bounds().minY(), b.bounds().minZ(), b.bounds().maxX(), b.bounds().maxY(), b.bounds().maxZ(),
 			b.state() == dev.larattalabs.architect.api.BuildState.PROVISIONAL)).toList();
 		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock, builds);

@@ -501,6 +501,23 @@ async function playerBuilds(id) {
   await dev.request('dev.key', { key: 'u' });
   await cmd('/gamemode creative');
   ok('player build shown', `${screenShot}, ${surveyShot}`);
+  // taken on as one of the settlement's buildings (Architect PT2): no block written; an undo lets it go and the hut still stands
+  await cmd(`/tp @p ${x0 + 3} ${y} ${z0 + 14}`);
+  let from = logSize();
+  await cmd(`/steward builds ${id} adopt ${bid}`);
+  const adopted = await waitLog(from, new RegExp(`adopt ${id} ${bid}: ([^\\n]*)`), 60_000);
+  const site = (adopted?.[1].match(/\((\S+), \d+ blocks\)/) ?? [])[1];
+  const logged = settlements().find((x) => x.id === id)?.log.at(-1);
+  const stands = site && /stands/.test(await cmd(`/steward dev site ${site}`));
+  if (site && stands && logged?.kind === 'BUILD_ADOPTED') ok('player build adopted', `${adopted[1].slice(0, 120)}; history: ${logged.text}`);
+  else return fail('player build adopted', `${adopted?.[1] ?? 'no answer'}; site standing ${stands}; last op ${logged?.kind}`);
+  from = logSize();
+  await cmd(`/steward undo ${id}`);
+  const undone = await waitLog(from, /Undone: the steward no longer looks after it[^\n]*|Undo stopped[^\n]*/, 120_000);
+  const siteGone = !/stands/.test(await cmd(`/steward dev site ${site}`));
+  const hutStands = /passed/i.test(await cmd(`/execute if block ${x0} ${y + 2} ${z0} minecraft:oak_planks`));
+  if (undone && /Undone/.test(undone[0]) && siteGone && hutStands) ok('player build let go', `${undone[0]}; ${site} gone, the hut stands`);
+  else fail('player build let go', `${undone ? undone[0] : 'no answer'}; site gone ${siteGone}; hut stands ${hutStands}`);
   const released = await cmd(`/steward builds ${id} release ${bid}`);
   await cmd(`/fill ${x0} ${y} ${z0} ${x0 + 6} ${y + 4} ${z0 + 6} minecraft:air`);
   if (/Released/.test(released)) ok('player build released', released);

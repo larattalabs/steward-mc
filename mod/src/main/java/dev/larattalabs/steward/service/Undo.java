@@ -76,7 +76,9 @@ public final class Undo {
 		java.util.Map<String, Integer> now = new java.util.HashMap<>();
 		for (String id : ids) all.get(id).ifPresent(v -> now.put(id, v.version()));
 		java.util.Collections.reverse(ids); // newest first
-		say.accept("Removing " + ids.size() + " sites of \"" + entry.get().text() + "\" and restoring the land...");
+		boolean adopted = entry.get().kind() == Settlement.Kind.BUILD_ADOPTED;
+		say.accept(adopted ? "Letting go of \"" + entry.get().text() + "\": the build stays as it stands..."
+			: "Removing " + ids.size() + " sites of \"" + entry.get().text() + "\" and restoring the land...");
 		var sites = ArchitectApi.get().sites(server);
 		RemoveOptions as = new RemoveOptions(false, s.owner());
 		UNDOING.add(s.id());
@@ -137,6 +139,8 @@ public final class Undo {
 				say.accept("Undo stopped after " + removed.size() + " of " + ids.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
 			} else if (stop != null) {
 				say.accept("Undo stopped after " + removed.size() + " of " + ids.size() + " sites: " + stop + " Clear it and run /steward undo " + s.id() + " again.");
+			} else if (adopted) {
+				say.accept("Undone: the steward no longer looks after it, and the build stands as it was.");
 			} else {
 				say.accept("Undone: removed " + removed.size() + " sites, the land is restored.");
 			}

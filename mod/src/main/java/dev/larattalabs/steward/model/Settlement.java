@@ -40,11 +40,16 @@ public record Settlement(
 		/** A road the steward laid (a district's street linked to its edge). */
 		ROAD_PLACED,
 		/** A protected area was marked or cleared. */
-		PROTECTED_CHANGED;
+		PROTECTED_CHANGED,
+		/**
+		 * A player's own build taken on as a building of the settlement (Architect PT2): its site wrote no block, and undoing it only lets the build go
+		 * (Architect un-adopts; the house stays).
+		 */
+		BUILD_ADOPTED;
 
-		/** Whether an operation of this kind put sites in the world that an undo removes. */
+		/** Whether an operation of this kind put sites in the world that an undo removes (an adopted build's site: removed, the build stays). */
 		public boolean placesSites() {
-			return this == PROJECT_PLACED || this == DISTRICT_FOUNDED || this == ROAD_PLACED;
+			return this == PROJECT_PLACED || this == DISTRICT_FOUNDED || this == ROAD_PLACED || this == BUILD_ADOPTED;
 		}
 	}
 

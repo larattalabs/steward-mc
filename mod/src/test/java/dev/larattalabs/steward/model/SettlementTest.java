@@ -147,6 +147,22 @@ class SettlementTest {
 	}
 
 	@Test
+	void anAdoptedBuildIsUndoneLikeAPlacementAndSavedAndReadBack() throws Exception {
+		Settlement s = Settlement.found("set_1", card(), claim(0, 0), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		s = s.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "Placed 1 buildings", List.of("s1")));
+		s = s.withLog(new Settlement.LogEntry(3L, Settlement.Kind.BUILD_ADOPTED, "Took on noah's house (build-4)", List.of("s9")));
+		// the newest undoable is the adoption (an undo lets the build go), then the project under it
+		assertEquals(Settlement.Kind.BUILD_ADOPTED, s.lastUndoable().orElseThrow().kind());
+		assertEquals(List.of("s9"), s.lastUndoable().orElseThrow().siteIds());
+		s = s.withLog(new Settlement.LogEntry(4L, Settlement.Kind.PROJECT_REMOVED, "Undid 1", List.of("s9")));
+		assertEquals(List.of("s1"), s.lastUndoable().orElseThrow().siteIds());
+		SettlementStore st = new SettlementStore();
+		st.put(s);
+		var back = SettlementStore.fromJson(st.toJson()).get("set_1").orElseThrow();
+		assertEquals(Settlement.Kind.BUILD_ADOPTED, back.log().get(back.log().size() - 2).kind());
+	}
+
+	@Test
 	void aWholeProjectUndoesByItsSiteGroupAPartlyUndoneOneSiteBySite() throws Exception {
 		Settlement s = Settlement.found("set_1", card(), claim(0, 0), Permission.PROPOSALS, Difficulty.PATRON, 1L);
 		s = s.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "Placed 2 buildings", List.of("s1", "s2"), "grp_7"));
