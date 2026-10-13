@@ -41,6 +41,19 @@ public final class PlayerBuilds {
 		return p != null ? p.getGameProfile().name() + "'s " + kind : "a " + kind;
 	}
 
+	/** For the screens: "Hand-built house", or "Hand-built" when Architect can't tell what it is. */
+	public static String title(Build b) {
+		String kind = kind(b);
+		return "build".equals(kind) ? "Hand-built" : "Hand-built " + kind;
+	}
+
+	/** Who built it: the primary placer's name when they are online, else "a player". */
+	public static String by(MinecraftServer server, Build b) {
+		UUID who = b.primaryPlacer();
+		var p = who == null ? null : server.getPlayerList().getPlayer(who);
+		return p != null ? p.getGameProfile().name() : "a player";
+	}
+
 	static String kind(Build b) {
 		return switch (b.kind()) {
 			case HOUSE -> "house";
@@ -70,8 +83,4 @@ public final class PlayerBuilds {
 		return out;
 	}
 
-	/** For the settlement screen: "Noah's house, a farm". */
-	public static List<String> viewLines(MinecraftServer server, List<Build> builds) {
-		return builds.stream().map(b -> name(server, b)).toList();
-	}
 }

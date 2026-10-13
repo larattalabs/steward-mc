@@ -27,8 +27,11 @@ public record SettlementView(String id, String name, boolean described, boolean 
 		areas = areas == null ? List.of() : areas;
 	}
 
-	/** A player's own build in the claim (Architect PT, C32): its id, its name ("Noah's house"), its columns, and whether it is still being built. */
-	public record PlayerBuildInfo(String id, String name, int minX, int minY, int minZ, int maxX, int maxY, int maxZ, boolean provisional) {}
+	/**
+	 * A player's own build in the claim (Architect PT, C32): its id, its title ("Hand-built house"), who built it (its primary placer), its box, and whether
+	 * it is still being built.
+	 */
+	public record PlayerBuildInfo(String id, String title, String by, int minX, int minY, int minZ, int maxX, int maxY, int maxZ, boolean provisional) {}
 
 	/** A district (phase 3f): where it lies ({@code direction} N, E, S, W), its square, and how many buildings stand in it. */
 	public record DistrictInfo(String id, String name, String direction, int centerX, int centerZ, int radius, int side, int buildings, int roads) {}

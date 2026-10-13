@@ -299,8 +299,8 @@ public final class SettlementScreen extends KitScreen {
 		// built from materials: what the stockpile holds and what the builds still need
 		if (!view.stockpile().isEmpty()) fy = fact(g, fx, fy, fw, "Stockpile", String.join(" ", view.stockpile()).replaceFirst("^Stockpile: ", ""));
 		// what the player built by hand in the claim (Architect PT): the steward builds round it and never over it
-		if (!view.playerBuilds().isEmpty()) fy = fact(g, fx, fy, fw, "Your builds", String.join(", ", view.playerBuilds().stream()
-			.map(b -> b.name() + (b.provisional() ? " (still going up)" : "")).toList()) + ": kept as you built them.");
+		if (!view.playerBuilds().isEmpty()) fy = fact(g, fx, fy, fw, "Hand-built", String.join(", ", view.playerBuilds().stream()
+			.map(b -> b.title() + " by " + b.by() + (b.provisional() ? " (still going up)" : "")).toList()) + ": kept as built.");
 		// districts: one each way, founded with a road to the town ($0)
 		g.text(font, "Districts", fx, fy, UiBits.muted(), false);
 		int lx = fx + 90;

@@ -122,13 +122,13 @@ public final class SettlementWorld {
 			for (var d : v.districts()) border(c, d.centerX() - d.radius(), d.centerZ() - d.radius(), d.centerX() + d.radius() + 1, d.centerZ() + d.radius() + 1,
 				UiStyle.withAlpha(UiStyle.BRASS, 0x70), cam);
 			for (var a : v.areas()) border(c, a.x0(), a.z0(), a.x1() + 1, a.z1() + 1, UiStyle.withAlpha(UiStyle.SAGE, 0x90), cam);
-			// the player's own builds (Architect PT): kept like protected ground, named where they stand
+			// the player's own builds (Architect PT): a sage box round each (sage is what is kept), labelled clear of its roof like a building
 			for (var b : v.playerBuilds()) {
-				border(c, b.minX(), b.minZ(), b.maxX() + 1, b.maxZ() + 1, UiStyle.withAlpha(UiStyle.SAGE, 0xC0), cam);
-				double bx = (b.minX() + b.maxX() + 1) / 2.0, bz = (b.minZ() + b.maxZ() + 1) / 2.0, by = b.maxY() + 2;
-				double dist = Math.sqrt(cam.distanceToSqr(bx, by, bz));
-				if (dist < SURVEY) pill(c, camera, bx, by, bz, b.name(), b.provisional() ? "still going up · kept as you build it" : "yours · kept as you built it", "done",
-					false, dist);
+				double dist = Math.sqrt(new AABB(b.minX(), b.minY(), b.minZ(), b.maxX() + 1, b.maxY() + 1, b.maxZ() + 1).distanceToSqr(cam));
+				if (dist >= SURVEY) continue;
+				box(c, b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ(), cam, (float) dist, UiStyle.withAlpha(UiStyle.SAGE, 0xE0));
+				pill(c, camera, (b.minX() + b.maxX() + 1) / 2.0, b.maxY() + 2.4, (b.minZ() + b.maxZ() + 1) / 2.0, b.title(),
+					"by " + b.by() + (b.provisional() ? " · still going up" : " · kept as built"), "done", false, dist);
 			}
 			// a district waiting in the inbox: where it would go, before it is founded
 			for (var d : v.proposed()) {
@@ -146,10 +146,14 @@ public final class SettlementWorld {
 
 	/** The building's box: thin bars along its twelve edges, brass when looked at, cream in survey mode. */
 	private static void outline(SubmitNodeCollector c, SettlementView.Building b, Vec3 cam, boolean on, float dist) {
-		float x0 = (float) (b.minX() - cam.x), y0 = (float) (b.minY() - cam.y), z0 = (float) (b.minZ() - cam.z);
-		float x1 = (float) (b.maxX() + 1 - cam.x), y1 = (float) (b.maxY() + 1 - cam.y), z1 = (float) (b.maxZ() + 1 - cam.z);
+		box(c, b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ(), cam, dist, UiStyle.withAlpha(on ? UiStyle.BRASS : UiStyle.CREAM, on ? 0xE0 : 0x90));
+	}
+
+	/** Thin bars along a block box's twelve edges, in {@code col}. */
+	private static void box(SubmitNodeCollector c, int minX, int minY, int minZ, int maxX, int maxY, int maxZ, Vec3 cam, float dist, int col) {
+		float x0 = (float) (minX - cam.x), y0 = (float) (minY - cam.y), z0 = (float) (minZ - cam.z);
+		float x1 = (float) (maxX + 1 - cam.x), y1 = (float) (maxY + 1 - cam.y), z1 = (float) (maxZ + 1 - cam.z);
 		float t = Math.max(0.03f, dist * 0.0025f);
-		int col = UiStyle.withAlpha(on ? UiStyle.BRASS : UiStyle.CREAM, on ? 0xE0 : 0x90);
 		c.submitCustomGeometry(new PoseStack(), RenderTypes.debugFilledBox(), (pose, vc) -> {
 			for (float x : new float[] {x0, x1}) {
 				for (float y : new float[] {y0, y1}) cube(pose, vc, x - t, y - t, z0 - t, x + t, y + t, z1 + t, col);

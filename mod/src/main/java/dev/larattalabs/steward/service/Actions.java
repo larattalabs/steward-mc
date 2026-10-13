@@ -502,7 +502,7 @@ public final class Actions {
 				at.claim().radius(), dev.larattalabs.steward.model.ClaimRules.side(at.claim().radius()), 0, 0));
 		}
 		List<String> stock = Stockpiles.of(server, s).map(sp -> Stockpiles.bill(sp, 6)).orElse(List.of());
-		var builds = PlayerBuilds.in(server, s).stream().map(b -> new dev.larattalabs.steward.view.SettlementView.PlayerBuildInfo(b.id(), PlayerBuilds.name(server, b),
+		var builds = PlayerBuilds.in(server, s).stream().map(b -> new dev.larattalabs.steward.view.SettlementView.PlayerBuildInfo(b.id(), PlayerBuilds.title(b), PlayerBuilds.by(server, b),
 			b.bounds().minX(), b.bounds().minY(), b.bounds().minZ(), b.bounds().maxX(), b.bounds().maxY(), b.bounds().maxZ(),
 			b.state() == dev.larattalabs.architect.api.BuildState.PROVISIONAL)).toList();
 		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock, builds);

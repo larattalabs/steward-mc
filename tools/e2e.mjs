@@ -481,12 +481,16 @@ async function playerBuilds(id) {
   const listed = await cmd(`/steward builds ${id}`);
   if (listed.includes(bid)) ok('player build', `${claimed.slice(0, 110)}; listed: ${listed.split('\n')[1]?.slice(0, 90)}`);
   else fail('player build', listed.slice(0, 200));
-  await cmd(`/steward ui settlement ${id}`);
+  // the settlement screen, opened from outside the hut (as a player would, by command)
+  await cmd(`/tp @p ${x0 + 3} ${y} ${z0 + 14}`);
+  await cmd(`/steward view ${id}`);
   await sleep(1500);
+  if (!/SettlementScreen/.test(JSON.stringify(await dev.request('dev.state')))) fail('player build shown', 'the settlement screen did not open');
   const screenShot = (await dev.request('dev.screenshot', { name: 'e2e-player-build-screen', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
   await closeScreens();
   await cmd('/gamemode spectator');
-  await cmd(`/tp @p ${x0 + 3} ${y + 16} ${z0 + 22} facing ${x0 + 3} ${y + 2} ${z0 + 3}`);
+  await cmd('/weather clear');
+  await cmd(`/tp @p ${x0 + 3} ${y + 12} ${z0 + 20} facing ${x0 + 3} ${y + 2} ${z0 + 3}`);
   await dev.request('dev.key', { key: 'u' });
   await sleep(2500);
   const surveyShot = (await dev.request('dev.screenshot', { name: 'e2e-player-build-survey', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
