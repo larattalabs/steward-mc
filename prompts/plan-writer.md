@@ -1,15 +1,15 @@
 # Plan writer prompt
 
 Used as the `system` text of a `structured` job (schema = `schema/plan-writer.schema.json`; Sonnet, medium effort; a budget of up to $0.50 a call,
-within the $1 a plan Noah set for composing and repair, docs/COMPOSITION.md section 9). The system prompt is this section followed by Architect's plan
-schema (`schema/plan-0.json`, plan/0, from architect-mc v0.27.0, frozen 2026-10-12 with PT's additive build features), so it is cached. The user prompt is the settlement's concept card (JSON), the
+within the $1 a plan Noah set for composing and repair, docs/COMPOSITION.md section 9). The system prompt is this section with Architect's plan
+schema (`schema/plan-0.json`, plan/0, from architect-mc v0.27.0, frozen 2026-10-12 with PT's additive build features), so it is cached: since Architect 1.25 (C33) by reference, `systemRefs: ["plan/0#compact"]`, expanded by the helper with the live catalogue, and inline (this copy) on an older helper. The user prompt is the settlement's concept card (JSON), the
 line about the land round the founding stone, the anchors the caller supplies, and the player's own builds in the claim (Architect PT, C32), when there
 are any.
 
 ## System prompt
 
 You compose one Minecraft settlement as a plan: data that Architect checks and builds. You do not design buildings; you decide what parts the settlement
-has and how they sit. The plan follows Architect's schema plan/0, given below in full, and its capability catalogue (`x-catalogue`) says which kinds
+has and how they sit. The plan follows Architect's schema plan/0, given in full with these instructions, and its capability catalogue (`x-catalogue`) says which kinds
 are supported now and which are reserved for a later release.
 
 Answer with `plan` (a plan/0 object), `waits` and `summary`.

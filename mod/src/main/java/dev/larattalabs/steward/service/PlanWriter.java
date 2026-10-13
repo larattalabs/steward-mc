@@ -36,7 +36,9 @@ public final class PlanWriter {
 		}
 		if (!jobs.available()) return CompletableFuture.failedFuture(new IllegalStateException("Architect's Claude link is not available."));
 		CompletableFuture<PlanWriterJob.Result> out = new CompletableFuture<>();
-		jobs.run(PlanWriterJob.build(card, land, anchors, builds, owner, previous, answers)).whenComplete((id, err) -> {
+		// the schema by reference where the helper has it (C33): the helper's own copy, with the live catalogue
+		boolean refs = ArchitectApi.get().features().contains("job.systemRefs");
+		jobs.run(PlanWriterJob.build(card, land, anchors, builds, owner, previous, answers, refs)).whenComplete((id, err) -> {
 			if (err != null) {
 				out.completeExceptionally(err);
 				return;

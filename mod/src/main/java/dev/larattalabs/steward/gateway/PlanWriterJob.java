@@ -35,14 +35,24 @@ public final class PlanWriterJob {
 	 */
 	public static JobSpec build(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner, @Nullable String previous,
 		@Nullable String answers) {
+		return build(card, land, anchors, builds, owner, previous, answers, false);
+	}
+
+	/**
+	 * As above; {@code refs}: the helper has {@code job.systemRefs} (Architect 1.25, C33), so the schema goes as {@link #SCHEMA_REF}, expanded by the helper
+	 * from its own copy with the live catalogue, and the system text is only the instructions.
+	 */
+	public static JobSpec build(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner, @Nullable String previous,
+		@Nullable String answers, boolean refs) {
 		String user = userPrompt(card, land, anchors, builds);
 		if (previous != null && answers != null) {
 			user += "\nYour previous plan:\n" + previous + "\n\nArchitect's check of it, part by part:\n" + answers
 				+ "\nRevise the plan: make the refused and malformed parts fit (use wouldFit where it is given), keep what fits as it is, and keep the unsupported parts"
 				+ " as they are (they wait for Architect). Answer with the whole revised plan.\n";
 		}
-		return new JobSpec("structured", user, systemPrompt(), MODEL, "medium", schema(), List.of(), BUDGET_USD, 4, owner, TAG, null, SimAnswers.ext(SimAnswers.PLAN),
-			List.of());
+		JobSpec spec = new JobSpec("structured", user, refs ? instructions() : systemPrompt(), MODEL, "medium", schema(), List.of(), BUDGET_USD, 4, owner, TAG, null,
+			SimAnswers.ext(SimAnswers.PLAN), List.of());
+		return refs ? spec.systemRefs(List.of(SCHEMA_REF)) : spec;
 	}
 
 	static String userPrompt(String card, @Nullable String land, List<String> anchors) {
@@ -59,7 +69,18 @@ public final class PlanWriterJob {
 		return b.toString();
 	}
 
-	/** The prompt's system section, then Architect's plan/0 schema in full. */
+	/** Architect's plan schema by reference (C33): its compact rendering, without the bookkeeping fields, with the live catalogue. */
+	static final String SCHEMA_REF = "plan/0#compact";
+
+	/** The prompt's system section alone (the schema comes by reference, ahead of it). */
+	static String instructions() {
+		String md = resource("steward/prompts/plan-writer.md");
+		int i = md.indexOf("## System prompt");
+		if (i < 0) throw new IllegalStateException("plan-writer.md has no '## System prompt' section");
+		return md.substring(i + "## System prompt".length()).strip();
+	}
+
+	/** The prompt's system section, then Architect's plan/0 schema in full (a helper without systemRefs). */
 	public static String systemPrompt() {
 		String md = resource("steward/prompts/plan-writer.md");
 		int i = md.indexOf("## System prompt");
