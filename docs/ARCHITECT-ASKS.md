@@ -477,3 +477,5 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
   - a road may cross or join a PATH build without consent, while it changes none of the path's cells (gated).
   
   PT builds after T2, alongside P0.
+
+**v0.25.0 (T2, slope-aware routing, API 1.22.0; published 2026-10-13, checked after release): pass.** Steward builds against it unchanged; stub e2e 37, free e2e 37. On flat ground the flat village's street still comes as road sites (`road:street_*`). Most walk runs on real terrain are now graph-edge segments, not roads, so once Steward builds villages on slopes, `Districts.streetOf` must read the region's graph edges as well.
