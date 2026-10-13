@@ -77,6 +77,8 @@ public final class SettlementRunner {
 		SiteEvents.GROUP_UPDATED.register(g -> List.copyOf(ACTIVE.values()).forEach(r -> r.onGroup(g)));
 		SiteEvents.GROUP_DONE.register(g -> List.copyOf(ACTIVE.values()).forEach(r -> r.onGroup(g)));
 		SiteEvents.BATCH_DONE.register(b -> List.copyOf(ACTIVE.values()).forEach(r -> r.onBatchDone(b)));
+		// an item held up by something in its way (an animal, a player, ground not loaded): the steward says so, or it looks like nothing happens
+		SiteEvents.ITEM_WAITING.register(e -> List.copyOf(ACTIVE.values()).forEach(r -> r.onItemWaiting(e)));
 		ServerLifecycleEvents.SERVER_STARTING.register(SettlementRunner::restoreAll);
 		// queued, so it runs after every SERVER_STARTED listener: Architect loads its sites there and fires its catch-up
 		// on the first tick, after every SERVER_STARTED listener (Architect loads its sites and queue and fires its catch-up there); server.execute from the
@@ -1700,6 +1702,21 @@ public final class SettlementRunner {
 	/** The history entry that placed this region (its newest), whichever entry is the newest undoable one. */
 	private java.util.Optional<Settlement.LogEntry> regionEntry(String regionId) {
 		return Settlements.store().get(settlement.id()).flatMap(s -> VillageSweep.entryOf(s, regionId));
+	}
+
+	/** A queued item of this build waits for a temporary blocker (Architect fires it when the reason changes; it waits up to 10 minutes). */
+	private void onItemWaiting(dev.larattalabs.architect.api.ItemEvent e) {
+		if (batchId == null || !batchId.equals(e.batchId()) || e.reason().isEmpty()) return;
+		String what = BatchPlanner.isStreet(e.itemKey()) ? "street" : java.util.Optional.ofNullable(extString(e.ext(), "steward_mc:role")).orElse(e.itemKey().replace('_', ' '));
+		String in = e.message().replaceFirst("(?s).*in the box: ", "").replaceFirst("\\s*\\(.*", "").strip();
+		switch (e.reason().get()) {
+			case PLAYER_IN_BOX -> say("The " + what + " waits: someone is standing on its lot. Step off it and it goes up.");
+			case OCCUPIED -> say("The " + what + " waits: " + (in.isEmpty() ? "something is in its lot" : in + " is in its lot") + ". Move it out and it goes up"
+				+ " (Architect waits up to 10 minutes).");
+			case NOT_LOADED -> say("The " + what + " waits for its ground to load: come nearer to it.");
+			default -> {
+			}
+		}
 	}
 
 	private void onBatchDone(BatchView b) {

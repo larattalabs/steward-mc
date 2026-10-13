@@ -727,7 +727,10 @@ async function villageFlow() {
  */
 async function buildThrough(id, from, label, restartAtMassings = false) {
   const steps = [];
-  const end = Date.now() + 600_000;
+  // past Architect's 600 s wait for a blocked item (so a blocked item fails and is reported, rather than the check giving up first)
+  const end = Date.now() + 720_000;
+  // nothing in the lots' way: an animal in a box holds its item up for Architect's whole wait (C30)
+  await clearAnimals();
   let at = from;
   while (Date.now() < end) {
     const since = logSince(at);
@@ -784,6 +787,9 @@ async function survivalFlow() {
     const diff = settlements().find((x) => x.id === id)?.difficulty;
     if (diff !== 'SUPPLIED') return fail('supplied', `difficulty ${diff} in a survival world`);
     ok('supplied', `${id} is Supplied in a survival world`);
+    // off the lots and the street: a player in a box holds its item up (C30); near enough that the chunks stay loaded
+    const claim = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
     from = logSize();
     await cmd(`/steward start ${id} 2 30`);
     const built = await buildThrough(id, from, 'supplied build');

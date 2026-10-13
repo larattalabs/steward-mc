@@ -408,3 +408,8 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
 - **Survival:** set_195's g195. After the street stage, the landmarks stage started placing only when survival was turned off ten minutes later. The street was waiting for 2 lanterns and 2 fences; it is unclear whether a stage now waits for the one before it to be built, or this is the same stall.
 - **Evidence:** steward-mc `artifacts/e2e/client.log`, 18:19:23-18:39:28 (local evidence, not committed).
 - The RC (sha256 1348a18a…) passed the same flow. The published jar has a different sha (1f10a1e2…) though only docs commits separate the two, and a rerun on the published jar passed. So it looks intermittent: a race in stage completion.
+- **Architect's answer on C30 (2026-10-12): not a stall.** Both items waited on temporary blockers that Steward's own fit had already reported: a chicken in a lot (OCCUPIED), and the e2e player on a lot (PLAYER_IN_BOX).
+  - **Gating, unchanged since 4d:** a stage places once the earlier stages are finished, and a construction item counts as placed when its site is put down.
+  - **v0.23.1** logs an item's wait once per reason. The jar sha differs only in `builtAt` and manifest order.
+  - **Steward's side:** the steward now says what holds an item up (`ITEM_WAITING`: someone on the lot, an animal in it, ground not loaded). The e2e clears animals before every build, keeps the player off the lots, and waits 720 s, past Architect's 600 s.
+- **v0.23.0** (F2, API 1.20.0) and **v0.23.1** (the C30 log line) are released; Steward is on 0.23.1.
