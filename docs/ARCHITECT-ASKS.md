@@ -441,3 +441,15 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
   1. **Cost:** a sparse per-chunk set saved with the chunk (a few bytes a placed block, the placer as a palette index), with O(1) lookups.
   2. **Earlier blocks:** unknown, treated as natural unless they are non-natural blocks, journal-owned, or in a C17 area. The gap is natural-looking blocks a player placed before PT; an optional one-time "claim my build" helper may mark a box as player-placed.
   3. **Refusals:** they name the block id and position (the first N, plus a count).
+- **C32 refined by Noah (2026-10-13), sent while PT is drafted:** the settlement should interact with and integrate a player's builds, and not worry about one-off blocks or the player's small fixes to natural terrain. So PT is about **builds**, not every block:
+  - **Builds.** PT groups player-placed blocks into builds: connected structures large enough to be one (a house, a barn, a wall, a farm), with Architect proposing the rule (size, enclosure, share of non-natural blocks). Each has a stable id, an outline, its entrances (doors) and a guessed kind.
+    - A build is kept: no operation removes or rewrites it unless its owner's settlement asks.
+    - A build is a **plan feature:** `near`, `adjacent` or `around` a build; a road's endpoint at its door; a district round it. The layout plans around it.
+  - **Incidental blocks** (a torch, a few scattered blocks, a filled hole, a patch of dirt or stone that evens out the ground) count as natural. Architect may change or clear them, without refusing.
+  - **Working on a build** ("add a floor to my house", "extend the barn"): Steward needs Architect to **adopt a build as a site** under the settlement's owner, kept standing, with its blocks captured as its first version. Updates, change requests, revert and undo then work on it as on any building.
+  - **Edge cases:** "claim my build" marks a box as a build; "release" lets one become incidental.
+  - **Steward's side:**
+    - the settlement view and survey mode show a claim's builds ("your house");
+    - the plan writer gets them as features;
+    - the steward says it will build around them;
+    - a change request can name one ("my house").
