@@ -854,6 +854,43 @@ async function survivalFlow() {
   }
 }
 
+/**
+ * Architect's plan check (P0; docs/COMPOSITION.md): recorded plans checked round the player on fresh flat land, answered part by part. A plain village
+ * is ready, with an artifact; the walled town's wall is unsupported, naming connector.wall. The ready one is realised from its artifact and taken up again.
+ */
+async function planCheckFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 12000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  const plan = (f) => JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).answer.plan;
+  const checked = async (label, p) => {
+    const from = logSize();
+    await cmd(`/steward dev check_plan ${label} ${JSON.stringify(p)}`);
+    const m = await waitLog(from, new RegExp(`plan check ${label} (\\{[^\\n]*)`), 180_000);
+    return m ? JSON.parse(m[1]) : null;
+  };
+  const market = await checked('market_town', plan('strange-asks/plans/market_town.json'));
+  if (market?.overall === 'READY' && market.artifact) ok('plan check', `market town READY ${JSON.stringify(market.classes)}, artifact ${market.artifact.slice(0, 12)}`);
+  else return fail('plan check', JSON.stringify(market)?.slice(0, 300));
+  const walled = await checked('walled_town', plan('plans/walled_town.json'));
+  const wall = walled?.parts?.find((x) => x.part === 'town_wall');
+  if (wall?.class === 'unsupported' && wall.block === 'connector.wall') ok('plan check unsupported', `the wall: ${wall.class} ${wall.block}; overall ${walled.overall}`);
+  else fail('plan check unsupported', JSON.stringify(walled)?.slice(0, 300));
+  let from = logSize();
+  await cmd('/steward dev realise_plan market_town');
+  const realised = await waitLog(from, /plan realised market_town (\S+)/, 120_000);
+  if (!realised || /error/.test(realised[1])) return fail('plan realise', realised ? realised[0] : 'no answer');
+  await sleep(15_000);
+  // off the plan (it is centred on the player, and Architect waits for a player standing in what it removes), its chunks still loaded
+  await cmd('/tp @p ~ ~ ~90');
+  from = logSize();
+  await cmd('/steward dev unrealise_plan market_town');
+  const gone = await waitLog(from, /plan unrealised market_town (\S+)/, 660_000);
+  if (gone && gone[1] === 'true') ok('plan realise', `${realised[1]} realised from its approved artifact, then taken up`);
+  else fail('plan realise', `realised ${realised[1]}; taken up: ${gone ? gone[1] : 'no answer'}`);
+}
+
 /** Farm animals out of the way: a pig standing on a lot holds its placement up for Architect's 10-minute wait (it happened, on the V RC). */
 async function clearAnimals() {
   await cmd('/gamerule doMobSpawning false');
@@ -1063,6 +1100,7 @@ try {
     else {
       await stubFlow(id);
       await villageFlow();
+      await planCheckFlow();
       await survivalFlow();
     }
   }

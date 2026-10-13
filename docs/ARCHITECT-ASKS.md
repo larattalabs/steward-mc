@@ -479,3 +479,10 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
   PT builds after T2, alongside P0.
 
 **v0.25.0 (T2, slope-aware routing, API 1.22.0; published 2026-10-13, checked after release): pass.** Steward builds against it unchanged; stub e2e 37, free e2e 37. On flat ground the flat village's street still comes as road sites (`road:street_*`). Most walk runs on real terrain are now graph-edge segments, not roads, so once Steward builds villages on slopes, `Districts.streetOf` must read the region's graph edges as well.
+
+**P0 RC (v0.26.0, API 1.23.0; slice/P0 70ea8e6; sha256 e25324e0…), consumer check 2026-10-13: pass.** Steward builds against it unchanged. The stub e2e, with the RC in the client, has a new plan-check flow (`/steward dev check_plan|realise_plan|unrealise_plan`):
+- the recorded market-town plan is READY with an artifact;
+- the hand-written walled town's wall is `unsupported connector.wall`, and the plan overall `REQUIRED_BLOCKED`;
+- the market town is realised from its approved artifact (rg2) and removed whole ("removal done: REMOVED").
+
+The one failure was the e2e's own: its player stood inside the plan, so the removal waited for the player past the check's 300 s. The flow now moves the player off first and waits 660 s. Architect's CI on Steward's 59 plans: none crashed or malformed, and every part in `waits` came back unsupported or blocked. Steward looks at the 7 other non-fitting parts (a lotless zone, terraces inside zones, no river or ocean on the test claim, the spiral road) when the plan writer goes live.

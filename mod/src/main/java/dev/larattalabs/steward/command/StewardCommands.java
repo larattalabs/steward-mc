@@ -167,7 +167,35 @@ public final class StewardCommands {
 					dev.larattalabs.steward.gateway.VPlan.legacy(id, legacy);
 					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "Architect's flat village when it applies")), false);
 					return 1;
-				})))).then(Commands.literal("record_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.greedyString())
+				})))).then(Commands.literal("check_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("plan", StringArgumentType.greedyString())
+				.executes(ctx -> {
+					// dev (the e2e check): Architect's plan check on a plan/0 plan round the player; the summary logged as "plan check <label> {...}"
+					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
+					String label = StringArgumentType.getString(ctx, "label");
+					var plan = com.google.gson.JsonParser.parseString(StringArgumentType.getString(ctx, "plan")).getAsJsonObject();
+					dev.larattalabs.steward.service.PlanChecks.check(src.getPlayerOrException(), label, plan).whenComplete((o, err) -> src.getServer().execute(() ->
+						Steward.LOGGER.info("plan check {} {}", label, err != null ? "{\"error\":" + com.google.gson.JsonParser.parseString(new com.google.gson.Gson().toJson(String.valueOf(err))) + "}" : o)));
+					src.sendSuccess(() -> Component.literal("checking " + label), false);
+					return 1;
+				})))).then(Commands.literal("realise_plan").then(Commands.argument("label", StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check): realises the last approved check under this label, every lot the e2e's test design; "plan realised <label> <region>"
+					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
+					String label = StringArgumentType.getString(ctx, "label");
+					dev.larattalabs.steward.service.PlanChecks.realise(src.getPlayerOrException(), label, "e2e_stub").whenComplete((id, err) -> src.getServer().execute(() ->
+						Steward.LOGGER.info("plan realised {} {}", label, err != null ? "error " + err : id)));
+					src.sendSuccess(() -> Component.literal("realising " + label), false);
+					return 1;
+				}))).then(Commands.literal("unrealise_plan").then(Commands.argument("label", StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check): takes up what realise_plan placed; "plan unrealised <label> true|false|error"
+					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
+					String label = StringArgumentType.getString(ctx, "label");
+					dev.larattalabs.steward.service.PlanChecks.unrealise(label).whenComplete((ok, err) -> src.getServer().execute(() ->
+						Steward.LOGGER.info("plan unrealised {} {}", label, err != null ? "error " + err : ok)));
+					return 1;
+				}))).then(Commands.literal("record_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.greedyString())
 				.executes(ctx -> {
 					// dev (tools/record-plans.mjs, a paid run Noah approved): the plan writer on a recorded card (JSON); its answer written to
 					// <gameDir>/steward-cards/<label>.plan.json. No land (the cards were recorded without one); the anchors a town has before its street
