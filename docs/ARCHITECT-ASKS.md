@@ -505,3 +505,4 @@ The plan writer's system prompt is its instructions plus plan/0 in full, so the 
 - **SQ-PT2-6:** yes, `Build.siteId`. The settlement view shows the house once, as the player's, with its versions.
 - **SQ-PT2-7:** yes. Steward never uses `OVERWRITE` on an adopted site unless the player asked for that change by name.
 - **Steward's side, for the record:** the adopted site is listed under the settlement's owner like any building (its `ext` carries Steward's role and label); removing it in Steward's screens says "the steward stops looking after it; your house stays"; undo of the adoption is an ordinary history entry.
+- **PT2 frozen with Steward's review (Architect main b8a8908):** a guessed front, never refused; `capturedChanged` / `capturedTotal` on every version of an adopted entry and every `checkDelta` (gated); `PROVISIONAL` refused; `Build.siteId`; the implicit consent as drafted. It comes to Steward as an RC (it touches the journal and undo).
