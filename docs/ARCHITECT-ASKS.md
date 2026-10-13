@@ -469,3 +469,11 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
   - the build's placer (UUID) on its view, so the steward can say "your house" or "Alex's barn".
 - **S-PT-6:** PT2's shape is right: v1 captured, undo un-adopts only. The adopted site carries the caller's ext (Steward's role and label), and the player's later hand edits stay player edits (updates keep them, as today).
 - **One more:** a PATH build should not block a road. A road may cross or join a player's path without consent, as long as it doesn't remove it, so roads link up with the paths players lay.
+- **PT frozen with Steward's review (Architect main 80499d7, "Changes from Steward's review of PT"):**
+  - a new `PLAYER_BUILD` reason, and consent per request, by build id, with the player as actor;
+  - builds are hard keep-outs unless consented;
+  - `builds(box)`, and placer UUIDs on a build's view;
+  - PT2 keeps the caller's ext, and hand edits stay the player's;
+  - a road may cross or join a PATH build without consent, while it changes none of the path's cells (gated).
+  
+  PT builds after T2, alongside P0.
