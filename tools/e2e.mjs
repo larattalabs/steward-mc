@@ -486,6 +486,10 @@ async function playerBuilds(id) {
   await cmd(`/steward view ${id}`);
   await sleep(1500);
   if (!/SettlementScreen/.test(JSON.stringify(await dev.request('dev.state')))) fail('player build shown', 'the settlement screen did not open');
+  // the Claim tab, where the hand-built row is (Tab moves along: Buildings, History, Claim)
+  await dev.request('dev.key', { key: 'tab' });
+  await dev.request('dev.key', { key: 'tab' });
+  await sleep(800);
   const screenShot = (await dev.request('dev.screenshot', { name: 'e2e-player-build-screen', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
   await closeScreens();
   await cmd('/gamemode spectator');

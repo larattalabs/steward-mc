@@ -420,6 +420,18 @@ public final class SettlementScreen extends KitScreen {
 		return true;
 	}
 
+	@Override
+	public boolean keyPressed(net.minecraft.client.input.KeyEvent e) {
+		// Tab (Shift+Tab back) moves between the tabs, as the card screen's Tab does, when no text box has the keys
+		if (!fieldFocused && e.key() == com.mojang.blaze3d.platform.InputConstants.KEY_TAB) {
+			Tab[] all = Tab.values();
+			tab = all[Math.floorMod(tab.ordinal() + (e.hasShiftDown() ? -1 : 1), all.length)];
+			scroll = 0;
+			return true;
+		}
+		return super.keyPressed(e);
+	}
+
 	/** DevBridge: open a building's panel. */
 	public void openBuilding(String siteId) {
 		open(siteId);
