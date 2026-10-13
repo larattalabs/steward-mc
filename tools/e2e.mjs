@@ -470,16 +470,16 @@ async function playerBuilds(id) {
   await cmd(`/tp @p ${x0 + 3} ~ ${z0 + 3}`);
   await sleep(1000);
   const y = Math.floor(Number(((await cmd(`/data get entity @p Pos`)).match(/, (-?[\d.]+)d, /) ?? [0, 64])[1]));
-  // a 7x7 hut, 5 high, with a door on its south side
+  // a 7x7 hut, 5 high (its bottom row the floor), with a door on its south side standing on the floor
   await cmd(`/fill ${x0} ${y} ${z0} ${x0 + 6} ${y + 4} ${z0 + 6} minecraft:oak_planks hollow`);
-  await cmd(`/setblock ${x0 + 3} ${y} ${z0 + 6} minecraft:oak_door[half=lower,facing=south]`);
-  await cmd(`/setblock ${x0 + 3} ${y + 1} ${z0 + 6} minecraft:oak_door[half=upper,facing=south]`);
+  await cmd(`/setblock ${x0 + 3} ${y + 1} ${z0 + 6} minecraft:oak_door[half=lower,facing=south]`);
+  await cmd(`/setblock ${x0 + 3} ${y + 2} ${z0 + 6} minecraft:oak_door[half=upper,facing=south]`);
   await cmd(`/tp @p ${x0 + 3} ${y} ${z0 + 3}`);
   const claimed = await cmd(`/steward builds ${id} claim 4`);
   const bid = (claimed.match(/\((build-\d+)/) ?? [])[1];
   if (!bid) return fail('player build', claimed);
   const listed = await cmd(`/steward builds ${id}`);
-  if (listed.includes(bid)) ok('player build', `${claimed.slice(0, 110)}; listed: ${listed.split('\n')[1]?.slice(0, 90)}`);
+  if (listed.includes(bid) && !/no door/.test(listed)) ok('player build', `${claimed.slice(0, 110)}; listed: ${listed.split('\n')[1]?.slice(0, 90)}`);
   else fail('player build', listed.slice(0, 200));
   // the settlement screen, opened from outside the hut (as a player would, by command)
   await cmd(`/tp @p ${x0 + 3} ${y} ${z0 + 14}`);
