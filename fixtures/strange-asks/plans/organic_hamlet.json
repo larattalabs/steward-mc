@@ -1,0 +1,164 @@
+{
+  "prompt": "A hamlet that looks like it grew over centuries, crooked lanes and all.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "centuries_hamlet",
+      "style": {
+        "pending": "centuries_hamlet"
+      },
+      "notes": "Organic, crooked-lane feel is carried by lot briefs; the street layout gives the lane structure. Land is unsurveyed, so placement is left to the fitter.",
+      "zones": [
+        {
+          "id": "hamlet",
+          "label": "Centuries hamlet",
+          "required": true,
+          "purpose": "farming",
+          "program": {
+            "layout": "street",
+            "shared": "none",
+            "lots": [
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "old_village_hall",
+                "label": "old village hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Oldest building, stone base with timber additions of later ages, stands where the lanes meet"
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "cottages",
+                "label": "cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Different in age and shape, leaning, with patched roofs and added lean-tos",
+                "villager": "dwelling"
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "cottages",
+                "label": "cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Different in age and shape, leaning, with patched roofs and added lean-tos",
+                "villager": "dwelling"
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "cottages",
+                "label": "cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Different in age and shape, leaning, with patched roofs and added lean-tos",
+                "villager": "dwelling"
+              },
+              {
+                "id": "cottage_4",
+                "type": "cottage",
+                "role": "cottages",
+                "label": "cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Different in age and shape, leaning, with patched roofs and added lean-tos",
+                "villager": "dwelling"
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "farmhouse",
+                "label": "farmhouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Rambling, extended over generations, with a small garden",
+                "villager": "dwelling"
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "farmhouse",
+                "label": "farmhouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Rambling, extended over generations, with a small garden",
+                "villager": "dwelling"
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "old_chapel",
+                "label": "old chapel",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Stone, small, with a mismatched later tower or porch"
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "smithy",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Soot-stained, open forge on a lane corner",
+                "villager": "job"
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "barn",
+                "label": "barn",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Weathered, patched with different timber",
+                "villager": "farm"
+              },
+              {
+                "id": "well_1",
+                "type": "well",
+                "role": "well_and_green",
+                "label": "well and green",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Small irregular green with a well where lanes bend"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A single hamlet zone of 11 buildings laid out along a street: a stone-and-timber old hall at the centre, a well and green where the lanes bend, four cottages, two farmhouses, a chapel, a smithy, and a barn at the edge. The style is pending and will be made as an aged medieval bible afterward. Crooked lanes and mismatched ages come through in each building's brief."
+  },
+  "usd": 0.027631,
+  "errors": []
+}

@@ -29,6 +29,9 @@ Writing the plan:
   write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a wall, a gate, a bridge, a second district, a ring
   layout, a palette rule, a hard shape rule. Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
   drop what the player asked for silently, and never pretend it is supported.
+- **Layouts.** A layout that is not one street (a ring, a spiral, a grid, a hamlet that grew organically, floors stacked in one tower) is never
+  just left out: write it as a part of the kind the catalogue reserves for it, or, if it reserves none, of the kind you think it needs, and say it
+  in `waits`.
 - **Required.** Mark every part `required` true or false. A part is required when the ask is about it ("a walled town": the wall); a flourish is not.
 - **Notes.** Put what no field can hold in the part's `notes` (or the plan's), in a sentence.
 

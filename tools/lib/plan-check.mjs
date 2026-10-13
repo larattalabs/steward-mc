@@ -17,7 +17,7 @@ export function checkAnswer(answer) {
 /** The plan's parts as {family, kind, id, required} (zones, connectors, forms, rules, and any other array of parts). */
 export function partsOf(plan) {
   const out = [];
-  for (const family of ['zones', 'connectors', 'forms', 'rules', 'dependencies']) {
+  for (const family of ['zones', 'connectors', 'forms', 'rules']) {
     for (const p of plan?.[family] ?? []) out.push({ family, kind: p.kind ?? (family === 'zones' ? 'standard' : '?'), id: p.id, required: p.required });
   }
   return out;

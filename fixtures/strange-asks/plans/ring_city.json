@@ -1,0 +1,334 @@
+{
+  "prompt": "A ring city around a crater lake, every house facing the water.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "crater_lake_ring_city",
+      "style": {
+        "pending": "crater_lake_ring_city"
+      },
+      "zones": [
+        {
+          "id": "ring_town",
+          "kind": "standard",
+          "required": true,
+          "label": "Ring town",
+          "purpose": "home",
+          "style": {
+            "pending": "crater_lake_ring_city"
+          },
+          "notes": "Residential town on the crater rim; every building faces the lake.",
+          "program": {
+            "layout": "street",
+            "shared": "none",
+            "lots": [
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "lakeside_houses",
+                "label": "lakeside house",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Set in a ring on the crater rim, doors and windows facing the lake."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "lakeside_houses",
+                "label": "lakeside house",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Set in a ring on the crater rim, doors and windows facing the lake."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "lakeside_houses",
+                "label": "lakeside house",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Set in a ring on the crater rim, doors and windows facing the lake."
+              },
+              {
+                "id": "house_4",
+                "type": "house",
+                "role": "lakeside_houses",
+                "label": "lakeside house",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Set in a ring on the crater rim, doors and windows facing the lake."
+              },
+              {
+                "id": "house_5",
+                "type": "house",
+                "role": "lakeside_houses",
+                "label": "lakeside house",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Set in a ring on the crater rim, doors and windows facing the lake."
+              },
+              {
+                "id": "house_6",
+                "type": "house",
+                "role": "lakeside_houses",
+                "label": "lakeside house",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Set in a ring on the crater rim, doors and windows facing the lake."
+              },
+              {
+                "id": "house_7",
+                "type": "house",
+                "role": "lakeside_houses",
+                "label": "lakeside house",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Set in a ring on the crater rim, doors and windows facing the lake."
+              },
+              {
+                "id": "house_8",
+                "type": "house",
+                "role": "lakeside_houses",
+                "label": "lakeside house",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Set in a ring on the crater rim, doors and windows facing the lake."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "ring_cottages",
+                "label": "ring cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "brief": "Smaller home filling a gap in the ring, facing the water."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "ring_cottages",
+                "label": "ring cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "brief": "Smaller home filling a gap in the ring, facing the water."
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "ring_cottages",
+                "label": "ring cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "brief": "Smaller home filling a gap in the ring, facing the water."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "lake_hall",
+                "label": "lake hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Grand hall on the ring with a terrace overlooking the lake; the town's gathering place."
+              },
+              {
+                "id": "boathouse_1",
+                "type": "boathouse",
+                "role": "boathouse_and_jetty",
+                "label": "boathouse and jetty",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Wooden jetty reaching into the crater lake with boats."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "market_shops",
+                "label": "market shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Stall along the ring street near the hall."
+              },
+              {
+                "id": "shop_2",
+                "type": "shop",
+                "role": "market_shops",
+                "label": "market shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Stall along the ring street near the hall."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Outer entrance through the ring on the outward side."
+              }
+            ]
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "gate_street",
+          "kind": "street",
+          "required": false,
+          "label": "Gate street",
+          "from": {
+            "part": "gatehouse_1"
+          },
+          "to": {
+            "part": "tavern_1"
+          },
+          "lamps": "street",
+          "notes": "Lantern-lit street from the outer gate to the lake hall."
+        },
+        {
+          "id": "ring_street",
+          "kind": "ring_street",
+          "required": true,
+          "label": "Ring street",
+          "notes": "A closed lantern-lit street looping the whole crater rim, with every lot fronting it on the lake side.",
+          "params": {
+            "closed": true,
+            "around": {
+              "part": "crater_lake"
+            },
+            "lamps": "street"
+          }
+        }
+      ],
+      "forms": [
+        {
+          "id": "crater_lake",
+          "kind": "pond",
+          "required": true,
+          "label": "Crater lake",
+          "notes": "A lake filling the middle of the crater, the shared water centre.",
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "params": {
+            "placement": "claim_center",
+            "shape": "round"
+          }
+        },
+        {
+          "id": "crater_rim",
+          "kind": "brush",
+          "required": true,
+          "label": "Sculpted crater",
+          "notes": "Sculpt a bowl-shaped crater with a level rim ring for the town and a basin for the lake.",
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "params": {
+            "shape": "crater",
+            "placement": "claim_center"
+          }
+        }
+      ],
+      "rules": [
+        {
+          "id": "face_water",
+          "kind": "shape",
+          "required": true,
+          "label": "Everything faces the lake",
+          "notes": "Every house and cottage has its door and windows facing the lake.",
+          "scope": [
+            "house_1",
+            "house_2",
+            "house_3",
+            "house_4",
+            "house_5",
+            "house_6",
+            "house_7",
+            "house_8",
+            "cottage_1",
+            "cottage_2",
+            "cottage_3"
+          ],
+          "params": {
+            "facing": "crater_lake"
+          }
+        }
+      ]
+    },
+    "waits": [
+      {
+        "part": "crater_lake",
+        "words": "The crater lake at the centre: ponds and water bodies come with a later Architect release."
+      },
+      {
+        "part": "crater_rim",
+        "words": "The sculpted crater bowl and rim: terrain sculpting brushes are not available yet."
+      },
+      {
+        "part": "ring_street",
+        "words": "The closed ring street around the lake: ring layouts are not available yet; the houses are laid out on an ordinary street meanwhile."
+      },
+      {
+        "part": "face_water",
+        "words": "The rule that every house faces the lake: shape rules can't be verified yet; it is carried in each lot's brief."
+      }
+    ],
+    "summary": "A medieval residential town of 16 buildings: 8 lakeside houses, 3 ring cottages, a lake hall tavern, a boathouse with jetty, 2 market shops and a gatehouse. They're built now as one street-laid village, with a lantern-lit street from gate to hall. The crater, lake, closed ring street and the face-the-water rule can't be built yet; they're kept as pending parts and offered when Architect supports them."
+  },
+  "usd": 0.042497,
+  "errors": []
+}

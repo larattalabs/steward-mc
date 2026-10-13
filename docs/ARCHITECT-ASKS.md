@@ -413,3 +413,12 @@ The geometric schema's first draft comes to Steward when it is pushed; Steward's
   - **v0.23.1** logs an item's wait once per reason. The jar sha differs only in `builtAt` and manifest order.
   - **Steward's side:** the steward now says what holds an item up (`ITEM_WAITING`: someone on the lot, an animal in it, ground not loaded). The e2e clears animals before every build, keeps the player off the lots, and waits 720 s, past Architect's 600 s.
 - **v0.23.0** (F2, API 1.20.0) and **v0.23.1** (the C30 log line) are released; Steward is on 0.23.1.
+
+**The plan v0 round (2026-10-12, paid, $2.00 within Noah's $40 cap; `fixtures/strange-asks/plans/`, `tools/record-plans.mjs`): all 59 plans are valid plan/0.** Claude wrote them from the recorded cards, at about $0.03 a plan once the prompt was cached. 34 plans have parts that wait, all carried by the extension envelope and none malformed.
+- **Most wanted reserved kinds:** `connector.rope_bridge` (11 parts), `connector.wall` (8), `rule.palette` (8), `rule.shape` (4), `connector.tunnel` (4).
+- **Free layouts have no reserved name,** so the same idea came out four ways: `connector.ring_street`, `connector.grid`, a `rule.shape` "spiral_shape", and `rule.ring_layout` / `rule.layout_ring`. **Ask:** reserve FL's vocabulary before plan/0 freezes, for example `program.lots.layout`: `ring | spiral | grid | organic` (reserved until FL), so an unsupported answer names one block.
+- **Kinds Claude needed that the catalogue doesn't list** (candidates to reserve):
+  - forms: `crater`, `hollow_mountain`, `waterfall`, `seabed_site`, `ship_hull`, `mast` (7c, H, under water, moving);
+  - zones: `district` (the reserved `{districts}` program wasn't found);
+  - rules: `stacked_floors` (an arcology), `suspended` (an upside-down village).
+- **Steward's side:** the organic hamlet's layout was dropped silently. The plan writer's prompt now says a layout other than one street is always written as a part and said in `waits`.
