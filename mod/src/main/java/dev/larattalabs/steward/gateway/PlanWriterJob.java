@@ -26,8 +26,22 @@ public final class PlanWriterJob {
 
 	/** {@code card}: the concept card as JSON; {@code land}: the land line or null; {@code anchors}: the anchor names the caller will supply. */
 	public static JobSpec build(String card, @Nullable String land, List<String> anchors, @Nullable String owner) {
-		return new JobSpec("structured", userPrompt(card, land, anchors), systemPrompt(), MODEL, "medium", schema(), List.of(), BUDGET_USD, 4, owner, TAG, null,
-			new JsonObject(), List.of());
+		return build(card, land, anchors, owner, null, null);
+	}
+
+	/**
+	 * A repair round when {@code previous} (the last plan) and {@code answers} (Architect's check of it, one line a part) are given: the plan is revised so
+	 * the refused and malformed parts fit (their {@code wouldFit} where given), what fits is kept, and unsupported parts stay as they are (they wait).
+	 */
+	public static JobSpec build(String card, @Nullable String land, List<String> anchors, @Nullable String owner, @Nullable String previous, @Nullable String answers) {
+		String user = userPrompt(card, land, anchors);
+		if (previous != null && answers != null) {
+			user += "\nYour previous plan:\n" + previous + "\n\nArchitect's check of it, part by part:\n" + answers
+				+ "\nRevise the plan: make the refused and malformed parts fit (use wouldFit where it is given), keep what fits as it is, and keep the unsupported parts"
+				+ " as they are (they wait for Architect). Answer with the whole revised plan.\n";
+		}
+		return new JobSpec("structured", user, systemPrompt(), MODEL, "medium", schema(), List.of(), BUDGET_USD, 4, owner, TAG, null, SimAnswers.ext(SimAnswers.PLAN),
+			List.of());
 	}
 
 	static String userPrompt(String card, @Nullable String land, List<String> anchors) {

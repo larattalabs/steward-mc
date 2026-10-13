@@ -12,7 +12,7 @@ import org.jspecify.annotations.Nullable;
  * never sees one unless a host set it. One world's.
  */
 public final class SimAnswers {
-	public static final String CARD = "card", TALK = "talk", PROPOSAL = "proposal";
+	public static final String CARD = "card", TALK = "talk", PROPOSAL = "proposal", PLAN = "plan";
 	private static final Map<String, JsonElement> ANSWERS = new HashMap<>();
 
 	private SimAnswers() {

@@ -903,11 +903,19 @@ async function stubFlow(id) {
   // this settlement stays on Steward's own layout (additions, districts and the rest below rest on it); villageFlow builds one on Architect's flat village
   await cmd(`/steward dev layout ${id} legacy`);
   await cmd(`/steward dev sim_answer card ${fixture('stilt_village.json')}`);
+  // the plan Claude composes from the card (plan v0): a walled town, whose wall waits for Architect's walls (connector.wall)
+  await cmd(`/steward dev sim_answer plan ${fixture('plans/walled_town.json')}`);
   let from = logSize();
   await cmd(`/steward describe ${id} a fishing village on stilts over a swamp`);
   if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('describe', `no card: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
   const card = settlements().find((x) => x.id === id);
   ok('describe', `${card?.name}: ${(card?.card?.program ?? []).length} program entries (the scripted card through the card job)`);
+  // the composed plan is checked and kept, with the wall pending on its building block
+  const composed = await waitLog(from, new RegExp(`plan for ${id}: ([^\n]*)`), 240_000);
+  const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
+  const wallWaits = plans[id]?.pending?.find((x) => x.part === 'town_wall');
+  if (wallWaits?.block === 'connector.wall' && /Not yet: The town wall/.test(logSince(from))) ok('composition', `${plans[id].overall} after ${plans[id].rounds} repair(s); the wall waits on ${wallWaits.block}`);
+  else fail('composition', `${composed ? composed[1] : 'no plan'}; ${JSON.stringify(plans[id] ?? null)?.slice(0, 200)}`);
   // what waits for Architect, on the card before anything is spent: a stilt village over a swamp stands beside the water for now
   const limit = logSince(0).match(/Not yet: (Buildings over water[^\n]*)/);
   await closeScreens();

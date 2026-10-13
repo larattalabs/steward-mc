@@ -156,6 +156,8 @@ public final class Actions {
 				p.sendSystemMessage(Component.literal(res.note()));
 				p.sendSystemMessage(Component.literal(startHint(id, r.card())));
 				sendCard(p, res.settlement());
+				// Claude composes the settlement's plan from the card and the land, Architect checks it (plan v0: kept and told; building takes today's paths)
+				Composer.compose(server, who, res.settlement(), cardJson(r.card()), land);
 			});
 	}
 
