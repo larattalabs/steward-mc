@@ -70,7 +70,7 @@ public final class PPlan {
 
 	/**
 	 * The plan as this build builds it: a copy of {@code plan} with the parts that wait for Architect ({@code waiting}, by part id) no longer required (Noah's
-	 * 9.2 default: the town is built now, the part stays pending), and each lot of each zone tagged as Steward tags a batch lot (settlement, lot, role, build;
+	 * 9.2 default: the town is built now, the part stays pending), each village street laid east-west and not turned (C37), and each lot of each zone tagged as Steward tags a batch lot (settlement, lot, role, build;
 	 * Architect C19 puts them on the lot's site). Deterministic: the same inputs make the same plan, so a re-check after a restart or a stale artifact checks
 	 * the same plan.
 	 */
@@ -82,6 +82,26 @@ public final class PPlan {
 				if (!e.isJsonObject()) continue;
 				JsonObject part = e.getAsJsonObject();
 				if (part.has("id") && waiting.contains(part.get("id").getAsString())) part.addProperty("required", false);
+			}
+		}
+		// the street runs east-west, and the zone isn't turned (Architect C37): Steward's designs, walks and growth know an east-west street only
+		if (out.has("zones") && out.get("zones").isJsonArray()) {
+			for (JsonElement z : out.getAsJsonArray("zones")) {
+				if (!z.isJsonObject() || !z.getAsJsonObject().has("program") || !z.getAsJsonObject().get("program").isJsonObject()) continue;
+				JsonObject zone = z.getAsJsonObject(), program = zone.getAsJsonObject("program");
+				boolean template = program.has("template") && "flat_village".equals(program.get("template").getAsString());
+				boolean street = program.has("lots") && program.has("layout") && "street".equals(program.get("layout").getAsString());
+				if (!template && !street) continue;
+				if (template) {
+					JsonObject params = program.has("params") && program.get("params").isJsonObject() ? program.getAsJsonObject("params") : new JsonObject();
+					params.addProperty("orientation", "ew");
+					program.add("params", params);
+				} else program.addProperty("orientation", "ew");
+				JsonObject tol = zone.has("tolerance") && zone.get("tolerance").isJsonObject() ? zone.getAsJsonObject("tolerance") : new JsonObject();
+				JsonObject rotate = new JsonObject();
+				rotate.addProperty("allowed", false);
+				tol.add("rotate", rotate);
+				zone.add("tolerance", tol);
 			}
 		}
 		for (JsonObject lot : lots(out)) {

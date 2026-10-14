@@ -1676,7 +1676,7 @@ public final class SettlementRunner {
 
 	/**
 	 * Realises the approved artifact (plan v1), with the designs that fit their lots (a design past its lot's approved box or height would make Architect
-	 * refuse the whole village: that lot is left a pad and said; a design past its approved cost is Architect's refusal, until it gives the count). Stale (the land under the plan changed while the buildings were designed): the plan Architect
+	 * refuse the whole village: that lot is left a pad and said). Stale (the land under the plan changed while the buildings were designed): the plan Architect
 	 * froze in the artifact is checked once more, the new artifact saved with the build before the old one is let go, and realised under a second key; a
 	 * restart after that does not retry again. A cancel, or a runner replaced, while the re-check runs ends it there. The pin goes when the region is taken
 	 * as the build's ({@link #adoptVillage}) or the build ends ({@link #persist}).
@@ -1740,7 +1740,7 @@ public final class SettlementRunner {
 		}
 	}
 
-	/** The lot entries whose designs fit their approved lots ({@link dev.larattalabs.steward.gateway.PPlan#lotProblem}); the others are said and left pads. */
+	/** The lot entries whose designs fit their approved lots, box, height and cost ({@link dev.larattalabs.steward.gateway.PPlan#lotProblem}); the others are said and left pads. */
 	private Map<String, String> fitting(String sha, Map<String, String> lotEntries) {
 		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
 		if (body == null || !body.has("lots") || !body.get("lots").isJsonArray()) return lotEntries;
@@ -1753,8 +1753,9 @@ public final class SettlementRunner {
 			String entryId = e.getValue().contains("@") ? e.getValue().substring(0, e.getValue().indexOf('@')) : e.getValue();
 			var entry = lot == null ? java.util.Optional.<dev.larattalabs.architect.api.Library.Entry>empty() : library.get(entryId);
 			if (entry.isEmpty()) { out.put(e.getKey(), e.getValue()); continue; }
-			// the box and the height only: a template's non-air count is Architect's to read (parts' cells count carved air and miss unnamed cells)
-			String problem = dev.larattalabs.steward.gateway.PPlan.lotProblem(lot, entry.get().size().x(), entry.get().size().y(), entry.get().size().z(), -1);
+			// the head's non-air count, the one Architect compares with the lot's cost (C37b; 0 = it couldn't read the template: Architect's to refuse)
+			long cells = entry.get().cells();
+			String problem = dev.larattalabs.steward.gateway.PPlan.lotProblem(lot, entry.get().size().x(), entry.get().size().y(), entry.get().size().z(), cells > 0 ? cells : -1);
 			if (problem == null) out.put(e.getKey(), e.getValue());
 			else say(e.getKey().replace('_', ' ') + " is left a pad: its design (" + problem + ") doesn't fit the plan as approved.");
 		}

@@ -33,6 +33,10 @@ class PPlanTest {
 			assertEquals("b1", ext.get(BatchPlanner.BUILD_EXT).getAsString());
 			assertFalse(ext.get("steward_mc:role").getAsString().isBlank());
 		}
+		// the town's street runs east-west and the zone is not turned (C37): Steward's designs know an east-west street
+		var town = built.getAsJsonArray("zones").get(0).getAsJsonObject();
+		assertEquals("ew", town.getAsJsonObject("program").getAsJsonObject("params").get("orientation").getAsString());
+		assertFalse(town.getAsJsonObject("tolerance").getAsJsonObject("rotate").get("allowed").getAsBoolean());
 		// the kept plan is not changed, and the same inputs make the same plan (a re-check checks the same thing)
 		assertTrue(plan.getAsJsonArray("connectors").get(0).getAsJsonObject().get("required").getAsBoolean());
 		assertEquals(built, PPlan.forBuild(plan, Set.of("town_wall"), "set_7", "b1"));

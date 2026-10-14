@@ -66,18 +66,18 @@
 
   "x-catalogue": {
     "about": "The capability catalogue that P0 ships (catalogueVersion 1). Each entry: a stable block id (never reused or renamed), the API version it arrived in (sinceApi; P0 is a placeholder the coordinator replaces at merge with the real minor), its own schemaVersion (bumped when its members grow, additively), its state (supported | reserved | retired) and, for reserved, the slice it waits for (until). Checks return this catalogue with every answer; a release commits it as a golden so two catalogues diff by id. Reserved entries carry their parameters through $defs/extension until supported.",
-    "catalogueVersion": 1,
+    "catalogueVersion": 4,
     "entries": [
       { "id": "zone.standard", "sinceApi": "P0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/zone.standard" },
-      { "id": "zone.outpost", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "D2" },
+      { "id": "zone.outpost", "sinceApi": "P0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/zone.outpost" },
       { "id": "zone.district", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "D1", "aliasOf": "program.districts", "note": "Reserved alias of the districts program form; the answer names program.districts (R4c)." },
-      { "id": "program.flat_village", "sinceApi": "P0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/program.template" },
-      { "id": "program.lots", "sinceApi": "P0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/program.lots" },
-      { "id": "program.districts", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "D1" },
+      { "id": "program.flat_village", "sinceApi": "P0", "schemaVersion": 2, "state": "supported", "def": "#/$defs/program.template", "note": "C37 (sinceApi 1.30.0, a placeholder set at merge): additive orientation member (ew | ns | auto) of street layouts." },
+      { "id": "program.lots", "sinceApi": "P0", "schemaVersion": 2, "state": "supported", "def": "#/$defs/program.lots", "note": "C37 (sinceApi 1.30.0, a placeholder set at merge): additive orientation member (ew | ns | auto) of street layouts." },
+      { "id": "program.districts", "sinceApi": "P0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/program.districts" },
       { "id": "program.crater_works", "sinceApi": "P0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/program.template", "note": "N-P0-1: the bundled crater_works program as a named template. A whole-claim program: it compiles only as the plan's sole zone, over the whole claim." },
       { "id": "program.rift_city", "sinceApi": "P0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/program.template", "note": "N-P0-1: the bundled rift_city program as a named template. A whole-claim program: it compiles only as the plan's sole zone, over the whole claim." },
       { "id": "program.floating_islands", "sinceApi": "P0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/program.template", "note": "N-P0-1: the bundled floating_islands program as a named template. A whole-claim program: it compiles only as the plan's sole zone, over the whole claim." },
-      { "id": "layout.street", "sinceApi": "P0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/program.lots" },
+      { "id": "layout.street", "sinceApi": "P0", "schemaVersion": 2, "state": "supported", "def": "#/$defs/program.lots", "note": "C37 (sinceApi 1.30.0, a placeholder set at merge): additive orientation member (ew | ns | auto) of street layouts." },
       { "id": "layout.ring", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "FL" },
       { "id": "layout.spiral", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "FL" },
       { "id": "layout.grid", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "FL" },
@@ -128,19 +128,19 @@
       { "id": "locator.inside", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "locator.near", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "locator.adjacent", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
-      { "id": "locator.along", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "D2" },
+      { "id": "locator.along", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "locator.around", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "FL" },
       { "id": "feature.water", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "feature.part", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "feature.protected", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "feature.region", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "D1" },
-      { "id": "feature.biome_edge", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "D2" },
-      { "id": "feature.ridge", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "D2" },
+      { "id": "feature.biome_edge", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
+      { "id": "feature.ridge", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "feature.build", "sinceApi": "1.24.0", "schemaVersion": 1, "state": "supported", "note": "PT (C32): a player's build as a plan feature {build: {id | kind, pick?, to?}}; also target {build: id} (inside, adjacent) and near {feature: {build}}. sinceApi is PT's placeholder, set at merge." },
       { "id": "endpoint.part", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "endpoint.anchor", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "endpoint.feature", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
-      { "id": "endpoint.region", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "D1" },
+      { "id": "endpoint.region", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "endpoint.build", "sinceApi": "1.24.0", "schemaVersion": 1, "state": "supported", "note": "PT (C32): {build: id, port?: door | door_<n>}: a road ends on the door's apron (the cells outside it)." },
       { "id": "sketch.point", "sinceApi": "P0", "schemaVersion": 1, "state": "supported" },
       { "id": "sketch.outline", "sinceApi": "P0", "schemaVersion": 0, "state": "reserved", "until": "FL" },
@@ -299,7 +299,7 @@
         { "type": "object", "required": ["part"], "additionalProperties": false, "properties": { "part": { "$ref": "#/$defs/id" }, "port": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" } } },
         { "type": "object", "required": ["anchor"], "additionalProperties": false, "properties": { "anchor": { "$ref": "#/$defs/anchor" } } },
         { "type": "object", "required": ["feature"], "additionalProperties": false, "properties": { "feature": { "$ref": "#/$defs/feature" } } },
-        { "type": "object", "required": ["region"], "additionalProperties": false, "properties": { "region": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,200}$" }, "port": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" } } },
+        { "type": "object", "required": ["region"], "additionalProperties": false, "description": "(D1, endpoint.region) a standing region of the plan's owner beside the claim: the route ends at the cell past one of its street ends (port: that street end's graph node id; absent: the street end nearest the other end) inside the claim's seam (at most 16 columns of overlap), written by this plan's region, which the standing region's own undo never touches", "properties": { "region": { "type": "string", "pattern": "^[A-Za-z0-9_.:-]{1,200}$" }, "port": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$" } } },
         { "type": "object", "required": ["build"], "additionalProperties": false, "description": "(PT, endpoint.build) a road ending on a build's door apron: port door (its first entrance) or door_<n> (the n-th, from 1)", "properties": { "build": { "type": "string", "pattern": "^build-[0-9]{1,18}$" }, "port": { "type": "string", "pattern": "^door(_[0-9]{1,3})?$" } } }
       ],
       "oneOfMessage": "an endpoint is {part, port?}, {anchor}, {feature}, {region, port?} or {build, port?}"
@@ -361,7 +361,7 @@
       "type": "object", "required": ["template"], "additionalProperties": false,
       "properties": {
         "template": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,47}$", "description": "A named template from the catalogue (program.<name>). v0: flat_village (laid out in the zone's rect), and crater_works, rift_city and floating_islands (N-P0-1; whole-claim programs: only as the plan's sole zone)." },
-        "params": { "type": "object", "description": "The template's own params, checked by the kit's validateParams against the program's declared params; an error is malformed with the param path. A template's lots param is a list of $defs/lot." }
+        "params": { "type": "object", "description": "For flat_village, params.orientation. Street orientation (C37, sinceApi 1.30.0): orientation \"ew\" | \"ns\" | \"auto\" (default auto: the layout picks the axis that places more lots, then scores higher, so it depends on the lot sizes). \"ew\" means the street runs east-west (along x), \"ns\" north-south (along z). \"ew\" and \"ns\" are strict: only that axis is tried, never a fallback, and lots that do not fit are unplaced as ever. If the forced axis places no lot where the other would, the part answers refused NO_ROOM (evidence.orientation names it) and wouldFit holds the same part with the other orientation. The template's own params, checked by the kit's validateParams against the program's declared params; an error is malformed with the param path. A template's lots param is a list of $defs/lot." }
       }
     },
     "program.lots": {
@@ -369,13 +369,31 @@
       "properties": {
         "lots": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "$ref": "#/$defs/lot" } },
         "layout": { "enum": ["street", "ring", "spiral", "grid", "organic"], "description": "How the lots are laid out. street: supported (flat_village's layout with its defaults). ring, spiral, grid and organic: reserved for slice FL, block ids layout.ring, layout.spiral, layout.grid and layout.organic; a lots program that names one answers unsupported {block: layout.<name>}. Write a free layout here, never as a connector kind (connector.ring_street, connector.grid) or a rule kind (rule.ring_layout)." },
-        "shared": { "enum": ["square", "well", "none"] }
+        "shared": { "enum": ["square", "well", "none"] },
+        "orientation": { "enum": ["ew", "ns", "auto"], "description": "Street orientation (C37, sinceApi 1.30.0): orientation \"ew\" | \"ns\" | \"auto\" (default auto: the layout picks the axis that places more lots, then scores higher, so it depends on the lot sizes). \"ew\" means the street runs east-west (along x), \"ns\" north-south (along z). \"ew\" and \"ns\" are strict: only that axis is tried, never a fallback, and lots that do not fit are unplaced as ever. If the forced axis places no lot where the other would, the part answers refused NO_ROOM (evidence.orientation names it) and wouldFit holds the same part with the other orientation." }
       }
     },
     "program.districts": {
-      "type": "object", "required": ["districts"],
-      "description": "Districts: reserved program form (D1), block id program.districts. Write a settlement of several districts as a zone with program {districts: [...]}, or as zone kind district, a reserved alias that answers the same block. Here so a plan can name it; dispatch answers unsupported {block: program.districts} until D1 ships.",
-      "properties": { "districts": { "type": "array", "maxItems": 16 } }
+      "type": "object", "required": ["districts"], "additionalProperties": false,
+      "description": "Districts (D1, block id program.districts; supported since D1, schemaVersion 1): a settlement of several districts as one zone with program {districts: [...], loopiness?}. Each district is placed on a survey candidate (an area of its size at its level band: the claim's height terciles), laid out as one street of its lots with its shared space, and the districts are joined by routes: a minimum spanning tree by route cost plus the cheapest loops while their added cost stays within loopiness of the tree's (default 0.15). The zone's where and size are not read in v0 (the districts are placed over the claim, around the plan's other zones and forms). A district is unplaced (an adjusted answer, its lots counted against count) when no candidate fits or no route reaches it. Zone kind district (zone.district) is an alias: its program decides, so a district zone with a lots program is a standard zone. A connector names one district as {part: <zone>, port: <district id>} (its street end nearest the other end). District ids share the plan's id namespace with parts and lots.",
+      "properties": {
+        "districts": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/district" } },
+        "loopiness": { "type": "number", "minimum": 0, "maximum": 1, "description": "Loops added past the spanning tree, as a share of the tree's route cost (1/64 steps). Default 0.15." }
+      }
+    },
+    "district": {
+      "type": "object", "required": ["id", "size", "lots"], "additionalProperties": false,
+      "description": "(D1) One district of a districts program: its own street of lots and shared space, on a survey candidate of its size at its level band.",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,23}$" },
+        "label": { "$ref": "#/$defs/label" },
+        "size": { "$ref": "#/$defs/size", "description": "The district's rect (blocks; a range or a preset resolves to its largest); each side 24..256." },
+        "lots": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/lot" } },
+        "levelBand": { "enum": ["low", "mid", "high", "any"], "description": "The claim's height tercile the district sits in (default any)." },
+        "prefer": { "type": "array", "maxItems": 7, "items": { "enum": ["flat", "sloped", "wet", "dry", "near_water", "wooded", "open"] }, "description": "Candidate tags preferred (each missing one costs; never a refusal)." },
+        "near": { "type": "array", "maxItems": 15, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,23}$" }, "description": "Other districts of this program it is placed near (after them, its cost the distance to them)." },
+        "shared": { "enum": ["square", "well"], "description": "Its shared space (default square when both sides are at least 40, else well)." }
+      }
     },
     "program": {
       "oneOf": [ { "$ref": "#/$defs/program.template" }, { "$ref": "#/$defs/program.lots" }, { "$ref": "#/$defs/program.districts" } ],
@@ -400,6 +418,25 @@
         "sketch": { "$ref": "#/$defs/sketch" },
         "size": { "$ref": "#/$defs/size" },
         "tolerance": { "$ref": "#/$defs/tolerance" }
+      }
+    },
+    "zone.outpost": {
+      "type": "object", "required": ["id", "program"], "additionalProperties": false,
+      "description": "(D2, zone.outpost) An outpost: a district not touching the town, placed on a survey candidate at least gap (default 24) from every zone and form before it and joined by a road to the nearest other zone's street end; the road's corridor is reported as settlement land and undone with the outpost (one region). Otherwise as zone.standard: a part of the settlement with its own purpose, style and buildings. v0 compiles it to a rect inside the claim laid out by its program.",
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "kind": { "const": "outpost" },
+        "required": { "type": "boolean" },
+        "label": { "$ref": "#/$defs/label" },
+        "notes": { "$ref": "#/$defs/text500" },
+        "ext": { "$ref": "#/$defs/ext" },
+        "purpose": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,31}$", "description": "A short tag (market, farming, mining, temple). Recorded and echoed; not interpreted in v0." },
+        "style": { "$ref": "#/$defs/bibleRef" },
+        "program": { "$ref": "#/$defs/program" },
+        "where": { "$ref": "#/$defs/where" },
+        "sketch": { "$ref": "#/$defs/sketch" },
+        "size": { "$ref": "#/$defs/size" },
+        "tolerance": { "$ref": "#/$defs/tolerance" }, "gap": { "type": "integer", "minimum": 8, "maximum": 512, "description": "Columns kept from the zones and forms resolved before it (default 24)." }
       }
     },
 

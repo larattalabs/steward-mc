@@ -6,8 +6,11 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class PlanWriterJobTest {
-	/** Architect's jobs refuse a system prompt over 50,000 characters (job.system); the plan schema grows with each block. */
-	static final int ARCHITECT_SYSTEM_LIMIT = 50_000;
+	/**
+	 * Architect's structured jobs refuse a system prompt over 120,000 characters (job.system, C33, API 1.25; Steward needs 1.26). The schema usually goes
+	 * by reference (systemRefs); inline is the fallback for a helper without it, and grows with each block.
+	 */
+	static final int ARCHITECT_SYSTEM_LIMIT = 120_000;
 
 	@Test
 	void theSystemPromptFitsArchitectsLimitWithRoomToGrow() {
