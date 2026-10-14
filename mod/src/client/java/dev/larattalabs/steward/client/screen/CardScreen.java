@@ -43,6 +43,10 @@ public final class CardScreen extends KitScreen {
 	private int[] wellArea = new int[4];
 	private int[] programArea = new int[4];
 
+	public String settlementId() {
+		return payload.settlementId();
+	}
+
 	public CardScreen(StewardNet.Card payload) {
 		super(payload.name());
 		this.payload = payload;
@@ -102,11 +106,18 @@ public final class CardScreen extends KitScreen {
 		List<String> out = new ArrayList<>();
 		wellColors = new ArrayList<>();
 		// what Steward cannot do yet for this card: first, before anything is spent
-		for (String l : dev.larattalabs.steward.model.CardLimits.of(card)) add(out, "Not yet: " + l, w, UiStyle.CLAY_DARK);
+		// the composed plan's summary first, when there is one
+		if (!payload.planSummary().isBlank()) add(out, "Plan: " + payload.planSummary(), w, UiBits.ink());
+		for (String l : limits()) add(out, "Not yet: " + l, w, UiStyle.CLAY_DARK);
 		add(out, card.interpretation(), w, UiBits.ink());
 		for (ConceptCard.Contradiction c : card.contradictions()) add(out, "Tension: " + c.issue() + " → " + c.resolution(), w, UiStyle.CLAY_DARK);
 		for (String a : card.assumptions()) add(out, "Assumed: " + a, w, UiBits.muted());
 		return out;
+	}
+
+	/** What waits for Architect: the composed plan's parts in Claude's words when there is a plan, else the word rules' reading of the card. */
+	private List<String> limits() {
+		return payload.planSummary().isBlank() && payload.planWaits().isEmpty() ? dev.larattalabs.steward.model.CardLimits.of(card) : payload.planWaits();
 	}
 
 	private void add(List<String> out, String text, int w, int color) {
@@ -212,7 +223,7 @@ public final class CardScreen extends KitScreen {
 			ly += 16;
 		}
 		// what Steward cannot do yet for this card, where it is read before Start (Noah: shown before spending)
-		for (String l : dev.larattalabs.steward.model.CardLimits.of(card)) {
+		for (String l : limits()) {
 			if (ly + 10 > bodyBottom - 6) break;
 			// laid out as the facts above: the label in the same column, the text beside it
 			g.text(font, "Not yet", cx, ly, UiStyle.CLAY_DARK, false);
@@ -227,7 +238,7 @@ public final class CardScreen extends KitScreen {
 		int rx = twoCol ? cx + colW + 10 : cx;
 		int ry = twoCol ? bodyTop - 2 : ly + 4;
 		String t1 = "Builds · " + total;
-		int limits = dev.larattalabs.steward.model.CardLimits.of(card).size();
+		int limits = limits().size();
 		String t2 = "Interpretation" + (limits > 0 ? " · " + limits + " not yet" : card.assumptions().isEmpty() ? "" : " · " + card.assumptions().size() + " assumed");
 		int tx = rx;
 		tx += chip(g, t1, tx, ry, !showNotes, true, mouseX, mouseY, () -> showNotes = false) + 3;

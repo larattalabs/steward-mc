@@ -57,7 +57,12 @@ public class StewardClient implements ClientModInitializer {
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.Inbox.TYPE, (payload, ctx) -> ClientInbox.set(payload.entries()));
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.OpenDescribe.TYPE, (payload, ctx) -> ctx.client().gui.setScreen(
 			new dev.larattalabs.steward.client.screen.DescribeScreen(payload.settlementId(), payload.name(), payload.previous())));
-		ClientPlayNetworking.registerGlobalReceiver(StewardNet.Card.TYPE, (payload, ctx) -> ctx.client().gui.setScreen(new dev.larattalabs.steward.client.screen.CardScreen(payload)));
+		ClientPlayNetworking.registerGlobalReceiver(StewardNet.Card.TYPE, (payload, ctx) -> {
+			// a refresh (the plan came in) only updates a card screen already open on this settlement
+			if (payload.refresh() && !(ctx.client().gui.screen() instanceof dev.larattalabs.steward.client.screen.CardScreen open
+				&& open.settlementId().equals(payload.settlementId()))) return;
+			ctx.client().gui.setScreen(new dev.larattalabs.steward.client.screen.CardScreen(payload));
+		});
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.StewardSay.TYPE, (payload, ctx) -> {
 			dev.larattalabs.steward.client.entity.StewardVoices.say(payload.settlementId(), payload.text());
 			dev.larattalabs.steward.client.screen.TalkScreen.heard(payload.settlementId(), payload.text());

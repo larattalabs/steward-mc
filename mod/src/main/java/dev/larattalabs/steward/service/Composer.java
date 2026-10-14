@@ -126,6 +126,9 @@ public final class Composer {
 		if (!unfit.isEmpty()) out.add("Didn't fit here: " + String.join(", ", unfit) + ".");
 		COMPOSING.remove(s.id(), Session.current());
 		tell(server, player, s, out);
+		// a card screen open on it shows the plan now
+		var p = server.getPlayerList().getPlayer(player);
+		if (p != null) Settlements.store().get(s.id()).ifPresent(now -> Actions.sendCard(p, now, true));
 	}
 
 	private static void done(Settlement s, String why, MinecraftServer server, UUID player) {

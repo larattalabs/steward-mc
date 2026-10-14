@@ -132,7 +132,12 @@ public final class StewardNet {
 	}
 
 	/** A settlement's concept card to show (and start from), as the card's JSON (the screen parses it with {@code ConceptCard.parse}). {@code busy}: a build is running. */
-	public record Card(String settlementId, String name, String cardJson, boolean busy, int claimRadius) implements CustomPacketPayload {
+	/**
+	 * The card for the card screen; {@code planSummary} and {@code planWaits}: the plan Claude composed from it (docs/COMPOSITION.md, plan v0), its summary and
+	 * what waits for Architect in Claude's words, empty before a plan is made; {@code refresh}: only update a card screen already open on it (the plan came in).
+	 */
+	public record Card(String settlementId, String name, String cardJson, boolean busy, int claimRadius, String planSummary, List<String> planWaits, boolean refresh)
+		implements CustomPacketPayload {
 		public static final Type<Card> TYPE = new Type<>(id("card"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, Card> CODEC = StreamCodec.of((buf, p) -> {
 			buf.writeUtf(p.settlementId);
@@ -140,7 +145,25 @@ public final class StewardNet {
 			buf.writeUtf(p.cardJson, 32767);
 			buf.writeBoolean(p.busy);
 			buf.writeVarInt(p.claimRadius);
-		}, buf -> new Card(buf.readUtf(), buf.readUtf(), buf.readUtf(32767), buf.readBoolean(), buf.readVarInt()));
+			buf.writeUtf(p.planSummary, 4096);
+			buf.writeVarInt(p.planWaits.size());
+			for (String w : p.planWaits) buf.writeUtf(w, 1024);
+			buf.writeBoolean(p.refresh);
+		}, buf -> {
+			String id = buf.readUtf(), name = buf.readUtf(), json = buf.readUtf(32767);
+			boolean busy = buf.readBoolean();
+			int radius = buf.readVarInt();
+			String summary = buf.readUtf(4096);
+			List<String> waits = new java.util.ArrayList<>();
+			int n = buf.readVarInt();
+			for (int i = 0; i < n; i++) waits.add(buf.readUtf(1024));
+			return new Card(id, name, json, busy, radius, summary, waits, buf.readBoolean());
+		});
+
+		public Card {
+			planSummary = planSummary == null ? "" : planSummary;
+			planWaits = planWaits == null ? List.of() : List.copyOf(planWaits);
+		}
 
 		@Override
 		public Type<Card> type() {
