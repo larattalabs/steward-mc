@@ -19,6 +19,8 @@ import org.jspecify.annotations.Nullable;
 public final class PPlan {
 	/** A build realised from an approved artifact keeps it where a flat village keeps its plan id, with this prefix (the saved build's format is unchanged). */
 	public static final String ARTIFACT_PREFIX = "artifact:";
+	/** The same, for the artifact of the one re-check after a stale realise (its realise goes under a second key; no further retry, a restart included). */
+	public static final String RETRIED_PREFIX = "artifact2:";
 	/** The plan's part lists, each of whose parts has an id and may be required. */
 	static final List<String> PART_LISTS = List.of("zones", "connectors", "forms", "rules");
 	/** Settlements a host set to the flat village without their plan (dev and the e2e check: the V path stays tested). One world's. */
@@ -41,7 +43,29 @@ public final class PPlan {
 	}
 
 	public static @Nullable String artifactOf(@Nullable String vPlan) {
-		return vPlan != null && vPlan.startsWith(ARTIFACT_PREFIX) ? vPlan.substring(ARTIFACT_PREFIX.length()) : null;
+		if (vPlan == null) return null;
+		if (vPlan.startsWith(RETRIED_PREFIX)) return vPlan.substring(RETRIED_PREFIX.length());
+		return vPlan.startsWith(ARTIFACT_PREFIX) ? vPlan.substring(ARTIFACT_PREFIX.length()) : null;
+	}
+
+	/** Whether the artifact kept is the re-checked one (its realise is the second and last). */
+	public static boolean retried(@Nullable String vPlan) {
+		return vPlan != null && vPlan.startsWith(RETRIED_PREFIX);
+	}
+
+	/**
+	 * Why an entry of {@code size} ({@code cells} non-air blocks) can't go on an artifact lot, or null: Architect's own test ({@code PlanChecks.lotProblem}):
+	 * its fit box in either rotation and its height, and at most the top of its cost range. A lot that is not provisional takes any entry.
+	 */
+	public static @Nullable String lotProblem(JsonObject artifactLot, int sizeX, int sizeY, int sizeZ, long cells) {
+		if (!artifactLot.has("provisional") || !artifactLot.get("provisional").getAsBoolean()) return null;
+		JsonArray b = artifactLot.has("fitBox") && artifactLot.get("fitBox").isJsonArray() ? artifactLot.getAsJsonArray("fitBox") : artifactLot.getAsJsonArray("box");
+		int w = b.get(3).getAsInt() - b.get(0).getAsInt() + 1, h = b.get(4).getAsInt() - b.get(1).getAsInt() + 1, d = b.get(5).getAsInt() - b.get(2).getAsInt() + 1;
+		boolean fits = (sizeX <= w && sizeZ <= d) || (sizeZ <= w && sizeX <= d);
+		if (!fits || sizeY > h) return sizeX + "x" + sizeY + "x" + sizeZ + " is past its lot's approved " + w + "x" + h + "x" + d;
+		if (artifactLot.has("costRange") && artifactLot.get("costRange").isJsonArray() && cells > artifactLot.getAsJsonArray("costRange").get(1).getAsLong())
+			return cells + " blocks is past its lot's approved " + artifactLot.getAsJsonArray("costRange").get(1).getAsLong();
+		return null;
 	}
 
 	/**
@@ -127,8 +151,11 @@ public final class PPlan {
 			String f = a.has("front") && a.get("front").isJsonPrimitive() ? a.get("front").getAsString().toLowerCase(java.util.Locale.ROOT) : "south";
 			VillageLayout.Front front = f.equals("north") ? VillageLayout.Front.NORTH : VillageLayout.Front.SOUTH;
 			String type = str(p, "type", id.replaceFirst("_\\d+$", ""));
+			// a design no taller than the lot's approved box (its fit box, which Architect checks at the realise)
+			JsonArray fit = a.has("fitBox") && a.get("fitBox").isJsonArray() && a.getAsJsonArray("fitBox").size() == 6 ? a.getAsJsonArray("fitBox") : b;
+			int maxHeight = fit.get(4).getAsInt() - fit.get(1).getAsInt() + 1;
 			out.add(new VillageLayout.Lot(id, type, bx0, bz0, bx1 - bx0 + 1, bz1 - bz0 + 1, front, by0, role(p), p.has("brief") ? str(p, "brief", null) : null,
-				p.has("landmark") && p.get("landmark").isJsonPrimitive() && p.get("landmark").getAsBoolean(), p.has("placement") ? str(p, "placement", null) : null));
+				p.has("landmark") && p.get("landmark").isJsonPrimitive() && p.get("landmark").getAsBoolean(), p.has("placement") ? str(p, "placement", null) : null, maxHeight));
 			JsonArray en = a.has("entrance") && a.get("entrance").isJsonArray() && a.getAsJsonArray("entrance").size() == 3 ? a.getAsJsonArray("entrance") : null;
 			zs.add(en != null ? en.get(2).getAsInt() : front == VillageLayout.Front.SOUTH ? bz1 + 1 : bz0 - 1);
 			ys.add(en != null ? en.get(1).getAsInt() : by0);

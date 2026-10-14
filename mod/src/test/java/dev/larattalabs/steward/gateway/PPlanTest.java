@@ -72,6 +72,42 @@ class PPlanTest {
 		assertNull(PPlan.artifactOf(null));
 	}
 
+	@Test
+	void aDesignPastItsApprovedLotIsCaughtBeforeTheRealise() {
+		JsonObject lot = lot("cottage_1", new int[] {0, 64, 0, 12, 95, 11}, "south", null);
+		lot.addProperty("provisional", true);
+		JsonArray range = new JsonArray();
+		range.add(13 * 12 * 4);
+		range.add(13 * 12 * 16);
+		lot.add("costRange", range);
+		assertNull(PPlan.lotProblem(lot, 11, 12, 12, 900), "fits");
+		assertNull(PPlan.lotProblem(lot, 12, 20, 11, 900), "fits turned");
+		assertNotNull(PPlan.lotProblem(lot, 11, 33, 12, 900), "taller than its box (32)");
+		assertNotNull(PPlan.lotProblem(lot, 14, 10, 14, 900), "wider than its box either way");
+		assertNotNull(PPlan.lotProblem(lot, 11, 12, 12, 13 * 12 * 16 + 1), "past the top of its cost range");
+		lot.addProperty("provisional", false);
+		assertNull(PPlan.lotProblem(lot, 40, 40, 40, 1_000_000), "a lot that named its entry takes any");
+	}
+
+	@Test
+	void theRetryIsKeptWithTheArtifact() {
+		assertFalse(PPlan.retried(PPlan.ARTIFACT_PREFIX + "abc"));
+		assertTrue(PPlan.retried(PPlan.RETRIED_PREFIX + "abc"));
+		assertEquals("abc", PPlan.artifactOf(PPlan.RETRIED_PREFIX + "abc"));
+	}
+
+	@Test
+	void aLotsDesignIsCappedAtItsApprovedHeight() throws Exception {
+		JsonObject built = PPlan.forBuild(walledTown(), Set.of("town_wall"), "set_7", "b1");
+		JsonArray art = new JsonArray();
+		JsonObject a = lot(PPlan.lots(built).get(0).get("id").getAsString(), new int[] {10, 64, 20, 22, 95, 31}, "south", null);
+		JsonArray fit = new JsonArray();
+		for (int v : new int[] {10, 64, 20, 22, 79, 31}) fit.add(v);
+		a.add("fitBox", fit);
+		art.add(a);
+		assertEquals(16, PPlan.toPlan(art, built).lots().get(0).maxHeight(), "the fit box, not the box");
+	}
+
 	private static JsonObject lot(String id, int[] box, String front, int[] entrance) {
 		JsonObject o = new JsonObject();
 		o.addProperty("id", id);

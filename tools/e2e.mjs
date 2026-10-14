@@ -832,6 +832,8 @@ async function planBuildFlow() {
   from = logSize();
   await cmd(`/steward start ${id} 5 30`);
   const laid = await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  // off the plan's lots (a player in a lot's box holds its placement, with no time limit), its chunks still loaded
+  await cmd('/tp @p ~ ~ ~90');
   const without = await waitLog(from, /Built now without ([^\n]*)/, 60_000);
   const built = await buildThrough(id, from, 'plan build');
   if (!built) return;

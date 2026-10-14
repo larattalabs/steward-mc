@@ -34,11 +34,18 @@ public final class VillageLayout {
 		}
 	}
 
+	/** {@code maxHeight}: the tallest a design on it may be (an approved plan's lot box, plan v1); 0 = no cap (saved lots from before caps read as 0). */
 	public record Lot(String id, String type, int x, int z, int sizeX, int sizeZ, Front front, int groundY, String role, @Nullable String notes, boolean landmark,
-		@Nullable String placement) {
+		@Nullable String placement, int maxHeight) {
 		/** Saved lots without a role (written before roles existed) take their type. */
 		public Lot {
 			role = role == null ? type : role;
+			maxHeight = Math.max(0, maxHeight);
+		}
+
+		public Lot(String id, String type, int x, int z, int sizeX, int sizeZ, Front front, int groundY, String role, @Nullable String notes, boolean landmark,
+			@Nullable String placement) {
+			this(id, type, x, z, sizeX, sizeZ, front, groundY, role, notes, landmark, placement, 0);
 		}
 
 		public Lot(String id, String type, int x, int z, int sizeX, int sizeZ, Front front, int groundY) {

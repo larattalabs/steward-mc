@@ -355,7 +355,10 @@ public final class SettlementRunner {
 	private boolean persist() {
 		if (!alive()) return false;
 		if (settlement == null || state == null || plan == null) return true;
-		if (state.phase().terminal()) builds.remove(settlement.id());
+		if (state.phase().terminal()) {
+			builds.remove(settlement.id());
+			releasePin();
+		}
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
 			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId));
 		if (buildsFile == null) return false;
@@ -1661,7 +1664,7 @@ public final class SettlementRunner {
 		int session = Session.current();
 		String artifact = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
 		if (artifact != null) {
-			realiseArtifact(artifact, lotEntries, actor, ext, true, session);
+			realiseArtifact(artifact, lotEntries, actor, ext, !dev.larattalabs.steward.gateway.PPlan.retried(vPlanId), session);
 			return;
 		}
 		// keyed: asked again (a restart, a lost answer) it is the same realise, never a second village
@@ -1670,35 +1673,99 @@ public final class SettlementRunner {
 	}
 
 	/**
-	 * Realises the approved artifact (plan v1). Stale (the land under the plan changed while the buildings were designed): the plan is checked once more,
-	 * and realised from the new artifact under a second key when its lots still take the designs; else the build stops. Once realised the region keeps the
-	 * artifact, and the build's pin goes.
+	 * Realises the approved artifact (plan v1), with the designs that fit their lots (a design past its lot's approved box or cost would make Architect refuse
+	 * the whole village: that lot is left a pad and said). Stale (the land under the plan changed while the buildings were designed): the plan Architect
+	 * froze in the artifact is checked once more, the new artifact saved with the build before the old one is let go, and realised under a second key; a
+	 * restart after that does not retry again. A cancel, or a runner replaced, while the re-check runs ends it there. The pin goes when the region is taken
+	 * as the build's ({@link #adoptVillage}) or the build ends ({@link #persist}).
 	 */
 	private void realiseArtifact(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
 		var regions = ArchitectApi.get().regions();
-		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, Mode.INSTANT, actor, lotEntries, opKey(first ? "vrealise" : "vrealise2"), ext))
+		Map<String, String> fitting = fitting(sha, lotEntries);
+		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, Mode.INSTANT, actor, fitting, opKey(first ? "vrealise" : "vrealise2"), ext))
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
-				if (first && alive() && e instanceof dev.larattalabs.architect.api.ArchitectRefused rf && rf.reason() == dev.larattalabs.architect.api.Reason.ARTIFACT_STALE) {
-					say("The land under the plan changed while the buildings were designed (" + rf.getMessage() + "): checking it again...");
-					var saved = Settlements.store().get(settlement.id()).orElse(settlement);
-					Composer.check(server, saved, builtPlan(), playerId).whenComplete((c, cerr) -> server.execute(() -> {
-						if (!Session.is(session)) return;
-						String no = cerr != null ? "Architect could not check it again (" + message(cerr) + ")" : unbuildable(c);
-						if (no != null) { realised(null, new IllegalStateException(no), session); return; }
-						regions.pinArtifact(c.artifactSha(), settlement.owner());
-						regions.unpinArtifact(sha, settlement.owner());
-						vPlanId = dev.larattalabs.steward.gateway.PPlan.ARTIFACT_PREFIX + c.artifactSha();
-						persist();
-						realiseArtifact(c.artifactSha(), lotEntries, actor, ext, false, session);
-					}));
-					return;
-				}
-				// the region keeps its artifact once realised (written before the answer): the build's pin goes
-				if (err == null) regions.unpinArtifact(sha, settlement.owner());
-				realised(id, err, session);
+				boolean stale = e instanceof dev.larattalabs.architect.api.ArchitectRefused rf && rf.reason() == dev.larattalabs.architect.api.Reason.ARTIFACT_STALE;
+				if (!first || !stale || !alive() || over()) { realised(id, err, session); return; }
+				say("The land under the plan changed while the buildings were designed (" + e.getMessage() + "): checking it again...");
+				JsonObject frozen = frozenPlan(sha);
+				if (frozen == null) { realised(null, new IllegalStateException("the approved plan could not be read again"), session); return; }
+				var saved = Settlements.store().get(settlement.id()).orElse(settlement);
+				Composer.check(server, saved, frozen, playerId).whenComplete((c, cerr) -> server.execute(() -> {
+					if (!Session.is(session)) return;
+					// a runner replaced meanwhile (cancelled twice, another build started): nothing more of this one reaches the world
+					if (!alive()) return;
+					if (over()) {
+						queueInFlight = false;
+						if (state != null && state.phase() == Pipeline.Phase.CANCELLING) feed(new Pipeline.CancelConfirmed());
+						return;
+					}
+					String no = cerr != null ? "Architect could not check it again (" + message(cerr) + ")" : unbuildable(c);
+					if (no != null) { realised(null, new IllegalStateException(no), session); return; }
+					String next = c.artifactSha();
+					// saved with the build before the old one is let go (a crash between keeps a target to resume from); the same sha keeps its pin
+					regions.pinArtifact(next, settlement.owner());
+					String before = vPlanId;
+					vPlanId = dev.larattalabs.steward.gateway.PPlan.RETRIED_PREFIX + next;
+					if (!persist()) {
+						vPlanId = before;
+						realised(null, new IllegalStateException("the build could not be saved before placing again"), session);
+						return;
+					}
+					if (!next.equals(sha)) regions.unpinArtifact(sha, settlement.owner());
+					realiseArtifact(next, lotEntries, actor, ext, false, session);
+				}));
 			}));
+	}
+
+	/** Whether this build is cancelling or has ended (nothing more is placed for it). */
+	private boolean over() {
+		return state == null || switch (state.phase()) { case CANCELLING, DONE, FAILED, CANCELLED -> true; default -> false; };
+	}
+
+	/** The plan as approved: the one Architect froze in the artifact (what the designs were made for), else the kept plan as this build builds it. */
+	private @org.jspecify.annotations.Nullable JsonObject frozenPlan(String sha) {
+		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		if (body != null && body.has("plan") && body.get("plan").isJsonObject()) return body.getAsJsonObject("plan");
+		try {
+			return builtPlan();
+		} catch (RuntimeException e) {
+			Steward.LOGGER.warn("the plan of {} could not be read again", settlement.id(), e);
+			return null;
+		}
+	}
+
+	/** The lot entries whose designs fit their approved lots ({@link dev.larattalabs.steward.gateway.PPlan#lotProblem}); the others are said and left pads. */
+	private Map<String, String> fitting(String sha, Map<String, String> lotEntries) {
+		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		if (body == null || !body.has("lots") || !body.get("lots").isJsonArray()) return lotEntries;
+		Map<String, JsonObject> lots = new java.util.HashMap<>();
+		for (var l : body.getAsJsonArray("lots")) if (l.isJsonObject() && l.getAsJsonObject().has("id")) lots.put(l.getAsJsonObject().get("id").getAsString(), l.getAsJsonObject());
+		var library = ArchitectApi.get().library();
+		Map<String, String> out = new LinkedHashMap<>();
+		for (var e : lotEntries.entrySet()) {
+			JsonObject lot = lots.get(e.getKey());
+			String entryId = e.getValue().contains("@") ? e.getValue().substring(0, e.getValue().indexOf('@')) : e.getValue();
+			var entry = lot == null ? java.util.Optional.<dev.larattalabs.architect.api.Library.Entry>empty() : library.get(entryId);
+			if (entry.isEmpty()) { out.put(e.getKey(), e.getValue()); continue; }
+			long cells = entry.get().parts().values().stream().mapToLong(dev.larattalabs.architect.api.Library.Part::cells).sum();
+			String problem = dev.larattalabs.steward.gateway.PPlan.lotProblem(lot, entry.get().size().x(), entry.get().size().y(), entry.get().size().z(), cells);
+			if (problem == null) out.put(e.getKey(), e.getValue());
+			else say(e.getKey().replace('_', ' ') + " is left a pad: its design (" + problem + ") doesn't fit the plan as approved.");
+		}
+		return out;
+	}
+
+	/** The build's pin on its approved artifact, let go (a region realised from it keeps it; a build that ended has no more use for it). */
+	private void releasePin() {
+		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
+		if (sha == null || settlement == null) return;
+		try {
+			ArchitectApi.get().regions().unpinArtifact(sha, settlement.owner());
+		} catch (RuntimeException e) {
+			Steward.LOGGER.warn("could not let go of artifact {} for {}", sha, settlement.id(), e);
+		}
 	}
 
 	/** Architect's answer to the village's realise: the region taken as this build's placement, or the build stops. */
@@ -1724,6 +1791,8 @@ public final class SettlementRunner {
 	/** Takes the realised region as this build's placement. */
 	private void adoptVillage(String regionId) {
 		vRegionId = regionId;
+		// a plan's village: the region keeps its artifact now (Architect writes it before answering)
+		releasePin();
 		siteGroupId = dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + regionId;
 		persist();
 		if (state.phase() == Pipeline.Phase.CANCELLING) { cancelVillage(); return; }
