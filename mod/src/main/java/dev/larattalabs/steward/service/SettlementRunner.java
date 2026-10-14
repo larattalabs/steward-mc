@@ -122,6 +122,7 @@ public final class SettlementRunner {
 		ServerLifecycleEvents.SERVER_STOPPED.register(server -> {
 			ACTIVE.clear();
 			dev.larattalabs.steward.gateway.VPlan.clear();
+			dev.larattalabs.steward.gateway.PPlan.clear();
 			resyncPending = false;
 			builds = new BuildStore();
 			buildsFile = null;
@@ -892,7 +893,9 @@ public final class SettlementRunner {
 			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(),
 				dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), level.dimension() == net.minecraft.world.level.Level.OVERWORLD, addition, districtId,
 				r.card().site().terrain(), stands, lo, hi)) {
-				planVillage(r, buildings, budgetUsd, district, claim, specs, own);
+				// the settlement's composed plan, when it has one (plan v1); else Architect's flat village from the card
+				if (composed(existing)) planComposed(existing, r, buildings, budgetUsd, district, claim, specs, own);
+				else planVillage(r, buildings, budgetUsd, district, claim, specs, own);
 				return;
 			}
 			plan = own.get();
@@ -933,6 +936,97 @@ public final class SettlementRunner {
 					abandon("The build stopped after the village plan: " + e);
 				}
 			}));
+	}
+
+	/** Whether this build takes the settlement's composed plan (docs/COMPOSITION.md section 10): one is kept, and this Architect checks and realises plans. */
+	private static boolean composed(Settlement s) {
+		return !dev.larattalabs.steward.gateway.PPlan.villageOnly(s.id()) && PlanStore.get(s.id()).isPresent() && Composer.available();
+	}
+
+	/** The kept plan as this build builds it: the parts that wait not required, each lot tagged with this build ({@link dev.larattalabs.steward.gateway.PPlan#forBuild}). */
+	private JsonObject builtPlan() {
+		var entry = PlanStore.get(settlement.id()).orElseThrow();
+		java.util.Set<String> waiting = new java.util.HashSet<>();
+		for (var p : entry.pending()) waiting.add(p.part());
+		return dev.larattalabs.steward.gateway.PPlan.forBuild(com.google.gson.JsonParser.parseString(entry.plan()).getAsJsonObject(), waiting, settlement.id(), buildId);
+	}
+
+	/**
+	 * Why a check of the plan as built can't be built from, or null: no artifact (the parts that wait are not required, so anything else is what stops it),
+	 * or a required part refused or malformed. Optional parts that did not fit are dropped by Architect and said.
+	 */
+	static @org.jspecify.annotations.Nullable String unbuildable(dev.larattalabs.architect.api.PlanCheck c) {
+		List<String> stuck = new ArrayList<>();
+		for (JsonObject part : c.parts()) {
+			String cls = part.has("class") ? part.get("class").getAsString() : "";
+			boolean required = part.has("required") && part.get("required").getAsBoolean();
+			if (required && !cls.equals("fits") && !cls.equals("adjusted")) stuck.add((part.has("part") ? part.get("part").getAsString() : "?").replace('_', ' ') + " (" + cls
+				+ (part.has("reasons") && part.get("reasons").isJsonArray() && !part.getAsJsonArray("reasons").isEmpty()
+					&& part.getAsJsonArray("reasons").get(0).isJsonObject() && part.getAsJsonArray("reasons").get(0).getAsJsonObject().has("code")
+					? " " + part.getAsJsonArray("reasons").get(0).getAsJsonObject().get("code").getAsString() : "") + ")");
+		}
+		if (!stuck.isEmpty()) return "the plan's " + String.join(", ", stuck) + " can't be built here";
+		if (c.artifactSha() == null) return "Architect's check came back " + c.overall();
+		return null;
+	}
+
+	/** The optional parts Architect left out of what is built (they did not fit), in plain words. */
+	private static List<String> leftOut(dev.larattalabs.architect.api.PlanCheck c) {
+		List<String> out = new ArrayList<>();
+		for (JsonObject part : c.parts()) {
+			String cls = part.has("class") ? part.get("class").getAsString() : "";
+			boolean required = part.has("required") && part.get("required").getAsBoolean();
+			if (!required && (cls.equals("refused") || cls.equals("malformed") || cls.equals("incomplete"))) out.add(part.has("part") ? part.get("part").getAsString().replace('_', ' ') : "?");
+		}
+		return out;
+	}
+
+	/**
+	 * Lays the village out from the settlement's composed plan (plan v1): the plan as built is checked again now (the land may have changed since it was
+	 * described), its approved artifact pinned, and its lots become this build's plan; the designs then run as for any build, and the village is realised from
+	 * the artifact ({@link #realiseVillage}). A plan that can't be built here stops the build before anything is spent; one Architect can't check, or whose
+	 * street runs north-south, falls back to the flat village.
+	 */
+	private void planComposed(Settlement existing, CardResult r, int buildings, double budgetUsd, Settlement.@org.jspecify.annotations.Nullable District district,
+		Claim claim, List<VillageLayout.LotSpec> specs, java.util.function.Supplier<VillageLayout.Plan> own) {
+		say("Laying out the village from its plan (Architect checks it against the land as it is now)...");
+		JsonObject built = builtPlan();
+		int session = Session.current();
+		Composer.check(server, existing, built, playerId).whenComplete((c, err) -> server.execute(() -> {
+			if (!Session.is(session) || !alive()) return;
+			if (worldStopped(err)) return;
+			if (err != null) {
+				say("Architect could not check the plan (" + message(err) + "): the village is laid out as usual.");
+				planVillage(r, buildings, budgetUsd, district, claim, specs, own);
+				return;
+			}
+			try {
+				String no = unbuildable(c);
+				if (no != null) { abandon("The plan can't be built as it stands: " + no + ". Describe the settlement again for a new plan."); return; }
+				var art = ArchitectApi.get().regions().artifact(c.artifactSha());
+				var lots = art.flatMap(a -> java.util.Optional.ofNullable(a.body())).filter(b -> b.has("lots") && b.get("lots").isJsonArray()).map(b -> b.getAsJsonArray("lots"));
+				if (lots.isEmpty() || lots.get().isEmpty()) { say("The plan's check has no lots to build on: the village is laid out as usual."); planVillage(r, buildings, budgetUsd, district, claim, specs, own); return; }
+				if (dev.larattalabs.steward.gateway.PPlan.northSouth(lots.get())) {
+					Steward.LOGGER.info("plan of {} faces east or west: the flat village instead", settlement.id());
+					say("The plan lays its buildings along a north-south way, which Steward can't design for yet: the village is laid out as usual.");
+					planVillage(r, buildings, budgetUsd, district, claim, specs, own);
+					return;
+				}
+				var out = leftOut(c);
+				if (!out.isEmpty()) say("Left out of what is built (they didn't fit here): " + String.join(", ", out) + ".");
+				var waits = PlanStore.get(settlement.id()).map(PlanStore.Entry::pending).orElse(List.of());
+				if (!waits.isEmpty()) say("Built now without " + String.join(", ", waits.stream().map(w -> w.part().replace('_', ' ')).toList()) + ": "
+					+ (waits.size() == 1 ? "it waits" : "they wait") + " for Architect.");
+				ArchitectApi.get().regions().pinArtifact(c.artifactSha(), settlement.owner());
+				vPlanId = dev.larattalabs.steward.gateway.PPlan.ARTIFACT_PREFIX + c.artifactSha();
+				plan = dev.larattalabs.steward.gateway.PPlan.toPlan(lots.get(), built);
+				Steward.LOGGER.info("plan of {}: artifact {}, {} lots ({} unplaced)", settlement.id(), c.artifactSha(), plan.lots().size(), plan.unplaced().size());
+				continueWithPlan(r, budgetUsd, district);
+			} catch (RuntimeException e) {
+				Steward.LOGGER.error("the build of {} failed after its plan check", settlement.id(), e);
+				abandon("The build stopped after the plan's check: " + e);
+			}
+		}));
 	}
 
 	/** With the plan made (Steward's layout or Architect's village): checks it, then starts the designs. */
@@ -1565,26 +1659,66 @@ public final class SettlementRunner {
 		queueInFlight = true;
 		ServerPlayer actor = server.getPlayerList().getPlayer(playerId);
 		int session = Session.current();
+		String artifact = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
+		if (artifact != null) {
+			realiseArtifact(artifact, lotEntries, actor, ext, true, session);
+			return;
+		}
 		// keyed: asked again (a restart, a lost answer) it is the same realise, never a second village
 		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, Mode.INSTANT, actor, lotEntries, null, true, null, false, ext, 0, opKey("vrealise")))
+			.whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
+	}
+
+	/**
+	 * Realises the approved artifact (plan v1). Stale (the land under the plan changed while the buildings were designed): the plan is checked once more,
+	 * and realised from the new artifact under a second key when its lots still take the designs; else the build stops. Once realised the region keeps the
+	 * artifact, and the build's pin goes.
+	 */
+	private void realiseArtifact(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
+		var regions = ArchitectApi.get().regions();
+		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, Mode.INSTANT, actor, lotEntries, opKey(first ? "vrealise" : "vrealise2"), ext))
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
-				queueInFlight = false;
-				if (worldStopped(err)) return;
-				// the build ended (cancelled while this was asked, twice, or replaced): a village realised for it after all is taken up, not left without a history
-				if (!alive() || state == null || switch (state.phase()) { case DONE, FAILED, CANCELLED -> true; default -> false; }) {
-					if (err == null) takeUpOrphan(id);
+				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
+				if (first && alive() && e instanceof dev.larattalabs.architect.api.ArchitectRefused rf && rf.reason() == dev.larattalabs.architect.api.Reason.ARTIFACT_STALE) {
+					say("The land under the plan changed while the buildings were designed (" + rf.getMessage() + "): checking it again...");
+					var saved = Settlements.store().get(settlement.id()).orElse(settlement);
+					Composer.check(server, saved, builtPlan(), playerId).whenComplete((c, cerr) -> server.execute(() -> {
+						if (!Session.is(session)) return;
+						String no = cerr != null ? "Architect could not check it again (" + message(cerr) + ")" : unbuildable(c);
+						if (no != null) { realised(null, new IllegalStateException(no), session); return; }
+						regions.pinArtifact(c.artifactSha(), settlement.owner());
+						regions.unpinArtifact(sha, settlement.owner());
+						vPlanId = dev.larattalabs.steward.gateway.PPlan.ARTIFACT_PREFIX + c.artifactSha();
+						persist();
+						realiseArtifact(c.artifactSha(), lotEntries, actor, ext, false, session);
+					}));
 					return;
 				}
-				if (err != null) {
-					// a lost answer, or the key asked with another body (the player who placed it changed): looked up by its key
-					if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
-					say("Architect could not place the village: " + message(err));
-					feed(new Pipeline.Cancel());
-					return;
-				}
-				adoptVillage(id);
+				// the region keeps its artifact once realised (written before the answer): the build's pin goes
+				if (err == null) regions.unpinArtifact(sha, settlement.owner());
+				realised(id, err, session);
 			}));
+	}
+
+	/** Architect's answer to the village's realise: the region taken as this build's placement, or the build stops. */
+	private void realised(@org.jspecify.annotations.Nullable String id, @org.jspecify.annotations.Nullable Throwable err, int session) {
+		if (!Session.is(session)) return;
+		queueInFlight = false;
+		if (worldStopped(err)) return;
+		// the build ended (cancelled while this was asked, twice, or replaced): a village realised for it after all is taken up, not left without a history
+		if (!alive() || state == null || switch (state.phase()) { case DONE, FAILED, CANCELLED -> true; default -> false; }) {
+			if (err == null) takeUpOrphan(id);
+			return;
+		}
+		if (err != null) {
+			// a lost answer, or the key asked with another body (the player who placed it changed): looked up by its key
+			if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
+			say("Architect could not place the village: " + message(err));
+			feed(new Pipeline.Cancel());
+			return;
+		}
+		adoptVillage(id);
 	}
 
 	/** Takes the realised region as this build's placement. */
@@ -1604,6 +1738,8 @@ public final class SettlementRunner {
 	private boolean findVillage() {
 		var regions = ArchitectApi.get().regions();
 		var found = regions.realiseByKey(settlement.owner(), opKey("vrealise"))
+			// a plan's village realised from its re-checked artifact (plan v1, after a stale one) is under the second key
+			.or(() -> regions.realiseByKey(settlement.owner(), opKey("vrealise2")))
 			.or(() -> regions.list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT))).findFirst())
 			.filter(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVED);
 		if (found.isEmpty()) return false;
