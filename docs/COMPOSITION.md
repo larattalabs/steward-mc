@@ -125,3 +125,28 @@ All six questions are answered in `architect-mc/docs/COMPOSITION-ANSWERS.md` and
 
 1. **When to compose, and the cap.** Claude decides: one call reads the ask and either picks a shortcut (the street village or `flat_village`) for a plain ask, or composes a full plan when the ask calls for it. Composing and repair for one plan are capped at about **$1**, inside the settlement's budget. At the cap, the steward shows its best plan with what is still missing.
 2. **A required part that needs a building block that doesn't exist yet.** By default the town is built now and the missing part stays in the settlement's plan as **pending**. When Architect ships that block (the capability catalogue says so), the steward proposes adding the part ("Walls can be built now: shall I raise the town wall?"), approved like any proposal. The alternative offered is to **wait**: the settlement stays a plan until the block exists, then builds whole. Optional parts that can't be built are dropped and listed on the card.
+
+## 10. Building from the plan (plan v1, Steward; drafted 2026-10-13)
+
+Plan v0 composes, checks and keeps a plan; building still takes today's layouts. Plan v1 builds the settlement from its approved plan. It follows the path Steward already runs for Architect's flat village (V): Architect lays out a region, Steward designs a building for each lot, Architect realises the region, and an undo removes it.
+
+**When.** A settlement's first whole build, in the cases where V runs today (Patron, not a survival world, the Overworld, nothing standing). It also needs a kept plan whose check, run again at Start, comes back READY. Otherwise the build takes today's paths, as now. Supplied builds, additions and districts stay on today's paths until Architect's regions build from materials and grow.
+
+**The flow.**
+1. **Start re-checks.** At Start, Steward checks the kept plan again (`checkPlan`, $0). The plan was checked when the settlement was described, but Architect refuses a stale artifact (`ARTIFACT_STALE`), and the player may have built since.
+2. **Pending parts are dropped from the plan that is built.** Noah's 9.2 default is to build the town now while the missing part waits. If the check is REQUIRED_BLOCKED only because of parts answered unsupported or blocked, Steward drops those parts and checks again. That reduced plan is the one built, and the dropped parts stay pending in `steward-plans.json` with Claude's words. Refused or malformed parts are not dropped silently: the build stops and says so.
+3. **Approval.** The card screen already shows the plan and what waits, before anything is spent. Start is the approval of that plan as reduced. The artifact sha is kept and pinned for the settlement's owner.
+4. **Lots.** The artifact's provisional lots (id, role, label, fit box, front) become Steward's plan shape, as `VPlan.toPlan` does for V. The bible, massings and designs then run as today, each design within its lot's fit box.
+5. **Realise.** `realiseApproved(artifactSha, INSTANT, player, lotEntries, opKey, ext)`. The history records it like a V build (`region:<id>` as its site group), so an undo is `Regions.remove`.
+6. **Stale between check and realise.** A design round can take minutes. If the realise comes back `ARTIFACT_STALE`, Steward checks again once. If the plan is still READY and every lot's design still fits its new fit box, it realises the new artifact. Otherwise it stops, and the designs are kept for a retry, as a stalled V build is.
+
+**What it costs.** Checks are $0. Designs cost what they cost today, within the build's budget. Composing was paid when the settlement was described.
+
+**Questions for Architect.**
+- **A1.** The artifact body: where are a provisional lot's fit box, front and entrance (a stable path), and does it carry the plan's lot `label`, `role` and `ext`?
+- **A2.** Can `realiseApproved` carry a per-lot `ext`, as V's lots do (`steward_mc:role` and others, C19), so the history and the screens name each building?
+- **A3.** Stale: which changes count? Grass, snow, a dropped item, the player standing in a lot? Steward should know which ones to clear first, as it does for V (animals, drops).
+- **A4.** Dropping a part: is removing it from `zones`/`connectors`/`forms` enough, with its dependents answered `blocked` and dropped too? Or should Architect offer a "reduced" check that drops the unsupported parts itself and names them?
+- **A5.** Pins: does Steward pin the artifact while the build runs and unpin it after the realise (the region then keeps it)? On undo, does the artifact go once the region is removed?
+
+**Risks Steward guards.** Spend: no design starts before the re-check is READY. Persistence: the artifact sha and the reduced plan are kept with the build, so a restart resumes by `realiseByKey`. Undo: by the region, as V. A GPT review covers the slice before it ships, since it touches spending, persistence and undo.
