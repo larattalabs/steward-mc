@@ -512,3 +512,15 @@ The plan writer's system prompt is its instructions plus plan/0 in full, so the 
 **PT2 RC (v0.29.0, API 1.26.0; slice/PT2 5ba596f8; sha256 e5d473bf…), consumer check 2026-10-13: pass** (stub 41, free 40; Steward did not call adopt yet). **Published v0.29.0, checked after release: pass**, and Steward uses it: `/steward builds <id> adopt <build>` (the player as the consent's actor; ext settlement, role, build), history `BUILD_ADOPTED`, undone like a placement (Architect un-adopts, the build stays); free e2e 42 (adopt a claimed hut, undo, the hut stands), stub 41. **C34** (a command-built, claimed hut with a door classified OTHER with no entrance): Architect's bug, patch v0.29.1.
 
 **v0.29.1 / v0.29.2 (C34, C34b) and C35, 2026-10-13.** C34b was Steward's fixture: the e2e's player kept flying after spectator mode and built the test hut at y 100; Architect now also counts a door near a lifted build's lowest row, and the fixture stands the hut on the ground (it comes back a house with its door). Steward on 0.29.2: "add a floor to my house" works through talk on an adopted build (versionOf on the captured entry; the offer always asks and says "It changes 1 of the 245 blocks of the build as you made it"); stub 42, free 42. **C35** (Architect, patch v0.29.3): a captured design threw on a supplied palette; Steward now sends no bible for an adopted site (it keeps its own style), and suggested new cells match the build's own materials unless the change asks otherwise.
+
+**v0.32.0 (D2: boundary districts and outposts, C27, C28; API 1.29.0; published 2026-10-14):** to be checked after plan v1's e2e (one e2e at a time on Steward's ports).
+
+**K1 contract review (Architect main 35cb86a8, "Phase 7a slice K1": walls, gates, rope bridges; sent 2026-10-14).** It fits. Coordinator's Noah-level calls (wall height 6, thickness 2, crenels, open arch; slab-deck rope bridges with chains; survival left to RS; K1a and K1b in parallel) match his direction, with taste at the look step.
+- **S-K1-1:** auto gates on every crossing; an explicit sealed wall (`gates: 0`, or closed on purpose) stays closed.
+- **S-K1-2:** a missed join (a gatehouse beside the wall, not in it) is a deviation, not only a note, so the approval and Claude's repair see it.
+- **S-K1-3:** lenient `params`, with every unread member in the part's notes (Claude's repair round reads them).
+- **S-K1-4:** rope bridges' movers inferred as T2 (villagers may use them); ladders stay player-only.
+- **S-K1-5:** `auto` may grow; no `moves` member (Steward re-checks at Start before approving).
+- **S-K1-6:** a pending part that becomes refused is offered as a repair, never a stopped build (plan v1 builds pending parts as not required). Reserve an id for elevated lots now.
+- **S-K1-7:** unknown reason codes pass through verbatim.
+- **Asked:** whether a lot's box height is the bound `realiseApproved` enforces on a design, and a stable rule for `costRange`'s top, so Steward caps designs before paying for a realise.
