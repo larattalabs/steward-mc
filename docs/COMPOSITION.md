@@ -150,3 +150,11 @@ Plan v0 composes, checks and keeps a plan; building still takes today's layouts.
 - **A5.** Pins: does Steward pin the artifact while the build runs and unpin it after the realise (the region then keeps it)? On undo, does the artifact go once the region is removed?
 
 **Risks Steward guards.** Spend: no design starts before the re-check is READY. Persistence: the artifact sha and the reduced plan are kept with the build, so a restart resumes by `realiseByKey`. Undo: by the region, as V. A GPT review covers the slice before it ships, since it touches spending, persistence and undo.
+
+**Architect's answers (2026-10-13, from v0.30.0's code), and Steward's calls:**
+- **A1.** Today a lot's fit box and cost range are in the artifact's `$.lots[]` (`{id, zone, box, entry, provisional, costRange, fitBox}`), and its front and entrance in `$.parts[zone].geometry.lots[id]`. **C36** puts `role`, `label`, `ext`, `front` and `entrance` on `$.lots[]`, one hop. Steward codes against C36.
+- **A2.** A lot's `ext` in the checked plan is copied to its site (C19). Steward puts settlement, role, label and build id into the plan at the Start re-check, so no `lotExt` on `ApprovedRealise` is needed (Steward's call).
+- **A3.** Stale is exact: lot entries past `fitBox` or `costRange`, a changed protection fingerprint, or any terrain change in the plan's tiles (ground, height, floor, water, lava, trees, frozen). Grass, flowers, dropped items, animals and players are not. Steward clears entities as for V, re-checks right before `realiseApproved`, and retries once on `ARTIFACT_STALE`.
+- **A4.** A plan whose only unsupported or blocked parts are not required comes back NEEDS_REPAIR **with a buildable artifact** and a `dropped` list. For REQUIRED_BLOCKED, Steward sets `required: false` on the unsupported or blocked required parts and checks again (no `reduce` option needed, Steward's call). Refused or malformed parts stop the build. **C36** fixes a required malformed part answering NEEDS_REPAIR.
+- **A5.** Pin at Start, unpin once `realiseApproved` returns: the region then keeps the artifact. **C36** tombstones the artifact when its region is removed and no pin holds it.
+- **Order:** C36 ships as v0.31.x after S2. Steward writes plan v1 against it, then gets a GPT review.
