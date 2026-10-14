@@ -227,8 +227,11 @@ public final class CardScreen extends KitScreen {
 			if (ly + 10 > bodyBottom - 6) break;
 			// laid out as the facts above: the label in the same column, the text beside it
 			g.text(font, "Not yet", cx, ly, UiStyle.CLAY_DARK, false);
-			for (String line : TextUtil.wrapPlain(font, l, colW - 50)) {
+			// at most 3 lines here, a little clear of the right column; the whole text is under Interpretation
+			List<String> lines = TextUtil.wrapPlain(font, l, colW - 56);
+			for (int i = 0; i < Math.min(3, lines.size()); i++) {
 				if (ly + 10 > bodyBottom - 6) break;
+				String line = i == 2 && lines.size() > 3 ? TextUtil.ellipsize(font, lines.get(i) + " " + lines.get(3), colW - 56) : lines.get(i);
 				g.text(font, line, cx + 50, ly, UiBits.ink(), false);
 				ly += 10;
 			}

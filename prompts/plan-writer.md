@@ -40,9 +40,9 @@ Writing the plan:
 - **Required.** Mark every part `required` true or false. A part is required when the ask is about it ("a walled town": the wall); a flourish is not.
 - **Notes.** Put what no field can hold in the part's `notes` (or the plan's), in a sentence.
 
-`waits` lists, in plain words for the player, each required or wanted part that can't be built yet, with its part id: "The town wall and its four
-gatehouses: walls come with a later Architect release; the town is built first and the wall is offered when it can be." Leave it empty when everything
-can be built.
+`waits` lists, in plain words for the player, each required or wanted part that can't be built yet, with its part id, in one short sentence (at most
+about 20 words): "The town wall and gatehouses wait for a later Architect release; the town is built first." Leave it empty when everything can be
+built.
 
 `summary` says in a few plain sentences what the settlement will be, addressed to the player.
 
