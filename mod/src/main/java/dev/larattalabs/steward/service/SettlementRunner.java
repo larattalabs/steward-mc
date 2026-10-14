@@ -1675,8 +1675,8 @@ public final class SettlementRunner {
 	}
 
 	/**
-	 * Realises the approved artifact (plan v1), with the designs that fit their lots (a design past its lot's approved box or cost would make Architect refuse
-	 * the whole village: that lot is left a pad and said). Stale (the land under the plan changed while the buildings were designed): the plan Architect
+	 * Realises the approved artifact (plan v1), with the designs that fit their lots (a design past its lot's approved box or height would make Architect
+	 * refuse the whole village: that lot is left a pad and said; a design past its approved cost is Architect's refusal, until it gives the count). Stale (the land under the plan changed while the buildings were designed): the plan Architect
 	 * froze in the artifact is checked once more, the new artifact saved with the build before the old one is let go, and realised under a second key; a
 	 * restart after that does not retry again. A cancel, or a runner replaced, while the re-check runs ends it there. The pin goes when the region is taken
 	 * as the build's ({@link #adoptVillage}) or the build ends ({@link #persist}).
