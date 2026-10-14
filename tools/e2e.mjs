@@ -756,6 +756,8 @@ async function villageFlow() {
   const id = settlements().at(-1).id;
   await closeScreens();
   await cmd(`/steward expand ${id}`);
+  // the flat village from the card, not the settlement's composed plan (planBuildFlow builds from a plan)
+  await cmd(`/steward dev layout ${id} village`);
   const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
   card.name = 'V Hamlet';
   await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
@@ -801,6 +803,57 @@ async function villageFlow() {
   if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placedOp.siteIds.length && /is gone/.test(streetLeft)) {
     ok('village undo', `${last.text} (${last.siteIds.length} sites); ${streetLeft}`);
   } else fail('village undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${placedOp.siteIds.length} sites), ${streetLeft}`);
+}
+
+/**
+ * A settlement built from its composed plan (plan v1, docs/COMPOSITION.md section 10): a walled town whose wall waits for Architect. At Start the plan is
+ * checked again without the wall (it stays pending), the buildings are designed for the artifact's lots, the village is realised from the approved artifact
+ * as one region, and an undo takes it up whole.
+ */
+async function planBuildFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 15000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Walled Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'walled_town.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little walled market town`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('plan build', 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('plan build', 'no plan composed');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  const laid = await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  // off the plan's lots (a player in a lot's box holds its placement, with no time limit), its chunks still loaded
+  await cmd('/tp @p ~ ~ ~90');
+  const without = await waitLog(from, /Built now without ([^\n]*)/, 60_000);
+  const built = await buildThrough(id, from, 'plan build');
+  if (!built) return;
+  const st = settlements().find((x) => x.id === id);
+  const placedOp = (st?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const region = placedOp?.siteGroup;
+  const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
+  const wallWaits = plans[id]?.pending?.some((x) => x.part === 'town_wall');
+  if (laid && without && /^region:/.test(region ?? '') && built.placed > 0 && wallWaits) {
+    ok('plan build', `${built.steps.join(' > ')} > ${built.placed} placed from the approved plan (${region}); ${without[0]}; the wall still waits`);
+  } else return fail('plan build', `laid out ${!!laid}, without ${without ? without[1] : 'none'}, region ${region}, placed ${built.placed}, wall pending ${wallWaits}`);
+  await cmd(`/tp @p ~ ~ ~90`);
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 60 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placedOp.siteIds.length) ok('plan build undo', `${last.text} (${last.siteIds.length} sites)`);
+  else fail('plan build undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${placedOp.siteIds.length} sites)`);
 }
 
 /**
@@ -1230,6 +1283,7 @@ try {
     else {
       await stubFlow(id);
       await villageFlow();
+      await planBuildFlow();
       await planCheckFlow();
       await survivalFlow();
     }

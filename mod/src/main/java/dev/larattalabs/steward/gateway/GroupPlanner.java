@@ -87,7 +87,10 @@ public final class GroupPlanner {
 				continue;
 			}
 			boolean landmark = landmarkIds.contains(l.id());
-			DesignRequest r = LotBrief.build(s, l, landmark ? LANDMARK_HEIGHT : ORDINARY_HEIGHT, null, null);
+			// no taller than its lot allows (an approved plan's lot box: Architect refuses a design past it)
+			int height = landmark ? LANDMARK_HEIGHT : ORDINARY_HEIGHT;
+			if (l.maxHeight() > 0) height = Math.min(height, l.maxHeight());
+			DesignRequest r = LotBrief.build(s, l, height, null, null);
 			boolean anchor = l.id().equals(anchorId);
 			GroupRequest.Item item = new GroupRequest.Item(l.id(), r, landmark ? GroupRequest.Role.LANDMARK : GroupRequest.Role.ORDINARY, landmark && !anchor ? 1 : 2, anchor);
 			String archetype = copyOf.get(l.id());

@@ -169,9 +169,13 @@ public final class StewardCommands {
 					// dev (the e2e check): which layout this settlement's builds take: "legacy" (Steward's own) or "village" (Architect's flat village when it applies)
 					if (!host(ctx.getSource())) return 0;
 					String id = StringArgumentType.getString(ctx, "id");
-					boolean legacy = "legacy".equals(StringArgumentType.getString(ctx, "which"));
+					// "village": the flat village without the settlement's composed plan; "plan" (or anything else): its plan when it has one (plan v1)
+					String which = StringArgumentType.getString(ctx, "which");
+					boolean legacy = "legacy".equals(which);
 					dev.larattalabs.steward.gateway.VPlan.legacy(id, legacy);
-					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "Architect's flat village when it applies")), false);
+					dev.larattalabs.steward.gateway.PPlan.villageOnly(id, "village".equals(which));
+					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "village".equals(which)
+						? "Architect's flat village when it applies" : "its plan, else Architect's flat village, when it applies")), false);
 					return 1;
 				})))).then(Commands.literal("check_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("plan", StringArgumentType.greedyString())
 				.executes(ctx -> {
