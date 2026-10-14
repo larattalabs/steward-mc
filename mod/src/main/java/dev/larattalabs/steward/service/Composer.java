@@ -120,7 +120,8 @@ public final class Composer {
 		Steward.LOGGER.info("plan for {}: {} after {} repair(s), {} pending, {} unfit, ${}", s.id(), c.overall(), rounds, pending.size(), unfit.size(),
 			String.format("%.3f", cost));
 		List<String> out = new ArrayList<>();
-		if (!summary.isBlank()) out.add("The plan: " + summary);
+		// what composing cost, with the card's cost already shown: the player asked for it, so it is theirs, not the steward's weekly allowance
+		if (!summary.isBlank()) out.add("The plan: " + summary + String.format(java.util.Locale.ROOT, " (composing it cost $%.2f)", cost));
 		for (var p : pending) out.add("Not yet: " + p.words());
 		if (!unfit.isEmpty()) out.add("Didn't fit here: " + String.join(", ", unfit) + ".");
 		COMPOSING.remove(s.id(), Session.current());
