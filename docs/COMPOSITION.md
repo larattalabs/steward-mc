@@ -158,3 +158,17 @@ Plan v0 composes, checks and keeps a plan; building still takes today's layouts.
 - **A4.** A plan whose only unsupported or blocked parts are not required comes back NEEDS_REPAIR **with a buildable artifact** and a `dropped` list. For REQUIRED_BLOCKED, Steward sets `required: false` on the unsupported or blocked required parts and checks again (no `reduce` option needed, Steward's call). Refused or malformed parts stop the build. **C36** fixes a required malformed part answering NEEDS_REPAIR.
 - **A5.** Pin at Start, unpin once `realiseApproved` returns: the region then keeps the artifact. **C36** tombstones the artifact when its region is removed and no pin holds it.
 - **Order:** C36 ships as v0.31.x after S2. Steward writes plan v1 against it, then gets a GPT review.
+
+## 11. Offering a waiting part once its block ships (drafted 2026-10-14)
+
+Noah's 9.2 default: the town is built now, the missing part waits, and "when Architect ships that block, the steward proposes adding the part ('Walls can be built now: shall I raise the town wall?'), approved like any proposal." K1 (walls, gates and rope bridges) is the first release that makes this real.
+
+**The flow.**
+1. **Notice.** At a world's start, and after an Architect update, Steward reads the live catalogue (C38) and looks at every settlement's pending parts (`steward-plans.json`, each with the block it needs). A part whose block is now `supported` and that hasn't been offered yet becomes a proposal in the inbox, in Claude's words from the plan ("The town wall and gatehouses can be built now: shall I raise them?").
+2. **Accept.** The part was written while its block didn't exist, so it has no shape yet. One Claude call (the plan writer, with the kept plan, the part, and the settlement as built: its region and buildings) writes a plan holding just that part, placed against what stands (`wall.around {region: rgN}`). It is about $0.50, inside the $1-a-plan cap.
+3. **Check and approve.** Architect checks it ($0). Fits: the inbox shows what it will build and asks once more (Start is the approval, as for a build). Refused: Claude repairs it from `wouldFit` (S-K1-6: a newly refused part is a repair offer, never a stopped build). Still refused after two rounds: the part stays pending, and the steward says why in Claude's words.
+4. **Build.** `realiseApproved` as its own region, recorded like a placement (`region:<id>`), so undo takes the wall away and leaves the town. In survival it waits for RS (K1 builds INSTANT only).
+
+**Questions for Architect.**
+- **C38.** A read-only `Regions.planCatalogue()` (the live entries, `{id, state, sinceApi, ...}`), so Steward can notice a flip without running a check.
+- **K1-target.** Can a plan whose only part is a wall target a standing region (`wall.around {region}`), with gates where its streets cross, and be realised as a region of its own beside it, undone alone?
