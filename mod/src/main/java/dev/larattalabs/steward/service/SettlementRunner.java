@@ -355,15 +355,15 @@ public final class SettlementRunner {
 	private boolean persist() {
 		if (!alive()) return false;
 		if (settlement == null || state == null || plan == null) return true;
-		if (state.phase().terminal()) {
-			builds.remove(settlement.id());
-			releasePin();
-		}
+		boolean ended = state.phase().terminal();
+		if (ended) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
 			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
+			// the pin goes only once the ended build is gone from the save (a crash before keeps a saved build whose approval still stands)
+			if (ended) releasePin();
 			return true;
 		} catch (java.io.IOException e) {
 			Steward.LOGGER.warn("could not save {}", buildsFile, e);
@@ -1129,6 +1129,8 @@ public final class SettlementRunner {
 	/** Gives up before the pipeline started: says why and frees the slot. */
 	private void abandon(String why) {
 		say(why);
+		// a build that stops before its state is saved leaves nothing on disk that needs its approved plan: the pin goes
+		if (state == null || settlement == null || builds.all().stream().noneMatch(b -> b.settlementId().equals(settlement.id()))) releasePin();
 		// it never started: an accepted proposal is given back (it was recorded only if onStart ran), and backs off before it is tried again
 		if (onNothingSpent != null && state != null) {
 			onNothingSpent.run();
@@ -1710,6 +1712,8 @@ public final class SettlementRunner {
 					vPlanId = dev.larattalabs.steward.gateway.PPlan.RETRIED_PREFIX + next;
 					if (!persist()) {
 						vPlanId = before;
+						// the new pin is not the build's (it kept the old one): let go so it isn't orphaned
+						if (!next.equals(sha)) regions.unpinArtifact(next, settlement.owner());
 						realised(null, new IllegalStateException("the build could not be saved before placing again"), session);
 						return;
 					}
@@ -1749,8 +1753,8 @@ public final class SettlementRunner {
 			String entryId = e.getValue().contains("@") ? e.getValue().substring(0, e.getValue().indexOf('@')) : e.getValue();
 			var entry = lot == null ? java.util.Optional.<dev.larattalabs.architect.api.Library.Entry>empty() : library.get(entryId);
 			if (entry.isEmpty()) { out.put(e.getKey(), e.getValue()); continue; }
-			long cells = entry.get().parts().values().stream().mapToLong(dev.larattalabs.architect.api.Library.Part::cells).sum();
-			String problem = dev.larattalabs.steward.gateway.PPlan.lotProblem(lot, entry.get().size().x(), entry.get().size().y(), entry.get().size().z(), cells);
+			// the box and the height only: a template's non-air count is Architect's to read (parts' cells count carved air and miss unnamed cells)
+			String problem = dev.larattalabs.steward.gateway.PPlan.lotProblem(lot, entry.get().size().x(), entry.get().size().y(), entry.get().size().z(), -1);
 			if (problem == null) out.put(e.getKey(), e.getValue());
 			else say(e.getKey().replace('_', ' ') + " is left a pad: its design (" + problem + ") doesn't fit the plan as approved.");
 		}

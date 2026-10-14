@@ -81,7 +81,9 @@ class PPlanTest {
 		range.add(13 * 12 * 16);
 		lot.add("costRange", range);
 		assertNull(PPlan.lotProblem(lot, 11, 12, 12, 900), "fits");
-		assertNull(PPlan.lotProblem(lot, 12, 20, 11, 900), "fits turned");
+		assertNull(PPlan.lotProblem(lot, 12, 20, 13, 900), "fits only turned (13 deep in a 13 x 12 lot)");
+		assertNotNull(PPlan.lotProblem(lot, 14, 20, 13, 900), "fits neither way");
+		assertNull(PPlan.lotProblem(lot, 11, 12, 12, -1), "the cost not known: the box alone");
 		assertNotNull(PPlan.lotProblem(lot, 11, 33, 12, 900), "taller than its box (32)");
 		assertNotNull(PPlan.lotProblem(lot, 14, 10, 14, 900), "wider than its box either way");
 		assertNotNull(PPlan.lotProblem(lot, 11, 12, 12, 13 * 12 * 16 + 1), "past the top of its cost range");

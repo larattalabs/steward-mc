@@ -54,7 +54,7 @@ public final class PPlan {
 	}
 
 	/**
-	 * Why an entry of {@code size} ({@code cells} non-air blocks) can't go on an artifact lot, or null: Architect's own test ({@code PlanChecks.lotProblem}):
+	 * Why an entry of {@code size} ({@code cells} non-air blocks, -1 when not known) can't go on an artifact lot, or null: Architect's own test ({@code PlanChecks.lotProblem}):
 	 * its fit box in either rotation and its height, and at most the top of its cost range. A lot that is not provisional takes any entry.
 	 */
 	public static @Nullable String lotProblem(JsonObject artifactLot, int sizeX, int sizeY, int sizeZ, long cells) {
@@ -63,7 +63,7 @@ public final class PPlan {
 		int w = b.get(3).getAsInt() - b.get(0).getAsInt() + 1, h = b.get(4).getAsInt() - b.get(1).getAsInt() + 1, d = b.get(5).getAsInt() - b.get(2).getAsInt() + 1;
 		boolean fits = (sizeX <= w && sizeZ <= d) || (sizeZ <= w && sizeX <= d);
 		if (!fits || sizeY > h) return sizeX + "x" + sizeY + "x" + sizeZ + " is past its lot's approved " + w + "x" + h + "x" + d;
-		if (artifactLot.has("costRange") && artifactLot.get("costRange").isJsonArray() && cells > artifactLot.getAsJsonArray("costRange").get(1).getAsLong())
+		if (cells >= 0 && artifactLot.has("costRange") && artifactLot.get("costRange").isJsonArray() && cells > artifactLot.getAsJsonArray("costRange").get(1).getAsLong())
 			return cells + " blocks is past its lot's approved " + artifactLot.getAsJsonArray("costRange").get(1).getAsLong();
 		return null;
 	}
