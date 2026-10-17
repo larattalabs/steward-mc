@@ -857,6 +857,67 @@ async function planBuildFlow() {
 }
 
 /**
+ * A waiting part offered once Architect builds it (docs/COMPOSITION.md section 11): a market town built from its plan, then a wall kept as waiting from
+ * before walls existed (as a plan kept before K1); the steward offers it, Claude fits it round the town as it stands (the scripted answer), Architect builds
+ * it as a region of its own, and an undo takes the wall away and leaves the town.
+ */
+async function wallOfferFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 18000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Market Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'market_town.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little market town`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('wall offer', 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('wall offer', 'no plan composed');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  await cmd('/tp @p ~ ~ ~90');
+  const built = await buildThrough(id, from, 'wall offer');
+  if (!built) return;
+  const town = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  if (!/^region:/.test(town?.siteGroup ?? '')) return fail('wall offer', `the town was not built from its plan: ${town?.siteGroup}`);
+  // a wall kept as waiting from before walls existed (no shape: Claude gives it one now)
+  await cmd(`/steward dev pend ${id} connector.wall {"id":"town_wall","kind":"wall","required":true,"label":"the town wall","notes":"A stone wall round the town."}`);
+  const offered = await cmd(`/steward dev offer_parts ${id}`);
+  const offer = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key === 'part_town_wall');
+  if (!offer) return fail('wall offer', `not offered: ${offered}`);
+  ok('wall offer', `${offer.title}: ${offer.why.slice(0, 90)}`);
+  await cmd(`/steward dev sim_answer part ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'wall_part.json'), 'utf8')).answer)}`);
+  await cmd(`/steward proposals ${id} accept part_town_wall`);
+  let wall = null;
+  for (let i = 0; i < 180 && !wall; i++) {
+    await sleep(1000);
+    wall = (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'PROJECT_PLACED' && /Built the town wall/.test(e.text)) ?? null;
+  }
+  const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
+  const stillWaits = plans[id]?.pending?.some((x) => x.part === 'town_wall');
+  if (wall && /^region:/.test(wall.siteGroup) && wall.siteGroup !== town.siteGroup && !stillWaits) ok('wall built', `${wall.text}: ${wall.siteIds.length} sites in ${wall.siteGroup} (the town is ${town.siteGroup}); no longer waits`);
+  else return fail('wall built', `history ${JSON.stringify(wall)?.slice(0, 160)}; still waits ${stillWaits}; ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
+  // an undo takes the wall away and leaves the town
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 60 && !(last?.kind === 'PROJECT_REMOVED' && last.siteIds?.includes(wall.siteIds[0])); i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  const townStands = /stands/.test(await cmd(`/steward dev site ${town.siteIds[0]}`));
+  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === wall.siteIds.length && townStands) ok('wall undo', `${last.text}; the town stands`);
+  else fail('wall undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${wall.siteIds.length}); town stands ${townStands}`);
+}
+
+/**
  * Drives one build through its decisions until it is built: approves the style bible, the massings and the placement as each comes (Proposals level), with
  * a restart at the massings when asked. Returns the steps seen, or null when it stalls.
  */
@@ -1288,6 +1349,7 @@ try {
       await stubFlow(id);
       await villageFlow();
       await planBuildFlow();
+      await wallOfferFlow();
       await planCheckFlow();
       await survivalFlow();
     }

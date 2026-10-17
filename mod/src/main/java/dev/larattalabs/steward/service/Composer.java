@@ -137,6 +137,11 @@ public final class Composer {
 		tell(server, player, s, List.of(why));
 	}
 
+	/** One line to the player and from the steward (as a plan's own lines). */
+	static void tellNow(MinecraftServer server, UUID player, Settlement s, String line) {
+		tell(server, player, s, List.of(line));
+	}
+
 	private static void tell(MinecraftServer server, UUID player, Settlement s, List<String> lines) {
 		var p = server.getPlayerList().getPlayer(player);
 		for (String l : lines) {

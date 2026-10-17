@@ -273,6 +273,8 @@ public final class Proposals {
 	/** About what building a proposal costs (the high estimate of one building, rounded up to $5): its budget when accepted. A district costs nothing. */
 	public static int estimate(Proposal p) {
 		if (p.foundsDistrict()) return 0;
+		// a waiting part: Claude fits it to what stands (about $0.50 a round, at most $1); Architect builds it at no cost
+		if (p.offersPart()) return 1;
 		var e = dev.larattalabs.steward.model.BudgetPolicy.estimate(1, 0);
 		return (int) (Math.ceil(e.usdHigh() / 5.0) * 5);
 	}

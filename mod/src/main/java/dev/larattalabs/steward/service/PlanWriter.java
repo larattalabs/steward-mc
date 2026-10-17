@@ -29,6 +29,19 @@ public final class PlanWriter {
 	/** A repair round: {@code previous} the last plan, {@code answers} Architect's check of it (see {@link PlanWriterJob#build}). */
 	public static CompletableFuture<PlanWriterJob.Result> write(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner,
 		@Nullable String previous, @Nullable String answers) {
+		return run(refs -> PlanWriterJob.build(card, land, anchors, builds, owner, previous, answers, refs));
+	}
+
+	/**
+	 * A part of the kept plan that waited for Architect, written now against the town as it stands (docs/COMPOSITION.md section 11; see
+	 * {@link PlanWriterJob#part}); a repair round when {@code previous} and {@code answers} are given.
+	 */
+	public static CompletableFuture<PlanWriterJob.Result> writePart(String card, String keptPlan, String partJson, String block, @Nullable String owner,
+		@Nullable String previous, @Nullable String answers) {
+		return run(refs -> PlanWriterJob.part(card, keptPlan, partJson, block, owner, previous, answers, refs));
+	}
+
+	private static CompletableFuture<PlanWriterJob.Result> run(java.util.function.Function<Boolean, dev.larattalabs.architect.api.JobSpec> spec) {
 		var jobs = ArchitectApi.get().jobs();
 		if (!registered) {
 			SiteEvents.JOB_DONE.register(PlanWriter::onDone);
@@ -39,7 +52,7 @@ public final class PlanWriter {
 		// the schema by reference where the helper has it (C33): the helper's own copy, with the live catalogue
 		boolean refs = ArchitectApi.get().features().contains("job.systemRefs");
 		dev.larattalabs.steward.Steward.LOGGER.info("plan writer: the schema {}", refs ? "by reference (plan/0#compact)" : "inline");
-		jobs.run(PlanWriterJob.build(card, land, anchors, builds, owner, previous, answers, refs)).whenComplete((id, err) -> {
+		jobs.run(spec.apply(refs)).whenComplete((id, err) -> {
 			if (err != null) {
 				out.completeExceptionally(err);
 				return;

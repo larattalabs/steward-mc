@@ -177,7 +177,21 @@ public final class StewardCommands {
 					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "village".equals(which)
 						? "Architect's flat village when it applies" : "its plan, else Architect's flat village, when it applies")), false);
 					return 1;
-				})))).then(Commands.literal("check_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("plan", StringArgumentType.greedyString())
+				})))).then(Commands.literal("offer_parts").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check): offer the settlement's waiting parts that Architect can build now, as a world's start does
+					if (!host(ctx.getSource())) return 0;
+					var said = dev.larattalabs.steward.service.PendingOffers.notice(ctx.getSource().getServer(), StringArgumentType.getString(ctx, "id"));
+					ctx.getSource().sendSuccess(() -> Component.literal("offered " + said.size() + (said.isEmpty() ? "" : ": " + String.join("; ", said))), false);
+					return 1;
+				}))).then(Commands.literal("pend").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("block", StringArgumentType.word())
+				.then(Commands.argument("part", StringArgumentType.greedyString()).executes(ctx -> {
+					// dev (the e2e check): a part kept as waiting for "block" (a plan kept before that block shipped), added to the settlement's kept plan
+					if (!host(ctx.getSource())) return 0;
+					String id = StringArgumentType.getString(ctx, "id");
+					String said = dev.larattalabs.steward.service.PlanStore.pend(id, StringArgumentType.getString(ctx, "block"), StringArgumentType.getString(ctx, "part"));
+					ctx.getSource().sendSuccess(() -> Component.literal(said), false);
+					return 1;
+				}))))).then(Commands.literal("check_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("plan", StringArgumentType.greedyString())
 				.executes(ctx -> {
 					// dev (the e2e check): Architect's plan check on a plan/0 plan round the player; the summary logged as "plan check <label> {...}"
 					CommandSourceStack src = ctx.getSource();
