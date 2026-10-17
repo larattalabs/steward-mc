@@ -32,17 +32,22 @@ class PendingOffersTest {
 	@Test
 	void onlyThePartAskedForIsBuilt() {
 		var one = JsonParser.parseString("{\"connectors\":[{\"id\":\"town_wall\",\"kind\":\"wall\"}]}").getAsJsonObject();
-		assertNull(PendingOffers.outOfScope(one, "town_wall"));
+		assertNull(PendingOffers.outOfScope(one, "town_wall", "connector.wall"));
+		assertNotNull(PendingOffers.outOfScope(one, "town_wall", "connector.rope_bridge"), "the wrong kind for its block");
+		var nullId = JsonParser.parseString("{\"connectors\":[{\"id\":null,\"kind\":\"wall\"}]}").getAsJsonObject();
+		assertNotNull(PendingOffers.outOfScope(nullId, "town_wall", "connector.wall"), "an id of the wrong type is out of scope, not an exception");
 		var two = JsonParser.parseString("{\"connectors\":[{\"id\":\"town_wall\",\"kind\":\"wall\"},{\"id\":\"outer_wall\",\"kind\":\"wall\"}]}").getAsJsonObject();
-		assertNotNull(PendingOffers.outOfScope(two, "town_wall"), "an unasked second wall");
+		assertNotNull(PendingOffers.outOfScope(two, "town_wall", "connector.wall"), "an unasked second wall");
 		var zoned = JsonParser.parseString("{\"zones\":[{\"id\":\"town_wall\"}]}").getAsJsonObject();
-		assertNotNull(PendingOffers.outOfScope(zoned, "town_wall"), "no zones in a part plan");
-		assertNotNull(PendingOffers.outOfScope(JsonParser.parseString("{}").getAsJsonObject(), "town_wall"), "the part missing");
+		assertNotNull(PendingOffers.outOfScope(zoned, "town_wall", "connector.wall"), "no zones in a part plan");
+		assertNotNull(PendingOffers.outOfScope(JsonParser.parseString("{}").getAsJsonObject(), "town_wall", "connector.wall"), "the part missing");
 	}
 
 	@Test
 	void aGateIsNeverOfferedAlone() {
-		assertTrue(PendingOffers.NOT_ALONE.contains("connector.gate"));
-		assertFalse(PendingOffers.NOT_ALONE.contains("connector.wall"));
+		assertFalse(PendingOffers.offerable("connector.gate"));
+		assertFalse(PendingOffers.offerable("zone.outpost"), "a zone needs a layout");
+		assertTrue(PendingOffers.offerable("connector.wall"));
+		assertTrue(PendingOffers.offerable("form.hidden_room"));
 	}
 }

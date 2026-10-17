@@ -153,12 +153,16 @@ public final class PendingOffers {
 			if (only != null && !only.equals(s.id())) continue;
 			var entry = PlanStore.get(s.id());
 			if (entry.isEmpty() || entry.get().pending().isEmpty()) continue;
+			// a part built and accepted whose drop from the cache was lost (a stop between the two): dropped now
+			for (var p : List.copyOf(entry.get().pending())) if (s.proposals().accepted().contains("part_" + p.part())) dropPending(s.id(), p.part());
+			entry = PlanStore.get(s.id());
+			if (entry.isEmpty() || entry.get().pending().isEmpty()) continue;
 			if (townRegion(s).isEmpty() || noInstant(server, s) != null) continue;
 			JsonObject plan = JsonParser.parseString(entry.get().plan()).getAsJsonObject();
 			List<Proposal> open = new ArrayList<>(s.proposals().open());
 			boolean added = false;
 			for (var p : entry.get().pending()) {
-				if (!"supported".equals(states.get(p.block())) || NOT_ALONE.contains(p.block())) continue;
+				if (!"supported".equals(states.get(p.block())) || !offerable(p.block())) continue;
 				String key = "part_" + p.part();
 				if (open.stream().anyMatch(x -> x.key().equals(key)) || s.proposals().declined().contains(key) || s.proposals().accepted().contains(key)) continue;
 				String what = name(partOf(plan, p.part()).orElse(null), p.part());
@@ -190,6 +194,8 @@ public final class PendingOffers {
 		JsonObject plan = JsonParser.parseString(entry.get().plan()).getAsJsonObject();
 		var partJson = partOf(plan, part);
 		if (partJson.isEmpty()) return "That part is not in the kept plan.";
+		if (!offerable(pending.get().block())) return "It can't be built on its own (" + pending.get().block() + "): it waits for the part it belongs to.";
+		if (s.proposals().accepted().contains(p.key())) return "It is built already.";
 		String no = noInstant(server, s);
 		if (no != null) return "Not yet: " + no + ".";
 		if (SettlementRunner.busy(s.id())) return s.name() + " is busy (a build, an undo or another part); accept it once that is done.";
@@ -228,16 +234,27 @@ public final class PendingOffers {
 		return out;
 	}
 
-	/** Why a written plan is not just the part asked for, or null: no zones, and exactly that one part. */
-	static @Nullable String outOfScope(JsonObject plan, String part) {
+	/** Why a written plan is not just the part asked for, of its block ({@code connector.wall}: one connector of kind wall), or null. */
+	static @Nullable String outOfScope(JsonObject plan, String part, String block) {
+		int dot = block.indexOf('.');
+		String family = dot < 0 ? "" : block.substring(0, dot), kind = dot < 0 ? block : block.substring(dot + 1);
+		String list = switch (family) {
+			case "connector" -> "connectors";
+			case "form" -> "forms";
+			case "rule" -> "rules";
+			default -> "zones";
+		};
 		int n = 0;
-		for (String list : List.of("zones", "connectors", "forms", "rules")) {
-			if (!plan.has(list) || !plan.get(list).isJsonArray()) continue;
-			for (JsonElement e : plan.getAsJsonArray(list)) {
+		for (String l : List.of("zones", "connectors", "forms", "rules")) {
+			if (!plan.has(l)) continue;
+			if (!plan.get(l).isJsonArray()) return "its " + l + " is not a list";
+			for (JsonElement e : plan.getAsJsonArray(l)) {
 				n++;
-				if (!e.isJsonObject() || !e.getAsJsonObject().has("id") || !part.equals(e.getAsJsonObject().get("id").getAsString()) || list.equals("zones")) {
-					return "the plan holds more than " + part + " (only that part is asked for)";
-				}
+				if (!e.isJsonObject() || !e.getAsJsonObject().has("id") || !e.getAsJsonObject().get("id").isJsonPrimitive()
+					|| !part.equals(e.getAsJsonObject().get("id").getAsString())) return "the plan holds more than " + part + " (only that part is asked for)";
+				if (!l.equals(list)) return part + " is in " + l + ", not " + list + " (it is a " + block + ")";
+				var k = e.getAsJsonObject().get("kind");
+				if (k == null || !k.isJsonPrimitive() || !kind.equals(k.getAsString())) return part + " is not a " + kind + " (it is a " + block + ")";
 			}
 		}
 		return n == 1 ? null : "the plan holds no " + part;
@@ -248,7 +265,8 @@ public final class PendingOffers {
 		var entry = PlanStore.get(s.id()).orElse(null);
 		if (entry == null) { fail(server, player, s, p, what, "the kept plan went"); return; }
 		String card = Actions.cardJson(s.card());
-		PlanWriter.writePart(card, entry.plan(), partJson, block, others, s.owner(), previous, answers).whenComplete((r, err) -> server.execute(() -> {
+		PlanWriter.writePart(card, entry.plan(), partJson, block, others, s.owner(), previous, answers).whenComplete((r, err) -> server.execute(() -> guarded(server, player,
+			s, p, what, () -> {
 			if (!Session.is(session)) return;
 			if (err != null || r.answer() == null || !r.answer().has("plan") || !r.answer().get("plan").isJsonObject()) {
 				fail(server, player, s, p, what, err != null ? String.valueOf(err.getMessage()) : r.error() != null ? r.error() : "no plan in the answer");
@@ -260,7 +278,7 @@ public final class PendingOffers {
 			JsonObject checked = JsonParser.parseString(written.toString().replace("\"" + PlanWriterJob.TOWN + "\"", "\"" + region + "\"")).getAsJsonObject();
 			String summary = r.answer().has("summary") && r.answer().get("summary").isJsonPrimitive() ? r.answer().get("summary").getAsString() : what;
 			// only the part asked for is ever built: anything more goes back to Claude
-			String scope = outOfScope(checked, p.pendingPart());
+			String scope = outOfScope(checked, p.pendingPart(), block);
 			if (scope != null) {
 				String lines = "- {\"part\":\"" + p.pendingPart() + "\",\"class\":\"malformed\",\"reasons\":[{\"code\":\"SCOPE\",\"message\":\"" + scope + "\"}]}\n";
 				if (round < ROUNDS && cost < CAP_USD - PlanWriterJob.BUDGET_USD && !lines.equals(last)) {
@@ -269,7 +287,7 @@ public final class PendingOffers {
 				return;
 			}
 			var now = Settlements.store().get(s.id()).orElse(s);
-			Composer.check(server, now, checked, player).whenComplete((c, cerr) -> server.execute(() -> {
+			Composer.check(server, now, checked, player).whenComplete((c, cerr) -> server.execute(() -> guarded(server, player, s, p, what, () -> {
 				if (!Session.is(session)) return;
 				if (cerr != null) { fail(server, player, s, p, what, "Architect could not check it (" + cerr.getMessage() + ")"); return; }
 				var answer = c.parts().stream().filter(x -> x.has("part") && p.pendingPart().equals(x.get("part").getAsString())).findFirst();
@@ -298,8 +316,18 @@ public final class PendingOffers {
 					&& x.getAsJsonArray("reasons").get(0).isJsonObject() && x.getAsJsonArray("reasons").get(0).getAsJsonObject().has("message")
 					? Optional.of(x.getAsJsonArray("reasons").get(0).getAsJsonObject().get("message").getAsString()) : Optional.empty()).orElse(cls + ", " + c.overall());
 				fail(server, player, s, p, what, "it doesn't fit round " + s.name() + " yet: " + why);
-			}));
-		}));
+			})));
+		})));
+	}
+
+	/** Runs a step of the fitting; anything it throws (an answer of an unexpected shape) stops it as a failure, so the settlement is never left busy. */
+	private static void guarded(MinecraftServer server, UUID player, Settlement s, Proposal p, String what, Runnable step) {
+		try {
+			step.run();
+		} catch (RuntimeException e) {
+			Steward.LOGGER.warn("part {} of {} stopped", p.pendingPart(), s.id(), e);
+			fail(server, player, s, p, what, "its plan could not be read (" + e.getMessage() + ")");
+		}
 	}
 
 	/** The checked part plan realised as a region of its own, then watched until it is placed. */
@@ -342,18 +370,39 @@ public final class PendingOffers {
 		boolean whole = st == dev.larattalabs.architect.api.RegionState.PLACED;
 		var entry = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Built " + w.name(), changes, VPlan.REGION_PREFIX + regionId,
 			whole ? Settlement.Outcome.DONE : Settlement.Outcome.PARTIAL);
-		if (!Settlements.log(w.settlementId(), entry).ok()) {
+		// one commit: the history entry and the offer accepted together (a failure leaves neither, and the region is taken up again)
+		var now = Settlements.store().get(w.settlementId()).orElse(s.get());
+		var ps = now.proposals();
+		List<String> accepted = new ArrayList<>(ps.accepted());
+		if (!accepted.contains(w.proposal().key())) accepted.add(w.proposal().key());
+		var done = now.withLog(entry).withProposals(new Settlement.Proposals(ps.open().stream().filter(x -> !x.key().equals(w.proposal().key())).toList(), ps.declined(),
+			accepted, ps.lastAt()));
+		if (!Settlements.replace(done).ok()) {
 			// without its history entry an undo couldn't reach it: taken up again, and it still waits
 			VillageSweep.takeUp(server, s.get(), regionId, m -> Steward.LOGGER.info("{}: {}", w.settlementId(), m));
 			fail(server, w.player(), s.get(), w.proposal(), w.name(), "the settlement's history could not be saved, so it was taken up again");
 			return;
 		}
-		// built and recorded: the offer is accepted, and the part no longer waits
-		Proposals.recordAccepted(w.settlementId(), w.proposal().key(), null);
-		PlanStore.get(w.settlementId()).ifPresent(e -> PlanStore.put(new PlanStore.Entry(e.settlementId(), e.plan(), e.overall(), e.artifact(), e.summary(),
-			e.pending().stream().filter(x -> !x.part().equals(w.part())).toList(), e.usd(), e.at(), e.rounds())));
+		// the part no longer waits (the kept plan is a cache: an accepted part is also dropped from it at the next start)
+		dropPending(w.settlementId(), w.part());
 		BUSY.remove(w.settlementId() + "/" + w.part());
 		Composer.tellNow(server, w.player(), s.get(), (whole ? "Built " : "Built in part: ") + w.name() + ". An undo takes it away and leaves the town.");
+	}
+
+	/** The kept plan's pending list without {@code part}. */
+	static void dropPending(String settlementId, String part) {
+		PlanStore.get(settlementId).ifPresent(e -> PlanStore.put(new PlanStore.Entry(e.settlementId(), e.plan(), e.overall(), e.artifact(), e.summary(),
+			e.pending().stream().filter(x -> !x.part().equals(part)).toList(), e.usd(), e.at(), e.rounds())));
+	}
+
+	/** Whether a waiting part of {@code block} can be offered and built alone: a connector, form or rule (a zone needs a layout), and not a gate. */
+	static boolean offerable(String block) {
+		return !NOT_ALONE.contains(block) && (block.startsWith("connector.") || block.startsWith("form.") || block.startsWith("rule."));
+	}
+
+	/** Whether {@code part} of {@code settlementId} is being written, checked or placed (it can't be declined meanwhile). */
+	public static boolean busy(String settlementId, String part) {
+		return BUSY.contains(settlementId + "/" + part);
 	}
 
 	/** It stops: the offer stays in the inbox, and the part still waits. */

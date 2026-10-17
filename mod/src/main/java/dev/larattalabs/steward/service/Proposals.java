@@ -80,7 +80,9 @@ public final class Proposals {
 			proposeDistrictFromLand(server, p.getUUID(), s, open, now);
 			return;
 		} else {
-			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open, s.proposals().lastAt(), now).stream()
+			// a waiting part of the plan is not a building: it takes none of the room new proposals have
+			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open.stream().filter(x -> !x.offersPart()).toList(),
+				s.proposals().lastAt(), now).stream()
 				.map(x -> x.in(where.district())).toList();
 		}
 		if (fresh.isEmpty()) return;

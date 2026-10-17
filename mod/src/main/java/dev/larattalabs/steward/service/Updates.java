@@ -104,7 +104,11 @@ public final class Updates {
 			switch (plan.action()) {
 				case NOTHING -> {
 				}
-				case APPLY -> apply(server, s, new Pending(o.siteId(), lot, o.version(), o.headVersion(), plan.action(), plan.text()));
+				// applied once a waiting part being built is done (asked meanwhile)
+				case APPLY -> {
+					if (PendingOffers.busy(s.id())) pending.add(new Pending(o.siteId(), lot, o.version(), o.headVersion(), UpdatePlanner.Action.ASK, plan.text()));
+					else apply(server, s, new Pending(o.siteId(), lot, o.version(), o.headVersion(), plan.action(), plan.text()));
+				}
 				case ASK, BLOCKED -> pending.add(new Pending(o.siteId(), lot, o.version(), o.headVersion(), plan.action(), plan.text()));
 			}
 		}
@@ -155,6 +159,7 @@ public final class Updates {
 		var s = Settlements.store().get(settlementId);
 		List<Pending> list = PENDING.getOrDefault(settlementId, List.of());
 		if (s.isEmpty() || list.isEmpty()) return "No update is waiting for " + settlementId + ".";
+		if (PendingOffers.busy(settlementId)) return s.get().name() + " is building a waiting part; update once that is done.";
 		int n = 0;
 		for (Pending p : list) {
 			if (!siteId.isEmpty() && !p.siteId().equals(siteId)) continue;

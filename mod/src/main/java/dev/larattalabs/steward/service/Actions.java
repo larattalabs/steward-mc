@@ -379,7 +379,12 @@ public final class Actions {
 		if ("proposal_decline".equals(action) || "proposal_accept".equals(action)) {
 			Optional<Settlement> s = Settlements.store().get(id);
 			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
-			if ("proposal_decline".equals(action)) return Result.ok(Proposals.decline(player.level().getServer(), s.get(), lot == null ? "" : lot));
+			if ("proposal_decline".equals(action)) {
+				// a waiting part being fitted or built finishes first (declining it then would leave it built and not recorded as accepted)
+				var offer = s.get().proposals().open().stream().filter(x -> x.key().equals(lot) && x.offersPart()).findFirst();
+				if (offer.isPresent() && PendingOffers.busy(s.get().id(), offer.get().pendingPart())) return Result.fail("It is being built now; undo it once it stands.");
+				return Result.ok(Proposals.decline(player.level().getServer(), s.get(), lot == null ? "" : lot));
+			}
 			return acceptProposal(player, s.get(), lot == null ? "" : lot);
 		}
 		if ("revert".equals(action)) {
