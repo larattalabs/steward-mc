@@ -36,9 +36,9 @@ public final class PlanWriter {
 	 * A part of the kept plan that waited for Architect, written now against the town as it stands (docs/COMPOSITION.md section 11; see
 	 * {@link PlanWriterJob#part}); a repair round when {@code previous} and {@code answers} are given.
 	 */
-	public static CompletableFuture<PlanWriterJob.Result> writePart(String card, String keptPlan, String partJson, String block, @Nullable String owner,
-		@Nullable String previous, @Nullable String answers) {
-		return run(refs -> PlanWriterJob.part(card, keptPlan, partJson, block, owner, previous, answers, refs));
+	public static CompletableFuture<PlanWriterJob.Result> writePart(String card, String keptPlan, String partJson, String block, List<String> others,
+		@Nullable String owner, @Nullable String previous, @Nullable String answers) {
+		return run(refs -> PlanWriterJob.part(card, keptPlan, partJson, block, others, owner, previous, answers, refs));
 	}
 
 	private static CompletableFuture<PlanWriterJob.Result> run(java.util.function.Function<Boolean, dev.larattalabs.architect.api.JobSpec> spec) {

@@ -163,7 +163,7 @@ public final class SettlementRunner {
 	 */
 	public static boolean busy(String settlementId) {
 		SettlementRunner r = ACTIVE.get(settlementId);
-		return (r != null && (r.state == null || !r.state.phase().terminal())) || Districts.busy(settlementId) || Undo.busy(settlementId)
+		return (r != null && (r.state == null || !r.state.phase().terminal())) || Districts.busy(settlementId) || Undo.busy(settlementId) || PendingOffers.busy(settlementId)
 			|| ArchitectApi.get().regions().list("steward_mc:settlement/" + settlementId).stream()
 				.anyMatch(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVING);
 	}

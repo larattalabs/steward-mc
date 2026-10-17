@@ -67,8 +67,8 @@ public final class Proposals {
 		// Autonomous and Full: a proposal already waiting is built once the allowance allows (raised, renewed, or the level just changed)
 		if (!s.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && !open.isEmpty()) {
 			// the first one not backing off (one that found no room waits a while, so it does not hold the others up); a new district always waits for the player
-			// what the player asked for in talk waits for them too (the steward told them so)
-			var waiting = open.stream().filter(x -> !x.foundsDistrict() && !"asked".equals(x.trigger()) && BACKOFF.getOrDefault(s.id() + "#" + x.key(), 0L) <= now).findFirst();
+			// what the player asked for in talk waits for them too (the steward told them so), and so does a waiting part of the plan
+			var waiting = open.stream().filter(x -> !x.foundsDistrict() && !x.offersPart() && !"asked".equals(x.trigger()) && BACKOFF.getOrDefault(s.id() + "#" + x.key(), 0L) <= now).findFirst();
 			if (waiting.isPresent() && s.autonomy().allows(estimate(waiting.get()), now) && autonomously(server, p, s, waiting.get(), now)) return;
 		}
 		// where a new building goes: the town while its street has room, else a district with room; when none has, a new district is proposed

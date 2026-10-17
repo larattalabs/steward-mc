@@ -28,4 +28,21 @@ class PendingOffersTest {
 		assertEquals("the secret cellar", PendingOffers.name(PendingOffers.partOf(plan, "secret_cellar").orElseThrow(), "secret_cellar"));
 		assertTrue(PendingOffers.partOf(plan, "moat").isEmpty());
 	}
+
+	@Test
+	void onlyThePartAskedForIsBuilt() {
+		var one = JsonParser.parseString("{\"connectors\":[{\"id\":\"town_wall\",\"kind\":\"wall\"}]}").getAsJsonObject();
+		assertNull(PendingOffers.outOfScope(one, "town_wall"));
+		var two = JsonParser.parseString("{\"connectors\":[{\"id\":\"town_wall\",\"kind\":\"wall\"},{\"id\":\"outer_wall\",\"kind\":\"wall\"}]}").getAsJsonObject();
+		assertNotNull(PendingOffers.outOfScope(two, "town_wall"), "an unasked second wall");
+		var zoned = JsonParser.parseString("{\"zones\":[{\"id\":\"town_wall\"}]}").getAsJsonObject();
+		assertNotNull(PendingOffers.outOfScope(zoned, "town_wall"), "no zones in a part plan");
+		assertNotNull(PendingOffers.outOfScope(JsonParser.parseString("{}").getAsJsonObject(), "town_wall"), "the part missing");
+	}
+
+	@Test
+	void aGateIsNeverOfferedAlone() {
+		assertTrue(PendingOffers.NOT_ALONE.contains("connector.gate"));
+		assertFalse(PendingOffers.NOT_ALONE.contains("connector.wall"));
+	}
 }

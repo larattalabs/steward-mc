@@ -63,13 +63,15 @@ public final class PlanWriterJob {
 	 * against the town as it stands (one region, named {@code {"region": "$TOWN"}}), the player's ask kept. A repair round when {@code previous} and
 	 * {@code answers} are given.
 	 */
-	public static JobSpec part(String card, String keptPlan, String partJson, String block, @Nullable String owner, @Nullable String previous,
+	public static JobSpec part(String card, String keptPlan, String partJson, String block, List<String> others, @Nullable String owner, @Nullable String previous,
 		@Nullable String answers, boolean refs) {
 		StringBuilder b = new StringBuilder();
 		b.append("The settlement's concept card:\n").append(card.strip()).append("\n\n");
 		b.append("Its plan as it was kept (the parts Architect could not build then waited):\n").append(keptPlan.strip()).append("\n\n");
 		b.append("The town now stands as one region. Name it in a plan as {\"region\": \"").append(TOWN).append("\"}: a wall round it is where: {around: {feature: ")
 			.append("{region: \"").append(TOWN).append("\"}}}, a road or bridge to it ends on {region: \"").append(TOWN).append("\"}.\n");
+		if (!others.isEmpty()) b.append("Also standing outside the town's region (added since): fit the part round them too, or say in notes why not:\n")
+			.append(String.join("\n", others)).append("\n");
 		b.append("Architect can build ").append(block).append(" now. Write a plan (schemaVersion plan/0, no zones) whose only part is this one, as the player asked")
 			.append(" for it, placed against the town as it stands; keep its id, label and required:\n").append(partJson.strip()).append("\n");
 		b.append("Answer with the plan, waits (empty unless it still can't be built) and summary (one sentence for the player: what will be built).\n");
