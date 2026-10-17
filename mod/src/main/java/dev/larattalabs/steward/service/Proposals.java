@@ -140,7 +140,8 @@ public final class Proposals {
 	 * the settlement's purpose and buildings best (a fishing town's next district by the water; docs/PLAN.md "Zones", first step), else the first that fits.
 	 */
 	static void proposeDistrictFromLand(MinecraftServer server, java.util.UUID player, Settlement s, List<Proposal> open, long now) {
-		if (!ProposalRules.room(open, s.proposals().lastAt(), now) || open.stream().anyMatch(Proposal::foundsDistrict)) return;
+		// a waiting part of the plan takes none of the room
+		if (!ProposalRules.room(open.stream().filter(x -> !x.offersPart()).toList(), s.proposals().lastAt(), now) || open.stream().anyMatch(Proposal::foundsDistrict)) return;
 		if (s.lands().districts().size() >= dev.larattalabs.steward.model.DistrictRules.DIRECTIONS.size() || !CHOOSING.add(s.id())) return;
 		Set<String> skip = new HashSet<>();
 		for (String d : dev.larattalabs.steward.model.DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) skip.add(d);

@@ -38,6 +38,12 @@ public final class Updates {
 	private static final Set<String> SKIPPED = new HashSet<>();
 	/** Sites with an apply on its way: not offered or applied again until it ends. */
 	private static final Set<String> APPLYING = new HashSet<>();
+
+	/** Whether an update to one of {@code s}'s buildings is being applied now (a waiting part waits for it). */
+	static boolean applying(MinecraftServer server, Settlement s) {
+		if (APPLYING.isEmpty()) return false;
+		return ArchitectApi.get().sites(server).list(s.owner()).stream().anyMatch(v -> APPLYING.contains(v.id()));
+	}
 	/** {@code siteId@version}: applies that failed, with why. Not applied automatically again (the player can retry from the inbox). */
 	private static final Map<String, String> FAILED = new java.util.HashMap<>();
 	/** Site id -> the highest version reverted away from this session (held even when the revert's history could not be saved). */

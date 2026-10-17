@@ -198,7 +198,7 @@ public final class PendingOffers {
 		if (s.proposals().accepted().contains(p.key())) return "It is built already.";
 		String no = noInstant(server, s);
 		if (no != null) return "Not yet: " + no + ".";
-		if (SettlementRunner.busy(s.id())) return s.name() + " is busy (a build, an undo or another part); accept it once that is done.";
+		if (SettlementRunner.busy(s.id()) || Updates.applying(server, s)) return s.name() + " is busy (a build, an update, an undo or another part); accept it once that is done.";
 		var region = townRegion(s);
 		if (region.isEmpty()) return "Nothing of " + s.name() + " stands as a region for it to go round.";
 		String busy = s.id() + "/" + part;
