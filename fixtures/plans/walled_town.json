@@ -66,16 +66,32 @@
           "kind": "wall",
           "required": true,
           "label": "the town wall",
-          "notes": "A stone wall round the town, with a gatehouse where each road leaves it."
+          "where": {
+            "around": {
+              "feature": {
+                "part": "town"
+              }
+            }
+          },
+          "notes": "A stone wall round the town, with a gate where each road leaves it."
+        }
+      ],
+      "forms": [
+        {
+          "id": "secret_cellar",
+          "kind": "hidden_room",
+          "required": false,
+          "label": "a hidden cellar",
+          "notes": "A secret cellar under the market hall, reached by a trapdoor."
         }
       ]
     },
     "waits": [
       {
-        "part": "town_wall",
-        "words": "The town wall and its gatehouses: walls come with a later Architect release; the town is built first and the wall is offered when it can be."
+        "part": "secret_cellar",
+        "words": "The hidden cellar under the market hall waits for a later Architect release; the town and its wall are built first."
       }
     ],
-    "summary": "A small market town round a central market hall, with merchants' houses on its street. The wall and its gatehouses wait for Architect's walls."
+    "summary": "A small walled market town round a central market hall, with merchants' houses on its street. Its hidden cellar waits for Architect."
   }
 }

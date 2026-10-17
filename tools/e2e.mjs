@@ -841,10 +841,10 @@ async function planBuildFlow() {
   const placedOp = (st?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
   const region = placedOp?.siteGroup;
   const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
-  const wallWaits = plans[id]?.pending?.some((x) => x.part === 'town_wall');
-  if (laid && without && /^region:/.test(region ?? '') && built.placed > 0 && wallWaits) {
-    ok('plan build', `${built.steps.join(' > ')} > ${built.placed} placed from the approved plan (${region}); ${without[0]}; the wall still waits`);
-  } else return fail('plan build', `laid out ${!!laid}, without ${without ? without[1] : 'none'}, region ${region}, placed ${built.placed}, wall pending ${wallWaits}`);
+  const cellarWaits = plans[id]?.pending?.some((x) => x.part === 'secret_cellar');
+  if (laid && without && /^region:/.test(region ?? '') && built.placed > 0 && cellarWaits) {
+    ok('plan build', `${built.steps.join(' > ')} > ${built.placed} placed from the approved plan, its wall with it (${region}); ${without[0]}; the cellar still waits`);
+  } else return fail('plan build', `laid out ${!!laid}, without ${without ? without[1] : 'none'}, region ${region}, placed ${built.placed}, cellar pending ${cellarWaits}`);
   await cmd(`/tp @p ~ ~ ~90`);
   await cmd(`/steward undo ${id}`);
   let last = null;
@@ -991,7 +991,7 @@ async function survivalFlow() {
 
 /**
  * Architect's plan check (P0; docs/COMPOSITION.md): recorded plans checked round the player on fresh flat land, answered part by part. A plain village
- * is ready, with an artifact; the walled town's wall is unsupported, naming connector.wall. The ready one is realised from its artifact and taken up again.
+ * is ready, with an artifact; the walled town's hidden cellar is unsupported, naming form.hidden_room (its wall fits: K1). The ready one is realised from its artifact and taken up again.
  */
 async function planCheckFlow() {
   const n = settlements().length;
@@ -1009,8 +1009,11 @@ async function planCheckFlow() {
   if (market?.overall === 'READY' && market.artifact) ok('plan check', `market town READY ${JSON.stringify(market.classes)}, artifact ${market.artifact.slice(0, 12)}`);
   else return fail('plan check', JSON.stringify(market)?.slice(0, 300));
   const walled = await checked('walled_town', plan('plans/walled_town.json'));
+  const cellar = walled?.parts?.find((x) => x.part === 'secret_cellar');
   const wall = walled?.parts?.find((x) => x.part === 'town_wall');
-  if (wall?.class === 'unsupported' && wall.block === 'connector.wall') ok('plan check unsupported', `the wall: ${wall.class} ${wall.block}; overall ${walled.overall}`);
+  if (cellar?.class === 'unsupported' && cellar.block === 'form.hidden_room' && /fits|adjusted/.test(wall?.class ?? '')) {
+    ok('plan check unsupported', `the cellar: ${cellar.class} ${cellar.block}; the wall ${wall.class}; overall ${walled.overall}`);
+  }
   else fail('plan check unsupported', JSON.stringify(walled)?.slice(0, 300));
   let from = logSize();
   await cmd('/steward dev realise_plan market_town');
@@ -1040,19 +1043,20 @@ async function stubFlow(id) {
   // this settlement stays on Steward's own layout (additions, districts and the rest below rest on it); villageFlow builds one on Architect's flat village
   await cmd(`/steward dev layout ${id} legacy`);
   await cmd(`/steward dev sim_answer card ${fixture('stilt_village.json')}`);
-  // the plan Claude composes from the card (plan v0): a walled town, whose wall waits for Architect's walls (connector.wall)
+  // the plan Claude composes from the card (plan v0): a walled town (its wall fits, K1), whose hidden cellar waits for Architect (form.hidden_room, 7b)
   await cmd(`/steward dev sim_answer plan ${fixture('plans/walled_town.json')}`);
   let from = logSize();
   await cmd(`/steward describe ${id} a fishing village on stilts over a swamp`);
   if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('describe', `no card: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
   const card = settlements().find((x) => x.id === id);
   ok('describe', `${card?.name}: ${(card?.card?.program ?? []).length} program entries (the scripted card through the card job)`);
-  // the composed plan is checked and kept, with the wall pending on its building block
-  const composed = await waitLog(from, new RegExp(`plan for ${id}: ([^\n]*)`), 240_000);
+  // the composed plan is checked and kept, with the cellar pending on its building block
+  // the kept plan's line (a repair round logs "round n" first)
+  const composed = await waitLog(from, new RegExp(`plan for ${id}: ([A-Z_]+ after [^\n]*)`), 240_000);
   const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
-  const wallWaits = plans[id]?.pending?.find((x) => x.part === 'town_wall');
+  const wallWaits = plans[id]?.pending?.find((x) => x.part === 'secret_cellar');
   const schemaBy = (logSince(from).match(/plan writer: the schema ([^\n(]*)/) ?? [0, '?'])[1].trim();
-  if (wallWaits?.block === 'connector.wall' && /Not yet: The town wall/.test(logSince(from))) ok('composition', `${plans[id].overall} after ${plans[id].rounds} repair(s); the wall waits on ${wallWaits.block}; the schema ${schemaBy}`);
+  if (wallWaits?.block === 'form.hidden_room' && /Not yet: The hidden cellar/.test(logSince(from))) ok('composition', `${plans[id].overall} after ${plans[id].rounds} repair(s); the cellar waits on ${wallWaits.block}; the schema ${schemaBy}`);
   else fail('composition', `${composed ? composed[1] : 'no plan'}; ${JSON.stringify(plans[id] ?? null)?.slice(0, 200)}`);
   // what waits for Architect, on the card before anything is spent: a stilt village over a swamp stands beside the water for now
   const limit = logSince(0).match(/Not yet: (Buildings over water[^\n]*)/);
