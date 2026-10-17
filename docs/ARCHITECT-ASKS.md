@@ -524,3 +524,14 @@ The plan writer's system prompt is its instructions plus plan/0 in full, so the 
 - **S-K1-6:** a pending part that becomes refused is offered as a repair, never a stopped build (plan v1 builds pending parts as not required). Reserve an id for elevated lots now.
 - **S-K1-7:** unknown reason codes pass through verbatim.
 - **Asked:** whether a lot's box height is the bound `realiseApproved` enforces on a design, and a stable rule for `costRange`'s top, so Steward caps designs before paying for a realise.
+
+**v0.33.0 (C37 orientation, C37b `Entry.cells()`), v0.34.0 (C38 `planCatalogue()`), v0.35.0 (K1: walls, gates, rope bridges; K1-target `wall.around {feature: {region}}`), 2026-10-14 to 2026-10-17.** Plan v1 builds on 0.33.0 (stub 44, free 42); 0.34.0 checked after release (stub 44, free 42); 0.35.0's check is running.
+
+**T3 contract review (Architect main b528dc9b, "Phase 6c slice T3: bridges and tunnels"; sent 2026-10-17).** It fits.
+- **S-T3-2:** streets, roads and paths fall back to a bridge when every route crosses water.
+- **S-T3-3:** `WATER until H` is acceptable; its arch or rope `wouldFit` is offered as a repair.
+- **S-T3-4:** a tunnel under flat ground stays `unsupported {tunnel.under, until 7b}` (a path repair would drop the secret).
+- **S-T3-5:** posterns count as gates, never under a sealed wall, never made by auto.
+- **S-T3-6:** on `incomplete VOLUME` Steward tells the player where to stand and checks again once; asked for a check option that prepares the plan's tiles. Rock `ARTIFACT_STALE` is fine (one retry). R19 `via` read leniently.
+- **S-T3-7:** reserve `connector.tube` (until UW) and a moving-bridge id.
+- **S-T3-8:** enough; asked for the bridge's span and the gate or postern it lands at.
