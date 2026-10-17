@@ -282,7 +282,8 @@ public final class Talk {
 	 */
 	private static @Nullable String addProposal(Settlement s, Proposal p) {
 		var ps = s.proposals();
-		if (ps.open().stream().noneMatch(x -> x.key().equals(p.key())) && ps.open().size() >= MAX_OPEN_ASKED) {
+		// a waiting part of the plan takes none of the room
+		if (ps.open().stream().noneMatch(x -> x.key().equals(p.key())) && ps.open().stream().filter(x -> !x.offersPart()).count() >= MAX_OPEN_ASKED) {
 			return "The inbox already holds " + ps.open().size() + " ideas: decide on some of those first, then ask me again.";
 		}
 		List<Proposal> open = new ArrayList<>(ps.open().stream().filter(x -> !x.key().equals(p.key())).toList());

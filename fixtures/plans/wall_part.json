@@ -1,0 +1,21 @@
+{
+  "prompt": "The town wall, now that Architect builds walls: round the town as it stands (docs/COMPOSITION.md section 11).",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "market_town_wall",
+      "connectors": [
+        {
+          "id": "town_wall",
+          "kind": "wall",
+          "required": true,
+          "label": "the town wall",
+          "where": { "around": { "feature": { "region": "$TOWN" } } },
+          "notes": "A stone wall round the market town, with a gate where its street leaves it."
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A stone wall round the market town, with a gate where its street leaves it."
+  }
+}

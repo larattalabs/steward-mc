@@ -67,8 +67,8 @@ public final class Proposals {
 		// Autonomous and Full: a proposal already waiting is built once the allowance allows (raised, renewed, or the level just changed)
 		if (!s.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && !open.isEmpty()) {
 			// the first one not backing off (one that found no room waits a while, so it does not hold the others up); a new district always waits for the player
-			// what the player asked for in talk waits for them too (the steward told them so)
-			var waiting = open.stream().filter(x -> !x.foundsDistrict() && !"asked".equals(x.trigger()) && BACKOFF.getOrDefault(s.id() + "#" + x.key(), 0L) <= now).findFirst();
+			// what the player asked for in talk waits for them too (the steward told them so), and so does a waiting part of the plan
+			var waiting = open.stream().filter(x -> !x.foundsDistrict() && !x.offersPart() && !"asked".equals(x.trigger()) && BACKOFF.getOrDefault(s.id() + "#" + x.key(), 0L) <= now).findFirst();
 			if (waiting.isPresent() && s.autonomy().allows(estimate(waiting.get()), now) && autonomously(server, p, s, waiting.get(), now)) return;
 		}
 		// where a new building goes: the town while its street has room, else a district with room; when none has, a new district is proposed
@@ -80,7 +80,9 @@ public final class Proposals {
 			proposeDistrictFromLand(server, p.getUUID(), s, open, now);
 			return;
 		} else {
-			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open, s.proposals().lastAt(), now).stream()
+			// a waiting part of the plan is not a building: it takes none of the room new proposals have
+			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open.stream().filter(x -> !x.offersPart()).toList(),
+				s.proposals().lastAt(), now).stream()
 				.map(x -> x.in(where.district())).toList();
 		}
 		if (fresh.isEmpty()) return;
@@ -138,7 +140,8 @@ public final class Proposals {
 	 * the settlement's purpose and buildings best (a fishing town's next district by the water; docs/PLAN.md "Zones", first step), else the first that fits.
 	 */
 	static void proposeDistrictFromLand(MinecraftServer server, java.util.UUID player, Settlement s, List<Proposal> open, long now) {
-		if (!ProposalRules.room(open, s.proposals().lastAt(), now) || open.stream().anyMatch(Proposal::foundsDistrict)) return;
+		// a waiting part of the plan takes none of the room
+		if (!ProposalRules.room(open.stream().filter(x -> !x.offersPart()).toList(), s.proposals().lastAt(), now) || open.stream().anyMatch(Proposal::foundsDistrict)) return;
 		if (s.lands().districts().size() >= dev.larattalabs.steward.model.DistrictRules.DIRECTIONS.size() || !CHOOSING.add(s.id())) return;
 		Set<String> skip = new HashSet<>();
 		for (String d : dev.larattalabs.steward.model.DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) skip.add(d);
@@ -273,6 +276,8 @@ public final class Proposals {
 	/** About what building a proposal costs (the high estimate of one building, rounded up to $5): its budget when accepted. A district costs nothing. */
 	public static int estimate(Proposal p) {
 		if (p.foundsDistrict()) return 0;
+		// a waiting part: Claude fits it to what stands (about $0.50 a round, at most $1); Architect builds it at no cost
+		if (p.offersPart()) return 1;
 		var e = dev.larattalabs.steward.model.BudgetPolicy.estimate(1, 0);
 		return (int) (Math.ceil(e.usdHigh() / 5.0) * 5);
 	}

@@ -38,6 +38,12 @@ public final class Updates {
 	private static final Set<String> SKIPPED = new HashSet<>();
 	/** Sites with an apply on its way: not offered or applied again until it ends. */
 	private static final Set<String> APPLYING = new HashSet<>();
+
+	/** Whether an update to one of {@code s}'s buildings is being applied now (a waiting part waits for it). */
+	static boolean applying(MinecraftServer server, Settlement s) {
+		if (APPLYING.isEmpty()) return false;
+		return ArchitectApi.get().sites(server).list(s.owner()).stream().anyMatch(v -> APPLYING.contains(v.id()));
+	}
 	/** {@code siteId@version}: applies that failed, with why. Not applied automatically again (the player can retry from the inbox). */
 	private static final Map<String, String> FAILED = new java.util.HashMap<>();
 	/** Site id -> the highest version reverted away from this session (held even when the revert's history could not be saved). */
@@ -104,7 +110,11 @@ public final class Updates {
 			switch (plan.action()) {
 				case NOTHING -> {
 				}
-				case APPLY -> apply(server, s, new Pending(o.siteId(), lot, o.version(), o.headVersion(), plan.action(), plan.text()));
+				// applied once a waiting part being built is done (asked meanwhile)
+				case APPLY -> {
+					if (PendingOffers.busy(s.id())) pending.add(new Pending(o.siteId(), lot, o.version(), o.headVersion(), UpdatePlanner.Action.ASK, plan.text()));
+					else apply(server, s, new Pending(o.siteId(), lot, o.version(), o.headVersion(), plan.action(), plan.text()));
+				}
 				case ASK, BLOCKED -> pending.add(new Pending(o.siteId(), lot, o.version(), o.headVersion(), plan.action(), plan.text()));
 			}
 		}
@@ -155,6 +165,7 @@ public final class Updates {
 		var s = Settlements.store().get(settlementId);
 		List<Pending> list = PENDING.getOrDefault(settlementId, List.of());
 		if (s.isEmpty() || list.isEmpty()) return "No update is waiting for " + settlementId + ".";
+		if (PendingOffers.busy(settlementId)) return s.get().name() + " is building a waiting part; update once that is done.";
 		int n = 0;
 		for (Pending p : list) {
 			if (!siteId.isEmpty() && !p.siteId().equals(siteId)) continue;

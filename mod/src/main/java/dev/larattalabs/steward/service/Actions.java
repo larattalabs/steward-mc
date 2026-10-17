@@ -379,7 +379,12 @@ public final class Actions {
 		if ("proposal_decline".equals(action) || "proposal_accept".equals(action)) {
 			Optional<Settlement> s = Settlements.store().get(id);
 			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
-			if ("proposal_decline".equals(action)) return Result.ok(Proposals.decline(player.level().getServer(), s.get(), lot == null ? "" : lot));
+			if ("proposal_decline".equals(action)) {
+				// a waiting part being fitted or built finishes first (declining it then would leave it built and not recorded as accepted)
+				var offer = s.get().proposals().open().stream().filter(x -> x.key().equals(lot) && x.offersPart()).findFirst();
+				if (offer.isPresent() && PendingOffers.busy(s.get().id(), offer.get().pendingPart())) return Result.fail("It is being built now; undo it once it stands.");
+				return Result.ok(Proposals.decline(player.level().getServer(), s.get(), lot == null ? "" : lot));
+			}
 			return acceptProposal(player, s.get(), lot == null ? "" : lot);
 		}
 		if ("revert".equals(action)) {
@@ -439,6 +444,12 @@ public final class Actions {
 		var p = s.proposals().open().stream().filter(x -> x.key().equals(key)).findFirst();
 		if (p.isEmpty()) return Result.fail("No proposal " + key + " waits.");
 		if (SettlementRunner.busy(s.id())) return Result.fail(s.id() + " is being built; build the proposal once that is done.");
+		if (p.get().offersPart()) {
+			// a part of the plan that waited for Architect, built now (docs/COMPOSITION.md section 11): always the player's call
+			if (autonomous) return Result.fail("A waiting part waits for the player.");
+			String no = PendingOffers.accept(player.level().getServer(), player.getUUID(), s, p.get());
+			return no == null ? Result.ok("Fitting it to what stands (up to $" + Proposals.estimate(p.get()) + ")...") : Result.fail(no);
+		}
 		if (p.get().changes()) {
 			// a change to a standing building: designed as its next version, then offered as an update; always the player's call
 			if (autonomous) return Result.fail("A change waits for the player.");

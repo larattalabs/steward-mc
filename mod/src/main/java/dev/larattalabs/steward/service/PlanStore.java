@@ -88,6 +88,25 @@ public final class PlanStore {
 		}
 	}
 
+	/**
+	 * Dev (the e2e check): {@code partJson} kept as waiting for {@code block}, as a plan kept before that block shipped: added to the settlement's kept plan
+	 * (its connectors, forms or rules by its kind; else its zones) and its pending list. Returns what was done.
+	 */
+	public static String pend(String settlementId, String block, String partJson) {
+		var e = plans.get(settlementId);
+		if (e == null) return "No plan kept for " + settlementId + ".";
+		JsonObject part = com.google.gson.JsonParser.parseString(partJson).getAsJsonObject();
+		JsonObject plan = com.google.gson.JsonParser.parseString(e.plan()).getAsJsonObject();
+		String list = block.startsWith("connector.") ? "connectors" : block.startsWith("form.") ? "forms" : block.startsWith("rule.") ? "rules" : "zones";
+		if (!plan.has(list)) plan.add(list, new com.google.gson.JsonArray());
+		plan.getAsJsonArray(list).add(part);
+		String id = part.get("id").getAsString();
+		List<Pending> pending = new java.util.ArrayList<>(e.pending());
+		pending.add(new Pending(id, block, part.has("required") && part.get("required").getAsBoolean(), id.replace('_', ' ') + " waits for Architect"));
+		put(new Entry(e.settlementId(), plan.toString(), e.overall(), e.artifact(), e.summary(), List.copyOf(pending), e.usd(), e.at(), e.rounds()));
+		return "pending " + id + " on " + block + " for " + settlementId;
+	}
+
 	/** The plan as JSON, for the screens (unused fields left out). */
 	static JsonObject json(Entry e) {
 		return GSON.toJsonTree(e).getAsJsonObject();
