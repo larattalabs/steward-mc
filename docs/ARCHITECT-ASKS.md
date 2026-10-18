@@ -536,3 +536,14 @@ The plan writer's system prompt is its instructions plus plan/0 in full, so the 
 - **S-T3-7:** reserve `connector.tube` (until UW) and a moving-bridge id.
 - **S-T3-8:** enough; asked for the bridge's span and the gate or postern it lands at.
 - **T3 frozen with Steward's review (Architect main 3bed28fa):** the bridge fallback; tunnels under flat ground unsupported until 7b; posterns as drafted; a check option `load: "loaded" | "generate"` (generate prepares the plan's tiles for the volume pass, within the caps: Steward uses it at Start); a tunnel's `via` read leniently; `connector.tube` (until UW) and `connector.drawbridge` (until mechanism) reserved, recorded drawbridges answer unsupported; `crossing` gains `span` and `lands`. T3a and T3b release as one batch, API 1.33.0, catalogue 6.
+
+**v0.36.0 (T3: bridges and tunnels; API 1.33.0), checked after release 2026-10-18: pass** (stub 47, free 42). Steward's plan checks load a tunnel's corridor (`load`, LOAD_BOUNDED 512) and need >= 0.36.0.
+
+**H contract review (Architect main b1863046, "Phase 6c slice H: contained fluids", the new section; sent 2026-10-18).** It fits.
+- **S-H-2:** the farm pond in the lot's yard, but explicit (`farmPond: true`), off by default: decorative farms get it (Steward's plan writer sets it); working farms' hydration spacing is a later block (Noah).
+- **S-H-3:** `channel.moat` now, `channel.course` for HY, roads over a moat on T3's bridge fallback to the wall's gate.
+- **S-H-4:** wet writes as a fallback only (byte-identity of plans that fit today).
+- **S-H-5:** `feature.water` survey-only; a plan's own pond as `feature.part`.
+- **S-H-6:** the realise semantics are acceptable; asked for the report's `fluids` per body `{part, state: settled | drained, reason, at}`. RC check before release.
+- **S-H-7:** build the waterfall now; the hollow behind it shows as not built (a note or deviation, or a pending part until 7b).
+- **S-H-8:** enough, with the per-body fluids report.
