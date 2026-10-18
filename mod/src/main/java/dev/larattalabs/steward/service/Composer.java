@@ -95,7 +95,21 @@ public final class Composer {
 		anchors.put("stone", stone);
 		var p = server.getPlayerList().getPlayer(player);
 		anchors.put("player", p != null && s.contains(p.level().dimension().identifier().toString(), p.getBlockX(), p.getBlockY(), p.getBlockZ()) ? p.blockPosition() : stone);
-		return ArchitectApi.get().regions().checkPlan(new PlanRequest(plan, level, claim, anchors, s.owner(), null, null, null, null, new JsonObject()));
+		// a tunnel's volume pass may load (and generate) the chunks its corridor needs (T3, S-T3-6): else an unloaded corridor answers incomplete VOLUME
+		var load = hasTunnel(plan) ? dev.larattalabs.architect.api.LoadPolicy.LOAD_BOUNDED(TUNNEL_CHUNKS) : null;
+		return ArchitectApi.get().regions().checkPlan(new PlanRequest(plan, level, claim, anchors, s.owner(), null, null, null, null, new JsonObject(), load));
+	}
+
+	/** At most this many chunks a check of a plan with a tunnel loads for its survey and volume pass (Architect's caps bound the cells as well). */
+	static final int TUNNEL_CHUNKS = 512;
+
+	/** Whether a plan holds a tunnel (the only part whose check reads the rock under the land). */
+	static boolean hasTunnel(JsonObject plan) {
+		if (!plan.has("connectors") || !plan.get("connectors").isJsonArray()) return false;
+		for (var c : plan.getAsJsonArray("connectors")) {
+			if (c.isJsonObject() && c.getAsJsonObject().has("kind") && "tunnel".equals(c.getAsJsonObject().get("kind").getAsString())) return true;
+		}
+		return false;
 	}
 
 	/** Keeps the plan and tells the player: the summary, then what waits in Claude's words, then what still didn't fit in Architect's. */

@@ -968,7 +968,9 @@ public final class SettlementRunner {
 					&& part.getAsJsonArray("reasons").get(0).isJsonObject() && part.getAsJsonArray("reasons").get(0).getAsJsonObject().has("code")
 					? " " + part.getAsJsonArray("reasons").get(0).getAsJsonObject().get("code").getAsString() : "") + ")");
 		}
-		if (!stuck.isEmpty()) return "the plan's " + String.join(", ", stuck) + " can't be built here";
+		if (!stuck.isEmpty()) return "the plan's " + String.join(", ", stuck) + " can't be built here"
+			// a tunnel past the volume pass's caps: the rock under it couldn't all be read
+			+ (stuck.stream().anyMatch(x -> x.contains("VOLUME")) ? " (Architect couldn't read all the rock a tunnel goes through: stand nearer it and start again)" : "");
 		if (c.artifactSha() == null) return "Architect's check came back " + c.overall();
 		return null;
 	}
