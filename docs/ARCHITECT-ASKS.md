@@ -547,3 +547,4 @@ The plan writer's system prompt is its instructions plus plan/0 in full, so the 
 - **S-H-6:** the realise semantics are acceptable; asked for the report's `fluids` per body `{part, state: settled | drained, reason, at}`. RC check before release.
 - **S-H-7:** build the waterfall now; the hollow behind it shows as not built (a note or deviation, or a pending part until 7b).
 - **S-H-8:** enough, with the per-body fluids report.
+- **H frozen with Steward's review (Architect main 68320b73):** `farmPond: true` on a lot or zone (off by default); wet writes as a fallback only; the realise report's `fluids: [{part, state: settled | drained, reason, at}]`; a waterfall's hollow pending as `form.hidden_room` (its own part) or an `adjusted` deviation (inside the waterfall), never dropped. One RC for H-core, H-a and H-b at API 1.34.0, checked by Steward before release.
