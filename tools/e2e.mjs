@@ -857,6 +857,52 @@ async function planBuildFlow() {
 }
 
 /**
+ * Water (Architect H): a farm hamlet whose farm has its little pond (farmPond), built from its plan. The region is placed only once the pond has settled
+ * (its fluids stage), and an undo drains the pond before it takes the rest up.
+ */
+async function farmPondFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 21000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Pond Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'farm_pond.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a farming hamlet with a little pond`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('farm pond', 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('farm pond', 'no plan composed');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  await cmd('/tp @p ~ ~ ~90');
+  const built = await buildThrough(id, from, 'farm pond');
+  if (!built) return;
+  const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const rg = (placed?.siteGroup ?? '').replace(/^region:/, '');
+  const fluids = logSince(from).match(new RegExp(`stage fluids[^\n]*`, 'g')) ?? [];
+  if (/^rg/.test(rg) && fluids.some((l) => /placed/.test(l))) ok('farm pond', `${built.placed} placed (${placed.siteGroup}), its pond settled: ${fluids.at(-1).slice(0, 90)}`);
+  else return fail('farm pond', `region ${placed?.siteGroup}; fluids stage ${fluids.length ? fluids.join(' | ').slice(0, 200) : 'none'}`);
+  from = logSize();
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 90 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  const drained = /drain/i.test(logSince(from));
+  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placed.siteIds.length) ok('farm pond undo', `${last.text}${drained ? '; the pond drained first' : ''}`);
+  else fail('farm pond undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${placed.siteIds.length}); ${logSince(from).split('\n').filter((l) => /CHAT|drain|fluid/i.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+}
+
+/**
  * A waiting part offered once Architect builds it (docs/COMPOSITION.md section 11): a market town built from its plan, then a wall kept as waiting from
  * before walls existed (as a plan kept before K1); the steward offers it, Claude fits it round the town as it stands (the scripted answer), Architect builds
  * it as a region of its own, and an undo takes the wall away and leaves the town.
@@ -1350,6 +1396,7 @@ try {
       await villageFlow();
       await planBuildFlow();
       await wallOfferFlow();
+      await farmPondFlow();
       await planCheckFlow();
       await survivalFlow();
     }

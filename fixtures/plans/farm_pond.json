@@ -1,0 +1,50 @@
+{
+  "prompt": "A small farming hamlet whose farm has a little pond (H, farmPond).",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "farm_hamlet",
+      "style": {
+        "pending": "farm_hamlet"
+      },
+      "zones": [
+        {
+          "id": "town",
+          "kind": "standard",
+          "required": true,
+          "label": "the hamlet",
+          "farmPond": true,
+          "program": {
+            "template": "flat_village",
+            "params": {
+              "lots": [
+                {
+                  "id": "farm_1",
+                  "type": "farm",
+                  "role": "farm",
+                  "label": "a wheat farm",
+                  "size": [
+                    13,
+                    14
+                  ]
+                },
+                {
+                  "id": "cottage_1",
+                  "type": "cottage",
+                  "role": "cottage",
+                  "label": "a farmer's cottage",
+                  "size": [
+                    13,
+                    14
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A farming hamlet: a wheat farm with its little pond, and the farmer's cottage."
+  }
+}
