@@ -368,6 +368,7 @@ public final class PendingOffers {
 		List<Settlement.SiteChange> changes = ids.stream().map(id -> new Settlement.SiteChange(id, w.part(), 0, sites.get(id).map(dev.larattalabs.architect.api.SiteView::version)
 			.orElse(1))).toList();
 		boolean whole = st == dev.larattalabs.architect.api.RegionState.PLACED;
+		for (String line : RegionReports.drained(v.get().ext())) Composer.tellNow(server, w.player(), s.get(), line);
 		var entry = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Built " + w.name(), changes, VPlan.REGION_PREFIX + regionId,
 			whole ? Settlement.Outcome.DONE : Settlement.Outcome.PARTIAL);
 		// one commit: the history entry and the offer accepted together (a failure leaves neither, and the region is taken up again)

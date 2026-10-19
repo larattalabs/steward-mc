@@ -1852,6 +1852,8 @@ public final class SettlementRunner {
 		boolean whole = st == dev.larattalabs.architect.api.RegionState.PLACED;
 		String note = whole ? null : "the village is " + st.name().toLowerCase() + ": " + placed + " of " + v.get().lots().size() + " lots placed";
 		if (note != null) say("The " + note.substring(4) + ".");
+		// water Architect had to drain (H: it leaked or escaped), said by name
+		for (String line : RegionReports.drained(v.get().ext())) say(line);
 		// the region's sites (its street and buildings; its ground when it left nothing else): undo removes the region whole, ground, lanes, square and props too
 		List<String> sites = regionSites(vRegionId);
 		if (sites.isEmpty()) {
