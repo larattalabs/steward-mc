@@ -1162,6 +1162,8 @@ async function buildThrough(id, from, label, restartAtMassings = false) {
     const since = logSince(at);
     const built = since.match(/is built(?: in part)?: (\d+) buildings placed/);
     if (built) return { steps, placed: Number(built[1]) };
+    // every lot left a pad (a material rule's pre-check): the village's street and square stand, no building
+    if (/No building of [^\n]* was placed/.test(since)) return { steps, placed: 0 };
     const stopped = since.match(/The build stopped[^\n]*|No dry, flat room[^\n]*|No room left[^\n]*|Survey failed[^\n]*|Cancelled [^\n]*|The design group failed[^\n]*/);
     if (stopped) {
       fail(label, stopped[0]);

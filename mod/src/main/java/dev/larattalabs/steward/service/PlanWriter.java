@@ -51,7 +51,7 @@ public final class PlanWriter {
 		CompletableFuture<PlanWriterJob.Result> out = new CompletableFuture<>();
 		// the schema by reference where the helper has it (C33): the helper's own copy, with the live catalogue
 		boolean refs = ArchitectApi.get().features().contains("job.systemRefs");
-		dev.larattalabs.steward.Steward.LOGGER.info("plan writer: the schema {}", refs ? "by reference (plan/0#compact)" : "inline");
+		dev.larattalabs.steward.Steward.LOGGER.info("plan writer: the schema {}", refs ? "by reference (plan/0#compact, vocab/1#compact)" : "inline");
 		jobs.run(spec.apply(refs)).whenComplete((id, err) -> {
 			if (err != null) {
 				out.completeExceptionally(err);
