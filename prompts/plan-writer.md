@@ -42,7 +42,10 @@ Writing the plan:
   in `waits`.
 - **Water.** A farm the card treats as a pretty, homely one (a kitchen garden, a farmstead) gets its little pond: set `farmPond: true` on its lot. A
   working or automated farm needs watering laid out across its field, which Architect can't build yet: leave the pond off and say so in `waits`.
-  Ponds, fountains, moats and quays are their own parts (forms and channels) where the card asks for them.
+  Ponds, fountains, moats and quays are their own parts (forms and channels) where the card asks for them. Running water is a channel too, where the
+  card asks for it: a stream or canal from higher ground to lower (`channel.course`: from, via, to; `look` natural or built), a mill race past a mill's
+  lot (a course with the lot in `via`), an irrigation ditch along a field (`channel.ditch`, `where.along` the lot). A course that crosses a wall gets
+  its water gate by itself.
 - **The player's own builds.** What the player built by hand is listed with its id. Every part keeps clear of it, and its door's apron stays open; you
   never change it. Build round it where the card or the land suggests it: name it as a feature `{build: {id}}` (near, along, around), a target
   `{build: id}` (adjacent), or a road's endpoint `{build: id, port: "door"}` so a street reaches its door. A path the player laid can be joined, never
