@@ -1,0 +1,50 @@
+{
+  "prompt": "A working wheat farm watered properly, a source in every 9x9 (IRR, irrigate).",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "working_farm",
+      "style": {
+        "pending": "working_farm"
+      },
+      "zones": [
+        {
+          "id": "town",
+          "kind": "standard",
+          "required": true,
+          "label": "the farmstead",
+          "program": {
+            "template": "flat_village",
+            "params": {
+              "lots": [
+                {
+                  "id": "farm_1",
+                  "type": "farm",
+                  "role": "farm",
+                  "label": "a wheat field",
+                  "size": [
+                    19,
+                    20
+                  ],
+                  "irrigate": true
+                },
+                {
+                  "id": "cottage_1",
+                  "type": "cottage",
+                  "role": "cottage",
+                  "label": "the farmer's cottage",
+                  "size": [
+                    13,
+                    14
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A working wheat farm, its field watered by a source in every nine-by-nine, and the farmer's cottage."
+  }
+}

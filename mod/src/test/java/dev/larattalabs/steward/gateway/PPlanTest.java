@@ -137,4 +137,17 @@ class PPlanTest {
 		assertEquals(java.util.List.of("trader_1", "trader_2", "herbalist_1", "herbalist_2"), ids);
 		for (var l : PPlan.lots(PPlan.forBuild(plan, Set.of(), "set_9", "b2"))) assertEquals("b2", l.getAsJsonObject("ext").get(BatchPlanner.BUILD_EXT).getAsString());
 	}
+
+	@Test
+	void anIrrigatedLotsReservedCellsAreItsRunsInItsFrame() {
+		var lots = JsonParser.parseString("[{\"id\":\"farm_1\",\"front\":\"east\",\"irrigation\":{\"frame\":[19,20],\"lotCells\":[4,5,0,1,9,5,0,0]}},"
+			+ "{\"id\":\"cottage_1\",\"front\":\"south\"}]").getAsJsonArray();
+		var r = PPlan.reserved(lots);
+		assertEquals(java.util.Set.of("farm_1"), r.keySet());
+		var f = r.get("farm_1");
+		assertEquals("east", f.front());
+		assertEquals(19, f.width());
+		assertEquals(20, f.depth());
+		assertEquals(java.util.List.of(new net.minecraft.core.BlockPos(4, 0, 5), new net.minecraft.core.BlockPos(4, 1, 5), new net.minecraft.core.BlockPos(9, 0, 5)), f.cells());
+	}
 }
