@@ -605,3 +605,9 @@ outposts are built at once as a small quarter. Steward recognises region streets
   you rather offer a dry beside check (a request claim and a standing region → fits, or the named refusal)?
 
 GPT's review of the design (docs/DISTRICTS.md §8) found the 16-column seam can't be computed by Steward reliably, hence D-S1 and D-S4.
+
+**Architect's answer (2026-10-20):** round 11 fits, as slice **D3: districts beside a standing region town** (contract drafting, for
+Steward's review). D3 takes D-S1, with the ownership and undo of join cells written inside the town's claim settled in the contract
+(the town removed under a standing join, the district removed). It also takes D-S3, and D-S4 as a dry beside check that writes and
+keeps nothing (the contract will say what exists today for discarding unrealised plans). D-S2 stays with 6d. Order: after FL merges
+(D3 uses its street flag and frontage), alongside or after RS, before the 6c close-out; a few days out.

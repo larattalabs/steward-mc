@@ -1,7 +1,7 @@
 # Steward's districts on Architect's region districts (drafted 2026-10-20)
 
 Noah, 2026-10-20: "yes, proceed with the district move". This is the design; section 6 has Noah's answers. Steward's side is built
-once Architect answers the join ask (section 7, D-S1).
+on Architect's slice D3 (D-S1, D-S3, D-S4 as a dry beside check; after FL, a few days out; section 7).
 
 ## 1. Today
 
@@ -72,8 +72,8 @@ a v4 file rather than corrupting it (checked: `SettlementStore` refuses a newer 
 moves with it. The new members are `kind`, `state`, `parent` (the town's region id at founding), `region`, `land` (runs and a rect),
 `follow` (the boundary, families and side) and `opKey` (the plan and realise keys' stem).
 
-**The seam is Architect's to judge.** Steward never computes a seam. A beside reservation is checked at founding by a $0
-`Regions.plan` with one placeholder lot, planned and never realised, over the side's request claim beside the town region. The
+**The seam is Architect's to judge.** Steward never computes a seam. A beside reservation is checked at founding by Architect's
+dry beside check (D3, D-S4: writes and keeps nothing), over the side's request claim beside the town region. The
 founding saves only when that plan succeeds; otherwise the player hears Architect's named reason (`NO_JOIN`, `OVERLAP`,
 `PROTECTED`). The real first building plans again with its own lot. Steward's own street extensions in a V town aren't in the town
 region's graph, so the join can never use them (D-S1 asks for the street network as Architect wrote it).
