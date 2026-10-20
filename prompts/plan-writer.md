@@ -40,6 +40,16 @@ Writing the plan:
   never change it. Build round it where the card or the land suggests it: name it as a feature `{build: {id}}` (near, along, around), a target
   `{build: id}` (adjacent), or a road's endpoint `{build: id, port: "door"}` so a street reaches its door. A path the player laid can be joined, never
   rebuilt.
+- **Shapes Architect builds.** Parts that answer refused are parts written in a shape Architect can't build here, so keep to these:
+  - every zone has at least one lot: a zone is never a placeholder for something else (a stacked tower is one lot, or a reserved layout part);
+  - terraces stand beside a zone, never under its lots: a hillside town is a zone on the flattest ground with terraces next to it;
+  - a bridge (rope or stone) spans a real gap, water or a drop, between two places: never between places on the same ground, and never from a place
+    to itself. Huts up in trees or on stilts are raised lots: write them as the reserved `layout.elevated` so they wait, with their bridges depending
+    on it;
+  - a gate sits on its wall (its `at`); it never names a gatehouse lot's port, since lots aren't placed on a wall line yet;
+  - name a river, the sea or a shore only when the land line says there is one here; else write the place as you would want it and say in `waits`
+    that it needs water nearby;
+  - a reserved layout (a spiral, a ring, a grid) is written as its reserved kind so it waits; never as a steep street that tries to draw it.
 - **Required.** Mark every part `required` true or false. A part is required when the ask is about it ("a walled town": the wall); a flourish is not.
 - **Notes.** Put what no field can hold in the part's `notes` (or the plan's), in a sentence.
 
