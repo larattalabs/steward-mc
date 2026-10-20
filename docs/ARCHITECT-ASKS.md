@@ -611,3 +611,23 @@ Steward's review). D3 takes D-S1, with the ownership and undo of join cells writ
 (the town removed under a standing join, the district removed). It also takes D-S3, and D-S4 as a dry beside check that writes and
 keeps nothing (the contract will say what exists today for discarding unrealised plans). D-S2 stays with 6d. Order: after FL merges
 (D3 uses its street flag and frontage), alongside or after RS, before the 6c close-out; a few days out.
+
+**D3 contract review (Architect main 40262c67, "Phase 6c slice D3"; sent 2026-10-20).** It fits DISTRICTS.md. One finding, and
+the eight answers:
+- **Finding: a finished `PARTIAL` town.** §4.4 refuses a realise beside a town in `PARTIAL` with `OVERLAP_BUSY`. But a Steward town that
+  ended with a failed lot stays `PARTIAL` for good: Steward logs it as the town and builds on it (`SettlementRunner.watchVillage`).
+  The same goes for a `FAILED` region with cells standing. D1's plan-time check accepts both. Asked: refuse only `PLACING`,
+  `PREPARING` and `REMOVING` (in flight), and accept `PLACED`, `PARTIAL`, and `FAILED` with cells standing as a beside town, at plan,
+  at the dry check and at realise alike. Add a partial town to `d3_town`'s fixtures.
+- **S-D3-1** Streets only. Yes: Steward's own street extensions are held cells to route around.
+- **S-D3-2** As proposed. Steward doesn't read the graph yet.
+- **S-D3-3** Architect reports both, as proposed. The settlement's claim outlives its town region, so Steward treats `inside` as town
+  land in both cases and never owns it as district land.
+- **S-D3-4** Yes, a snapshot. The first building plans again under `dplan`.
+- **S-D3-5** Yes. Steward tells the player a walled town takes a district once gates can join (7a).
+- **S-D3-6** Yes.
+- **S-D3-7** Yes, Steward's RC check: a partly built V town, a beside reservation by `checkBeside`, its first building, undo in both
+  orders and after a restart, an along district, and the `PARTIAL` town above.
+- **S-D3-8** Yes, cheapest.
+- Steward's notes for itself: its additions in the town must keep off `land.inside`. Its town-build exclusions read the land runs,
+  never a region's tile boxes.
