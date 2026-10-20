@@ -43,7 +43,12 @@ public final class BatchPlanner {
 
 	/** The side of the lot the street is on (its front): a lot facing SOUTH has the street to the south. */
 	public static Direction streetSide(Lot lot) {
-		return lot.front() == Front.SOUTH ? Direction.SOUTH : Direction.NORTH;
+		return switch (lot.front()) {
+			case SOUTH -> Direction.SOUTH;
+			case NORTH -> Direction.NORTH;
+			case EAST -> Direction.EAST;
+			case WEST -> Direction.WEST;
+		};
 	}
 
 	/** Patron may place instantly only where the world allows it; every other case builds construction sites. */

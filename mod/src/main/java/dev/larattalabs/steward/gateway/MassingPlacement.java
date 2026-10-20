@@ -12,8 +12,14 @@ import dev.larattalabs.steward.layout.VillageLayout.Lot;
  */
 public record MassingPlacement(int x, int y, int z, String rotation) {
 	public static MassingPlacement on(Lot lot, int sizeX, int sizeZ) {
+		int depth = Math.min(sizeZ, Math.max(1, lot.deep() - LotBrief.APPROACH_MARGIN));
+		if (lot.front() == Front.EAST || lot.front() == Front.WEST) {
+			// a street to the east or west (an approved plan's lot): turned a quarter so its front faces it; its width runs along z, its depth along x
+			int z = lot.z() + Math.max(0, (lot.sizeZ() - sizeX) / 2);
+			return lot.front() == Front.EAST ? new MassingPlacement(lot.maxX() - LotBrief.APPROACH_MARGIN - depth + 1, lot.groundY(), z, "COUNTERCLOCKWISE_90")
+				: new MassingPlacement(lot.x() + LotBrief.APPROACH_MARGIN, lot.groundY(), z, "CLOCKWISE_90");
+		}
 		int x = lot.x() + Math.max(0, (lot.sizeX() - sizeX) / 2);
-		int depth = Math.min(sizeZ, Math.max(1, lot.sizeZ() - LotBrief.APPROACH_MARGIN));
 		if (lot.front() == Front.SOUTH) {
 			// street to the south: the front (south face) sits the margin north of the lot's south edge
 			return new MassingPlacement(x, lot.groundY(), lot.maxZ() - LotBrief.APPROACH_MARGIN - depth + 1, "NONE");

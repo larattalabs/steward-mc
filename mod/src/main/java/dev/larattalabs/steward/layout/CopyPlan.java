@@ -17,7 +17,7 @@ public final class CopyPlan {
 	private CopyPlan() {
 	}
 
-	/** A lot as the rule reads it. */
+	/** A lot as the rule reads it: its width along the street and its depth ({@code sizeX}, {@code sizeZ}), whichever way it faces. */
 	public record Spec(String id, String role, String type, int sizeX, int sizeZ, boolean landmark) {}
 
 	/** Lot id to the lot id whose design it copies (only the copies are in the map). */
@@ -36,7 +36,7 @@ public final class CopyPlan {
 	}
 
 	public static List<Spec> ofLots(List<VillageLayout.Lot> lots, java.util.Set<String> landmarkIds) {
-		return lots.stream().map(l -> new Spec(l.id(), l.role(), l.type(), l.sizeX(), l.sizeZ(), l.landmark() || landmarkIds.contains(l.id()))).toList();
+		return lots.stream().map(l -> new Spec(l.id(), l.role(), l.type(), l.along(), l.deep(), l.landmark() || landmarkIds.contains(l.id()))).toList();
 	}
 
 	public static List<Spec> ofSpecs(List<VillageLayout.LotSpec> specs) {

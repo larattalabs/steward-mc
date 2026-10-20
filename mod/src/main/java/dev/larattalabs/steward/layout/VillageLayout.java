@@ -14,7 +14,15 @@ import org.jspecify.annotations.Nullable;
  * <p>Larger or stranger layouts (rings, terraces, districts) are region programs (A5b), not this class.
  */
 public final class VillageLayout {
-	public enum Front { NORTH, SOUTH }
+	/** The side of a lot its street is on. Steward's own layouts make NORTH and SOUTH; an approved plan's lots (plan v1) may face EAST or WEST too. */
+	public enum Front {
+		NORTH, SOUTH, EAST, WEST;
+
+		/** Whether the street runs east-west past the lot (its front is its north or south side). */
+		public boolean eastWest() {
+			return this == NORTH || this == SOUTH;
+		}
+	}
 
 	/**
 	 * A building the plan needs: its id, building type and lot size (the design's size cap is the caller's business), plus what it is in the settlement's
@@ -57,6 +65,10 @@ public final class VillageLayout {
 		}
 
 		public int maxX() { return x + sizeX - 1; }
+		/** Its width along the street (the design's width). */
+		public int along() { return front.eastWest() ? sizeX : sizeZ; }
+		/** Its depth back from the street (the design's depth plus the approach). */
+		public int deep() { return front.eastWest() ? sizeZ : sizeX; }
 		public int maxZ() { return z + sizeZ - 1; }
 	}
 

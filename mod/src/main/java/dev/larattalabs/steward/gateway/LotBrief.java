@@ -35,8 +35,9 @@ public final class LotBrief {
 	public static DesignRequest build(Settlement s, Lot lot, int maxHeight, String model, Double budgetUsd) {
 		ConceptCard c = s.card();
 		String type = ARCHITECT_TYPES.contains(lot.type()) || ConceptCard.TYPE_SLUG.matcher(lot.type()).matches() ? lot.type() : "custom";
-		int sx = clamp(lot.sizeX(), MIN_XZ, MAX_XZ);
-		int sz = clamp(lot.sizeZ() - APPROACH_MARGIN, MIN_XZ, MAX_XZ);
+		// width along the street and depth back from it, whichever way the lot faces (the design faces south; it is turned to the street)
+		int sx = clamp(lot.along(), MIN_XZ, MAX_XZ);
+		int sz = clamp(lot.deep() - APPROACH_MARGIN, MIN_XZ, MAX_XZ);
 		BlockSize size = new BlockSize(sx, clamp(maxHeight, MIN_Y, MAX_Y), sz);
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
