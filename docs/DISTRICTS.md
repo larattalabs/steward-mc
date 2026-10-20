@@ -180,7 +180,7 @@ widened. Steward's side waits for it, rather than shipping districts that refuse
   claim keeps the 16-column seam rule. Same for along districts and outposts.
 - **D-S2 (later, 6d).** Lots added to a standing district region (its street extended), so along districts and outposts can grow.
   **Scheduled (2026-10-20, Noah):** 6d's GR, right after D3 and 7a-1. It grows towns (V and FL streets) and districts, frontage first,
-  then one street extension. Once GR ships, along districts and outposts become growable, and Steward's additions in a region town
+  then one street extension. Once GR ships, along districts and outposts become growable (frontage, then the boundary or street extended; `growable()` becomes "growth didn't answer `NO_ROOM`"), and Steward's additions in a region town
   (today its own street pieces and batch sites) move onto GR.
 
 ## 8. GPT review of this design (2026-10-20, gpt-6.1-sol, max)

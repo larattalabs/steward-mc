@@ -680,3 +680,37 @@ into the 6c close-out fixes,** with the same-key stale retry, expiring pins and 
   writer uses `scope: "lots"` for "only copper" building asks once it ships.**
 
 Architect takes the 12 re-recorded plans into its asks fixtures at the close-out.
+
+**Batch 6d contract review (Architect main 3b10e4b3: RV v3 additive, GR, FS, LC, AD; sent 2026-10-20).** RV v3 and GR fit Steward's
+growth loop and DISTRICTS.md. Four points to settle, then the answers:
+1. **The region's state after a revision.** While revising, the region reads `PLACING`. Afterwards it should read its own state again,
+   whatever the revision ended (`PARTIAL`, `FAILED`); the revision's outcome lives in `RevisionView`. Otherwise one failed grown lot
+   would flip a town to `PARTIAL`, and Steward's town lookup and D3's standing rules read the region's state. Asked to confirm.
+2. **A candidate waiting on designs.** Between `planRevision` and the realise, Steward designs the new lots (minutes to hours, with the
+   player's massing approvals). Steward runs one growth at a time per settlement, so competing candidates come only from an undo. If a
+   re-plan is needed, Steward re-plans with the same lot sizes and needs boxes of exactly those sizes back (a front may change; Steward
+   turns designs). Asked: GR never shrinks a lot unasked.
+3. **Grown street roads.** Their keys are `rv<rid>:road:...`, so Steward recognises them by the `architect_mc:street` flag (fd2e507).
+   Asked to confirm the flag is on every grown street road, also in towns realised before FL whose standing roads have none.
+4. **AD on load (S-AD-1).** Steward would rather adopt lazily, at a settlement's first growth, than migrate every old settlement on load:
+   the migration risk then falls only where it's used. Asked: site ids unchanged by adoption, so Steward's history keeps naming them.
+- **RV:**
+  - **S-RV-1** yes. **S-RV-2** yes: Steward treats `REGION_LIMIT` like `NO_ROOM`, as full, and proposes a district. **S-RV-3** yes.
+  - **S-RV-5** deferred. **S-RV-6:** no near-term flow needs removal or change. **S-RV-7** yes. **S-RV-8** yes. **S-RV-9** no change.
+  - **S-RV-10** yes, RC. **S-RV-11** yes.
+  - **S-RV-12** yes: Steward waits on its own settlement's busy window.
+  - **S-RV-13** yes: no more `street#n` pieces on region towns once GR ships.
+  - **S-RV-14** refused is fine.
+- **GR:**
+  - **S-GR-1** frontage first. **S-GR-2** yes: one building, one revision.
+  - **S-GR-3** yes: `dgrow`/`drealise` for districts, and `vgrow:<build>` and `vgrowrealise:<build>` for towns.
+  - **S-GR-4** yes. **S-GR-5** yes.
+  - **S-GR-6:** no dry check. Steward decides at acceptance by planning (`NO_ROOM` → full → a district), with `discardPlan`.
+  - **S-GR-7** yes, the RC shared with RV's.
+- **FS:** S-FS-1..4 as proposed. **LC:** S-LC-1..4 as proposed. **AD:** S-AD-2 yes; S-AD-3 yes, with point 4; S-AD-4 yes.
+- **Steward's side when RV and GR ship:**
+  - a growth's history entry names its revision (`revision:<region>:<rid>`), and its undo is `undoRevision` to the position below,
+    never `Regions.remove`;
+  - grown lots go through plan v1's four-front adapter;
+  - `District.growable()` becomes "growth didn't answer `NO_ROOM`" for every kind;
+  - additions in region towns move from Steward's own street pieces to GR.
