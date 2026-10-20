@@ -371,6 +371,18 @@ public final class SettlementRunner {
 		}
 	}
 
+	/** An approved plan's irrigated lots' reserved cells (Architect IRR), from its artifact; none for any other build. */
+	private Map<String, dev.larattalabs.architect.api.DesignRequest.Reserved> reservedCells() {
+		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
+		if (sha == null) return Map.of();
+		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		if (body == null || !body.has("lots") || !body.get("lots").isJsonArray()) return Map.of();
+		var out = dev.larattalabs.steward.gateway.PPlan.reserved(body.getAsJsonArray("lots"));
+		if (!out.isEmpty()) Steward.LOGGER.info("reserved cells for {}: {}", settlement.id(), out.entrySet().stream().map(e -> e.getKey() + " " + e.getValue().cells().size())
+			.collect(Collectors.joining(", ")));
+		return out;
+	}
+
 	/** Whether this runner still owns its slot in the running world: a callback for a closed world, or for a runner replaced since, changes nothing. */
 	private boolean alive() {
 		return Session.is(session) && claimedId != null && ACTIVE.get(claimedId) == this;
@@ -1390,7 +1402,7 @@ public final class SettlementRunner {
 			}
 			case Pipeline.RequestGroup g -> {
 				GroupPlanner.Options o = new GroupPlanner.Options(g.bibleId(), g.bibleVersion(), g.budgetUsd(), 3, 3, landmarks);
-				GroupPlanner.Built built = GroupPlanner.build(settlement, plan, o);
+				GroupPlanner.Built built = GroupPlanner.build(settlement, plan, o, reservedCells());
 				landmarkIds = built.request().items().stream().filter(i -> i.role() == GroupRequest.Role.LANDMARK).map(GroupRequest.Item::itemKey).collect(Collectors.toSet());
 				say("Designing " + built.request().items().size() + " buildings (massings first)...");
 				groupInFlight = true;

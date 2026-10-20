@@ -60,6 +60,14 @@ public final class GroupPlanner {
 	public record Built(GroupRequest request, List<String> omittedLotIds) {}
 
 	public static Built build(Settlement s, VillageLayout.Plan plan, Options o) {
+		return build(s, plan, o, java.util.Map.of());
+	}
+
+	/**
+	 * As above; {@code reserved}: an approved plan's irrigated lots' reserved cells (Architect IRR), carried on their design requests. Such a lot is designed
+	 * for its own field (never a copy, nor copied).
+	 */
+	public static Built build(Settlement s, VillageLayout.Plan plan, Options o, java.util.Map<String, DesignRequest.Reserved> reserved) {
 		List<Lot> lots = new ArrayList<>(plan.lots());
 		// landmarks: the ones the card's program marks, else the largest footprints; the largest landmark is the anchor (designed first, the rest match it)
 		List<Lot> byArea = new ArrayList<>(lots);
@@ -79,8 +87,10 @@ public final class GroupPlanner {
 		for (Lot l : lots) if (landmarkIds.contains(l.id())) ordered.add(l);
 		for (Lot l : lots) if (!landmarkIds.contains(l.id())) ordered.add(l);
 		// $0 copies (Architect 0b): of each run of like lots, every third designs and the others copy it; only lots that make it into the group
+		Set<String> notCopied = new java.util.HashSet<>(landmarkIds);
+		notCopied.addAll(reserved.keySet());
 		java.util.Map<String, String> copyOf = o.copies() ? dev.larattalabs.steward.layout.CopyPlan.copies(dev.larattalabs.steward.layout.CopyPlan.ofLots(
-			ordered.subList(0, Math.min(ordered.size(), GroupRequest.MAX_ITEMS)), landmarkIds)) : java.util.Map.of();
+			ordered.subList(0, Math.min(ordered.size(), GroupRequest.MAX_ITEMS)), notCopied)) : java.util.Map.of();
 		for (Lot l : ordered) {
 			if (items.size() >= GroupRequest.MAX_ITEMS) {
 				omitted.add(l.id());
@@ -91,6 +101,8 @@ public final class GroupPlanner {
 			int height = landmark ? LANDMARK_HEIGHT : ORDINARY_HEIGHT;
 			if (l.maxHeight() > 0) height = Math.min(height, l.maxHeight());
 			DesignRequest r = LotBrief.build(s, l, height, null, null);
+			// an irrigated field's sources, their farmland sides and the air over them: the design leaves them as given
+			if (reserved.containsKey(l.id())) r = r.withReserved(reserved.get(l.id()));
 			boolean anchor = l.id().equals(anchorId);
 			GroupRequest.Item item = new GroupRequest.Item(l.id(), r, landmark ? GroupRequest.Role.LANDMARK : GroupRequest.Role.ORDINARY, landmark && !anchor ? 1 : 2, anchor);
 			String archetype = copyOf.get(l.id());

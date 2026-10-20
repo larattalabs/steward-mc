@@ -147,6 +147,35 @@ public final class PPlan {
 		return lot.get("id").getAsString().replace('_', ' ');
 	}
 
+	/**
+	 * Each irrigated lot's reserved cells (Architect IRR, S-IRR-2), as its design request carries them: the artifact's {@code lots[].irrigation}
+	 * ({@code frame: [width, depth]}, {@code lotCells}: runs {@code [u, v, y0, y1]} in the lot's frame, its front to the south) and the lot's front.
+	 * Lots without irrigation are left out.
+	 */
+	public static Map<String, dev.larattalabs.architect.api.DesignRequest.Reserved> reserved(JsonArray artifactLots) {
+		Map<String, dev.larattalabs.architect.api.DesignRequest.Reserved> out = new java.util.LinkedHashMap<>();
+		for (JsonElement e : artifactLots) {
+			if (!e.isJsonObject() || !e.getAsJsonObject().has("irrigation") || !e.getAsJsonObject().get("irrigation").isJsonObject()) continue;
+			JsonObject a = e.getAsJsonObject(), irr = a.getAsJsonObject("irrigation");
+			if (!irr.has("frame") || !irr.get("frame").isJsonArray() || !irr.has("lotCells") || !irr.get("lotCells").isJsonArray()) continue;
+			List<Integer> runs = new ArrayList<>();
+			for (JsonElement r : irr.getAsJsonArray("lotCells")) {
+				if (r.isJsonArray()) for (JsonElement v : r.getAsJsonArray()) runs.add(v.getAsInt());
+				else runs.add(r.getAsInt());
+			}
+			List<net.minecraft.core.BlockPos> cells = new ArrayList<>();
+			for (int i = 0; i + 3 < runs.size() && cells.size() < dev.larattalabs.architect.api.DesignRequest.MAX_RESERVED; i += 4) {
+				for (int y = runs.get(i + 2); y <= runs.get(i + 3) && cells.size() < dev.larattalabs.architect.api.DesignRequest.MAX_RESERVED; y++) {
+					cells.add(new net.minecraft.core.BlockPos(runs.get(i), y, runs.get(i + 1)));
+				}
+			}
+			String front = a.has("front") && a.get("front").isJsonPrimitive() ? a.get("front").getAsString().toLowerCase(java.util.Locale.ROOT) : "south";
+			out.put(a.get("id").getAsString(), new dev.larattalabs.architect.api.DesignRequest.Reserved(front, irr.getAsJsonArray("frame").get(0).getAsInt(),
+				irr.getAsJsonArray("frame").get(1).getAsInt(), cells));
+		}
+		return out;
+	}
+
 	/** Whether any of the artifact's lots faces east or west (Steward's designs and growth know an east-west street only, as {@link VPlan#northSouth}). */
 	public static boolean northSouth(JsonArray artifactLots) {
 		for (JsonElement e : artifactLots) {
