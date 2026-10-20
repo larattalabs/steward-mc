@@ -582,3 +582,26 @@ The plan writer's system prompt is its instructions plus plan/0 in full, so the 
 - **S3:** `terraces` on a zone answers the "terraces inside zones" ask (the plan writer drops its beside-only rule); leave terraced_hill until re-recorded; no RC.
 - **RS:** tile entries and a per-part map, provided a region's build progress shows when it is done and its construction waits raise SITE_WAITING and ITEM_WAITING (region, part) as sites do; whole-bill runs, quarter capacity, wait for support; no new state if the build view says done; mode from the world, STALE across modes; lava refunded by scooping; RC; no per-mode catalogue. After RS, Steward does plan v1 for Supplied builds and the waiting-part offer in survival.
 - **FL, F3, S3, RS frozen with Steward's answers (Architect main e755d663):** street roads carry ext `architect_mc:street {zone, district?}` (V, D1/D2, FL; old regions keep their keys); catalogue entries needing a frozen volume carry a `volume: true` flag (Steward passes LOAD_BOUNDED(512) from it, tunnels included); `RegionView.build` gains `done` and `percent`, region construction waits raise SITE_WAITING and ITEM_WAITING with region and part ids, requests start at PLACED and "built" is `done`. FL and S3 release without an RC (S3 after Noah's gallery); F3 and RS each with Steward's RC.
+
+## Round 11 (2026-10-20): Steward's districts on region districts
+
+Steward's districts move onto Architect's D1/D2 region districts (docs/DISTRICTS.md; Noah's decisions there): a district beside a region town is
+a $0 reservation, realised as its own region (`Regions.plan("districts", beside = <town region>)`) at its first building; along districts and
+outposts are built at once as a small quarter. Steward recognises region streets by the `street_` stem and, once FL ships, the
+`architect_mc:street` flag (fd2e507).
+
+- **D-S1. A join that reaches the town's street wherever it is.** V's street spans its outer lots ±4 (`kit/lib/region/village.mjs:324-328`),
+  so in a town that isn't full both ends sit deeper inside the claim than the 16-column seam, and every district beside it (plain, along,
+  outpost) fails `NO_JOIN`. Asked: the join may run inside the standing region's claim, routed around its footprint (lots and aprons,
+  roads +1, paths), to the nearest point of its street network: a street end (continuing the street along its line) or a street's side (a
+  T junction, so a district can sit north or south of an east-west village). Written by the district region as today (its cells, its
+  undo, `join_external`); the district's own claim keeps the seam rule.
+- **D-S2 (later, with 6d).** Lots added to a standing district region (its street extended), so along districts and outposts can grow.
+- **D-S3. The land a district region takes, for every kind.** The district's mask, its join's cells and an outpost's corridor, as row runs
+  and a rect, in the region view's ext (as `architect_mc:corridor` already is for outposts). Steward owns exactly that, never the request
+  envelope (an outpost's runs from the town through the gap).
+- **D-S4 (a question).** Steward checks a beside reservation at founding with a $0 `Regions.plan` holding one placeholder lot, never
+  realised, so that Architect judges the seam and the join. Plans aren't pruned. Is there a way to discard an unrealised plan, or would
+  you rather offer a dry beside check (a request claim and a standing region → fits, or the named refusal)?
+
+GPT's review of the design (docs/DISTRICTS.md §8) found the 16-column seam can't be computed by Steward reliably, hence D-S1 and D-S4.
