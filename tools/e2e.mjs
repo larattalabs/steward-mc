@@ -1183,7 +1183,7 @@ async function planCheckFlow() {
 /** Farm animals out of the way: a pig standing on a lot holds its placement up for Architect's 10-minute wait (it happened, on the V RC). */
 async function clearAnimals() {
   await cmd('/gamerule doMobSpawning false');
-  for (const t of ['pig', 'cow', 'sheep', 'chicken', 'rabbit', 'horse', 'donkey', 'mule', 'llama', 'goat']) await cmd(`/kill @e[type=minecraft:${t}]`);
+  for (const t of ['pig', 'cow', 'sheep', 'chicken', 'rabbit', 'horse', 'donkey', 'mule', 'llama', 'goat', 'trader_llama', 'wandering_trader', 'fox']) await cmd(`/kill @e[type=minecraft:${t}]`);
   // and what they drop: an item on a lot refuses its placement too (raw beef and feathers held up the library)
   await cmd('/kill @e[type=minecraft:item]');
 }
