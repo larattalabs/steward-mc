@@ -57,6 +57,7 @@ Writing the plan:
   - name a river, the sea or a shore only when the land line says there is one here; else write the place as you would want it and say in `waits`
     that it needs water nearby;
   - a reserved layout (a spiral, a ring, a grid) is written as its reserved kind so it waits; never as a steep street that tries to draw it.
+  - a wall keeps clear of the plan's own water (ponds, fountains, moats it doesn't ring): a wall drawn across one is not caught yet (Architect).
 - **Required.** Mark every part `required` true or false. A part is required when the ask is about it ("a walled town": the wall); a flourish is not.
 - **Notes.** Put what no field can hold in the part's `notes` (or the plan's), in a sentence.
 
