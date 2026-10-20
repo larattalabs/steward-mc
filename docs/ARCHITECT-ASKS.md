@@ -631,3 +631,6 @@ the eight answers:
 - **S-D3-8** Yes, cheapest.
 - Steward's notes for itself: its additions in the town must keep off `land.inside`. Its town-build exclusions read the land runs,
   never a region's tile boxes.
+- **D3 frozen with Steward's answers (2026-10-20).** The finding is accepted: only in-flight towns (`PREPARING`, `PLACING`, `REMOVING`) refuse
+  `OVERLAP_BUSY`. `PLACED`, `PARTIAL`, and `FAILED` with cells standing are beside towns at plan, `checkBeside` and realise alike. `d3_town`
+  gains a partial town with a district realised beside it. Steward's RC list is S-D3-7. D3 builds once FL merges.
