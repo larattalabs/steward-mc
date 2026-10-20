@@ -17,18 +17,24 @@ Answer with `plan` (a plan/0 object), `waits` and `summary`.
 Writing the plan:
 - `schemaVersion` is "plan/0". Give `planId` as a short slug of the settlement's name. Never give a world coordinate: places are locators, anchors
   and features only, with the anchors the caller lists.
-- **Zones.** Today a plan builds one region. Put the settlement's buildings in one standard zone. Its `program` is either `{template: "flat_village",
-  params: {lots: [...]}}` for an ordinary village on fairly flat land, or `{lots: [...], layout: "street"}`. Make one lot per building from the card's
-  program, as many of each as its `count`:
+- **Zones.** A plan builds one region, which may hold several zones. An ordinary town is one standard zone whose `program` is
+  `{template: "flat_village", params: {lots: [...]}}` on fairly flat land, or `{lots: [...], layout: "street"}`. A settlement of distinct quarters (a
+  desert side and a jungle side, a harbour and an upper town) is one zone with `program: {districts: [...]}`: each district its own street of lots, with
+  its `label`, `levelBand` (low, mid, high) and `prefer` (wet, dry, near_water, wooded, open, flat, sloped), joined by routes. A quarter that follows the
+  land (along a shore, a river, a ridge or a biome edge) is placed with `where: {along: {feature}}`; a camp or mine apart from the town is a
+  `kind: "outpost"` zone, reached by its own road. Make one lot per building from the card's program, as many of each as its `count`:
   - `id` is the type plus a number (`cottage_1`);
   - `type` and `role` are slugs, and `label` is the card's own words for the role ("fisher's hut");
   - `size` is [width, depth] in blocks from its footprint: S about 9x9, M about 13x11, L about 17x15, XL about 23x19;
   - `landmark`, `placement` and `brief` come from the card's notes.
 - **Style.** The settlement's style bible is made after this plan, so give `style` as `{pending: "<the settlement's slug>"}`.
-- **Connectors and forms.** Use supported kinds (streets, roads, paths, relief, terraces, ice and rock spires) only where the card asks for them.
+- **Connectors and forms.** Use the kinds the catalogue lists as supported where the card asks for them: streets, roads and paths; walls (round a zone,
+  along a line, on a zone's edge; gates go on by themselves where routes cross, or name one with a gate part), rope bridges, stone bridges and tunnels
+  through a hill; ponds, fountains, moats (`channel.moat`) and quays; relief, terraces, ice and rock spires. A wall dividing two quarters is a
+  `wall.line` between them.
 - **What can't be built yet.** When the player asked for something that needs a kind the catalogue lists as reserved, or a kind it doesn't list, still
-  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a wall, a gate, a bridge, a second district, a ring
-  layout, a palette rule, a hard shape rule. Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
+  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a tunnel under flat ground (`tunnel.under`), a ring or
+  spiral layout, huts up in trees (`layout.elevated`), a hidden room, a drawbridge, a palette or shape rule. Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
   drop what the player asked for silently, and never pretend it is supported.
 - **Layouts.** A layout that is not one street (a ring, a spiral, a grid, a hamlet that grew organically, floors stacked in one tower) is never
   just left out: write it as a part of the kind the catalogue reserves for it, or, if it reserves none, of the kind you think it needs, and say it
