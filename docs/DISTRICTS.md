@@ -1,7 +1,7 @@
 # Steward's districts on Architect's region districts (drafted 2026-10-20)
 
-Noah, 2026-10-20: "yes, proceed with the district move". This is the design. Nothing in it is built yet; the questions in section 6 are
-Noah's.
+Noah, 2026-10-20: "yes, proceed with the district move". This is the design; section 6 has Noah's answers. Steward's side is built
+once Architect answers the join ask (section 7, D-S1).
 
 ## 1. Today
 
@@ -117,16 +117,25 @@ then, north and south are offered only as square districts in a region town, or 
 - **Reviews:** a GPT review of this design, then of the code (persistence, undo), with one fix-verification pass. Both e2e checks pass
   before the push.
 
-## 6. Questions for Noah
+## 6. Noah's answers (2026-10-20)
 
-- **Q1. Founding a beside district.** (a, recommended) $0 reservation, built at its first accepted building, then grown by its street.
-  (b) Built at once like along/outposts, with 2-4 buildings, priced.
-- **Q2. Along and outposts.** Built at once as a small quarter (2-4 buildings, priced like a build), since Architect can't add to them
-  yet. Or wait for Architect's deltas (6d) and offer only `beside` now.
-- **Q3. North and south of a region town.** Square districts there for now, or nothing until Architect joins a street's side (D-S1).
+- **Q1. Founding a beside district.** A $0 reservation, built at its first accepted building, then grown along its street.
+- **Q2. Along and outposts.** Built at once as a small quarter (2-4 buildings, priced like a build) until Architect can add to a standing
+  region.
+- **Q3. North and south of a region town.** Square districts there for now. Architect is asked to join a street's side (D-S1).
 
-## 7. Architect asks (sent once Q1-Q3 are answered)
+### 6.1 Found while checking the design: the join can't reach most towns' streets
 
-- **D-S1. A join to a street's side.** Let the join meet any town street cell in the seam (a T junction), not only a terminal end, so
-  a district can sit north or south of an east-west village.
-- **D-S2 (later, 6d).** Lots added to a standing district region (its street extended), so `along` districts and outposts can grow.
+V's street spans only its outer lots: the lots ±4, clamped to the claim margin (`architect-mc kit/lib/region/village.mjs:324-328`). In
+a town that isn't full, both ends sit well inside the claim, deeper than the 16-column seam the join reaches. Every kind of district
+needs that join (beside, along and outposts alike), so all of them fail `NO_JOIN` beside most real flat villages. That is the D-S1 ask,
+widened. Steward's side waits for it, rather than shipping districts that refuse in most towns or laying its own road to a region.
+
+## 7. Architect asks (round 11, sent 2026-10-20)
+
+- **D-S1. A join that reaches the town's street wherever it is.** A district's join may run inside the standing region's claim, routed
+  around its footprint (lots and their aprons, roads +1, paths), to the nearest point of the town's street network. That point is
+  either a street end, where the join continues the street along its line, or a street's side, a T junction (a district north or south
+  of an east-west village). The district region writes the join as today (its cells, its undo, `join_external`). The district's own
+  claim keeps the 16-column seam rule. Same for along districts and outposts.
+- **D-S2 (later, 6d).** Lots added to a standing district region (its street extended), so along districts and outposts can grow.

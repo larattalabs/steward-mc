@@ -1,0 +1,699 @@
+{
+  "format": 3,
+  "nextSerial": 411,
+  "settlements": [
+    {
+      "id": "set_44",
+      "name": "E2E Hamlet",
+      "card": {
+        "name": "E2E Hamlet",
+        "site": {
+          "text": "a meadow by a stream",
+          "terrain": "find",
+          "size": "M"
+        },
+        "style": {
+          "text": "timber cottages with thatched roofs"
+        },
+        "purpose": {
+          "text": "a quiet hamlet"
+        },
+        "constraints": {
+          "density": "low"
+        },
+        "avoid": [],
+        "interpretation": "a few cottages and a well",
+        "contradictions": [],
+        "assumptions": [],
+        "program": [
+          {
+            "role": "cottage",
+            "type": "cottage",
+            "count": 3,
+            "footprint": "S",
+            "landmark": false
+          }
+        ]
+      },
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 39600,
+        "centerZ": -1,
+        "radius": 128,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 2,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1791656649616,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791656653291,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791656653322,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 257 x 257",
+          "siteIds": [],
+          "op": "op_3",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791656655045,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 1 buildings (dev)",
+          "siteIds": [
+            "s47"
+          ],
+          "op": "op_4",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791656674280,
+          "kind": "UPDATED",
+          "text": "Updated dev building to version 2 (1 blocks).",
+          "siteIds": [
+            "s47"
+          ],
+          "op": "op_5",
+          "changes": [
+            {
+              "siteId": "s47",
+              "lot": "dev building",
+              "from": 1,
+              "to": 2
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791656685906,
+          "kind": "REVERTED",
+          "text": "Reverted dev building to version 1 (1 blocks).",
+          "siteIds": [
+            "s47"
+          ],
+          "op": "op_6",
+          "changes": [
+            {
+              "siteId": "s47",
+              "lot": "dev building",
+              "from": 2,
+              "to": 1
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791656686887,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Placed 1 buildings (dev)\" (op_4)",
+          "siteIds": [
+            "s47"
+          ],
+          "op": "op_7",
+          "changes": [
+            {
+              "siteId": "s47",
+              "from": 1,
+              "to": 0
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791656788026,
+          "kind": "CARD_EDITED",
+          "text": "Described as: a meadow by a stream, timber cottages with thatched roofs",
+          "siteIds": [],
+          "op": "op_8",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791656788075,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 1 buildings (dev)",
+          "siteIds": [
+            "s48"
+          ],
+          "op": "op_9",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791656823704,
+          "kind": "PROTECTED_CHANGED",
+          "text": "Protected \"e2e garden\" (7 x 7 at 39537,-4)",
+          "siteIds": [],
+          "op": "op_10",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1791656826010,
+          "kind": "DISTRICT_FOUNDED",
+          "text": "Founded e2e harbour (east, 97 x 97) and its road",
+          "siteIds": [
+            "r1"
+          ],
+          "op": "op_11",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [
+          "farm"
+        ],
+        "accepted": [],
+        "lastAt": 1791656820157
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [
+          {
+            "id": "dst_2",
+            "name": "e2e harbour",
+            "direction": "E",
+            "claim": {
+              "dimension": "minecraft:overworld",
+              "centerX": 39777,
+              "centerZ": -1,
+              "radius": 48,
+              "minY": -64,
+              "maxY": 319
+            },
+            "at": 1791656826010,
+            "roads": [
+              {
+                "siteId": "r1",
+                "points": [
+                  {
+                    "x": 39603,
+                    "z": -1
+                  },
+                  {
+                    "x": 39730,
+                    "z": -1
+                  }
+                ],
+                "width": 3,
+                "link": false
+              }
+            ],
+            "linkUndone": false
+          }
+        ],
+        "protect": [
+          {
+            "id": "pa_1",
+            "label": "e2e garden",
+            "dimension": "minecraft:overworld",
+            "x0": 39537,
+            "z0": -4,
+            "x1": 39543,
+            "z1": 2,
+            "at": 1791656823704
+          }
+        ],
+        "serial": 2
+      }
+    },
+    {
+      "id": "set_401",
+      "name": "Reedwick",
+      "card": {
+        "name": "Reedwick",
+        "site": {
+          "text": "stilt village over a swamp",
+          "template": "waterfront",
+          "terrain": "find",
+          "size": "M"
+        },
+        "style": {
+          "text": "mossy and crooked",
+          "template": "rustic"
+        },
+        "purpose": {
+          "text": "fishing village",
+          "template": "port"
+        },
+        "story": {
+          "text": ""
+        },
+        "constraints": {
+          "near": "search",
+          "density": "med"
+        },
+        "avoid": [],
+        "interpretation": "A cluster of crooked wooden houses on stilts above swamp water, with boardwalks, nets and moss. It needs a swamp or shallow water nearby.",
+        "contradictions": [],
+        "assumptions": [
+          "swamp or shallow water must exist nearby; otherwise the steward will ask"
+        ],
+        "program": [
+          {
+            "role": "smokehouse",
+            "type": "smokehouse",
+            "count": 1,
+            "footprint": "L",
+            "landmark": true,
+            "notes": "Big crooked smokehouse at the centre of the boardwalks"
+          },
+          {
+            "role": "fisher's hut",
+            "type": "cabin",
+            "count": 6,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Mossy stilt huts with nets"
+          },
+          {
+            "role": "net loft",
+            "type": "barn",
+            "count": 1,
+            "footprint": "M",
+            "landmark": false,
+            "notes": "Storage for nets and boats"
+          },
+          {
+            "role": "bait shop",
+            "type": "shop",
+            "count": 1,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Tiny trading shack"
+          },
+          {
+            "role": "lookout",
+            "type": "tower",
+            "count": 1,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Leaning watchtower over the swamp"
+          }
+        ]
+      },
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 360900,
+        "centerZ": 1,
+        "radius": 128,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 2,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1792525788592,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525790595,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525790622,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 257 x 257",
+          "siteIds": [],
+          "op": "op_3",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525792959,
+          "kind": "CARD_EDITED",
+          "text": "Described as: stilt village over a swamp, mossy and crooked",
+          "siteIds": [],
+          "op": "op_4",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525870887,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 7 buildings",
+          "siteIds": [
+            "r1037",
+            "s1996",
+            "s1999",
+            "s1997",
+            "s1998",
+            "s2000",
+            "s2001",
+            "s2002"
+          ],
+          "siteGroup": "g482",
+          "op": "op_5",
+          "changes": [
+            {
+              "siteId": "r1037",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "s1996",
+              "lot": "smokehouse",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "s1999",
+              "lot": "net loft",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "s1997",
+              "lot": "fisher's hut",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "s1998",
+              "lot": "bait shop",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "s2000",
+              "lot": "lookout",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "s2001",
+              "lot": "fisher's hut",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "s2002",
+              "lot": "fisher's hut",
+              "from": 0,
+              "to": 1
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525928423,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 1 buildings",
+          "siteIds": [
+            "s2003"
+          ],
+          "siteGroup": "g483",
+          "op": "op_6",
+          "changes": [
+            {
+              "siteId": "s2003",
+              "lot": "scholars' library",
+              "from": 0,
+              "to": 1
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525930629,
+          "kind": "NOTE",
+          "text": "Designing a change to the scholars' library (design d2495): Add a slim reading tower on its east side, with tall windows.",
+          "siteIds": [
+            "s2003"
+          ],
+          "op": "op_7",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525932954,
+          "kind": "NOTE",
+          "text": "Designed a change to the scholars' library ($3.40): its next version is offered as an update",
+          "siteIds": [
+            "s2003"
+          ],
+          "op": "op_8",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525936562,
+          "kind": "UPDATED",
+          "text": "Updated scholars' library to version 2 (168 blocks).",
+          "siteIds": [
+            "s2003"
+          ],
+          "op": "op_9",
+          "changes": [
+            {
+              "siteId": "s2003",
+              "lot": "scholars' library",
+              "from": 1,
+              "to": 2
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525937657,
+          "kind": "REVERTED",
+          "text": "Reverted scholars' library to version 1 (1 blocks).",
+          "siteIds": [
+            "s2003"
+          ],
+          "op": "op_10",
+          "changes": [
+            {
+              "siteId": "s2003",
+              "lot": "scholars' library",
+              "from": 2,
+              "to": 1
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525941526,
+          "kind": "BUILD_ADOPTED",
+          "text": "Took on noahlaratta's house (build-57)",
+          "siteIds": [
+            "s2004"
+          ],
+          "op": "op_11",
+          "changes": [
+            {
+              "siteId": "s2004",
+              "from": 0,
+              "to": 1
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525942912,
+          "kind": "NOTE",
+          "text": "Designing a change to noahlaratta's house (design d2496): Add a second floor with a window on each side.",
+          "siteIds": [
+            "s2004"
+          ],
+          "op": "op_12",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525945214,
+          "kind": "NOTE",
+          "text": "Designed a change to noahlaratta's house ($3.40): its next version is offered as an update",
+          "siteIds": [
+            "s2004"
+          ],
+          "op": "op_13",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525945787,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Took on noahlaratta's house (build-57)\" (op_11)",
+          "siteIds": [
+            "s2004"
+          ],
+          "op": "op_14",
+          "changes": [
+            {
+              "siteId": "s2004",
+              "from": 1,
+              "to": 0
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525949025,
+          "kind": "DISTRICT_FOUNDED",
+          "text": "Founded the harbour (east, 97 x 97) and its road",
+          "siteIds": [
+            "r1038"
+          ],
+          "op": "op_15",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525958415,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 1 buildings in the harbour",
+          "siteIds": [
+            "r1039",
+            "s2005"
+          ],
+          "siteGroup": "g484",
+          "op": "op_16",
+          "changes": [
+            {
+              "siteId": "r1039",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "s2005",
+              "lot": "harbourmaster's office",
+              "from": 0,
+              "to": 1
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525958507,
+          "kind": "ROAD_PLACED",
+          "text": "Linked the harbour's street to its road",
+          "siteIds": [
+            "r1040"
+          ],
+          "op": "op_17",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1792525964033,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Linked the harbour's street to its road\" (op_17)",
+          "siteIds": [
+            "r1040"
+          ],
+          "op": "op_18",
+          "changes": [
+            {
+              "siteId": "r1040",
+              "from": 1,
+              "to": 0
+            }
+          ],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [
+          "farm"
+        ],
+        "accepted": [
+          "asked_mvh3nh3a_library",
+          "change_mvh3nnhg",
+          "change_mvh3nwzn",
+          "district_E",
+          "asked_mvh3o46p_harbour_office"
+        ],
+        "lastAt": 1792525919843
+      },
+      "bible": {
+        "id": "bib_reedwick_95",
+        "version": 1,
+        "styleVersion": 2
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [
+          {
+            "id": "dst_1",
+            "name": "the harbour",
+            "direction": "E",
+            "claim": {
+              "dimension": "minecraft:overworld",
+              "centerX": 361077,
+              "centerZ": -1,
+              "radius": 48,
+              "minY": -64,
+              "maxY": 319
+            },
+            "at": 1792525949025,
+            "roads": [
+              {
+                "siteId": "r1038",
+                "points": [
+                  {
+                    "x": 360963,
+                    "z": -1
+                  },
+                  {
+                    "x": 361030,
+                    "z": -1
+                  }
+                ],
+                "width": 3,
+                "link": false
+              }
+            ],
+            "linkUndone": true
+          }
+        ],
+        "protect": [],
+        "serial": 1
+      }
+    }
+  ]
+}

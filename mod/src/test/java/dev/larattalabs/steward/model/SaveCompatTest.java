@@ -141,6 +141,28 @@ class SaveCompatTest {
 	}
 
 	@Test
+	void theV3DistrictsOfARealWorldLoadAsTheyWereSaved(@TempDir Path dir) throws Exception {
+		// fixtures/saves/v3: two settlements of the e2e world (2026-10-20), each with a square district: one with its founding road, a protected area
+		// and the link not undone, one whose link was undone
+		Path f = dir.resolve("steward-settlements.json");
+		Files.writeString(f, fixture("v3/steward-settlements.json"));
+		SettlementStore st = SettlementStore.load(f);
+		assertEquals(3, st.readFormat());
+		Settlement hamlet = st.get("set_44").orElseThrow();
+		Settlement.District harbour = hamlet.lands().district("dst_2").orElseThrow();
+		assertEquals("E", harbour.direction());
+		assertEquals(48, harbour.claim().radius());
+		assertEquals("r1", harbour.founding().orElseThrow().siteId());
+		assertFalse(harbour.linked() || harbour.linkUndone());
+		assertEquals(List.of(hamlet.claim(), harbour.claim()), hamlet.claims());
+		assertEquals("dst_2", hamlet.districtAt("minecraft:overworld", harbour.claim().centerX(), 0).orElseThrow().id());
+		assertEquals("e2e garden", hamlet.lands().protect().get(0).label());
+		assertTrue(st.get("set_401").orElseThrow().lands().district("dst_1").orElseThrow().linkUndone(), "an undone link stays undone");
+		st.save(f);
+		assertEquals(hamlet, SettlementStore.load(f).get("set_44").orElseThrow(), "saved again, unchanged");
+	}
+
+	@Test
 	void theV2SettlementsOfARealWorldLoadWithNoLands(@TempDir Path dir) throws Exception {
 		Path f = dir.resolve("steward-settlements.json");
 		Files.writeString(f, fixture("v2/steward-settlements.json"));
