@@ -151,12 +151,16 @@ public final class GroupPlanner {
 		JsonArray avoid = new JsonArray();
 		c.avoid().forEach(avoid::add);
 		o.add("avoid", avoid);
-		JsonObject street = new JsonObject();
-		street.addProperty("axis", "east-west");
-		street.addProperty("z", plan.streetZ());
-		street.addProperty("x0", plan.streetX0());
-		street.addProperty("x1", plan.streetX1());
-		o.add("street", street);
+		// one east-west street when every lot fronts it (Steward's own layout, the flat village); an approved plan's districts have streets of their own,
+		// told lot by lot (its front) rather than as one made-up street
+		if (plan.lots().stream().allMatch(l -> l.front().eastWest())) {
+			JsonObject street = new JsonObject();
+			street.addProperty("axis", "east-west");
+			street.addProperty("z", plan.streetZ());
+			street.addProperty("x0", plan.streetX0());
+			street.addProperty("x1", plan.streetX1());
+			o.add("street", street);
+		}
 		JsonArray lots = new JsonArray();
 		for (Lot l : plan.lots()) {
 			JsonObject j = new JsonObject();

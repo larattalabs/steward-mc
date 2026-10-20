@@ -53,7 +53,7 @@
                 "id": "jungle_side",
                 "label": "the jungle side",
                 "size": {
-                  "w": 40,
+                  "w": 32,
                   "d": 120
                 },
                 "lots": [

@@ -887,11 +887,12 @@ async function districtsPlanFlow() {
   if (!built) return;
   const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
   const lots = (placed?.changes ?? []).map((c) => c.lot).filter(Boolean);
-  const sides = ['trader', 'herbalist'].filter((t) => lots.some((l) => l.startsWith(t) || /trader|herbalist/.test(l)));
-  // which way its lots faced (the jungle side's street runs north-south: lots facing east or west)
-  const fronts = [...new Set((logSince(from).match(/plan of [^\n]*/g) ?? []).concat(logSince(from).match(/fronts [^\n]*/g) ?? []))].join(' ');
-  if (laid && /^region:/.test(placed?.siteGroup ?? '') && built.placed >= 2) ok('districts plan', `${built.placed} placed in two quarters from the approved plan (${placed.siteGroup}): ${lots.join(', ')}; ${fronts.slice(0, 120)}`);
-  else return fail('districts plan', `laid out ${!!laid}, region ${placed?.siteGroup}, placed ${built.placed}, lots ${lots.join(', ')}`);
+  // the jungle side's street runs north-south: its lots face east or west (logged as the plan's fronts), and both quarters stand
+  const frontsLine = (logSince(from).match(/plan of [^\n]*fronts (\{[^\n]*\})/) ?? [])[1] ?? '';
+  const eastWest = /east|west/.test(frontsLine);
+  const quarters = ['trader', 'herbalist'].every((t) => lots.some((l) => l.includes(t)));
+  if (laid && /^region:/.test(placed?.siteGroup ?? '') && eastWest && quarters) ok('districts plan', `${built.placed} placed in two quarters from the approved plan (${placed.siteGroup}): ${lots.join(', ')}; fronts ${frontsLine}`);
+  else return fail('districts plan', `laid out ${!!laid}, region ${placed?.siteGroup}, placed ${built.placed}, lots ${lots.join(', ')}, fronts ${frontsLine || 'none'}`);
   await cmd(`/steward undo ${id}`);
   let last = null;
   for (let i = 0; i < 60 && last?.kind !== 'PROJECT_REMOVED'; i++) {
