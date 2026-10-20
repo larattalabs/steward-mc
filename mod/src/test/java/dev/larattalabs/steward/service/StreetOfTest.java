@@ -46,4 +46,13 @@ class StreetOfTest {
 		var own = new Districts.Piece("road", "street", false, -30, 30, -3, 3, 1, -28, 28);
 		assertEquals(new DistrictRules.Street(1, -28, 28), Districts.streetOfPieces(List.of(own), S, null));
 	}
+
+	@Test
+	void aSiteWithoutTheRecordedLineReadsNull() {
+		var ext = new com.google.gson.JsonObject();
+		assertNull(Districts.intExt(ext, "steward_mc:street_z"), "a region's street records no line: null, not a crash");
+		assertNull(Districts.intExt(null, "steward_mc:street_z"));
+		ext.addProperty("steward_mc:street_z", 7);
+		assertEquals(7, Districts.intExt(ext, "steward_mc:street_z"));
+	}
 }

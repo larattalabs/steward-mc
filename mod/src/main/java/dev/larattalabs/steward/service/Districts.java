@@ -382,7 +382,7 @@ public final class Districts {
 		for (SiteView v : sites) {
 			var b = v.box();
 			pieces.add(new Piece(v.kind(), v.itemKey(), v.ext() != null && v.ext().has(BatchPlanner.REGION_STREET_EXT), b.minX(), b.maxX(), b.minZ(), b.maxZ(),
-				intExt(v, BatchPlanner.STREET_Z, null), intExt(v, BatchPlanner.STREET_X0, null), intExt(v, BatchPlanner.STREET_X1, null)));
+				intExt(v.ext(), BatchPlanner.STREET_Z), intExt(v.ext(), BatchPlanner.STREET_X0), intExt(v.ext(), BatchPlanner.STREET_X1)));
 		}
 		return streetOfPieces(pieces, s, district);
 	}
@@ -415,8 +415,10 @@ public final class Districts {
 		return z == null ? null : new DistrictRules.Street(z, x0, x1);
 	}
 
-	private static @Nullable Integer intExt(SiteView v, String key, @Nullable Integer fallback) {
-		return v.ext() != null && v.ext().has(key) && v.ext().get(key).isJsonPrimitive() ? v.ext().get(key).getAsInt() : fallback;
+	/** An int the ext records under {@code key}, or null (never unboxed here: a site without it is a region's or an older street). */
+	static @Nullable Integer intExt(com.google.gson.@Nullable JsonObject ext, String key) {
+		if (ext == null || !ext.has(key) || !ext.get(key).isJsonPrimitive()) return null;
+		return Integer.valueOf(ext.get(key).getAsInt());
 	}
 
 	/** The building (its role) a road along {@code pts} would run over, or null. */
