@@ -231,3 +231,17 @@ from the local publish.
 - **Schema:** every card validates (`npm test`). The recorder now keeps null fields, which the schema requires.
 - **What the cards show:** read through `CardLimits`, 22 of the 55 asks not built today say what waits; the ask's words alone gave 6. Claude spells out the place ("piers reaching out over the water"), which the limits catch. The fishing village's card wanted piers over the water, so that ask now needs `over_water`.
 - **Still silent (33):** walls, free layouts, hard rules, time, working modules, inhabitants and relations, which `CardLimits` doesn't know about yet.
+
+## Strange asks: plans re-recorded with the shape rules (2026-10-20, paid, Noah approved; $0.65)
+The 12 asks whose plans had refused, blocked or old-shape parts were re-recorded with today's plan writer (the shape rules, the live
+catalogue, material rules): `node tools/record-plans.mjs 1` ($0.54, nine plans, then stopped at its $0.50 margin) and `0.96` (three,
+$0.11). The opt-in was made for each run and removed after. All 12 are valid plan/0. Scored with Architect's kit (main 7e7cd2d5) on the
+asks claim, as its gap table does:
+- **The 12:** refused 21 → 4, blocked 2 → 15, adjusted 2 → 8, fits 13 → 8, unsupported 9 → 8. The blocked rise is intended: rope
+  bridges to huts up in trees now wait on the reserved `layout.elevated` (swamp_stilts, treetop_village, upside_down), and the
+  underwater colony on its seabed. two_districts writes its districts in the supported shape (adjusted).
+- **All 59:** refused 26 → 9. What's left:
+  - a street or road ending on a lot its zone couldn't place (terraced_hill, redstone_gate, two_districts: `NO_ROOM`);
+  - "only copper" measured over the settlement's roads and terraces, which a palette rule can't exempt (`TOLERANCE`; asked of
+    Architect);
+  - six palette rules in plans recorded before the material-rule prompt (`NO_FEATURE` prose-only, `TOLERANCE`; not re-recorded).
