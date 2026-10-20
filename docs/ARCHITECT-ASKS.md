@@ -714,3 +714,11 @@ growth loop and DISTRICTS.md. Four points to settle, then the answers:
   - grown lots go through plan v1's four-front adapter;
   - `District.growable()` becomes "growth didn't answer `NO_ROOM`" for every kind;
   - additions in region towns move from Steward's own street pieces to GR.
+- **6d frozen with Steward's answers (Architect main 48f7129c, 2026-10-20).** All four points are confirmed and binding:
+  1. A revision reads `PLACING` only while it writes; the region then reads its own state again, and the revision's outcome lives only in
+     `RevisionView`.
+  2. GR never shrinks a lot unasked: a re-plan with the same sizes returns boxes of exactly those sizes (a front may change) or refuses
+     `NO_ROOM`. A candidate stays valid while Steward designs, unless an accepted revision moves the head (`parent_moved`).
+  3. Every grown street road carries `architect_mc:street`, pre-FL towns included.
+  4. Adoption is lazy, at a settlement's first growth, and site ids never change.
+  Steward's opKeys are recorded (`dgrow`/`drealise`, `vgrow:<build>`/`vgrowrealise:<build>`). RV and GR share one RC, after D3 and 7a-1.
