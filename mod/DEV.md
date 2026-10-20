@@ -244,4 +244,5 @@ asks claim, as its gap table does:
   - a street or road ending on a lot its zone couldn't place (terraced_hill, redstone_gate, two_districts: `NO_ROOM`);
   - "only copper" measured over the settlement's roads and terraces, which a palette rule can't exempt (`TOLERANCE`; asked of
     Architect);
-  - six palette rules in plans recorded before the material-rule prompt (`NO_FEATURE` prose-only, `TOLERANCE`; not re-recorded).
+  - five palette rules in plans recorded before the material-rule prompt (desert_jungle_wall, hidden_village, mage_exiles, old_new_town,
+    row_houses) (`NO_FEATURE` prose-only, `TOLERANCE`; not re-recorded).
