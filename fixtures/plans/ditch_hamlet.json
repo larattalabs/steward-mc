@@ -1,0 +1,64 @@
+{
+  "prompt": "A market garden with an irrigation ditch along its field (HY, channel.ditch).",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "ditch_hamlet",
+      "style": {
+        "pending": "ditch_hamlet"
+      },
+      "zones": [
+        {
+          "id": "town",
+          "kind": "standard",
+          "required": true,
+          "label": "the hamlet",
+          "program": {
+            "template": "flat_village",
+            "params": {
+              "lots": [
+                {
+                  "id": "farm_1",
+                  "type": "farm",
+                  "role": "farm",
+                  "label": "a market garden",
+                  "size": [
+                    13,
+                    14
+                  ]
+                },
+                {
+                  "id": "cottage_1",
+                  "type": "cottage",
+                  "role": "cottage",
+                  "label": "a gardener's cottage",
+                  "size": [
+                    13,
+                    14
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "field_ditch",
+          "kind": "channel",
+          "required": true,
+          "label": "the field ditch",
+          "where": {
+            "along": {
+              "feature": {
+                "part": "farm_1"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A market garden whose field is watered by a ditch along its side, with the gardener's cottage."
+  }
+}
