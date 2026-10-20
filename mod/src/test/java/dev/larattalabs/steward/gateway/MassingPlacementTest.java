@@ -31,4 +31,28 @@ class MassingPlacementTest {
 		assertEquals(0, p.x());
 		assertEquals(0, p.z(), "depth is clipped to the lot minus the margin for the preview's anchor");
 	}
+
+	@Test
+	void aLotFacingEastOrWestTurnsItsMassingAQuarter() {
+		// lot 20 deep along x (15 + the margin), 18 wide along z, street to the east
+		Lot east = new Lot("e_1", "e", 100, 200, 20, 18, Front.EAST, 70);
+		MassingPlacement p = MassingPlacement.on(east, 14, 12);
+		assertEquals("COUNTERCLOCKWISE_90", p.rotation(), "its south front turned to face east");
+		assertEquals(east.maxX() - LotBrief.APPROACH_MARGIN, p.x() + 12 - 1, "the front face stops the margin short of the street edge");
+		assertEquals(202, p.z(), "centred along the lot");
+		Lot west = new Lot("w_1", "w", 100, 200, 20, 18, Front.WEST, 70);
+		MassingPlacement q = MassingPlacement.on(west, 14, 12);
+		assertEquals("CLOCKWISE_90", q.rotation());
+		assertEquals(100 + LotBrief.APPROACH_MARGIN, q.x());
+	}
+
+	@Test
+	void aLotsWidthAndDepthFollowItsStreet() {
+		Lot east = new Lot("e_1", "e", 0, 0, 20, 14, Front.EAST, 64);
+		assertEquals(14, east.along(), "along a north-south street: its z side");
+		assertEquals(20, east.deep());
+		Lot south = new Lot("s_1", "s", 0, 0, 14, 20, Front.SOUTH, 64);
+		assertEquals(14, south.along());
+		assertEquals(20, south.deep());
+	}
 }

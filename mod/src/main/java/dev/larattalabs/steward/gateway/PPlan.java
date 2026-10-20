@@ -179,7 +179,12 @@ public final class PPlan {
 			JsonArray b = a.getAsJsonArray("box");
 			int bx0 = b.get(0).getAsInt(), by0 = b.get(1).getAsInt(), bz0 = b.get(2).getAsInt(), bx1 = b.get(3).getAsInt(), bz1 = b.get(5).getAsInt();
 			String f = a.has("front") && a.get("front").isJsonPrimitive() ? a.get("front").getAsString().toLowerCase(java.util.Locale.ROOT) : "south";
-			VillageLayout.Front front = f.equals("north") ? VillageLayout.Front.NORTH : VillageLayout.Front.SOUTH;
+			VillageLayout.Front front = switch (f) {
+				case "north" -> VillageLayout.Front.NORTH;
+				case "east" -> VillageLayout.Front.EAST;
+				case "west" -> VillageLayout.Front.WEST;
+				default -> VillageLayout.Front.SOUTH;
+			};
 			String type = str(p, "type", id.replaceFirst("_\\d+$", ""));
 			// a design no taller than the lot's approved box (its fit box, which Architect checks at the realise)
 			JsonArray fit = a.has("fitBox") && a.get("fitBox").isJsonArray() && a.getAsJsonArray("fitBox").size() == 6 ? a.getAsJsonArray("fitBox") : b;
@@ -187,7 +192,7 @@ public final class PPlan {
 			out.add(new VillageLayout.Lot(id, type, bx0, bz0, bx1 - bx0 + 1, bz1 - bz0 + 1, front, by0, role(p), p.has("brief") ? str(p, "brief", null) : null,
 				p.has("landmark") && p.get("landmark").isJsonPrimitive() && p.get("landmark").getAsBoolean(), p.has("placement") ? str(p, "placement", null) : null, maxHeight));
 			JsonArray en = a.has("entrance") && a.get("entrance").isJsonArray() && a.getAsJsonArray("entrance").size() == 3 ? a.getAsJsonArray("entrance") : null;
-			zs.add(en != null ? en.get(2).getAsInt() : front == VillageLayout.Front.SOUTH ? bz1 + 1 : bz0 - 1);
+			zs.add(en != null ? en.get(2).getAsInt() : front == VillageLayout.Front.SOUTH ? bz1 + 1 : front == VillageLayout.Front.NORTH ? bz0 - 1 : (bz0 + bz1) / 2);
 			ys.add(en != null ? en.get(1).getAsInt() : by0);
 			x0 = Math.min(x0, bx0);
 			x1 = Math.max(x1, bx1);

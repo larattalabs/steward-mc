@@ -1,5 +1,5 @@
 {
-  "prompt": "A town of two quarters: traders on the desert side, herbalists on the jungle side (D1 districts).",
+  "prompt": "A town of two quarters: traders on the desert side, herbalists on the jungle side (D1 districts; the jungle side's street runs north-south).",
   "answer": {
     "plan": {
       "schemaVersion": "plan/0",
@@ -53,8 +53,8 @@
                 "id": "jungle_side",
                 "label": "the jungle side",
                 "size": {
-                  "w": 72,
-                  "d": 56
+                  "w": 40,
+                  "d": 120
                 },
                 "lots": [
                   {

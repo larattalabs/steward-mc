@@ -20,7 +20,7 @@ Writing the plan:
 - **Zones.** A plan builds one region, which may hold several zones. An ordinary town is one standard zone whose `program` is
   `{template: "flat_village", params: {lots: [...]}}` on fairly flat land, or `{lots: [...], layout: "street"}`. A settlement of distinct quarters (a
   desert side and a jungle side, a harbour and an upper town) is one zone with `program: {districts: [...]}`: each district its own street of lots, with
-  its `label`, `size` as `{w, d}` (make it wider than deep, so its street runs east-west: Steward builds those), `levelBand` (low, mid, high) and
+  its `label`, `size` as `{w, d}`, `levelBand` (low, mid, high) and
   `prefer` (wet, dry, near_water, wooded, open, flat, sloped), joined by routes. A quarter that follows the
   land (along a shore, a river, a ridge or a biome edge) is placed with `where: {along: {feature}}`; a camp or mine apart from the town is a
   `kind: "outpost"` zone, reached by its own road. Make one lot per building from the card's program, as many of each as its `count`:

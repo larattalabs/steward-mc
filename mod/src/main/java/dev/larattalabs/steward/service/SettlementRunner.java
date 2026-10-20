@@ -1011,12 +1011,6 @@ public final class SettlementRunner {
 				var art = ArchitectApi.get().regions().artifact(c.artifactSha());
 				var lots = art.flatMap(a -> java.util.Optional.ofNullable(a.body())).filter(b -> b.has("lots") && b.get("lots").isJsonArray()).map(b -> b.getAsJsonArray("lots"));
 				if (lots.isEmpty() || lots.get().isEmpty()) { say("The plan's check has no lots to build on: the village is laid out as usual."); planVillage(r, buildings, budgetUsd, district, claim, specs, own); return; }
-				if (dev.larattalabs.steward.gateway.PPlan.northSouth(lots.get())) {
-					Steward.LOGGER.info("plan of {} faces east or west: the flat village instead", settlement.id());
-					say("The plan lays its buildings along a north-south way, which Steward can't design for yet: the village is laid out as usual.");
-					planVillage(r, buildings, budgetUsd, district, claim, specs, own);
-					return;
-				}
 				var out = leftOut(c);
 				if (!out.isEmpty()) say("Left out of what is built (they didn't fit here): " + String.join(", ", out) + ".");
 				var waits = PlanStore.get(settlement.id()).map(PlanStore.Entry::pending).orElse(List.of());
@@ -1025,7 +1019,9 @@ public final class SettlementRunner {
 				ArchitectApi.get().regions().pinArtifact(c.artifactSha(), settlement.owner());
 				vPlanId = dev.larattalabs.steward.gateway.PPlan.ARTIFACT_PREFIX + c.artifactSha();
 				plan = dev.larattalabs.steward.gateway.PPlan.toPlan(lots.get(), built);
-				Steward.LOGGER.info("plan of {}: artifact {}, {} lots ({} unplaced)", settlement.id(), c.artifactSha(), plan.lots().size(), plan.unplaced().size());
+				Steward.LOGGER.info("plan of {}: artifact {}, {} lots ({} unplaced), fronts {}", settlement.id(), c.artifactSha(), plan.lots().size(), plan.unplaced().size(),
+					plan.lots().stream().map(l -> l.front().name().toLowerCase()).collect(java.util.stream.Collectors.groupingBy(f -> f, java.util.TreeMap::new,
+						java.util.stream.Collectors.counting())));
 				continueWithPlan(r, budgetUsd, district);
 			} catch (RuntimeException e) {
 				Steward.LOGGER.error("the build of {} failed after its plan check", settlement.id(), e);
@@ -1044,7 +1040,8 @@ public final class SettlementRunner {
 				abandon(addition ? "No room left " + (district != null ? "in " + district.name() : "in the town") + " for it." : "No dry, flat room here. Try another spot.");
 				return;
 			}
-			if (existing != null) {
+			// an approved plan's streets are Architect's, checked against the protected areas already (and not one east-west street)
+			if (existing != null && dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId) == null) {
 				String crossed = protectedCrossed(existing, plan, newStreet ? List.of(new int[] {plan.streetX0(), plan.streetX1()}) : List.of());
 				if (crossed != null) { abandon("The street would cross the protected area \"" + crossed + "\". Clear it, or protect less, and try again."); return; }
 			}
@@ -1304,7 +1301,7 @@ public final class SettlementRunner {
 				String stage = state.items().getOrDefault(l.id(), "");
 				boolean waits = massingsWait && lastAwaiting.contains(l.id());
 				lots.add(new dev.larattalabs.steward.inbox.InboxModel.Lot(l.id(), l.role(), stage, landmarkIds.contains(l.id()) || l.landmark(), waits,
-					details.getOrDefault(l.id(), l.sizeX() + "x" + (l.sizeZ() - dev.larattalabs.steward.gateway.LotBrief.APPROACH_MARGIN) + " lot")));
+					details.getOrDefault(l.id(), l.along() + "x" + (l.deep() - dev.larattalabs.steward.gateway.LotBrief.APPROACH_MARGIN) + " lot")));
 			}
 		}
 		return dev.larattalabs.steward.inbox.InboxModel.entry(settlement.id(), settlement.name(), state, lots);
