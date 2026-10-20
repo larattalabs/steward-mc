@@ -664,3 +664,19 @@ lands before 6d, so D-S2 (growing along districts and outposts) waits a little l
   - K3: a wall lot's `onWall.passage` goes on its design as `DesignRequest.reserved`, its outer faces as a brief line, and wall lots are
     left out of the street extent plan v1 derives;
   - RCs on LF (7a-2) and on K3 with GJ (7a-3).
+
+**Steward's refinements and the re-record (2026-10-20).** Noah asked both sessions what to change before implementing. Steward's list:
+- bring 6d's growth core (lots added to a standing region, its street extended, towns as well as districts) ahead of 7a-2 and 7a-3;
+- the same-key stale retry and pins that expire with their opKey;
+- realised provenance for every region;
+- a settlement-wide look lint;
+- the lamp-post undo miss;
+- `discardPlan`.
+
+After the re-record (12 plans, $0.65, refused 26 → 9 across the 59; mod/DEV.md), Steward reported two findings. **Both were accepted
+into the 6c close-out fixes,** with the same-key stale retry, expiring pins and `discardPlan`:
+- **A route to an unplaced lot** answers `blocked {dependency}` naming the lot and its zone, instead of `refused NO_ROOM`.
+- **`rule.palette` gains `scope: "lots" | "all"`** (default `all`, as today); `exempt` also takes `ways` and `forms`. **Steward's plan
+  writer uses `scope: "lots"` for "only copper" building asks once it ships.**
+
+Architect takes the 12 re-recorded plans into its asks fixtures at the close-out.
