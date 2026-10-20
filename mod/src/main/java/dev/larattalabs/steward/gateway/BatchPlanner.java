@@ -178,9 +178,15 @@ public final class BatchPlanner {
 
 	/** Whether an item key is a street's: the street, or an extension an addition laid ({@code street#2}, ...). A lot's id ({@code street_market_1}) is not. */
 	public static boolean isStreet(@Nullable String itemKey) {
-		// and a flat village's street (Architect V: road:street_w, road:street_e, split at its square)
-		return itemKey != null && (itemKey.equals(STREET_KEY) || itemKey.startsWith(STREET_KEY + "#") || itemKey.startsWith("road:street"));
+		// and a region's street: a flat village's (Architect V: road:street_w, road:street_e, split at its square), a district's (D1/D2:
+		// road:<district>_street_w) and a free layout's (FL: road:street_ring, road:<prefix>street_a1), all keeping the street_ stem
+		return itemKey != null && (itemKey.equals(STREET_KEY) || itemKey.startsWith(STREET_KEY + "#") || REGION_STREET.matcher(itemKey).matches());
 	}
+
+	private static final java.util.regex.Pattern REGION_STREET = java.util.regex.Pattern.compile("road:(?:[a-z0-9_]*_)?street(?:_[a-z0-9]+)?");
+
+	/** (Architect FL) The road ext flag a region writes on every street road ({@code {zone, district?}}); read where present, the key otherwise. */
+	public static final String REGION_STREET_EXT = "architect_mc:street";
 
 	/** The ext keys a street piece records its centre line and ends under (its written box also holds lanterns, so it is not the line). */
 	public static final String STREET_Z = "steward_mc:street_z", STREET_X0 = "steward_mc:street_x0", STREET_X1 = "steward_mc:street_x1";

@@ -378,15 +378,31 @@ public final class Districts {
 	 * line), as one centre line and its ends. The one rule every caller uses (founding, layouts, links). Null when there is none.
 	 */
 	public static DistrictRules.@Nullable Street streetOf(List<SiteView> sites, Settlement s, Settlement.@Nullable District district) {
+		List<Piece> pieces = new java.util.ArrayList<>();
+		for (SiteView v : sites) {
+			var b = v.box();
+			pieces.add(new Piece(v.kind(), v.itemKey(), v.ext() != null && v.ext().has(BatchPlanner.REGION_STREET_EXT), b.minX(), b.maxX(), b.minZ(), b.maxZ(),
+				intExt(v, BatchPlanner.STREET_Z, null), intExt(v, BatchPlanner.STREET_X0, null), intExt(v, BatchPlanner.STREET_X1, null)));
+		}
+		return streetOfPieces(pieces, s, district);
+	}
+
+	/** A placed site as {@link #streetOfPieces} reads it: its kind, key, the FL street flag, its box's columns and the line Steward recorded on its own streets. */
+	record Piece(String kind, @Nullable String itemKey, boolean streetFlag, int minX, int maxX, int minZ, int maxZ, @Nullable Integer z, @Nullable Integer x0,
+		@Nullable Integer x1) {}
+
+	/** {@link #streetOf} over pieces (pure). */
+	static DistrictRules.@Nullable Street streetOfPieces(List<Piece> pieces, Settlement s, Settlement.@Nullable District district) {
 		String dim = s.claim().dimension();
 		Integer z = null;
 		int x0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE;
-		for (SiteView v : sites) {
-			if (!"road".equals(v.kind()) || !BatchPlanner.isStreet(v.itemKey())) continue;
-			var b = v.box();
-			// the line it was laid on (its box also holds lanterns); streets laid before it was recorded: the box's middle
-			int cz = intExt(v, BatchPlanner.STREET_Z, Math.floorDiv(b.minZ() + b.maxZ(), 2));
-			int sx0 = intExt(v, BatchPlanner.STREET_X0, b.minX()), sx1 = intExt(v, BatchPlanner.STREET_X1, b.maxX());
+		for (Piece v : pieces) {
+			if (!"road".equals(v.kind()) || !(v.streetFlag() || BatchPlanner.isStreet(v.itemKey()))) continue;
+			// the line it was laid on (its box also holds lanterns); streets laid before it was recorded, and a region's: the box's middle, for one
+			// running east-west only (a district's north-south street, a ring, a following street: additions know an east-west line)
+			if (v.z() == null && v.maxX() - v.minX() < v.maxZ() - v.minZ()) continue;
+			int cz = v.z() != null ? v.z() : Math.floorDiv(v.minZ() + v.maxZ(), 2);
+			int sx0 = v.x0() != null ? v.x0() : v.minX(), sx1 = v.x1() != null ? v.x1() : v.maxX();
 			var in = s.districtAt(dim, (sx0 + sx1) / 2, cz);
 			boolean ours = district != null ? in.map(d -> d.id().equals(district.id())).orElse(false) : in.isEmpty();
 			if (!ours) continue;
@@ -399,7 +415,7 @@ public final class Districts {
 		return z == null ? null : new DistrictRules.Street(z, x0, x1);
 	}
 
-	private static int intExt(SiteView v, String key, int fallback) {
+	private static @Nullable Integer intExt(SiteView v, String key, @Nullable Integer fallback) {
 		return v.ext() != null && v.ext().has(key) && v.ext().get(key).isJsonPrimitive() ? v.ext().get(key).getAsInt() : fallback;
 	}
 

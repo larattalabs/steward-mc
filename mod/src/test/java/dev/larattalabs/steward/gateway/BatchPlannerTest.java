@@ -215,6 +215,11 @@ class BatchPlannerTest {
 		assertEquals(List.of("street", "street#2"), r.batch().stages().get(0).items());
 		assertFalse(BatchPlanner.isStreet("streets"));
 		assertFalse(BatchPlanner.isStreet("street_market_1"), "a lot of the street_market type is a building");
+		// a region's streets: V's, a district's (D1/D2) and a free layout's (FL) keep the street_ stem
+		for (String k : List.of("road:street_w", "road:street_e", "road:harbour_street_w", "road:high_street_street_e", "road:street_ring", "road:q1_street_a1"))
+			assertTrue(BatchPlanner.isStreet(k), k);
+		for (String k : List.of("road:lane_3", "road:route_join", "road:streets", "road:street_market_1_lane", "lot:street_market_1"))
+			assertFalse(BatchPlanner.isStreet(k), k);
 		assertEquals(p.streetZ(), streets.get(0).road().ext().get(BatchPlanner.STREET_Z).getAsInt(), "the line is recorded (its box also holds lanterns)");
 	}
 }
