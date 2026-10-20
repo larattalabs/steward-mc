@@ -1694,7 +1694,7 @@ public final class SettlementRunner {
 	 */
 	private void realiseArtifact(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
 		var regions = ArchitectApi.get().regions();
-		Map<String, String> fitting = fitting(sha, lotEntries);
+		Map<String, String> fitting = palette(sha, fitting(sha, lotEntries));
 		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, Mode.INSTANT, actor, fitting, opKey(first ? "vrealise" : "vrealise2"), ext))
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
@@ -1769,6 +1769,26 @@ public final class SettlementRunner {
 			String problem = dev.larattalabs.steward.gateway.PPlan.lotProblem(lot, entry.get().size().x(), entry.get().size().y(), entry.get().size().z(), cells > 0 ? cells : -1);
 			if (problem == null) out.put(e.getKey(), e.getValue());
 			else say(e.getKey().replace('_', ' ') + " is left a pad: its design (" + problem + ") doesn't fit the plan as approved.");
+		}
+		return out;
+	}
+
+	/**
+	 * The lot entries that keep the plan's required palette rules ("only copper", "no wood": VOC-c), by Architect's own measure ({@code checkPalette}):
+	 * while a required rule fails, the lot that pushes it furthest out is left a pad and said, rather than the whole village refused at the realise.
+	 */
+	private Map<String, String> palette(String sha, Map<String, String> entries) {
+		Map<String, String> out = new LinkedHashMap<>(entries);
+		var regions = ArchitectApi.get().regions();
+		for (int i = 0; i < 24 && !out.isEmpty(); i++) {
+			var pc = regions.checkPalette(sha, out);
+			if (pc.isEmpty() || pc.get().ok()) break;
+			var bad = pc.get().rules().stream().filter(r -> r.required() && !r.fits() && r.worstLot() != null && out.containsKey(r.worstLot())).findFirst();
+			if (bad.isEmpty()) break;
+			var r = bad.get();
+			out.remove(r.worstLot());
+			say(r.worstLot().replace('_', ' ') + " is left a pad: its design breaks the plan's rule on " + r.family() + String.format(java.util.Locale.ROOT,
+				" (%.0f%% of the measured blocks, the rule asks %.0f%% to %.0f%%).", r.share() == null ? 0 : r.share() * 100, r.shareMin() * 100, r.shareMax() * 100));
 		}
 		return out;
 	}

@@ -1,0 +1,62 @@
+{
+  "prompt": "A town built with no wood at all (VOC-c, rule.palette).",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "stone_town",
+      "style": {
+        "pending": "stone_town"
+      },
+      "zones": [
+        {
+          "id": "town",
+          "kind": "standard",
+          "required": true,
+          "label": "the stone town",
+          "program": {
+            "template": "flat_village",
+            "params": {
+              "lots": [
+                {
+                  "id": "cottage_1",
+                  "type": "cottage",
+                  "role": "cottage",
+                  "label": "a stone cottage",
+                  "size": [
+                    13,
+                    14
+                  ]
+                },
+                {
+                  "id": "cottage_2",
+                  "type": "cottage",
+                  "role": "cottage",
+                  "label": "a stone cottage",
+                  "size": [
+                    13,
+                    14
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "rules": [
+        {
+          "id": "no_wood",
+          "kind": "palette",
+          "family": "wood",
+          "share": [
+            0,
+            0
+          ],
+          "required": true,
+          "label": "no wood anywhere"
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A small town of stone cottages, with no wood anywhere."
+  }
+}

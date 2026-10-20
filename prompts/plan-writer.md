@@ -50,6 +50,9 @@ Writing the plan:
   never change it. Build round it where the card or the land suggests it: name it as a feature `{build: {id}}` (near, along, around), a target
   `{build: id}` (adjacent), or a road's endpoint `{build: id, port: "door"}` so a street reaches its door. A path the player laid can be joined, never
   rebuilt.
+- **Material rules.** A hard rule on what the settlement is made of ("only copper", "no wood", "all of stone") is a `rules` part of kind `palette`:
+  `family` from the block vocabulary given with these instructions (a family or a group, such as `wood`), `share` [1, 1] for "only" and [0, 0] for "no",
+  `required` true when the ask is about it. A loose taste ("mostly stone") belongs in the style, not a rule.
 - **Shapes Architect builds.** Parts that answer refused are parts written in a shape Architect can't build here, so keep to these:
   - every zone has at least one lot: a zone is never a placeholder for something else (a stacked tower is one lot, or a reserved layout part);
   - terraces stand beside a zone, never under its lots: a hillside town is a zone on the flattest ground with terraces next to it;

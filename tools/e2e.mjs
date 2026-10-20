@@ -950,6 +950,50 @@ async function farmPondFlow() {
 }
 
 /**
+ * A material rule (Architect VOC-c): a town with no wood at all (a required rule.palette). The stub's designs are timber, so the steward's pre-check
+ * (checkPalette) leaves the lots that break it as pads rather than the realise refusing the whole village; it is placed, and undone.
+ */
+async function paletteFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 33000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Stone Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'no_wood.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a town with no wood at all`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('palette', 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('palette', 'no plan composed');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  await cmd('/tp @p ~ ~ ~90');
+  const built = await buildThrough(id, from, 'palette');
+  if (!built) return;
+  // the steward's pre-check (Architect's checkPalette): a design that breaks the required rule is left a pad, rather than the village refused at the realise
+  const padded = logSince(from).match(/(\S+) is left a pad: its design breaks the plan's rule on wood[^\n]*/);
+  const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  if (padded && /^region:/.test(placed?.siteGroup ?? '')) ok('palette', `${padded[0].slice(0, 140)}; the village placed (${placed.siteGroup}, ${built.placed} buildings)`);
+  else return fail('palette', `pre-check ${padded ? padded[0] : 'said nothing'}; region ${placed?.siteGroup}; placed ${built.placed}`);
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 60 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  if (last?.kind === 'PROJECT_REMOVED') ok('palette undo', last.text);
+  else fail('palette undo', `last op ${last?.kind}`);
+}
+
+/**
  * Irrigation (Architect IRR): a working wheat farm with a source in every 9x9 of its field (irrigate), built from its plan; its design request carries the
  * field's reserved cells (sources, farmland sides, the air over them), it is placed once the sources settle, and undone with them drained first.
  */
@@ -1539,6 +1583,7 @@ try {
       await farmPondFlow();
       await ditchFlow();
       await irrigationFlow();
+      await paletteFlow();
       await districtsPlanFlow();
       await planCheckFlow();
       await survivalFlow();

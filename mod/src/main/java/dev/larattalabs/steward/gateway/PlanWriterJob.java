@@ -52,7 +52,7 @@ public final class PlanWriterJob {
 		}
 		JobSpec spec = new JobSpec("structured", user, refs ? instructions() : systemPrompt(), MODEL, "medium", schema(), List.of(), BUDGET_USD, 4, owner, TAG, null,
 			SimAnswers.ext(SimAnswers.PLAN), List.of());
-		return refs ? spec.systemRefs(List.of(SCHEMA_REF)) : spec;
+		return refs ? spec.systemRefs(List.of(SCHEMA_REF, VOCAB_REF)) : spec;
 	}
 
 	/** The name a part plan gives the town as it stands, swapped for the town's region id before the check ({@link #TOWN}). */
@@ -82,7 +82,7 @@ public final class PlanWriterJob {
 		}
 		JobSpec spec = new JobSpec("structured", user, refs ? instructions() : systemPrompt(), MODEL, "medium", schema(), List.of(), BUDGET_USD, 4, owner, TAG, null,
 			SimAnswers.ext(SimAnswers.PART), List.of());
-		return refs ? spec.systemRefs(List.of(SCHEMA_REF)) : spec;
+		return refs ? spec.systemRefs(List.of(SCHEMA_REF, VOCAB_REF)) : spec;
 	}
 
 	static String userPrompt(String card, @Nullable String land, List<String> anchors) {
@@ -101,6 +101,8 @@ public final class PlanWriterJob {
 
 	/** Architect's plan schema by reference (C33): its compact rendering, without the bookkeeping fields, with the live catalogue. */
 	static final String SCHEMA_REF = "plan/0#compact";
+	/** The block vocabulary (families, groups, tiers, colours; VOC), by reference: what a palette rule's family names. */
+	static final String VOCAB_REF = "vocab/1#compact";
 
 	/** The prompt's system section alone (the schema comes by reference, ahead of it). */
 	static String instructions() {

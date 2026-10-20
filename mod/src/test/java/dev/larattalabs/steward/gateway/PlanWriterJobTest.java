@@ -37,7 +37,7 @@ class PlanWriterJobTest {
 	@Test
 	void withSystemRefsTheSchemaGoesByReference() {
 		var spec = PlanWriterJob.build("{}", null, List.of("stone"), List.of(), null, null, null, true);
-		assertEquals(List.of("plan/0#compact"), spec.systemRefs());
+		assertEquals(List.of("plan/0#compact", "vocab/1#compact"), spec.systemRefs());
 		assertFalse(spec.system().contains("\"schemaVersion\""), "the schema is not sent inline");
 		assertTrue(PlanWriterJob.build("{}", null, List.of("stone"), List.of(), null, null, null, false).system().contains("\"schemaVersion\""));
 	}
