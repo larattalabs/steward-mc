@@ -128,4 +128,13 @@ class PPlanTest {
 		}
 		return o;
 	}
+
+	@Test
+	void aDistrictsPlansLotsAreEveryDistricts() throws Exception {
+		JsonObject plan = JsonParser.parseString(Files.readString(Path.of("../fixtures/plans/two_sides.json"))).getAsJsonObject().getAsJsonObject("answer")
+			.getAsJsonObject("plan");
+		var ids = PPlan.lots(PPlan.forBuild(plan, Set.of(), "set_9", "b2")).stream().map(l -> l.get("id").getAsString()).toList();
+		assertEquals(java.util.List.of("trader_1", "trader_2", "herbalist_1", "herbalist_2"), ids);
+		for (var l : PPlan.lots(PPlan.forBuild(plan, Set.of(), "set_9", "b2"))) assertEquals("b2", l.getAsJsonObject("ext").get(BatchPlanner.BUILD_EXT).getAsString());
+	}
 }

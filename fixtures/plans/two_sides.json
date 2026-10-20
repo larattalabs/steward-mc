@@ -1,0 +1,96 @@
+{
+  "prompt": "A town of two quarters: traders on the desert side, herbalists on the jungle side (D1 districts).",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "two_sides",
+      "style": {
+        "pending": "two_sides"
+      },
+      "zones": [
+        {
+          "id": "town",
+          "kind": "standard",
+          "required": true,
+          "label": "the two-sided town",
+          "program": {
+            "districts": [
+              {
+                "id": "desert_side",
+                "label": "the desert side",
+                "size": {
+                  "w": 72,
+                  "d": 56
+                },
+                "lots": [
+                  {
+                    "id": "trader_1",
+                    "type": "trader",
+                    "role": "trader",
+                    "label": "a spice trader",
+                    "size": [
+                      13,
+                      14
+                    ]
+                  },
+                  {
+                    "id": "trader_2",
+                    "type": "trader",
+                    "role": "trader",
+                    "label": "a spice trader",
+                    "size": [
+                      13,
+                      14
+                    ]
+                  }
+                ],
+                "prefer": [
+                  "dry",
+                  "open"
+                ]
+              },
+              {
+                "id": "jungle_side",
+                "label": "the jungle side",
+                "size": {
+                  "w": 72,
+                  "d": 56
+                },
+                "lots": [
+                  {
+                    "id": "herbalist_1",
+                    "type": "herbalist",
+                    "role": "herbalist",
+                    "label": "a herbalist",
+                    "size": [
+                      13,
+                      14
+                    ]
+                  },
+                  {
+                    "id": "herbalist_2",
+                    "type": "herbalist",
+                    "role": "herbalist",
+                    "label": "a herbalist",
+                    "size": [
+                      13,
+                      14
+                    ]
+                  }
+                ],
+                "prefer": [
+                  "wooded"
+                ],
+                "near": [
+                  "desert_side"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A town of two quarters, spice traders on the desert side and herbalists on the jungle side, joined by a road."
+  }
+}

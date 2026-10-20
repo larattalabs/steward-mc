@@ -115,13 +115,23 @@ public final class PPlan {
 		return out;
 	}
 
-	/** Every lot of every zone: a zone's own {@code program.lots}, or its named template's {@code program.params.lots}. */
+	/**
+	 * Every lot of every zone: a zone's own {@code program.lots}, its named template's {@code program.params.lots}, or each district's lots of a
+	 * districts program ({@code program.districts[].lots}, D1). An outpost's are its program's, as any zone's.
+	 */
 	static List<JsonObject> lots(JsonObject plan) {
 		List<JsonObject> out = new ArrayList<>();
 		if (!plan.has("zones") || !plan.get("zones").isJsonArray()) return out;
 		for (JsonElement z : plan.getAsJsonArray("zones")) {
 			if (!z.isJsonObject() || !z.getAsJsonObject().has("program") || !z.getAsJsonObject().get("program").isJsonObject()) continue;
 			JsonObject program = z.getAsJsonObject().getAsJsonObject("program");
+			if (program.has("districts") && program.get("districts").isJsonArray()) {
+				for (JsonElement d : program.getAsJsonArray("districts")) {
+					if (!d.isJsonObject() || !d.getAsJsonObject().has("lots") || !d.getAsJsonObject().get("lots").isJsonArray()) continue;
+					for (JsonElement l : d.getAsJsonObject().getAsJsonArray("lots")) if (l.isJsonObject() && l.getAsJsonObject().has("id")) out.add(l.getAsJsonObject());
+				}
+				continue;
+			}
 			JsonArray lots = program.has("lots") && program.get("lots").isJsonArray() ? program.getAsJsonArray("lots")
 				: program.has("params") && program.get("params").isJsonObject() && program.getAsJsonObject("params").has("lots")
 					&& program.getAsJsonObject("params").get("lots").isJsonArray() ? program.getAsJsonObject("params").getAsJsonArray("lots") : null;

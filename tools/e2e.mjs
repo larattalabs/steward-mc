@@ -857,6 +857,50 @@ async function planBuildFlow() {
 }
 
 /**
+ * Districts in a plan (Architect D1, through plan v1): a town of two quarters, a desert side and a jungle side, each its own street of lots, built from
+ * its approved plan as one region, and undone whole.
+ */
+async function districtsPlanFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 24000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Two Sides';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'two_sides.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a town with a desert side and a jungle side`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('districts plan', 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('districts plan', 'no plan composed');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  const laid = await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  await cmd('/tp @p ~ ~ ~90');
+  const built = await buildThrough(id, from, 'districts plan');
+  if (!built) return;
+  const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const lots = (placed?.changes ?? []).map((c) => c.lot).filter(Boolean);
+  const sides = ['trader', 'herbalist'].filter((t) => lots.some((l) => l.startsWith(t) || /trader|herbalist/.test(l)));
+  if (laid && /^region:/.test(placed?.siteGroup ?? '') && built.placed >= 2) ok('districts plan', `${built.placed} placed in two quarters from the approved plan (${placed.siteGroup}): ${lots.join(', ')}`);
+  else return fail('districts plan', `laid out ${!!laid}, region ${placed?.siteGroup}, placed ${built.placed}, lots ${lots.join(', ')}`);
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 60 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placed.siteIds.length) ok('districts plan undo', `${last.text} (${last.siteIds.length} sites)`);
+  else fail('districts plan undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${placed.siteIds.length} sites)`);
+}
+
+/**
  * Water (Architect H): a farm hamlet whose farm has its little pond (farmPond), built from its plan. The region is placed only once the pond has settled
  * (its fluids stage), and an undo drains the pond before it takes the rest up.
  */
@@ -1397,6 +1441,7 @@ try {
       await planBuildFlow();
       await wallOfferFlow();
       await farmPondFlow();
+      await districtsPlanFlow();
       await planCheckFlow();
       await survivalFlow();
     }
