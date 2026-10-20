@@ -950,6 +950,52 @@ async function farmPondFlow() {
 }
 
 /**
+ * Water courses (Architect HY): a market garden with an irrigation ditch along its field (channel.ditch), built from its plan; placed once the ditch has
+ * settled, and undone (the ditch drained first, the reverse of its writing).
+ */
+async function ditchFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 27000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Ditch Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'ditch_hamlet.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a market garden with a ditch along its field`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('ditch', 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('ditch', 'no plan composed');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  await cmd('/tp @p ~ ~ ~90');
+  const built = await buildThrough(id, from, 'ditch');
+  if (!built) return;
+  const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const rg = (placed?.siteGroup ?? '').replace(/^region:/, '');
+  const fluids = logSince(from).match(new RegExp(`stage fluids[^\n]*`, 'g')) ?? [];
+  if (/^rg/.test(rg) && fluids.some((l) => /placed/.test(l))) ok('ditch', `${built.placed} placed (${placed.siteGroup}), its ditch settled: ${fluids.at(-1).slice(0, 90)}`);
+  else return fail('ditch', `region ${placed?.siteGroup}; fluids stage ${fluids.length ? fluids.join(' | ').slice(0, 200) : 'none'}`);
+  from = logSize();
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 90 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  const drained = /drain/i.test(logSince(from));
+  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placed.siteIds.length) ok('ditch undo', `${last.text}${drained ? '; the ditch drained first' : ''}`);
+  else fail('ditch undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${placed.siteIds.length}); ${logSince(from).split('\n').filter((l) => /CHAT|drain|fluid/i.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+}
+
+/**
  * A waiting part offered once Architect builds it (docs/COMPOSITION.md section 11): a market town built from its plan, then a wall kept as waiting from
  * before walls existed (as a plan kept before K1); the steward offers it, Claude fits it round the town as it stands (the scripted answer), Architect builds
  * it as a region of its own, and an undo takes the wall away and leaves the town.
@@ -1444,6 +1490,7 @@ try {
       await planBuildFlow();
       await wallOfferFlow();
       await farmPondFlow();
+      await ditchFlow();
       await districtsPlanFlow();
       await planCheckFlow();
       await survivalFlow();
