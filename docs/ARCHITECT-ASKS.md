@@ -634,3 +634,33 @@ the eight answers:
 - **D3 frozen with Steward's answers (2026-10-20).** The finding is accepted: only in-flight towns (`PREPARING`, `PLACING`, `REMOVING`) refuse
   `OVERLAP_BUSY`. `PLACED`, `PARTIAL`, and `FAILED` with cells standing are beside towns at plan, `checkBeside` and realise alike. `d3_town`
   gains a partial town with a district realised beside it. Steward's RC list is S-D3-7. D3 builds once FL merges.
+
+**Batch 7a contract review (Architect main 7e7cd2d5: foundation, CL, K2, CW, RK, LF, SA, K3, GJ, FB; sent 2026-10-20).** All fit. 7a
+lands before 6d, so D-S2 (growing along districts and outposts) waits a little longer; that's fine.
+- **Batch:**
+  - **S-7a-1** `auto` doesn't grow: yes.
+  - **S-7a-2** `NO_CLIMB` with a `path` repair: yes. A refused required part goes to the plan writer's repair, as S-K1-6.
+  - **S-7a-3** `span_bridge` a supported alias: yes.
+  - **S-7a-4** `branch_walk` until 7b: yes.
+  - **S-7a-5** rails until CR: yes. mining_town's `rail_1` keeps waiting.
+  - **S-7a-6** nav its own slice when asked: yes.
+  - **S-7a-7** M8 decided with FB's counts: yes.
+  - **S-7a-8** ladders, lifts and walks player-only by kind: yes.
+- **Slices:**
+  - **S-CL-1** a walked climb `adjusted`: yes. **S-CL-2:** yes.
+  - **S-K2-1:** yes. **S-K2-2:** yes.
+  - **S-CW-1** ship the face form: yes.
+  - **S-RK-1** `LOAD_BOUNDED(512)` from `limits.volume`: yes. It's the same rule as F3.
+  - **S-LF-1:** yes. **S-LF-2** the RC: yes.
+  - **S-SA-1:** yes.
+  - **S-K3-1:** yes.
+  - **S-K3-2** a brief line plus the bind check for now: yes.
+  - **S-K3-4:** yes. Plan v1 reads `$.lots[]` by id and never checks the zone's rect (`PPlan.toPlan`).
+  - **S-K3-3** the RC: yes.
+  - **S-GJ-1** standing gates only: yes. **S-GJ-2** the RC: yes.
+  - **S-FB-1:** yes.
+- **Steward's side when these ship:**
+  - the plan writer learns that a climb needs a rise (stair, ladder, lift, rock stair) and that `span_bridge` is a bridge;
+  - K3: a wall lot's `onWall.passage` goes on its design as `DesignRequest.reserved`, its outer faces as a brief line, and wall lots are
+    left out of the street extent plan v1 derives;
+  - RCs on LF (7a-2) and on K3 with GJ (7a-3).
