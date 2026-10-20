@@ -393,7 +393,7 @@ public final class PendingOffers {
 	/** The kept plan's pending list without {@code part}. */
 	static void dropPending(String settlementId, String part) {
 		PlanStore.get(settlementId).ifPresent(e -> PlanStore.put(new PlanStore.Entry(e.settlementId(), e.plan(), e.overall(), e.artifact(), e.summary(),
-			e.pending().stream().filter(x -> !x.part().equals(part)).toList(), e.usd(), e.at(), e.rounds())));
+			e.pending().stream().filter(x -> !x.part().equals(part)).toList(), e.usd(), e.at(), e.rounds(), e.crossings())));
 	}
 
 	/** Whether a waiting part of {@code block} can be offered and built alone: a connector, form or rule (a zone needs a layout), and not a gate. */

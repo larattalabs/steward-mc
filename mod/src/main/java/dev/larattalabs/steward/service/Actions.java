@@ -560,7 +560,8 @@ public final class Actions {
 		// the whole card as JSON: the screen lays it out in sections (it is common code, the client parses it with ConceptCard.parse)
 		// the plan composed from it, when there is one: its summary and what waits, in Claude's words (they replace the word rules' guesses)
 		var plan = PlanStore.get(s.id());
-		String summary = plan.map(e -> clip(e.summary(), 4000)).orElse("");
+		// the summary, then its bridges and tunnels as Architect resolved them
+		String summary = plan.map(e -> clip(e.summary() + (e.crossings().isEmpty() ? "" : " Crossings: " + String.join("; ", e.crossings()) + "."), 4000)).orElse("");
 		List<String> waits = plan.map(e -> e.pending().stream().map(x -> clip(x.words(), 1000)).limit(12).toList()).orElse(List.of());
 		ServerPlayNetworking.send(p, new StewardNet.Card(s.id(), s.name(), CARD_GSON.toJson(s.card()), SettlementRunner.busy(s.id()), s.claim().radius(), summary,
 			waits, refresh));

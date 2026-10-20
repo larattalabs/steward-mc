@@ -130,7 +130,8 @@ public final class Composer {
 			}
 		}
 		String summary = answer.has("summary") ? answer.get("summary").getAsString() : "";
-		PlanStore.put(new PlanStore.Entry(s.id(), plan.toString(), c.overall().name(), c.artifactSha(), summary, List.copyOf(pending), cost, System.currentTimeMillis(), rounds));
+		PlanStore.put(new PlanStore.Entry(s.id(), plan.toString(), c.overall().name(), c.artifactSha(), summary, List.copyOf(pending), cost, System.currentTimeMillis(), rounds,
+			crossings(c.preview())));
 		Steward.LOGGER.info("plan for {}: {} after {} repair(s), {} pending, {} unfit, ${}", s.id(), c.overall(), rounds, pending.size(), unfit.size(),
 			String.format("%.3f", cost));
 		List<String> out = new ArrayList<>();
@@ -162,6 +163,41 @@ public final class Composer {
 			if (p != null) p.sendSystemMessage(net.minecraft.network.chat.Component.literal("[" + s.name() + "] " + l));
 		}
 		if (!lines.isEmpty()) StewardVoice.say(server, s.id(), lines.get(0));
+	}
+
+	/**
+	 * The plan's bridges and tunnels as Architect resolved them (the light preview's siteplan edges with a {@code crossing}: {type, form, over, span or
+	 * length, lands}), a line each: "a stone arch over water, 14 long, to gate east_gate".
+	 */
+	static List<String> crossings(@org.jspecify.annotations.Nullable JsonObject preview) {
+		List<String> out = new ArrayList<>();
+		if (preview == null || !preview.has("siteplan") || !preview.get("siteplan").isJsonObject()) return out;
+		var sp = preview.getAsJsonObject("siteplan");
+		if (!sp.has("edges") || !sp.get("edges").isJsonArray()) return out;
+		for (var e : sp.getAsJsonArray("edges")) {
+			if (!e.isJsonObject() || !e.getAsJsonObject().has("crossing") || !e.getAsJsonObject().get("crossing").isJsonObject()) continue;
+			JsonObject x = e.getAsJsonObject().getAsJsonObject("crossing");
+			String type = str(x, "type").replace('_', ' ');
+			String form = str(x, "form");
+			StringBuilder b = new StringBuilder("a ");
+			if (!form.isEmpty() && !type.contains(form)) b.append(form.replace('_', ' ')).append(' ');
+			b.append(type.isEmpty() ? "crossing" : type);
+			if (!str(x, "over").isEmpty()) b.append(" over ").append(str(x, "over").replace('_', ' '));
+			if (!str(x, "through").isEmpty()) b.append(" through ").append(str(x, "through").replace('_', ' '));
+			String len = !str(x, "span").isEmpty() ? str(x, "span") : str(x, "length");
+			if (!len.isEmpty()) b.append(", ").append(len).append(" long");
+			if (!str(x, "lands").isEmpty()) b.append(", to ").append(str(x, "lands").replace('_', ' '));
+			String line = b.toString();
+			// "an arch bridge", "a tunnel"
+			if (line.length() > 2 && "aeiou".indexOf(line.charAt(2)) >= 0) line = "an " + line.substring(2);
+			out.add(line);
+			if (out.size() >= 8) break;
+		}
+		return out;
+	}
+
+	private static String str(JsonObject o, String k) {
+		return o.has(k) && o.get(k).isJsonPrimitive() ? o.get(k).getAsString() : "";
 	}
 
 	/** The check's answers, one line a part, for a repair round. */

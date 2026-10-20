@@ -27,9 +27,21 @@ public final class PlanStore {
 	/** A part that waits: its id, the building block it needs, whether the plan requires it, and Claude's words for the player. */
 	public record Pending(String part, String block, boolean required, String words) {}
 
-	/** A settlement's plan: the plan as JSON, the check's overall answer and artifact, the summary, what waits, what it cost, when. */
+	/**
+	 * A settlement's plan: the plan as JSON, the check's overall answer and artifact, the summary, what waits, what it cost, when; {@code crossings}: its
+	 * bridges and tunnels as Architect resolved them, a line each (empty in a plan kept before they were).
+	 */
 	public record Entry(String settlementId, String plan, String overall, @Nullable String artifact, String summary, List<Pending> pending, double usd, long at,
-		int rounds) {}
+		int rounds, List<String> crossings) {
+		public Entry {
+			crossings = crossings == null ? List.of() : List.copyOf(crossings);
+		}
+
+		public Entry(String settlementId, String plan, String overall, @Nullable String artifact, String summary, List<Pending> pending, double usd, long at,
+			int rounds) {
+			this(settlementId, plan, overall, artifact, summary, pending, usd, at, rounds, List.of());
+		}
+	}
 
 	private record FileShape(int format, Map<String, Entry> plans) {}
 
