@@ -622,6 +622,8 @@ Noah's example: a settlement at a desert's edge with a jungle. A wall divides th
   - `Districts.choose` surveys each free side's square (every 4th column, loaded chunks) and picks a side: the one said, then where the player stands, then the best ground, then today's order. It skips sides whose road would run over a building.
   - Talk proposals and `/steward district <id> found here|auto` say why a side was chosen.
   - e2e (free): "here" and "auto" checks.
+  - **Built (2026-10-19):** the plan writer knows the live catalogue (several zones; districts, boundary districts and outposts; walls, gates, bridges, tunnels, water) and the shapes Architect builds (from its check of the 59 strange-ask plans: 20 parts in 6 patterns); plan v1 builds a districts plan (D1), and lots facing east or west (north-south streets) are designed, previewed and built (the town's own street stays east-west for additions); the card says a plan's bridges and tunnels as Architect resolved them. e2e (stub): a town of two quarters, its jungle side's street north-south, built and undone. GPT review of north-south: two should-fixes, fixed.
+  - **Known limit:** additions after a districts build don't find Architect's district streets (`road:<district>_street_*`): they lay a fresh street; to do with Steward's districts on Architect's.
   - **Still to do:** the preview in survey mode; "no, by the lake" placing it again; the steward's own district proposal using the card's left-out buildings.
 
 ### Composition (Noah 2026-10-12; design in `docs/COMPOSITION.md`, with Architect for review)
