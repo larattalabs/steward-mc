@@ -12,4 +12,16 @@ class ComposerTest {
 		assertFalse(Composer.hasTunnel(JsonParser.parseString("{\"connectors\":[{\"id\":\"w\",\"kind\":\"wall\"},{\"id\":\"a\",\"kind\":\"auto\"}]}").getAsJsonObject()));
 		assertFalse(Composer.hasTunnel(JsonParser.parseString("{\"zones\":[]}").getAsJsonObject()));
 	}
+
+	@Test
+	void theCatalogueSaysWhichPartsReadTheRock() {
+		var flagged = java.util.Set.of("connector.tunnel", "form.roots", "form.stalactites");
+		assertTrue(Composer.needsVolume(JsonParser.parseString("{\"forms\":[{\"id\":\"r\",\"kind\":\"roots\"}]}").getAsJsonObject(), flagged), "roots read the rock");
+		assertTrue(Composer.needsVolume(JsonParser.parseString("{\"connectors\":[{\"id\":\"t\",\"kind\":\"tunnel\"}]}").getAsJsonObject(), flagged));
+		assertFalse(Composer.needsVolume(JsonParser.parseString("{\"forms\":[{\"id\":\"o\",\"kind\":\"giant_tree\"},{\"id\":\"p\",\"kind\":\"pond\"}]}").getAsJsonObject(), flagged),
+			"a giant tree and a pond read the surface only");
+		// an Architect before F3 flags nothing: the tunnel rule
+		assertTrue(Composer.needsVolume(JsonParser.parseString("{\"connectors\":[{\"id\":\"t\",\"kind\":\"tunnel\"}]}").getAsJsonObject(), java.util.Set.of()));
+		assertFalse(Composer.needsVolume(JsonParser.parseString("{\"forms\":[{\"id\":\"r\",\"kind\":\"roots\"}]}").getAsJsonObject(), java.util.Set.of()));
+	}
 }
