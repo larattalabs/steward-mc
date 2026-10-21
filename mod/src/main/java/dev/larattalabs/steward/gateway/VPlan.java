@@ -39,6 +39,18 @@ public final class VPlan {
 	}
 
 	/**
+	 * (Architect RS, docs/COMPOSITION.md section 12) Whether a Supplied settlement's first whole build in a survival world takes its composed plan, built from
+	 * the stockpile: as {@link #applies} but for the materials, when this Architect builds regions from materials ({@code regionSurvival}). Its flat village
+	 * (a build without a composed plan) stays Patron's.
+	 */
+	public static boolean appliesSupplied(String settlementId, Difficulty difficulty, boolean worldSurvival, boolean regionSurvival, boolean overworld, boolean addition,
+		@Nullable String districtId, String terrain, boolean somethingStands, int groundLow, int groundHigh) {
+		if (LEGACY.contains(settlementId)) return false;
+		return regionSurvival && worldSurvival && difficulty == Difficulty.SUPPLIED && overworld && !addition && districtId == null && !"sculpt".equals(terrain)
+			&& !somethingStands && groundHigh - groundLow <= FLAT_RANGE;
+	}
+
+	/**
 	 * Whether a build uses the flat village: Patron (no materials) in a world without survival, in the Overworld (Architect's regions are Overworld only), a
 	 * settlement's first whole build (not an addition, not in a district, nothing standing), a card whose terrain is flat or as found (a sculpted form is a
 	 * region program of its own), and flat ground.

@@ -492,6 +492,8 @@ public final class SettlementRunner {
 
 	/** Architect's flat village (slice V) this build is laid out on: its plan, and the region once realised. Null for Steward's own layout. */
 	private @org.jspecify.annotations.Nullable String vPlanId, vRegionId;
+	/** (Architect RS) This build lays a Supplied settlement out from its composed plan: a plan that can't be used falls back to Steward's own layout, never the flat village. */
+	private boolean supplied;
 
 	private boolean village() {
 		return vPlanId != null;
@@ -905,12 +907,20 @@ public final class SettlementRunner {
 			// an addition faces the street and may reach past its ends (the street is extended to it when it is queued)
 			java.util.function.Supplier<VillageLayout.Plan> own = () -> !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ)
 				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line) : VillageLayout.plan(claim, grid, specs, rules);
-			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(),
-				dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), level.dimension() == net.minecraft.world.level.Level.OVERWORLD, addition, districtId,
+			boolean worldSurvival = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false);
+			boolean overworld = level.dimension() == net.minecraft.world.level.Level.OVERWORLD;
+			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(), worldSurvival, overworld, addition, districtId,
 				r.card().site().terrain(), stands, lo, hi)) {
 				// the settlement's composed plan, when it has one (plan v1); else Architect's flat village from the card
 				if (composed(existing)) planComposed(existing, r, buildings, budgetUsd, district, claim, specs, own);
 				else planVillage(r, buildings, budgetUsd, district, claim, specs, own);
+				return;
+			}
+			// (Architect RS) a Supplied settlement's composed plan, built from the stockpile; else Steward's own layout as before
+			if (existing != null && composed(existing) && dev.larattalabs.steward.gateway.VPlan.appliesSupplied(existing.id(), existing.difficulty(), worldSurvival,
+				Composer.survivalAvailable(), overworld, addition, districtId, r.card().site().terrain(), stands, lo, hi)) {
+				supplied = true;
+				planComposed(existing, r, buildings, budgetUsd, district, claim, specs, own);
 				return;
 			}
 			plan = own.get();
@@ -1006,15 +1016,24 @@ public final class SettlementRunner {
 	 */
 	private void planComposed(Settlement existing, CardResult r, int buildings, double budgetUsd, Settlement.@org.jspecify.annotations.Nullable District district,
 		Claim claim, List<VillageLayout.LotSpec> specs, java.util.function.Supplier<VillageLayout.Plan> own) {
+		// built from materials: the stockpile first, so the plan is checked with its crates standing (Architect keeps clear of them)
+		if (supplied && Stockpiles.ensure(server, existing, this::say) == null) {
+			abandon("A town built from materials needs its stockpile, and none could be made by the founding stone. Clear a spot beside it and start again.");
+			return;
+		}
 		say("Laying out the village from its plan (Architect checks it against the land as it is now)...");
 		JsonObject built = builtPlan();
 		int session = Session.current();
+		Runnable otherwise = () -> {
+			if (supplied) { plan = own.get(); continueWithPlan(r, budgetUsd, district); }
+			else planVillage(r, buildings, budgetUsd, district, claim, specs, own);
+		};
 		Composer.check(server, existing, built, playerId).whenComplete((c, err) -> server.execute(() -> {
 			if (!Session.is(session) || !alive()) return;
 			if (worldStopped(err)) return;
 			if (err != null) {
 				say("Architect could not check the plan (" + message(err) + "): the village is laid out as usual.");
-				planVillage(r, buildings, budgetUsd, district, claim, specs, own);
+				otherwise.run();
 				return;
 			}
 			try {
@@ -1022,7 +1041,12 @@ public final class SettlementRunner {
 				if (no != null) { abandon("The plan can't be built as it stands: " + no + ". Describe the settlement again for a new plan."); return; }
 				var art = ArchitectApi.get().regions().artifact(c.artifactSha());
 				var lots = art.flatMap(a -> java.util.Optional.ofNullable(a.body())).filter(b -> b.has("lots") && b.get("lots").isJsonArray()).map(b -> b.getAsJsonArray("lots"));
-				if (lots.isEmpty() || lots.get().isEmpty()) { say("The plan's check has no lots to build on: the village is laid out as usual."); planVillage(r, buildings, budgetUsd, district, claim, specs, own); return; }
+				if (lots.isEmpty() || lots.get().isEmpty()) { say("The plan's check has no lots to build on: the village is laid out as usual."); otherwise.run(); return; }
+				// built from materials: what the plan's ground, streets and parts take (the buildings' bills are said once they are designed)
+				if (supplied) {
+					String bill = Composer.billLine(c.cost());
+					if (bill != null) say("From materials, the plan's ground, streets and parts need " + bill + ". Fill the stockpile as they're built.");
+				}
 				var out = leftOut(c);
 				if (!out.isEmpty()) say("Left out of what is built (they didn't fit here): " + String.join(", ", out) + ".");
 				var waits = PlanStore.get(settlement.id()).map(PlanStore.Entry::pending).orElse(List.of());
@@ -1695,7 +1719,7 @@ public final class SettlementRunner {
 	private void realiseArtifact(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
 		var regions = ArchitectApi.get().regions();
 		Map<String, String> fitting = palette(sha, fitting(sha, lotEntries));
-		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, Mode.INSTANT, actor, fitting, opKey(first ? "vrealise" : "vrealise2"), ext))
+		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(), actor, fitting, opKey(first ? "vrealise" : "vrealise2"), ext))
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
@@ -1732,6 +1756,16 @@ public final class SettlementRunner {
 					realiseArtifact(next, lotEntries, actor, ext, false, session);
 				}));
 			}));
+	}
+
+	/**
+	 * The mode a plan's region is realised in: the build's (construction from the stockpile for a Supplied settlement in a survival world, Architect RS),
+	 * read from the settlement and the world at the realise, so a restart realises in the mode it planned in.
+	 */
+	private Mode realiseMode() {
+		boolean survival = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false);
+		var s = Settlements.store().get(settlement.id()).orElse(settlement);
+		return BatchPlanner.modeFor(dev.larattalabs.steward.model.Difficulty.effective(s.difficulty(), survival), survival);
 	}
 
 	/** Whether this build is cancelling or has ended (nothing more is placed for it). */
@@ -1893,6 +1927,12 @@ public final class SettlementRunner {
 		} else if (!logPlaced(sites, (int) placed, (int) skipped, note)) { logFailed(); return; }
 		feed(new Pipeline.BatchDone((int) placed, (int) skipped, note == null ? null : note.substring(4)));
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
+		// built from materials (Architect RS): placed means its construction sites stand; it's built as the stockpile feeds it
+		var build = v.get().build();
+		if (build != null && !build.done()) {
+			say(String.format("Its construction sites stand: it's built as the stockpile feeds it (%.0f%% so far). I'll say when it's done.", build.percent()));
+			MaterialRequests.watchBuild(settlement.id(), vRegionId);
+		}
 	}
 
 	/**
