@@ -759,3 +759,7 @@ the RS jar. In a survival world (toggle on, default mode not creative: Architect
 - fed half, paused, the wait named, then fed until `build.done` (5,550 items);
 - undone with every unit refunded.
 It merges when RS is released, with the version bumps. Not yet said: stage waits, and tile and road item waits.
+
+**RS-b RC (slice/RS-b 9e08cb98; jar from 6132469a, the same mod, kit and sidecar code), consumer check 2026-10-21: pass.** Branch
+`supplied-plan`, stub 61, free 42: the existing Supplied flow and the Supplied plan flow, as on RS-a. RS-a and RS-b release together;
+`supplied-plan` merges with that release.
