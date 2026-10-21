@@ -175,3 +175,44 @@ Noah's 9.2 default: the town is built now, the missing part waits, and "when Arc
 
 **Architect's answers (2026-10-14):** both accepted. **C38** `Regions.planCatalogue()` (synchronous, no claim needed, the same source as a check's catalogue: `catalogueVersion`, `api`, `kitVersion`, entries `{id, state, sinceApi, schemaVersion, until?, note?, limits?}`) ships ahead of K1 or with it. **K1-target**: `wall.around {region: rgN}` for the caller's own region is added to K1a: the region's rect, or its standing lots, roads and keep, is a hard footprint that is never written; auto gates where its roads cross; realised by `realiseApproved` as a region of its own and undone alone (the town's hash unchanged); another owner's region stays refused. K1a checks feasibility first and says if it falls back (e.g. `wall.edge` on the region's rect).
 - **K1-target confirmed (2026-10-14):** the shape is `wall.around {feature: {region: rgN}}` (on a wall, `around.feature.region`; the plan-wide `feature.region` stays reserved). The ring goes round the region's lots, roads and keep, which stay hard; its roads crossing the ring get auto gates, else `gates.min` puts one where a street end faces it; another owner's region is refused `NO_FEATURE`. Realised as its own region; K1a's gate realises a V town, then the wall alone, and removes it with the town's hash unchanged.
+
+## 12. Plan v1 for Supplied builds (Steward; drafted 2026-10-21, on Architect's RS)
+
+With RS, Architect's regions build from materials: land work is free, built blocks are construction targets fed from the owner's
+stockpile, and a region is built when `RegionView.build.done` says so (requests start at `PLACED`). Plan v1 then serves Supplied
+settlements as it serves Patron ones. Square districts, additions and survival waiting-part offers come after this lands.
+
+**Today (mapped 2026-10-21).**
+- `VPlan.applies` (Patron, not a survival world) keeps every Supplied build on Steward's own `VillageLayout` and a CONSTRUCTION batch.
+- `realiseVillage`, `realiseArtifact` and the dev path (`PlanChecks`) hard-code `Mode.INSTANT`.
+- Composing already runs in survival; the plan is kept and never built.
+
+**The change.**
+1. **When.** The plan-v1 branch also takes a Supplied settlement in a survival world when Architect has RS (feature `regionSurvival`). A
+   Supplied settlement on an Architect without RS keeps today's path. The flat-village shortcut (V without a plan) stays Patron-only.
+2. **The check at Start** runs in the world's mode. Architect reads it from the world, so a plan checked before a mode switch answers
+   stale and goes through the existing stale retry. Its per-part `cost.survival` bills and the plan's `cost.bom` (plus `bomParts`) give
+   "From materials it needs …" before Start, as `billOf` does for a batch today.
+3. **The realise** uses the build's mode (`BatchPlanner.modeFor`), not `INSTANT`. Before it, `Stockpiles.ensure` puts the stockpile
+   off the artifact's lots and streets. Without a stockpile the realise would refuse `NOT_ALLOWED` with the bill, so Steward stops first
+   and says why.
+4. **Finished means built.** The build is placed when the region reaches `PLACED`. The town's "is built" waits for `build.done`, and
+   meanwhile the steward reports progress (`percent`, the parts still `outstanding`). Its history entry is written at placement, as today,
+   so an undo is possible mid-build.
+5. **Waits.** `SITE_WAITING` and `ITEM_WAITING` for a region target carry `architect_mc:region` and `architect_mc:part` in the
+   target's ext. `MaterialRequests` names the part from the plan (a lot's role, or the part's label: "the town wall waits for
+   materials: 64 stone bricks"), and the runner's item waits match the build's region, not only its batch. `SITE_BUSY` stage waits
+   (`architect_mc:waitsFor`) are said once, not as material waits.
+6. **Cancel and undo.** Cancel mid-build removes the region, through `Undo.region` as today. Refunds are Architect's: one credit per key.
+   A player's block in a target drops at its cell, with no refund for it. `Undo.region` reports refund overflow as `lastProject` does.
+   A free cell the player mined drops nothing (N-RS-2): the steward says so once if the player asks why.
+7. **e2e.** A stub flow in a survival world:
+   - a composed plan built through `checkPlan` and `realiseApproved`;
+   - the bill said;
+   - half the bill fed, then a pause (`SITE_WAITING` said with the part);
+   - the rest fed until `done`;
+   - a player mining a free cell (no drop);
+   - an undo mid-build on a second settlement, with refunds equal to what was consumed.
+
+**Checks.** GPT review (spending and refunds), both e2e checks, and Steward's RC report to Architect as RS follow-ups (the coordinator,
+2026-10-21: the RS-a merge is gated by the narrow check of today's flows; this is feature work).
