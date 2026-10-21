@@ -763,3 +763,6 @@ It merges when RS is released, with the version bumps. Not yet said: stage waits
 **RS-b RC (slice/RS-b 9e08cb98; jar from 6132469a, the same mod, kit and sidecar code), consumer check 2026-10-21: pass.** Branch
 `supplied-plan`, stub 61, free 42: the existing Supplied flow and the Supplied plan flow, as on RS-a. RS-a and RS-b release together;
 `supplied-plan` merges with that release.
+
+**v0.40.1 (undo hardening A + UMT, drain holders, lamp-path, realised provenance; API 1.37.0 unchanged), checked after release 2026-10-21:
+pass** (stub 57, free 42). Steward builds against 0.40.1 and still requires >= 0.40.0 (no API change).
