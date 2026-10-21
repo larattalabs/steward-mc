@@ -214,6 +214,11 @@ settlements as it serves Patron ones. Square districts, additions and survival w
    - a player mining a free cell (no drop);
    - an undo mid-build on a second settlement, with refunds equal to what was consumed.
 
+**Not yet (recorded after GPT's review, 2026-10-21).**
+- Architect's stage waits (`SITE_BUSY` with `architect_mc:waitsFor`) are not said.
+- A region tile's or road's item wait (no build tag) doesn't reach the steward; Steward's flat-village towns never matched those either.
+- A build that finishes before the first scan after a restart isn't announced as built.
+
 **Merging.** The branch compiles against RS's API (`PlanCheck.survival`, `RegionView.build`) and merges once RS is released, with
 `architect_version`, `ArchitectGateway.REQUIRED_MINOR` and `fabric.mod.json` moved to that release, so no older Architect runs it.
 

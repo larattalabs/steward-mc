@@ -1327,18 +1327,20 @@ async function suppliedPlanFlow() {
     await cmd(`/steward start ${id} 3 30`);
     // the feeder: half of what is needed once the region's targets ask, then (the steward having named a wait) all of it, until the build is done
     // a wait counts only when said after the half was fed: the build pauses on what is still missing
-    let stop = false, asked = null, fedAt = null;
+    let stop = false, asked = null, fedAt = null, halfAccepted = 0;
     const feeder = (async () => {
       while (!stop) {
         await sleep(3000);
         const sp = await ledger().catch(() => null);
         if (!sp || !Object.keys(sp.need ?? {}).length) continue;
         if (fedAt == null) {
-          await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half(sp.need) }).catch(() => null);
-          fedAt = logSize();
+          const r = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half(sp.need) }).catch(() => null);
+          halfAccepted = units(r?.accepted ?? r?.inserted ?? {});
+          if (halfAccepted > 0) fedAt = logSize();
           continue;
         }
-        asked ??= logSince(fedAt).match(/The [^\n]*? waits for materials: [^\n]*/);
+        // the steward's own words for this settlement ([name] in the chat), said after the half went in
+        asked ??= logSince(fedAt).match(/\[Supply Walls\] The [^\n]*? waits for materials: [^\n]*/);
         if (asked) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
       }
     })();
@@ -1356,8 +1358,8 @@ async function suppliedPlanFlow() {
     stop = true;
     await feeder;
     const sp = await ledger();
-    if (asked) ok('supplied plan wait', asked[0].slice(0, 200));
-    else fail('supplied plan wait', 'the steward never named what waits for materials');
+    if (asked && halfAccepted > 0) ok('supplied plan wait', `${halfAccepted} units fed first; then ${asked[0].slice(0, 180)}`);
+    else fail('supplied plan wait', halfAccepted > 0 ? 'the steward never named what waits after the half was fed' : 'the half feed was not accepted');
     if (doneSaid) ok('supplied plan built', `${units(sp?.delivered)} delivered, ${units(sp?.consumed)} consumed`);
     else return fail('supplied plan built', `not done in 10 min; still needed ${units(sp?.need)}`);
     // undone: every consumed unit back in the stockpile (or dropped and counted as overflow)

@@ -43,12 +43,12 @@ public final class Stockpiles {
 	}
 
 	/** The label of the protected area over a settlement's stockpile crates (one per settlement, grown when crates are added). */
-	static final String AREA_LABEL = "stockpile";
+	static final String AREA_LABEL = "the stockpile (kept clear for plans)";
 
 	/**
 	 * Keeps a plan off the stockpile (Architect RS, docs/COMPOSITION.md section 12): a protected area over its crates and a ring of 1 round them (Architect's
-	 * check treats protected areas as keep-out; a crate site alone it does not). The stockpile's area is the settlement's "stockpile" area that holds one of
-	 * its crates (a player's own area of that name elsewhere is not it); it is made when {@code create}, grown in one commit to take new crates, and synced
+	 * check treats protected areas as keep-out; a crate site alone it does not). The stockpile's area is the settlement's area of Steward's own label
+	 * ({@link #AREA_LABEL}, not one a player names) that holds one of its crates; it is made when {@code create}, grown in one commit to take new crates, and synced
 	 * to Architect every time. Null when done (or nothing to do), else why not.
 	 */
 	public static @Nullable String protectCrates(MinecraftServer server, Settlement s, Stockpile sp, boolean create) {

@@ -1045,7 +1045,7 @@ public final class SettlementRunner {
 			if (!Session.is(session) || !alive()) return;
 			if (worldStopped(err)) return;
 			if (err != null) {
-				say("Architect could not check the plan (" + message(err) + "): the village is laid out as usual.");
+				say("Architect could not check the plan (" + message(err) + ")" + (supplied ? "." : ": the village is laid out as usual."));
 				otherwise.run();
 				return;
 			}
@@ -1054,14 +1054,16 @@ public final class SettlementRunner {
 				if (no != null) { abandon("The plan can't be built as it stands: " + no + ". Describe the settlement again for a new plan."); return; }
 				// Architect builds a region from materials only in a survival world (its toggle on, the world's default mode not creative): its check says
 				// whether it ran in survival; otherwise the town would be refused at the realise, so Steward's own layout builds it from materials
-				if (supplied && !c.survival()) {
-					say("Architect checked the plan as built at once, not from materials (the world's mode changed?).");
-					otherwise.run();
+				// the check's mode is this build's: built from materials for a Supplied build, at once for a Patron one; the world's mode changed while it was
+				// surveyed: nothing is spent, and a new Start plans in the mode the world is in now
+				if (c.survival() != supplied) {
+					abandon("The world's mode changed while the land was surveyed (" + (c.survival() ? "it builds from materials now" : "it no longer builds from materials")
+						+ "): start the build again.");
 					return;
 				}
 				var art = ArchitectApi.get().regions().artifact(c.artifactSha());
 				var lots = art.flatMap(a -> java.util.Optional.ofNullable(a.body())).filter(b -> b.has("lots") && b.get("lots").isJsonArray()).map(b -> b.getAsJsonArray("lots"));
-				if (lots.isEmpty() || lots.get().isEmpty()) { say("The plan's check has no lots to build on: the village is laid out as usual."); otherwise.run(); return; }
+				if (lots.isEmpty() || lots.get().isEmpty()) { say("The plan's check has no lots to build on" + (supplied ? "." : ": the village is laid out as usual.")); otherwise.run(); return; }
 				// built from materials: what the plan's ground, streets and parts take (the buildings' bills are said once they are designed)
 				if (supplied) {
 					String bill = Composer.billLine(c.cost());
