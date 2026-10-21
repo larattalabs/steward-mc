@@ -1288,7 +1288,10 @@ async function survivalFlow() {
  * (a lot or a plan part, the wall), then the rest until Architect says it is done (the steward says so); undone, every consumed unit comes back.
  */
 async function suppliedPlanFlow() {
+  // Architect builds a region from materials only in a survival world: its toggle on and the world's default mode not creative (the player stays creative)
   await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
   try {
     const n = settlements().length;
     await cmd(`/spreadplayers ${(n + 1) * 900} 39000 0 1 false @p`);
@@ -1372,6 +1375,7 @@ async function suppliedPlanFlow() {
     if (last?.kind === 'PROJECT_REMOVED' && off.length === 0) ok('supplied plan refund', `${last.text}; every consumed unit came back (${units(before?.consumed)})`);
     else fail('supplied plan refund', `${last?.kind}; refunds off: ${off.slice(0, 8).join(', ')}`);
   } finally {
+    await cmd('/defaultgamemode creative');
     await cmd('/architect survival off');
   }
 }

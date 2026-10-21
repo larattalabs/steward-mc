@@ -1048,6 +1048,13 @@ public final class SettlementRunner {
 			try {
 				String no = unbuildable(c);
 				if (no != null) { abandon("The plan can't be built as it stands: " + no + ". Describe the settlement again for a new plan."); return; }
+				// Architect builds a region from materials only in a survival world (its toggle on, the world's default mode not creative): its check says
+				// whether it ran in survival; otherwise the town would be refused at the realise, so Steward's own layout builds it from materials
+				if (supplied && !c.survival()) {
+					say("Architect builds a plan from materials only in a survival world (this one starts players in creative): the village is laid out as usual.");
+					otherwise.run();
+					return;
+				}
 				var art = ArchitectApi.get().regions().artifact(c.artifactSha());
 				var lots = art.flatMap(a -> java.util.Optional.ofNullable(a.body())).filter(b -> b.has("lots") && b.get("lots").isJsonArray()).map(b -> b.getAsJsonArray("lots"));
 				if (lots.isEmpty() || lots.get().isEmpty()) { say("The plan's check has no lots to build on: the village is laid out as usual."); otherwise.run(); return; }
