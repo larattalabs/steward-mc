@@ -1017,10 +1017,19 @@ public final class SettlementRunner {
 	private void planComposed(Settlement existing, CardResult r, int buildings, double budgetUsd, Settlement.@org.jspecify.annotations.Nullable District district,
 		Claim claim, List<VillageLayout.LotSpec> specs, java.util.function.Supplier<VillageLayout.Plan> own) {
 		// built from materials: the stockpile first, so the plan is checked with its crates standing (Architect keeps clear of them)
-		if (supplied && Stockpiles.ensure(server, existing, this::say) == null) {
-			abandon("A town built from materials needs its stockpile, and none could be made by the founding stone. Clear a spot beside it and start again.");
-			return;
+		if (supplied) {
+			var sp = Stockpiles.ensure(server, existing, this::say);
+			if (sp == null) {
+				abandon("A town built from materials needs its stockpile, and none could be made by the founding stone. Clear a spot beside it and start again.");
+				return;
+			}
+			// the plan keeps clear of the crates (and a ring round them, to reach them): a protected area, which Architect's check treats as keep-out;
+			// a plain crate site is not, and the street or square laid over it would keep a hole where it stands
+			String held = Stockpiles.protectCrates(server, existing, sp);
+			if (held != null) { abandon("The stockpile's ground could not be kept clear of the plan (" + held + "). Start again."); return; }
 		}
+		// with its stockpile area, when one was just made
+		Settlement checked = Settlements.store().get(existing.id()).orElse(existing);
 		say("Laying out the village from its plan (Architect checks it against the land as it is now)...");
 		JsonObject built = builtPlan();
 		int session = Session.current();
@@ -1028,7 +1037,7 @@ public final class SettlementRunner {
 			if (supplied) { plan = own.get(); continueWithPlan(r, budgetUsd, district); }
 			else planVillage(r, buildings, budgetUsd, district, claim, specs, own);
 		};
-		Composer.check(server, existing, built, playerId).whenComplete((c, err) -> server.execute(() -> {
+		Composer.check(server, checked, built, playerId).whenComplete((c, err) -> server.execute(() -> {
 			if (!Session.is(session) || !alive()) return;
 			if (worldStopped(err)) return;
 			if (err != null) {

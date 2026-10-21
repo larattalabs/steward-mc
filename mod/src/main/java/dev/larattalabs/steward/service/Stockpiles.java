@@ -42,6 +42,44 @@ public final class Stockpiles {
 	private Stockpiles() {
 	}
 
+	/** The label of the protected area over a settlement's stockpile crates (one per settlement, grown when crates are added). */
+	static final String AREA_LABEL = "stockpile";
+
+	/**
+	 * Keeps a plan off the stockpile (Architect RS, docs/COMPOSITION.md section 12): a protected area over its crates and a ring of 1 round them (Architect's
+	 * check treats protected areas as keep-out; a crate site alone it does not). The settlement's own "stockpile" area is made, or grown to cover new crates,
+	 * and synced to Architect. Null when done, else why not.
+	 */
+	public static @Nullable String protectCrates(MinecraftServer server, Settlement s, Stockpile sp) {
+		var rect = ringed(sp.crates());
+		if (rect == null) return "the stockpile has no crate";
+		var have = s.lands().protect().stream().filter(a -> AREA_LABEL.equals(a.label()) && a.dimension().equals(s.claim().dimension())).findFirst();
+		if (have.isPresent() && have.get().x0() <= rect[0] && have.get().z0() <= rect[1] && have.get().x1() >= rect[2] && have.get().z1() >= rect[3]) return null;
+		long now = System.currentTimeMillis();
+		if (have.isPresent()) {
+			var a = have.get();
+			rect = new int[] {Math.min(rect[0], a.x0()), Math.min(rect[1], a.z0()), Math.max(rect[2], a.x1()), Math.max(rect[3], a.z1())};
+			var off = Settlements.unprotect(s.id(), a.id(), now);
+			if (!off.ok()) return off.error();
+		}
+		var r = Settlements.protect(s.id(), AREA_LABEL, s.claim().dimension(), rect[0], rect[1], rect[2], rect[3], now);
+		if (!r.ok()) return r.error();
+		return Protection.sync(server, s.id()) ? null : "Architect would not protect it";
+	}
+
+	/** The crates' columns grown by 1 as {x0, z0, x1, z1}, or null when there is none. */
+	static int @Nullable [] ringed(List<BlockPos> crates) {
+		if (crates.isEmpty()) return null;
+		int x0 = Integer.MAX_VALUE, z0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE, z1 = Integer.MIN_VALUE;
+		for (BlockPos p : crates) {
+			x0 = Math.min(x0, p.getX());
+			z0 = Math.min(z0, p.getZ());
+			x1 = Math.max(x1, p.getX());
+			z1 = Math.max(z1, p.getZ());
+		}
+		return new int[] {x0 - 1, z0 - 1, x1 + 1, z1 + 1};
+	}
+
 	/** The settlement's stockpile, or empty (none yet, or an Architect without stockpiles). */
 	public static Optional<Stockpile> of(MinecraftServer server, Settlement s) {
 		try {

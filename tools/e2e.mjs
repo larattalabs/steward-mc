@@ -1341,7 +1341,9 @@ async function suppliedPlanFlow() {
     const log = logSince(from);
     const bill = log.match(/From materials, the plan's ground, streets and parts need [^\n]*/);
     const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
-    if (bill && /^region:/.test(placed?.siteGroup ?? '') && /Laying out the village from its plan/.test(log)) ok('supplied plan', `${bill[0].slice(0, 150)}; placed from the plan (${placed.siteGroup})`);
+    const area = (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'stockpile');
+    if (!area) { stop = true; await feeder; return fail('supplied plan', 'no protected area over the stockpile before the check'); }
+    if (bill && /^region:/.test(placed?.siteGroup ?? '') && /Laying out the village from its plan/.test(log)) ok('supplied plan', `${bill[0].slice(0, 150)}; placed from the plan (${placed.siteGroup}), round the stockpile's area ${area.x0},${area.z0}..${area.x1},${area.z1}`);
     else { stop = true; await feeder; return fail('supplied plan', `bill ${bill ? 'said' : 'not said'}; history ${placed?.siteGroup}; ${(log.match(/Laying out[^\n]*/) ?? ['no plan layout'])[0]}`); }
     // fully built from the stockpile: Architect's build is done, and the steward says so
     const doneSaid = await waitLog(from, new RegExp(`${'Supply Walls'} is built: everything its plan laid out stands`), 600_000);
