@@ -214,5 +214,8 @@ settlements as it serves Patron ones. Square districts, additions and survival w
    - a player mining a free cell (no drop);
    - an undo mid-build on a second settlement, with refunds equal to what was consumed.
 
+**Merging.** The branch compiles against RS's API (`PlanCheck.survival`, `RegionView.build`) and merges once RS is released, with
+`architect_version`, `ArchitectGateway.REQUIRED_MINOR` and `fabric.mod.json` moved to that release, so no older Architect runs it.
+
 **Checks.** GPT review (spending and refunds), both e2e checks, and Steward's RC report to Architect as RS follow-ups (the coordinator,
 2026-10-21: the RS-a merge is gated by the narrow check of today's flows; this is feature work).

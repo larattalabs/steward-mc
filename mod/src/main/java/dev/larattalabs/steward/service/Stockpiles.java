@@ -47,23 +47,28 @@ public final class Stockpiles {
 
 	/**
 	 * Keeps a plan off the stockpile (Architect RS, docs/COMPOSITION.md section 12): a protected area over its crates and a ring of 1 round them (Architect's
-	 * check treats protected areas as keep-out; a crate site alone it does not). The settlement's own "stockpile" area is made, or grown to cover new crates,
-	 * and synced to Architect. Null when done, else why not.
+	 * check treats protected areas as keep-out; a crate site alone it does not). The stockpile's area is the settlement's "stockpile" area that holds one of
+	 * its crates (a player's own area of that name elsewhere is not it); it is made when {@code create}, grown in one commit to take new crates, and synced
+	 * to Architect every time. Null when done (or nothing to do), else why not.
 	 */
-	public static @Nullable String protectCrates(MinecraftServer server, Settlement s, Stockpile sp) {
+	public static @Nullable String protectCrates(MinecraftServer server, Settlement s, Stockpile sp, boolean create) {
 		var rect = ringed(sp.crates());
 		if (rect == null) return "the stockpile has no crate";
-		var have = s.lands().protect().stream().filter(a -> AREA_LABEL.equals(a.label()) && a.dimension().equals(s.claim().dimension())).findFirst();
-		if (have.isPresent() && have.get().x0() <= rect[0] && have.get().z0() <= rect[1] && have.get().x1() >= rect[2] && have.get().z1() >= rect[3]) return null;
+		var have = s.lands().protect().stream().filter(a -> AREA_LABEL.equals(a.label()) && a.dimension().equals(s.claim().dimension())
+			&& sp.crates().stream().anyMatch(c -> a.contains(s.claim().dimension(), c.getX(), c.getZ()))).findFirst();
 		long now = System.currentTimeMillis();
-		if (have.isPresent()) {
+		if (have.isEmpty()) {
+			if (!create) return null;
+			var r = Settlements.protect(s.id(), AREA_LABEL, s.claim().dimension(), rect[0], rect[1], rect[2], rect[3], now);
+			if (!r.ok()) return r.error();
+		} else {
 			var a = have.get();
-			rect = new int[] {Math.min(rect[0], a.x0()), Math.min(rect[1], a.z0()), Math.max(rect[2], a.x1()), Math.max(rect[3], a.z1())};
-			var off = Settlements.unprotect(s.id(), a.id(), now);
-			if (!off.ok()) return off.error();
+			if (a.x0() > rect[0] || a.z0() > rect[1] || a.x1() < rect[2] || a.z1() < rect[3]) {
+				var r = Settlements.reshapeArea(s.id(), a.id(), Math.min(rect[0], a.x0()), Math.min(rect[1], a.z0()), Math.max(rect[2], a.x1()), Math.max(rect[3], a.z1()), now);
+				if (!r.ok()) return r.error();
+			}
 		}
-		var r = Settlements.protect(s.id(), AREA_LABEL, s.claim().dimension(), rect[0], rect[1], rect[2], rect[3], now);
-		if (!r.ok()) return r.error();
+		// synced every time, so a sync that failed before is retried
 		return Protection.sync(server, s.id()) ? null : "Architect would not protect it";
 	}
 
@@ -204,6 +209,9 @@ public final class Stockpiles {
 			// a new stockpile takes in the crates older builds left (what did not fit is said with the answer)
 			StringBuilder dropped = new StringBuilder();
 			if (fresh) sp = adopt(server, s, sp, m -> dropped.append(' ').append(m));
+			// a stockpile kept clear of a plan (its protected area): the area grows to take the new crate
+			String held = protectCrates(server, Settlements.store().get(s.id()).orElse(s), sp, false);
+			if (held != null) dropped.append(" Its ground could not be kept clear of plans: ").append(held).append('.');
 			return s.name() + "'s stockpile has " + sp.crates().size() + (sp.crates().size() == 1 ? " crate" : " crates") + " (" + sp.capacityStacks() + " stacks)." + dropped;
 		} catch (UnsupportedOperationException | LinkageError e) {
 			return "This Architect has no stockpiles (it needs 0.20).";

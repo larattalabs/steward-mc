@@ -101,16 +101,21 @@ public final class MaterialRequests {
 
 	/** At a world's start: every settlement's placed region still being built from the stockpile is watched again (said once when done). */
 	private static void seedBuilds() {
-		seeded = true;
 		for (Settlement s : Settlements.store().all()) {
 			for (var e : s.log()) {
 				if (e.kind() != Settlement.Kind.PROJECT_PLACED) continue;
 				String id = dev.larattalabs.steward.gateway.VPlan.regionOf(e.siteGroup());
 				if (id == null) continue;
-				var v = ArchitectApi.get().regions().get(id);
-				if (v.isPresent() && v.get().build() != null && !v.get().build().done()) watchBuild(s.id(), id);
+				try {
+					var v = ArchitectApi.get().regions().get(id);
+					if (v.isPresent() && v.get().build() != null && !v.get().build().done()) watchBuild(s.id(), id);
+				} catch (RuntimeException ex) {
+					// one region that can't be read: the others are still watched
+					Steward.LOGGER.warn("could not read region {} of {}", id, s.id(), ex);
+				}
 			}
 		}
+		seeded = true;
 	}
 
 	/** Watches a settlement's region being built from the stockpile: the steward says when it is fully built. */

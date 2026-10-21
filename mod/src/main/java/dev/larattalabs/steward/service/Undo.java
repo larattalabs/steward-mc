@@ -47,11 +47,13 @@ public final class Undo {
 			? "" : " (" + placed.op() + ")"), changes, null, whole ? Settlement.Outcome.DONE : Settlement.Outcome.PARTIAL);
 	}
 
-	/** Starts the undo; {@code say} gets progress and the result. Returns false (having said why) when there is nothing to undo. */
-	public static boolean lastProject(MinecraftServer server, Settlement s, Consumer<String> sayTo) {
-		// a refund that did not fit in the stockpile drops beside its crate: said with the undo's result, so it is picked up before it despawns
+	/**
+	 * {@code sayTo}, and with an undo's end ("Undone ...", "Undo stopped ..."): a refund that did not fit in the stockpile, dropped beside its crate, said with
+	 * where it lies so it is picked up before it despawns. For any undo or cancel that refunds (a build cancelled while built from materials too).
+	 */
+	public static Consumer<String> reportingOverflow(MinecraftServer server, Settlement s, Consumer<String> sayTo) {
 		int overflowBefore = overflow(server, s);
-		Consumer<String> say = line -> {
+		return line -> {
 			sayTo.accept(line);
 			// any end of the undo: done, or stopped part way (what it took up before it stopped refunded too)
 			if (!line.startsWith("Undone") && !line.startsWith("Undo stopped")) return;
@@ -63,6 +65,11 @@ public final class Undo {
 					+ ": pick them up, or add a crate (/steward stockpile " + s.id() + " add) and put them in.");
 			}
 		};
+	}
+
+	/** Starts the undo; {@code say} gets progress and the result. Returns false (having said why) when there is nothing to undo. */
+	public static boolean lastProject(MinecraftServer server, Settlement s, Consumer<String> sayTo) {
+		Consumer<String> say = reportingOverflow(server, s, sayTo);
 		var entry = s.lastUndoable();
 		if (entry.isEmpty()) {
 			say.accept("Nothing to undo for " + s.name() + ".");

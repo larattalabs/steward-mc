@@ -1326,17 +1326,20 @@ async function suppliedPlanFlow() {
     from = logSize();
     await cmd(`/steward start ${id} 3 30`);
     // the feeder: half of what is needed once the region's targets ask, then (the steward having named a wait) all of it, until the build is done
-    let stop = false, asked = null, fedHalf = false;
+    // a wait counts only when said after the half was fed: the build pauses on what is still missing
+    let stop = false, asked = null, fedAt = null;
     const feeder = (async () => {
       while (!stop) {
         await sleep(3000);
         const sp = await ledger().catch(() => null);
         if (!sp || !Object.keys(sp.need ?? {}).length) continue;
-        asked ??= logSince(from).match(/The [^\n]*? waits for materials: [^\n]*/);
-        if (!fedHalf) {
+        if (fedAt == null) {
           await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half(sp.need) }).catch(() => null);
-          fedHalf = true;
-        } else if (asked) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+          fedAt = logSize();
+          continue;
+        }
+        asked ??= logSince(fedAt).match(/The [^\n]*? waits for materials: [^\n]*/);
+        if (asked) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
       }
     })();
     const built = await buildThrough(id, from, 'supplied plan');

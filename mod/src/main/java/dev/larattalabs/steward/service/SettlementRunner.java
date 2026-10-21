@@ -917,7 +917,9 @@ public final class SettlementRunner {
 				return;
 			}
 			// (Architect RS) a Supplied settlement's composed plan, built from the stockpile; else Steward's own layout as before
-			if (existing != null && composed(existing) && dev.larattalabs.steward.gateway.VPlan.appliesSupplied(existing.id(), existing.difficulty(), worldSurvival,
+			// Architect builds a region from materials only with the toggle on and the world's default mode not creative
+			boolean regionSurvival = worldSurvival && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
+			if (existing != null && composed(existing) && dev.larattalabs.steward.gateway.VPlan.appliesSupplied(existing.id(), existing.difficulty(), regionSurvival,
 				Composer.survivalAvailable(), overworld, addition, districtId, r.card().site().terrain(), stands, lo, hi)) {
 				supplied = true;
 				planComposed(existing, r, buildings, budgetUsd, district, claim, specs, own);
@@ -1025,7 +1027,7 @@ public final class SettlementRunner {
 			}
 			// the plan keeps clear of the crates (and a ring round them, to reach them): a protected area, which Architect's check treats as keep-out;
 			// a plain crate site is not, and the street or square laid over it would keep a hole where it stands
-			String held = Stockpiles.protectCrates(server, existing, sp);
+			String held = Stockpiles.protectCrates(server, existing, sp, true);
 			if (held != null) { abandon("The stockpile's ground could not be kept clear of the plan (" + held + "). Start again."); return; }
 		}
 		// with its stockpile area, when one was just made
@@ -1033,8 +1035,10 @@ public final class SettlementRunner {
 		say("Laying out the village from its plan (Architect checks it against the land as it is now)...");
 		JsonObject built = builtPlan();
 		int session = Session.current();
+		// a plan Architect can't check, or without lots: the flat village for a Patron town; a Supplied one stops before anything is spent (its survey was taken
+		// before its stockpile and that ground's protection, so Steward's own layout over it could pay for designs that then don't fit), and is started again
 		Runnable otherwise = () -> {
-			if (supplied) { plan = own.get(); continueWithPlan(r, budgetUsd, district); }
+			if (supplied) abandon("The plan couldn't be used from materials this time: start the build again.");
 			else planVillage(r, buildings, budgetUsd, district, claim, specs, own);
 		};
 		Composer.check(server, checked, built, playerId).whenComplete((c, err) -> server.execute(() -> {
@@ -1051,7 +1055,7 @@ public final class SettlementRunner {
 				// Architect builds a region from materials only in a survival world (its toggle on, the world's default mode not creative): its check says
 				// whether it ran in survival; otherwise the town would be refused at the realise, so Steward's own layout builds it from materials
 				if (supplied && !c.survival()) {
-					say("Architect builds a plan from materials only in a survival world (this one starts players in creative): the village is laid out as usual.");
+					say("Architect checked the plan as built at once, not from materials (the world's mode changed?).");
 					otherwise.run();
 					return;
 				}
@@ -1735,7 +1739,7 @@ public final class SettlementRunner {
 	private void realiseArtifact(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
 		var regions = ArchitectApi.get().regions();
 		Map<String, String> fitting = palette(sha, fitting(sha, lotEntries));
-		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(), actor, fitting, opKey(first ? "vrealise" : "vrealise2"), ext))
+		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey(first ? "vrealise" : "vrealise2"), ext))
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
@@ -1755,6 +1759,9 @@ public final class SettlementRunner {
 						return;
 					}
 					String no = cerr != null ? "Architect could not check it again (" + message(cerr) + ")" : unbuildable(c);
+					// the world's mode changed while the buildings were designed: built from materials now, or no longer; this build stops, a new Start plans anew
+					if (no == null && c.survival() != artifactSurvival(sha)) no = "the world's mode changed while the buildings were designed (" + (c.survival()
+						? "it builds from materials now" : "it no longer builds from materials") + "): start the build again";
 					if (no != null) { realised(null, new IllegalStateException(no), session); return; }
 					String next = c.artifactSha();
 					// saved with the build before the old one is let go (a crash between keeps a target to resume from); the same sha keeps its pin
@@ -1775,13 +1782,17 @@ public final class SettlementRunner {
 	}
 
 	/**
-	 * The mode a plan's region is realised in: the build's (construction from the stockpile for a Supplied settlement in a survival world, Architect RS),
-	 * read from the settlement and the world at the realise, so a restart realises in the mode it planned in.
+	 * The mode a plan's region is realised in: the approved artifact's (Architect RS: checked in survival, it is built from the stockpile; else at once), so a
+	 * restart or a stale retry realises in the mode the plan was approved in, never the world's mode of the moment.
 	 */
-	private Mode realiseMode() {
-		boolean survival = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false);
-		var s = Settlements.store().get(settlement.id()).orElse(settlement);
-		return BatchPlanner.modeFor(dev.larattalabs.steward.model.Difficulty.effective(s.difficulty(), survival), survival);
+	private static Mode realiseMode(String sha) {
+		return artifactSurvival(sha) ? Mode.CONSTRUCTION : Mode.INSTANT;
+	}
+
+	/** Whether an approved artifact was checked in survival (built from materials). */
+	private static boolean artifactSurvival(String sha) {
+		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		return body != null && body.has("survival") && body.get("survival").isJsonPrimitive() && body.get("survival").getAsBoolean();
 	}
 
 	/** Whether this build is cancelling or has ended (nothing more is placed for it). */
@@ -1986,7 +1997,7 @@ public final class SettlementRunner {
 			return;
 		}
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
-		Undo.region(server, saved, entry.get(), id, Map.of(), this::say, ok -> {
+		Undo.region(server, saved, entry.get(), id, Map.of(), Undo.reportingOverflow(server, saved, this::say), ok -> {
 			if (ok == null || !alive()) return;
 			if (ok) {
 				vRegionId = null;
@@ -2005,7 +2016,9 @@ public final class SettlementRunner {
 
 	/** A queued item of this build waits for a temporary blocker (Architect fires it when the reason changes; it waits up to 10 minutes). */
 	private void onItemWaiting(dev.larattalabs.architect.api.ItemEvent e) {
-		if (batchId == null || !batchId.equals(e.batchId()) || e.reason().isEmpty()) return;
+		// a batch build's by its batch; a region's (its items queued by Architect) by the build tag on its lots
+		boolean ours = batchId != null && batchId.equals(e.batchId()) || buildId != null && buildId.equals(extString(e.ext(), BatchPlanner.BUILD_EXT));
+		if (!ours || e.reason().isEmpty()) return;
 		String what = BatchPlanner.isStreet(e.itemKey()) ? "street" : java.util.Optional.ofNullable(extString(e.ext(), "steward_mc:role")).orElse(e.itemKey().replace('_', ' '));
 		String in = e.message().replaceFirst("(?s).*in the box: ", "").replaceFirst("\\s*\\(.*", "").strip();
 		switch (e.reason().get()) {
