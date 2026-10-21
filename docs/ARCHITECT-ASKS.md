@@ -722,3 +722,14 @@ growth loop and DISTRICTS.md. Four points to settle, then the answers:
   3. Every grown street road carries `architect_mc:street`, pre-FL towns included.
   4. Adoption is lazy, at a settlement's first growth, and site ids never change.
   Steward's opKeys are recorded (`dgrow`/`drealise`, `vgrow:<build>`/`vgrowrealise:<build>`). RV and GR share one RC, after D3 and 7a-1.
+
+**Undo fixes coming as patch 0.40.1 (Architect, 2026-10-20; FYI, post-release check when tagged).** An undo model tester and a review
+found gaps, fixed in the patch:
+- the region drain is holder-aware, so a Steward block in an Architect pond, stream or irrigation cell survives the region's or lot's
+  removal;
+- a crash between a removal's journal commit and its queue save no longer leaves a drained region `PARTIAL` (single-site removal next);
+- stacked removals settle;
+- a recovery hazard that could reactivate a group removal's members is fixed.
+
+**Stated limit (Noah):** a kill or crash with unsaved chunks can leave a build half placed or half restored while the journal stays
+correct. A diagnose-and-repair command is queued as a small contract. Normal stops are unaffected.
