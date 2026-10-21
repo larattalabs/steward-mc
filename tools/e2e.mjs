@@ -1326,22 +1326,25 @@ async function suppliedPlanFlow() {
     from = logSize();
     await cmd(`/steward start ${id} 3 30`);
     // the feeder: half of what is needed once the region's targets ask, then (the steward having named a wait) all of it, until the build is done
-    // a wait counts only when said after the half was fed: the build pauses on what is still missing
-    let stop = false, asked = null, fedAt = null, halfAccepted = 0;
+    // the feeder: half of what is needed once the region's targets ask (accepted into the stockpile); the build then pauses on the rest (the ledger still
+    // owes, 20 s on); then all of it, until the build is done. The steward names a wait once per wait ([name] in the chat), before or after the half
+    let stop = false, fedAt = 0, halfAccepted = 0, paused = null;
     const feeder = (async () => {
       while (!stop) {
         await sleep(3000);
         const sp = await ledger().catch(() => null);
         if (!sp || !Object.keys(sp.need ?? {}).length) continue;
-        if (fedAt == null) {
+        if (!halfAccepted) {
           const r = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half(sp.need) }).catch(() => null);
-          halfAccepted = units(r?.accepted ?? r?.inserted ?? {});
-          if (halfAccepted > 0) fedAt = logSize();
+          halfAccepted = units(r?.accepted ?? {});
+          if (halfAccepted) fedAt = Date.now();
           continue;
         }
-        // the steward's own words for this settlement ([name] in the chat), said after the half went in
-        asked ??= logSince(fedAt).match(/\[Supply Walls\] The [^\n]*? waits for materials: [^\n]*/);
-        if (asked) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+        if (paused == null) {
+          if (Date.now() - fedAt < 20_000) continue;
+          paused = units(sp.need);
+        }
+        await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
       }
     })();
     const built = await buildThrough(id, from, 'supplied plan');
@@ -1358,8 +1361,9 @@ async function suppliedPlanFlow() {
     stop = true;
     await feeder;
     const sp = await ledger();
-    if (asked && halfAccepted > 0) ok('supplied plan wait', `${halfAccepted} units fed first; then ${asked[0].slice(0, 180)}`);
-    else fail('supplied plan wait', halfAccepted > 0 ? 'the steward never named what waits after the half was fed' : 'the half feed was not accepted');
+    const asked = logSince(from).match(/\[Supply Walls\] The [^\n]*? waits for materials: [^\n]*/);
+    if (asked && halfAccepted > 0 && paused > 0) ok('supplied plan wait', `${halfAccepted} units fed, then paused owing ${paused}; ${asked[0].slice(0, 160)}`);
+    else fail('supplied plan wait', `named ${asked ? 'yes' : 'no'}; half accepted ${halfAccepted}; owing 20 s after it ${paused}`);
     if (doneSaid) ok('supplied plan built', `${units(sp?.delivered)} delivered, ${units(sp?.consumed)} consumed`);
     else return fail('supplied plan built', `not done in 10 min; still needed ${units(sp?.need)}`);
     // undone: every consumed unit back in the stockpile (or dropped and counted as overflow)
