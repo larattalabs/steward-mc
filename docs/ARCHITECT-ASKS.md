@@ -733,3 +733,29 @@ found gaps, fixed in the patch:
 
 **Stated limit (Noah):** a kill or crash with unsaved chunks can leave a build half placed or half restored while the journal stays
 correct. A diagnose-and-repair command is queued as a small contract. Normal stops are unaffected.
+
+**F3 RC (slice/F3 d734e4a1; its built jar's code = that head), consumer check 2026-10-21: pass.** Stub 59, free 42, on Steward branch
+`f3-rc` (0efca7e):
+- the check passes `LOAD_BOUNDED(512)` for any part whose catalogue entry has `limits.volume` (S-F3-3; the tunnel rule on an older Architect);
+- new flow `groveFlow` (`fixtures/plans/grove_pond.json`): a town zone, a giant oak 40–48 tall, a built-edge pond near `claim_n` with coral in it,
+  through `checkPlan` (4 parts fit) and `realiseApproved`. The oak has 1,513 logs and 2,348 persistent leaves, none floating; 47 coral cells.
+  After a player's edit (a crown leaf to cobblestone) the undo gives back the 193x121x193 claim exactly but that one cell.
+- **Side finding** (main's kit too): a pond placed near the stone was refused `LEAK`, its reach meeting a lot. Architect queued pond placement
+  keeping its reach off lots + 1 in the 6c close-out.
+
+**RS-a RC (slice/RS 529138d1; the RS-g1 jar at 066f707b, the same code), consumer check 2026-10-21: pass** (the narrow check that gates its
+merge, Steward main with plan v1 creative-only). Stub 57, free 42. Steward's Supplied flow passed:
+- bill: 629 items, as owed;
+- the material request said;
+- 629 delivered and consumed;
+- every unit refunded on undo.
+
+**Supplied plan v1 on RS** (Steward branch `supplied-plan`, COMPOSITION section 12; GPT-reviewed twice, no blocker left). Stub 61 and free 42 on
+the RS jar. In a survival world (toggle on, default mode not creative: Architect's region rule), a walled town:
+- composed plan checked in survival with its bill said (3,542 stone bricks and 14 more kinds);
+- stockpile made first, its crates and a ring protected as the settlement's area (Architect's recommendation; `realiseApproved` accepted it
+  inside the claim);
+- realised in CONSTRUCTION;
+- fed half, paused, the wait named, then fed until `build.done` (5,550 items);
+- undone with every unit refunded.
+It merges when RS is released, with the version bumps. Not yet said: stage waits, and tile and road item waits.
