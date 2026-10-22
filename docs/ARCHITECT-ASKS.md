@@ -788,3 +788,6 @@ free 42). Steward needs >= 0.41.0; `f3-rc` and `supplied-plan` merged (5c842ff):
 - **Close-out A frozen with Steward's change (2026-10-22).** Plans and keyed pins age from their last use (`planByKey`, a pin or re-pin, a
   realise attempt, a lookup by key), stored durably. **Steward's side:** re-pin and look up its keyed plans at every world start for each build
   it resumes. S-COA-1..5 recorded. RC to come.
+- **Close-out A §14 (wording fix, 2026-10-22):** C20 stands. A `REMOVED` region frees its realise key, so the same key realises afresh after an
+  undo. Nothing on Steward's side relied on the old wording: its keys are build-scoped, and `findVillage` drops `REMOVED`. A build whose region
+  was removed by hand mid-placing now realises a fresh one when it resumes.
