@@ -766,3 +766,8 @@ It merges when RS is released, with the version bumps. Not yet said: stage waits
 
 **v0.40.1 (undo hardening A + UMT, drain holders, lamp-path, realised provenance; API 1.37.0 unchanged), checked after release 2026-10-21:
 pass** (stub 57, free 42). Steward builds against 0.40.1 and still requires >= 0.40.0 (no API change).
+
+**v0.41.0 (API 1.38.0: F3, S3, FL, RS-a, RS-b, RS realised provenance; catalogue 11), checked after release 2026-10-22: pass** (stub 63,
+free 42). Steward needs >= 0.41.0; `f3-rc` and `supplied-plan` merged (5c842ff):
+- the grove: the oak 1,482 logs and 2,874 persistent leaves, none floating; 58 coral cells; the undo exact but for the player's cell;
+- the Supplied plan: bill, the stockpile area, a pause with the wait named, 5,550 fed to done, 5,550 refunded.
