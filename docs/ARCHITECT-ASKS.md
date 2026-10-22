@@ -771,3 +771,17 @@ pass** (stub 57, free 42). Steward builds against 0.40.1 and still requires >= 0
 free 42). Steward needs >= 0.41.0; `f3-rc` and `supplied-plan` merged (5c842ff):
 - the grove: the oak 1,482 logs and 2,874 persistent leaves, none floating; 58 coral cells; the undo exact but for the player's cell;
 - the Supplied plan: bill, the stockpile area, a pause with the wait named, 5,550 fed to done, 5,550 refunded.
+
+**6c close-out A contract review (slice/close-out-a ca36e7b4; round 12 plus RS follow-ups; sent 2026-10-22).** Accepted, with one change:
+- **The sweep's clock.** A Steward build can wait days or weeks on the player's approvals (massings, placing) while the player is away. A
+  flat-village build holds a keyed plan and no pin; a plan-v1 build holds a keyed pin. Ages counted from creation would sweep an
+  in-flight build after a month away. Asked: age plans and keyed pins from their **last use** (`planByKey`, a pin or re-pin, a realise
+  attempt). Steward re-pins, and looks its keyed plans up, at every world start for each build it is resuming, so a live build never
+  ages out. If Architect would rather keep creation time, Steward needs a way to keep a plan alive (a keyed plan pin, or a touch).
+- **S-COA-1:** `over` beside `scope` is fine. The plan writer writes `over: "lots"`.
+- **S-COA-2:** all of a key's pins end at its realise, as default; 30 days is enough with the last-use clock above.
+- **S-COA-3:** `OVERLAP_BUSY {realised | busy | pinned}` is fine; 7 and 30 days with the last-use clock.
+- **S-COA-4:** `parts` plus `part` is enough. Steward names the part, else "the build".
+- **S-COA-5:** yes, the RC: a Supplied plan v1 build with a stale retry under one key, keyed pins, `discardPlan` of an abandoned check,
+  waits said from `waitsFor.say`, and a palette `over: "lots"` plan.
+- Steward's side when it ships: §12 as listed.
