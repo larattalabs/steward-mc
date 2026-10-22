@@ -1358,6 +1358,113 @@ async function survivalFlow() {
 }
 
 /**
+ * Plan v1 for a Supplied settlement (Architect RS; docs/COMPOSITION.md section 12): in a survival world a walled town's composed plan is checked in survival
+ * (its bill said), its stockpile made first, and realised from the artifact in construction mode. Half of what it needs is fed, the steward names what waits
+ * (a lot or a plan part, the wall), then the rest until Architect says it is done (the steward says so); undone, every consumed unit comes back.
+ */
+async function suppliedPlanFlow() {
+  // Architect builds a region from materials only in a survival world: its toggle on and the world's default mode not creative (the player stays creative)
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  try {
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 39000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = 'Supply Walls';
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'walled_town.json'), 'utf8')).answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a little walled market town`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('supplied plan', 'no card');
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('supplied plan', 'no plan composed');
+    const diff = settlements().find((x) => x.id === id)?.difficulty;
+    if (diff !== 'SUPPLIED') return fail('supplied plan', `difficulty ${diff} in a survival world`);
+    await closeScreens();
+    await clearAnimals();
+    const claim = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
+    const owner = `steward_mc:settlement/${id}`;
+    const ledger = async () => {
+      const r = await cmd(`/steward dev stockpile ${id}`);
+      const m = r.match(/stockpile \S+ (\{.*\})/);
+      return m ? JSON.parse(m[1]) : null;
+    };
+    const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    const half = (o) => Object.fromEntries(Object.entries(o ?? {}).map(([k, v]) => [k, Math.max(1, Math.floor(v / 2))]).filter(([, v]) => v > 0));
+    from = logSize();
+    await cmd(`/steward start ${id} 3 30`);
+    // the feeder: half of what is needed once the region's targets ask, then (the steward having named a wait) all of it, until the build is done
+    // the feeder: half of what is needed once the region's targets ask (accepted into the stockpile); the build then pauses on the rest (the ledger still
+    // owes, 20 s on); then all of it, until the build is done. The steward names a wait once per wait ([name] in the chat), before or after the half
+    let stop = false, fedAt = 0, halfAccepted = 0, paused = null;
+    const feeder = (async () => {
+      while (!stop) {
+        await sleep(3000);
+        const sp = await ledger().catch(() => null);
+        if (!sp || !Object.keys(sp.need ?? {}).length) continue;
+        if (!halfAccepted) {
+          const r = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half(sp.need) }).catch(() => null);
+          halfAccepted = units(r?.accepted ?? {});
+          if (halfAccepted) fedAt = Date.now();
+          continue;
+        }
+        if (paused == null) {
+          if (Date.now() - fedAt < 20_000) continue;
+          paused = units(sp.need);
+        }
+        await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+      }
+    })();
+    const built = await buildThrough(id, from, 'supplied plan');
+    if (!built) { stop = true; await feeder; return; }
+    const log = logSince(from);
+    const bill = log.match(/From materials, the plan's ground, streets and parts need [^\n]*/);
+    const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+    const area = (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
+    if (!area) { stop = true; await feeder; return fail('supplied plan', 'no protected area over the stockpile before the check'); }
+    if (bill && /^region:/.test(placed?.siteGroup ?? '') && /Laying out the village from its plan/.test(log)) ok('supplied plan', `${bill[0].slice(0, 150)}; placed from the plan (${placed.siteGroup}), round the stockpile's area ${area.x0},${area.z0}..${area.x1},${area.z1}`);
+    else { stop = true; await feeder; return fail('supplied plan', `bill ${bill ? 'said' : 'not said'}; history ${placed?.siteGroup}; ${(log.match(/Laying out[^\n]*/) ?? ['no plan layout'])[0]}`); }
+    // fully built from the stockpile: Architect's build is done, and the steward says so
+    const doneSaid = await waitLog(from, new RegExp(`${'Supply Walls'} is built: everything its plan laid out stands`), 600_000);
+    stop = true;
+    await feeder;
+    const sp = await ledger();
+    const asked = logSince(from).match(/\[Supply Walls\] The [^\n]*? waits for materials: [^\n]*/);
+    if (asked && halfAccepted > 0 && paused > 0) ok('supplied plan wait', `${halfAccepted} units fed, then paused owing ${paused}; ${asked[0].slice(0, 160)}`);
+    else fail('supplied plan wait', `named ${asked ? 'yes' : 'no'}; half accepted ${halfAccepted}; owing 20 s after it ${paused}`);
+    if (doneSaid) ok('supplied plan built', `${units(sp?.delivered)} delivered, ${units(sp?.consumed)} consumed`);
+    else return fail('supplied plan built', `not done in 10 min; still needed ${units(sp?.need)}`);
+    // undone: every consumed unit back in the stockpile (or dropped and counted as overflow)
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
+    const before = sp;
+    await cmd(`/steward undo ${id}`);
+    let last = null;
+    for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(2000);
+      last = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    const after = await ledger();
+    const off = [];
+    for (const [item, used] of Object.entries(before?.consumed ?? {})) {
+      const back = (after?.returned?.[item] ?? 0) + (after?.refundOverflow?.[item] ?? 0) - (before.returned?.[item] ?? 0) - (before.refundOverflow?.[item] ?? 0);
+      if (back !== used) off.push(`${item} ${back}/${used}`);
+    }
+    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0) ok('supplied plan refund', `${last.text}; every consumed unit came back (${units(before?.consumed)})`);
+    else fail('supplied plan refund', `${last?.kind}; refunds off: ${off.slice(0, 8).join(', ')}`);
+  } finally {
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
+}
+
+/**
  * Architect's plan check (P0; docs/COMPOSITION.md): recorded plans checked round the player on fresh flat land, answered part by part. A plain village
  * is ready, with an artifact; the walled town's hidden cellar is unsupported, naming form.hidden_room (its wall fits: K1). The ready one is realised from its artifact and taken up again.
  */
@@ -1665,6 +1772,7 @@ try {
       await districtsPlanFlow();
       await planCheckFlow();
       await survivalFlow();
+      await suppliedPlanFlow();
     }
   }
   await migratedSteward();

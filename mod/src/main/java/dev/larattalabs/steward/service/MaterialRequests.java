@@ -48,6 +48,8 @@ public final class MaterialRequests {
 			SAID.clear();
 			LONG.clear();
 			TOLD.clear();
+			BUILDING.clear();
+			seeded = false;
 		});
 		try {
 			SiteEvents.SITE_WAITING.register(MaterialRequests::onWaiting);
@@ -61,6 +63,12 @@ public final class MaterialRequests {
 				readLongWaits(s);
 			} catch (RuntimeException | LinkageError e) {
 				Steward.LOGGER.warn("could not read the material waits", e);
+			}
+			try {
+				if (!seeded) seedBuilds();
+				readBuilds(s);
+			} catch (RuntimeException | LinkageError e) {
+				Steward.LOGGER.warn("could not read the builds from materials", e);
 			}
 		});
 	}
@@ -83,7 +91,54 @@ public final class MaterialRequests {
 		Long last = TOLD.get(s.get().id());
 		if (last != null && now - last < TELL_EVERY_TICKS) return;
 		TOLD.put(s.get().id(), now);
-		tell(srv, s.get(), "The " + nameOf(site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
+		tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
+	}
+
+	/** Regions built from materials (Architect RS) whose build isn't done yet, by settlement: said once when done. This world's session only. */
+	private static final Map<String, String> BUILDING = new java.util.concurrent.ConcurrentHashMap<>();
+
+	private static boolean seeded;
+
+	/** At a world's start: every settlement's placed region still being built from the stockpile is watched again (said once when done). */
+	private static void seedBuilds() {
+		for (Settlement s : Settlements.store().all()) {
+			for (var e : s.log()) {
+				if (e.kind() != Settlement.Kind.PROJECT_PLACED) continue;
+				String id = dev.larattalabs.steward.gateway.VPlan.regionOf(e.siteGroup());
+				if (id == null) continue;
+				try {
+					var v = ArchitectApi.get().regions().get(id);
+					if (v.isPresent() && v.get().build() != null && !v.get().build().done()) watchBuild(s.id(), id);
+				} catch (RuntimeException ex) {
+					// one region that can't be read: the others are still watched
+					Steward.LOGGER.warn("could not read region {} of {}", id, s.id(), ex);
+				}
+			}
+		}
+		seeded = true;
+	}
+
+	/** Watches a settlement's region being built from the stockpile: the steward says when it is fully built. */
+	public static void watchBuild(String settlementId, String regionId) {
+		BUILDING.put(regionId, settlementId);
+	}
+
+	/** Says, once, each watched region that is now fully built (its every target built and its bodies settled); drops one that is gone. */
+	private static void readBuilds(MinecraftServer srv) {
+		for (var e : List.copyOf(BUILDING.entrySet())) {
+			var v = ArchitectApi.get().regions().get(e.getKey());
+			var s = Settlements.store().get(e.getValue());
+			if (v.isEmpty() || s.isEmpty() || v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVING
+				|| v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED) {
+				BUILDING.remove(e.getKey());
+				continue;
+			}
+			var b = v.get().build();
+			if (b != null && b.done()) {
+				BUILDING.remove(e.getKey());
+				tell(srv, s.get(), s.get().name() + " is built: everything its plan laid out stands, from the stockpile.");
+			}
+		}
 	}
 
 	/** Reads each settlement's waiting targets: one waiting {@link #LONG_WAIT_TICKS} sends the steward to a player in the settlement, once per wait. */
@@ -113,7 +168,7 @@ public final class MaterialRequests {
 			LONG.put(s.id(), new LongWait(p.getUUID(), longest.waitingSince()));
 			if (had == null || had.since() != longest.waitingSince()) {
 				var target = sites.get(longest.targetId());
-				String what = target.map(MaterialRequests::nameOf).orElse("build");
+				String what = target.map(v -> nameOf(s, v)).orElse("build");
 				tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
 			}
 		}
@@ -138,10 +193,36 @@ public final class MaterialRequests {
 		return Stockpiles.items(list, 4) + (w.moreUnits() > 0 ? " (" + w.moreUnits() + " more besides)" : "");
 	}
 
-	private static String nameOf(SiteView v) {
+	private static String nameOf(Settlement s, SiteView v) {
 		if (dev.larattalabs.steward.gateway.BatchPlanner.isStreet(v.itemKey())) return "street";
 		if ("road".equals(v.kind())) return "road";
+		// a region's construction target (Architect RS): its plan part, unless it is a lot (which carries its role)
+		String part = v.ext() != null && v.ext().has(PART_EXT) && v.ext().get(PART_EXT).isJsonPrimitive() ? v.ext().get(PART_EXT).getAsString() : null;
+		if (part != null && (v.ext() == null || !v.ext().has("steward_mc:role"))) return partName(PlanStore.get(s.id()).map(PlanStore.Entry::plan).orElse(null), part);
 		return Updates.lotOf(v);
+	}
+
+	/** The ext key naming the plan part a region's construction target builds (Architect RS). */
+	static final String PART_EXT = "architect_mc:part";
+
+	/** A plan part in words: its label in the plan ("the town wall"), else its id ("north road"); the route lamps as "street lamps". */
+	static String partName(@org.jspecify.annotations.Nullable String planJson, String part) {
+		if ("__lamps__".equals(part)) return "street lamps";
+		if (planJson != null) {
+			try {
+				var plan = com.google.gson.JsonParser.parseString(planJson).getAsJsonObject();
+				for (var e : plan.entrySet()) {
+					if (!e.getValue().isJsonArray()) continue;
+					for (var p : e.getValue().getAsJsonArray()) {
+						if (p.isJsonObject() && p.getAsJsonObject().has("id") && part.equals(p.getAsJsonObject().get("id").getAsString()) && p.getAsJsonObject().has("label")
+							&& p.getAsJsonObject().get("label").isJsonPrimitive()) return p.getAsJsonObject().get("label").getAsString();
+					}
+				}
+			} catch (RuntimeException e) {
+				// an unreadable plan: the part's id
+			}
+		}
+		return part.replace('_', ' ');
 	}
 
 	private static Optional<Settlement> settlementOf(String owner) {

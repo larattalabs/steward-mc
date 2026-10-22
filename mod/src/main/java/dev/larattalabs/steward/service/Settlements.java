@@ -164,6 +164,18 @@ public final class Settlements {
 		return commit(s, n, "Protected \"" + a.label() + "\": the steward will not build there.");
 	}
 
+	/** Reshapes a protected area in one commit (logged): its id and label kept, its corners the new ones. */
+	public static Result reshapeArea(String id, String areaId, int x0, int z0, int x1, int z1, long now) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		var a = s.get().lands().protect().stream().filter(x -> x.id().equals(areaId)).findFirst();
+		if (a.isEmpty()) return Result.fail("No protected area " + areaId + ".");
+		Settlement.Area b = new Settlement.Area(a.get().id(), a.get().label(), a.get().dimension(), x0, z0, x1, z1, now);
+		Settlement n = s.get().withLands(s.get().lands().withoutArea(areaId).withArea(b)).withLog(new Settlement.LogEntry(now, Settlement.Kind.PROTECTED_CHANGED,
+			"Protected \"" + b.label() + "\" grown (" + (b.x1() - b.x0() + 1) + " x " + (b.z1() - b.z0() + 1) + " at " + b.x0() + "," + b.z0() + ")", List.of()));
+		return commit(s, n, "");
+	}
+
 	/** Clears a protected area (logged). */
 	public static Result unprotect(String id, String areaId, long now) {
 		Optional<Settlement> s = store.get(id);

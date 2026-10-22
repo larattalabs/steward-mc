@@ -42,6 +42,49 @@ public final class Stockpiles {
 	private Stockpiles() {
 	}
 
+	/** The label of the protected area over a settlement's stockpile crates (one per settlement, grown when crates are added). */
+	static final String AREA_LABEL = "the stockpile (kept clear for plans)";
+
+	/**
+	 * Keeps a plan off the stockpile (Architect RS, docs/COMPOSITION.md section 12): a protected area over its crates and a ring of 1 round them (Architect's
+	 * check treats protected areas as keep-out; a crate site alone it does not). The stockpile's area is the settlement's area of Steward's own label
+	 * ({@link #AREA_LABEL}, not one a player names) that holds one of its crates; it is made when {@code create}, grown in one commit to take new crates, and synced
+	 * to Architect every time. Null when done (or nothing to do), else why not.
+	 */
+	public static @Nullable String protectCrates(MinecraftServer server, Settlement s, Stockpile sp, boolean create) {
+		var rect = ringed(sp.crates());
+		if (rect == null) return "the stockpile has no crate";
+		var have = s.lands().protect().stream().filter(a -> AREA_LABEL.equals(a.label()) && a.dimension().equals(s.claim().dimension())
+			&& sp.crates().stream().anyMatch(c -> a.contains(s.claim().dimension(), c.getX(), c.getZ()))).findFirst();
+		long now = System.currentTimeMillis();
+		if (have.isEmpty()) {
+			if (!create) return null;
+			var r = Settlements.protect(s.id(), AREA_LABEL, s.claim().dimension(), rect[0], rect[1], rect[2], rect[3], now);
+			if (!r.ok()) return r.error();
+		} else {
+			var a = have.get();
+			if (a.x0() > rect[0] || a.z0() > rect[1] || a.x1() < rect[2] || a.z1() < rect[3]) {
+				var r = Settlements.reshapeArea(s.id(), a.id(), Math.min(rect[0], a.x0()), Math.min(rect[1], a.z0()), Math.max(rect[2], a.x1()), Math.max(rect[3], a.z1()), now);
+				if (!r.ok()) return r.error();
+			}
+		}
+		// synced every time, so a sync that failed before is retried
+		return Protection.sync(server, s.id()) ? null : "Architect would not protect it";
+	}
+
+	/** The crates' columns grown by 1 as {x0, z0, x1, z1}, or null when there is none. */
+	static int @Nullable [] ringed(List<BlockPos> crates) {
+		if (crates.isEmpty()) return null;
+		int x0 = Integer.MAX_VALUE, z0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE, z1 = Integer.MIN_VALUE;
+		for (BlockPos p : crates) {
+			x0 = Math.min(x0, p.getX());
+			z0 = Math.min(z0, p.getZ());
+			x1 = Math.max(x1, p.getX());
+			z1 = Math.max(z1, p.getZ());
+		}
+		return new int[] {x0 - 1, z0 - 1, x1 + 1, z1 + 1};
+	}
+
 	/** The settlement's stockpile, or empty (none yet, or an Architect without stockpiles). */
 	public static Optional<Stockpile> of(MinecraftServer server, Settlement s) {
 		try {
@@ -166,6 +209,9 @@ public final class Stockpiles {
 			// a new stockpile takes in the crates older builds left (what did not fit is said with the answer)
 			StringBuilder dropped = new StringBuilder();
 			if (fresh) sp = adopt(server, s, sp, m -> dropped.append(' ').append(m));
+			// a stockpile kept clear of a plan (its protected area): the area grows to take the new crate
+			String held = protectCrates(server, Settlements.store().get(s.id()).orElse(s), sp, false);
+			if (held != null) dropped.append(" Its ground could not be kept clear of plans: ").append(held).append('.');
 			return s.name() + "'s stockpile has " + sp.crates().size() + (sp.crates().size() == 1 ? " crate" : " crates") + " (" + sp.capacityStacks() + " stacks)." + dropped;
 		} catch (UnsupportedOperationException | LinkageError e) {
 			return "This Architect has no stockpiles (it needs 0.20).";

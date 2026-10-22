@@ -35,6 +35,35 @@ public final class Composer {
 	private Composer() {
 	}
 
+	/** (Architect RS, API 1.41) Whether this Architect builds regions from materials: a survival check, a region's build progress. */
+	public static boolean survivalAvailable() {
+		try {
+			return dev.larattalabs.architect.api.PlanCheck.class.getMethod("survival") != null && dev.larattalabs.architect.api.RegionView.class.getMethod("build") != null;
+		} catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+			return false;
+		}
+	}
+
+	/**
+	 * A survival check's bill ({@code cost.bom}: item id to count) in words, the largest first: "64 stone bricks, 40 oak planks and 5 more kinds (186 items)";
+	 * null when there is none.
+	 */
+	static @org.jspecify.annotations.Nullable String billLine(@org.jspecify.annotations.Nullable JsonObject cost) {
+		if (cost == null || !cost.has("bom") || !cost.get("bom").isJsonObject()) return null;
+		List<Map.Entry<String, Integer>> items = new ArrayList<>();
+		for (var e : cost.getAsJsonObject("bom").entrySet()) {
+			if (e.getValue().isJsonPrimitive() && e.getValue().getAsJsonPrimitive().isNumber() && e.getValue().getAsInt() > 0) items.add(Map.entry(e.getKey(), e.getValue().getAsInt()));
+		}
+		if (items.isEmpty()) return null;
+		items.sort(Map.Entry.<String, Integer>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()));
+		int total = items.stream().mapToInt(Map.Entry::getValue).sum();
+		List<String> named = new ArrayList<>();
+		for (var e : items.subList(0, Math.min(3, items.size()))) named.add(e.getValue() + " " + e.getKey().replaceFirst("^minecraft:", "").replace('_', ' '));
+		String more = items.size() > 3 ? " and " + (items.size() - 3) + " more kind" + (items.size() - 3 == 1 ? "" : "s") : "";
+		return (more.isEmpty() && named.size() > 1 ? String.join(", ", named.subList(0, named.size() - 1)) + " and " + named.get(named.size() - 1) : String.join(", ", named) + more)
+			+ " (" + total + " item" + (total == 1 ? "" : "s") + ")";
+	}
+
 	/** Whether this Architect has the plan check (P0, API 1.23). */
 	public static boolean available() {
 		try {
