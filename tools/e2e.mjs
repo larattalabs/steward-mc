@@ -994,6 +994,81 @@ async function paletteFlow() {
 }
 
 /**
+ * Natural forms (Architect F3): a hamlet under a giant oak, with a village pond grown with coral, built from its plan through checkPlan and realiseApproved.
+ * The claim is snapshotted first; after the build a leaf of the oak is set to cobblestone (a player's edit), and the undo must give back the claim exactly
+ * but for that one cell, which stays the player's.
+ */
+async function groveFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 36000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Oak Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'grove_pond.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a hamlet under a great oak, with a coral pond`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('grove', 'no card');
+  const composed = await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after[^\n]*`), 240_000);
+  if (!composed) return fail('grove', 'no plan composed');
+  const answer = logSince(from).match(new RegExp(`plan for ${id}: [^\n]*`))?.[0] ?? '';
+  if (!/ 0 pending, 0 unfit/.test(answer)) return fail('grove', `the giant oak, the pond and its coral didn't all fit: ${answer.slice(0, 160)}`);
+  await closeScreens();
+  await clearAnimals();
+  const st = settlements().find((x) => x.id === id);
+  const r = st.claim.radius;
+  // the e2e world is flat with its surface at y 64; a giant oak stands up to 64 over it
+  const box = [st.claim.centerX - r, 40, st.claim.centerZ - r, st.claim.centerX + r, 160, st.claim.centerZ + r];
+  const snap = path.join(ROOT, 'artifacts', 'e2e', `grove-${id}.snap.gz`);
+  fs.mkdirSync(path.dirname(snap), { recursive: true });
+  const groundBox = [box[0], 54, box[2], box[3], 64, box[5]], crownBox = [box[0], 96, box[2], box[3], box[4], box[5]];
+  const snapGround = snap.replace('.snap', '-ground.snap'), snapCrown = snap.replace('.snap', '-crown.snap');
+  await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
+  await dev.call('dev.region.hash', { box: groundBox, mode: 'snap', file: snapGround }, { timeoutMs: 1_800_000 });
+  await dev.call('dev.region.hash', { box: crownBox, mode: 'snap', file: snapCrown }, { timeoutMs: 1_800_000 });
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  await cmd('/tp @p ~ ~ ~90');
+  const built = await buildThrough(id, from, 'grove');
+  if (!built) return;
+  const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  // the oak (its logs and persistent leaves), the pond's coral in the ground layer, and a leaf high in its crown: the diff lists at most 2,000 cells
+  const trees = await dev.call('dev.region.logs', { box }, { timeoutMs: 300_000 });
+  const ground = await dev.call('dev.region.hash', { box: groundBox, mode: 'diff', file: snapGround }, { timeoutMs: 1_800_000 });
+  const coral = (ground.list ?? []).filter((m) => /coral|sea_pickle/.test(String(m.now)));
+  const crown = await dev.call('dev.region.hash', { box: crownBox, mode: 'diff', file: snapCrown }, { timeoutMs: 1_800_000 });
+  const leaves = (crown.list ?? []).filter((m) => /_leaves\[/.test(String(m.now)) && /persistent=true/.test(String(m.now)));
+  if (/^region:/.test(placed?.siteGroup ?? '') && trees.logs > 50 && trees.leavesPersistent > 100 && trees.floating === 0 && coral.length > 0 && leaves.length > 0)
+    ok('grove', `${built.placed} placed (${placed.siteGroup}): the oak ${trees.logs} logs, ${trees.leavesPersistent} persistent leaves, none floating; ${coral.length} coral cells in the pond`);
+  else return fail('grove', `region ${placed?.siteGroup}; logs ${trees.logs}, persistent leaves ${trees.leavesPersistent}, floating ${trees.floating}, coral ${coral.length} (ground diff ${ground.mismatches}), crown leaves ${leaves.length}`);
+  // a player's edit: one of the oak's leaves turned to cobblestone (the cell the undo must leave as the player made it)
+  const leaf = leaves.sort((a, b) => String(a.pos).localeCompare(String(b.pos)))[Math.floor(leaves.length / 2)];
+  const [lx, ly, lz] = String(leaf.pos).split(',').map(Number);
+  await cmd(`/setblock ${lx} ${ly} ${lz} minecraft:cobblestone`);
+  from = logSize();
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 120 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  if (last?.kind !== 'PROJECT_REMOVED') return fail('grove undo', `last op ${last?.kind}`);
+  await sleep(3000);
+  const diff = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
+  const mine = (diff.list ?? []).filter((m) => String(m.pos) === `${lx},${ly},${lz}`);
+  const other = (diff.list ?? []).filter((m) => String(m.pos) !== `${lx},${ly},${lz}`);
+  if (diff.mismatches === 1 && mine.length === 1 && /cobblestone/.test(String(mine[0].now)))
+    ok('grove undo', `${last.text}; the claim as it was (${box[3] - box[0] + 1}x${box[4] - box[1] + 1}x${box[5] - box[2] + 1}) but the player's cobblestone at ${lx},${ly},${lz}`);
+  else fail('grove undo', `player's cell ${mine.length ? mine[0].now : 'not kept'}; ${diff.mismatches} cell(s) differ in all, e.g. ${other.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now}`).join('; ').slice(0, 300)}`);
+}
+
+/**
  * Irrigation (Architect IRR): a working wheat farm with a source in every 9x9 of its field (irrigate), built from its plan; its design request carries the
  * field's reserved cells (sources, farmland sides, the air over them), it is placed once the sources settle, and undone with them drained first.
  */
@@ -1586,6 +1661,7 @@ try {
       await ditchFlow();
       await irrigationFlow();
       await paletteFlow();
+      await groveFlow();
       await districtsPlanFlow();
       await planCheckFlow();
       await survivalFlow();

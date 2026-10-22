@@ -95,15 +95,53 @@ public final class Composer {
 		anchors.put("stone", stone);
 		var p = server.getPlayerList().getPlayer(player);
 		anchors.put("player", p != null && s.contains(p.level().dimension().identifier().toString(), p.getBlockX(), p.getBlockY(), p.getBlockZ()) ? p.blockPosition() : stone);
-		// a tunnel's volume pass may load (and generate) the chunks its corridor needs (T3, S-T3-6): else an unloaded corridor answers incomplete VOLUME
-		var load = hasTunnel(plan) ? dev.larattalabs.architect.api.LoadPolicy.LOAD_BOUNDED(TUNNEL_CHUNKS) : null;
+		// a part whose check reads the rock under the land (a tunnel, roots, stalactites: the catalogue's limits.volume, S-F3-3) may load (and generate) the
+		// chunks it needs (T3, S-T3-6): else an unloaded volume answers incomplete VOLUME
+		var load = needsVolume(plan, volumeBlocks()) ? dev.larattalabs.architect.api.LoadPolicy.LOAD_BOUNDED(TUNNEL_CHUNKS) : null;
 		return ArchitectApi.get().regions().checkPlan(new PlanRequest(plan, level, claim, anchors, s.owner(), null, null, null, null, new JsonObject(), load));
 	}
 
 	/** At most this many chunks a check of a plan with a tunnel loads for its survey and volume pass (Architect's caps bound the cells as well). */
 	static final int TUNNEL_CHUNKS = 512;
 
-	/** Whether a plan holds a tunnel (the only part whose check reads the rock under the land). */
+	/** The catalogue's block ids whose check reads a frozen volume ({@code limits.volume: true}, Architect F3's S-F3-3); empty when this Architect can't say. */
+	static java.util.Set<String> volumeBlocks() {
+		java.util.Set<String> out = new java.util.HashSet<>();
+		try {
+			JsonObject c = ArchitectApi.get().regions().planCatalogue();
+			if (c != null && c.has("entries") && c.get("entries").isJsonArray()) {
+				for (var e : c.getAsJsonArray("entries")) {
+					if (!e.isJsonObject() || !e.getAsJsonObject().has("id") || !e.getAsJsonObject().has("limits") || !e.getAsJsonObject().get("limits").isJsonObject()) continue;
+					var v = e.getAsJsonObject().getAsJsonObject("limits").get("volume");
+					if (v != null && v.isJsonPrimitive() && v.getAsJsonPrimitive().isBoolean() && v.getAsBoolean()) out.add(e.getAsJsonObject().get("id").getAsString());
+				}
+			}
+		} catch (RuntimeException | LinkageError e) {
+			// an Architect without the live catalogue: the tunnel rule below
+		}
+		return out;
+	}
+
+	/** The plan sections whose parts' kinds name a catalogue block as {@code <prefix><kind>}. */
+	private static final Map<String, String> SECTIONS = Map.of("connectors", "connector.", "forms", "form.");
+
+	/**
+	 * Whether a plan's check reads the rock under the land: a part whose block the catalogue flags ({@code volume}); with no flags (an Architect before F3), a
+	 * tunnel.
+	 */
+	static boolean needsVolume(JsonObject plan, java.util.Set<String> volume) {
+		if (volume.isEmpty()) return hasTunnel(plan);
+		for (var sec : SECTIONS.entrySet()) {
+			if (!plan.has(sec.getKey()) || !plan.get(sec.getKey()).isJsonArray()) continue;
+			for (var p : plan.getAsJsonArray(sec.getKey())) {
+				if (p.isJsonObject() && p.getAsJsonObject().has("kind") && p.getAsJsonObject().get("kind").isJsonPrimitive()
+					&& volume.contains(sec.getValue() + p.getAsJsonObject().get("kind").getAsString())) return true;
+			}
+		}
+		return false;
+	}
+
+	/** Whether a plan holds a tunnel (before F3's catalogue flag, the only part whose check read the rock under the land). */
 	static boolean hasTunnel(JsonObject plan) {
 		if (!plan.has("connectors") || !plan.get("connectors").isJsonArray()) return false;
 		for (var c : plan.getAsJsonArray("connectors")) {
