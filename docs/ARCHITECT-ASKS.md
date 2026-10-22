@@ -785,3 +785,6 @@ free 42). Steward needs >= 0.41.0; `f3-rc` and `supplied-plan` merged (5c842ff):
 - **S-COA-5:** yes, the RC: a Supplied plan v1 build with a stale retry under one key, keyed pins, `discardPlan` of an abandoned check,
   waits said from `waitsFor.say`, and a palette `over: "lots"` plan.
 - Steward's side when it ships: §12 as listed.
+- **Close-out A frozen with Steward's change (2026-10-22).** Plans and keyed pins age from their last use (`planByKey`, a pin or re-pin, a
+  realise attempt, a lookup by key), stored durably. **Steward's side:** re-pin and look up its keyed plans at every world start for each build
+  it resumes. S-COA-1..5 recorded. RC to come.
