@@ -818,8 +818,9 @@ Also passing: copper `over: "lots"`; `discardPlan`, then `planByKey` and `checkB
 
 **7a foundation questions (2026-10-23).**
 - **The compact plan/0 at 96,000** (92,556 with the seven strict connector defs, against S-FL-8's 84,000): OK, provided the helper's job
-  system-prompt cap holds `plan/0#compact` + `vocab/1#compact` + the caller's text (about 10,000) with margin. Asked to confirm, or to raise
-  the cap from 120,000.
+  system-prompt cap holds `plan/0#compact` + `vocab/1#compact` + the caller's text (about 10,000) with margin. **Answered:** the 120,000 cap
+  (`JOB_SYSTEM_MAX`) covers only the caller's own `system` field on structured jobs; systemRefs are expanded at run time outside it, with no cap
+  on the composed total (about 110-130k characters, 30-40k tokens). No change needed.
 - **CL's climb deviation** `{what: 'climb', value: <rise>, kind: 'walk', rise}`: OK. Steward shows deviations and doesn't parse `value`.
 - Noted: `span_bridge` answers as `connector.bridge`; `rail` stays reserved until CR. v0.42.0 (close-outs A and B, the stage-hold and
   floating-log fixes) is in final release testing, with its tag after Noah approves.
