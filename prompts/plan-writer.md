@@ -55,7 +55,9 @@ Writing the plan:
   `required` true when the ask is about it. A loose taste ("mostly stone") belongs in the style, not a rule.
 - **Shapes Architect builds.** Parts that answer refused are parts written in a shape Architect can't build here, so keep to these:
   - every zone has at least one lot: a zone is never a placeholder for something else (a stacked tower is one lot, or a reserved layout part);
-  - terraces stand beside a zone, never under its lots: a hillside town is a zone on the flattest ground with terraces next to it;
+  - a town built in steps down a hillside is one zone with `terraces: {}` on it (its lots on levels down the slope, retaining walls and stairs
+    between them; `rise`, `retain`, `stairs` when the card says how); a terrace form (`form.terrace`) stands beside zones, never under their
+    lots;
   - a bridge (rope or stone) spans a real gap, water or a drop, between two places: never between places on the same ground, and never from a place
     to itself. Huts up in trees or on stilts are raised lots: write them as the reserved `layout.elevated` so they wait, with their bridges depending
     on it;
