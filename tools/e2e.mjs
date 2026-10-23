@@ -1429,12 +1429,17 @@ async function suppliedPlanFlow() {
     // (Architect close-out A) a restart at the massings: the build's plan is used again (its keyed pin re-pinned); then, before placing, a pillar on the
     // plan's land makes its artifact stale: re-checked, and realised under the same key
     let sha0 = null, pinBefore = null, pinAfter = null, staled = false;
+    // the game's log starts afresh at the restart: what it said before is kept, and the new log read from its start
+    let pre = '';
+    const said = () => pre + logSince(from);
     const pinsOf = async (sha) => JSON.stringify((await dev.call('dev.coa.artifact', { sha }).catch(() => ({})))?.pins ?? null);
     const onStep = async (step) => {
       if (step === 'restart-before') {
-        sha0 = logSince(from).match(new RegExp(`plan of ${id}: artifact ([0-9a-f]{64})`))?.[1] ?? null;
+        pre = logSince(from);
+        sha0 = pre.match(new RegExp(`plan of ${id}: artifact ([0-9a-f]{64})`))?.[1] ?? null;
         if (sha0) pinBefore = await pinsOf(sha0);
       } else if (step === 'restart-after') {
+        from = 0;
         await waitLog(0, new RegExp(`resume ${id}: plan [^\n]* used again`), 60_000);
         if (sha0) pinAfter = await pinsOf(sha0);
       } else if (step === 'Approve to place' && !staled) {
@@ -1444,7 +1449,7 @@ async function suppliedPlanFlow() {
     };
     const built = await buildThrough(id, from, 'supplied plan', true, onStep);
     if (!built) { stop = true; await feeder; return; }
-    const log = logSince(from);
+    const log = said();
     const bill = log.match(/From materials, the plan's ground, streets and parts need [^\n]*/);
     const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
     const area = (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
@@ -1454,24 +1459,24 @@ async function suppliedPlanFlow() {
     // fully built from the stockpile: Architect's build is done, and the steward says so
     // close-out A: the keyed pin used again at the restart (its time moved), the stale artifact re-checked and realised under the same key, and every
     // keyed pin of that key ended by the realise
-    const realises = [...logSince(from).matchAll(new RegExp(`realise ${id}: artifact ([0-9a-f]{64}) under key (\\S+) \\((first|after a re-check)\\)`, 'g'))];
+    const realises = [...said().matchAll(new RegExp(`realise ${id}: artifact ([0-9a-f]{64}) under key (\\S+) \\((first|after a re-check)\\)`, 'g'))];
     const retried = realises.find((r) => r[3] === 'after a re-check');
     const keys = new Set(realises.map((r) => r[2]));
     const left = await Promise.all([...new Set(realises.map((r) => r[1]))].map(async (sha) => [sha.slice(0, 8), await pinsOf(sha)]));
     const keyedLeft = left.filter(([, p]) => /vrealise/.test(p));
     if (sha0 && pinBefore && /vrealise/.test(pinBefore) && pinAfter && pinAfter !== pinBefore) ok('keyed pin used again', `${sha0.slice(0, 8)}: ${pinBefore.slice(0, 90)} -> ${pinAfter.slice(0, 90)}`);
     else fail('keyed pin used again', `artifact ${sha0}; before ${pinBefore}; after ${pinAfter}`);
-    if (retried && keys.size === 1 && /\.vrealise$/.test([...keys][0]) && /land under the plan changed/.test(logSince(from))) ok('stale retry, one key', `${realises.length} realises under ${[...keys][0]}, the second after a re-check`);
+    if (retried && keys.size === 1 && /\.vrealise$/.test([...keys][0]) && /land under the plan changed/.test(said())) ok('stale retry, one key', `${realises.length} realises under ${[...keys][0]}, the second after a re-check`);
     else fail('stale retry, one key', `${realises.map((r) => `${r[1].slice(0, 8)} ${r[2]} ${r[3]}`).join('; ') || 'no realise logged'}`);
     if (keyedLeft.length === 0 && left.length) ok('keyed pins ended', left.map(([s8, p]) => `${s8} ${p}`).join('; ').slice(0, 200));
     else fail('keyed pins ended', `still keyed: ${keyedLeft.map(([s8, p]) => `${s8} ${p}`).join('; ')}`);
-    const stageSaid = logSince(from).match(/\] The [^\n]*? waits for [^\n]*? to be built\.[^\n]*/);
+    const stageSaid = said().match(/\] The [^\n]*? waits for [^\n]*? to be built\.[^\n]*/);
     if (stageSaid) ok('stage wait said', stageSaid[0].slice(0, 160));
     const doneSaid = await waitLog(from, new RegExp(`${'Supply Walls'} is built: everything its plan laid out stands`), 600_000);
     stop = true;
     await feeder;
     const sp = await ledger();
-    const asked = logSince(from).match(/\[Supply Walls\] The [^\n]*? waits for materials: [^\n]*/);
+    const asked = said().match(/\[Supply Walls\] The [^\n]*? waits for materials: [^\n]*/);
     if (asked && halfAccepted > 0 && paused > 0) ok('supplied plan wait', `${halfAccepted} units fed, then paused owing ${paused}; ${asked[0].slice(0, 160)}`);
     else fail('supplied plan wait', `named ${asked ? 'yes' : 'no'}; half accepted ${halfAccepted}; owing 20 s after it ${paused}`);
     if (doneSaid) ok('supplied plan built', `${units(sp?.delivered)} delivered, ${units(sp?.consumed)} consumed`);
