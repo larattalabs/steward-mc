@@ -200,6 +200,16 @@ public final class SettlementRunner {
 	/** Approves whatever is waiting: the style bible, every awaiting massing, or the placement. Returns what happened, for the command's feedback. */
 	public String approve() {
 		if (state == null) return "Nothing is waiting for you yet.";
+		// the village's region holds a stage (the land changed under it since the plan): built as planned on the player's word
+		if (heldStage != null && vRegionId != null) {
+			String stage = heldStage, region = vRegionId;
+			ArchitectApi.get().regions().nudge(region, dev.larattalabs.architect.api.WaitAction.Kind.APPROVE_STAGE).whenComplete((r, err) -> server.execute(() -> {
+				if (err != null) say("Architect would not go on with the " + stage + " stage: " + message(err));
+				else if (!r.done()) say("Architect would not go on with the " + stage + " stage: " + r.message());
+				else heldStage = null;
+			}));
+			return "Approved: the " + stage + " stage is built as planned.";
+		}
 		return switch (Pipeline.awaiting(state)) {
 			case BIBLE -> { feed(new Pipeline.BibleApproved()); yield "Approved the style bible; designing the buildings."; }
 			case MASSINGS -> {
@@ -1974,12 +1984,33 @@ public final class SettlementRunner {
 		return VillageSweep.sitesOf(server, settlement.owner(), regionId);
 	}
 
+	/** A stage of the village's region Architect holds for the player's word (the land changed under it since the plan), or null. */
+	private @org.jspecify.annotations.Nullable String heldStage;
+	/** The region waits already said (a held stage, a place to come nearer to), so each is said once. */
+	private final Set<String> saidRegionWaits = new java.util.HashSet<>();
+
 	/** Reads the village's state while it is placed; once placed (wholly or in part), its sites are logged under the region and the build ends. */
 	void watchVillage() {
 		if (!village() || vRegionId == null || state == null || !alive()) return;
 		if (state.phase() != Pipeline.Phase.PLACING && state.phase() != Pipeline.Phase.READY_TO_PLACE) return;
 		var v = ArchitectApi.get().regions().get(vRegionId);
 		if (v.isEmpty()) return;
+		// what the region waits for that the player can act on (Architect's wait actions): a held stage, a place to come nearer to
+		String held = null;
+		for (var a : v.get().actions()) {
+			switch (a.kind()) {
+				case APPROVE_STAGE -> held = a.detail() != null ? a.detail() : "next";
+				case MOVE_CLOSER -> {
+					if (a.target() != null && saidRegionWaits.add("near " + a.target().getX() + "," + a.target().getZ()))
+						say("The village waits for its ground to load: come nearer to " + a.target().getX() + ", " + a.target().getZ() + ".");
+				}
+				default -> {
+				}
+			}
+		}
+		heldStage = held;
+		if (held != null && saidRegionWaits.add("stage " + held)) say("The land changed under the plan since it was checked, so Architect holds the " + held
+			+ " stage. /steward approve " + settlement.id() + " builds it as planned; undo takes the village up.");
 		var st = v.get().state();
 		if (st != dev.larattalabs.architect.api.RegionState.PLACED && st != dev.larattalabs.architect.api.RegionState.PARTIAL
 			&& st != dev.larattalabs.architect.api.RegionState.FAILED) return;

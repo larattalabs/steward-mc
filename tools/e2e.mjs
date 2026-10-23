@@ -1244,7 +1244,8 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
       fail(label, stopped[0]);
       return null;
     }
-    const m = since.match(/Style bible ready|massings are ready|Approve to place/);
+    // (a held stage: the land changed under the plan since its check; the player's word builds it as planned)
+    const m = since.match(/Style bible ready|massings are ready|Approve to place|Architect holds the \S+ stage/);
     if (!m) {
       await sleep(1000);
       continue;
