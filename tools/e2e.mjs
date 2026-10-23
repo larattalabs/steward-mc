@@ -1037,6 +1037,8 @@ async function groveFlow() {
   await cmd('/tp @p ~ ~ ~90');
   const built = await buildThrough(id, from, 'grove');
   if (!built) return;
+  // animals from chunks the build loaded since the first clear: a sheep eats grass (grass to dirt) at cells the plan never wrote
+  await clearAnimals();
   const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
   // the oak (its logs and persistent leaves), the pond's coral in the ground layer, and a leaf high in its crown: the diff lists at most 2,000 cells
   const trees = await dev.call('dev.region.logs', { box }, { timeoutMs: 300_000 });
@@ -1044,6 +1046,8 @@ async function groveFlow() {
   const coral = (ground.list ?? []).filter((m) => /coral|sea_pickle/.test(String(m.now)));
   const crown = await dev.call('dev.region.hash', { box: crownBox, mode: 'diff', file: snapCrown }, { timeoutMs: 1_800_000 });
   const leaves = (crown.list ?? []).filter((m) => /_leaves\[/.test(String(m.now)) && /persistent=true/.test(String(m.now)));
+  // the oak's columns (its crown seen from above): a world's change is classed only outside them (Architect's rule: never at a cell the plan wrote)
+  const oakCols = new Set((crown.list ?? []).map((m) => { const [x, , z] = String(m.pos).split(',').map(Number); return `${x},${z}`; }));
   if (/^region:/.test(placed?.siteGroup ?? '') && trees.logs > 50 && trees.leavesPersistent > 100 && trees.floating === 0 && coral.length > 0 && leaves.length > 0)
     ok('grove', `${built.placed} placed (${placed.siteGroup}): the oak ${trees.logs} logs, ${trees.leavesPersistent} persistent leaves, none floating; ${coral.length} coral cells in the pond`);
   else return fail('grove', `region ${placed?.siteGroup}; logs ${trees.logs}, persistent leaves ${trees.leavesPersistent}, floating ${trees.floating}, coral ${coral.length} (ground diff ${ground.mismatches}), crown leaves ${leaves.length}`);
@@ -1059,12 +1063,17 @@ async function groveFlow() {
     last = settlements().find((x) => x.id === id)?.log.at(-1);
   }
   if (last?.kind !== 'PROJECT_REMOVED') return fail('grove undo', `last op ${last?.kind}`);
+  await clearAnimals();
   await sleep(3000);
   const diff = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
   const mine = (diff.list ?? []).filter((m) => String(m.pos) === `${lx},${ly},${lz}`);
   const other = (diff.list ?? []).filter((m) => String(m.pos) !== `${lx},${ly},${lz}`);
-  if (diff.mismatches === 1 && mine.length === 1 && /cobblestone/.test(String(mine[0].now)))
-    ok('grove undo', `${last.text}; the claim as it was (${box[3] - box[0] + 1}x${box[4] - box[1] + 1}x${box[5] - box[2] + 1}) but the player's cobblestone at ${lx},${ly},${lz}`);
+  // the world's own change (Architect's classes): grass eaten or spread (class growth or grazed) at a column the oak never wrote; any other change fails
+  const worlds = other.filter((m) => /^(growth|grazed)$/.test(String(m.class)) && /grass_block|dirt/.test(`${m.was}${m.now}`)
+    && !oakCols.has(String(m.pos).split(',').filter((_, i) => i !== 1).join(',')));
+  const unexplained = other.length - worlds.length;
+  if (diff.mismatches === 1 + worlds.length && unexplained === 0 && mine.length === 1 && /cobblestone/.test(String(mine[0].now)))
+    ok('grove undo', `${last.text}; the claim as it was (${box[3] - box[0] + 1}x${box[4] - box[1] + 1}x${box[5] - box[2] + 1}) but the player's cobblestone at ${lx},${ly},${lz}${worlds.length ? ` (and ${worlds.length} grass cell(s) grazed or spread away from the oak, the world's)` : ''}`);
   else fail('grove undo', `player's cell ${mine.length ? mine[0].now : 'not kept'}; ${diff.mismatches} cell(s) differ in all, e.g. ${other.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now}`).join('; ').slice(0, 300)}`);
 }
 
