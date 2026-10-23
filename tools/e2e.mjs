@@ -1219,6 +1219,10 @@ async function wallOfferFlow() {
   const stillWaits = plans[id]?.pending?.some((x) => x.part === 'town_wall');
   if (wall && /^region:/.test(wall.siteGroup) && wall.siteGroup !== town.siteGroup && !stillWaits) ok('wall built', `${wall.text}: ${wall.siteIds.length} sites in ${wall.siteGroup} (the town is ${town.siteGroup}); no longer waits`);
   else return fail('wall built', `history ${JSON.stringify(wall)?.slice(0, 160)}; still waits ${stillWaits}; ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
+  // (Architect D3) a district beside a walled town has no gate to join through yet (7a's GJ): NO_JOIN [wall]
+  const walled = await besideAsk(id, town.siteGroup.replace(/^region:/, ''));
+  if (!walled?.fits && /NO_JOIN/.test(`${walled?.code} ${walled?.message} ${walled?.refused}`) && /wall/i.test(`${walled?.message} ${walled?.refused}`)) ok('beside a walled town', `${walled.code ?? ''} ${String(walled.message ?? walled.refused).slice(0, 140)}`);
+  else fail('beside a walled town', JSON.stringify(walled).slice(0, 300));
   // an undo takes the wall away and leaves the town
   await cmd(`/steward undo ${id}`);
   let last = null;
@@ -1416,7 +1420,7 @@ async function suppliedPlanFlow() {
     // the feeder: half of what is needed once the region's targets ask, then (the steward having named a wait) all of it, until the build is done
     // the feeder: half of what is needed once the region's targets ask (accepted into the stockpile); the build then pauses on the rest (the ledger still
     // owes, 20 s on); then all of it, until the build is done. The steward names a wait once per wait ([name] in the chat), before or after the half
-    let stop = false, fedAt = 0, halfAccepted = 0, paused = null;
+    let stop = false, fedAt = 0, halfAccepted = 0, paused = null, inFlight = null;
     const feeder = (async () => {
       while (!stop) {
         await sleep(3000);
@@ -1431,6 +1435,14 @@ async function suppliedPlanFlow() {
         if (paused == null) {
           if (Date.now() - fedAt < 20_000) continue;
           paused = units(sp.need);
+          // (Architect D3) a district beside a town still being built: in flight, refused OVERLAP_BUSY
+          const rl = await dev.request('dev.region.list').catch(() => null);
+          const building = (rl?.regions ?? []).find((v) => v.owner === owner && v.state === 'PLACING');
+          if (building) {
+            inFlight = await besideAsk(id, building.id);
+            // back off the lots: a player in a box holds its target up
+            await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
+          }
         }
         await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
       }
@@ -1492,6 +1504,13 @@ async function suppliedPlanFlow() {
     else fail('supplied plan wait', `named ${asked ? 'yes' : 'no'}; half accepted ${halfAccepted}; owing 20 s after it ${paused}`);
     if (doneSaid) ok('supplied plan built', `${units(sp?.delivered)} delivered, ${units(sp?.consumed)} consumed`);
     else return fail('supplied plan built', `not done in 10 min; still needed ${units(sp?.need)}`);
+    // (Architect D3) the district beside it: refused while the town was in flight; once the town is built from materials, the check fits
+    if (inFlight && !inFlight.fits && /OVERLAP_BUSY/.test(`${inFlight.reason} ${inFlight.code} ${inFlight.message} ${inFlight.refused}`)) ok('beside a town in flight', String(inFlight.message ?? inFlight.refused).slice(0, 140));
+    else fail('beside a town in flight', inFlight ? JSON.stringify(inFlight).slice(0, 240) : 'the town was never seen placing');
+    const townNow = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+    const survivalBeside = await besideAsk(id, (townNow?.siteGroup ?? '').replace(/^region:/, ''));
+    if (survivalBeside?.fits) ok('beside a town built from materials', `fits: join ${survivalBeside.join?.kind} (${survivalBeside.join?.step})`);
+    else fail('beside a town built from materials', JSON.stringify(survivalBeside).slice(0, 240));
     // undone: every consumed unit back in the stockpile (or dropped and counted as overflow)
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
     const before = sp;
@@ -1603,6 +1622,111 @@ async function discardFlow() {
   const noCheck = !checkByKey?.check && !checkByKey?.checkId && !checkByKey?.artifactSha;
   if (!byKey?.planId && noCheck) ok('discard by key', `${key}: no plan, no check`);
   else fail('discard by key', `${key}: planByKey ${JSON.stringify(byKey).slice(0, 120)}; checkByKey ${JSON.stringify(checkByKey).slice(0, 120)}`);
+}
+
+/**
+ * (Architect D3) A district beside a settlement's town region, as Steward's district move will ask for it: the `districts` program with one plain district
+ * of two house lots, Steward's lot tags, owner and keys, its request claim on the town's east side overlapping it by 8 columns. `check` asks the dry
+ * `checkBeside` (nothing kept); else a real plan under `<key>.dplan`. Returns DevBridge's answer.
+ */
+async function besideAsk(id, townRegion, { check = true, key = null, lots = 2 } = {}) {
+  const st = settlements().find((x) => x.id === id);
+  const c = st.claim, r = c.radius;
+  // the town's chunks loaded first (D3 surveys loaded chunks only)
+  await cmd(`/tp @p ${c.centerX + r - 4} ~ ${c.centerZ}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  const x0 = c.centerX + r - 7;
+  const spec = { districts: [{ id: 'quay', size: [48, 48], lots: Array.from({ length: lots }, (_, k) => ({ id: `quay_${k + 1}`, type: 'house', role: 'house', size: [9, 9],
+    landmark: false, ext: { 'steward_mc:settlement': id, 'steward_mc:lot': `quay_${k + 1}`, 'steward_mc:role': 'house' } })) }] };
+  const body = { program: 'districts', params: { spec }, claim: [x0, c.centerZ - 48, x0 + 96, c.centerZ + 48], owner: `steward_mc:settlement/${id}`, beside: townRegion };
+  if (check) return dev.request('dev.region.checkBeside', body, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+  return dev.request('dev.region.plan', { ...body, ...(key ? { opKey: `${key}.dplan` } : {}) }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+}
+
+/** A region's state, polled until it is one of {@code states} (or the time runs out). */
+async function regionUntil(region, states, ms = 300_000) {
+  let v = null;
+  for (const end = Date.now() + ms; Date.now() < end;) {
+    v = await dev.request('dev.region.state', { region }).catch(() => null);
+    const st = v?.view?.state ?? v?.state;
+    if (states.includes(st)) return v;
+    await sleep(2000);
+  }
+  return v;
+}
+
+/**
+ * Architect D3 (Steward's RC; DISTRICTS.md): a district beside a flat-village town. The dry check fits with its join; the district realised beside it
+ * (its lots pads), then removed alone, leaves the town's ground as it was (hash); realised again and the town undone first, the district stands with
+ * its join dangling, then goes.
+ */
+async function besideFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 48000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Beside Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little town`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('beside', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  const built = await buildThrough(id, from, 'beside town');
+  if (!built) return;
+  const townOp = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const town = (townOp?.siteGroup ?? '').replace(/^region:/, '');
+  if (!/^rg/.test(town)) return fail('beside', `the town is not a region: ${townOp?.siteGroup}`);
+  const v = await besideAsk(id, town);
+  if (v?.fits) ok('beside check', `fits beside ${town}: join ${v.join?.kind} (${v.join?.step}), ${v.join?.cells} cells (${v.join?.insideCells} in the town); ${v.ms} ms`);
+  else return fail('beside check', JSON.stringify(v).slice(0, 300));
+  const c = settlements().find((x) => x.id === id).claim;
+  const townBox = [c.centerX - c.radius, 40, c.centerZ - c.radius, c.centerX + c.radius, 140, c.centerZ + c.radius];
+  const hash0 = (await dev.call('dev.region.hash', { box: townBox }, { timeoutMs: 600_000 })).sha256;
+  // district first: planned under Steward's keys, realised (lots left pads), removed alone: the town's ground as it was
+  const key = `steward.e2e.${id}`;
+  const plan = await besideAsk(id, town, { check: false, key });
+  if (!plan?.planId) return fail('beside plan', JSON.stringify(plan).slice(0, 300));
+  const r1 = await dev.request('dev.region.realise', { planId: plan.planId, opKey: `${key}.drealise` }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  const district = r1?.region;
+  const placed = district && await regionUntil(district, ['PLACED', 'PARTIAL', 'FAILED']);
+  const pst = placed?.view?.state ?? placed?.state;
+  if (pst === 'PLACED') ok('beside district', `${district} realised beside ${town} (plan ${plan.planId}, key ${key}.drealise)`);
+  else return fail('beside district', `${JSON.stringify(r1).slice(0, 200)}; state ${pst}`);
+  await dev.call('dev.region.remove', { region: district }, { timeoutMs: 600_000 });
+  await regionUntil(district, ['REMOVED'], 120_000);
+  const hash1 = (await dev.call('dev.region.hash', { box: townBox }, { timeoutMs: 600_000 })).sha256;
+  if (hash1 === hash0) ok('beside, district removed first', `the town's ground (${townBox[3] - townBox[0] + 1} wide) as it was`);
+  else fail('beside, district removed first', `the town's hash changed: ${hash0?.slice(0, 12)} -> ${hash1?.slice(0, 12)}`);
+  // town first: the district stands with its join dangling, then goes
+  const plan2 = await besideAsk(id, town, { check: false, key: `${key}.2` });
+  const r2 = plan2?.planId ? await dev.request('dev.region.realise', { planId: plan2.planId, opKey: `${key}.2.drealise` }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) })) : null;
+  const d2 = r2?.region;
+  if (!d2 || (await regionUntil(d2, ['PLACED', 'PARTIAL', 'FAILED']))?.view?.state !== 'PLACED') return fail('beside, town removed first', `no district: ${JSON.stringify(r2 ?? plan2).slice(0, 200)}`);
+  await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ + c.radius + 40}`);
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 150 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(2000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  const after = await dev.request('dev.region.state', { region: d2 }).catch(() => null);
+  const ext = after?.view?.ext ?? after?.ext ?? {};
+  const dangling = ext['architect_mc:beside']?.dangling === true || ext['architect_mc:land']?.standingRemoved != null;
+  const dstate = after?.view?.state ?? after?.state;
+  if (last?.kind === 'PROJECT_REMOVED' && dstate === 'PLACED' && dangling) ok('beside, town removed first', `the town undone; ${d2} stands, its join dangling`);
+  else fail('beside, town removed first', `town ${last?.kind}; district ${dstate}; ext ${JSON.stringify(ext).slice(0, 200)}`);
+  await dev.call('dev.region.remove', { region: d2 }, { timeoutMs: 600_000 }).catch(() => null);
+  const gone = await regionUntil(d2, ['REMOVED'], 120_000);
+  if ((gone?.view?.state ?? gone?.state) !== 'REMOVED') fail('beside cleanup', `${d2} not removed`);
 }
 
 /**
@@ -1916,6 +2040,7 @@ try {
       await suppliedPlanFlow();
       await copperLotsFlow();
       await discardFlow();
+      await besideFlow();
     }
   }
   await migratedSteward();
