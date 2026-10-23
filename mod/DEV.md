@@ -246,3 +246,14 @@ asks claim, as its gap table does:
     Architect);
   - five palette rules in plans recorded before the material-rule prompt (desert_jungle_wall, hidden_village, mage_exiles, old_new_town,
     row_houses) (`NO_FEATURE` prose-only, `TOLERANCE`; not re-recorded).
+
+## Strange asks: the five older palette plans re-recorded (2026-10-23, paid, Noah approved; $0.44)
+`node tools/record-plans.mjs 1` with the plan writer's `over: "lots"` rule (Architect close-out A, v0.42.0): desert_jungle_wall,
+hidden_village, mage_exiles, old_new_town, row_houses ($0.44; the first call uncached at $0.29). Scored with v0.42.0's kit: refused 5 -> 1,
+unsupported 3 -> 1, blocked 0 -> 1.
+- **Palette rules:** row_houses writes its rule `over: "lots"` and fits. The other four, whose asks were tastes ("a mossy palette", "two
+  styles", "a shared stone base"), now put them in the style, as the prompt says, rather than as rules Architect refused `NO_FEATURE`.
+- **mage_exiles:** its enclave is now a 48x48 ring of 12 lots, refused `NO_ROOM` ("no ring layout fits", 13 tried); a path depending on it is
+  blocked. In a real compose the repair round would resize it.
+- **row_houses dropped its `identical_houses` variety rule** (reserved until RC) while its summary still promises identical houses: the
+  silent drop the prompt forbids. One sample, but the prompt now names variety rules among what is still written so it waits.
