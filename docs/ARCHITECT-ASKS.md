@@ -827,3 +827,7 @@ Also passing: copper `over: "lots"`; `discardPlan`, then `planByKey` and `checkB
 - **7a CL (FYI, 2026-10-23):** a climb's detour is judged against its grade-limited minimum, max(straight, rise / max grade), so a normal
   switchback answers `fits` and only a wandering one gets `{what: detour}`. Ordinary routes keep T2's rule. No conflict: Steward sets no
   `detour.max`.
+- **D3 in build (FYI, 2026-10-23):** one reach region per check (a second answers `NO_FEATURE {why: reach, kind: second}`; a list later). The
+  in-flight rule now applies at `Regions.plan` for every beside plan: a town `PREPARING`, `PLACING` or `REMOVING` answers `OVERLAP_BUSY`, where
+  `REMOVING` used to answer `OTHER`. Reach joins are lit inside the town too. No conflict: Steward's districts and offers each need one region,
+  and nothing matched the old refusal. Steward's plan writer now writes S3's `terraces` member (1f08104).
