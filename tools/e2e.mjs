@@ -1509,8 +1509,9 @@ async function suppliedPlanFlow() {
     else fail('beside a town in flight', inFlight ? JSON.stringify(inFlight).slice(0, 240) : 'the town was never seen placing');
     const townNow = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
     const survivalBeside = await besideAsk(id, (townNow?.siteGroup ?? '').replace(/^region:/, ''));
-    if (survivalBeside?.fits) ok('beside a town built from materials', `fits: join ${survivalBeside.join?.kind} (${survivalBeside.join?.step})`);
-    else fail('beside a town built from materials', JSON.stringify(survivalBeside).slice(0, 240));
+    // this town is walled (its own wall.around): a district has no way in until gates join (7a): NO_JOIN, and nothing kept
+    if (!survivalBeside?.fits && /NO_JOIN/.test(String(survivalBeside?.code ?? survivalBeside?.message))) ok('beside a walled town built from materials', String(survivalBeside.message).slice(0, 140));
+    else fail('beside a walled town built from materials', JSON.stringify(survivalBeside).slice(0, 240));
     // undone: every consumed unit back in the stockpile (or dropped and counted as overflow)
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
     const before = sp;
@@ -1690,7 +1691,9 @@ async function besideFlow() {
   else return fail('beside check', JSON.stringify(v).slice(0, 300));
   const c = settlements().find((x) => x.id === id).claim;
   const townBox = [c.centerX - c.radius, 40, c.centerZ - c.radius, c.centerX + c.radius, 140, c.centerZ + c.radius];
-  const hash0 = (await dev.call('dev.region.hash', { box: townBox }, { timeoutMs: 600_000 })).sha256;
+  const snap = path.join(ROOT, 'artifacts', 'e2e', `beside-${id}.snap.gz`);
+  fs.mkdirSync(path.dirname(snap), { recursive: true });
+  await dev.call('dev.region.hash', { box: townBox, mode: 'snap', file: snap }, { timeoutMs: 600_000 });
   // district first: planned under Steward's keys, realised (lots left pads), removed alone: the town's ground as it was
   const key = `steward.e2e.${id}`;
   const plan = await besideAsk(id, town, { check: false, key });
@@ -1701,11 +1704,16 @@ async function besideFlow() {
   const pst = placed?.view?.state ?? placed?.state;
   if (pst === 'PLACED') ok('beside district', `${district} realised beside ${town} (plan ${plan.planId}, key ${key}.drealise)`);
   else return fail('beside district', `${JSON.stringify(r1).slice(0, 200)}; state ${pst}`);
-  await dev.call('dev.region.remove', { region: district }, { timeoutMs: 600_000 });
-  await regionUntil(district, ['REMOVED'], 120_000);
-  const hash1 = (await dev.call('dev.region.hash', { box: townBox }, { timeoutMs: 600_000 })).sha256;
-  if (hash1 === hash0) ok('beside, district removed first', `the town's ground (${townBox[3] - townBox[0] + 1} wide) as it was`);
-  else fail('beside, district removed first', `the town's hash changed: ${hash0?.slice(0, 12)} -> ${hash1?.slice(0, 12)}`);
+  // off the town and the district: a player in a box holds a removal up
+  await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
+  const rm1 = await dev.request('dev.region.remove', { region: district }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  const gone1 = await regionUntil(district, ['REMOVED'], 120_000);
+  if ((gone1?.view?.state ?? gone1?.state) !== 'REMOVED') return fail('beside, district removed first', `the district's removal: ${JSON.stringify(rm1).slice(0, 300)}; state ${gone1?.view?.state ?? gone1?.state}`);
+  await clearAnimals();
+  const diff1 = await dev.call('dev.region.hash', { box: townBox, mode: 'diff', file: snap }, { timeoutMs: 600_000 });
+  const off1 = (diff1.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
+  if (off1.length === 0) ok('beside, district removed first', `the town's ground as it was (${diff1.mismatches} mismatch(es), all grass grazed or spread)`);
+  else fail('beside, district removed first', `${diff1.mismatches} cell(s) differ, e.g. ${off1.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now} (${m.class})`).join('; ').slice(0, 300)}`);
   // town first: the district stands with its join dangling, then goes
   const plan2 = await besideAsk(id, town, { check: false, key: `${key}.2` });
   const r2 = plan2?.planId ? await dev.request('dev.region.realise', { planId: plan2.planId, opKey: `${key}.2.drealise` }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) })) : null;
@@ -1724,9 +1732,10 @@ async function besideFlow() {
   const dstate = after?.view?.state ?? after?.state;
   if (last?.kind === 'PROJECT_REMOVED' && dstate === 'PLACED' && dangling) ok('beside, town removed first', `the town undone; ${d2} stands, its join dangling`);
   else fail('beside, town removed first', `town ${last?.kind}; district ${dstate}; ext ${JSON.stringify(ext).slice(0, 200)}`);
-  await dev.call('dev.region.remove', { region: d2 }, { timeoutMs: 600_000 }).catch(() => null);
+  const rm2 = await dev.request('dev.region.remove', { region: d2 }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
   const gone = await regionUntil(d2, ['REMOVED'], 120_000);
-  if ((gone?.view?.state ?? gone?.state) !== 'REMOVED') fail('beside cleanup', `${d2} not removed`);
+  if ((gone?.view?.state ?? gone?.state) === 'REMOVED') ok('beside, then the district', `${d2} removed after the town`);
+  else fail('beside, then the district', `${d2}: ${JSON.stringify(rm2).slice(0, 300)}; state ${gone?.view?.state ?? gone?.state}`);
 }
 
 /**
