@@ -824,3 +824,6 @@ Also passing: copper `over: "lots"`; `discardPlan`, then `planByKey` and `checkB
 - **CL's climb deviation** `{what: 'climb', value: <rise>, kind: 'walk', rise}`: OK. Steward shows deviations and doesn't parse `value`.
 - Noted: `span_bridge` answers as `connector.bridge`; `rail` stays reserved until CR. v0.42.0 (close-outs A and B, the stage-hold and
   floating-log fixes) is in final release testing, with its tag after Noah approves.
+- **7a CL (FYI, 2026-10-23):** a climb's detour is judged against its grade-limited minimum, max(straight, rise / max grade), so a normal
+  switchback answers `fits` and only a wandering one gets `{what: detour}`. Ordinary routes keep T2's rule. No conflict: Steward sets no
+  `detour.max`.
