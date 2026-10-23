@@ -806,3 +806,12 @@ copper `over: "lots"` (fits; over everything `TOLERANCE`), `discardPlan` of a ca
 5. one sentence per part: deduped at the source.
 Steward's side added meanwhile: a held stage is said once and `/steward approve` builds it as planned (`APPROVE_STAGE`); a region waiting for
 its ground says where to come nearer. Re-run on the new head when 1, 3 and 5 are in.
+
+**Close-out A RC re-run (slice/close-out-a fba370c2, findings 1, 3 and 5 fixed; jar built by Steward), 2026-10-22: pass.** Free 42; stub 71/72,
+the one miss Steward's own probe (`dev.coa.artifact` lists pins' owners, not keys or times), reworded on `coa-rc` and shown passing by the
+run's own log. In the Supplied plan flow:
+- restart mid-build, then the plan used again at the resume (pinned before and after);
+- the stale retry under one key;
+- no stage hold (every drift check ok), on to `build.done` (5,550 fed, 5,550 refunded);
+- stage waits said once in the new words ("The town's street waits for the town to be built").
+Also passing: copper `over: "lots"`; `discardPlan`, then `planByKey` and `checkByKey` both empty; the grove (no floating log).
