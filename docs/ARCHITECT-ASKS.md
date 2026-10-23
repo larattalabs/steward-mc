@@ -833,3 +833,9 @@ Also passing: copper `over: "lots"`; `discardPlan`, then `planByKey` and `checkB
   and nothing matched the old refusal. Steward's plan writer now writes S3's `terraces` member (1f08104).
 - **7a K2 (2026-10-23):** the siteplan gains a node kind `access` (a wall walk's access point). Safe for Steward: it reads only siteplan edges
   with a `crossing` (`Composer.crossings`), never node kinds. Along walls on stepped shores level a gate landing so their gates are walkable.
+
+**v0.42.0 (API 1.39.0: close-outs A and B, the survival stage-hold baseline, giant trees without an unsupported log; catalogue 12), checked
+after release 2026-10-23: pass** (stub 72, free 42). Steward needs >= 0.42.0; close-out A's Steward side merged (6e7f9c3). The first stub's
+one miss, 5 grass cells dirt after the grove's undo, was sheep grazing at cells the region never wrote (Architect traced it from the save's
+entities). The grove flow now clears animals once the build has loaded its chunks, and classes grass grazed or spread (`growth`/`grazed`) at
+a column the oak never wrote as the world's change; anything else still fails.
