@@ -41,7 +41,8 @@ Writing the plan:
   when the catalogue supports it; floors stacked in one tower, or a layout it reserves, is written as the kind it reserves so it waits. It is
   never just left out, and what waits is said in `waits`.
 - **Water.** A farm the card treats as a pretty, homely one (a kitchen garden, a farmstead) gets its little pond: set `farmPond: true` on its lot. A
-  working or automated farm needs watering laid out across its field, which Architect can't build yet: leave the pond off and say so in `waits`.
+  working or automated farm (crops in rows at scale) is watered across its field instead: set `irrigate: true` on its lot (a source in each
+  9x9 of the field) and leave the pond off.
   Ponds, fountains, moats and quays are their own parts (forms and channels) where the card asks for them. Running water is a channel too, where the
   card asks for it: a stream or canal from higher ground to lower (`channel.course`: from, via, to; `look` natural or built), a mill race past a mill's
   lot (a course with the lot in `via`), an irrigation ditch along a field (`channel.ditch`, `where.along` the lot). A course that crosses a wall gets
