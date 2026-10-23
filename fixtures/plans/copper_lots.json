@@ -1,0 +1,63 @@
+{
+  "prompt": "A town built with no wood at all (VOC-c, rule.palette).",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "copper_lots",
+      "style": {
+        "pending": "stone_town"
+      },
+      "zones": [
+        {
+          "id": "town",
+          "kind": "standard",
+          "required": true,
+          "label": "the stone town",
+          "program": {
+            "template": "flat_village",
+            "params": {
+              "lots": [
+                {
+                  "id": "cottage_1",
+                  "type": "cottage",
+                  "role": "cottage",
+                  "label": "a stone cottage",
+                  "size": [
+                    13,
+                    14
+                  ]
+                },
+                {
+                  "id": "cottage_2",
+                  "type": "cottage",
+                  "role": "cottage",
+                  "label": "a stone cottage",
+                  "size": [
+                    13,
+                    14
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "rules": [
+        {
+          "id": "copper_only",
+          "kind": "palette",
+          "family": "copper",
+          "share": [
+            1,
+            1
+          ],
+          "required": true,
+          "label": "copper buildings",
+          "over": "lots"
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A hamlet of copper buildings on plain streets."
+  }
+}
