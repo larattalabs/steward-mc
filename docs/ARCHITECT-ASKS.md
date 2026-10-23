@@ -791,3 +791,16 @@ free 42). Steward needs >= 0.41.0; `f3-rc` and `supplied-plan` merged (5c842ff):
 - **Close-out A §14 (wording fix, 2026-10-22):** C20 stands. A `REMOVED` region frees its realise key, so the same key realises afresh after an
   undo. Nothing on Steward's side relied on the old wording: its keys are build-scoped, and `findVillage` drops `REMOVED`. A build whose region
   was removed by hand mid-placing now realises a fresh one when it resumes.
+
+**Close-out A RC (slice/close-out-a 179b8f92, jar built by Steward; 5ede11ff docs only), first run 2026-10-22: free 42, stub 61/63** on
+Steward branch `coa-rc`. Working: the stale retry under one key (`ce9e0eb8` → `0c11af7f`, both under `.vrealise`), the re-pin at a restart,
+copper `over: "lots"` (fits; over everything `TOLERANCE`), `discardPlan` of a cancelled flat village, stage waits said. Findings, all Architect's
+(coordinator's plan):
+1. a survival region's props stage held for drift after a stale retry (93.6% within 2): close-out A fixes it before merge, a 0.41.x patch if
+   RS had it;
+2. `/architect survival off` under a building region generated about 1,000 chunks outside its claim: a separate fix, 0.41.1 if 0.41.0 has it;
+3. wait wording: roads by their route's label or "the street"/"the road", a zone named like the town "the town";
+4. the grove oak had one floating log: a fix agent is on the seed;
+5. one sentence per part: deduped at the source.
+Steward's side added meanwhile: a held stage is said once and `/steward approve` builds it as planned (`APPROVE_STAGE`); a region waiting for
+its ground says where to come nearer. Re-run on the new head when 1, 3 and 5 are in.
