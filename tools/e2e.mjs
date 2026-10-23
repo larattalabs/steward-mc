@@ -1463,13 +1463,15 @@ async function suppliedPlanFlow() {
     const retried = realises.find((r) => r[3] === 'after a re-check');
     const keys = new Set(realises.map((r) => r[2]));
     const left = await Promise.all([...new Set(realises.map((r) => r[1]))].map(async (sha) => [sha.slice(0, 8), await pinsOf(sha)]));
-    const keyedLeft = left.filter(([, p]) => /vrealise/.test(p));
-    if (sha0 && pinBefore && /vrealise/.test(pinBefore) && pinAfter && pinAfter !== pinBefore) ok('keyed pin used again', `${sha0.slice(0, 8)}: ${pinBefore.slice(0, 90)} -> ${pinAfter.slice(0, 90)}`);
-    else fail('keyed pin used again', `artifact ${sha0}; before ${pinBefore}; after ${pinAfter}`);
+    // (dev.coa.artifact lists the pins' owners, not their keys or times: the use at the restart is Steward's log line, the pin there before and after)
+    const usedAgain = new RegExp(`resume ${id}: plan [^\\n]* used again`).test(said());
+    const pinnedLeft = left.filter(([, p]) => p && p.includes(owner));
+    if (sha0 && pinBefore?.includes(owner) && pinAfter?.includes(owner) && usedAgain) ok('plan pinned across the restart', `${sha0.slice(0, 8)} pinned before and after, and used again at the resume`);
+    else fail('plan pinned across the restart', `artifact ${sha0}; before ${pinBefore}; after ${pinAfter}; used again ${usedAgain}`);
     if (retried && keys.size === 1 && /\.vrealise$/.test([...keys][0]) && /land under the plan changed/.test(said())) ok('stale retry, one key', `${realises.length} realises under ${[...keys][0]}, the second after a re-check`);
     else fail('stale retry, one key', `${realises.map((r) => `${r[1].slice(0, 8)} ${r[2]} ${r[3]}`).join('; ') || 'no realise logged'}`);
-    if (keyedLeft.length === 0 && left.length) ok('keyed pins ended', left.map(([s8, p]) => `${s8} ${p}`).join('; ').slice(0, 200));
-    else fail('keyed pins ended', `still keyed: ${keyedLeft.map(([s8, p]) => `${s8} ${p}`).join('; ')}`);
+    if (pinnedLeft.length === 0 && left.length) ok('pins let go', `${left.map(([s8]) => s8).join(', ')}: no pin of this settlement left once realised`);
+    else fail('pins let go', `still pinned: ${pinnedLeft.map(([s8, p]) => `${s8} ${p}`).join('; ')}`);
     const stageSaid = said().match(/\] The [^\n]*? waits for [^\n]*? to be built\.[^\n]*/);
     if (stageSaid) ok('stage wait said', stageSaid[0].slice(0, 160));
     const doneSaid = await waitLog(from, new RegExp(`${'Supply Walls'} is built: everything its plan laid out stands`), 600_000);
