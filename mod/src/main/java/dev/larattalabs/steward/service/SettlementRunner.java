@@ -2069,7 +2069,7 @@ public final class SettlementRunner {
 		// a stage wait (built from materials: a part waits for the parts it stands on): Architect's own sentence, said once
 		String stage = stageWait(e.ext());
 		if (stage != null) {
-			if (saidWaits.add(e.itemKey() + "|" + stage)) say(stage + ".");
+			if (saidWaits.add(stage)) say(stage + ".");
 			return;
 		}
 		String what = BatchPlanner.isStreet(e.itemKey()) ? "street" : java.util.Optional.ofNullable(extString(e.ext(), "steward_mc:role")).orElse(e.itemKey().replace('_', ' '));
@@ -2084,7 +2084,7 @@ public final class SettlementRunner {
 		}
 	}
 
-	/** Stage waits said this session (item and sentence), so each is said once. */
+	/** Stage waits said this session (each sentence once: several items of a part wait alike). */
 	private final Set<String> saidWaits = new java.util.HashSet<>();
 
 	/** A stage wait's sentence ({@code architect_mc:waitsFor.say}: "the street waits for the town wall to be built"), capitalised; else null. */

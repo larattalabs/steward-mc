@@ -1574,11 +1574,18 @@ async function discardFlow() {
     await sleep(1000);
   }
   await cmd(`/steward cancel ${id}`);
-  const discarded = await waitLog(from, new RegExp(`discarded the village plan (\\S+) of ${id}`), 60_000);
+  const discarded = await waitLog(from, new RegExp(`discarded the village plan (\\S+) of ${id}'s ended build (\\S+)`), 60_000);
   if (!discarded) return fail('discard', `no plan discarded after the cancel; ${logSince(from).split('\n').filter((l) => /discard|cancel/i.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
   const files = await dev.call('dev.coa.planFiles', { planId: discarded[1] }).catch((e) => ({ error: String(e) }));
   if (files.discarded && !files.plan) ok('discard', `the cancelled build's village plan ${discarded[1]} discarded (its tombstone kept)`);
   else fail('discard', `plan ${discarded[1]}: ${JSON.stringify(files).slice(0, 200)}`);
+  // nothing answers for its key any more: no plan by key, no check record by key (the verifier's fix, 5cd766d4)
+  const owner = `steward_mc:settlement/${id}`, key = `steward.${discarded[2]}.vplan`;
+  const byKey = await dev.call('dev.coa.planByKey', { owner, opKey: key }).catch((e) => ({ error: String(e) }));
+  const checkByKey = await dev.request('dev.region.checkByKey', { owner, opKey: key }).catch((e) => ({ error: String(e) }));
+  const noCheck = !checkByKey?.check && !checkByKey?.checkId && !checkByKey?.artifactSha;
+  if (!byKey?.planId && noCheck) ok('discard by key', `${key}: no plan, no check`);
+  else fail('discard by key', `${key}: planByKey ${JSON.stringify(byKey).slice(0, 120)}; checkByKey ${JSON.stringify(checkByKey).slice(0, 120)}`);
 }
 
 /**
