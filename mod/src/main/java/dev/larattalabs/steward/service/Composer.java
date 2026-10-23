@@ -179,6 +179,22 @@ public final class Composer {
 		return false;
 	}
 
+	/**
+	 * (Architect close-out A) A part blocked because it ends on a lot or district its zone couldn't place ({@code DEPENDENCY {kind: unplaced}}): that piece in
+	 * words ("market hall 1"); else null.
+	 */
+	static @Nullable String unplacedEnd(JsonObject part) {
+		if (!part.has("reasons") || !part.get("reasons").isJsonArray()) return null;
+		for (var r : part.getAsJsonArray("reasons")) {
+			if (!r.isJsonObject() || !r.getAsJsonObject().has("evidence") || !r.getAsJsonObject().get("evidence").isJsonObject()) continue;
+			var ev = r.getAsJsonObject().getAsJsonObject("evidence");
+			if (!ev.has("kind") || !"unplaced".equals(ev.get("kind").getAsString())) continue;
+			String piece = ev.has("lot") ? ev.get("lot").getAsString() : ev.has("district") ? ev.get("district").getAsString() : null;
+			if (piece != null) return piece.replace('_', ' ');
+		}
+		return null;
+	}
+
 	/** Keeps the plan and tells the player: the summary, then what waits in Claude's words, then what still didn't fit in Architect's. */
 	private static void keep(MinecraftServer server, UUID player, Settlement s, JsonObject plan, JsonObject answer, PlanCheck c, double cost, int rounds) {
 		Map<String, String> words = new HashMap<>();
@@ -190,7 +206,8 @@ public final class Composer {
 			boolean required = part.has("required") && part.get("required").getAsBoolean();
 			switch (cls(part)) {
 				case "unsupported", "blocked" -> pending.add(new PlanStore.Pending(id, part.has("block") ? part.get("block").getAsString() : "", required,
-					words.getOrDefault(id, id.replace('_', ' ') + " waits for a later Architect release")));
+					words.getOrDefault(id, unplacedEnd(part) != null ? id.replace('_', ' ') + " waits on " + unplacedEnd(part) + ", which there wasn't room to place"
+						: id.replace('_', ' ') + " waits for a later Architect release")));
 				case "refused", "malformed" -> unfit.add(id.replace('_', ' ') + (part.has("reason") ? " (" + part.get("reason") + ")" : ""));
 				default -> {
 				}

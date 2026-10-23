@@ -200,6 +200,16 @@ public final class SettlementRunner {
 	/** Approves whatever is waiting: the style bible, every awaiting massing, or the placement. Returns what happened, for the command's feedback. */
 	public String approve() {
 		if (state == null) return "Nothing is waiting for you yet.";
+		// the village's region holds a stage (the land changed under it since the plan): built as planned on the player's word
+		if (heldStage != null && vRegionId != null) {
+			String stage = heldStage, region = vRegionId;
+			ArchitectApi.get().regions().nudge(region, dev.larattalabs.architect.api.WaitAction.Kind.APPROVE_STAGE).whenComplete((r, err) -> server.execute(() -> {
+				if (err != null) say("Architect would not go on with the " + stage + " stage: " + message(err));
+				else if (!r.done()) say("Architect would not go on with the " + stage + " stage: " + r.message());
+				else heldStage = null;
+			}));
+			return "Approved: the " + stage + " stage is built as planned.";
+		}
 		return switch (Pipeline.awaiting(state)) {
 			case BIBLE -> { feed(new Pipeline.BibleApproved()); yield "Approved the style bible; designing the buildings."; }
 			case MASSINGS -> {
@@ -403,6 +413,8 @@ public final class SettlementRunner {
 		List<String> placed = placedSites(sites);
 		// no decision is in flight after a restart: one that reached Architect is no longer awaiting, one that did not is asked for (or made) again
 		decided.clear();
+		// a village's plan, used again: Architect sweeps what goes unused (close-out A), and this build may still wait on the player for weeks
+		if (village()) touchPlan();
 		// a village's placement is its region: read again, found by the build's tag, or realised when it never was. Architect keeps its regions over a
 		// restart, so a placement approved but not found was never realised: it is realised now, with the designs already made
 		if (village() && switch (state.phase()) { case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING -> true; default -> false; }) {
@@ -1074,7 +1086,7 @@ public final class SettlementRunner {
 				var waits = PlanStore.get(settlement.id()).map(PlanStore.Entry::pending).orElse(List.of());
 				if (!waits.isEmpty()) say("Built now without " + String.join(", ", waits.stream().map(w -> w.part().replace('_', ' ')).toList()) + ": "
 					+ (waits.size() == 1 ? "it waits" : "they wait") + " for Architect.");
-				ArchitectApi.get().regions().pinArtifact(c.artifactSha(), settlement.owner());
+				pin(c.artifactSha());
 				vPlanId = dev.larattalabs.steward.gateway.PPlan.ARTIFACT_PREFIX + c.artifactSha();
 				plan = dev.larattalabs.steward.gateway.PPlan.toPlan(lots.get(), built);
 				Steward.LOGGER.info("plan of {}: artifact {}, {} lots ({} unplaced), fronts {}", settlement.id(), c.artifactSha(), plan.lots().size(), plan.unplaced().size(),
@@ -1741,7 +1753,8 @@ public final class SettlementRunner {
 	private void realiseArtifact(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
 		var regions = ArchitectApi.get().regions();
 		Map<String, String> fitting = palette(sha, fitting(sha, lotEntries));
-		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey(first ? "vrealise" : "vrealise2"), ext))
+		Steward.LOGGER.info("realise {}: artifact {} under key {} ({})", settlement.id(), sha, opKey("vrealise"), first ? "first" : "after a re-check");
+		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext))
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
@@ -1767,7 +1780,7 @@ public final class SettlementRunner {
 					if (no != null) { realised(null, new IllegalStateException(no), session); return; }
 					String next = c.artifactSha();
 					// saved with the build before the old one is let go (a crash between keeps a target to resume from); the same sha keeps its pin
-					regions.pinArtifact(next, settlement.owner());
+					pin(next);
 					String before = vPlanId;
 					vPlanId = dev.larattalabs.steward.gateway.PPlan.RETRIED_PREFIX + next;
 					if (!persist()) {
@@ -1856,14 +1869,55 @@ public final class SettlementRunner {
 		return out;
 	}
 
-	/** The build's pin on its approved artifact, let go (a region realised from it keeps it; a build that ended has no more use for it). */
+	/**
+	 * The build's hold on its plan, let go (a region realised from it keeps it; a build that ended has no more use for it): the pin on its approved artifact;
+	 * a flat village's plan never realised is discarded (Architect close-out A), so it doesn't wait for the sweep.
+	 */
 	private void releasePin() {
+		if (settlement == null || vPlanId == null) return;
 		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
-		if (sha == null || settlement == null) return;
 		try {
-			ArchitectApi.get().regions().unpinArtifact(sha, settlement.owner());
+			if (sha != null) ArchitectApi.get().regions().unpinArtifact(sha, settlement.owner());
+			else if (vRegionId == null) {
+				String planId = vPlanId;
+				ArchitectApi.get().regions().discardPlan(planId).whenComplete((done, err) -> {
+					if (err != null) Steward.LOGGER.info("village plan {} of {} not discarded: {}", planId, settlement.id(), message(err));
+					else if (Boolean.TRUE.equals(done)) Steward.LOGGER.info("discarded the village plan {} of {}'s ended build {}", planId, settlement.id(), buildId);
+				});
+			}
+		} catch (UnsupportedOperationException | LinkageError e) {
+			// an Architect without discardPlan: its sweep takes the plan
 		} catch (RuntimeException e) {
-			Steward.LOGGER.warn("could not let go of artifact {} for {}", sha, settlement.id(), e);
+			Steward.LOGGER.warn("could not let go of the plan {} for {}", vPlanId, settlement.id(), e);
+		}
+	}
+
+	/**
+	 * Pins an approved artifact under this build's realise key (Architect close-out A): the realise under the key ends the pin by itself, and a pin unused
+	 * for 30 days is swept; on an older Architect, a plain pin.
+	 */
+	private void pin(String sha) {
+		var regions = ArchitectApi.get().regions();
+		try {
+			regions.pinArtifact(sha, settlement.owner(), opKey("vrealise"));
+		} catch (UnsupportedOperationException | LinkageError e) {
+			regions.pinArtifact(sha, settlement.owner());
+		}
+	}
+
+	/**
+	 * At a world start, a resumed village build uses its plan again, so Architect's sweep (by last use, close-out A) never takes a plan a build still waits on
+	 * (the player's approvals may take weeks): its artifact pinned again, a flat village's plan looked up by its key.
+	 */
+	private void touchPlan() {
+		if (vPlanId == null || vRegionId != null || settlement == null) return;
+		try {
+			String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
+			if (sha != null) pin(sha);
+			else ArchitectApi.get().regions().planByKey(settlement.owner(), opKey("vplan"));
+			Steward.LOGGER.info("resume {}: plan {} used again (kept from Architect's sweep)", settlement.id(), vPlanId);
+		} catch (RuntimeException | LinkageError e) {
+			Steward.LOGGER.warn("could not use the plan {} of {} again", vPlanId, settlement.id(), e);
 		}
 	}
 
@@ -1930,12 +1984,33 @@ public final class SettlementRunner {
 		return VillageSweep.sitesOf(server, settlement.owner(), regionId);
 	}
 
+	/** A stage of the village's region Architect holds for the player's word (the land changed under it since the plan), or null. */
+	private @org.jspecify.annotations.Nullable String heldStage;
+	/** The region waits already said (a held stage, a place to come nearer to), so each is said once. */
+	private final Set<String> saidRegionWaits = new java.util.HashSet<>();
+
 	/** Reads the village's state while it is placed; once placed (wholly or in part), its sites are logged under the region and the build ends. */
 	void watchVillage() {
 		if (!village() || vRegionId == null || state == null || !alive()) return;
 		if (state.phase() != Pipeline.Phase.PLACING && state.phase() != Pipeline.Phase.READY_TO_PLACE) return;
 		var v = ArchitectApi.get().regions().get(vRegionId);
 		if (v.isEmpty()) return;
+		// what the region waits for that the player can act on (Architect's wait actions): a held stage, a place to come nearer to
+		String held = null;
+		for (var a : v.get().actions()) {
+			switch (a.kind()) {
+				case APPROVE_STAGE -> held = a.detail() != null ? a.detail() : "next";
+				case MOVE_CLOSER -> {
+					if (a.target() != null && saidRegionWaits.add("near " + a.target().getX() + "," + a.target().getZ()))
+						say("The village waits for its ground to load: come nearer to " + a.target().getX() + ", " + a.target().getZ() + ".");
+				}
+				default -> {
+				}
+			}
+		}
+		heldStage = held;
+		if (held != null && saidRegionWaits.add("stage " + held)) say("The land changed under the plan since it was checked, so Architect holds the " + held
+			+ " stage. /steward approve " + settlement.id() + " builds it as planned; undo takes the village up.");
 		var st = v.get().state();
 		if (st != dev.larattalabs.architect.api.RegionState.PLACED && st != dev.larattalabs.architect.api.RegionState.PARTIAL
 			&& st != dev.larattalabs.architect.api.RegionState.FAILED) return;
@@ -2018,9 +2093,16 @@ public final class SettlementRunner {
 
 	/** A queued item of this build waits for a temporary blocker (Architect fires it when the reason changes; it waits up to 10 minutes). */
 	private void onItemWaiting(dev.larattalabs.architect.api.ItemEvent e) {
-		// a batch build's by its batch; a region's (its items queued by Architect) by the build tag on its lots
-		boolean ours = batchId != null && batchId.equals(e.batchId()) || buildId != null && buildId.equals(extString(e.ext(), BatchPlanner.BUILD_EXT));
+		// a batch build's by its batch; a region's by the build tag on its lots, or by the region its tiles and roads name (Architect close-out A)
+		boolean ours = batchId != null && batchId.equals(e.batchId()) || buildId != null && buildId.equals(extString(e.ext(), BatchPlanner.BUILD_EXT))
+			|| vRegionId != null && vRegionId.equals(extString(e.ext(), "architect_mc:region"));
 		if (!ours || e.reason().isEmpty()) return;
+		// a stage wait (built from materials: a part waits for the parts it stands on): Architect's own sentence, said once
+		String stage = stageWait(e.ext());
+		if (stage != null) {
+			if (saidWaits.add(stage)) say(stage + ".");
+			return;
+		}
 		String what = BatchPlanner.isStreet(e.itemKey()) ? "street" : java.util.Optional.ofNullable(extString(e.ext(), "steward_mc:role")).orElse(e.itemKey().replace('_', ' '));
 		String in = e.message().replaceFirst("(?s).*in the box: ", "").replaceFirst("\\s*\\(.*", "").strip();
 		switch (e.reason().get()) {
@@ -2031,6 +2113,18 @@ public final class SettlementRunner {
 			default -> {
 			}
 		}
+	}
+
+	/** Stage waits said this session (each sentence once: several items of a part wait alike). */
+	private final Set<String> saidWaits = new java.util.HashSet<>();
+
+	/** A stage wait's sentence ({@code architect_mc:waitsFor.say}: "the street waits for the town wall to be built"), capitalised; else null. */
+	static @org.jspecify.annotations.Nullable String stageWait(com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext) {
+		if (ext == null || !ext.has("architect_mc:waitsFor") || !ext.get("architect_mc:waitsFor").isJsonObject()) return null;
+		var w = ext.getAsJsonObject("architect_mc:waitsFor");
+		if (!w.has("say") || !w.get("say").isJsonPrimitive()) return null;
+		String t = w.get("say").getAsString().strip();
+		return t.isEmpty() ? null : Character.toUpperCase(t.charAt(0)) + t.substring(1);
 	}
 
 	private void onBatchDone(BatchView b) {

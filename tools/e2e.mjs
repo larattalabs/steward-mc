@@ -1226,7 +1226,7 @@ async function wallOfferFlow() {
  * Drives one build through its decisions until it is built: approves the style bible, the massings and the placement as each comes (Proposals level), with
  * a restart at the massings when asked. Returns the steps seen, or null when it stalls.
  */
-async function buildThrough(id, from, label, restartAtMassings = false) {
+async function buildThrough(id, from, label, restartAtMassings = false, onStep = null) {
   const steps = [];
   // past Architect's 600 s wait for a blocked item (so a blocked item fails and is reported, rather than the check giving up first)
   const end = Date.now() + 720_000;
@@ -1244,20 +1244,24 @@ async function buildThrough(id, from, label, restartAtMassings = false) {
       fail(label, stopped[0]);
       return null;
     }
-    const m = since.match(/Style bible ready|massings are ready|Approve to place/);
+    // (a held stage: the land changed under the plan since its check; the player's word builds it as planned)
+    const m = since.match(/Style bible ready|massings are ready|Approve to place|Architect holds the \S+ stage/);
     if (!m) {
       await sleep(1000);
       continue;
     }
     steps.push(m[0]);
     if (m[0] === 'massings are ready' && restartAtMassings) {
+      if (onStep) await onStep('restart-before');
       await quit();
       launch();
       await connect();
+      if (onStep) await onStep('restart-after');
       if (await waitLog(0, new RegExp(`resume ${id}: [^\\n]*-> REREAD_GROUP`), 30_000)) ok('restart mid-build', label);
       else fail('restart mid-build', `${label}: no re-read`);
       restartAtMassings = false;
     }
+    if (onStep) await onStep(m[0]);
     at = logSize();
     await cmd(`/steward approve ${id}`);
   }
@@ -1422,9 +1426,30 @@ async function suppliedPlanFlow() {
         await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
       }
     })();
-    const built = await buildThrough(id, from, 'supplied plan');
+    // (Architect close-out A) a restart at the massings: the build's plan is used again (its keyed pin re-pinned); then, before placing, a pillar on the
+    // plan's land makes its artifact stale: re-checked, and realised under the same key
+    let sha0 = null, pinBefore = null, pinAfter = null, staled = false;
+    // the game's log starts afresh at the restart: what it said before is kept, and the new log read from its start
+    let pre = '';
+    const said = () => pre + logSince(from);
+    const pinsOf = async (sha) => JSON.stringify((await dev.call('dev.coa.artifact', { sha }).catch(() => ({})))?.pins ?? null);
+    const onStep = async (step) => {
+      if (step === 'restart-before') {
+        pre = logSince(from);
+        sha0 = pre.match(new RegExp(`plan of ${id}: artifact ([0-9a-f]{64})`))?.[1] ?? null;
+        if (sha0) pinBefore = await pinsOf(sha0);
+      } else if (step === 'restart-after') {
+        from = 0;
+        await waitLog(0, new RegExp(`resume ${id}: plan [^\n]* used again`), 60_000);
+        if (sha0) pinAfter = await pinsOf(sha0);
+      } else if (step === 'Approve to place' && !staled) {
+        staled = true;
+        for (const y of [65, 66, 67]) await cmd(`/setblock ${claim.centerX + 12} ${y} ${claim.centerZ} minecraft:cobblestone`);
+      }
+    };
+    const built = await buildThrough(id, from, 'supplied plan', true, onStep);
     if (!built) { stop = true; await feeder; return; }
-    const log = logSince(from);
+    const log = said();
     const bill = log.match(/From materials, the plan's ground, streets and parts need [^\n]*/);
     const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
     const area = (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
@@ -1432,11 +1457,28 @@ async function suppliedPlanFlow() {
     if (bill && /^region:/.test(placed?.siteGroup ?? '') && /Laying out the village from its plan/.test(log)) ok('supplied plan', `${bill[0].slice(0, 150)}; placed from the plan (${placed.siteGroup}), round the stockpile's area ${area.x0},${area.z0}..${area.x1},${area.z1}`);
     else { stop = true; await feeder; return fail('supplied plan', `bill ${bill ? 'said' : 'not said'}; history ${placed?.siteGroup}; ${(log.match(/Laying out[^\n]*/) ?? ['no plan layout'])[0]}`); }
     // fully built from the stockpile: Architect's build is done, and the steward says so
+    // close-out A: the keyed pin used again at the restart (its time moved), the stale artifact re-checked and realised under the same key, and every
+    // keyed pin of that key ended by the realise
+    const realises = [...said().matchAll(new RegExp(`realise ${id}: artifact ([0-9a-f]{64}) under key (\\S+) \\((first|after a re-check)\\)`, 'g'))];
+    const retried = realises.find((r) => r[3] === 'after a re-check');
+    const keys = new Set(realises.map((r) => r[2]));
+    const left = await Promise.all([...new Set(realises.map((r) => r[1]))].map(async (sha) => [sha.slice(0, 8), await pinsOf(sha)]));
+    // (dev.coa.artifact lists the pins' owners, not their keys or times: the use at the restart is Steward's log line, the pin there before and after)
+    const usedAgain = new RegExp(`resume ${id}: plan [^\\n]* used again`).test(said());
+    const pinnedLeft = left.filter(([, p]) => p && p.includes(owner));
+    if (sha0 && pinBefore?.includes(owner) && pinAfter?.includes(owner) && usedAgain) ok('plan pinned across the restart', `${sha0.slice(0, 8)} pinned before and after, and used again at the resume`);
+    else fail('plan pinned across the restart', `artifact ${sha0}; before ${pinBefore}; after ${pinAfter}; used again ${usedAgain}`);
+    if (retried && keys.size === 1 && /\.vrealise$/.test([...keys][0]) && /land under the plan changed/.test(said())) ok('stale retry, one key', `${realises.length} realises under ${[...keys][0]}, the second after a re-check`);
+    else fail('stale retry, one key', `${realises.map((r) => `${r[1].slice(0, 8)} ${r[2]} ${r[3]}`).join('; ') || 'no realise logged'}`);
+    if (pinnedLeft.length === 0 && left.length) ok('pins let go', `${left.map(([s8]) => s8).join(', ')}: no pin of this settlement left once realised`);
+    else fail('pins let go', `still pinned: ${pinnedLeft.map(([s8, p]) => `${s8} ${p}`).join('; ')}`);
+    const stageSaid = said().match(/\] The [^\n]*? waits for [^\n]*? to be built\.[^\n]*/);
+    if (stageSaid) ok('stage wait said', stageSaid[0].slice(0, 160));
     const doneSaid = await waitLog(from, new RegExp(`${'Supply Walls'} is built: everything its plan laid out stands`), 600_000);
     stop = true;
     await feeder;
     const sp = await ledger();
-    const asked = logSince(from).match(/\[Supply Walls\] The [^\n]*? waits for materials: [^\n]*/);
+    const asked = said().match(/\[Supply Walls\] The [^\n]*? waits for materials: [^\n]*/);
     if (asked && halfAccepted > 0 && paused > 0) ok('supplied plan wait', `${halfAccepted} units fed, then paused owing ${paused}; ${asked[0].slice(0, 160)}`);
     else fail('supplied plan wait', `named ${asked ? 'yes' : 'no'}; half accepted ${halfAccepted}; owing 20 s after it ${paused}`);
     if (doneSaid) ok('supplied plan built', `${units(sp?.delivered)} delivered, ${units(sp?.consumed)} consumed`);
@@ -1462,6 +1504,96 @@ async function suppliedPlanFlow() {
     await cmd('/defaultgamemode creative');
     await cmd('/architect survival off');
   }
+}
+
+/**
+ * (Architect close-out A) A material rule over the buildings alone: "copper buildings" (`over: "lots"`), the town's streets free. Checked, the rule fits
+ * (measured over everything it would be refused: the streets aren't copper); the stub's timber designs break it, so the pre-check leaves them pads.
+ */
+async function copperLotsFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 42000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Copper Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'copper_lots.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a hamlet of copper buildings`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('copper lots', 'no card');
+  const composed = await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after[^\n]*`), 240_000);
+  if (composed && / 0 pending, 0 unfit/.test(composed[0])) ok('copper lots', `${composed[0].slice(0, 120)}: the rule over the buildings fits, the streets free`);
+  else return fail('copper lots', composed ? composed[0] : 'no plan composed');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  await cmd('/tp @p ~ ~ ~90');
+  const built = await buildThrough(id, from, 'copper lots');
+  if (!built) return;
+  const padded = logSince(from).match(/(\S+) is left a pad: its design breaks the plan's rule on copper[^\n]*/);
+  if (padded) ok('copper lots pre-check', padded[0].slice(0, 140));
+  else fail('copper lots pre-check', 'no lot left a pad for the copper rule');
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 60 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  if (last?.kind !== 'PROJECT_REMOVED') fail('copper lots undo', `last op ${last?.kind}`);
+}
+
+/**
+ * (Architect close-out A) A flat village's plan, never realised, is discarded when its build is cancelled (not left for the sweep).
+ */
+async function discardFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 45000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Discard Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little hamlet`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('discard', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  // the bible approved; at the massings, the build is cancelled before anything is placed
+  const end = Date.now() + 300_000;
+  let at = from;
+  while (Date.now() < end) {
+    const since = logSince(at);
+    if (/massings are ready/.test(since)) break;
+    if (/Style bible ready/.test(since)) { at = logSize(); await cmd(`/steward approve ${id}`); }
+    await sleep(1000);
+  }
+  await cmd(`/steward cancel ${id}`);
+  const discarded = await waitLog(from, new RegExp(`discarded the village plan (\\S+) of ${id}'s ended build (\\S+)`), 60_000);
+  if (!discarded) return fail('discard', `no plan discarded after the cancel; ${logSince(from).split('\n').filter((l) => /discard|cancel/i.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+  const files = await dev.call('dev.coa.planFiles', { planId: discarded[1] }).catch((e) => ({ error: String(e) }));
+  if (files.discarded && !files.plan) ok('discard', `the cancelled build's village plan ${discarded[1]} discarded (its tombstone kept)`);
+  else fail('discard', `plan ${discarded[1]}: ${JSON.stringify(files).slice(0, 200)}`);
+  // nothing answers for its key any more: no plan by key, no check record by key (the verifier's fix, 5cd766d4)
+  const owner = `steward_mc:settlement/${id}`, key = `steward.${discarded[2]}.vplan`;
+  const byKey = await dev.call('dev.coa.planByKey', { owner, opKey: key }).catch((e) => ({ error: String(e) }));
+  const checkByKey = await dev.request('dev.region.checkByKey', { owner, opKey: key }).catch((e) => ({ error: String(e) }));
+  const noCheck = !checkByKey?.check && !checkByKey?.checkId && !checkByKey?.artifactSha;
+  if (!byKey?.planId && noCheck) ok('discard by key', `${key}: no plan, no check`);
+  else fail('discard by key', `${key}: planByKey ${JSON.stringify(byKey).slice(0, 120)}; checkByKey ${JSON.stringify(checkByKey).slice(0, 120)}`);
 }
 
 /**
@@ -1773,6 +1905,8 @@ try {
       await planCheckFlow();
       await survivalFlow();
       await suppliedPlanFlow();
+      await copperLotsFlow();
+      await discardFlow();
     }
   }
   await migratedSteward();

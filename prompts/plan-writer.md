@@ -52,7 +52,10 @@ Writing the plan:
   rebuilt.
 - **Material rules.** A hard rule on what the settlement is made of ("only copper", "no wood", "all of stone") is a `rules` part of kind `palette`:
   `family` from the block vocabulary given with these instructions (a family or a group, such as `wood`), `share` [1, 1] for "only" and [0, 0] for "no",
-  `required` true when the ask is about it. A loose taste ("mostly stone") belongs in the style, not a rule.
+  `required` true when the ask is about it. A rule about what the buildings are made of ("a town of copper houses", "only copper buildings")
+  is measured over the buildings alone: `over: "lots"`; leave `over` out only when the ask is about everything, streets and walls too. When
+  the ask leaves the streets or the land's shapes free, say so with `exempt: ["ways"]` or `["forms"]`. A loose taste ("mostly stone")
+  belongs in the style, not a rule.
 - **Shapes Architect builds.** Parts that answer refused are parts written in a shape Architect can't build here, so keep to these:
   - every zone has at least one lot: a zone is never a placeholder for something else (a stacked tower is one lot, or a reserved layout part);
   - a town built in steps down a hillside is one zone with `terraces: {}` on it (its lots on levels down the slope, retaining walls and stairs
