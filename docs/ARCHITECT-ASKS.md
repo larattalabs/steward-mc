@@ -798,7 +798,9 @@ copper `over: "lots"` (fits; over everything `TOLERANCE`), `discardPlan` of a ca
 (coordinator's plan):
 1. a survival region's props stage held for drift after a stale retry (93.6% within 2): close-out A fixes it before merge, a 0.41.x patch if
    RS had it;
-2. `/architect survival off` under a building region generated about 1,000 chunks outside its claim: a separate fix, 0.41.1 if 0.41.0 has it;
+2. ~~`/architect survival off` under a building region generated about 1,000 chunks outside its claim~~ **withdrawn:** those were the e2e's own
+   `/spreadplayers` to the next flow's spot. Architect's "generated during realise" log charged them to rg10, still PLACING because of 1. The
+   log now charges a region only for chunks in its claim + 2 or its tickets (Architect's fix), and there is no hazard patch;
 3. wait wording: roads by their route's label or "the street"/"the road", a zone named like the town "the town";
 4. the grove oak had one floating log: a fix agent is on the seed;
 5. one sentence per part: deduped at the source.
