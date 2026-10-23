@@ -831,3 +831,5 @@ Also passing: copper `over: "lots"`; `discardPlan`, then `planByKey` and `checkB
   in-flight rule now applies at `Regions.plan` for every beside plan: a town `PREPARING`, `PLACING` or `REMOVING` answers `OVERLAP_BUSY`, where
   `REMOVING` used to answer `OTHER`. Reach joins are lit inside the town too. No conflict: Steward's districts and offers each need one region,
   and nothing matched the old refusal. Steward's plan writer now writes S3's `terraces` member (1f08104).
+- **7a K2 (2026-10-23):** the siteplan gains a node kind `access` (a wall walk's access point). Safe for Steward: it reads only siteplan edges
+  with a `crossing` (`Composer.crossings`), never node kinds. Along walls on stepped shores level a gate landing so their gates are walkable.
