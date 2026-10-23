@@ -34,13 +34,12 @@ Writing the plan:
   through a hill; ponds, fountains, moats (`channel.moat`) and quays; relief, terraces, ice and rock spires. A wall dividing two quarters is a
   `wall.line` between them.
 - **What can't be built yet.** When the player asked for something that needs a kind the catalogue lists as reserved, or a kind it doesn't list, still
-  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a tunnel under flat ground (`tunnel.under`), a ring or
-  spiral layout, huts up in trees (`layout.elevated`), a hidden room, a drawbridge, a shape rule, a variety rule ("identical houses", "no two
+  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a tunnel under flat ground (`tunnel.under`), huts up in trees (`layout.elevated`), a hidden room, a drawbridge, a shape rule, a variety rule ("identical houses", "no two
   alike": `rule.variety`). Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
   drop what the player asked for silently, and never pretend it is supported.
-- **Layouts.** A layout that is not one street (a ring, a spiral, a grid, a hamlet that grew organically, floors stacked in one tower) is never
-  just left out: write it as a part of the kind the catalogue reserves for it, or, if it reserves none, of the kind you think it needs, and say it
-  in `waits`.
+- **Layouts.** A layout that is not one street (a ring, a spiral, a grid, a hamlet that grew organically) is the zone's `program.layout`
+  when the catalogue supports it; floors stacked in one tower, or a layout it reserves, is written as the kind it reserves so it waits. It is
+  never just left out, and what waits is said in `waits`.
 - **Water.** A farm the card treats as a pretty, homely one (a kitchen garden, a farmstead) gets its little pond: set `farmPond: true` on its lot. A
   working or automated farm needs watering laid out across its field, which Architect can't build yet: leave the pond off and say so in `waits`.
   Ponds, fountains, moats and quays are their own parts (forms and channels) where the card asks for them. Running water is a channel too, where the
