@@ -30,9 +30,10 @@ Writing the plan:
   - `landmark`, `placement` and `brief` come from the card's notes.
 - **Style.** The settlement's style bible is made after this plan, so give `style` as `{pending: "<the settlement's slug>"}`.
 - **Connectors and forms.** Use the kinds the catalogue lists as supported where the card asks for them: streets, roads and paths; walls (round a zone,
-  along a line, on a zone's edge; gates go on by themselves where routes cross, or name one with a gate part), rope bridges, stone bridges and tunnels
-  through a hill; ponds, fountains, moats (`channel.moat`) and quays; relief, terraces, ice and rock spires. A wall dividing two quarters is a
-  `wall.line` between them.
+  along a line, on a zone's edge, along a boundary such as a shore or a ridge; gates go on by themselves where routes cross, or name one with a gate
+  part), and a wall walk on a wall the card means to be walked; rope bridges, stone bridges and tunnels through a hill; climbs where a way goes up a
+  slope or a cliff (stairs, switchbacks, ladders); ponds, fountains, moats (`channel.moat`) and quays; relief, terraces, ice and rock spires. A wall
+  dividing two quarters is a `wall.line` between them.
 - **What can't be built yet.** When the player asked for something that needs a kind the catalogue lists as reserved, or a kind it doesn't list, still
   write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a tunnel under flat ground (`tunnel.under`), huts up in trees (`layout.elevated`), a hidden room, a drawbridge, a shape rule, a variety rule ("identical houses", "no two
   alike": `rule.variety`). Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
