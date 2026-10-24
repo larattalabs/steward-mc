@@ -849,3 +849,22 @@ with Steward-shaped beside requests (the `districts` program, one plain district
 - beside the C38 walled town: `NO_JOIN [wall]`; beside a survival town still placing: `OVERLAP_BUSY`.
 Findings fixed on the way: a refused removal flipped a region to `PARTIAL` (main's, from C23; now nothing changes and every stopped removal
 logs why); a town inside its own wall answers `NO_JOIN [wall]`. **Steward's district move (DISTRICTS.md) starts once D3 releases.**
+
+## Style unification (2026-10-23): Steward's review of the proposal
+
+Architect proposed one "Style" (architect-mc `docs/STYLE-UNIFY.md`, main 49ccb988): palette presets, bibles, style words and the variant form become one
+concept. plan/0 is unchanged (every style is a `bibleRef`). Checked against Steward's code:
+
+1. **Additive Bible fields** (`tags`, `suggestedFeatures`, `blurb`, `basedOn`, `origin`): yes. Steward never constructs or parses a `Bible`; it pins
+   `BibleRef(id, version, styleVersion)` (`model/Settlement.java:347`) and passes the id on.
+2. **`Bibles.save`, every edit a new version:** yes, on one condition. A version a settlement pins is never rewritten or removed (not by save, a
+   duplicate, or any clean-up), so a restored or revised building still finds its bible.
+3. **Steward's Styles Duplicate-only in Architect's UI:** yes. Asked what marks a Style as Steward's (the owner field, an ext key Steward sets, or
+   origin) so the bible job can set it.
+4. **`DesignRequest.palette`:** fine, and Steward doesn't send it. But Steward builds `DesignRequest` with its positional constructor
+   (`gateway/LotBrief.java:46`, `service/ChangeRequests.java:154`, then `versionOf` by reflection). A new record component changes the canonical
+   constructor, and a Steward jar built on the old one fails with NoSuchMethodError. Asked for the current 14-argument constructor to be kept as a
+   secondary one (with a test that it still exists), in this and later DesignRequest changes.
+5. **Later:** no to mapping Steward's templates to built-ins. They are site forms (`prompts/concept-card.md`), not materials. Yes to "use an
+   existing Style": a settlement pins a Style that already exists with no bible job, which saves a paid call. It is wanted after the district move.
+   It needs a free way to read a Style's head version (to pin it) and to list the Styles a player can use.
