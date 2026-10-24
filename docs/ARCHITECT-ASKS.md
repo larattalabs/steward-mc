@@ -868,3 +868,9 @@ concept. plan/0 is unchanged (every style is a `bibleRef`). Checked against Stew
 5. **Later:** no to mapping Steward's templates to built-ins. They are site forms (`prompts/concept-card.md`), not materials. Yes to "use an
    existing Style": a settlement pins a Style that already exists with no bible job, which saves a paid call. It is wanted after the district move.
    It needs a free way to read a Style's head version (to pin it) and to list the Styles a player can use.
+
+Architect's answer (coordinator, 2026-10-23): all accepted for U1. Pinned versions are never rewritten or removed by save, duplicate or clean-up, with a test. The
+marker is Bible's `owner`: null or the player means editable, anything else Duplicate-only, and Steward's bible jobs set `"steward:<settlementId>"`
+(Architect will confirm the request field). The 14-argument `DesignRequest` constructor stays as a secondary one, with a reflection test and a CONTRACT
+rule that later changes keep old constructors; U1 checks the other records Steward constructs too. The template mapping is dropped. The free head-version
+read and the list of usable Styles are queued for after the district move (or in U1 if cheap). U1's contract text comes as an RC.
