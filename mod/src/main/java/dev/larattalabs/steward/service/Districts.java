@@ -153,6 +153,12 @@ public final class Districts {
 	/** The plan request of a district beside the town: the districts program with {@code lots} in one district, in the reservation's request claim. */
 	static dev.larattalabs.architect.api.RegionPlanRequest besideRequest(ServerLevel level, Settlement s, String town, int[] request, String districtId,
 		List<JsonObject> lots, @Nullable String opKey) {
+		return besideRequest(level, s, town, request, districtId, lots, opKey, null);
+	}
+
+	/** As above, tagged with the build that plans it (a restart finds its region by the tag when its key is lost). */
+	static dev.larattalabs.architect.api.RegionPlanRequest besideRequest(ServerLevel level, Settlement s, String town, int[] request, String districtId,
+		List<JsonObject> lots, @Nullable String opKey, @Nullable String buildId) {
 		JsonObject district = new JsonObject();
 		district.addProperty("id", districtId);
 		com.google.gson.JsonArray size = new com.google.gson.JsonArray();
@@ -171,6 +177,7 @@ public final class Districts {
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
 		ext.addProperty("steward_mc:district", districtId);
+		if (buildId != null) ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
 		var box = new net.minecraft.world.level.levelgen.structure.BoundingBox(request[0], s.claim().minY(), request[1], request[2], s.claim().maxY(), request[3]);
 		return new dev.larattalabs.architect.api.RegionPlanRequest("districts", params, level, box, null, null, null,
 			dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY, s.owner(), ext, opKey, town);
@@ -275,6 +282,12 @@ public final class Districts {
 			return;
 		}
 		for (Settlement.District d : s.get().lands().districts()) {
+			// a district left building by a build that is gone (a stop before it ended), with no region: only reserved again
+			if (Settlement.District.BUILDING.equals(d.state()) && d.region() == null) {
+				Settlements.districtState(settlementId, d.id(), Settlement.District.RESERVED);
+				continue;
+			}
+			if (!d.square()) continue;
 			if (!d.linkUndone() && !d.linked() && d.founding().isPresent() && districtStreet(server, s.get(), d) != null) link(server, settlementId, d.id(), say, false);
 		}
 	}
@@ -361,8 +374,15 @@ public final class Districts {
 		var sites = ArchitectApi.get().sites(server);
 		List<String> said = new ArrayList<>();
 		for (Settlement.District d : s.get().lands().districts()) {
-			// a region district is given up with its region (docs/DISTRICTS.md section 4), never by roads it doesn't have
-			if (!d.square()) continue;
+			// a region district is given up with its region (docs/DISTRICTS.md section 4): once its region is confirmed gone and nothing of the settlement's
+			// stands in its land; never by roads it doesn't have. A reservation is given up by undoing its founding.
+			if (!d.square()) {
+				if (d.region() != null && regionGone(d.region()) && !standsIn(server, s.get(), d)
+					&& Settlements.removeDistrict(settlementId, d.id(), "Gave up " + d.name() + " (its build was undone)", System.currentTimeMillis()).ok()) {
+					said.add(d.name() + " is given up: its land is free again.");
+				}
+				continue;
+			}
 			List<Settlement.Road> left = d.roads().stream().filter(r -> sites.get(r.siteId()).isPresent()).toList();
 			// no road left and nothing standing (its roads may have gone by an earlier undo, its last building by this one): given up
 			if (left.isEmpty() && !standsIn(server, s.get(), d)) {
@@ -376,6 +396,12 @@ public final class Districts {
 			}
 		}
 		return String.join(" ", said);
+	}
+
+	/** Whether a region is removed (its tombstone, or no record at all). */
+	static boolean regionGone(String region) {
+		var v = ArchitectApi.get().regions().get(region);
+		return v.isEmpty() || v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED;
 	}
 
 	/** Whether a site of the settlement other than the district's roads stands in it. */
@@ -395,8 +421,9 @@ public final class Districts {
 
 	public static Counts counts(MinecraftServer server, Settlement s) {
 		java.util.LinkedHashMap<String, Integer> per = new java.util.LinkedHashMap<>();
-		// only districts a building can be added to Steward's way (a square); a region district grows through its own build
-		for (Settlement.District d : s.lands().districts()) if (d.square()) per.put(d.id(), 0);
+		// only districts that take a building: a square, or a reserved beside district (its first building builds it); a standing region district waits for
+		// Architect's growth (6d)
+		for (Settlement.District d : s.lands().districts()) if (d.takesBuilding()) per.put(d.id(), 0);
 		int town = 0;
 		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
 			if (!"building".equals(v.kind()) || BatchPlanner.isStreet(v.itemKey())) continue;

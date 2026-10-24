@@ -257,6 +257,11 @@ public record Settlement(
 			return SQUARE.equals(kind);
 		}
 
+		/** Whether a building can be added in it now: a square district, or a reserved beside district (its first building builds its region). */
+		public boolean takesBuilding() {
+			return square() || (BESIDE.equals(kind) && RESERVED.equals(state));
+		}
+
 		/** The road it was founded with, while it stands in the record. */
 		public java.util.Optional<Road> founding() {
 			return roads.stream().filter(r -> !r.link()).findFirst();

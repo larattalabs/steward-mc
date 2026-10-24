@@ -751,7 +751,7 @@ public final class SettlementRunner {
 		java.util.Set<String> ids = new java.util.HashSet<>(siteIds);
 		if (saved.get().log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && new java.util.HashSet<>(e.siteIds()).equals(ids))) {
 			// logged before a restart: the district's link may still be missing (a restart before it was laid is also put right when the world starts)
-			if (districtId != null) Districts.link(server, settlement.id(), districtId, this::say, true);
+			if (districtId != null && saved.get().lands().district(districtId).map(Settlement.District::square).orElse(false)) Districts.link(server, settlement.id(), districtId, this::say, true);
 			return true;
 		}
 		var sites = ArchitectApi.get().sites(server);
@@ -765,12 +765,21 @@ public final class SettlementRunner {
 			}
 			return new Settlement.SiteChange(id, lot, 0, v.map(dev.larattalabs.architect.api.SiteView::version).orElse(1));
 		}).toList();
-		String where = districtId == null ? "" : saved.get().lands().district(districtId).map(d -> " in " + d.name()).orElse("");
-		boolean ok = Settlements.log(settlement.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings"
+		var district = districtId == null ? null : saved.get().lands().district(districtId).orElse(null);
+		String where = district == null ? "" : " in " + district.name();
+		var entry = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings"
 			+ where + (notPlaced > 0 ? " (" + notPlaced + " not placed)" : "") + (note != null ? " (" + note + ")" : ""), changes, siteGroupId,
-			notPlaced > 0 || note != null ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE)).ok();
+			notPlaced > 0 || note != null ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE);
+		// a district's own region: the district names it, owns what it took outside the town and stands, saved with the entry (docs/DISTRICTS.md section 4)
+		if (district != null && !district.square() && vRegionId != null) {
+			var land = ArchitectApi.get().regions().get(vRegionId).flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.outside(v.ext(), district.claim().dimension()));
+			var res = Settlements.placeDistrict(settlement.id(), district.id(), vRegionId, land.orElse(null), entry);
+			if (!res.ok()) Steward.LOGGER.warn("placing district {} of {}: {}", district.id(), settlement.id(), res.error());
+			return res.ok();
+		}
+		boolean ok = Settlements.log(settlement.id(), entry).ok();
 		// a district's build laid its street: a road links it to where the district's road ends (nothing when it is linked already)
-		if (ok && districtId != null) Districts.link(server, settlement.id(), districtId, this::say, true);
+		if (ok && district != null && district.square()) Districts.link(server, settlement.id(), districtId, this::say, true);
 		return ok;
 	}
 
@@ -929,6 +938,11 @@ public final class SettlementRunner {
 				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line) : VillageLayout.plan(claim, grid, specs, rules);
 			boolean worldSurvival = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false);
 			boolean overworld = level.dimension() == net.minecraft.world.level.Level.OVERWORLD;
+			// a district beside a region town (docs/DISTRICTS.md section 9): its first building plans the district's own region beside the town
+			if (district != null && !district.square()) {
+				planDistrict(r, budgetUsd, district, specs);
+				return;
+			}
 			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(), worldSurvival, overworld, addition, districtId,
 				r.card().site().terrain(), stands, lo, hi)) {
 				// the settlement's composed plan, when it has one (plan v1); else Architect's flat village from the card
@@ -983,6 +997,57 @@ public final class SettlementRunner {
 					abandon("The build stopped after the village plan: " + e);
 				}
 			}));
+	}
+
+	/**
+	 * A reserved beside district's first building: Architect plans the district's region beside the town (its street, its join to the town's street and this
+	 * building's lot) under this build's keys, so the village's realise, watch, cancel and restart paths carry it. The district is {@code building} while the
+	 * build runs, and back to {@code reserved} when it ends with no region ({@link #apply}). Its lots keep the fronts Architect gives them ({@link
+	 * dev.larattalabs.steward.gateway.DPlan}).
+	 */
+	private void planDistrict(CardResult r, double budgetUsd, Settlement.District district, List<VillageLayout.LotSpec> specs) {
+		if (!Settlement.District.BESIDE.equals(district.kind()) || !Settlement.District.RESERVED.equals(district.state())) {
+			abandon(district.name() + " stands as its own region already: adding to it waits for Architect's growth (6d).");
+			return;
+		}
+		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) {
+			abandon(district.name() + " is a district beside the town, which isn't built from materials yet.");
+			return;
+		}
+		var regions = ArchitectApi.get().regions();
+		var town = district.parent() == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : regions.get(district.parent());
+		if (town.isEmpty() || town.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED || town.get().state() == dev.larattalabs.architect.api.RegionState.REMOVING) {
+			abandon("The town " + district.name() + " was reserved beside is gone: undo the reservation and found the district again.");
+			return;
+		}
+		if (!Settlements.districtState(settlement.id(), district.id(), Settlement.District.BUILDING).ok()) {
+			abandon("Could not save " + district.name() + " as building.");
+			return;
+		}
+		ServerLevel level = level();
+		var b = town.get().claim();
+		int[] request = dev.larattalabs.steward.model.DistrictRules.request(new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, district.claim(), district.direction());
+		List<JsonObject> lots = new ArrayList<>();
+		for (var e : dev.larattalabs.steward.gateway.VPlan.params(specs, settlement.id(), buildId).getAsJsonArray("lots")) lots.add(e.getAsJsonObject());
+		var req = Districts.besideRequest(level, settlement, town.get().id(), request, district.id(), lots, opKey("vplan"), buildId);
+		say("Laying out " + district.name() + " beside the town (its street and its road to the town's street)...");
+		int session = Session.current();
+		regions.plan(req).whenComplete((rp, err) -> server.execute(() -> {
+			if (!Session.is(session) || !alive()) return;
+			if (worldStopped(err)) return;
+			if (err != null) {
+				abandon("Architect could not lay out " + district.name() + ": " + Districts.besideRefusal(null, message(err)));
+				return;
+			}
+			try {
+				vPlanId = rp.planId();
+				plan = dev.larattalabs.steward.gateway.DPlan.toPlan(rp.lots(), specs);
+				continueWithPlan(r, budgetUsd, district);
+			} catch (RuntimeException e) {
+				Steward.LOGGER.error("the build of {} failed after its district plan", settlement.id(), e);
+				abandon("The build stopped after the district's plan: " + e);
+			}
+		}));
 	}
 
 	/** Whether this build takes the settlement's composed plan (docs/COMPOSITION.md section 10): one is kept, and this Architect checks and realises plans. */
@@ -1225,7 +1290,13 @@ public final class SettlementRunner {
 		Pipeline.Phase before = state == null ? null : state.phase();
 		state = step.next();
 		// it ended: its row stays in the inbox a few minutes ({@link #ENDED_ROW_MS}), so the player sees how
-		if (state.phase().terminal() && (before == null || !before.terminal())) endedAt = System.currentTimeMillis();
+		if (state.phase().terminal() && (before == null || !before.terminal())) {
+			endedAt = System.currentTimeMillis();
+			// a district region's first build that placed nothing: the district is only reserved again (its undo gives it up)
+			if (districtId != null && settlement != null) Settlements.store().get(settlement.id()).flatMap(s -> s.lands().district(districtId))
+				.filter(d -> Settlement.District.BUILDING.equals(d.state()) && d.region() == null)
+				.ifPresent(d -> Settlements.districtState(settlement.id(), d.id(), Settlement.District.RESERVED));
+		}
 		// the massings show as ghosts on their lots while they wait for the player, and go when decided
 		if (state.phase() == Pipeline.Phase.AWAITING_MASSING_APPROVAL && before != Pipeline.Phase.AWAITING_MASSING_APPROVAL) showMassings(true);
 		if (before == Pipeline.Phase.AWAITING_MASSING_APPROVAL && state.phase() != Pipeline.Phase.AWAITING_MASSING_APPROVAL) hideMassings();

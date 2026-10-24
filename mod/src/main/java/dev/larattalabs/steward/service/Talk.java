@@ -169,7 +169,7 @@ public final class Talk {
 			if (named.isEmpty()) named = s.lands().districts().stream().filter(d -> d.name().toLowerCase().contains(a.district().toLowerCase())).toList();
 			if (named.size() != 1) return named.isEmpty() ? "I do not know a district called " + a.district() + ". Which one did you mean?"
 				: "More than one district goes by " + a.district() + ": which one?";
-			if (!named.get(0).square()) return named.get(0).name() + " is reserved beside the town: its first building builds it, and that isn't ready yet.";
+			if (!named.get(0).takesBuilding()) return named.get(0).name() + " stands as its own region: adding to it waits for a later Architect release.";
 			district = named.get(0).id();
 		}
 		if (district == null) {
