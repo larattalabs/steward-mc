@@ -27,20 +27,32 @@ public final class TwoPress {
 		armedAt = -1;
 	}
 
-	private boolean held;
+	/** A held key's latch lapses after this long with no event from it (a press the game never released, a synthetic one; a held key repeats far faster). */
+	public static final long HELD_LAPSE_MS = 3000;
+	/** The key held down (its code) and when it last went down or repeated; -1: none held. */
+	private int heldKey = -1;
+	private long heldAt;
+	private boolean repeat;
 
 	/**
-	 * The key going down at {@code now}: as {@link #press}, but a key held down (the game repeats a held key's presses) counts once until it is
-	 * released ({@link #up}), so holding Enter never arms and then acts.
+	 * The key {@code key} going down at {@code now}: as {@link #press}, but a key held down (the game repeats a held key's presses) counts once until it is
+	 * released ({@link #up}), so holding Enter never arms and then acts. Each key is held on its own: another key's release frees nothing.
 	 */
-	public boolean down(long now) {
-		if (held) return false;
-		held = true;
+	public boolean down(int key, long now) {
+		repeat = heldKey == key && now - heldAt < HELD_LAPSE_MS;
+		heldKey = key;
+		heldAt = now;
+		if (repeat) return false;
 		return press(now);
 	}
 
-	/** The key released: its next going down is a new press. */
-	public void up() {
-		held = false;
+	/** Whether the last {@link #down} was a held key's repeat (ignored). */
+	public boolean repeated() {
+		return repeat;
+	}
+
+	/** The key {@code key} released: its next going down is a new press. */
+	public void up(int key) {
+		if (key == heldKey) heldKey = -1;
 	}
 }

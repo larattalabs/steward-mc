@@ -81,6 +81,8 @@ public final class Toasts implements HudElement {
 	/** Every toast shown or waiting dropped (leaving a world: its notices are not the next world's). */
 	public static void clear() {
 		ACTIVE.clear();
+		lastLayout = new ToastStack.Layout(List.of(), List.of(), 0, 0, -1);
+		lastOrder = List.of();
 	}
 
 	public static void push(Level level, String title, String body) {

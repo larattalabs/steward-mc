@@ -30,11 +30,22 @@ class TwoPressTest {
 	@Test
 	void aHeldKeyCountsOnceUntilReleased() {
 		TwoPress p = new TwoPress();
-		assertFalse(p.down(0), "the key goes down: armed");
-		assertFalse(p.down(50), "repeats while held are not presses");
-		assertFalse(p.down(100));
-		assertTrue(p.armed(100));
-		p.up();
-		assertTrue(p.down(200), "released and pressed again: acts");
+		int enter = 257, one = 49;
+		assertFalse(p.down(enter, 0), "the key goes down: armed");
+		assertFalse(p.down(enter, 500) || !p.repeated(), "repeats while held are not presses");
+		assertFalse(p.down(enter, 530));
+		assertTrue(p.armed(530));
+		p.up(one);
+		assertFalse(p.down(enter, 560), "another key's release frees nothing");
+		p.up(enter);
+		assertTrue(p.down(enter, 700), "released and pressed again: acts");
+	}
+
+	@Test
+	void aPressNeverReleasedLapses() {
+		TwoPress p = new TwoPress();
+		int enter = 257;
+		assertFalse(p.down(enter, 0), "a synthetic press: armed, never released");
+		assertTrue(p.down(enter, TwoPress.HELD_LAPSE_MS + 10), "no event for longer than any repeat: a new press");
 	}
 }
