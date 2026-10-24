@@ -62,6 +62,9 @@ public final class SettlementRunner {
 
 	private static final Map<String, SettlementRunner> ACTIVE = new java.util.concurrent.ConcurrentHashMap<>();
 
+	/** How long an ended build stays in the inbox (how it ended, its spend), before it goes. */
+	static final long ENDED_ROW_MS = 5 * 60_000;
+
 	private static BuildStore builds = new BuildStore();
 	/** The world's builds file, or null when it could not be read (then nothing is saved over it, as with the settlements file). */
 	private static java.nio.file.Path buildsFile;
@@ -111,6 +114,11 @@ public final class SettlementRunner {
 					r.watchVillage();
 				} catch (RuntimeException e) {
 					Steward.LOGGER.error("could not read the village of {}", r.claimedId, e);
+				}
+				// an ended build's row has had its minutes: the player's inbox goes without it
+				if (r.endedAt > 0 && System.currentTimeMillis() - r.endedAt > ENDED_ROW_MS) {
+					r.endedAt = -1;
+					sendInbox(server, r.playerId);
 				}
 			}
 		});
@@ -1216,6 +1224,8 @@ public final class SettlementRunner {
 	private void apply(Pipeline.Step step) {
 		Pipeline.Phase before = state == null ? null : state.phase();
 		state = step.next();
+		// it ended: its row stays in the inbox a few minutes ({@link #ENDED_ROW_MS}), so the player sees how
+		if (state.phase().terminal() && (before == null || !before.terminal())) endedAt = System.currentTimeMillis();
 		// the massings show as ghosts on their lots while they wait for the player, and go when decided
 		if (state.phase() == Pipeline.Phase.AWAITING_MASSING_APPROVAL && before != Pipeline.Phase.AWAITING_MASSING_APPROVAL) showMassings(true);
 		if (before == Pipeline.Phase.AWAITING_MASSING_APPROVAL && state.phase() != Pipeline.Phase.AWAITING_MASSING_APPROVAL) hideMassings();
@@ -1358,9 +1368,15 @@ public final class SettlementRunner {
 		return playerId;
 	}
 
-	/** This build's inbox entry, or null before it has a settlement and a state (still reading the card or surveying) or once it is finished. */
+	/** When this build ended (its inbox row is kept until {@link #ENDED_ROW_MS} after), or -1 while it runs and once the row has gone. */
+	private long endedAt = -1;
+
+	/**
+	 * This build's inbox entry, or null before it has a settlement and a state (still reading the card or surveying). Once it has ended, a row saying how
+	 * for {@link #ENDED_ROW_MS}, then null.
+	 */
 	public dev.larattalabs.steward.inbox.InboxModel.Entry inboxEntry() {
-		if (settlement == null || state == null || state.phase().terminal()) return null;
+		if (settlement == null || state == null || (state.phase().terminal() && endedAt < 0)) return null;
 		// every building, with its stage; the waiting massings with their size and parts
 		Map<String, String> details = new java.util.HashMap<>();
 		boolean massingsWait = Pipeline.awaiting(state) == Pipeline.Decision.MASSINGS;
@@ -1377,7 +1393,7 @@ public final class SettlementRunner {
 		return dev.larattalabs.steward.inbox.InboxModel.entry(settlement.id(), settlement.name(), state, lots);
 	}
 
-	/** Sends a player their inbox: every unfinished build of theirs (an empty inbox clears the client's). */
+	/** Sends a player their inbox: every unfinished build of theirs, and the ones that ended in the last minutes (an empty inbox clears the client's). */
 	public static void sendInbox(MinecraftServer server, UUID player) {
 		ServerPlayer p = server.getPlayerList().getPlayer(player);
 		if (p == null) return;

@@ -266,11 +266,24 @@ public final class Proposals {
 		for (Settlement s : Settlements.store().all()) {
 			if (s.proposals().open().isEmpty()) continue;
 			// the cost first, where the row never cuts it
-			var ideas = s.proposals().open().stream().map(p -> new InboxModel.Lot(p.key(), p.title(), "proposal", false, true, (p.foundsDistrict() ? "free" : "about $" + estimate(p))
-				+ (p.district() == null ? "" : " · in " + s.lands().district(p.district()).map(Settlement.District::name).orElse("a district")) + " · " + p.why())).toList();
+			List<InboxModel.Lot> ideas = new ArrayList<>(s.proposals().open().stream().filter(p -> !p.offersPart()).map(p -> new InboxModel.Lot(p.key(), p.title(), "proposal",
+				false, true, (p.foundsDistrict() ? "free" : "about $" + estimate(p)) + (p.district() == null ? "" : " · in " + s.lands().district(p.district())
+					.map(Settlement.District::name).orElse("a district")) + " · " + p.why())).toList());
+			// the waiting parts, however many: one row
+			var parts = PendingOffers.offered(s);
+			if (!parts.isEmpty() && !PendingOffers.notNow(s.id())) ideas.add(partsRow(s, parts));
+			if (ideas.isEmpty()) continue;
 			out.add(InboxModel.proposals(s.id(), s.name(), ideas));
 		}
 		return out;
+	}
+
+	/** The waiting parts as one row: their names in plain words, the one being built marked. */
+	static InboxModel.Lot partsRow(Settlement s, List<Proposal> parts) {
+		List<String> names = new ArrayList<>();
+		for (Proposal p : parts) names.add(PendingOffers.label(s.id(), p.pendingPart()) + (PendingOffers.busy(s.id(), p.pendingPart()) ? " (being built)" : ""));
+		return new InboxModel.Lot(PendingOffers.GROUP_KEY, "Waiting parts (" + parts.size() + ")", "proposal", false, true, "about $1 each · " + String.join(", ", names)
+			+ ". Building fits one round " + s.name() + " as it stands; the rest wait their turn.");
 	}
 
 	/** About what building a proposal costs (the high estimate of one building, rounded up to $5): its budget when accepted. A district costs nothing. */

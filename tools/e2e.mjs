@@ -207,7 +207,21 @@ async function inboxScreen() {
   const screen = JSON.stringify(st.screen ?? st);
   if (/InboxScreen/.test(screen)) ok('inbox screen');
   else fail('inbox screen', screen.slice(0, 120));
+  // the sample's rows (a build held by the usage limit, an ended build, the grouped waiting parts), then the toasts once no screen is open
+  const inboxShot = (await dev.request('dev.screenshot', { name: 'e2e-inbox', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  // the arrows walk the list as drawn: Stilt Swamp, Lantern Shore, Copper Ford's waiting parts, Reed Hollow (held by the usage limit), Copper Ford built
+  await dev.request('dev.key', { key: 'key.keyboard.down' });
+  await dev.request('dev.key', { key: 'key.keyboard.down' });
+  await sleep(300);
+  const partsShot = (await dev.request('dev.screenshot', { name: 'e2e-inbox-parts', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.key', { key: 'key.keyboard.down' });
+  await sleep(300);
+  const limitShot = (await dev.request('dev.screenshot', { name: 'e2e-inbox-limit', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
   await dev.request('dev.key', { key: 'escape' });
+  await sleep(1200);
+  // toasts are HUD, which a screenshot hides unless asked
+  const toastShot = (await dev.request('dev.screenshot', { name: 'e2e-toasts', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  ok('inbox and toast pictures', `${inboxShot} ${partsShot} ${limitShot} ${toastShot}`);
 }
 
 async function placeUpdateUndo(id) {
@@ -1454,7 +1468,10 @@ async function suppliedPlanFlow() {
         if (sha0) pinAfter = await pinsOf(sha0);
       } else if (step === 'Approve to place' && !staled) {
         staled = true;
-        for (const y of [65, 66, 67]) await cmd(`/setblock ${claim.centerX + 12} ${y} ${claim.centerZ} minecraft:cobblestone`);
+        // the plan lays out round the stockpile, differently each run: pillars on each side, so one stands on its land
+        for (const [dx, dz] of [[12, 0], [-12, 0], [0, 12], [0, -12], [20, 0], [-20, 0], [0, 20], [0, -20]]) {
+          await cmd(`/fill ${claim.centerX + dx} 65 ${claim.centerZ + dz} ${claim.centerX + dx} 67 ${claim.centerZ + dz} minecraft:cobblestone`);
+        }
       }
     };
     const built = await buildThrough(id, from, 'supplied plan', true, onStep);
@@ -1681,6 +1698,13 @@ async function stubFlow(id) {
   await cmd(`/steward ui card ${id}`);
   await sleep(1500);
   const cardShot = (await dev.request('dev.screenshot', { name: 'e2e-card-limits', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  // Enter once: the card says what starting spends, and waits for a second press (nothing starts)
+  await dev.request('dev.key', { key: 'enter' });
+  await sleep(500);
+  const confirmShot = (await dev.request('dev.screenshot', { name: 'e2e-card-confirm', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  const started = /Approving|Designing the style bible|Starting/.test(logSince(logSize() - 4000));
+  if (!started) ok('start needs two presses', `one Enter only armed it; ${confirmShot}`);
+  else fail('start needs two presses', 'one Enter started the build');
   await closeScreens();
   if (limit) ok('card limits', `${limit[1].slice(0, 70)}; ${cardShot}`);
   else fail('card limits', 'no "Not yet" line for the stilt village');

@@ -407,10 +407,18 @@ public final class StewardCommands {
 								new dev.larattalabs.steward.inbox.InboxModel.Lot("workshop_2", "lantern maker's workshop", "detail", false, false, "14x12 lot"),
 								new dev.larattalabs.steward.inbox.InboxModel.Lot("cottage_1", "artisan cottage", "detail", false, false, "11x9 lot"));
 							var a1 = new dev.larattalabs.steward.inbox.InboxModel.Entry(id, "Stilt Swamp Fishing Village", "MASSINGS", "3 massings wait for you: approve them, or send one back with notes.",
-								java.util.List.of("Buildings: 3 approval", "Spent $3.12 of $35"), lots, 35, 3.12, 10);
+								java.util.List.of("Buildings: 3 approval, 1 massing"), lots, 35, 3.12, 10);
 							var a2 = new dev.larattalabs.steward.inbox.InboxModel.Entry(id + "_b", "Lantern Shore", "BUDGET", "Paused at 80% of the $30 budget. Raise it to at least $40 to go on.",
-								java.util.List.of("Buildings: 2 done, 2 detail", "Spent $26.38 of $30"), lots2, 30, 26.38, 40);
-							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.Inbox(java.util.List.of(a1, a2)));
+								java.util.List.of("Buildings: 2 done, 2 detail"), lots2, 30, 26.38, 40);
+							// a build held by the usage limit, one that ended a moment ago, and waiting parts as their one row
+							var a3 = new dev.larattalabs.steward.inbox.InboxModel.Entry(id + "_c", "Reed Hollow", "NONE", "Designing the buildings.",
+								java.util.List.of("Buildings: 1 done, 3 massing", "Waiting for your usage limit to reset (resets at 4pm)"), lots2, 25, 6.40, 15);
+							var a4 = new dev.larattalabs.steward.inbox.InboxModel.Entry(id + "_d", "Copper Ford", "DONE", "Built: every building stands.", java.util.List.of("Buildings: 4 done"),
+								lots2.stream().map(l -> new dev.larattalabs.steward.inbox.InboxModel.Lot(l.id(), l.role(), "done", l.landmark(), false, l.detail())).toList(), 30, 21.75, 30);
+							var parts = new dev.larattalabs.steward.inbox.InboxModel.Lot(dev.larattalabs.steward.inbox.InboxModel.PARTS_KEY, "Waiting parts (3)", "proposal", false, true,
+								"about $1 each · the town wall, the north moat (being built), the rope bridge. Building fits one round Copper Ford as it stands; the rest wait their turn.");
+							var a5 = dev.larattalabs.steward.inbox.InboxModel.proposals(id + "_d", "Copper Ford", java.util.List.of(parts));
+							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.Inbox(java.util.List.of(a1, a2, a3, a4, a5)));
 							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.OpenInbox(id));
 						}
 						default -> { ctx.getSource().sendFailure(Component.literal("inbox, describe, card, open or sample")); return 0; }

@@ -64,6 +64,11 @@ public abstract class KitScreen extends Screen {
 	protected abstract void draw(GuiGraphicsExtractor g, int mouseX, int mouseY);
 
 	/** Draws a kit button and registers it for this frame; returns its width. */
+	/** Whether a button with a number key is drawn this frame (so far). */
+	protected boolean numbered() {
+		return buttons.stream().anyMatch(b -> b.number() > 0);
+	}
+
 	protected int button(GuiGraphicsExtractor g, String label, int number, boolean primary, boolean danger, boolean enabled, int x, int y, int mouseX, int mouseY,
 		Runnable action) {
 		int w = UiBits.buttonWidth(font, label, number);

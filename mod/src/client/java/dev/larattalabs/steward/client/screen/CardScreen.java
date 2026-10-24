@@ -26,7 +26,8 @@ import net.minecraft.client.input.KeyEvent;
  * A settlement's concept card, in two columns: on the left what the steward took the words to mean (Site, Style, Purpose as facts with their template as a
  * pill, the avoid list as pills, then the interpretation and assumptions in an inset well that scrolls); on the right the buildings it will design (a row per
  * program entry: a star on landmarks, the role and count, the footprint as a pill, the notes under it). Below, how many to build (-/+ or left/right), the
- * budget, the estimate the runner itself uses ({@link BudgetPolicy#landmarksFor}), and Start. The panel takes the height its content needs. Client thread.
+ * budget, the estimate the runner itself uses ({@link BudgetPolicy#landmarksFor}), and Start. Start from the keyboard (Enter, or 1) takes two presses, since it
+ * spends; a click on Start takes one. The panel takes the height its content needs. Client thread.
  */
 public final class CardScreen extends KitScreen {
 	private static final int ROW_H = 22;
@@ -38,6 +39,14 @@ public final class CardScreen extends KitScreen {
 	private int buildings;
 	private boolean budgetEdited;
 	private boolean sent;
+	/** Enter (or 1) starts on its second press; the first says so. */
+	private final dev.larattalabs.steward.ui.TwoPress confirm = new dev.larattalabs.steward.ui.TwoPress();
+	/** What the first press showed (the budget and the count): the second confirms only those. */
+	private double armedUsd = Double.NaN;
+	private int armedBuildings = -1;
+	/** The key that asked to start (Enter, numpad Enter or 1): held keys are told apart. */
+	private int startKey = -1;
+	private boolean confirmShown;
 	private int wellScroll;
 	private int programScroll;
 	private int[] wellArea = new int[4];
@@ -76,22 +85,65 @@ public final class CardScreen extends KitScreen {
 
 	@Override
 	protected void submitField() {
+		startFromKey();
+	}
+
+	/** Enter or 1: the first press says it spends and to press again, the second starts. */
+	private void startFromKey() {
+		if (sent || payload.busy() || field == null) {
+			start();
+			return;
+		}
+		double usd = budget();
+		if (Double.isNaN(usd)) return;
+		// the second press confirms what the first showed: a count or budget changed since is a new first press
+		if (confirm.armed(net.minecraft.util.Util.getMillis()) && (usd != armedUsd || buildings != armedBuildings)) confirm.reset();
+		if (!confirm.down(startKey, net.minecraft.util.Util.getMillis())) {
+			if (confirm.repeated() || !confirm.armed(net.minecraft.util.Util.getMillis())) return;
+			armedUsd = usd;
+			armedBuildings = buildings;
+			super.say(String.format("Press Enter again to start: it spends up to $%.0f.", usd), false);
+			confirmShown = true;
+			return;
+		}
 		start();
 	}
 
-	private void start() {
-		if (sent || payload.busy() || field == null) return;
+	/** Any other message (Expand, a wrong budget) replaces the press-again hint and forgets the first press. */
+	@Override
+	protected void say(String text, boolean error) {
+		super.say(text, error);
+		confirm.reset();
+		confirmShown = false;
+	}
+
+	/** The budget typed, or NaN (and why, on the status line) when it is not one. */
+	private double budget() {
 		double usd;
 		try {
 			usd = Double.parseDouble(field.value().strip().replace("$", ""));
 		} catch (NumberFormatException e) {
 			say("The budget is a number of dollars.", true);
-			return;
+			return Double.NaN;
 		}
 		if (usd < Actions.MIN_BUDGET || usd > Actions.MAX_BUDGET) {
 			say(String.format("The budget must be $%.0f to $%.0f.", Actions.MIN_BUDGET, Actions.MAX_BUDGET), true);
+			return Double.NaN;
+		}
+		return usd;
+	}
+
+	private void start() {
+		confirm.reset();
+		confirmShown = false;
+		if (sent || field == null) return;
+		if (payload.busy()) {
+			// a build, a road, an undo or a part under way: one thing at a time
+			say(payload.name() + " is busy with other work; start once it is done (the inbox, Y, shows it).", true);
 			return;
 		}
+		double usd = budget();
+		if (Double.isNaN(usd)) return;
 		ClientPlayNetworking.send(new StewardNet.Start(payload.settlementId(), buildings, usd));
 		sent = true;
 		say("Starting. The steward asks in the inbox (Y) when it needs you.", false);
@@ -179,6 +231,11 @@ public final class CardScreen extends KitScreen {
 
 	@Override
 	protected void draw(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+		// the second press did not come in time: the hint goes
+		if (confirmShown && !confirm.armed(net.minecraft.util.Util.getMillis())) {
+			confirmShown = false;
+			status = null;
+		}
 		if (fieldFocused && field != null && !field.value().equals(String.valueOf(suggestedBudget()))) budgetEdited = true;
 		Kit.Padding pad = Kit.padding("panel_paper");
 		int w = Math.min(500, width - 16);
@@ -337,10 +394,11 @@ public final class CardScreen extends KitScreen {
 		if (payload.busy()) {
 			ax += button(g, "Open the inbox", 1, true, false, true, ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new InboxScreen(payload.settlementId()))) + 6;
 		} else {
-			ax += button(g, sent ? "Starting..." : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::start) + 6;
+			ax += button(g, sent ? "Starting..." : confirmShown ? String.format("Again: spend up to $%.0f", armedUsd) : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::start) + 6;
 		}
+		// the player's own words back in the box (else the card's reading of them), to change rather than retype
 		ax += button(g, "Describe again", 2, false, false, !sent && !payload.busy(), ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new DescribeScreen(
-			payload.settlementId(), payload.name(), ""))) + 6;
+			payload.settlementId(), payload.name(), DescribeScreen.lastWords(payload.settlementId(), card)))) + 6;
 		// grow the claim a size step (the server answers with the card again, the new size in its header)
 		boolean maxed = payload.claimRadius() >= dev.larattalabs.steward.model.ClaimRules.RADII[dev.larattalabs.steward.model.ClaimRules.RADII.length - 1];
 		String ex = "Expand claim";
@@ -351,7 +409,7 @@ public final class CardScreen extends KitScreen {
 		int fy = y + h - pad.bottom() - 8;
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, fy - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
 		else {
-			String[] hints = {"←→", "buildings", "Tab", "builds / interpretation", "Enter", "start", "Esc", "close"};
+			String[] hints = {"←→", "buildings", "Tab", "builds / interpretation", "Enter ×2", "start", "Esc", "close"};
 			if (UiBits.hintsWidth(font, hints) <= inner) UiBits.hints(g, font, cx, fy - 4, false, hints);
 		}
 	}
@@ -374,10 +432,19 @@ public final class CardScreen extends KitScreen {
 
 	@Override
 	public boolean keyPressed(KeyEvent e) {
-		// Enter outside the budget box starts (the base class would focus the box instead)
-		if (!fieldFocused && TextKeys.isEnter(e)) {
-			start();
+		boolean enter = TextKeys.isEnter(e) && !e.hasShiftDown();
+		// Enter (in the budget box or not) starts on the second press, as 1 does while it is Start's number (the base class would focus the box, or start
+		// on the first press); busy, Enter says why and 1 opens the inbox
+		if (enter || (!fieldFocused && e.key() == InputConstants.KEY_1 && !sent && !payload.busy())) {
+			startKey = e.key();
+			startFromKey();
 			return true;
+		}
+		// any other key: the first press is forgotten
+		if (confirmShown) {
+			confirm.reset();
+			confirmShown = false;
+			status = null;
 		}
 		// Tab outside the budget box switches between the buildings and the interpretation (the base class would focus the box)
 		if (!fieldFocused && e.key() == InputConstants.KEY_TAB) {
@@ -385,6 +452,13 @@ public final class CardScreen extends KitScreen {
 			return true;
 		}
 		return super.keyPressed(e);
+	}
+
+	@Override
+	public boolean keyReleased(KeyEvent e) {
+		// Enter or 1 released: its next press counts again (held, the game repeats it)
+		confirm.up(e.key());
+		return super.keyReleased(e);
 	}
 
 	@Override

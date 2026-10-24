@@ -21,6 +21,23 @@ public final class DescribeScreen extends KitScreen {
 	private final String settlementId;
 	private final String name;
 	private boolean sent;
+	/** The words last sent for each settlement (this world only: they are not saved), so "Describe again" starts from them. */
+	private static final java.util.Map<String, String> LAST_WORDS = new java.util.HashMap<>();
+
+	/** The player's last words for a settlement, else its card's reading of them (site, style, purpose), to start "Describe again" from. */
+	public static String lastWords(String settlementId, dev.larattalabs.steward.model.ConceptCard card) {
+		String said = LAST_WORDS.get(settlementId);
+		if (said != null) return said;
+		java.util.List<String> parts = new java.util.ArrayList<>();
+		for (String t : new String[] {card.site().text(), card.style().text(), card.purpose().text()}) if (t != null && !t.isBlank()) parts.add(t.strip());
+		String read = String.join(", ", parts);
+		return read.length() > ConceptCardJob.MAX_PROMPT ? read.substring(0, ConceptCardJob.MAX_PROMPT) : read;
+	}
+
+	/** Forgets the words (the player left the world). */
+	public static void clearWords() {
+		LAST_WORDS.clear();
+	}
 
 	public DescribeScreen(String settlementId, String name, String previous) {
 		super("Describe " + name);
@@ -40,6 +57,7 @@ public final class DescribeScreen extends KitScreen {
 			return;
 		}
 		ClientPlayNetworking.send(new StewardNet.Describe(settlementId, text));
+		LAST_WORDS.put(settlementId, text);
 		sent = true;
 		fieldFocused = false;
 		say("Reading your description (a few seconds, about 2 cents)...", false);

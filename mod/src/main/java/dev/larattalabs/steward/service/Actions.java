@@ -381,6 +381,11 @@ public final class Actions {
 			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
 			if ("proposal_decline".equals(action)) {
 				// a waiting part being fitted or built finishes first (declining it then would leave it built and not recorded as accepted)
+				// the waiting parts' row: put off for this session
+				if (PendingOffers.GROUP_KEY.equals(lot)) {
+					String no = PendingOffers.putOff(s.get());
+					return no == null ? Result.ok("Not now: the waiting parts are offered again next time.") : Result.fail(no);
+				}
 				var offer = s.get().proposals().open().stream().filter(x -> x.key().equals(lot) && x.offersPart()).findFirst();
 				if (offer.isPresent() && PendingOffers.busy(s.get().id(), offer.get().pendingPart())) return Result.fail("It is being built now; undo it once it stands.");
 				return Result.ok(Proposals.decline(player.level().getServer(), s.get(), lot == null ? "" : lot));
@@ -441,6 +446,13 @@ public final class Actions {
 	 * as the build starts, and given back if the build ends having spent nothing, so a failed start costs neither the proposal nor the allowance.
 	 */
 	static Result acceptProposal(ServerPlayer player, Settlement s, String key, boolean autonomous) {
+		if (PendingOffers.GROUP_KEY.equals(key)) {
+			// the waiting parts' row: one part fitted and built, the rest offered after (always the player's call)
+			if (autonomous) return Result.fail("A waiting part waits for the player.");
+			if (SettlementRunner.busy(s.id())) return Result.fail(s.name() + " is busy (a build, a road, an undo or another part); build the parts once that is done.");
+			String no = PendingOffers.acceptGroup(player.level().getServer(), player.getUUID(), s);
+			return no == null ? Result.ok("Fitting one part to what stands (up to $1); the rest wait their turn.") : Result.fail(no);
+		}
 		var p = s.proposals().open().stream().filter(x -> x.key().equals(key)).findFirst();
 		if (p.isEmpty()) return Result.fail("No proposal " + key + " waits.");
 		if (SettlementRunner.busy(s.id())) return Result.fail(s.id() + " is being built; build the proposal once that is done.");

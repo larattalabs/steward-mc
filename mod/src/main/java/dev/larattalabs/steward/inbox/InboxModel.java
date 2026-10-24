@@ -26,7 +26,7 @@ public final class InboxModel {
 
 	/**
 	 * @param decision a {@link Pipeline.Decision} name ({@code NONE} when the build is just working)
-	 * @param lines further lines: progress and spend
+	 * @param lines further lines, shown under the headline: the buildings by stage, a usage limit the build waits for
 	 */
 	public record Entry(String settlementId, String name, String decision, String headline, List<String> lines, List<Lot> lots, double budgetUsd, double spentUsd,
 		double minRaiseUsd) {
@@ -40,19 +40,43 @@ public final class InboxModel {
 			return lots.stream().filter(l -> "done".equals(l.stage())).count();
 		}
 
+		/** A build that has ended ({@code DONE}, {@code FAILED} or {@code CANCELLED}): its row stays a few minutes so the player sees how it ended. */
+		public boolean ended() {
+			return ENDED.contains(decision);
+		}
+
 		/** Unique in the inbox: a settlement can have a build in progress and updates waiting at once. */
 		public String key() {
 			return "UPDATE".equals(decision) ? settlementId + "#updates" : "PROPOSAL".equals(decision) ? settlementId + "#proposals" : settlementId;
 		}
 
 		public boolean waiting() {
-			return !Pipeline.Decision.NONE.name().equals(decision);
+			return !Pipeline.Decision.NONE.name().equals(decision) && !ended();
+		}
+
+		/** Held by the player's usage limit: nothing moves until it resets. */
+		public boolean held() {
+			return !ended() && lines.stream().anyMatch(l -> l.startsWith(HELD_LINE));
 		}
 	}
 
-	/** @param waitingLots every building of the build (the ones whose massing waits marked {@code waiting}) */
+	/** The line of a build held by the player's usage limit (then its reset time). */
+	public static final String HELD_LINE = "Waiting for your usage limit to reset";
+
+	/** The key of a settlement's waiting parts as one proposal row (each part is its own proposal underneath). */
+	public static final String PARTS_KEY = "waiting_parts";
+
+	/** The decisions of an ended build's row: its phase's name. */
+	public static final java.util.Set<String> ENDED = java.util.Set.of(Pipeline.Phase.DONE.name(), Pipeline.Phase.FAILED.name(), Pipeline.Phase.CANCELLED.name());
+
+	/**
+	 * A build's entry. An ended build's carries its phase as its decision ({@link Entry#ended}): nothing to decide, how it ended in words.
+	 *
+	 * @param waitingLots every building of the build (the ones whose massing waits marked {@code waiting})
+	 */
 	public static Entry entry(String settlementId, String name, Pipeline.State s, List<Lot> waitingLots) {
 		Pipeline.Decision d = Pipeline.awaiting(s);
+		String decision = s.phase().terminal() ? s.phase().name() : d.name();
 		String headline = switch (d) {
 			case BIBLE -> "The style bible is ready. Approve it to design the buildings.";
 			case MASSINGS -> waitingLots.stream().filter(Lot::waiting).count() + " massings wait for you: approve them, or send one back with notes.";
@@ -64,15 +88,19 @@ public final class InboxModel {
 		List<String> lines = new ArrayList<>();
 		var counts = Pipeline.stageCounts(s);
 		if (!counts.isEmpty()) lines.add("Buildings: " + counts.entrySet().stream().map(e -> e.getValue() + " " + e.getKey()).reduce((a, b) -> a + ", " + b).orElse(""));
-		lines.add(String.format("Spent $%.2f of $%.0f", s.spentUsd(), s.budgetUsd()));
-		if (s.heldNote() != null) lines.add("Waiting for your Claude usage limit to reset (" + s.heldNote() + ")");
-		return new Entry(settlementId, name, d.name(), headline, lines, waitingLots, s.budgetUsd(), s.spentUsd(), Pipeline.minimumRaise(s));
+		// the spend is not a line: the inbox shows it beside the build's state, from spentUsd and budgetUsd
+		if (s.heldNote() != null && !s.phase().terminal()) lines.add(HELD_LINE + " (" + s.heldNote() + ")");
+		return new Entry(settlementId, name, decision, headline, lines, waitingLots, s.budgetUsd(), s.spentUsd(), Pipeline.minimumRaise(s));
 	}
 
 	/** The steward's proposals for a settlement: one row per idea (its key, its title, why and about what it costs), each to build or to decline. */
 	public static Entry proposals(String settlementId, String name, List<Lot> ideas) {
-		String headline = ideas.size() == 1 ? "The steward has an idea for " + name + ": build it, or not now (it will not ask again)."
-			: "The steward has " + ideas.size() + " ideas for " + name + ": build one, or decline it (it will not ask again).";
+		boolean parts = ideas.stream().anyMatch(l -> PARTS_KEY.equals(l.id()));
+		long others = ideas.size() - (parts ? 1 : 0);
+		String headline = others == 0 ? "Parts of " + name + "'s plan can be built now: build them one at a time, or not now (they are offered again next time)."
+			: (others == 1 ? "The steward has an idea for " + name + ": build it, or not now (it will not ask again)."
+				: "The steward has " + others + " ideas for " + name + ": build one, or decline it (it will not ask again).")
+				+ (parts ? " Waiting parts put off come back next time." : "");
 		return new Entry(settlementId, name, "PROPOSAL", headline, List.of(), ideas, 0, 0, 0);
 	}
 
@@ -91,10 +119,10 @@ public final class InboxModel {
 			case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> "Designing the buildings.";
 			case READY_TO_PLACE -> "Fitting the buildings to their lots.";
 			case PLACING, AWAITING_PLACEMENT_APPROVAL -> "Placing the settlement.";
-			case DONE -> "Built.";
-			case FAILED -> "Failed.";
-			case CANCELLING -> "Cancelling: waiting for Architect to stop.";
-			case CANCELLED -> "Cancelled.";
+			case DONE -> "Built: every building stands.";
+			case FAILED -> "Failed: it stopped and spends nothing more. The steward said why in chat.";
+			case CANCELLING -> "Cancelling: waiting for the work under way to stop.";
+			case CANCELLED -> "Cancelled: nothing more is spent.";
 		};
 	}
 }

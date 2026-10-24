@@ -19,9 +19,9 @@ import net.minecraft.client.input.KeyEvent;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The steward's inbox, laid out like AgentCraft's hub inbox and Architect's set view: on the left every build in progress, grouped "Needs you" and
- * "Building" (a status dot, the name, what it waits for or is doing); on the right the selected build: a status pill and the spend, a progress bar, what it
- * waits for in words, and its buildings as two-line rows in an inset (a dot per stage, a star on landmarks, size and named parts). A waiting massing carries
+ * The steward's inbox, laid out like AgentCraft's hub inbox and Architect's set view: on the left every build in progress, grouped "Needs you",
+ * "Building" and "Ended" (a build that ended stays a few minutes) (a status dot, the name, what it waits for or is doing); on the right the selected build: a
+ * status pill and the spend, a progress bar, what it waits for in words with its further lines (the buildings by stage, a usage limit), and its buildings as two-line rows in an inset (a dot per stage, a star on landmarks, size and named parts). A waiting massing carries
  * its own Approve and Redirect chips; redirect notes open under the list. The actions that fit sit at the bottom: approve the style bible, approve every
  * massing, show or hide the ghosts, raise a paused budget (from the minimum that clears the pause), place, cancel (asks twice). The panel takes the height
  * its content needs. Decisions go to the server; the screen shows what it sent until the server's next inbox arrives. Client thread.
@@ -31,6 +31,8 @@ public final class InboxScreen extends KitScreen {
 	private static final int LIST_W = 128;
 	private static final int ROW_H = 22;
 	private @Nullable String selectedId;
+	/** The player picked {@link #selectedId} in the list (else the screen was opened for a settlement, or picked the first row itself). */
+	private boolean picked;
 	private @Nullable String redirectLot;
 	private boolean confirmCancel;
 	private boolean ghosts = true;
@@ -48,15 +50,19 @@ public final class InboxScreen extends KitScreen {
 	private InboxModel.@Nullable Entry selected() {
 		List<InboxModel.Entry> all = ClientInbox.entries();
 		if (all.isEmpty()) return null;
+		// picked in the list: that row, ended or not
+		if (picked) for (InboxModel.Entry e : all) if (e.key().equals(selectedId)) return e;
+		// opened for a settlement (its id is its build's key): its build first, else its updates or ideas, and a build that ended only when nothing else is
+		for (InboxModel.Entry e : all) if (e.key().equals(selectedId) && !e.ended()) return e;
+		for (InboxModel.Entry e : all) if (e.settlementId().equals(selectedId) && !e.ended()) return e;
 		for (InboxModel.Entry e : all) if (e.key().equals(selectedId)) return e;
-		// opened for a settlement: its build first, else its updates
-		for (InboxModel.Entry e : all) if (e.settlementId().equals(selectedId)) return e;
 		InboxModel.Entry pick = all.stream().filter(InboxModel.Entry::waiting).findFirst().orElse(all.get(0));
 		selectedId = pick.key();
 		return pick;
 	}
 
 	private void select(String id) {
+		picked = true;
 		if (id.equals(selectedId)) return;
 		selectedId = id;
 		redirectLot = null;
@@ -113,6 +119,7 @@ public final class InboxScreen extends KitScreen {
 
 	/** The pill family and label of a build's state. */
 	private static String[] pill(InboxModel.Entry e) {
+		if (e.held() && !e.waiting()) return new String[] {"idle", "paused: usage limit"};
 		return switch (e.decision()) {
 			case "BIBLE" -> new String[] {"waiting", "style bible"};
 			case "MASSINGS" -> new String[] {"waiting", "massings"};
@@ -120,6 +127,9 @@ public final class InboxScreen extends KitScreen {
 			case "PLACEMENT" -> new String[] {"waiting", "ready to place"};
 			case "UPDATE" -> new String[] {"done", "update available"};
 			case "PROPOSAL" -> new String[] {"thinking", "an idea"};
+			case "DONE" -> new String[] {"done", "built"};
+			case "FAILED" -> new String[] {"error", "failed"};
+			case "CANCELLED" -> new String[] {"idle", "cancelled"};
 			default -> new String[] {"working", "working"};
 		};
 	}
@@ -193,9 +203,15 @@ public final class InboxScreen extends KitScreen {
 		drawFooter(g, cx, footerY, inner, all.size() > 1);
 	}
 
+	/** The list's groups: what needs the player, what is being built, what ended in the last minutes. */
+	private static final String[] GROUPS = {"Needs you", "Building", "Ended"};
+
+	private static int group(InboxModel.Entry e) {
+		return e.waiting() ? 0 : e.ended() ? 2 : 1;
+	}
+
 	private int listHeight(List<InboxModel.Entry> all) {
-		long waiting = all.stream().filter(InboxModel.Entry::waiting).count();
-		int groups = (waiting > 0 ? 1 : 0) + (waiting < all.size() ? 1 : 0);
+		int groups = (int) all.stream().mapToInt(InboxScreen::group).distinct().count();
 		return groups * 14 + all.size() * ROW_H + 6;
 	}
 
@@ -205,10 +221,12 @@ public final class InboxScreen extends KitScreen {
 		listIds.clear();
 		listRows.clear();
 		int ry = y + 4;
-		for (boolean needs : new boolean[] {true, false}) {
-			List<InboxModel.Entry> group = all.stream().filter(en -> en.waiting() == needs).toList();
+		for (int gi = 0; gi < GROUPS.length; gi++) {
+			int at = gi;
+			boolean needs = gi == 0;
+			List<InboxModel.Entry> group = all.stream().filter(en -> group(en) == at).toList();
 			if (group.isEmpty()) continue;
-			String label = needs ? "Needs you · " + group.size() : "Building";
+			String label = needs ? GROUPS[gi] + " · " + group.size() : GROUPS[gi];
 			g.text(font, label, x + 5, ry + 1, UiStyle.CLAY_DARK, false);
 			Panels.divider(g, x + 9 + font.width(label), ry + 5, Math.max(0, w - 18 - font.width(label)));
 			ry += 14;
@@ -231,6 +249,7 @@ public final class InboxScreen extends KitScreen {
 	private int detailHeight(InboxModel.Entry e, int w) {
 		int h = 14 + 10; // pill row, progress
 		h += TextUtil.wrapPlain(font, e.headline(), w).size() * 10 + 6;
+		for (String l : e.lines()) h += TextUtil.wrapPlain(font, l, w).size() * 10;
 		h += Math.min(e.lots().size(), 8) * ROW_H + 8;
 		if (field != null) h += TextFieldView.BASE_H + 10 + (redirectLot != null ? 12 : 0);
 		return h;
@@ -254,8 +273,16 @@ public final class InboxScreen extends KitScreen {
 			y += 12;
 		}
 		for (String l : TextUtil.wrapPlain(font, e.headline(), w)) {
-			g.text(font, l, x, y, e.waiting() ? UiStyle.CLAY_DARK : UiBits.ink(), false);
+			g.text(font, l, x, y, e.waiting() ? UiStyle.CLAY_DARK : "FAILED".equals(e.decision()) ? UiBits.errorText() : UiBits.ink(), false);
 			y += 10;
+		}
+		// the further lines: the buildings by stage, a usage limit it waits for
+		for (String line : e.lines()) {
+			boolean held = line.startsWith(InboxModel.HELD_LINE);
+			for (String l : TextUtil.wrapPlain(font, line, w)) {
+				g.text(font, l, x, y, held ? UiStyle.CLAY_DARK : UiBits.muted(), false);
+				y += 10;
+			}
 		}
 		y += 6;
 		// the buildings
@@ -277,10 +304,12 @@ public final class InboxScreen extends KitScreen {
 					int cy = ry + (20 - CHIP_H) / 2 - 1;
 					String no = "Not now";
 					ax -= chipWidth(no);
-					chip(g, no, ax, cy, false, true, mx, my, () -> send("proposal_decline", l.id(), "", 0, "Declining " + l.role().toLowerCase()));
+					chip(g, no, ax, cy, false, true, mx, my, () -> send("proposal_decline", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Putting the waiting parts off"
+						: "Declining " + l.role().toLowerCase()));
 					String yes = "Build it";
 					ax -= chipWidth(yes) + 3;
-					chip(g, yes, ax, cy, true, true, mx, my, () -> send("proposal_accept", l.id(), "", 0, "Starting " + l.role().toLowerCase()));
+					chip(g, yes, ax, cy, true, true, mx, my, () -> send("proposal_accept", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Fitting one waiting part"
+						: "Starting " + l.role().toLowerCase()));
 					actionsW = x + w - ax + 4;
 				} else if ("UPDATE".equals(e.decision()) && sentAtVersion < 0) {
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
@@ -339,6 +368,8 @@ public final class InboxScreen extends KitScreen {
 	private void drawActions(GuiGraphicsExtractor g, InboxModel.Entry e, int x, int y, int w, int mx, int my) {
 		int bx = x;
 		boolean idle = sentAtVersion < 0;
+		// an ended build has nothing left to decide or cancel
+		if (e.ended()) return;
 		switch (e.decision()) {
 			case "BIBLE" -> bx += button(g, "Approve the style", 1, true, false, idle, bx, y, mx, my, () -> send("approve", "", "", 0, "Approving the style bible")) + 6;
 			case "MASSINGS" -> {
@@ -391,13 +422,19 @@ public final class InboxScreen extends KitScreen {
 			g.text(font, TextUtil.ellipsize(font, status, inner), cx, fy - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
 			return;
 		}
-		String[] hints = several ? new String[] {"1-9", "act", "↑↓", "build", "Esc", "close"} : new String[] {"1-9", "act", "Esc", "close"};
+		// "1-9 act" only when a numbered button is drawn (an idea's row buttons are not numbered)
+		List<String> h = new ArrayList<>();
+		if (numbered()) h.addAll(List.of("1-9", "act"));
+		if (several) h.addAll(List.of("↑↓", "build"));
+		h.addAll(List.of("Esc", "close"));
+		String[] hints = h.toArray(String[]::new);
 		if (UiBits.hintsWidth(font, hints) <= inner) UiBits.hints(g, font, cx, fy - 4, false, hints);
 	}
 
 	@Override
 	protected boolean keyOther(KeyEvent e) {
-		List<InboxModel.Entry> all = ClientInbox.entries();
+		// in the order the list draws them, group by group
+		List<InboxModel.Entry> all = ClientInbox.entries().stream().sorted(java.util.Comparator.comparingInt(InboxScreen::group)).toList();
 		if (all.size() < 2) return false;
 		int i = Math.max(0, all.indexOf(selected()));
 		if (e.key() == InputConstants.KEY_DOWN || e.key() == InputConstants.KEY_RIGHT) i = (i + 1) % all.size();
