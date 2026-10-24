@@ -200,3 +200,46 @@ Should-fixes:
 8. One town-region lookup. `PendingOffers.townRegion`'s oldest-standing rule was confirmed at `PendingOffers.java:113`.
 9. Persisted proposal payloads, pricing and growth by kind.
 10. PPlan's lot adapter for district lots.
+
+## 9. Against D3 as shipped (Architect 0.43.0, API 1.40, 2026-10-24)
+
+D3 (architect-mc CONTRACT "Phase 6c slice D3") shipped D-S1, D-S3 and D-S4. This section brings sections 3, 4 and 6.1 up to it; where
+they differ, this one holds.
+
+- **The join reaches the town's street (D-S1).** A district's join may enter the town's claim and route over land nobody holds, around
+  the town's footprint, bodies and held cells, to the cheapest point of the town's street network: a street end (continuing its line)
+  or a street's side (a T junction). Section 6.1's block is gone. Refusals keep the `NO_JOIN:` prefix with a bracketed kind (`apart`,
+  `street`, `wall`, `route`, `budget`), and Steward says them in its own words.
+- **North and south.** A T junction now joins a district north or south of an east-west town. Noah's Q3 (square districts there) was
+  given while that wasn't possible. The first cut keeps Q3. Beside districts north and south are a follow-up for Noah to decide.
+- **Survival.** RS shipped, and Steward's Supplied region builds run (`realiseMode`). The first cut still keeps square districts in a
+  survival world, as section 3 says: a district region from materials adds its own stockpile and feed questions. It is a follow-up.
+- **The founding check is `Regions.checkBeside` (D-S4).** It is $0, keeps nothing (no plan id, no file, no key) and answers `fits` with
+  the join and the land, or Architect's reason and `code`. A placeholder district's land is the placeholder's. The real first building
+  plans again and may place the district elsewhere in the request claim (D3 §7.2), so the reservation never adopts the verdict's land.
+- **What Steward saves, and from where (format 4).**
+  - A reserved beside district owns its reservation: the side's square beyond the town's claim, as today's squares. Its `land` is that
+    square as one run.
+  - Once its region stands, its `land` is the reservation plus Architect's `architect_mc:land.outside` (D3 §6): the cells outside the
+    town's claim that the district region took, the join's included. `inside` (the join's reach and seam cells in the town's claim)
+    is town land already. Steward's additions in the town avoid it (they read it from the region, never from the save).
+  - An along district or an outpost owns exactly `land.outside`.
+  - Steward saves its own geometry only, as row runs and a rect, never Architect's land object. Architect's `land.v` moving to 2 (6d's
+    grown parts) changes how Steward reads the region, never the save format. `standingRemoved` and `architect_mc:beside.dangling`
+    are read live from the region, never saved.
+- **Undo, as shipped (D3 §4.2).** Removing the district leaves the town exactly as it was. Removing the town first keeps the join
+  standing, the district's, and marks the district `dangling` (and `land.standingRemoved`). Steward shows "its road to the town is
+  gone" from those. A district beside a removed town refuses `OTHER` ("no standing region"), and a reach plan whose town goes before its
+  realise refuses `OTHER` too, "re-plan".
+- **The re-check at realise (D3 §4.4).** A beside plan with `reach` re-checks before its first write: through `realiseApproved` every
+  refusal reads `ARTIFACT_STALE`, so Steward's same-key stale retry covers it.
+- **A second district beside the same town** routes around the first one's join (its columns are held). A district beside a district
+  works with that district as the town (D3 §9).
+- **Slices, in order** (each with unit tests and both e2e, committed in coherent pieces):
+  1. Persistence: format 4 (`kind`, `state`, `parent`, `region`, `land`, `follow`, `opKey`), the v3 migration (every district a
+     `square`), the build store's format with it, and every land consumer reading `land` (`districtAt`, `claims`, `claimFor`, the
+     overlap test). A GPT review of this slice alone.
+  2. `TownRegion.of`, and `PendingOffers.townRegion` on it.
+  3. Founding a beside reservation (`checkBeside`), its undo.
+  4. The district build (plan, realise, land, recovery), giving it up, `dangling`.
+  5. Along districts and outposts as quarters; talk, proposals and the Claim tab's chips.
