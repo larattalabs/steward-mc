@@ -78,6 +78,11 @@ public final class Toasts implements HudElement {
 		return shown;
 	}
 
+	/** Every toast shown or waiting dropped (leaving a world: its notices are not the next world's). */
+	public static void clear() {
+		ACTIVE.clear();
+	}
+
 	public static void push(Level level, String title, String body) {
 		push(level, title, body, null, null);
 	}

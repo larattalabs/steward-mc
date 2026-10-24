@@ -26,4 +26,21 @@ public final class TwoPress {
 	public void reset() {
 		armedAt = -1;
 	}
+
+	private boolean held;
+
+	/**
+	 * The key going down at {@code now}: as {@link #press}, but a key held down (the game repeats a held key's presses) counts once until it is
+	 * released ({@link #up}), so holding Enter never arms and then acts.
+	 */
+	public boolean down(long now) {
+		if (held) return false;
+		held = true;
+		return press(now);
+	}
+
+	/** The key released: its next going down is a new press. */
+	public void up() {
+		held = false;
+	}
 }

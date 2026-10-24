@@ -41,6 +41,9 @@ public final class CardScreen extends KitScreen {
 	private boolean sent;
 	/** Enter (or 1) starts on its second press; the first says so. */
 	private final dev.larattalabs.steward.ui.TwoPress confirm = new dev.larattalabs.steward.ui.TwoPress();
+	/** What the first press showed (the budget and the count): the second confirms only those. */
+	private double armedUsd = Double.NaN;
+	private int armedBuildings = -1;
 	private boolean confirmShown;
 	private int wellScroll;
 	private int programScroll;
@@ -91,7 +94,12 @@ public final class CardScreen extends KitScreen {
 		}
 		double usd = budget();
 		if (Double.isNaN(usd)) return;
-		if (!confirm.press(net.minecraft.util.Util.getMillis())) {
+		// the second press confirms what the first showed: a count or budget changed since is a new first press
+		if (confirm.armed(net.minecraft.util.Util.getMillis()) && (usd != armedUsd || buildings != armedBuildings)) confirm.reset();
+		if (!confirm.down(net.minecraft.util.Util.getMillis())) {
+			if (!confirm.armed(net.minecraft.util.Util.getMillis())) return;
+			armedUsd = usd;
+			armedBuildings = buildings;
 			super.say(String.format("Press Enter again to start: it spends up to $%.0f.", usd), false);
 			confirmShown = true;
 			return;
@@ -441,6 +449,13 @@ public final class CardScreen extends KitScreen {
 			return true;
 		}
 		return super.keyPressed(e);
+	}
+
+	@Override
+	public boolean keyReleased(KeyEvent e) {
+		// Enter or 1 released: its next press counts again (held, the game repeats it)
+		if (TextKeys.isEnter(e) || e.key() == InputConstants.KEY_1) confirm.up();
+		return super.keyReleased(e);
 	}
 
 	@Override

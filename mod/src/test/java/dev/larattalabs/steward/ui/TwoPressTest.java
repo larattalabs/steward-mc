@@ -26,4 +26,15 @@ class TwoPressTest {
 		assertFalse(p.press(100 + TwoPress.WINDOW_MS + 1), "so a late press arms again");
 		assertTrue(p.press(200 + TwoPress.WINDOW_MS));
 	}
+
+	@Test
+	void aHeldKeyCountsOnceUntilReleased() {
+		TwoPress p = new TwoPress();
+		assertFalse(p.down(0), "the key goes down: armed");
+		assertFalse(p.down(50), "repeats while held are not presses");
+		assertFalse(p.down(100));
+		assertTrue(p.armed(100));
+		p.up();
+		assertTrue(p.down(200), "released and pressed again: acts");
+	}
 }

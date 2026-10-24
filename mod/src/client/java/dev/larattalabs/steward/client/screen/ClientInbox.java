@@ -43,6 +43,8 @@ public final class ClientInbox {
 	public static void clear() {
 		entries = List.of();
 		TOASTS.clear();
+		// the toasts already shown or waiting go too: after a relog they would come again from the new inbox, and in another world they aren't its own
+		dev.larattalabs.steward.client.hud.Toasts.clear();
 		version++;
 	}
 }
