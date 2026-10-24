@@ -69,16 +69,27 @@ public record Settlement(
 	 * One operation in the change log (docs/PLAN.md "Reviews (2026-10-09)": change history before autonomy). {@code siteIds} are the Architect sites it
 	 * touched; {@code siteGroup} the site group a placed project's batch made (undo removes it whole); {@code op} its id in the settlement ({@code op_<n>},
 	 * given when logged); {@code changes} the version change of each site; {@code outcome} how it ended. Entries written before operations have no op,
-	 * changes or outcome: they read as done with no recorded versions.
+	 * changes or outcome: they read as done with no recorded versions. {@code district} (format 4): the district an operation founded or gave up without
+	 * a site of its own (a reservation, docs/DISTRICTS.md section 4), so its undo knows what to give up.
 	 */
 	public record LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup, @Nullable String op, List<SiteChange> changes,
-		@Nullable Outcome outcome) {
+		@Nullable Outcome outcome, @Nullable String district) {
 		public LogEntry {
 			kind = kind == null ? Kind.NOTE : kind;
 			siteIds = siteIds == null ? List.of() : List.copyOf(siteIds);
 			changes = changes == null ? List.of() : List.copyOf(changes);
 			outcome = outcome == null ? Outcome.DONE : outcome;
 			text = text == null ? "" : text;
+		}
+
+		public LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup, @Nullable String op, List<SiteChange> changes,
+			@Nullable Outcome outcome) {
+			this(at, kind, text, siteIds, siteGroup, op, changes, outcome, null);
+		}
+
+		/** An operation on a district that has no site of its own (founding or giving up a reservation). */
+		public static LogEntry ofDistrict(long at, Kind kind, String text, String district) {
+			return new LogEntry(at, kind, text, List.of(), null, null, List.of(), Outcome.DONE, district);
 		}
 
 		public LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup) {
@@ -104,7 +115,7 @@ public record Settlement(
 		}
 
 		LogEntry withOp(String id) {
-			return new LogEntry(at, kind, text, siteIds, siteGroup, id, changes, outcome);
+			return new LogEntry(at, kind, text, siteIds, siteGroup, id, changes, outcome, district);
 		}
 	}
 
@@ -482,8 +493,11 @@ public record Settlement(
 				List<String> left = e.siteIds().stream().filter(id -> !removed.contains(id)).toList();
 				// the group only while the project is whole: after a partial undo the rest goes site by site
 				if (!left.isEmpty()) return java.util.Optional.of(new LogEntry(e.at(), e.kind(), e.text(), left, left.size() == e.siteIds().size() ? e.siteGroup() : null, e.op(),
-					e.changes().stream().filter(c -> left.contains(c.siteId())).toList(), e.outcome()));
+					e.changes().stream().filter(c -> left.contains(c.siteId())).toList(), e.outcome(), e.district()));
 			}
+			// a reservation (a district founded with no site): undoable while it is still only reserved; once built, its build's entry is the newer one
+			if (e.kind() == Kind.DISTRICT_FOUNDED && e.siteIds().isEmpty() && e.district() != null
+				&& lands.district(e.district()).filter(d -> District.RESERVED.equals(d.state())).isPresent()) return java.util.Optional.of(e);
 		}
 		return java.util.Optional.empty();
 	}

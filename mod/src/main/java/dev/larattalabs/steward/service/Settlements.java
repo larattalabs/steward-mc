@@ -137,6 +137,34 @@ public final class Settlements {
 		}
 	}
 
+	/**
+	 * Adds a reserved district ({@code make} gets its new id; docs/DISTRICTS.md section 9) and logs its founding with the district as its target (no site:
+	 * its undo gives the reservation up). Saved, or nothing changes.
+	 */
+	public static Result addReservation(String id, java.util.function.Function<String, Settlement.District> make, String text, long now) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		Settlement.Lands l = s.get().lands().next();
+		Settlement.District d = make.apply("dst_" + l.serial());
+		Settlement n = s.get().withLands(l.withDistrict(d)).withLog(Settlement.LogEntry.ofDistrict(now, Settlement.Kind.DISTRICT_FOUNDED, text, d.id()));
+		try {
+			return commit(s, n, "");
+		} catch (IllegalArgumentException e) {
+			return Result.fail("The district overlaps another settlement (" + e.getMessage() + ").");
+		}
+	}
+
+	/** Gives up a district that is still only reserved (its founding undone): dropped and logged, $0. Refused once it is building or stands. */
+	public static Result giveUpReservation(String id, String districtId, long now) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		var d = s.get().lands().district(districtId);
+		if (d.isEmpty()) return Result.fail("No district " + districtId + ".");
+		if (!Settlement.District.RESERVED.equals(d.get().state())) return Result.fail(d.get().name() + " is " + d.get().state() + ", not only reserved.");
+		return commit(s, s.get().withLands(s.get().lands().withoutDistrict(districtId)).withLog(Settlement.LogEntry.ofDistrict(now, Settlement.Kind.DISTRICT_REMOVED,
+			"Gave up the reservation for " + d.get().name(), districtId)), "");
+	}
+
 	/** Replaces a district (a road added or dropped); logged when {@code entry} is given. */
 	public static Result updateDistrict(String id, Settlement.District d, Settlement.@org.jspecify.annotations.Nullable LogEntry entry) {
 		Optional<Settlement> s = store.get(id);

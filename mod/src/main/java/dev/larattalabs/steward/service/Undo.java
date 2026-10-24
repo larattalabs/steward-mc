@@ -75,6 +75,12 @@ public final class Undo {
 			say.accept("Nothing to undo for " + s.name() + ".");
 			return false;
 		}
+		// a reservation: no site, nothing in the world; giving it up is the undo ($0)
+		if (entry.get().siteIds().isEmpty() && entry.get().district() != null) {
+			var r = Settlements.giveUpReservation(s.id(), entry.get().district(), System.currentTimeMillis());
+			say.accept(r.ok() ? "Undone: " + entry.get().text().replaceFirst("^Reserved", "the reservation of") + " is given up; nothing was built there." : "Could not undo: " + r.error());
+			return r.ok();
+		}
 		List<String> ids = new ArrayList<>(entry.get().siteIds());
 		// the steward never stands in what is removed (a named mob in a box stops Architect)
 		var all = ArchitectApi.get().sites(server);

@@ -46,6 +46,55 @@ public final class DistrictRules {
 		return ClaimRules.withRadius(town, Math.min(ClaimRules.VILLAGE_RADIUS, town.radius()));
 	}
 
+	/** How far a beside district's request may reach into the town region's claim (Architect D1/D3's seam). */
+	public static final int SEAM = 16;
+
+	/**
+	 * A beside district's reservation (docs/DISTRICTS.md section 9), or why not.
+	 *
+	 * @param claim the side's square just beyond the settlement's claim: the land it owns (null when refused)
+	 * @param request the claim Architect plans in ({@code x0, z0, x1, z1}): the reservation and the way back into the town region's claim, overlapping it by
+	 *     {@link #SEAM} columns. A search frame, never owned.
+	 * @param note why it was refused ("" when reserved)
+	 */
+	public record Reservation(@Nullable Claim claim, int[] request, String note) {
+		public boolean ok() {
+			return claim != null;
+		}
+
+		static Reservation refused(String why) {
+			return new Reservation(null, new int[0], why);
+		}
+	}
+
+	/**
+	 * Where a beside district is reserved towards {@code dir} (east or west of a region town; north and south are square districts, Noah's Q3).
+	 * {@code region} is the town region's claim ({@code x0, z0, x1, z1}), which may be smaller than the settlement's. Refused over another district, another
+	 * settlement or a protected area. Pure.
+	 */
+	public static Reservation reserve(Claim town, int[] region, List<Settlement.District> own, List<Claim> others, List<Settlement.Area> areas, String dir,
+		int radius, String name) {
+		if (!dir.equals("E") && !dir.equals("W")) return Reservation.refused("A district north or south of this town is a square district.");
+		boolean east = dir.equals("E");
+		int cx = east ? town.centerX() + town.radius() + 1 + radius : town.centerX() - town.radius() - 1 - radius;
+		Claim d = new Claim(town.dimension(), cx, town.centerZ(), radius, town.minY(), town.maxY());
+		Land land = Land.of(d);
+		for (Settlement.District o : own) {
+			if (o.land().overlaps(land)) return Reservation.refused("The " + name + " district would overlap the " + o.name() + " district.");
+		}
+		for (Claim o : others) {
+			if (land.overlaps(o)) return Reservation.refused("The " + name + " district would overlap the settlement at " + o.centerX() + "," + o.centerZ() + ".");
+		}
+		for (Settlement.Area a : areas) {
+			if (land.overlaps(Land.ofRect(a.dimension(), a.x0(), a.z0(), a.x1(), a.z1()))) {
+				return Reservation.refused("The " + name + " district would cover the protected area \"" + a.label() + "\".");
+			}
+		}
+		int x0 = east ? region[2] - (SEAM - 1) : cx - radius;
+		int x1 = east ? cx + radius : region[0] + (SEAM - 1);
+		return new Reservation(d, new int[] {x0, town.centerZ() - radius, x1, town.centerZ() + radius}, "");
+	}
+
 	/** The town street's centre line (z) and its ends (x); null before the town has a street. */
 	public record Street(int z, int x0, int x1) {}
 
