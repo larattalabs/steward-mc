@@ -269,3 +269,13 @@ Fix-verification pass (same day): 5 and 7 confirmed; 1-4 and 9 needed more, now 
   a not-yet-built one's request claim. After a realise, a sibling's columns are still never taken.
 - 9: land is bounded far from int's ends (2^30) rather than at the world's border, so claims at the border stay land; `minus` is one sweep.
 - The e2e checks every run of Architect's outside land lies in the saved land.
+
+Second fix-verification pass (same day; the second round, so what's left goes to Noah): 3, 5, 7, 9 and the e2e check confirmed. Fixed after it:
+- 2: undo of a district whose build ended unresolved is allowed when the newest operation is that district's own region (recorded by the world-start
+  sweep), so a blocked take-up can be retried; any other undo still waits.
+Accepted, with the reason, for Noah's call:
+- 1: a realise whose answer never comes keeps the settlement busy until the world closes. Architect's futures complete or fail (a world stop fails
+  them), so this needs an Architect bug; expiring the flag would bring back the race it closes.
+- 4: a district build saved before planning re-checked its claim (none exist outside dev worlds: the branch is unreleased) could still realise on a
+  sibling's land; placing never records the sibling's columns as its own.
+- Cancelling while a district is planned (no build state yet) says there's nothing to cancel, as the flat village's planning does today.
