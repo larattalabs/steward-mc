@@ -1759,6 +1759,102 @@ async function besideFlow() {
 }
 
 /**
+ * Steward's districts on region districts (docs/DISTRICTS.md section 9): beside a flat-village town, an east district is reserved ($0, Architect's dry
+ * check), undone and reserved again; its first building (a talk proposal accepted) builds its region beside the town (its street, its join and the
+ * building), saved as a standing district with its region and land; undone, the region goes and the district is given up.
+ */
+async function districtRegionFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 52000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Quay Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little town`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('district reserved', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  if (!(await buildThrough(id, from, 'quay town'))) return;
+  const town = ((settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '').replace(/^region:/, '');
+  if (!/^rg/.test(town)) return fail('district reserved', `the town is not a region: ${town}`);
+  const c = settlements().find((x) => x.id === id).claim;
+  const reserve = async () => {
+    await cmd(`/tp @p ${c.centerX + c.radius + 20} 100 ${c.centerZ}`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    const f = logSize();
+    await cmd(`/steward district ${id} found E e2e quay`);
+    const said = await waitLog(f, /(Reserved e2e quay\.[^\n]*|Could not reserve[^\n]*)/, 300_000);
+    const d = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.name === 'e2e quay') ?? null;
+    return { said: said ? said[1] : 'no answer', d };
+  };
+  let r = await reserve();
+  if (r.d?.kind === 'beside' && r.d?.state === 'reserved' && r.d?.parent === town && !(r.d?.roads ?? []).length) {
+    ok('district reserved', `${r.d.id} beside ${town}, ${r.d.land?.runs?.length ?? 0} rows of land, no road: ${r.said.slice(0, 100)}`);
+  } else return fail('district reserved', `${r.said}; ${JSON.stringify(r.d)?.slice(0, 200)}`);
+  // the reservation is the newest operation: undone, it is given up ($0, nothing in the world)
+  await cmd(`/steward undo ${id}`);
+  let gone = null;
+  for (let i = 0; i < 20 && !gone; i++) {
+    await sleep(500);
+    const st = settlements().find((x) => x.id === id);
+    if (!st?.lands?.districts?.some((x) => x.id === r.d.id) && st?.log.at(-1)?.kind === 'DISTRICT_REMOVED') gone = st.log.at(-1);
+  }
+  if (gone) ok('reservation undone', `${gone.text} (${gone.district})`);
+  else return fail('reservation undone', JSON.stringify(settlements().find((x) => x.id === id)?.lands?.districts)?.slice(0, 200));
+  r = await reserve();
+  if (r.d?.state !== 'reserved') return fail('district reserved again', `${r.said}; ${JSON.stringify(r.d)?.slice(0, 200)}`);
+  const d = r.d;
+  // its first building: asked for in talk, accepted from the inbox
+  const ask = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', 'library.json'), 'utf8')).answer;
+  ask.building = { ...ask.building, role: "harbourmaster's office", type: 'harbour_office', footprint: 'S', placement: undefined };
+  ask.district = d.name;
+  ask.reply = 'A harbourmaster\'s office on the quay: it is in the inbox.';
+  await cmd(`/steward dev sim_answer talk ${JSON.stringify(ask)}`);
+  await cmd(`/steward talk ${id} put a harbourmaster's office in ${d.name}`);
+  let office = null;
+  for (let i = 0; i < 60 && !office; i++) {
+    await sleep(1000);
+    office = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('asked_') && p.district === d.id) ?? null;
+  }
+  if (!office) return fail('district region', 'no proposal in the district');
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${office.key}`);
+  const built = await buildThrough(id, from, 'district region');
+  if (!built) return;
+  const st = settlements().find((x) => x.id === id);
+  const after = st?.lands?.districts?.find((x) => x.id === d.id);
+  const op = st?.log?.filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const region = after?.region;
+  const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
+  const rv = view?.view ?? view ?? {};
+  const outside = rv.ext?.['architect_mc:land']?.outside?.cells ?? 0;
+  if (after?.state === 'standing' && region && op?.siteGroup === `region:${region}` && rv.beside === town && (after.land?.runs?.length ?? 0) > 0) {
+    ok('district region', `${region} beside ${town}, standing; ${built.placed} placed; its land ${after.land.runs.length} rows (${outside} cells outside the town from Architect)`);
+  } else return fail('district region', `district ${JSON.stringify(after)?.slice(0, 200)}; op ${op?.siteGroup}; region beside ${rv.beside}, state ${rv.state}`);
+  // undone: the region goes, and the district with it
+  await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
+  await cmd(`/steward undo ${id}`);
+  let given = null;
+  for (let i = 0; i < 150 && !given; i++) {
+    await sleep(2000);
+    const s2 = settlements().find((x) => x.id === id);
+    if (!s2?.lands?.districts?.some((x) => x.id === d.id)) given = s2;
+  }
+  const rgone = await regionUntil(region, ['REMOVED'], 60_000);
+  if (given && (rgone?.view?.state ?? rgone?.state) === 'REMOVED') ok('district region undone', `${region} removed, ${d.name} given up`);
+  else fail('district region undone', `district ${given ? 'gone' : 'kept'}; region ${rgone?.view?.state ?? rgone?.state}; last ${JSON.stringify(settlements().find((x) => x.id === id)?.log.at(-1))?.slice(0, 160)}`);
+}
+
+/**
  * Architect's plan check (P0; docs/COMPOSITION.md): recorded plans checked round the player on fresh flat land, answered part by part. A plain village
  * is ready, with an artifact; the walled town's hidden cellar is unsupported, naming form.hidden_room (its wall fits: K1). The ready one is realised from its artifact and taken up again.
  */
@@ -2077,6 +2173,7 @@ try {
       await copperLotsFlow();
       await discardFlow();
       await besideFlow();
+      await districtRegionFlow();
     }
   }
   await migratedSteward();
