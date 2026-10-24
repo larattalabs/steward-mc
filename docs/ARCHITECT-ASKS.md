@@ -874,3 +874,19 @@ marker is Bible's `owner`: null or the player means editable, anything else Dupl
 (Architect will confirm the request field). The 14-argument `DesignRequest` constructor stays as a secondary one, with a reflection test and a CONTRACT
 rule that later changes keep old constructors; U1 checks the other records Steward constructs too. The template mapping is dropped. The free head-version
 read and the list of usable Styles are queued for after the district move (or in U1 if cheap). U1's contract text comes as an RC.
+
+## v0.43.0 post-release check (2026-10-24)
+
+Steward on the published v0.43.0 (API 1.40.0; GitHub Packages, the jar's sha256 ad24e7c8…, which differs from the local release jar d26a1cfa… only in
+MANIFEST.MF and the sidecar BUNDLE.json's builtAt stamp): Steward requires >=0.43.0 (REQUIRED_MINOR 40). Both e2e pass with D3's beside flows
+merged from the RC branch: stub 82 checks (the beside check, a district realised and removed first, the town removed first with the join dangling, a
+refused removal changing nothing), free 43. A first stub run died at 00:05:17 when a scratch clone's `gradlew --stop` hit Steward's shared Gradle home
+(the coordinator's agent; the rule since: scratch clones keep their own Gradle home, never `--stop`). The re-run passed. Not covered yet: a town
+planned on the old kit asking to be re-checked.
+
+## Style unification U1 RC (2026-10-24): PASS
+
+Architect slice/U01 at b49c449f (v0.43.0 + UI-2b + U1, after the owner rule changed to "absent or a player UUID is the player's, any other owner a mod's"):
+stub 82 and free 43 pass on steward-mc main. Bibles Steward's jobs made carry owner `steward_mc:settlement/<id>` and origin `claude`, so they are mod-owned
+(Duplicate-only, saved only by that owner, never GC'd). Steward's positional DesignRequest constructor works unchanged. Queued with "use an existing
+Style": a keyed Bibles.pin/unpin, so a player's Style a settlement pins isn't collected.

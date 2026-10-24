@@ -121,3 +121,13 @@ java {
 	sourceCompatibility = JavaVersion.VERSION_25
 	targetCompatibility = JavaVersion.VERSION_25
 }
+
+// A lab-ui checkout built with this one (settings.gradle): compile against its jar, as Architect and AgentCraft do. The classes variant Gradle picks
+// otherwise is lab-ui's main classes directory only, without its client source set.
+if (gradle.ext.has("labUiDir")) {
+	afterEvaluate {
+		configurations.matching { it.name.endsWith("ompileClasspath") }.configureEach {
+			attributes.attribute(LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE, objects.named(LibraryElements, LibraryElements.JAR))
+		}
+	}
+}

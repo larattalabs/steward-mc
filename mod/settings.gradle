@@ -89,6 +89,8 @@ if (labUiExplicit != null && labUiExplicit != "none") {
 
 if (labUiDir != null) {
 	includeBuild(labUiDir)
+	// build.gradle asks for lab-ui's jar, which carries its client classes (the classes variant has its main source set only)
+	gradle.ext.labUiDir = labUiDir.path
 } else {
 	def hasToken = providers.gradleProperty("gpr.key").orElse(providers.environmentVariable("GITHUB_TOKEN")).getOrNull()
 	def userHome = gradle.gradleUserHomeDir
