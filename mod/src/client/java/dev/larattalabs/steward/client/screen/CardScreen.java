@@ -92,11 +92,19 @@ public final class CardScreen extends KitScreen {
 		double usd = budget();
 		if (Double.isNaN(usd)) return;
 		if (!confirm.press(net.minecraft.util.Util.getMillis())) {
-			say(String.format("Press Enter again to start: it spends up to $%.0f.", usd), false);
+			super.say(String.format("Press Enter again to start: it spends up to $%.0f.", usd), false);
 			confirmShown = true;
 			return;
 		}
 		start();
+	}
+
+	/** Any other message (Expand, a wrong budget) replaces the press-again hint and forgets the first press. */
+	@Override
+	protected void say(String text, boolean error) {
+		super.say(text, error);
+		confirm.reset();
+		confirmShown = false;
 	}
 
 	/** The budget typed, or NaN (and why, on the status line) when it is not one. */
