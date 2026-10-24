@@ -839,3 +839,13 @@ after release 2026-10-23: pass** (stub 72, free 42). Steward needs >= 0.42.0; cl
 one miss, 5 grass cells dirt after the grove's undo, was sheep grazing at cells the region never wrote (Architect traced it from the save's
 entities). The grove flow now clears animals once the build has loaded its chunks, and classes grass grazed or spread (`growth`/`grazed`) at
 a column the oak never wrote as the world's change; anything else still fails.
+
+**D3 RC (slice/D3 0cb5f7a7, jar built by Steward; v0.42.0 merged in), 2026-10-24: pass** (free 42; stub 79/80). The one miss was Steward's
+grove check classing a grazed cell under the oak's canopy; fixed on main (29112aa: the oak's written columns are its logs'). On branch `d3-rc`
+with Steward-shaped beside requests (the `districts` program, one plain district of two tagged house lots, Steward's owner and keys):
+- beside a flat-village town: `checkBeside` fits (join side, reach, 103 cells in the town); plan and realise; a removal refused for its owner
+  leaves it `PLACED`; the district removed first leaves the town's ground exactly as it was (0 mismatches); the town undone first leaves the
+  district standing with its join dangling, then it goes;
+- beside the C38 walled town: `NO_JOIN [wall]`; beside a survival town still placing: `OVERLAP_BUSY`.
+Findings fixed on the way: a refused removal flipped a region to `PARTIAL` (main's, from C23; now nothing changes and every stopped removal
+logs why); a town inside its own wall answers `NO_JOIN [wall]`. **Steward's district move (DISTRICTS.md) starts once D3 releases.**
