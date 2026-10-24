@@ -27,6 +27,7 @@ public final class Toasts implements HudElement {
 	public enum Level { INFO, WARN, NEED }
 
 	private static final int W = 196;
+	private static final int BODY_LINES = 3;
 	private static final long QUEUE_MS = 30_000;
 	private static final long QUEUE_NEED_MS = 120_000;
 	private static final int MORE_H = 13;
@@ -37,6 +38,7 @@ public final class Toasts implements HudElement {
 
 	private static final class Toast {
 		final Level level;
+		final @Nullable String subject;
 		final String title;
 		final String body;
 		final String icon;
@@ -46,8 +48,9 @@ public final class Toasts implements HudElement {
 		final @Nullable String hintKey;
 		final String hintVerb;
 
-		Toast(Level level, String title, String body, String icon, long arrived, long life, @Nullable String hintKey, String hintVerb) {
+		Toast(Level level, @Nullable String subject, String title, String body, String icon, long arrived, long life, @Nullable String hintKey, String hintVerb) {
 			this.level = level;
+			this.subject = subject;
 			this.title = title;
 			this.body = body;
 			this.icon = icon;
@@ -91,13 +94,18 @@ public final class Toasts implements HudElement {
 
 	/** Add a toast (client thread) with an optional key hint ("B" "open"). */
 	public static void push(Level level, String title, String body, @Nullable String hintKey, @Nullable String hintVerb) {
+		push(level, null, title, body, hintKey, hintVerb);
+	}
+
+	/** Add a toast whose title starts with {@code subject} (a settlement's name): too long, the subject is shortened and the rest ("needs you") kept. */
+	public static void push(Level level, @Nullable String subject, String title, String body, @Nullable String hintKey, @Nullable String hintVerb) {
 		long life = switch (level) {
 			case NEED -> 9000;
 			case WARN -> 8000;
 			default -> 5500;
 		};
 		String icon = level == Level.NEED ? "decision" : level == Level.WARN ? "test" : "message";
-		ACTIVE.add(0, new Toast(level, title, body, icon, Util.getMillis(), life, hintKey, hintVerb == null ? "" : hintVerb));
+		ACTIVE.add(0, new Toast(level, subject != null && title.startsWith(subject) ? subject : null, title, body, icon, Util.getMillis(), life, hintKey, hintVerb == null ? "" : hintVerb));
 		for (int drop = ToastStack.evict(needs(ACTIVE), ToastStack.MAX_KEPT); drop >= 0; drop = ToastStack.evict(needs(ACTIVE), ToastStack.MAX_KEPT)) {
 			ACTIVE.remove(drop);
 		}
@@ -151,14 +159,25 @@ public final class Toasts implements HudElement {
 		}
 	}
 
+	private static String fitTitle(Font font, Toast t, int w) {
+		if (font.width(t.title) <= w || t.subject == null) return TextUtil.ellipsize(font, t.title, w);
+		String tail = t.title.substring(t.subject.length());
+		return TextUtil.ellipsize(font, t.subject, Math.max(30, w - font.width(tail))) + tail;
+	}
+
+	/** The toast column's width, which the HUD's own line keeps clear of. */
+	public static int columnWidth() {
+		return W + 6;
+	}
+
 	private static List<FormattedCharSequence> lines(Font font, Toast t) {
 		Kit.Padding p = Kit.padding("panel_paper");
 		int textW = W - (p.left() + 20) - p.right();
 		List<FormattedCharSequence> lines = TextUtil.wrap(font, UiBits.oneLine(t.body), textW);
-		if (lines.size() > 2) {
-			String second = TextUtil.wrapPlain(font, UiBits.oneLine(t.body), textW).get(1);
-			lines = List.of(lines.get(0), net.minecraft.network.chat.Component.literal(TextUtil.ellipsize(font, second + " …", textW))
-				.getVisualOrderText());
+		if (lines.size() > BODY_LINES) {
+			String last = TextUtil.wrapPlain(font, UiBits.oneLine(t.body), textW).get(BODY_LINES - 1);
+			lines = new java.util.ArrayList<>(lines.subList(0, BODY_LINES - 1));
+			lines.add(net.minecraft.network.chat.Component.literal(TextUtil.ellipsize(font, last + " …", textW)).getVisualOrderText());
 		}
 		return lines;
 	}
@@ -213,7 +232,7 @@ public final class Toasts implements HudElement {
 		int py = y + p.top() - 1;
 		Panels.sprite(g, Kit.icon(t.icon), px + 2, py + 1, 12, 12, tint);
 		int tx = x + textX;
-		g.text(font, TextUtil.ellipsize(font, t.title, textW), tx, py + 1, UiStyle.withAlpha(need ? UiStyle.CLAY_DARK
+		g.text(font, fitTitle(font, t, textW), tx, py + 1, UiStyle.withAlpha(need ? UiStyle.CLAY_DARK
 			: t.level == Level.WARN ? UiBits.errorText() : UiBits.ink(), a), false);
 		int ly = py + 12;
 		for (FormattedCharSequence line : lines) {

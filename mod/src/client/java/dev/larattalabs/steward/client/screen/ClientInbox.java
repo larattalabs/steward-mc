@@ -23,7 +23,7 @@ public final class ClientInbox {
 		entries = List.copyOf(e);
 		version++;
 		for (InboxToasts.Toast t : TOASTS.update(entries)) {
-			Toasts.push(t.need() ? Toasts.Level.NEED : t.warn() ? Toasts.Level.WARN : Toasts.Level.INFO, t.title(), t.body(), Keys.label(Keys.inbox), "open");
+			Toasts.push(t.need() ? Toasts.Level.NEED : t.warn() ? Toasts.Level.WARN : Toasts.Level.INFO, t.subject(), t.title(), t.body(), Keys.label(Keys.inbox), "open");
 		}
 	}
 

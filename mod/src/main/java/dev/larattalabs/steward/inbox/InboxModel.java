@@ -53,7 +53,15 @@ public final class InboxModel {
 		public boolean waiting() {
 			return !Pipeline.Decision.NONE.name().equals(decision) && !ended();
 		}
+
+		/** Held by the player's usage limit: nothing moves until it resets. */
+		public boolean held() {
+			return !ended() && lines.stream().anyMatch(l -> l.startsWith(HELD_LINE));
+		}
 	}
+
+	/** The line of a build held by the player's usage limit (then its reset time). */
+	public static final String HELD_LINE = "Waiting for your usage limit to reset";
 
 	/** The key of a settlement's waiting parts as one proposal row (each part is its own proposal underneath). */
 	public static final String PARTS_KEY = "waiting_parts";
@@ -81,7 +89,7 @@ public final class InboxModel {
 		var counts = Pipeline.stageCounts(s);
 		if (!counts.isEmpty()) lines.add("Buildings: " + counts.entrySet().stream().map(e -> e.getValue() + " " + e.getKey()).reduce((a, b) -> a + ", " + b).orElse(""));
 		// the spend is not a line: the inbox shows it beside the build's state, from spentUsd and budgetUsd
-		if (s.heldNote() != null && !s.phase().terminal()) lines.add("Waiting for your usage limit to reset (" + s.heldNote() + ")");
+		if (s.heldNote() != null && !s.phase().terminal()) lines.add(HELD_LINE + " (" + s.heldNote() + ")");
 		return new Entry(settlementId, name, decision, headline, lines, waitingLots, s.budgetUsd(), s.spentUsd(), Pipeline.minimumRaise(s));
 	}
 

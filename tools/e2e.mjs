@@ -1468,7 +1468,10 @@ async function suppliedPlanFlow() {
         if (sha0) pinAfter = await pinsOf(sha0);
       } else if (step === 'Approve to place' && !staled) {
         staled = true;
-        for (const y of [65, 66, 67]) await cmd(`/setblock ${claim.centerX + 12} ${y} ${claim.centerZ} minecraft:cobblestone`);
+        // the plan lays out round the stockpile, differently each run: pillars on each side, so one stands on its land
+        for (const [dx, dz] of [[12, 0], [-12, 0], [0, 12], [0, -12], [20, 0], [-20, 0], [0, 20], [0, -20]]) {
+          await cmd(`/fill ${claim.centerX + dx} 65 ${claim.centerZ + dz} ${claim.centerX + dx} 67 ${claim.centerZ + dz} minecraft:cobblestone`);
+        }
       }
     };
     const built = await buildThrough(id, from, 'supplied plan', true, onStep);

@@ -119,6 +119,7 @@ public final class InboxScreen extends KitScreen {
 
 	/** The pill family and label of a build's state. */
 	private static String[] pill(InboxModel.Entry e) {
+		if (e.held() && !e.waiting()) return new String[] {"idle", "paused: usage limit"};
 		return switch (e.decision()) {
 			case "BIBLE" -> new String[] {"waiting", "style bible"};
 			case "MASSINGS" -> new String[] {"waiting", "massings"};
@@ -277,8 +278,9 @@ public final class InboxScreen extends KitScreen {
 		}
 		// the further lines: the buildings by stage, a usage limit it waits for
 		for (String line : e.lines()) {
+			boolean held = line.startsWith(InboxModel.HELD_LINE);
 			for (String l : TextUtil.wrapPlain(font, line, w)) {
-				g.text(font, l, x, y, UiBits.muted(), false);
+				g.text(font, l, x, y, held ? UiStyle.CLAY_DARK : UiBits.muted(), false);
 				y += 10;
 			}
 		}
@@ -420,7 +422,12 @@ public final class InboxScreen extends KitScreen {
 			g.text(font, TextUtil.ellipsize(font, status, inner), cx, fy - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
 			return;
 		}
-		String[] hints = several ? new String[] {"1-9", "act", "↑↓", "build", "Esc", "close"} : new String[] {"1-9", "act", "Esc", "close"};
+		// "1-9 act" only when a numbered button is drawn (an idea's row buttons are not numbered)
+		List<String> h = new ArrayList<>();
+		if (numbered()) h.addAll(List.of("1-9", "act"));
+		if (several) h.addAll(List.of("↑↓", "build"));
+		h.addAll(List.of("Esc", "close"));
+		String[] hints = h.toArray(String[]::new);
 		if (UiBits.hintsWidth(font, hints) <= inner) UiBits.hints(g, font, cx, fy - 4, false, hints);
 	}
 

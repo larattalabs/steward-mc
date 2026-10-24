@@ -394,7 +394,7 @@ public final class CardScreen extends KitScreen {
 		if (payload.busy()) {
 			ax += button(g, "Open the inbox", 1, true, false, true, ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new InboxScreen(payload.settlementId()))) + 6;
 		} else {
-			ax += button(g, sent ? "Starting..." : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::start) + 6;
+			ax += button(g, sent ? "Starting..." : confirmShown ? String.format("Again: spend up to $%.0f", armedUsd) : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::start) + 6;
 		}
 		// the player's own words back in the box (else the card's reading of them), to change rather than retype
 		ax += button(g, "Describe again", 2, false, false, !sent && !payload.busy(), ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new DescribeScreen(

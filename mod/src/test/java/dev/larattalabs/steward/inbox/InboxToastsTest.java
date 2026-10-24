@@ -18,6 +18,7 @@ class InboxToastsTest {
 		assertEquals(1, need.size());
 		assertTrue(need.get(0).need());
 		assertEquals("Stilt needs you", need.get(0).title());
+		assertEquals("Stilt", need.get(0).subject(), "the name the client shortens, keeping \"needs you\"");
 		assertTrue(t.update(List.of(build("BIBLE"))).isEmpty(), "the inbox resent: not again");
 		assertTrue(t.update(List.of(build("NONE"))).isEmpty());
 		assertTrue(t.update(List.of(build("MASSINGS"))).isEmpty(), "at most one needs-you per build");
@@ -49,5 +50,14 @@ class InboxToastsTest {
 		t.update(List.of(build("BIBLE")));
 		t.clear();
 		assertEquals(1, t.update(List.of(build("BIBLE"))).size(), "a new world: said again");
+	}
+
+	@Test
+	void aBuildHeldByTheUsageLimitIsHeldUntilItEnds() {
+		var held = new InboxModel.Entry("set_4", "Stilt", "NONE", "Designing.", List.of("Buildings: 1 done", InboxModel.HELD_LINE + " (resets at 4pm)"), List.of(), 30, 2, 0);
+		assertTrue(held.held());
+		assertFalse(build("NONE").held());
+		var ended = new InboxModel.Entry("set_4", "Stilt", "DONE", "Built.", List.of(InboxModel.HELD_LINE + " (resets at 4pm)"), List.of(), 30, 2, 0);
+		assertFalse(ended.held(), "an ended build is not held");
 	}
 }

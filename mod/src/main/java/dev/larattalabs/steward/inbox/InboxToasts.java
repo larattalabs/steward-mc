@@ -11,8 +11,8 @@ import java.util.Set;
  * settlement replaces it), the next build toasts again. Updates and proposals do not toast (the HUD line and the inbox carry them). Client thread.
  */
 public final class InboxToasts {
-	/** {@code need}: a "needs you" toast; {@code warn}: a failure. */
-	public record Toast(boolean need, boolean warn, String title, String body) {
+	/** {@code need}: a "needs you" toast; {@code warn}: a failure; {@code subject}: the settlement's name the title starts with (shortened first). */
+	public record Toast(boolean need, boolean warn, String subject, String title, String body) {
 	}
 
 	private final Set<String> needSaid = new HashSet<>();
@@ -34,7 +34,7 @@ public final class InboxToasts {
 			}
 			// running again under the same key: a new build, whose end is news again
 			endSaid.remove(key);
-			if (e.waiting() && needSaid.add(key)) out.add(new Toast(true, false, e.name() + " needs you", e.headline()));
+			if (e.waiting() && needSaid.add(key)) out.add(new Toast(true, false, e.name(), e.name() + " needs you", e.headline()));
 		}
 		needSaid.retainAll(present);
 		endSaid.retainAll(present);
@@ -43,9 +43,9 @@ public final class InboxToasts {
 
 	private static Toast ended(InboxModel.Entry e) {
 		return switch (e.decision()) {
-			case "FAILED" -> new Toast(false, true, e.name() + ": the build failed", e.headline());
-			case "CANCELLED" -> new Toast(false, false, e.name() + ": the build was cancelled", e.headline());
-			default -> new Toast(false, false, e.name() + " is built", e.headline());
+			case "FAILED" -> new Toast(false, true, e.name(), e.name() + ": the build failed", e.headline());
+			case "CANCELLED" -> new Toast(false, false, e.name(), e.name() + ": the build was cancelled", e.headline());
+			default -> new Toast(false, false, e.name(), e.name() + " is built", e.headline());
 		};
 	}
 

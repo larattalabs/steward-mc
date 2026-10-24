@@ -23,7 +23,8 @@ public final class StewardHud implements HudElement {
 		if (first == null) return;
 		long more = ClientInbox.waiting() - 1;
 		String tail = " waits for you" + (more > 0 ? " (+" + more + ")" : "");
-		int room = (int) (g.guiWidth() * 0.6) - mc.font.width("Steward: " + tail) - 30;
+		// clear of the toast column top right: the pill's padding and the key cap take about 30
+		int room = Math.min((int) (g.guiWidth() * 0.6), g.guiWidth() - Toasts.columnWidth() - 12) - mc.font.width("Steward: " + tail) - 30;
 		String text = "Steward: " + dev.larattalabs.labui.client.ui.TextUtil.ellipsize(mc.font, first.name(), Math.max(30, room)) + tail;
 		int x = 6;
 		int w = UiBits.dotPill(g, mc.font, "thinking", text, x, 6, UiBits.ink());
