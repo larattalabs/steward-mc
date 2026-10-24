@@ -1047,7 +1047,8 @@ async function groveFlow() {
   const crown = await dev.call('dev.region.hash', { box: crownBox, mode: 'diff', file: snapCrown }, { timeoutMs: 1_800_000 });
   const leaves = (crown.list ?? []).filter((m) => /_leaves\[/.test(String(m.now)) && /persistent=true/.test(String(m.now)));
   // the oak's columns (its crown seen from above): a world's change is classed only outside them (Architect's rule: never at a cell the plan wrote)
-  const oakCols = new Set((crown.list ?? []).map((m) => { const [x, , z] = String(m.pos).split(',').map(Number); return `${x},${z}`; }));
+  // (its logs: F3 writes the ground only under the logs standing on it; grass under the canopy is never written, and sheep graze there)
+  const oakCols = new Set((crown.list ?? []).filter((m) => /_log\[|_log$|_wood/.test(String(m.now))).map((m) => { const [x, , z] = String(m.pos).split(',').map(Number); return `${x},${z}`; }));
   if (/^region:/.test(placed?.siteGroup ?? '') && trees.logs > 50 && trees.leavesPersistent > 100 && trees.floating === 0 && coral.length > 0 && leaves.length > 0)
     ok('grove', `${built.placed} placed (${placed.siteGroup}): the oak ${trees.logs} logs, ${trees.leavesPersistent} persistent leaves, none floating; ${coral.length} coral cells in the pond`);
   else return fail('grove', `region ${placed?.siteGroup}; logs ${trees.logs}, persistent leaves ${trees.leavesPersistent}, floating ${trees.floating}, coral ${coral.length} (ground diff ${ground.mismatches}), crown leaves ${leaves.length}`);
@@ -1074,7 +1075,7 @@ async function groveFlow() {
   const unexplained = other.length - worlds.length;
   if (diff.mismatches === 1 + worlds.length && unexplained === 0 && mine.length === 1 && /cobblestone/.test(String(mine[0].now)))
     ok('grove undo', `${last.text}; the claim as it was (${box[3] - box[0] + 1}x${box[4] - box[1] + 1}x${box[5] - box[2] + 1}) but the player's cobblestone at ${lx},${ly},${lz}${worlds.length ? ` (and ${worlds.length} grass cell(s) grazed or spread away from the oak, the world's)` : ''}`);
-  else fail('grove undo', `player's cell ${mine.length ? mine[0].now : 'not kept'}; ${diff.mismatches} cell(s) differ in all, e.g. ${other.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now}`).join('; ').slice(0, 300)}`);
+  else fail('grove undo', `player's cell ${mine.length ? mine[0].now : 'not kept'}; ${diff.mismatches} cell(s) differ in all, e.g. ${other.filter((m) => !worlds.includes(m)).slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now} (${m.class}${oakCols.has(String(m.pos).split(',').filter((_, i) => i !== 1).join(',')) ? ', under the oak' : ''})`).join('; ').slice(0, 300)}`);
 }
 
 /**
