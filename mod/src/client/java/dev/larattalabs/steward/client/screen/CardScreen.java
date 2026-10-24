@@ -339,8 +339,9 @@ public final class CardScreen extends KitScreen {
 		} else {
 			ax += button(g, sent ? "Starting..." : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::start) + 6;
 		}
+		// the player's own words back in the box (else the card's reading of them), to change rather than retype
 		ax += button(g, "Describe again", 2, false, false, !sent && !payload.busy(), ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new DescribeScreen(
-			payload.settlementId(), payload.name(), ""))) + 6;
+			payload.settlementId(), payload.name(), DescribeScreen.lastWords(payload.settlementId(), card)))) + 6;
 		// grow the claim a size step (the server answers with the card again, the new size in its header)
 		boolean maxed = payload.claimRadius() >= dev.larattalabs.steward.model.ClaimRules.RADII[dev.larattalabs.steward.model.ClaimRules.RADII.length - 1];
 		String ex = "Expand claim";
