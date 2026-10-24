@@ -90,9 +90,15 @@ public final class DistrictRules {
 				return Reservation.refused("The " + name + " district would cover the protected area \"" + a.label() + "\".");
 			}
 		}
-		int x0 = east ? region[2] - (SEAM - 1) : cx - radius;
-		int x1 = east ? cx + radius : region[0] + (SEAM - 1);
-		return new Reservation(d, new int[] {x0, town.centerZ() - radius, x1, town.centerZ() + radius}, "");
+		return new Reservation(d, request(region, d, dir), "");
+	}
+
+	/** The plan request's claim for a reservation {@code d} towards {@code dir}: the reservation and the way back into the town region's claim by {@link #SEAM}. */
+	public static int[] request(int[] region, Claim d, String dir) {
+		boolean east = dir.equals("E");
+		int x0 = east ? region[2] - (SEAM - 1) : d.centerX() - d.radius();
+		int x1 = east ? d.centerX() + d.radius() : region[0] + (SEAM - 1);
+		return new int[] {x0, d.centerZ() - d.radius(), x1, d.centerZ() + d.radius()};
 	}
 
 	/** The town street's centre line (z) and its ends (x); null before the town has a street. */

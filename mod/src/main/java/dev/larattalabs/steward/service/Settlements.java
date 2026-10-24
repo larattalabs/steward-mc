@@ -165,6 +165,38 @@ public final class Settlements {
 			"Gave up the reservation for " + d.get().name(), districtId)), "");
 	}
 
+	/** A region district's state ({@code reserved} again after a build that placed nothing, {@code building} while its build runs). Not logged. */
+	public static Result districtState(String id, String districtId, String state) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		var d = s.get().lands().district(districtId);
+		if (d.isEmpty()) return Result.fail("No district " + districtId + ".");
+		var x = d.get();
+		return commit(s, s.get().withLands(s.get().lands().withDistrict(new Settlement.District(x.id(), x.name(), x.direction(), x.claim(), x.at(), x.roads(),
+			x.linkUndone(), x.kind(), state, x.parent(), x.region(), x.savedLand(), x.follow(), x.opKey()))), "");
+	}
+
+	/**
+	 * A district's region placed (docs/DISTRICTS.md section 4, step 3): in one save, the district names its region, owns its reservation plus what the region
+	 * took outside the town ({@code outside}), stands, and the placing entry is logged. Saved, or nothing changes.
+	 */
+	public static Result placeDistrict(String id, String districtId, String region, dev.larattalabs.steward.model.@org.jspecify.annotations.Nullable Land outside,
+		Settlement.LogEntry entry) {
+		Optional<Settlement> s = store.get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id);
+		var d = s.get().lands().district(districtId);
+		if (d.isEmpty()) return Result.fail("No district " + districtId + ".");
+		var x = d.get();
+		var land = outside == null ? x.land() : x.land().union(outside);
+		Settlement n = s.get().withLands(s.get().lands().withDistrict(new Settlement.District(x.id(), x.name(), x.direction(), x.claim(), x.at(), x.roads(),
+			x.linkUndone(), x.kind(), Settlement.District.STANDING, x.parent(), region, land, x.follow(), x.opKey()))).withLog(entry);
+		try {
+			return commit(s, n, "");
+		} catch (IllegalArgumentException e) {
+			return Result.fail("The district's land overlaps another settlement (" + e.getMessage() + ").");
+		}
+	}
+
 	/** Replaces a district (a road added or dropped); logged when {@code entry} is given. */
 	public static Result updateDistrict(String id, Settlement.District d, Settlement.@org.jspecify.annotations.Nullable LogEntry entry) {
 		Optional<Settlement> s = store.get(id);
