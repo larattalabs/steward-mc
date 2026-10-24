@@ -1701,6 +1701,12 @@ async function besideFlow() {
   else return fail('beside district', `${JSON.stringify(r1).slice(0, 200)}; state ${pst}`);
   // off the town and the district: a player in a box holds a removal up
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
+  // (Architect D3's fix) a removal refused before it starts (not the owner) changes nothing: the district stays PLACED
+  const refused = await dev.request('dev.region.remove', { region: district }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  const still = await dev.request('dev.region.state', { region: district }).catch(() => null);
+  const stillState = still?.view?.state ?? still?.state;
+  if (refused?.removed === false && stillState === 'PLACED') ok('a refused removal changes nothing', `${(refused.blockers ?? [])[0] ?? ''}`.slice(0, 120) + ` (still ${stillState})`);
+  else fail('a refused removal changes nothing', `${JSON.stringify(refused).slice(0, 160)}; state ${stillState}`);
   const rm1 = await dev.request('dev.region.remove', { region: district, force: true }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
   const gone1 = await regionUntil(district, ['REMOVED'], 120_000);
   if ((gone1?.view?.state ?? gone1?.state) !== 'REMOVED') return fail('beside, district removed first', `the district's removal: ${JSON.stringify(rm1).slice(0, 300)}; state ${gone1?.view?.state ?? gone1?.state}`);
