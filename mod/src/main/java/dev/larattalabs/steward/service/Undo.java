@@ -70,6 +70,12 @@ public final class Undo {
 	/** Starts the undo; {@code say} gets progress and the result. Returns false (having said why) when there is nothing to undo. */
 	public static boolean lastProject(MinecraftServer server, Settlement s, Consumer<String> sayTo) {
 		Consumer<String> say = reportingOverflow(server, s, sayTo);
+		// a district region being built (or one whose build ended unresolved): the newest operation can't be told yet
+		var building = s.lands().districts().stream().filter(d -> Settlement.District.BUILDING.equals(d.state())).findFirst();
+		if (building.isPresent()) {
+			say.accept(building.get().name() + " is being built, or its build is being put right: undo once that has settled.");
+			return false;
+		}
 		var entry = s.lastUndoable();
 		if (entry.isEmpty()) {
 			say.accept("Nothing to undo for " + s.name() + ".");

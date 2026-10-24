@@ -87,6 +87,13 @@ public final class DistrictRules {
 		Land envelope = Land.ofRect(town.dimension(), req[0], req[1], req[2], req[3]);
 		for (Settlement.District o : own) {
 			if (o.land().overlaps(land) || o.land().overlaps(envelope)) return Reservation.refused("The " + name + " district would overlap the " + o.name() + " district.");
+			// a beside district not built yet may still be placed anywhere in its own request's claim: the new one keeps out of that too
+			if (Settlement.District.BESIDE.equals(o.kind()) && !Settlement.District.STANDING.equals(o.state())) {
+				int[] theirs = request(region, o.claim(), o.direction());
+				if (land.overlaps(Land.ofRect(town.dimension(), theirs[0], theirs[1], theirs[2], theirs[3]))) {
+					return Reservation.refused("The " + name + " district would reach into the ground kept for " + o.name() + ".");
+				}
+			}
 		}
 		for (Claim o : others) {
 			if (land.overlaps(o)) return Reservation.refused("The " + name + " district would overlap the settlement at " + o.centerX() + "," + o.centerZ() + ".");

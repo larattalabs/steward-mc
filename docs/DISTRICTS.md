@@ -260,3 +260,12 @@ Nine findings, each checked against the code; seven fixed, two carried to slice 
   6. The D3 re-check at realise refuses a district plan through `Regions.realise` (not `ARTIFACT_STALE`), so the build ends rather than re-planning.
      A district's re-plan under a second key, as the stale retry does, comes with slice 5.
   8. "Its road to the town is gone" (`architect_mc:beside.dangling`, `land.standingRemoved`) on the Claim tab comes with the screens.
+
+Fix-verification pass (same day): 5 and 7 confirmed; 1-4 and 9 needed more, now done:
+- 1: a build whose realise is still unanswered keeps the settlement busy even once it has ended, so the periodic reconcile and undo wait for it.
+- 2: undo refuses while any district is `building`, so a reset that failed to save can never let undo reach past it to the town.
+- 3: street spans keep off other districts' land and region districts' live joins in the town, not only protected areas.
+- 4: planning re-checks the request's claim against the other districts' land (nothing planned on a conflict); a new beside district keeps out of
+  a not-yet-built one's request claim. After a realise, a sibling's columns are still never taken.
+- 9: land is bounded far from int's ends (2^30) rather than at the world's border, so claims at the border stay land; `minus` is one sweep.
+- The e2e checks every run of Architect's outside land lies in the saved land.

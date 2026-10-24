@@ -171,7 +171,8 @@ public final class SettlementRunner {
 	 */
 	public static boolean busy(String settlementId) {
 		SettlementRunner r = ACTIVE.get(settlementId);
-		return (r != null && (r.state == null || !r.state.phase().terminal())) || Districts.busy(settlementId) || Undo.busy(settlementId) || PendingOffers.busy(settlementId)
+		// a build that ended while its realise is still unanswered stays busy: the answer may yet bring a region (a district's is held until it does)
+		return (r != null && (r.state == null || !r.state.phase().terminal() || r.queueInFlight)) || Districts.busy(settlementId) || Undo.busy(settlementId) || PendingOffers.busy(settlementId)
 			|| ArchitectApi.get().regions().list("steward_mc:settlement/" + settlementId).stream()
 				.anyMatch(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVING);
 	}
@@ -1027,6 +1028,14 @@ public final class SettlementRunner {
 		ServerLevel level = level();
 		var b = town.get().claim();
 		int[] request = dev.larattalabs.steward.model.DistrictRules.request(new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, district.claim(), district.direction());
+		// Architect may place the district anywhere in the request's claim: if another district's land is there now, nothing is planned
+		var envelope = dev.larattalabs.steward.model.Land.ofRect(district.claim().dimension(), request[0], request[1], request[2], request[3]);
+		var sibling = settlement.lands().districts().stream().filter(o -> !o.id().equals(district.id()) && o.land().overlaps(envelope)).findFirst();
+		if (sibling.isPresent()) {
+			Settlements.districtState(settlement.id(), district.id(), Settlement.District.RESERVED);
+			abandon(district.name() + "'s ground now reaches " + sibling.get().name() + "'s land: undo the reservation and found it again.");
+			return;
+		}
 		List<JsonObject> lots = new ArrayList<>();
 		for (var e : dev.larattalabs.steward.gateway.VPlan.params(specs, settlement.id(), buildId).getAsJsonArray("lots")) lots.add(e.getAsJsonObject());
 		var req = Districts.besideRequest(level, settlement, town.get().id(), request, district.id(), lots, opKey("vplan"), buildId);
@@ -1185,8 +1194,8 @@ public final class SettlementRunner {
 			}
 			// an approved plan's streets are Architect's, checked against the protected areas already (and not one east-west street)
 			if (existing != null && dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId) == null) {
-				String crossed = protectedCrossed(existing, plan, newStreet ? List.of(new int[] {plan.streetX0(), plan.streetX1()}) : List.of());
-				if (crossed != null) { abandon("The street would cross the protected area \"" + crossed + "\". Clear it, or protect less, and try again."); return; }
+				String crossed = protectedCrossed(existing, plan, newStreet ? List.of(new int[] {plan.streetX0(), plan.streetX1()}) : List.of(), districtId);
+				if (crossed != null) { abandon("The street would cross " + crossed + ". Clear it, or protect less, and try again."); return; }
 			}
 			if (resumeGroup != null) {
 				groupId = resumeGroup.id();
@@ -1249,10 +1258,25 @@ public final class SettlementRunner {
 	}
 
 	/** The protected area the street pieces ({@code spans} along the plan's street line, 5 wide) or the plan's lots would cross, or null. */
-	private static @org.jspecify.annotations.Nullable String protectedCrossed(Settlement s, VillageLayout.Plan plan, List<int[]> spans) {
+	/**
+	 * What a street span would cross that it must keep off, said as a phrase ("the protected area \"x\"", "Quay's land"), or null: a protected area, another
+	 * district's land, and a district region's join inside the town (read live). {@code own}: the district this build is in, whose land is its own.
+	 */
+	private static @org.jspecify.annotations.Nullable String protectedCrossed(Settlement s, VillageLayout.Plan plan, List<int[]> spans,
+		@org.jspecify.annotations.Nullable String own) {
 		String dim = s.claim().dimension();
 		for (Settlement.Area a : s.lands().protect()) {
-			for (int[] sp : spans) if (a.overlaps(dim, sp[0], plan.streetZ() - 2, sp[1], plan.streetZ() + 2)) return a.label();
+			for (int[] sp : spans) if (a.overlaps(dim, sp[0], plan.streetZ() - 2, sp[1], plan.streetZ() + 2)) return "the protected area \"" + a.label() + "\"";
+		}
+		for (Settlement.District d : s.lands().districts()) {
+			if (d.id().equals(own)) continue;
+			List<dev.larattalabs.steward.model.Land> off = new ArrayList<>(List.of(d.land()));
+			if (d.region() != null) ArchitectApi.get().regions().get(d.region())
+				.flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.inside(v.ext(), dim)).ifPresent(off::add);
+			for (int[] sp : spans) {
+				var band = dev.larattalabs.steward.model.Land.ofRect(dim, sp[0], plan.streetZ() - 2, sp[1], plan.streetZ() + 2);
+				for (var l : off) if (l.overlaps(band)) return d.name() + "'s land";
+			}
 		}
 		return null;
 	}
@@ -1700,8 +1724,8 @@ public final class SettlementRunner {
 			if (a.isPresent() && fits.remove(lot.id()) != null) say(lot.role() + " is left out: its lot is in the protected area \"" + a.get().label() + "\".");
 		}
 		spans.removeIf(sp -> {
-			String crossed = protectedCrossed(now, plan, List.of(sp));
-			if (crossed != null) say("A piece of the street is left out: it would cross the protected area \"" + crossed + "\".");
+			String crossed = protectedCrossed(now, plan, List.of(sp), districtId);
+			if (crossed != null) say("A piece of the street is left out: it would cross " + crossed + ".");
 			return crossed != null;
 		});
 		Claim land = district != null ? district.claim() : settlement.claim();

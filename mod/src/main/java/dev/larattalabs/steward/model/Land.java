@@ -16,7 +16,10 @@ public record Land(String dimension, List<Run> runs) {
 	public record Run(int z, int x0, int x1) {
 		public Run {
 			if (x1 < x0) throw new JsonParseException("a land run ends before it starts (" + x0 + ".." + x1 + " at z " + z + ")");
-			if (Math.abs(z) > WORLD || Math.abs(x0) > WORLD || Math.abs(x1) > WORLD) throw new JsonParseException("a land run lies outside the world (" + x0 + ".." + x1 + " at z " + z + ")");
+			// far from int's ends, so walking a run's columns can't wrap (a claim at the world's border is still land)
+			if (Math.abs((long) z) > LIMIT || Math.abs((long) x0) > LIMIT || Math.abs((long) x1) > LIMIT) {
+				throw new JsonParseException("a land run lies too far out (" + x0 + ".." + x1 + " at z " + z + ")");
+			}
 			if ((long) x1 - x0 + 1 > MAX_SPAN) throw new JsonParseException("a land run is " + ((long) x1 - x0 + 1) + " columns wide (at most " + MAX_SPAN + ")");
 		}
 	}
@@ -29,7 +32,7 @@ public record Land(String dimension, List<Run> runs) {
 	/** The widest run and the most columns land may hold (a claim is at most 4097 across), and the world's border. */
 	public static final int MAX_SPAN = 8192;
 	public static final long MAX_CELLS = 20_000_000L;
-	static final int WORLD = 30_000_000;
+	static final long LIMIT = 1L << 30;
 
 	public Land {
 		if (dimension == null || dimension.isBlank()) throw new JsonParseException("land needs a dimension");
@@ -133,14 +136,19 @@ public record Land(String dimension, List<Run> runs) {
 	public @org.jspecify.annotations.Nullable Land minus(Land o) {
 		if (!overlaps(o)) return this;
 		List<Run> out = new ArrayList<>();
+		// one sweep over both sorted lists: the other's runs are passed once, whatever their number
+		int j = 0;
 		for (Run r : runs) {
+			while (j < o.runs.size() && (o.runs.get(j).z() < r.z() || (o.runs.get(j).z() == r.z() && o.runs.get(j).x1() < r.x0()))) j++;
 			int from = r.x0();
-			for (int i = o.firstRow(r.z()); i < o.runs.size() && o.runs.get(i).z() == r.z(); i++) {
-				Run q = o.runs.get(i);
-				if (q.x1() < from || q.x0() > r.x1()) continue;
+			int k = j;
+			for (; k < o.runs.size() && o.runs.get(k).z() == r.z() && o.runs.get(k).x0() <= r.x1(); k++) {
+				Run q = o.runs.get(k);
 				if (q.x0() > from) out.add(new Run(r.z(), from, q.x0() - 1));
 				from = Math.max(from, q.x1() + 1);
 			}
+			// the other's last run here may reach the next run of this row: start there next time
+			j = Math.max(j, k - 1);
 			if (from <= r.x1()) out.add(new Run(r.z(), from, r.x1()));
 		}
 		return out.isEmpty() ? null : new Land(dimension, out);

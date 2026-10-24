@@ -65,11 +65,41 @@ class LandTest {
 	}
 
 	@Test
-	void landTooWideOrPastTheWorldIsRefused() {
+	void minusMatchesColumnByColumnOnRandomLand() {
+		java.util.Random rnd = new java.util.Random(7);
+		for (int round = 0; round < 300; round++) {
+			Land a = random(rnd), b = random(rnd);
+			java.util.Set<Long> want = new java.util.HashSet<>(cells(a));
+			want.removeAll(cells(b));
+			Land m = a.minus(b);
+			assertEquals(want, m == null ? java.util.Set.of() : cells(m), "round " + round);
+		}
+	}
+
+	private static Land random(java.util.Random rnd) {
+		List<Run> l = new java.util.ArrayList<>();
+		for (int i = 0, n = 1 + rnd.nextInt(12); i < n; i++) {
+			int x0 = rnd.nextInt(40);
+			l.add(new Run(rnd.nextInt(4), x0, x0 + rnd.nextInt(8)));
+		}
+		return new Land(OW, l);
+	}
+
+	private static java.util.Set<Long> cells(Land l) {
+		java.util.Set<Long> s = new java.util.HashSet<>();
+		for (Run r : l.runs()) for (int x = r.x0(); x <= r.x1(); x++) s.add(((long) r.z() << 32) ^ (x & 0xffffffffL));
+		return s;
+	}
+
+	@Test
+	void landTooWideOrTooFarOutIsRefusedButTheWorldsEdgeIsLand() {
 		assertThrows(JsonParseException.class, () -> new Run(0, 0, Integer.MAX_VALUE), "a run to the end of int would loop forever when walked");
-		assertThrows(JsonParseException.class, () -> new Run(0, -40_000_000, -39_999_990));
+		assertThrows(JsonParseException.class, () -> new Run(Integer.MIN_VALUE, 0, 1), "abs(MIN_VALUE) is negative: checked as a long");
+		assertThrows(JsonParseException.class, () -> new Run(0, Integer.MIN_VALUE, Integer.MIN_VALUE + 5));
 		assertThrows(JsonParseException.class, () -> new Run(0, 0, Land.MAX_SPAN));
+		assertThrows(IllegalArgumentException.class, () -> Land.ofRect(OW, 0, 0, 1, Land.MAX_SPAN));
 		assertDoesNotThrow(() -> Land.of(new Claim(OW, 0, 0, 2048, -64, 320)), "the largest claim is land");
+		assertDoesNotThrow(() -> Land.of(new Claim(OW, 29_999_960, -29_999_960, 64, -64, 320)), "a claim at the world's border reaches past it, and is land");
 	}
 
 	@Test

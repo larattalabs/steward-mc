@@ -50,6 +50,18 @@ class ReservationTest {
 		assertFalse(w.ok(), "Architect could place the district on Mill's land");
 	}
 
+	@Test
+	void besideDistrictsOnOppositeSidesNeverKeepEachOtherOut() {
+		// east, reserved and building: Architect may place it anywhere from x 25 (16 into the region) to its far edge, rows -48..48; the west one's
+		// request runs from its far edge to x -25, so the two never meet (the check against a building district's request guards later kinds)
+		Claim c = new Claim(OW, 113, 0, 48, -64, 320);
+		var building = new District("dst_1", "Quay", "E", c, 1L, List.of(), false, District.BESIDE, District.BUILDING, "rg1", null, Land.of(c), null, null);
+		var r = DistrictRules.reserve(new Claim(OW, 0, 0, 64, -64, 320), REGION, List.of(building), List.of(), List.of(), "W", 48, "Mill");
+		assertTrue(r.ok(), "the west side is clear of it: " + r.note());
+		var stood = new District("dst_1", "Quay", "E", c, 1L, List.of(), false, District.BESIDE, District.STANDING, "rg1", "rg2", Land.of(c), null, null);
+		assertTrue(DistrictRules.reserve(new Claim(OW, 0, 0, 64, -64, 320), REGION, List.of(stood), List.of(), List.of(), "W", 48, "Mill").ok());
+	}
+
 	private static Settlement reserved() {
 		Settlement s = Settlement.founded("set_1", "Here", TOWN, Permission.PROPOSALS, Difficulty.PATRON, 1L);
 		Claim c = new Claim(OW, 113, 0, 48, -64, 320);
