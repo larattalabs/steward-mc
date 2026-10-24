@@ -31,6 +31,8 @@ public final class InboxScreen extends KitScreen {
 	private static final int LIST_W = 128;
 	private static final int ROW_H = 22;
 	private @Nullable String selectedId;
+	/** The player picked {@link #selectedId} in the list (else the screen was opened for a settlement, or picked the first row itself). */
+	private boolean picked;
 	private @Nullable String redirectLot;
 	private boolean confirmCancel;
 	private boolean ghosts = true;
@@ -48,15 +50,19 @@ public final class InboxScreen extends KitScreen {
 	private InboxModel.@Nullable Entry selected() {
 		List<InboxModel.Entry> all = ClientInbox.entries();
 		if (all.isEmpty()) return null;
+		// picked in the list: that row, ended or not
+		if (picked) for (InboxModel.Entry e : all) if (e.key().equals(selectedId)) return e;
+		// opened for a settlement (its id is its build's key): its build first, else its updates or ideas, and a build that ended only when nothing else is
+		for (InboxModel.Entry e : all) if (e.key().equals(selectedId) && !e.ended()) return e;
+		for (InboxModel.Entry e : all) if (e.settlementId().equals(selectedId) && !e.ended()) return e;
 		for (InboxModel.Entry e : all) if (e.key().equals(selectedId)) return e;
-		// opened for a settlement: its build first, else its updates
-		for (InboxModel.Entry e : all) if (e.settlementId().equals(selectedId)) return e;
 		InboxModel.Entry pick = all.stream().filter(InboxModel.Entry::waiting).findFirst().orElse(all.get(0));
 		selectedId = pick.key();
 		return pick;
 	}
 
 	private void select(String id) {
+		picked = true;
 		if (id.equals(selectedId)) return;
 		selectedId = id;
 		redirectLot = null;
