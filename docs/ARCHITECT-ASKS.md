@@ -890,3 +890,11 @@ Architect slice/U01 at b49c449f (v0.43.0 + UI-2b + U1, after the owner rule chan
 stub 82 and free 43 pass on steward-mc main. Bibles Steward's jobs made carry owner `steward_mc:settlement/<id>` and origin `claude`, so they are mod-owned
 (Duplicate-only, saved only by that owner, never GC'd). Steward's positional DesignRequest constructor works unchanged. Queued with "use an existing
 Style": a keyed Bibles.pin/unpin, so a player's Style a settlement pins isn't collected.
+
+## v0.44.0 post-release check (2026-10-24)
+
+Steward builds against the published v0.44.0 (API 1.41.0: CL climbs, K2 walls along a boundary and wall walks, the style unification U0+U1, lab_ui
+">=0.2.0 <0.4.0") and still runs on 0.43.0 (it uses none of 1.41's API yet). The published jar differs from the release folder's (sha256 c40d8cb3…)
+by build stamps, the nested lab_ui jar's manifest, and the commits after 552aa44e the coordinator named (kit tests, Regions' error strings). Stub 82 and
+free 43 pass. The plan writer now writes climbs, walls along a boundary and wall walks where the card asks (the strange-asks fixtures aren't
+re-recorded: that is a paid run).
