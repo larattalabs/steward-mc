@@ -49,6 +49,32 @@ class InboxModelTest {
 	}
 
 	@Test
+	void theLinesSayTheBuildingsByStageAndAHeldUsageLimitInPlainWords() {
+		State s = Pipeline.step(running(), new Pipeline.GroupUpdate("g", "held_usage", Map.of("cabin_1", "massing", "tower_1", "done"), List.of(), 2, "resets at 4pm"),
+			Permission.PROPOSALS).next();
+		InboxModel.Entry e = InboxModel.entry("set_4", "Stilt", s, List.of());
+		assertTrue(e.lines().stream().anyMatch(l -> l.startsWith("Buildings: ") && l.contains("1 massing") && l.contains("1 done")), e.lines().toString());
+		assertTrue(e.lines().contains("Waiting for your usage limit to reset (resets at 4pm)"), e.lines().toString());
+		// the spend shows beside the state, not again as a line; no tool is named to the player
+		assertTrue(e.lines().stream().noneMatch(l -> l.startsWith("Spent") || l.contains("Claude") || l.contains("Architect")), e.lines().toString());
+		assertFalse(InboxModel.working(Pipeline.Phase.CANCELLING).contains("Architect"));
+	}
+
+	@Test
+	void anEndedBuildIsARowSayingHowWithNothingToDecide() {
+		State cancelled = Pipeline.step(Pipeline.step(running(), new Pipeline.Cancel(), Permission.PROPOSALS).next(), new Pipeline.CancelConfirmed(), Permission.PROPOSALS).next();
+		assertTrue(cancelled.phase().terminal(), cancelled.phase().toString());
+		InboxModel.Entry e = InboxModel.entry("set_4", "Stilt", cancelled, List.of());
+		assertTrue(e.ended());
+		assertFalse(e.waiting(), "an ended build waits for nothing (the HUD and the count leave it out)");
+		assertEquals(cancelled.phase().name(), e.decision());
+		assertEquals("set_4", e.key());
+		assertTrue(e.headline().startsWith("Cancelled"), e.headline());
+		InboxModel.Entry running = InboxModel.entry("set_4", "Stilt", running(), List.of());
+		assertFalse(running.ended());
+	}
+
+	@Test
 	void oneLandmarkRuleForTheRunnerTheHintAndTheScreen() {
 		assertEquals(1, BudgetPolicy.landmarksFor("M", 4, 2), "one per four buildings");
 		assertEquals(2, BudgetPolicy.landmarksFor("M", 8, 3), "M's typical count");
