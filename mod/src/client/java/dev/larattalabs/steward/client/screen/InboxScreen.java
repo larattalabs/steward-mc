@@ -426,7 +426,8 @@ public final class InboxScreen extends KitScreen {
 
 	@Override
 	protected boolean keyOther(KeyEvent e) {
-		List<InboxModel.Entry> all = ClientInbox.entries();
+		// in the order the list draws them, group by group
+		List<InboxModel.Entry> all = ClientInbox.entries().stream().sorted(java.util.Comparator.comparingInt(InboxScreen::group)).toList();
 		if (all.size() < 2) return false;
 		int i = Math.max(0, all.indexOf(selected()));
 		if (e.key() == InputConstants.KEY_DOWN || e.key() == InputConstants.KEY_RIGHT) i = (i + 1) % all.size();

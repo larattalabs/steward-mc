@@ -209,10 +209,19 @@ async function inboxScreen() {
   else fail('inbox screen', screen.slice(0, 120));
   // the sample's rows (a build held by the usage limit, an ended build, the grouped waiting parts), then the toasts once no screen is open
   const inboxShot = (await dev.request('dev.screenshot', { name: 'e2e-inbox', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  // the arrows walk the list as drawn: Stilt Swamp, Lantern Shore, Copper Ford's waiting parts, Reed Hollow (held by the usage limit), Copper Ford built
+  await dev.request('dev.key', { key: 'key.keyboard.down' });
+  await dev.request('dev.key', { key: 'key.keyboard.down' });
+  await sleep(300);
+  const partsShot = (await dev.request('dev.screenshot', { name: 'e2e-inbox-parts', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.key', { key: 'key.keyboard.down' });
+  await sleep(300);
+  const limitShot = (await dev.request('dev.screenshot', { name: 'e2e-inbox-limit', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
   await dev.request('dev.key', { key: 'escape' });
   await sleep(1200);
-  const toastShot = (await dev.request('dev.screenshot', { name: 'e2e-toasts', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
-  ok('inbox and toast pictures', `${inboxShot} ${toastShot}`);
+  // toasts are HUD, which a screenshot hides unless asked
+  const toastShot = (await dev.request('dev.screenshot', { name: 'e2e-toasts', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  ok('inbox and toast pictures', `${inboxShot} ${partsShot} ${limitShot} ${toastShot}`);
 }
 
 async function placeUpdateUndo(id) {
