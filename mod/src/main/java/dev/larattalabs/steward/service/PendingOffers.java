@@ -28,7 +28,11 @@ import org.jspecify.annotations.Nullable;
  * be built now: shall I raise the town wall?"). At a world's start the live catalogue ({@code Regions.planCatalogue}, C38) is read, and each waiting part
  * whose block is now supported, in a settlement whose town stands as a region, becomes a proposal. Accepted, Claude writes a plan holding just that part,
  * placed against the town as it stands (the plan writer, at most {@link #ROUNDS} repairs and {@link #CAP_USD}); Architect checks it and realises it as a
- * region of its own, recorded like a placement, so an undo takes the part away and leaves the town. Server thread.
+ * region of its own, recorded like a placement, so an undo takes the part away and leaves the town.
+ *
+ * <p>Each part is its own proposal ({@code part_<id>}, saved as before), but the inbox shows a settlement's parts as one row, "Waiting parts (N)"
+ * ({@link #GROUP_KEY}): building it fits one part ({@link #pick}), and the row offers the rest once that one stands; "Not now" hides the row for the rest of
+ * this session (the parts are offered again when the world next starts). Server thread.
  */
 public final class PendingOffers {
 	static final double CAP_USD = 1.00;
@@ -45,6 +49,12 @@ public final class PendingOffers {
 	static final Set<String> NOT_ALONE = Set.of("connector.gate");
 	/** The build tag on a part's region: the world-start sweep takes up one left without a history entry (a stop before it was recorded). */
 	static final String TAG = "part:";
+	/** The inbox row of a settlement's waiting parts, all together (its accept and decline act on the parts). */
+	public static final String GROUP_KEY = dev.larattalabs.steward.inbox.InboxModel.PARTS_KEY;
+	/** Parts whose last fitting failed this session: the group's accept tries the others first, so one that will not fit does not block the rest. */
+	private static final Set<String> FAILED = new HashSet<>();
+	/** Settlements whose waiting parts the player put off ("Not now"): not shown again this session. */
+	private static final Set<String> NOT_NOW = new HashSet<>();
 
 	private PendingOffers() {
 	}
@@ -62,6 +72,8 @@ public final class PendingOffers {
 			WATCHING.clear();
 			BUSY.clear();
 			CHECKED.clear();
+			FAILED.clear();
+			NOT_NOW.clear();
 		});
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			if (server.getTickCount() % 20 != 0 || WATCHING.isEmpty()) return;
@@ -86,7 +98,7 @@ public final class PendingOffers {
 	 */
 	static @Nullable String noInstant(MinecraftServer server, Settlement s) {
 		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) || s.difficulty() != dev.larattalabs.steward.model.Difficulty.PATRON) {
-			return "it is built from materials here, which Architect doesn't do for it yet";
+			return "it is built from materials here, which parts can't be yet";
 		}
 		return null;
 	}
@@ -140,6 +152,59 @@ public final class PendingOffers {
 		return label.isEmpty() ? "the " + id.replace('_', ' ') : label;
 	}
 
+	/** A waiting part's name for the player: its label in the kept plan, else its id in words. */
+	public static String label(String settlementId, String part) {
+		JsonObject p = PlanStore.get(settlementId).map(e -> {
+			try {
+				return partOf(JsonParser.parseString(e.plan()).getAsJsonObject(), part).orElse(null);
+			} catch (RuntimeException ex) {
+				return null;
+			}
+		}).orElse(null);
+		return name(p, part);
+	}
+
+	/**
+	 * Which of the waiting parts the group's accept fits: one Architect adjusted that waits for its second accept, else the first whose last fitting did not
+	 * fail this session, else the first. Null when there is none.
+	 */
+	static @Nullable String pick(List<String> parts, Set<String> checked, Set<String> failed) {
+		for (String p : parts) if (checked.contains(p)) return p;
+		for (String p : parts) if (!failed.contains(p)) return p;
+		return parts.isEmpty() ? null : parts.get(0);
+	}
+
+	/** The open waiting-part proposals of {@code s}, in their order. */
+	public static List<Proposal> offered(Settlement s) {
+		return s.proposals().open().stream().filter(Proposal::offersPart).toList();
+	}
+
+	/** Whether the player put off {@code settlementId}'s waiting parts this session. */
+	public static boolean notNow(String settlementId) {
+		return NOT_NOW.contains(settlementId);
+	}
+
+	/** "Not now" on the group: hidden until the world next starts (nothing is declined for good), unless one is being fitted or built. */
+	public static @Nullable String putOff(Settlement s) {
+		if (busy(s.id())) return "One is being built now; the rest wait for it.";
+		if (offered(s).isEmpty()) return "No parts wait.";
+		NOT_NOW.add(s.id());
+		return null;
+	}
+
+	/** The group's accept: one part fitted and built ({@link #pick}); the row offers the rest once it stands. Null when started, else why not. */
+	static @Nullable String acceptGroup(MinecraftServer server, UUID player, Settlement s) {
+		List<Proposal> parts = offered(s);
+		Set<String> checked = new HashSet<>(), failed = new HashSet<>();
+		for (Proposal p : parts) {
+			if (CHECKED.containsKey(s.id() + "/" + p.pendingPart())) checked.add(p.pendingPart());
+			if (FAILED.contains(s.id() + "/" + p.pendingPart())) failed.add(p.pendingPart());
+		}
+		String part = pick(parts.stream().map(Proposal::pendingPart).toList(), checked, failed);
+		if (part == null) return "No parts wait.";
+		return accept(server, player, s, parts.stream().filter(p -> part.equals(p.pendingPart())).findFirst().orElseThrow());
+	}
+
 	/**
 	 * Offers each waiting part whose block Architect now supports, in each settlement ({@code only}: one of them) whose town stands as a region, once (a part
 	 * open, declined or accepted is not offered again). Returns what was offered, a line each.
@@ -167,8 +232,8 @@ public final class PendingOffers {
 				if (open.stream().anyMatch(x -> x.key().equals(key)) || s.proposals().declined().contains(key) || s.proposals().accepted().contains(key)) continue;
 				String what = name(partOf(plan, p.part()).orElse(null), p.part());
 				open.add(Proposal.part(p.part(), Character.toUpperCase(what.charAt(0)) + what.substring(1) + " can be built now",
-					"Architect can build it now (" + p.block() + "). Accepting has Claude fit it round " + s.name() + " as it stands (up to $1); it goes up as a part of its"
-						+ " own, which an undo takes away on its own. If Architect has to change it to fit, you see how and accept it once more.", now));
+					"It can be built now. Building it fits it round " + s.name() + " as it stands (up to $1); it goes up as a part of its own, which an undo takes"
+						+ " away on its own. If it has to change to fit, you see how and build it once more.", now));
 				out.add(s.id() + ": " + what + " (" + p.block() + ")");
 				added = true;
 			}
@@ -194,7 +259,7 @@ public final class PendingOffers {
 		JsonObject plan = JsonParser.parseString(entry.get().plan()).getAsJsonObject();
 		var partJson = partOf(plan, part);
 		if (partJson.isEmpty()) return "That part is not in the kept plan.";
-		if (!offerable(pending.get().block())) return "It can't be built on its own (" + pending.get().block() + "): it waits for the part it belongs to.";
+		if (!offerable(pending.get().block())) return "It can't be built on its own: it waits for the part it belongs to.";
 		if (s.proposals().accepted().contains(p.key())) return "It is built already.";
 		String no = noInstant(server, s);
 		if (no != null) return "Not yet: " + no + ".";
@@ -205,6 +270,7 @@ public final class PendingOffers {
 		String what = name(partJson.get(), part);
 		// accepted again after Architect adjusted it: built as shown (its artifact still stands)
 		var checked = CHECKED.remove(busy);
+		FAILED.remove(busy);
 		if (checked != null && ArchitectApi.get().regions().artifact(checked.artifactSha()).map(a -> !a.removed()).orElse(false)) {
 			BUSY.add(busy);
 			realise(server, player, s, p, what, checked.artifactSha(), checked.summary(), checked.usd());
@@ -409,6 +475,7 @@ public final class PendingOffers {
 	/** It stops: the offer stays in the inbox, and the part still waits. */
 	private static void fail(MinecraftServer server, UUID player, Settlement s, Proposal p, String what, String why) {
 		BUSY.remove(s.id() + "/" + p.pendingPart());
+		FAILED.add(s.id() + "/" + p.pendingPart());
 		Steward.LOGGER.info("part {} of {}: {}", p.pendingPart(), s.id(), why);
 		// the offer stays in the inbox (it was never recorded as accepted): accepted again, it is fitted again
 		Composer.tellNow(server, player, s, Character.toUpperCase(what.charAt(0)) + what.substring(1) + " waits: " + why + ".");

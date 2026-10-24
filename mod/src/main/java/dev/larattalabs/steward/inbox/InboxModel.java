@@ -55,6 +55,9 @@ public final class InboxModel {
 		}
 	}
 
+	/** The key of a settlement's waiting parts as one proposal row (each part is its own proposal underneath). */
+	public static final String PARTS_KEY = "waiting_parts";
+
 	/** The decisions of an ended build's row: its phase's name. */
 	public static final java.util.Set<String> ENDED = java.util.Set.of(Pipeline.Phase.DONE.name(), Pipeline.Phase.FAILED.name(), Pipeline.Phase.CANCELLED.name());
 
@@ -84,8 +87,12 @@ public final class InboxModel {
 
 	/** The steward's proposals for a settlement: one row per idea (its key, its title, why and about what it costs), each to build or to decline. */
 	public static Entry proposals(String settlementId, String name, List<Lot> ideas) {
-		String headline = ideas.size() == 1 ? "The steward has an idea for " + name + ": build it, or not now (it will not ask again)."
-			: "The steward has " + ideas.size() + " ideas for " + name + ": build one, or decline it (it will not ask again).";
+		boolean parts = ideas.stream().anyMatch(l -> PARTS_KEY.equals(l.id()));
+		long others = ideas.size() - (parts ? 1 : 0);
+		String headline = others == 0 ? "Parts of " + name + "'s plan can be built now: build them one at a time, or not now (they are offered again next time)."
+			: (others == 1 ? "The steward has an idea for " + name + ": build it, or not now (it will not ask again)."
+				: "The steward has " + others + " ideas for " + name + ": build one, or decline it (it will not ask again).")
+				+ (parts ? " Waiting parts put off come back next time." : "");
 		return new Entry(settlementId, name, "PROPOSAL", headline, List.of(), ideas, 0, 0, 0);
 	}
 

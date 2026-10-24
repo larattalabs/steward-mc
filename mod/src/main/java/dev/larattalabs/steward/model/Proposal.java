@@ -38,7 +38,7 @@ public record Proposal(String key, String title, String why, ConceptCard.@Nullab
 
 	/** A part of the settlement's plan that waited for Architect's {@code block} and can be built now: Claude fits it to what stands, Architect builds it. */
 	public static Proposal part(String part, String title, String why, long at) {
-		return new Proposal("part_" + part, title, why, null, at, "Architect can build it now", null, null, null, null, part);
+		return new Proposal("part_" + part, title, why, null, at, "it can be built now", null, null, null, null, part);
 	}
 
 	public boolean offersPart() {

@@ -296,10 +296,12 @@ public final class InboxScreen extends KitScreen {
 					int cy = ry + (20 - CHIP_H) / 2 - 1;
 					String no = "Not now";
 					ax -= chipWidth(no);
-					chip(g, no, ax, cy, false, true, mx, my, () -> send("proposal_decline", l.id(), "", 0, "Declining " + l.role().toLowerCase()));
+					chip(g, no, ax, cy, false, true, mx, my, () -> send("proposal_decline", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Putting the waiting parts off"
+						: "Declining " + l.role().toLowerCase()));
 					String yes = "Build it";
 					ax -= chipWidth(yes) + 3;
-					chip(g, yes, ax, cy, true, true, mx, my, () -> send("proposal_accept", l.id(), "", 0, "Starting " + l.role().toLowerCase()));
+					chip(g, yes, ax, cy, true, true, mx, my, () -> send("proposal_accept", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Fitting one waiting part"
+						: "Starting " + l.role().toLowerCase()));
 					actionsW = x + w - ax + 4;
 				} else if ("UPDATE".equals(e.decision()) && sentAtVersion < 0) {
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
