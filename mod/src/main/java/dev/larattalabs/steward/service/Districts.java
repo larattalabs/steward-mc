@@ -256,7 +256,7 @@ public final class Districts {
 		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
 			if (roads.contains(v.id())) continue;
 			var b = v.box();
-			if (d.claim().contains(d.claim().dimension(), (b.minX() + b.maxX()) / 2, d.claim().minY(), (b.minZ() + b.maxZ()) / 2)) return true;
+			if (d.land().contains(d.claim().dimension(), (b.minX() + b.maxX()) / 2, (b.minZ() + b.maxZ()) / 2)) return true;
 		}
 		return false;
 	}

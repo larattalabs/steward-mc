@@ -1158,9 +1158,9 @@ public final class SettlementRunner {
 				for (int[] c : dev.larattalabs.steward.model.DistrictRules.cells(r.points(), r.width() + 2)) if (grid.has(c[0], c[1])) grid.setBuilt(c[0], c[1], true);
 			}
 			if (district == null) {
-				Claim c = d.claim();
-				for (int x = c.centerX() - c.radius(); x <= c.centerX() + c.radius(); x++) for (int z = c.centerZ() - c.radius(); z <= c.centerZ() + c.radius(); z++) {
-					if (grid.has(x, z)) grid.setBuilt(x, z, true);
+				// the district's land, which a town build keeps off
+				for (dev.larattalabs.steward.model.Land.Run r : d.land().runs()) for (int x = r.x0(); x <= r.x1(); x++) {
+					if (grid.has(x, r.z())) grid.setBuilt(x, r.z(), true);
 				}
 			}
 		}

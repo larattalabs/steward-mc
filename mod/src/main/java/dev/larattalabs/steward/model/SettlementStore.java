@@ -28,12 +28,14 @@ public final class SettlementStore {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 	/**
 	 * 2 (2026-10-09): the change log holds operations (op ids, version changes, outcomes). 3 (2026-10-10): settlements have lands (districts, protected
-	 * areas); a format-2 file reads with none.
+	 * areas); a format-2 file reads with none. 4 (2026-10-24): a
+	 * district has a kind, a state and its land (docs/DISTRICTS.md section 9); a format-3 district reads as a standing square. An older Steward refuses a
+	 * format-4 file rather than dropping the new members on its next save.
 	 */
-	public static final int FORMAT = 3;
+	public static final int FORMAT = 4;
 
 	/** Step {@code i} upgrades format {@code i + 1} to {@code i + 2}, on the file's JSON. */
-	private static final List<java.util.function.Consumer<JsonObject>> MIGRATIONS = List.of(SettlementStore::v1ToV2, SettlementStore::v2ToV3);
+	private static final List<java.util.function.Consumer<JsonObject>> MIGRATIONS = List.of(SettlementStore::v1ToV2, SettlementStore::v2ToV3, SettlementStore::v3ToV4);
 
 	/** The format the file had when read (equal to {@link #FORMAT} unless it was migrated). */
 	private int readFormat = FORMAT;
@@ -57,7 +59,7 @@ public final class SettlementStore {
 	public void put(Settlement s) {
 		for (Settlement o : byId.values()) {
 			if (o.id().equals(s.id())) continue;
-			for (Claim a : s.claims()) for (Claim b : o.claims()) {
+			for (Land a : s.ground()) for (Land b : o.ground()) {
 				if (a.overlaps(b)) throw new IllegalArgumentException("claim overlaps settlement " + o.id());
 			}
 		}
@@ -152,6 +154,21 @@ public final class SettlementStore {
 
 	/** Format 2 to 3: nothing to rewrite; a settlement without {@code lands} reads with no districts and no protected areas. */
 	static void v2ToV3(JsonObject file) {
+	}
+
+	/** Format 3 to 4: every district is a standing square (what format 3 knew); its land is its claim, so none is written. */
+	static void v3ToV4(JsonObject file) {
+		for (JsonElement se : file.getAsJsonArray("settlements")) {
+			if (!se.isJsonObject() || !se.getAsJsonObject().has("lands") || !se.getAsJsonObject().get("lands").isJsonObject()) continue;
+			JsonObject lands = se.getAsJsonObject().getAsJsonObject("lands");
+			if (!lands.has("districts") || !lands.get("districts").isJsonArray()) continue;
+			for (JsonElement de : lands.getAsJsonArray("districts")) {
+				if (!de.isJsonObject()) continue;
+				JsonObject d = de.getAsJsonObject();
+				d.addProperty("kind", "square");
+				d.addProperty("state", "standing");
+			}
+		}
 	}
 
 	public void save(Path file) throws IOException {

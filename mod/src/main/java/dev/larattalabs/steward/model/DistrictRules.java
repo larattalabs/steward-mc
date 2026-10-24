@@ -121,7 +121,7 @@ public final class DistrictRules {
 		Claim d = new Claim(town.dimension(), dcx, dcz, radius, town.minY(), town.maxY());
 		if (d.overlaps(v)) return Placement.refused("The " + name + " district would overlap the town.");
 		for (Settlement.District o : own) {
-			if (d.overlaps(o.claim())) return Placement.refused("The " + name + " district would overlap the " + o.name() + " district.");
+			if (o.land().overlaps(d)) return Placement.refused("The " + name + " district would overlap the " + o.name() + " district.");
 		}
 		for (Claim o : others) {
 			if (d.overlaps(o)) return Placement.refused("The " + name + " district would overlap the settlement at " + o.centerX() + "," + o.centerZ() + ".");

@@ -27,7 +27,11 @@ import org.jspecify.annotations.Nullable;
  */
 public final class BuildStore {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-	private static final int FORMAT = 1;
+	/**
+	 * 2 (2026-10-24): moves with the settlements file's format 4 (a build's settlement copy has districts with kinds and land), so an older Steward refuses
+	 * the file rather than dropping their new members. A format-1 file reads as it is (its districts as standing squares).
+	 */
+	static final int FORMAT = 2;
 
 	/**
 	 * One build. {@code settlement} is a copy (a dev build's settlement is not in the settlements file); {@code siteGroupId} is the Architect site group the
@@ -93,6 +97,7 @@ public final class BuildStore {
 	private record FileShape(int format, List<Saved> builds) {}
 
 	private final Map<String, Saved> byId = new LinkedHashMap<>();
+	private int readFormat = FORMAT;
 
 	public List<Saved> all() {
 		return List.copyOf(byId.values());
@@ -106,6 +111,11 @@ public final class BuildStore {
 		byId.remove(settlementId);
 	}
 
+	/** The format the file had when read. */
+	public int readFormat() {
+		return readFormat;
+	}
+
 	public String toJson() {
 		return GSON.toJson(new FileShape(FORMAT, new ArrayList<>(byId.values())));
 	}
@@ -113,8 +123,9 @@ public final class BuildStore {
 	public static BuildStore fromJson(String json) {
 		FileShape f = GSON.fromJson(json, new TypeToken<FileShape>() {});
 		if (f == null || f.builds == null) throw new JsonParseException("not a Steward builds file");
-		if (f.format != FORMAT) throw new JsonParseException("unsupported builds format " + f.format);
+		if (f.format < 1 || f.format > FORMAT) throw new JsonParseException("unsupported builds format " + f.format + " (this build reads 1.." + FORMAT + ")");
 		BuildStore s = new BuildStore();
+		s.readFormat = f.format;
 		for (Saved b : f.builds) {
 			if (b == null || b.settlementId() == null || b.buildId() == null || b.state() == null || b.plan() == null || b.settlement() == null || b.playerId() == null
 				|| b.dimension() == null || b.permission() == null || b.state().phase() == null || b.plan().lots() == null) {
@@ -135,6 +146,12 @@ public final class BuildStore {
 	/** Loads a store, or an empty one when the file does not exist. A corrupt file is an error, never silently emptied. */
 	public static BuildStore load(Path file) throws IOException {
 		if (!Files.exists(file)) return new BuildStore();
-		return fromJson(Files.readString(file, StandardCharsets.UTF_8));
+		BuildStore s = fromJson(Files.readString(file, StandardCharsets.UTF_8));
+		// migrated: keep the file as it was before anything is written over it (once), as the settlements file does
+		if (s.readFormat < FORMAT) {
+			Path bak = file.resolveSibling(file.getFileName() + ".v" + s.readFormat + ".bak");
+			if (!Files.exists(bak)) Files.copy(file, bak);
+		}
+		return s;
 	}
 }
