@@ -5,11 +5,6 @@ import dev.larattalabs.labui.client.ui.Kit;
 import dev.larattalabs.labui.client.ui.Panels;
 import dev.larattalabs.labui.client.ui.TextUtil;
 import dev.larattalabs.labui.client.ui.UiStyle;
-
-import dev.larattalabs.labui.client.ui.Kit;
-import dev.larattalabs.labui.client.ui.Panels;
-import dev.larattalabs.labui.client.ui.TextUtil;
-import dev.larattalabs.labui.client.ui.UiStyle;
 import dev.larattalabs.steward.ui.ToastStack;
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +19,7 @@ import net.minecraft.util.Util;
 import org.jspecify.annotations.Nullable;
 
 /**
- * In-game paper toasts (design done / failed, the sidecar's state): a title, two lines of text, an optional key hint;
+ * In-game paper toasts (a build that needs the player, a build that ended: {@link dev.larattalabs.steward.client.screen.ClientInbox}): a title, two lines of text, an optional key hint;
  * "need you" toasts get a clay stripe. They slide in at the top right, stack (need-you first, newest on top, three at most,
  * {@link ToastStack}); what does not fit waits and is counted on one "+N more" line. Not drawn while a screen is open.
  */
