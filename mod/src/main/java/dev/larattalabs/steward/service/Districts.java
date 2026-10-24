@@ -79,6 +79,9 @@ public final class Districts {
 		// beside a region town (Architect D3): a $0 reservation Architect has checked, built at its first building (docs/DISTRICTS.md section 9)
 		var town = besideTown(server, s, dir);
 		if (town != null) return reserveBeside(server, s, town, dir, size, name, say, onFounded);
+		if ((dir.equals("E") || dir.equals("W")) && regionTownGone(s)) {
+			return "There's no town region to build beside: " + s.name() + "'s town was undone. Build the town again first.";
+		}
 		// in a survival world nothing is built free: the road is built from the settlement's stockpile (Architect C24), made first when there is none
 		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && Stockpiles.ensure(server, s, say) == null) {
 			return "A district's road in a survival world is built from " + s.name() + "'s stockpile, and none could be made.";
@@ -145,6 +148,39 @@ public final class Districts {
 		}
 	}
 
+	/** The ext key naming the district a region was planned and realised for. */
+	public static final String DISTRICT_EXT = "steward_mc:district";
+
+	/** A region Architect holds (not removed) that was realised for district {@code districtId} of the settlement {@code owner}. */
+	static java.util.Optional<String> liveRegionOf(String owner, String districtId) {
+		try {
+			return ArchitectApi.get().regions().list(owner).stream()
+				.filter(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVED && v.ext().has(DISTRICT_EXT) && v.ext().get(DISTRICT_EXT).isJsonPrimitive()
+					&& districtId.equals(v.ext().get(DISTRICT_EXT).getAsString()))
+				.map(dev.larattalabs.architect.api.RegionView::id).findFirst();
+		} catch (RuntimeException | LinkageError e) {
+			// can't tell: the district stays as it is
+			return java.util.Optional.of("unknown");
+		}
+	}
+
+	/**
+	 * Whether the town was a region and is gone (undone): a placed region that wasn't a district's, and no town region now. Never a square district then,
+	 * which would lay Steward's road to a town that isn't there.
+	 */
+	static boolean regionTownGone(Settlement s) {
+		java.util.Set<String> districts = new java.util.HashSet<>();
+		for (Settlement.District d : s.lands().districts()) if (d.region() != null) districts.add(d.region());
+		boolean wasRegion = s.log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && dev.larattalabs.steward.gateway.VPlan.regionOf(e.siteGroup()) != null
+			&& !districts.contains(dev.larattalabs.steward.gateway.VPlan.regionOf(e.siteGroup())));
+		if (!wasRegion) return false;
+		try {
+			return TownRegion.of(s).isEmpty();
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
+	}
+
 	/** The district's key stem: its plan and realise keys are {@code <stem>.dplan} and {@code <stem>.drealise}. */
 	static String opKeyStem(Settlement s, String districtId) {
 		return "steward." + s.id() + "." + districtId;
@@ -176,7 +212,7 @@ public final class Districts {
 		params.add("spec", spec);
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
-		ext.addProperty("steward_mc:district", districtId);
+		ext.addProperty(DISTRICT_EXT, districtId);
 		if (buildId != null) ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
 		var box = new net.minecraft.world.level.levelgen.structure.BoundingBox(request[0], s.claim().minY(), request[1], request[2], s.claim().maxY(), request[3]);
 		return new dev.larattalabs.architect.api.RegionPlanRequest("districts", params, level, box, null, null, null,
@@ -282,9 +318,9 @@ public final class Districts {
 			return;
 		}
 		for (Settlement.District d : s.get().lands().districts()) {
-			// a district left building by a build that is gone (a stop before it ended), with no region: only reserved again
+			// a district left building by a build that is gone (a stop before it ended), with no region of its own Architect still holds: only reserved again
 			if (Settlement.District.BUILDING.equals(d.state()) && d.region() == null) {
-				Settlements.districtState(settlementId, d.id(), Settlement.District.RESERVED);
+				if (liveRegionOf(s.get().owner(), d.id()).isEmpty()) Settlements.districtState(settlementId, d.id(), Settlement.District.RESERVED);
 				continue;
 			}
 			if (!d.square()) continue;

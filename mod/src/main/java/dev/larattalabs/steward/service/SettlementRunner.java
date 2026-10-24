@@ -1223,8 +1223,11 @@ public final class SettlementRunner {
 				for (int[] c : dev.larattalabs.steward.model.DistrictRules.cells(r.points(), r.width() + 2)) if (grid.has(c[0], c[1])) grid.setBuilt(c[0], c[1], true);
 			}
 			if (district == null) {
-				// the district's land, which a town build keeps off
-				for (dev.larattalabs.steward.model.Land.Run r : d.land().runs()) for (int x = r.x0(); x <= r.x1(); x++) {
+				// the district's land, which a town build keeps off, and its region's join inside the town (town land the district holds; read live)
+				List<dev.larattalabs.steward.model.Land> off = new ArrayList<>(List.of(d.land()));
+				if (d.region() != null) ArchitectApi.get().regions().get(d.region())
+					.flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.inside(v.ext(), dim)).ifPresent(off::add);
+				for (var land : off) for (dev.larattalabs.steward.model.Land.Run r : land.runs()) for (int x = r.x0(); x <= r.x1(); x++) {
 					if (grid.has(x, r.z())) grid.setBuilt(x, r.z(), true);
 				}
 			}
@@ -1269,8 +1272,22 @@ public final class SettlementRunner {
 	}
 
 	/** Gives up before the pipeline started: says why and frees the slot. */
+	/**
+	 * A district region's first build that ended with no region of its own: the district is only reserved again (its undo gives it up). Not while a realise
+	 * may still answer, and not while Architect holds a region tagged with the district (a lost answer): then it stays {@code building} until the world-start
+	 * sweep takes that region up or a later pass finds none ({@link Districts#reconcile}).
+	 */
+	private void releaseDistrict() {
+		if (districtId == null || settlement == null || queueInFlight) return;
+		Settlements.store().get(settlement.id()).flatMap(s -> s.lands().district(districtId))
+			.filter(d -> Settlement.District.BUILDING.equals(d.state()) && d.region() == null)
+			.filter(d -> Districts.liveRegionOf(settlement.owner(), d.id()).isEmpty())
+			.ifPresent(d -> Settlements.districtState(settlement.id(), d.id(), Settlement.District.RESERVED));
+	}
+
 	private void abandon(String why) {
 		say(why);
+		releaseDistrict();
 		// a build that stops before its state is saved leaves nothing on disk that needs its approved plan: the pin goes
 		if (state == null || settlement == null || builds.all().stream().noneMatch(b -> b.settlementId().equals(settlement.id()))) releasePin();
 		// it never started: an accepted proposal is given back (it was recorded only if onStart ran), and backs off before it is tried again
@@ -1292,10 +1309,7 @@ public final class SettlementRunner {
 		// it ended: its row stays in the inbox a few minutes ({@link #ENDED_ROW_MS}), so the player sees how
 		if (state.phase().terminal() && (before == null || !before.terminal())) {
 			endedAt = System.currentTimeMillis();
-			// a district region's first build that placed nothing: the district is only reserved again (its undo gives it up)
-			if (districtId != null && settlement != null) Settlements.store().get(settlement.id()).flatMap(s -> s.lands().district(districtId))
-				.filter(d -> Settlement.District.BUILDING.equals(d.state()) && d.region() == null)
-				.ifPresent(d -> Settlements.districtState(settlement.id(), d.id(), Settlement.District.RESERVED));
+			releaseDistrict();
 		}
 		// the massings show as ghosts on their lots while they wait for the player, and go when decided
 		if (state.phase() == Pipeline.Phase.AWAITING_MASSING_APPROVAL && before != Pipeline.Phase.AWAITING_MASSING_APPROVAL) showMassings(true);
@@ -1816,6 +1830,8 @@ public final class SettlementRunner {
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", settlement.id());
 		ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
+		// a district's region names its district, so a region whose answer was lost still holds the district (releaseDistrict, Districts.reconcile)
+		if (districtId != null) ext.addProperty(Districts.DISTRICT_EXT, districtId);
 		say("Placing the village (" + lotEntries.size() + " buildings, its street, lanes and square)...");
 		queueInFlight = true;
 		ServerPlayer actor = server.getPlayerList().getPlayer(playerId);

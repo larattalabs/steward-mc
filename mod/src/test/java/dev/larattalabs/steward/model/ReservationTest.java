@@ -36,6 +36,20 @@ class ReservationTest {
 		assertTrue(r.note().contains("garden"), r.note());
 	}
 
+	@Test
+	void oneDistrictASideAndTheRequestClearOfOtherDistricts() {
+		// a district east already (founded before the claim grew): a second east one is refused even though their squares don't meet
+		var east = new District("dst_1", "Old", "E", new Claim(OW, 113, 0, 48, -64, 320), 1L, List.of());
+		Claim grown = new Claim(OW, 0, 0, 256, -64, 320);
+		var r = DistrictRules.reserve(grown, new int[] {-40, -40, 40, 40}, List.of(east), List.of(), List.of(), "E", 48, "Harbour");
+		assertFalse(r.ok());
+		assertTrue(r.note().contains("east already"), r.note());
+		// a square west of the town that lies inside the west request's claim (between the region and the reservation) though off its square
+		var inside = new District("dst_2", "Mill", "N", new Claim(OW, -120, 0, 20, -64, 320), 1L, List.of());
+		var w = DistrictRules.reserve(grown, new int[] {-40, -40, 40, 40}, List.of(inside), List.of(), List.of(), "W", 48, "Harbour");
+		assertFalse(w.ok(), "Architect could place the district on Mill's land");
+	}
+
 	private static Settlement reserved() {
 		Settlement s = Settlement.founded("set_1", "Here", TOWN, Permission.PROPOSALS, Difficulty.PATRON, 1L);
 		Claim c = new Claim(OW, 113, 0, 48, -64, 320);

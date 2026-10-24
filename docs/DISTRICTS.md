@@ -243,3 +243,20 @@ they differ, this one holds.
   3. Founding a beside reservation (`checkBeside`), its undo.
   4. The district build (plan, realise, land, recovery), giving it up, `dangling`.
   5. Along districts and outposts as quarters; talk, proposals and the Claim tab's chips.
+
+## 10. GPT review of slices 1-4 (2026-10-24, gpt-6.1-sol, max)
+
+Nine findings, each checked against the code; seven fixed, two carried to slice 5.
+- **Fixed:**
+  1. A lost realise answer then a cancel no longer frees the district: it goes back to `reserved` only when no realise may still answer and Architect
+     holds no region tagged with it (`steward_mc:district` on the realise), else it stays `building` until the sweep takes the region up.
+  2. Every abandon of a district build (a plan refused, an empty plan) puts the district back to `reserved` the same way.
+  3. Town additions keep off the district's join inside the town (`architect_mc:land.inside`, read live from its region).
+  4. The plan's request claim may not hold another district's land (founding refuses), and placing a district never takes a sibling's columns.
+  5. A region town whose region was undone refuses a new east or west district, never falling back to a square district.
+  7. One district a side: a second district on a side that has one is refused, whatever the claim's size.
+  9. Land runs are bounded (the world's border, 8192 columns a run, 20 million columns in all).
+- **Slice 5:**
+  6. The D3 re-check at realise refuses a district plan through `Regions.realise` (not `ARTIFACT_STALE`), so the build ends rather than re-planning.
+     A district's re-plan under a second key, as the stale retry does, comes with slice 5.
+  8. "Its road to the town is gone" (`architect_mc:beside.dangling`, `land.standingRemoved`) on the Claim tab comes with the screens.

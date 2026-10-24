@@ -187,7 +187,10 @@ public final class Settlements {
 		var d = s.get().lands().district(districtId);
 		if (d.isEmpty()) return Result.fail("No district " + districtId + ".");
 		var x = d.get();
-		var land = outside == null ? x.land() : x.land().union(outside);
+		// never another district's columns (founding keeps the plan's claim clear of them; this holds it if one changed since)
+		var take = outside;
+		for (Settlement.District o : s.get().lands().districts()) if (take != null && !o.id().equals(districtId)) take = take.minus(o.land());
+		var land = take == null ? x.land() : x.land().union(take);
 		Settlement n = s.get().withLands(s.get().lands().withDistrict(new Settlement.District(x.id(), x.name(), x.direction(), x.claim(), x.at(), x.roads(),
 			x.linkUndone(), x.kind(), Settlement.District.STANDING, x.parent(), region, land, x.follow(), x.opKey()))).withLog(entry);
 		try {

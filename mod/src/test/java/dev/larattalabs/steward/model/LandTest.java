@@ -56,6 +56,23 @@ class LandTest {
 	}
 
 	@Test
+	void minusLeavesTheColumnsTheOtherDoesNotHold() {
+		Land a = new Land(OW, List.of(new Run(0, 0, 9), new Run(1, 0, 9)));
+		Land b = new Land(OW, List.of(new Run(0, 3, 4), new Run(0, 7, 20)));
+		assertEquals(List.of(new Run(0, 0, 2), new Run(0, 5, 6), new Run(1, 0, 9)), a.minus(b).runs());
+		assertSame(a, a.minus(new Land(OW, List.of(new Run(5, 0, 9)))), "nothing shared: unchanged");
+		assertNull(new Land(OW, List.of(new Run(0, 3, 4))).minus(b), "all of it taken");
+	}
+
+	@Test
+	void landTooWideOrPastTheWorldIsRefused() {
+		assertThrows(JsonParseException.class, () -> new Run(0, 0, Integer.MAX_VALUE), "a run to the end of int would loop forever when walked");
+		assertThrows(JsonParseException.class, () -> new Run(0, -40_000_000, -39_999_990));
+		assertThrows(JsonParseException.class, () -> new Run(0, 0, Land.MAX_SPAN));
+		assertDoesNotThrow(() -> Land.of(new Claim(OW, 0, 0, 2048, -64, 320)), "the largest claim is land");
+	}
+
+	@Test
 	void badLandIsRefused() {
 		assertThrows(JsonParseException.class, () -> new Land(OW, List.of()));
 		assertThrows(JsonParseException.class, () -> new Land(null, List.of(new Run(0, 0, 0))));

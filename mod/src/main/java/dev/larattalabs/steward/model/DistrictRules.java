@@ -76,11 +76,17 @@ public final class DistrictRules {
 		int radius, String name) {
 		if (!dir.equals("E") && !dir.equals("W")) return Reservation.refused("A district north or south of this town is a square district.");
 		boolean east = dir.equals("E");
+		for (Settlement.District o : own) {
+			if (o.direction().equals(dir)) return Reservation.refused("There is a district to the " + directionName(dir) + " already (" + o.name() + ").");
+		}
 		int cx = east ? town.centerX() + town.radius() + 1 + radius : town.centerX() - town.radius() - 1 - radius;
 		Claim d = new Claim(town.dimension(), cx, town.centerZ(), radius, town.minY(), town.maxY());
 		Land land = Land.of(d);
+		int[] req = request(region, d, dir);
+		// Architect may place the district anywhere in the request's claim: none of it may be another district's
+		Land envelope = Land.ofRect(town.dimension(), req[0], req[1], req[2], req[3]);
 		for (Settlement.District o : own) {
-			if (o.land().overlaps(land)) return Reservation.refused("The " + name + " district would overlap the " + o.name() + " district.");
+			if (o.land().overlaps(land) || o.land().overlaps(envelope)) return Reservation.refused("The " + name + " district would overlap the " + o.name() + " district.");
 		}
 		for (Claim o : others) {
 			if (land.overlaps(o)) return Reservation.refused("The " + name + " district would overlap the settlement at " + o.centerX() + "," + o.centerZ() + ".");
@@ -90,7 +96,7 @@ public final class DistrictRules {
 				return Reservation.refused("The " + name + " district would cover the protected area \"" + a.label() + "\".");
 			}
 		}
-		return new Reservation(d, request(region, d, dir), "");
+		return new Reservation(d, req, "");
 	}
 
 	/** The plan request's claim for a reservation {@code d} towards {@code dir}: the reservation and the way back into the town region's claim by {@link #SEAM}. */

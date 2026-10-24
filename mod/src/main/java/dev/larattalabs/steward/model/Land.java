@@ -16,6 +16,8 @@ public record Land(String dimension, List<Run> runs) {
 	public record Run(int z, int x0, int x1) {
 		public Run {
 			if (x1 < x0) throw new JsonParseException("a land run ends before it starts (" + x0 + ".." + x1 + " at z " + z + ")");
+			if (Math.abs(z) > WORLD || Math.abs(x0) > WORLD || Math.abs(x1) > WORLD) throw new JsonParseException("a land run lies outside the world (" + x0 + ".." + x1 + " at z " + z + ")");
+			if ((long) x1 - x0 + 1 > MAX_SPAN) throw new JsonParseException("a land run is " + ((long) x1 - x0 + 1) + " columns wide (at most " + MAX_SPAN + ")");
 		}
 	}
 
@@ -24,12 +26,19 @@ public record Land(String dimension, List<Run> runs) {
 
 	/** A run list the store keeps from growing without bound (a district's land is at most a few hundred rows). */
 	public static final int MAX_RUNS = 20_000;
+	/** The widest run and the most columns land may hold (a claim is at most 4097 across), and the world's border. */
+	public static final int MAX_SPAN = 8192;
+	public static final long MAX_CELLS = 20_000_000L;
+	static final int WORLD = 30_000_000;
 
 	public Land {
 		if (dimension == null || dimension.isBlank()) throw new JsonParseException("land needs a dimension");
 		if (runs == null || runs.isEmpty()) throw new JsonParseException("land needs at least one run");
 		if (runs.size() > MAX_RUNS) throw new JsonParseException("land has " + runs.size() + " runs (at most " + MAX_RUNS + ")");
 		runs = normalise(runs);
+		long n = 0;
+		for (Run r : runs) n += (long) r.x1() - r.x0() + 1;
+		if (n > MAX_CELLS) throw new JsonParseException("land holds " + n + " columns (at most " + MAX_CELLS + ")");
 	}
 
 	/** The columns of a claim. */
@@ -43,6 +52,7 @@ public record Land(String dimension, List<Run> runs) {
 	/** The columns of a rectangle (inclusive, either corner order). */
 	public static Land ofRect(String dimension, int ax, int az, int bx, int bz) {
 		int x0 = Math.min(ax, bx), x1 = Math.max(ax, bx);
+		if ((long) Math.max(az, bz) - Math.min(az, bz) + 1 > MAX_SPAN) throw new IllegalArgumentException("a rectangle " + ((long) Math.max(az, bz) - Math.min(az, bz) + 1) + " rows deep");
 		List<Run> l = new ArrayList<>();
 		for (int z = Math.min(az, bz); z <= Math.max(az, bz); z++) l.add(new Run(z, x0, x1));
 		return new Land(dimension, l);
@@ -117,6 +127,23 @@ public record Land(String dimension, List<Run> runs) {
 		List<Run> l = new ArrayList<>(runs);
 		l.addAll(o.runs);
 		return new Land(dimension, l);
+	}
+
+	/** This land's columns that {@code o} doesn't hold; null when none are left. */
+	public @org.jspecify.annotations.Nullable Land minus(Land o) {
+		if (!overlaps(o)) return this;
+		List<Run> out = new ArrayList<>();
+		for (Run r : runs) {
+			int from = r.x0();
+			for (int i = o.firstRow(r.z()); i < o.runs.size() && o.runs.get(i).z() == r.z(); i++) {
+				Run q = o.runs.get(i);
+				if (q.x1() < from || q.x0() > r.x1()) continue;
+				if (q.x0() > from) out.add(new Run(r.z(), from, q.x0() - 1));
+				from = Math.max(from, q.x1() + 1);
+			}
+			if (from <= r.x1()) out.add(new Run(r.z(), from, r.x1()));
+		}
+		return out.isEmpty() ? null : new Land(dimension, out);
 	}
 
 	private int firstRow(int z) {

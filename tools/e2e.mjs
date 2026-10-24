@@ -1837,8 +1837,14 @@ async function districtRegionFlow() {
   const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
   const rv = view?.view ?? view ?? {};
   const outside = rv.ext?.['architect_mc:land']?.outside?.cells ?? 0;
-  if (after?.state === 'standing' && region && op?.siteGroup === `region:${region}` && rv.beside === town && (after.land?.runs?.length ?? 0) > 0) {
-    ok('district region', `${region} beside ${town}, standing; ${built.placed} placed; its land ${after.land.runs.length} rows (${outside} cells outside the town from Architect)`);
+  // Architect's land outside the town is merged into the reservation: the saved land holds more than the reserved square whenever the join (or the
+  // district) left it, and at least the square
+  const cells = (l) => (l?.runs ?? []).reduce((a, r) => a + (r.x1 - r.x0 + 1), 0);
+  const square = (2 * d.claim.radius + 1) ** 2;
+  const merged = cells(after?.land) >= square && (outside === 0 || cells(after?.land) > square || (rv.ext?.['architect_mc:land']?.outside?.runs ?? []).every(([x0, z, x1]) =>
+    x0 >= d.claim.centerX - d.claim.radius && x1 <= d.claim.centerX + d.claim.radius && Math.abs(z - d.claim.centerZ) <= d.claim.radius));
+  if (after?.state === 'standing' && region && op?.siteGroup === `region:${region}` && rv.beside === town && merged) {
+    ok('district region', `${region} beside ${town}, standing; ${built.placed} placed; its land ${cells(after.land)} columns (the square ${square}, ${outside} outside the town from Architect)`);
   } else return fail('district region', `district ${JSON.stringify(after)?.slice(0, 200)}; op ${op?.siteGroup}; region beside ${rv.beside}, state ${rv.state}`);
   // undone: the region goes, and the district with it
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);

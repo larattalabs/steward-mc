@@ -22,9 +22,18 @@ public final class DistrictLand {
 
 	/** The region's {@code outside} land as Steward's runs; empty when the ext has none (or none outside the town). */
 	public static Optional<Land> outside(@Nullable JsonObject ext, String dimension) {
+		return part(ext, "outside", dimension);
+	}
+
+	/** The region's {@code inside} land (its join's cells in the town region's claim: town land the district holds, which town additions keep off). */
+	public static Optional<Land> inside(@Nullable JsonObject ext, String dimension) {
+		return part(ext, "inside", dimension);
+	}
+
+	private static Optional<Land> part(@Nullable JsonObject ext, String key, String dimension) {
 		JsonObject land = land(ext);
-		if (land == null || !land.has("outside") || !land.get("outside").isJsonObject()) return Optional.empty();
-		JsonObject out = land.getAsJsonObject("outside");
+		if (land == null || !land.has(key) || !land.get(key).isJsonObject()) return Optional.empty();
+		JsonObject out = land.getAsJsonObject(key);
 		if (!out.has("runs") || !out.get("runs").isJsonArray()) return Optional.empty();
 		List<Land.Run> runs = new ArrayList<>();
 		for (JsonElement e : out.getAsJsonArray("runs")) {
