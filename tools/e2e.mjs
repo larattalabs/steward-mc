@@ -156,7 +156,9 @@ async function claimAndSteward() {
   // the settlements file is written in the current format (a v1 world migrates when loaded; its v1 file is kept as a backup)
   const file = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-settlements.json'), 'utf8'));
   const backups = fs.readdirSync(WORLD).filter((f) => /^steward-settlements\.json\.v\d+\.bak$/.test(f)).map((f) => f.match(/v\d+/)[0]);
-  if (file.format === 3 && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `3, every entry an operation${backups.length ? ', backups kept: ' + backups.join(' ') : ''}`);
+  // format 4 (2026-10-24): districts with kinds and land; every square district a standing square
+  const squares = file.settlements.flatMap((x) => x.lands?.districts ?? []).every((d) => d.kind && d.state);
+  if (file.format === 4 && squares && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `4, every entry an operation, every district with its kind${backups.length ? ', backups kept: ' + backups.join(' ') : ''}`);
   else fail('save format', `format ${file.format}`);
   let name = '';
   for (let i = 0; i < 10 && !/Steward/.test(name); i++) {
@@ -1856,8 +1858,10 @@ async function districtRegionFlow() {
     const s2 = settlements().find((x) => x.id === id);
     if (!s2?.lands?.districts?.some((x) => x.id === d.id)) given = s2;
   }
+  // a removed region leaves the state reader: no state, or REMOVED (Steward gives the district up only once Architect says it is gone)
   const rgone = await regionUntil(region, ['REMOVED'], 60_000);
-  if (given && (rgone?.view?.state ?? rgone?.state) === 'REMOVED') ok('district region undone', `${region} removed, ${d.name} given up`);
+  const rstate = rgone?.view?.state ?? rgone?.state;
+  if (given && (rstate === 'REMOVED' || rstate === undefined)) ok('district region undone', `${region} ${rstate === undefined ? 'gone from the state reader' : 'removed'}, ${d.name} given up`);
   else fail('district region undone', `district ${given ? 'gone' : 'kept'}; region ${rgone?.view?.state ?? rgone?.state}; last ${JSON.stringify(settlements().find((x) => x.id === id)?.log.at(-1))?.slice(0, 160)}`);
 }
 
