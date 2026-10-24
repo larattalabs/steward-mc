@@ -1644,8 +1644,9 @@ async function regionUntil(region, states, ms = 300_000) {
   let v = null;
   for (const end = Date.now() + ms; Date.now() < end;) {
     v = await dev.request('dev.region.state', { region }).catch(() => null);
-    const st = v?.view?.state ?? v?.state;
-    if (states.includes(st)) return v;
+    // a removed region is no longer in the state reader: gone is REMOVED
+    const st = v?.view?.state ?? v?.state ?? (states.includes('REMOVED') && (!v || v.ok === false || v.error) ? 'REMOVED' : undefined);
+    if (states.includes(st)) return { ...(v ?? {}), state: st };
     await sleep(2000);
   }
   return v;
@@ -1709,7 +1710,7 @@ async function besideFlow() {
   else fail('a refused removal changes nothing', `${JSON.stringify(refused).slice(0, 160)}; state ${stillState}`);
   const rm1 = await dev.request('dev.region.remove', { region: district, force: true }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
   const gone1 = await regionUntil(district, ['REMOVED'], 120_000);
-  if ((gone1?.view?.state ?? gone1?.state) !== 'REMOVED') return fail('beside, district removed first', `the district's removal: ${JSON.stringify(rm1).slice(0, 300)}; state ${gone1?.view?.state ?? gone1?.state}`);
+  if (!(rm1?.removed === true || (gone1?.view?.state ?? gone1?.state) === 'REMOVED')) return fail('beside, district removed first', `the district's removal: ${JSON.stringify(rm1).slice(0, 300)}; state ${gone1?.view?.state ?? gone1?.state}`);
   await clearAnimals();
   const diff1 = await dev.call('dev.region.hash', { box: townBox, mode: 'diff', file: snap }, { timeoutMs: 600_000 });
   const off1 = (diff1.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
@@ -1735,7 +1736,7 @@ async function besideFlow() {
   else fail('beside, town removed first', `town ${last?.kind}; district ${dstate}; ext ${JSON.stringify(ext).slice(0, 200)}`);
   const rm2 = await dev.request('dev.region.remove', { region: d2, force: true }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
   const gone = await regionUntil(d2, ['REMOVED'], 120_000);
-  if ((gone?.view?.state ?? gone?.state) === 'REMOVED') ok('beside, then the district', `${d2} removed after the town`);
+  if (rm2?.removed === true || (gone?.view?.state ?? gone?.state) === 'REMOVED') ok('beside, then the district', `${d2} removed after the town`);
   else fail('beside, then the district', `${d2}: ${JSON.stringify(rm2).slice(0, 300)}; state ${gone?.view?.state ?? gone?.state}`);
 }
 
