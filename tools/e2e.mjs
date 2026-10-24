@@ -207,7 +207,12 @@ async function inboxScreen() {
   const screen = JSON.stringify(st.screen ?? st);
   if (/InboxScreen/.test(screen)) ok('inbox screen');
   else fail('inbox screen', screen.slice(0, 120));
+  // the sample's rows (a build held by the usage limit, an ended build, the grouped waiting parts), then the toasts once no screen is open
+  const inboxShot = (await dev.request('dev.screenshot', { name: 'e2e-inbox', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
   await dev.request('dev.key', { key: 'escape' });
+  await sleep(1200);
+  const toastShot = (await dev.request('dev.screenshot', { name: 'e2e-toasts', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  ok('inbox and toast pictures', `${inboxShot} ${toastShot}`);
 }
 
 async function placeUpdateUndo(id) {
@@ -1681,6 +1686,13 @@ async function stubFlow(id) {
   await cmd(`/steward ui card ${id}`);
   await sleep(1500);
   const cardShot = (await dev.request('dev.screenshot', { name: 'e2e-card-limits', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  // Enter once: the card says what starting spends, and waits for a second press (nothing starts)
+  await dev.request('dev.key', { key: 'enter' });
+  await sleep(500);
+  const confirmShot = (await dev.request('dev.screenshot', { name: 'e2e-card-confirm', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  const started = /Approving|Designing the style bible|Starting/.test(logSince(logSize() - 4000));
+  if (!started) ok('start needs two presses', `one Enter only armed it; ${confirmShot}`);
+  else fail('start needs two presses', 'one Enter started the build');
   await closeScreens();
   if (limit) ok('card limits', `${limit[1].slice(0, 70)}; ${cardShot}`);
   else fail('card limits', 'no "Not yet" line for the stilt village');
