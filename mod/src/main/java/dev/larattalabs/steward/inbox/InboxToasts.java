@@ -34,7 +34,7 @@ public final class InboxToasts {
 			}
 			// running again under the same key: a new build, whose end is news again
 			endSaid.remove(key);
-			if (e.waiting() && needSaid.add(key)) out.add(new Toast(true, false, e.name(), e.name() + " needs you", e.headline()));
+			if (e.needsYou() && needSaid.add(key)) out.add(new Toast(true, false, e.name(), e.name() + " needs you", e.headline()));
 		}
 		needSaid.retainAll(present);
 		endSaid.retainAll(present);

@@ -15,14 +15,22 @@ import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
  */
 public final class SettlementSync {
 	private static final Map<UUID, String> SENT = new HashMap<>();
+	/** Settlements whose state changed since the last round: the next tick sends their views at once ({@link #dirty}). */
+	private static final java.util.Set<String> DIRTY = new java.util.HashSet<>();
 	static final int EVERY = 40;
 
 	private SettlementSync() {
 	}
 
+	/** A settlement's state changed (a build's phase, what it waits for): its view goes out on the next tick rather than within two seconds. Server thread. */
+	public static void dirty(String settlementId) {
+		DIRTY.add(settlementId);
+	}
+
 	public static void init() {
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
-			if (server.getTickCount() % EVERY != 0) return;
+			if (server.getTickCount() % EVERY != 0 && DIRTY.isEmpty()) return;
+			DIRTY.clear();
 			// each settlement's view is built once a round, however many players stand in it
 			Map<String, String> views = new HashMap<>();
 			for (var p : server.getPlayerList().getPlayers()) {
@@ -33,7 +41,10 @@ public final class SettlementSync {
 				ServerPlayNetworking.send(p, new StewardNet.SettlementNear(json));
 			}
 		});
-		ServerLifecycleEvents.SERVER_STOPPED.register(s -> SENT.clear());
+		ServerLifecycleEvents.SERVER_STOPPED.register(s -> {
+			SENT.clear();
+			DIRTY.clear();
+		});
 		net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents.DISCONNECT.register((h, s) -> SENT.remove(h.getPlayer().getUUID()));
 	}
 }

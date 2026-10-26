@@ -91,9 +91,19 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 			return;
 		}
 		long updates = v.buildings().stream().filter(SettlementView.Building::updateAvailable).count();
-		String status = v.busy() ? "Being built: see the inbox (Y)" : updates > 0 ? updates + (updates == 1 ? " update waits" : " updates wait") + " for you"
-			: v.buildings().size() + (v.buildings().size() == 1 ? " building" : " buildings") + ", nothing waits";
-		WorldUi.submitText(ps, c, Component.literal(TextUtil.ellipsize(font, status, W - 12)).getVisualOrderText(), 6, 21, v.busy() || updates > 0 ? UiStyle.BRASS : muted, light);
+		// the settlement's attention, as the nameplate and the inbox say it; a board from before it had one keeps the old line
+		var a = v.attention();
+		String status;
+		boolean loud;
+		if (a != null && a.kind() != dev.larattalabs.steward.inbox.Attention.Kind.IDLE) {
+			String line = Character.toUpperCase(a.line().charAt(0)) + a.line().substring(1);
+			status = a.needsYou() ? line + ": see the inbox (Y)" : line;
+			loud = a.needsYou();
+		} else {
+			status = v.buildings().size() + (v.buildings().size() == 1 ? " building" : " buildings") + ", nothing waits";
+			loud = false;
+		}
+		WorldUi.submitText(ps, c, Component.literal(TextUtil.ellipsize(font, status, W - 12)).getVisualOrderText(), 6, 21, loud ? UiStyle.BRASS : muted, light);
 		int y = 34;
 		var rows = v.buildings();
 		for (int i = 0; i < Math.min(ROWS, rows.size()); i++) {

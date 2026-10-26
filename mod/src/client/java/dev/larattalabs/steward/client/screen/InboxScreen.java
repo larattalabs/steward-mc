@@ -203,6 +203,16 @@ public final class InboxScreen extends KitScreen {
 		drawFooter(g, cx, footerY, inner, all.size() > 1);
 	}
 
+	/** An entry's further lines, and the usage limit it waits for (its reset time in this player's clock). */
+	static List<String> shownLines(InboxModel.Entry e) {
+		if (!e.held()) return e.lines();
+		List<String> l = new ArrayList<>(e.lines());
+		String at = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.ROOT)
+			.format(java.time.Instant.ofEpochMilli(e.limitResetsAt()).atZone(java.time.ZoneId.systemDefault())).toLowerCase(java.util.Locale.ROOT);
+		l.add(InboxModel.HELD_LINE + " (resets at " + at + ")");
+		return l;
+	}
+
 	/** The list's groups: what needs the player, what is being built, what ended in the last minutes. */
 	private static final String[] GROUPS = {"Needs you", "Building", "Ended"};
 
@@ -249,7 +259,7 @@ public final class InboxScreen extends KitScreen {
 	private int detailHeight(InboxModel.Entry e, int w) {
 		int h = 14 + 10; // pill row, progress
 		h += TextUtil.wrapPlain(font, e.headline(), w).size() * 10 + 6;
-		for (String l : e.lines()) h += TextUtil.wrapPlain(font, l, w).size() * 10;
+		for (String l : shownLines(e)) h += TextUtil.wrapPlain(font, l, w).size() * 10;
 		h += Math.min(e.lots().size(), 8) * ROW_H + 8;
 		if (field != null) h += TextFieldView.BASE_H + 10 + (redirectLot != null ? 12 : 0);
 		return h;
@@ -277,7 +287,7 @@ public final class InboxScreen extends KitScreen {
 			y += 10;
 		}
 		// the further lines: the buildings by stage, a usage limit it waits for
-		for (String line : e.lines()) {
+		for (String line : shownLines(e)) {
 			boolean held = line.startsWith(InboxModel.HELD_LINE);
 			for (String l : TextUtil.wrapPlain(font, line, w)) {
 				g.text(font, l, x, y, held ? UiStyle.CLAY_DARK : UiBits.muted(), false);

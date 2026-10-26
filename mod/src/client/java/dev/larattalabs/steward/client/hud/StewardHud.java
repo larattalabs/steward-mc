@@ -19,7 +19,8 @@ public final class StewardHud implements HudElement {
 	public void extractRenderState(GuiGraphicsExtractor g, DeltaTracker delta) {
 		Minecraft mc = Minecraft.getInstance();
 		if (mc.player == null || mc.gui.hud.isHidden() || mc.gui.screen() != null) return;
-		InboxModel.Entry first = ClientInbox.entries().stream().filter(InboxModel.Entry::waiting).findFirst().orElse(null);
+		// what is blocked on the player (never an idea: ideas show in the inbox), as the nameplate's "!" and the board say
+		InboxModel.Entry first = ClientInbox.entries().stream().filter(InboxModel.Entry::needsYou).findFirst().orElse(null);
 		if (first == null) return;
 		long more = ClientInbox.waiting() - 1;
 		String tail = " waits for you" + (more > 0 ? " (+" + more + ")" : "");

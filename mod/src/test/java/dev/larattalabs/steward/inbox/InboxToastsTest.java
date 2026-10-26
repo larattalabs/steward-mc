@@ -54,10 +54,10 @@ class InboxToastsTest {
 
 	@Test
 	void aBuildHeldByTheUsageLimitIsHeldUntilItEnds() {
-		var held = new InboxModel.Entry("set_4", "Stilt", "NONE", "Designing.", List.of("Buildings: 1 done", InboxModel.HELD_LINE + " (resets at 4pm)"), List.of(), 30, 2, 0);
+		var held = new InboxModel.Entry("set_4", "Stilt", "NONE", "Designing.", List.of("Buildings: 1 done"), List.of(), 30, 2, 0, false, 1_800_000_000_000L);
 		assertTrue(held.held());
 		assertFalse(build("NONE").held());
-		var ended = new InboxModel.Entry("set_4", "Stilt", "DONE", "Built.", List.of(InboxModel.HELD_LINE + " (resets at 4pm)"), List.of(), 30, 2, 0);
+		var ended = new InboxModel.Entry("set_4", "Stilt", "DONE", "Built.", List.of(), List.of(), 30, 2, 0, false, 1_800_000_000_000L);
 		assertFalse(ended.held(), "an ended build is not held");
 	}
 }

@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  */
 public record SettlementView(String id, String name, boolean described, boolean busy, ClaimInfo claim, String permission, String difficulty,
 	List<Building> buildings, int roads, List<Op> history, int historyTotal, double weeklyUsd, double spentWeekUsd, List<DistrictInfo> districts, List<AreaInfo> areas,
-	List<DistrictInfo> proposed, List<String> stockpile, List<PlayerBuildInfo> playerBuilds) {
+	List<DistrictInfo> proposed, List<String> stockpile, List<PlayerBuildInfo> playerBuilds, dev.larattalabs.steward.inbox.@org.jspecify.annotations.Nullable Attention attention) {
 	public SettlementView {
 		districts = districts == null ? List.of() : districts;
 		// districts waiting in the inbox, where they would go (survey mode previews them)
@@ -94,6 +94,12 @@ public record SettlementView(String id, String name, boolean described, boolean 
 	/** As above, with the player's own builds in the claim. */
 	public static SettlementView of(Settlement s, boolean busy, List<Site> sites, List<DistrictInfo> proposed, List<String> stockpile,
 		List<PlayerBuildInfo> playerBuilds) {
+		return of(s, busy, sites, proposed, stockpile, playerBuilds, null);
+	}
+
+	/** As above, with what the settlement asks of the player ({@code attention}: the board shows the line the nameplate and the inbox show). */
+	public static SettlementView of(Settlement s, boolean busy, List<Site> sites, List<DistrictInfo> proposed, List<String> stockpile,
+		List<PlayerBuildInfo> playerBuilds, dev.larattalabs.steward.inbox.@org.jspecify.annotations.Nullable Attention attention) {
 		var c = s.claim();
 		ClaimInfo claim = new ClaimInfo(c.dimension(), c.centerX(), c.centerZ(), c.radius(), ClaimRules.side(c.radius()), ClaimRules.sizeOf(c.radius()));
 		List<Settlement.LogEntry> log = s.log();
@@ -127,7 +133,7 @@ public record SettlementView(String id, String name, boolean described, boolean 
 		}
 		List<AreaInfo> areas = s.lands().protect().stream().map(a -> new AreaInfo(a.id(), a.label(), a.x0(), a.z0(), a.x1(), a.z1())).toList();
 		return new SettlementView(s.id(), s.name(), s.described(), busy, claim, s.permission().name(), s.difficulty().name(), List.copyOf(buildings), roads,
-			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()), List.copyOf(districts), areas, List.copyOf(proposed), List.copyOf(stockpile), List.copyOf(playerBuilds));
+			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()), List.copyOf(districts), areas, List.copyOf(proposed), List.copyOf(stockpile), List.copyOf(playerBuilds), attention);
 	}
 
 	public String toJson() {

@@ -84,6 +84,8 @@ public final class StewardNet {
 				buf.writeDouble(e.budgetUsd());
 				buf.writeDouble(e.spentUsd());
 				buf.writeDouble(e.minRaiseUsd());
+				buf.writeBoolean(e.needsYou());
+				buf.writeLong(e.limitResetsAt());
 			}
 		}, buf -> {
 			int n = buf.readVarInt();
@@ -94,7 +96,7 @@ public final class StewardNet {
 				int m = buf.readVarInt();
 				List<InboxModel.Lot> lots = new ArrayList<>(m);
 				for (int j = 0; j < m; j++) lots.add(new InboxModel.Lot(buf.readUtf(), buf.readUtf(), buf.readUtf(), buf.readBoolean(), buf.readBoolean(), buf.readUtf()));
-				out.add(new InboxModel.Entry(id, name, decision, headline, lines, lots, buf.readDouble(), buf.readDouble(), buf.readDouble()));
+				out.add(new InboxModel.Entry(id, name, decision, headline, lines, lots, buf.readDouble(), buf.readDouble(), buf.readDouble(), buf.readBoolean(), buf.readLong()));
 			}
 			return new Inbox(List.copyOf(out));
 		});

@@ -52,9 +52,12 @@ class InboxModelTest {
 	void theLinesSayTheBuildingsByStageAndAHeldUsageLimitInPlainWords() {
 		State s = Pipeline.step(running(), new Pipeline.GroupUpdate("g", "held_usage", Map.of("cabin_1", "massing", "tower_1", "done"), List.of(), 2, "resets at 4pm"),
 			Permission.PROPOSALS).next();
-		InboxModel.Entry e = InboxModel.entry("set_4", "Stilt", s, List.of());
+		InboxModel.Entry e = InboxModel.entry("set_4", "Stilt", s, List.of(), Attention.of(s, 1_800_000_000_000L, null, false, "", 1_799_999_000_000L));
 		assertTrue(e.lines().stream().anyMatch(l -> l.startsWith("Buildings: ") && l.contains("1 massing") && l.contains("1 done")), e.lines().toString());
-		assertTrue(e.lines().contains("Waiting for your usage limit to reset (resets at 4pm)"), e.lines().toString());
+		// the usage limit is the reset time as a number (the inbox words it in the player's own clock), never a line to parse
+		assertTrue(e.held());
+		assertEquals(1_800_000_000_000L, e.limitResetsAt());
+		assertTrue(e.lines().stream().noneMatch(l -> l.startsWith(InboxModel.HELD_LINE)), e.lines().toString());
 		// the spend shows beside the state, not again as a line; no tool is named to the player
 		assertTrue(e.lines().stream().noneMatch(l -> l.startsWith("Spent") || l.contains("Claude") || l.contains("Architect")), e.lines().toString());
 		assertFalse(InboxModel.working(Pipeline.Phase.CANCELLING).contains("Architect"));
