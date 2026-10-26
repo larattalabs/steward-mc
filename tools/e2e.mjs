@@ -1677,7 +1677,8 @@ async function besideAsk(id, townRegion, { check = true, key = null, lots = 2 } 
 /** Whether this Architect revises regions (6d RV): its dev bridge has the revision hooks. */
 async function revisesRegions() {
   const probe = await dev.request('dev.rv.state', { region: 'none' }).catch((e) => ({ refused: String(e) }));
-  return !(/unknown|not found|no such|method/i.test(probe?.refused ?? '') && !/region/i.test(probe?.refused ?? ''));
+  // an Architect without revisions answers an unknown type (as an error, or a refusal)
+  return !/unknown type|unknown method|no such/i.test(`${probe?.error ?? ''} ${probe?.refused ?? ''}`);
 }
 
 /** A revision of {@code region} (6d RV) waited on until its record reads one of {@code states} ({@code rid}: its number). */
@@ -1927,8 +1928,7 @@ async function districtRegionFlow() {
  * and isn't held busy; undoing the town with the revision standing takes the region away. Skipped on an Architect without revisions.
  */
 async function revisionFlow() {
-  const probe = await dev.request('dev.rv.state', { region: 'none' }).catch((e) => ({ refused: String(e) }));
-  if (/unknown|not found|no such|method/i.test(probe?.refused ?? '') && !/region/i.test(probe?.refused ?? '')) return;
+  if (!(await revisesRegions())) return;
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} 60000 0 1 false @p`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
