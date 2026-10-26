@@ -957,3 +957,12 @@ Architect slice/RV at f59b132a (code bfa97ee8, on main c5df0fea), built in my cl
 written; a mound planned and realised (the region's own id answered, the town back to PLACED, the revision PLACED with its site tagged
 `architect_mc:revision`); Steward's history untouched (no entry of its own: Steward doesn't call revisions yet); then Steward's undo of the town with
 the revision standing removes the region. Seen: the refused plan took rid 1, so the accepted one was rid 2; Steward reads the rid from the answer.
+
+## 6d RV-c/RV-d RC (2026-10-26): PASS
+
+Architect's RV-c/RV-d candidate, built in my clone, against steward-mc branch districts-s5: free 43 pass; stub 85 of 86, and the one failure (the
+supplied plan stalling at "Approve to place") is a Steward slice 5 issue, not RV's (the same stall shows on that branch with a released Architect).
+The revision checks: a raw block refused `NOT_ALLOWED [theme]`; a mound realised as rev 1 (PLACED, its site tagged, the town PLACED, Steward's history
+unchanged); `undoRevision` alone takes rev 1 to UNDONE and leaves the town PLACED and not busy; Steward's undo of the town with a revision standing
+removes the region; on a real beside district, a revision grows `land.outside` 572 -> 575 and its undo shrinks it back to 572.
+Not covered here, left for GR's RC: a survival revision, and the joined / survival_building undo refusals.
