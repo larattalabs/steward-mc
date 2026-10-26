@@ -69,16 +69,27 @@ public record Settlement(
 	 * One operation in the change log (docs/PLAN.md "Reviews (2026-10-09)": change history before autonomy). {@code siteIds} are the Architect sites it
 	 * touched; {@code siteGroup} the site group a placed project's batch made (undo removes it whole); {@code op} its id in the settlement ({@code op_<n>},
 	 * given when logged); {@code changes} the version change of each site; {@code outcome} how it ended. Entries written before operations have no op,
-	 * changes or outcome: they read as done with no recorded versions.
+	 * changes or outcome: they read as done with no recorded versions. {@code district} (format 4): the district an operation founded or gave up without
+	 * a site of its own (a reservation, docs/DISTRICTS.md section 4), so its undo knows what to give up.
 	 */
 	public record LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup, @Nullable String op, List<SiteChange> changes,
-		@Nullable Outcome outcome) {
+		@Nullable Outcome outcome, @Nullable String district) {
 		public LogEntry {
 			kind = kind == null ? Kind.NOTE : kind;
 			siteIds = siteIds == null ? List.of() : List.copyOf(siteIds);
 			changes = changes == null ? List.of() : List.copyOf(changes);
 			outcome = outcome == null ? Outcome.DONE : outcome;
 			text = text == null ? "" : text;
+		}
+
+		public LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup, @Nullable String op, List<SiteChange> changes,
+			@Nullable Outcome outcome) {
+			this(at, kind, text, siteIds, siteGroup, op, changes, outcome, null);
+		}
+
+		/** An operation on a district that has no site of its own (founding or giving up a reservation). */
+		public static LogEntry ofDistrict(long at, Kind kind, String text, String district) {
+			return new LogEntry(at, kind, text, List.of(), null, null, List.of(), Outcome.DONE, district);
 		}
 
 		public LogEntry(long at, Kind kind, String text, List<String> siteIds, @Nullable String siteGroup) {
@@ -104,7 +115,7 @@ public record Settlement(
 		}
 
 		LogEntry withOp(String id) {
-			return new LogEntry(at, kind, text, siteIds, siteGroup, id, changes, outcome);
+			return new LogEntry(at, kind, text, siteIds, siteGroup, id, changes, outcome, district);
 		}
 	}
 
@@ -187,16 +198,68 @@ public record Settlement(
 	}
 
 	/**
-	 * A district (phase 3f): a square of its own next to the village square, with a purpose, laid out and built like the town and linked to it by roads.
-	 * {@code direction} is where it lies from the stone (N, E, S, W); {@code roads} the roads laid for it, the founding road first; {@code linkUndone}: the
-	 * player undid its link road, so it is not laid again by itself (a later build in the district lays it).
+	 * A district (phase 3f; docs/DISTRICTS.md): land of the settlement's beyond the town, with a purpose, built like the town and joined to it.
+	 * <ul>
+	 * <li>{@code direction}: where it lies from the stone (N, E, S, W); {@code claim}: its square, or for land that isn't a square its bounding square
+	 * (never a licence to build: {@link #land()} is);</li>
+	 * <li>{@code roads}: the roads Steward laid for a square district, the founding road first; {@code linkUndone}: the player undid its link road, so it
+	 * is not laid again by itself (a later build in the district lays it);</li>
+	 * <li>since format 4: {@code kind} ({@link #SQUARE}, {@link #BESIDE}, {@link #ALONG}, {@link #OUTPOST}), {@code state} ({@link #RESERVED},
+	 * {@link #BUILDING}, {@link #STANDING}), {@code parent} (the town region it was founded beside), {@code region} (its own region, once planned),
+	 * {@code savedLand} (saved as {@code land}; null for a square, whose land is its claim), {@code follow} (the boundary an along district follows) and {@code opKey} (the stem
+	 * of its plan and realise keys). A format-3 district reads as a standing square.</li>
+	 * </ul>
 	 */
-	public record District(String id, String name, String direction, Claim claim, long at, List<Road> roads, boolean linkUndone) {
+	public record District(String id, String name, String direction, Claim claim, long at, List<Road> roads, boolean linkUndone, String kind, String state,
+		@org.jspecify.annotations.Nullable String parent, @org.jspecify.annotations.Nullable String region, @com.google.gson.annotations.SerializedName("land") @org.jspecify.annotations.Nullable Land savedLand,
+		@org.jspecify.annotations.Nullable Follow follow, @org.jspecify.annotations.Nullable String opKey) {
+		public static final String SQUARE = "square", BESIDE = "beside", ALONG = "along", OUTPOST = "outpost";
+		public static final String RESERVED = "reserved", BUILDING = "building", STANDING = "standing";
+		private static final java.util.Set<String> KINDS = java.util.Set.of(SQUARE, BESIDE, ALONG, OUTPOST);
+		private static final java.util.Set<String> STATES = java.util.Set.of(RESERVED, BUILDING, STANDING);
+
 		public District {
 			if (id == null || claim == null) throw new com.google.gson.JsonParseException("a district needs an id and a claim");
 			name = name == null || name.isBlank() ? id : name;
 			direction = direction == null ? "E" : direction;
 			roads = roads == null ? List.of() : List.copyOf(roads);
+			kind = kind == null ? SQUARE : kind;
+			state = state == null ? STANDING : state;
+			// an unknown word is a newer Steward's: refused (a newer format is refused before this; this guards a hand-edited file)
+			if (!KINDS.contains(kind)) throw new com.google.gson.JsonParseException("district " + id + " has an unknown kind " + kind);
+			if (!STATES.contains(state)) throw new com.google.gson.JsonParseException("district " + id + " has an unknown state " + state);
+			if (savedLand != null && !savedLand.dimension().equals(claim.dimension())) throw new com.google.gson.JsonParseException("district " + id + "'s land is in another dimension");
+			if (!SQUARE.equals(kind) && savedLand == null) throw new com.google.gson.JsonParseException("district " + id + " (" + kind + ") has no land");
+		}
+
+		public District(String id, String name, String direction, Claim claim, long at, List<Road> roads, boolean linkUndone) {
+			this(id, name, direction, claim, at, roads, linkUndone, SQUARE, STANDING, null, null, null, null, null);
+		}
+
+		public District(String id, String name, String direction, Claim claim, long at, List<Road> roads) {
+			this(id, name, direction, claim, at, roads, false);
+		}
+
+		/** The boundary an along district follows: {@code shore}, {@code ridge} or {@code biome_edge}, the two block families or biomes between, its side. */
+		public record Follow(String boundary, List<String> between, @org.jspecify.annotations.Nullable String side) {
+			public Follow {
+				if (boundary == null || boundary.isBlank()) throw new com.google.gson.JsonParseException("a followed boundary needs its kind");
+				between = between == null ? List.of() : List.copyOf(between);
+			}
+		}
+
+		/** The columns it owns: its land, or for a square its claim. Every "is this the district's" test reads this, never {@link #claim()}. */
+		public Land land() {
+			return savedLand != null ? savedLand : Land.of(claim);
+		}
+
+		public boolean square() {
+			return SQUARE.equals(kind);
+		}
+
+		/** Whether a building can be added in it now: a square district, or a reserved beside district (its first building builds its region). */
+		public boolean takesBuilding() {
+			return square() || (BESIDE.equals(kind) && RESERVED.equals(state));
 		}
 
 		/** The road it was founded with, while it stands in the record. */
@@ -208,19 +271,15 @@ public record Settlement(
 			return roads.stream().anyMatch(Road::link);
 		}
 
-		public District(String id, String name, String direction, Claim claim, long at, List<Road> roads) {
-			this(id, name, direction, claim, at, roads, false);
-		}
-
 		public District withRoads(List<Road> l, boolean linkUndone) {
-			return new District(id, name, direction, claim, at, l, linkUndone);
+			return new District(id, name, direction, claim, at, l, linkUndone, kind, state, parent, region, savedLand, follow, opKey);
 		}
 
 		/** With a road added (a link clears {@code linkUndone}). */
 		public District withRoad(Road r) {
 			List<Road> l = new ArrayList<>(roads);
 			l.add(r);
-			return new District(id, name, direction, claim, at, l, linkUndone && !r.link());
+			return withRoads(l, linkUndone && !r.link());
 		}
 	}
 
@@ -246,7 +305,7 @@ public record Settlement(
 		}
 	}
 
-	/** The claim and every district's: all the land the settlement may build on. */
+	/** The claim and every district's claim (a district's bounding square when its land isn't one): for bounds and a conservative test; land tests read {@link #ground()}. */
 	public List<Claim> claims() {
 		List<Claim> l = new ArrayList<>();
 		l.add(claim);
@@ -254,14 +313,24 @@ public record Settlement(
 		return l;
 	}
 
-	/** Whether a point lies in the claim or one of its districts. */
+	/** Whether a point lies in the claim or one of its districts' land (at the claim's heights). */
 	public boolean contains(String dim, int x, int y, int z) {
-		return claims().stream().anyMatch(c -> c.contains(dim, x, y, z));
+		if (claim.contains(dim, x, y, z)) return true;
+		if (y < claim.minY() || y > claim.maxY()) return false;
+		return lands.districts().stream().anyMatch(d -> d.land().contains(dim, x, z));
+	}
+
+	/** The town's claim and every district's land: what another settlement must not overlap. */
+	public List<Land> ground() {
+		List<Land> l = new ArrayList<>();
+		l.add(Land.of(claim));
+		for (District d : lands.districts()) l.add(d.land());
+		return l;
 	}
 
 	/** The district a point lies in, if any (the town's own square comes first: a district inside a big claim still counts as the district). */
 	public java.util.Optional<District> districtAt(String dim, int x, int z) {
-		return lands.districts().stream().filter(d -> d.claim().contains(dim, x, d.claim().minY(), z)).findFirst();
+		return lands.districts().stream().filter(d -> d.land().contains(dim, x, z)).findFirst();
 	}
 
 	/** The protected area a point lies in, if any. */
@@ -269,10 +338,14 @@ public record Settlement(
 		return lands.protect().stream().filter(a -> a.contains(dim, x, z)).findFirst();
 	}
 
-	/** The claim (the town's or a district's) a box's columns lie wholly in, else the town's claim (a box that straddles them is checked against it). */
+	/**
+	 * The claim (the town's, or a district's whose land holds the box's every column) a box lies wholly in, else the town's claim (a box that straddles them
+	 * is checked against it).
+	 */
 	public Claim claimFor(int x0, int z0, int x1, int z1) {
-		for (Claim c : claims()) {
-			if (c.contains(c.dimension(), Math.min(x0, x1), c.minY(), Math.min(z0, z1)) && c.contains(c.dimension(), Math.max(x0, x1), c.minY(), Math.max(z0, z1))) return c;
+		if (claim.contains(claim.dimension(), Math.min(x0, x1), claim.minY(), Math.min(z0, z1)) && claim.contains(claim.dimension(), Math.max(x0, x1), claim.minY(), Math.max(z0, z1))) return claim;
+		for (District d : lands.districts()) {
+			if (d.land().containsBox(claim.dimension(), x0, z0, x1, z1)) return d.claim();
 		}
 		return claim;
 	}
@@ -425,8 +498,11 @@ public record Settlement(
 				List<String> left = e.siteIds().stream().filter(id -> !removed.contains(id)).toList();
 				// the group only while the project is whole: after a partial undo the rest goes site by site
 				if (!left.isEmpty()) return java.util.Optional.of(new LogEntry(e.at(), e.kind(), e.text(), left, left.size() == e.siteIds().size() ? e.siteGroup() : null, e.op(),
-					e.changes().stream().filter(c -> left.contains(c.siteId())).toList(), e.outcome()));
+					e.changes().stream().filter(c -> left.contains(c.siteId())).toList(), e.outcome(), e.district()));
 			}
+			// a reservation (a district founded with no site): undoable while it is still only reserved; once built, its build's entry is the newer one
+			if (e.kind() == Kind.DISTRICT_FOUNDED && e.siteIds().isEmpty() && e.district() != null
+				&& lands.district(e.district()).filter(d -> District.RESERVED.equals(d.state())).isPresent()) return java.util.Optional.of(e);
 		}
 		return java.util.Optional.empty();
 	}

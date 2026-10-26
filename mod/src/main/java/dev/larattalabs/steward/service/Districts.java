@@ -76,6 +76,12 @@ public final class Districts {
 		Runnable onFounded) {
 		if (LAYING.contains(s.id())) return "A road of " + s.name() + " is being laid; try again in a moment.";
 		if (SettlementRunner.busy(s.id())) return s.name() + " is busy (a build or an undo); found a district once that is done.";
+		// beside a region town (Architect D3): a $0 reservation Architect has checked, built at its first building (docs/DISTRICTS.md section 9)
+		var town = besideTown(server, s, dir);
+		if (town != null) return reserveBeside(server, s, town, dir, size, name, say, onFounded);
+		if ((dir.equals("E") || dir.equals("W")) && regionTownGone(s)) {
+			return "There's no town region to build beside: " + s.name() + "'s town was undone. Build the town again first.";
+		}
 		// in a survival world nothing is built free: the road is built from the settlement's stockpile (Architect C24), made first when there is none
 		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && Stockpiles.ensure(server, s, say) == null) {
 			return "A district's road in a survival world is built from " + s.name() + "'s stockpile, and none could be made.";
@@ -127,6 +133,170 @@ public final class Districts {
 	}
 
 	/**
+	 * The town region a district towards {@code dir} is reserved beside, or null for a square district: the town is a region (never a district's or a
+	 * part's), the side is east or west (Noah's Q3), and the world isn't survival (a district region from materials is a follow-up).
+	 */
+	static dev.larattalabs.architect.api.@Nullable RegionView besideTown(MinecraftServer server, Settlement s, String dir) {
+		if (!dir.equals("E") && !dir.equals("W")) return null;
+		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) return null;
+		try {
+			var id = TownRegion.of(s);
+			return id.isEmpty() ? null : ArchitectApi.get().regions().get(id.get()).orElse(null);
+		} catch (RuntimeException | LinkageError e) {
+			Steward.LOGGER.info("the town region of {} can't be read ({}): a square district", s.id(), e.toString());
+			return null;
+		}
+	}
+
+	/** The ext key naming the district a region was planned and realised for. */
+	public static final String DISTRICT_EXT = "steward_mc:district";
+
+	/** A region Architect holds (not removed) that was realised for district {@code districtId} of the settlement {@code owner}. */
+	static java.util.Optional<String> liveRegionOf(String owner, String districtId) {
+		try {
+			return ArchitectApi.get().regions().list(owner).stream()
+				.filter(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVED && v.ext().has(DISTRICT_EXT) && v.ext().get(DISTRICT_EXT).isJsonPrimitive()
+					&& districtId.equals(v.ext().get(DISTRICT_EXT).getAsString()))
+				.map(dev.larattalabs.architect.api.RegionView::id).findFirst();
+		} catch (RuntimeException | LinkageError e) {
+			// can't tell: the district stays as it is
+			return java.util.Optional.of("unknown");
+		}
+	}
+
+	/**
+	 * Whether the town was a region and is gone (undone): a placed region that wasn't a district's, and no town region now. Never a square district then,
+	 * which would lay Steward's road to a town that isn't there.
+	 */
+	static boolean regionTownGone(Settlement s) {
+		java.util.Set<String> districts = new java.util.HashSet<>();
+		for (Settlement.District d : s.lands().districts()) if (d.region() != null) districts.add(d.region());
+		boolean wasRegion = s.log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && dev.larattalabs.steward.gateway.VPlan.regionOf(e.siteGroup()) != null
+			&& !districts.contains(dev.larattalabs.steward.gateway.VPlan.regionOf(e.siteGroup())));
+		if (!wasRegion) return false;
+		try {
+			return TownRegion.of(s).isEmpty();
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
+	}
+
+	/** The district's key stem: its plan and realise keys are {@code <stem>.dplan} and {@code <stem>.drealise}. */
+	static String opKeyStem(Settlement s, String districtId) {
+		return "steward." + s.id() + "." + districtId;
+	}
+
+	/** The plan request of a district beside the town: the districts program with {@code lots} in one district, in the reservation's request claim. */
+	static dev.larattalabs.architect.api.RegionPlanRequest besideRequest(ServerLevel level, Settlement s, String town, int[] request, String districtId,
+		List<JsonObject> lots, @Nullable String opKey) {
+		return besideRequest(level, s, town, request, districtId, lots, opKey, null);
+	}
+
+	/** As above, tagged with the build that plans it (a restart finds its region by the tag when its key is lost). */
+	static dev.larattalabs.architect.api.RegionPlanRequest besideRequest(ServerLevel level, Settlement s, String town, int[] request, String districtId,
+		List<JsonObject> lots, @Nullable String opKey, @Nullable String buildId) {
+		JsonObject district = new JsonObject();
+		district.addProperty("id", districtId);
+		com.google.gson.JsonArray size = new com.google.gson.JsonArray();
+		size.add(Math.min(48, request[2] - request[0] + 1));
+		size.add(Math.min(48, request[3] - request[1] + 1));
+		district.add("size", size);
+		com.google.gson.JsonArray ls = new com.google.gson.JsonArray();
+		lots.forEach(ls::add);
+		district.add("lots", ls);
+		com.google.gson.JsonArray districts = new com.google.gson.JsonArray();
+		districts.add(district);
+		JsonObject spec = new JsonObject();
+		spec.add("districts", districts);
+		JsonObject params = new JsonObject();
+		params.add("spec", spec);
+		JsonObject ext = new JsonObject();
+		ext.addProperty("steward_mc:settlement", s.id());
+		ext.addProperty(DISTRICT_EXT, districtId);
+		if (buildId != null) ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
+		var box = new net.minecraft.world.level.levelgen.structure.BoundingBox(request[0], s.claim().minY(), request[1], request[2], s.claim().maxY(), request[3]);
+		return new dev.larattalabs.architect.api.RegionPlanRequest("districts", params, level, box, null, null, null,
+			dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY, s.owner(), ext, opKey, town);
+	}
+
+	/** One placeholder lot for the founding's dry check: Architect needs a lot to place a district; the real first building plans again with its own. */
+	static JsonObject placeholderLot(Settlement s) {
+		JsonObject lot = new JsonObject();
+		lot.addProperty("id", "reserve_1");
+		lot.addProperty("type", "house");
+		lot.addProperty("role", "house");
+		com.google.gson.JsonArray size = new com.google.gson.JsonArray();
+		size.add(9);
+		size.add(9);
+		lot.add("size", size);
+		lot.addProperty("landmark", false);
+		return lot;
+	}
+
+	private static @Nullable String reserveBeside(MinecraftServer server, Settlement s, dev.larattalabs.architect.api.RegionView town, String dir, String size,
+		String name, Consumer<String> say, Runnable onFounded) {
+		ServerLevel level = level(server, s.claim().dimension());
+		if (level == null) return "The dimension of " + s.id() + " is not loaded.";
+		String label = name == null || name.isBlank() ? "the " + DistrictRules.directionName(dir) + " district" : name.strip();
+		var b = town.claim();
+		var r = DistrictRules.reserve(s.claim(), new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, s.lands().districts(), Settlements.others(s.id()),
+			s.lands().protect(), dir, DistrictRules.radiusFor(size), label);
+		if (!r.ok()) return r.note();
+		var req = besideRequest(level, s, town.id(), r.request(), "reserve", List.of(placeholderLot(s)), null);
+		int session = Session.current();
+		LAYING.add(s.id());
+		say.accept("Asking Architect whether " + label + " can join the town's street...");
+		java.util.concurrent.CompletableFuture<dev.larattalabs.architect.api.BesideVerdict> check;
+		try {
+			check = ArchitectApi.get().regions().checkBeside(req);
+		} catch (RuntimeException | LinkageError e) {
+			LAYING.remove(s.id());
+			return "Architect can't check a district beside the town here (" + e.getMessage() + ").";
+		}
+		check.whenComplete((v, err) -> server.execute(() -> {
+			if (!Session.is(session)) return;
+			LAYING.remove(s.id());
+			if (err != null) {
+				say.accept("Could not reserve " + label + ": " + message(err));
+				return;
+			}
+			if (!v.fits()) {
+				Steward.LOGGER.info("beside check for {} {}: {} {} {}", s.id(), dir, v.reason(), v.code(), v.message());
+				say.accept("Could not reserve " + label + ": " + besideRefusal(v.code(), v.message()));
+				return;
+			}
+			Claim c = r.claim();
+			var res = Settlements.addReservation(s.id(), id -> new Settlement.District(id, label, dir, c, System.currentTimeMillis(), List.of(), false,
+				Settlement.District.BESIDE, Settlement.District.RESERVED, town.id(), null, dev.larattalabs.steward.model.Land.of(c), null, opKeyStem(s, id)),
+				"Reserved " + label + " (" + DistrictRules.directionName(dir) + ", " + (c.radius() * 2 + 1) + " x " + (c.radius() * 2 + 1) + ")",
+				System.currentTimeMillis());
+			if (!res.ok()) {
+				say.accept("Could not reserve " + label + ": " + res.error());
+				return;
+			}
+			onFounded.run();
+			say.accept("Reserved " + label + ". Its first building builds its street and its road to the town" + (v.join() != null && "side".equals(v.join().kind())
+				? " (joining the street's side)" : "") + ". Nothing is built yet, and undoing this gives the land up.");
+		}));
+		return null;
+	}
+
+	/** Architect's refusal of a beside plan in Steward's words (D3 §2.5's bracketed kinds), the message kept for the rest. */
+	static String besideRefusal(@Nullable String code, String message) {
+		String m = message == null ? "" : message;
+		if (code != null && code.startsWith("NO_JOIN")) {
+			if (m.contains("[apart]")) return "it would not touch the town.";
+			if (m.contains("[street]")) return "the town has no street to join yet.";
+			if (m.contains("[wall]")) return "the town's wall closes every way in (a gate would let a road through).";
+			if (m.contains("[route]") || m.contains("[budget]")) return "no road could be found from there to the town's street.";
+		}
+		if ("PROTECTED".equals(code)) return "it would cross a protected area.";
+		if ("OVERLAP".equals(code)) return "something already stands there (" + m + ").";
+		if ("NO_ROOM".equals(code)) return "there isn't room for a street there.";
+		return m.isBlank() ? String.valueOf(code) : m;
+	}
+
+	/**
 	 * Puts right what an interrupted founding or link left: the settlement's district roads that no district records are taken up, and a district whose
 	 * street stands without its link road gets one. Nothing while the settlement is busy. Server thread.
 	 */
@@ -147,7 +317,31 @@ public final class Districts {
 			takeUpAll(server, s.get(), orphans, say, () -> LAYING.remove(settlementId));
 			return;
 		}
+		// a district region Architect placed after its build let go (an answer lost, and its realise slower than the build's wait): no district names it,
+		// so it is taken up as the orphan it is (the world-start sweep does the same for one left across a restart)
+		try {
+			for (var v : ArchitectApi.get().regions().list(s.get().owner())) {
+				if (v.state() == dev.larattalabs.architect.api.RegionState.REMOVED || v.state() == dev.larattalabs.architect.api.RegionState.REMOVING) continue;
+				if (!v.ext().has(DISTRICT_EXT) || !v.ext().get(DISTRICT_EXT).isJsonPrimitive()) continue;
+				if (s.get().lands().districts().stream().anyMatch(d -> v.id().equals(d.region()))) continue;
+				var owner = s.get().lands().district(v.ext().get(DISTRICT_EXT).getAsString());
+				// still building: its runner (or the next pass) adopts it
+				if (owner.isPresent() && Settlement.District.BUILDING.equals(owner.get().state())) continue;
+				if (VillageSweep.entryOf(s.get(), v.id()).isPresent()) continue;
+				Steward.LOGGER.warn("{}: region {} was placed for district {} after its build let go: taking it up", settlementId, v.id(), v.ext().get(DISTRICT_EXT).getAsString());
+				VillageSweep.takeUp(server, s.get(), v.id(), say);
+				return;
+			}
+		} catch (RuntimeException | LinkageError e) {
+			// can't tell this time: the next pass looks again
+		}
 		for (Settlement.District d : s.get().lands().districts()) {
+			// a district left building by a build that is gone (a stop before it ended), with no region of its own Architect still holds: only reserved again
+			if (Settlement.District.BUILDING.equals(d.state()) && d.region() == null) {
+				if (liveRegionOf(s.get().owner(), d.id()).isEmpty()) Settlements.districtState(settlementId, d.id(), Settlement.District.RESERVED);
+				continue;
+			}
+			if (!d.square()) continue;
 			if (!d.linkUndone() && !d.linked() && d.founding().isPresent() && districtStreet(server, s.get(), d) != null) link(server, settlementId, d.id(), say, false);
 		}
 	}
@@ -234,6 +428,15 @@ public final class Districts {
 		var sites = ArchitectApi.get().sites(server);
 		List<String> said = new ArrayList<>();
 		for (Settlement.District d : s.get().lands().districts()) {
+			// a region district is given up with its region (docs/DISTRICTS.md section 4): once its region is confirmed gone and nothing of the settlement's
+			// stands in its land; never by roads it doesn't have. A reservation is given up by undoing its founding.
+			if (!d.square()) {
+				if (d.region() != null && regionGone(d.region()) && !standsIn(server, s.get(), d)
+					&& Settlements.removeDistrict(settlementId, d.id(), "Gave up " + d.name() + " (its build was undone)", System.currentTimeMillis()).ok()) {
+					said.add(d.name() + " is given up: its land is free again.");
+				}
+				continue;
+			}
 			List<Settlement.Road> left = d.roads().stream().filter(r -> sites.get(r.siteId()).isPresent()).toList();
 			// no road left and nothing standing (its roads may have gone by an earlier undo, its last building by this one): given up
 			if (left.isEmpty() && !standsIn(server, s.get(), d)) {
@@ -249,6 +452,12 @@ public final class Districts {
 		return String.join(" ", said);
 	}
 
+	/** Whether a region is removed (its tombstone, or no record at all). */
+	static boolean regionGone(String region) {
+		var v = ArchitectApi.get().regions().get(region);
+		return v.isEmpty() || v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED;
+	}
+
 	/** Whether a site of the settlement other than the district's roads stands in it. */
 	static boolean standsIn(MinecraftServer server, Settlement s, Settlement.District d) {
 		Set<String> roads = new HashSet<>();
@@ -256,7 +465,7 @@ public final class Districts {
 		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
 			if (roads.contains(v.id())) continue;
 			var b = v.box();
-			if (d.claim().contains(d.claim().dimension(), (b.minX() + b.maxX()) / 2, d.claim().minY(), (b.minZ() + b.maxZ()) / 2)) return true;
+			if (d.land().contains(d.claim().dimension(), (b.minX() + b.maxX()) / 2, (b.minZ() + b.maxZ()) / 2)) return true;
 		}
 		return false;
 	}
@@ -266,14 +475,17 @@ public final class Districts {
 
 	public static Counts counts(MinecraftServer server, Settlement s) {
 		java.util.LinkedHashMap<String, Integer> per = new java.util.LinkedHashMap<>();
-		for (Settlement.District d : s.lands().districts()) per.put(d.id(), 0);
+		// only districts that take a building: a square, or a reserved beside district (its first building builds it); a standing region district waits for
+		// Architect's growth (6d)
+		for (Settlement.District d : s.lands().districts()) if (d.takesBuilding()) per.put(d.id(), 0);
 		int town = 0;
 		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
 			if (!"building".equals(v.kind()) || BatchPlanner.isStreet(v.itemKey())) continue;
 			var b = v.box();
 			var in = s.districtAt(s.claim().dimension(), (b.minX() + b.maxX()) / 2, (b.minZ() + b.maxZ()) / 2);
-			if (in.isPresent()) per.merge(in.get().id(), 1, Integer::sum);
-			else town++;
+			if (in.isPresent()) {
+				if (per.containsKey(in.get().id())) per.merge(in.get().id(), 1, Integer::sum);
+			} else town++;
 		}
 		return new Counts(town, per);
 	}

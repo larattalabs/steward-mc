@@ -200,3 +200,90 @@ Should-fixes:
 8. One town-region lookup. `PendingOffers.townRegion`'s oldest-standing rule was confirmed at `PendingOffers.java:113`.
 9. Persisted proposal payloads, pricing and growth by kind.
 10. PPlan's lot adapter for district lots.
+
+## 9. Against D3 as shipped (Architect 0.43.0, API 1.40, 2026-10-24)
+
+D3 (architect-mc CONTRACT "Phase 6c slice D3") shipped D-S1, D-S3 and D-S4. This section brings sections 3, 4 and 6.1 up to it; where
+they differ, this one holds.
+
+- **The join reaches the town's street (D-S1).** A district's join may enter the town's claim and route over land nobody holds, around
+  the town's footprint, bodies and held cells, to the cheapest point of the town's street network: a street end (continuing its line)
+  or a street's side (a T junction). Section 6.1's block is gone. Refusals keep the `NO_JOIN:` prefix with a bracketed kind (`apart`,
+  `street`, `wall`, `route`, `budget`), and Steward says them in its own words.
+- **North and south.** A T junction now joins a district north or south of an east-west town. Noah's Q3 (square districts there) was
+  given while that wasn't possible. The first cut keeps Q3. Beside districts north and south are a follow-up for Noah to decide.
+- **Survival.** RS shipped, and Steward's Supplied region builds run (`realiseMode`). The first cut still keeps square districts in a
+  survival world, as section 3 says: a district region from materials adds its own stockpile and feed questions. It is a follow-up.
+- **The founding check is `Regions.checkBeside` (D-S4).** It is $0, keeps nothing (no plan id, no file, no key) and answers `fits` with
+  the join and the land, or Architect's reason and `code`. A placeholder district's land is the placeholder's. The real first building
+  plans again and may place the district elsewhere in the request claim (D3 §7.2), so the reservation never adopts the verdict's land.
+- **What Steward saves, and from where (format 4).**
+  - A reserved beside district owns its reservation: the side's square beyond the town's claim, as today's squares. Its `land` is that
+    square as one run.
+  - Once its region stands, its `land` is the reservation plus Architect's `architect_mc:land.outside` (D3 §6): the cells outside the
+    town's claim that the district region took, the join's included. `inside` (the join's reach and seam cells in the town's claim)
+    is town land already. Steward's additions in the town avoid it (they read it from the region, never from the save).
+  - An along district or an outpost owns exactly `land.outside`.
+  - Steward saves its own geometry only, as row runs and a rect, never Architect's land object. Architect's `land.v` moving to 2 (6d's
+    grown parts) changes how Steward reads the region, never the save format. `standingRemoved` and `architect_mc:beside.dangling`
+    are read live from the region, never saved.
+- **Undo, as shipped (D3 §4.2).** Removing the district leaves the town exactly as it was. Removing the town first keeps the join
+  standing, the district's, and marks the district `dangling` (and `land.standingRemoved`). Steward shows "its road to the town is
+  gone" from those. A district beside a removed town refuses `OTHER` ("no standing region"), and a reach plan whose town goes before its
+  realise refuses `OTHER` too, "re-plan".
+- **The re-check at realise (D3 §4.4).** A beside plan with `reach` re-checks before its first write: through `realiseApproved` every
+  refusal reads `ARTIFACT_STALE`, so Steward's same-key stale retry covers it.
+- **A second district beside the same town** routes around the first one's join (its columns are held). A district beside a district
+  works with that district as the town (D3 §9).
+- **Slices, in order** (each with unit tests and both e2e, committed in coherent pieces):
+  1. Persistence: format 4 (`kind`, `state`, `parent`, `region`, `land`, `follow`, `opKey`), the v3 migration (every district a
+     `square`), the build store's format with it, and every land consumer reading `land` (`districtAt`, `claims`, `claimFor`, the
+     overlap test). A GPT review of this slice alone.
+  2. `TownRegion.of`, and `PendingOffers.townRegion` on it.
+  3. Founding a beside reservation (`checkBeside`), its undo.
+  4. The district build (plan, realise, land, recovery), giving it up, `dangling`.
+  5. Along districts and outposts as quarters; talk, proposals and the Claim tab's chips.
+
+## 10. GPT review of slices 1-4 (2026-10-24, gpt-6.1-sol, max)
+
+Nine findings, each checked against the code; seven fixed, two carried to slice 5.
+- **Fixed:**
+  1. A lost realise answer then a cancel no longer frees the district: it goes back to `reserved` only when no realise may still answer and Architect
+     holds no region tagged with it (`steward_mc:district` on the realise), else it stays `building` until the sweep takes the region up.
+  2. Every abandon of a district build (a plan refused, an empty plan) puts the district back to `reserved` the same way.
+  3. Town additions keep off the district's join inside the town (`architect_mc:land.inside`, read live from its region).
+  4. The plan's request claim may not hold another district's land (founding refuses), and placing a district never takes a sibling's columns.
+  5. A region town whose region was undone refuses a new east or west district, never falling back to a square district.
+  7. One district a side: a second district on a side that has one is refused, whatever the claim's size.
+  9. Land runs are bounded (the world's border, 8192 columns a run, 20 million columns in all).
+- **Slice 5:**
+  6. The D3 re-check at realise refuses a district plan through `Regions.realise` (not `ARTIFACT_STALE`), so the build ends rather than re-planning.
+     A district's re-plan under a second key, as the stale retry does, comes with slice 5.
+  8. "Its road to the town is gone" (`architect_mc:beside.dangling`, `land.standingRemoved`) on the Claim tab comes with the screens.
+
+Fix-verification pass (same day): 5 and 7 confirmed; 1-4 and 9 needed more, now done:
+- 1: a build whose realise is still unanswered keeps the settlement busy even once it has ended, so the periodic reconcile and undo wait for it.
+- 2: undo refuses while any district is `building`, so a reset that failed to save can never let undo reach past it to the town.
+- 3: street spans keep off other districts' land and region districts' live joins in the town, not only protected areas.
+- 4: planning re-checks the request's claim against the other districts' land (nothing planned on a conflict); a new beside district keeps out of
+  a not-yet-built one's request claim. After a realise, a sibling's columns are still never taken.
+- 9: land is bounded far from int's ends (2^30) rather than at the world's border, so claims at the border stay land; `minus` is one sweep.
+- The e2e checks every run of Architect's outside land lies in the saved land.
+
+Second fix-verification pass (same day; the second round, so what's left goes to Noah): 3, 5, 7, 9 and the e2e check confirmed. Fixed after it:
+- 2: undo of a district whose build ended unresolved is allowed when the newest operation is that district's own region (recorded by the world-start
+  sweep), so a blocked take-up can be retried; any other undo still waits.
+Accepted, with the reason, for Noah's call:
+- 1: a realise whose answer never comes keeps the settlement busy until the world closes. Architect's futures complete or fail (a world stop fails
+  them), so this needs an Architect bug; expiring the flag would bring back the race it closes.
+- 4: a district build saved before planning re-checked its claim (none exist outside dev worlds: the branch is unreleased) could still realise on a
+  sibling's land; placing never records the sibling's columns as its own.
+- Cancelling while a district is planned (no build state yet) says there's nothing to cancel, as the flat village's planning does today.
+
+Noah (2026-10-26): fix both accepted items, then go on. Fixed:
+- 1: an ended build whose realise was never answered looks it up by its keys (and by its build tag on a region) after 3 minutes, every 30 seconds:
+  a region found is taken up as an orphan; nothing found by 15 minutes, the build lets go and a district it held is only reserved again. A realise
+  slower than that (still starting in Architect, invisible to both lookups) can still bring a region later: the periodic reconcile takes up any live
+  region tagged with a district that doesn't name it, as the world-start sweep does across a restart (the GPT check's point, 2026-10-26).
+- 4: every district realise (a new plan, a restored build, the approval path) re-checks its request's claim against the other districts' land first;
+  on a conflict nothing is placed and the build ends (the district reserved again).

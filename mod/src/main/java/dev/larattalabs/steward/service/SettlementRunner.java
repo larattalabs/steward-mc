@@ -171,7 +171,10 @@ public final class SettlementRunner {
 	 */
 	public static boolean busy(String settlementId) {
 		SettlementRunner r = ACTIVE.get(settlementId);
-		return (r != null && (r.state == null || !r.state.phase().terminal())) || Districts.busy(settlementId) || Undo.busy(settlementId) || PendingOffers.busy(settlementId)
+		// a build that ended while its realise is still unanswered stays busy: the answer may yet bring a region (a district's is held until it does);
+		// an answer that never comes is settled by looking the realise up by its key (settleLostRealise)
+		if (r != null && r.state != null && r.state.phase().terminal() && r.queueInFlight) r.settleLostRealise(System.currentTimeMillis());
+		return (r != null && (r.state == null || !r.state.phase().terminal() || r.queueInFlight)) || Districts.busy(settlementId) || Undo.busy(settlementId) || PendingOffers.busy(settlementId)
 			|| ArchitectApi.get().regions().list("steward_mc:settlement/" + settlementId).stream()
 				.anyMatch(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVING);
 	}
@@ -751,7 +754,7 @@ public final class SettlementRunner {
 		java.util.Set<String> ids = new java.util.HashSet<>(siteIds);
 		if (saved.get().log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && new java.util.HashSet<>(e.siteIds()).equals(ids))) {
 			// logged before a restart: the district's link may still be missing (a restart before it was laid is also put right when the world starts)
-			if (districtId != null) Districts.link(server, settlement.id(), districtId, this::say, true);
+			if (districtId != null && saved.get().lands().district(districtId).map(Settlement.District::square).orElse(false)) Districts.link(server, settlement.id(), districtId, this::say, true);
 			return true;
 		}
 		var sites = ArchitectApi.get().sites(server);
@@ -765,12 +768,21 @@ public final class SettlementRunner {
 			}
 			return new Settlement.SiteChange(id, lot, 0, v.map(dev.larattalabs.architect.api.SiteView::version).orElse(1));
 		}).toList();
-		String where = districtId == null ? "" : saved.get().lands().district(districtId).map(d -> " in " + d.name()).orElse("");
-		boolean ok = Settlements.log(settlement.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings"
+		var district = districtId == null ? null : saved.get().lands().district(districtId).orElse(null);
+		String where = district == null ? "" : " in " + district.name();
+		var entry = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings"
 			+ where + (notPlaced > 0 ? " (" + notPlaced + " not placed)" : "") + (note != null ? " (" + note + ")" : ""), changes, siteGroupId,
-			notPlaced > 0 || note != null ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE)).ok();
+			notPlaced > 0 || note != null ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE);
+		// a district's own region: the district names it, owns what it took outside the town and stands, saved with the entry (docs/DISTRICTS.md section 4)
+		if (district != null && !district.square() && vRegionId != null) {
+			var land = ArchitectApi.get().regions().get(vRegionId).flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.outside(v.ext(), district.claim().dimension()));
+			var res = Settlements.placeDistrict(settlement.id(), district.id(), vRegionId, land.orElse(null), entry);
+			if (!res.ok()) Steward.LOGGER.warn("placing district {} of {}: {}", district.id(), settlement.id(), res.error());
+			return res.ok();
+		}
+		boolean ok = Settlements.log(settlement.id(), entry).ok();
 		// a district's build laid its street: a road links it to where the district's road ends (nothing when it is linked already)
-		if (ok && districtId != null) Districts.link(server, settlement.id(), districtId, this::say, true);
+		if (ok && district != null && district.square()) Districts.link(server, settlement.id(), districtId, this::say, true);
 		return ok;
 	}
 
@@ -929,6 +941,11 @@ public final class SettlementRunner {
 				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line) : VillageLayout.plan(claim, grid, specs, rules);
 			boolean worldSurvival = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false);
 			boolean overworld = level.dimension() == net.minecraft.world.level.Level.OVERWORLD;
+			// a district beside a region town (docs/DISTRICTS.md section 9): its first building plans the district's own region beside the town
+			if (district != null && !district.square()) {
+				planDistrict(r, budgetUsd, district, specs);
+				return;
+			}
 			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(), worldSurvival, overworld, addition, districtId,
 				r.card().site().terrain(), stands, lo, hi)) {
 				// the settlement's composed plan, when it has one (plan v1); else Architect's flat village from the card
@@ -983,6 +1000,65 @@ public final class SettlementRunner {
 					abandon("The build stopped after the village plan: " + e);
 				}
 			}));
+	}
+
+	/**
+	 * A reserved beside district's first building: Architect plans the district's region beside the town (its street, its join to the town's street and this
+	 * building's lot) under this build's keys, so the village's realise, watch, cancel and restart paths carry it. The district is {@code building} while the
+	 * build runs, and back to {@code reserved} when it ends with no region ({@link #apply}). Its lots keep the fronts Architect gives them ({@link
+	 * dev.larattalabs.steward.gateway.DPlan}).
+	 */
+	private void planDistrict(CardResult r, double budgetUsd, Settlement.District district, List<VillageLayout.LotSpec> specs) {
+		if (!Settlement.District.BESIDE.equals(district.kind()) || !Settlement.District.RESERVED.equals(district.state())) {
+			abandon(district.name() + " stands as its own region already: adding to it waits for Architect's growth (6d).");
+			return;
+		}
+		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) {
+			abandon(district.name() + " is a district beside the town, which isn't built from materials yet.");
+			return;
+		}
+		var regions = ArchitectApi.get().regions();
+		var town = district.parent() == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : regions.get(district.parent());
+		if (town.isEmpty() || town.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED || town.get().state() == dev.larattalabs.architect.api.RegionState.REMOVING) {
+			abandon("The town " + district.name() + " was reserved beside is gone: undo the reservation and found the district again.");
+			return;
+		}
+		if (!Settlements.districtState(settlement.id(), district.id(), Settlement.District.BUILDING).ok()) {
+			abandon("Could not save " + district.name() + " as building.");
+			return;
+		}
+		ServerLevel level = level();
+		var b = town.get().claim();
+		int[] request = dev.larattalabs.steward.model.DistrictRules.request(new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, district.claim(), district.direction());
+		// Architect may place the district anywhere in the request's claim: if another district's land is there now, nothing is planned
+		var envelope = dev.larattalabs.steward.model.Land.ofRect(district.claim().dimension(), request[0], request[1], request[2], request[3]);
+		var sibling = settlement.lands().districts().stream().filter(o -> !o.id().equals(district.id()) && o.land().overlaps(envelope)).findFirst();
+		if (sibling.isPresent()) {
+			Settlements.districtState(settlement.id(), district.id(), Settlement.District.RESERVED);
+			abandon(district.name() + "'s ground now reaches " + sibling.get().name() + "'s land: undo the reservation and found it again.");
+			return;
+		}
+		List<JsonObject> lots = new ArrayList<>();
+		for (var e : dev.larattalabs.steward.gateway.VPlan.params(specs, settlement.id(), buildId).getAsJsonArray("lots")) lots.add(e.getAsJsonObject());
+		var req = Districts.besideRequest(level, settlement, town.get().id(), request, district.id(), lots, opKey("vplan"), buildId);
+		say("Laying out " + district.name() + " beside the town (its street and its road to the town's street)...");
+		int session = Session.current();
+		regions.plan(req).whenComplete((rp, err) -> server.execute(() -> {
+			if (!Session.is(session) || !alive()) return;
+			if (worldStopped(err)) return;
+			if (err != null) {
+				abandon("Architect could not lay out " + district.name() + ": " + Districts.besideRefusal(null, message(err)));
+				return;
+			}
+			try {
+				vPlanId = rp.planId();
+				plan = dev.larattalabs.steward.gateway.DPlan.toPlan(rp.lots(), specs);
+				continueWithPlan(r, budgetUsd, district);
+			} catch (RuntimeException e) {
+				Steward.LOGGER.error("the build of {} failed after its district plan", settlement.id(), e);
+				abandon("The build stopped after the district's plan: " + e);
+			}
+		}));
 	}
 
 	/** Whether this build takes the settlement's composed plan (docs/COMPOSITION.md section 10): one is kept, and this Architect checks and realises plans. */
@@ -1120,8 +1196,8 @@ public final class SettlementRunner {
 			}
 			// an approved plan's streets are Architect's, checked against the protected areas already (and not one east-west street)
 			if (existing != null && dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId) == null) {
-				String crossed = protectedCrossed(existing, plan, newStreet ? List.of(new int[] {plan.streetX0(), plan.streetX1()}) : List.of());
-				if (crossed != null) { abandon("The street would cross the protected area \"" + crossed + "\". Clear it, or protect less, and try again."); return; }
+				String crossed = protectedCrossed(existing, plan, newStreet ? List.of(new int[] {plan.streetX0(), plan.streetX1()}) : List.of(), districtId);
+				if (crossed != null) { abandon("The street would cross " + crossed + ". Clear it, or protect less, and try again."); return; }
 			}
 			if (resumeGroup != null) {
 				groupId = resumeGroup.id();
@@ -1158,9 +1234,12 @@ public final class SettlementRunner {
 				for (int[] c : dev.larattalabs.steward.model.DistrictRules.cells(r.points(), r.width() + 2)) if (grid.has(c[0], c[1])) grid.setBuilt(c[0], c[1], true);
 			}
 			if (district == null) {
-				Claim c = d.claim();
-				for (int x = c.centerX() - c.radius(); x <= c.centerX() + c.radius(); x++) for (int z = c.centerZ() - c.radius(); z <= c.centerZ() + c.radius(); z++) {
-					if (grid.has(x, z)) grid.setBuilt(x, z, true);
+				// the district's land, which a town build keeps off, and its region's join inside the town (town land the district holds; read live)
+				List<dev.larattalabs.steward.model.Land> off = new ArrayList<>(List.of(d.land()));
+				if (d.region() != null) ArchitectApi.get().regions().get(d.region())
+					.flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.inside(v.ext(), dim)).ifPresent(off::add);
+				for (var land : off) for (dev.larattalabs.steward.model.Land.Run r : land.runs()) for (int x = r.x0(); x <= r.x1(); x++) {
+					if (grid.has(x, r.z())) grid.setBuilt(x, r.z(), true);
 				}
 			}
 		}
@@ -1181,10 +1260,25 @@ public final class SettlementRunner {
 	}
 
 	/** The protected area the street pieces ({@code spans} along the plan's street line, 5 wide) or the plan's lots would cross, or null. */
-	private static @org.jspecify.annotations.Nullable String protectedCrossed(Settlement s, VillageLayout.Plan plan, List<int[]> spans) {
+	/**
+	 * What a street span would cross that it must keep off, said as a phrase ("the protected area \"x\"", "Quay's land"), or null: a protected area, another
+	 * district's land, and a district region's join inside the town (read live). {@code own}: the district this build is in, whose land is its own.
+	 */
+	private static @org.jspecify.annotations.Nullable String protectedCrossed(Settlement s, VillageLayout.Plan plan, List<int[]> spans,
+		@org.jspecify.annotations.Nullable String own) {
 		String dim = s.claim().dimension();
 		for (Settlement.Area a : s.lands().protect()) {
-			for (int[] sp : spans) if (a.overlaps(dim, sp[0], plan.streetZ() - 2, sp[1], plan.streetZ() + 2)) return a.label();
+			for (int[] sp : spans) if (a.overlaps(dim, sp[0], plan.streetZ() - 2, sp[1], plan.streetZ() + 2)) return "the protected area \"" + a.label() + "\"";
+		}
+		for (Settlement.District d : s.lands().districts()) {
+			if (d.id().equals(own)) continue;
+			List<dev.larattalabs.steward.model.Land> off = new ArrayList<>(List.of(d.land()));
+			if (d.region() != null) ArchitectApi.get().regions().get(d.region())
+				.flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.inside(v.ext(), dim)).ifPresent(off::add);
+			for (int[] sp : spans) {
+				var band = dev.larattalabs.steward.model.Land.ofRect(dim, sp[0], plan.streetZ() - 2, sp[1], plan.streetZ() + 2);
+				for (var l : off) if (l.overlaps(band)) return d.name() + "'s land";
+			}
 		}
 		return null;
 	}
@@ -1204,8 +1298,22 @@ public final class SettlementRunner {
 	}
 
 	/** Gives up before the pipeline started: says why and frees the slot. */
+	/**
+	 * A district region's first build that ended with no region of its own: the district is only reserved again (its undo gives it up). Not while a realise
+	 * may still answer, and not while Architect holds a region tagged with the district (a lost answer): then it stays {@code building} until the world-start
+	 * sweep takes that region up or a later pass finds none ({@link Districts#reconcile}).
+	 */
+	private void releaseDistrict() {
+		if (districtId == null || settlement == null || queueInFlight) return;
+		Settlements.store().get(settlement.id()).flatMap(s -> s.lands().district(districtId))
+			.filter(d -> Settlement.District.BUILDING.equals(d.state()) && d.region() == null)
+			.filter(d -> Districts.liveRegionOf(settlement.owner(), d.id()).isEmpty())
+			.ifPresent(d -> Settlements.districtState(settlement.id(), d.id(), Settlement.District.RESERVED));
+	}
+
 	private void abandon(String why) {
 		say(why);
+		releaseDistrict();
 		// a build that stops before its state is saved leaves nothing on disk that needs its approved plan: the pin goes
 		if (state == null || settlement == null || builds.all().stream().noneMatch(b -> b.settlementId().equals(settlement.id()))) releasePin();
 		// it never started: an accepted proposal is given back (it was recorded only if onStart ran), and backs off before it is tried again
@@ -1227,7 +1335,10 @@ public final class SettlementRunner {
 		// the board and the nameplate show the new state on the next tick, not the next round
 		if (settlement != null) SettlementSync.dirty(settlement.id());
 		// it ended: its row stays in the inbox a few minutes ({@link #ENDED_ROW_MS}), so the player sees how
-		if (state.phase().terminal() && (before == null || !before.terminal())) endedAt = System.currentTimeMillis();
+		if (state.phase().terminal() && (before == null || !before.terminal())) {
+			endedAt = System.currentTimeMillis();
+			releaseDistrict();
+		}
 		// the massings show as ghosts on their lots while they wait for the player, and go when decided
 		if (state.phase() == Pipeline.Phase.AWAITING_MASSING_APPROVAL && before != Pipeline.Phase.AWAITING_MASSING_APPROVAL) showMassings(true);
 		if (before == Pipeline.Phase.AWAITING_MASSING_APPROVAL && state.phase() != Pipeline.Phase.AWAITING_MASSING_APPROVAL) hideMassings();
@@ -1617,8 +1728,8 @@ public final class SettlementRunner {
 			if (a.isPresent() && fits.remove(lot.id()) != null) say(lot.role() + " is left out: its lot is in the protected area \"" + a.get().label() + "\".");
 		}
 		spans.removeIf(sp -> {
-			String crossed = protectedCrossed(now, plan, List.of(sp));
-			if (crossed != null) say("A piece of the street is left out: it would cross the protected area \"" + crossed + "\".");
+			String crossed = protectedCrossed(now, plan, List.of(sp), districtId);
+			if (crossed != null) say("A piece of the street is left out: it would cross " + crossed + ".");
 			return crossed != null;
 		});
 		Claim land = district != null ? district.claim() : settlement.claim();
@@ -1748,8 +1859,18 @@ public final class SettlementRunner {
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", settlement.id());
 		ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
+		// a district's region names its district, so a region whose answer was lost still holds the district (releaseDistrict, Districts.reconcile)
+		if (districtId != null) ext.addProperty(Districts.DISTRICT_EXT, districtId);
+		// a district's: its region may not take another district's land (a build saved before planning checked that, or a district founded since)
+		String conflict = districtConflict();
+		if (conflict != null) {
+			say("Not placed: " + conflict + " The build ends here; undo the reservation and found the district again.");
+			feed(new Pipeline.Cancel());
+			return;
+		}
 		say("Placing the village (" + lotEntries.size() + " buildings, its street, lanes and square)...");
 		queueInFlight = true;
+		inFlightSince = System.currentTimeMillis();
 		ServerPlayer actor = server.getPlayerList().getPlayer(playerId);
 		int session = Session.current();
 		String artifact = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
@@ -2001,6 +2122,58 @@ public final class SettlementRunner {
 	/** The region's sites as Steward records them: its streets and buildings, or (when it left nothing else) the ground tiles it wrote. */
 	private List<String> regionSites(String regionId) {
 		return VillageSweep.sitesOf(server, settlement.owner(), regionId);
+	}
+
+	/** When the realise now in flight was sent (epoch ms). */
+	private long inFlightSince;
+	private long lastSettleLook;
+	/** How long an ended build's unanswered realise waits before Architect is asked for it by its key, and before it counts as lost. */
+	static final long LOST_LOOK_MS = 3 * 60_000, LOST_GIVE_UP_MS = 15 * 60_000;
+
+	/**
+	 * An ended build whose realise was never answered (the review's "an answer that never comes"): after {@link #LOST_LOOK_MS} Architect is asked for it by
+	 * its keys, and by the district and build tags on a region; one found is taken up as the orphan it is. None found by {@link #LOST_GIVE_UP_MS}: the
+	 * request never reached Architect, so the build lets go (and a district it held is only reserved again). Server thread.
+	 */
+	void settleLostRealise(long now) {
+		if (!queueInFlight || inFlightSince <= 0 || now - inFlightSince < LOST_LOOK_MS || now - lastSettleLook < 30_000 || settlement == null) return;
+		lastSettleLook = now;
+		try {
+			var regions = ArchitectApi.get().regions();
+			var found = regions.realiseByKey(settlement.owner(), opKey("vrealise"))
+				.or(() -> regions.realiseByKey(settlement.owner(), opKey("vrealise2")))
+				.or(() -> regions.list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT))).findFirst())
+				.filter(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVED);
+			if (found.isPresent()) {
+				Steward.LOGGER.warn("{}: the realise of ended build {} was never answered; Architect has region {}: taking it up", settlement.id(), buildId, found.get().id());
+				queueInFlight = false;
+				takeUpOrphan(found.get().id());
+				return;
+			}
+		} catch (RuntimeException | LinkageError e) {
+			// can't tell: still in flight
+			return;
+		}
+		if (now - inFlightSince >= LOST_GIVE_UP_MS) {
+			Steward.LOGGER.warn("{}: the realise of ended build {} was never answered and Architect has nothing for it: let go", settlement.id(), buildId);
+			queueInFlight = false;
+			releaseDistrict();
+		}
+	}
+
+	/** Why this build's district region may not be placed now (another district's land in its request's claim), or null; not a district build: null. */
+	private @org.jspecify.annotations.Nullable String districtConflict() {
+		if (districtId == null || settlement == null) return null;
+		var now = Settlements.store().get(settlement.id()).orElse(settlement);
+		var district = now.lands().district(districtId).orElse(null);
+		if (district == null || district.square() || district.parent() == null) return null;
+		var town = ArchitectApi.get().regions().get(district.parent());
+		if (town.isEmpty()) return null;
+		var b = town.get().claim();
+		int[] request = dev.larattalabs.steward.model.DistrictRules.request(new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, district.claim(), district.direction());
+		var envelope = dev.larattalabs.steward.model.Land.ofRect(district.claim().dimension(), request[0], request[1], request[2], request[3]);
+		return now.lands().districts().stream().filter(o -> !o.id().equals(district.id()) && o.land().overlaps(envelope)).findFirst()
+			.map(o -> district.name() + "'s ground now reaches " + o.name() + "'s land.").orElse(null);
 	}
 
 	/** A stage of the village's region Architect holds for the player's word (the land changed under it since the plan), or null. */

@@ -121,18 +121,9 @@ public final class PendingOffers {
 		return out;
 	}
 
-	/** The settlement's town as it stands: the oldest region it placed that stands still (a part's own region is newer). */
+	/** The settlement's town as it stands ({@link TownRegion}: never a district's or a part's own region). */
 	static Optional<String> townRegion(Settlement s) {
-		var regions = ArchitectApi.get().regions();
-		for (var e : s.log()) {
-			if (e.kind() != Settlement.Kind.PROJECT_PLACED) continue;
-			String id = VPlan.regionOf(e.siteGroup());
-			if (id == null) continue;
-			var v = regions.get(id);
-			if (v.isPresent() && v.get().state() != dev.larattalabs.architect.api.RegionState.REMOVED
-				&& v.get().state() != dev.larattalabs.architect.api.RegionState.REMOVING) return Optional.of(id);
-		}
-		return Optional.empty();
+		return TownRegion.of(s);
 	}
 
 	/** The part {@code id} of a plan, from any of its part lists. */

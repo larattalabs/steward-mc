@@ -70,10 +70,27 @@ public final class Undo {
 	/** Starts the undo; {@code say} gets progress and the result. Returns false (having said why) when there is nothing to undo. */
 	public static boolean lastProject(MinecraftServer server, Settlement s, Consumer<String> sayTo) {
 		Consumer<String> say = reportingOverflow(server, s, sayTo);
+		// a district region being built (or one whose build ended unresolved): the newest operation can't be told yet, unless it is that district's own
+		// region, recorded by the world-start sweep after its build ended (taking it up is what puts the district right)
 		var entry = s.lastUndoable();
+		var building = s.lands().districts().stream().filter(d -> Settlement.District.BUILDING.equals(d.state())).findFirst();
+		if (building.isPresent()) {
+			var live = Districts.liveRegionOf(s.owner(), building.get().id());
+			boolean itsRegion = live.isPresent() && entry.isPresent() && live.get().equals(dev.larattalabs.steward.gateway.VPlan.regionOf(entry.get().siteGroup()));
+			if (!itsRegion) {
+				say.accept(building.get().name() + " is being built, or its build is being put right: undo once that has settled.");
+				return false;
+			}
+		}
 		if (entry.isEmpty()) {
 			say.accept("Nothing to undo for " + s.name() + ".");
 			return false;
+		}
+		// a reservation: no site, nothing in the world; giving it up is the undo ($0)
+		if (entry.get().siteIds().isEmpty() && entry.get().district() != null) {
+			var r = Settlements.giveUpReservation(s.id(), entry.get().district(), System.currentTimeMillis());
+			say.accept(r.ok() ? "Undone: " + entry.get().text().replaceFirst("^Reserved", "the reservation of") + " is given up; nothing was built there." : "Could not undo: " + r.error());
+			return r.ok();
 		}
 		List<String> ids = new ArrayList<>(entry.get().siteIds());
 		// the steward never stands in what is removed (a named mob in a box stops Architect)
