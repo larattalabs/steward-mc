@@ -161,6 +161,30 @@ public final class Proposals {
 		});
 	}
 
+	/**
+	 * A quarter offered towards {@code way} (Noah's Q2: built at once as a small quarter, priced like a build): three of the card's first ordinary
+	 * building, in the inbox to accept. Returns null when it was offered, else why not.
+	 */
+	static @org.jspecify.annotations.Nullable String offerQuarter(MinecraftServer server, java.util.UUID player, Settlement s, String way,
+		dev.larattalabs.steward.model.Proposal.Quarter q) {
+		if (s.card() == null || !s.card().hasProgram()) return "Describe " + s.name() + " with its buildings first.";
+		var b = s.card().program().stream().filter(x -> !x.landmark()).findFirst().orElse(s.card().program().get(0));
+		var building = new dev.larattalabs.steward.model.ConceptCard.Building(b.role(), b.type(), 3, b.footprint(), false, b.notes(), null);
+		String where = "outpost".equals(q.kind()) ? "An outpost to the " + dev.larattalabs.steward.model.DistrictRules.directionName(way)
+			: "A quarter along the " + q.boundary().replace('_', ' ') + " to the " + dev.larattalabs.steward.model.DistrictRules.directionName(way);
+		String why = where + ": " + building.count() + " " + b.role() + "s on a street of their own, joined to the town's street.";
+		Proposal p = Proposal.quarter(way, q, building, where, why, System.currentTimeMillis(), "asked");
+		var now = Settlements.store().get(s.id());
+		if (now.isEmpty()) return "No such settlement.";
+		var ps = now.get().proposals();
+		if (ps.open().stream().anyMatch(x -> x.key().equals(p.key()))) return "That quarter already waits in the inbox.";
+		List<Proposal> all = new ArrayList<>(ps.open());
+		all.add(p);
+		if (!Settlements.proposals(s.id(), new Settlement.Proposals(all, ps.declined(), ps.accepted(), System.currentTimeMillis())).ok()) return "Could not save the proposal.";
+		SettlementRunner.sendInbox(server, player);
+		return null;
+	}
+
 	/** What the settlement is for, in words: its card's purpose and its buildings' roles (what ground its next district should look for). */
 	static String purposeWords(Settlement s) {
 		if (s.card() == null) return "";
@@ -291,7 +315,9 @@ public final class Proposals {
 		if (p.foundsDistrict()) return 0;
 		// a waiting part: Claude fits it to what stands (about $0.50 a round, at most $1); Architect builds it at no cost
 		if (p.offersPart()) return 1;
-		var e = dev.larattalabs.steward.model.BudgetPolicy.estimate(1, 0);
+		// a quarter is priced like a build of its buildings (Noah's Q2)
+		int n = p.foundsQuarter() ? Math.max(1, p.building().count()) : 1;
+		var e = dev.larattalabs.steward.model.BudgetPolicy.estimate(n, 0);
 		return (int) (Math.ceil(e.usdHigh() / 5.0) * 5);
 	}
 

@@ -862,13 +862,19 @@ public final class SettlementRunner {
 
 	/** As above, in district {@code districtId} (its first building lays its street), or the town when null. */
 	public void startAddition(Settlement s, dev.larattalabs.steward.model.ConceptCard.Building building, double budgetUsd, @org.jspecify.annotations.Nullable String districtId) {
+		startAddition(s, building, budgetUsd, districtId, 1);
+	}
+
+	/** As above, with {@code buildings} of it (a quarter's, built at once). */
+	public void startAddition(Settlement s, dev.larattalabs.steward.model.ConceptCard.Building building, double budgetUsd, @org.jspecify.annotations.Nullable String districtId,
+		int buildings) {
 		this.districtId = districtId;
 		var c = s.card();
 		var card = new dev.larattalabs.steward.model.ConceptCard(c.name(), c.site(), c.style(), c.purpose(), c.story(), c.constraints(), c.avoid(), c.interpretation(),
 			c.contradictions(), c.assumptions(), List.of(building));
 		this.addition = true;
 		startExisting(new Settlement(s.id(), s.name(), card, s.claim(), s.siteVersion(), s.styleVersion(), s.purposeVersion(), s.permission(), s.difficulty(), s.log(),
-			s.proposals(), s.bible(), s.autonomy(), s.lands()), 1, budgetUsd);
+			s.proposals(), s.bible(), s.autonomy(), s.lands()), Math.max(1, buildings), budgetUsd);
 	}
 
 	/** Start from a settlement the player claimed with the Founding Stone and described: its claim and card are used, no card job runs. */
@@ -1009,7 +1015,11 @@ public final class SettlementRunner {
 	 * dev.larattalabs.steward.gateway.DPlan}).
 	 */
 	private void planDistrict(CardResult r, double budgetUsd, Settlement.District district, List<VillageLayout.LotSpec> specs) {
-		if (!Settlement.District.BESIDE.equals(district.kind()) || !Settlement.District.RESERVED.equals(district.state())) {
+		// a reserved beside district's first building, or a quarter founded for this build (building, no region yet)
+		boolean beside = Settlement.District.BESIDE.equals(district.kind()) && Settlement.District.RESERVED.equals(district.state());
+		boolean quarter = !district.square() && !Settlement.District.BESIDE.equals(district.kind()) && Settlement.District.BUILDING.equals(district.state())
+			&& district.region() == null;
+		if (!beside && !quarter) {
 			abandon(district.name() + " stands as its own region already: adding to it waits for Architect's growth (6d).");
 			return;
 		}
@@ -1029,7 +1039,7 @@ public final class SettlementRunner {
 		}
 		ServerLevel level = level();
 		var b = town.get().claim();
-		int[] request = dev.larattalabs.steward.model.DistrictRules.request(new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, district.claim(), district.direction());
+		int[] request = districtRequest(Settlements.store().get(settlement.id()).orElse(settlement), district, new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()});
 		// Architect may place the district anywhere in the request's claim: if another district's land is there now, nothing is planned
 		var envelope = dev.larattalabs.steward.model.Land.ofRect(district.claim().dimension(), request[0], request[1], request[2], request[3]);
 		var sibling = settlement.lands().districts().stream().filter(o -> !o.id().equals(district.id()) && o.land().overlaps(envelope)).findFirst();
@@ -1041,7 +1051,7 @@ public final class SettlementRunner {
 		List<JsonObject> lots = new ArrayList<>();
 		for (var e : dev.larattalabs.steward.gateway.VPlan.params(specs, settlement.id(), buildId).getAsJsonArray("lots")) lots.add(e.getAsJsonObject());
 		districtSpecs = List.copyOf(specs);
-		var req = Districts.besideRequest(level, settlement, town.get().id(), request, district.id(), lots, opKey("vplan"), buildId);
+		var req = Districts.besideRequest(level, settlement, town.get().id(), request, district.id(), lots, opKey("vplan"), buildId, district.kind(), district.follow());
 		say("Laying out " + district.name() + " beside the town (its street and its road to the town's street)...");
 		int session = Session.current();
 		regions.plan(req).whenComplete((rp, err) -> server.execute(() -> {
@@ -1309,7 +1319,7 @@ public final class SettlementRunner {
 		Settlements.store().get(settlement.id()).flatMap(s -> s.lands().district(districtId))
 			.filter(d -> Settlement.District.BUILDING.equals(d.state()) && d.region() == null)
 			.filter(d -> Districts.liveRegionOf(settlement.owner(), d.id()).isEmpty())
-			.ifPresent(d -> Settlements.districtState(settlement.id(), d.id(), Settlement.District.RESERVED));
+			.ifPresent(d -> Districts.release(settlement.id(), d));
 	}
 
 	private void abandon(String why) {
@@ -2192,12 +2202,12 @@ public final class SettlementRunner {
 		if (town.isEmpty() || town.get().state() != dev.larattalabs.architect.api.RegionState.PLACED) return false;
 		districtReplanned = true;
 		var b = town.get().claim();
-		int[] request = dev.larattalabs.steward.model.DistrictRules.request(new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, district.claim(), district.direction());
+		int[] request = districtRequest(Settlements.store().get(settlement.id()).orElse(settlement), district, new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()});
 		List<JsonObject> lots = new ArrayList<>();
 		for (var x : dev.larattalabs.steward.gateway.VPlan.params(districtSpecs, settlement.id(), buildId).getAsJsonArray("lots")) lots.add(x.getAsJsonObject());
 		say("The land beside " + district.name() + " changed while its buildings were designed (" + message(err) + "): laying it out again.");
 		int session = Session.current();
-		regions.plan(Districts.besideRequest(level(), settlement, town.get().id(), request, district.id(), lots, opKey("vplan2"), buildId))
+		regions.plan(Districts.besideRequest(level(), settlement, town.get().id(), request, district.id(), lots, opKey("vplan2"), buildId, district.kind(), district.follow()))
 			.whenComplete((rp, perr) -> server.execute(() -> {
 				if (!Session.is(session) || !alive() || worldStopped(perr)) return;
 				if (perr != null) {
@@ -2213,6 +2223,15 @@ public final class SettlementRunner {
 		return true;
 	}
 
+	/** The claim a district plans in: a beside district's reservation and seam, or a quarter's strip and seam (DistrictRules). */
+	private static int[] districtRequest(Settlement s, Settlement.District d, int[] region) {
+		if (Settlement.District.BESIDE.equals(d.kind())) return dev.larattalabs.steward.model.DistrictRules.request(region, d.claim(), d.direction());
+		var others = s.lands().districts().stream().filter(o -> !o.id().equals(d.id())).toList();
+		var q = dev.larattalabs.steward.model.DistrictRules.quarter(s.claim(), region, others, List.of(), List.of(), d.direction(),
+			Settlement.District.OUTPOST.equals(d.kind()) ? dev.larattalabs.steward.model.DistrictRules.OUTPOST_DEPTH : dev.larattalabs.steward.model.DistrictRules.ALONG_DEPTH, d.name());
+		return q.ok() ? q.request() : dev.larattalabs.steward.model.DistrictRules.request(region, d.claim(), d.direction());
+	}
+
 	/** Why this build's district region may not be placed now (another district's land in its request's claim), or null; not a district build: null. */
 	private @org.jspecify.annotations.Nullable String districtConflict() {
 		if (districtId == null || settlement == null) return null;
@@ -2222,7 +2241,7 @@ public final class SettlementRunner {
 		var town = ArchitectApi.get().regions().get(district.parent());
 		if (town.isEmpty()) return null;
 		var b = town.get().claim();
-		int[] request = dev.larattalabs.steward.model.DistrictRules.request(new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, district.claim(), district.direction());
+		int[] request = districtRequest(Settlements.store().get(settlement.id()).orElse(settlement), district, new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()});
 		var envelope = dev.larattalabs.steward.model.Land.ofRect(district.claim().dimension(), request[0], request[1], request[2], request[3]);
 		return now.lands().districts().stream().filter(o -> !o.id().equals(district.id()) && o.land().overlaps(envelope)).findFirst()
 			.map(o -> district.name() + "'s ground now reaches " + o.name() + "'s land.").orElse(null);

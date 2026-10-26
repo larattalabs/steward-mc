@@ -259,6 +259,35 @@ public final class Actions {
 			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
 			return Talk.say(player.level().getServer(), player, s.get(), text);
 		}
+		if ("district_quarter".equals(action)) {
+			// lot: the way (N, E, S, W, or "auto"); text: "along shore|ridge|biome_edge [first second]" or "outpost"
+			Optional<Settlement> s = Settlements.store().get(id);
+			if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+			if (!s.get().described() || s.get().card() == null) return Result.fail("Describe " + id + " first.");
+			String[] w = (text == null ? "" : text.strip().toLowerCase(java.util.Locale.ROOT)).split("\\s+");
+			dev.larattalabs.steward.model.Proposal.Quarter q;
+			try {
+				q = w[0].equals("outpost") ? new dev.larattalabs.steward.model.Proposal.Quarter("outpost", null, List.of(), null)
+					: new dev.larattalabs.steward.model.Proposal.Quarter("along", w.length > 1 ? w[1] : null, w.length > 3 ? List.of(w[2], w[3]) : List.of(), null);
+			} catch (com.google.gson.JsonParseException e) {
+				return Result.fail("A quarter is \"along shore\", \"along ridge\", \"along biome_edge <one> <other>\" or \"outpost\".");
+			}
+			MinecraftServer server = player.level().getServer();
+			String way = (lot == null ? "" : lot).toUpperCase(java.util.Locale.ROOT);
+			java.util.UUID who = player.getUUID();
+			if (way.equals("AUTO")) {
+				var site = dev.larattalabs.steward.model.DistrictSite.fromWords("shore".equals(q.boundary()) ? "by the water" : "");
+				Districts.choose(server, s.get(), site, null, java.util.Set.of(), c -> {
+					String msg = c.way() == null ? "No side of " + s.get().name() + " has room for it." : Proposals.offerQuarter(server, who, s.get(), c.way(), q);
+					var p = server.getPlayerList().getPlayer(who);
+					if (p != null && msg != null) p.sendSystemMessage(net.minecraft.network.chat.Component.literal(msg));
+				});
+				return Result.ok("Looking for the side that suits it...");
+			}
+			if (!dev.larattalabs.steward.model.DistrictRules.DIRECTIONS.contains(way)) return Result.fail("A quarter goes N, E, S, W, or auto.");
+			String no = Proposals.offerQuarter(server, who, s.get(), way, q);
+			return no == null ? Result.ok("It waits in the inbox (Y).") : Result.fail(no);
+		}
 		if ("district_found".equals(action)) {
 			// lot: the way from the town and the size, "E" or "E:M"; text: a name ("" names it by its way)
 			Optional<Settlement> s = Settlements.store().get(id);
@@ -469,6 +498,27 @@ public final class Actions {
 			String no = ChangeRequests.start(player.level().getServer(), player.getUUID(), s, p.get().changeSite(), p.get().changeNotes(), budget,
 				() -> Proposals.recordAccepted(s.id(), key, null), () -> Proposals.giveBack(s.id(), p.get(), null));
 			return no == null ? Result.ok(String.format("Designing the change (up to $%d). The steward tells you when it is ready to preview.", budget)) : Result.fail(no);
+		}
+		if (p.get().foundsQuarter()) {
+			// a quarter (along a boundary, or an outpost) is founded and built at once, priced like a build; always the player's call
+			if (autonomous) return Result.fail("A new quarter waits for the player.");
+			if (!SettlementRunner.canSave()) return Result.fail("Builds cannot be saved in this world (steward-builds.json could not be read; see the log), so none is started.");
+			MinecraftServer server = player.level().getServer();
+			var level = server.getLevel(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,
+				net.minecraft.resources.Identifier.parse(s.claim().dimension())));
+			if (level == null) return Result.fail("The dimension of " + s.id() + " is not loaded.");
+			String id;
+			try {
+				id = Districts.foundQuarter(server, s, p.get().found(), p.get().quarter(), p.get().title());
+			} catch (IllegalStateException e) {
+				return Result.fail(e.getMessage());
+			}
+			var founded = Settlements.store().get(s.id()).orElse(s);
+			int budget = Proposals.estimate(p.get());
+			new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, null),
+				() -> Proposals.giveBack(s.id(), p.get(), null), () -> Proposals.backOff(s.id(), key)).startAddition(founded, p.get().building(), budget, id,
+				Math.max(1, p.get().building().count()));
+			return Result.ok(String.format("Laying out %s and its %d buildings, budget $%d.", p.get().title(), Math.max(1, p.get().building().count()), budget));
 		}
 		if (p.get().foundsDistrict()) {
 			// a new district always waits for the player, whatever the permission level
