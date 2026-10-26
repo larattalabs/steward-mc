@@ -1040,6 +1040,7 @@ public final class SettlementRunner {
 		}
 		List<JsonObject> lots = new ArrayList<>();
 		for (var e : dev.larattalabs.steward.gateway.VPlan.params(specs, settlement.id(), buildId).getAsJsonArray("lots")) lots.add(e.getAsJsonObject());
+		districtSpecs = List.copyOf(specs);
 		var req = Districts.besideRequest(level, settlement, town.get().id(), request, district.id(), lots, opKey("vplan"), buildId);
 		say("Laying out " + district.name() + " beside the town (its street and its road to the town's street)...");
 		int session = Session.current();
@@ -1879,7 +1880,10 @@ public final class SettlementRunner {
 			return;
 		}
 		// keyed: asked again (a restart, a lost answer) it is the same realise, never a second village
-		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, Mode.INSTANT, actor, lotEntries, null, true, null, false, ext, 0, opKey("vrealise")))
+		// a district planned again after its realise was refused realises under the second key (found again by it after a restart)
+		String key = districtId != null && api.regions().planByKey(settlement.owner(), opKey("vplan2")).map(p -> p.planId().equals(vPlanId)).orElse(false)
+			? opKey("vrealise2") : opKey("vrealise");
+		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, Mode.INSTANT, actor, lotEntries, null, true, null, false, ext, 0, key))
 			.whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
 	}
 
@@ -2074,6 +2078,8 @@ public final class SettlementRunner {
 		if (err != null) {
 			// a lost answer, or the key asked with another body (the player who placed it changed): looked up by its key
 			if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
+			// a district's realise re-checks the land under its plan (D3 4.4): planned again once, under a second key, as a stale artifact is
+			if (replanDistrict(err)) return;
 			say("Architect could not place the village: " + message(err));
 			feed(new Pipeline.Cancel());
 			return;
@@ -2159,6 +2165,52 @@ public final class SettlementRunner {
 			queueInFlight = false;
 			releaseDistrict();
 		}
+	}
+
+	/** The card's lots of a district build (its plan's specs), for a re-plan. This session only: after a restart a refused realise ends the build. */
+	private @org.jspecify.annotations.Nullable List<VillageLayout.LotSpec> districtSpecs;
+	private boolean districtReplanned;
+
+	/**
+	 * A district's realise refused by D3's re-check (the land under its plan changed: {@code OVERLAP}, {@code OVERLAP_BUSY}, or the town gone or moved,
+	 * {@code OTHER}): planned again once beside the town under the second key ({@code vplan2}), with the same lots and their designs, then realised under
+	 * {@code vrealise2}. True when the re-plan started (the build goes on); false to end the build as before.
+	 */
+	private boolean replanDistrict(Throwable err) {
+		if (districtId == null || districtReplanned || districtSpecs == null || settlement == null) return false;
+		Throwable e = err.getCause() != null ? err.getCause() : err;
+		if (!(e instanceof dev.larattalabs.architect.api.ArchitectRefused rf)) return false;
+		var why = rf.reason();
+		if (why != dev.larattalabs.architect.api.Reason.OVERLAP && why != dev.larattalabs.architect.api.Reason.OVERLAP_BUSY && why != dev.larattalabs.architect.api.Reason.OTHER) {
+			return false;
+		}
+		var now = Settlements.store().get(settlement.id()).orElse(settlement);
+		var district = now.lands().district(districtId).orElse(null);
+		if (district == null || district.square() || district.parent() == null || districtConflict() != null) return false;
+		var regions = ArchitectApi.get().regions();
+		var town = regions.get(district.parent());
+		if (town.isEmpty() || town.get().state() != dev.larattalabs.architect.api.RegionState.PLACED) return false;
+		districtReplanned = true;
+		var b = town.get().claim();
+		int[] request = dev.larattalabs.steward.model.DistrictRules.request(new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, district.claim(), district.direction());
+		List<JsonObject> lots = new ArrayList<>();
+		for (var x : dev.larattalabs.steward.gateway.VPlan.params(districtSpecs, settlement.id(), buildId).getAsJsonArray("lots")) lots.add(x.getAsJsonObject());
+		say("The land beside " + district.name() + " changed while its buildings were designed (" + message(err) + "): laying it out again.");
+		int session = Session.current();
+		regions.plan(Districts.besideRequest(level(), settlement, town.get().id(), request, district.id(), lots, opKey("vplan2"), buildId))
+			.whenComplete((rp, perr) -> server.execute(() -> {
+				if (!Session.is(session) || !alive() || worldStopped(perr)) return;
+				if (perr != null) {
+					say("Architect could not lay " + district.name() + " out again: " + Districts.besideRefusal(null, message(perr)));
+					feed(new Pipeline.Cancel());
+					return;
+				}
+				vPlanId = rp.planId();
+				plan = dev.larattalabs.steward.gateway.DPlan.toPlan(rp.lots(), districtSpecs);
+				persist();
+				realiseVillage();
+			}));
+		return true;
 	}
 
 	/** Why this build's district region may not be placed now (another district's land in its request's claim), or null; not a district build: null. */

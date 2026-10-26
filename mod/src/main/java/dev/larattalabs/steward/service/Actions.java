@@ -541,7 +541,17 @@ public final class Actions {
 		var builds = PlayerBuilds.in(server, s).stream().filter(b -> b.siteId() == null).map(b -> new dev.larattalabs.steward.view.SettlementView.PlayerBuildInfo(b.id(), PlayerBuilds.title(b), PlayerBuilds.by(server, b),
 			b.bounds().minX(), b.bounds().minY(), b.bounds().minZ(), b.bounds().maxX(), b.bounds().maxY(), b.bounds().maxZ(),
 			b.state() == dev.larattalabs.architect.api.BuildState.PROVISIONAL)).toList();
-		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock, builds, StewardStatus.attention(s.id(), ""));
+		// a district region whose town was undone first: Architect keeps it and its road, which now ends where the town's street was (D3 4.2)
+		java.util.Map<String, String> notes = new java.util.HashMap<>();
+		for (var d : s.lands().districts()) {
+			if (d.region() == null) continue;
+			ArchitectApi.get().regions().get(d.region()).ifPresent(v -> {
+				var beside = v.ext().has("architect_mc:beside") && v.ext().get("architect_mc:beside").isJsonObject() ? v.ext().getAsJsonObject("architect_mc:beside") : null;
+				boolean dangling = beside != null && beside.has("dangling") && beside.get("dangling").getAsBoolean();
+				if (dangling || dev.larattalabs.steward.gateway.DistrictLand.standingRemoved(v.ext()) != null) notes.put(d.id(), "its road to the town is gone");
+			});
+		}
+		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock, builds, StewardStatus.attention(s.id(), ""), notes);
 	}
 
 	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.Sites sites, dev.larattalabs.architect.api.SiteView v) {
