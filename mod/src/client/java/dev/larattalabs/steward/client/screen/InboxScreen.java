@@ -207,8 +207,12 @@ public final class InboxScreen extends KitScreen {
 	static List<String> shownLines(InboxModel.Entry e) {
 		if (!e.held()) return e.lines();
 		List<String> l = new ArrayList<>(e.lines());
-		String at = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.ROOT)
-			.format(java.time.Instant.ofEpochMilli(e.limitResetsAt()).atZone(java.time.ZoneId.systemDefault())).toLowerCase(java.util.Locale.ROOT);
+		var when = java.time.Instant.ofEpochMilli(e.limitResetsAt()).atZone(java.time.ZoneId.systemDefault());
+		String at = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.ROOT).format(when).toLowerCase(java.util.Locale.ROOT);
+		// not today: which day ("tomorrow", else the weekday)
+		var today = java.time.LocalDate.now(when.getZone());
+		if (!when.toLocalDate().equals(today)) at += when.toLocalDate().equals(today.plusDays(1)) ? " tomorrow"
+			: " on " + when.getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ROOT);
 		l.add(InboxModel.HELD_LINE + " (resets at " + at + ")");
 		return l;
 	}
@@ -279,19 +283,21 @@ public final class InboxScreen extends KitScreen {
 			// progress: buildings designed
 			int total = Math.max(1, e.lots().size());
 			String prog = e.done() + " of " + e.lots().size() + " designed";
-			Panels.progress(g, x, y + 1, w - font.width(prog) - 8, (double) e.done() / total, e.waiting() ? "clay" : "sage");
+			Panels.progress(g, x, y + 1, w - font.width(prog) - 8, (double) e.done() / total, e.needsYou() ? "clay" : "sage");
 			g.text(font, prog, x + w - font.width(prog), y, UiBits.muted(), false);
 			y += 12;
 		}
 		for (String l : TextUtil.wrapPlain(font, e.headline(), w)) {
-			g.text(font, l, x, y, e.waiting() ? UiStyle.CLAY_DARK : "FAILED".equals(e.decision()) ? UiBits.errorText() : UiBits.ink(), false);
+			// clay is for what is blocked on the player only: an idea's words, and a build's, are ink
+			g.text(font, l, x, y, e.needsYou() ? UiStyle.CLAY_DARK : "FAILED".equals(e.decision()) ? UiBits.errorText() : UiBits.ink(), false);
 			y += 10;
 		}
 		// the further lines: the buildings by stage, a usage limit it waits for
 		for (String line : shownLines(e)) {
 			boolean held = line.startsWith(InboxModel.HELD_LINE);
 			for (String l : TextUtil.wrapPlain(font, line, w)) {
-				g.text(font, l, x, y, held ? UiStyle.CLAY_DARK : UiBits.muted(), false);
+				// the usage limit is a state, not a request: ink, set apart from the muted lines, never the clay of "needs you"
+				g.text(font, l, x, y, held ? UiBits.ink() : UiBits.muted(), false);
 				y += 10;
 			}
 		}
