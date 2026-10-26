@@ -929,3 +929,23 @@ the check gave up, right after the beside-a-town-in-flight check); the re-run pa
 Architect v0.47.0 (the Jobs & spend feed, /architect remove behind a confirm, the Z undo key; API 1.42.0; nests lab_ui 0.4.0). Steward calls no
 /architect command and binds Y, I and U, so neither change reaches it. With the published jar, steward-mc main (J2 merged) loads lab_ui 0.4.0 and
 both e2e pass: free 43, stub 82.
+
+## GR review against the district move as built (2026-10-26)
+
+Architect's GR contract (CONTRACT "Phase 6d slice GR", frozen 2026-10-20) re-read against Steward's district move (DISTRICTS.md §9-10). It fits: a beside
+district's region claim is the reservation plus the 16-column seam, and GR never takes town land, so a growth stays in the reservation Steward owns;
+grown parts land in `land.outside` (v 2), which Steward already reads into its saved land.
+- **S-GR-1 to S-GR-5, S-GR-7:** the defaults (frontage first; one accepted building, one revision; keys; rings and spirals frontage only; a joined
+  end is never extended, and a growth a later district joined can't be undone: Steward says Architect's `NOT_ALLOWED joined` reason).
+- **S-GR-6:** no dry growth check needed. Steward plans before it spends (the plan comes before any design), and `discardPlan` already shipped
+  (close-out A), so `planRevision` plus `discardPlan` covers it.
+- **The keys, and fixture `gr_beside`:** Steward plans and realises each build under that build's keys, not a district stem: `steward.<buildId>.vplan`,
+  `.vrealise` (and `.vrealise2` after a stale re-check), with the ext `steward_mc:district` = the district id on the plan and the realise, and
+  `steward_mc:build` = the build id. A growth will be a build like any other, so the same keys. The first building plans with `Regions.plan` beside the
+  town, its claim the reservation plus 16 columns into the town region's claim. Asked: write `gr_beside` (and item 5) that way rather than `dplan`/`dgrow`.
+- **Asks:**
+  1. A growth's realise names its revision id, and the sites (buildings, lanes, street pieces) it wrote are identifiable as that revision's
+     (`LotState.revision` covers the lots; the rest too), so Steward records one history entry per growth and undoes it with `undoRevision`.
+  2. After `undoRevision`, `land.outside` shrinks with the revision's parts gone (§7 says so); Steward recomputes its saved land from it then.
+- **On Steward's side when GR ships:** standing beside districts take buildings again (`growDistrict`); along districts and outposts become growable;
+  Steward's own street pieces in a region town move onto growth of the town region.
