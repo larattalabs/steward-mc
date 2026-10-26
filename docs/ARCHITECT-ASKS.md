@@ -949,3 +949,11 @@ grown parts land in `land.outside` (v 2), which Steward already reads into its s
   2. After `undoRevision`, `land.outside` shrinks with the revision's parts gone (§7 says so); Steward recomputes its saved land from it then.
 - **On Steward's side when GR ships:** standing beside districts take buildings again (`growDistrict`); along districts and outposts become growable;
   Steward's own street pieces in a region town move onto growth of the town region.
+
+## 6d RV-a/RV-b RC (2026-10-26): PASS
+
+Architect slice/RV at f59b132a (code bfa97ee8, on main c5df0fea), built in my clone: free 43 and stub 85 pass on steward-mc main. A new stub flow
+(`revisionFlow`, skipped on an Architect without `dev.rv.plan`) revises a town Steward built: a raw block refused `NOT_ALLOWED [theme]`, nothing
+written; a mound planned and realised (the region's own id answered, the town back to PLACED, the revision PLACED with its site tagged
+`architect_mc:revision`); Steward's history untouched (no entry of its own: Steward doesn't call revisions yet); then Steward's undo of the town with
+the revision standing removes the region. Seen: the refused plan took rid 1, so the accepted one was rid 2; Steward reads the rid from the answer.
