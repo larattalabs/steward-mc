@@ -923,3 +923,9 @@ Architect slice/J3 (2d18f591) requires lab_ui ">=0.4.0 <0.5.0" and nests 0.4.0. 
 0.1.0): every lab-ui member Steward's classes use (68) is in 0.4.0 with the same descriptor, and no interface it touches gained an abstract method. On a
 jar built from J3, the client loaded lab_ui 0.4.0: free 43, stub 82. The first stub run missed the supplied plan's refund once (its undo hadn't run when
 the check gave up, right after the beside-a-town-in-flight check); the re-run passed it. A timing flake in the e2e, noted to watch.
+
+## v0.47.0 co-load check (2026-10-26)
+
+Architect v0.47.0 (the Jobs & spend feed, /architect remove behind a confirm, the Z undo key; API 1.42.0; nests lab_ui 0.4.0). Steward calls no
+/architect command and binds Y, I and U, so neither change reaches it. With the published jar, steward-mc main (J2 merged) loads lab_ui 0.4.0 and
+both e2e pass: free 43, stub 82.
