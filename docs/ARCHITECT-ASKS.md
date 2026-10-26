@@ -916,3 +916,10 @@ the client loaded lab_ui 0.3.0 and both e2e pass (free 43, stub 82).
 
 Architect v0.46.0 is UI only (lab_ui 0.3.1 nested, ">=0.3.0 <0.4.0"; API 1.42.0 unchanged). Steward main (lab_ui ">=0.1.0 <0.4.0", its own nested
 0.1.0) with the published jar: the client loaded lab_ui 0.3.1, and the free e2e passes (43).
+
+## lab-ui range for Architect's J3 (lab-ui 0.4) (2026-10-26)
+
+Architect slice/J3 (2d18f591) requires lab_ui ">=0.4.0 <0.5.0" and nests 0.4.0. Steward's range is widened to ">=0.1.0 <0.5.0" (still compiled against
+0.1.0): every lab-ui member Steward's classes use (68) is in 0.4.0 with the same descriptor, and no interface it touches gained an abstract method. On a
+jar built from J3, the client loaded lab_ui 0.4.0: free 43, stub 82. The first stub run missed the supplied plan's refund once (its undo hadn't run when
+the check gave up, right after the beside-a-town-in-flight check); the re-run passed it. A timing flake in the e2e, noted to watch.
