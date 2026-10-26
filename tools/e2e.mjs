@@ -1268,10 +1268,10 @@ async function wallOfferFlow() {
  * Drives one build through its decisions until it is built: approves the style bible, the massings and the placement as each comes (Proposals level), with
  * a restart at the massings when asked. Returns the steps seen, or null when it stalls.
  */
-async function buildThrough(id, from, label, restartAtMassings = false, onStep = null) {
+async function buildThrough(id, from, label, restartAtMassings = false, onStep = null, ms = 720_000) {
   const steps = [];
   // past Architect's 600 s wait for a blocked item (so a blocked item fails and is reported, rather than the check giving up first)
-  const end = Date.now() + 720_000;
+  const end = Date.now() + ms;
   // nothing in the lots' way: an animal in a box holds its item up for Architect's whole wait (C30)
   await clearAnimals();
   let at = from;
@@ -1500,7 +1500,8 @@ async function suppliedPlanFlow() {
         }
       }
     };
-    const built = await buildThrough(id, from, 'supplied plan', true, onStep);
+    // built from materials as the feeder delivers them: it has taken over 12 minutes on a loaded machine
+    const built = await buildThrough(id, from, 'supplied plan', true, onStep, 1_200_000);
     if (!built) { stop = true; await feeder; return; }
     const log = said();
     const bill = log.match(/From materials, the plan's ground, streets and parts need [^\n]*/);

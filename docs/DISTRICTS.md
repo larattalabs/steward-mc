@@ -282,7 +282,8 @@ Accepted, with the reason, for Noah's call:
 
 Noah (2026-10-26): fix both accepted items, then go on. Fixed:
 - 1: an ended build whose realise was never answered looks it up by its keys (and by its build tag on a region) after 3 minutes, every 30 seconds:
-  a region found is taken up as an orphan; nothing found by 15 minutes, the request never reached Architect, so the build lets go and a district it
-  held is only reserved again.
+  a region found is taken up as an orphan; nothing found by 15 minutes, the build lets go and a district it held is only reserved again. A realise
+  slower than that (still starting in Architect, invisible to both lookups) can still bring a region later: the periodic reconcile takes up any live
+  region tagged with a district that doesn't name it, as the world-start sweep does across a restart (the GPT check's point, 2026-10-26).
 - 4: every district realise (a new plan, a restored build, the approval path) re-checks its request's claim against the other districts' land first;
   on a conflict nothing is placed and the build ends (the district reserved again).
