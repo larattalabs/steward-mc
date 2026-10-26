@@ -171,7 +171,9 @@ public final class SettlementRunner {
 	 */
 	public static boolean busy(String settlementId) {
 		SettlementRunner r = ACTIVE.get(settlementId);
-		// a build that ended while its realise is still unanswered stays busy: the answer may yet bring a region (a district's is held until it does)
+		// a build that ended while its realise is still unanswered stays busy: the answer may yet bring a region (a district's is held until it does);
+		// an answer that never comes is settled by looking the realise up by its key (settleLostRealise)
+		if (r != null && r.state != null && r.state.phase().terminal() && r.queueInFlight) r.settleLostRealise(System.currentTimeMillis());
 		return (r != null && (r.state == null || !r.state.phase().terminal() || r.queueInFlight)) || Districts.busy(settlementId) || Undo.busy(settlementId) || PendingOffers.busy(settlementId)
 			|| ArchitectApi.get().regions().list("steward_mc:settlement/" + settlementId).stream()
 				.anyMatch(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVING);
@@ -1859,8 +1861,16 @@ public final class SettlementRunner {
 		ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
 		// a district's region names its district, so a region whose answer was lost still holds the district (releaseDistrict, Districts.reconcile)
 		if (districtId != null) ext.addProperty(Districts.DISTRICT_EXT, districtId);
+		// a district's: its region may not take another district's land (a build saved before planning checked that, or a district founded since)
+		String conflict = districtConflict();
+		if (conflict != null) {
+			say("Not placed: " + conflict + " The build ends here; undo the reservation and found the district again.");
+			feed(new Pipeline.Cancel());
+			return;
+		}
 		say("Placing the village (" + lotEntries.size() + " buildings, its street, lanes and square)...");
 		queueInFlight = true;
+		inFlightSince = System.currentTimeMillis();
 		ServerPlayer actor = server.getPlayerList().getPlayer(playerId);
 		int session = Session.current();
 		String artifact = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
@@ -2112,6 +2122,58 @@ public final class SettlementRunner {
 	/** The region's sites as Steward records them: its streets and buildings, or (when it left nothing else) the ground tiles it wrote. */
 	private List<String> regionSites(String regionId) {
 		return VillageSweep.sitesOf(server, settlement.owner(), regionId);
+	}
+
+	/** When the realise now in flight was sent (epoch ms). */
+	private long inFlightSince;
+	private long lastSettleLook;
+	/** How long an ended build's unanswered realise waits before Architect is asked for it by its key, and before it counts as lost. */
+	static final long LOST_LOOK_MS = 3 * 60_000, LOST_GIVE_UP_MS = 15 * 60_000;
+
+	/**
+	 * An ended build whose realise was never answered (the review's "an answer that never comes"): after {@link #LOST_LOOK_MS} Architect is asked for it by
+	 * its keys, and by the district and build tags on a region; one found is taken up as the orphan it is. None found by {@link #LOST_GIVE_UP_MS}: the
+	 * request never reached Architect, so the build lets go (and a district it held is only reserved again). Server thread.
+	 */
+	void settleLostRealise(long now) {
+		if (!queueInFlight || inFlightSince <= 0 || now - inFlightSince < LOST_LOOK_MS || now - lastSettleLook < 30_000 || settlement == null) return;
+		lastSettleLook = now;
+		try {
+			var regions = ArchitectApi.get().regions();
+			var found = regions.realiseByKey(settlement.owner(), opKey("vrealise"))
+				.or(() -> regions.realiseByKey(settlement.owner(), opKey("vrealise2")))
+				.or(() -> regions.list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT))).findFirst())
+				.filter(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVED);
+			if (found.isPresent()) {
+				Steward.LOGGER.warn("{}: the realise of ended build {} was never answered; Architect has region {}: taking it up", settlement.id(), buildId, found.get().id());
+				queueInFlight = false;
+				takeUpOrphan(found.get().id());
+				return;
+			}
+		} catch (RuntimeException | LinkageError e) {
+			// can't tell: still in flight
+			return;
+		}
+		if (now - inFlightSince >= LOST_GIVE_UP_MS) {
+			Steward.LOGGER.warn("{}: the realise of ended build {} was never answered and Architect has nothing for it: let go", settlement.id(), buildId);
+			queueInFlight = false;
+			releaseDistrict();
+		}
+	}
+
+	/** Why this build's district region may not be placed now (another district's land in its request's claim), or null; not a district build: null. */
+	private @org.jspecify.annotations.Nullable String districtConflict() {
+		if (districtId == null || settlement == null) return null;
+		var now = Settlements.store().get(settlement.id()).orElse(settlement);
+		var district = now.lands().district(districtId).orElse(null);
+		if (district == null || district.square() || district.parent() == null) return null;
+		var town = ArchitectApi.get().regions().get(district.parent());
+		if (town.isEmpty()) return null;
+		var b = town.get().claim();
+		int[] request = dev.larattalabs.steward.model.DistrictRules.request(new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, district.claim(), district.direction());
+		var envelope = dev.larattalabs.steward.model.Land.ofRect(district.claim().dimension(), request[0], request[1], request[2], request[3]);
+		return now.lands().districts().stream().filter(o -> !o.id().equals(district.id()) && o.land().overlaps(envelope)).findFirst()
+			.map(o -> district.name() + "'s ground now reaches " + o.name() + "'s land.").orElse(null);
 	}
 
 	/** A stage of the village's region Architect holds for the player's word (the land changed under it since the plan), or null. */

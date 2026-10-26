@@ -279,3 +279,10 @@ Accepted, with the reason, for Noah's call:
 - 4: a district build saved before planning re-checked its claim (none exist outside dev worlds: the branch is unreleased) could still realise on a
   sibling's land; placing never records the sibling's columns as its own.
 - Cancelling while a district is planned (no build state yet) says there's nothing to cancel, as the flat village's planning does today.
+
+Noah (2026-10-26): fix both accepted items, then go on. Fixed:
+- 1: an ended build whose realise was never answered looks it up by its keys (and by its build tag on a region) after 3 minutes, every 30 seconds:
+  a region found is taken up as an orphan; nothing found by 15 minutes, the request never reached Architect, so the build lets go and a district it
+  held is only reserved again.
+- 4: every district realise (a new plan, a restored build, the approval path) re-checks its request's claim against the other districts' land first;
+  on a conflict nothing is placed and the build ends (the district reserved again).
