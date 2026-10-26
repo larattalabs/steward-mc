@@ -1674,6 +1674,24 @@ async function besideAsk(id, townRegion, { check = true, key = null, lots = 2 } 
   return dev.request('dev.region.plan', { ...body, ...(key ? { opKey: `${key}.dplan` } : {}) }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
 }
 
+/** Whether this Architect revises regions (6d RV): its dev bridge has the revision hooks. */
+async function revisesRegions() {
+  const probe = await dev.request('dev.rv.state', { region: 'none' }).catch((e) => ({ refused: String(e) }));
+  return !(/unknown|not found|no such|method/i.test(probe?.refused ?? '') && !/region/i.test(probe?.refused ?? ''));
+}
+
+/** A revision of {@code region} (6d RV) waited on until its record reads one of {@code states} ({@code rid}: its number). */
+async function revisionUntil(region, rid, states, ms = 300_000) {
+  let rev = null;
+  for (const end = Date.now() + ms; Date.now() < end;) {
+    const v = await dev.request('dev.region.state', { region }).catch(() => null);
+    rev = ((v?.view ?? v ?? {}).revisions ?? []).find((x) => x.rid === rid) ?? null;
+    if (rev && states.includes(rev.state)) return rev;
+    await sleep(2000);
+  }
+  return rev;
+}
+
 /** A region's state, polled until it is one of {@code states} (or the time runs out). */
 async function regionUntil(region, states, ms = 300_000) {
   let v = null;
@@ -1864,6 +1882,29 @@ async function districtRegionFlow() {
   if (after?.state === 'standing' && region && op?.siteGroup === `region:${region}` && rv.beside === town && merged) {
     ok('district region', `${region} beside ${town}, standing; ${built.placed} placed; its land ${cells(after.land)} columns (the square ${square}, ${outside} outside the town from Architect)`);
   } else return fail('district region', `district ${JSON.stringify(after)?.slice(0, 200)}; op ${op?.siteGroup}; region beside ${rv.beside}, state ${rv.state}`);
+  // (Architect 6d RV-c/RV-d, Steward's RC) a revision of the district region: its land.outside grows with what the revision writes outside the town,
+  // and shrinks back when it is undone (the readers on the head's effective IR)
+  if (await revisesRegions()) {
+    const landOf = async () => {
+      const v = await dev.request('dev.region.state', { region }).catch(() => null);
+      return (v?.view ?? v ?? {}).ext?.['architect_mc:land'] ?? null;
+    };
+    const before = await landOf();
+    const cx = d.claim.centerX + d.claim.radius - 4, cz = d.claim.centerZ + d.claim.radius - 4;
+    const knoll = { id: 'knoll', call: { fn: 'columns', cols: [cx, cz, 0, 1, 0, cx - 1, cz, 0, 1, 0, cx, cz - 1, 0, 0, 0], from: { surface: 1 }, to: { surface: 1 }, materials: ['rock'], cond: 0 } };
+    const kp = await dev.request('dev.rv.plan', { region, spec: { parts: [knoll] }, opKey: `steward.e2e.${id}.dknoll` }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+    const krid = kp?.revisionOf?.rid;
+    if (kp?.planId) await dev.request('dev.region.realise', { planId: kp.planId }, { timeoutMs: 600_000 }).catch(() => null);
+    const krev = krid ? await revisionUntil(region, krid, ['PLACED', 'PARTIAL', 'FAILED']) : null;
+    const grown = await landOf();
+    await dev.request('dev.rv.undo', { region, toPosition: 0, actor: 'steward' }, { timeoutMs: 900_000 }).catch(() => null);
+    const kundo = krid ? await revisionUntil(region, krid, ['UNDONE']) : null;
+    const shrunk = await landOf();
+    const oc = (l) => l?.outside?.cells ?? -1;
+    if (krev?.state === 'PLACED' && kundo?.state === 'UNDONE' && oc(grown) > oc(before) && oc(shrunk) === oc(before)) {
+      ok('district land follows a revision', `${region} rev ${krid}: land.outside ${oc(before)} -> ${oc(grown)} -> ${oc(shrunk)} (v ${grown?.v})`);
+    } else fail('district land follows a revision', `plan ${JSON.stringify(kp).slice(0, 120)}; rev ${krev?.state}, undo ${kundo?.state}; outside ${oc(before)} -> ${oc(grown)} -> ${oc(shrunk)}`);
+  }
   // undone: the region goes, and the district with it
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
   await cmd(`/steward undo ${id}`);
@@ -1940,7 +1981,19 @@ async function revisionFlow() {
       ok('revision realised', `${town} rev ${rid} ${rev1.state}, ${tagged} sites tagged; the town reads ${rv.state}; Steward's history unchanged (${ops} ops)`);
     } else fail('revision realised', `rev ${JSON.stringify(rev1)?.slice(0, 160)}; town ${rv.state}; ops ${(after?.log ?? []).length} vs ${ops}`);
   } else return fail('revision realised', JSON.stringify(r).slice(0, 200));
-  // undo the town with the revision standing: Steward's Regions.remove takes it all
+  // (RV-c) the revision undone alone: the town as it was before it, the region placed and not busy, its rid kept
+  const und = await dev.request('dev.rv.undo', { region: town, toPosition: 0, actor: 'steward' }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+  const back = await revisionUntil(town, rid, ['UNDONE'], 300_000);
+  const tv = await dev.request('dev.region.state', { region: town }).catch(() => null);
+  const t = tv?.view ?? tv ?? {};
+  if (back?.state === 'UNDONE' && t.state === 'PLACED' && !t.busy && t.position === 0) ok('revision undone', `rev ${rid} ${back.state}; ${town} ${t.state} at position ${t.position}, not busy (${JSON.stringify(und).slice(0, 80)})`);
+  else fail('revision undone', `rev ${JSON.stringify(back)?.slice(0, 120)}; town ${t.state} position ${t.position} busy ${t.busy}; ${JSON.stringify(und).slice(0, 120)}`);
+  // a second revision, then the town undone with it standing: Steward's Regions.remove takes it all
+  const plan2 = await dev.request('dev.rv.plan', { region: town, spec: { parts: [{ ...mound, id: 'mound2' }] }, opKey: `steward.e2e.${id}.rv2` }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+  if (plan2?.planId) {
+    await dev.request('dev.region.realise', { planId: plan2.planId }, { timeoutMs: 600_000 }).catch(() => null);
+    await revisionUntil(town, plan2.revisionOf?.rid, ['PLACED', 'PARTIAL', 'FAILED']);
+  }
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
   await cmd(`/steward undo ${id}`);
   const gone = await regionUntil(town, ['REMOVED'], 300_000);
