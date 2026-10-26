@@ -1878,6 +1878,68 @@ async function districtRegionFlow() {
 }
 
 /**
+ * A quarter (Noah's Q2; docs/DISTRICTS.md section 9): beside a flat-village town, an outpost offered in the inbox and accepted, founded and built at once
+ * (its own region, apart from the town, its road the join, Architect's corridor), saved as a standing outpost owning what its region took; undone, it is
+ * given up. (The e2e world is flat and dry: a shore quarter isn't checked here.)
+ */
+async function quarterFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 56000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Camp Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little town`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('quarter', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  if (!(await buildThrough(id, from, 'camp town'))) return;
+  const c = settlements().find((x) => x.id === id).claim;
+  await cmd(`/tp @p ${c.centerX + c.radius + 30} 100 ${c.centerZ}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  const offered = await cmd(`/steward district ${id} quarter E outpost`);
+  let prop = null;
+  for (let i = 0; i < 20 && !prop; i++) {
+    await sleep(500);
+    prop = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key === 'quarter_outpost_E') ?? null;
+  }
+  if (!prop || prop.quarter?.kind !== 'outpost') return fail('quarter offered', `${offered}; ${JSON.stringify(settlements().find((x) => x.id === id)?.proposals?.open)?.slice(0, 200)}`);
+  ok('quarter offered', `${prop.title}: ${prop.building?.count} ${prop.building?.role}s`);
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${prop.key}`);
+  const built = await buildThrough(id, from, 'outpost');
+  if (!built) return;
+  const st = settlements().find((x) => x.id === id);
+  const d = st?.lands?.districts?.find((x) => x.kind === 'outpost');
+  const view = d?.region ? await dev.request('dev.region.state', { region: d.region }).catch(() => null) : null;
+  const rv = view?.view ?? view ?? {};
+  const corridor = rv.ext?.['architect_mc:corridor']?.cells ?? 0;
+  const cells = (l) => (l?.runs ?? []).reduce((a, r) => a + (r.x1 - r.x0 + 1), 0);
+  const outside = rv.ext?.['architect_mc:land']?.outside?.cells ?? -1;
+  if (d?.state === 'standing' && corridor > 0 && cells(d.land) === outside) {
+    ok('outpost', `${d.region}: ${built.placed} placed apart from the town, its corridor ${corridor} cells; it owns exactly what its region took (${outside} columns)`);
+  } else return fail('outpost', `district ${JSON.stringify(d)?.slice(0, 200)}; corridor ${corridor}; outside ${outside}, saved ${cells(d?.land)}`);
+  await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
+  await cmd(`/steward undo ${id}`);
+  let gone = false;
+  for (let i = 0; i < 150 && !gone; i++) {
+    await sleep(2000);
+    gone = !settlements().find((x) => x.id === id)?.lands?.districts?.some((x) => x.id === d.id);
+  }
+  if (gone) ok('outpost undone', `${d.name} given up with its region`);
+  else fail('outpost undone', JSON.stringify(settlements().find((x) => x.id === id)?.log.at(-1))?.slice(0, 160));
+}
+
+/**
  * Architect's plan check (P0; docs/COMPOSITION.md): recorded plans checked round the player on fresh flat land, answered part by part. A plain village
  * is ready, with an artifact; the walled town's hidden cellar is unsupported, naming form.hidden_room (its wall fits: K1). The ready one is realised from its artifact and taken up again.
  */
@@ -2197,6 +2259,7 @@ try {
       await discardFlow();
       await besideFlow();
       await districtRegionFlow();
+      await quarterFlow();
     }
   }
   await migratedSteward();
