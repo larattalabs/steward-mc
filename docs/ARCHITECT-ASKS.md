@@ -898,3 +898,9 @@ Steward builds against the published v0.44.0 (API 1.41.0: CL climbs, K2 walls al
 by build stamps, the nested lab_ui jar's manifest, and the commits after 552aa44e the coordinator named (kit tests, Regions' error strings). Stub 82 and
 free 43 pass. The plan writer now writes climbs, walls along a boundary and wall walks where the card asks (the strange-asks fixtures aren't
 re-recorded: that is a paid run).
+
+## v0.45.0 post-release check (2026-10-25)
+
+Steward builds against the published v0.45.0 (API 1.42.0: bible parts, the helper features bible.check and bible.parts, the unified editor and Style
+browser, theming; lab_ui still ">=0.2.0 <0.4.0"; published jar sha256 e988b56e…) and still runs on 0.43.0. Stub 82 and free 43 pass. Steward's settlement
+bibles are Claude-made with their own parts, so the change for designs naming a built-in Style doesn't reach them.
