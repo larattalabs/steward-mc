@@ -277,7 +277,7 @@ public final class Actions {
 			java.util.UUID who = player.getUUID();
 			if (way.equals("AUTO")) {
 				var site = dev.larattalabs.steward.model.DistrictSite.fromWords("shore".equals(q.boundary()) ? "by the water" : "");
-				Districts.choose(server, s.get(), site, null, java.util.Set.of(), c -> {
+				Districts.choose(server, s.get(), site, null, Districts.quarterMisfits(s.get(), q), c -> {
 					String msg = c.way() == null ? "No side of " + s.get().name() + " has room for it." : Proposals.offerQuarter(server, who, s.get(), c.way(), q);
 					var p = server.getPlayerList().getPlayer(who);
 					if (p != null && msg != null) p.sendSystemMessage(net.minecraft.network.chat.Component.literal(msg));

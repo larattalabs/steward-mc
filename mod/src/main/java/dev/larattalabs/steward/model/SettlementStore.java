@@ -32,10 +32,11 @@ public final class SettlementStore {
 	 * district has a kind, a state and its land (docs/DISTRICTS.md section 9); a format-3 district reads as a standing square. An older Steward refuses a
 	 * format-4 file rather than dropping the new members on its next save.
 	 */
-	public static final int FORMAT = 4;
+	/** 5 (2026-10-26): a proposal may carry a quarter (Noah's Q2); an older Steward would drop it and found a free square district instead, so it refuses. */
+	public static final int FORMAT = 5;
 
 	/** Step {@code i} upgrades format {@code i + 1} to {@code i + 2}, on the file's JSON. */
-	private static final List<java.util.function.Consumer<JsonObject>> MIGRATIONS = List.of(SettlementStore::v1ToV2, SettlementStore::v2ToV3, SettlementStore::v3ToV4);
+	private static final List<java.util.function.Consumer<JsonObject>> MIGRATIONS = List.of(SettlementStore::v1ToV2, SettlementStore::v2ToV3, SettlementStore::v3ToV4, SettlementStore::v4ToV5);
 
 	/** The format the file had when read (equal to {@link #FORMAT} unless it was migrated). */
 	private int readFormat = FORMAT;
@@ -154,6 +155,10 @@ public final class SettlementStore {
 
 	/** Format 2 to 3: nothing to rewrite; a settlement without {@code lands} reads with no districts and no protected areas. */
 	static void v2ToV3(JsonObject file) {
+	}
+
+	/** Format 4 to 5: nothing to rewrite (a proposal without a quarter reads as before). */
+	static void v4ToV5(JsonObject file) {
 	}
 
 	/** Format 3 to 4: every district is a standing square (what format 3 knew); its land is its claim, so none is written. */

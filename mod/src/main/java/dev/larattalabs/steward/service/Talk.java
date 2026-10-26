@@ -239,7 +239,7 @@ public final class Talk {
 				return;
 			}
 			var site = dev.larattalabs.steward.model.DistrictSite.fromWords("shore".equals(q.boundary()) ? "by the water" : said);
-			Districts.choose(server, s, site, null, java.util.Set.of(), c -> {
+			Districts.choose(server, s, site, null, Districts.quarterMisfits(s, q), c -> {
 				String reply = c.way() == null ? "No side of " + s.name() + " has room for it." : java.util.Optional.ofNullable(Proposals.offerQuarter(server, player, s, c.way(), q))
 					.orElse("I'll lay out a quarter " + quarterWords(q) + " to the " + DistrictRules.directionName(c.way()) + ": it waits in the inbox.");
 				answer(server, player, s.id(), reply);
@@ -270,7 +270,9 @@ public final class Talk {
 		});
 	}
 
-	private static final java.util.regex.Pattern OUTPOST = java.util.regex.Pattern.compile("\\b(outpost|camp apart|out by|apart from the town|a camp)\\b");
+	private static final java.util.regex.Pattern OUTPOST = java.util.regex.Pattern.compile("\\b(an? outpost|outposts?|a camp apart|apart from the town)\\b");
+	/** "not an outpost", "no outpost", "rather than an outpost": the ask is for something else. */
+	private static final java.util.regex.Pattern NOT_OUTPOST = java.util.regex.Pattern.compile("\\b(not|no|rather than|instead of)( an?)? outposts?\\b");
 	private static final java.util.regex.Pattern SHORE = java.util.regex.Pattern.compile("\\b(along|by|on) the (shore|coast|river|lake|sea|water|beach)\\b");
 	private static final java.util.regex.Pattern RIDGE = java.util.regex.Pattern.compile("\\b(on|along) the (ridge|crest|hilltop|hill top)\\b");
 	private static final java.util.regex.Pattern EDGE = java.util.regex.Pattern.compile("where the (\\w+) meets the (\\w+)");
@@ -278,7 +280,7 @@ public final class Talk {
 	/** The quarter a district ask describes in words, or null for an ordinary district (docs/DISTRICTS.md section 4, "Talk and proposals"). */
 	static dev.larattalabs.steward.model.Proposal.@org.jspecify.annotations.Nullable Quarter quarterOf(String words) {
 		String w = words.toLowerCase(java.util.Locale.ROOT);
-		if (OUTPOST.matcher(w).find()) return new dev.larattalabs.steward.model.Proposal.Quarter("outpost", null, List.of(), null);
+		if (OUTPOST.matcher(w).find() && !NOT_OUTPOST.matcher(w).find()) return new dev.larattalabs.steward.model.Proposal.Quarter("outpost", null, List.of(), null);
 		var e = EDGE.matcher(w);
 		if (e.find()) return new dev.larattalabs.steward.model.Proposal.Quarter("along", "biome_edge", List.of(e.group(1), e.group(2)), null);
 		if (RIDGE.matcher(w).find()) return new dev.larattalabs.steward.model.Proposal.Quarter("along", "ridge", List.of(), null);

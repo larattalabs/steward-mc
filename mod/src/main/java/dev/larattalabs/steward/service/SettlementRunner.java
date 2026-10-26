@@ -1044,8 +1044,9 @@ public final class SettlementRunner {
 		var envelope = dev.larattalabs.steward.model.Land.ofRect(district.claim().dimension(), request[0], request[1], request[2], request[3]);
 		var sibling = settlement.lands().districts().stream().filter(o -> !o.id().equals(district.id()) && o.land().overlaps(envelope)).findFirst();
 		if (sibling.isPresent()) {
-			Settlements.districtState(settlement.id(), district.id(), Settlement.District.RESERVED);
-			abandon(district.name() + "'s ground now reaches " + sibling.get().name() + "'s land: undo the reservation and found it again.");
+			// nothing planned: a beside district is reserved again, a quarter given up (Districts.release)
+			Districts.release(settlement.id(), district);
+			abandon(district.name() + "'s ground now reaches " + sibling.get().name() + "'s land: found it again.");
 			return;
 		}
 		List<JsonObject> lots = new ArrayList<>();
@@ -2187,7 +2188,16 @@ public final class SettlementRunner {
 	 * {@code vrealise2}. True when the re-plan started (the build goes on); false to end the build as before.
 	 */
 	private boolean replanDistrict(Throwable err) {
-		if (districtId == null || districtReplanned || districtSpecs == null || settlement == null) return false;
+		if (districtId == null || districtReplanned || settlement == null || plan == null) return false;
+		// a cancel, or the build's end, while the first realise was asked: no second region
+		if (state == null || state.phase().terminal() || state.phase() == Pipeline.Phase.CANCELLING || !alive()) return false;
+		// the card's lots: this session's, else (a restored build) read back from its plan's lots and the ones it left out
+		if (districtSpecs == null) {
+			List<VillageLayout.LotSpec> specs = new ArrayList<>();
+			for (VillageLayout.Lot l : plan.lots()) specs.add(new VillageLayout.LotSpec(l.id(), l.type(), l.sizeX(), l.sizeZ(), l.role(), l.notes(), l.landmark(), l.placement()));
+			specs.addAll(plan.unplaced());
+			districtSpecs = List.copyOf(specs);
+		}
 		Throwable e = err.getCause() != null ? err.getCause() : err;
 		if (!(e instanceof dev.larattalabs.architect.api.ArchitectRefused rf)) return false;
 		var why = rf.reason();
@@ -2210,6 +2220,9 @@ public final class SettlementRunner {
 		regions.plan(Districts.besideRequest(level(), settlement, town.get().id(), request, district.id(), lots, opKey("vplan2"), buildId, district.kind(), district.follow()))
 			.whenComplete((rp, perr) -> server.execute(() -> {
 				if (!Session.is(session) || !alive() || worldStopped(perr)) return;
+				// cancelled while the land was laid out again: nothing more is placed
+				// (cancelVillage confirmed the cancel already: no realise was in flight and no region stood)
+				if (state == null || state.phase().terminal() || state.phase() == Pipeline.Phase.CANCELLING) return;
 				if (perr != null) {
 					say("Architect could not lay " + district.name() + " out again: " + Districts.besideRefusal(null, message(perr)));
 					feed(new Pipeline.Cancel());
@@ -2217,7 +2230,11 @@ public final class SettlementRunner {
 				}
 				vPlanId = rp.planId();
 				plan = dev.larattalabs.steward.gateway.DPlan.toPlan(rp.lots(), districtSpecs);
-				persist();
+				// the new plan saved with the build before anything of it is placed: a restart after this realises it, never the old one
+				if (!persist()) {
+					say("Could not save the build, so the new layout isn't placed. Cancel it (/steward cancel " + settlement.id() + ").");
+					return;
+				}
 				realiseVillage();
 			}));
 		return true;
@@ -2226,6 +2243,8 @@ public final class SettlementRunner {
 	/** The claim a district plans in: a beside district's reservation and seam, or a quarter's strip and seam (DistrictRules). */
 	private static int[] districtRequest(Settlement s, Settlement.District d, int[] region) {
 		if (Settlement.District.BESIDE.equals(d.kind())) return dev.larattalabs.steward.model.DistrictRules.request(region, d.claim(), d.direction());
+		// a quarter: its saved strip (held while built) and the way back into the town region, never one moved by a later Expand
+		if (d.savedLand() != null && d.region() == null) return dev.larattalabs.steward.model.DistrictRules.quarterRequest(region, d.savedLand(), d.direction());
 		var others = s.lands().districts().stream().filter(o -> !o.id().equals(d.id())).toList();
 		var q = dev.larattalabs.steward.model.DistrictRules.quarter(s.claim(), region, others, List.of(), List.of(), d.direction(),
 			Settlement.District.OUTPOST.equals(d.kind()) ? dev.larattalabs.steward.model.DistrictRules.OUTPOST_DEPTH : dev.larattalabs.steward.model.DistrictRules.ALONG_DEPTH, d.name());

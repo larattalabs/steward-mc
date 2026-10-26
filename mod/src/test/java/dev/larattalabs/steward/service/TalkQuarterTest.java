@@ -16,5 +16,9 @@ class TalkQuarterTest {
 		assertEquals(List.of("desert", "jungle"), edge.between());
 		assertEquals("outpost", Talk.quarterOf("an outpost out by the mine").kind());
 		assertNull(Talk.quarterOf("a district to the east for the smiths"), "an ordinary district");
+		// the review's false positives: a gate, a negation, a camp that is a building
+		assertNull(Talk.quarterOf("a district out by the east gate"));
+		assertNull(Talk.quarterOf("an east district, not an outpost"));
+		assertNull(Talk.quarterOf("a district with a hunting camp"));
 	}
 }

@@ -25,6 +25,14 @@ class QuarterTest {
 	}
 
 	@Test
+	void aQuartersRequestComesFromItsHeldStripNotTheClaimAsItIsNow() {
+		var e = DistrictRules.quarter(TOWN, REGION, List.of(), List.of(), List.of(), "E", DistrictRules.OUTPOST_DEPTH, "camp");
+		// the claim expanded since: the strip it holds, and so the ground it may be placed on, don't move
+		assertArrayEquals(e.request(), DistrictRules.quarterRequest(REGION, e.land(), "E"));
+		assertArrayEquals(new int[] {25, -64, 176, 64}, DistrictRules.quarterRequest(REGION, e.land(), "E"));
+	}
+
+	@Test
 	void aQuarterIsRefusedWhereADistrictOrAnotherSettlementIs() {
 		var east = new District("dst_1", "Old", "E", new Claim(OW, 113, 0, 48, -64, 320), 1L, List.of());
 		assertFalse(DistrictRules.quarter(TOWN, REGION, List.of(east), List.of(), List.of(), "E", 96, "q").ok(), "one district a side");

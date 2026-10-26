@@ -31,7 +31,8 @@ public final class BuildStore {
 	 * 2 (2026-10-24): moves with the settlements file's format 4 (a build's settlement copy has districts with kinds and land), so an older Steward refuses
 	 * the file rather than dropping their new members. A format-1 file reads as it is (its districts as standing squares).
 	 */
-	static final int FORMAT = 2;
+	static final int FORMAT = 3;
+	// 3 (2026-10-26): moves with the settlements file's format 5 (a build's settlement copy may hold a quarter proposal)
 
 	/**
 	 * One build. {@code settlement} is a copy (a dev build's settlement is not in the settlements file); {@code siteGroupId} is the Architect site group the

@@ -151,6 +151,9 @@ public final class Proposals {
 			if (c.way() == null || now2.isEmpty() || now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
 			// beside a town Architect laid out, a side by the water is offered as a quarter along its shore (docs/DISTRICTS.md section 4)
 			if (c.why().startsWith("by the water") && now2.get().proposals().open().stream().noneMatch(Proposal::foundsQuarter) && TownRegion.of(now2.get()).isPresent()
+				// one the player declined is not offered again; a side its strip doesn't fit gets the ordinary district
+				&& !now2.get().proposals().declined().contains("quarter_along_" + c.way())
+				&& !Districts.quarterMisfits(now2.get(), new Proposal.Quarter("along", "shore", List.of(), null)).contains(c.way())
 				&& offerQuarter(server, player, now2.get(), c.way(), new Proposal.Quarter("along", "shore", List.of(), null)) == null) {
 				StewardVoice.say(server, s.id(), "I have an idea: a quarter along the shore to the " + dev.larattalabs.steward.model.DistrictRules.directionName(c.way()) + ", "
 					+ c.why() + ". See the inbox (Y).");

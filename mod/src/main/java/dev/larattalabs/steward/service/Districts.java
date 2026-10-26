@@ -181,6 +181,24 @@ public final class Districts {
 		}
 	}
 
+	/** The sides a quarter of {@code q}'s kind doesn't fit (its whole strip, not a square district's): an "auto" choice skips them. */
+	public static java.util.Set<String> quarterMisfits(Settlement s, dev.larattalabs.steward.model.Proposal.Quarter q) {
+		java.util.Set<String> out = new java.util.HashSet<>(DistrictRules.DIRECTIONS);
+		try {
+			var town = TownRegion.of(s).flatMap(id -> ArchitectApi.get().regions().get(id));
+			if (town.isEmpty()) return out;
+			var b = town.get().claim();
+			int depth = "outpost".equals(q.kind()) ? DistrictRules.OUTPOST_DEPTH : DistrictRules.ALONG_DEPTH;
+			for (String dir : DistrictRules.DIRECTIONS) {
+				if (DistrictRules.quarter(s.claim(), new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, s.lands().districts(), Settlements.others(s.id()),
+					s.lands().protect(), dir, depth, "quarter").ok()) out.remove(dir);
+			}
+		} catch (RuntimeException | LinkageError e) {
+			// can't tell: every side refused, so nothing is offered that won't fit
+		}
+		return out;
+	}
+
 	/** A district region's build that ended with nothing placed: a beside district is only reserved again; a quarter, founded for it, is given up. */
 	static void release(String settlementId, Settlement.District d) {
 		if (Settlement.District.BESIDE.equals(d.kind())) Settlements.districtState(settlementId, d.id(), Settlement.District.RESERVED);

@@ -158,7 +158,7 @@ async function claimAndSteward() {
   const backups = fs.readdirSync(WORLD).filter((f) => /^steward-settlements\.json\.v\d+\.bak$/.test(f)).map((f) => f.match(/v\d+/)[0]);
   // format 4 (2026-10-24): districts with kinds and land; every square district a standing square
   const squares = file.settlements.flatMap((x) => x.lands?.districts ?? []).every((d) => d.kind && d.state);
-  if (file.format === 4 && squares && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `4, every entry an operation, every district with its kind${backups.length ? ', backups kept: ' + backups.join(' ') : ''}`);
+  if (file.format === 5 && squares && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `5, every entry an operation, every district with its kind${backups.length ? ', backups kept: ' + backups.join(' ') : ''}`);
   else fail('save format', `format ${file.format}`);
   let name = '';
   for (let i = 0; i < 10 && !/Steward/.test(name); i++) {
@@ -1925,10 +1925,14 @@ async function quarterFlow() {
   const d = st?.lands?.districts?.find((x) => x.kind === 'outpost');
   const view = d?.region ? await dev.request('dev.region.state', { region: d.region }).catch(() => null) : null;
   const rv = view?.view ?? view ?? {};
-  const corridor = rv.ext?.['architect_mc:corridor']?.cells ?? 0;
+  // the corridor is keyed by its district ({district: {runs, cells, rect}})
+  const corridor = Object.values(rv.ext?.['architect_mc:corridor'] ?? {}).reduce((a, x) => a + (x?.cells ?? 0), 0);
   const cells = (l) => (l?.runs ?? []).reduce((a, r) => a + (r.x1 - r.x0 + 1), 0);
   const outside = rv.ext?.['architect_mc:land']?.outside?.cells ?? -1;
-  if (d?.state === 'standing' && corridor > 0 && cells(d.land) === outside) {
+  // the same columns, not only as many: every run of Architect's outside land is a saved run
+  const outRuns = rv.ext?.['architect_mc:land']?.outside?.runs ?? [];
+  const same = cells(d?.land) === outside && outRuns.every(([x0, z, x1]) => (d?.land?.runs ?? []).some((r) => r.z === z && r.x0 <= Math.min(x0, x1) && r.x1 >= Math.max(x0, x1)));
+  if (d?.state === 'standing' && corridor > 0 && same && built.placed >= prop.building.count) {
     ok('outpost', `${d.region}: ${built.placed} placed apart from the town, its corridor ${corridor} cells; it owns exactly what its region took (${outside} columns)`);
   } else return fail('outpost', `district ${JSON.stringify(d)?.slice(0, 200)}; corridor ${corridor}; outside ${outside}, saved ${cells(d?.land)}`);
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
@@ -1949,7 +1953,8 @@ async function quarterFlow() {
  */
 async function revisionFlow() {
   const probe = await dev.request('dev.rv.state', { region: 'none' }).catch((e) => ({ refused: String(e) }));
-  if (/unknown|not found|no such|method/i.test(probe?.refused ?? '') && !/region/i.test(probe?.refused ?? '')) return;
+  // an Architect without revisions answers an unknown type (as an error, or a refusal)
+  if (/unknown type|unknown method|no such/i.test(`${probe?.error ?? ''} ${probe?.refused ?? ''}`)) return;
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} 60000 0 1 false @p`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });

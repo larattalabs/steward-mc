@@ -317,9 +317,14 @@ public final class SettlementScreen extends KitScreen {
 			// a region district says where it stands (reserved, being built) and anything the player should know (its road to the town gone)
 			String where = "square".equals(d.kind()) ? "" : "reserved".equals(d.state()) ? " · reserved beside the town" : "building".equals(d.state()) ? " · being built" : " · beside the town";
 			String line = d.name() + " · " + d.side() + " x " + d.side() + " · " + UiBits.plural(d.buildings(), "building", "buildings")
-				+ (d.roads() > 1 ? " · street linked" : "") + where + (d.note() != null ? " · " + d.note() : "");
+				+ (d.roads() > 1 ? " · street linked" : "") + where;
 			g.text(font, TextUtil.ellipsize(font, line, fw - 90), lx, fy, UiBits.ink(), false);
 			fy += 11;
+			// what the player should know of it: its own line, so a long name never hides it
+			if (d.note() != null && fy + 10 <= bottom) {
+				g.text(font, TextUtil.ellipsize(font, "  " + d.note(), fw - 90), lx, fy, UiStyle.CLAY_DARK, false);
+				fy += 11;
+			}
 		}
 		if (fy + CHIP_H <= bottom) {
 			int bx = lx;

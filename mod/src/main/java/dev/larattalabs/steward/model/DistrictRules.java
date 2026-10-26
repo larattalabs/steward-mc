@@ -152,6 +152,17 @@ public final class DistrictRules {
 		return new QuarterPlace(c, land, req, "");
 	}
 
+	/** A quarter's request claim from its held strip {@code strip} towards {@code dir}: the strip and the way back into the town region by {@link #SEAM}. */
+	public static int[] quarterRequest(int[] region, Land strip, String dir) {
+		var r = strip.rect();
+		return switch (dir) {
+			case "E" -> new int[] {region[2] - (SEAM - 1), r.z0(), r.x1(), r.z1()};
+			case "W" -> new int[] {r.x0(), r.z0(), region[0] + (SEAM - 1), r.z1()};
+			case "N" -> new int[] {r.x0(), r.z0(), r.x1(), region[1] + (SEAM - 1)};
+			default -> new int[] {r.x0(), region[3] - (SEAM - 1), r.x1(), r.z1()};
+		};
+	}
+
 	/** The plan request's claim for a reservation {@code d} towards {@code dir}: the reservation and the way back into the town region's claim by {@link #SEAM}. */
 	public static int[] request(int[] region, Claim d, String dir) {
 		boolean east = dir.equals("E");
