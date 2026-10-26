@@ -911,3 +911,8 @@ Architect's UI-0.3 slice moves it to lab_ui ">=0.3.0 <0.4.0". Steward's range is
 every lab-ui class, method and field Steward's classes reference (68) is in 0.3.0 and 0.3.1 with the same descriptor, no Steward class extends a
 lab-ui type, and no lab-ui interface gained an abstract method. At runtime, on a jar built from Architect slice/UI03 (03da649f, nesting lab_ui-0.3.0),
 the client loaded lab_ui 0.3.0 and both e2e pass (free 43, stub 82).
+
+## v0.46.0 co-load check (2026-10-25)
+
+Architect v0.46.0 is UI only (lab_ui 0.3.1 nested, ">=0.3.0 <0.4.0"; API 1.42.0 unchanged). Steward main (lab_ui ">=0.1.0 <0.4.0", its own nested
+0.1.0) with the published jar: the client loaded lab_ui 0.3.1, and the free e2e passes (43).
