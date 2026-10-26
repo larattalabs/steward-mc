@@ -541,7 +541,7 @@ public final class Actions {
 		var builds = PlayerBuilds.in(server, s).stream().filter(b -> b.siteId() == null).map(b -> new dev.larattalabs.steward.view.SettlementView.PlayerBuildInfo(b.id(), PlayerBuilds.title(b), PlayerBuilds.by(server, b),
 			b.bounds().minX(), b.bounds().minY(), b.bounds().minZ(), b.bounds().maxX(), b.bounds().maxY(), b.bounds().maxZ(),
 			b.state() == dev.larattalabs.architect.api.BuildState.PROVISIONAL)).toList();
-		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock, builds);
+		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock, builds, StewardStatus.attention(s.id(), ""));
 	}
 
 	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.Sites sites, dev.larattalabs.architect.api.SiteView v) {

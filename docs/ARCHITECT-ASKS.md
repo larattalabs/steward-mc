@@ -890,3 +890,62 @@ Architect slice/U01 at b49c449f (v0.43.0 + UI-2b + U1, after the owner rule chan
 stub 82 and free 43 pass on steward-mc main. Bibles Steward's jobs made carry owner `steward_mc:settlement/<id>` and origin `claude`, so they are mod-owned
 (Duplicate-only, saved only by that owner, never GC'd). Steward's positional DesignRequest constructor works unchanged. Queued with "use an existing
 Style": a keyed Bibles.pin/unpin, so a player's Style a settlement pins isn't collected.
+
+## v0.44.0 post-release check (2026-10-24)
+
+Steward builds against the published v0.44.0 (API 1.41.0: CL climbs, K2 walls along a boundary and wall walks, the style unification U0+U1, lab_ui
+">=0.2.0 <0.4.0") and still runs on 0.43.0 (it uses none of 1.41's API yet). The published jar differs from the release folder's (sha256 c40d8cb3…)
+by build stamps, the nested lab_ui jar's manifest, and the commits after 552aa44e the coordinator named (kit tests, Regions' error strings). Stub 82 and
+free 43 pass. The plan writer now writes climbs, walls along a boundary and wall walks where the card asks (the strange-asks fixtures aren't
+re-recorded: that is a paid run).
+
+## v0.45.0 post-release check (2026-10-25)
+
+Steward builds against the published v0.45.0 (API 1.42.0: bible parts, the helper features bible.check and bible.parts, the unified editor and Style
+browser, theming; lab_ui still ">=0.2.0 <0.4.0"; published jar sha256 e988b56e…) and still runs on 0.43.0. Stub 82 and free 43 pass. Steward's settlement
+bibles are Claude-made with their own parts, so the change for designs naming a built-in Style doesn't reach them.
+
+## lab-ui range for Architect's 0.3 move (2026-10-25)
+
+Architect's UI-0.3 slice moves it to lab_ui ">=0.3.0 <0.4.0". Steward's range is widened to ">=0.1.0 <0.4.0" (it still compiles against 0.1.0):
+every lab-ui class, method and field Steward's classes reference (68) is in 0.3.0 and 0.3.1 with the same descriptor, no Steward class extends a
+lab-ui type, and no lab-ui interface gained an abstract method. At runtime, on a jar built from Architect slice/UI03 (03da649f, nesting lab_ui-0.3.0),
+the client loaded lab_ui 0.3.0 and both e2e pass (free 43, stub 82).
+
+## v0.46.0 co-load check (2026-10-25)
+
+Architect v0.46.0 is UI only (lab_ui 0.3.1 nested, ">=0.3.0 <0.4.0"; API 1.42.0 unchanged). Steward main (lab_ui ">=0.1.0 <0.4.0", its own nested
+0.1.0) with the published jar: the client loaded lab_ui 0.3.1, and the free e2e passes (43).
+
+## lab-ui range for Architect's J3 (lab-ui 0.4) (2026-10-26)
+
+Architect slice/J3 (2d18f591) requires lab_ui ">=0.4.0 <0.5.0" and nests 0.4.0. Steward's range is widened to ">=0.1.0 <0.5.0" (still compiled against
+0.1.0): every lab-ui member Steward's classes use (68) is in 0.4.0 with the same descriptor, and no interface it touches gained an abstract method. On a
+jar built from J3, the client loaded lab_ui 0.4.0: free 43, stub 82. The first stub run missed the supplied plan's refund once (its undo hadn't run when
+the check gave up, right after the beside-a-town-in-flight check); the re-run passed it. A timing flake in the e2e, noted to watch.
+
+## v0.47.0 co-load check (2026-10-26)
+
+Architect v0.47.0 (the Jobs & spend feed, /architect remove behind a confirm, the Z undo key; API 1.42.0; nests lab_ui 0.4.0). Steward calls no
+/architect command and binds Y, I and U, so neither change reaches it. With the published jar, steward-mc main (J2 merged) loads lab_ui 0.4.0 and
+both e2e pass: free 43, stub 82.
+
+## GR review against the district move as built (2026-10-26)
+
+Architect's GR contract (CONTRACT "Phase 6d slice GR", frozen 2026-10-20) re-read against Steward's district move (DISTRICTS.md §9-10). It fits: a beside
+district's region claim is the reservation plus the 16-column seam, and GR never takes town land, so a growth stays in the reservation Steward owns;
+grown parts land in `land.outside` (v 2), which Steward already reads into its saved land.
+- **S-GR-1 to S-GR-5, S-GR-7:** the defaults (frontage first; one accepted building, one revision; keys; rings and spirals frontage only; a joined
+  end is never extended, and a growth a later district joined can't be undone: Steward says Architect's `NOT_ALLOWED joined` reason).
+- **S-GR-6:** no dry growth check needed. Steward plans before it spends (the plan comes before any design), and `discardPlan` already shipped
+  (close-out A), so `planRevision` plus `discardPlan` covers it.
+- **The keys, and fixture `gr_beside`:** Steward plans and realises each build under that build's keys, not a district stem: `steward.<buildId>.vplan`,
+  `.vrealise` (and `.vrealise2` after a stale re-check), with the ext `steward_mc:district` = the district id on the plan and the realise, and
+  `steward_mc:build` = the build id. A growth will be a build like any other, so the same keys. The first building plans with `Regions.plan` beside the
+  town, its claim the reservation plus 16 columns into the town region's claim. Asked: write `gr_beside` (and item 5) that way rather than `dplan`/`dgrow`.
+- **Asks:**
+  1. A growth's realise names its revision id, and the sites (buildings, lanes, street pieces) it wrote are identifiable as that revision's
+     (`LotState.revision` covers the lots; the rest too), so Steward records one history entry per growth and undoes it with `undoRevision`.
+  2. After `undoRevision`, `land.outside` shrinks with the revision's parts gone (§7 says so); Steward recomputes its saved land from it then.
+- **On Steward's side when GR ships:** standing beside districts take buildings again (`growDistrict`); along districts and outposts become growable;
+  Steward's own street pieces in a region town move onto growth of the town region.

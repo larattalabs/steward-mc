@@ -1330,6 +1330,8 @@ public final class SettlementRunner {
 	private void apply(Pipeline.Step step) {
 		Pipeline.Phase before = state == null ? null : state.phase();
 		state = step.next();
+		// the board and the nameplate show the new state on the next tick, not the next round
+		if (settlement != null) SettlementSync.dirty(settlement.id());
 		// it ended: its row stays in the inbox a few minutes ({@link #ENDED_ROW_MS}), so the player sees how
 		if (state.phase().terminal() && (before == null || !before.terminal())) {
 			endedAt = System.currentTimeMillis();
@@ -1499,7 +1501,7 @@ public final class SettlementRunner {
 					details.getOrDefault(l.id(), l.along() + "x" + (l.deep() - dev.larattalabs.steward.gateway.LotBrief.APPROACH_MARGIN) + " lot")));
 			}
 		}
-		return dev.larattalabs.steward.inbox.InboxModel.entry(settlement.id(), settlement.name(), state, lots);
+		return dev.larattalabs.steward.inbox.InboxModel.entry(settlement.id(), settlement.name(), state, lots, attention(false, ""));
 	}
 
 	/** Sends a player their inbox: every unfinished build of theirs, and the ones that ended in the last minutes (an empty inbox clears the client's). */
@@ -1812,6 +1814,7 @@ public final class SettlementRunner {
 			items.put(it.itemKey(), stage);
 		}
 		lastAwaiting = List.copyOf(g.awaiting());
+		heldUntil = g.usageLimitUntil();
 		String held = g.usageLimitUntil() > 0 ? "until " + new java.util.Date(g.usageLimitUntil()) : null;
 		feed(new Pipeline.GroupUpdate(g.id(), g.status().wire(), items, g.awaiting(), g.cost().usd(), held));
 	}
@@ -2113,6 +2116,13 @@ public final class SettlementRunner {
 
 	/** A stage of the village's region Architect holds for the player's word (the land changed under it since the plan), or null. */
 	private @org.jspecify.annotations.Nullable String heldStage;
+	/** When the player's usage limit, which holds this build's design group, resets (epoch ms; 0 when not held). From the group's updates, so a restart reads it again. */
+	private long heldUntil;
+
+	/** What the settlement asks of the player while this build runs ({@link dev.larattalabs.steward.inbox.Attention}). */
+	dev.larattalabs.steward.inbox.Attention attention(boolean updateAsks, String doing) {
+		return dev.larattalabs.steward.inbox.Attention.of(state, heldUntil, heldStage, updateAsks, doing, System.currentTimeMillis());
+	}
 	/** The region waits already said (a held stage, a place to come nearer to), so each is said once. */
 	private final Set<String> saidRegionWaits = new java.util.HashSet<>();
 

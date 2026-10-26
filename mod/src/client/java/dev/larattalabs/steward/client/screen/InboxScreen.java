@@ -203,11 +203,26 @@ public final class InboxScreen extends KitScreen {
 		drawFooter(g, cx, footerY, inner, all.size() > 1);
 	}
 
-	/** The list's groups: what needs the player, what is being built, what ended in the last minutes. */
-	private static final String[] GROUPS = {"Needs you", "Building", "Ended"};
+	/** An entry's further lines, and the usage limit it waits for (its reset time in this player's clock). */
+	static List<String> shownLines(InboxModel.Entry e) {
+		if (!e.held()) return e.lines();
+		List<String> l = new ArrayList<>(e.lines());
+		var when = java.time.Instant.ofEpochMilli(e.limitResetsAt()).atZone(java.time.ZoneId.systemDefault());
+		String at = java.time.format.DateTimeFormatter.ofPattern("h:mm a", java.util.Locale.ROOT).format(when).toLowerCase(java.util.Locale.ROOT);
+		// not today: which day ("tomorrow", else the weekday)
+		var today = java.time.LocalDate.now(when.getZone());
+		if (!when.toLocalDate().equals(today)) at += when.toLocalDate().equals(today.plusDays(1)) ? " tomorrow"
+			: " on " + when.getDayOfWeek().getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.ROOT);
+		l.add(InboxModel.HELD_LINE + " (resets at " + at + ")");
+		return l;
+	}
+
+	/** The list's groups: what is blocked on the player, the steward's ideas, what is being built, what ended in the last minutes. */
+	private static final String[] GROUPS = {"Needs you", "Ideas", "Building", "Ended"};
 
 	private static int group(InboxModel.Entry e) {
-		return e.waiting() ? 0 : e.ended() ? 2 : 1;
+		// an idea is the player's to take or leave, never blocked on them: its own group, as the HUD and the nameplate leave it out of "needs you"
+		return e.needsYou() ? 0 : e.ended() ? 3 : e.waiting() ? 1 : 2;
 	}
 
 	private int listHeight(List<InboxModel.Entry> all) {
@@ -249,7 +264,7 @@ public final class InboxScreen extends KitScreen {
 	private int detailHeight(InboxModel.Entry e, int w) {
 		int h = 14 + 10; // pill row, progress
 		h += TextUtil.wrapPlain(font, e.headline(), w).size() * 10 + 6;
-		for (String l : e.lines()) h += TextUtil.wrapPlain(font, l, w).size() * 10;
+		for (String l : shownLines(e)) h += TextUtil.wrapPlain(font, l, w).size() * 10;
 		h += Math.min(e.lots().size(), 8) * ROW_H + 8;
 		if (field != null) h += TextFieldView.BASE_H + 10 + (redirectLot != null ? 12 : 0);
 		return h;
@@ -268,19 +283,21 @@ public final class InboxScreen extends KitScreen {
 			// progress: buildings designed
 			int total = Math.max(1, e.lots().size());
 			String prog = e.done() + " of " + e.lots().size() + " designed";
-			Panels.progress(g, x, y + 1, w - font.width(prog) - 8, (double) e.done() / total, e.waiting() ? "clay" : "sage");
+			Panels.progress(g, x, y + 1, w - font.width(prog) - 8, (double) e.done() / total, e.needsYou() ? "clay" : "sage");
 			g.text(font, prog, x + w - font.width(prog), y, UiBits.muted(), false);
 			y += 12;
 		}
 		for (String l : TextUtil.wrapPlain(font, e.headline(), w)) {
-			g.text(font, l, x, y, e.waiting() ? UiStyle.CLAY_DARK : "FAILED".equals(e.decision()) ? UiBits.errorText() : UiBits.ink(), false);
+			// clay is for what is blocked on the player only: an idea's words, and a build's, are ink
+			g.text(font, l, x, y, e.needsYou() ? UiStyle.CLAY_DARK : "FAILED".equals(e.decision()) ? UiBits.errorText() : UiBits.ink(), false);
 			y += 10;
 		}
 		// the further lines: the buildings by stage, a usage limit it waits for
-		for (String line : e.lines()) {
+		for (String line : shownLines(e)) {
 			boolean held = line.startsWith(InboxModel.HELD_LINE);
 			for (String l : TextUtil.wrapPlain(font, line, w)) {
-				g.text(font, l, x, y, held ? UiStyle.CLAY_DARK : UiBits.muted(), false);
+				// the usage limit is a state, not a request: ink, set apart from the muted lines, never the clay of "needs you"
+				g.text(font, l, x, y, held ? UiBits.ink() : UiBits.muted(), false);
 				y += 10;
 			}
 		}

@@ -36,8 +36,9 @@ public final class ClientInbox {
 		return version;
 	}
 
+	/** How many entries are blocked on the player (never an idea): the HUD and the inbox's title count these, as the nameplate's "!" does. */
 	public static long waiting() {
-		return entries.stream().filter(InboxModel.Entry::waiting).count();
+		return entries.stream().filter(InboxModel.Entry::needsYou).count();
 	}
 
 	public static void clear() {

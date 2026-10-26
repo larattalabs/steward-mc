@@ -29,10 +29,17 @@ public final class InboxModel {
 	 * @param lines further lines, shown under the headline: the buildings by stage, a usage limit the build waits for
 	 */
 	public record Entry(String settlementId, String name, String decision, String headline, List<String> lines, List<Lot> lots, double budgetUsd, double spentUsd,
-		double minRaiseUsd) {
+		double minRaiseUsd, boolean needsYou, long limitResetsAt) {
 		public Entry {
 			lines = List.copyOf(lines);
 			lots = List.copyOf(lots);
+		}
+
+		/** An entry whose "needs you" is its decision's: a decision waiting for the player, never an idea. */
+		public Entry(String settlementId, String name, String decision, String headline, List<String> lines, List<Lot> lots, double budgetUsd, double spentUsd,
+			double minRaiseUsd) {
+			this(settlementId, name, decision, headline, lines, lots, budgetUsd, spentUsd, minRaiseUsd,
+				!Pipeline.Decision.NONE.name().equals(decision) && !ENDED.contains(decision) && !"PROPOSAL".equals(decision), 0);
 		}
 
 		/** Buildings done (designed, or placed once placing). */
@@ -54,9 +61,9 @@ public final class InboxModel {
 			return !Pipeline.Decision.NONE.name().equals(decision) && !ended();
 		}
 
-		/** Held by the player's usage limit: nothing moves until it resets. */
+		/** Held by the player's usage limit: nothing moves until it resets ({@code limitResetsAt}). */
 		public boolean held() {
-			return !ended() && lines.stream().anyMatch(l -> l.startsWith(HELD_LINE));
+			return !ended() && limitResetsAt > 0;
 		}
 	}
 
@@ -75,6 +82,11 @@ public final class InboxModel {
 	 * @param waitingLots every building of the build (the ones whose massing waits marked {@code waiting})
 	 */
 	public static Entry entry(String settlementId, String name, Pipeline.State s, List<Lot> waitingLots) {
+		return entry(settlementId, name, s, waitingLots, Attention.of(s, 0, null, false, "", 0));
+	}
+
+	/** As above, with the settlement's {@link Attention}: the entry needs the player exactly when the nameplate and the board say so. */
+	public static Entry entry(String settlementId, String name, Pipeline.State s, List<Lot> waitingLots, Attention attention) {
 		Pipeline.Decision d = Pipeline.awaiting(s);
 		String decision = s.phase().terminal() ? s.phase().name() : d.name();
 		String headline = switch (d) {
@@ -88,9 +100,9 @@ public final class InboxModel {
 		List<String> lines = new ArrayList<>();
 		var counts = Pipeline.stageCounts(s);
 		if (!counts.isEmpty()) lines.add("Buildings: " + counts.entrySet().stream().map(e -> e.getValue() + " " + e.getKey()).reduce((a, b) -> a + ", " + b).orElse(""));
-		// the spend is not a line: the inbox shows it beside the build's state, from spentUsd and budgetUsd
-		if (s.heldNote() != null && !s.phase().terminal()) lines.add(HELD_LINE + " (" + s.heldNote() + ")");
-		return new Entry(settlementId, name, decision, headline, lines, waitingLots, s.budgetUsd(), s.spentUsd(), Pipeline.minimumRaise(s));
+		// the spend is not a line: the inbox shows it beside the build's state, from spentUsd and budgetUsd; the usage limit's line is drawn from limitResetsAt
+		return new Entry(settlementId, name, decision, headline, lines, waitingLots, s.budgetUsd(), s.spentUsd(), Pipeline.minimumRaise(s), !s.phase().terminal() && attention.needsYou(),
+			s.phase().terminal() ? 0 : attention.limitResetsAt());
 	}
 
 	/** The steward's proposals for a settlement: one row per idea (its key, its title, why and about what it costs), each to build or to decline. */

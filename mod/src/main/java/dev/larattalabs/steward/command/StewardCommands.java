@@ -412,7 +412,7 @@ public final class StewardCommands {
 								java.util.List.of("Buildings: 2 done, 2 detail"), lots2, 30, 26.38, 40);
 							// a build held by the usage limit, one that ended a moment ago, and waiting parts as their one row
 							var a3 = new dev.larattalabs.steward.inbox.InboxModel.Entry(id + "_c", "Reed Hollow", "NONE", "Designing the buildings.",
-								java.util.List.of("Buildings: 1 done, 3 massing", "Waiting for your usage limit to reset (resets at 4pm)"), lots2, 25, 6.40, 15);
+								java.util.List.of("Buildings: 1 done, 3 massing"), lots2, 25, 6.40, 15, false, System.currentTimeMillis() + 3 * 3_600_000L);
 							var a4 = new dev.larattalabs.steward.inbox.InboxModel.Entry(id + "_d", "Copper Ford", "DONE", "Built: every building stands.", java.util.List.of("Buildings: 4 done"),
 								lots2.stream().map(l -> new dev.larattalabs.steward.inbox.InboxModel.Lot(l.id(), l.role(), "done", l.landmark(), false, l.detail())).toList(), 30, 21.75, 30);
 							var parts = new dev.larattalabs.steward.inbox.InboxModel.Lot(dev.larattalabs.steward.inbox.InboxModel.PARTS_KEY, "Waiting parts (3)", "proposal", false, true,

@@ -298,6 +298,18 @@ async function placeUpdateUndo(id) {
   };
   await sleep(2500);
   const plateShot = await look('e2e-steward-plate');
+  // the board while the update waits: it says what the plate's "!" says (J2: one attention for the inbox, the plate and the board)
+  {
+    const mine = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+    if (mine) {
+      const [px, py, pz] = mine.slice(1).map((n) => Math.floor(Number(n)));
+      await cmd(`/setblock ${px} ${py + 1} ${pz - 3} steward_mc:settlement_board[facing=south]`);
+      await cmd(`/tp @p ${px + 0.5} ${py} ${pz + 0.5} facing ${px + 0.5} ${py + 1.5} ${pz - 2.6}`);
+      await sleep(2500);
+      await dev.request('dev.screenshot', { name: 'e2e-board-waits', frames: 5 }, { timeoutMs: 120_000 });
+      await cmd(`/setblock ${px} ${py + 1} ${pz - 3} minecraft:air`);
+    }
+  }
   await dev.request('dev.key', { key: 'y' });
   await sleep(1500);
   // the offset first: a small update can finish within the key press
