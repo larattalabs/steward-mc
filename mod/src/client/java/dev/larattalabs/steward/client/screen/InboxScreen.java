@@ -213,11 +213,12 @@ public final class InboxScreen extends KitScreen {
 		return l;
 	}
 
-	/** The list's groups: what needs the player, what is being built, what ended in the last minutes. */
-	private static final String[] GROUPS = {"Needs you", "Building", "Ended"};
+	/** The list's groups: what is blocked on the player, the steward's ideas, what is being built, what ended in the last minutes. */
+	private static final String[] GROUPS = {"Needs you", "Ideas", "Building", "Ended"};
 
 	private static int group(InboxModel.Entry e) {
-		return e.waiting() ? 0 : e.ended() ? 2 : 1;
+		// an idea is the player's to take or leave, never blocked on them: its own group, as the HUD and the nameplate leave it out of "needs you"
+		return e.needsYou() ? 0 : e.ended() ? 3 : e.waiting() ? 1 : 2;
 	}
 
 	private int listHeight(List<InboxModel.Entry> all) {
