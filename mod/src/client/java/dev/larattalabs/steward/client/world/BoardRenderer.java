@@ -97,7 +97,8 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 		boolean loud;
 		if (a != null && a.kind() != dev.larattalabs.steward.inbox.Attention.Kind.IDLE) {
 			String line = Character.toUpperCase(a.line().charAt(0)) + a.line().substring(1);
-			status = a.needsYou() ? line + ": see the inbox (Y)" : line;
+			// the inbox's key, short enough to fit the slate's line
+			status = a.needsYou() ? line + " (Y)" : line;
 			loud = a.needsYou();
 		} else {
 			status = v.buildings().size() + (v.buildings().size() == 1 ? " building" : " buildings") + ", nothing waits";
