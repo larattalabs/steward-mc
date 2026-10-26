@@ -1943,6 +1943,76 @@ async function quarterFlow() {
 }
 
 /**
+ * (Architect 6d RV, Steward's RC) a revision of a town Steward built: refused with a raw block (nothing written), then a mound in a free corner planned
+ * and realised as revision 1. The town reads placed again with the revision standing and its sites tagged; Steward still takes the region as its town
+ * and isn't held busy; undoing the town with the revision standing takes the region away. Skipped on an Architect without revisions.
+ */
+async function revisionFlow() {
+  const probe = await dev.request('dev.rv.state', { region: 'none' }).catch((e) => ({ refused: String(e) }));
+  if (/unknown|not found|no such|method/i.test(probe?.refused ?? '') && !/region/i.test(probe?.refused ?? '')) return;
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 60000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Revised Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little town`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('revision', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  if (!(await buildThrough(id, from, 'revised town'))) return;
+  const town = ((settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '').replace(/^region:/, '');
+  if (!/^rg/.test(town)) return fail('revision', `the town is not a region: ${town}`);
+  const c = settlements().find((x) => x.id === id).claim;
+  const ops = (settlements().find((x) => x.id === id)?.log ?? []).length;
+  // a corner of the claim the village leaves free
+  const x = c.centerX + c.radius - 8, z = c.centerZ + c.radius - 8;
+  const mound = { id: 'mound', call: { fn: 'columns', cols: [x, z, 0, 1, 0, x + 1, z, 0, 2, 0, x + 2, z + 1, 0, 0, 0], from: { surface: 1 }, to: { surface: 1 }, materials: ['rock'], cond: 0 } };
+  const raw = await dev.request('dev.rv.plan', { region: town, spec: { parts: [{ ...mound, call: { ...mound.call, materials: ['minecraft:oak_planks'] } }] } }, { timeoutMs: 900_000 })
+    .catch((e) => ({ refused: String(e) }));
+  if (/NOT_ALLOWED/.test(JSON.stringify(raw))) ok('revision refused', `a raw block: ${JSON.stringify(raw).slice(0, 120)}`);
+  else fail('revision refused', JSON.stringify(raw).slice(0, 200));
+  const plan = await dev.request('dev.rv.plan', { region: town, spec: { parts: [mound] }, opKey: `steward.e2e.${id}.rv1` }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+  // the revision's number is Architect's to give (a refused plan may have taken one): read from its answer
+  const rid = plan?.revisionOf?.rid;
+  if (!plan?.planId || !(rid > 0)) return fail('revision planned', JSON.stringify(plan).slice(0, 400));
+  const r = await dev.request('dev.region.realise', { planId: plan.planId }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  let st = null;
+  for (let i = 0; i < 90; i++) {
+    await sleep(2000);
+    st = await dev.request('dev.rv.state', { region: town }).catch(() => null);
+    const rev = (st?.revisions ?? st?.list ?? []).find?.((v) => v.rid === rid);
+    if (rev && /PLACED|PARTIAL|FAILED/.test(rev.state)) break;
+  }
+  const view = await dev.request('dev.region.state', { region: town }).catch(() => null);
+  const rv = view?.view ?? view ?? {};
+  const rev1 = (rv.revisions ?? []).find((v) => v.rid === rid);
+  const tagged = (rev1?.sites ?? []).length;
+  const after = settlements().find((x2) => x2.id === id);
+  if (r?.region === town || r === town || rev1) {
+    if (rev1?.state === 'PLACED' && rv.state === 'PLACED' && tagged > 0 && (after?.log ?? []).length === ops) {
+      ok('revision realised', `${town} rev ${rid} ${rev1.state}, ${tagged} sites tagged; the town reads ${rv.state}; Steward's history unchanged (${ops} ops)`);
+    } else fail('revision realised', `rev ${JSON.stringify(rev1)?.slice(0, 160)}; town ${rv.state}; ops ${(after?.log ?? []).length} vs ${ops}`);
+  } else return fail('revision realised', JSON.stringify(r).slice(0, 200));
+  // undo the town with the revision standing: Steward's Regions.remove takes it all
+  await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
+  await cmd(`/steward undo ${id}`);
+  const gone = await regionUntil(town, ['REMOVED'], 300_000);
+  const gs = gone?.view?.state ?? gone?.state;
+  const last = settlements().find((x2) => x2.id === id)?.log.at(-1);
+  if ((gs === 'REMOVED' || gs === undefined) && last?.kind === 'PROJECT_REMOVED') ok('town undone with a revision', `${town} ${gs ?? 'gone'}: ${last.text}`);
+  else fail('town undone with a revision', `state ${gs}; last ${JSON.stringify(last)?.slice(0, 160)}`);
+}
+
+/**
  * Architect's plan check (P0; docs/COMPOSITION.md): recorded plans checked round the player on fresh flat land, answered part by part. A plain village
  * is ready, with an artifact; the walled town's hidden cellar is unsupported, naming form.hidden_room (its wall fits: K1). The ready one is realised from its artifact and taken up again.
  */
@@ -2261,6 +2331,7 @@ try {
       await copperLotsFlow();
       await discardFlow();
       await besideFlow();
+      await revisionFlow();
       await districtRegionFlow();
       await quarterFlow();
     }
