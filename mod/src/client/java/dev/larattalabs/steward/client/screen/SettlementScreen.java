@@ -43,7 +43,11 @@ public final class SettlementScreen extends KitScreen {
 	}
 
 	private void send(String action, String lot, String what, double amount) {
-		ClientPlayNetworking.send(new StewardNet.Decide(view.id(), action, lot, "", amount));
+		sendText(action, lot, "", what, amount);
+	}
+
+	private void sendText(String action, String lot, String text, String what, double amount) {
+		ClientPlayNetworking.send(new StewardNet.Decide(view.id(), action, lot, text, amount));
 		say(what + "...", false);
 	}
 
@@ -332,6 +336,14 @@ public final class SettlementScreen extends KitScreen {
 			}
 			bx += 6;
 			for (String size : new String[] {"S", "M"}) bx += chip(g, size, bx, fy, districtSize.equals(size), true, mx, my, () -> districtSize = size) + 3;
+			fy += CHIP_H + 4;
+		}
+		// quarters (Noah's Q2): offered in the inbox, built at once beside a town Architect laid out; the side that suits it is chosen for the player
+		if (fy + CHIP_H <= bottom) {
+			int bx = lx;
+			g.text(font, "Quarter", fx, fy + 3, UiBits.muted(), false);
+			bx += chip(g, "By the water", bx, fy, false, !view.busy(), mx, my, () -> sendText("district_quarter", "auto", "along shore", "Offering a quarter by the water", 0)) + 3;
+			chip(g, "Outpost", bx, fy, false, !view.busy(), mx, my, () -> sendText("district_quarter", "auto", "outpost", "Offering an outpost", 0));
 			fy += CHIP_H + 6;
 		}
 		// protected areas: ground the steward never builds on

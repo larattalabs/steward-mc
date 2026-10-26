@@ -229,6 +229,23 @@ public final class Talk {
 	 */
 	private static void proposeDistrict(MinecraftServer server, UUID player, Settlement s, String said, TalkAnswer a, long now) {
 		if (s.lands().districts().size() >= DistrictRules.DIRECTIONS.size()) { answer(server, player, s.id(), "There is a district every way already."); return; }
+		// a quarter asked for in words (along the shore, on the ridge, an outpost): offered as a quarter, built at once beside the town (Noah's Q2)
+		var q = quarterOf(said + " " + (a.district() == null ? "" : a.district()));
+		if (q != null && TownRegion.of(s).isPresent()) {
+			String way = a.way();
+			if (way != null) {
+				String no = Proposals.offerQuarter(server, player, s, way, q);
+				answer(server, player, s.id(), no != null ? no : "I'll lay out a quarter " + quarterWords(q) + " to the " + DistrictRules.directionName(way) + ": it waits in the inbox.");
+				return;
+			}
+			var site = dev.larattalabs.steward.model.DistrictSite.fromWords("shore".equals(q.boundary()) ? "by the water" : said);
+			Districts.choose(server, s, site, null, java.util.Set.of(), c -> {
+				String reply = c.way() == null ? "No side of " + s.name() + " has room for it." : java.util.Optional.ofNullable(Proposals.offerQuarter(server, player, s, c.way(), q))
+					.orElse("I'll lay out a quarter " + quarterWords(q) + " to the " + DistrictRules.directionName(c.way()) + ": it waits in the inbox.");
+				answer(server, player, s.id(), reply);
+			});
+			return;
+		}
 		String way = a.way();
 		if (way != null) {
 			var placed = DistrictRules.place(s.claim(), Districts.townStreet(server, s), s.lands().districts(), Settlements.others(s.id()), s.lands().protect(), way,
@@ -251,6 +268,26 @@ public final class Talk {
 			answer(server, player, s.id(), reply);
 			SettlementRunner.sendInbox(server, player);
 		});
+	}
+
+	private static final java.util.regex.Pattern OUTPOST = java.util.regex.Pattern.compile("\\b(outpost|camp apart|out by|apart from the town|a camp)\\b");
+	private static final java.util.regex.Pattern SHORE = java.util.regex.Pattern.compile("\\b(along|by|on) the (shore|coast|river|lake|sea|water|beach)\\b");
+	private static final java.util.regex.Pattern RIDGE = java.util.regex.Pattern.compile("\\b(on|along) the (ridge|crest|hilltop|hill top)\\b");
+	private static final java.util.regex.Pattern EDGE = java.util.regex.Pattern.compile("where the (\\w+) meets the (\\w+)");
+
+	/** The quarter a district ask describes in words, or null for an ordinary district (docs/DISTRICTS.md section 4, "Talk and proposals"). */
+	static dev.larattalabs.steward.model.Proposal.@org.jspecify.annotations.Nullable Quarter quarterOf(String words) {
+		String w = words.toLowerCase(java.util.Locale.ROOT);
+		if (OUTPOST.matcher(w).find()) return new dev.larattalabs.steward.model.Proposal.Quarter("outpost", null, List.of(), null);
+		var e = EDGE.matcher(w);
+		if (e.find()) return new dev.larattalabs.steward.model.Proposal.Quarter("along", "biome_edge", List.of(e.group(1), e.group(2)), null);
+		if (RIDGE.matcher(w).find()) return new dev.larattalabs.steward.model.Proposal.Quarter("along", "ridge", List.of(), null);
+		if (SHORE.matcher(w).find()) return new dev.larattalabs.steward.model.Proposal.Quarter("along", "shore", List.of(), null);
+		return null;
+	}
+
+	private static String quarterWords(dev.larattalabs.steward.model.Proposal.Quarter q) {
+		return "outpost".equals(q.kind()) ? "apart, as an outpost," : "along the " + q.boundary().replace('_', ' ');
 	}
 
 	/**
