@@ -1811,23 +1811,25 @@ async function revisionFlow() {
   if (/NOT_ALLOWED/.test(JSON.stringify(raw))) ok('revision refused', `a raw block: ${JSON.stringify(raw).slice(0, 120)}`);
   else fail('revision refused', JSON.stringify(raw).slice(0, 200));
   const plan = await dev.request('dev.rv.plan', { region: town, spec: { parts: [mound] }, opKey: `steward.e2e.${id}.rv1` }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
-  if (!plan?.planId || plan.revisionOf?.rid !== 1) return fail('revision planned', JSON.stringify(plan).slice(0, 200));
+  // the revision's number is Architect's to give (a refused plan may have taken one): read from its answer
+  const rid = plan?.revisionOf?.rid;
+  if (!plan?.planId || !(rid > 0)) return fail('revision planned', JSON.stringify(plan).slice(0, 400));
   const r = await dev.request('dev.region.realise', { planId: plan.planId }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
   let st = null;
   for (let i = 0; i < 90; i++) {
     await sleep(2000);
     st = await dev.request('dev.rv.state', { region: town }).catch(() => null);
-    const rev = (st?.revisions ?? st?.list ?? []).find?.((v) => v.rid === 1);
+    const rev = (st?.revisions ?? st?.list ?? []).find?.((v) => v.rid === rid);
     if (rev && /PLACED|PARTIAL|FAILED/.test(rev.state)) break;
   }
   const view = await dev.request('dev.region.state', { region: town }).catch(() => null);
   const rv = view?.view ?? view ?? {};
-  const rev1 = (rv.revisions ?? []).find((v) => v.rid === 1);
+  const rev1 = (rv.revisions ?? []).find((v) => v.rid === rid);
   const tagged = (rev1?.sites ?? []).length;
   const after = settlements().find((x2) => x2.id === id);
   if (r?.region === town || r === town || rev1) {
     if (rev1?.state === 'PLACED' && rv.state === 'PLACED' && tagged > 0 && (after?.log ?? []).length === ops) {
-      ok('revision realised', `${town} rev 1 ${rev1.state}, ${tagged} sites tagged; the town reads ${rv.state}; Steward's history unchanged (${ops} ops)`);
+      ok('revision realised', `${town} rev ${rid} ${rev1.state}, ${tagged} sites tagged; the town reads ${rv.state}; Steward's history unchanged (${ops} ops)`);
     } else fail('revision realised', `rev ${JSON.stringify(rev1)?.slice(0, 160)}; town ${rv.state}; ops ${(after?.log ?? []).length} vs ${ops}`);
   } else return fail('revision realised', JSON.stringify(r).slice(0, 200));
   // undo the town with the revision standing: Steward's Regions.remove takes it all
