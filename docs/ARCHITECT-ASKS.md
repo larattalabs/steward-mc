@@ -904,3 +904,10 @@ re-recorded: that is a paid run).
 Steward builds against the published v0.45.0 (API 1.42.0: bible parts, the helper features bible.check and bible.parts, the unified editor and Style
 browser, theming; lab_ui still ">=0.2.0 <0.4.0"; published jar sha256 e988b56e…) and still runs on 0.43.0. Stub 82 and free 43 pass. Steward's settlement
 bibles are Claude-made with their own parts, so the change for designs naming a built-in Style doesn't reach them.
+
+## lab-ui range for Architect's 0.3 move (2026-10-25)
+
+Architect's UI-0.3 slice moves it to lab_ui ">=0.3.0 <0.4.0". Steward's range is widened to ">=0.1.0 <0.4.0" (it still compiles against 0.1.0):
+every lab-ui class, method and field Steward's classes reference (68) is in 0.3.0 and 0.3.1 with the same descriptor, no Steward class extends a
+lab-ui type, and no lab-ui interface gained an abstract method. At runtime, on a jar built from Architect slice/UI03 (03da649f, nesting lab_ui-0.3.0),
+the client loaded lab_ui 0.3.0 and both e2e pass (free 43, stub 82).
