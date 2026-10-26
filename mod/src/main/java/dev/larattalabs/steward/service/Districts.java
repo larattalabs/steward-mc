@@ -381,6 +381,24 @@ public final class Districts {
 			takeUpAll(server, s.get(), orphans, say, () -> LAYING.remove(settlementId));
 			return;
 		}
+		// a district region Architect placed after its build let go (an answer lost, and its realise slower than the build's wait): no district names it,
+		// so it is taken up as the orphan it is (the world-start sweep does the same for one left across a restart)
+		try {
+			for (var v : ArchitectApi.get().regions().list(s.get().owner())) {
+				if (v.state() == dev.larattalabs.architect.api.RegionState.REMOVED || v.state() == dev.larattalabs.architect.api.RegionState.REMOVING) continue;
+				if (!v.ext().has(DISTRICT_EXT) || !v.ext().get(DISTRICT_EXT).isJsonPrimitive()) continue;
+				if (s.get().lands().districts().stream().anyMatch(d -> v.id().equals(d.region()))) continue;
+				var owner = s.get().lands().district(v.ext().get(DISTRICT_EXT).getAsString());
+				// still building: its runner (or the next pass) adopts it
+				if (owner.isPresent() && Settlement.District.BUILDING.equals(owner.get().state())) continue;
+				if (VillageSweep.entryOf(s.get(), v.id()).isPresent()) continue;
+				Steward.LOGGER.warn("{}: region {} was placed for district {} after its build let go: taking it up", settlementId, v.id(), v.ext().get(DISTRICT_EXT).getAsString());
+				VillageSweep.takeUp(server, s.get(), v.id(), say);
+				return;
+			}
+		} catch (RuntimeException | LinkageError e) {
+			// can't tell this time: the next pass looks again
+		}
 		for (Settlement.District d : s.get().lands().districts()) {
 			// a district left building by a build that is gone (a stop before it ended), with no region of its own Architect still holds: put back
 			if (Settlement.District.BUILDING.equals(d.state()) && d.region() == null) {
