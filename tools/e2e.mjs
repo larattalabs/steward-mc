@@ -1466,7 +1466,8 @@ async function suppliedPlanFlow() {
           const rl = await dev.request('dev.region.list').catch(() => null);
           const building = (rl?.regions ?? []).find((v) => v.owner === owner && v.state === 'PLACING');
           if (building) {
-            inFlight = await besideAsk(id, building.id);
+            // asked without holding the feeder up: a dry beside check under load can take minutes, and the build starves while nothing is fed
+            inFlight = besideAsk(id, building.id);
             // back off the lots: a player in a box holds its target up
             await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
           }
@@ -1535,8 +1536,9 @@ async function suppliedPlanFlow() {
     if (doneSaid) ok('supplied plan built', `${units(sp?.delivered)} delivered, ${units(sp?.consumed)} consumed`);
     else return fail('supplied plan built', `not done in 10 min; still needed ${units(sp?.need)}`);
     // (Architect D3) the district beside it: refused while the town was in flight; once the town is built from materials, the check fits
-    if (inFlight && !inFlight.fits && /OVERLAP_BUSY/.test(`${inFlight.reason} ${inFlight.code} ${inFlight.message} ${inFlight.refused}`)) ok('beside a town in flight', String(inFlight.message ?? inFlight.refused).slice(0, 140));
-    else fail('beside a town in flight', inFlight ? JSON.stringify(inFlight).slice(0, 240) : 'the town was never seen placing');
+    const flight = inFlight ? await inFlight : null;
+    if (flight && !flight.fits && /OVERLAP_BUSY/.test(`${flight.reason} ${flight.code} ${flight.message} ${flight.refused}`)) ok('beside a town in flight', String(flight.message ?? flight.refused).slice(0, 140));
+    else fail('beside a town in flight', flight ? JSON.stringify(flight).slice(0, 240) : 'the town was never seen placing');
     // undone: every consumed unit back in the stockpile (or dropped and counted as overflow)
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
     const before = sp;
