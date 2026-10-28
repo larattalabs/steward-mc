@@ -1745,6 +1745,12 @@ async function survivalGrowth(id, owner, region, claim, ledger) {
       { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
     if (p?.planId || !/NO_ROOM/.test(String(p?.refused ?? ''))) break;
   }
+  // the survival town here is walled: its street ends can't extend through the wall until Architect GJ (v0.49.0), and its frontage is full. Accepted with
+  // Architect for the GR RC (docs/ARCHITECT-ASKS.md, 6d GR RC); reported as a skip, not a pass, until GJ lands
+  if (!p?.planId && /NO_ROOM[^"]*\[street\][^"]*extendable/.test(String(p?.refused ?? ''))) {
+    console.log(`skip ${label} (${region} is walled: its street can't extend until Architect GJ; ${String(p.refused).slice(0, 160)})`);
+    return;
+  }
   if (!p?.planId) return fail(label, `the growth of ${region} (${program}) by a ${lot.size.join(' x ')} lot not planned: ${JSON.stringify(p).slice(0, 260)}`);
   const position = p.revisionOf?.position ?? 1;
   const r = await dev.request('dev.region.realise', { planId: p.planId, opKey: `steward.${b}.vrealise`, ext, ...(entry ? { lots: { [lot.id]: entry } } : {}) },
