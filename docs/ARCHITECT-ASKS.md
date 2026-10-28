@@ -966,3 +966,14 @@ The revision checks: a raw block refused `NOT_ALLOWED [theme]`; a mound realised
 unchanged); `undoRevision` alone takes rev 1 to UNDONE and leaves the town PLACED and not busy; Steward's undo of the town with a revision standing
 removes the region; on a real beside district, a revision grows `land.outside` 572 -> 575 and its undo shrinks it back to 572.
 Not covered here, left for GR's RC: a survival revision, and the joined / survival_building undo refusals.
+
+## GM gate mechanisms draft (2026-10-27)
+
+Architect's draft on `docs/gm-contract` (dbb131f1), CONTRACT.md "Slice GM, gate mechanisms (draft)". Steward's answers, agreed with the coordinator:
+- **The mechanism envelope** (pistons and circuit round a gatehouse's passage) is merged by Architect into the lot's existing reserved entry in the
+  artifact, so Steward's `PPlan.reserved` → `withReserved` path forwards it unchanged. Its cells are hard "never write" for the design, as the existing set;
+  only Architect's region writes the mechanism blocks.
+- **No "add a portcullis to a standing gate" offer in v1**: mechanisms come with a new gatehouse design. Kept as a reserved follow-up through Steward's
+  change-request path (versionOf / revision), not ruled out.
+- **`connector.drawbridge`** becomes supported in GM-c (a flipping iron-trapdoor deck over the moat). Closed gates are player-only, a villager route through
+  one answers `MOVER`, and the rest state is open by default. Steward un-reserves its drawbridge in GM's RC.
