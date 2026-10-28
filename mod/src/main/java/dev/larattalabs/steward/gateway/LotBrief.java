@@ -36,9 +36,10 @@ public final class LotBrief {
 		ConceptCard c = s.card();
 		String type = ARCHITECT_TYPES.contains(lot.type()) || ConceptCard.TYPE_SLUG.matcher(lot.type()).matches() ? lot.type() : "custom";
 		// width along the street and depth back from it, whichever way the lot faces (the design faces south; it is turned to the street)
-		int sx = clamp(lot.along(), MIN_XZ, MAX_XZ);
-		int sz = clamp(lot.deep() - APPROACH_MARGIN, MIN_XZ, MAX_XZ);
-		BlockSize size = new BlockSize(sx, clamp(maxHeight, MIN_Y, MAX_Y), sz);
+		// a lot on a wall's line (Architect K3) is designed to its box exactly: no approach (its passage ports and inner doors are the way in), no smallest
+		// size (a box under it is legitimate), its height the box's; a design past the box is refused, one short of it leaves the wall open
+		BlockSize size = lot.exact() ? new BlockSize(lot.along(), Math.max(1, maxHeight), lot.deep())
+			: new BlockSize(clamp(lot.along(), MIN_XZ, MAX_XZ), clamp(maxHeight, MIN_Y, MAX_Y), clamp(lot.deep() - APPROACH_MARGIN, MIN_XZ, MAX_XZ));
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
 		ext.addProperty("steward_mc:lot", lot.id());

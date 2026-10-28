@@ -99,7 +99,7 @@ public final class GroupPlanner {
 			boolean landmark = landmarkIds.contains(l.id());
 			// no taller than its lot allows (an approved plan's lot box: Architect refuses a design past it)
 			int height = landmark ? LANDMARK_HEIGHT : ORDINARY_HEIGHT;
-			if (l.maxHeight() > 0) height = Math.min(height, l.maxHeight());
+			if (l.maxHeight() > 0) height = l.exact() ? l.maxHeight() : Math.min(height, l.maxHeight());
 			DesignRequest r = LotBrief.build(s, l, height, null, null);
 			// an irrigated field's sources, their farmland sides and the air over them: the design leaves them as given
 			if (reserved.containsKey(l.id())) r = r.withReserved(reserved.get(l.id()));

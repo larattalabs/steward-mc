@@ -147,33 +147,57 @@ public final class PPlan {
 		return lot.get("id").getAsString().replace('_', ' ');
 	}
 
+	/** The brief line of a lot on a wall's line (Architect K3): its outer faces close the wall, so its doors face in. */
+	static final String WALL_BRIEF = "Keep the faces outside the wall closed at ground level (doors face in).";
+
+	/** A lot's {@code onWall} (Architect K3: it stands on a wall's line), or null. */
+	static @Nullable JsonObject onWall(JsonObject artifactLot) {
+		return artifactLot.has("onWall") && artifactLot.get("onWall").isJsonObject() ? artifactLot.getAsJsonObject("onWall") : null;
+	}
+
 	/**
-	 * Each irrigated lot's reserved cells (Architect IRR, S-IRR-2), as its design request carries them: the artifact's {@code lots[].irrigation}
-	 * ({@code frame: [width, depth]}, {@code lotCells}: runs {@code [u, v, y0, y1]} in the lot's frame, its front to the south) and the lot's front.
-	 * Lots without irrigation are left out.
+	 * Each lot's reserved cells, as its design request carries them: an irrigated lot's (Architect IRR, S-IRR-2: {@code lots[].irrigation}, {@code frame:
+	 * [width, depth]}) and a gatehouse's passage (Architect K3: {@code lots[].onWall.passage.lotCells}, in {@code onWall.frame}), merged into one set when a
+	 * lot has both. {@code lotCells} are runs {@code [u, v, y0, y1]} in the lot's frame, its front to the south. Lots with neither are left out.
 	 */
 	public static Map<String, dev.larattalabs.architect.api.DesignRequest.Reserved> reserved(JsonArray artifactLots) {
 		Map<String, dev.larattalabs.architect.api.DesignRequest.Reserved> out = new java.util.LinkedHashMap<>();
 		for (JsonElement e : artifactLots) {
-			if (!e.isJsonObject() || !e.getAsJsonObject().has("irrigation") || !e.getAsJsonObject().get("irrigation").isJsonObject()) continue;
-			JsonObject a = e.getAsJsonObject(), irr = a.getAsJsonObject("irrigation");
-			if (!irr.has("frame") || !irr.get("frame").isJsonArray() || !irr.has("lotCells") || !irr.get("lotCells").isJsonArray()) continue;
-			List<Integer> runs = new ArrayList<>();
-			for (JsonElement r : irr.getAsJsonArray("lotCells")) {
-				if (r.isJsonArray()) for (JsonElement v : r.getAsJsonArray()) runs.add(v.getAsInt());
-				else runs.add(r.getAsInt());
+			if (!e.isJsonObject()) continue;
+			JsonObject a = e.getAsJsonObject();
+			JsonObject irr = a.has("irrigation") && a.get("irrigation").isJsonObject() ? a.getAsJsonObject("irrigation") : null;
+			JsonObject wall = onWall(a);
+			JsonObject passage = wall != null && wall.has("passage") && wall.get("passage").isJsonObject() ? wall.getAsJsonObject("passage") : null;
+			JsonArray frame = null;
+			java.util.LinkedHashSet<net.minecraft.core.BlockPos> cells = new java.util.LinkedHashSet<>();
+			if (irr != null && irr.has("frame") && irr.get("frame").isJsonArray() && irr.has("lotCells") && irr.get("lotCells").isJsonArray()) {
+				frame = irr.getAsJsonArray("frame");
+				addCells(irr.getAsJsonArray("lotCells"), cells);
 			}
-			List<net.minecraft.core.BlockPos> cells = new ArrayList<>();
-			for (int i = 0; i + 3 < runs.size() && cells.size() < dev.larattalabs.architect.api.DesignRequest.MAX_RESERVED; i += 4) {
-				for (int y = runs.get(i + 2); y <= runs.get(i + 3) && cells.size() < dev.larattalabs.architect.api.DesignRequest.MAX_RESERVED; y++) {
-					cells.add(new net.minecraft.core.BlockPos(runs.get(i), y, runs.get(i + 1)));
-				}
+			if (passage != null && wall.has("frame") && wall.get("frame").isJsonArray() && passage.has("lotCells") && passage.get("lotCells").isJsonArray()) {
+				frame = wall.getAsJsonArray("frame");
+				addCells(passage.getAsJsonArray("lotCells"), cells);
 			}
+			if (frame == null) continue;
 			String front = a.has("front") && a.get("front").isJsonPrimitive() ? a.get("front").getAsString().toLowerCase(java.util.Locale.ROOT) : "south";
-			out.put(a.get("id").getAsString(), new dev.larattalabs.architect.api.DesignRequest.Reserved(front, irr.getAsJsonArray("frame").get(0).getAsInt(),
-				irr.getAsJsonArray("frame").get(1).getAsInt(), cells));
+			out.put(a.get("id").getAsString(), new dev.larattalabs.architect.api.DesignRequest.Reserved(front, frame.get(0).getAsInt(), frame.get(1).getAsInt(),
+				new ArrayList<>(cells)));
 		}
 		return out;
+	}
+
+	/** Runs {@code [u, v, y0, y1]} (nested or flat) as cells, at most {@code DesignRequest.MAX_RESERVED} in all. */
+	private static void addCells(JsonArray lotCells, java.util.Set<net.minecraft.core.BlockPos> into) {
+		List<Integer> runs = new ArrayList<>();
+		for (JsonElement r : lotCells) {
+			if (r.isJsonArray()) for (JsonElement v : r.getAsJsonArray()) runs.add(v.getAsInt());
+			else runs.add(r.getAsInt());
+		}
+		for (int i = 0; i + 3 < runs.size() && into.size() < dev.larattalabs.architect.api.DesignRequest.MAX_RESERVED; i += 4) {
+			for (int y = runs.get(i + 2); y <= runs.get(i + 3) && into.size() < dev.larattalabs.architect.api.DesignRequest.MAX_RESERVED; y++) {
+				into.add(new net.minecraft.core.BlockPos(runs.get(i), y, runs.get(i + 1)));
+			}
+		}
 	}
 
 	/** Whether any of the artifact's lots faces east or west (Steward's designs and growth know an east-west street only, as {@link VPlan#northSouth}). */
@@ -218,8 +242,18 @@ public final class PPlan {
 			// a design no taller than the lot's approved box (its fit box, which Architect checks at the realise)
 			JsonArray fit = a.has("fitBox") && a.get("fitBox").isJsonArray() && a.getAsJsonArray("fitBox").size() == 6 ? a.getAsJsonArray("fitBox") : b;
 			int maxHeight = fit.get(4).getAsInt() - fit.get(1).getAsInt() + 1;
-			out.add(new VillageLayout.Lot(id, type, bx0, bz0, bx1 - bx0 + 1, bz1 - bz0 + 1, front, by0, role(p), p.has("brief") ? str(p, "brief", null) : null,
-				p.has("landmark") && p.get("landmark").isJsonPrimitive() && p.get("landmark").getAsBoolean(), p.has("placement") ? str(p, "placement", null) : null, maxHeight));
+			String brief = p.has("brief") ? str(p, "brief", null) : null;
+			JsonObject wall = onWall(a);
+			boolean exact = wall != null;
+			if (exact) {
+				// (Architect K3) a lot on a wall's line: a tower, or a gatehouse round its passage, filling its fit box exactly, closed outside
+				type = wall.has("passage") && wall.get("passage").isJsonObject() ? "gatehouse" : "tower";
+				bx0 = fit.get(0).getAsInt(); bz0 = fit.get(2).getAsInt(); bx1 = fit.get(3).getAsInt(); bz1 = fit.get(5).getAsInt();
+				brief = (brief == null || brief.isBlank() ? "" : (brief.endsWith(".") ? brief : brief + ".") + " ") + WALL_BRIEF;
+			}
+			out.add(new VillageLayout.Lot(id, type, bx0, bz0, bx1 - bx0 + 1, bz1 - bz0 + 1, front, by0, role(p), brief,
+				p.has("landmark") && p.get("landmark").isJsonPrimitive() && p.get("landmark").getAsBoolean(), p.has("placement") ? str(p, "placement", null) : null, maxHeight,
+				exact));
 			JsonArray en = a.has("entrance") && a.get("entrance").isJsonArray() && a.getAsJsonArray("entrance").size() == 3 ? a.getAsJsonArray("entrance") : null;
 			zs.add(en != null ? en.get(2).getAsInt() : front == VillageLayout.Front.SOUTH ? bz1 + 1 : front == VillageLayout.Front.NORTH ? bz0 - 1 : (bz0 + bz1) / 2);
 			ys.add(en != null ? en.get(1).getAsInt() : by0);

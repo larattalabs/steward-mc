@@ -39,6 +39,20 @@ class LotBriefTest {
 	}
 
 	@Test
+	void aLotOnAWallIsDesignedToItsBoxAsItIs() throws Exception {
+		Settlement s = settlement("crater_works");
+		// (Architect K3) a gatehouse 5 wide, 3 deep, 9 high: no approach taken off, no smallest size, the box's height
+		Lot wall = new Lot("gate_1", "gatehouse", 0, 0, 5, 3, Front.SOUTH, 70, "gatehouse", null, false, null, 9, true);
+		DesignRequest r = LotBrief.build(s, wall, 9, null, null);
+		assertEquals(5, r.maxSize().x());
+		assertEquals(3, r.maxSize().z());
+		assertEquals(9, r.maxSize().y());
+		// the same box off the wall: the smallest design
+		DesignRequest plain = LotBrief.build(s, new Lot("lot_1", "house", 0, 0, 5, 3, Front.SOUTH, 70, "house", null, false, null, 9), 9, null, null);
+		assertEquals(LotBrief.MIN_XZ, plain.maxSize().z());
+	}
+
+	@Test
 	void openTypesPassThroughAndSizesAreClampedToArchitectsCap() throws Exception {
 		Settlement s = settlement("stilt_village");
 		DesignRequest r = LotBrief.build(s, new Lot("lot_9", "ore_hall", 0, 0, 120, 5, Front.NORTH, 70), 200, null, null);

@@ -150,4 +150,34 @@ class PPlanTest {
 		assertEquals(20, f.depth());
 		assertEquals(java.util.List.of(new net.minecraft.core.BlockPos(4, 0, 5), new net.minecraft.core.BlockPos(4, 1, 5), new net.minecraft.core.BlockPos(9, 0, 5)), f.cells());
 	}
+
+	@Test
+	void aLotOnAWallIsATowerOrGatehouseFillingItsFitBoxWithItsPassageReserved() throws Exception {
+		JsonObject built = PPlan.forBuild(walledTown(), Set.of("town_wall"), "set_7", "b1");
+		String id = PPlan.lots(built).get(0).get("id").getAsString();
+		JsonArray art = new JsonArray();
+		// (Architect K3) a gatehouse on the wall: its box past its fit box, a 5 x 3 frame under 7, its passage's cells in its frame
+		JsonObject a = lot(id, new int[] {10, 64, 20, 18, 80, 26}, "south", null);
+		JsonArray fit = new JsonArray();
+		for (int v : new int[] {10, 64, 20, 14, 72, 22}) fit.add(v);
+		a.add("fitBox", fit);
+		a.add("onWall", JsonParser.parseString("{\"wall\":\"town_wall\",\"at\":\"gate\",\"frame\":[5,3],"
+			+ "\"passage\":{\"width\":1,\"height\":3,\"lotCells\":[2,0,0,2,2,1,0,2,2,2,0,2]}}"));
+		art.add(a);
+		var l = PPlan.toPlan(art, built).lots().get(0);
+		assertTrue(l.exact());
+		assertEquals("gatehouse", l.type());
+		assertEquals(5, l.sizeX(), "the fit box's footprint, not the box's");
+		assertEquals(3, l.sizeZ());
+		assertEquals(9, l.maxHeight());
+		assertTrue(l.notes().endsWith(PPlan.WALL_BRIEF));
+		var r = PPlan.reserved(art).get(id);
+		assertEquals(5, r.width());
+		assertEquals(3, r.depth());
+		assertEquals(9, r.cells().size(), "three columns of the passage, three high");
+		// a lot off the wall is not exact
+		JsonArray plain = new JsonArray();
+		plain.add(lot(id, new int[] {10, 64, 20, 14, 72, 22}, "south", null));
+		assertFalse(PPlan.toPlan(plain, built).lots().get(0).exact());
+	}
 }
