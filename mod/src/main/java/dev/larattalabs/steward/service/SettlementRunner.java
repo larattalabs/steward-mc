@@ -396,6 +396,15 @@ public final class SettlementRunner {
 	}
 
 	/** An approved plan's irrigated lots' reserved cells (Architect IRR), from its artifact; none for any other build. */
+	/** The approved artifact's wall lots' {@code architect:wallLot} exts (Architect K3), for their design requests; none without an artifact. */
+	private Map<String, JsonObject> wallLotExts() {
+		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
+		if (sha == null) return Map.of();
+		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		if (body == null || !body.has("lots") || !body.get("lots").isJsonArray()) return Map.of();
+		return dev.larattalabs.steward.gateway.PPlan.wallLots(body.getAsJsonArray("lots"));
+	}
+
 	private Map<String, dev.larattalabs.architect.api.DesignRequest.Reserved> reservedCells() {
 		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
 		if (sha == null) return Map.of();
@@ -1604,7 +1613,7 @@ public final class SettlementRunner {
 			}
 			case Pipeline.RequestGroup g -> {
 				GroupPlanner.Options o = new GroupPlanner.Options(g.bibleId(), g.bibleVersion(), g.budgetUsd(), 3, 3, landmarks);
-				GroupPlanner.Built built = GroupPlanner.build(settlement, plan, o, reservedCells());
+				GroupPlanner.Built built = GroupPlanner.build(settlement, plan, o, reservedCells(), wallLotExts());
 				landmarkIds = built.request().items().stream().filter(i -> i.role() == GroupRequest.Role.LANDMARK).map(GroupRequest.Item::itemKey).collect(Collectors.toSet());
 				say("Designing " + built.request().items().size() + " buildings (massings first)...");
 				groupInFlight = true;
@@ -1998,6 +2007,8 @@ public final class SettlementRunner {
 			req = dev.larattalabs.steward.gateway.LotBrief.build(settlement, withWhy, lot.maxHeight(), null, WALL_REPAIR_USD);
 			var reserved = reservedCells().get(lotId);
 			if (reserved != null) req = req.withReserved(reserved);
+			var wallExt = wallLotExts().get(lotId);
+			if (wallExt != null) req.ext().add(dev.larattalabs.steward.gateway.PPlan.WALL_LOT_EXT, wallExt);
 			if (state.bibleId() != null) req = req.withBible(state.bibleId(), state.bibleVersion());
 			req = req.versionOf(entry, null);
 		} catch (RuntimeException x) {

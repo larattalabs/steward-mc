@@ -180,4 +180,18 @@ class PPlanTest {
 		plain.add(lot(id, new int[] {10, 64, 20, 14, 72, 22}, "south", null));
 		assertFalse(PPlan.toPlan(plain, built).lots().get(0).exact());
 	}
+
+	@Test
+	void aWallLotsOuterFacesGoToItsDesignerInWordsAndInItsExt() {
+		// a corner tower 5 x 5: its whole back outside, and the middle of its front (the corner's mirror)
+		var lots = JsonParser.parseString("[{\"id\":\"tower_1\",\"front\":\"south\",\"onWall\":{\"wall\":\"w\",\"at\":\"corner\",\"frame\":[5,5],"
+			+ "\"outerFaces\":{\"cells\":[],\"lotCells\":[0,0,0,2,1,0,0,2,2,0,0,2,3,0,0,2,4,0,0,2,2,4,0,2]}}},{\"id\":\"cottage_1\",\"front\":\"south\"}]").getAsJsonArray();
+		var words = PPlan.outerFacesWords(lots.get(0).getAsJsonObject().getAsJsonObject("onWall"));
+		assertEquals("Outside the wall: the back, the front from 3 to 3 of 5 (counted from the west), the west side from 1 to 1 of 5 (counted from the back) and "
+			+ "the east side from 1 to 1 of 5 (counted from the back). Put its doors elsewhere.", words);
+		var ext = PPlan.wallLots(lots);
+		assertEquals(java.util.Set.of("tower_1"), ext.keySet());
+		assertEquals(lots.get(0).getAsJsonObject().getAsJsonObject("onWall").getAsJsonObject("outerFaces").get("lotCells"), ext.get("tower_1").get("outerFaces"),
+			"the artifact's lotCells as they are");
+	}
 }

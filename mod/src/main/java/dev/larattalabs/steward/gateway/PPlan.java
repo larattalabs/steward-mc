@@ -150,6 +150,60 @@ public final class PPlan {
 	/** The brief line of a lot on a wall's line (Architect K3): its outer faces close the wall, so its doors face in. */
 	static final String WALL_BRIEF = "Keep the faces outside the wall closed at ground level (doors face in).";
 
+	/** The design request's ext key that tells Architect's designer a wall lot's outer faces (Architect K3). */
+	public static final String WALL_LOT_EXT = "architect:wallLot";
+
+	/**
+	 * Each wall lot's {@link #WALL_LOT_EXT} ext (Architect K3): {@code {outerFaces: <onWall.outerFaces.lotCells>}}, passed as the artifact has it, so its design
+	 * puts its doors off them (no one door cell is inner on every corner tower). Lots off the wall, or without outer faces, are left out.
+	 */
+	public static Map<String, JsonObject> wallLots(JsonArray artifactLots) {
+		Map<String, JsonObject> out = new java.util.LinkedHashMap<>();
+		for (JsonElement e : artifactLots) {
+			if (!e.isJsonObject()) continue;
+			JsonObject wall = onWall(e.getAsJsonObject());
+			JsonObject faces = wall != null && wall.has("outerFaces") && wall.get("outerFaces").isJsonObject() ? wall.getAsJsonObject("outerFaces") : null;
+			if (faces == null || !faces.has("lotCells")) continue;
+			JsonObject ext = new JsonObject();
+			ext.add("outerFaces", faces.get("lotCells").deepCopy());
+			out.put(e.getAsJsonObject().get("id").getAsString(), ext);
+		}
+		return out;
+	}
+
+	/**
+	 * Which of a wall lot's faces lie outside the wall, in words for its designer (Architect K3: {@code onWall.outerFaces.lotCells} in {@code onWall.frame},
+	 * front to the south, {@code u} west to east, {@code v} back to front): "Outside the wall: the back, and the front from 4 to 6 of 9 (counted from the
+	 * west). Put its doors elsewhere." Null when it can't tell.
+	 */
+	static @Nullable String outerFacesWords(JsonObject wall) {
+		if (!wall.has("frame") || !wall.get("frame").isJsonArray() || wall.getAsJsonArray("frame").size() < 2) return null;
+		if (!wall.has("outerFaces") || !wall.get("outerFaces").isJsonObject() || !wall.getAsJsonObject("outerFaces").has("lotCells")) return null;
+		int w = wall.getAsJsonArray("frame").get(0).getAsInt(), d = wall.getAsJsonArray("frame").get(1).getAsInt();
+		java.util.Set<net.minecraft.core.BlockPos> cells = new java.util.HashSet<>();
+		var lc = wall.getAsJsonObject("outerFaces").get("lotCells");
+		if (!lc.isJsonArray()) return null;
+		addCells(lc.getAsJsonArray(), cells);
+		List<String> parts = new ArrayList<>();
+		// each face: the cells on its edge, along it (front and back counted from the west, the sides from the back)
+		String[] names = {"the back", "the front", "the west side", "the east side"};
+		int[] lengths = {w, w, d, d};
+		for (int f = 0; f < 4; f++) {
+			java.util.TreeSet<Integer> at = new java.util.TreeSet<>();
+			for (var c : cells) {
+				int u = c.getX(), v = c.getZ();
+				if (f == 0 && v == 0 || f == 1 && v == d - 1) at.add(u);
+				if (f == 2 && u == 0 || f == 3 && u == w - 1) at.add(v);
+			}
+			if (at.isEmpty()) continue;
+			if (at.size() >= lengths[f]) parts.add(names[f]);
+			else parts.add(names[f] + " from " + (at.first() + 1) + " to " + (at.last() + 1) + " of " + lengths[f] + (f < 2 ? " (counted from the west)" : " (counted from the back)"));
+		}
+		if (parts.isEmpty()) return null;
+		String list = parts.size() == 1 ? parts.get(0) : String.join(", ", parts.subList(0, parts.size() - 1)) + " and " + parts.get(parts.size() - 1);
+		return "Outside the wall: " + list + ". Put its doors elsewhere.";
+	}
+
 	/** A lot's {@code onWall} (Architect K3: it stands on a wall's line), or null. */
 	static @Nullable JsonObject onWall(JsonObject artifactLot) {
 		return artifactLot.has("onWall") && artifactLot.get("onWall").isJsonObject() ? artifactLot.getAsJsonObject("onWall") : null;
@@ -249,7 +303,8 @@ public final class PPlan {
 				// (Architect K3) a lot on a wall's line: a tower, or a gatehouse round its passage, filling its fit box exactly, closed outside
 				type = wall.has("passage") && wall.get("passage").isJsonObject() ? "gatehouse" : "tower";
 				bx0 = fit.get(0).getAsInt(); bz0 = fit.get(2).getAsInt(); bx1 = fit.get(3).getAsInt(); bz1 = fit.get(5).getAsInt();
-				brief = (brief == null || brief.isBlank() ? "" : (brief.endsWith(".") ? brief : brief + ".") + " ") + WALL_BRIEF;
+				String faces = outerFacesWords(wall);
+				brief = (brief == null || brief.isBlank() ? "" : (brief.endsWith(".") ? brief : brief + ".") + " ") + WALL_BRIEF + (faces == null ? "" : " " + faces);
 			}
 			out.add(new VillageLayout.Lot(id, type, bx0, bz0, bx1 - bx0 + 1, bz1 - bz0 + 1, front, by0, role(p), brief,
 				p.has("landmark") && p.get("landmark").isJsonPrimitive() && p.get("landmark").getAsBoolean(), p.has("placement") ? str(p, "placement", null) : null, maxHeight,
