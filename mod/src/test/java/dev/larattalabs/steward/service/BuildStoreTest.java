@@ -62,6 +62,23 @@ class BuildStoreTest {
 	}
 
 	@Test
+	void aDistrictBuildKeepsItsCardsLotsAsAskedOfArchitect(@TempDir Path dir) throws Exception {
+		BuildStore.Saved b0 = saved();
+		// a lot 11 wide and 9 deep, which Architect may lay facing east (x span 9, z span 11): saved as asked, never read back from where it lies
+		var specs = List.of(new VillageLayout.LotSpec("smithy_1", "smithy", 11, 9, "smithy", null, false, null));
+		var b = new BuildStore.Saved(b0.settlementId(), b0.buildId(), b0.playerId(), b0.dimension(), b0.permission(), b0.landmarks(), b0.settlement(), b0.state(), b0.plan(),
+			b0.bibleJobId(), b0.groupId(), b0.batchId(), b0.siteGroupId(), b0.landmarkIds(), b0.decided(), b0.lastAwaiting(), true, "district_e", false, true, "plan_1", null,
+			specs);
+		BuildStore st = new BuildStore();
+		st.put(b);
+		Path f = dir.resolve("b.json");
+		st.save(f);
+		assertEquals(specs, BuildStore.load(f).all().get(0).districtSpecs());
+		// a build saved before (no districtSpecs) reads with none
+		assertNull(saved().districtSpecs());
+	}
+
+	@Test
 	void aFinishedBuildIsDroppedAndAMissingFileIsEmpty(@TempDir Path dir) throws Exception {
 		BuildStore st = new BuildStore();
 		st.put(saved());

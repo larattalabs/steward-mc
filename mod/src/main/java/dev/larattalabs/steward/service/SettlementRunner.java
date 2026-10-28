@@ -364,6 +364,7 @@ public final class SettlementRunner {
 		this.keyed = b.usesKeys();
 		this.vPlanId = b.vPlan();
 		this.vRegionId = b.vRegion();
+		this.districtSpecs = b.districtSpecs() == null ? null : List.copyOf(b.districtSpecs());
 	}
 
 	private ServerLevel level() {
@@ -379,7 +380,7 @@ public final class SettlementRunner {
 		boolean ended = state.phase().terminal();
 		if (ended) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId));
+			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -2178,7 +2179,7 @@ public final class SettlementRunner {
 		}
 	}
 
-	/** The card's lots of a district build (its plan's specs), for a re-plan. This session only: after a restart a refused realise ends the build. */
+	/** The card's lots of a district build (its plan's specs) as asked of Architect, for a re-plan; saved with the build. */
 	private @org.jspecify.annotations.Nullable List<VillageLayout.LotSpec> districtSpecs;
 	private boolean districtReplanned;
 
@@ -2194,7 +2195,11 @@ public final class SettlementRunner {
 		// the card's lots: this session's, else (a restored build) read back from its plan's lots and the ones it left out
 		if (districtSpecs == null) {
 			List<VillageLayout.LotSpec> specs = new ArrayList<>();
-			for (VillageLayout.Lot l : plan.lots()) specs.add(new VillageLayout.LotSpec(l.id(), l.type(), l.sizeX(), l.sizeZ(), l.role(), l.notes(), l.landmark(), l.placement()));
+			// (saved before builds kept them) a lot facing east or west lies across: its x span is its depth, so the spec's width is its z span
+			for (VillageLayout.Lot l : plan.lots()) {
+				boolean across = l.front() == VillageLayout.Front.EAST || l.front() == VillageLayout.Front.WEST;
+				specs.add(new VillageLayout.LotSpec(l.id(), l.type(), across ? l.sizeZ() : l.sizeX(), across ? l.sizeX() : l.sizeZ(), l.role(), l.notes(), l.landmark(), l.placement()));
+			}
 			specs.addAll(plan.unplaced());
 			districtSpecs = List.copyOf(specs);
 		}

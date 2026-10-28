@@ -32,7 +32,8 @@ public final class BuildStore {
 	 * the file rather than dropping their new members. A format-1 file reads as it is (its districts as standing squares).
 	 */
 	static final int FORMAT = 3;
-	// 3 (2026-10-26): moves with the settlements file's format 5 (a build's settlement copy may hold a quarter proposal)
+	// 3 (2026-10-26): moves with the settlements file's format 5 (a build's settlement copy may hold a quarter proposal); a district build keeps its card's
+	// lots ({@code districtSpecs}), as asked of Architect, for a re-plan after a restart
 
 	/**
 	 * One build. {@code settlement} is a copy (a dev build's settlement is not in the settlements file); {@code siteGroupId} is the Architect site group the
@@ -41,7 +42,16 @@ public final class BuildStore {
 	public record Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement, Pipeline.State state,
 		VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId, List<String> landmarkIds,
 		List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street, @Nullable Boolean keyed,
-		@Nullable String vPlan, @Nullable String vRegion) {
+		@Nullable String vPlan, @Nullable String vRegion, @Nullable List<VillageLayout.LotSpec> districtSpecs) {
+		/** As saved before a district build kept its card's lots (format 3): a re-plan after a restart reads them back from the plan. */
+		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
+			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,
+			List<String> landmarkIds, List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street,
+			@Nullable Boolean keyed, @Nullable String vPlan, @Nullable String vRegion) {
+			this(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId, landmarkIds,
+				decided, lastAwaiting, addition, districtId, street, keyed, vPlan, vRegion, null);
+		}
+
 		/** As saved before Architect's flat village: Steward's own layout. */
 		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
 			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,

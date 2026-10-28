@@ -184,19 +184,36 @@ public final class Districts {
 	/** The sides a quarter of {@code q}'s kind doesn't fit (its whole strip, not a square district's): an "auto" choice skips them. */
 	public static java.util.Set<String> quarterMisfits(Settlement s, dev.larattalabs.steward.model.Proposal.Quarter q) {
 		java.util.Set<String> out = new java.util.HashSet<>(DistrictRules.DIRECTIONS);
+		out.removeAll(quarterStrips(s, q).keySet());
+		return out;
+	}
+
+	/** Each side a quarter of {@code q}'s kind fits, with its strip: what an "auto" choice surveys. None when the town's region can't be read. */
+	static java.util.Map<String, dev.larattalabs.steward.model.Land.Rect> quarterStrips(Settlement s, dev.larattalabs.steward.model.Proposal.Quarter q) {
+		java.util.Map<String, dev.larattalabs.steward.model.Land.Rect> out = new java.util.LinkedHashMap<>();
 		try {
 			var town = TownRegion.of(s).flatMap(id -> ArchitectApi.get().regions().get(id));
 			if (town.isEmpty()) return out;
 			var b = town.get().claim();
 			int depth = "outpost".equals(q.kind()) ? DistrictRules.OUTPOST_DEPTH : DistrictRules.ALONG_DEPTH;
 			for (String dir : DistrictRules.DIRECTIONS) {
-				if (DistrictRules.quarter(s.claim(), new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, s.lands().districts(), Settlements.others(s.id()),
-					s.lands().protect(), dir, depth, "quarter").ok()) out.remove(dir);
+				var p = DistrictRules.quarter(s.claim(), new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, s.lands().districts(), Settlements.others(s.id()),
+					s.lands().protect(), dir, depth, "quarter");
+				if (p.ok() && p.land() != null) out.put(dir, p.land().rect());
 			}
 		} catch (RuntimeException | LinkageError e) {
 			// can't tell: every side refused, so nothing is offered that won't fit
+			out.clear();
 		}
 		return out;
+	}
+
+	/** {@link #choose} for a quarter of {@code q}'s kind: only the sides its strip fits, each judged by the ground of its strip. */
+	public static void chooseQuarter(MinecraftServer server, Settlement s, dev.larattalabs.steward.model.Proposal.Quarter q, dev.larattalabs.steward.model.DistrictSite site,
+		java.util.Collection<String> skip, Consumer<dev.larattalabs.steward.model.DistrictSite.Choice> then) {
+		var strips = quarterStrips(s, q);
+		strips.keySet().removeAll(skip);
+		choose(server, s, site, null, strips, then);
 	}
 
 	/** A district region's build that ended with nothing placed: a beside district is only reserved again; a quarter, founded for it, is given up. */
@@ -590,20 +607,30 @@ public final class Districts {
 	public static void choose(MinecraftServer server, Settlement s, dev.larattalabs.steward.model.DistrictSite site, @Nullable BlockPos standing,
 		java.util.Collection<String> skip, Consumer<dev.larattalabs.steward.model.DistrictSite.Choice> then) {
 		var street = townStreet(server, s);
-		java.util.Map<String, Claim> squares = new java.util.LinkedHashMap<>();
+		java.util.Map<String, dev.larattalabs.steward.model.Land.Rect> squares = new java.util.LinkedHashMap<>();
 		for (String dir : DistrictRules.DIRECTIONS) {
 			if (skip.contains(dir)) continue;
 			var p = DistrictRules.place(s.claim(), street, s.lands().districts(), Settlements.others(s.id()), s.lands().protect(), dir, DistrictRules.RADII[0]);
 			// a side whose road would run over a building is not one founding could take
-			if (p.ok() && overBuilding(server, s, p.road()) == null) squares.put(dir, p.claim());
+			if (p.ok() && overBuilding(server, s, p.road()) == null) {
+				Claim c = p.claim();
+				squares.put(dir, new dev.larattalabs.steward.model.Land.Rect(c.centerX() - c.radius(), c.centerZ() - c.radius(), c.centerX() + c.radius(), c.centerZ() + c.radius()));
+			}
 		}
+		choose(server, s, site, standing, squares, then);
+	}
+
+	/** As above over {@code sides}: each side that may be chosen, with the ground it would take (a square district's, or a quarter's strip). */
+	private static void choose(MinecraftServer server, Settlement s, dev.larattalabs.steward.model.DistrictSite site, @Nullable BlockPos standing,
+		java.util.Map<String, dev.larattalabs.steward.model.Land.Rect> sides, Consumer<dev.larattalabs.steward.model.DistrictSite.Choice> then) {
+		var squares = sides;
 		List<String> free = List.copyOf(squares.keySet());
 		dev.larattalabs.steward.model.DistrictSite.Standing stand = null;
 		if (standing != null) {
 			java.util.Map<String, Double> dist = new java.util.LinkedHashMap<>();
 			for (var e : squares.entrySet()) {
-				Claim c = e.getValue();
-				int dx = Math.max(0, Math.abs(standing.getX() - c.centerX()) - c.radius()), dz = Math.max(0, Math.abs(standing.getZ() - c.centerZ()) - c.radius());
+				var r = e.getValue();
+				int dx = Math.max(0, Math.max(r.x0() - standing.getX(), standing.getX() - r.x1())), dz = Math.max(0, Math.max(r.z0() - standing.getZ(), standing.getZ() - r.z1()));
 				dist.put(e.getKey(), Math.hypot(dx, dz));
 			}
 			stand = new dev.larattalabs.steward.model.DistrictSite.Standing(dist);
@@ -618,9 +645,15 @@ public final class Districts {
 		keys.add("town");
 		List<java.util.concurrent.CompletableFuture<dev.larattalabs.architect.api.Sample>> samples = new ArrayList<>();
 		for (String k : keys) {
-			Claim c = k.equals("town") ? DistrictRules.villageSquare(s.claim()) : squares.get(k);
-			var box = new net.minecraft.world.level.levelgen.structure.BoundingBox(c.centerX() - c.radius(), level.getMinY(), c.centerZ() - c.radius(), c.centerX() + c.radius(),
-				level.getMaxY(), c.centerZ() + c.radius());
+			net.minecraft.world.level.levelgen.structure.BoundingBox box;
+			if (k.equals("town")) {
+				Claim c = DistrictRules.villageSquare(s.claim());
+				box = new net.minecraft.world.level.levelgen.structure.BoundingBox(c.centerX() - c.radius(), level.getMinY(), c.centerZ() - c.radius(), c.centerX() + c.radius(),
+					level.getMaxY(), c.centerZ() + c.radius());
+			} else {
+				var r = squares.get(k);
+				box = new net.minecraft.world.level.levelgen.structure.BoundingBox(r.x0(), level.getMinY(), r.z0(), r.x1(), level.getMaxY(), r.z1());
+			}
 			samples.add(ArchitectApi.get().survey().sample(level, box, PROFILE_RESOLUTION, dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY));
 		}
 		int session = Session.current();

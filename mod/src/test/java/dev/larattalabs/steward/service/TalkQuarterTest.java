@@ -20,5 +20,11 @@ class TalkQuarterTest {
 		assertNull(Talk.quarterOf("a district out by the east gate"));
 		assertNull(Talk.quarterOf("an east district, not an outpost"));
 		assertNull(Talk.quarterOf("a district with a hunting camp"));
+		// the second review's: an outpost named as a place, and a negation of another one
+		assertNull(Talk.quarterOf("a district east of the old outpost"));
+		assertNull(Talk.quarterOf("an ordinary east district, not another outpost"));
+		assertNull(Talk.quarterOf("no more outposts, a district to the north"));
+		assertEquals("outpost", Talk.quarterOf("build another outpost to the west").kind());
+		assertEquals("outpost", Talk.quarterOf("a new outpost past the old one").kind());
 	}
 }

@@ -149,26 +149,43 @@ public final class Proposals {
 			CHOOSING.remove(s.id());
 			var now2 = Settlements.store().get(s.id());
 			if (c.way() == null || now2.isEmpty() || now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
-			// beside a town Architect laid out, a side by the water is offered as a quarter along its shore (docs/DISTRICTS.md section 4)
-			if (c.why().startsWith("by the water") && now2.get().proposals().open().stream().noneMatch(Proposal::foundsQuarter) && TownRegion.of(now2.get()).isPresent()
-				// one the player declined is not offered again; a side its strip doesn't fit gets the ordinary district
-				&& !now2.get().proposals().declined().contains("quarter_along_" + c.way())
-				&& !Districts.quarterMisfits(now2.get(), new Proposal.Quarter("along", "shore", List.of(), null)).contains(c.way())
-				&& offerQuarter(server, player, now2.get(), c.way(), new Proposal.Quarter("along", "shore", List.of(), null)) == null) {
-				StewardVoice.say(server, s.id(), "I have an idea: a quarter along the shore to the " + dev.larattalabs.steward.model.DistrictRules.directionName(c.way()) + ", "
-					+ c.why() + ". See the inbox (Y).");
+			// beside a town Architect laid out, a side by the water is offered as a quarter along its shore (docs/DISTRICTS.md section 4), judged again by the
+			// ground of the quarter's own strip; one the player declined is not offered again; otherwise the ordinary district
+			if (c.why().startsWith("by the water") && now2.get().proposals().open().stream().noneMatch(Proposal::foundsQuarter) && TownRegion.of(now2.get()).isPresent()) {
+				var shore = new Proposal.Quarter("along", "shore", List.of(), null);
+				Set<String> declined = new HashSet<>();
+				for (String d : dev.larattalabs.steward.model.DistrictRules.DIRECTIONS) if (now2.get().proposals().declined().contains("quarter_along_" + d)) declined.add(d);
+				CHOOSING.add(s.id());
+				Districts.chooseQuarter(server, now2.get(), shore, dev.larattalabs.steward.model.DistrictSite.fromWords("by the water"), declined, q -> {
+					CHOOSING.remove(s.id());
+					var now3 = Settlements.store().get(s.id());
+					if (now3.isEmpty() || now3.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
+					if (q.way() != null && q.why().startsWith("by the water") && offerQuarter(server, player, now3.get(), q.way(), shore) == null) {
+						StewardVoice.say(server, s.id(), "I have an idea: a quarter along the shore to the " + dev.larattalabs.steward.model.DistrictRules.directionName(q.way()) + ", "
+							+ q.why() + ". See the inbox (Y).");
+						return;
+					}
+					offerDistrict(server, player, s, c, System.currentTimeMillis());
+				});
 				return;
 			}
-			String side = dev.larattalabs.steward.model.DistrictRules.directionName(c.way());
-			Proposal d = Proposal.district(c.way(), "The town's street is full: a district to the " + side + (c.why().isEmpty() ? "" : ", " + c.why() + ",")
-				+ " gives the next buildings a street of their own. Founding it lays a road and costs nothing.", now);
-			var ps = now2.get().proposals();
-			List<Proposal> all = new ArrayList<>(ps.open());
-			all.add(d);
-			if (!Settlements.proposals(s.id(), new Settlement.Proposals(all, ps.declined(), ps.accepted(), now)).ok()) return;
-			StewardVoice.say(server, s.id(), "I have an idea: " + d.title().toLowerCase() + ". " + d.why() + " See the inbox (Y).");
-			SettlementRunner.sendInbox(server, player);
+			offerDistrict(server, player, s, c, now);
 		});
+	}
+
+	/** The ordinary district {@link #proposeDistrictFromLand} chose, in the inbox. */
+	private static void offerDistrict(MinecraftServer server, java.util.UUID player, Settlement s, dev.larattalabs.steward.model.DistrictSite.Choice c, long now) {
+		var now2 = Settlements.store().get(s.id());
+		if (now2.isEmpty() || now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
+		String side = dev.larattalabs.steward.model.DistrictRules.directionName(c.way());
+		Proposal d = Proposal.district(c.way(), "The town's street is full: a district to the " + side + (c.why().isEmpty() ? "" : ", " + c.why() + ",")
+			+ " gives the next buildings a street of their own. Founding it lays a road and costs nothing.", now);
+		var ps = now2.get().proposals();
+		List<Proposal> all = new ArrayList<>(ps.open());
+		all.add(d);
+		if (!Settlements.proposals(s.id(), new Settlement.Proposals(all, ps.declined(), ps.accepted(), now)).ok()) return;
+		StewardVoice.say(server, s.id(), "I have an idea: " + d.title().toLowerCase() + ". " + d.why() + " See the inbox (Y).");
+		SettlementRunner.sendInbox(server, player);
 	}
 
 	/**
