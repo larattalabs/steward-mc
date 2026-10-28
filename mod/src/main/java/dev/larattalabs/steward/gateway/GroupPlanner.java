@@ -68,6 +68,15 @@ public final class GroupPlanner {
 	 * for its own field (never a copy, nor copied).
 	 */
 	public static Built build(Settlement s, VillageLayout.Plan plan, Options o, java.util.Map<String, DesignRequest.Reserved> reserved) {
+		return build(s, plan, o, reserved, java.util.Map.of());
+	}
+
+	/**
+	 * As above; {@code wallLots}: each wall lot's {@code architect:wallLot} ext (Architect K3: its outer faces, so its door goes on an inner one), carried on
+	 * its design request. A wall lot is designed for its own place on the wall (never a copy, nor copied: corner towers mirror).
+	 */
+	public static Built build(Settlement s, VillageLayout.Plan plan, Options o, java.util.Map<String, DesignRequest.Reserved> reserved,
+		java.util.Map<String, com.google.gson.JsonObject> wallLots) {
 		List<Lot> lots = new ArrayList<>(plan.lots());
 		// landmarks: the ones the card's program marks, else the largest footprints; the largest landmark is the anchor (designed first, the rest match it)
 		List<Lot> byArea = new ArrayList<>(lots);
@@ -89,6 +98,7 @@ public final class GroupPlanner {
 		// $0 copies (Architect 0b): of each run of like lots, every third designs and the others copy it; only lots that make it into the group
 		Set<String> notCopied = new java.util.HashSet<>(landmarkIds);
 		notCopied.addAll(reserved.keySet());
+		for (Lot l : lots) if (l.exact()) notCopied.add(l.id());
 		java.util.Map<String, String> copyOf = o.copies() ? dev.larattalabs.steward.layout.CopyPlan.copies(dev.larattalabs.steward.layout.CopyPlan.ofLots(
 			ordered.subList(0, Math.min(ordered.size(), GroupRequest.MAX_ITEMS)), notCopied)) : java.util.Map.of();
 		for (Lot l : ordered) {
@@ -99,10 +109,11 @@ public final class GroupPlanner {
 			boolean landmark = landmarkIds.contains(l.id());
 			// no taller than its lot allows (an approved plan's lot box: Architect refuses a design past it)
 			int height = landmark ? LANDMARK_HEIGHT : ORDINARY_HEIGHT;
-			if (l.maxHeight() > 0) height = Math.min(height, l.maxHeight());
+			if (l.maxHeight() > 0) height = l.exact() ? l.maxHeight() : Math.min(height, l.maxHeight());
 			DesignRequest r = LotBrief.build(s, l, height, null, null);
 			// an irrigated field's sources, their farmland sides and the air over them: the design leaves them as given
 			if (reserved.containsKey(l.id())) r = r.withReserved(reserved.get(l.id()));
+			if (wallLots.containsKey(l.id())) r.ext().add(PPlan.WALL_LOT_EXT, wallLots.get(l.id()).deepCopy());
 			boolean anchor = l.id().equals(anchorId);
 			GroupRequest.Item item = new GroupRequest.Item(l.id(), r, landmark ? GroupRequest.Role.LANDMARK : GroupRequest.Role.ORDINARY, landmark && !anchor ? 1 : 2, anchor);
 			String archetype = copyOf.get(l.id());
