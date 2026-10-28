@@ -994,3 +994,17 @@ Architect slice/LF at da504bb1. Free 43/43; stub 93/94, the miss the plan check'
 guard as designed; the e2e now clears animals and asks again). Scope agreed with the coordinator: both e2e runs on the LF jar; the lift rows
 (realise and remove, StillOurs, a delta or PT2 adopt over a lift, survival bills) stand on Architect's lf-ingame, lf-survival and verifier items
 8-10 until Steward proposes lifts. Steward's two recorded lift plans are schema-checked fixtures only, not run in game.
+
+## 7a K3 RC (2026-10-28): FAIL for Steward, one ask
+
+Architect slice/K3 at 1e1d41b6, Steward k3-rc (the wall repair GPT-cleared). Free 43/43; stub 94/95, the miss the castle check: its design group g23
+failed before anything was placed, so the wall repair never ran. Three causes, two of them the e2e's (fixed on k3-rc, 0c3581f: castle_city's 7-deep
+houses and shops are past the sim, and `sim:outerdoor` in the card reached the keep, a tower too). The third is Architect's:
+
+- **Ask: a wall lot under massing-first cannot fill its box.** Steward's groups are massing-first. A detail's cap is min(massing size + 2,
+  request.maxSize) (`sidecar/src/massings.ts:128`), and nothing makes a wall lot's massing fill its exact box: the sim's massing path skips the
+  wall-lot stand-in (`sim.ts:627`) and copies the kit example (towers 9x11 on 13x11 lots), so the box-filling detail is refused (tower_1-4: 13x28x11
+  over 11x26x11; gatehouse_1: 17x13x15 over 13x14x12). With Claude the same holds whenever a massing comes out smaller than the box: the detail
+  cannot close the wall. K3's gate wrote wall-lot designs straight into the library, so massing-first was never exercised. `GroupRequest.Item` has
+  no per-item way to skip the massing. Options for Architect: a wall lot's massing takes its box (sim and prompt); or a wall lot's detail cap stays
+  its request's maxSize; or a per-item opt-out of the massing. Steward reruns both e2e runs on the fixed jar.
