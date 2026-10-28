@@ -1275,8 +1275,13 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
   const end = Date.now() + ms;
   // nothing in the lots' way: an animal in a box holds its item up for Architect's whole wait (C30)
   await clearAnimals();
-  let at = from;
+  let at = from, herdAt = from;
   while (Date.now() < end) {
+    // an animal that walked into a lot while it was designed holds the lot's item up with no time limit (the steward names it): moved out, as a player would
+    if (/is in its lot\. Move it out/.test(logSince(herdAt))) {
+      herdAt = logSize();
+      await clearAnimals();
+    }
     const since = logSince(at);
     const built = since.match(/is built(?: in part)?: (\d+) buildings placed/);
     if (built) return { steps, placed: Number(built[1]) };
