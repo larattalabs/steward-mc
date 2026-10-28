@@ -2141,6 +2141,9 @@ public final class SettlementRunner {
 			if (state.repair().stopping()) feed(new Pipeline.RepairEnded(r.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect never received it"));
 			else if (state.phase() == Pipeline.Phase.REPAIRING && !mayResend()) feed(new Pipeline.RepairEnded(r.key(), Pipeline.RepairEnd.LOST, 0,
 				"Architect has no record of it, and the build is too old to ask again safely"));
+			// (a repair saved without its words cannot be asked again the same: ended, its most counted)
+			else if (state.phase() == Pipeline.Phase.REPAIRING && (r.why() == null || r.why().isBlank())) feed(new Pipeline.RepairEnded(r.key(), Pipeline.RepairEnd.LOST, 0,
+				"Architect has no record of it, and it was saved without the refusal to ask again with"));
 			else if (state.phase() == Pipeline.Phase.REPAIRING) {
 				askRepair(new Pipeline.AskRepair(r.lotId(), r.key(), r.why()));
 				drainLater();
