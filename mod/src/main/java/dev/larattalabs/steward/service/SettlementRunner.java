@@ -1206,6 +1206,8 @@ public final class SettlementRunner {
 				plan = dev.larattalabs.steward.gateway.PPlan.toPlan(lots.get(), built);
 				// (Architect K3) a wall lot narrower than 7 is asked for only of an Architect that takes it (wallLots; an older one refuses the request), and its
 				// repair needs keyed designs: stopped here, before anything is spent
+				var walls = plan.lots().stream().filter(VillageLayout.Lot::exact).map(l -> l.id() + " " + l.type() + " " + l.along() + "x" + l.deep() + "x" + l.maxHeight()).toList();
+				if (!walls.isEmpty()) Steward.LOGGER.info("wall lots of {}: {}", settlement.id(), String.join(", ", walls));
 				var narrow = plan.lots().stream().filter(l -> l.exact() && (l.along() < 7 || l.deep() < 7)).findFirst();
 				if (narrow.isPresent() && !ArchitectApi.get().features().contains("wallLots")) {
 					abandon("The " + narrow.get().role() + " on the wall is " + narrow.get().along() + " x " + narrow.get().deep()

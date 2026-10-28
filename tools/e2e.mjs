@@ -2087,6 +2087,123 @@ async function revisionFlow() {
 }
 
 /**
+ * Drives a build as {@link buildThrough} does (approving the bible, the massings and the placement; moving animals and the player off the lots), until
+ * the log from {@code from} matches {@code until}: the match, or null when the build stopped or the time ran out.
+ */
+async function driveUntil(id, from, until, ms) {
+  let at = from, herdAt = from;
+  for (const end = Date.now() + ms; Date.now() < end;) {
+    const herd = logSince(herdAt);
+    if (/is in its lot\. Move it out|someone is standing on its lot/.test(herd)) {
+      herdAt = logSize();
+      await clearAnimals();
+      const c = settlements().find((x) => x.id === id)?.claim;
+      if (c && /someone is standing on its lot/.test(herd)) await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ + c.radius + 12}`);
+    }
+    const all = logSince(from);
+    const m = all.match(until);
+    if (m) return m;
+    if (/The build stopped[^\n]*|The build of [^\n]* stopped[^\n]*|Cancelled [^\n]*/.test(logSince(at)) && !/Cancelled/.test(String(until))) return null;
+    const step = logSince(at).match(/Style bible ready|massings are ready|Approve to place/);
+    if (!step) { await sleep(1000); continue; }
+    at = logSize();
+    await cmd(`/steward approve ${id}`);
+  }
+  return null;
+}
+
+/**
+ * (Architect K3, Steward's RC) castle_city's curtain wall, its corner towers and gatehouse on its line, designed to their boxes and bound. The card's words
+ * carry the sim's `sim:outerdoor`, so a wall lot's first design has a door in an outer face: the bind refuses it ("lot <id> on wall <wall>: ..."), the
+ * steward redesigns it as its next version and binds again, until the town stands. A restart while the first repair is designed: picked up by its key. A
+ * revision of the walled town (Architect's re-check loop over wall lots), undone; the town undone. A second town cancelled while its repair is designed:
+ * cancelled once the repair stopped. Skipped on an Architect without wall lots.
+ */
+async function wallLotsFlow() {
+  const make = async (name) => {
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 33000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = name;
+    card.style = { ...card.style, text: `${card.style.text} sim:outerdoor` };
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a castle city behind its curtain wall`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return { id, error: 'no card' };
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return { id, error: 'no plan composed' };
+    await closeScreens();
+    await clearAnimals();
+    from = logSize();
+    await cmd(`/steward start ${id} 6 80`);
+    const walls = await waitLog(from, new RegExp(`wall lots of ${id}: ([^\n]*)`), 120_000);
+    return { id, from, walls: walls?.[1] ?? null };
+  };
+  const a = await make('Castle Walls');
+  if (a.error) return fail('wall lots', `${a.id}: ${a.error}`);
+  if (!a.walls) { console.log('skip wall lots (no wall lots: an Architect before K3)'); return; }
+  // the first repair under way: a restart, then picked up by its key
+  const repairing = await driveUntil(a.id, a.from, /redesigning it \(repair 1 of 2\)/, 900_000);
+  if (!repairing) return fail('wall lots', `no repair asked for (${a.walls}); last ${JSON.stringify(settlements().find((x) => x.id === a.id)?.log.at(-1))?.slice(0, 160)}`);
+  await quit();
+  launch();
+  await connect();
+  const resumed = await waitLog(0, new RegExp(`resume ${a.id}: wall repair (\\S+)`), 90_000);
+  const built = await driveUntil(a.id, 0, /is built(?: in part)?: (\d+) buildings placed/, 1_200_000);
+  const st = settlements().find((x) => x.id === a.id);
+  const placed = st?.log?.filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const region = (placed?.siteGroup ?? '').replace(/^region:/, '');
+  const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
+  const lots = (view?.view ?? view ?? {}).lots ?? [];
+  const wallIds = a.walls.split(', ').map((w) => w.split(' ')[0]);
+  const wallPlaced = wallIds.filter((w) => lots.some((l) => l.id === w && /placed/i.test(String(l.state))));
+  const said = logSince(0);
+  const repaired = (said.match(/is redesigned: placing again/g) ?? []).length;
+  // (the sim designs in seconds: the restart may come after the repair ended, and then the resume binds the repaired head by itself)
+  if (built && wallPlaced.length === wallIds.length && repaired >= 1) {
+    ok('wall lots', `${a.walls}; refused and redesigned ${repaired} time(s); ${resumed ? `a repair in flight picked up after a restart (${resumed[1]})` : 'the restart came after the repair ended'}; all ${wallIds.length} bound in ${region}`);
+  } else return fail('wall lots', `built ${!!built}; resumed ${!!resumed}; wall lots placed ${wallPlaced.length}/${wallIds.length}; repaired ${repaired}; last ${JSON.stringify(st?.log?.at(-1))?.slice(0, 160)}`);
+  // a revision of the walled town (its re-check loop now reads the wall lots), undone
+  if (await revisesRegions()) {
+    const c = st.claim;
+    const cx = c.centerX + c.radius - 6, cz = c.centerZ + c.radius - 6;
+    const knoll = { id: 'knoll', call: { fn: 'columns', cols: [cx, cz, 0, 1, 0], from: { surface: 1 }, to: { surface: 1 }, materials: ['rock'], cond: 0 } };
+    const kp = await dev.request('dev.rv.plan', { region, spec: { parts: [knoll] }, opKey: `steward.e2e.${a.id}.wknoll` }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+    const rid = kp?.revisionOf?.rid;
+    if (kp?.planId) await dev.request('dev.region.realise', { planId: kp.planId }, { timeoutMs: 600_000 }).catch(() => null);
+    const rev = rid ? await revisionUntil(region, rid, ['PLACED', 'PARTIAL', 'FAILED']) : null;
+    await dev.request('dev.rv.undo', { region, toPosition: (kp?.revisionOf?.position ?? 1) - 1, actor: 'steward' }, { timeoutMs: 900_000 }).catch(() => null);
+    const undone = rid ? await revisionUntil(region, rid, ['UNDONE']) : null;
+    if (rev?.state === 'PLACED' && undone?.state === 'UNDONE') ok('walled town revised', `${region} rev ${rid} placed with its wall lots standing, then undone`);
+    else fail('walled town revised', `plan ${JSON.stringify(kp).slice(0, 160)}; rev ${rev?.state}; undo ${undone?.state}`);
+  }
+  // undone: the region and its wall lots go
+  await cmd(`/tp @p ${st.claim.centerX} ~ ${st.claim.centerZ - st.claim.radius - 40}`);
+  await cmd(`/steward undo ${a.id}`);
+  const gone = await regionUntil(region, ['REMOVED'], 600_000);
+  const gs = gone?.view?.state ?? gone?.state;
+  if (gs === 'REMOVED' || gs === undefined) ok('walled town undone', `${region} ${gs ?? 'gone'}`);
+  else fail('walled town undone', `state ${gs}`);
+  // a second town cancelled while its repair is designed: cancelled once the repair stopped, nothing of it left
+  const b = await make('Castle Cancel');
+  if (b.error || !b.walls) return fail('wall repair cancelled', `${b.id}: ${b.error ?? 'no wall lots'}`);
+  if (!(await driveUntil(b.id, b.from, /redesigning it \(repair 1 of 2\)/, 900_000))) return fail('wall repair cancelled', 'no repair asked for');
+  const cf = logSize();
+  await cmd(`/steward cancel ${b.id}`);
+  const cancelled = await waitLog(cf, /Cancelled [^\n]*/, 300_000);
+  let left = null;
+  try { left = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === b.id) ?? null; } catch { /* none */ }
+  if (cancelled && !left) ok('wall repair cancelled', cancelled[0].slice(0, 140));
+  else fail('wall repair cancelled', `${cancelled ? cancelled[0].slice(0, 100) : 'not cancelled'}; build left ${left ? left.state?.phase : 'none'}`);
+}
+
+/**
  * Architect's plan check (P0; docs/COMPOSITION.md): recorded plans checked round the player on fresh flat land, answered part by part. A plain village
  * is ready, with an artifact; the walled town's hidden cellar is unsupported, naming form.hidden_room (its wall fits: K1). The ready one is realised from its artifact and taken up again.
  */
@@ -2413,6 +2530,7 @@ try {
       await revisionFlow();
       await districtRegionFlow();
       await quarterFlow();
+      await wallLotsFlow();
     }
   }
   await migratedSteward();

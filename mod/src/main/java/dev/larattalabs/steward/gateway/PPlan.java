@@ -204,6 +204,17 @@ public final class PPlan {
 		return "Outside the wall: " + list + ". Put its doors elsewhere.";
 	}
 
+	/** The plan lot of a lot a wall put on its line: a gatehouse round its passage, else a tower named by where it stands (a corner, a run, a via). */
+	static JsonObject wallLotSpec(String id, JsonObject wall) {
+		JsonObject p = new JsonObject();
+		p.addProperty("id", id);
+		boolean gate = wall.has("passage") && wall.get("passage").isJsonObject();
+		String at = wall.has("at") && wall.get("at").isJsonPrimitive() ? wall.get("at").getAsString() : "";
+		p.addProperty("type", gate ? "gatehouse" : "tower");
+		p.addProperty("role", gate ? "gatehouse" : at.equals("corner") ? "corner tower" : "wall tower");
+		return p;
+	}
+
 	/** A lot's {@code onWall} (Architect K3: it stands on a wall's line), or null. */
 	static @Nullable JsonObject onWall(JsonObject artifactLot) {
 		return artifactLot.has("onWall") && artifactLot.get("onWall").isJsonObject() ? artifactLot.getAsJsonObject("onWall") : null;
@@ -281,6 +292,8 @@ public final class PPlan {
 			JsonObject a = e.getAsJsonObject();
 			String id = a.get("id").getAsString();
 			JsonObject p = byId.get(id);
+			// (Architect K3) a lot a wall puts on its line (a corner tower, a gatehouse) is in no zone's program: it is the wall's, designed as its own
+			if (p == null && onWall(a) != null) p = wallLotSpec(id, onWall(a));
 			if (p == null || !a.has("box") || !a.get("box").isJsonArray() || a.getAsJsonArray("box").size() != 6) continue;
 			seen.add(id);
 			JsonArray b = a.getAsJsonArray("box");

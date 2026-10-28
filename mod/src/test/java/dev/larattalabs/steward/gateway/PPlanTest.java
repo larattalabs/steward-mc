@@ -194,4 +194,18 @@ class PPlanTest {
 		assertEquals(lots.get(0).getAsJsonObject().getAsJsonObject("onWall").getAsJsonObject("outerFaces").get("lotCells"), ext.get("tower_1").get("outerFaces"),
 			"the artifact's lotCells as they are");
 	}
+
+	@Test
+	void aLotTheWallPutsOnItsLineIsDesignedThoughNoProgramHasIt() throws Exception {
+		JsonObject built = PPlan.forBuild(walledTown(), Set.of("town_wall"), "set_7", "b1");
+		JsonArray art = new JsonArray();
+		JsonObject corner = lot("town_wall_corner_1", new int[] {0, 64, 0, 8, 80, 8}, "south", null);
+		corner.add("onWall", JsonParser.parseString("{\"wall\":\"town_wall\",\"at\":\"corner\",\"frame\":[9,9]}"));
+		art.add(corner);
+		var plan = PPlan.toPlan(art, built);
+		var l = plan.lots().stream().filter(x -> x.id().equals("town_wall_corner_1")).findFirst().orElseThrow();
+		assertEquals("tower", l.type());
+		assertEquals("corner tower", l.role());
+		assertTrue(l.exact());
+	}
 }
