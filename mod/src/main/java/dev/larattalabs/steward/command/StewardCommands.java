@@ -129,7 +129,10 @@ public final class StewardCommands {
 				StringArgumentType.greedyString()).executes(ctx -> decide(ctx, "talk", "", StringArgumentType.getString(ctx, "words"), 0)))))
 			.then(Commands.literal("district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.literal("found").then(Commands.argument("way",
 				StringArgumentType.word()).executes(ctx -> decide(ctx, "district_found", StringArgumentType.getString(ctx, "way"), "", 0)).then(Commands.argument("name",
-				StringArgumentType.greedyString()).executes(ctx -> decide(ctx, "district_found", StringArgumentType.getString(ctx, "way"), StringArgumentType.getString(ctx, "name"), 0)))))))
+				StringArgumentType.greedyString()).executes(ctx -> decide(ctx, "district_found", StringArgumentType.getString(ctx, "way"), StringArgumentType.getString(ctx, "name"), 0)))))
+				// a quarter (along a boundary, or an outpost), offered in the inbox: /steward district <id> quarter <way|auto> along shore | outpost
+				.then(Commands.literal("quarter").then(Commands.argument("way", StringArgumentType.word()).then(Commands.argument("what", StringArgumentType.greedyString())
+					.executes(ctx -> decide(ctx, "district_quarter", StringArgumentType.getString(ctx, "way"), StringArgumentType.getString(ctx, "what"), 0)))))))
 			.then(Commands.literal("builds").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "builds", "", "", 0))
 				.then(Commands.literal("claim").then(Commands.argument("reach", IntegerArgumentType.integer(1, 15)).executes(ctx -> decide(ctx, "build_claim", "", "",
 					IntegerArgumentType.getInteger(ctx, "reach"))))).then(Commands.literal("release").then(Commands.argument("build", StringArgumentType.word())

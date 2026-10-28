@@ -190,7 +190,8 @@ public final class Settlements {
 		// never another district's columns (founding keeps the plan's claim clear of them; this holds it if one changed since)
 		var take = outside;
 		for (Settlement.District o : s.get().lands().districts()) if (take != null && !o.id().equals(districtId)) take = take.minus(o.land());
-		var land = take == null ? x.land() : x.land().union(take);
+		// a beside district keeps its reservation and adds what its region took; a quarter owns exactly what its region took (its strip was only held)
+		var land = take == null ? x.land() : Settlement.District.BESIDE.equals(x.kind()) ? x.land().union(take) : take;
 		Settlement n = s.get().withLands(s.get().lands().withDistrict(new Settlement.District(x.id(), x.name(), x.direction(), x.claim(), x.at(), x.roads(),
 			x.linkUndone(), x.kind(), Settlement.District.STANDING, x.parent(), region, land, x.follow(), x.opKey()))).withLog(entry);
 		try {

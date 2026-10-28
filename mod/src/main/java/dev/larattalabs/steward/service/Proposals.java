@@ -149,16 +149,72 @@ public final class Proposals {
 			CHOOSING.remove(s.id());
 			var now2 = Settlements.store().get(s.id());
 			if (c.way() == null || now2.isEmpty() || now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
-			String side = dev.larattalabs.steward.model.DistrictRules.directionName(c.way());
-			Proposal d = Proposal.district(c.way(), "The town's street is full: a district to the " + side + (c.why().isEmpty() ? "" : ", " + c.why() + ",")
-				+ " gives the next buildings a street of their own. Founding it lays a road and costs nothing.", now);
-			var ps = now2.get().proposals();
-			List<Proposal> all = new ArrayList<>(ps.open());
-			all.add(d);
-			if (!Settlements.proposals(s.id(), new Settlement.Proposals(all, ps.declined(), ps.accepted(), now)).ok()) return;
-			StewardVoice.say(server, s.id(), "I have an idea: " + d.title().toLowerCase() + ". " + d.why() + " See the inbox (Y).");
-			SettlementRunner.sendInbox(server, player);
+			// beside a town Architect laid out, a side by the water is offered as a quarter along its shore (docs/DISTRICTS.md section 4), judged again by the
+			// ground of the quarter's own strip; one the player declined is not offered again; otherwise the ordinary district
+			if (c.why().startsWith("by the water") && now2.get().proposals().open().stream().noneMatch(Proposal::foundsQuarter) && TownRegion.of(now2.get()).isPresent()) {
+				var shore = new Proposal.Quarter("along", "shore", List.of(), null);
+				Set<String> declined = new HashSet<>();
+				for (String d : dev.larattalabs.steward.model.DistrictRules.DIRECTIONS) if (now2.get().proposals().declined().contains("quarter_along_" + d)) declined.add(d);
+				CHOOSING.add(s.id());
+				Districts.chooseQuarter(server, now2.get(), shore, dev.larattalabs.steward.model.DistrictSite.fromWords("by the water"), declined, q -> {
+					CHOOSING.remove(s.id());
+					var now3 = Settlements.store().get(s.id());
+					if (now3.isEmpty() || now3.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
+					// asked meanwhile (a quarter waiting, the room taken, the side declined): no second offer from this survey
+					var ps3 = now3.get().proposals();
+					long t = System.currentTimeMillis();
+					if (ps3.open().stream().anyMatch(Proposal::foundsQuarter) || !ProposalRules.room(ps3.open().stream().filter(x -> !x.offersPart()).toList(), ps3.lastAt(), t)) return;
+					if (q.way() != null && q.why().startsWith("by the water") && !ps3.declined().contains("quarter_along_" + q.way())
+						&& offerQuarter(server, player, now3.get(), q.way(), shore) == null) {
+						StewardVoice.say(server, s.id(), "I have an idea: a quarter along the shore to the " + dev.larattalabs.steward.model.DistrictRules.directionName(q.way()) + ", "
+							+ q.why() + ". See the inbox (Y).");
+						return;
+					}
+					offerDistrict(server, player, s, c, t);
+				});
+				return;
+			}
+			offerDistrict(server, player, s, c, now);
 		});
+	}
+
+	/** The ordinary district {@link #proposeDistrictFromLand} chose, in the inbox. */
+	private static void offerDistrict(MinecraftServer server, java.util.UUID player, Settlement s, dev.larattalabs.steward.model.DistrictSite.Choice c, long now) {
+		var now2 = Settlements.store().get(s.id());
+		if (now2.isEmpty() || now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
+		String side = dev.larattalabs.steward.model.DistrictRules.directionName(c.way());
+		Proposal d = Proposal.district(c.way(), "The town's street is full: a district to the " + side + (c.why().isEmpty() ? "" : ", " + c.why() + ",")
+			+ " gives the next buildings a street of their own. Founding it lays a road and costs nothing.", now);
+		var ps = now2.get().proposals();
+		List<Proposal> all = new ArrayList<>(ps.open());
+		all.add(d);
+		if (!Settlements.proposals(s.id(), new Settlement.Proposals(all, ps.declined(), ps.accepted(), now)).ok()) return;
+		StewardVoice.say(server, s.id(), "I have an idea: " + d.title().toLowerCase() + ". " + d.why() + " See the inbox (Y).");
+		SettlementRunner.sendInbox(server, player);
+	}
+
+	/**
+	 * A quarter offered towards {@code way} (Noah's Q2: built at once as a small quarter, priced like a build): three of the card's first ordinary
+	 * building, in the inbox to accept. Returns null when it was offered, else why not.
+	 */
+	static @org.jspecify.annotations.Nullable String offerQuarter(MinecraftServer server, java.util.UUID player, Settlement s, String way,
+		dev.larattalabs.steward.model.Proposal.Quarter q) {
+		if (s.card() == null || !s.card().hasProgram()) return "Describe " + s.name() + " with its buildings first.";
+		var b = s.card().program().stream().filter(x -> !x.landmark()).findFirst().orElse(s.card().program().get(0));
+		var building = new dev.larattalabs.steward.model.ConceptCard.Building(b.role(), b.type(), 3, b.footprint(), false, b.notes(), null);
+		String where = "outpost".equals(q.kind()) ? "An outpost to the " + dev.larattalabs.steward.model.DistrictRules.directionName(way)
+			: "A quarter along the " + q.boundary().replace('_', ' ') + " to the " + dev.larattalabs.steward.model.DistrictRules.directionName(way);
+		String why = where + ": " + building.count() + " " + b.role() + "s on a street of their own, joined to the town's street.";
+		Proposal p = Proposal.quarter(way, q, building, where, why, System.currentTimeMillis(), "asked");
+		var now = Settlements.store().get(s.id());
+		if (now.isEmpty()) return "No such settlement.";
+		var ps = now.get().proposals();
+		if (ps.open().stream().anyMatch(x -> x.key().equals(p.key()))) return "That quarter already waits in the inbox.";
+		List<Proposal> all = new ArrayList<>(ps.open());
+		all.add(p);
+		if (!Settlements.proposals(s.id(), new Settlement.Proposals(all, ps.declined(), ps.accepted(), System.currentTimeMillis())).ok()) return "Could not save the proposal.";
+		SettlementRunner.sendInbox(server, player);
+		return null;
 	}
 
 	/** What the settlement is for, in words: its card's purpose and its buildings' roles (what ground its next district should look for). */
@@ -291,7 +347,9 @@ public final class Proposals {
 		if (p.foundsDistrict()) return 0;
 		// a waiting part: Claude fits it to what stands (about $0.50 a round, at most $1); Architect builds it at no cost
 		if (p.offersPart()) return 1;
-		var e = dev.larattalabs.steward.model.BudgetPolicy.estimate(1, 0);
+		// a quarter is priced like a build of its buildings (Noah's Q2)
+		int n = p.foundsQuarter() ? Math.max(1, p.building().count()) : 1;
+		var e = dev.larattalabs.steward.model.BudgetPolicy.estimate(n, 0);
 		return (int) (Math.ceil(e.usdHigh() / 5.0) * 5);
 	}
 

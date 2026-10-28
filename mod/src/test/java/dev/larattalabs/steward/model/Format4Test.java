@@ -41,20 +41,20 @@ class Format4Test {
 		assertNull(d.region());
 		st.save(f);
 		String saved = Files.readString(f);
-		assertTrue(saved.contains("\"format\": 4"));
+		assertTrue(saved.contains("\"format\": " + SettlementStore.FORMAT));
 		assertFalse(saved.contains("\"land\""), "squares write no land");
 		assertTrue(saved.contains("\"kind\": \"square\""));
-		assertEquals(4, SettlementStore.load(f).readFormat());
+		assertEquals(SettlementStore.FORMAT, SettlementStore.load(f).readFormat());
 		assertEquals(d, SettlementStore.load(f).get("set_44").orElseThrow().lands().district("dst_2").orElseThrow());
 	}
 
 	@Test
 	void anOlderStewardRefusesTheNewFormat() throws Exception {
 		// what a v3 Steward does with this file (its own rule: format above its FORMAT is refused, the file untouched)
-		String v4 = new SettlementStore().toJson();
-		int format = com.google.gson.JsonParser.parseString(v4).getAsJsonObject().get("format").getAsInt();
-		assertTrue(format > 3, "a v3 reader (FORMAT 3) refuses format " + format);
-		String newer = v4.replaceFirst("\"format\": 4", "\"format\": 5");
+		String now = new SettlementStore().toJson();
+		int format = com.google.gson.JsonParser.parseString(now).getAsJsonObject().get("format").getAsInt();
+		assertTrue(format > 4, "a format-4 reader (before quarters) refuses format " + format + ": it would drop a quarter and found a free district instead");
+		String newer = now.replaceFirst("\"format\": " + format, "\"format\": " + (format + 1));
 		assertThrows(JsonParseException.class, () -> SettlementStore.fromJson(newer));
 	}
 
@@ -126,11 +126,11 @@ class Format4Test {
 		assertEquals(1, b.readFormat());
 		assertTrue(Files.exists(dir.resolve("steward-builds.json.v1.bak")));
 		b.save(f);
-		assertTrue(Files.readString(f).contains("\"format\": 2"));
+		assertTrue(Files.readString(f).contains("\"format\": 3"));
 		BuildStore again = BuildStore.load(f);
-		assertEquals(2, again.readFormat());
+		assertEquals(3, again.readFormat());
 		assertEquals(b.all().get(0).vRegion(), again.all().get(0).vRegion());
-		String newer = Files.readString(f).replaceFirst("\"format\": 2", "\"format\": 3");
+		String newer = Files.readString(f).replaceFirst("\"format\": 3", "\"format\": 4");
 		assertThrows(JsonParseException.class, () -> BuildStore.fromJson(newer));
 	}
 }

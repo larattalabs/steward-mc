@@ -34,7 +34,18 @@ public record SettlementView(String id, String name, boolean described, boolean 
 	public record PlayerBuildInfo(String id, String title, String by, int minX, int minY, int minZ, int maxX, int maxY, int maxZ, boolean provisional) {}
 
 	/** A district (phase 3f): where it lies ({@code direction} N, E, S, W), its square, and how many buildings stand in it. */
-	public record DistrictInfo(String id, String name, String direction, int centerX, int centerZ, int radius, int side, int buildings, int roads) {}
+	/** A district: {@code kind} and {@code state} as saved ({@code square} standing for the ones before them); {@code note}: what the player should know of it now. */
+	public record DistrictInfo(String id, String name, String direction, int centerX, int centerZ, int radius, int side, int buildings, int roads, String kind,
+		String state, @org.jspecify.annotations.Nullable String note) {
+		public DistrictInfo {
+			kind = kind == null ? "square" : kind;
+			state = state == null ? "standing" : state;
+		}
+
+		public DistrictInfo(String id, String name, String direction, int centerX, int centerZ, int radius, int side, int buildings, int roads) {
+			this(id, name, direction, centerX, centerZ, radius, side, buildings, roads, "square", "standing", null);
+		}
+	}
 
 	/** An area the player protected (columns x0..x1, z0..z1). */
 	public record AreaInfo(String id, String label, int x0, int z0, int x1, int z1) {}
@@ -100,6 +111,12 @@ public record SettlementView(String id, String name, boolean described, boolean 
 	/** As above, with what the settlement asks of the player ({@code attention}: the board shows the line the nameplate and the inbox show). */
 	public static SettlementView of(Settlement s, boolean busy, List<Site> sites, List<DistrictInfo> proposed, List<String> stockpile,
 		List<PlayerBuildInfo> playerBuilds, dev.larattalabs.steward.inbox.@org.jspecify.annotations.Nullable Attention attention) {
+		return of(s, busy, sites, proposed, stockpile, playerBuilds, attention, java.util.Map.of());
+	}
+
+	/** As above, with a note for some districts by id ("its road to the town is gone"). */
+	public static SettlementView of(Settlement s, boolean busy, List<Site> sites, List<DistrictInfo> proposed, List<String> stockpile,
+		List<PlayerBuildInfo> playerBuilds, dev.larattalabs.steward.inbox.@org.jspecify.annotations.Nullable Attention attention, java.util.Map<String, String> notes) {
 		var c = s.claim();
 		ClaimInfo claim = new ClaimInfo(c.dimension(), c.centerX(), c.centerZ(), c.radius(), ClaimRules.side(c.radius()), ClaimRules.sizeOf(c.radius()));
 		List<Settlement.LogEntry> log = s.log();
@@ -129,7 +146,8 @@ public record SettlementView(String id, String name, boolean described, boolean 
 		for (Settlement.District d : s.lands().districts()) {
 			var dc = d.claim();
 			int n = perDistrict.getOrDefault(d.id(), 0);
-			districts.add(new DistrictInfo(d.id(), d.name(), d.direction(), dc.centerX(), dc.centerZ(), dc.radius(), ClaimRules.side(dc.radius()), n, d.roads().size()));
+			districts.add(new DistrictInfo(d.id(), d.name(), d.direction(), dc.centerX(), dc.centerZ(), dc.radius(), ClaimRules.side(dc.radius()), n, d.roads().size(),
+				d.kind(), d.state(), notes.get(d.id())));
 		}
 		List<AreaInfo> areas = s.lands().protect().stream().map(a -> new AreaInfo(a.id(), a.label(), a.x0(), a.z0(), a.x1(), a.z1())).toList();
 		return new SettlementView(s.id(), s.name(), s.described(), busy, claim, s.permission().name(), s.difficulty().name(), List.copyOf(buildings), roads,

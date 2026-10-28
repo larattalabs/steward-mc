@@ -1,5 +1,7 @@
 package dev.larattalabs.steward.model;
 
+import java.util.List;
+
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -9,7 +11,28 @@ import org.jspecify.annotations.Nullable;
  * {@code pendingPart} offers a part of the settlement's plan that waited for Architect and can be built now (docs/COMPOSITION.md section 11).
  */
 public record Proposal(String key, String title, String why, ConceptCard.@Nullable Building building, long at, String trigger, @Nullable String district,
-	@Nullable String found, @Nullable String changeSite, @Nullable String changeNotes, @Nullable String pendingPart) {
+	@Nullable String found, @Nullable String changeSite, @Nullable String changeNotes, @Nullable String pendingPart, @Nullable Quarter quarter) {
+	/**
+	 * A quarter apart from the town's street (docs/DISTRICTS.md section 6, Noah's Q2): an {@code along} district following a boundary ({@code shore},
+	 * {@code ridge} or {@code biome_edge} between two families) or an {@code outpost} apart from the town, built at once with its buildings (the proposal's
+	 * building, as many as its count) and priced like a build.
+	 */
+	public record Quarter(String kind, @Nullable String boundary, List<String> between, @Nullable String side) {
+		public Quarter {
+			if (!"along".equals(kind) && !"outpost".equals(kind)) throw new com.google.gson.JsonParseException("a quarter is along or an outpost, not " + kind);
+			if ("along".equals(kind) && (boundary == null || !java.util.Set.of("shore", "ridge", "biome_edge").contains(boundary))) {
+				throw new com.google.gson.JsonParseException("an along quarter follows a shore, a ridge or a biome edge");
+			}
+			between = between == null ? List.of() : List.copyOf(between);
+		}
+	}
+
+	/** As before quarters. */
+	public Proposal(String key, String title, String why, ConceptCard.@Nullable Building building, long at, String trigger, @Nullable String district,
+		@Nullable String found, @Nullable String changeSite, @Nullable String changeNotes, @Nullable String pendingPart) {
+		this(key, title, why, building, at, trigger, district, found, changeSite, changeNotes, pendingPart, null);
+	}
+
 	public Proposal {
 		if (key == null || (building == null && found == null && (changeSite == null || changeNotes == null) && pendingPart == null)) {
 			throw new com.google.gson.JsonParseException("a proposal needs a key and a building, a district, a change or a waiting part");
@@ -57,7 +80,7 @@ public record Proposal(String key, String title, String why, ConceptCard.@Nullab
 
 	/** The same building, to be built in district {@code districtId} (null: the town). */
 	public Proposal in(@Nullable String districtId) {
-		return new Proposal(key, title, why, building, at, trigger, districtId, found, changeSite, changeNotes, pendingPart);
+		return new Proposal(key, title, why, building, at, trigger, districtId, found, changeSite, changeNotes, pendingPart, quarter);
 	}
 
 	/** A new district towards {@code way} (N, E, S, W): founding it lays its road ($0); it always waits for the player. */
@@ -66,7 +89,16 @@ public record Proposal(String key, String title, String why, ConceptCard.@Nullab
 	}
 
 	public boolean foundsDistrict() {
-		return found != null;
+		return found != null && quarter == null;
+	}
+
+	/** A quarter towards {@code way}: founded and built at once, its {@code building} as many times as its count; it always waits for the player. */
+	public static Proposal quarter(String way, Quarter q, ConceptCard.Building building, String title, String why, long at, String trigger) {
+		return new Proposal("quarter_" + q.kind() + "_" + way, title, why, building, at, trigger, null, way, null, null, null, q);
+	}
+
+	public boolean foundsQuarter() {
+		return quarter != null && found != null && building != null;
 	}
 
 	public @Nullable String type() {

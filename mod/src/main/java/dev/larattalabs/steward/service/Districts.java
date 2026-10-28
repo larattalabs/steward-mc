@@ -181,6 +181,50 @@ public final class Districts {
 		}
 	}
 
+	/** The sides a quarter of {@code q}'s kind doesn't fit (its whole strip, not a square district's): an "auto" choice skips them. */
+	public static java.util.Set<String> quarterMisfits(Settlement s, dev.larattalabs.steward.model.Proposal.Quarter q) {
+		java.util.Set<String> out = new java.util.HashSet<>(DistrictRules.DIRECTIONS);
+		out.removeAll(quarterStrips(s, q).keySet());
+		return out;
+	}
+
+	/** Each side a quarter of {@code q}'s kind fits, with its strip: what an "auto" choice surveys. None when the town's region can't be read. */
+	static java.util.Map<String, dev.larattalabs.steward.model.Land.Rect> quarterStrips(Settlement s, dev.larattalabs.steward.model.Proposal.Quarter q) {
+		java.util.Map<String, dev.larattalabs.steward.model.Land.Rect> out = new java.util.LinkedHashMap<>();
+		try {
+			var town = TownRegion.of(s).flatMap(id -> ArchitectApi.get().regions().get(id));
+			if (town.isEmpty()) return out;
+			var b = town.get().claim();
+			int depth = "outpost".equals(q.kind()) ? DistrictRules.OUTPOST_DEPTH : DistrictRules.ALONG_DEPTH;
+			for (String dir : DistrictRules.DIRECTIONS) {
+				var p = DistrictRules.quarter(s.claim(), new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, s.lands().districts(), Settlements.others(s.id()),
+					s.lands().protect(), dir, depth, "quarter");
+				if (p.ok() && p.land() != null) out.put(dir, p.land().rect());
+			}
+		} catch (RuntimeException | LinkageError e) {
+			// can't tell: every side refused, so nothing is offered that won't fit
+			out.clear();
+		}
+		return out;
+	}
+
+	/** {@link #choose} for a quarter of {@code q}'s kind: only the sides its strip fits, each judged by the ground of its strip. */
+	public static void chooseQuarter(MinecraftServer server, Settlement s, dev.larattalabs.steward.model.Proposal.Quarter q, dev.larattalabs.steward.model.DistrictSite site,
+		java.util.Collection<String> skip, Consumer<dev.larattalabs.steward.model.DistrictSite.Choice> then) {
+		var strips = quarterStrips(s, q);
+		strips.keySet().removeAll(skip);
+		// a shore quarter only where its strip is by the water: the chooser's fallback (any side that fits) is no answer for one
+		boolean shore = "shore".equals(q.boundary());
+		choose(server, s, site, null, strips, c -> then.accept(shore && c.way() != null && !c.why().startsWith("by the water")
+			? new dev.larattalabs.steward.model.DistrictSite.Choice(null, "has its strip by the water") : c));
+	}
+
+	/** A district region's build that ended with nothing placed: a beside district is only reserved again; a quarter, founded for it, is given up. */
+	static void release(String settlementId, Settlement.District d) {
+		if (Settlement.District.BESIDE.equals(d.kind())) Settlements.districtState(settlementId, d.id(), Settlement.District.RESERVED);
+		else Settlements.removeDistrict(settlementId, d.id(), "Gave up " + d.name() + " (its build placed nothing)", System.currentTimeMillis());
+	}
+
 	/** The district's key stem: its plan and realise keys are {@code <stem>.dplan} and {@code <stem>.drealise}. */
 	static String opKeyStem(Settlement s, String districtId) {
 		return "steward." + s.id() + "." + districtId;
@@ -195,11 +239,41 @@ public final class Districts {
 	/** As above, tagged with the build that plans it (a restart finds its region by the tag when its key is lost). */
 	static dev.larattalabs.architect.api.RegionPlanRequest besideRequest(ServerLevel level, Settlement s, String town, int[] request, String districtId,
 		List<JsonObject> lots, @Nullable String opKey, @Nullable String buildId) {
+		return besideRequest(level, s, town, request, districtId, lots, opKey, buildId, Settlement.District.BESIDE, null);
+	}
+
+	/**
+	 * The plan request of a district of {@code kind} beside the town (D1-D3's {@code districts} program): a beside district on a survey candidate, an
+	 * {@code along} one following {@code follow}'s boundary ({@code size} [length, depth], D2), an {@code outpost} apart by its gap (D2).
+	 */
+	static dev.larattalabs.architect.api.RegionPlanRequest besideRequest(ServerLevel level, Settlement s, String town, int[] request, String districtId,
+		List<JsonObject> lots, @Nullable String opKey, @Nullable String buildId, String kind, Settlement.District.@Nullable Follow follow) {
 		JsonObject district = new JsonObject();
 		district.addProperty("id", districtId);
 		com.google.gson.JsonArray size = new com.google.gson.JsonArray();
-		size.add(Math.min(48, request[2] - request[0] + 1));
-		size.add(Math.min(48, request[3] - request[1] + 1));
+		if (Settlement.District.ALONG.equals(kind) && follow != null) {
+			// D2's default band, 96 along the boundary and 24 deep
+			size.add(Math.min(96, Math.max(request[2] - request[0], request[3] - request[1]) + 1));
+			size.add(24);
+			JsonObject which = new JsonObject();
+			if (!follow.between().isEmpty()) {
+				com.google.gson.JsonArray between = new com.google.gson.JsonArray();
+				follow.between().forEach(between::add);
+				which.add("between", between);
+			}
+			JsonObject f = new JsonObject();
+			f.add(follow.boundary(), which);
+			district.add("follow", f);
+			if (follow.side() != null) district.addProperty("side", follow.side());
+		} else {
+			size.add(Math.min(48, request[2] - request[0] + 1));
+			size.add(Math.min(48, request[3] - request[1] + 1));
+			if (Settlement.District.OUTPOST.equals(kind)) {
+				JsonObject o = new JsonObject();
+				o.addProperty("gap", 24);
+				district.add("outpost", o);
+			}
+		}
 		district.add("size", size);
 		com.google.gson.JsonArray ls = new com.google.gson.JsonArray();
 		lots.forEach(ls::add);
@@ -281,6 +355,34 @@ public final class Districts {
 		return null;
 	}
 
+	/**
+	 * Founds a quarter (an along district or an outpost, Noah's Q2) towards {@code dir}, as {@code building}: its strip beyond the claim held while it is
+	 * built, its founding logged with it as the target; the build that follows plans it beside the town and builds its buildings. Returns the district's
+	 * id, or throws with why not. Not in survival; the town must be a region. Server thread.
+	 */
+	public static String foundQuarter(MinecraftServer server, Settlement s, String dir, dev.larattalabs.steward.model.Proposal.Quarter q, String name) {
+		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) throw new IllegalStateException("A quarter isn't built from materials yet.");
+		var townId = TownRegion.of(s);
+		if (townId.isEmpty()) throw new IllegalStateException("A quarter goes beside a town Architect laid out, and " + s.name() + "'s town isn't one (or was undone).");
+		var town = ArchitectApi.get().regions().get(townId.get()).orElseThrow(() -> new IllegalStateException("The town's region can't be read."));
+		var b = town.claim();
+		int depth = "outpost".equals(q.kind()) ? DistrictRules.OUTPOST_DEPTH : DistrictRules.ALONG_DEPTH;
+		var p = DistrictRules.quarter(s.claim(), new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, s.lands().districts(), Settlements.others(s.id()),
+			s.lands().protect(), dir, depth, name);
+		if (!p.ok()) throw new IllegalStateException(p.note());
+		String kind = "outpost".equals(q.kind()) ? Settlement.District.OUTPOST : Settlement.District.ALONG;
+		var follow = Settlement.District.ALONG.equals(kind) ? new Settlement.District.Follow(q.boundary(), q.between(), q.side()) : null;
+		String[] id = new String[1];
+		var res = Settlements.addReservation(s.id(), i -> {
+			id[0] = i;
+			return new Settlement.District(i, name, dir, p.claim(), System.currentTimeMillis(), List.of(), false, kind, Settlement.District.BUILDING, townId.get(), null,
+				p.land(), follow, opKeyStem(s, i));
+		}, "Founded " + name + " (" + ("outpost".equals(q.kind()) ? "an outpost" : "along the " + q.boundary().replace('_', ' ')) + ", to the "
+			+ DistrictRules.directionName(dir) + ")", System.currentTimeMillis());
+		if (!res.ok()) throw new IllegalStateException(res.error());
+		return id[0];
+	}
+
 	/** Architect's refusal of a beside plan in Steward's words (D3 §2.5's bracketed kinds), the message kept for the rest. */
 	static String besideRefusal(@Nullable String code, String message) {
 		String m = message == null ? "" : message;
@@ -336,9 +438,9 @@ public final class Districts {
 			// can't tell this time: the next pass looks again
 		}
 		for (Settlement.District d : s.get().lands().districts()) {
-			// a district left building by a build that is gone (a stop before it ended), with no region of its own Architect still holds: only reserved again
+			// a district left building by a build that is gone (a stop before it ended), with no region of its own Architect still holds: put back
 			if (Settlement.District.BUILDING.equals(d.state()) && d.region() == null) {
-				if (liveRegionOf(s.get().owner(), d.id()).isEmpty()) Settlements.districtState(settlementId, d.id(), Settlement.District.RESERVED);
+				if (liveRegionOf(s.get().owner(), d.id()).isEmpty()) release(settlementId, d);
 				continue;
 			}
 			if (!d.square()) continue;
@@ -508,20 +610,30 @@ public final class Districts {
 	public static void choose(MinecraftServer server, Settlement s, dev.larattalabs.steward.model.DistrictSite site, @Nullable BlockPos standing,
 		java.util.Collection<String> skip, Consumer<dev.larattalabs.steward.model.DistrictSite.Choice> then) {
 		var street = townStreet(server, s);
-		java.util.Map<String, Claim> squares = new java.util.LinkedHashMap<>();
+		java.util.Map<String, dev.larattalabs.steward.model.Land.Rect> squares = new java.util.LinkedHashMap<>();
 		for (String dir : DistrictRules.DIRECTIONS) {
 			if (skip.contains(dir)) continue;
 			var p = DistrictRules.place(s.claim(), street, s.lands().districts(), Settlements.others(s.id()), s.lands().protect(), dir, DistrictRules.RADII[0]);
 			// a side whose road would run over a building is not one founding could take
-			if (p.ok() && overBuilding(server, s, p.road()) == null) squares.put(dir, p.claim());
+			if (p.ok() && overBuilding(server, s, p.road()) == null) {
+				Claim c = p.claim();
+				squares.put(dir, new dev.larattalabs.steward.model.Land.Rect(c.centerX() - c.radius(), c.centerZ() - c.radius(), c.centerX() + c.radius(), c.centerZ() + c.radius()));
+			}
 		}
+		choose(server, s, site, standing, squares, then);
+	}
+
+	/** As above over {@code sides}: each side that may be chosen, with the ground it would take (a square district's, or a quarter's strip). */
+	private static void choose(MinecraftServer server, Settlement s, dev.larattalabs.steward.model.DistrictSite site, @Nullable BlockPos standing,
+		java.util.Map<String, dev.larattalabs.steward.model.Land.Rect> sides, Consumer<dev.larattalabs.steward.model.DistrictSite.Choice> then) {
+		var squares = sides;
 		List<String> free = List.copyOf(squares.keySet());
 		dev.larattalabs.steward.model.DistrictSite.Standing stand = null;
 		if (standing != null) {
 			java.util.Map<String, Double> dist = new java.util.LinkedHashMap<>();
 			for (var e : squares.entrySet()) {
-				Claim c = e.getValue();
-				int dx = Math.max(0, Math.abs(standing.getX() - c.centerX()) - c.radius()), dz = Math.max(0, Math.abs(standing.getZ() - c.centerZ()) - c.radius());
+				var r = e.getValue();
+				int dx = Math.max(0, Math.max(r.x0() - standing.getX(), standing.getX() - r.x1())), dz = Math.max(0, Math.max(r.z0() - standing.getZ(), standing.getZ() - r.z1()));
 				dist.put(e.getKey(), Math.hypot(dx, dz));
 			}
 			stand = new dev.larattalabs.steward.model.DistrictSite.Standing(dist);
@@ -536,9 +648,15 @@ public final class Districts {
 		keys.add("town");
 		List<java.util.concurrent.CompletableFuture<dev.larattalabs.architect.api.Sample>> samples = new ArrayList<>();
 		for (String k : keys) {
-			Claim c = k.equals("town") ? DistrictRules.villageSquare(s.claim()) : squares.get(k);
-			var box = new net.minecraft.world.level.levelgen.structure.BoundingBox(c.centerX() - c.radius(), level.getMinY(), c.centerZ() - c.radius(), c.centerX() + c.radius(),
-				level.getMaxY(), c.centerZ() + c.radius());
+			net.minecraft.world.level.levelgen.structure.BoundingBox box;
+			if (k.equals("town")) {
+				Claim c = DistrictRules.villageSquare(s.claim());
+				box = new net.minecraft.world.level.levelgen.structure.BoundingBox(c.centerX() - c.radius(), level.getMinY(), c.centerZ() - c.radius(), c.centerX() + c.radius(),
+					level.getMaxY(), c.centerZ() + c.radius());
+			} else {
+				var r = squares.get(k);
+				box = new net.minecraft.world.level.levelgen.structure.BoundingBox(r.x0(), level.getMinY(), r.z0(), r.x1(), level.getMaxY(), r.z1());
+			}
 			samples.add(ArchitectApi.get().survey().sample(level, box, PROFILE_RESOLUTION, dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY));
 		}
 		int session = Session.current();

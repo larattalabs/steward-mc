@@ -287,3 +287,22 @@ Noah (2026-10-26): fix both accepted items, then go on. Fixed:
   region tagged with a district that doesn't name it, as the world-start sweep does across a restart (the GPT check's point, 2026-10-26).
 - 4: every district realise (a new plan, a restored build, the approval path) re-checks its request's claim against the other districts' land first;
   on a conflict nothing is placed and the build ends (the district reserved again).
+
+## 11. GPT review of slice 5 (2026-10-26, gpt-6.1-sol, max)
+
+Three blockers and six should-fixes, each checked against the code; all fixed.
+- **Format.** Settlements format 5 and builds format 3: a proposal may carry a quarter, and a format-4 Steward would drop it and found a free square
+  district from what was left, so it refuses the file instead.
+- **A quarter's ground stays put.** Its request claim comes from the strip it holds (saved at founding), never one recomputed after an Expand.
+- **The re-plan.** Not started, and its result not realised, once the build is cancelling or has ended; its new plan is realised only after it is
+  saved; after a restart its lots are the card's as asked of Architect, saved with the build (builds format 3; one saved before reads them back from the
+  plan, an east- or west-facing lot turned back to its width and depth).
+- **A sibling's land in the way at planning** gives a quarter up (a beside district is reserved again), never leaving one held.
+- **Choosing a side.** "auto" (the command, talk and the steward's own offer) skips the sides a quarter's whole strip doesn't fit; the steward no
+  longer offers again a shore quarter the player declined. Each side is judged by the ground of the quarter's own strip, so a shore quarter is offered
+  only where its strip is by the water (the steward's idea checks the strip again before offering it).
+- **Talk.** "out by", "a camp" and negations ("not an outpost", "not another outpost", "no more outposts") no longer turn an ordinary district into
+  a paid quarter, and an outpost named as a place ("east of the old outpost") isn't an ask for one: only "an", "another" or "one more" outpost is.
+- **The Claim tab** gives a district's note ("its road to the town is gone") a line of its own.
+- **Checks.** The outpost's e2e compares its land column for column with Architect's and requires its buildings; tests cover the format boundary,
+  the held strip's request and the talk negatives.

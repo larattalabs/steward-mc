@@ -106,6 +106,63 @@ public final class DistrictRules {
 		return new Reservation(d, req, "");
 	}
 
+	/** How far beyond the settlement's claim a quarter may be placed: an along district's band anywhere in it, an outpost its gap and its own ground. */
+	public static final int ALONG_DEPTH = 96, OUTPOST_DEPTH = 112;
+
+	/**
+	 * Where a quarter towards {@code dir} may go (Noah's Q2; any side, its join may meet the town's street at its side): the strip {@code depth} deep beyond
+	 * the settlement's claim along that whole edge. {@code claim} is the strip's bounding square, {@code request} the strip and the way back into the town
+	 * region's claim by {@link #SEAM}, and {@code land} the strip, which the district holds while it is built (Architect's {@code land.outside} replaces
+	 * it once it stands). Refused over another district's land, another settlement, or a protected area. Pure.
+	 */
+	public record QuarterPlace(@Nullable Claim claim, @Nullable Land land, int[] request, String note) {
+		public boolean ok() {
+			return claim != null;
+		}
+	}
+
+	public static QuarterPlace quarter(Claim town, int[] region, List<Settlement.District> own, List<Claim> others, List<Settlement.Area> areas, String dir,
+		int depth, String name) {
+		for (Settlement.District o : own) {
+			if (o.direction().equals(dir)) return new QuarterPlace(null, null, new int[0], "There is a district to the " + directionName(dir) + " already (" + o.name() + ").");
+		}
+		int x0 = town.centerX() - town.radius(), x1 = town.centerX() + town.radius(), z0 = town.centerZ() - town.radius(), z1 = town.centerZ() + town.radius();
+		int[] strip;
+		int[] req;
+		switch (dir) {
+			case "E" -> { strip = new int[] {x1 + 1, z0, x1 + depth, z1}; req = new int[] {region[2] - (SEAM - 1), z0, x1 + depth, z1}; }
+			case "W" -> { strip = new int[] {x0 - depth, z0, x0 - 1, z1}; req = new int[] {x0 - depth, z0, region[0] + (SEAM - 1), z1}; }
+			case "N" -> { strip = new int[] {x0, z0 - depth, x1, z0 - 1}; req = new int[] {x0, z0 - depth, x1, region[1] + (SEAM - 1)}; }
+			default -> { strip = new int[] {x0, z1 + 1, x1, z1 + depth}; req = new int[] {x0, region[3] - (SEAM - 1), x1, z1 + depth}; }
+		}
+		Land land = Land.ofRect(town.dimension(), strip[0], strip[1], strip[2], strip[3]);
+		for (Settlement.District o : own) {
+			if (o.land().overlaps(land)) return new QuarterPlace(null, null, new int[0], "The " + name + " would overlap the " + o.name() + " district.");
+		}
+		for (Claim o : others) {
+			if (land.overlaps(o)) return new QuarterPlace(null, null, new int[0], "The " + name + " would overlap the settlement at " + o.centerX() + "," + o.centerZ() + ".");
+		}
+		for (Settlement.Area a : areas) {
+			if (land.overlaps(Land.ofRect(a.dimension(), a.x0(), a.z0(), a.x1(), a.z1()))) {
+				return new QuarterPlace(null, null, new int[0], "The " + name + " would cover the protected area \"" + a.label() + "\".");
+			}
+		}
+		int half = Math.max(strip[2] - strip[0], strip[3] - strip[1]) / 2;
+		Claim c = new Claim(town.dimension(), (strip[0] + strip[2]) / 2, (strip[1] + strip[3]) / 2, Math.max(8, half + 1), town.minY(), town.maxY());
+		return new QuarterPlace(c, land, req, "");
+	}
+
+	/** A quarter's request claim from its held strip {@code strip} towards {@code dir}: the strip and the way back into the town region by {@link #SEAM}. */
+	public static int[] quarterRequest(int[] region, Land strip, String dir) {
+		var r = strip.rect();
+		return switch (dir) {
+			case "E" -> new int[] {region[2] - (SEAM - 1), r.z0(), r.x1(), r.z1()};
+			case "W" -> new int[] {r.x0(), r.z0(), region[0] + (SEAM - 1), r.z1()};
+			case "N" -> new int[] {r.x0(), r.z0(), r.x1(), region[1] + (SEAM - 1)};
+			default -> new int[] {r.x0(), region[3] - (SEAM - 1), r.x1(), r.z1()};
+		};
+	}
+
 	/** The plan request's claim for a reservation {@code d} towards {@code dir}: the reservation and the way back into the town region's claim by {@link #SEAM}. */
 	public static int[] request(int[] region, Claim d, String dir) {
 		boolean east = dir.equals("E");
