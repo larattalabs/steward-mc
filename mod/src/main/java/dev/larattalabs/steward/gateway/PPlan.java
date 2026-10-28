@@ -155,17 +155,18 @@ public final class PPlan {
 
 	/**
 	 * Each wall lot's {@link #WALL_LOT_EXT} ext (Architect K3): {@code {outerFaces: <onWall.outerFaces.lotCells>}}, passed as the artifact has it, so its design
-	 * puts its doors off them (no one door cell is inner on every corner tower). Lots off the wall, or without outer faces, are left out.
+	 * puts its doors off them (no one door cell is inner on every corner tower). Every lot on a wall has one, {@code {}} without outer faces: Architect keys
+	 * a wall lot's exact massing and its detail's cap on it (wallLots.exactMassing). Lots off the wall are left out.
 	 */
 	public static Map<String, JsonObject> wallLots(JsonArray artifactLots) {
 		Map<String, JsonObject> out = new java.util.LinkedHashMap<>();
 		for (JsonElement e : artifactLots) {
 			if (!e.isJsonObject()) continue;
 			JsonObject wall = onWall(e.getAsJsonObject());
-			JsonObject faces = wall != null && wall.has("outerFaces") && wall.get("outerFaces").isJsonObject() ? wall.getAsJsonObject("outerFaces") : null;
-			if (faces == null || !faces.has("lotCells")) continue;
+			if (wall == null) continue;
+			JsonObject faces = wall.has("outerFaces") && wall.get("outerFaces").isJsonObject() ? wall.getAsJsonObject("outerFaces") : null;
 			JsonObject ext = new JsonObject();
-			ext.add("outerFaces", faces.get("lotCells").deepCopy());
+			if (faces != null && faces.has("lotCells")) ext.add("outerFaces", faces.get("lotCells").deepCopy());
 			out.put(e.getAsJsonObject().get("id").getAsString(), ext);
 		}
 		return out;

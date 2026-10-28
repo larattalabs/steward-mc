@@ -193,6 +193,9 @@ class PPlanTest {
 		assertEquals(java.util.Set.of("tower_1"), ext.keySet());
 		assertEquals(lots.get(0).getAsJsonObject().getAsJsonObject("onWall").getAsJsonObject("outerFaces").get("lotCells"), ext.get("tower_1").get("outerFaces"),
 			"the artifact's lotCells as they are");
+		// a gatehouse on the wall with no outer faces recorded still carries the ext, empty: Architect keys its exact massing on it
+		var gate = JsonParser.parseString("[{\"id\":\"gatehouse_1\",\"front\":\"south\",\"onWall\":{\"wall\":\"w\",\"at\":\"run\",\"frame\":[9,7]}}]").getAsJsonArray();
+		assertEquals(new com.google.gson.JsonObject(), PPlan.wallLots(gate).get("gatehouse_1"));
 	}
 
 	@Test

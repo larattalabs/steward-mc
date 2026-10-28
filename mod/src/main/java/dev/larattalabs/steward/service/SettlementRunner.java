@@ -1208,6 +1208,12 @@ public final class SettlementRunner {
 				// repair needs keyed designs: stopped here, before anything is spent
 				var walls = plan.lots().stream().filter(VillageLayout.Lot::exact).map(l -> l.id() + " " + l.type() + " " + l.along() + "x" + l.deep() + "x" + l.maxHeight()).toList();
 				if (!walls.isEmpty()) Steward.LOGGER.info("wall lots of {}: {}", settlement.id(), String.join(", ", walls));
+				// a wall lot's massing must take its box, or its detail cannot close the wall (Architect wallLots.exactMassing; Steward's groups are massing-first)
+				var wall = plan.lots().stream().filter(VillageLayout.Lot::exact).findFirst();
+				if (wall.isPresent() && !ArchitectApi.get().features().contains("wallLots.exactMassing")) {
+					abandon("The " + wall.get().role() + " on the wall must fill its lot, and this Architect can't design it to its box: update Architect.");
+					return;
+				}
 				var narrow = plan.lots().stream().filter(l -> l.exact() && (l.along() < 7 || l.deep() < 7)).findFirst();
 				if (narrow.isPresent() && !ArchitectApi.get().features().contains("wallLots")) {
 					abandon("The " + narrow.get().role() + " on the wall is " + narrow.get().along() + " x " + narrow.get().deep()
