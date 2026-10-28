@@ -26,5 +26,6 @@ class TalkQuarterTest {
 		assertNull(Talk.quarterOf("no more outposts, a district to the north"));
 		assertEquals("outpost", Talk.quarterOf("build another outpost to the west").kind());
 		assertEquals("outpost", Talk.quarterOf("a new outpost past the old one").kind());
+		assertEquals("outpost", Talk.quarterOf("not a district but an outpost").kind());
 	}
 }

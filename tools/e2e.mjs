@@ -1270,6 +1270,7 @@ async function wallOfferFlow() {
  */
 async function buildThrough(id, from, label, restartAtMassings = false, onStep = null, ms = 720_000) {
   const steps = [];
+  let lastApprove = '';
   // past Architect's 600 s wait for a blocked item (so a blocked item fails and is reported, rather than the check giving up first)
   const end = Date.now() + ms;
   // nothing in the lots' way: an animal in a box holds its item up for Architect's whole wait (C30)
@@ -1305,9 +1306,15 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
     }
     if (onStep) await onStep(m[0]);
     at = logSize();
-    await cmd(`/steward approve ${id}`);
+    lastApprove = await cmd(`/steward approve ${id}`);
   }
-  fail(label, `stalled after ${steps.join(', ') || 'nothing'}`);
+  // what the build was really doing: its saved phase (the last notice is not the phase) and what the last approve answered
+  let phase = 'no saved build';
+  try {
+    const b = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id);
+    if (b) phase = b.state?.phase ?? 'unknown';
+  } catch { /* no builds file */ }
+  fail(label, `stalled after ${steps.join(', ') || 'nothing'}; saved phase ${phase}; last approve: ${lastApprove || 'none'}`);
   return null;
 }
 

@@ -160,12 +160,17 @@ public final class Proposals {
 					CHOOSING.remove(s.id());
 					var now3 = Settlements.store().get(s.id());
 					if (now3.isEmpty() || now3.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
-					if (q.way() != null && q.why().startsWith("by the water") && offerQuarter(server, player, now3.get(), q.way(), shore) == null) {
+					// asked meanwhile (a quarter waiting, the room taken, the side declined): no second offer from this survey
+					var ps3 = now3.get().proposals();
+					long t = System.currentTimeMillis();
+					if (ps3.open().stream().anyMatch(Proposal::foundsQuarter) || !ProposalRules.room(ps3.open().stream().filter(x -> !x.offersPart()).toList(), ps3.lastAt(), t)) return;
+					if (q.way() != null && q.why().startsWith("by the water") && !ps3.declined().contains("quarter_along_" + q.way())
+						&& offerQuarter(server, player, now3.get(), q.way(), shore) == null) {
 						StewardVoice.say(server, s.id(), "I have an idea: a quarter along the shore to the " + dev.larattalabs.steward.model.DistrictRules.directionName(q.way()) + ", "
 							+ q.why() + ". See the inbox (Y).");
 						return;
 					}
-					offerDistrict(server, player, s, c, System.currentTimeMillis());
+					offerDistrict(server, player, s, c, t);
 				});
 				return;
 			}

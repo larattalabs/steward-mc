@@ -213,7 +213,10 @@ public final class Districts {
 		java.util.Collection<String> skip, Consumer<dev.larattalabs.steward.model.DistrictSite.Choice> then) {
 		var strips = quarterStrips(s, q);
 		strips.keySet().removeAll(skip);
-		choose(server, s, site, null, strips, then);
+		// a shore quarter only where its strip is by the water: the chooser's fallback (any side that fits) is no answer for one
+		boolean shore = "shore".equals(q.boundary());
+		choose(server, s, site, null, strips, c -> then.accept(shore && c.way() != null && !c.why().startsWith("by the water")
+			? new dev.larattalabs.steward.model.DistrictSite.Choice(null, "has its strip by the water") : c));
 	}
 
 	/** A district region's build that ended with nothing placed: a beside district is only reserved again; a quarter, founded for it, is given up. */

@@ -240,7 +240,7 @@ public final class Talk {
 			}
 			var site = dev.larattalabs.steward.model.DistrictSite.fromWords("shore".equals(q.boundary()) ? "by the water" : said);
 			Districts.chooseQuarter(server, s, q, site, java.util.Set.of(), c -> {
-				String reply = c.way() == null ? "No side of " + s.name() + " has room for it." : java.util.Optional.ofNullable(Proposals.offerQuarter(server, player, s, c.way(), q))
+				String reply = c.way() == null ? "No side of " + s.name() + " " + (c.why().isEmpty() ? "has room for it" : c.why()) + "." : java.util.Optional.ofNullable(Proposals.offerQuarter(server, player, s, c.way(), q))
 					.orElse("I'll lay out a quarter " + quarterWords(q) + " to the " + DistrictRules.directionName(c.way()) + ": it waits in the inbox.");
 				answer(server, player, s.id(), reply);
 			});
@@ -273,8 +273,9 @@ public final class Talk {
 	/** An outpost asked for ("an outpost", "another outpost", "build a new outpost"), not one named as a place ("east of the old outpost"). */
 	private static final java.util.regex.Pattern OUTPOST = java.util.regex.Pattern.compile(
 		"\\b((an?|another|one more)( (new|small|little))? outpost|a camp apart|apart from the town)\\b");
-	/** "not an outpost", "not another outpost", "no more outposts", "rather than an outpost": the ask is for something else. */
-	private static final java.util.regex.Pattern NOT_OUTPOST = java.util.regex.Pattern.compile("\\b(not|no|rather than|instead of)\\b[^.,;!?]{0,24}\\boutposts?\\b");
+	/** "not an outpost", "not another outpost", "no more outposts", "rather than an outpost" (not "not a district but an outpost"): the ask is for something else. */
+	private static final java.util.regex.Pattern NOT_OUTPOST = java.util.regex.Pattern.compile(
+		"\\b(not|no|rather than|instead of)( (an?|another|any|more|one more|new|other))* outposts?\\b");
 	private static final java.util.regex.Pattern SHORE = java.util.regex.Pattern.compile("\\b(along|by|on) the (shore|coast|river|lake|sea|water|beach)\\b");
 	private static final java.util.regex.Pattern RIDGE = java.util.regex.Pattern.compile("\\b(on|along) the (ridge|crest|hilltop|hill top)\\b");
 	private static final java.util.regex.Pattern EDGE = java.util.regex.Pattern.compile("where the (\\w+) meets the (\\w+)");
