@@ -1017,3 +1017,11 @@ with every wall lot's `architect:wallLot` ext sent as an object (`{}` without ou
 `sim:outerdoor` door and repaired, a repair in flight picked up by its key after a restart, all five bound; the walled town revised and undone, then
 undone; a second town cancelled while its repair was designed. The independent verifier passed the branch (unit tests 324, the e2e conditions, the
 GPT trail, save compatibility, the diff). Next in the queue: GJ (slice/GJ 9e4e8438).
+
+## v0.48.0 adoption and GJ RC: where they stand (2026-10-28, paused for the night)
+
+Architect v0.48.0 (GR, LF, K3) is published. Steward's `release-048` (worktree `_work/steward-r048`, local) merges gr-rc and k3-rc, pins 0.48.0
+and requires it at runtime. On the published jar: free 43/43, stub 100/101, the miss the walled town's growth refused `NO_ROOM [street]` (accepted
+for GR until GJ; the e2e now reports it as a skip, c38da68). The stub rerun after that change was stopped for the shutdown; it is rerun before
+release-048 merges into main. GJ's RC (slice/GJ 9e4e8438, after Architect main is merged into it) has not started; its result goes to the
+coordinator, then Architect merges larattalabs/architect-mc#1, cuts GJ as v0.49.0, then GM.
