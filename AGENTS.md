@@ -26,6 +26,8 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 - Phase 3 is in steps 3a-3f (`docs/PLAN.md`, "Order"). Each step ships on its own with unit tests and an e2e check, committed in coherent pieces.
 - Architect changes are asked for, never made here: write the ask into `docs/ARCHITECT-ASKS.md` and send it to the Architect session. Steward never edits
   `../architect-mc` or `../lab-ui`.
+- Branch work happens in a worktree under `../_work/` (`git worktree add ../_work/steward-<name> <branch>` from this checkout), never in `/tmp` or the
+  scratchpad: a reboot wipes those. A worktree has no `.gradle-home`, so its builds and e2e runs set `GRADLE_USER_HOME` to this checkout's.
 - Decisions Noah makes go into the Decisions table as they happen. A review's findings are checked against the code before they are acted on.
 - High-stakes or hard changes (spending, persistence, cancellation, migrations) get an independent GPT review (the second-opinion skill), then a check of the fixes.
 
@@ -45,7 +47,7 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 
 - Steward dev client: 8490 (Architect sidecar) / 8491 (DevBridge); override with `STEWARD_PORT` / `STEWARD_DEV_PORT`.
 - Steward e2e client: 8590 / 8591 (`tools/run-e2e-client.sh`).
-- Architect gate runners: 8890-8905. AgentCraft Foreman: 7880 and 7890-7909.
+- Architect gate runners: 8890-8905; Architect agents: 8960-8989. AgentCraft Foreman: 7880 and 7890-7909.
 
 ## Hard rules
 
@@ -55,6 +57,6 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 - **Kill only processes you started, by PID.** Never `pkill`/`killall` by pattern: other sessions run Minecraft clients.
 - Never commit secrets, logs or `artifacts/` (local evidence only). Run `gitleaks git` over new commits before a push.
 - Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. PR descriptions carry no "Generated with Claude Code" footer.
-- No `rm -rf` outside build/temp dirs, no `git reset --hard`, no force-push. Push only when Noah says so.
+- No `rm -rf` outside build/temp dirs, no `git reset --hard`, no force-push. Push `main` once both e2e runs pass and `gitleaks` is clean (Noah, 2026-10-27); anything else is pushed only when Noah says so.
 - Saves are migrated, never broken: a format change keeps old worlds loading (`SettlementStore` migrations, `fixtures/saves/`, `SaveCompatTest`).
 - Ported code keeps its licence: files from AgentCraft keep both MIT copyright lines (`assets-src/NOTICE`).
