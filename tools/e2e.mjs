@@ -2113,8 +2113,8 @@ async function driveUntil(id, from, until, ms) {
 }
 
 /**
- * (Architect K3, Steward's RC) castle_city's curtain wall, its corner towers and gatehouse on its line, designed to their boxes and bound. The card's words
- * carry the sim's `sim:outerdoor`, so a wall lot's first design has a door in an outer face: the bind refuses it ("lot <id> on wall <wall>: ..."), the
+ * (Architect K3, Steward's RC) castle_city's curtain wall, its corner towers and gatehouse on its line, designed to their boxes and bound. The wall lots'
+ * briefs carry the sim's `sim:outerdoor`, so a wall lot's first design has a door in an outer face: the bind refuses it ("lot <id> on wall <wall>: ..."), the
  * steward redesigns it as its next version and binds again, until the town stands. A restart while the first repair is designed: picked up by its key. A
  * revision of the walled town (Architect's re-check loop over wall lots), undone; the town undone. A second town cancelled while its repair is designed:
  * cancelled once the repair stopped. Skipped on an Architect without wall lots.
@@ -2131,9 +2131,16 @@ async function wallLotsFlow() {
     await cmd(`/steward expand ${id}`);
     const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
     card.name = name;
-    card.style = { ...card.style, text: `${card.style.text} sim:outerdoor` };
     await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
-    await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer)}`);
+    // the sim designs no lot 7 deep (castle_city's houses, shops, tavern): the keep and the wall lots only; sim:outerdoor in the wall lots' briefs
+    // alone (a keep is a tower too: the sim builds its wall-lot stand-in for any tower whose notes carry the token)
+    const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
+    for (const z of answer.plan.zones) {
+      if (!z.program?.lots) continue;
+      z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse')
+        .map((l) => (l.id === 'keep_1' ? l : { ...l, brief: `${l.brief ?? ''} sim:outerdoor`.trim() }));
+    }
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
     let from = logSize();
     await cmd(`/steward describe ${id} a castle city behind its curtain wall`);
     if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return { id, error: 'no card' };
