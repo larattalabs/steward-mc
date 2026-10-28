@@ -37,6 +37,20 @@ public final class BuildStore {
 	// ({@code wallRepairs}, Architect K3), so a restart never repairs past the cap
 
 	/**
+	 * A wall lot's repair a build owns (Architect K3): its lot, its key (tagged on the design request, so it is found again after a restart or a lost
+	 * answer), its round, its design once Architect answered, what of the budget it reserved, and whether a cancel waits for it to stop.
+	 */
+	public record WallRepair(String lotId, String key, int round, @Nullable String designId, double reservedUsd, boolean stopping) {
+		public WallRepair withDesign(String id) {
+			return new WallRepair(lotId, key, round, id, reservedUsd, stopping);
+		}
+
+		public WallRepair stopped() {
+			return new WallRepair(lotId, key, round, designId, reservedUsd, true);
+		}
+	}
+
+	/**
 	 * One build. {@code settlement} is a copy (a dev build's settlement is not in the settlements file); {@code siteGroupId} is the Architect site group the
 	 * placement batch made, kept because finished batches are not kept across restarts.
 	 */
@@ -44,7 +58,7 @@ public final class BuildStore {
 		VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId, List<String> landmarkIds,
 		List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street, @Nullable Boolean keyed,
 		@Nullable String vPlan, @Nullable String vRegion, @Nullable List<VillageLayout.LotSpec> districtSpecs, @Nullable Map<String, Integer> wallRepairs,
-		@Nullable Map<String, String> repairDesigns) {
+		@Nullable WallRepair wallRepair) {
 		/** As saved before a wall lot's repair design was kept with the build. */
 		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
 			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,

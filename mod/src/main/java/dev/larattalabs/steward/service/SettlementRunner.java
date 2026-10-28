@@ -113,6 +113,7 @@ public final class SettlementRunner {
 			for (SettlementRunner r : List.copyOf(ACTIVE.values())) {
 				try {
 					r.watchVillage();
+					r.checkRepair();
 				} catch (RuntimeException e) {
 					Steward.LOGGER.error("could not read the village of {}", r.claimedId, e);
 				}
@@ -367,7 +368,7 @@ public final class SettlementRunner {
 		this.vRegionId = b.vRegion();
 		this.districtSpecs = b.districtSpecs() == null ? null : List.copyOf(b.districtSpecs());
 		if (b.wallRepairs() != null) this.wallRepairs.putAll(b.wallRepairs());
-		if (b.repairDesigns() != null) this.savedRepairs.putAll(b.repairDesigns());
+		this.repair = b.wallRepair();
 	}
 
 	private ServerLevel level() {
@@ -384,7 +385,7 @@ public final class SettlementRunner {
 		if (ended) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
 			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, wallRepairs.isEmpty() ? null : Map.copyOf(wallRepairs),
-			pendingRepair == null ? null : Map.of(pendingRepair.lotId(), pendingRepair.designId())));
+			repair));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -1979,6 +1980,8 @@ public final class SettlementRunner {
 	/** A wall lot's design repairs at the bind (Architect K3): at most this many rounds a lot, each at most {@link #WALL_REPAIR_USD}. */
 	static final int WALL_REPAIRS = 2;
 	static final double WALL_REPAIR_USD = 2.0;
+	/** The design request's ext key carrying a repair's key, so it is found again after a restart or a lost answer. */
+	static final String REPAIR_EXT = "steward_mc:repair";
 	/** Architect K3's refusal of a wall lot's bound design: "lot <id> on wall <wall>: ...". */
 	private static final java.util.regex.Pattern ON_WALL = java.util.regex.Pattern.compile("^lot (\\S+) on wall \\S+:");
 	/** How often each wall lot's design was repaired this build (saved with it). */
@@ -1991,35 +1994,48 @@ public final class SettlementRunner {
 		return m.find() ? m.group(1) : null;
 	}
 
+	/** How long a repair's design is looked for by its key (its answer lost, or asked before a restart) before the build gives it up. */
+	static final long REPAIR_FIND_MS = 5 * 60_000L;
+	/** How long a cancel waits for a repair's design to stop before it is given up (its most stays counted). */
+	static final long REPAIR_STOP_MS = 10 * 60_000L;
+
+	/** The wall lot's repair this build owns (saved with it), or null. */
+	private BuildStore.@org.jspecify.annotations.Nullable WallRepair repair;
+	/** The bind to ask again once the repair is done (this session only: a restored build's resume binds again by itself). */
+	private @org.jspecify.annotations.Nullable Rebind rebind;
+	/** When this session started looking for the repair's design without finding it, and when its cancel was sent (0: not). */
+	private long repairMissingSince, repairStopSince;
+
+	private record Rebind(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {}
+
 	/**
 	 * Architect refused binding {@code lotId}'s design on the wall (its outer face left open, its passage floor unstandable): the design is redesigned as
 	 * its next version with the refusal as the change, then the same artifact bound again under the same key. At most {@link #WALL_REPAIRS} rounds a lot and
-	 * within the budget; past that, or with no design of this build for the lot, the build ends naming the lot. No realise is in flight while it is
-	 * redesigned, so a cancel is confirmed at once and the repair dropped.
+	 * within the budget; past that, or with no design of this build for the lot, the build ends naming the lot.
+	 * <p>The repair is owned until its design is final: saved with the build before it is asked (its key, tagged on the request, finds it again after a
+	 * restart or a lost answer), its most reserved in what the build spent and trued up to its cost when it ends, and a cancel waits for it to stop
+	 * ({@link #checkRepair}). No realise is in flight while it is designed.
 	 */
 	private void repairWall(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session,
 		String lotId, String why) {
+		queueInFlight = false;
+		rebind = new Rebind(sha, lotEntries, actor, ext, first, session);
+		if (repair != null) {
+			// a repair asked already (before a restart, or another lot's): waited for; once it ends, this bind is asked again
+			say("A wall lot's repair is still being designed: waiting for it before placing again...");
+			checkRepair();
+			return;
+		}
 		String entry = lotEntries.get(lotId);
 		VillageLayout.Lot lot = plan == null ? null : plan.lots().stream().filter(l -> l.id().equals(lotId)).findFirst().orElse(null);
 		int round = wallRepairs.getOrDefault(lotId, 0);
 		String name = lot == null ? lotId : lot.role();
-		// a repair asked before a restart: waited on (or taken as done), never asked again (Architect refuses a second version while one is designed)
-		String asked = savedRepairs.remove(lotId);
-		if (asked != null) {
-			var d = ArchitectApi.get().designs().get(asked);
-			if (d.isPresent()) {
-				say("The " + name + " on the wall was being redesigned before the restart: waiting for it...");
-				pendingRepair = new PendingRepair(asked, sha, lotEntries, actor, ext, first, session, lotId, name);
-				persist();
-				if (d.get().status().isFinal()) onRepairDone(d.get());
-				return;
-			}
-		}
 		String no = entry == null || lot == null ? "Architect refused the " + name + " on the wall, and this build has no design of it to repair"
 			: round >= WALL_REPAIRS ? "the " + name + " on the wall still doesn't close it after " + round + " repairs"
 			: state.spentUsd() + WALL_REPAIR_USD > state.budgetUsd() ? "repairing the " + name + " on the wall would go past the budget"
 			: null;
-		if (no != null) { realised(null, new IllegalStateException(no + " (" + why + ")"), session); return; }
+		if (no != null) { rebind = null; realised(null, new IllegalStateException(no + " (" + why + ")"), session); return; }
+		String key = "steward." + buildId + ".repair." + lotId + "." + (round + 1);
 		dev.larattalabs.architect.api.DesignRequest req;
 		try {
 			var notes = (lot.notes() == null || lot.notes().isBlank() ? "" : lot.notes() + " ") + "A repair of its design: Architect refused it on the wall (" + why
@@ -2031,73 +2047,156 @@ public final class SettlementRunner {
 			if (reserved != null) req = req.withReserved(reserved);
 			var wallExt = wallLotExts().get(lotId);
 			if (wallExt != null) req.ext().add(dev.larattalabs.steward.gateway.PPlan.WALL_LOT_EXT, wallExt);
+			req.ext().addProperty(REPAIR_EXT, key);
 			if (state.bibleId() != null) req = req.withBible(state.bibleId(), state.bibleVersion());
 			req = req.versionOf(entry, null);
 		} catch (RuntimeException x) {
+			rebind = null;
 			realised(null, new IllegalStateException("the " + name + " on the wall could not be put to Architect for repair: " + x.getMessage()), session);
 			return;
 		}
-		// counted, and its most reserved in what the build spent, before anything is spent: a restart never repairs past the cap, and a repair whose
-		// answer is lost is counted at its most
+		// owned, counted and its most reserved before it is asked: a restart finds it by its key, never repairs past the cap, never counts it twice
 		wallRepairs.put(lotId, round + 1);
+		repair = new BuildStore.WallRepair(lotId, key, round + 1, null, WALL_REPAIR_USD, false);
 		feed(new Pipeline.RepairSpent(WALL_REPAIR_USD));
-		if (!persist()) { realised(null, new IllegalStateException("the build could not be saved before repairing the " + name + " on the wall"), session); return; }
+		if (!persist()) {
+			// nothing asked: the reservation and the round given back
+			feed(new Pipeline.RepairSpent(-WALL_REPAIR_USD));
+			repair = null;
+			wallRepairs.put(lotId, round);
+			rebind = null;
+			realised(null, new IllegalStateException("the build could not be saved before repairing the " + name + " on the wall"), session);
+			return;
+		}
 		say("Architect refused the " + name + " on the wall (" + why + "): redesigning it (repair " + (round + 1) + " of " + WALL_REPAIRS + ")...");
-		queueInFlight = false;
-		ArchitectApi.get().designs().request(req).whenComplete((id, err) -> server.execute(() -> {
-			if (!Session.is(session)) return;
-			// cancelled, or this runner replaced, while it was asked: the design is stopped, not left to spend
-			if (!alive() || over()) {
-				if (id != null) ArchitectApi.get().designs().cancel(id);
-				return;
-			}
-			if (err != null) { realised(null, new IllegalStateException("the " + name + " on the wall could not be redesigned: " + message(err)), session); return; }
-			// done: its new version bound in place of the old, the same artifact asked again under the same key (saved, so a restart waits for it)
-			pendingRepair = new PendingRepair(id, sha, lotEntries, actor, ext, first, session, lotId, name);
-			persist();
-			ArchitectApi.get().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(this::onRepairDone);
-		}));
+		repairMissingSince = System.currentTimeMillis();
+		ArchitectApi.get().designs().request(req).whenComplete((id, err) -> server.execute(() -> repairAnswered(key, id, err, session)));
 	}
 
-	private record PendingRepair(String designId, String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext,
-		boolean first, int session, String lotId, String name) {}
+	/** Architect's answer to a repair's request. */
+	private void repairAnswered(String key, @org.jspecify.annotations.Nullable String id, @org.jspecify.annotations.Nullable Throwable err, int session) {
+		boolean ours = Session.is(session) && alive() && repair != null && repair.key().equals(key);
+		if (!ours) {
+			// a repair this runner no longer owns (given up, a world reloaded, a runner replaced): stopped, not left to spend
+			if (id != null && (repair == null || !repair.key().equals(key))) ArchitectApi.get().designs().cancel(id);
+			return;
+		}
+		if (err != null) {
+			if (ChangeRequests.definite(err)) {
+				// refused: nothing designed, nothing spent
+				endRepair(null, -repair.reservedUsd(), "Architect would not redesign it: " + message(err));
+				return;
+			}
+			// lost: looked for by its key (checkRepair)
+			Steward.LOGGER.warn("repair {} of {}: the answer was lost ({}); looking for it by its key", key, settlement.id(), message(err));
+			return;
+		}
+		repair = repair.withDesign(id);
+		persist();
+		if (repair.stopping()) ArchitectApi.get().designs().cancel(id);
+		checkRepair();
+	}
 
-	/** The repair design in flight and what to bind once it is done; its lot and design are saved with the build ({@link #savedRepairs} after a restart). */
-	private @org.jspecify.annotations.Nullable PendingRepair pendingRepair;
-	/** A restored build's repair designs asked before the restart, by lot: the next refusal of that lot waits for it. */
-	private final Map<String, String> savedRepairs = new HashMap<>();
+	/**
+	 * Where the repair stands, every second and whenever Architect says something of it: its design found by its key when its id isn't known; once final,
+	 * its cost trued up and the bind asked again (or a cancel confirmed). Looked for {@link #REPAIR_FIND_MS} without finding it, or a cancel waiting
+	 * {@link #REPAIR_STOP_MS} for it to stop, it is given up, its most staying counted.
+	 */
+	void checkRepair() {
+		var r = repair;
+		if (r == null || !alive()) return;
+		long now = System.currentTimeMillis();
+		var designs = ArchitectApi.get().designs();
+		java.util.Optional<dev.larattalabs.architect.api.Design> d = r.designId() != null ? designs.get(r.designId()) : java.util.Optional.empty();
+		if (d.isEmpty()) d = findRepair(r.key());
+		if (d.isEmpty()) {
+			if (repairMissingSince == 0) repairMissingSince = now;
+			if (now - repairMissingSince > REPAIR_FIND_MS) endRepair(null, 0, "Architect's answer was lost and it could not be found again (its most, $"
+				+ String.format("%.2f", r.reservedUsd()) + ", stays counted)");
+			return;
+		}
+		repairMissingSince = 0;
+		if (r.designId() == null || !r.designId().equals(d.get().id())) {
+			repair = r = r.withDesign(d.get().id());
+			persist();
+			if (r.stopping()) designs.cancel(r.designId());
+		}
+		if (d.get().status().isFinal()) {
+			endRepair(d.get(), d.get().cost().usd() - r.reservedUsd(), null);
+			return;
+		}
+		if (r.stopping()) {
+			if (repairStopSince == 0) repairStopSince = now;
+			if (now - repairStopSince > REPAIR_STOP_MS) endRepair(null, 0, "it could not be confirmed stopped (its most, $" + String.format("%.2f", r.reservedUsd())
+				+ ", stays counted)");
+		}
+	}
 
-	/** Stops a wall lot's repair being designed (the build is cancelled): nothing more is spent on it. */
+	/** This build's repair design, by the key it was tagged with (its answer lost, or asked before a restart). */
+	private java.util.Optional<dev.larattalabs.architect.api.Design> findRepair(String key) {
+		try {
+			return ArchitectApi.get().designs().list(settlement.owner()).stream()
+				.filter(x -> x.request() != null && x.request().has("ext") && x.request().get("ext").isJsonObject() && key.equals(extString(x.request().getAsJsonObject("ext"), REPAIR_EXT)))
+				.reduce((x, y) -> y);
+		} catch (RuntimeException e) {
+			return java.util.Optional.empty();
+		}
+	}
+
+	/**
+	 * The repair ends: {@code d} its final design (null: refused, or given up), {@code trueUp} what the build spent moves by. Then a cancel is confirmed,
+	 * the bind asked again with the repaired design, or the build ended naming the lot ({@code why}, or the design's failure).
+	 */
+	private void endRepair(dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable Design d, double trueUp, @org.jspecify.annotations.Nullable String why) {
+		var r = repair;
+		if (r == null) return;
+		repair = null;
+		repairMissingSince = 0;
+		repairStopSince = 0;
+		if (trueUp != 0) feed(new Pipeline.RepairSpent(trueUp));
+		// given up while its design may still run: told to stop
+		if (d == null && r.designId() != null) ArchitectApi.get().designs().cancel(r.designId());
+		persist();
+		String name = plan == null ? r.lotId() : plan.lots().stream().filter(l -> l.id().equals(r.lotId())).map(VillageLayout.Lot::role).findFirst().orElse(r.lotId());
+		var rb = rebind;
+		rebind = null;
+		if (r.stopping() || over()) {
+			if (state != null && state.phase() == Pipeline.Phase.CANCELLING && !queueInFlight && vRegionId == null) feed(new Pipeline.CancelConfirmed());
+			return;
+		}
+		boolean done = d != null && d.status() == dev.larattalabs.architect.api.Design.Status.DONE && d.entryId().isPresent();
+		if (rb == null) {
+			// a restored build: its resume binds again by itself (the entry's head is the repair when it was done)
+			if (!done) say("The repair of the " + name + " on the wall ended without a design" + (why == null ? "" : ": " + why) + ".");
+			return;
+		}
+		if (!done) {
+			realised(null, new IllegalStateException("the " + name + " on the wall could not be redesigned: " + (why != null ? why
+				: d == null ? "no answer" : d.error().orElse(d.status().name().toLowerCase()))), rb.session());
+			return;
+		}
+		Map<String, String> entries = new LinkedHashMap<>(rb.lotEntries());
+		entries.put(r.lotId(), d.entryId().get());
+		say("The " + name + " is redesigned: placing again...");
+		queueInFlight = true;
+		inFlightSince = System.currentTimeMillis();
+		realiseArtifact(rb.sha(), entries, rb.actor(), rb.ext(), rb.first(), rb.session());
+	}
+
+	/** A cancel while a repair is designed: told to stop, and the cancel confirmed once it has ({@link #checkRepair}). */
 	private void stopRepair() {
-		PendingRepair p = pendingRepair;
-		pendingRepair = null;
-		if (p != null) ArchitectApi.get().designs().cancel(p.designId());
-		for (String id : savedRepairs.values()) ArchitectApi.get().designs().cancel(id);
-		savedRepairs.clear();
+		var r = repair;
+		if (r == null || r.stopping()) return;
+		repair = r.stopped();
+		repairStopSince = System.currentTimeMillis();
+		persist();
+		if (r.designId() != null) ArchitectApi.get().designs().cancel(r.designId());
+		checkRepair();
 	}
 
-	/** A design finished: this build's wall repair, its cost counted and the artifact bound again with it; failed, the build ends naming the lot. */
+	/** A design finished: this build's repair is looked at again. */
 	private void onRepairDone(dev.larattalabs.architect.api.Design d) {
-		PendingRepair p = pendingRepair;
-		if (p == null || !p.designId().equals(d.id()) || !d.status().isFinal()) return;
-		pendingRepair = null;
-		server.execute(() -> {
-			if (!Session.is(p.session()) || !alive()) return;
-			// its reservation trued up to what it cost
-			feed(new Pipeline.RepairSpent(d.cost().usd() - WALL_REPAIR_USD));
-			persist();
-			if (over()) return;
-			if (d.status() != dev.larattalabs.architect.api.Design.Status.DONE || d.entryId().isEmpty()) {
-				realised(null, new IllegalStateException("the " + p.name() + " on the wall could not be redesigned: " + d.error().orElse(d.status().name().toLowerCase())), p.session());
-				return;
-			}
-			Map<String, String> entries = new LinkedHashMap<>(p.lotEntries());
-			entries.put(p.lotId(), d.entryId().get());
-			say("The " + p.name() + " is redesigned: placing again...");
-			queueInFlight = true;
-			inFlightSince = System.currentTimeMillis();
-			realiseArtifact(p.sha(), entries, p.actor(), p.ext(), p.first(), p.session());
-		});
+		if (repair != null && (d.id().equals(repair.designId()) || repair.designId() == null)) server.execute(this::checkRepair);
 	}
 
 	/**
@@ -2490,7 +2589,7 @@ public final class SettlementRunner {
 		// a wall lot's repair being designed is stopped with the build (no realise is in flight meanwhile)
 		stopRepair();
 		if (vRegionId == null) {
-			if (!queueInFlight) later.add(new Pipeline.CancelConfirmed());
+			if (!queueInFlight && repair == null) later.add(new Pipeline.CancelConfirmed());
 			return;
 		}
 		String id = vRegionId;
