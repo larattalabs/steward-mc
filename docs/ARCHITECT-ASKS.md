@@ -987,3 +987,10 @@ district's region, found again by `realiseByKey`, `architect_mc:land` v 2 with a
 `undoRevision`. The miss: Steward's only survival town in the e2e is the walled supplied town, and its growth refused `NO_ROOM [street]` (frontage
 full inside the wall, no extension past it until GJ), cleanly. The survival rows (bills equal the BOM, `survival_building`, one refund) are covered
 by Architect's gr-survival until Steward grows an unwalled survival town.
+
+## 7a LF RC (2026-10-27): PASS for Steward
+
+Architect slice/LF at da504bb1. Free 43/43; stub 93/94, the miss the plan check's removal refused over a horse a new chunk spawned (Architect's
+guard as designed; the e2e now clears animals and asks again). Scope agreed with the coordinator: both e2e runs on the LF jar; the lift rows
+(realise and remove, StillOurs, a delta or PT2 adopt over a lift, survival bills) stand on Architect's lf-ingame, lf-survival and verifier items
+8-10 until Steward proposes lifts. Steward's two recorded lift plans are schema-checked fixtures only, not run in game.
