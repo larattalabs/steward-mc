@@ -1732,15 +1732,20 @@ async function survivalGrowth(id, owner, region, claim, ledger) {
   // one of the town's own buildings again, so the growth has a building to build from materials (a bare pad may cost nothing)
   const placedIds = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').flatMap((e) => e.siteIds ?? []);
   const sites = (await dev.request('dev.sites.state').catch(() => ({})))?.sites ?? [];
-  const site = (Array.isArray(sites) ? sites : Object.values(sites)).find((x) => placedIds.includes(x.id) && x.blueprint);
+  // the smallest of them, on a lot that holds it whichever way it is turned, with room for its approach
+  const sideOf = (x) => (x?.box ? Math.max(x.box.maxX - x.box.minX + 1, x.box.maxZ - x.box.minZ + 1) : 9);
+  const site = (Array.isArray(sites) ? sites : Object.values(sites)).filter((x) => placedIds.includes(x.id) && x.blueprint).sort((a, c) => sideOf(a) - sideOf(c))[0];
   const entry = site?.blueprint ?? null;
-  // a lot that holds the building whichever way it is turned, with room for its approach
-  const bx = site?.box ? site.box.maxX - site.box.minX + 1 : 9, bz = site?.box ? site.box.maxZ - site.box.minZ + 1 : 9;
-  const side = Math.max(9, bx, bz);
-  const lot = { id: `${b}_h1`, type: 'house', size: [side + 2, side + 4] };
-  const p = await dev.request('dev.rv.plan', { region, program, params: { grow: { lots: [lot] } }, opKey: `steward.${b}.vplan`, ext },
-    { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
-  if (!p?.planId) return fail(label, `the growth of ${region} (${program}) not planned: ${JSON.stringify(p).slice(0, 220)}`);
+  const side = Math.max(9, sideOf(site));
+  const lot = { id: `${b}_h1`, type: 'house', size: [side + 1, side + 3] };
+  // on the standing streets' frontage first (Architect's default); where none is free, on an extension of a street end
+  let p = null;
+  for (const prefer of ['frontage', 'extend']) {
+    p = await dev.request('dev.rv.plan', { region, program, params: { grow: { lots: [lot], prefer } }, opKey: `steward.${b}.vplan`, ext },
+      { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+    if (p?.planId || !/NO_ROOM/.test(String(p?.refused ?? ''))) break;
+  }
+  if (!p?.planId) return fail(label, `the growth of ${region} (${program}) by a ${lot.size.join(' x ')} lot not planned: ${JSON.stringify(p).slice(0, 260)}`);
   const position = p.revisionOf?.position ?? 1;
   const r = await dev.request('dev.region.realise', { planId: p.planId, opKey: `steward.${b}.vrealise`, ext, ...(entry ? { lots: { [lot.id]: entry } } : {}) },
     { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
