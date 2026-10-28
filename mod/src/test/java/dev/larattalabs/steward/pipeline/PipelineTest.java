@@ -379,4 +379,13 @@ class PipelineTest {
 		var group = reuse.commands().stream().filter(c -> c instanceof Pipeline.RequestGroup).findFirst().orElseThrow();
 		assertEquals(group, Pipeline.groupRequest(reuse.next()));
 	}
+
+	@Test
+	void aWallRepairsCostIsCountedInWhatTheBuildSpent() throws Exception {
+		var st = State.start("set_1", card(), 35.0);
+		var next = Pipeline.step(st.with(Pipeline.Phase.PLACING), new Pipeline.RepairSpent(1.25), Permission.PROPOSALS).next();
+		assertEquals(Pipeline.Phase.PLACING, next.phase(), "the phase is unchanged");
+		assertEquals(st.spentUsd() + 1.25, next.spentUsd(), 1e-9);
+		assertEquals(next.spentUsd(), Pipeline.step(next, new Pipeline.RepairSpent(-3), Permission.PROPOSALS).next().spentUsd(), 1e-9, "never negative");
+	}
 }

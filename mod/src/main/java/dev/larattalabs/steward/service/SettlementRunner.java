@@ -80,6 +80,7 @@ public final class SettlementRunner {
 		SiteEvents.GROUP_UPDATED.register(g -> List.copyOf(ACTIVE.values()).forEach(r -> r.onGroup(g)));
 		SiteEvents.GROUP_DONE.register(g -> List.copyOf(ACTIVE.values()).forEach(r -> r.onGroup(g)));
 		SiteEvents.BATCH_DONE.register(b -> List.copyOf(ACTIVE.values()).forEach(r -> r.onBatchDone(b)));
+		SiteEvents.DESIGN_DONE.register(d -> List.copyOf(ACTIVE.values()).forEach(r -> r.onRepairDone(d)));
 		// an item held up by something in its way (an animal, a player, ground not loaded): the steward says so, or it looks like nothing happens
 		SiteEvents.ITEM_WAITING.register(e -> List.copyOf(ACTIVE.values()).forEach(r -> r.onItemWaiting(e)));
 		ServerLifecycleEvents.SERVER_STARTING.register(SettlementRunner::restoreAll);
@@ -365,6 +366,7 @@ public final class SettlementRunner {
 		this.vPlanId = b.vPlan();
 		this.vRegionId = b.vRegion();
 		this.districtSpecs = b.districtSpecs() == null ? null : List.copyOf(b.districtSpecs());
+		if (b.wallRepairs() != null) this.wallRepairs.putAll(b.wallRepairs());
 	}
 
 	private ServerLevel level() {
@@ -380,7 +382,7 @@ public final class SettlementRunner {
 		boolean ended = state.phase().terminal();
 		if (ended) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs));
+			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, wallRepairs.isEmpty() ? null : Map.copyOf(wallRepairs)));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -1915,6 +1917,9 @@ public final class SettlementRunner {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
 				boolean stale = e instanceof dev.larattalabs.architect.api.ArchitectRefused rf && rf.reason() == dev.larattalabs.architect.api.Reason.ARTIFACT_STALE;
+				// (Architect K3) a wall lot's design leaves the wall open, or its passage unstandable: the design is repaired, not the land re-checked
+				String wallLot = stale ? wallLotOf(e.getMessage()) : null;
+				if (wallLot != null && alive() && !over()) { repairWall(sha, lotEntries, actor, ext, first, session, wallLot, e.getMessage()); return; }
 				if (!first || !stale || !alive() || over()) { realised(id, err, session); return; }
 				say("The land under the plan changed while the buildings were designed (" + e.getMessage() + "): checking it again...");
 				JsonObject frozen = frozenPlan(sha);
@@ -1950,6 +1955,99 @@ public final class SettlementRunner {
 					realiseArtifact(next, lotEntries, actor, ext, false, session);
 				}));
 			}));
+	}
+
+	/** A wall lot's design repairs at the bind (Architect K3): at most this many rounds a lot, each at most {@link #WALL_REPAIR_USD}. */
+	static final int WALL_REPAIRS = 2;
+	static final double WALL_REPAIR_USD = 2.0;
+	/** Architect K3's refusal of a wall lot's bound design: "lot <id> on wall <wall>: ...". */
+	private static final java.util.regex.Pattern ON_WALL = java.util.regex.Pattern.compile("^lot (\\S+) on wall \\S+:");
+	/** How often each wall lot's design was repaired this build (saved with it). */
+	private final Map<String, Integer> wallRepairs = new HashMap<>();
+
+	/** The wall lot a refusal names, or null when it is not K3's wall refusal. */
+	static @org.jspecify.annotations.Nullable String wallLotOf(@org.jspecify.annotations.Nullable String message) {
+		if (message == null) return null;
+		var m = ON_WALL.matcher(message.strip());
+		return m.find() ? m.group(1) : null;
+	}
+
+	/**
+	 * Architect refused binding {@code lotId}'s design on the wall (its outer face left open, its passage floor unstandable): the design is redesigned as
+	 * its next version with the refusal as the change, then the same artifact bound again under the same key. At most {@link #WALL_REPAIRS} rounds a lot and
+	 * within the budget; past that, or with no design of this build for the lot, the build ends naming the lot. No realise is in flight while it is
+	 * redesigned, so a cancel is confirmed at once and the repair dropped.
+	 */
+	private void repairWall(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session,
+		String lotId, String why) {
+		String entry = lotEntries.get(lotId);
+		VillageLayout.Lot lot = plan == null ? null : plan.lots().stream().filter(l -> l.id().equals(lotId)).findFirst().orElse(null);
+		int round = wallRepairs.getOrDefault(lotId, 0);
+		String name = lot == null ? lotId : lot.role();
+		String no = entry == null || lot == null ? "Architect refused the " + name + " on the wall, and this build has no design of it to repair"
+			: round >= WALL_REPAIRS ? "the " + name + " on the wall still doesn't close it after " + round + " repairs"
+			: state.spentUsd() + WALL_REPAIR_USD > state.budgetUsd() ? "repairing the " + name + " on the wall would go past the budget"
+			: null;
+		if (no != null) { realised(null, new IllegalStateException(no + " (" + why + ")"), session); return; }
+		dev.larattalabs.architect.api.DesignRequest req;
+		try {
+			var notes = (lot.notes() == null || lot.notes().isBlank() ? "" : lot.notes() + " ") + "A repair of its design: Architect refused it on the wall (" + why
+				+ "). Fix exactly that, and keep the rest as it is.";
+			var withWhy = new VillageLayout.Lot(lot.id(), lot.type(), lot.x(), lot.z(), lot.sizeX(), lot.sizeZ(), lot.front(), lot.groundY(), lot.role(), notes,
+				lot.landmark(), lot.placement(), lot.maxHeight(), lot.exact());
+			req = dev.larattalabs.steward.gateway.LotBrief.build(settlement, withWhy, lot.maxHeight(), null, WALL_REPAIR_USD);
+			var reserved = reservedCells().get(lotId);
+			if (reserved != null) req = req.withReserved(reserved);
+			if (state.bibleId() != null) req = req.withBible(state.bibleId(), state.bibleVersion());
+			req = req.versionOf(entry, null);
+		} catch (RuntimeException x) {
+			realised(null, new IllegalStateException("the " + name + " on the wall could not be put to Architect for repair: " + x.getMessage()), session);
+			return;
+		}
+		// counted and saved before anything is spent: a restart never repairs past the cap
+		wallRepairs.put(lotId, round + 1);
+		if (!persist()) { realised(null, new IllegalStateException("the build could not be saved before repairing the " + name + " on the wall"), session); return; }
+		say("Architect refused the " + name + " on the wall (" + why + "): redesigning it (repair " + (round + 1) + " of " + WALL_REPAIRS + ")...");
+		queueInFlight = false;
+		ArchitectApi.get().designs().request(req).whenComplete((id, err) -> server.execute(() -> {
+			if (!Session.is(session) || !alive()) return;
+			if (over()) {
+				if (id != null) ArchitectApi.get().designs().cancel(id);
+				return;
+			}
+			if (err != null) { realised(null, new IllegalStateException("the " + name + " on the wall could not be redesigned: " + message(err)), session); return; }
+			// done: its new version bound in place of the old, the same artifact asked again under the same key
+			pendingRepair = new PendingRepair(id, sha, lotEntries, actor, ext, first, session, lotId, name);
+			ArchitectApi.get().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(this::onRepairDone);
+		}));
+	}
+
+	private record PendingRepair(String designId, String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext,
+		boolean first, int session, String lotId, String name) {}
+
+	/** The repair design in flight and what to bind once it is done (this session only: after a restart the bind is asked again, and refused again if need be). */
+	private @org.jspecify.annotations.Nullable PendingRepair pendingRepair;
+
+	/** A design finished: this build's wall repair, its cost counted and the artifact bound again with it; failed, the build ends naming the lot. */
+	private void onRepairDone(dev.larattalabs.architect.api.Design d) {
+		PendingRepair p = pendingRepair;
+		if (p == null || !p.designId().equals(d.id()) || !d.status().isFinal()) return;
+		pendingRepair = null;
+		server.execute(() -> {
+			if (!Session.is(p.session()) || !alive()) return;
+			feed(new Pipeline.RepairSpent(d.cost().usd()));
+			if (over()) return;
+			if (d.status() != dev.larattalabs.architect.api.Design.Status.DONE || d.entryId().isEmpty()) {
+				realised(null, new IllegalStateException("the " + p.name() + " on the wall could not be redesigned: " + d.error().orElse(d.status().name().toLowerCase())), p.session());
+				return;
+			}
+			Map<String, String> entries = new LinkedHashMap<>(p.lotEntries());
+			entries.put(p.lotId(), d.entryId().get());
+			say("The " + p.name() + " is redesigned: placing again...");
+			queueInFlight = true;
+			inFlightSince = System.currentTimeMillis();
+			realiseArtifact(p.sha(), entries, p.actor(), p.ext(), p.first(), p.session());
+		});
 	}
 
 	/**

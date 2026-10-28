@@ -68,14 +68,16 @@ class BuildStoreTest {
 		var specs = List.of(new VillageLayout.LotSpec("smithy_1", "smithy", 11, 9, "smithy", null, false, null));
 		var b = new BuildStore.Saved(b0.settlementId(), b0.buildId(), b0.playerId(), b0.dimension(), b0.permission(), b0.landmarks(), b0.settlement(), b0.state(), b0.plan(),
 			b0.bibleJobId(), b0.groupId(), b0.batchId(), b0.siteGroupId(), b0.landmarkIds(), b0.decided(), b0.lastAwaiting(), true, "district_e", false, true, "plan_1", null,
-			specs);
+			specs, Map.of("gate_1", 1));
 		BuildStore st = new BuildStore();
 		st.put(b);
 		Path f = dir.resolve("b.json");
 		st.save(f);
 		assertEquals(specs, BuildStore.load(f).all().get(0).districtSpecs());
+		assertEquals(Map.of("gate_1", 1), BuildStore.load(f).all().get(0).wallRepairs(), "a wall lot's repairs are kept across a restart");
 		// a build saved before (no districtSpecs) reads with none
 		assertNull(saved().districtSpecs());
+		assertNull(saved().wallRepairs());
 	}
 
 	@Test

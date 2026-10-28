@@ -69,6 +69,10 @@ public final class Pipeline {
 			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budget, true, heldNote, failure);
 		}
 
+		State withSpent(double usd) {
+			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, usd, budgetUsd, pausedForBudget, heldNote, failure);
+		}
+
 		State failed(String why) {
 			return new State(Phase.FAILED, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, why);
 		}
@@ -77,7 +81,7 @@ public final class Pipeline {
 	// ------------------------------------------------------------------ events
 
 	public sealed interface Event permits CardApproved, BibleDone, BibleApproved, GroupUpdate, MassingDecision, BudgetRaised, BudgetRaiseFailed, BatchQueued, PlacementApproved,
-		BatchDone, Cancel, CancelConfirmed {}
+		BatchDone, Cancel, CancelConfirmed, RepairSpent {}
 
 	/**
 	 * The player approved (or edited and approved) the concept card. {@code bibleId}: the settlement's style bible to reuse (a later build of a settlement
@@ -104,6 +108,9 @@ public final class Pipeline {
 	public record MassingDecision(List<String> approve, Map<String, String> redirect, List<String> cancel) implements Event {}
 
 	public record BudgetRaised(double newBudgetUsd) implements Event {}
+
+	/** (Architect K3) a wall lot's design repaired at the bind cost {@code costUsd}, counted in what the build spent. */
+	public record RepairSpent(double costUsd) implements Event {}
 
 	/**
 	 * Architect did not take a raise and the build stays paused. {@code extended}: the group's cap was raised but resuming failed, so the new budget stands (a
@@ -177,6 +184,7 @@ public final class Pipeline {
 	public static Step step(State s, Event e, Permission perm) {
 		if (s.phase().terminal()) return Step.of(s);
 		if (e instanceof Cancel) return cancel(s);
+		if (e instanceof RepairSpent r) return Step.of(s.withSpent(s.spentUsd() + Math.max(0, r.costUsd())));
 		return switch (s.phase()) {
 			case AWAITING_CARD_APPROVAL -> e instanceof CardApproved a ? cardApproved(s, a) : Step.of(s);
 			case BIBLE_RUNNING -> e instanceof BibleDone b ? bibleDone(s, b, perm) : Step.of(s);
