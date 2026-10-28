@@ -977,3 +977,13 @@ Architect's draft on `docs/gm-contract` (dbb131f1), CONTRACT.md "Slice GM, gate 
   change-request path (versionOf / revision), not ruled out.
 - **`connector.drawbridge`** becomes supported in GM-c (a flipping iron-trapdoor deck over the moat). Closed gates are player-only, a villager route through
   one answers `MOVER`, and the rest state is open by default. Steward un-reserves its drawbridge in GM's RC.
+
+## 6d GR RC (2026-10-27): PASS for Steward
+
+Architect slice/GR at e522b0f7, built in a clone under `_work/`. Free 43/43; stub 96/97 (`gr-rc` 87a11b8, with two harness fixes that are now on
+main: an animal that walked into a lot, and the player standing on one, held a build up with no time limit, the recurring stall after "Approve to
+place"). A district grown by a lot under Steward's real keys (`steward.<b>.vplan/.vrealise`, ext `steward_mc:district/build`): rev 2 of the
+district's region, found again by `realiseByKey`, `architect_mc:land` v 2 with a grown part (insideCells 0), outside 572 -> 771, and back to 572 after
+`undoRevision`. The miss: Steward's only survival town in the e2e is the walled supplied town, and its growth refused `NO_ROOM [street]` (frontage
+full inside the wall, no extension past it until GJ), cleanly. The survival rows (bills equal the BOM, `survival_building`, one refund) are covered
+by Architect's gr-survival until Steward grows an unwalled survival town.
