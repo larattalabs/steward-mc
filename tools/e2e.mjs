@@ -1724,11 +1724,19 @@ async function survivalGrowth(id, owner, region, claim, ledger) {
   const sp0 = await ledger();
   const b = `e2egr${Date.now() % 100000}`;
   const ext = { 'steward_mc:settlement': id, 'steward_mc:build': b };
-  const p = await dev.request('dev.rv.plan', { region, program, params: { grow: { lots: [{ id: `${b}_h1`, type: 'house', size: [9, 9] }] } }, opKey: `steward.${b}.vplan`, ext },
+  // one of the town's own buildings again, so the growth has a building to build from materials (a bare pad may cost nothing)
+  const placedIds = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').flatMap((e) => e.siteIds ?? []);
+  const sites = (await dev.request('dev.sites.state').catch(() => ({})))?.sites ?? [];
+  const site = (Array.isArray(sites) ? sites : Object.values(sites)).find((x) => placedIds.includes(x.id) && (x.blueprintId ?? x.entry ?? x.blueprint));
+  const entry = site ? (site.blueprintId ?? site.entry ?? site.blueprint) : null;
+  const span = (i) => (site?.box ? Math.abs(site.box[i + 3] - site.box[i]) + 1 : 9);
+  const lot = { id: `${b}_h1`, type: 'house', size: [Math.max(9, span(0)) + 2, Math.max(9, span(2)) + 4] };
+  const p = await dev.request('dev.rv.plan', { region, program, params: { grow: { lots: [lot] } }, opKey: `steward.${b}.vplan`, ext },
     { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
   if (!p?.planId) return fail(label, `the growth of ${region} (${program}) not planned: ${JSON.stringify(p).slice(0, 220)}`);
   const position = p.revisionOf?.position ?? 1;
-  const r = await dev.request('dev.region.realise', { planId: p.planId, opKey: `steward.${b}.vrealise`, ext }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  const r = await dev.request('dev.region.realise', { planId: p.planId, opKey: `steward.${b}.vrealise`, ext, ...(entry ? { lots: { [lot.id]: entry } } : {}) },
+    { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
   if (r?.refused) return fail(label, `the growth's realise refused: ${r.refused}`);
   let rs = null;
   for (let i = 0; i < 90; i++) {
@@ -1758,8 +1766,8 @@ async function survivalGrowth(id, owner, region, claim, ledger) {
   const paid = minusItems(sp1?.consumed, sp0?.consumed);
   let bills = {};
   for (const t of (rs?.targets ?? []).filter((t) => !targets0.has(t.id))) bills = plusItems(bills, t.bom);
-  if (built && Object.keys(paid).length && sameItems(paid, bills)) ok(label, `${region} grew by ${b}_h1 in survival under steward.${b}.vplan/.vrealise; its bills ${JSON.stringify(bills)} = what the stockpile paid`);
-  else return fail(label, `built ${built}; the stockpile paid ${JSON.stringify(paid).slice(0, 160)}; its targets' bills ${JSON.stringify(bills).slice(0, 160)}`);
+  if (built && Object.keys(paid).length && sameItems(paid, bills)) ok(label, `${region} grew by ${b}_h1 (${entry ?? 'a pad'}) in survival under steward.${b}.vplan/.vrealise; its bills ${JSON.stringify(bills).slice(0, 160)} = what the stockpile paid`);
+  else return fail(label, `entry ${entry ?? 'none found'}; built ${built}; the stockpile paid ${JSON.stringify(paid).slice(0, 160)}; its targets' bills ${JSON.stringify(bills).slice(0, 160)}`);
   const u = await dev.request('dev.rv.undo', { region, toPosition: position - 1, actor: 'steward' }, { timeoutMs: 3_600_000 }).catch((e) => ({ refused: String(e) }));
   const sp2 = await ledger();
   const back = minusItems(plusItems(sp2?.returned, sp2?.refundOverflow), plusItems(sp1?.returned, sp1?.refundOverflow));
