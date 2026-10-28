@@ -97,13 +97,13 @@ public final class Pipeline {
 	 * A wall lot's repair the build owns (Architect K3): its lot, its operation key (Architect finds the design by it after a restart or a lost answer, and a
 	 * repeat of it is the same design), its round, its design once Architect answered, what of the budget it reserved, and whether a cancel waits for it.
 	 */
-	public record Repair(String lotId, String role, String key, int round, @Nullable String designId, double reservedUsd, boolean stopping) {
+	public record Repair(String lotId, String role, String key, String why, int round, @Nullable String designId, double reservedUsd, boolean stopping) {
 		Repair withDesign(String id) {
-			return new Repair(lotId, role, key, round, id, reservedUsd, stopping);
+			return new Repair(lotId, role, key, why, round, id, reservedUsd, stopping);
 		}
 
 		Repair stopped() {
-			return new Repair(lotId, role, key, round, designId, reservedUsd, true);
+			return new Repair(lotId, role, key, why, round, designId, reservedUsd, true);
 		}
 	}
 
@@ -264,6 +264,8 @@ public final class Pipeline {
 					: Step.of(s.with(Phase.PLACING));
 				// placed before a restart was noticed (read back from the sites)
 				case BatchDone b -> built(s, b);
+				// a build placed without the player's word binds while still ready: its wall lot refused there is repaired as in PLACING
+				case WallRefused w -> wallRefused(s, w);
 				default -> Step.of(s);
 			};
 			case AWAITING_PLACEMENT_APPROVAL -> switch (e) {
@@ -312,9 +314,10 @@ public final class Pipeline {
 		if (s.repair() != null) return Step.of(s);
 		return switch (e) {
 			case BibleDone b -> Step.of(s.withBibleCost(b.costUsd()).with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + ".", false));
+			// (never less than the build already counted: a wall repair's cost is past the bible's and the group's)
 			case GroupUpdate g when List.of("done", "failed", "cancelled").contains(g.status()) ->
-				Step.of(s.withProgress(g.items(), s.bibleCostUsd() + g.costUsd(), false, null).with(Phase.CANCELLED), new Notify(String.format("Cancelled %s (spent $%.2f).",
-					label(s), s.bibleCostUsd() + g.costUsd()), false));
+				Step.of(s.withProgress(g.items(), Math.max(s.spentUsd(), s.bibleCostUsd() + g.costUsd()), false, null).with(Phase.CANCELLED), new Notify(String.format(
+					"Cancelled %s (spent $%.2f).", label(s), Math.max(s.spentUsd(), s.bibleCostUsd() + g.costUsd())), false));
 			case BatchDone b -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + (b.placed() > 0 ? ": " + b.placed() + " buildings placed before it stopped stay (undo removes them)." : "."), false));
 			case CancelConfirmed c -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + ".", false));
 			default -> Step.of(s);
@@ -332,7 +335,7 @@ public final class Pipeline {
 		if (no != null) return Step.of(s.failed(no + " (" + w.why() + ")"), new Notify("The build of " + label(s) + " stopped: " + no + ".", true));
 		var rounds = new java.util.HashMap<>(s.repairs());
 		rounds.put(w.lotId(), round + 1);
-		var r = new Repair(w.lotId(), w.role(), w.key(), round + 1, null, WALL_REPAIR_USD, false);
+		var r = new Repair(w.lotId(), w.role(), w.key(), w.why(), round + 1, null, WALL_REPAIR_USD, false);
 		return Step.of(s.withRepair(r, rounds).withSpent(s.spentUsd() + WALL_REPAIR_USD).with(Phase.REPAIRING), new AskRepair(w.lotId(), w.key(), w.why()),
 			new Notify("Architect refused the " + w.role() + " on the wall (" + w.why() + "): redesigning it (repair " + (round + 1) + " of " + WALL_REPAIRS + ").", false));
 	}

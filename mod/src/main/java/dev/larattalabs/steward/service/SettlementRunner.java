@@ -1481,7 +1481,7 @@ public final class SettlementRunner {
 	/** Commands that ask Architect to spend on Claude or to change the world. */
 	private static boolean spends(Command c) {
 		return c instanceof Pipeline.RequestBible || c instanceof Pipeline.RequestGroup || c instanceof Pipeline.ExtendAndResumeGroup || c instanceof Pipeline.FitAndQueue
-			|| c instanceof Pipeline.ApproveStages || c instanceof Pipeline.ApproveGroup;
+			|| c instanceof Pipeline.ApproveStages || c instanceof Pipeline.ApproveGroup || c instanceof Pipeline.AskRepair || c instanceof Pipeline.Rebind;
 	}
 
 	/** The composite key the settlement's massing ghosts show under. */
@@ -1854,7 +1854,8 @@ public final class SettlementRunner {
 	private void onGroup(Group g) {
 		if (groupId == null || !groupId.equals(g.id())) return;
 		// cancelling a placement: the (finished) group's updates do not end it, the batch's rollback does
-		if (state != null && state.phase() == Pipeline.Phase.CANCELLING && (batchId != null || queueInFlight)) return;
+		// (and a village realised, or a wall repair outstanding: its region's removal or the repair ends the cancel, never the group)
+		if (state != null && state.phase() == Pipeline.Phase.CANCELLING && (batchId != null || queueInFlight || vRegionId != null || state.repair() != null)) return;
 		noteMassings(g);
 		Map<String, String> items = new LinkedHashMap<>();
 		for (Group.Item it : g.items()) {
@@ -2058,6 +2059,11 @@ public final class SettlementRunner {
 			later.add(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "it could not be put to Architect: " + x.getMessage()));
 			return;
 		}
+		// saved (its reservation, its key, its words) before it is asked, also when it is asked again on the watch
+		if (!persist()) {
+			say("Could not save the build, so the repair of the " + lot.role() + " is not asked for. Cancel it (/steward cancel " + state.settlementId() + ").");
+			return;
+		}
 		int session = Session.current();
 		repairAsking = true;
 		ArchitectApi.get().designs().request(req).whenComplete((id, err) -> server.execute(() -> {
@@ -2066,8 +2072,8 @@ public final class SettlementRunner {
 			// this runner replaced meanwhile: the design is stopped, whoever owns the key now finds it by the key
 			if (!alive()) { if (id != null) ArchitectApi.get().designs().cancel(id); return; }
 			if (err != null) {
-				// refused: nothing designed; lost: found by its key on the watch, or asked again under it (the same design)
-				if (ChangeRequests.definite(err)) feed(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect would not redesign it: " + message(err)));
+				// refused: nothing designed; lost, or its key bound to a request already made: found by its key on the watch (never a second design)
+				if (ChangeRequests.definite(err) && !keyConflict(err) && !uncertain(err)) feed(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect would not redesign it: " + message(err)));
 				else Steward.LOGGER.warn("repair {} of {}: the answer was lost ({}); found by its key", a.key(), settlement.id(), message(err));
 				return;
 			}
@@ -2090,9 +2096,10 @@ public final class SettlementRunner {
 		int session = Session.current();
 		ArchitectApi.get().designs().cancelDesign(x.designId()).whenComplete((o, err) -> server.execute(() -> {
 			if (!Session.is(session) || !alive()) return;
-			if (err != null) { Steward.LOGGER.warn("repair {} of {}: the stop got no answer ({}); asked again", x.key(), settlement.id(), message(err)); repairStopSent = 0; return; }
+			// no answer: sent again on the watch (repairStopSent keeps its time)
+			if (err != null) { Steward.LOGGER.warn("repair {} of {}: the stop got no answer ({}); asked again", x.key(), settlement.id(), message(err)); return; }
 			switch (o.kind()) {
-				case CANCELLED, ALREADY_FINAL -> o.design().ifPresentOrElse(this::repairFinal,
+				case CANCELLED, ALREADY_FINAL -> o.design().ifPresentOrElse(d -> repairFinal(d, true),
 					() -> feed(new Pipeline.RepairEnded(x.key(), Pipeline.RepairEnd.FAILED, 0, "stopped")));
 				case UNKNOWN -> feed(new Pipeline.RepairEnded(x.key(), Pipeline.RepairEnd.LOST, 0, "Architect does not know its design"));
 			}
@@ -2112,7 +2119,7 @@ public final class SettlementRunner {
 		if (r.designId() != null) {
 			var d = designs.get(r.designId());
 			if (d.isPresent()) {
-				if (d.get().status().isFinal()) repairFinal(d.get());
+				if (d.get().status().isFinal()) repairFinal(d.get(), false);
 				else if (r.stopping() && repairStopSent > 0 && System.currentTimeMillis() - repairStopSent > 20_000) execute(new Pipeline.StopRepair(r.key(), r.designId()));
 				return;
 			}
@@ -2127,19 +2134,32 @@ public final class SettlementRunner {
 			if (err != null) return;
 			if (found.isPresent()) {
 				if (state.repair().designId() == null) feed(new Pipeline.RepairAsked(r.key(), found.get().id()));
-				if (found.get().status().isFinal()) repairFinal(found.get());
+				if (found.get().status().isFinal()) repairFinal(found.get(), false);
 				return;
 			}
-			// never received: a waiting cancel ends it (nothing spent); else asked again under its key
+			// never received: a waiting cancel ends it (nothing spent); else asked again under its key with its own words, while its key is still kept
 			if (state.repair().stopping()) feed(new Pipeline.RepairEnded(r.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect never received it"));
-			else if (state.phase() == Pipeline.Phase.REPAIRING) askRepair(new Pipeline.AskRepair(r.lotId(), r.key(), "asked again after its answer was lost"));
+			else if (state.phase() == Pipeline.Phase.REPAIRING && !mayResend()) feed(new Pipeline.RepairEnded(r.key(), Pipeline.RepairEnd.LOST, 0,
+				"Architect has no record of it, and the build is too old to ask again safely"));
+			else if (state.phase() == Pipeline.Phase.REPAIRING) {
+				askRepair(new Pipeline.AskRepair(r.lotId(), r.key(), r.why()));
+				drainLater();
+			}
 		}));
 	}
 
-	/** The repair's design is final: the pipeline ends it with its cost (DONE binds again; failed or stopped, the build ends or the cancel is done). */
-	private void repairFinal(dev.larattalabs.architect.api.Design d) {
+	/**
+	 * The repair's design is final: the pipeline ends it with its cost (DONE binds again; failed or stopped, the build ends or the cancel is done). A
+	 * CANCELLED read ({@code confirmed} false: a lookup or DESIGN_DONE) is not the end: Architect marks it so before its work has stopped, so the cancel's
+	 * own answer ({@link #stopRepair}) is asked for and ends it.
+	 */
+	private void repairFinal(dev.larattalabs.architect.api.Design d, boolean confirmed) {
 		var r = state == null ? null : state.repair();
 		if (r == null || (r.designId() != null && !r.designId().equals(d.id()))) return;
+		if (d.status() == dev.larattalabs.architect.api.Design.Status.CANCELLED && !confirmed) {
+			if (repairStopSent == 0 || System.currentTimeMillis() - repairStopSent > 20_000) execute(new Pipeline.StopRepair(r.key(), d.id()));
+			return;
+		}
 		// its next version is the same entry, which the bind takes again: one that came back as another entry is not bound (it would bind the old one)
 		String entry = repairEntry(r.lotId());
 		boolean sameEntry = d.entryId().isPresent() && d.entryId().get().equals(entry);
@@ -2152,7 +2172,7 @@ public final class SettlementRunner {
 	/** A design finished: this build's repair is looked at. */
 	private void onRepairDone(dev.larattalabs.architect.api.Design d) {
 		var r = state == null ? null : state.repair();
-		if (r != null && d.id().equals(r.designId())) server.execute(() -> repairFinal(d));
+		if (r != null && d.id().equals(r.designId())) server.execute(() -> repairFinal(d, false));
 	}
 
 	/** This session's repair requests and lookups in flight, and when the waiting stop was sent (0: none, or it got no answer). */

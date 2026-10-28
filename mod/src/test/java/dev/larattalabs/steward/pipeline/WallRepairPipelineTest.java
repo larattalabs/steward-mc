@@ -121,4 +121,28 @@ class WallRepairPipelineTest {
 		assertNull(old.repair());
 		assertEquals(Map.of(), old.repairs());
 	}
+
+	@Test
+	void aBuildPlacedWithoutThePlayersWordIsRepairedWhileStillReady() throws Exception {
+		// an autonomous build binds while READY_TO_PLACE (its BatchQueued comes only once the bind succeeds)
+		var ready = placing(5, 35).with(Phase.READY_TO_PLACE);
+		var st = step(ready, new WallRefused("gate_1", "gatehouse", "open", true, KEY));
+		assertEquals(Phase.REPAIRING, st.next().phase());
+		assertTrue(st.commands().contains(new AskRepair("gate_1", KEY, "open")));
+		assertEquals(Phase.PLACING, step(st.next(), new RepairEnded(KEY, RepairEnd.DONE, 1, null)).next().phase(), "placed again, as it was going to be");
+	}
+
+	@Test
+	void theRepairKeepsItsOwnWordsSoItIsAskedAgainTheSame() throws Exception {
+		assertEquals("the design leaves the wall open at 1,64,2 (3 cells)", refused(placing(5, 35), KEY).repair().why());
+	}
+
+	@Test
+	void aCancelEndedByTheGroupNeverForgetsWhatTheRepairsCost() throws Exception {
+		// repaired and placed again (5 + 0.8), then cancelled while placing: the original group's late word keeps the count
+		var s = step(refused(placing(5, 35), KEY), new RepairEnded(KEY, RepairEnd.DONE, 0.8, null)).next();
+		s = step(s, new Cancel()).next();
+		var g = step(s, new GroupUpdate("g1", "done", Map.of(), List.of(), 3, null));
+		assertEquals(5.8, g.next().spentUsd(), 1e-9);
+	}
 }
