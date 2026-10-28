@@ -205,7 +205,7 @@ Last run: 2026-10-11: **PASS 34 checks** on Architect 0.15.0 (a building placed 
 lab-ui (`dev.larattalabs:lab_ui`), the shared client UI library, is bundled jar-in-jar. `mod/settings.gradle` decides where Gradle gets it, with the same rule as
 AgentCraft and Architect:
 1. **A lab-ui checkout at the release.** It is used only when it is clean and its HEAD is exactly at the tag `v<lab_ui_version>`. Checkouts are looked for at
-   `../../lab-ui` from `mod/` and at `~/Developer/LarattaLabs/lab-ui`.
+   `../../lab-ui` from `mod/` and at `~/Developer/LarattaLabs/Minecraft/lab-ui`.
 2. **For lab-ui development,** `-Plab_ui.dir=<path>` or `LAB_UI_DIR=<path>` forces a checkout, with an UNRELEASED warning (don't ship that build).
    `-Plab_ui.dir=none` turns checkouts off.
 3. **Otherwise the release from GitHub Packages,** fetched once into the Gradle cache, after which `--offline` works:

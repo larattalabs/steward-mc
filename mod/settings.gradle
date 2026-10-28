@@ -72,7 +72,7 @@ if (labUiExplicit != null && labUiExplicit != "none") {
 } else if (labUiExplicit == null) {
 	for (File c : [
 		new File(modDir, "../../lab-ui"),
-		new File(System.getProperty("user.home"), "Developer/LarattaLabs/lab-ui"),
+		new File(System.getProperty("user.home"), "Developer/LarattaLabs/Minecraft/lab-ui"),
 	]) {
 		if (!isLabUi(c)) {
 			continue
