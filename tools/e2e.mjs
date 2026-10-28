@@ -2119,9 +2119,14 @@ async function planCheckFlow() {
   await sleep(15_000);
   // off the plan (it is centred on the player, and Architect waits for a player standing in what it removes), its chunks still loaded
   await cmd('/tp @p ~ ~ ~90');
-  from = logSize();
-  await cmd('/steward dev unrealise_plan market_town');
-  const gone = await waitLog(from, /plan unrealised market_town (\S+)/, 660_000);
+  // nothing on the sites (a horse a new chunk spawned stops the removal before it writes anything): cleared, and asked once more if one walked in
+  let gone = null;
+  for (let i = 0; i < 2 && gone?.[1] !== 'true'; i++) {
+    await clearAnimals();
+    from = logSize();
+    await cmd('/steward dev unrealise_plan market_town');
+    gone = await waitLog(from, /plan unrealised market_town (\S+)/, 660_000);
+  }
   if (gone && gone[1] === 'true') ok('plan realise', `${realised[1]} realised from its approved artifact, then taken up`);
   else fail('plan realise', `realised ${realised[1]}; taken up: ${gone ? gone[1] : 'no answer'}`);
 }
