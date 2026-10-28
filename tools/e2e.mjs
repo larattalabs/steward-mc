@@ -1727,10 +1727,12 @@ async function survivalGrowth(id, owner, region, claim, ledger) {
   // one of the town's own buildings again, so the growth has a building to build from materials (a bare pad may cost nothing)
   const placedIds = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').flatMap((e) => e.siteIds ?? []);
   const sites = (await dev.request('dev.sites.state').catch(() => ({})))?.sites ?? [];
-  const site = (Array.isArray(sites) ? sites : Object.values(sites)).find((x) => placedIds.includes(x.id) && (x.blueprintId ?? x.entry ?? x.blueprint));
-  const entry = site ? (site.blueprintId ?? site.entry ?? site.blueprint) : null;
-  const span = (i) => (site?.box ? Math.abs(site.box[i + 3] - site.box[i]) + 1 : 9);
-  const lot = { id: `${b}_h1`, type: 'house', size: [Math.max(9, span(0)) + 2, Math.max(9, span(2)) + 4] };
+  const site = (Array.isArray(sites) ? sites : Object.values(sites)).find((x) => placedIds.includes(x.id) && x.blueprint);
+  const entry = site?.blueprint ?? null;
+  // a lot that holds the building whichever way it is turned, with room for its approach
+  const bx = site?.box ? site.box.maxX - site.box.minX + 1 : 9, bz = site?.box ? site.box.maxZ - site.box.minZ + 1 : 9;
+  const side = Math.max(9, bx, bz);
+  const lot = { id: `${b}_h1`, type: 'house', size: [side + 2, side + 4] };
   const p = await dev.request('dev.rv.plan', { region, program, params: { grow: { lots: [lot] } }, opKey: `steward.${b}.vplan`, ext },
     { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
   if (!p?.planId) return fail(label, `the growth of ${region} (${program}) not planned: ${JSON.stringify(p).slice(0, 220)}`);
