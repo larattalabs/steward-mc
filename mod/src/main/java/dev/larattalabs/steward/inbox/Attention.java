@@ -51,6 +51,7 @@ public record Attention(Kind kind, String line, long limitResetsAt) {
 				case GROUP_RUNNING -> "designing " + build.items().size() + " buildings";
 				case READY_TO_PLACE -> "fitting the buildings";
 				case PLACING -> "building";
+				case REPAIRING -> "redesigning a building on the wall";
 				case CANCELLING -> "stopping the work";
 				default -> "at work";
 			}, 0);

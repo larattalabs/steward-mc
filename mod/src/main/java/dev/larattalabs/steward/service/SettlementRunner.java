@@ -1712,6 +1712,11 @@ public final class SettlementRunner {
 				else if (batchId != null) cancelBatch(batchId);
 				else if (!queueInFlight && !recovering) { if (keyed) cancelByKeys(); else later.add(new Pipeline.CancelConfirmed()); }
 			}
+			// (Architect K3) the wall repair's commands: their handlers come with Architect's keyed designs (design.opKeys); until then a repair ends with
+			// nothing asked and nothing spent
+			case Pipeline.AskRepair a -> later.add(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "this Architect cannot key a design request (design.opKeys)"));
+			case Pipeline.StopRepair x -> later.add(new Pipeline.RepairEnded(x.key(), Pipeline.RepairEnd.REFUSED, 0, "nothing was asked"));
+			case Pipeline.Rebind r -> realiseVillage();
 			case Pipeline.Notify n -> {
 				String hint = n.needsDecision() ? hint() : null;
 				say(hint == null ? n.text() : n.text() + " " + hint);

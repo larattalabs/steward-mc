@@ -22,6 +22,8 @@ public final class Pipeline {
 
 	public enum Phase {
 		AWAITING_CARD_APPROVAL, BIBLE_RUNNING, AWAITING_BIBLE_APPROVAL, GROUP_RUNNING, AWAITING_MASSING_APPROVAL, READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING,
+		/** (Architect K3) a wall lot's design is being repaired after the bind refused it; nothing is placed until it ends ({@link State#repair()}). */
+		REPAIRING,
 		/** Cancelled by the player, waiting for Architect to stop what it runs (a bible job, the group, the batch's rollback): the build keeps its slot. */
 		CANCELLING, DONE, FAILED, CANCELLED;
 
@@ -32,9 +34,18 @@ public final class Pipeline {
 
 	/** What the pipeline knows. Immutable; {@code items} maps lot id to its latest stage as Architect reported it. */
 	public record State(Phase phase, String settlementId, ConceptCard card, @Nullable String bibleId, @Nullable Integer bibleVersion, @Nullable String groupId,
-		Map<String, String> items, double bibleCostUsd, double spentUsd, double budgetUsd, boolean pausedForBudget, @Nullable String heldNote, @Nullable String failure) {
+		Map<String, String> items, double bibleCostUsd, double spentUsd, double budgetUsd, boolean pausedForBudget, @Nullable String heldNote, @Nullable String failure,
+		@Nullable Repair repair, Map<String, Integer> repairs) {
 		public State {
 			items = Map.copyOf(items);
+			// a state saved before wall repairs: none
+			repairs = repairs == null ? Map.of() : Map.copyOf(repairs);
+		}
+
+		/** A state without a wall repair (as saved before Architect K3). */
+		public State(Phase phase, String settlementId, ConceptCard card, @Nullable String bibleId, @Nullable Integer bibleVersion, @Nullable String groupId,
+			Map<String, String> items, double bibleCostUsd, double spentUsd, double budgetUsd, boolean pausedForBudget, @Nullable String heldNote, @Nullable String failure) {
+			this(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, failure, null, Map.of());
 		}
 
 		public static State start(String settlementId, ConceptCard card, double budgetUsd) {
@@ -42,46 +53,68 @@ public final class Pipeline {
 		}
 
 		State with(Phase p) {
-			return new State(p, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, failure);
+			return new State(p, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, failure, repair, repairs);
 		}
 
 		State withBible(String id, int version) {
-			return new State(phase, settlementId, card, id, version, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, failure);
+			return new State(phase, settlementId, card, id, version, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, failure, repair, repairs);
 		}
 
 		State withGroup(String id) {
-			return new State(phase, settlementId, card, bibleId, bibleVersion, id, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, failure);
+			return new State(phase, settlementId, card, bibleId, bibleVersion, id, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, failure, repair, repairs);
 		}
 
 		State withProgress(Map<String, String> newItems, double spent, boolean paused, @Nullable String held) {
-			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, newItems, bibleCostUsd, spent, budgetUsd, paused, held, failure);
+			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, newItems, bibleCostUsd, spent, budgetUsd, paused, held, failure, repair, repairs);
 		}
 
 		State withBibleCost(double c) {
-			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, c, c, budgetUsd, pausedForBudget, heldNote, failure);
+			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, c, c, budgetUsd, pausedForBudget, heldNote, failure, repair, repairs);
 		}
 
 		State withBudget(double b) {
-			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, b, false, heldNote, failure);
+			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, b, false, heldNote, failure, repair, repairs);
 		}
 
 		State paused(double budget) {
-			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budget, true, heldNote, failure);
+			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budget, true, heldNote, failure, repair, repairs);
 		}
 
 		State withSpent(double usd) {
-			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, usd, budgetUsd, pausedForBudget, heldNote, failure);
+			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, usd, budgetUsd, pausedForBudget, heldNote, failure, repair, repairs);
+		}
+
+		State withRepair(@Nullable Repair r, Map<String, Integer> rounds) {
+			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, failure, r, rounds);
 		}
 
 		State failed(String why) {
-			return new State(Phase.FAILED, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, why);
+			return new State(Phase.FAILED, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, why, repair, repairs);
 		}
 	}
+
+	/**
+	 * A wall lot's repair the build owns (Architect K3): its lot, its operation key (Architect finds the design by it after a restart or a lost answer, and a
+	 * repeat of it is the same design), its round, its design once Architect answered, what of the budget it reserved, and whether a cancel waits for it.
+	 */
+	public record Repair(String lotId, String role, String key, int round, @Nullable String designId, double reservedUsd, boolean stopping) {
+		Repair withDesign(String id) {
+			return new Repair(lotId, role, key, round, id, reservedUsd, stopping);
+		}
+
+		Repair stopped() {
+			return new Repair(lotId, role, key, round, designId, reservedUsd, true);
+		}
+	}
+
+	/** A wall lot's design repairs at the bind (Architect K3): at most this many rounds a lot, each reserving its most, {@link #WALL_REPAIR_USD}. */
+	public static final int WALL_REPAIRS = 2;
+	public static final double WALL_REPAIR_USD = 2.0;
 
 	// ------------------------------------------------------------------ events
 
 	public sealed interface Event permits CardApproved, BibleDone, BibleApproved, GroupUpdate, MassingDecision, BudgetRaised, BudgetRaiseFailed, BatchQueued, PlacementApproved,
-		BatchDone, Cancel, CancelConfirmed, RepairSpent {}
+		BatchDone, Cancel, CancelConfirmed, RepairSpent, WallRefused, RepairAsked, RepairEnded {}
 
 	/**
 	 * The player approved (or edited and approved) the concept card. {@code bibleId}: the settlement's style bible to reuse (a later build of a settlement
@@ -108,6 +141,21 @@ public final class Pipeline {
 	public record MassingDecision(List<String> approve, Map<String, String> redirect, List<String> cancel) implements Event {}
 
 	public record BudgetRaised(double newBudgetUsd) implements Event {}
+
+	/**
+	 * (Architect K3) the bind refused a wall lot's design ("lot <id> on wall <wall>: ..."). {@code designed}: this build has a design of it to repair;
+	 * {@code key}: the repair's operation key.
+	 */
+	public record WallRefused(String lotId, String role, String why, boolean designed, String key) implements Event {}
+
+	/** Architect took the repair's request (or found it by its key): its design. */
+	public record RepairAsked(String key, String designId) implements Event {}
+
+	/** How a repair ended: its design done or failed (stopped included), Architect refused the request (nothing designed), or it was lost (its most stays counted). */
+	public enum RepairEnd { DONE, FAILED, REFUSED, LOST }
+
+	/** The repair ended, its design having cost {@code costUsd}; {@code why} for an end without a design. */
+	public record RepairEnded(String key, RepairEnd end, double costUsd, @Nullable String why) implements Event {}
 
 	/** (Architect K3) a wall lot's repair at the bind: {@code costUsd} more in what the build spent (its most when asked; then less, trued up to its cost). */
 	public record RepairSpent(double costUsd) implements Event {}
@@ -143,7 +191,7 @@ public final class Pipeline {
 	// ---------------------------------------------------------------- commands
 
 	public sealed interface Command permits RequestBible, RequestGroup, ApproveGroup, ExtendAndResumeGroup, FitAndQueue, ApproveStages, CancelBible, CancelGroup, CancelBatch,
-		Notify {}
+		Notify, AskRepair, StopRepair, Rebind {}
 
 	public record RequestBible(String prompt, String name, double budgetUsd) implements Command {}
 
@@ -170,6 +218,15 @@ public final class Pipeline {
 	/** Stop the placement batch (what is placed stays; the change log can undo it). */
 	public record CancelBatch() implements Command {}
 
+	/** (Architect K3) ask for the repair of a wall lot's design under its key (asking again under the same key is the same design). */
+	public record AskRepair(String lotId, String key, String why) implements Command {}
+
+	/** Stop the repair's design (its id, or found by its key when null); the repair then ends with what it cost. */
+	public record StopRepair(String key, @Nullable String designId) implements Command {}
+
+	/** Bind the approved artifact again, the repaired design in place of the refused one. */
+	public record Rebind() implements Command {}
+
 	/** Something the player should see in the inbox. */
 	public record Notify(String text, boolean needsDecision) implements Command {}
 
@@ -185,6 +242,8 @@ public final class Pipeline {
 		if (s.phase().terminal()) return Step.of(s);
 		if (e instanceof Cancel) return cancel(s);
 		if (e instanceof RepairSpent r) return Step.of(s.withSpent(Math.max(0, s.spentUsd() + r.costUsd())));
+		if (e instanceof RepairAsked a) return repairAsked(s, a);
+		if (e instanceof RepairEnded r) return repairEnded(s, r);
 		return switch (s.phase()) {
 			case AWAITING_CARD_APPROVAL -> e instanceof CardApproved a ? cardApproved(s, a) : Step.of(s);
 			case BIBLE_RUNNING -> e instanceof BibleDone b ? bibleDone(s, b, perm) : Step.of(s);
@@ -215,7 +274,13 @@ public final class Pipeline {
 				case BatchDone b -> built(s, b);
 				default -> Step.of(s);
 			};
-			case PLACING -> e instanceof BatchDone b ? built(s, b) : Step.of(s);
+			case PLACING -> switch (e) {
+				case BatchDone b -> built(s, b);
+				case WallRefused w -> wallRefused(s, w);
+				default -> Step.of(s);
+			};
+			// nothing but the repair's end moves it (above)
+			case REPAIRING -> Step.of(s);
 			case CANCELLING -> cancelling(s, e);
 			default -> Step.of(s);
 		};
@@ -233,13 +298,21 @@ public final class Pipeline {
 				? Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s), false))
 				: Step.of(s.with(Phase.CANCELLING), new CancelGroup(s.groupId()), n);
 			case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING -> Step.of(s.with(Phase.CANCELLING), new CancelBatch(), n);
-			// a second cancel: stop waiting for Architect (it said nothing back)
-			case CANCELLING -> Step.of(s.with(Phase.CANCELLED), new Notify("Stopped waiting for Architect; " + label(s) + " is cancelled.", false));
+			// a wall lot's repair: stopped, and the build holds its slot until it has (its cost then known)
+			case REPAIRING -> Step.of(s.withRepair(s.repair().stopped(), s.repairs()).with(Phase.CANCELLING), new StopRepair(s.repair().key(), s.repair().designId()), n);
+			// a second cancel while a repair stops: asked to stop again, still owned (a repair that cannot be confirmed stopped is given up by the runner)
+			case CANCELLING -> s.repair() != null
+				? Step.of(s, new StopRepair(s.repair().key(), s.repair().designId()), new Notify("Still waiting for the repair of the " + s.repair().role()
+					+ " to stop; " + label(s) + " is cancelled once it has.", false))
+				// a second cancel: stop waiting for Architect (it said nothing back)
+				: Step.of(s.with(Phase.CANCELLED), new Notify("Stopped waiting for Architect; " + label(s) + " is cancelled.", false));
 			default -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s), false));
 		};
 	}
 
 	private static Step cancelling(State s, Event e) {
+		// a repair outstanding: only its end (above) cancels the build, never the group's, batch's or region's word
+		if (s.repair() != null) return Step.of(s);
 		return switch (e) {
 			case BibleDone b -> Step.of(s.withBibleCost(b.costUsd()).with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + ".", false));
 			case GroupUpdate g when List.of("done", "failed", "cancelled").contains(g.status()) ->
@@ -249,6 +322,47 @@ public final class Pipeline {
 			case CancelConfirmed c -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + ".", false));
 			default -> Step.of(s);
 		};
+	}
+
+	/** The bind refused a wall lot's design: repaired (within the rounds and the budget, its most reserved), or the build fails naming it. */
+	private static Step wallRefused(State s, WallRefused w) {
+		if (s.repair() != null) return Step.of(s);
+		int round = s.repairs().getOrDefault(w.lotId(), 0);
+		String no = !w.designed() ? "Architect refused the " + w.role() + " on the wall, and this build has no design of it to repair"
+			: round >= WALL_REPAIRS ? "the " + w.role() + " on the wall still doesn't close it after " + round + " repairs"
+			: s.spentUsd() + WALL_REPAIR_USD > s.budgetUsd() ? "repairing the " + w.role() + " on the wall would go past the budget"
+			: null;
+		if (no != null) return Step.of(s.failed(no + " (" + w.why() + ")"), new Notify("The build of " + label(s) + " stopped: " + no + ".", true));
+		var rounds = new java.util.HashMap<>(s.repairs());
+		rounds.put(w.lotId(), round + 1);
+		var r = new Repair(w.lotId(), w.role(), w.key(), round + 1, null, WALL_REPAIR_USD, false);
+		return Step.of(s.withRepair(r, rounds).withSpent(s.spentUsd() + WALL_REPAIR_USD).with(Phase.REPAIRING), new AskRepair(w.lotId(), w.key(), w.why()),
+			new Notify("Architect refused the " + w.role() + " on the wall (" + w.why() + "): redesigning it (repair " + (round + 1) + " of " + WALL_REPAIRS + ").", false));
+	}
+
+	private static Step repairAsked(State s, RepairAsked a) {
+		var r = s.repair();
+		if (r == null || !r.key().equals(a.key()) || r.designId() != null) return Step.of(s);
+		var known = r.withDesign(a.designId());
+		// a cancel came first: the design is stopped now that it is known
+		return known.stopping() ? Step.of(s.withRepair(known, s.repairs()), new StopRepair(known.key(), known.designId())) : Step.of(s.withRepair(known, s.repairs()));
+	}
+
+	/** The repair ended: its reservation trued up to its cost; then placed again, the build failed naming the lot, or a waiting cancel done. */
+	private static Step repairEnded(State s, RepairEnded e) {
+		var r = s.repair();
+		if (r == null || !r.key().equals(e.key())) return Step.of(s);
+		double delta = switch (e.end()) {
+			case LOST -> 0;
+			case REFUSED -> -r.reservedUsd();
+			default -> Math.max(0, e.costUsd()) - r.reservedUsd();
+		};
+		State t = s.withRepair(null, s.repairs()).withSpent(Math.max(0, s.spentUsd() + delta));
+		if (s.phase() == Phase.CANCELLING) return Step.of(t.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + " (the wall repair stopped).", false));
+		if (s.phase() != Phase.REPAIRING) return Step.of(t);
+		if (e.end() == RepairEnd.DONE) return Step.of(t.with(Phase.PLACING), new Rebind(), new Notify("The " + r.role() + " is redesigned: placing again.", false));
+		String why = "the " + r.role() + " on the wall could not be redesigned: " + (e.why() != null ? e.why() : e.end().name().toLowerCase());
+		return Step.of(t.failed(why), new Notify("The build of " + label(s) + " stopped: " + why + ".", true));
 	}
 
 	private static Step built(State s, BatchDone b) {

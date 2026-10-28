@@ -131,6 +131,7 @@ public final class InboxModel {
 			case GROUP_RUNNING, AWAITING_MASSING_APPROVAL -> "Designing the buildings.";
 			case READY_TO_PLACE -> "Fitting the buildings to their lots.";
 			case PLACING, AWAITING_PLACEMENT_APPROVAL -> "Placing the settlement.";
+			case REPAIRING -> "Redesigning a building on the wall that Architect refused, then placing again.";
 			case DONE -> "Built: every building stands.";
 			case FAILED -> "Failed: it stopped and spends nothing more. The steward said why in chat.";
 			case CANCELLING -> "Cancelling: waiting for the work under way to stop.";
