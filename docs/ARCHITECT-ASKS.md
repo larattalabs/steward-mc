@@ -1008,3 +1008,12 @@ houses and shops are past the sim, and `sim:outerdoor` in the card reached the k
   cannot close the wall. K3's gate wrote wall-lot designs straight into the library, so massing-first was never exercised. `GroupRequest.Item` has
   no per-item way to skip the massing. Options for Architect: a wall lot's massing takes its box (sim and prompt); or a wall lot's detail cap stays
   its request's maxSize; or a per-item opt-out of the massing. Steward reruns both e2e runs on the fixed jar.
+
+## 7a K3 RC rerun (2026-10-28): PASS for Steward
+
+Architect slice/K3 at 81c9fc3b (feature `wallLots.exactMassing`: a wall lot's massing takes its box, its detail is capped by the box), Steward k3-rc
+with every wall lot's `architect:wallLot` ext sent as an object (`{}` without outer faces) and a walled town held until the feature is there
+(05df53d). Free 43/43; stub 98/98: castle_city's four corner towers and gatehouse designed to their boxes, each refused once at bind for its
+`sim:outerdoor` door and repaired, a repair in flight picked up by its key after a restart, all five bound; the walled town revised and undone, then
+undone; a second town cancelled while its repair was designed. The independent verifier passed the branch (unit tests 324, the e2e conditions, the
+GPT trail, save compatibility, the diff). Next in the queue: GJ (slice/GJ 9e4e8438).
