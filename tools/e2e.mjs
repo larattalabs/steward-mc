@@ -1278,9 +1278,14 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
   let at = from, herdAt = from;
   while (Date.now() < end) {
     // an animal that walked into a lot while it was designed holds the lot's item up with no time limit (the steward names it): moved out, as a player would
-    if (/is in its lot\. Move it out/.test(logSince(herdAt))) {
+    // and the player standing on a lot (Architect waits for them to step off, again with no time limit): moved just past the claim's edge, where the ground
+    // stays loaded
+    const herd = logSince(herdAt);
+    if (/is in its lot\. Move it out|someone is standing on its lot/.test(herd)) {
       herdAt = logSize();
-      await clearAnimals();
+      if (/is in its lot\. Move it out/.test(herd)) await clearAnimals();
+      const c = /someone is standing on its lot/.test(herd) ? settlements().find((x) => x.id === id)?.claim : null;
+      if (c) await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ + c.radius + 12}`);
     }
     const since = logSince(at);
     const built = since.match(/is built(?: in part)?: (\d+) buildings placed/);
