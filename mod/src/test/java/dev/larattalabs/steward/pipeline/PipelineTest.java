@@ -380,14 +380,4 @@ class PipelineTest {
 		assertEquals(group, Pipeline.groupRequest(reuse.next()));
 	}
 
-	@Test
-	void aWallRepairsCostIsCountedInWhatTheBuildSpent() throws Exception {
-		var st = State.start("set_1", card(), 35.0);
-		var next = Pipeline.step(st.with(Pipeline.Phase.PLACING), new Pipeline.RepairSpent(1.25), Permission.PROPOSALS).next();
-		assertEquals(Pipeline.Phase.PLACING, next.phase(), "the phase is unchanged");
-		assertEquals(st.spentUsd() + 1.25, next.spentUsd(), 1e-9);
-		// its reservation trued up to what it cost: less, never below nothing
-		assertEquals(next.spentUsd() - 0.75, Pipeline.step(next, new Pipeline.RepairSpent(-0.75), Permission.PROPOSALS).next().spentUsd(), 1e-9);
-		assertEquals(0, Pipeline.step(next, new Pipeline.RepairSpent(-1e6), Permission.PROPOSALS).next().spentUsd(), 1e-9, "never negative");
-	}
 }

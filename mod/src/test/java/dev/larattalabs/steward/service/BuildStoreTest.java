@@ -68,28 +68,14 @@ class BuildStoreTest {
 		var specs = List.of(new VillageLayout.LotSpec("smithy_1", "smithy", 11, 9, "smithy", null, false, null));
 		var b = new BuildStore.Saved(b0.settlementId(), b0.buildId(), b0.playerId(), b0.dimension(), b0.permission(), b0.landmarks(), b0.settlement(), b0.state(), b0.plan(),
 			b0.bibleJobId(), b0.groupId(), b0.batchId(), b0.siteGroupId(), b0.landmarkIds(), b0.decided(), b0.lastAwaiting(), true, "district_e", false, true, "plan_1", null,
-			specs, Map.of("gate_1", 1));
+			specs);
 		BuildStore st = new BuildStore();
 		st.put(b);
 		Path f = dir.resolve("b.json");
 		st.save(f);
 		assertEquals(specs, BuildStore.load(f).all().get(0).districtSpecs());
-		assertEquals(Map.of("gate_1", 1), BuildStore.load(f).all().get(0).wallRepairs(), "a wall lot's repairs are kept across a restart");
 		// a build saved before (no districtSpecs) reads with none
 		assertNull(saved().districtSpecs());
-		assertNull(saved().wallRepairs());
-		assertNull(saved().wallRepair());
-		// a repair being designed is kept with the build: its key (found again by it), its design, its reservation, a cancel waiting for it
-		var repair = new BuildStore.WallRepair("gate_1", "steward.b1.repair.gate_1.1", 1, "d42", 2.0, false).stopped();
-		var withRepair = new BuildStore.Saved(b.settlementId(), b.buildId(), b.playerId(), b.dimension(), b.permission(), b.landmarks(), b.settlement(), b.state(), b.plan(),
-			b.bibleJobId(), b.groupId(), b.batchId(), b.siteGroupId(), b.landmarkIds(), b.decided(), b.lastAwaiting(), true, "district_e", false, true, "plan_1", null,
-			specs, Map.of("gate_1", 1), repair);
-		BuildStore st2 = new BuildStore();
-		st2.put(withRepair);
-		Path f2 = dir.resolve("b2.json");
-		st2.save(f2);
-		assertEquals(repair, BuildStore.load(f2).all().get(0).wallRepair());
-		assertNull(new BuildStore.WallRepair("gate_1", "k", 1, null, 2.0, false).designId(), "asked, not yet answered: found by its key");
 	}
 
 	@Test

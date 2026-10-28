@@ -114,7 +114,7 @@ public final class Pipeline {
 	// ------------------------------------------------------------------ events
 
 	public sealed interface Event permits CardApproved, BibleDone, BibleApproved, GroupUpdate, MassingDecision, BudgetRaised, BudgetRaiseFailed, BatchQueued, PlacementApproved,
-		BatchDone, Cancel, CancelConfirmed, RepairSpent, WallRefused, RepairAsked, RepairEnded {}
+		BatchDone, Cancel, CancelConfirmed, WallRefused, RepairAsked, RepairEnded {}
 
 	/**
 	 * The player approved (or edited and approved) the concept card. {@code bibleId}: the settlement's style bible to reuse (a later build of a settlement
@@ -157,8 +157,6 @@ public final class Pipeline {
 	/** The repair ended, its design having cost {@code costUsd}; {@code why} for an end without a design. */
 	public record RepairEnded(String key, RepairEnd end, double costUsd, @Nullable String why) implements Event {}
 
-	/** (Architect K3) a wall lot's repair at the bind: {@code costUsd} more in what the build spent (its most when asked; then less, trued up to its cost). */
-	public record RepairSpent(double costUsd) implements Event {}
 
 	/**
 	 * Architect did not take a raise and the build stays paused. {@code extended}: the group's cap was raised but resuming failed, so the new budget stands (a
@@ -241,7 +239,6 @@ public final class Pipeline {
 	public static Step step(State s, Event e, Permission perm) {
 		if (s.phase().terminal()) return Step.of(s);
 		if (e instanceof Cancel) return cancel(s);
-		if (e instanceof RepairSpent r) return Step.of(s.withSpent(Math.max(0, s.spentUsd() + r.costUsd())));
 		if (e instanceof RepairAsked a) return repairAsked(s, a);
 		if (e instanceof RepairEnded r) return repairEnded(s, r);
 		return switch (s.phase()) {
