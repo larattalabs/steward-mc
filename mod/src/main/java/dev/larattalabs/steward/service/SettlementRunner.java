@@ -367,6 +367,7 @@ public final class SettlementRunner {
 		this.vRegionId = b.vRegion();
 		this.districtSpecs = b.districtSpecs() == null ? null : List.copyOf(b.districtSpecs());
 		if (b.wallRepairs() != null) this.wallRepairs.putAll(b.wallRepairs());
+		if (b.repairDesigns() != null) this.savedRepairs.putAll(b.repairDesigns());
 	}
 
 	private ServerLevel level() {
@@ -382,7 +383,8 @@ public final class SettlementRunner {
 		boolean ended = state.phase().terminal();
 		if (ended) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, wallRepairs.isEmpty() ? null : Map.copyOf(wallRepairs)));
+			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, wallRepairs.isEmpty() ? null : Map.copyOf(wallRepairs),
+			pendingRepair == null ? null : Map.of(pendingRepair.lotId(), pendingRepair.designId())));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -1920,6 +1922,14 @@ public final class SettlementRunner {
 	private void realiseArtifact(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
 		var regions = ArchitectApi.get().regions();
 		Map<String, String> fitting = palette(sha, fitting(sha, lotEntries));
+		// (Architect K3) a wall lot left without a design (none, or its design filtered out above) would leave the wall open where its tower or gatehouse
+		// stands: Architect binds nothing there, so the build ends here, naming it
+		var open = plan == null ? null : plan.lots().stream().filter(l -> l.exact() && !fitting.containsKey(l.id())).findFirst().orElse(null);
+		if (open != null) {
+			realised(null, new IllegalStateException("the " + open.role() + " on the wall has no design that fits its box (" + (lotEntries.containsKey(open.id())
+				? "its design is past the lot's approved box or rule" : "it was not designed") + "), so the wall would stand open there"), session);
+			return;
+		}
 		Steward.LOGGER.info("realise {}: artifact {} under key {} ({})", settlement.id(), sha, opKey("vrealise"), first ? "first" : "after a re-check");
 		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext))
 			.whenComplete((id, err) -> server.execute(() -> {
@@ -1993,6 +2003,18 @@ public final class SettlementRunner {
 		VillageLayout.Lot lot = plan == null ? null : plan.lots().stream().filter(l -> l.id().equals(lotId)).findFirst().orElse(null);
 		int round = wallRepairs.getOrDefault(lotId, 0);
 		String name = lot == null ? lotId : lot.role();
+		// a repair asked before a restart: waited on (or taken as done), never asked again (Architect refuses a second version while one is designed)
+		String asked = savedRepairs.remove(lotId);
+		if (asked != null) {
+			var d = ArchitectApi.get().designs().get(asked);
+			if (d.isPresent()) {
+				say("The " + name + " on the wall was being redesigned before the restart: waiting for it...");
+				pendingRepair = new PendingRepair(asked, sha, lotEntries, actor, ext, first, session, lotId, name);
+				persist();
+				if (d.get().status().isFinal()) onRepairDone(d.get());
+				return;
+			}
+		}
 		String no = entry == null || lot == null ? "Architect refused the " + name + " on the wall, and this build has no design of it to repair"
 			: round >= WALL_REPAIRS ? "the " + name + " on the wall still doesn't close it after " + round + " repairs"
 			: state.spentUsd() + WALL_REPAIR_USD > state.budgetUsd() ? "repairing the " + name + " on the wall would go past the budget"
@@ -2015,20 +2037,24 @@ public final class SettlementRunner {
 			realised(null, new IllegalStateException("the " + name + " on the wall could not be put to Architect for repair: " + x.getMessage()), session);
 			return;
 		}
-		// counted and saved before anything is spent: a restart never repairs past the cap
+		// counted, and its most reserved in what the build spent, before anything is spent: a restart never repairs past the cap, and a repair whose
+		// answer is lost is counted at its most
 		wallRepairs.put(lotId, round + 1);
+		feed(new Pipeline.RepairSpent(WALL_REPAIR_USD));
 		if (!persist()) { realised(null, new IllegalStateException("the build could not be saved before repairing the " + name + " on the wall"), session); return; }
 		say("Architect refused the " + name + " on the wall (" + why + "): redesigning it (repair " + (round + 1) + " of " + WALL_REPAIRS + ")...");
 		queueInFlight = false;
 		ArchitectApi.get().designs().request(req).whenComplete((id, err) -> server.execute(() -> {
-			if (!Session.is(session) || !alive()) return;
-			if (over()) {
+			if (!Session.is(session)) return;
+			// cancelled, or this runner replaced, while it was asked: the design is stopped, not left to spend
+			if (!alive() || over()) {
 				if (id != null) ArchitectApi.get().designs().cancel(id);
 				return;
 			}
 			if (err != null) { realised(null, new IllegalStateException("the " + name + " on the wall could not be redesigned: " + message(err)), session); return; }
-			// done: its new version bound in place of the old, the same artifact asked again under the same key
+			// done: its new version bound in place of the old, the same artifact asked again under the same key (saved, so a restart waits for it)
 			pendingRepair = new PendingRepair(id, sha, lotEntries, actor, ext, first, session, lotId, name);
+			persist();
 			ArchitectApi.get().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(this::onRepairDone);
 		}));
 	}
@@ -2036,8 +2062,19 @@ public final class SettlementRunner {
 	private record PendingRepair(String designId, String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext,
 		boolean first, int session, String lotId, String name) {}
 
-	/** The repair design in flight and what to bind once it is done (this session only: after a restart the bind is asked again, and refused again if need be). */
+	/** The repair design in flight and what to bind once it is done; its lot and design are saved with the build ({@link #savedRepairs} after a restart). */
 	private @org.jspecify.annotations.Nullable PendingRepair pendingRepair;
+	/** A restored build's repair designs asked before the restart, by lot: the next refusal of that lot waits for it. */
+	private final Map<String, String> savedRepairs = new HashMap<>();
+
+	/** Stops a wall lot's repair being designed (the build is cancelled): nothing more is spent on it. */
+	private void stopRepair() {
+		PendingRepair p = pendingRepair;
+		pendingRepair = null;
+		if (p != null) ArchitectApi.get().designs().cancel(p.designId());
+		for (String id : savedRepairs.values()) ArchitectApi.get().designs().cancel(id);
+		savedRepairs.clear();
+	}
 
 	/** A design finished: this build's wall repair, its cost counted and the artifact bound again with it; failed, the build ends naming the lot. */
 	private void onRepairDone(dev.larattalabs.architect.api.Design d) {
@@ -2046,7 +2083,9 @@ public final class SettlementRunner {
 		pendingRepair = null;
 		server.execute(() -> {
 			if (!Session.is(p.session()) || !alive()) return;
-			feed(new Pipeline.RepairSpent(d.cost().usd()));
+			// its reservation trued up to what it cost
+			feed(new Pipeline.RepairSpent(d.cost().usd() - WALL_REPAIR_USD));
+			persist();
 			if (over()) return;
 			if (d.status() != dev.larattalabs.architect.api.Design.Status.DONE || d.entryId().isEmpty()) {
 				realised(null, new IllegalStateException("the " + p.name() + " on the wall could not be redesigned: " + d.error().orElse(d.status().name().toLowerCase())), p.session());
@@ -2448,6 +2487,8 @@ public final class SettlementRunner {
 	 * and the cancel ends.
 	 */
 	private void cancelVillage() {
+		// a wall lot's repair being designed is stopped with the build (no realise is in flight meanwhile)
+		stopRepair();
 		if (vRegionId == null) {
 			if (!queueInFlight) later.add(new Pipeline.CancelConfirmed());
 			return;

@@ -50,13 +50,15 @@ public final class LotBrief {
 	static String notes(ConceptCard c, Lot lot, String type) {
 		List<String> parts = new ArrayList<>();
 		// the request's style field is a short label; the card's full style words go here (the bible carries the look either way)
-		parts.add("Style: " + c.style().text() + ".");
-		parts.add("Part of a settlement: " + c.site().text() + ", used as " + c.purpose().text() + ".");
-		if (c.story() != null && c.story().text() != null && !c.story().text().isBlank()) parts.add("Backstory: " + c.story().text() + ".");
+		// what this building must be comes first (its role, its lot's brief: a wall lot's faces, a repair's refusal), the settlement's prose after it, the
+		// backstory last: the clip at MAX_NOTES takes the optional prose, never the building's own lines
 		parts.add("Its role in the settlement: " + lot.role() + (ARCHITECT_TYPES.contains(type) ? "" : " (a building of its own kind, not a preset type)") + ".");
 		if (lot.notes() != null) parts.add(lot.notes().endsWith(".") ? lot.notes() : lot.notes() + ".");
 		parts.add("Design it with its front facing south as usual; the mod turns the building so its entrance faces the street.");
 		if (!c.avoid().isEmpty()) parts.add("Avoid: " + String.join(", ", c.avoid()) + ".");
+		parts.add("Style: " + c.style().text() + ".");
+		parts.add("Part of a settlement: " + c.site().text() + ", used as " + c.purpose().text() + ".");
+		if (c.story() != null && c.story().text() != null && !c.story().text().isBlank()) parts.add("Backstory: " + c.story().text() + ".");
 		return clip(String.join(" ", parts), MAX_NOTES);
 	}
 

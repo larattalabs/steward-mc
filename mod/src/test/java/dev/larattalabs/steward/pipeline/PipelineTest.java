@@ -386,6 +386,8 @@ class PipelineTest {
 		var next = Pipeline.step(st.with(Pipeline.Phase.PLACING), new Pipeline.RepairSpent(1.25), Permission.PROPOSALS).next();
 		assertEquals(Pipeline.Phase.PLACING, next.phase(), "the phase is unchanged");
 		assertEquals(st.spentUsd() + 1.25, next.spentUsd(), 1e-9);
-		assertEquals(next.spentUsd(), Pipeline.step(next, new Pipeline.RepairSpent(-3), Permission.PROPOSALS).next().spentUsd(), 1e-9, "never negative");
+		// its reservation trued up to what it cost: less, never below nothing
+		assertEquals(next.spentUsd() - 0.75, Pipeline.step(next, new Pipeline.RepairSpent(-0.75), Permission.PROPOSALS).next().spentUsd(), 1e-9);
+		assertEquals(0, Pipeline.step(next, new Pipeline.RepairSpent(-1e6), Permission.PROPOSALS).next().spentUsd(), 1e-9, "never negative");
 	}
 }
