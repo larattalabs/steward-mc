@@ -1030,3 +1030,14 @@ coordinator, then Architect merges larattalabs/architect-mc#1, cuts GJ as v0.49.
 
 Steward builds against the published v0.48.0 (`architect_version`, runtime minimum 0.48.0); gr-rc and k3-rc are merged. Free 43/43 (2026-10-28, the
 e2e change since touches a stub-only check); stub PASS 100 with one skip: `survival growth`, the walled town's `NO_ROOM [street]` until GJ.
+
+## 7a GJ RC (2026-11-01): PASS for Steward
+
+Architect slice/GJ. First on 60b74be6: FAIL, `NO_JOIN [wall]` on Steward's real walled town (market_town, the plain wall part: default ring, the gate in
+line with the street end, 4 cells out): the street end was dropped for lack of a 3-cell lead. Fixed at 53f88001 (a dropped end is taken back for a gate on its
+line). On 53f88001 with gj-rc: free 43/43; stub PASS 105 with one skip (the walled town's own growth, `NO_ROOM [street]`, as at the GR RC; GJ joins districts, not
+streets). Run on Steward's town: `checkBeside` with `via`, plan and realise under `steward.<b>.vplan/.vrealise`; district first, the town and wall as before; the
+gate walled up, `ARTIFACT_STALE` naming it through `Regions.realise`, re-plan and `.vrealise2`; `realiseByKey` after a restart; the wall first, the district
+`dangling` with `gateRemoved` and `land.standingRemoved`; then the district, the world before both. Independent verifier PASS. Limits: the restart is in the
+wall-first order only; the wall goes through `dev.region.remove` (Steward's undo takes the latest build, the district, so a player's undo can't go wall-first);
+the restarted district carries no Steward tags (its sweeps take up a region no build holds). gj-rc merges with the pin at v0.49.0.
