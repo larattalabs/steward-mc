@@ -1347,7 +1347,7 @@ async function gateJoinFlow(id, town, wallRegion, before) {
   else { fail('gate open again', `realiseByKey ${JSON.stringify(rk).slice(0, 200)}`); return null; }
   await away();
   return {
-    // the wall undone first (`undoWall`, the caller's): the ring and its gate go, the district stays dangling; Steward's screen says so; then the district
+    // the wall undone first (`undoWall`, the caller's): the ring and its gate go, the district stays dangling; then the district
     async afterWallUndo(undoWall) {
       await away();
       await undoWall();
