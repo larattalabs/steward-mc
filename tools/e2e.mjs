@@ -1412,6 +1412,8 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
       await quit();
       launch();
       await connect();
+      // a new client's log: the animal watch starts over with it
+      herdAt = 0;
       if (onStep) await onStep('restart-after');
       if (await waitLog(0, new RegExp(`resume ${id}: [^\\n]*-> REREAD_GROUP`), 30_000)) ok('restart mid-build', label);
       else fail('restart mid-build', `${label}: no re-read`);
