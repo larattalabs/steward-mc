@@ -1025,3 +1025,8 @@ and requires it at runtime. On the published jar: free 43/43, stub 100/101, the 
 for GR until GJ; the e2e now reports it as a skip, c38da68). The stub rerun after that change was stopped for the shutdown; it is rerun before
 release-048 merges into main. GJ's RC (slice/GJ 9e4e8438, after Architect main is merged into it) has not started; its result goes to the
 coordinator, then Architect merges larattalabs/architect-mc#1, cuts GJ as v0.49.0, then GM.
+
+## v0.48.0 post-release check (2026-11-01): PASS
+
+Steward builds against the published v0.48.0 (`architect_version`, runtime minimum 0.48.0); gr-rc and k3-rc are merged. Free 43/43 (2026-10-28, the
+e2e change since touches a stub-only check); stub PASS 100 with one skip: `survival growth`, the walled town's `NO_ROOM [street]` until GJ.
