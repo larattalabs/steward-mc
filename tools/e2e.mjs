@@ -1316,9 +1316,10 @@ async function gateJoinFlow(id, town, wallRegion, before) {
   const off = await unchanged();
   if (off.length === 0) ok('gate join, district removed first', `${r1.region} through ${joined?.via ?? via} (junction ${joined?.junction?.kind}), removed: the town and the wall as before`);
   else fail('gate join, district removed first', `${off.length} cell(s) differ, e.g. ${off.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now} (${m.class})`).join('; ').slice(0, 300)}`);
-  // the gate walled up after the plan
+  // the gate walled up after the plan (no district in this one's ext: it must outlive a restart, and Steward takes up a district region no district of its owns)
   const b2 = `${b1}b`;
-  const p2 = await besideAsk(id, town, { check: false, opKey: `steward.${b2}.vplan`, ext: ext(b2) });
+  const kept = { 'steward_mc:build': b2 };
+  const p2 = await besideAsk(id, town, { check: false, opKey: `steward.${b2}.vplan`, ext: kept });
   if (!p2?.planId) { fail('gate walled up', `not planned: ${JSON.stringify(p2).slice(0, 260)}`); return null; }
   const gt = planIr(p2.planId).reach.gate;
   const xs = gt.cells.flatMap((q) => [q[0], q[2]]), zs = gt.cells.flatMap((q) => [q[1], q[3]]);
@@ -1326,16 +1327,16 @@ async function gateJoinFlow(id, town, wallRegion, before) {
   const across = (block) => cmd(`/fill ${bx0} ${gt.y + 1} ${bz0} ${bx1} ${gt.y + 2} ${bz1} ${block}`);
   await across('minecraft:cobblestone');
   await away();
-  const stale = await dev.request('dev.region.realise', { planId: p2.planId, opKey: `steward.${b2}.vrealise`, ext: ext(b2) }, { timeoutMs: 300_000 }).catch((e) => ({ refused: String(e) }));
+  const stale = await dev.request('dev.region.realise', { planId: p2.planId, opKey: `steward.${b2}.vrealise`, ext: kept }, { timeoutMs: 300_000 }).catch((e) => ({ refused: String(e) }));
   const staleText = typeof stale?.refused === 'string' ? stale.refused : JSON.stringify(stale?.refused ?? '');
   if (!stale?.region && /ARTIFACT_STALE/.test(staleText) && staleText.includes(`gate ${gt.id}`)) ok('gate walled up', staleText.slice(0, 160));
   else { fail('gate walled up', JSON.stringify(stale).slice(0, 260)); return null; }
   await across('minecraft:air');
-  const p3 = await besideAsk(id, town, { check: false, opKey: `steward.${b2}.vplan2`, ext: ext(b2) });
+  const p3 = await besideAsk(id, town, { check: false, opKey: `steward.${b2}.vplan2`, ext: kept });
   if (!p3?.planId) { fail('gate open again', `not planned: ${JSON.stringify(p3).slice(0, 260)}`); return null; }
   await away();
   await clearAnimals();
-  const r3 = await dev.request('dev.region.realise', { planId: p3.planId, opKey: `steward.${b2}.vrealise2`, ext: ext(b2) }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  const r3 = await dev.request('dev.region.realise', { planId: p3.planId, opKey: `steward.${b2}.vrealise2`, ext: kept }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
   const district = r3?.region;
   const st3 = district ? await regionUntil(district, ['PLACED', 'PARTIAL', 'FAILED']) : null;
   if ((st3?.view?.state ?? st3?.state) !== 'PLACED') { fail('gate open again', `${JSON.stringify(r3).slice(0, 240)}; ${st3?.view?.state ?? st3?.state}`); return null; }
