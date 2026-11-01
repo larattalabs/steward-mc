@@ -379,4 +379,5 @@ class PipelineTest {
 		var group = reuse.commands().stream().filter(c -> c instanceof Pipeline.RequestGroup).findFirst().orElseThrow();
 		assertEquals(group, Pipeline.groupRequest(reuse.next()));
 	}
+
 }

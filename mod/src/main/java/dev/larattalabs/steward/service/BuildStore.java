@@ -33,7 +33,8 @@ public final class BuildStore {
 	 */
 	static final int FORMAT = 3;
 	// 3 (2026-10-26): moves with the settlements file's format 5 (a build's settlement copy may hold a quarter proposal); a district build keeps its card's
-	// lots ({@code districtSpecs}), as asked of Architect, for a re-plan after a restart
+	// lots ({@code districtSpecs}), as asked of Architect, for a re-plan after a restart; a build's state may hold a wall lot's repair (Architect K3: the
+	// REPAIRING phase, Pipeline.State.repair and repairs)
 
 	/**
 	 * One build. {@code settlement} is a copy (a dev build's settlement is not in the settlements file); {@code siteGroupId} is the Architect site group the

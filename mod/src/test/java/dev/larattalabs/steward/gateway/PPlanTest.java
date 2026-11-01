@@ -150,4 +150,65 @@ class PPlanTest {
 		assertEquals(20, f.depth());
 		assertEquals(java.util.List.of(new net.minecraft.core.BlockPos(4, 0, 5), new net.minecraft.core.BlockPos(4, 1, 5), new net.minecraft.core.BlockPos(9, 0, 5)), f.cells());
 	}
+
+	@Test
+	void aLotOnAWallIsATowerOrGatehouseFillingItsFitBoxWithItsPassageReserved() throws Exception {
+		JsonObject built = PPlan.forBuild(walledTown(), Set.of("town_wall"), "set_7", "b1");
+		String id = PPlan.lots(built).get(0).get("id").getAsString();
+		JsonArray art = new JsonArray();
+		// (Architect K3) a gatehouse on the wall: its box past its fit box, a 5 x 3 frame under 7, its passage's cells in its frame
+		JsonObject a = lot(id, new int[] {10, 64, 20, 18, 80, 26}, "south", null);
+		JsonArray fit = new JsonArray();
+		for (int v : new int[] {10, 64, 20, 14, 72, 22}) fit.add(v);
+		a.add("fitBox", fit);
+		a.add("onWall", JsonParser.parseString("{\"wall\":\"town_wall\",\"at\":\"gate\",\"frame\":[5,3],"
+			+ "\"passage\":{\"width\":1,\"height\":3,\"lotCells\":[2,0,0,2,2,1,0,2,2,2,0,2]}}"));
+		art.add(a);
+		var l = PPlan.toPlan(art, built).lots().get(0);
+		assertTrue(l.exact());
+		assertEquals("gatehouse", l.type());
+		assertEquals(5, l.sizeX(), "the fit box's footprint, not the box's");
+		assertEquals(3, l.sizeZ());
+		assertEquals(9, l.maxHeight());
+		assertTrue(l.notes().endsWith(PPlan.WALL_BRIEF));
+		var r = PPlan.reserved(art).get(id);
+		assertEquals(5, r.width());
+		assertEquals(3, r.depth());
+		assertEquals(9, r.cells().size(), "three columns of the passage, three high");
+		// a lot off the wall is not exact
+		JsonArray plain = new JsonArray();
+		plain.add(lot(id, new int[] {10, 64, 20, 14, 72, 22}, "south", null));
+		assertFalse(PPlan.toPlan(plain, built).lots().get(0).exact());
+	}
+
+	@Test
+	void aWallLotsOuterFacesGoToItsDesignerInWordsAndInItsExt() {
+		// a corner tower 5 x 5: its whole back outside, and the middle of its front (the corner's mirror)
+		var lots = JsonParser.parseString("[{\"id\":\"tower_1\",\"front\":\"south\",\"onWall\":{\"wall\":\"w\",\"at\":\"corner\",\"frame\":[5,5],"
+			+ "\"outerFaces\":{\"cells\":[],\"lotCells\":[0,0,0,2,1,0,0,2,2,0,0,2,3,0,0,2,4,0,0,2,2,4,0,2]}}},{\"id\":\"cottage_1\",\"front\":\"south\"}]").getAsJsonArray();
+		var words = PPlan.outerFacesWords(lots.get(0).getAsJsonObject().getAsJsonObject("onWall"));
+		assertEquals("Outside the wall: the back, the front from 3 to 3 of 5 (counted from the west), the west side from 1 to 1 of 5 (counted from the back) and "
+			+ "the east side from 1 to 1 of 5 (counted from the back). Put its doors elsewhere.", words);
+		var ext = PPlan.wallLots(lots);
+		assertEquals(java.util.Set.of("tower_1"), ext.keySet());
+		assertEquals(lots.get(0).getAsJsonObject().getAsJsonObject("onWall").getAsJsonObject("outerFaces").get("lotCells"), ext.get("tower_1").get("outerFaces"),
+			"the artifact's lotCells as they are");
+		// a gatehouse on the wall with no outer faces recorded still carries the ext, empty: Architect keys its exact massing on it
+		var gate = JsonParser.parseString("[{\"id\":\"gatehouse_1\",\"front\":\"south\",\"onWall\":{\"wall\":\"w\",\"at\":\"run\",\"frame\":[9,7]}}]").getAsJsonArray();
+		assertEquals(new com.google.gson.JsonObject(), PPlan.wallLots(gate).get("gatehouse_1"));
+	}
+
+	@Test
+	void aLotTheWallPutsOnItsLineIsDesignedThoughNoProgramHasIt() throws Exception {
+		JsonObject built = PPlan.forBuild(walledTown(), Set.of("town_wall"), "set_7", "b1");
+		JsonArray art = new JsonArray();
+		JsonObject corner = lot("town_wall_corner_1", new int[] {0, 64, 0, 8, 80, 8}, "south", null);
+		corner.add("onWall", JsonParser.parseString("{\"wall\":\"town_wall\",\"at\":\"corner\",\"frame\":[9,9]}"));
+		art.add(corner);
+		var plan = PPlan.toPlan(art, built);
+		var l = plan.lots().stream().filter(x -> x.id().equals("town_wall_corner_1")).findFirst().orElseThrow();
+		assertEquals("tower", l.type());
+		assertEquals("corner tower", l.role());
+		assertTrue(l.exact());
+	}
 }

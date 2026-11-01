@@ -1559,9 +1559,12 @@ async function suppliedPlanFlow() {
     const flight = inFlight ? await inFlight : null;
     if (flight && !flight.fits && /OVERLAP_BUSY/.test(`${flight.reason} ${flight.code} ${flight.message} ${flight.refused}`)) ok('beside a town in flight', String(flight.message ?? flight.refused).slice(0, 140));
     else fail('beside a town in flight', flight ? JSON.stringify(flight).slice(0, 240) : 'the town was never seen placing');
-    // undone: every consumed unit back in the stockpile (or dropped and counted as overflow)
+    // (Architect 6d GR) the town grows in survival under Steward's keys before it is undone
+    const townRegion = (placed?.siteGroup ?? '').replace(/^region:/, '');
+    if (townRegion && await growsRegions()) await survivalGrowth(id, owner, townRegion, claim, ledger);
+    // undone: every unit still consumed back in the stockpile (or dropped and counted as overflow)
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
-    const before = sp;
+    const before = await ledger();
     await cmd(`/steward undo ${id}`);
     let last = null;
     for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
@@ -1570,7 +1573,10 @@ async function suppliedPlanFlow() {
     }
     const after = await ledger();
     const off = [];
-    for (const [item, used] of Object.entries(before?.consumed ?? {})) {
+    for (const [item, all] of Object.entries(before?.consumed ?? {})) {
+      // what is still consumed (a growth undone earlier gave its share back already)
+      const used = all - (before.returned?.[item] ?? 0) - (before.refundOverflow?.[item] ?? 0);
+      if (used <= 0) continue;
       const back = (after?.returned?.[item] ?? 0) + (after?.refundOverflow?.[item] ?? 0) - (before.returned?.[item] ?? 0) - (before.refundOverflow?.[item] ?? 0);
       if (back !== used) off.push(`${item} ${back}/${used}`);
     }
@@ -1696,6 +1702,132 @@ async function revisesRegions() {
   const probe = await dev.request('dev.rv.state', { region: 'none' }).catch((e) => ({ refused: String(e) }));
   // an Architect without revisions answers an unknown type (as an error, or a refusal)
   return !/unknown type|unknown method|no such/i.test(`${probe?.error ?? ''} ${probe?.refused ?? ''}`);
+}
+
+/** Whether this Architect grows regions (6d GR): its revision plan takes a growth ({@code params: {grow}}). */
+async function growsRegions() {
+  const h = await dev.request('dev.help').catch(() => null);
+  return JSON.stringify(h ?? {}).includes('params: {grow');
+}
+
+const plusItems = (a, b) => { const o = { ...a }; for (const [k, v] of Object.entries(b ?? {})) o[k] = (o[k] ?? 0) + v; return o; };
+const minusItems = (a, b) => { const o = {}; for (const [k, v] of Object.entries(a ?? {})) { const n = v - (b?.[k] ?? 0); if (n) o[k] = n; } return o; };
+const sameItems = (a, b) => JSON.stringify(Object.entries(a ?? {}).filter(([, v]) => v).sort()) === JSON.stringify(Object.entries(b ?? {}).filter(([, v]) => v).sort());
+
+/**
+ * (Architect 6d GR, Steward's RC rows 2 and 3) The town Steward built from materials grows by a lot in survival, planned and realised under Steward's
+ * keys and ext: while its targets wait for their items, undoing the growth is refused {@code survival_building} with nothing written; fed from the
+ * settlement's stockpile, the growth's bills are what the stockpile paid, item for item; undone, what it consumed comes back once, and a second undo
+ * has nothing to take.
+ */
+async function survivalGrowth(id, owner, region, claim, ledger) {
+  const label = 'survival growth';
+  const st0 = await dev.request('dev.region.state', { region }).catch(() => null);
+  const program = (st0?.view ?? st0 ?? {}).program ?? 'plan_v0';
+  const rs0 = await dev.request('dev.rs.state', { region }, { timeoutMs: 120_000 }).catch(() => null);
+  const targets0 = new Set((rs0?.targets ?? []).map((t) => t.id));
+  const sp0 = await ledger();
+  const b = `e2egr${Date.now() % 100000}`;
+  const ext = { 'steward_mc:settlement': id, 'steward_mc:build': b };
+  // one of the town's own buildings again, so the growth has a building to build from materials (a bare pad may cost nothing)
+  const placedIds = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').flatMap((e) => e.siteIds ?? []);
+  const sites = (await dev.request('dev.sites.state').catch(() => ({})))?.sites ?? [];
+  // the smallest of them, on a lot that holds it whichever way it is turned, with room for its approach
+  const sideOf = (x) => (x?.box ? Math.max(x.box.maxX - x.box.minX + 1, x.box.maxZ - x.box.minZ + 1) : 9);
+  const site = (Array.isArray(sites) ? sites : Object.values(sites)).filter((x) => placedIds.includes(x.id) && x.blueprint).sort((a, c) => sideOf(a) - sideOf(c))[0];
+  const entry = site?.blueprint ?? null;
+  const side = Math.max(9, sideOf(site));
+  const lot = { id: `${b}_h1`, type: 'house', size: [side + 1, side + 3] };
+  // on the standing streets' frontage first (Architect's default); where none is free, on an extension of a street end
+  let p = null;
+  for (const prefer of ['frontage', 'extend']) {
+    p = await dev.request('dev.rv.plan', { region, program, params: { grow: { lots: [lot], prefer } }, opKey: `steward.${b}.vplan`, ext },
+      { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+    if (p?.planId || !/NO_ROOM/.test(String(p?.refused ?? ''))) break;
+  }
+  // the survival town here is walled: its street ends can't extend through the wall until Architect GJ (v0.49.0), and its frontage is full. Accepted with
+  // Architect for the GR RC (docs/ARCHITECT-ASKS.md, 6d GR RC); reported as a skip, not a pass, until GJ lands
+  if (!p?.planId && /NO_ROOM[^"]*\[street\][^"]*extendable/.test(String(p?.refused ?? ''))) {
+    console.log(`skip ${label} (${region} is walled: its street can't extend until Architect GJ; ${String(p.refused).slice(0, 160)})`);
+    return;
+  }
+  if (!p?.planId) return fail(label, `the growth of ${region} (${program}) by a ${lot.size.join(' x ')} lot not planned: ${JSON.stringify(p).slice(0, 260)}`);
+  const position = p.revisionOf?.position ?? 1;
+  const r = await dev.request('dev.region.realise', { planId: p.planId, opKey: `steward.${b}.vrealise`, ext, ...(entry ? { lots: { [lot.id]: entry } } : {}) },
+    { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  if (r?.refused) return fail(label, `the growth's realise refused: ${r.refused}`);
+  let rs = null;
+  for (let i = 0; i < 90; i++) {
+    rs = await dev.request('dev.rs.state', { region }, { timeoutMs: 120_000 }).catch(() => null);
+    if ((rs?.targets ?? []).some((t) => !targets0.has(t.id) && !t.done)) break;
+    await sleep(2000);
+  }
+  const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
+  const snap = path.join(ROOT, 'artifacts', 'e2e', `growth-${id}.snap.gz`);
+  await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
+  const ub = await dev.request('dev.rv.undo', { region, toPosition: position - 1, actor: 'steward' }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  const d0 = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
+  const off0 = (d0.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
+  if (/survival_building/.test(String(ub?.refused ?? '')) && off0.length === 0) ok('growth undo while building', `refused ${String(ub.refused).slice(0, 120)}; nothing written`);
+  else fail('growth undo while building', `answer ${JSON.stringify(ub).slice(0, 160)}; ${off0.length} cell(s) differ`);
+  // fed from the stockpile until the growth is built
+  let built = false;
+  for (const end = Date.now() + 900_000; Date.now() < end && !built;) {
+    await sleep(3000);
+    const sp = await ledger().catch(() => null);
+    if (sp && Object.keys(sp.need ?? {}).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+    rs = await dev.request('dev.rs.state', { region }, { timeoutMs: 120_000 }).catch(() => null);
+    const v = await dev.request('dev.region.state', { region }).catch(() => null);
+    built = !!rs?.build?.done && (v?.view ?? v ?? {}).state === 'PLACED';
+  }
+  const sp1 = await ledger();
+  const paid = minusItems(sp1?.consumed, sp0?.consumed);
+  let bills = {};
+  for (const t of (rs?.targets ?? []).filter((t) => !targets0.has(t.id))) bills = plusItems(bills, t.bom);
+  if (built && Object.keys(paid).length && sameItems(paid, bills)) ok(label, `${region} grew by ${b}_h1 (${entry ?? 'a pad'}) in survival under steward.${b}.vplan/.vrealise; its bills ${JSON.stringify(bills).slice(0, 160)} = what the stockpile paid`);
+  else return fail(label, `entry ${entry ?? 'none found'}; built ${built}; the stockpile paid ${JSON.stringify(paid).slice(0, 160)}; its targets' bills ${JSON.stringify(bills).slice(0, 160)}`);
+  const u = await dev.request('dev.rv.undo', { region, toPosition: position - 1, actor: 'steward' }, { timeoutMs: 3_600_000 }).catch((e) => ({ refused: String(e) }));
+  const sp2 = await ledger();
+  const back = minusItems(plusItems(sp2?.returned, sp2?.refundOverflow), plusItems(sp1?.returned, sp1?.refundOverflow));
+  const u2 = await dev.request('dev.rv.undo', { region, toPosition: position - 1, actor: 'steward' }, { timeoutMs: 120_000 }).catch((e) => ({ refused: String(e) }));
+  if (u?.removed !== false && !u?.refused && sameItems(back, paid) && sameItems(u?.refund ?? back, paid) && String(u2?.refused ?? '').startsWith('NOT_ALLOWED')) {
+    ok('growth refund once', `undone: ${JSON.stringify(back).slice(0, 140)} back in the stockpile; a second undo refused (${String(u2.refused).slice(0, 60)})`);
+  } else fail('growth refund once', `undo ${JSON.stringify(u).slice(0, 140)}; back ${JSON.stringify(back).slice(0, 120)} of ${JSON.stringify(paid).slice(0, 120)}; second ${JSON.stringify(u2).slice(0, 80)}`);
+}
+
+/**
+ * (Architect 6d GR, the gr_beside flow on Steward's own district) A standing district region grows by a lot under Steward's keys and ext: realised as
+ * a revision of the district (no new region), found again by its realise key; its land becomes v 2 with a grown part that takes no town land, and
+ * {@code land.outside} grows, then shrinks back when the growth is undone.
+ */
+async function districtGrowth(id, d, region) {
+  const label = 'district growth';
+  const owner = `steward_mc:settlement/${id}`;
+  const landOf = async () => {
+    const v = await dev.request('dev.region.state', { region }).catch(() => null);
+    return (v?.view ?? v ?? {}).ext?.['architect_mc:land'] ?? null;
+  };
+  const before = await landOf();
+  const b = `e2egd${Date.now() % 100000}`;
+  const ext = { 'steward_mc:district': d.id, 'steward_mc:build': b };
+  const p = await dev.request('dev.rv.plan', { region, program: 'districts', params: { grow: { district: d.id, lots: [{ id: `${d.id}_${b}`, type: 'house', size: [9, 9] }] } },
+    opKey: `steward.${b}.vplan`, ext }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+  if (!p?.planId) return fail(label, `not planned: ${JSON.stringify(p).slice(0, 220)}`);
+  const rid = p.revisionOf?.rid, position = p.revisionOf?.position ?? 1;
+  const r = await dev.request('dev.region.realise', { planId: p.planId, opKey: `steward.${b}.vrealise`, ext }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  const rev = rid ? await revisionUntil(region, rid, ['PLACED', 'PARTIAL', 'FAILED']) : null;
+  const grown = await landOf();
+  const byKey = await dev.request('dev.region.realiseByKey', { owner, opKey: `steward.${b}.vrealise` }).catch((e) => ({ refused: String(e) }));
+  const part = (grown?.parts ?? []).find((x) => x.kind === 'grown' && x.revision === rid);
+  const oc = (l) => l?.outside?.cells ?? -1;
+  if (rev?.state === 'PLACED' && (r?.region ?? region) === region && byKey?.region?.id === region && grown?.v === 2 && part && part.insideCells === 0 && oc(grown) > oc(before)) {
+    ok(label, `${region} rev ${rid} under steward.${b}.vplan/.vrealise (found again by its key); land v 2, part ${part.id} (insideCells 0), outside ${oc(before)} -> ${oc(grown)}`);
+  } else return fail(label, `rev ${rev?.state}; realise ${JSON.stringify(r).slice(0, 80)}; by key ${JSON.stringify(byKey).slice(0, 80)}; land v ${grown?.v}, part ${JSON.stringify(part)?.slice(0, 80)}; outside ${oc(before)} -> ${oc(grown)}`);
+  await dev.request('dev.rv.undo', { region, toPosition: position - 1, actor: 'steward' }, { timeoutMs: 900_000 }).catch(() => null);
+  const undone = await revisionUntil(region, rid, ['UNDONE']);
+  const shrunk = await landOf();
+  if (undone?.state === 'UNDONE' && oc(shrunk) === oc(before) && !(shrunk?.parts ?? []).some((x) => x.kind === 'grown')) ok('district growth undone', `outside back to ${oc(shrunk)}, no grown part (v ${shrunk?.v})`);
+  else fail('district growth undone', `rev ${undone?.state}; outside ${oc(shrunk)} (was ${oc(before)}); parts ${JSON.stringify(shrunk?.parts?.map((x) => x.kind))}`);
 }
 
 /** A revision of {@code region} (6d RV) waited on until its record reads one of {@code states} ({@code rid}: its number). */
@@ -1923,6 +2055,7 @@ async function districtRegionFlow() {
       ok('district land follows a revision', `${region} rev ${krid}: land.outside ${oc(before)} -> ${oc(grown)} -> ${oc(shrunk)} (v ${grown?.v})`);
     } else fail('district land follows a revision', `plan ${JSON.stringify(kp).slice(0, 120)}; rev ${krev?.state}, undo ${kundo?.state}; outside ${oc(before)} -> ${oc(grown)} -> ${oc(shrunk)}`);
   }
+  if (await growsRegions()) await districtGrowth(id, d, region);
   // undone: the region goes, and the district with it
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
   await cmd(`/steward undo ${id}`);
@@ -2084,6 +2217,130 @@ async function revisionFlow() {
   const last = settlements().find((x2) => x2.id === id)?.log.at(-1);
   if ((gs === 'REMOVED' || gs === undefined) && last?.kind === 'PROJECT_REMOVED') ok('town undone with a revision', `${town} ${gs ?? 'gone'}: ${last.text}`);
   else fail('town undone with a revision', `state ${gs}; last ${JSON.stringify(last)?.slice(0, 160)}`);
+}
+
+/**
+ * Drives a build as {@link buildThrough} does (approving the bible, the massings and the placement; moving animals and the player off the lots), until
+ * the log from {@code from} matches {@code until}: the match, or null when the build stopped or the time ran out.
+ */
+async function driveUntil(id, from, until, ms) {
+  let at = from, herdAt = from;
+  for (const end = Date.now() + ms; Date.now() < end;) {
+    const herd = logSince(herdAt);
+    if (/is in its lot\. Move it out|someone is standing on its lot/.test(herd)) {
+      herdAt = logSize();
+      await clearAnimals();
+      const c = settlements().find((x) => x.id === id)?.claim;
+      if (c && /someone is standing on its lot/.test(herd)) await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ + c.radius + 12}`);
+    }
+    const all = logSince(from);
+    const m = all.match(until);
+    if (m) return m;
+    if (/The build stopped[^\n]*|The build of [^\n]* stopped[^\n]*|Cancelled [^\n]*/.test(logSince(at)) && !/Cancelled/.test(String(until))) return null;
+    const step = logSince(at).match(/Style bible ready|massings are ready|Approve to place/);
+    if (!step) { await sleep(1000); continue; }
+    at = logSize();
+    await cmd(`/steward approve ${id}`);
+  }
+  return null;
+}
+
+/**
+ * (Architect K3, Steward's RC) castle_city's curtain wall, its corner towers and gatehouse on its line, designed to their boxes and bound. The wall lots'
+ * briefs carry the sim's `sim:outerdoor`, so a wall lot's first design has a door in an outer face: the bind refuses it ("lot <id> on wall <wall>: ..."), the
+ * steward redesigns it as its next version and binds again, until the town stands. A restart while the first repair is designed: picked up by its key. A
+ * revision of the walled town (Architect's re-check loop over wall lots), undone; the town undone. A second town cancelled while its repair is designed:
+ * cancelled once the repair stopped. Skipped on an Architect without wall lots.
+ */
+async function wallLotsFlow() {
+  const make = async (name) => {
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 33000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = name;
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    // the sim designs no lot 7 deep (castle_city's houses, shops, tavern): the keep and the wall lots only; sim:outerdoor in the wall lots' briefs
+    // alone (a keep is a tower too: the sim builds its wall-lot stand-in for any tower whose notes carry the token)
+    const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
+    for (const z of answer.plan.zones) {
+      if (!z.program?.lots) continue;
+      z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse')
+        .map((l) => (l.id === 'keep_1' ? l : { ...l, brief: `${l.brief ?? ''} sim:outerdoor`.trim() }));
+    }
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a castle city behind its curtain wall`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return { id, error: 'no card' };
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return { id, error: 'no plan composed' };
+    await closeScreens();
+    await clearAnimals();
+    from = logSize();
+    await cmd(`/steward start ${id} 6 80`);
+    const walls = await waitLog(from, new RegExp(`wall lots of ${id}: ([^\n]*)`), 120_000);
+    return { id, from, walls: walls?.[1] ?? null };
+  };
+  const a = await make('Castle Walls');
+  if (a.error) return fail('wall lots', `${a.id}: ${a.error}`);
+  if (!a.walls) { console.log('skip wall lots (no wall lots: an Architect before K3)'); return; }
+  // the first repair under way: a restart, then picked up by its key
+  const repairing = await driveUntil(a.id, a.from, /redesigning it \(repair 1 of 2\)/, 900_000);
+  if (!repairing) return fail('wall lots', `no repair asked for (${a.walls}); last ${JSON.stringify(settlements().find((x) => x.id === a.id)?.log.at(-1))?.slice(0, 160)}`);
+  await quit();
+  launch();
+  await connect();
+  const resumed = await waitLog(0, new RegExp(`resume ${a.id}: wall repair (\\S+)`), 90_000);
+  const built = await driveUntil(a.id, 0, /is built(?: in part)?: (\d+) buildings placed/, 1_200_000);
+  const st = settlements().find((x) => x.id === a.id);
+  const placed = st?.log?.filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const region = (placed?.siteGroup ?? '').replace(/^region:/, '');
+  const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
+  const lots = (view?.view ?? view ?? {}).lots ?? [];
+  const wallIds = a.walls.split(', ').map((w) => w.split(' ')[0]);
+  const wallPlaced = wallIds.filter((w) => lots.some((l) => l.id === w && /placed/i.test(String(l.state))));
+  const said = logSince(0);
+  const repaired = (said.match(/is redesigned: placing again/g) ?? []).length;
+  // (the sim designs in seconds: the restart may come after the repair ended, and then the resume binds the repaired head by itself)
+  if (built && wallPlaced.length === wallIds.length && repaired >= 1) {
+    ok('wall lots', `${a.walls}; refused and redesigned ${repaired} time(s); ${resumed ? `a repair in flight picked up after a restart (${resumed[1]})` : 'the restart came after the repair ended'}; all ${wallIds.length} bound in ${region}`);
+  } else return fail('wall lots', `built ${!!built}; resumed ${!!resumed}; wall lots placed ${wallPlaced.length}/${wallIds.length}; repaired ${repaired}; last ${JSON.stringify(st?.log?.at(-1))?.slice(0, 160)}`);
+  // a revision of the walled town (its re-check loop now reads the wall lots), undone
+  if (await revisesRegions()) {
+    const c = st.claim;
+    const cx = c.centerX + c.radius - 6, cz = c.centerZ + c.radius - 6;
+    const knoll = { id: 'knoll', call: { fn: 'columns', cols: [cx, cz, 0, 1, 0], from: { surface: 1 }, to: { surface: 1 }, materials: ['rock'], cond: 0 } };
+    const kp = await dev.request('dev.rv.plan', { region, spec: { parts: [knoll] }, opKey: `steward.e2e.${a.id}.wknoll` }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+    const rid = kp?.revisionOf?.rid;
+    if (kp?.planId) await dev.request('dev.region.realise', { planId: kp.planId }, { timeoutMs: 600_000 }).catch(() => null);
+    const rev = rid ? await revisionUntil(region, rid, ['PLACED', 'PARTIAL', 'FAILED']) : null;
+    await dev.request('dev.rv.undo', { region, toPosition: (kp?.revisionOf?.position ?? 1) - 1, actor: 'steward' }, { timeoutMs: 900_000 }).catch(() => null);
+    const undone = rid ? await revisionUntil(region, rid, ['UNDONE']) : null;
+    if (rev?.state === 'PLACED' && undone?.state === 'UNDONE') ok('walled town revised', `${region} rev ${rid} placed with its wall lots standing, then undone`);
+    else fail('walled town revised', `plan ${JSON.stringify(kp).slice(0, 160)}; rev ${rev?.state}; undo ${undone?.state}`);
+  }
+  // undone: the region and its wall lots go
+  await cmd(`/tp @p ${st.claim.centerX} ~ ${st.claim.centerZ - st.claim.radius - 40}`);
+  await cmd(`/steward undo ${a.id}`);
+  const gone = await regionUntil(region, ['REMOVED'], 600_000);
+  const gs = gone?.view?.state ?? gone?.state;
+  if (gs === 'REMOVED' || gs === undefined) ok('walled town undone', `${region} ${gs ?? 'gone'}`);
+  else fail('walled town undone', `state ${gs}`);
+  // a second town cancelled while its repair is designed: cancelled once the repair stopped, nothing of it left
+  const b = await make('Castle Cancel');
+  if (b.error || !b.walls) return fail('wall repair cancelled', `${b.id}: ${b.error ?? 'no wall lots'}`);
+  if (!(await driveUntil(b.id, b.from, /redesigning it \(repair 1 of 2\)/, 900_000))) return fail('wall repair cancelled', 'no repair asked for');
+  const cf = logSize();
+  await cmd(`/steward cancel ${b.id}`);
+  const cancelled = await waitLog(cf, /Cancelled [^\n]*/, 300_000);
+  let left = null;
+  try { left = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === b.id) ?? null; } catch { /* none */ }
+  if (cancelled && !left) ok('wall repair cancelled', cancelled[0].slice(0, 140));
+  else fail('wall repair cancelled', `${cancelled ? cancelled[0].slice(0, 100) : 'not cancelled'}; build left ${left ? left.state?.phase : 'none'}`);
 }
 
 /**
@@ -2413,6 +2670,7 @@ try {
       await revisionFlow();
       await districtRegionFlow();
       await quarterFlow();
+      await wallLotsFlow();
     }
   }
   await migratedSteward();

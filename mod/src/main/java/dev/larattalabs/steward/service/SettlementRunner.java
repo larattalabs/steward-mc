@@ -80,6 +80,7 @@ public final class SettlementRunner {
 		SiteEvents.GROUP_UPDATED.register(g -> List.copyOf(ACTIVE.values()).forEach(r -> r.onGroup(g)));
 		SiteEvents.GROUP_DONE.register(g -> List.copyOf(ACTIVE.values()).forEach(r -> r.onGroup(g)));
 		SiteEvents.BATCH_DONE.register(b -> List.copyOf(ACTIVE.values()).forEach(r -> r.onBatchDone(b)));
+		SiteEvents.DESIGN_DONE.register(d -> List.copyOf(ACTIVE.values()).forEach(r -> r.onRepairDone(d)));
 		// an item held up by something in its way (an animal, a player, ground not loaded): the steward says so, or it looks like nothing happens
 		SiteEvents.ITEM_WAITING.register(e -> List.copyOf(ACTIVE.values()).forEach(r -> r.onItemWaiting(e)));
 		ServerLifecycleEvents.SERVER_STARTING.register(SettlementRunner::restoreAll);
@@ -112,6 +113,7 @@ public final class SettlementRunner {
 			for (SettlementRunner r : List.copyOf(ACTIVE.values())) {
 				try {
 					r.watchVillage();
+					r.checkRepair();
 				} catch (RuntimeException e) {
 					Steward.LOGGER.error("could not read the village of {}", r.claimedId, e);
 				}
@@ -394,6 +396,15 @@ public final class SettlementRunner {
 	}
 
 	/** An approved plan's irrigated lots' reserved cells (Architect IRR), from its artifact; none for any other build. */
+	/** The approved artifact's wall lots' {@code architect:wallLot} exts (Architect K3), for their design requests; none without an artifact. */
+	private Map<String, JsonObject> wallLotExts() {
+		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
+		if (sha == null) return Map.of();
+		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		if (body == null || !body.has("lots") || !body.get("lots").isJsonArray()) return Map.of();
+		return dev.larattalabs.steward.gateway.PPlan.wallLots(body.getAsJsonArray("lots"));
+	}
+
 	private Map<String, dev.larattalabs.architect.api.DesignRequest.Reserved> reservedCells() {
 		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
 		if (sha == null) return Map.of();
@@ -447,6 +458,13 @@ public final class SettlementRunner {
 					else realiseVillage();
 				}
 			}
+			return;
+		}
+		// (Architect K3) a wall lot's repair: never placed alongside it; read again (a stop waiting is sent again), and the pipeline moves on when it ends
+		if (state.repair() != null) {
+			Steward.LOGGER.info("resume {}: wall repair {} ({})", settlement.id(), state.repair().key(), state.phase());
+			if (state.repair().stopping()) execute(new Pipeline.StopRepair(state.repair().key(), state.repair().designId()));
+			else checkRepair();
 			return;
 		}
 		// a village being cancelled: its region, when it has one, is taken up; else the cancel goes on as any build's (a bible or group still running is stopped)
@@ -1186,6 +1204,22 @@ public final class SettlementRunner {
 				pin(c.artifactSha());
 				vPlanId = dev.larattalabs.steward.gateway.PPlan.ARTIFACT_PREFIX + c.artifactSha();
 				plan = dev.larattalabs.steward.gateway.PPlan.toPlan(lots.get(), built);
+				// (Architect K3) a wall lot narrower than 7 is asked for only of an Architect that takes it (wallLots; an older one refuses the request), and its
+				// repair needs keyed designs: stopped here, before anything is spent
+				var walls = plan.lots().stream().filter(VillageLayout.Lot::exact).map(l -> l.id() + " " + l.type() + " " + l.along() + "x" + l.deep() + "x" + l.maxHeight()).toList();
+				if (!walls.isEmpty()) Steward.LOGGER.info("wall lots of {}: {}", settlement.id(), String.join(", ", walls));
+				// a wall lot's massing must take its box, or its detail cannot close the wall (Architect wallLots.exactMassing; Steward's groups are massing-first)
+				var wall = plan.lots().stream().filter(VillageLayout.Lot::exact).findFirst();
+				if (wall.isPresent() && !ArchitectApi.get().features().contains("wallLots.exactMassing")) {
+					abandon("The " + wall.get().role() + " on the wall must fill its lot, and this Architect can't design it to its box: update Architect.");
+					return;
+				}
+				var narrow = plan.lots().stream().filter(l -> l.exact() && (l.along() < 7 || l.deep() < 7)).findFirst();
+				if (narrow.isPresent() && !ArchitectApi.get().features().contains("wallLots")) {
+					abandon("The " + narrow.get().role() + " on the wall is " + narrow.get().along() + " x " + narrow.get().deep()
+						+ ", and this Architect designs nothing under 7 across: update Architect.");
+					return;
+				}
 				Steward.LOGGER.info("plan of {}: artifact {}, {} lots ({} unplaced), fronts {}", settlement.id(), c.artifactSha(), plan.lots().size(), plan.unplaced().size(),
 					plan.lots().stream().map(l -> l.front().name().toLowerCase()).collect(java.util.stream.Collectors.groupingBy(f -> f, java.util.TreeMap::new,
 						java.util.stream.Collectors.counting())));
@@ -1453,7 +1487,7 @@ public final class SettlementRunner {
 	/** Commands that ask Architect to spend on Claude or to change the world. */
 	private static boolean spends(Command c) {
 		return c instanceof Pipeline.RequestBible || c instanceof Pipeline.RequestGroup || c instanceof Pipeline.ExtendAndResumeGroup || c instanceof Pipeline.FitAndQueue
-			|| c instanceof Pipeline.ApproveStages || c instanceof Pipeline.ApproveGroup;
+			|| c instanceof Pipeline.ApproveStages || c instanceof Pipeline.ApproveGroup || c instanceof Pipeline.AskRepair || c instanceof Pipeline.Rebind;
 	}
 
 	/** The composite key the settlement's massing ghosts show under. */
@@ -1602,7 +1636,7 @@ public final class SettlementRunner {
 			}
 			case Pipeline.RequestGroup g -> {
 				GroupPlanner.Options o = new GroupPlanner.Options(g.bibleId(), g.bibleVersion(), g.budgetUsd(), 3, 3, landmarks);
-				GroupPlanner.Built built = GroupPlanner.build(settlement, plan, o, reservedCells());
+				GroupPlanner.Built built = GroupPlanner.build(settlement, plan, o, reservedCells(), wallLotExts());
 				landmarkIds = built.request().items().stream().filter(i -> i.role() == GroupRequest.Role.LANDMARK).map(GroupRequest.Item::itemKey).collect(Collectors.toSet());
 				say("Designing " + built.request().items().size() + " buildings (massings first)...");
 				groupInFlight = true;
@@ -1698,6 +1732,11 @@ public final class SettlementRunner {
 				else if (batchId != null) cancelBatch(batchId);
 				else if (!queueInFlight && !recovering) { if (keyed) cancelByKeys(); else later.add(new Pipeline.CancelConfirmed()); }
 			}
+			// (Architect K3) a wall lot's repair
+			case Pipeline.AskRepair a -> askRepair(a);
+			case Pipeline.StopRepair x -> stopRepair(x);
+			// the repaired version is the entry's head now: bound again under the same key
+			case Pipeline.Rebind r -> realiseVillage();
 			case Pipeline.Notify n -> {
 				String hint = n.needsDecision() ? hint() : null;
 				say(hint == null ? n.text() : n.text() + " " + hint);
@@ -1821,7 +1860,8 @@ public final class SettlementRunner {
 	private void onGroup(Group g) {
 		if (groupId == null || !groupId.equals(g.id())) return;
 		// cancelling a placement: the (finished) group's updates do not end it, the batch's rollback does
-		if (state != null && state.phase() == Pipeline.Phase.CANCELLING && (batchId != null || queueInFlight)) return;
+		// (and a village realised, or a wall repair outstanding: its region's removal or the repair ends the cancel, never the group)
+		if (state != null && state.phase() == Pipeline.Phase.CANCELLING && (batchId != null || queueInFlight || vRegionId != null || state.repair() != null)) return;
 		noteMassings(g);
 		Map<String, String> items = new LinkedHashMap<>();
 		for (Group.Item it : g.items()) {
@@ -1909,12 +1949,23 @@ public final class SettlementRunner {
 	private void realiseArtifact(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
 		var regions = ArchitectApi.get().regions();
 		Map<String, String> fitting = palette(sha, fitting(sha, lotEntries));
+		// (Architect K3) a wall lot left without a design (none, or its design filtered out above) would leave the wall open where its tower or gatehouse
+		// stands: Architect binds nothing there, so the build ends here, naming it
+		var open = plan == null ? null : plan.lots().stream().filter(l -> l.exact() && !fitting.containsKey(l.id())).findFirst().orElse(null);
+		if (open != null) {
+			realised(null, new IllegalStateException("the " + open.role() + " on the wall has no design that fits its box (" + (lotEntries.containsKey(open.id())
+				? "its design is past the lot's approved box or rule" : "it was not designed") + "), so the wall would stand open there"), session);
+			return;
+		}
 		Steward.LOGGER.info("realise {}: artifact {} under key {} ({})", settlement.id(), sha, opKey("vrealise"), first ? "first" : "after a re-check");
 		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext))
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
 				boolean stale = e instanceof dev.larattalabs.architect.api.ArchitectRefused rf && rf.reason() == dev.larattalabs.architect.api.Reason.ARTIFACT_STALE;
+				// (Architect K3) a wall lot's design leaves the wall open, or its passage unstandable: the design is repaired, not the land re-checked
+				String wallLot = stale ? wallLotOf(e.getMessage()) : null;
+				if (wallLot != null && alive() && !over()) { wallRefused(lotEntries, session, wallLot, e.getMessage()); return; }
 				if (!first || !stale || !alive() || over()) { realised(id, err, session); return; }
 				say("The land under the plan changed while the buildings were designed (" + e.getMessage() + "): checking it again...");
 				JsonObject frozen = frozenPlan(sha);
@@ -1951,6 +2002,191 @@ public final class SettlementRunner {
 				}));
 			}));
 	}
+
+	/** Architect K3's refusal of a wall lot's bound design: "lot <id> on wall <wall>: ...". */
+	private static final java.util.regex.Pattern ON_WALL = java.util.regex.Pattern.compile("^lot (\\S+) on wall \\S+:");
+
+	/** The wall lot a refusal names, or null when it is not K3's wall refusal. */
+	static @org.jspecify.annotations.Nullable String wallLotOf(@org.jspecify.annotations.Nullable String message) {
+		if (message == null) return null;
+		var m = ON_WALL.matcher(message.strip());
+		return m.find() ? m.group(1) : null;
+	}
+
+	/** Whether this Architect keys design requests and answers a cancel (design.opKeys): a wall lot's repair needs both. */
+	static boolean keyedDesigns() {
+		try {
+			return ArchitectApi.get().features().contains("design.opKeys");
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
+	}
+
+	/**
+	 * The bind refused a wall lot's design: the pipeline decides (a repair within the rounds and the budget, or the build stops naming it). No realise is in
+	 * flight from here; the repair's operation key names the build, the lot and the round, so asking again is the same design.
+	 */
+	private void wallRefused(Map<String, String> lotEntries, int session, String lotId, String why) {
+		queueInFlight = false;
+		VillageLayout.Lot lot = plan == null ? null : plan.lots().stream().filter(l -> l.id().equals(lotId)).findFirst().orElse(null);
+		String role = lot == null ? lotId : lot.role();
+		if (!keyedDesigns()) {
+			realised(null, new IllegalStateException("Architect refused the " + role + " on the wall (" + why + "), and this Architect cannot repair a design safely"
+				+ " (no design.opKeys)"), session);
+			return;
+		}
+		String key = "steward." + buildId + ".repair." + lotId + "." + (state.repairs().getOrDefault(lotId, 0) + 1);
+		feed(new Pipeline.WallRefused(lotId, role, why, lot != null && lotEntries.containsKey(lotId), key));
+	}
+
+	/** Asks for the repair of {@code lotId}'s design under its key: the next version of its entry with the refusal as the change, sized and briefed as its lot. */
+	private void askRepair(Pipeline.AskRepair a) {
+		var r = state.repair();
+		VillageLayout.Lot lot = plan == null ? null : plan.lots().stream().filter(l -> l.id().equals(a.lotId())).findFirst().orElse(null);
+		String entry = repairEntry(a.lotId());
+		if (r == null || !r.key().equals(a.key()) || lot == null || entry == null) {
+			later.add(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "its design could not be found to repair"));
+			return;
+		}
+		dev.larattalabs.architect.api.DesignRequest req;
+		try {
+			var notes = (lot.notes() == null || lot.notes().isBlank() ? "" : lot.notes() + " ") + "A repair of its design: Architect refused it on the wall (" + a.why()
+				+ "). Fix exactly that, and keep the rest as it is.";
+			var withWhy = new VillageLayout.Lot(lot.id(), lot.type(), lot.x(), lot.z(), lot.sizeX(), lot.sizeZ(), lot.front(), lot.groundY(), lot.role(), notes,
+				lot.landmark(), lot.placement(), lot.maxHeight(), lot.exact());
+			req = dev.larattalabs.steward.gateway.LotBrief.build(settlement, withWhy, lot.maxHeight(), null, Pipeline.WALL_REPAIR_USD);
+			var reserved = reservedCells().get(a.lotId());
+			if (reserved != null) req = req.withReserved(reserved);
+			var wallExt = wallLotExts().get(a.lotId());
+			if (wallExt != null) req.ext().add(dev.larattalabs.steward.gateway.PPlan.WALL_LOT_EXT, wallExt);
+			if (state.bibleId() != null) req = req.withBible(state.bibleId(), state.bibleVersion());
+			req = req.versionOf(entry, null).withOpKey(a.key());
+		} catch (RuntimeException x) {
+			later.add(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "it could not be put to Architect: " + x.getMessage()));
+			return;
+		}
+		// saved (its reservation, its key, its words) before it is asked, also when it is asked again on the watch
+		if (!persist()) {
+			say("Could not save the build, so the repair of the " + lot.role() + " is not asked for. Cancel it (/steward cancel " + state.settlementId() + ").");
+			return;
+		}
+		int session = Session.current();
+		repairAsking = true;
+		ArchitectApi.get().designs().request(req).whenComplete((id, err) -> server.execute(() -> {
+			repairAsking = false;
+			if (!Session.is(session)) return;
+			// this runner replaced meanwhile: the design is stopped, whoever owns the key now finds it by the key
+			if (!alive()) { if (id != null) ArchitectApi.get().designs().cancel(id); return; }
+			if (err != null) {
+				// refused: nothing designed; lost, or its key bound to a request already made: found by its key on the watch (never a second design)
+				if (ChangeRequests.definite(err) && !keyConflict(err) && !uncertain(err)) feed(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect would not redesign it: " + message(err)));
+				else Steward.LOGGER.warn("repair {} of {}: the answer was lost ({}); found by its key", a.key(), settlement.id(), message(err));
+				return;
+			}
+			feed(new Pipeline.RepairAsked(a.key(), id));
+			checkRepair();
+		}));
+	}
+
+	/** The design a wall lot's repair is a version of: the lot's entry in the build's design group (its repair is the same entry's next version). */
+	private @org.jspecify.annotations.Nullable String repairEntry(String lotId) {
+		Group g = groupId == null ? null : ArchitectApi.get().designs().group(groupId).orElse(null);
+		if (g == null) return null;
+		return g.items().stream().filter(it -> it.itemKey().equals(lotId)).findFirst().flatMap(Group.Item::entryId).orElse(null);
+	}
+
+	/** Stops the repair's design; the outcome (stopped, or already final, with its cost) ends it. A stop that gets no answer is sent again on the watch. */
+	private void stopRepair(Pipeline.StopRepair x) {
+		repairStopSent = System.currentTimeMillis();
+		if (x.designId() == null) { checkRepair(); return; }
+		int session = Session.current();
+		ArchitectApi.get().designs().cancelDesign(x.designId()).whenComplete((o, err) -> server.execute(() -> {
+			if (!Session.is(session) || !alive()) return;
+			// no answer: sent again on the watch (repairStopSent keeps its time)
+			if (err != null) { Steward.LOGGER.warn("repair {} of {}: the stop got no answer ({}); asked again", x.key(), settlement.id(), message(err)); return; }
+			switch (o.kind()) {
+				case CANCELLED, ALREADY_FINAL -> o.design().ifPresentOrElse(d -> repairFinal(d, true),
+					() -> feed(new Pipeline.RepairEnded(x.key(), Pipeline.RepairEnd.FAILED, 0, "stopped")));
+				case UNKNOWN -> feed(new Pipeline.RepairEnded(x.key(), Pipeline.RepairEnd.LOST, 0, "Architect does not know its design"));
+			}
+		}));
+	}
+
+	/**
+	 * Where the repair stands, every second and whenever Architect says something of it: read by its design, else found by its key (empty: Architect never
+	 * received it: asked again under the key, or, while a cancel waits, ended with nothing spent); final, it ends. A waiting stop that got no answer is sent
+	 * again. Architect reports DONE only once the repaired version is installed, so a final read can be bound at once.
+	 */
+	void checkRepair() {
+		if (state == null || !alive()) return;
+		var r = state.repair();
+		if (r == null) return;
+		var designs = ArchitectApi.get().designs();
+		if (r.designId() != null) {
+			var d = designs.get(r.designId());
+			if (d.isPresent()) {
+				if (d.get().status().isFinal()) repairFinal(d.get(), false);
+				else if (r.stopping() && repairStopSent > 0 && System.currentTimeMillis() - repairStopSent > 20_000) execute(new Pipeline.StopRepair(r.key(), r.designId()));
+				return;
+			}
+		}
+		if (repairLooking || repairAsking) return;
+		repairLooking = true;
+		int session = Session.current();
+		designs.designByKey(settlement.owner(), r.key()).whenComplete((found, err) -> server.execute(() -> {
+			repairLooking = false;
+			if (!Session.is(session) || !alive() || state == null || state.repair() == null || !state.repair().key().equals(r.key())) return;
+			// Architect not reachable: looked for again on the next watch
+			if (err != null) return;
+			if (found.isPresent()) {
+				if (state.repair().designId() == null) feed(new Pipeline.RepairAsked(r.key(), found.get().id()));
+				if (found.get().status().isFinal()) repairFinal(found.get(), false);
+				return;
+			}
+			// never received: a waiting cancel ends it (nothing spent); else asked again under its key with its own words, while its key is still kept
+			if (state.repair().stopping()) feed(new Pipeline.RepairEnded(r.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect never received it"));
+			else if (state.phase() == Pipeline.Phase.REPAIRING && !mayResend()) feed(new Pipeline.RepairEnded(r.key(), Pipeline.RepairEnd.LOST, 0,
+				"Architect has no record of it, and the build is too old to ask again safely"));
+			// (a repair saved without its words cannot be asked again the same: ended, its most counted)
+			else if (state.phase() == Pipeline.Phase.REPAIRING && (r.why() == null || r.why().isBlank())) feed(new Pipeline.RepairEnded(r.key(), Pipeline.RepairEnd.LOST, 0,
+				"Architect has no record of it, and it was saved without the refusal to ask again with"));
+			else if (state.phase() == Pipeline.Phase.REPAIRING) {
+				askRepair(new Pipeline.AskRepair(r.lotId(), r.key(), r.why()));
+				drainLater();
+			}
+		}));
+	}
+
+	/**
+	 * The repair's design is final: the pipeline ends it with its cost (DONE binds again; failed or stopped, the build ends or the cancel is done). A
+	 * CANCELLED read ({@code confirmed} false: a lookup or DESIGN_DONE) is not the end: Architect marks it so before its work has stopped, so the cancel's
+	 * own answer ({@link #stopRepair}) is asked for and ends it.
+	 */
+	private void repairFinal(dev.larattalabs.architect.api.Design d, boolean confirmed) {
+		var r = state == null ? null : state.repair();
+		if (r == null || (r.designId() != null && !r.designId().equals(d.id()))) return;
+		if (d.status() == dev.larattalabs.architect.api.Design.Status.CANCELLED && !confirmed) {
+			if (repairStopSent == 0 || System.currentTimeMillis() - repairStopSent > 20_000) execute(new Pipeline.StopRepair(r.key(), d.id()));
+			return;
+		}
+		// its next version is the same entry, which the bind takes again: one that came back as another entry is not bound (it would bind the old one)
+		String entry = repairEntry(r.lotId());
+		boolean sameEntry = d.entryId().isPresent() && d.entryId().get().equals(entry);
+		boolean done = d.status() == dev.larattalabs.architect.api.Design.Status.DONE && sameEntry;
+		String why = done ? null : d.status() == dev.larattalabs.architect.api.Design.Status.DONE ? "its repair came back as another design (" + d.entryId().orElse("none") + ")"
+			: d.error().orElse(d.status().name().toLowerCase());
+		feed(new Pipeline.RepairEnded(r.key(), done ? Pipeline.RepairEnd.DONE : Pipeline.RepairEnd.FAILED, d.cost().usd(), why));
+	}
+
+	/** A design finished: this build's repair is looked at. */
+	private void onRepairDone(dev.larattalabs.architect.api.Design d) {
+		var r = state == null ? null : state.repair();
+		if (r != null && d.id().equals(r.designId())) server.execute(() -> repairFinal(d, false));
+	}
+
+	/** This session's repair requests and lookups in flight, and when the waiting stop was sent (0: none, or it got no answer). */
+	private boolean repairAsking, repairLooking;
+	private long repairStopSent;
 
 	/**
 	 * The mode a plan's region is realised in: the approved artifact's (Architect RS: checked in survival, it is built from the stockpile; else at once), so a
