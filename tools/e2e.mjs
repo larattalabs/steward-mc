@@ -1856,7 +1856,7 @@ async function survivalGrowth(id, owner, region, claim, ledger) {
     if (p?.planId || !/NO_ROOM/.test(String(p?.refused ?? ''))) break;
   }
   // the survival town here is walled: its street ends cannot extend through the wall (GJ joins districts, not streets), and its frontage is full. Accepted with
-  // Architect for the GR RC (docs/ARCHITECT-ASKS.md, 6d GR RC); reported as a skip, not a pass, until GJ lands
+  // Architect for the GR RC (docs/ARCHITECT-ASKS.md, 6d GR RC); reported as a skip, not a pass, until the town's own growth can leave a wall
   if (!p?.planId && /NO_ROOM[^"]*\[street\][^"]*extendable/.test(String(p?.refused ?? ''))) {
     console.log(`skip ${label} (${region} is walled: its street cannot extend through the wall; ${String(p.refused).slice(0, 160)})`);
     return;
