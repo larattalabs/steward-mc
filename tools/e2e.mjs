@@ -1316,9 +1316,10 @@ async function gateJoinFlow(id, town, wallRegion, before) {
   const off = await unchanged();
   if (off.length === 0) ok('gate join, district removed first', `${r1.region} through ${joined?.via ?? via} (junction ${joined?.junction?.kind}), removed: the town and the wall as before`);
   else fail('gate join, district removed first', `${off.length} cell(s) differ, e.g. ${off.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now} (${m.class})`).join('; ').slice(0, 300)}`);
-  // the gate walled up after the plan (no district in this one's ext: it must outlive a restart, and Steward takes up a district region no district of its owns)
+  // the gate walled up after the plan (none of Steward's tags in this one's ext: it must outlive a restart, and Steward takes up a village or district region
+  // no build of its holds)
   const b2 = `${b1}b`;
-  const kept = { 'steward_mc:build': b2 };
+  const kept = { 'e2e:gate': b2 };
   const p2 = await besideAsk(id, town, { check: false, opKey: `steward.${b2}.vplan`, ext: kept });
   if (!p2?.planId) { fail('gate walled up', `not planned: ${JSON.stringify(p2).slice(0, 260)}`); return null; }
   const gt = planIr(p2.planId).reach.gate;
