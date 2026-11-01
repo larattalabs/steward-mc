@@ -1238,6 +1238,12 @@ async function wallOfferFlow() {
   if (!offer) return fail('wall offer', `not offered: ${offered}`);
   ok('wall offer', `${offer.title}: ${offer.why.slice(0, 90)}`);
   await cmd(`/steward dev sim_answer part ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'wall_part.json'), 'utf8')).answer)}`);
+  // the world before the wall: what the wall and a district through its gate must leave behind, both gone
+  const cl = settlements().find((x) => x.id === id).claim;
+  const before = { box: [cl.centerX - cl.radius - 40, 40, cl.centerZ - cl.radius - 40, cl.centerX + cl.radius + 120, 140, cl.centerZ + cl.radius + 40], file: path.join(ROOT, 'artifacts', 'e2e', `before-wall-${id}.snap.gz`) };
+  fs.mkdirSync(path.dirname(before.file), { recursive: true });
+  await clearAnimals();
+  await dev.call('dev.region.hash', { box: before.box, mode: 'snap', file: before.file }, { timeoutMs: 1_800_000 });
   await cmd(`/steward proposals ${id} accept part_town_wall`);
   let wall = null;
   for (let i = 0; i < 180 && !wall; i++) {
@@ -1248,10 +1254,11 @@ async function wallOfferFlow() {
   const stillWaits = plans[id]?.pending?.some((x) => x.part === 'town_wall');
   if (wall && /^region:/.test(wall.siteGroup) && wall.siteGroup !== town.siteGroup && !stillWaits) ok('wall built', `${wall.text}: ${wall.siteIds.length} sites in ${wall.siteGroup} (the town is ${town.siteGroup}); no longer waits`);
   else return fail('wall built', `history ${JSON.stringify(wall)?.slice(0, 160)}; still waits ${stillWaits}; ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
-  // (Architect D3) a district beside a walled town has no gate to join through yet (7a's GJ): NO_JOIN [wall]
-  const walled = await besideAsk(id, town.siteGroup.replace(/^region:/, ''));
-  if (!walled?.fits && /NO_JOIN/.test(`${walled?.code} ${walled?.message} ${walled?.refused}`) && /wall/i.test(`${walled?.message} ${walled?.refused}`)) ok('beside a walled town', `${walled.code ?? ''} ${String(walled.message ?? walled.refused).slice(0, 140)}`);
-  else fail('beside a walled town', JSON.stringify(walled).slice(0, 300));
+  const townRegion = town.siteGroup.replace(/^region:/, '');
+  const wallRegion = wall.siteGroup.replace(/^region:/, '');
+  // (Architect GJ, Steward's RC) a district joins the walled town through its gate; the wall undone first leaves it standing, its gate gone
+  const gj = await gateJoinFlow(id, townRegion, wallRegion, before);
+  if (!gj) return;
   // an undo takes the wall away and leaves the town
   await cmd(`/steward undo ${id}`);
   let last = null;
@@ -1262,6 +1269,100 @@ async function wallOfferFlow() {
   const townStands = /stands/.test(await cmd(`/steward dev site ${town.siteIds[0]}`));
   if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === wall.siteIds.length && townStands) ok('wall undo', `${last.text}; the town stands`);
   else fail('wall undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${wall.siteIds.length}); town stands ${townStands}`);
+  if (gj) await gj.afterWallUndo();
+}
+
+/**
+ * (Architect GJ, Steward's RC: docs/HANDOFF-GJ.md in architect-mc) A district beside the walled town joins it through the wall's gate. `checkBeside` shows
+ * `via`; the district first: planned and realised under Steward's keys and removed, the town and the wall as before it. Then the gate walled up after the
+ * plan: ARTIFACT_STALE naming it, nothing written; opened, planned again and realised under `.vrealise2`; found by `realiseByKey` after a restart. Returns
+ * the check for after the wall's undo (the caller's): the district stands dangling with its gate gone, then goes, and the world is as before both.
+ */
+async function gateJoinFlow(id, town, wallRegion, before) {
+  const label = 'gate join';
+  const owner = `steward_mc:settlement/${id}`;
+  const v = await besideAsk(id, town);
+  const via = (v?.land?.parts ?? []).find((q) => q.kind === 'join')?.via ?? null;
+  if (v?.fits && String(via).startsWith(`${wallRegion}:`)) ok('beside a walled town', `fits through the gate: via ${via}, join ${v.join?.kind} (${v.join?.step})`);
+  else { fail('beside a walled town', JSON.stringify(v).slice(0, 300)); return null; }
+  const ext = (b) => ({ 'steward_mc:district': 'dst_gj', 'steward_mc:build': b });
+  const c = settlements().find((x) => x.id === id).claim;
+  const { box } = before;
+  const snap = path.join(ROOT, 'artifacts', 'e2e', `gate-${id}.snap.gz`);
+  const away = () => cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 60}`);
+  const stateOf = async (r) => { const s = await dev.request('dev.region.state', { region: r }).catch(() => null); return s?.view ?? s; };
+  const unchanged = async (file = snap) => {
+    await clearAnimals();
+    const d = await dev.call('dev.region.hash', { box, mode: 'diff', file }, { timeoutMs: 1_800_000 });
+    return (d.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
+  };
+  const remove = async (r) => {
+    const rm = await dev.request('dev.region.remove', { region: r, force: true }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+    const gone = await regionUntil(r, ['REMOVED'], 120_000);
+    return rm?.removed === true || (gone?.view?.state ?? gone?.state) === 'REMOVED';
+  };
+  await away();
+  await clearAnimals();
+  await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
+  // the district first
+  const b1 = `e2egj${Date.now() % 100000}`;
+  const p1 = await besideAsk(id, town, { check: false, opKey: `steward.${b1}.vplan`, ext: ext(b1) });
+  if (!p1?.planId) { fail(label, `not planned: ${JSON.stringify(p1).slice(0, 260)}`); return null; }
+  await away();
+  await clearAnimals();
+  const r1 = await dev.request('dev.region.realise', { planId: p1.planId, opKey: `steward.${b1}.vrealise`, ext: ext(b1) }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  const placed = r1?.region ? await regionUntil(r1.region, ['PLACED', 'PARTIAL', 'FAILED']) : null;
+  if ((placed?.view?.state ?? placed?.state) !== 'PLACED') { fail(label, `${JSON.stringify(r1).slice(0, 240)}; ${placed?.view?.state ?? placed?.state}`); return null; }
+  const joined = planJoin(p1.planId);
+  if (!(await remove(r1.region))) { fail(label, `${r1.region} not removed`); return null; }
+  const off = await unchanged();
+  if (off.length === 0) ok('gate join, district removed first', `${r1.region} through ${joined?.via ?? via} (junction ${joined?.junction?.kind}), removed: the town and the wall as before`);
+  else fail('gate join, district removed first', `${off.length} cell(s) differ, e.g. ${off.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now} (${m.class})`).join('; ').slice(0, 300)}`);
+  // the gate walled up after the plan
+  const b2 = `${b1}b`;
+  const p2 = await besideAsk(id, town, { check: false, opKey: `steward.${b2}.vplan`, ext: ext(b2) });
+  if (!p2?.planId) { fail('gate walled up', `not planned: ${JSON.stringify(p2).slice(0, 260)}`); return null; }
+  const gt = planIr(p2.planId).reach.gate;
+  const xs = gt.cells.flatMap((q) => [q[0], q[2]]), zs = gt.cells.flatMap((q) => [q[1], q[3]]);
+  const [bx0, bz0, bx1, bz1] = [Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs)];
+  const across = (block) => cmd(`/fill ${bx0} ${gt.y + 1} ${bz0} ${bx1} ${gt.y + 2} ${bz1} ${block}`);
+  await across('minecraft:cobblestone');
+  await away();
+  const stale = await dev.request('dev.region.realise', { planId: p2.planId, opKey: `steward.${b2}.vrealise`, ext: ext(b2) }, { timeoutMs: 300_000 }).catch((e) => ({ refused: String(e) }));
+  const staleText = typeof stale?.refused === 'string' ? stale.refused : JSON.stringify(stale?.refused ?? '');
+  if (!stale?.region && /ARTIFACT_STALE/.test(staleText) && staleText.includes(`gate ${gt.id}`)) ok('gate walled up', staleText.slice(0, 160));
+  else { fail('gate walled up', JSON.stringify(stale).slice(0, 260)); return null; }
+  await across('minecraft:air');
+  const p3 = await besideAsk(id, town, { check: false, opKey: `steward.${b2}.vplan2`, ext: ext(b2) });
+  if (!p3?.planId) { fail('gate open again', `not planned: ${JSON.stringify(p3).slice(0, 260)}`); return null; }
+  await away();
+  await clearAnimals();
+  const r3 = await dev.request('dev.region.realise', { planId: p3.planId, opKey: `steward.${b2}.vrealise2`, ext: ext(b2) }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+  const district = r3?.region;
+  const st3 = district ? await regionUntil(district, ['PLACED', 'PARTIAL', 'FAILED']) : null;
+  if ((st3?.view?.state ?? st3?.state) !== 'PLACED') { fail('gate open again', `${JSON.stringify(r3).slice(0, 240)}; ${st3?.view?.state ?? st3?.state}`); return null; }
+  await quit();
+  launch();
+  await connect();
+  const rk = await dev.request('dev.region.realiseByKey', { owner, opKey: `steward.${b2}.vrealise2` }, { timeoutMs: 10_000 }).catch((e) => ({ error: String(e) }));
+  if (rk?.region?.id === district) ok('gate open again', `${district} under steward.${b2}.vrealise2, found by its key after a restart`);
+  else { fail('gate open again', `realiseByKey ${JSON.stringify(rk).slice(0, 200)}`); return null; }
+  await away();
+  return {
+    // the wall undone first (the caller's undo): the ring and its gate go, the district stays dangling; Steward's screen says so; then the district
+    async afterWallUndo() {
+      const after = await stateOf(district);
+      const e = after?.ext ?? {};
+      const beside = e['architect_mc:beside'] ?? {};
+      if (after?.state === 'PLACED' && beside.dangling === true && beside.gateRemoved === wallRegion && e['architect_mc:land']?.standingRemoved != null) ok('gate join, wall undone first', `${district} stands, dangling, gateRemoved ${beside.gateRemoved}`);
+      else fail('gate join, wall undone first', `${after?.state}; ${JSON.stringify(beside).slice(0, 200)}; land.standingRemoved ${e['architect_mc:land']?.standingRemoved}`);
+      await away();
+      const gone = await remove(district);
+      const diff = gone ? await unchanged(before.file) : [];
+      if (gone && diff.length === 0) ok('gate join, then the district', `${district} and ${wallRegion} gone: the world before both`);
+      else fail('gate join, then the district', `removed ${gone}; ${diff.length} cell(s) differ, e.g. ${diff.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now} (${m.class})`).join('; ').slice(0, 300)}`);
+    },
+  };
 }
 
 /**
@@ -1683,7 +1784,7 @@ async function discardFlow() {
  * of two house lots, Steward's lot tags, owner and keys, its request claim on the town's east side overlapping it by 8 columns. `check` asks the dry
  * `checkBeside` (nothing kept); else a real plan under `<key>.dplan`. Returns DevBridge's answer.
  */
-async function besideAsk(id, townRegion, { check = true, key = null, lots = 2 } = {}) {
+async function besideAsk(id, townRegion, { check = true, key = null, lots = 2, opKey = null, ext = null } = {}) {
   const st = settlements().find((x) => x.id === id);
   const c = st.claim, r = c.radius;
   // the town's chunks loaded first (D3 surveys loaded chunks only)
@@ -1694,8 +1795,13 @@ async function besideAsk(id, townRegion, { check = true, key = null, lots = 2 } 
     landmark: false, ext: { 'steward_mc:settlement': id, 'steward_mc:lot': `quay_${k + 1}`, 'steward_mc:role': 'house' } })) }] };
   const body = { program: 'districts', params: { spec }, claim: [x0, c.centerZ - 48, x0 + 96, c.centerZ + 48], owner: `steward_mc:settlement/${id}`, beside: townRegion };
   if (check) return dev.request('dev.region.checkBeside', body, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
-  return dev.request('dev.region.plan', { ...body, ...(key ? { opKey: `${key}.dplan` } : {}) }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+  return dev.request('dev.region.plan', { ...body, ...(key ? { opKey: `${key}.dplan` } : {}), ...(opKey ? { opKey } : {}), ...(ext ? { ext } : {}) }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
 }
+
+/** A plan's files in the sidecar's data (Architect's own store: GJ's reach.gate and join are read from here, as its gate driver does). */
+const planDir = (planId) => path.join(GAME, 'architect', 'sidecar-data', 'regions', 'plans', planId);
+const planIr = (planId) => JSON.parse(fs.readFileSync(path.join(planDir(planId), 'ir.json'), 'utf8'));
+const planJoin = (planId) => { try { return JSON.parse(fs.readFileSync(path.join(planDir(planId), 'meta.json'), 'utf8')).districts?.join ?? null; } catch { return null; } };
 
 /** Whether this Architect revises regions (6d RV): its dev bridge has the revision hooks. */
 async function revisesRegions() {
@@ -1745,10 +1851,10 @@ async function survivalGrowth(id, owner, region, claim, ledger) {
       { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
     if (p?.planId || !/NO_ROOM/.test(String(p?.refused ?? ''))) break;
   }
-  // the survival town here is walled: its street ends can't extend through the wall until Architect GJ (v0.49.0), and its frontage is full. Accepted with
+  // the survival town here is walled: its street ends cannot extend through the wall (GJ joins districts, not streets), and its frontage is full. Accepted with
   // Architect for the GR RC (docs/ARCHITECT-ASKS.md, 6d GR RC); reported as a skip, not a pass, until GJ lands
   if (!p?.planId && /NO_ROOM[^"]*\[street\][^"]*extendable/.test(String(p?.refused ?? ''))) {
-    console.log(`skip ${label} (${region} is walled: its street can't extend until Architect GJ; ${String(p.refused).slice(0, 160)})`);
+    console.log(`skip ${label} (${region} is walled: its street cannot extend through the wall; ${String(p.refused).slice(0, 160)})`);
     return;
   }
   if (!p?.planId) return fail(label, `the growth of ${region} (${program}) by a ${lot.size.join(' x ')} lot not planned: ${JSON.stringify(p).slice(0, 260)}`);
