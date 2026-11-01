@@ -1259,24 +1259,22 @@ async function wallOfferFlow() {
   // (Architect GJ, Steward's RC) a district joins the walled town through its gate; the wall undone first leaves it standing, its gate gone
   const gj = await gateJoinFlow(id, townRegion, wallRegion, before);
   if (!gj) return;
-  // an undo takes the wall away and leaves the town
-  await cmd(`/steward undo ${id}`);
-  let last = null;
-  for (let i = 0; i < 60 && !(last?.kind === 'PROJECT_REMOVED' && last.siteIds?.includes(wall.siteIds[0])); i++) {
-    await sleep(1000);
-    last = settlements().find((x) => x.id === id)?.log.at(-1);
-  }
-  const townStands = /stands/.test(await cmd(`/steward dev site ${town.siteIds[0]}`));
-  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === wall.siteIds.length && townStands) ok('wall undo', `${last.text}; the town stands`);
-  else fail('wall undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${wall.siteIds.length}); town stands ${townStands}`);
-  if (gj) await gj.afterWallUndo();
+  // the wall undone first, through Architect (Steward's undo takes the latest build, here the district): the town stands, then the district goes
+  await gj.afterWallUndo(async () => {
+    const rm = await dev.request('dev.region.remove', { region: wallRegion, force: true }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+    const gone = await regionUntil(wallRegion, ['REMOVED'], 120_000);
+    const removed = rm?.removed === true || (gone?.view?.state ?? gone?.state) === 'REMOVED';
+    const townStands = /stands/.test(await cmd(`/steward dev site ${town.siteIds[0]}`));
+    if (removed && townStands) ok('wall undo', `${wallRegion} removed; the town stands`);
+    else fail('wall undo', `removal ${JSON.stringify(rm).slice(0, 200)}; town stands ${townStands}`);
+  });
 }
 
 /**
  * (Architect GJ, Steward's RC: docs/HANDOFF-GJ.md in architect-mc) A district beside the walled town joins it through the wall's gate. `checkBeside` shows
  * `via`; the district first: planned and realised under Steward's keys and removed, the town and the wall as before it. Then the gate walled up after the
  * plan: ARTIFACT_STALE naming it, nothing written; opened, planned again and realised under `.vrealise2`; found by `realiseByKey` after a restart. Returns
- * the check for after the wall's undo (the caller's): the district stands dangling with its gate gone, then goes, and the world is as before both.
+ * the wall-first order: the district stands dangling with its gate gone, then goes, and the world is as before both.
  */
 async function gateJoinFlow(id, town, wallRegion, before) {
   const label = 'gate join';
@@ -1349,8 +1347,10 @@ async function gateJoinFlow(id, town, wallRegion, before) {
   else { fail('gate open again', `realiseByKey ${JSON.stringify(rk).slice(0, 200)}`); return null; }
   await away();
   return {
-    // the wall undone first (the caller's undo): the ring and its gate go, the district stays dangling; Steward's screen says so; then the district
-    async afterWallUndo() {
+    // the wall undone first (`undoWall`, the caller's): the ring and its gate go, the district stays dangling; Steward's screen says so; then the district
+    async afterWallUndo(undoWall) {
+      await away();
+      await undoWall();
       const after = await stateOf(district);
       const e = after?.ext ?? {};
       const beside = e['architect_mc:beside'] ?? {};
