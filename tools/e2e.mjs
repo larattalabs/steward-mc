@@ -1284,7 +1284,7 @@ async function gateJoinFlow(id, town, wallRegion, before) {
   const v = await besideAsk(id, town);
   const via = (v?.land?.parts ?? []).find((q) => q.kind === 'join')?.via ?? null;
   if (v?.fits && String(via).startsWith(`${wallRegion}:`)) ok('beside a walled town', `fits through the gate: via ${via}, join ${v.join?.kind} (${v.join?.step})`);
-  else { fail('beside a walled town', JSON.stringify(v).slice(0, 300)); return null; }
+  else { fail('beside a walled town', JSON.stringify(v).slice(0, 1500)); return null; }
   const ext = (b) => ({ 'steward_mc:district': 'dst_gj', 'steward_mc:build': b });
   const c = settlements().find((x) => x.id === id).claim;
   const { box } = before;
