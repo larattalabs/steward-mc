@@ -1041,3 +1041,8 @@ gate walled up, `ARTIFACT_STALE` naming it through `Regions.realise`, re-plan an
 `dangling` with `gateRemoved` and `land.standingRemoved`; then the district, the world before both. Independent verifier PASS. Limits: the restart is in the
 wall-first order only; the wall goes through `dev.region.remove` (Steward's undo takes the latest build, the district, so a player's undo can't go wall-first);
 the restarted district carries no Steward tags (its sweeps take up a region no build holds). gj-rc merges with the pin at v0.49.0.
+
+## v0.49.0 post-release check (2026-11-01): PASS
+
+Steward builds against the published v0.49.0 (`architect_version`, runtime minimum 0.49.0); gj-rc is merged. Free 43/43; stub PASS 105 with one skip: `survival
+growth`, the walled town's own street (`NO_ROOM [street]`).
