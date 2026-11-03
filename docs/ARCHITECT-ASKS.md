@@ -996,6 +996,22 @@ Architect's draft on `docs/gm-contract` (dbb131f1), CONTRACT.md "Slice GM, gate 
   Architect took it (§15 item 6, main 283b7bd4): the gatehouse brief asks for the roof over the logic block (u -6..6, d 1..depth-2) at or below row
   depth+7, towers elsewhere on the lot may rise higher, and the box height isn't capped. Steward passes the line on word for word with the GM brief lines.
 
+### GM-a RC (2026-11-03): PASS for Steward
+
+Architect slice/GM at 7013e041 (main through 283b7bd4), built in `_work/steward-arch-rc`. Steward's `gm-rc` (53bb0ee, worktree `_work/steward-gm`; it
+waits for v0.50.0 and the pin, like every RC branch). Free 43/43. Stub 107, with the one known skip (survival growth in the walled town). Gate-verifier PASS.
+- **Brief lines:** `PPlan.mechanismWords` puts `onWall.passage.mechanism.brief` into the wall lot's brief word for word, each closed with a full stop, after
+  WALL_BRIEF and ahead of the settlement's prose and backstory. A unit test shows all five lines survive a 3000-character backstory under the 2000 notes cap.
+- **Envelope:** forwarded unchanged through `PPlan.reserved` (unit test on a merged lotCells).
+- **e2e `gateMechFlow`:** castle_city with `params.mechanism: portcullis` on its curtain wall. The 17x15x40 gatehouse binds with
+  `architect_mc:gateMechanism` showing the sensor at roof y 75 (floor 65 + row 10), with no `mechanism.sensor`. The sim roofs at row 10 only when the
+  roof-cap line is in the notes. Then `/steward undo` removes the region, and a hash diff over the claim shows the ground as it was.
+- **Not covered, by design:** survival (GM-a2 bills it). The drawbridge stays reserved for GM-c's RC (still `reserved` at 7013e041).
+  Steward's plan writer doesn't ask for a mechanism yet (its plan schema has no `mech`). When it should is a question for the coordinator and Noah:
+  in creative only, or after GM-a2's billing.
+- **Steward's answer on "rungs above the roof":** Steward would like the realise to fill the reserved rung cells at the roof row with the structure block.
+  The design leaves them empty, as it's told to, so otherwise the roof has one-cell holes.
+
 ## 6d GR RC (2026-10-27): PASS for Steward
 
 Architect slice/GR at e522b0f7, built in a clone under `_work/`. Free 43/43; stub 96/97 (`gr-rc` 87a11b8, with two harness fixes that are now on
