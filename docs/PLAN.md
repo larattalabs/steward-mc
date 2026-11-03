@@ -102,6 +102,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-10-27 | **Pushing and the new folder** (Noah): Steward's main is pushed once both e2e runs pass and `gitleaks` is clean, without asking each time; the project rules are kept current as work goes on. Since the move to `~/Developer/LarattaLabs/Minecraft/`, worktrees live in `../_work/` (AGENTS.md). |
 | 2026-10-27 | **K3's wall repair stays automatic** (Noah, option A over shipping without it): a wall lot's design Architect refuses at the bind is redesigned and bound again inside the build, and the repair is made fully owned and recoverable (a cancel waits for the repair design to stop; a restart finds the repair it asked for, before or after Architect's answer, and counts its cost once) in a third GPT round, before K3's RC. |
 | 2026-10-28 | **K3's wall repair: fix, then a targeted check** (Noah, after GPT's fourth round found three local blockers): the blockers and should-fixes are fixed with a test each, then one GPT check of those fixes only; if it still finds a blocker, K3 ships without the automatic repair (a refused wall lot ends the build naming it). |
+| 2026-11-03 | **Gate mechanisms in every town, once survival bills them** (Noah, via the Architect coordinator): Steward's plan writer starts asking for a mechanism (`mech` on a wall's gate lot) once Architect's GM-a2 ships the survival billing, and then for all towns. Until then it asks for none (GM-a in v0.50.0 is adopted with no plan-writer change). |
 
 ## Concept card
 
