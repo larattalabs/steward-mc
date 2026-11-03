@@ -988,6 +988,11 @@ Architect's draft on `docs/gm-contract` (dbb131f1), CONTRACT.md "Slice GM, gate 
 - **2026-11-02, box minimum 13 x 7 x 10 (CONTRACT GM §14, Architect main 900db05e):** the day-cycle logic didn't fit hidden in 11 x 5 x 9. Its block
   (u -6..6, d 1..depth-2, rows lintelY+1..lintelY+5) joins the reserved envelope, which Steward forwards unchanged. Nothing changes for Steward: the 13x11
   and 17x15 gatehouses fit, as long as their 13 or 17 side runs along the wall (the e2e's runs 17 along). The 9x9 one stays plain.
+- **2026-11-03, GM step 1b PASS and §15 (Architect main 8966e01a):** the box minimum is unchanged. The envelope gains the roof sensor's staircase (each rung
+  for roof rows 10..depth+7, named by `gmCircuit`), with a new brief line keeping them empty or solid. Steward forwards both unchanged. At bind, a roof above
+  depth+7 or a sensor cell with no sky makes a levers-only gate, deviation `mechanism.sensor`. Steward only counts deviations, so a new kind needs nothing.
+  K3's orientation is confirmed (size[0] runs along the wall; Steward's plans put 13 or 17 first). N-GM-2 is closed. Steward's one flag: its wall boxes are
+  as tall as the wall's box (40 in the e2e), so a gatehouse built to that height would lose the sensor. Steward suggested a brief line on the roof cap.
 
 ## 6d GR RC (2026-10-27): PASS for Steward
 
