@@ -993,6 +993,8 @@ Architect's draft on `docs/gm-contract` (dbb131f1), CONTRACT.md "Slice GM, gate 
   depth+7 or a sensor cell with no sky makes a levers-only gate, deviation `mechanism.sensor`. Steward only counts deviations, so a new kind needs nothing.
   K3's orientation is confirmed (size[0] runs along the wall; Steward's plans put 13 or 17 first). N-GM-2 is closed. Steward's one flag: its wall boxes are
   as tall as the wall's box (40 in the e2e), so a gatehouse built to that height would lose the sensor. Steward suggested a brief line on the roof cap.
+  Architect took it (§15 item 6, main 283b7bd4): the gatehouse brief asks for the roof over the logic block (u -6..6, d 1..depth-2) at or below row
+  depth+7, towers elsewhere on the lot may rise higher, and the box height isn't capped. Steward passes the line on word for word with the GM brief lines.
 
 ## 6d GR RC (2026-10-27): PASS for Steward
 
