@@ -980,6 +980,11 @@ Architect's draft on `docs/gm-contract` (dbb131f1), CONTRACT.md "Slice GM, gate 
 - **2026-11-02, contract change (CONTRACT GM §12, Architect main 6066411e):** the portcullis is a split sliding grate (gm-probe: a lifting grid can't be
   built on 26.3), Noah's choice. Open, the passage is two 1-wide lanes beside a fixed middle column. Nothing changes for Steward: the envelope still merges into
   the lot's reserved entry, the box minimum stays 11 x 3 x 9 (it may only drop after the probe), and the brief lines are the same. GM's RC follows GM-a.
+- **2026-11-02, box minimum 11 x 5 x 9 (CONTRACT GM §13, Architect main fec8cd70):** the wired probe put the piston feed in the lining behind the gate
+  (6 cells a side) and the day-cycle logic in planes 2-4 above the passage, so the reserved envelope gains those and the lintel lever cells. A box under 5
+  deep still isn't refused: its passage stays plain, deviation `mechanism`. The drawbridge deck is at most 2 wide; the brief lines are unchanged. Steward's
+  answer: depth 5 is OK. Steward's gatehouse lots are 9x9, 13x11 or 17x15 (the e2e's is 17x15x40), all at least 9 deep, and an onWall lot is exact (its
+  box is the lot, `LotBrief.build`), so none loses depth. As before, a 9-wide gatehouse is under the 11 width and stays plain.
 
 ## 6d GR RC (2026-10-27): PASS for Steward
 
