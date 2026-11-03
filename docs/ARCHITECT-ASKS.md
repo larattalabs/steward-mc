@@ -1011,6 +1011,9 @@ waits for v0.50.0 and the pin, like every RC branch). Free 43/43. Stub 107, with
   in creative only, or after GM-a2's billing.
 - **Steward's answer on "rungs above the roof":** Steward would like the realise to fill the reserved rung cells at the roof row with the structure block.
   The design leaves them empty, as it's told to, so otherwise the roof has one-cell holes.
+- **v0.50.0 post-release (2026-11-03):** published at Architect main 05611639 (API 1.45.0). Steward main pins 0.50.0 (runtime `>=0.50.0`) with gm-rc merged.
+  Free 43/43; stub 107, one skip (survival growth), the gate mechanism bound and undone. Filling the empty rungs is §16 item 3, in GM-a2. Turning on `mech`
+  in Steward's plan writer is Noah's call, which the coordinator has put to him. Until he answers, Steward asks for none.
 
 ## 6d GR RC (2026-10-27): PASS for Steward
 
