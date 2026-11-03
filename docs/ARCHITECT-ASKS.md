@@ -985,6 +985,9 @@ Architect's draft on `docs/gm-contract` (dbb131f1), CONTRACT.md "Slice GM, gate 
   deep still isn't refused: its passage stays plain, deviation `mechanism`. The drawbridge deck is at most 2 wide; the brief lines are unchanged. Steward's
   answer: depth 5 is OK. Steward's gatehouse lots are 9x9, 13x11 or 17x15 (the e2e's is 17x15x40), all at least 9 deep, and an onWall lot is exact (its
   box is the lot, `LotBrief.build`), so none loses depth. As before, a 9-wide gatehouse is under the 11 width and stays plain.
+- **2026-11-02, box minimum 13 x 7 x 10 (CONTRACT GM §14, Architect main 900db05e):** the day-cycle logic didn't fit hidden in 11 x 5 x 9. Its block
+  (u -6..6, d 1..depth-2, rows lintelY+1..lintelY+5) joins the reserved envelope, which Steward forwards unchanged. Nothing changes for Steward: the 13x11
+  and 17x15 gatehouses fit, as long as their 13 or 17 side runs along the wall (the e2e's runs 17 along). The 9x9 one stays plain.
 
 ## 6d GR RC (2026-10-27): PASS for Steward
 
