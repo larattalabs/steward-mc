@@ -977,6 +977,9 @@ Architect's draft on `docs/gm-contract` (dbb131f1), CONTRACT.md "Slice GM, gate 
   change-request path (versionOf / revision), not ruled out.
 - **`connector.drawbridge`** becomes supported in GM-c (a flipping iron-trapdoor deck over the moat). Closed gates are player-only, a villager route through
   one answers `MOVER`, and the rest state is open by default. Steward un-reserves its drawbridge in GM's RC.
+- **2026-11-02, contract change (CONTRACT GM §12, Architect main 6066411e):** the portcullis is a split sliding grate (gm-probe: a lifting grid can't be
+  built on 26.3), Noah's choice. Open, the passage is two 1-wide lanes beside a fixed middle column. Nothing changes for Steward: the envelope still merges into
+  the lot's reserved entry, the box minimum stays 11 x 3 x 9 (it may only drop after the probe), and the brief lines are the same. GM's RC follows GM-a.
 
 ## 6d GR RC (2026-10-27): PASS for Steward
 
