@@ -182,6 +182,47 @@ class PPlanTest {
 	}
 
 	@Test
+	void aGatehousesMechanismBriefLinesReachItsDesignerWordForWordAndItsEnvelopeIsReservedAsItIs() throws Exception {
+		JsonObject built = PPlan.forBuild(walledTown(), Set.of("town_wall"), "set_7", "b1");
+		String id = PPlan.lots(built).get(0).get("id").getAsString();
+		// (Architect GM-a) the gate's envelope merged into passage.lotCells, its five brief lines on passage.mechanism.brief
+		String[] lines = {"keep 4 clear cells above the passage lintel for the winch room", "give a sky-exposed roof or crenel cell for the daylight sensor",
+			"keep 5 cells of jamb a side of the passage clear of ladders and stairs",
+			"leave the reserved staircase from the gate up to the roof empty or solid, with no redstone, light source or opening on it",
+			"keep the roof over the gate's logic block (the 13 columns centred on the passage, from 1 to 9 cells in from the front face) at or below row 18 above "
+				+ "the passage floor so the gate can sense the sky; towers elsewhere on the lot may rise higher"};
+		JsonObject a = lot(id, new int[] {10, 64, 20, 26, 103, 30}, "south", null);
+		JsonArray brief = new JsonArray();
+		for (String l : lines) brief.add(l);
+		JsonObject mech = new JsonObject();
+		mech.addProperty("kind", "portcullis");
+		mech.add("brief", brief);
+		JsonObject wall = JsonParser.parseString("{\"wall\":\"town_wall\",\"at\":\"gate\",\"frame\":[17,11],"
+			+ "\"passage\":{\"width\":3,\"height\":3,\"lotCells\":[7,0,0,2,8,0,0,2,9,0,0,2,4,1,4,8,4,2,5,8,12,1,4,8]}}").getAsJsonObject();
+		wall.getAsJsonObject("passage").add("mechanism", mech);
+		a.add("onWall", wall);
+		JsonArray art = new JsonArray();
+		art.add(a);
+		var l = PPlan.toPlan(art, built).lots().get(0);
+		for (String line : lines) assertTrue(l.notes().contains(line + "."), line);
+		// a backstory past the notes cap never clips them: the lot's brief comes before the settlement's prose
+		var in = PPlanTest.class.getClassLoader().getResourceAsStream("crater_works.json");
+		var c = dev.larattalabs.steward.model.ConceptCard.parse(JsonParser.parseReader(new java.io.InputStreamReader(in)).getAsJsonObject().getAsJsonObject("card"));
+		var card = new dev.larattalabs.steward.model.ConceptCard(c.name(), c.site(), c.style(), c.purpose(), new dev.larattalabs.steward.model.ConceptCard.Story("x ".repeat(1500)),
+			c.constraints(), c.avoid(), c.interpretation(), c.contradictions(), c.assumptions(), c.program());
+		var big = dev.larattalabs.steward.model.Settlement.found("set_7", card, new dev.larattalabs.steward.model.Claim("minecraft:overworld", 0, 0, 128, -64, 320),
+			dev.larattalabs.steward.model.Permission.PROPOSALS, dev.larattalabs.steward.model.Difficulty.PATRON, 1L);
+		String notes = LotBrief.build(big, l, l.maxHeight(), null, null).notes();
+		assertTrue(notes.length() <= LotBrief.MAX_NOTES);
+		for (String line : lines) assertTrue(notes.contains(line + "."), line);
+		// the merged envelope is forwarded as the artifact has it: the lanes and the jamb and rung runs
+		assertEquals(3 * 3 + 5 + 4 + 5, PPlan.reserved(art).get(id).cells().size());
+		// a gate with no mechanism gets no mechanism lines
+		wall.getAsJsonObject("passage").remove("mechanism");
+		assertNull(PPlan.mechanismWords(wall));
+	}
+
+	@Test
 	void aWallLotsOuterFacesGoToItsDesignerInWordsAndInItsExt() {
 		// a corner tower 5 x 5: its whole back outside, and the middle of its front (the corner's mirror)
 		var lots = JsonParser.parseString("[{\"id\":\"tower_1\",\"front\":\"south\",\"onWall\":{\"wall\":\"w\",\"at\":\"corner\",\"frame\":[5,5],"

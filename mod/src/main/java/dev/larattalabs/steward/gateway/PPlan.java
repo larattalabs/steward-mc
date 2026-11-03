@@ -205,6 +205,23 @@ public final class PPlan {
 		return "Outside the wall: " + list + ". Put its doors elsewhere.";
 	}
 
+	/**
+	 * A gatehouse's mechanism brief lines (Architect GM: {@code onWall.passage.mechanism.brief}), word for word, each closed with a full stop, or null when
+	 * its gate has no mechanism. They ride in the lot's brief, ahead of the settlement's prose and backstory, so the notes clip never takes them.
+	 */
+	static @Nullable String mechanismWords(JsonObject wall) {
+		JsonObject passage = wall.has("passage") && wall.get("passage").isJsonObject() ? wall.getAsJsonObject("passage") : null;
+		JsonObject m = passage != null && passage.has("mechanism") && passage.get("mechanism").isJsonObject() ? passage.getAsJsonObject("mechanism") : null;
+		if (m == null || !m.has("brief") || !m.get("brief").isJsonArray()) return null;
+		List<String> lines = new ArrayList<>();
+		for (JsonElement e : m.getAsJsonArray("brief")) {
+			if (!e.isJsonPrimitive() || e.getAsString().isBlank()) continue;
+			String l = e.getAsString().strip();
+			lines.add(l.endsWith(".") ? l : l + ".");
+		}
+		return lines.isEmpty() ? null : "The gate's mechanism: " + String.join(" ", lines);
+	}
+
 	/** The plan lot of a lot a wall put on its line: a gatehouse round its passage, else a tower named by where it stands (a corner, a run, a via). */
 	static JsonObject wallLotSpec(String id, JsonObject wall) {
 		JsonObject p = new JsonObject();
@@ -318,7 +335,9 @@ public final class PPlan {
 				type = wall.has("passage") && wall.get("passage").isJsonObject() ? "gatehouse" : "tower";
 				bx0 = fit.get(0).getAsInt(); bz0 = fit.get(2).getAsInt(); bx1 = fit.get(3).getAsInt(); bz1 = fit.get(5).getAsInt();
 				String faces = outerFacesWords(wall);
-				brief = (brief == null || brief.isBlank() ? "" : (brief.endsWith(".") ? brief : brief + ".") + " ") + WALL_BRIEF + (faces == null ? "" : " " + faces);
+				String mech = mechanismWords(wall);
+				brief = (brief == null || brief.isBlank() ? "" : (brief.endsWith(".") ? brief : brief + ".") + " ") + WALL_BRIEF + (mech == null ? "" : " " + mech)
+					+ (faces == null ? "" : " " + faces);
 			}
 			out.add(new VillageLayout.Lot(id, type, bx0, bz0, bx1 - bx0 + 1, bz1 - bz0 + 1, front, by0, role(p), brief,
 				p.has("landmark") && p.get("landmark").isJsonPrimitive() && p.get("landmark").getAsBoolean(), p.has("placement") ? str(p, "placement", null) : null, maxHeight,

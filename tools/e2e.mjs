@@ -2362,6 +2362,64 @@ async function driveUntil(id, from, until, ms) {
  * revision of the walled town (Architect's re-check loop over wall lots), undone; the town undone. A second town cancelled while its repair is designed:
  * cancelled once the repair stopped. Skipped on an Architect without wall lots.
  */
+/**
+ * (Architect GM-a) A walled town whose gatehouse has a portcullis (the wall's lenient params.mechanism): the gate's five brief lines reach the
+ * gatehouse's design word for word (the sim roofs at row 10 only when the roof-cap line is in its notes), so the bind finds the sensor's rung rather
+ * than the levers-only deviation; undone, the gatehouse, the mechanism and the town leave the ground as it was.
+ */
+async function gateMechFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 33000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const c = settlements().find((x) => x.id === id).claim;
+  const box = [c.centerX - c.radius - 40, 40, c.centerZ - c.radius - 40, c.centerX + c.radius + 40, 140, c.centerZ + c.radius + 40];
+  const snap = path.join(ROOT, 'artifacts', 'e2e', `gm-${id}.snap.gz`);
+  await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Portcullis Keep';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  // castle_city's towers and gatehouse only (the sim designs no lot 7 deep), the curtain wall's gate with a portcullis
+  const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
+  for (const z of answer.plan.zones) if (z.program?.lots) z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse');
+  const wall = answer.plan.connectors.find((k) => k.id === 'curtain_wall');
+  wall.params = { ...wall.params, mechanism: 'portcullis' };
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a castle with a portcullis in its gatehouse`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('gate mechanism', `${id}: no card`);
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('gate mechanism', `${id}: no plan composed`);
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 6 80`);
+  const built = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings placed/, 1_200_000);
+  const st = settlements().find((x) => x.id === id);
+  const region = (st?.log?.filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '').replace(/^region:/, '');
+  const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
+  const gm = (view?.view?.ext ?? view?.record?.ext ?? {})['architect_mc:gateMechanism'] ?? null;
+  if (!built || !region) return fail('gate mechanism', `built ${!!built}; region ${region || 'none'}; last ${JSON.stringify(st?.log?.at(-1))?.slice(0, 160)}`);
+  if (!gm) { console.log('skip gate mechanism (no gateMechanism on the region: an Architect before GM)'); }
+  else {
+    const g = gm.gatehouse_1;
+    if (g && g.roof != null && g.sensor && !g.deviation) ok('gate mechanism', `${region} gatehouse_1 ${g.kind ?? 'portcullis'}: the sensor at roof row ${g.roof} (the brief lines reached its design)`);
+    else fail('gate mechanism', `gatehouse_1 ${JSON.stringify(g ?? gm).slice(0, 200)}`);
+  }
+  await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
+  await cmd(`/steward undo ${id}`);
+  const gone = await regionUntil(region, ['REMOVED'], 600_000);
+  const gs = gone?.view?.state ?? gone?.state;
+  await clearAnimals();
+  const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
+  const left = (d.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
+  if ((gs === 'REMOVED' || gs === undefined) && left.length === 0) ok('gate mechanism undone', `${region} ${gs ?? 'gone'}; the ground as it was`);
+  else fail('gate mechanism undone', `state ${gs}; ${left.length} cell(s) differ: ${JSON.stringify(left.slice(0, 4)).slice(0, 200)}`);
+}
+
 async function wallLotsFlow() {
   const make = async (name) => {
     const n = settlements().length;
@@ -2781,6 +2839,7 @@ try {
       await districtRegionFlow();
       await quarterFlow();
       await wallLotsFlow();
+      await gateMechFlow();
     }
   }
   await migratedSteward();
