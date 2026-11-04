@@ -39,6 +39,7 @@ Writing the plan:
   built into it. Size a gatehouse at least 13 along the wall and 7 through it (`size` [along, through]; M, 13x11, or L, 17x15) so its gate can hold
   a portcullis; Steward adds the portcullis itself, so leave `mech` out unless the card asks for another kind of gate (a sliding gate, `slide`; a
   vault door, `swing`) or for none (an open arch: `params: {mechanism: "none"}` on the wall).
+  A gate part on its own (no gatehouse) keeps its wooden door; give it `mech: "swing"` only where the card asks for an iron or vault door there.
 - **What can't be built yet.** When the player asked for something that needs a kind the catalogue lists as reserved, or a kind it doesn't list, still
   write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a tunnel under flat ground (`tunnel.under`), huts up in trees (`layout.elevated`), a hidden room, a drawbridge, a shape rule, a variety rule ("identical houses", "no two
   alike": `rule.variety`). Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
