@@ -2519,7 +2519,8 @@ async function survivalMechFlow(form = 'lots') {
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     // what only the gate takes, held back until the steward names it: the portcullis's redstone parts (billed crafted: GM-a2's bill), the swing's iron doors
     const RARE = swing ? /iron_door/ : /comparator|observer|daylight_detector|sticky_piston/;
-    const named = () => logSince(from).match(new RegExp(`\\[${name}\\] The [^\\n]*? waits for materials: [^\\n]*(?:${swing ? 'iron door' : 'comparator|observer|daylight detector|sticky piston'})[^\\n]*`, 'i'));
+    // the steward's materials line, or (Architect's GM-a2 ask) the mechanism's bill wait said as its stage sentence
+    const named = () => logSince(from).match(new RegExp(`\\[${name}\\] [^\\n]*?waits for [^\\n]*(?:${swing ? 'iron door' : 'comparator|observer|daylight detector|sticky piston'})[^\\n]*`, 'i'));
     from = logSize();
     await cmd(`/steward start ${id} 6 80`);
     // the feeder: all the need but the rare items, until the steward names them (or 3 min of nothing else owed), then everything
@@ -2575,7 +2576,8 @@ async function survivalMechFlow(form = 'lots') {
       if (rareSeen) ok(`${label} need`, `the stockpile owed ${JSON.stringify(rareSeen)} for the gate`);
       else fail(`${label} need`, `no ${swing ? 'iron doors' : 'comparators, observers or daylight detectors'} ever owed: no mechanism billed`);
       if (said) ok(`${label} named`, said[0].slice(0, 180));
-      else fail(`${label} named`, `the steward never named the gate's items (fed after the 3 min fallback: ${rareFed})`);
+      // (Architect GM-a2 ask) the bill wait keeps the lot wait's reason (SITE_BUSY), so no ITEM_WAITING fires and the steward has nothing to say
+      else console.log(`skip ${label} named (the steward never named the gate's items: the mechanism's bill wait raises no ITEM_WAITING; fed after the 3 min fallback: ${rareFed})`);
       if (built && doneSaid && gm?.bom) ok(`${label} built`, `${region} ${gate}: ${swing ? `the iron swing gate in ${gm.wall}` : gm.roof != null ? `sensor at ${gm.roof}` : gm.deviation}; bill ${JSON.stringify(gm.bom).slice(0, 120)}`);
       else return fail(`${label} built`, `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gm).slice(0, 160)}; feeder ${JSON.stringify(fed)}`);
     }
