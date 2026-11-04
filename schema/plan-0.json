@@ -103,7 +103,7 @@
       { "id": "connector.tube", "sinceApi": "1.33.0", "schemaVersion": 0, "state": "reserved", "until": "UW", "note": "An underwater glass passage through water (after H; it builds on H's shell rule); a recorded glass tunnel through water names it instead of connector.tunnel (S-T3-7)." },
       { "id": "connector.drawbridge", "sinceApi": "1.33.0", "schemaVersion": 0, "state": "reserved", "until": "mechanism", "note": "A moving bridge (redstone, a lifting deck): a connector.bridge whose params name a mechanism or movable answers this block (R18, S-T3-7)." },
       { "id": "connector.wall", "sinceApi": "1.34.0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/connector.wall", "limits": { "height": [3, 16], "thickness": [1, 3], "gates": [0, 16], "waterDepth": [0, 8] }, "note": "A course crosses under a water gate (HY, wall.water_gate): the wall on a lintel over a still reach, an iron grate in the water under it; it counts against gates.max, and a sealed wall refuses it." },
-      { "id": "connector.gate", "sinceApi": "1.32.0", "schemaVersion": 1, "state": "supported", "def": "#/$defs/connector.gate", "limits": { "width": [1, 5], "height": [2, 6], "doors": ["none", "door", "fence_gate"] } },
+      { "id": "connector.gate", "sinceApi": "1.32.0", "schemaVersion": 2, "state": "supported", "def": "#/$defs/connector.gate", "limits": { "width": [1, 5], "height": [2, 6], "doors": ["none", "door", "fence_gate"], "mech": ["none", "swing"] }, "note": "GM-b: mech swing is the iron swing door pair with a button outside and a plate and lever inside, 3 wide and 3 high in a wall at least 3 thick; on a villager edge, a thinner wall or no 3-wide run it keeps the wooden door (adjusted, deviation mechanism)." },
       { "id": "connector.ladder", "sinceApi": "1.23.0", "schemaVersion": 0, "state": "reserved", "until": "7a" },
       { "id": "connector.stair", "sinceApi": "1.23.0", "schemaVersion": 0, "state": "reserved", "until": "7a" },
       { "id": "connector.rail", "sinceApi": "1.23.0", "schemaVersion": 0, "state": "reserved", "until": "7a" },
@@ -566,6 +566,7 @@
         "height": { "type": "integer", "minimum": 2, "maximum": 6 },
         "door": { "enum": ["none", "door", "fence_gate"] },
         "frame": { "enum": ["plain", "arch"] },
+        "mech": { "enum": ["none", "swing"], "description": "(GM-b) none (default) or swing: the iron swing door pair, opened by a button outside and a plate or lever inside (player gates only)." },
         "params": { "type": "object", "description": "Read leniently, never malformed (R17); every key is listed in the answer's notes." }
       }
     },
