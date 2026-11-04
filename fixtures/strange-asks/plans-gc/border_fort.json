@@ -1,0 +1,221 @@
+{
+  "prompt": "A border fort guarding the pass against the settlement to the north.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "pass_border_fort",
+      "style": {
+        "pending": "pass_border_fort"
+      },
+      "zones": [
+        {
+          "id": "fort",
+          "required": true,
+          "purpose": "garrison",
+          "label": "Fort ward",
+          "style": {
+            "pending": "pass_border_fort"
+          },
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "keep_1",
+                "type": "tower",
+                "role": "keep",
+                "label": "commander's keep",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Fortified keep on the south side of the pass, overlooking the wall and the northern approach."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "north gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Portcullis gate closing the pass road, facing north."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "wall watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Archer platform flanking the wall on the west side of the pass."
+              },
+              {
+                "id": "tower_2",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "wall watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Archer platform flanking the wall on the east side of the pass."
+              },
+              {
+                "id": "barracks_1",
+                "type": "house",
+                "role": "barracks",
+                "label": "garrison barracks",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Bunks and chests for gear, behind the wall."
+              },
+              {
+                "id": "barracks_2",
+                "type": "house",
+                "role": "barracks",
+                "label": "garrison barracks",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Bunks and chests for gear, behind the wall."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "armoury",
+                "label": "armoury smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Repairs weapons and armour; anvil and grindstone."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "mess_hall",
+                "label": "mess hall",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "villager": "none",
+                "brief": "Soldiers' canteen with long tables and hearth."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "granary",
+                "label": "granary and stores",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Food, arrows and supplies."
+              },
+              {
+                "id": "barn_2",
+                "type": "barn",
+                "role": "stables",
+                "label": "stables",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Horses for patrols and messengers."
+              }
+            ],
+            "layout": "street",
+            "shared": "square"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "fort_wall",
+          "kind": "wall",
+          "required": true,
+          "label": "Pass wall",
+          "where": {
+            "inside": {
+              "part": "fort"
+            }
+          },
+          "height": 8,
+          "thickness": 3,
+          "crenels": true,
+          "corners": "tower",
+          "walk": true,
+          "gates": 1,
+          "lots": [
+            {
+              "lot": "gatehouse_1",
+              "at": "gate",
+              "mech": "portcullis"
+            },
+            {
+              "lot": "tower_1",
+              "at": "corner"
+            },
+            {
+              "lot": "tower_2",
+              "at": "corner"
+            }
+          ],
+          "notes": "Gatehouse on the north side faces the pass road."
+        },
+        {
+          "id": "pass_road",
+          "kind": "road",
+          "required": false,
+          "label": "Pass road",
+          "from": {
+            "anchor": "claim_n"
+          },
+          "to": {
+            "part": "gatehouse_1"
+          },
+          "width": 3,
+          "lamps": "few"
+        }
+      ],
+      "forms": [],
+      "rules": [],
+      "notes": "Fort faces north; survey not available, so it is placed on whatever pass the claim holds."
+    },
+    "waits": [],
+    "summary": "A medium border fort across the pass, facing north. A walled ward with a walkable crenellated wall, a north gatehouse with portcullis, and two corner watchtowers. Inside are the commander's keep on high ground, two barracks, a smithy, a mess hall, a granary and stables. A road runs in from the north to the gate."
+  },
+  "usd": 0.041402,
+  "errors": []
+}

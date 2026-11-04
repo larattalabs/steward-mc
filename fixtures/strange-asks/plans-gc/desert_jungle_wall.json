@@ -1,0 +1,351 @@
+{
+  "prompt": "On the edge between the desert and the jungle: a wall down the middle, the jungle side growing spices and medicine, the desert side mining and glassmaking.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "spice_glass_wall_town",
+      "style": {
+        "pending": "spice_glass_wall_town"
+      },
+      "zones": [
+        {
+          "id": "gate_quarter",
+          "purpose": "market",
+          "required": true,
+          "label": "Gate quarter",
+          "style": {
+            "pending": "spice_glass_wall_town"
+          },
+          "where": {
+            "near": {
+              "anchor": "claim_center",
+              "within": 16
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "border wall gatehouse",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Great gate in the dividing wall where goods pass between jungle and desert; toll room and wall walk."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "jungle-side watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Set into the wall, overlooking the jungle side."
+              },
+              {
+                "id": "tower_2",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "desert-side watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Set into the wall, overlooking the desert side."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "market",
+                "label": "border market",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "villager": "trading_hall",
+                "brief": "Beside the gate, where spices, medicine, glass and ore are traded."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "inn",
+                "label": "caravan inn",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "villager": "none",
+                "brief": "Resting place for traders crossing the wall."
+              }
+            ],
+            "layout": "street",
+            "shared": "square"
+          }
+        },
+        {
+          "id": "jungle_side",
+          "purpose": "spices",
+          "required": true,
+          "label": "Jungle side",
+          "style": {
+            "pending": "spice_glass_wall_town"
+          },
+          "where": {
+            "near": {
+              "anchor": "claim_w",
+              "within": 40
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "spice_farm",
+                "label": "spice terrace farm",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "farm",
+                "irrigate": true,
+                "brief": "Terraced beds, drying racks and storehouse for spices."
+              },
+              {
+                "id": "barn_2",
+                "type": "barn",
+                "role": "spice_farm",
+                "label": "spice terrace farm",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "farm",
+                "irrigate": true,
+                "brief": "Terraced beds, drying racks and storehouse for spices."
+              },
+              {
+                "id": "apothecary_1",
+                "type": "shop",
+                "role": "apothecary",
+                "label": "herbalist's apothecary",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Medicine brewing, hanging herbs, brewing stands and potions."
+              },
+              {
+                "id": "apothecary_2",
+                "type": "shop",
+                "role": "apothecary",
+                "label": "herbalist's apothecary",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Medicine brewing, hanging herbs, brewing stands and potions."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "grower_home",
+                "label": "jungle grower's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Wood home among the trees."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "grower_home",
+                "label": "jungle grower's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Wood home among the trees."
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "grower_home",
+                "label": "jungle grower's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Wood home among the trees."
+              }
+            ],
+            "layout": "organic"
+          }
+        },
+        {
+          "id": "desert_side",
+          "purpose": "mining",
+          "required": true,
+          "label": "Desert side",
+          "style": {
+            "pending": "spice_glass_wall_town"
+          },
+          "where": {
+            "near": {
+              "anchor": "claim_e",
+              "within": 40
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "glassworks_1",
+                "type": "glass_works",
+                "role": "glassworks",
+                "label": "glassworks",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "villager": "job",
+                "brief": "Kilns and furnaces turning sand to glass, with glass windows and a display hall."
+              },
+              {
+                "id": "mine_head_1",
+                "type": "mine_head",
+                "role": "mine_head",
+                "label": "mine head",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "job",
+                "brief": "Shaft entrance and ore carts, on the outer edge."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "miner_home",
+                "label": "miner's house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Sandstone home for miners and glassmakers."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "miner_home",
+                "label": "miner's house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Sandstone home for miners and glassmakers."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "miner_home",
+                "label": "miner's house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Sandstone home for miners and glassmakers."
+              }
+            ],
+            "layout": "street"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "great_wall",
+          "kind": "wall",
+          "required": true,
+          "label": "Great dividing wall",
+          "from": {
+            "anchor": "claim_n"
+          },
+          "to": {
+            "anchor": "claim_s"
+          },
+          "height": 8,
+          "thickness": 3,
+          "walk": true,
+          "lots": [
+            {
+              "lot": "gatehouse_1",
+              "at": "gate",
+              "mech": "portcullis"
+            },
+            {
+              "lot": "tower_1",
+              "at": "run"
+            },
+            {
+              "lot": "tower_2",
+              "at": "run"
+            }
+          ],
+          "notes": "Jungle on the west side, desert on the east."
+        },
+        {
+          "id": "jungle_road",
+          "kind": "road",
+          "required": false,
+          "label": "Jungle road",
+          "from": {
+            "part": "jungle_side"
+          },
+          "to": {
+            "part": "gate_quarter"
+          }
+        },
+        {
+          "id": "desert_road",
+          "kind": "road",
+          "required": false,
+          "label": "Desert road",
+          "from": {
+            "part": "desert_side"
+          },
+          "to": {
+            "part": "gate_quarter"
+          }
+        }
+      ],
+      "notes": "Cottages are ground-level for now; stilts would need layout.elevated."
+    },
+    "waits": [],
+    "summary": "A desert-jungle border town split by a great north-south wall with a walkable top. Jungle spice farms, apothecaries and cottages sit on the west. The glassworks, mine head and miners' houses sit on the east. A gate quarter in the middle holds the gatehouse, two wall towers, the market and the inn. Roads link each side to the gate. The jungle cottages stand on the ground rather than on stilts."
+  },
+  "usd": 0.282404,
+  "errors": []
+}
