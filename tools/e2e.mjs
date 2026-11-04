@@ -2445,6 +2445,18 @@ function swingAnswer() {
   return answer;
 }
 
+/**
+ * (Architect WS) The same hamlet with no gate part: its wall opts every gate in (`gateMech: "swing"`), so the road's crossing and the gates.min
+ * the wall cuts on its own are all swings, each its own gateMechanisms entry (`curtain_g<n>`), bill and refund (CONTRACT §19).
+ */
+function wallSwingAnswer() {
+  const answer = swingAnswer();
+  answer.plan.connectors = answer.plan.connectors.filter((c) => c.kind !== 'gate');
+  Object.assign(answer.plan.connectors.find((c) => c.id === 'curtain'), { gates: { min: 2 }, gateMech: 'swing' });
+  answer.summary = 'A hamlet behind a wall whose every gate is iron';
+  return answer;
+}
+
 async function gateMechFlow(form = 'lenient') {
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} 33000 0 1 false @p`);
@@ -2517,8 +2529,9 @@ async function gateMechFlow(form = 'lenient') {
  * every consumed unit comes back.
  */
 async function survivalMechFlow(form = 'lots') {
-  const swing = form === 'swing';
-  const name = swing ? 'Swing Supply' : 'Gate Supply';
+  const wall = form === 'wall';
+  const swing = form === 'swing' || wall;
+  const name = wall ? 'Wall Swing Supply' : swing ? 'Swing Supply' : 'Gate Supply';
   const gate = swing ? 'east_gate' : 'gatehouse_1';
   await cmd('/architect survival on');
   await cmd('/defaultgamemode survival');
@@ -2535,7 +2548,7 @@ async function survivalMechFlow(form = 'lots') {
     const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
     card.name = name;
     await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
-    const answer = swing ? swingAnswer() : JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
+    const answer = wall ? wallSwingAnswer() : swing ? swingAnswer() : JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
     if (!swing) for (const z of answer.plan.zones) if (z.program?.lots) z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse');
     await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
     let from = logSize();
@@ -2606,16 +2619,26 @@ async function survivalMechFlow(form = 'lots') {
     const st = settlements().find((x) => x.id === id);
     const region = (st?.log?.filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '').replace(/^region:/, '');
     const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
-    const gm = ((view?.view?.ext ?? view?.record?.ext ?? {})['architect_mc:gateMechanism'] ?? {})[gate] ?? null;
+    const gms = (view?.view?.ext ?? view?.record?.ext ?? {})['architect_mc:gateMechanism'] ?? {};
+    const gm = gms[gate] ?? null;
     const said = named();
     // (Architect WL, v0.53.0) the stockpile's crates at the claim centre push the castle zone aside; its wall keeps its lots (CONTRACT §18)
-    {
+    if (wall) {
+      // (Architect WS) every gate the wall cut is a swing of its own, billed apart: two or more curtain_g<n> entries, each with its bill
+      const swings = Object.entries(gms).filter(([g, m]) => /^curtain_g\d+$/.test(g) && m?.kind === 'swing' && m?.bom);
+      if (rareSeen) ok('survival wall swings need', `the stockpile owed ${JSON.stringify(rareSeen)} for the gates`);
+      else fail('survival wall swings need', 'no iron doors ever owed: no swing billed');
+      if (said) ok('survival wall swings named', said[0].slice(0, 180));
+      else fail('survival wall swings named', `the steward never named the gates' items (fed after the 3 min fallback: ${rareFed})`);
+      if (built && doneSaid && swings.length >= 2) ok('survival wall swings built', `${region}: ${swings.length} auto gates are swings (${swings.map(([g, m]) => `${g} ${JSON.stringify(m.bom).slice(0, 60)}`).join('; ')})`);
+      else return fail('survival wall swings built', `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gms).slice(0, 240)}; feeder ${JSON.stringify(fed)}`);
+    } else {
       const label = `survival mechanism${swing ? ' (swing)' : ''}`;
       if (rareSeen) ok(`${label} need`, `the stockpile owed ${JSON.stringify(rareSeen)} for the gate`);
       else fail(`${label} need`, `no ${swing ? 'iron doors' : 'comparators, observers or daylight detectors'} ever owed: no mechanism billed`);
+      // (Architect WE) the move to the mechanism's bill wait fires one ITEM_WAITING whose waitsFor.say names the missing items
       if (said) ok(`${label} named`, said[0].slice(0, 180));
-      // (Architect GM-a2 ask) the bill wait keeps the lot wait's reason (SITE_BUSY), so no ITEM_WAITING fires and the steward has nothing to say
-      else console.log(`skip ${label} named (the steward never named the gate's items: the mechanism's bill wait raises no ITEM_WAITING; fed after the 3 min fallback: ${rareFed})`);
+      else fail(`${label} named`, `the steward never named the gate's items (fed after the 3 min fallback: ${rareFed})`);
       if (built && doneSaid && gm?.bom) ok(`${label} built`, `${region} ${gate}: ${swing ? `the iron swing gate in ${gm.wall}` : gm.roof != null ? `sensor at ${gm.roof}` : gm.deviation}; bill ${JSON.stringify(gm.bom).slice(0, 120)}`);
       else return fail(`${label} built`, `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gm).slice(0, 160)}; feeder ${JSON.stringify(fed)}`);
     }
@@ -2635,8 +2658,9 @@ async function survivalMechFlow(form = 'lots') {
       if (back !== used) off.push(`${item} ${back}/${used}`);
     }
     const rareBack = Object.keys(before?.consumed ?? {}).filter((k) => RARE.test(k));
-    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length) ok(`survival mechanism${swing ? ' (swing)' : ''} refund`, `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
-    else fail(`survival mechanism${swing ? ' (swing)' : ''} refund`, `${last?.kind}; rare consumed ${rareBack.join(', ') || 'none'}; refunds off: ${off.slice(0, 8).join(', ')}`);
+    const refund = wall ? 'survival wall swings refund' : `survival mechanism${swing ? ' (swing)' : ''} refund`;
+    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length) ok(refund, `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
+    else fail(refund, `${last?.kind}; rare consumed ${rareBack.join(', ') || 'none'}; refunds off: ${off.slice(0, 8).join(', ')}`);
   } finally {
     await cmd('/defaultgamemode creative');
     await cmd('/architect survival off');
@@ -3068,6 +3092,7 @@ try {
       await gateMechFlow('swing');
       await survivalMechFlow();
       await survivalMechFlow('swing');
+      await survivalMechFlow('wall');
     }
   }
   await migratedSteward();
