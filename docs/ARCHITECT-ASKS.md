@@ -1118,3 +1118,9 @@ built, refunded). The survival gate town is checked again, with no skip (1a600ab
   gatehouse to be built.". Until then, the e2e reports the two `named` checks as skips (dbd1e9f). Its regex already accepts such a sentence.
 - Steward's own e2e fixes on the way (e7d8553): the swing towers on 13x13 lots (the sim designs none 7 deep), and the portcullis held back by its
   crafted parts. gmb-rc merges when the pin moves to v0.53.0.
+
+## v0.53.1 post-release check (2026-11-04): PASS
+
+Steward builds against the published v0.53.1 (`architect_version`, runtime minimum 0.53.1; 0.53.0's package has no .module file and no sources jar, so
+it is skipped). gmb-rc is merged. Free 43/43. Stub PASS 117 with three skips: `survival growth` (the walled town's street, as before) and the two
+mechanism `named` checks (the bill-wait ask, still open).
