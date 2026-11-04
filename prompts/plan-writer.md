@@ -34,6 +34,12 @@ Writing the plan:
   part), and a wall walk on a wall the card means to be walked; rope bridges, stone bridges and tunnels through a hill; climbs where a way goes up a
   slope or a cliff (stairs, switchbacks, ladders); ponds, fountains, moats (`channel.moat`) and quays; relief, terraces, ice and rock spires. A wall
   dividing two quarters is a `wall.line` between them.
+- **Gatehouses and towers stand on their wall.** A wall whose zone has a gatehouse or corner towers names them in its `lots`: each gatehouse
+  `{lot, at: "gate"}`, each corner tower `{lot, at: "corner"}`, other towers on it `{lot, at: "run"}`. Its gatehouse is then the wall's way through,
+  built into it. Size a gatehouse at least 13 along the wall and 7 through it (`size` [along, through]; M, 13x11, or L, 17x15) so its gate can hold
+  a portcullis; Steward adds the portcullis itself, so leave `mech` out unless the card asks for another kind of gate (a sliding gate, `slide`; a
+  vault door, `swing`) or for none (an open arch: `params: {mechanism: "none"}` on the wall).
+  A gate part on its own (no gatehouse) keeps its wooden door; give it `mech: "swing"` only where the card asks for an iron or vault door there.
 - **What can't be built yet.** When the player asked for something that needs a kind the catalogue lists as reserved, or a kind it doesn't list, still
   write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a tunnel under flat ground (`tunnel.under`), huts up in trees (`layout.elevated`), a hidden room, a drawbridge, a shape rule, a variety rule ("identical houses", "no two
   alike": `rule.variety`). Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
@@ -66,7 +72,7 @@ Writing the plan:
   - a bridge (rope or stone) spans a real gap, water or a drop, between two places: never between places on the same ground, and never from a place
     to itself. Huts up in trees or on stilts are raised lots: write them as the reserved `layout.elevated` so they wait, with their bridges depending
     on it;
-  - a gate sits on its wall (its `at`); it never names a gatehouse lot's port, since lots aren't placed on a wall line yet;
+  - a gate sits on its wall (its `at`); a gatehouse is on the wall through the wall's `lots`, never through a gate part naming its port;
   - name a river, the sea or a shore only when the land line says there is one here; else write the place as you would want it and say in `waits`
     that it needs water nearby;
   - a reserved layout (a spiral, a ring, a grid) is written as its reserved kind so it waits; never as a steep street that tries to draw it.

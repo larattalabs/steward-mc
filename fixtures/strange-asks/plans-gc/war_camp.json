@@ -1,0 +1,196 @@
+{
+  "prompt": "A war camp besieging the castle on the next hill.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "siege_camp",
+      "style": {
+        "pending": "siege_camp"
+      },
+      "zones": [
+        {
+          "id": "camp",
+          "kind": "standard",
+          "required": true,
+          "label": "Siege camp",
+          "purpose": "military",
+          "style": {
+            "pending": "siege_camp"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "pavilion_1",
+                "type": "war_pavilion",
+                "role": "commander_pavilion",
+                "label": "commander's pavilion",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Large striped tent-hall with a war table, maps and banners; faces the castle."
+              },
+              {
+                "id": "tent_1",
+                "type": "tent",
+                "role": "soldier_tent",
+                "label": "soldiers' tent",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "none",
+                "brief": "Wool tent with bedrolls, weapon racks and a campfire beside it."
+              },
+              {
+                "id": "tent_2",
+                "type": "tent",
+                "role": "soldier_tent",
+                "label": "soldiers' tent",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "none",
+                "brief": "Wool tent with bedrolls, weapon racks and a campfire beside it."
+              },
+              {
+                "id": "tent_3",
+                "type": "tent",
+                "role": "soldier_tent",
+                "label": "soldiers' tent",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "none",
+                "brief": "Wool tent with bedrolls, weapon racks and a campfire beside it."
+              },
+              {
+                "id": "tent_4",
+                "type": "tent",
+                "role": "soldier_tent",
+                "label": "soldiers' tent",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "none",
+                "brief": "Wool tent with bedrolls, weapon racks and a campfire beside it."
+              },
+              {
+                "id": "workshop_1",
+                "type": "siege_workshop",
+                "role": "siege_workshop",
+                "label": "siege workshop",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "job",
+                "brief": "Open-sided shed where catapults and rams are built; unfinished engines outside, on the castle-facing side."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watch_lookout",
+                "label": "watch lookout",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Timber tower with a view of the castle walls."
+              },
+              {
+                "id": "forge_1",
+                "type": "smithy",
+                "role": "field_forge",
+                "label": "field forge",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Repairs weapons and armor; anvil, grindstone, barrels of arrows."
+              },
+              {
+                "id": "supply_1",
+                "type": "barn",
+                "role": "supply_stables",
+                "label": "supply tent and stables",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Food crates, hay and horses at the rear, away from the castle."
+              },
+              {
+                "id": "hospital_1",
+                "type": "tent",
+                "role": "field_hospital",
+                "label": "field hospital",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "none",
+                "brief": "Beds, cauldrons and bandage chests."
+              }
+            ],
+            "layout": "organic",
+            "shared": "square"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "palisade",
+          "kind": "wall",
+          "required": false,
+          "label": "Wood palisade",
+          "where": {
+            "around": {
+              "feature": {
+                "part": "camp"
+              },
+              "ring": [
+                4,
+                10
+              ],
+              "closed": false
+            }
+          },
+          "height": 5,
+          "thickness": 1,
+          "crenels": false,
+          "lamps": "gates",
+          "notes": "Rough timber palisade, open on the castle-facing side; torches at the gates."
+        }
+      ],
+      "forms": [],
+      "rules": [],
+      "notes": "The castle on the next hill is scenery, not part of this plan. Survey was not available, so the camp is placed near the stone and should be moved to high ground facing the castle."
+    },
+    "waits": [],
+    "summary": "A medium siege camp of ten buildings: a large commander's pavilion at the centre, four soldiers' tents, a field hospital, a forge, a siege workshop, a supply tent with stables, and a timber watch lookout on the highest ground. The camp is loosely laid out around a muster square, with a rough wooden palisade open on the castle side. The castle is treated as existing scenery. The land wasn't surveyed, so the camp is placed near the founding stone."
+  },
+  "usd": 0.040448,
+  "errors": []
+}

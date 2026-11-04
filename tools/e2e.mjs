@@ -54,6 +54,43 @@ function launch() {
 async function connect() {
   dev = await DevClient.connect({ port: PORT, timeoutMs: 400_000 });
   await dev.waitInWorld({ timeoutMs: 400_000 });
+  // a new client writes a new log: the herder reads it from its start
+  herdAt = 0;
+  startHerder();
+}
+
+/**
+ * Occupied lots never stall a run (Noah, 2026-11-04): a building waits with no time limit for an animal or a player in its box, so one watcher for the
+ * whole run reads the steward's "... is in its lot. Move it out" and "someone is standing on its lot" and clears the animals (and their drops) or moves
+ * the dev player just past that town's claim, where the ground stays loaded. Every flow, every restart (the game's log starts afresh: read from its
+ * start again). Architect's harnesses keep the same rule (slice OC).
+ */
+let herdAt = 0, herding = false, herder = null;
+function startHerder() {
+  if (herder) return;
+  herder = setInterval(() => {
+    if (herding || !dev) return;
+    herding = true;
+    herd().catch(() => {}).finally(() => { herding = false; });
+  }, 2000);
+  herder.unref();
+}
+
+async function herd() {
+  const all = fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8') : '';
+  if (all.length < herdAt) herdAt = 0;
+  const text = all.slice(herdAt);
+  herdAt = all.length;
+  // the steward's words, Architect's own wait (a box held by an animal the steward hasn't named) and a stopped removal
+  if (/is in its lot\. Move it out|waits \(OCCUPIED\): Not placed: in the box|Removal stopped of [^\n]*Move these out/.test(text)) await clearAnimals();
+  const standing = [...text.matchAll(/\[([^\]\n]+)\] The [^\n]*? waits: someone is standing on its lot/g)].map((m) => m[1]);
+  if (!standing.length && !/someone is standing on its lot/.test(text)) return;
+  const all_ = settlements();
+  const named = standing.map((n) => all_.find((x) => (x.card?.name ?? x.name) === n)).filter(Boolean);
+  for (const st of named.length ? named : all_.slice(-1)) {
+    const c = st.claim;
+    if (c) await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ + c.radius + 12}`);
+  }
 }
 
 async function quit() {
@@ -78,6 +115,8 @@ async function closeScreens() {
 }
 
 async function cmd(c) {
+  // an animal in what an undo takes up stops the removal (Architect asks for force), so every undo starts with the land cleared
+  if (/^\/steward undo\b/.test(c)) await clearAnimals();
   const r = await dev.request('dev.command', { cmd: c });
   return (r.messages ?? []).join(' | ');
 }
@@ -1378,18 +1417,9 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
   const end = Date.now() + ms;
   // nothing in the lots' way: an animal in a box holds its item up for Architect's whole wait (C30)
   await clearAnimals();
-  let at = from, herdAt = from;
+  let at = from;
   while (Date.now() < end) {
-    // an animal that walked into a lot while it was designed holds the lot's item up with no time limit (the steward names it): moved out, as a player would
-    // and the player standing on a lot (Architect waits for them to step off, again with no time limit): moved just past the claim's edge, where the ground
-    // stays loaded
-    const herd = logSince(herdAt);
-    if (/is in its lot\. Move it out|someone is standing on its lot/.test(herd)) {
-      herdAt = logSize();
-      if (/is in its lot\. Move it out/.test(herd)) await clearAnimals();
-      const c = /someone is standing on its lot/.test(herd) ? settlements().find((x) => x.id === id)?.claim : null;
-      if (c) await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ + c.radius + 12}`);
-    }
+    // (an animal or the player in a lot: the run's herder moves them out)
     const since = logSince(at);
     const built = since.match(/is built(?: in part)?: (\d+) buildings placed/);
     if (built) return { steps, placed: Number(built[1]) };
@@ -1412,8 +1442,6 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
       await quit();
       launch();
       await connect();
-      // a new client's log: the animal watch starts over with it
-      herdAt = 0;
       if (onStep) await onStep('restart-after');
       if (await waitLog(0, new RegExp(`resume ${id}: [^\\n]*-> REREAD_GROUP`), 30_000)) ok('restart mid-build', label);
       else fail('restart mid-build', `${label}: no re-read`);
@@ -2334,15 +2362,9 @@ async function revisionFlow() {
  * the log from {@code from} matches {@code until}: the match, or null when the build stopped or the time ran out.
  */
 async function driveUntil(id, from, until, ms) {
-  let at = from, herdAt = from;
+  let at = from;
   for (const end = Date.now() + ms; Date.now() < end;) {
-    const herd = logSince(herdAt);
-    if (/is in its lot\. Move it out|someone is standing on its lot/.test(herd)) {
-      herdAt = logSize();
-      await clearAnimals();
-      const c = settlements().find((x) => x.id === id)?.claim;
-      if (c && /someone is standing on its lot/.test(herd)) await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ + c.radius + 12}`);
-    }
+    // (an animal or the player in a lot: the run's herder moves them out)
     const all = logSince(from);
     const m = all.match(until);
     if (m) return m;
@@ -2363,11 +2385,11 @@ async function driveUntil(id, from, until, ms) {
  * cancelled once the repair stopped. Skipped on an Architect without wall lots.
  */
 /**
- * (Architect GM-a) A walled town whose gatehouse has a portcullis (the wall's lenient params.mechanism): the gate's five brief lines reach the
+ * (Architect GM-a) A walled town whose gatehouse has a portcullis (Steward's own lenient params.mechanism): the gate's five brief lines reach the
  * gatehouse's design word for word (the sim roofs at row 10 only when the roof-cap line is in its notes), so the bind finds the sensor's rung rather
  * than the levers-only deviation; undone, the gatehouse, the mechanism and the town leave the ground as it was.
  */
-async function gateMechFlow() {
+async function gateMechFlow(form = 'lenient') {
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} 33000 0 1 false @p`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
@@ -2381,13 +2403,19 @@ async function gateMechFlow() {
   const snap = path.join(ROOT, 'artifacts', 'e2e', `gm-${id}.snap.gz`);
   await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
   const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
-  card.name = 'Portcullis Keep';
+  card.name = form === 'lots' ? 'Portcullis Wall' : 'Portcullis Keep';
   await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
   // castle_city's towers and gatehouse only (the sim designs no lot 7 deep), the curtain wall's gate with a portcullis
   const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
   for (const z of answer.plan.zones) if (z.program?.lots) z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse');
-  const wall = answer.plan.connectors.find((k) => k.id === 'curtain_wall');
-  wall.params = { ...wall.params, mechanism: 'portcullis' };
+  // (no mechanism in the fixture: Steward adds the portcullis to every gatehouse a wall names, PlanWriterJob.withGateMechanisms)
+  // the wall as the plan writer now writes it (K3 lots: the gatehouse at its gate, the towers at its corners), so Steward's mech is explicit
+  if (form === 'lots') {
+    const wall = answer.plan.connectors.find((k) => k.id === 'curtain_wall');
+    const { gate_lot, corner_lots, ...rest } = wall.params;
+    wall.params = rest;
+    wall.lots = [{ lot: gate_lot, at: 'gate' }, ...corner_lots.map((lot) => ({ lot, at: 'corner' }))];
+  }
   await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
   let from = logSize();
   await cmd(`/steward describe ${id} a castle with a portcullis in its gatehouse`);
@@ -2403,11 +2431,12 @@ async function gateMechFlow() {
   const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
   const gm = (view?.view?.ext ?? view?.record?.ext ?? {})['architect_mc:gateMechanism'] ?? null;
   if (!built || !region) return fail('gate mechanism', `built ${!!built}; region ${region || 'none'}; last ${JSON.stringify(st?.log?.at(-1))?.slice(0, 160)}`);
-  if (!gm) { console.log('skip gate mechanism (no gateMechanism on the region: an Architect before GM)'); }
+  // (Steward needs Architect >= 0.51.0, which has GM: no report means no mechanism was asked for)
+  if (!gm) fail(`gate mechanism (${form})`, `${region}: no gateMechanism on the region (Steward asked for no mechanism?)`);
   else {
     const g = gm.gatehouse_1;
-    if (g && g.roof != null && g.sensor && !g.deviation) ok('gate mechanism', `${region} gatehouse_1 ${g.kind ?? 'portcullis'}: the sensor at roof row ${g.roof} (the brief lines reached its design)`);
-    else fail('gate mechanism', `gatehouse_1 ${JSON.stringify(g ?? gm).slice(0, 200)}`);
+    if (g && g.roof != null && g.sensor && !g.deviation) ok(`gate mechanism (${form})`, `${region} gatehouse_1 ${g.kind ?? 'portcullis'}: the sensor at roof row ${g.roof} (the brief lines reached its design)`);
+    else fail(`gate mechanism (${form})`, `gatehouse_1 ${JSON.stringify(g ?? gm).slice(0, 200)}`);
   }
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
   await cmd(`/steward undo ${id}`);
@@ -2416,8 +2445,140 @@ async function gateMechFlow() {
   await clearAnimals();
   const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
   const left = (d.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
-  if ((gs === 'REMOVED' || gs === undefined) && left.length === 0) ok('gate mechanism undone', `${region} ${gs ?? 'gone'}; the ground as it was`);
-  else fail('gate mechanism undone', `state ${gs}; ${left.length} cell(s) differ: ${JSON.stringify(left.slice(0, 4)).slice(0, 200)}`);
+  if ((gs === 'REMOVED' || gs === undefined) && left.length === 0) ok(`gate mechanism undone (${form})`, `${region} ${gs ?? 'gone'}; the ground as it was`);
+  else fail(`gate mechanism undone (${form})`, `state ${gs}; ${left.length} cell(s) differ: ${JSON.stringify(left.slice(0, 4)).slice(0, 200)}`);
+}
+
+/**
+ * (Architect GM-a2) A gate mechanism in survival: castle_city's towers and gatehouse built from the stockpile, its curtain wall's portcullis added by
+ * Steward itself (PlanWriterJob.withGateMechanisms, not the fixture). The mechanism's bill is part of the stockpile's need; its rare items (slime balls,
+ * quartz) are held back until the steward names them, then fed; the town is said built only with the gate in, the exact bill on the region; undone,
+ * every consumed unit comes back.
+ */
+async function survivalMechFlow() {
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  try {
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 45000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = 'Gate Supply';
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
+    for (const z of answer.plan.zones) if (z.program?.lots) z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse');
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a castle built from what we gather`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('survival mechanism', 'no card');
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('survival mechanism', 'no plan composed');
+    const diff = settlements().find((x) => x.id === id)?.difficulty;
+    if (diff !== 'SUPPLIED') return fail('survival mechanism', `difficulty ${diff} in a survival world`);
+    await closeScreens();
+    await clearAnimals();
+    const claim = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + claim.radius + 12}`);
+    const owner = `steward_mc:settlement/${id}`;
+    const ledger = async () => {
+      const r = await cmd(`/steward dev stockpile ${id}`);
+      const m = r.match(/stockpile \S+ (\{.*\})/);
+      return m ? JSON.parse(m[1]) : null;
+    };
+    const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    const RARE = /slime_ball|quartz/;
+    const named = () => logSince(from).match(/\[Gate Supply\] The [^\n]*? waits for materials: [^\n]*(?:slime|quartz)[^\n]*/i);
+    from = logSize();
+    await cmd(`/steward start ${id} 6 80`);
+    // the feeder: all the need but the rare items, until the steward names them (or 3 min of nothing else owed), then everything
+    let stop = false, rareSeen = null, rareFed = false, onlyRareSince = 0;
+    // what the feeder saw and did, for a failure's message
+    const fed = { polls: 0, noLedger: 0, owed: 0, accepted: 0, refused: 0, lastNeed: null, crates: 0 };
+    // the town's ground and wall alone owe ~10,000 items, more than the 2 crates hold while the gate's sites wait: a full stockpile gets
+    // another crate beside its first (the player stands there for /steward stockpile add, then goes back to watch)
+    const addCrate = async () => {
+      const at = logSince(from).match(/stockpile is the \d+ crates? at (-?\d+), (-?\d+), (-?\d+)/);
+      if (!at || fed.crates >= 6) return;
+      const [x, y, z] = at.slice(1).map(Number);
+      fed.crates++;
+      await cmd(`/tp @p ${x + 2 * fed.crates + 0.5} ${y} ${z + 0.5}`);
+      fed.lastCrate = (await cmd(`/steward stockpile ${id} add`)).slice(0, 120);
+      await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + claim.radius + 12}`);
+    };
+    const feeder = (async () => {
+      while (!stop) {
+        await sleep(3000);
+        const sp = await ledger().catch(() => null);
+        fed.polls++;
+        if (!sp) fed.noLedger++;
+        const need = sp?.need ?? {};
+        if (!Object.keys(need).length) continue;
+        fed.owed++;
+        fed.lastNeed = units(need);
+        const rare = Object.fromEntries(Object.entries(need).filter(([k]) => RARE.test(k)));
+        if (Object.keys(rare).length && !rareSeen) rareSeen = rare;
+        const rest = rareFed ? need : Object.fromEntries(Object.entries(need).filter(([k]) => !RARE.test(k)));
+        if (!rareFed && Object.keys(rare).length && !Object.keys(rest).length) {
+          onlyRareSince ||= Date.now();
+          if (named() || Date.now() - onlyRareSince > 180_000) rareFed = true;
+        }
+        if (!Object.keys(rest).length) continue;
+        const r = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: rest }).catch((e) => ({ error: String(e) }));
+        if (units(r?.accepted ?? {})) fed.accepted += units(r.accepted);
+        else (fed.refused++, (fed.lastRefusal = JSON.stringify(r).slice(0, 160)), await addCrate());
+      }
+    })();
+    const built = await buildThrough(id, from, 'survival mechanism', false, null, 1_800_000);
+    const doneSaid = built ? await waitLog(from, /Gate Supply is built: everything its plan laid out stands/, 900_000) : null;
+    stop = true;
+    await feeder;
+    const st = settlements().find((x) => x.id === id);
+    const region = (st?.log?.filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '').replace(/^region:/, '');
+    const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
+    const gm = ((view?.view?.ext ?? view?.record?.ext ?? {})['architect_mc:gateMechanism'] ?? {}).gatehouse_1 ?? null;
+    const said = named();
+    // (Architect, found in the 0.52.0 check) the stockpile's crates at the claim centre move the castle zone at the layout's re-check (adjusted), and
+    // the adjusted wall drops its gate_lot and corner_lots without a word: no wall lot, so no gatehouse for a mechanism. Reported as a skip, not a
+    // pass, until Architect's patch; the town is still undone below and every consumed unit must come back
+    const unbound = !new RegExp(`wall lots of ${id}: `).test(logSince(from)) && !rareSeen && !gm;
+    if (unbound) {
+      if (!(built && doneSaid)) return fail('survival mechanism built', `built ${!!built}; done said ${!!doneSaid}; feeder ${JSON.stringify(fed)}`);
+      console.log(`skip survival mechanism (${region}: the re-check after the stockpile's crates left the wall no lots, so no gatehouse for the gate; built, feeder ${JSON.stringify(fed).slice(0, 120)})`);
+    } else {
+      if (rareSeen) ok('survival mechanism need', `the stockpile owed ${JSON.stringify(rareSeen)} for the gate`);
+      else fail('survival mechanism need', 'no slime balls or quartz ever owed: no mechanism billed');
+      if (said) ok('survival mechanism named', said[0].slice(0, 180));
+      else fail('survival mechanism named', `the steward never named the rare items (fed after the 3 min fallback: ${rareFed})`);
+      if (built && doneSaid && gm?.bom) ok('survival mechanism built', `${region} gatehouse_1: ${gm.roof != null ? `sensor at ${gm.roof}` : gm.deviation}; bill ${JSON.stringify(gm.bom).slice(0, 120)}`);
+      else return fail('survival mechanism built', `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gm).slice(0, 160)}; feeder ${JSON.stringify(fed)}`);
+    }
+    const before = await ledger();
+    await cmd(`/steward undo ${id}`);
+    let last = null;
+    for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(2000);
+      last = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    const after = await ledger();
+    const off = [];
+    for (const [item, all] of Object.entries(before?.consumed ?? {})) {
+      const used = all - (before.returned?.[item] ?? 0) - (before.refundOverflow?.[item] ?? 0);
+      if (used <= 0) continue;
+      const back = (after?.returned?.[item] ?? 0) + (after?.refundOverflow?.[item] ?? 0) - (before.returned?.[item] ?? 0) - (before.refundOverflow?.[item] ?? 0);
+      if (back !== used) off.push(`${item} ${back}/${used}`);
+    }
+    const rareBack = Object.keys(before?.consumed ?? {}).filter((k) => RARE.test(k));
+    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && (rareBack.length || unbound)) ok('survival mechanism refund', `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
+    else fail('survival mechanism refund', `${last?.kind}; rare consumed ${rareBack.join(', ') || 'none'}; refunds off: ${off.slice(0, 8).join(', ')}`);
+  } finally {
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
 }
 
 async function wallLotsFlow() {
@@ -2840,6 +3001,8 @@ try {
       await quarterFlow();
       await wallLotsFlow();
       await gateMechFlow();
+      await gateMechFlow('lots');
+      await survivalMechFlow();
     }
   }
   await migratedSteward();

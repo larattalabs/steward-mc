@@ -1,0 +1,276 @@
+{
+  "prompt": "Start as a survivors' camp and grow into a walled city.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "survivors_camp_city",
+      "style": {
+        "pending": "survivors_camp_city"
+      },
+      "zones": [
+        {
+          "id": "camp",
+          "purpose": "refuge",
+          "required": true,
+          "label": "Survivors' camp core",
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 8
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "hall_1",
+                "type": "tavern",
+                "role": "founders_hall",
+                "label": "founders' hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Oldest patched-together gathering hall, communal hearth, bunks, notice board."
+              },
+              {
+                "id": "plaza_1",
+                "type": "market_square",
+                "role": "campfire_plaza",
+                "label": "campfire plaza",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Original camp fire pit, now an open square with stalls."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Crude lean-to cabin patched with scrap."
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Crude lean-to cabin patched with scrap."
+              },
+              {
+                "id": "cabin_3",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Crude lean-to cabin patched with scrap."
+              },
+              {
+                "id": "cabin_4",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Crude lean-to cabin patched with scrap."
+              }
+            ],
+            "layout": "ring"
+          }
+        },
+        {
+          "id": "city",
+          "purpose": "defence",
+          "required": true,
+          "label": "Walled city",
+          "where": {
+            "adjacent": {
+              "to": {
+                "part": "camp"
+              },
+              "gap": [
+                4,
+                8
+              ]
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Sturdy home with stone footings and timber upper floor."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Sturdy home with stone footings and timber upper floor."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Sturdy home with stone footings and timber upper floor."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Forge for tools and wall repairs."
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "infirmary_chapel",
+                "label": "infirmary chapel",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Place of healing and quiet."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "granary",
+                "label": "granary and farm barn",
+                "size": [
+                  17,
+                  15
+                ],
+                "placement": "edge",
+                "villager": "farm",
+                "irrigate": true,
+                "brief": "Food stores and crop plots just inside the wall."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Main gate with portcullis and guard room."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "brief": "Wall tower overlooking approaches."
+              },
+              {
+                "id": "tower_2",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "brief": "Wall tower overlooking approaches."
+              }
+            ],
+            "layout": "street"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "city_wall",
+          "kind": "wall",
+          "required": true,
+          "label": "City wall",
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "height": 8,
+          "thickness": 2,
+          "walk": true,
+          "lots": [
+            {
+              "lot": "gatehouse_1",
+              "at": "gate",
+              "mech": "portcullis"
+            },
+            {
+              "lot": "tower_1",
+              "at": "corner"
+            },
+            {
+              "lot": "tower_2",
+              "at": "corner"
+            }
+          ]
+        },
+        {
+          "id": "main_street",
+          "kind": "street",
+          "required": false,
+          "label": "Main street",
+          "from": {
+            "part": "gatehouse_1"
+          },
+          "to": {
+            "part": "plaza_1"
+          }
+        }
+      ],
+      "forms": [],
+      "rules": []
+    },
+    "waits": [],
+    "summary": "A ring-laid survivors' camp (founders' hall, campfire plaza, four shelters) sits at the founding stone. Beside it grows a city district of townhouses, smithy, chapel and an irrigated granary barn. A walled ring on the claim edge has a gatehouse, two corner towers and a wall walk. A main street joins the gate to the plaza."
+  },
+  "usd": 0.047334,
+  "errors": []
+}

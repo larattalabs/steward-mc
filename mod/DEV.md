@@ -257,3 +257,22 @@ unsupported 3 -> 1, blocked 0 -> 1.
   blocked. In a real compose the repair round would resize it.
 - **row_houses dropped its `identical_houses` variety rule** (reserved until RC) while its summary still promises identical houses: the
   silent drop the prompt forbids. One sample, but the prompt now names variety rules among what is still written so it waits.
+
+
+## Strange asks: the 8 walled asks re-recorded for gatehouse coverage (2026-11-03, paid, Noah approved; $0.60 of a $1.50 cap)
+`node tools/record-plans.mjs 1.5` on claude-sonnet-5-5, Architect 0.52.0 (GC), with the plan writer's "gatehouses and towers stand on their wall"
+rule (gate-coverage): border_fort, camp_to_city, castle_city, desert_jungle_wall, metropolis, redstone_gate, walled_town, war_camp ($0.60; the
+first call uncached at $0.28). They're kept in `fixtures/strange-asks/plans-gc/`; `plans/` keeps the earlier recordings, which the e2e and
+unit tests read (castle_city, walled_town). The opt-in was made for the run and removed after. All 8 are valid plan/0. Three earlier launches spent nothing
+(a worktree has no `node_modules` or `.gradle-home`: link the main checkout's `.gradle-home` before a paid run from a worktree). Scored with
+v0.52.0's kit on the asks claim:
+- **Coverage:** gatehouses named on their wall (`lots`, `at: "gate"`) 4 of 11 -> 11 of 11; all 11 fit a mechanism (13x7). Every one carries
+  `mech: "portcullis"`, written by Claude itself although the prompt says Steward adds it (the same result; `withGateMechanisms` leaves a
+  given `mech` as it is). war_camp has no gatehouse. GC's "not on the wall" note: 1 -> 0.
+- **Refusals:** walls refused 0 -> 0. Two zones refused `NO_ROOM` that weren't: metropolis's capital and walled_town's town were written
+  `layout: "grid"` this time (`street` before), and no grid fits the asks claim. Rewritten as `street`, both are READY; without the wall's lots
+  walled_town is still refused, so it's the layout, not the gatehouses. In a real compose the repair round would change it.
+- **redstone_gate** is REQUIRED_BLOCKED before and after: its drawbridge is reserved until the mechanism, and its fortress didn't place
+  the gatehouse the wall names ("which its zone did not place"); its towers stand beside the line, not on its corners.
+- **camp_to_city** now writes a harbour wall with wet sections: INCOMPLETE in the kit check, which can't read the water under them without
+  a world (READY before, without them).
