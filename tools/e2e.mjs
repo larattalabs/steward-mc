@@ -81,7 +81,7 @@ async function herd() {
   if (all.length < herdAt) herdAt = 0;
   const text = all.slice(herdAt);
   herdAt = all.length;
-  if (/is in its lot\. Move it out/.test(text)) await clearAnimals();
+  if (/is in its lot\. Move it out|Removal stopped of [^\n]*Move these out/.test(text)) await clearAnimals();
   const standing = [...text.matchAll(/\[([^\]\n]+)\] The [^\n]*? waits: someone is standing on its lot/g)].map((m) => m[1]);
   if (!standing.length && !/someone is standing on its lot/.test(text)) return;
   const all_ = settlements();
@@ -114,6 +114,8 @@ async function closeScreens() {
 }
 
 async function cmd(c) {
+  // an animal in what an undo takes up stops the removal (Architect asks for force), so every undo starts with the land cleared
+  if (/^\/steward undo\b/.test(c)) await clearAnimals();
   const r = await dev.request('dev.command', { cmd: c });
   return (r.messages ?? []).join(' | ');
 }
@@ -2480,7 +2482,7 @@ async function survivalMechFlow() {
     await closeScreens();
     await clearAnimals();
     const claim = settlements().find((x) => x.id === id).claim;
-    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + claim.radius + 12}`);
     const owner = `steward_mc:settlement/${id}`;
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
@@ -2494,12 +2496,18 @@ async function survivalMechFlow() {
     await cmd(`/steward start ${id} 6 80`);
     // the feeder: all the need but the rare items, until the steward names them (or 3 min of nothing else owed), then everything
     let stop = false, rareSeen = null, rareFed = false, onlyRareSince = 0;
+    // what the feeder saw and did, for a failure's message
+    const fed = { polls: 0, noLedger: 0, owed: 0, accepted: 0, refused: 0, lastNeed: null };
     const feeder = (async () => {
       while (!stop) {
         await sleep(3000);
         const sp = await ledger().catch(() => null);
+        fed.polls++;
+        if (!sp) fed.noLedger++;
         const need = sp?.need ?? {};
         if (!Object.keys(need).length) continue;
+        fed.owed++;
+        fed.lastNeed = units(need);
         const rare = Object.fromEntries(Object.entries(need).filter(([k]) => RARE.test(k)));
         if (Object.keys(rare).length && !rareSeen) rareSeen = rare;
         const rest = rareFed ? need : Object.fromEntries(Object.entries(need).filter(([k]) => !RARE.test(k)));
@@ -2507,7 +2515,10 @@ async function survivalMechFlow() {
           onlyRareSince ||= Date.now();
           if (named() || Date.now() - onlyRareSince > 180_000) rareFed = true;
         }
-        if (Object.keys(rest).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: rest }).catch(() => null);
+        if (!Object.keys(rest).length) continue;
+        const r = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: rest }).catch((e) => ({ error: String(e) }));
+        if (units(r?.accepted ?? {})) fed.accepted += units(r.accepted);
+        else fed.refused++, fed.lastRefusal = JSON.stringify(r).slice(0, 160);
       }
     })();
     const built = await buildThrough(id, from, 'survival mechanism', false, null, 1_800_000);
@@ -2524,7 +2535,7 @@ async function survivalMechFlow() {
     if (said) ok('survival mechanism named', said[0].slice(0, 180));
     else fail('survival mechanism named', `the steward never named the rare items (fed after the 3 min fallback: ${rareFed})`);
     if (built && doneSaid && gm?.bom) ok('survival mechanism built', `${region} gatehouse_1: ${gm.roof != null ? `sensor at ${gm.roof}` : gm.deviation}; bill ${JSON.stringify(gm.bom).slice(0, 120)}`);
-    else return fail('survival mechanism built', `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gm).slice(0, 160)}`);
+    else return fail('survival mechanism built', `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gm).slice(0, 160)}; feeder ${JSON.stringify(fed)}`);
     const before = await ledger();
     await cmd(`/steward undo ${id}`);
     let last = null;
