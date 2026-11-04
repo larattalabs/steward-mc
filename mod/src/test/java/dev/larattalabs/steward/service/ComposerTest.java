@@ -34,4 +34,39 @@ class ComposerTest {
 		assertNull(Composer.billLine(JsonParser.parseString("{\"bom\":null,\"bomNote\":\"regions are INSTANT only\"}").getAsJsonObject()), "a creative check has no bill");
 		assertNull(Composer.billLine(null));
 	}
+
+	private static dev.larattalabs.architect.api.PlanCheck checkOf(String... parts) {
+		var list = java.util.Arrays.stream(parts).map(x -> JsonParser.parseString(x).getAsJsonObject()).toList();
+		return new dev.larattalabs.architect.api.PlanCheck("c", "p", "s", "k", "plan/0", dev.larattalabs.architect.api.PlanCheck.Overall.REQUIRED_BLOCKED, list, null, null,
+			null, null, java.util.List.of());
+	}
+
+	@Test
+	void aFreeLayoutsStreetFragmentIsAppliedAsItIsWithTheLotsItLeavesOut() {
+		var plan = JsonParser.parseString("{\"schemaVersion\":\"plan/0\",\"zones\":[{\"id\":\"town\",\"required\":true,\"program\":{\"layout\":\"grid\",\"lots\":"
+			+ "[{\"id\":\"house_1\"},{\"id\":\"smithy_1\"},{\"id\":\"chapel_1\"}]}},{\"id\":\"farms\",\"program\":{\"layout\":\"ring\"}}],"
+			+ "\"connectors\":[{\"id\":\"wall\",\"kind\":\"wall\"}]}").getAsJsonObject();
+		var c = checkOf(
+			"{\"part\":\"town\",\"class\":\"refused\",\"reasons\":[{\"code\":\"NO_ROOM\",\"message\":\"no grid layout fits the zone here; layout 'street' places 1 of 3 (drops smithy_1, chapel_1)\","
+				+ "\"evidence\":{\"layout\":\"grid\",\"alt\":\"street\",\"altLots\":1,\"altDropped\":[\"smithy_1\",\"chapel_1\"]}}],"
+				+ "\"wouldFit\":[{\"part\":\"town\",\"fragment\":{\"program\":{\"layout\":\"street\",\"lots\":[{\"id\":\"house_1\"}]}}}]}",
+			// a refusal without the street hint (an orientation's wouldFit, say) is left to Claude's repair
+			"{\"part\":\"farms\",\"class\":\"refused\",\"reasons\":[{\"code\":\"NO_ROOM\",\"evidence\":{\"orientation\":\"ew\"}}],"
+				+ "\"wouldFit\":[{\"part\":\"farms\",\"fragment\":{\"program\":{\"orientation\":\"ns\"}}}]}",
+			"{\"part\":\"wall\",\"class\":\"fits\"}");
+		var fix = Composer.streetFixes(plan, c);
+		assertNotNull(fix);
+		assertEquals(java.util.List.of("town"), fix.parts());
+		assertEquals(java.util.List.of("smithy 1", "chapel 1"), fix.leftOut());
+		var town = fix.plan().getAsJsonArray("zones").get(0).getAsJsonObject();
+		assertEquals("street", town.getAsJsonObject("program").get("layout").getAsString());
+		assertEquals(1, town.getAsJsonObject("program").getAsJsonArray("lots").size());
+		assertTrue(town.get("required").getAsBoolean(), "the zone's other fields are kept");
+		assertEquals("ring", fix.plan().getAsJsonArray("zones").get(1).getAsJsonObject().getAsJsonObject("program").get("layout").getAsString());
+		assertEquals("grid", plan.getAsJsonArray("zones").get(0).getAsJsonObject().getAsJsonObject("program").get("layout").getAsString(), "the plan itself is not changed");
+		// nothing to apply: no part with the street hint
+		assertNull(Composer.streetFixes(plan, checkOf("{\"part\":\"wall\",\"class\":\"fits\"}")));
+		assertEquals("smithy 1 and chapel 1", Composer.words(fix.leftOut()));
+		assertEquals("a, b and c", Composer.words(java.util.List.of("a", "b", "c")));
+	}
 }

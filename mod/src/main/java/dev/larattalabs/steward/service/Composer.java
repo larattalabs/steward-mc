@@ -78,11 +78,11 @@ public final class Composer {
 		int session = Session.current();
 		if (!available() || Integer.valueOf(session).equals(COMPOSING.get(s.id()))) return;
 		COMPOSING.put(s.id(), session);
-		round(server, player, s, cardJson, land, session, 0, 0, null, null, null);
+		round(server, player, s, cardJson, land, session, 0, 0, null, null, null, List.of());
 	}
 
 	private static void round(MinecraftServer server, UUID player, Settlement s, String cardJson, @Nullable String land, int session, int round, double spent,
-		@Nullable String previous, @Nullable String answers, @Nullable String lastAnswers) {
+		@Nullable String previous, @Nullable String answers, @Nullable String lastAnswers, List<String> leftOut) {
 		var builds = PlayerBuilds.promptLines(server, s, PlayerBuilds.in(server, s));
 		PlanWriter.write(cardJson, land, ANCHORS, builds, s.owner(), previous, answers).whenComplete((r, err) -> server.execute(() -> {
 			if (!Session.is(session)) return;
@@ -98,19 +98,93 @@ public final class Composer {
 					done(s, "Architect could not check the plan (" + cerr.getMessage() + "): the build takes today's layout.", server, player);
 					return;
 				}
-				String lines = answerLines(c);
-				boolean repairable = c.parts().stream().anyMatch(p -> "refused".equals(cls(p)) || "malformed".equals(cls(p)))
-					|| c.overall() == PlanCheck.Overall.MALFORMED;
-				// repair while something can be fixed, within the rounds and the cap, and stop when the answer repeats (an oscillation)
-				if (repairable && round < ROUNDS && cost < CAP_USD - PlanWriterJob.BUDGET_USD && !lines.equals(lastAnswers)) {
-					Steward.LOGGER.info("plan for {}: round {} {} ({} parts to repair), ${}", s.id(), round, c.overall(), count(c, "refused") + count(c, "malformed"),
-						String.format("%.3f", cost));
-					round(server, player, s, cardJson, land, session, round + 1, cost, plan.toString(), lines, lines);
-					return;
-				}
-				keep(server, player, s, plan, r.answer(), c, cost, round);
+				checked(server, player, s, cardJson, land, session, round, cost, plan, r.answer(), c, lastAnswers, leftOut, false);
 			}));
 		}));
+	}
+
+	/**
+	 * After a check: a free layout's street fragment is applied first ({@link #streetFixes}, at most once a round, $0), then Claude repairs while parts are
+	 * refused or malformed; else the plan is kept. {@code leftOut}: the lots the applied fragments dropped, carried through Claude's rounds (the
+	 * repair starts from the fixed plan).
+	 */
+	private static void checked(MinecraftServer server, UUID player, Settlement s, String cardJson, @Nullable String land, int session, int round, double cost,
+		JsonObject plan, JsonObject answer, PlanCheck c, @Nullable String lastAnswers, List<String> leftOut, boolean fixed) {
+		var fix = fixed ? null : streetFixes(plan, c);
+		if (fix != null) {
+			Steward.LOGGER.info("plan for {}: {} as street, Architect's wouldFit applied (left out: {})", s.id(), fix.parts(), fix.leftOut());
+			List<String> all = new ArrayList<>(leftOut);
+			all.addAll(fix.leftOut());
+			check(server, s, fix.plan(), player).whenComplete((c2, cerr) -> server.execute(() -> {
+				if (!Session.is(session)) return;
+				if (cerr != null) {
+					done(s, "Architect could not check the plan (" + cerr.getMessage() + "): the build takes today's layout.", server, player);
+					return;
+				}
+				checked(server, player, s, cardJson, land, session, round, cost, fix.plan(), answer, c2, lastAnswers, List.copyOf(all), true);
+			}));
+			return;
+		}
+		String lines = answerLines(c);
+		boolean repairable = c.parts().stream().anyMatch(p -> "refused".equals(cls(p)) || "malformed".equals(cls(p)))
+			|| c.overall() == PlanCheck.Overall.MALFORMED;
+		// repair while something can be fixed, within the rounds and the cap, and stop when the answer repeats (an oscillation)
+		if (repairable && round < ROUNDS && cost < CAP_USD - PlanWriterJob.BUDGET_USD && !lines.equals(lastAnswers)) {
+			Steward.LOGGER.info("plan for {}: round {} {} ({} parts to repair), ${}", s.id(), round, c.overall(), count(c, "refused") + count(c, "malformed"),
+				String.format("%.3f", cost));
+			round(server, player, s, cardJson, land, session, round + 1, cost, plan.toString(), lines, lines, leftOut);
+			return;
+		}
+		keep(server, player, s, plan, answer, c, cost, round, leftOut);
+	}
+
+	/** A plan with Architect's street fragments applied: the parts changed and the lots left out ("townhouse 4"). */
+	record StreetFix(JsonObject plan, List<String> parts, List<String> leftOut) {
+	}
+
+	/**
+	 * (Architect GH; Noah, 2026-11-04: strict, with a hint) A zone with a free layout refused {@code NO_ROOM} whose evidence names the street layout
+	 * ({@code alt: "street"}) carries one {@code wouldFit}: the zone's program as street, without the lots street cannot place ({@code altDropped}). It is
+	 * one repair, applied as it is (no Claude round): the plan with every such fragment applied, and the lots they drop; null when no part has one.
+	 */
+	static @Nullable StreetFix streetFixes(JsonObject plan, PlanCheck c) {
+		JsonObject out = plan.deepCopy();
+		List<String> parts = new ArrayList<>();
+		List<String> leftOut = new ArrayList<>();
+		for (JsonObject part : c.parts()) {
+			if (!"refused".equals(cls(part)) || !part.has("wouldFit") || !part.get("wouldFit").isJsonArray() || part.getAsJsonArray("wouldFit").size() != 1) continue;
+			JsonObject ev = streetEvidence(part);
+			var w = part.getAsJsonArray("wouldFit").get(0);
+			if (ev == null || !w.isJsonObject() || !w.getAsJsonObject().has("fragment") || !w.getAsJsonObject().get("fragment").isJsonObject()) continue;
+			String id = w.getAsJsonObject().has("part") ? w.getAsJsonObject().get("part").getAsString() : part.has("part") ? part.get("part").getAsString() : null;
+			JsonObject zone = id == null ? null : zone(out, id);
+			if (zone == null) continue;
+			for (var e : w.getAsJsonObject().getAsJsonObject("fragment").entrySet()) zone.add(e.getKey(), e.getValue().deepCopy());
+			parts.add(id);
+			if (ev.has("altDropped") && ev.get("altDropped").isJsonArray()) for (var d : ev.getAsJsonArray("altDropped")) leftOut.add(d.getAsString().replace('_', ' '));
+		}
+		return parts.isEmpty() ? null : new StreetFix(out, List.copyOf(parts), List.copyOf(leftOut));
+	}
+
+	/** A refused part's {@code NO_ROOM} evidence naming the street layout as its alternative; else null. */
+	private static @Nullable JsonObject streetEvidence(JsonObject part) {
+		if (!part.has("reasons") || !part.get("reasons").isJsonArray()) return null;
+		for (var r : part.getAsJsonArray("reasons")) {
+			if (!r.isJsonObject() || !r.getAsJsonObject().has("code") || !"NO_ROOM".equals(r.getAsJsonObject().get("code").getAsString())) continue;
+			if (!r.getAsJsonObject().has("evidence") || !r.getAsJsonObject().get("evidence").isJsonObject()) continue;
+			var ev = r.getAsJsonObject().getAsJsonObject("evidence");
+			if (ev.has("alt") && "street".equals(ev.get("alt").getAsString())) return ev;
+		}
+		return null;
+	}
+
+	/** The plan's zone {@code id}; else null. */
+	private static @Nullable JsonObject zone(JsonObject plan, String id) {
+		if (!plan.has("zones") || !plan.get("zones").isJsonArray()) return null;
+		for (var z : plan.getAsJsonArray("zones")) {
+			if (z.isJsonObject() && z.getAsJsonObject().has("id") && id.equals(z.getAsJsonObject().get("id").getAsString())) return z.getAsJsonObject();
+		}
+		return null;
 	}
 
 	/** Architect's check of {@code plan} over {@code s}'s claim, the stone and (when in the claim) the player as anchors. */
@@ -195,8 +269,12 @@ public final class Composer {
 		return null;
 	}
 
-	/** Keeps the plan and tells the player: the summary, then what waits in Claude's words, then what still didn't fit in Architect's. */
-	private static void keep(MinecraftServer server, UUID player, Settlement s, JsonObject plan, JsonObject answer, PlanCheck c, double cost, int rounds) {
+	/**
+	 * Keeps the plan and tells the player: the summary, then the buildings left out for room ({@code leftOut}), then what waits in Claude's words, then what
+	 * still didn't fit in Architect's.
+	 */
+	private static void keep(MinecraftServer server, UUID player, Settlement s, JsonObject plan, JsonObject answer, PlanCheck c, double cost, int rounds,
+		List<String> leftOut) {
 		Map<String, String> words = new HashMap<>();
 		if (answer.has("waits") && answer.get("waits").isJsonArray()) for (var w : answer.getAsJsonArray("waits")) if (w.isJsonObject() && w.getAsJsonObject().has("part") && w.getAsJsonObject().has("words")) words.put(w.getAsJsonObject().get("part").getAsString(), w.getAsJsonObject().get("words").getAsString());
 		List<PlanStore.Pending> pending = new ArrayList<>();
@@ -208,7 +286,7 @@ public final class Composer {
 				case "unsupported", "blocked" -> pending.add(new PlanStore.Pending(id, part.has("block") ? part.get("block").getAsString() : "", required,
 					words.getOrDefault(id, unplacedEnd(part) != null ? id.replace('_', ' ') + " waits on " + unplacedEnd(part) + ", which there wasn't room to place"
 						: id.replace('_', ' ') + " waits for a later Architect release")));
-				case "refused", "malformed" -> unfit.add(id.replace('_', ' ') + (part.has("reason") ? " (" + part.get("reason") + ")" : ""));
+				case "refused", "malformed" -> unfit.add(id.replace('_', ' ') + (code(part) != null ? " (" + code(part) + ")" : ""));
 				default -> {
 				}
 			}
@@ -221,6 +299,7 @@ public final class Composer {
 		List<String> out = new ArrayList<>();
 		// what composing cost, with the card's cost already shown: the player asked for it, so it is theirs, not the steward's weekly allowance
 		if (!summary.isBlank()) out.add("The plan: " + summary + String.format(java.util.Locale.ROOT, " (composing it cost $%.2f)", cost));
+		if (!leftOut.isEmpty()) out.add("Left out for room (laid out on a street instead): " + words(leftOut) + ".");
 		for (var p : pending) out.add("Not yet: " + p.words());
 		if (!unfit.isEmpty()) out.add("Didn't fit here: " + String.join(", ", unfit) + ".");
 		COMPOSING.remove(s.id(), Session.current());
@@ -289,6 +368,18 @@ public final class Composer {
 		StringBuilder b = new StringBuilder();
 		for (JsonObject p : c.parts()) b.append("- ").append(p.toString()).append('\n');
 		return b.toString();
+	}
+
+	/** "a, b and c". */
+	static String words(List<String> items) {
+		return items.size() < 2 ? String.join("", items) : String.join(", ", items.subList(0, items.size() - 1)) + " and " + items.get(items.size() - 1);
+	}
+
+	/** A part's first reason code; else null. */
+	private static @Nullable String code(JsonObject part) {
+		if (!part.has("reasons") || !part.get("reasons").isJsonArray() || part.getAsJsonArray("reasons").isEmpty()) return null;
+		var r = part.getAsJsonArray("reasons").get(0);
+		return r.isJsonObject() && r.getAsJsonObject().has("code") ? r.getAsJsonObject().get("code").getAsString() : null;
 	}
 
 	private static String cls(JsonObject part) {

@@ -276,3 +276,15 @@ v0.52.0's kit on the asks claim:
   the gatehouse the wall names ("which its zone did not place"); its towers stand beside the line, not on its corners.
 - **camp_to_city** now writes a harbour wall with wet sections: INCOMPLETE in the kit check, which can't read the water under them without
   a world (READY before, without them).
+## Strange asks: the 8 walled plans scored on Architect 0.53.1, GH's street wouldFit applied (2026-11-04, $0)
+The `plans-gc` recordings checked with v0.53.1's kit on the asks claim (`checkPlanLocal`, Steward's anchors). A refused zone whose `NO_ROOM` evidence names
+`alt: "street"` had its one `wouldFit` fragment applied and the plan checked again: one repair, which scores as a pass (Noah, 2026-11-04).
+- **metropolis:** REQUIRED_BLOCKED, `capital` NO_ROOM (grid) -> READY after one repair; street places 13 of 35 lots, leaving out 22 (houses 5-8,
+  cottages 1-6, guild halls 1-3, taverns 1-3, smithies 1-2, barracks 1-2, barns 1-2).
+- **walled_town:** REQUIRED_BLOCKED, `town` NO_ROOM (grid) -> READY after one repair; street places 12 of 15, leaving out townhouse_4, smithy_1 and
+  chapel_1.
+- border_fort, castle_city, desert_jungle_wall and war_camp: READY as written. redstone_gate: REQUIRED_BLOCKED as before (its drawbridge waits).
+  camp_to_city: INCOMPLETE as before (the harbour wall's wet sections), with `main_street` refused UNREACHABLE.
+- In the mod, the composer applies such a fragment itself before any Claude repair round (`Composer.streetFixes`, $0), and the steward says which
+  buildings were left out ("Left out for room (laid out on a street instead): townhouse 4, smithy 1 and chapel 1."). The e2e's `street hint` composes
+  walled_town's grid plan in game.
