@@ -30,13 +30,19 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
   scratchpad: a reboot wipes those. A worktree has no `.gradle-home`, so its builds and e2e runs set `GRADLE_USER_HOME` to this checkout's.
 - Decisions Noah makes go into the Decisions table as they happen. A review's findings are checked against the code before they are acted on.
 - High-stakes or hard changes (spending, persistence, cancellation, migrations) get an independent GPT review (the second-opinion skill), then a check of the fixes.
+- **Release-candidate testing is DEV MODE** (Noah, 2026-11-04):
+  - An Architect RC runs only the flows its change touches, plus the sanity set: `node tools/e2e.mjs stub --only gate,wall,survival`, aiming for 15-20 min.
+  - Full stub and free runs are nightly, or before a pin when a release is broad; what they find is fixed forward.
+  - After a test-only fix or a chance failure, rerun only the failed flows (each run prints `flow <name>` lines).
+  - Skip the gate-verifier for branches that touch only tests or wording; keep it for survival billing, undo, removal and crash recovery.
+  - No second full e2e pass after a merge to `main`.
 
 ## Build and test
 
 - **Java:** from `mod/`, `JAVA_HOME=/opt/homebrew/opt/openjdk@25 GRADLE_USER_HOME=$PWD/../.gradle-home ./gradlew build --offline` (compile, unit tests, jar).
   Architect and lab-ui come from Maven Local (`./gradlew publishToMavenLocal` in each) or GitHub Packages (a token with `read:packages`).
 - **Tools:** `npm test` (the concept card and talk schemas against the fixtures).
-- **End to end ($0):** `node tools/e2e.mjs free`, after the jar is built. It runs its own client and checks the claim, the steward (its nameplate, bubble and "!"), Expand,
+- **End to end ($0):** `node tools/e2e.mjs free`, after the jar is built (`--only word,word`: only the flows whose name or tags hold a word, plus the sanity set). It runs its own client and checks the claim, the steward (its nameplate, bubble and "!"), Expand,
   the screens, an update (the steward walks to it), revert, undo, the steward sitting and sleeping, proposals, a protected area and a district with its road, talking to the steward, a migrated old steward and a restored build; results in `artifacts/e2e/summary.json`, screenshots in `artifacts/shots/`. It refuses
   to start while the claude-login opt-in exists or another Steward client uses `mod/run`. `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's sim helper (v0.12.2; `mod/DEV.md`).
 - **Art:** `uv run --with pillow==11.3.0 python assets-src/build.py --verify`, then `--sync` to copy into the mod.
@@ -57,6 +63,6 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 - **Kill only processes you started, by PID.** Never `pkill`/`killall` by pattern: other sessions run Minecraft clients.
 - Never commit secrets, logs or `artifacts/` (local evidence only). Run `gitleaks git` over new commits before a push.
 - Commit messages end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. PR descriptions carry no "Generated with Claude Code" footer.
-- No `rm -rf` outside build/temp dirs, no `git reset --hard`, no force-push. Push `main` once both e2e runs pass and `gitleaks` is clean (Noah, 2026-10-27); anything else is pushed only when Noah says so.
+- No `rm -rf` outside build/temp dirs, no `git reset --hard`, no force-push. Push `main` once its e2e runs pass (for an RC, the change's flows, per DEV MODE above) and `gitleaks` is clean (Noah, 2026-10-27, 2026-11-04); anything else is pushed only when Noah says so.
 - Saves are migrated, never broken: a format change keeps old worlds loading (`SettlementStore` migrations, `fixtures/saves/`, `SaveCompatTest`).
 - Ported code keeps its licence: files from AgentCraft keep both MIT copyright lines (`assets-src/NOTICE`).
