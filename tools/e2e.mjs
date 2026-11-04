@@ -2392,11 +2392,11 @@ async function driveUntil(id, from, until, ms) {
 /**
  * (Architect GM-b) The K1 swing gate as Architect's gmb_k1_swing has it: a hamlet in a wall 3 thick, a player-only road through its gate with
  * mech swing (the iron door pair, a button outside, a plate and lever inside). Two of castle_city's towers stand in for its huts (the sim designs
- * towers, not houses).
+ * towers, not houses, and none on a lot 7 deep: 13x13).
  */
 function swingAnswer() {
   const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
-  const towers = answer.plan.zones[0].program.lots.filter((l) => /^tower_[12]$/.test(l.id)).map((l) => ({ ...l, size: [9, 9] }));
+  const towers = answer.plan.zones[0].program.lots.filter((l) => /^tower_[12]$/.test(l.id)).map((l) => ({ ...l, size: [13, 13] }));
   answer.plan.zones = [{ id: 'hamlet', kind: 'standard', required: true, program: { lots: towers }, where: { near: { anchor: 'claim_center', within: 16 } } }];
   answer.plan.connectors = [
     { id: 'curtain', kind: 'wall', required: true, where: { around: { feature: { part: 'hamlet' } } }, height: 6, thickness: 3 },
@@ -2474,8 +2474,8 @@ async function gateMechFlow(form = 'lenient') {
 
 /**
  * (Architect GM-a2) A gate mechanism in survival: castle_city's towers and gatehouse built from the stockpile, its curtain wall's portcullis added by
- * Steward itself (PlanWriterJob.withGateMechanisms, not the fixture). The mechanism's bill is part of the stockpile's need; its rare items (slime balls,
- * quartz) are held back until the steward names them, then fed; the town is said built only with the gate in, the exact bill on the region; undone,
+ * Steward itself (PlanWriterJob.withGateMechanisms, not the fixture). The mechanism's bill is part of the stockpile's need; its redstone parts (comparator,
+ * observers, daylight detector) are held back until the steward names them, then fed; the town is said built only with the gate in, the exact bill on the region; undone,
  * every consumed unit comes back.
  */
 async function survivalMechFlow(form = 'lots') {
@@ -2517,9 +2517,9 @@ async function survivalMechFlow(form = 'lots') {
       return m ? JSON.parse(m[1]) : null;
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
-    // what only the gate takes, held back until the steward names it: the portcullis's slime balls and quartz, the swing's iron doors
-    const RARE = swing ? /iron_door/ : /slime_ball|quartz/;
-    const named = () => logSince(from).match(new RegExp(`\\[${name}\\] The [^\\n]*? waits for materials: [^\\n]*(?:${swing ? 'iron door' : 'slime|quartz'})[^\\n]*`, 'i'));
+    // what only the gate takes, held back until the steward names it: the portcullis's redstone parts (billed crafted: GM-a2's bill), the swing's iron doors
+    const RARE = swing ? /iron_door/ : /comparator|observer|daylight_detector|sticky_piston/;
+    const named = () => logSince(from).match(new RegExp(`\\[${name}\\] The [^\\n]*? waits for materials: [^\\n]*(?:${swing ? 'iron door' : 'comparator|observer|daylight detector|sticky piston'})[^\\n]*`, 'i'));
     from = logSize();
     await cmd(`/steward start ${id} 6 80`);
     // the feeder: all the need but the rare items, until the steward names them (or 3 min of nothing else owed), then everything
@@ -2573,7 +2573,7 @@ async function survivalMechFlow(form = 'lots') {
     {
       const label = `survival mechanism${swing ? ' (swing)' : ''}`;
       if (rareSeen) ok(`${label} need`, `the stockpile owed ${JSON.stringify(rareSeen)} for the gate`);
-      else fail(`${label} need`, `no ${swing ? 'iron doors' : 'slime balls or quartz'} ever owed: no mechanism billed`);
+      else fail(`${label} need`, `no ${swing ? 'iron doors' : 'comparators, observers or daylight detectors'} ever owed: no mechanism billed`);
       if (said) ok(`${label} named`, said[0].slice(0, 180));
       else fail(`${label} named`, `the steward never named the gate's items (fed after the 3 min fallback: ${rareFed})`);
       if (built && doneSaid && gm?.bom) ok(`${label} built`, `${region} ${gate}: ${swing ? `the iron swing gate in ${gm.wall}` : gm.roof != null ? `sensor at ${gm.roof}` : gm.deviation}; bill ${JSON.stringify(gm.bom).slice(0, 120)}`);
