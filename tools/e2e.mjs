@@ -2569,14 +2569,8 @@ async function survivalMechFlow(form = 'lots') {
     const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
     const gm = ((view?.view?.ext ?? view?.record?.ext ?? {})['architect_mc:gateMechanism'] ?? {})[gate] ?? null;
     const said = named();
-    // (Architect, found in the 0.52.0 check) the stockpile's crates at the claim centre move the castle zone at the layout's re-check (adjusted), and
-    // the adjusted wall drops its gate_lot and corner_lots without a word: no wall lot, so no gatehouse for a mechanism. Reported as a skip, not a
-    // pass, until Architect's patch; the town is still undone below and every consumed unit must come back
-    const unbound = !swing && !new RegExp(`wall lots of ${id}: `).test(logSince(from)) && !rareSeen && !gm;
-    if (unbound) {
-      if (!(built && doneSaid)) return fail('survival mechanism built', `built ${!!built}; done said ${!!doneSaid}; feeder ${JSON.stringify(fed)}`);
-      console.log(`skip survival mechanism (${region}: the re-check after the stockpile's crates left the wall no lots, so no gatehouse for the gate; built, feeder ${JSON.stringify(fed).slice(0, 120)})`);
-    } else {
+    // (Architect WL, v0.53.0) the stockpile's crates at the claim centre push the castle zone aside; its wall keeps its lots (CONTRACT §18)
+    {
       const label = `survival mechanism${swing ? ' (swing)' : ''}`;
       if (rareSeen) ok(`${label} need`, `the stockpile owed ${JSON.stringify(rareSeen)} for the gate`);
       else fail(`${label} need`, `no ${swing ? 'iron doors' : 'slime balls or quartz'} ever owed: no mechanism billed`);
@@ -2601,7 +2595,7 @@ async function survivalMechFlow(form = 'lots') {
       if (back !== used) off.push(`${item} ${back}/${used}`);
     }
     const rareBack = Object.keys(before?.consumed ?? {}).filter((k) => RARE.test(k));
-    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && (rareBack.length || unbound)) ok(`survival mechanism${swing ? ' (swing)' : ''} refund`, `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
+    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length) ok(`survival mechanism${swing ? ' (swing)' : ''} refund`, `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
     else fail(`survival mechanism${swing ? ' (swing)' : ''} refund`, `${last?.kind}; rare consumed ${rareBack.join(', ') || 'none'}; refunds off: ${off.slice(0, 8).join(', ')}`);
   } finally {
     await cmd('/defaultgamemode creative');
