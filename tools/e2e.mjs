@@ -27,8 +27,11 @@ const WORLD = path.join(GAME, 'saves', process.env.ARCHITECT_AUTOWORLD_NAME ?? '
 const OUT = path.join(ROOT, 'artifacts', 'e2e');
 const LOG = path.join(GAME, 'logs', 'latest.log');
 const mode = process.argv[2] ?? 'free';
-if (!['free', 'stub'].includes(mode)) {
-  console.error('usage: node tools/e2e.mjs free|stub');
+// --only a,b: run only the flows whose name or tags hold one of the words, plus the sanity set (status, claim, expand, restart); an RC's run
+const onlyAt = process.argv.indexOf('--only');
+const only = onlyAt > 0 ? (process.argv[onlyAt + 1] ?? '').toLowerCase().split(',').map((w) => w.trim()).filter(Boolean) : null;
+if (!['free', 'stub'].includes(mode) || (only && !only.length)) {
+  console.error('usage: node tools/e2e.mjs free|stub [--only word,word]');
   process.exit(2);
 }
 const { DevClient } = await import(pathToFileURL(path.join(ARCH, 'tools', 'lib', 'devclient.mjs')).href);
@@ -271,6 +274,8 @@ async function placeUpdateUndo(id) {
   const box = me ? { x0: Math.floor(Number(me[1])), z0: Math.floor(Number(me[3])) + 6 } : null;
   if (box) Object.assign(box, { x1: box.x0 + 8, z1: box.z0 + 8 });
   let from = logSize();
+  // a farm animal in the box refuses the placement (a chicken did, on the WE-WS RC)
+  await clearAnimals();
   await cmd(`/steward dev place ${id} ${STUB}`);
   const placed = await waitLog(from, /dev placed (s\d+)/, 30_000);
   if (!placed) return fail('dev place', (await waitLog(from, /dev place refused[^\n]*/, 1) ?? ['no answer'])[0]);
@@ -627,6 +632,7 @@ async function districts(id) {
   await closeScreens();
   const lawn = settlements().find((x) => x.id === id)?.lands?.protect?.find((a) => a.label === 'e2e lawn');
   let pfrom = logSize();
+  await clearAnimals();
   await cmd(`/steward dev place ${id} ${STUB}`);
   const refused = await waitLog(pfrom, /dev place refused: [^\n]*/, 20_000);
   if (refused && /PROTECTED/.test(refused[0])) ok('architect bounds', refused[0].slice(0, 120));
@@ -3020,6 +3026,14 @@ async function stubFlow(id) {
 // ------------------------------------------------------------------ run
 
 const started = Date.now();
+const skipped = [];
+/** Runs a flow when no --only is given or a word of it is in the flow's name or tags (`flow` lines name each, for a rerun of what failed). */
+async function flow(name, tags, fn) {
+  if (only && !only.some((w) => `${name} ${tags}`.toLowerCase().includes(w))) return skipped.push(name);
+  console.log(`flow ${name}`);
+  await clearAnimals();
+  await fn();
+}
 try {
   await preflight();
   ensureStubEntry();
@@ -3028,49 +3042,51 @@ try {
   const r = await cmd('/steward status');
   if (/ok/.test(r)) ok('status', r.split(' | ')[0]);
   else fail('status', r);
+  // the sanity set, always run: status (above), the claim and its steward, Expand, the restart
   const id = await claimAndSteward();
   if (id) {
     await expand(id);
-    await stoneRecipe();
-    await inboxScreen();
+    await flow('stone-recipe', 'screens', () => stoneRecipe());
+    await flow('inbox', 'screens', () => inboxScreen());
     if (mode === 'free') {
-      await placeUpdateUndo(id);
-      await stewardLife(id);
-      await proposals(id);
-      await districts(id);
-      await playerBuilds(id);
-      await talk(id);
+      await flow('place', 'update revert undo screens', () => placeUpdateUndo(id));
+      await flow('steward-life', 'sit sleep walk', () => stewardLife(id));
+      await flow('proposals', 'farm', () => proposals(id));
+      await flow('districts', 'protect road layout', () => districts(id));
+      await flow('player-builds', 'protect', () => playerBuilds(id));
+      await flow('talk', 'screens', () => talk(id));
     }
     else {
-      await stubFlow(id);
-      await villageFlow();
-      await planBuildFlow();
-      await streetHintFlow();
-      await wallOfferFlow();
-      await farmPondFlow();
-      await ditchFlow();
-      await irrigationFlow();
-      await paletteFlow();
-      await groveFlow();
-      await districtsPlanFlow();
-      await planCheckFlow();
-      await survivalFlow();
-      await suppliedPlanFlow();
-      await copperLotsFlow();
-      await discardFlow();
-      await besideFlow();
-      await revisionFlow();
-      await districtRegionFlow();
-      await quarterFlow();
-      await wallLotsFlow();
-      await gateMechFlow();
-      await gateMechFlow('lots');
-      await gateMechFlow('swing');
-      await survivalMechFlow();
-      await survivalMechFlow('swing');
+      // stub: the first settlement's whole paid flow; the flows after it build their own
+      await flow('stub', 'paid card plan wall revision undo', () => stubFlow(id));
+      await flow('village', 'plan realise', () => villageFlow());
+      await flow('plan-build', 'plan', () => planBuildFlow());
+      await flow('street-hint', 'plan grid wall nofit', () => streetHintFlow());
+      await flow('wall-offer', 'wall plan', () => wallOfferFlow());
+      await flow('farm-pond', 'water', () => farmPondFlow());
+      await flow('ditch', 'water', () => ditchFlow());
+      await flow('irrigation', 'water farm', () => irrigationFlow());
+      await flow('palette', 'material plan', () => paletteFlow());
+      await flow('grove', 'plan', () => groveFlow());
+      await flow('districts-plan', 'district plan', () => districtsPlanFlow());
+      await flow('plan-check', 'plan', () => planCheckFlow());
+      await flow('survival', 'stockpile bill refund growth wall', () => survivalFlow());
+      await flow('supplied-plan', 'survival stockpile bill', () => suppliedPlanFlow());
+      await flow('copper-lots', 'plan material', () => copperLotsFlow());
+      await flow('discard', 'plan undo', () => discardFlow());
+      await flow('beside', 'plan', () => besideFlow());
+      await flow('revision', 'plan version revert', () => revisionFlow());
+      await flow('district-region', 'district region', () => districtRegionFlow());
+      await flow('quarter', 'district wall', () => quarterFlow());
+      await flow('wall-lots', 'wall gatehouse gate', () => wallLotsFlow());
+      await flow('gate-mech', 'gate wall mechanism portcullis undo', () => gateMechFlow());
+      await flow('gate-mech-lots', 'gate wall mechanism portcullis undo', () => gateMechFlow('lots'));
+      await flow('gate-mech-swing', 'gate wall mechanism swing undo', () => gateMechFlow('swing'));
+      await flow('survival-mech', 'survival gate wall mechanism portcullis bill refund', () => survivalMechFlow());
+      await flow('survival-mech-swing', 'survival gate wall mechanism swing bill refund', () => survivalMechFlow('swing'));
     }
   }
-  await migratedSteward();
+  await flow('migrated-steward', 'save migration', () => migratedSteward());
   await restartRestore();
 } catch (e) {
   fail('run', e.message);
@@ -3083,6 +3099,7 @@ try {
   if (client && client.exitCode === null) client.kill();
 }
 const failed = results.filter((r) => !r.ok).length;
-fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, at: new Date().toISOString(), seconds: Math.round((Date.now() - started) / 1000), failed, results }, null, 2));
+fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, at: new Date().toISOString(), seconds: Math.round((Date.now() - started) / 1000), failed, results }, null, 2));
+if (only) console.log(`only ${only.join(',')}: ${skipped.length} flows skipped`);
 console.log(failed === 0 ? `PASS ${results.length} checks` : `${failed} FAIL of ${results.length}`);
 process.exit(failed === 0 && results.length > 0 ? 0 : 1);
