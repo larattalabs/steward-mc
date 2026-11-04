@@ -54,6 +54,42 @@ function launch() {
 async function connect() {
   dev = await DevClient.connect({ port: PORT, timeoutMs: 400_000 });
   await dev.waitInWorld({ timeoutMs: 400_000 });
+  // a new client writes a new log: the herder reads it from its start
+  herdAt = 0;
+  startHerder();
+}
+
+/**
+ * Occupied lots never stall a run (Noah, 2026-11-04): a building waits with no time limit for an animal or a player in its box, so one watcher for the
+ * whole run reads the steward's "... is in its lot. Move it out" and "someone is standing on its lot" and clears the animals (and their drops) or moves
+ * the dev player just past that town's claim, where the ground stays loaded. Every flow, every restart (the game's log starts afresh: read from its
+ * start again). Architect's harnesses keep the same rule (slice OC).
+ */
+let herdAt = 0, herding = false, herder = null;
+function startHerder() {
+  if (herder) return;
+  herder = setInterval(() => {
+    if (herding || !dev) return;
+    herding = true;
+    herd().catch(() => {}).finally(() => { herding = false; });
+  }, 2000);
+  herder.unref();
+}
+
+async function herd() {
+  const all = fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8') : '';
+  if (all.length < herdAt) herdAt = 0;
+  const text = all.slice(herdAt);
+  herdAt = all.length;
+  if (/is in its lot\. Move it out/.test(text)) await clearAnimals();
+  const standing = [...text.matchAll(/\[([^\]\n]+)\] The [^\n]*? waits: someone is standing on its lot/g)].map((m) => m[1]);
+  if (!standing.length && !/someone is standing on its lot/.test(text)) return;
+  const all_ = settlements();
+  const named = standing.map((n) => all_.find((x) => (x.card?.name ?? x.name) === n)).filter(Boolean);
+  for (const st of named.length ? named : all_.slice(-1)) {
+    const c = st.claim;
+    if (c) await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ + c.radius + 12}`);
+  }
 }
 
 async function quit() {
@@ -1378,18 +1414,9 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
   const end = Date.now() + ms;
   // nothing in the lots' way: an animal in a box holds its item up for Architect's whole wait (C30)
   await clearAnimals();
-  let at = from, herdAt = from;
+  let at = from;
   while (Date.now() < end) {
-    // an animal that walked into a lot while it was designed holds the lot's item up with no time limit (the steward names it): moved out, as a player would
-    // and the player standing on a lot (Architect waits for them to step off, again with no time limit): moved just past the claim's edge, where the ground
-    // stays loaded
-    const herd = logSince(herdAt);
-    if (/is in its lot\. Move it out|someone is standing on its lot/.test(herd)) {
-      herdAt = logSize();
-      if (/is in its lot\. Move it out/.test(herd)) await clearAnimals();
-      const c = /someone is standing on its lot/.test(herd) ? settlements().find((x) => x.id === id)?.claim : null;
-      if (c) await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ + c.radius + 12}`);
-    }
+    // (an animal or the player in a lot: the run's herder moves them out)
     const since = logSince(at);
     const built = since.match(/is built(?: in part)?: (\d+) buildings placed/);
     if (built) return { steps, placed: Number(built[1]) };
@@ -1412,8 +1439,6 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
       await quit();
       launch();
       await connect();
-      // a new client's log: the animal watch starts over with it
-      herdAt = 0;
       if (onStep) await onStep('restart-after');
       if (await waitLog(0, new RegExp(`resume ${id}: [^\\n]*-> REREAD_GROUP`), 30_000)) ok('restart mid-build', label);
       else fail('restart mid-build', `${label}: no re-read`);
@@ -2334,15 +2359,9 @@ async function revisionFlow() {
  * the log from {@code from} matches {@code until}: the match, or null when the build stopped or the time ran out.
  */
 async function driveUntil(id, from, until, ms) {
-  let at = from, herdAt = from;
+  let at = from;
   for (const end = Date.now() + ms; Date.now() < end;) {
-    const herd = logSince(herdAt);
-    if (/is in its lot\. Move it out|someone is standing on its lot/.test(herd)) {
-      herdAt = logSize();
-      await clearAnimals();
-      const c = settlements().find((x) => x.id === id)?.claim;
-      if (c && /someone is standing on its lot/.test(herd)) await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ + c.radius + 12}`);
-    }
+    // (an animal or the player in a lot: the run's herder moves them out)
     const all = logSince(from);
     const m = all.match(until);
     if (m) return m;
