@@ -2367,7 +2367,7 @@ async function driveUntil(id, from, until, ms) {
  * gatehouse's design word for word (the sim roofs at row 10 only when the roof-cap line is in its notes), so the bind finds the sensor's rung rather
  * than the levers-only deviation; undone, the gatehouse, the mechanism and the town leave the ground as it was.
  */
-async function gateMechFlow() {
+async function gateMechFlow(form = 'lenient') {
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} 33000 0 1 false @p`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
@@ -2381,12 +2381,19 @@ async function gateMechFlow() {
   const snap = path.join(ROOT, 'artifacts', 'e2e', `gm-${id}.snap.gz`);
   await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
   const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
-  card.name = 'Portcullis Keep';
+  card.name = form === 'lots' ? 'Portcullis Wall' : 'Portcullis Keep';
   await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
   // castle_city's towers and gatehouse only (the sim designs no lot 7 deep), the curtain wall's gate with a portcullis
   const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
   for (const z of answer.plan.zones) if (z.program?.lots) z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse');
   // (no mechanism in the fixture: Steward adds the portcullis to every gatehouse a wall names, PlanWriterJob.withGateMechanisms)
+  // the wall as the plan writer now writes it (K3 lots: the gatehouse at its gate, the towers at its corners), so Steward's mech is explicit
+  if (form === 'lots') {
+    const wall = answer.plan.connectors.find((k) => k.id === 'curtain_wall');
+    const { gate_lot, corner_lots, ...rest } = wall.params;
+    wall.params = rest;
+    wall.lots = [{ lot: gate_lot, at: 'gate' }, ...corner_lots.map((lot) => ({ lot, at: 'corner' }))];
+  }
   await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
   let from = logSize();
   await cmd(`/steward describe ${id} a castle with a portcullis in its gatehouse`);
@@ -2402,11 +2409,12 @@ async function gateMechFlow() {
   const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
   const gm = (view?.view?.ext ?? view?.record?.ext ?? {})['architect_mc:gateMechanism'] ?? null;
   if (!built || !region) return fail('gate mechanism', `built ${!!built}; region ${region || 'none'}; last ${JSON.stringify(st?.log?.at(-1))?.slice(0, 160)}`);
-  if (!gm) { console.log('skip gate mechanism (no gateMechanism on the region: an Architect before GM)'); }
+  // (Steward needs Architect >= 0.51.0, which has GM: no report means no mechanism was asked for)
+  if (!gm) fail(`gate mechanism (${form})`, `${region}: no gateMechanism on the region (Steward asked for no mechanism?)`);
   else {
     const g = gm.gatehouse_1;
-    if (g && g.roof != null && g.sensor && !g.deviation) ok('gate mechanism', `${region} gatehouse_1 ${g.kind ?? 'portcullis'}: the sensor at roof row ${g.roof} (the brief lines reached its design)`);
-    else fail('gate mechanism', `gatehouse_1 ${JSON.stringify(g ?? gm).slice(0, 200)}`);
+    if (g && g.roof != null && g.sensor && !g.deviation) ok(`gate mechanism (${form})`, `${region} gatehouse_1 ${g.kind ?? 'portcullis'}: the sensor at roof row ${g.roof} (the brief lines reached its design)`);
+    else fail(`gate mechanism (${form})`, `gatehouse_1 ${JSON.stringify(g ?? gm).slice(0, 200)}`);
   }
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
   await cmd(`/steward undo ${id}`);
@@ -2415,8 +2423,8 @@ async function gateMechFlow() {
   await clearAnimals();
   const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
   const left = (d.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
-  if ((gs === 'REMOVED' || gs === undefined) && left.length === 0) ok('gate mechanism undone', `${region} ${gs ?? 'gone'}; the ground as it was`);
-  else fail('gate mechanism undone', `state ${gs}; ${left.length} cell(s) differ: ${JSON.stringify(left.slice(0, 4)).slice(0, 200)}`);
+  if ((gs === 'REMOVED' || gs === undefined) && left.length === 0) ok(`gate mechanism undone (${form})`, `${region} ${gs ?? 'gone'}; the ground as it was`);
+  else fail(`gate mechanism undone (${form})`, `state ${gs}; ${left.length} cell(s) differ: ${JSON.stringify(left.slice(0, 4)).slice(0, 200)}`);
 }
 
 /**
@@ -2942,6 +2950,7 @@ try {
       await quarterFlow();
       await wallLotsFlow();
       await gateMechFlow();
+      await gateMechFlow('lots');
       await survivalMechFlow();
     }
   }

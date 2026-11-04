@@ -68,5 +68,14 @@ class PlanWriterJobTest {
 		for (var q : ls) mech.add(q.getAsJsonObject().has("mech") ? q.getAsJsonObject().get("mech").getAsString() : "-");
 		assertEquals(List.of("portcullis", "-", "-", "portcullis", "swing", "-"), mech);
 		assertFalse(listed.getAsJsonArray("connectors").get(0).getAsJsonObject().has("params"), "a wall with lots never gets the lenient key (it is not read)");
+		// a wall with lots that declines (an open arch the card asked for): no mech anywhere on it
+		var open = com.google.gson.JsonParser.parseString("{\"zones\":[{\"id\":\"town\",\"program\":{\"lots\":[{\"id\":\"g\",\"type\":\"gatehouse\",\"size\":[17,15]}]}}],"
+			+ "\"connectors\":[{\"id\":\"w\",\"kind\":\"wall\",\"params\":{\"mechanism\":\"none\"},\"lots\":[{\"lot\":\"g\",\"at\":\"gate\"}]}]}").getAsJsonObject();
+		PlanWriterJob.withGateMechanisms(open);
+		assertFalse(open.getAsJsonArray("connectors").get(0).getAsJsonObject().getAsJsonArray("lots").get(0).getAsJsonObject().has("mech"));
+		// the prompt tells the writer to put gatehouses on their wall, sized for the gate
+		String prompt = PlanWriterJob.systemPrompt();
+		assertTrue(prompt.contains("{lot, at: \"gate\"}") && prompt.contains("at least 13 along the wall and 7 through it"), "the wall-lots rule");
+		assertFalse(prompt.contains("lots aren't placed on a wall line yet"));
 	}
 }
