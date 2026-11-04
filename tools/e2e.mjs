@@ -2570,8 +2570,8 @@ async function survivalMechFlow(form = 'lots') {
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     // what only the gate takes, held back until the steward names it: the portcullis's redstone parts (billed crafted: GM-a2's bill), the swing's iron doors
     const RARE = swing ? /iron_door/ : /comparator|observer|daylight_detector|sticky_piston/;
-    // the steward's materials line, or (Architect's GM-a2 ask) the mechanism's bill wait said as its stage sentence
-    const named = () => logSince(from).match(new RegExp(`\\[${name}\\] [^\\n]*?waits for [^\\n]*(?:${swing ? 'iron door' : 'comparator|observer|daylight detector|sticky piston'})[^\\n]*`, 'i'));
+    // (Architect WE) the mechanism's bill wait said as its stage sentence in chat ("Curtain g1's swing gate waits for 2 × iron door in the stockpile")
+    const named = () => logSince(from).match(new RegExp(`\\[CHAT\\] [^\\n]*?waits for [^\\n]*(?:${swing ? 'iron door' : 'comparator|observer|daylight detector|sticky piston'})[^\\n]*`, 'i'));
     from = logSize();
     await cmd(`/steward start ${id} 6 80`);
     // the feeder: all the need but the rare items, until the steward names them (or 3 min of nothing else owed), then everything
