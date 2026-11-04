@@ -1124,3 +1124,16 @@ built, refunded). The survival gate town is checked again, with no skip (1a600ab
 Steward builds against the published v0.53.1 (`architect_version`, runtime minimum 0.53.1; 0.53.0's package has no .module file and no sources jar, so
 it is skipped). gmb-rc is merged. Free 43/43. Stub PASS 117 with three skips: `survival growth` (the walled town's street, as before) and the two
 mechanism `named` checks (the bill-wait ask, still open).
+## 7a WE + WS RC (rc/WE-WS 4230dca1, 2026-11-04): PASS for Steward
+
+Stub PASS 124 of 124 on the RC jar (wews-rc 42c7b01). One skip, `survival growth`, the walled town's own street as before.
+- **WE:** each mechanism's bill wait is announced once, in chat, with its items, and the subjects are fixed: "Main gatehouse's portcullis waits for 1 ×
+  redstone comparator, 1 × daylight detector, 3 × observer and 6 × sticky piston in the stockpile"; "The gate's swing gate waits for 2 × iron door in the
+  stockpile". The three `named` checks are checks again, matched as the steward says them in chat (no settlement prefix).
+- **WS:** a new survival flow, "Wall Swing Supply" (the swing hamlet with no gate part; `curtain` has `gateMech: "swing"`, `gates: {min: 2}`). Iron
+  doors were owed (4); both waits were named; `curtain_g1` and `curtain_g2` were built as swings, each with its own bill; every consumed unit came back on
+  undo (7514).
+- Steward side: `connector.wall.gateMech` in `schema/plan-0.json`, and the plan writer writes it when the card asks for iron gates all round a wall.
+- Free: 40 of 43. The three failures are one stale-world problem in the update flow, not this RC: the inbox's first update was an earlier run's settlement
+  (set_28), whose site was not loaded. Fixed forward.
+- Wording, not a blocker: an auto gate is named from its id ("Curtain g1's swing gate"). "The wall's first gate" or similar would read better.
