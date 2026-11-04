@@ -924,6 +924,44 @@ async function planBuildFlow() {
 }
 
 /**
+ * (Architect GH; Noah, 2026-11-04) A grid that doesn't fit is refused NO_ROOM with the street layout as its wouldFit: walled_town as Claude wrote it in
+ * the gatehouse round (plans-gc, layout grid) is composed, the fragment applied with no Claude round, and the player told which buildings it leaves out.
+ */
+async function streetHintFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 16500 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Grid Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans-gc', 'walled_town.json'), 'utf8')).answer;
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+  const from = logSize();
+  await cmd(`/steward describe ${id} a walled town laid out on a grid`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('street hint', 'no card');
+  const kept = await waitLog(from, new RegExp(`plan for ${id}: ([A-Z_]+) after (\\d+) repair`), 240_000);
+  await closeScreens();
+  if (!kept) return fail('street hint', 'no plan composed');
+  const applied = logSince(from).match(new RegExp(`plan for ${id}: \\[town\\] as street, Architect's wouldFit applied \\(left out: \\[([^\\]]*)\\]\\)`));
+  const told = logSince(from).match(/\[Grid Town\] Left out for room[^\n]*/);
+  const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
+  const town = (() => { try { return JSON.parse(plans[id]?.plan ?? '{}').zones?.find((z) => z.id === 'town'); } catch { return null; } })();
+  const leftOut = applied?.[1] ? applied[1].split(', ') : [];
+  if (!applied) {
+    const refused = (logSince(from).match(/Didn't fit here[^\n]*/) ?? ['no refusal said'])[0];
+    return fail('street hint', `no wouldFit applied (kept ${kept[1]} after ${kept[2]} repairs; ${refused})`);
+  }
+  if (town?.program?.layout === 'street' && (leftOut.length ? told && leftOut.every((l) => told[0].includes(l)) : !told) && kept[2] === '0') {
+    ok('street hint', `the grid refused, its street fragment applied with no Claude round: kept ${kept[1]}, ${town.program.lots?.length} lots; ${told ? told[0] : 'every lot placed'}`);
+  } else fail('street hint', `kept ${kept[1]} after ${kept[2]} repairs; town layout ${town?.program?.layout}; left out [${leftOut}]; told ${told ? told[0] : 'nothing'}`);
+}
+
+/**
  * Districts in a plan (Architect D1, through plan v1): a town of two quarters, a desert side and a jungle side, each its own street of lots, built from
  * its approved plan as one region, and undone whole.
  */
@@ -3007,6 +3045,7 @@ try {
       await stubFlow(id);
       await villageFlow();
       await planBuildFlow();
+      await streetHintFlow();
       await wallOfferFlow();
       await farmPondFlow();
       await ditchFlow();
