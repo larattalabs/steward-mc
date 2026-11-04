@@ -1098,3 +1098,23 @@ before) and `survival mechanism`.
 - **What works in survival:** the feeder adds crates when the stockpile is full (3 added, 11,997 items in), and the town is said built.
 - **The e2e's herder** clears animals out of a waiting lot on the steward's words, on Architect's own OCCUPIED wait, and before every undo (Noah:
   occupied lots never stall a test).
+
+## 7a WL + GM-b RC (2026-11-04): PASS for Steward, one ask
+
+Architect slice/WL at 9d1aa412: rc/GMb (fc0b44f9, K1 swing gates, CONTRACT §17) plus the wall-lot fix (§18), both for v0.53.0. Steward's branch
+`gmb-rc`: connector.gate's `mech` (none or swing) in plan/0, and e2e flows for a swing gate in creative (bound, undone) and in survival (billed,
+built, refunded). The survival gate town is checked again, with no skip (1a600ab). Free 43/43; stub 117 ok, with three skips: `survival growth`
+(as before) and the two `named` checks below. Evidence: `_work/steward-reviews/wl2-*.log`. Independent verifier PASS.
+
+- **WL in game:** the castle zone moved by the stockpile's crates keeps all 5 wall lots, gatehouse included. The portcullis of gatehouse_1 took its
+  bill (comparator, daylight detector, 3 observers, 6 sticky pistons, 47 redstone...), the town was said built, and the undo refunded the bill exactly.
+- **GM-b in game:** east_gate is the iron swing gate in its curtain (16 cells), undone to the ground as it was; in survival it took its bill (2 iron
+  doors, lever, button, plate...) once the wall stood, and the refund returned it.
+- **Ask (GM-a2/GM-b, non-blocking):** a mechanism's wait for its bill is never said. `MechCharges.hold` moves the `mech:` item from the lot wait (or
+  the wall wait) to the bill wait with the same reason, SITE_BUSY. `Batches.waitFor` fires ITEM_WAITING and logs only when the reason changes, so the
+  message naming what it lacks stays in the item's status. Steward's `onItemWaiting` voices a stage wait by its `architect_mc:waitsFor.say`. Ask:
+  on the move to the bill wait, fire ITEM_WAITING with a `waitsFor.say` that names the missing items ("the gatehouse's portcullis waits for 1
+  comparator and 3 observers in the stockpile"). Its first wait's sentence also needs a subject: today the steward says "Main gatehouse waits for Main
+  gatehouse to be built.". Until then, the e2e reports the two `named` checks as skips (dbd1e9f). Its regex already accepts such a sentence.
+- Steward's own e2e fixes on the way (e7d8553): the swing towers on 13x13 lots (the sim designs none 7 deep), and the portcullis held back by its
+  crafted parts. gmb-rc merges when the pin moves to v0.53.0.
