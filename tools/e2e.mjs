@@ -81,7 +81,8 @@ async function herd() {
   if (all.length < herdAt) herdAt = 0;
   const text = all.slice(herdAt);
   herdAt = all.length;
-  if (/is in its lot\. Move it out|Removal stopped of [^\n]*Move these out/.test(text)) await clearAnimals();
+  // the steward's words, Architect's own wait (a box held by an animal the steward hasn't named) and a stopped removal
+  if (/is in its lot\. Move it out|waits \(OCCUPIED\): Not placed: in the box|Removal stopped of [^\n]*Move these out/.test(text)) await clearAnimals();
   const standing = [...text.matchAll(/\[([^\]\n]+)\] The [^\n]*? waits: someone is standing on its lot/g)].map((m) => m[1]);
   if (!standing.length && !/someone is standing on its lot/.test(text)) return;
   const all_ = settlements();
@@ -2497,7 +2498,18 @@ async function survivalMechFlow() {
     // the feeder: all the need but the rare items, until the steward names them (or 3 min of nothing else owed), then everything
     let stop = false, rareSeen = null, rareFed = false, onlyRareSince = 0;
     // what the feeder saw and did, for a failure's message
-    const fed = { polls: 0, noLedger: 0, owed: 0, accepted: 0, refused: 0, lastNeed: null };
+    const fed = { polls: 0, noLedger: 0, owed: 0, accepted: 0, refused: 0, lastNeed: null, crates: 0 };
+    // the town's ground and wall alone owe ~10,000 items, more than the 2 crates hold while the gate's sites wait: a full stockpile gets
+    // another crate beside its first (the player stands there for /steward stockpile add, then goes back to watch)
+    const addCrate = async () => {
+      const at = logSince(from).match(/stockpile is the \d+ crates? at (-?\d+), (-?\d+), (-?\d+)/);
+      if (!at || fed.crates >= 6) return;
+      const [x, y, z] = at.slice(1).map(Number);
+      fed.crates++;
+      await cmd(`/tp @p ${x + 2 * fed.crates + 0.5} ${y} ${z + 0.5}`);
+      fed.lastCrate = (await cmd(`/steward stockpile ${id} add`)).slice(0, 120);
+      await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + claim.radius + 12}`);
+    };
     const feeder = (async () => {
       while (!stop) {
         await sleep(3000);
@@ -2518,7 +2530,7 @@ async function survivalMechFlow() {
         if (!Object.keys(rest).length) continue;
         const r = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: rest }).catch((e) => ({ error: String(e) }));
         if (units(r?.accepted ?? {})) fed.accepted += units(r.accepted);
-        else fed.refused++, fed.lastRefusal = JSON.stringify(r).slice(0, 160);
+        else (fed.refused++, (fed.lastRefusal = JSON.stringify(r).slice(0, 160)), await addCrate());
       }
     })();
     const built = await buildThrough(id, from, 'survival mechanism', false, null, 1_800_000);
