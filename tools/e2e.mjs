@@ -2363,7 +2363,7 @@ async function driveUntil(id, from, until, ms) {
  * cancelled once the repair stopped. Skipped on an Architect without wall lots.
  */
 /**
- * (Architect GM-a) A walled town whose gatehouse has a portcullis (the wall's lenient params.mechanism): the gate's five brief lines reach the
+ * (Architect GM-a) A walled town whose gatehouse has a portcullis (Steward's own lenient params.mechanism): the gate's five brief lines reach the
  * gatehouse's design word for word (the sim roofs at row 10 only when the roof-cap line is in its notes), so the bind finds the sensor's rung rather
  * than the levers-only deviation; undone, the gatehouse, the mechanism and the town leave the ground as it was.
  */
@@ -2386,8 +2386,7 @@ async function gateMechFlow() {
   // castle_city's towers and gatehouse only (the sim designs no lot 7 deep), the curtain wall's gate with a portcullis
   const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
   for (const z of answer.plan.zones) if (z.program?.lots) z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse');
-  const wall = answer.plan.connectors.find((k) => k.id === 'curtain_wall');
-  wall.params = { ...wall.params, mechanism: 'portcullis' };
+  // (no mechanism in the fixture: Steward adds the portcullis to every gatehouse a wall names, PlanWriterJob.withGateMechanisms)
   await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
   let from = logSize();
   await cmd(`/steward describe ${id} a castle with a portcullis in its gatehouse`);
@@ -2418,6 +2417,109 @@ async function gateMechFlow() {
   const left = (d.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
   if ((gs === 'REMOVED' || gs === undefined) && left.length === 0) ok('gate mechanism undone', `${region} ${gs ?? 'gone'}; the ground as it was`);
   else fail('gate mechanism undone', `state ${gs}; ${left.length} cell(s) differ: ${JSON.stringify(left.slice(0, 4)).slice(0, 200)}`);
+}
+
+/**
+ * (Architect GM-a2) A gate mechanism in survival: castle_city's towers and gatehouse built from the stockpile, its curtain wall's portcullis added by
+ * Steward itself (PlanWriterJob.withGateMechanisms, not the fixture). The mechanism's bill is part of the stockpile's need; its rare items (slime balls,
+ * quartz) are held back until the steward names them, then fed; the town is said built only with the gate in, the exact bill on the region; undone,
+ * every consumed unit comes back.
+ */
+async function survivalMechFlow() {
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  try {
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 45000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = 'Gate Supply';
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
+    for (const z of answer.plan.zones) if (z.program?.lots) z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse');
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a castle built from what we gather`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('survival mechanism', 'no card');
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('survival mechanism', 'no plan composed');
+    const diff = settlements().find((x) => x.id === id)?.difficulty;
+    if (diff !== 'SUPPLIED') return fail('survival mechanism', `difficulty ${diff} in a survival world`);
+    await closeScreens();
+    await clearAnimals();
+    const claim = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
+    const owner = `steward_mc:settlement/${id}`;
+    const ledger = async () => {
+      const r = await cmd(`/steward dev stockpile ${id}`);
+      const m = r.match(/stockpile \S+ (\{.*\})/);
+      return m ? JSON.parse(m[1]) : null;
+    };
+    const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    const RARE = /slime_ball|quartz/;
+    const named = () => logSince(from).match(/\[Gate Supply\] The [^\n]*? waits for materials: [^\n]*(?:slime|quartz)[^\n]*/i);
+    from = logSize();
+    await cmd(`/steward start ${id} 6 80`);
+    // the feeder: all the need but the rare items, until the steward names them (or 3 min of nothing else owed), then everything
+    let stop = false, rareSeen = null, rareFed = false, onlyRareSince = 0;
+    const feeder = (async () => {
+      while (!stop) {
+        await sleep(3000);
+        const sp = await ledger().catch(() => null);
+        const need = sp?.need ?? {};
+        if (!Object.keys(need).length) continue;
+        const rare = Object.fromEntries(Object.entries(need).filter(([k]) => RARE.test(k)));
+        if (Object.keys(rare).length && !rareSeen) rareSeen = rare;
+        const rest = rareFed ? need : Object.fromEntries(Object.entries(need).filter(([k]) => !RARE.test(k)));
+        if (!rareFed && Object.keys(rare).length && !Object.keys(rest).length) {
+          onlyRareSince ||= Date.now();
+          if (named() || Date.now() - onlyRareSince > 180_000) rareFed = true;
+        }
+        if (Object.keys(rest).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: rest }).catch(() => null);
+      }
+    })();
+    const built = await buildThrough(id, from, 'survival mechanism', false, null, 1_800_000);
+    const doneSaid = built ? await waitLog(from, /Gate Supply is built: everything its plan laid out stands/, 900_000) : null;
+    stop = true;
+    await feeder;
+    const st = settlements().find((x) => x.id === id);
+    const region = (st?.log?.filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '').replace(/^region:/, '');
+    const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
+    const gm = ((view?.view?.ext ?? view?.record?.ext ?? {})['architect_mc:gateMechanism'] ?? {}).gatehouse_1 ?? null;
+    const said = named();
+    if (rareSeen) ok('survival mechanism need', `the stockpile owed ${JSON.stringify(rareSeen)} for the gate`);
+    else fail('survival mechanism need', 'no slime balls or quartz ever owed: no mechanism billed');
+    if (said) ok('survival mechanism named', said[0].slice(0, 180));
+    else fail('survival mechanism named', `the steward never named the rare items (fed after the 3 min fallback: ${rareFed})`);
+    if (built && doneSaid && gm?.bom) ok('survival mechanism built', `${region} gatehouse_1: ${gm.roof != null ? `sensor at ${gm.roof}` : gm.deviation}; bill ${JSON.stringify(gm.bom).slice(0, 120)}`);
+    else return fail('survival mechanism built', `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gm).slice(0, 160)}`);
+    const before = await ledger();
+    await cmd(`/steward undo ${id}`);
+    let last = null;
+    for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(2000);
+      last = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    const after = await ledger();
+    const off = [];
+    for (const [item, all] of Object.entries(before?.consumed ?? {})) {
+      const used = all - (before.returned?.[item] ?? 0) - (before.refundOverflow?.[item] ?? 0);
+      if (used <= 0) continue;
+      const back = (after?.returned?.[item] ?? 0) + (after?.refundOverflow?.[item] ?? 0) - (before.returned?.[item] ?? 0) - (before.refundOverflow?.[item] ?? 0);
+      if (back !== used) off.push(`${item} ${back}/${used}`);
+    }
+    const rareBack = Object.keys(before?.consumed ?? {}).filter((k) => RARE.test(k));
+    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length) ok('survival mechanism refund', `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
+    else fail('survival mechanism refund', `${last?.kind}; rare consumed ${rareBack.join(', ') || 'none'}; refunds off: ${off.slice(0, 8).join(', ')}`);
+  } finally {
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
 }
 
 async function wallLotsFlow() {
@@ -2840,6 +2942,7 @@ try {
       await quarterFlow();
       await wallLotsFlow();
       await gateMechFlow();
+      await survivalMechFlow();
     }
   }
   await migratedSteward();
