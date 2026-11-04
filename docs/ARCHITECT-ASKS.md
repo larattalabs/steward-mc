@@ -1137,3 +1137,12 @@ Stub PASS 124 of 124 on the RC jar (wews-rc 42c7b01). One skip, `survival growth
 - Free: 40 of 43. The three failures are one stale-world problem in the update flow, not this RC: the inbox's first update was an earlier run's settlement
   (set_28), whose site was not loaded. Fixed forward.
 - Wording, not a blocker: an auto gate is named from its id ("Curtain g1's swing gate"). "The wall's first gate" or similar would read better.
+
+## v0.54.0 pin (2026-11-04): IN PROGRESS, resume here
+
+Branch `release-054` (worktree `_work/steward-only`) merges wews-rc and pins Architect 0.54.0 (18c4e40). It builds against the published package and
+`npm test` passes. The e2e check was stopped unfinished for a shutdown. To resume:
+1. From `_work/steward-only`, run `node tools/e2e.mjs stub --only gate,wall,survival` (the sanity set comes with it), with
+   `GRADLE_USER_HOME` set to the main checkout's `.gradle-home`.
+2. If it passes, merge `release-054` into main, run `gitleaks git --log-opts=origin/main..HEAD`, push main, and tell the Architect coordinator.
+3. Then GM-c (drawbridge): un-reserve `connector.drawbridge` in `schema/plan-0.json`; the coordinator names its areas in the handoff.
