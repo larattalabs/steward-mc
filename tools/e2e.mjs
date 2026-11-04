@@ -142,11 +142,13 @@ const settlements = () => {
 
 // ------------------------------------------------------------------ a building of our own (kit-built, no Claude)
 
-const STUB = 'e2e_stub';
+// a new entry each run: the world keeps earlier runs' settlements, and their copies of one shared entry were offered the update first (set_28's, not
+// loaded, on the WE-WS RC); an earlier run's entry never gets a new version, so the inbox's only update is this run's
+const STUB = `e2e_stub_${Date.now().toString(36)}`;
 
-function stubBlueprint(extraLantern) {
+function stubBlueprint(extraLantern, id = STUB) {
   const p = PALETTES.rustic;
-  const bp = new Blueprint({ id: STUB, type: 'custom', size: [9, 6, 9], origin: [0, 0, 0], palette: p, interior: [1, 1, 1, 7, 4, 4] });
+  const bp = new Blueprint({ id, type: 'custom', size: [9, 6, 9], origin: [0, 0, 0], palette: p, interior: [1, 1, 1, 7, 4, 4] });
   bp.room([0, 0, 0, 8, 5, 5]);
   bp.door(4, 1, 5, 'south');
   bp.lantern(2, 1, 2);
@@ -157,11 +159,16 @@ function stubBlueprint(extraLantern) {
   return bp;
 }
 
-/** A fresh entry every run (only this script uses it): the update check installs a version that must differ from the one placed. */
+/**
+ * A fresh entry every run (only this script uses it): the update check installs a version that must differ from the one placed. The fixed
+ * `e2e_stub` is written too, for the dev commands that realise it (PlanChecks.realise, VSpike).
+ */
 function ensureStubEntry() {
-  const dir = path.join(GAME, 'architect', 'library', STUB);
-  fs.rmSync(dir, { recursive: true, force: true });
-  writeBlueprint(stubBlueprint(false), dir);
+  for (const id of [STUB, 'e2e_stub']) {
+    const dir = path.join(GAME, 'architect', 'library', id);
+    fs.rmSync(dir, { recursive: true, force: true });
+    writeBlueprint(stubBlueprint(false, id), dir);
+  }
 }
 
 // ------------------------------------------------------------------ steps
