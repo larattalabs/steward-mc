@@ -78,11 +78,11 @@ public final class Composer {
 		int session = Session.current();
 		if (!available() || Integer.valueOf(session).equals(COMPOSING.get(s.id()))) return;
 		COMPOSING.put(s.id(), session);
-		round(server, player, s, cardJson, land, session, 0, 0, null, null, null);
+		round(server, player, s, cardJson, land, session, 0, 0, null, null, null, List.of());
 	}
 
 	private static void round(MinecraftServer server, UUID player, Settlement s, String cardJson, @Nullable String land, int session, int round, double spent,
-		@Nullable String previous, @Nullable String answers, @Nullable String lastAnswers) {
+		@Nullable String previous, @Nullable String answers, @Nullable String lastAnswers, List<String> leftOut) {
 		var builds = PlayerBuilds.promptLines(server, s, PlayerBuilds.in(server, s));
 		PlanWriter.write(cardJson, land, ANCHORS, builds, s.owner(), previous, answers).whenComplete((r, err) -> server.execute(() -> {
 			if (!Session.is(session)) return;
@@ -98,14 +98,15 @@ public final class Composer {
 					done(s, "Architect could not check the plan (" + cerr.getMessage() + "): the build takes today's layout.", server, player);
 					return;
 				}
-				checked(server, player, s, cardJson, land, session, round, cost, plan, r.answer(), c, lastAnswers, List.of(), false);
+				checked(server, player, s, cardJson, land, session, round, cost, plan, r.answer(), c, lastAnswers, leftOut, false);
 			}));
 		}));
 	}
 
 	/**
 	 * After a check: a free layout's street fragment is applied first ({@link #streetFixes}, at most once a round, $0), then Claude repairs while parts are
-	 * refused or malformed; else the plan is kept. {@code leftOut}: the lots the applied fragments dropped.
+	 * refused or malformed; else the plan is kept. {@code leftOut}: the lots the applied fragments dropped, carried through Claude's rounds (the
+	 * repair starts from the fixed plan).
 	 */
 	private static void checked(MinecraftServer server, UUID player, Settlement s, String cardJson, @Nullable String land, int session, int round, double cost,
 		JsonObject plan, JsonObject answer, PlanCheck c, @Nullable String lastAnswers, List<String> leftOut, boolean fixed) {
@@ -131,7 +132,7 @@ public final class Composer {
 		if (repairable && round < ROUNDS && cost < CAP_USD - PlanWriterJob.BUDGET_USD && !lines.equals(lastAnswers)) {
 			Steward.LOGGER.info("plan for {}: round {} {} ({} parts to repair), ${}", s.id(), round, c.overall(), count(c, "refused") + count(c, "malformed"),
 				String.format("%.3f", cost));
-			round(server, player, s, cardJson, land, session, round + 1, cost, plan.toString(), lines, lines);
+			round(server, player, s, cardJson, land, session, round + 1, cost, plan.toString(), lines, lines, leftOut);
 			return;
 		}
 		keep(server, player, s, plan, answer, c, cost, round, leftOut);
