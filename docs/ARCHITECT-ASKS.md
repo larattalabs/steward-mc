@@ -1083,3 +1083,18 @@ the restarted district carries no Steward tags (its sweeps take up a region no b
 
 Steward builds against the published v0.49.0 (`architect_version`, runtime minimum 0.49.0); gj-rc is merged. Free 43/43; stub PASS 105 with one skip: `survival
 growth`, the walled town's own street (`NO_ROOM [street]`).
+
+## v0.51.0 and v0.52.0 post-release checks (2026-11-03): PASS, one Architect finding
+
+Steward builds against the published v0.52.0 (`architect_version`, runtime minimum 0.52.0), through 0.51.0 (GM-a2). The plan writer now asks for a
+mechanism on every gatehouse a wall names (`PlanWriterJob.withGateMechanisms`; Noah, 2026-11-03), and names the gatehouse as the wall's gate
+(K3 lots; the paid coverage run, `mod/DEV.md`). Free 43/43; stub PASS 110 with two skips: `survival growth` (the walled town's own street, as
+before) and `survival mechanism`.
+
+- **Finding (Architect, fixed in slice WL for v0.53.0, CONTRACT §18):** in the survival gate town, the stockpile's crates at the claim centre moved the
+  castle zone at the layout's re-check; its ring with a 15-deep gatehouse was refused OUT_OF_CLAIM, the lots went back to the zone, and the second pass
+  made a plain ring with an auto gate. No wall lot, so no gatehouse to carry the portcullis. The e2e reports that one case as a skip, agreed with the
+  coordinator (42a9535); the town's build and full refund are still checked. Evidence: `_work/steward-reviews/gm-a2-survival-walllots/`.
+- **What works in survival:** the feeder adds crates when the stockpile is full (3 added, 11,997 items in), and the town is said built.
+- **The e2e's herder** clears animals out of a waiting lot on the steward's words, on Architect's own OCCUPIED wait, and before every undo (Noah:
+  occupied lots never stall a test).
