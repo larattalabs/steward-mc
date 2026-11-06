@@ -36,6 +36,8 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
   - After a test-only fix or a chance failure, rerun only the failed flows (each run prints `flow <name>` lines).
   - Skip the gate-verifier for branches that touch only tests or wording; keep it for survival billing, undo, removal and crash recovery.
   - No second full e2e pass after a merge to `main`.
+  - A pin bump to a released Architect version whose RC already passed runs only the sanity set: `node tools/e2e.mjs stub --only sanity` (Noah, 2026-11-06).
+    A release that differs from that RC still gets its changed areas run.
 
 ## Build and test
 
