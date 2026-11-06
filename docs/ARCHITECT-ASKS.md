@@ -1193,3 +1193,8 @@ A new slice/GMc tip follows. Rerun `--only drawbridge,water` on it.
 - Water: farm-pond, ditch and irrigation place and undo. The sanity set (claim, expand, restart, cancel) passes.
 - `status` reports API 1.48.0 from this jar. The planned bump to 1.49.0 lands with the release, and gmc-rc's pin bump follows it.
 gmc-rc waits for v0.55.0 and the pin bump before merging to main.
+
+### v0.55.0 pin (2026-11-06): PASS, merged
+Architect v0.55.0 (API 1.49.0, catalogue 16) is pinned on gmc-rc (9141f47, runtime minimum 0.55.0). The build and unit tests pass against the
+published package, and `npm test` gives 34/0. `node tools/e2e.mjs stub --only gate,wall,survival,drawbridge`: PASS, 83 checks, 0 failed, 4726 s;
+`status` reads API 1.49.0. The crossing's dirt loss stays with Architect's follow-up slice.
