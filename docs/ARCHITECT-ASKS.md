@@ -1145,3 +1145,32 @@ shutdown, `node tools/e2e.mjs stub --only gate,wall,survival` with the sanity se
 ("Curtain g1's swing gate waits for 2 × iron door in the stockpile."), the wall's two auto gates were billed as swings and refunded, and restart and
 restore passed. Merged into main and pushed.
 Next is GM-c (drawbridge): un-reserve `connector.drawbridge` in `schema/plan-0.json`. The coordinator names its areas in the handoff.
+
+## GM-c RC (slice/GMc 588a79b4, 2026-11-05): HELD on an ask
+
+Branch `gmc-rc` (worktree `_work/steward-gmc`):
+- `connector.drawbridge` is marked supported in `schema/plan-0.json`, and the bridge def takes kind `drawbridge`.
+- The plan writer writes a drawbridge where the card asks for one.
+- A drawbridge crossing is said as "a drawbridge over water, 11 long".
+- Two new e2e flows: `drawbridge` (creative, circuit and undo) and `survival-drawbridge` (bill, wait and refund).
+- The build, the unit tests and `npm test` pass.
+
+`stub --only drawbridge,water` with the sanity set gave 18 ok and 2 FAIL:
+- The farm pond, ditch and irrigation flows pass.
+- The drawbridge was refused SPAN in both new flows. Offline, on the kit's flat claim (`checkPlanLocal`), the same plan is refused with
+  evidence `span 64, min 5, max 11`, and a plain beam bridge is refused the same way. A bridge's two ends must lie within `approach` (at most
+  32) of the gap. A Steward plan has no anchor at a moat's banks, only `claim_*` and its parts: `claim_e` is about 98 from a hamlet at the
+  centre. Architect's fixture uses bank and berm anchors 21 apart. redstone_gate's recorded drawbridge (claim_s to gatehouse_1) has the same
+  shape, behind its DEPENDENCY answer.
+- In survival, the plan check refused the drawbridge, but the realise re-checked after the stockpile crates moved the hamlet, and the
+  drawbridge fit and was built. The circuit was billed as one bill, the wait announced ("Drawbridge's drawbridge waits for 30 × redstone dust
+  and 30 × redstone repeater"), and it was charged. Steward then said "built: 2 buildings placed", not "everything stands", because its
+  record still held the composed plan's unfit drawbridge. That stale record is Steward's to fix.
+
+**Ask GMc-1:** how should a plan reach a moat's banks? Options:
+- a drawbridge, or any bridge, whose far ends route on foot to the span;
+- `connector.auto` with a drawbridge move;
+- an endpoint at a channel's bank.
+
+**Ask GMc-2 (wording):** when the label already ends in the kind's words, drop them. "Redstone drawbridge waits for …", not "Redstone
+drawbridge's drawbridge waits for …".
