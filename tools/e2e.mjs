@@ -37,6 +37,7 @@ if (!['free', 'stub'].includes(mode) || (only && !only.length)) {
 const { DevClient } = await import(pathToFileURL(path.join(ARCH, 'tools', 'lib', 'devclient.mjs')).href);
 const { Blueprint, PALETTES } = await import(pathToFileURL(path.join(ARCH, 'kit', 'lib', 'kit.mjs')).href);
 const { writeBlueprint } = await import(pathToFileURL(path.join(ARCH, 'kit', 'lib', 'write.mjs')).href);
+const { decodeArwd } = await import(pathToFileURL(path.join(ARCH, 'kit', 'lib', 'region', 'vworld.mjs')).href);
 
 fs.mkdirSync(OUT, { recursive: true });
 const results = [];
@@ -2537,6 +2538,7 @@ async function gateMechFlow(form = 'lenient') {
     const g = gm.drawbridge;
     if (g?.kind === 'drawbridge' && g.cells) ok('gate mechanism (drawbridge)', `${region} drawbridge: the trapdoor deck's circuit (${Array.isArray(g.cells) ? g.cells.length : g.cells} cells)`);
     else fail('gate mechanism (drawbridge)', `drawbridge ${JSON.stringify(g ?? gm).slice(0, 200)}`);
+    await drawbridgeLevers(c);
   } else if (form === 'swing') {
     // the swing has no rung: its report is {kind, wall, cells, bom}, and a fallback to the wooden door would leave no report at all
     const g = gm.east_gate;
@@ -2556,6 +2558,58 @@ async function gateMechFlow(form = 'lenient') {
   const left = (d.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
   if ((gs === 'REMOVED' || gs === undefined) && left.length === 0) ok(`gate mechanism undone (${form})`, `${region} ${gs ?? 'gone'}; the ground as it was`);
   else fail(`gate mechanism undone (${form})`, `state ${gs}; ${left.length} cell(s) differ: ${JSON.stringify(left.slice(0, 4)).slice(0, 200)}`);
+}
+
+/** The block states of a box, {"x,y,z": state} without air (one ARWD dump). */
+async function blocksIn(b) {
+  const f = path.join(ROOT, 'artifacts', 'e2e', 'blocks.arwd.gz');
+  await dev.call('dev.region.dump', { box: b, file: f }, { timeoutMs: 300_000 });
+  const d = await decodeArwd(fs.readFileSync(f));
+  const o = {};
+  for (let y = b[1]; y <= b[4]; y++) for (let z = b[2]; z <= b[5]; z++) for (let x = b[0]; x <= b[3]; x++) {
+    const st = d.palette[d.cells[d.at(x, y, z)]];
+    if (st !== 'minecraft:air') o[`${x},${y},${z}`] = st;
+  }
+  return o;
+}
+
+/**
+ * (Architect LV, v0.56.0) The drawbridge's two-way levers by real use: each lever flips the deck whatever the other is set to (near XOR far). At rest both
+ * levers are off and the deck is lowered (no trapdoor open). 16 uses mixing both levers in every order, then each alone; after each, the deck is raised
+ * (every trapdoor open, all together) exactly when one lever is on, else lowered. Ends with both off.
+ */
+async function drawbridgeLevers(c) {
+  const all = await blocksIn([c.centerX - c.radius - 8, 58, c.centerZ - c.radius - 8, c.centerX + c.radius + 8, 72, c.centerZ + c.radius + 8]);
+  const at = (k) => k.split(',').map(Number);
+  const deck = Object.keys(all).filter((k) => /^minecraft:iron_trapdoor\b/.test(all[k])).map(at);
+  const levers = Object.keys(all).filter((k) => /^minecraft:lever\b/.test(all[k])).map(at);
+  if (levers.length !== 2 || !deck.length) return fail('drawbridge levers', `${levers.length} lever(s), ${deck.length} trapdoor(s) on the claim`);
+  const xs = [...deck, ...levers];
+  const tight = [Math.min(...xs.map((q) => q[0])), Math.min(...xs.map((q) => q[1])), Math.min(...xs.map((q) => q[2])), Math.max(...xs.map((q) => q[0])), Math.max(...xs.map((q) => q[1])), Math.max(...xs.map((q) => q[2]))];
+  const read = async () => {
+    const o = await blocksIn(tight);
+    const open = deck.filter((q) => /open=true/.test(o[q.join(',')] ?? '')).length;
+    return { open, on: levers.map((q) => /powered=true/.test(o[q.join(',')] ?? '')) };
+  };
+  const rest = await read();
+  if (rest.open !== 0 || rest.on.some(Boolean)) fail('drawbridge levers at rest', `${rest.open} of ${deck.length} trapdoors open; levers ${rest.on}`);
+  else ok('drawbridge levers at rest', `both levers off (${levers.map((q) => q.join(' ')).join('; ')}), the deck lowered (0 of ${deck.length} open)`);
+  // A and B: the two levers; both in every order (A B A B, B A B A), then A alone 4 times and B alone 4 times
+  const seq = [0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1];
+  const on = [false, false];
+  const cyc = [];
+  let bad = 0;
+  for (const i of seq) {
+    await dev.call('dev.pt.uses', { ops: [{ item: 'minecraft:stick', at: levers[i], on: levers[i], face: 'up' }] }, { timeoutMs: 30_000 });
+    on[i] = !on[i];
+    await sleep(2000);
+    const r = await read();
+    const want = on[0] !== on[1] ? deck.length : 0;
+    cyc.push(`${'AB'[i]}:${r.on.map(Number).join('')}/${r.open}`);
+    if (r.open !== want || r.on[0] !== on[0] || r.on[1] !== on[1]) bad++;
+  }
+  if (bad === 0) ok('drawbridge levers', `${seq.length} uses, both levers in every order and each alone: raised (${deck.length} open) exactly when one lever is on, else lowered (${cyc.join(' ')})`);
+  else fail('drawbridge levers', `${bad} of ${seq.length} uses wrong (lever:states/open): ${cyc.join(' ')}`);
 }
 
 /**
@@ -2607,7 +2661,7 @@ async function survivalMechFlow(form = 'lots') {
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     // what only the gate takes, held back until the steward names it: the portcullis's redstone parts (billed crafted: GM-a2's bill), the swing's iron doors
-    const RARE = swing ? /iron_door/ : draw ? /:repeater$|:redstone$/ : /comparator|observer|daylight_detector|sticky_piston/;
+    const RARE = swing ? /iron_door/ : draw ? /:repeater$|:redstone$|:comparator$/ : /comparator|observer|daylight_detector|sticky_piston/;
     // (Architect WE) the mechanism's bill wait said as its stage sentence in chat ("Curtain g1's swing gate waits for 2 × iron door in the stockpile")
     const named = () => logSince(from).match(new RegExp(`\\[CHAT\\] [^\\n]*?waits for [^\\n]*(?:${swing ? 'iron door' : draw ? 'redstone' : 'comparator|observer|daylight detector|sticky piston'})[^\\n]*`, 'i'));
     from = logSize();
@@ -2677,7 +2731,8 @@ async function survivalMechFlow(form = 'lots') {
       // (GMc-2) "Redstone drawbridge waits for ...", the noun not said twice
       if (said && !/drawbridge's drawbridge/i.test(said[0])) ok(`${label} named`, said[0].slice(0, 180));
       else fail(`${label} named`, said ? `the noun said twice: ${said[0].slice(0, 180)}` : `the steward never named the circuit's items (fed after the 3 min fallback: ${rareFed})`);
-      if (built && doneSaid && gm?.kind === 'drawbridge' && gm.bom) ok(`${label} built`, `${region} drawbridge; bill ${JSON.stringify(gm.bom).slice(0, 140)}`);
+      // (LV) the two-way circuit has two comparators
+      if (built && doneSaid && gm?.kind === 'drawbridge' && gm.bom?.['minecraft:comparator'] === 2) ok(`${label} built`, `${region} drawbridge; bill ${JSON.stringify(gm.bom).slice(0, 140)}`);
       else return fail(`${label} built`, `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gms).slice(0, 200)}; feeder ${JSON.stringify(fed)}`);
     } else {
       const label = `survival mechanism${swing ? ' (swing)' : ''}`;
@@ -2706,12 +2761,8 @@ async function survivalMechFlow(form = 'lots') {
     }
     const rareBack = Object.keys(before?.consumed ?? {}).filter((k) => RARE.test(k));
     const refund = wall ? 'survival wall swings refund' : draw ? 'survival drawbridge refund' : `survival mechanism${swing ? ' (swing)' : ''} refund`;
-    // (GM-c RC 2) a crossing's walk legs and landings lose ~2 dirt (and a stone brick stair on a plain beam) to the conservation audit, as plain
-    // T3a beams do on main; Architect's follow-up slice, not GM-c's: judged on every other item, those told
-    const known = draw ? off.filter((o) => /^minecraft:(dirt|cobblestone|stone_brick_stairs) /.test(o)) : [];
-    if (known.length) off.splice(0, off.length, ...off.filter((o) => !known.includes(o)));
-    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length && known.length) ok(refund, `every consumed unit but the crossing's known conservation loss came back (${known.join(', ')}), ${rareBack.join(', ')} among them`);
-    else if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length) ok(refund, `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
+    // (Architect XL, v0.56.0) the crossing's deck and abutments give back the cells the route had paid for: every item exact, dirt included
+    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length) ok(refund, `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
     else fail(refund, `${last?.kind}; rare consumed ${rareBack.join(', ') || 'none'}; refunds off: ${off.slice(0, 8).join(', ')}`);
   } finally {
     await cmd('/defaultgamemode creative');
