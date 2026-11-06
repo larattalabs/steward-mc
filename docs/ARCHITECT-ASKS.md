@@ -1198,3 +1198,17 @@ gmc-rc waits for v0.55.0 and the pin bump before merging to main.
 Architect v0.55.0 (API 1.49.0, catalogue 16) is pinned on gmc-rc (9141f47, runtime minimum 0.55.0). The build and unit tests pass against the
 published package, and `npm test` gives 34/0. `node tools/e2e.mjs stub --only gate,wall,survival,drawbridge`: PASS, 83 checks, 0 failed, 4726 s;
 `status` reads API 1.49.0. The crossing's dirt loss stays with Architect's follow-up slice.
+
+## v0.56.0 RC (rc/XL-LV 3c7ebd76, 2026-11-06): PASS
+`node tools/e2e.mjs stub --only drawbridge,bridge,survival,undo` on xllv-rc 8519bf9 with the RC jar: PASS, 70 checks, 0 failed, 3512 s.
+- **LV, the two-way levers:** at rest both levers are off and the deck is lowered (0 of 14 trapdoors open). The test used the levers 16 times by real use
+  (dev.pt.uses): both in every order, then each alone 4 times. After every use the deck was raised (all 14 open together) exactly when one lever was on,
+  and lowered otherwise. 0 wrong. The circuit is 109 cells, and undo leaves the ground as it was.
+- **Survival drawbridge:** the stockpile owed 2 comparators, 28 redstone and 20 repeaters. The steward said "Drawbridge waits for 2 × redstone comparator,
+  28 × redstone dust and 20 × redstone repeater in the stockpile." The bill was {comparator 2, lever 2, oak_fence 28, redstone 28, repeater 20,
+  stone_bricks 29}, and it was built with "everything stands".
+- **XL, crossing conservation:** on removal every consumed unit came back exactly (4905), dirt included. The e2e no longer allows the crossing's loss.
+- The other survival refunds are exact too: survival 629, supplied plan 5550, portcullis 18877, swing 7520, wall swings 7514. Undo and discard pass, and so
+  do the creative gate-mech flows.
+Steward has no plain-bridge flow of its own beyond the drawbridge's. xllv-rc waits for v0.56.0 and the pin bump; by the 2026-11-06 rule the pin then runs only
+`stub --only sanity`.
