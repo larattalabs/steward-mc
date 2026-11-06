@@ -1212,3 +1212,8 @@ published package, and `npm test` gives 34/0. `node tools/e2e.mjs stub --only ga
   do the creative gate-mech flows.
 Steward has no plain-bridge flow of its own beyond the drawbridge's. xllv-rc waits for v0.56.0 and the pin bump; by the 2026-11-06 rule the pin then runs only
 `stub --only sanity`.
+
+### v0.56.0 pin (2026-11-06): PASS, merged
+Architect v0.56.0 (API 1.49.0) is pinned on xllv-rc (601fb27, runtime minimum 0.56.0). The release is exactly the RC that passed, plus a version stamp. The
+build and unit tests pass against the published package, and `npm test` gives 34/0. By the 2026-11-06 rule only the sanity set ran: `stub --only sanity`,
+PASS, 8 checks, 47 s; `status` reads API 1.49.0.
