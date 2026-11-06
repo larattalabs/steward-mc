@@ -1181,3 +1181,15 @@ Architect's answers (2026-11-05):
   will mean only that the gap itself is too wide; plain `connector.bridge` gets the same fix.
 - GMc-2: yes. A subject whose name already ends in the kind word doesn't repeat it.
 A new slice/GMc tip follows. Rerun `--only drawbridge,water` on it.
+
+### GM-c RC 2 (slice/GMc bb6d42cf, 2026-11-05): PASS
+`node tools/e2e.mjs stub --only drawbridge,water` on gmc-rc 70588a0 with the RC 2 jar: PASS, 20 checks, 0 failed, 921 s.
+- The drawbridge fits as written (claim_e to `{part: hamlet}` over the moat ring [6,16], 5 wide and 3 deep, approach 32). Its circuit has 146 cells, and
+  undo leaves the ground as it was (GMc-1 answered).
+- Survival: the stockpile owed 30 redstone and 30 repeaters. The steward said "Drawbridge waits for 30 × redstone dust and 30 × redstone repeater in the
+  stockpile.", with the noun said once (GMc-2). The bill was {lever 2, oak_fence 42, redstone 30, repeater 30, stone_bricks 42}. It was built, and the
+  "everything stands" sentence came (Steward's watch fix, 61a1d61). On removal every consumed unit came back but dirt 27/29, the crossing's known
+  conservation loss (Architect's follow-up slice, not GM-c's; the e2e tells it apart).
+- Water: farm-pond, ditch and irrigation place and undo. The sanity set (claim, expand, restart, cancel) passes.
+- `status` reports API 1.48.0 from this jar. The planned bump to 1.49.0 lands with the release, and gmc-rc's pin bump follows it.
+gmc-rc waits for v0.55.0 and the pin bump before merging to main.
