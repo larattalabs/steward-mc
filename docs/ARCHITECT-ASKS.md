@@ -1145,3 +1145,56 @@ shutdown, `node tools/e2e.mjs stub --only gate,wall,survival` with the sanity se
 ("Curtain g1's swing gate waits for 2 × iron door in the stockpile."), the wall's two auto gates were billed as swings and refunded, and restart and
 restore passed. Merged into main and pushed.
 Next is GM-c (drawbridge): un-reserve `connector.drawbridge` in `schema/plan-0.json`. The coordinator names its areas in the handoff.
+
+## GM-c RC (slice/GMc 588a79b4, 2026-11-05): HELD on an ask, answered
+
+Branch `gmc-rc` (worktree `_work/steward-gmc`):
+- `connector.drawbridge` is marked supported in `schema/plan-0.json`, and the bridge def takes kind `drawbridge`.
+- The plan writer writes a drawbridge where the card asks for one.
+- A drawbridge crossing is said as "a drawbridge over water, 11 long".
+- Two new e2e flows: `drawbridge` (creative, circuit and undo) and `survival-drawbridge` (bill, wait and refund).
+- The build, the unit tests and `npm test` pass.
+
+`stub --only drawbridge,water` with the sanity set gave 18 ok and 2 FAIL:
+- The farm pond, ditch and irrigation flows pass.
+- The drawbridge was refused SPAN in both new flows. Offline, on the kit's flat claim (`checkPlanLocal`), the same plan is refused with
+  evidence `span 64, min 5, max 11`, and a plain beam bridge is refused the same way. A bridge's two ends must lie within `approach` (at most
+  32) of the gap. A Steward plan has no anchor at a moat's banks, only `claim_*` and its parts: `claim_e` is about 98 from a hamlet at the
+  centre. Architect's fixture uses bank and berm anchors 21 apart. redstone_gate's recorded drawbridge (claim_s to gatehouse_1) has the same
+  shape, behind its DEPENDENCY answer.
+- In survival, the plan check refused the drawbridge, but the realise re-checked after the stockpile crates moved the hamlet, and the
+  drawbridge fit and was built. The circuit was billed as one bill, the wait announced ("Drawbridge's drawbridge waits for 30 × redstone dust
+  and 30 × redstone repeater"), and it was charged. Steward then said "built: 2 buildings placed" but never "everything stands".
+  The cause was Steward's, not a stale record: it watched a survival build for the done sentence only when the build was unfinished at
+  placement, and this one was already fully fed. Fixed on gmc-rc (61a1d61): a placed survival build is watched either way.
+
+**Ask GMc-1:** how should a plan reach a moat's banks? Options:
+- a drawbridge, or any bridge, whose far ends route on foot to the span;
+- `connector.auto` with a drawbridge move;
+- an endpoint at a channel's bank.
+
+**Ask GMc-2 (wording):** when the label already ends in the kind's words, drop them. "Redstone drawbridge waits for …", not "Redstone
+drawbridge's drawbridge waits for …".
+
+Architect's answers (2026-11-05):
+- GMc-1: the first option. A bridge or drawbridge whose ends are far from the gap finds the gap on the way and walks the rest as path. SPAN
+  will mean only that the gap itself is too wide; plain `connector.bridge` gets the same fix.
+- GMc-2: yes. A subject whose name already ends in the kind word doesn't repeat it.
+A new slice/GMc tip follows. Rerun `--only drawbridge,water` on it.
+
+### GM-c RC 2 (slice/GMc bb6d42cf, 2026-11-05): PASS
+`node tools/e2e.mjs stub --only drawbridge,water` on gmc-rc 70588a0 with the RC 2 jar: PASS, 20 checks, 0 failed, 921 s.
+- The drawbridge fits as written (claim_e to `{part: hamlet}` over the moat ring [6,16], 5 wide and 3 deep, approach 32). Its circuit has 146 cells, and
+  undo leaves the ground as it was (GMc-1 answered).
+- Survival: the stockpile owed 30 redstone and 30 repeaters. The steward said "Drawbridge waits for 30 × redstone dust and 30 × redstone repeater in the
+  stockpile.", with the noun said once (GMc-2). The bill was {lever 2, oak_fence 42, redstone 30, repeater 30, stone_bricks 42}. It was built, and the
+  "everything stands" sentence came (Steward's watch fix, 61a1d61). On removal every consumed unit came back but dirt 27/29, the crossing's known
+  conservation loss (Architect's follow-up slice, not GM-c's; the e2e tells it apart).
+- Water: farm-pond, ditch and irrigation place and undo. The sanity set (claim, expand, restart, cancel) passes.
+- `status` reports API 1.48.0 from this jar. The planned bump to 1.49.0 lands with the release, and gmc-rc's pin bump follows it.
+gmc-rc waits for v0.55.0 and the pin bump before merging to main.
+
+### v0.55.0 pin (2026-11-06): PASS, merged
+Architect v0.55.0 (API 1.49.0, catalogue 16) is pinned on gmc-rc (9141f47, runtime minimum 0.55.0). The build and unit tests pass against the
+published package, and `npm test` gives 34/0. `node tools/e2e.mjs stub --only gate,wall,survival,drawbridge`: PASS, 83 checks, 0 failed, 4726 s;
+`status` reads API 1.49.0. The crossing's dirt loss stays with Architect's follow-up slice.

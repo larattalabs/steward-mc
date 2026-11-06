@@ -2563,8 +2563,9 @@ public final class SettlementRunner {
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
 		// built from materials (Architect RS): placed means its construction sites stand; it's built as the stockpile feeds it
 		var build = v.get().build();
-		if (build != null && !build.done()) {
-			say(String.format("Its construction sites stand: it's built as the stockpile feeds it (%.0f%% so far). I'll say when it's done.", build.percent()));
+		if (build != null) {
+			if (!build.done()) say(String.format("Its construction sites stand: it's built as the stockpile feeds it (%.0f%% so far). I'll say when it's done.", build.percent()));
+			// watched even when it is already done (a stockpile fed in time: GM-c's drawbridge run): the watch says it fully built on its next read
 			MaterialRequests.watchBuild(settlement.id(), vRegionId);
 		}
 	}

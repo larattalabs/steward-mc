@@ -41,8 +41,11 @@ Writing the plan:
   vault door, `swing`) or for none (an open arch: `params: {mechanism: "none"}` on the wall).
   A gate part on its own (no gatehouse) keeps its wooden door; give it `mech: "swing"` only where the card asks for an iron or vault door there. When the card asks for iron gates all
   round a wall (every way through it), write `gateMech: "swing"` on the wall instead; a gate that must stay open gets its own `mech: "none"`.
+  A drawbridge is its own part, `kind: "drawbridge"` with `params: {mechanism: "redstone", movable: true}`, from the far bank to the near one over a
+  moat or a narrow channel: a level deck 2 wide of 1 to 7 iron trapdoors, lowered at rest, a lever on each bank raises it. Write it only where the
+  card asks for a drawbridge or a lifting bridge, over water at most 7 across on level banks; a wider or sloping crossing is a stone bridge.
 - **What can't be built yet.** When the player asked for something that needs a kind the catalogue lists as reserved, or a kind it doesn't list, still
-  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a tunnel under flat ground (`tunnel.under`), huts up in trees (`layout.elevated`), a hidden room, a drawbridge, a shape rule, a variety rule ("identical houses", "no two
+  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a tunnel under flat ground (`tunnel.under`), huts up in trees (`layout.elevated`), a hidden room, a shape rule, a variety rule ("identical houses", "no two
   alike": `rule.variety`). Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
   drop what the player asked for silently, and never pretend it is supported.
 - **Layouts.** A layout that is not one street (a ring, a spiral, a grid, a hamlet that grew organically) is the zone's `program.layout`

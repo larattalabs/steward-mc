@@ -2470,6 +2470,23 @@ function wallSwingAnswer() {
   return answer;
 }
 
+/**
+ * (Architect GM-c) A drawbridge as Steward's plan writer writes it (`kind: "drawbridge"`, params {mechanism: redstone, movable: true}): the hamlet's
+ * two towers ringed by a moat 5 wide and 3 deep, and the drawbridge from the claim's east edge over it to the hamlet, a level deck of iron trapdoors
+ * 2 wide, lowered at rest, a lever on each bank. No wall: a route on through a wall's auto gate leaks M2:wall and M6 on main (Architect's GM-c
+ * fixture records it, with a plain beam bridge too), not the drawbridge's.
+ */
+function drawbridgeAnswer() {
+  const answer = swingAnswer();
+  answer.plan.connectors = [
+    { id: 'moat', kind: 'channel', required: true, label: 'moat', where: { around: { feature: { part: 'hamlet' }, ring: [6, 16] } }, width: 5, depth: 3 },
+    { id: 'drawbridge', kind: 'drawbridge', required: true, label: 'drawbridge', from: { anchor: 'claim_e' }, to: { part: 'hamlet' }, approach: 32,
+      params: { mechanism: 'redstone', movable: true } },
+  ];
+  answer.summary = 'A hamlet behind a moat with a drawbridge';
+  return answer;
+}
+
 async function gateMechFlow(form = 'lenient') {
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} 33000 0 1 false @p`);
@@ -2484,7 +2501,7 @@ async function gateMechFlow(form = 'lenient') {
   const snap = path.join(ROOT, 'artifacts', 'e2e', `gm-${id}.snap.gz`);
   await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
   const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
-  card.name = { lots: 'Portcullis Wall', swing: 'Swing Gate' }[form] ?? 'Portcullis Keep';
+  card.name = { lots: 'Portcullis Wall', swing: 'Swing Gate', drawbridge: 'Drawbridge Hamlet' }[form] ?? 'Portcullis Keep';
   await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
   // castle_city's towers and gatehouse only (the sim designs no lot 7 deep), the curtain wall's gate with a portcullis
   const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
@@ -2497,9 +2514,10 @@ async function gateMechFlow(form = 'lenient') {
     wall.params = rest;
     wall.lots = [{ lot: gate_lot, at: 'gate' }, ...corner_lots.map((lot) => ({ lot, at: 'corner' }))];
   }
-  await cmd(`/steward dev sim_answer plan ${JSON.stringify(form === 'swing' ? swingAnswer() : answer)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(form === 'swing' ? swingAnswer() : form === 'drawbridge' ? drawbridgeAnswer() : answer)}`);
   let from = logSize();
-  await cmd(`/steward describe ${id} ${form === 'swing' ? 'a hamlet behind a thick wall with an iron gate' : 'a castle with a portcullis in its gatehouse'}`);
+  const words = { swing: 'a hamlet behind a thick wall with an iron gate', drawbridge: 'a hamlet behind a moat with a drawbridge' }[form];
+  await cmd(`/steward describe ${id} ${words ?? 'a castle with a portcullis in its gatehouse'}`);
   if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('gate mechanism', `${id}: no card`);
   if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('gate mechanism', `${id}: no plan composed`);
   await closeScreens();
@@ -2513,8 +2531,13 @@ async function gateMechFlow(form = 'lenient') {
   const gm = (view?.view?.ext ?? view?.record?.ext ?? {})['architect_mc:gateMechanism'] ?? null;
   if (!built || !region) return fail('gate mechanism', `built ${!!built}; region ${region || 'none'}; last ${JSON.stringify(st?.log?.at(-1))?.slice(0, 160)}`);
   // (Steward needs Architect >= 0.51.0, which has GM: no report means no mechanism was asked for)
-  if (!gm) fail(`gate mechanism (${form})`, `${region}: no gateMechanism on the region (Steward asked for no mechanism?)`);
-  else if (form === 'swing') {
+  if (!gm) fail(`gate mechanism (${form})`, `${region}: no gateMechanism on the region (Steward asked for no mechanism?)${form === 'drawbridge' ? `; said: ${(logSince(from).match(/[^\n]*drawbridge[^\n]*/gi) ?? []).slice(-3).join(' | ').slice(0, 300)}` : ''}`);
+  else if (form === 'drawbridge') {
+    // (GM-c) the circuit is the IR's gateMechanisms entry {kind: drawbridge} under the connector's id, written as mech:drawbridge; the trapdoors on the region
+    const g = gm.drawbridge;
+    if (g?.kind === 'drawbridge' && g.cells) ok('gate mechanism (drawbridge)', `${region} drawbridge: the trapdoor deck's circuit (${Array.isArray(g.cells) ? g.cells.length : g.cells} cells)`);
+    else fail('gate mechanism (drawbridge)', `drawbridge ${JSON.stringify(g ?? gm).slice(0, 200)}`);
+  } else if (form === 'swing') {
     // the swing has no rung: its report is {kind, wall, cells, bom}, and a fallback to the wooden door would leave no report at all
     const g = gm.east_gate;
     if (g?.kind === 'swing' && g.wall === 'curtain' && g.cells) ok('gate mechanism (swing)', `${region} east_gate: the iron swing gate in curtain (${Array.isArray(g.cells) ? g.cells.length : g.cells} cells)`);
@@ -2544,8 +2567,10 @@ async function gateMechFlow(form = 'lenient') {
 async function survivalMechFlow(form = 'lots') {
   const wall = form === 'wall';
   const swing = form === 'swing' || wall;
-  const name = wall ? 'Wall Swing Supply' : swing ? 'Swing Supply' : 'Gate Supply';
-  const gate = swing ? 'east_gate' : 'gatehouse_1';
+  // (Architect GM-c) the drawbridge: its circuit billed and held as one bill (the trapdoors are the path part's)
+  const draw = form === 'drawbridge';
+  const name = wall ? 'Wall Swing Supply' : swing ? 'Swing Supply' : draw ? 'Drawbridge Supply' : 'Gate Supply';
+  const gate = swing ? 'east_gate' : draw ? 'drawbridge' : 'gatehouse_1';
   await cmd('/architect survival on');
   await cmd('/defaultgamemode survival');
   await cmd('/gamemode creative @p');
@@ -2561,11 +2586,11 @@ async function survivalMechFlow(form = 'lots') {
     const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
     card.name = name;
     await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
-    const answer = wall ? wallSwingAnswer() : swing ? swingAnswer() : JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
-    if (!swing) for (const z of answer.plan.zones) if (z.program?.lots) z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse');
+    const answer = wall ? wallSwingAnswer() : swing ? swingAnswer() : draw ? drawbridgeAnswer() : JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'castle_city.json'), 'utf8')).answer;
+    if (!swing && !draw) for (const z of answer.plan.zones) if (z.program?.lots) z.program.lots = z.program.lots.filter((l) => l.type === 'tower' || l.type === 'gatehouse');
     await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
     let from = logSize();
-    await cmd(`/steward describe ${id} ${swing ? 'a hamlet behind an iron gate, built from what we gather' : 'a castle built from what we gather'}`);
+    await cmd(`/steward describe ${id} ${swing ? 'a hamlet behind an iron gate, built from what we gather' : draw ? 'a hamlet behind a moat with a drawbridge, built from what we gather' : 'a castle built from what we gather'}`);
     if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('survival mechanism', 'no card');
     if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('survival mechanism', 'no plan composed');
     const diff = settlements().find((x) => x.id === id)?.difficulty;
@@ -2582,9 +2607,9 @@ async function survivalMechFlow(form = 'lots') {
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     // what only the gate takes, held back until the steward names it: the portcullis's redstone parts (billed crafted: GM-a2's bill), the swing's iron doors
-    const RARE = swing ? /iron_door/ : /comparator|observer|daylight_detector|sticky_piston/;
+    const RARE = swing ? /iron_door/ : draw ? /:repeater$|:redstone$/ : /comparator|observer|daylight_detector|sticky_piston/;
     // (Architect WE) the mechanism's bill wait said as its stage sentence in chat ("Curtain g1's swing gate waits for 2 × iron door in the stockpile")
-    const named = () => logSince(from).match(new RegExp(`\\[CHAT\\] [^\\n]*?waits for [^\\n]*(?:${swing ? 'iron door' : 'comparator|observer|daylight detector|sticky piston'})[^\\n]*`, 'i'));
+    const named = () => logSince(from).match(new RegExp(`\\[CHAT\\] [^\\n]*?waits for [^\\n]*(?:${swing ? 'iron door' : draw ? 'redstone' : 'comparator|observer|daylight detector|sticky piston'})[^\\n]*`, 'i'));
     from = logSize();
     await cmd(`/steward start ${id} 6 80`);
     // the feeder: all the need but the rare items, until the steward names them (or 3 min of nothing else owed), then everything
@@ -2645,6 +2670,15 @@ async function survivalMechFlow(form = 'lots') {
       else fail('survival wall swings named', `the steward never named the gates' items (fed after the 3 min fallback: ${rareFed})`);
       if (built && doneSaid && swings.length >= 2) ok('survival wall swings built', `${region}: ${swings.length} auto gates are swings (${swings.map(([g, m]) => `${g} ${JSON.stringify(m.bom).slice(0, 60)}`).join('; ')})`);
       else return fail('survival wall swings built', `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gms).slice(0, 240)}; feeder ${JSON.stringify(fed)}`);
+    } else if (draw) {
+      const label = 'survival drawbridge';
+      if (rareSeen) ok(`${label} need`, `the stockpile owed ${JSON.stringify(rareSeen)} for the drawbridge's circuit`);
+      else fail(`${label} need`, 'no repeaters or redstone ever owed: no circuit billed');
+      // (GMc-2) "Redstone drawbridge waits for ...", the noun not said twice
+      if (said && !/drawbridge's drawbridge/i.test(said[0])) ok(`${label} named`, said[0].slice(0, 180));
+      else fail(`${label} named`, said ? `the noun said twice: ${said[0].slice(0, 180)}` : `the steward never named the circuit's items (fed after the 3 min fallback: ${rareFed})`);
+      if (built && doneSaid && gm?.kind === 'drawbridge' && gm.bom) ok(`${label} built`, `${region} drawbridge; bill ${JSON.stringify(gm.bom).slice(0, 140)}`);
+      else return fail(`${label} built`, `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gms).slice(0, 200)}; feeder ${JSON.stringify(fed)}`);
     } else {
       const label = `survival mechanism${swing ? ' (swing)' : ''}`;
       if (rareSeen) ok(`${label} need`, `the stockpile owed ${JSON.stringify(rareSeen)} for the gate`);
@@ -2671,8 +2705,13 @@ async function survivalMechFlow(form = 'lots') {
       if (back !== used) off.push(`${item} ${back}/${used}`);
     }
     const rareBack = Object.keys(before?.consumed ?? {}).filter((k) => RARE.test(k));
-    const refund = wall ? 'survival wall swings refund' : `survival mechanism${swing ? ' (swing)' : ''} refund`;
-    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length) ok(refund, `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
+    const refund = wall ? 'survival wall swings refund' : draw ? 'survival drawbridge refund' : `survival mechanism${swing ? ' (swing)' : ''} refund`;
+    // (GM-c RC 2) a crossing's walk legs and landings lose ~2 dirt (and a stone brick stair on a plain beam) to the conservation audit, as plain
+    // T3a beams do on main; Architect's follow-up slice, not GM-c's: judged on every other item, those told
+    const known = draw ? off.filter((o) => /^minecraft:(dirt|cobblestone|stone_brick_stairs) /.test(o)) : [];
+    if (known.length) off.splice(0, off.length, ...off.filter((o) => !known.includes(o)));
+    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length && known.length) ok(refund, `every consumed unit but the crossing's known conservation loss came back (${known.join(', ')}), ${rareBack.join(', ')} among them`);
+    else if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length) ok(refund, `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
     else fail(refund, `${last?.kind}; rare consumed ${rareBack.join(', ') || 'none'}; refunds off: ${off.slice(0, 8).join(', ')}`);
   } finally {
     await cmd('/defaultgamemode creative');
@@ -3116,6 +3155,8 @@ try {
       await flow('survival-mech', 'survival gate wall mechanism portcullis bill refund', () => survivalMechFlow());
       await flow('survival-mech-swing', 'survival gate wall mechanism swing bill refund', () => survivalMechFlow('swing'));
       await flow('survival-mech-wall', 'survival gate wall mechanism swing gatemech bill refund', () => survivalMechFlow('wall'));
+      await flow('drawbridge', 'bridge drawbridge gate moat water mechanism undo catalogue', () => gateMechFlow('drawbridge'));
+      await flow('survival-drawbridge', 'survival bridge drawbridge gate moat water mechanism bill refund', () => survivalMechFlow('drawbridge'));
     }
   }
   await flow('migrated-steward', 'save migration', () => migratedSteward());

@@ -330,7 +330,7 @@ public final class Composer {
 
 	/**
 	 * The plan's bridges and tunnels as Architect resolved them (the light preview's siteplan edges with a {@code crossing}: {type, form, over, span or
-	 * length, lands}), a line each: "a stone arch over water, 14 long, to gate east_gate".
+	 * length, lands}), a line each: "a stone arch over water, 14 long, to gate east_gate"; a drawbridge (movable) as "a drawbridge over water, 11 long".
 	 */
 	static List<String> crossings(@org.jspecify.annotations.Nullable JsonObject preview) {
 		List<String> out = new ArrayList<>();
@@ -340,8 +340,10 @@ public final class Composer {
 		for (var e : sp.getAsJsonArray("edges")) {
 			if (!e.isJsonObject() || !e.getAsJsonObject().has("crossing") || !e.getAsJsonObject().get("crossing").isJsonObject()) continue;
 			JsonObject x = e.getAsJsonObject().getAsJsonObject("crossing");
-			String type = str(x, "type").replace('_', ' ');
-			String form = str(x, "form");
+			// (Architect GM-c) a drawbridge's crossing is a bridge with deck: trapdoor and movable: true
+			boolean draw = x.has("movable") && x.get("movable").isJsonPrimitive() && x.get("movable").getAsBoolean();
+			String type = draw ? "drawbridge" : str(x, "type").replace('_', ' ');
+			String form = draw ? "" : str(x, "form");
 			StringBuilder b = new StringBuilder("a ");
 			if (!form.isEmpty() && !type.contains(form)) b.append(form.replace('_', ' ')).append(' ');
 			b.append(type.isEmpty() ? "crossing" : type);
