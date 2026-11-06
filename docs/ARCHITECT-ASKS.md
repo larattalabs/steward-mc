@@ -1146,7 +1146,7 @@ shutdown, `node tools/e2e.mjs stub --only gate,wall,survival` with the sanity se
 restore passed. Merged into main and pushed.
 Next is GM-c (drawbridge): un-reserve `connector.drawbridge` in `schema/plan-0.json`. The coordinator names its areas in the handoff.
 
-## GM-c RC (slice/GMc 588a79b4, 2026-11-05): HELD on an ask
+## GM-c RC (slice/GMc 588a79b4, 2026-11-05): HELD on an ask, answered
 
 Branch `gmc-rc` (worktree `_work/steward-gmc`):
 - `connector.drawbridge` is marked supported in `schema/plan-0.json`, and the bridge def takes kind `drawbridge`.
@@ -1164,8 +1164,9 @@ Branch `gmc-rc` (worktree `_work/steward-gmc`):
   shape, behind its DEPENDENCY answer.
 - In survival, the plan check refused the drawbridge, but the realise re-checked after the stockpile crates moved the hamlet, and the
   drawbridge fit and was built. The circuit was billed as one bill, the wait announced ("Drawbridge's drawbridge waits for 30 × redstone dust
-  and 30 × redstone repeater"), and it was charged. Steward then said "built: 2 buildings placed", not "everything stands", because its
-  record still held the composed plan's unfit drawbridge. That stale record is Steward's to fix.
+  and 30 × redstone repeater"), and it was charged. Steward then said "built: 2 buildings placed" but never "everything stands".
+  The cause was Steward's, not a stale record: it watched a survival build for the done sentence only when the build was unfinished at
+  placement, and this one was already fully fed. Fixed on gmc-rc (61a1d61): a placed survival build is watched either way.
 
 **Ask GMc-1:** how should a plan reach a moat's banks? Options:
 - a drawbridge, or any bridge, whose far ends route on foot to the span;
@@ -1174,3 +1175,9 @@ Branch `gmc-rc` (worktree `_work/steward-gmc`):
 
 **Ask GMc-2 (wording):** when the label already ends in the kind's words, drop them. "Redstone drawbridge waits for …", not "Redstone
 drawbridge's drawbridge waits for …".
+
+Architect's answers (2026-11-05):
+- GMc-1: the first option. A bridge or drawbridge whose ends are far from the gap finds the gap on the way and walks the rest as path. SPAN
+  will mean only that the gap itself is too wide; plain `connector.bridge` gets the same fix.
+- GMc-2: yes. A subject whose name already ends in the kind word doesn't repeat it.
+A new slice/GMc tip follows. Rerun `--only drawbridge,water` on it.
