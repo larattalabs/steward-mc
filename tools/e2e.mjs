@@ -2674,8 +2674,9 @@ async function survivalMechFlow(form = 'lots') {
       const label = 'survival drawbridge';
       if (rareSeen) ok(`${label} need`, `the stockpile owed ${JSON.stringify(rareSeen)} for the drawbridge's circuit`);
       else fail(`${label} need`, 'no repeaters or redstone ever owed: no circuit billed');
-      if (said) ok(`${label} named`, said[0].slice(0, 180));
-      else fail(`${label} named`, `the steward never named the circuit's items (fed after the 3 min fallback: ${rareFed})`);
+      // (GMc-2) "Redstone drawbridge waits for ...", the noun not said twice
+      if (said && !/drawbridge's drawbridge/i.test(said[0])) ok(`${label} named`, said[0].slice(0, 180));
+      else fail(`${label} named`, said ? `the noun said twice: ${said[0].slice(0, 180)}` : `the steward never named the circuit's items (fed after the 3 min fallback: ${rareFed})`);
       if (built && doneSaid && gm?.kind === 'drawbridge' && gm.bom) ok(`${label} built`, `${region} drawbridge; bill ${JSON.stringify(gm.bom).slice(0, 140)}`);
       else return fail(`${label} built`, `built ${!!built}; done said ${!!doneSaid}; gateMechanism ${JSON.stringify(gms).slice(0, 200)}; feeder ${JSON.stringify(fed)}`);
     } else {
@@ -2705,11 +2706,11 @@ async function survivalMechFlow(form = 'lots') {
     }
     const rareBack = Object.keys(before?.consumed ?? {}).filter((k) => RARE.test(k));
     const refund = wall ? 'survival wall swings refund' : draw ? 'survival drawbridge refund' : `survival mechanism${swing ? ' (swing)' : ''} refund`;
-    // (GM-c) a moat loses a few dirt and cobblestone to conservation on main with or without a drawbridge (Architect's gm-c-survctl, recorded
-    // there and looked into apart): judged on every other item, the dirt and cobblestone told
-    const known = draw ? off.filter((o) => /^minecraft:(dirt|cobblestone) /.test(o)) : [];
+    // (GM-c RC 2) a crossing's walk legs and landings lose ~2 dirt (and a stone brick stair on a plain beam) to the conservation audit, as plain
+    // T3a beams do on main; Architect's follow-up slice, not GM-c's: judged on every other item, those told
+    const known = draw ? off.filter((o) => /^minecraft:(dirt|cobblestone|stone_brick_stairs) /.test(o)) : [];
     if (known.length) off.splice(0, off.length, ...off.filter((o) => !known.includes(o)));
-    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length && known.length) ok(refund, `every consumed unit but the moat's known dirt and cobblestone came back (${known.join(', ')}), ${rareBack.join(', ')} among them`);
+    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length && known.length) ok(refund, `every consumed unit but the crossing's known conservation loss came back (${known.join(', ')}), ${rareBack.join(', ')} among them`);
     else if (last?.kind === 'PROJECT_REMOVED' && off.length === 0 && rareBack.length) ok(refund, `every consumed unit came back (${units(before?.consumed)}), ${rareBack.join(', ')} among them`);
     else fail(refund, `${last?.kind}; rare consumed ${rareBack.join(', ') || 'none'}; refunds off: ${off.slice(0, 8).join(', ')}`);
   } finally {
