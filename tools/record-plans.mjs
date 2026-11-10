@@ -3,7 +3,7 @@
 // (artifacts/strange-asks/plans-report.md: what doesn't fit, the kinds asked for, the parts that wait).
 //
 // A PAID run: it uses Noah's claude login through the sidecar's opt-in (mod/run/architect/sidecar-data/secrets.json), which this script creates for the
-// run and removes afterwards, whatever happens. Run it only with Noah's approval and a spend cap: node tools/record-plans.mjs <capUsd>. It launches its own
+// run and removes afterwards, whatever happens. Run it only with Noah's approval and a spend cap: node tools/record-plans.mjs <capUsd> [--out <dir>]. It launches its own
 // dev client from a scrubbed environment (no API key reaches it) on the dev ports (8490/8491), in a flat creative world "Steward Cards", and refuses to
 // start while another Steward client uses mod/run. Asks that have a card already are skipped; it stops before the cap.
 import { spawn, execFileSync } from 'node:child_process';
@@ -17,7 +17,9 @@ const GAME = path.join(ROOT, 'mod', 'run');
 const OPT_IN = path.join(GAME, 'architect', 'sidecar-data', 'secrets.json');
 const OUT_DIR = path.join(GAME, 'steward-cards');
 const CARDS = path.join(ROOT, 'fixtures', 'strange-asks', 'cards');
-const PLANS = path.join(ROOT, 'fixtures', 'strange-asks', 'plans');
+// --out <dir>: record into another folder (a re-record keeps plans/, which the e2e and unit tests read, as it is)
+const outAt = process.argv.indexOf('--out');
+const PLANS = outAt > 0 ? path.resolve(ROOT, process.argv[outAt + 1]) : path.join(ROOT, 'fixtures', 'strange-asks', 'plans');
 const PORT = 8491;
 // the DevBridge token is in this game dir (Architect's client library looks in its own repo's run dir otherwise)
 process.env.ARCHITECT_GAME_DIR = GAME;
