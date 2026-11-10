@@ -216,7 +216,9 @@ function localDate() {
 // ------------------------------------------------------------------ the LaunchAgent
 
 function install() {
-  const nodeBin = process.execPath;
+  // mise's lts link outlives a node upgrade (the versioned path doesn't); Architect's agent uses it too
+  const lts = path.join(os.homedir(), '.local', 'share', 'mise', 'installs', 'node', 'lts', 'bin', 'node');
+  const nodeBin = fs.existsSync(lts) ? lts : process.execPath;
   const plist = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
