@@ -973,15 +973,18 @@ async function growthFlow() {
     ok('growth undo', `${last.text}; revision ${m[2]} UNDONE, ${region} PLACED at position 0, the ground as before the growth (0 cells differ)`);
   } else fail('growth undo', `last ${last?.kind}; revision ${undoneRev?.state}; town ${after.state} at ${after.position}; ${off.length} cell(s) differ ${JSON.stringify(off.slice(0, 3))}; ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-2).join(' | ')}`);
   // then the town itself
-  await cmd(`/steward undo ${id}`);
+  const v3 = await dev.request('dev.region.state', { region }).catch(() => null);
+  const pre = v3?.view ?? v3 ?? {};
+  const said = await cmd(`/steward undo ${id}`);
+  // logged as the town's removal (its founding entry's sites), as villageFlow's undo
   let gone = null;
   for (let i = 0; i < 120 && !gone; i++) {
     await sleep(1000);
-    const g = await dev.request('dev.region.state', { region }).catch(() => null);
-    if (['REMOVED'].includes((g?.view ?? g ?? {}).state) || !g) gone = (g?.view ?? g ?? {}).state ?? 'gone';
+    const e = settlements().find((x) => x.id === id)?.log.at(-1);
+    if (e?.kind === 'PROJECT_REMOVED' && (e.siteIds ?? []).length === founding.siteIds.length && founding.siteIds.every((x) => e.siteIds.includes(x))) gone = e;
   }
-  if (gone) ok('growth town undo', `${region} ${gone}`);
-  else fail('growth town undo', JSON.stringify(settlements().find((x) => x.id === id)?.log.at(-1))?.slice(0, 160));
+  if (gone) ok('growth town undo', `${gone.text}: the town itself, once its growth was undone`);
+  else fail('growth town undo', `${said}; the town was ${pre.state}, busy ${pre.busy}, revisions ${JSON.stringify((pre.revisions ?? []).map((r) => [r.rid, r.state]))}`);
 }
 
 /**
