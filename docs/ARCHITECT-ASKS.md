@@ -1228,3 +1228,9 @@ main 0d39359 with that jar: PASS, 98 checks, 0 failed, 5077 s; `status` reads AP
   Steward's skip matches either, so nothing exact-matched broke.
 - **XR:** survival refunds are exact: survival 629, supplied plan 5550, portcullis 18877, swing 7520, wall swings 7514, drawbridge 4905. Undo and discard pass.
 By the 2026-11-06 rule the v0.57.0 pin then runs only `stub --only sanity`.
+
+### v0.57.0 pin (2026-11-10): PASS, merged
+Architect v0.57.0 (API 1.50.0, kit 0.53.0, catalogue 16) is pinned on pin-057 (runtime minimum 0.57.0). The release is the RC that passed (90ff739d) plus a
+version-only commit (ead24960). The build and unit tests pass against the published package, and `npm test` gives 35/0. By the 2026-11-06 rule only the
+sanity set ran: `stub --only sanity`, PASS, 8 checks, 59 s; `status` reads API 1.50.0. Architect on the `[street]` note: NM's `held` case is a wall hard
+against the street's end, which rg2 doesn't hit, so nothing changes.
