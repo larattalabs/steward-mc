@@ -1,0 +1,93 @@
+# Growth through Architect (slice A: region towns; slice B: adopting street towns)
+
+Status: slice A design, 2026-11-11, for review before code. Agreed with Architect in docs/ARCHITECT-ASKS.md ("Batch 6d contract review", frozen
+2026-10-20): a growth's history entry names its revision, its undo is `undoRevision` to the position below (never `Regions.remove`), grown lots go
+through the four-front adapter, and additions in region towns move from Steward's own street pieces to GR.
+
+## Today
+
+`SettlementRunner.startAddition` (accepting a proposal, or a quarter) → `afterSurvey`. An addition never takes a region path (`VPlan.applies` and
+`appliesSupplied` need `!addition`), so it plans with `VillageLayout.plan(..., streetZ)` against the live street (`Districts.streetOf`) and queues
+the building plus `street#n` road pieces as a batch (`fitAndQueue`, `BatchPlanner.build`). That is so even for a town that is an Architect region
+(V, plan v1): the addition stands beside the region as loose sites in their own batch group. No mod code calls `planRevision` or `undoRevision`;
+only the e2e check does, through dev calls (`survivalGrowth`, `districtGrowth`).
+
+## Slice A: an addition to a region town grows the region
+
+Revised after the GPT design review (2026-11-11: request changes; 5 blockers, 4 should-fixes, all taken). A revision is identified by its **rid**,
+never by its position (positions are reused after an undo, and `undoRevision` takes the whole suffix above its target).
+
+**When.** `afterSurvey`, an addition with no district, where `TownRegion.of(settlement)` finds the standing town region and Architect has
+`planRevision`:
+- the region is busy (`RegionView.busy() != null`), or a revision of it is not ended: the build ends, "the town is being changed; ask again once it
+  has settled". It never falls through to street pieces (review 6).
+- the region builds from materials (`RegionView.build() != null`): today's path, unchanged (survival growth is slice A2).
+- else the growth below. A town that is not a region (a street town) keeps today's path until slice B.
+
+**Lot ids** (review 2). Region lot ids are unique across the region, and `ProgramPlanner` restarts `house_1` per build. A growth's lots are renamed
+`g<build>_<n>` (the build id's letters and digits, lowercase, trimmed so the id is at most 48 and matches `[a-z][a-z0-9_]{0,47}`), once, before
+the plan; the specs are saved with the build (`districtSpecs`, reused), so a re-plan or a restart sends the same ids.
+
+**Plan.** `planRevision(region, RevisionRequest(program, {grow: {lots, prefer}}, key, "steward", ext))`, `program` the region's own
+(`RegionPlan.programId` of its plan; `VPlan.PROGRAM` for V towns), `ext` the settlement and build tags:
+- key `vgrow` with `prefer: frontage`; on `NO_ROOM`, key `vgrow2` with `prefer: extend`. `NO_ROOM`/`REGION_LIMIT` on both: `Proposals.full` and
+  the build ends (nothing spent).
+- The answer is saved before anything else: `vPlanId`, `growRegion`, `growRid` (`revisionOf().rid()`), `growPosition`, `growKey` (the key that
+  planned it). Lots through `DPlan.toPlan` (four fronts).
+- Restart before the answer was saved: `planByKey` on `vgrow3`, `vgrow2`, `vgrow` in that order, before any plan is sent again (review 3).
+  `touchPlan` touches `growKey`.
+
+**Stale.** The realise refused `PLAN_STALE`/`parent_moved` (another revision accepted while the lots were designed): planned once more with the same
+ids and sizes under `vgrow3` (prefer as the plan that went stale), the new plan saved as above, its lots re-bound to their designs by id. Refused
+again: the build ends saying so.
+
+**Realise.** `realise(RealiseRequest(vPlanId, INSTANT, actor, lotEntries, ..., ext, 0, "vgrowrealise" (or "vgrowrealise3" after a stale re-plan)))`.
+The answer is the town's id; the revision is the one whose `planId` equals `vPlanId` (review 3), not one found by tagged sites. `adoptGrowth` saves
+`vRegionId` and `siteGroupId = "revision:<region>:<rid>"`.
+
+**The runner's region paths** (review 1, 4, 5). One rule: **a growth never calls `Regions.remove` or `VillageSweep.takeUp`**; every take-up is
+`Growths.undo(region, rid)`:
+- the revision by rid; ended `UNDONE`: done (nothing to take);
+- the region's head position is not the rid's position (a newer revision stands): refused, said, nothing written;
+- the revision `UNDOING` (a take-up a restart cut short): the same `undoRevision(region, position - 1)` again, which resumes it;
+- the revision still placing (busy): wait; the runner or undo retries on its next tick or call;
+- else `undoRevision(region, position - 1, owner)`; done when the answer says removed.
+
+| Path | A growth |
+|---|---|
+| `watchVillage` | the revision by rid: ended (PLACED/PARTIAL/FAILED in `RevisionView.state`) → logs its `sites()` under `revision:<region>:<rid>`; the region's state is not the outcome |
+| nothing placed (no sites) | `Growths.undo`; the history gets a note, no entry |
+| `cancelVillage` (CANCELLING) | before the realise is answered: waits for it (the phase stays CANCELLING, the checkpoint kept); realised: the growth's entry is logged first, then `Growths.undo`; refused or waiting: the entry stays, said, and undo takes it up later |
+| `findVillage`, `settleLostRealise` | `realiseByKey(vgrowrealise / vgrowrealise3)`, then the revision whose `planId` is `vPlanId`; never "a region with the build tag" |
+| `takeUpOrphan` | logs the growth's entry, then `Growths.undo` (never the region) |
+
+A build whose growth realise is in flight is never dropped from the save: a cancel waits in CANCELLING for the answer (or the lost-answer lookup),
+so a restart resumes the obligation (review 5).
+
+**History** (review 7). The growth's `PROJECT_PLACED` entry: `siteGroup = "revision:<region>:<rid>"`, the revision's sites. `lastUndoable` keeps a
+`revision:` group after a partial removal record (it does not fall back to site by site). `TownRegion.of` and `regionTownGone` read only `region:`
+entries, so the founding entry still names the town.
+
+**Undo** (`Undo.lastProject`), before the region and group branches: a `revision:` entry → `Growths.undo`; done → `PROJECT_REMOVED` with its sites;
+the region gone → the entry retired. **The founding entry** (`Undo.region`) is refused while the region has any revision not `UNDONE`, or is busy
+(review 1), whatever its sites say.
+
+**Saves** (review 8). `BuildStore` FORMAT 3 → 4 (`growRegion`, `growRid`, `growPosition`, `growKey`; a format-3 build has none). Settlements FORMAT
+5 → 6 with a no-op migration, so an older Steward refuses a file whose history may hold `revision:` entries. `SaveCompatTest` fixtures for both.
+
+**Tests** (review 9). Unit: the lot renaming (repeated types, the id rule); `Growths.decide` as a pure function over a `RegionView` (UNDONE, newer
+head, reused position with another rid, UNDOING, busy); the founding undo refused with a revision standing and no visible site; the plan-key
+recovery order; `lastUndoable` keeping the tag; both save formats. e2e (stub, `growth` flow): a V town accepts a proposal of a type it already has
+→ one revision under the build's ext and keys, no `street#` site, the town still found; undo of the town refused while it stands; undo of the
+growth by `undoRevision` leaves the town byte-equal (`dev.region.hash`); a cancel mid-design ends with nothing; then the town undone.
+Not covered by e2e: parent_moved and restarts mid-realise (unit tests and the decision function only).
+
+**Not in A.** Survival towns (A2), districts' growth (`dgrow`, D-S2), street towns (slice B).
+
+## Slice B: lazy adopt of a street town (outline, after A)
+
+At a street town's first addition: `Regions.adopt` with the village's footprint as the claim (not the whole settlement claim: a district region
+inside it would refuse), `{streetZ, xLo, xHi}` from `Districts.streetOfPieces`, the `street`/`street#n` road sites, and lots `lotId -> siteId`
+made unique (`ProgramPlanner.Ids` repeats `house_1` across builds). A `PROJECT_PLACED`-like entry `region:<id>` records it, so `TownRegion.of` sees
+the town and slice A grows it; undoing that entry is `unadopt` (position 0 only). Any `NOT_ALLOWED` (survival or shared-crate sites, a gap in the
+street, not the Overworld): today's street-piece path, unchanged.
