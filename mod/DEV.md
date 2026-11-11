@@ -327,3 +327,14 @@ No paid re-record: each fix is shown on the recorded plans in `plans-2026-11-10`
   and the other `near` its anchor, it scores READY. Rule: one zone per shore or river. If two estates on one river should work, that is an Architect ask
   (not filed).
 The new rules take effect for the next recorded plans; the recorded ones are unchanged.
+
+### The first nightly's stub FAIL (2026-11-10, $0)
+The 23:00 nightly on 3986daf passed free (43 checks) and failed stub (30 of 40, 91 min).
+- **Root cause:** at 23:08 the stub client's Architect launcher found only mise's node shim. The shim's `--version` probe failed ("is not node 22+ (did not
+  run)"), so the launcher reported node-missing, the helper never started, and every card answered "no card". The free client minutes earlier found node
+  fine, so the probe failed only some of the time, under load. Fixed in f946361: the e2e client's PATH starts with the node running e2e.mjs, and Architect's
+  launcher looks at PATH before the shims.
+- **The last check** ("DevBridge not reachable ... after 400s") was the restored-build relaunch at 00:33. The client was starting slowly, not crashed: 4.5 min
+  to load its mods against about 11 s normally, with no stall in the log, so the whole machine was slow. The 400 s wait stays; this is a chance failure.
+- **SUMMARY.md** printed "undefined failed", because e2e's `failed` is a count. nightly.mjs now lists the names of the checks that aren't ok, with repeats
+  counted ("gate mechanism x4").
