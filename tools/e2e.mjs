@@ -52,7 +52,7 @@ let dev = null;
 
 function launch() {
   const log = fs.openSync(path.join(OUT, 'client.log'), 'a');
-  client = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], { stdio: ['ignore', log, log], env: { ...process.env, E2E_STUB: mode === 'stub' ? '1' : '0' } });
+  client = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], { stdio: ['ignore', log, log], env: { ...process.env, E2E_STUB: mode === 'stub' ? '1' : '0', E2E_NODE_DIR: path.dirname(process.execPath) } });
 }
 
 async function connect() {

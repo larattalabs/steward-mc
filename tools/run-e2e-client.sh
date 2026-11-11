@@ -25,9 +25,12 @@ if [[ ${E2E_STUB:-0} == 1 ]]; then
 	unset ARCHITECT_SIDECAR_DIR ARCHITECT_KIT_DIR
 fi
 export JAVA_HOME=${JAVA_HOME:-/opt/homebrew/opt/openjdk@25}
+# The node that runs e2e.mjs goes first on the client's PATH, so Architect's launcher finds a real node binary before mise's shim: the shim's
+# 5 s probe failed once under load (the 2026-11-10 nightly's stub client: "mise/shims/node is not node 22+ (did not run)", no helper, 30 failures).
+NODE_PATH_DIR=${E2E_NODE_DIR:+$E2E_NODE_DIR:}
 export GRADLE_USER_HOME=${GRADLE_USER_HOME:-$R/.gradle-home}
 cd $R/mod
-exec env -i HOME="$HOME" USER="$USER" LOGNAME="$USER" TMPDIR="$TMPDIR" SHELL=/bin/zsh PATH=/opt/homebrew/bin:/usr/bin:/bin JAVA_HOME="$JAVA_HOME" \
+exec env -i HOME="$HOME" USER="$USER" LOGNAME="$USER" TMPDIR="$TMPDIR" SHELL=/bin/zsh PATH="$NODE_PATH_DIR/opt/homebrew/bin:/usr/bin:/bin" JAVA_HOME="$JAVA_HOME" \
 	GRADLE_USER_HOME="$GRADLE_USER_HOME" STEWARD_PORT="$STEWARD_PORT" STEWARD_DEV_PORT="$STEWARD_DEV_PORT" ARCHITECT_AUTOWORLD_NAME="$ARCHITECT_AUTOWORLD_NAME" \
 	ARCHITECT_AUTOWORLD_MODE="$ARCHITECT_AUTOWORLD_MODE" ARCHITECT_AUTOWORLD_PRESET="$ARCHITECT_AUTOWORLD_PRESET" ARCHITECT_AUTOWORLD_CHEATS="$ARCHITECT_AUTOWORLD_CHEATS" \
 	${ARCHITECT_SIDECAR_DIR:+ARCHITECT_SIDECAR_DIR=$ARCHITECT_SIDECAR_DIR} ${ARCHITECT_SIDECAR_BACKEND:+ARCHITECT_SIDECAR_BACKEND=$ARCHITECT_SIDECAR_BACKEND} \
