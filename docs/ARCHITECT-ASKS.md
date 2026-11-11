@@ -1241,3 +1241,15 @@ Architect v0.58.0 (API 1.51.0, kit 0.53.0, catalogue 16) is pinned on pin-058 (r
 package. By the 2026-11-06 rule only the sanity set ran: `stub --only sanity`, PASS, 8 checks; `status` reads API 1.51.0. Steward doesn't call FS or LC yet.
 Open for Steward when it adopts them: S-FS-5 (a follower takes its recipe's params), S-FS-6 (should `follow` check standing lots), and LC's `kinds` key and
 `playerPlaced` for identical blocks.
+
+## v0.59.0 RC (slice/AD 68905263, 2026-11-11): PASS
+The RC jar was built from a fresh clone (sidecar first), and Steward main d2c8ef3 ran with it via `ARCHITECT_JAR`. `status` reads API 1.51.0, since the
+bump lands with the release.
+- **stub:** `--only undo,revert,survival,growth,region,village,protect,version`: PASS, 86 checks, 15 flows. Survival refunds are exact: survival 629,
+  supplied plan 5550, portcullis 18877, swing 7520, wall swings 7514, drawbridge 4905.
+- **free:** `--only update,revert,undo,protect,farm` (place, proposals, districts, player builds): PASS, 34 checks. A first run without `farm` failed
+  districts with "Describe set_556 first.", because districts needs the settlement that `proposals` describes. That is a test-order issue, not the RC.
+- **PX:** Steward never calls `Sites.undoStage`. Undo goes through `removeGroup`, `Sites.remove` and `Regions.remove`, so the survival-group refusal can't
+  reach it.
+- **AD, FS-b, LC:** Steward calls none of them yet, so no Steward flow covers adopt. Provisional answers: S-AD-5, a later slice is fine (Steward doesn't adopt
+  Supplied or Hardcore towns yet); S-AD-6, a new region id on re-adopt is fine, since Steward keys its settlement by its own id.
