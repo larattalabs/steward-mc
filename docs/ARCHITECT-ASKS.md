@@ -1271,3 +1271,10 @@ Noah approved 7b on 2026-11-11: $60 budget, $90 hard cap. Steward's answers:
   (Steward's growth, docs/GROWTH.md) is byte-identical with no `links` stage.
 - **Steward's side when SL ships:** the plan writer's schema copy and prompt gain `site` on lots; the recorded plans and the gap table are re-scored
   at $0, and re-recorded only with Noah's OK.
+- **Folded in (Architect main 228f775b):**
+  - `Designs.siteVariant(entryId, SiteSpec, opKey)` is $0, keyed, installs directly carrying the archetype's approval, and refuses `SITE_UNFIT` (or
+    `SITE_UNSUPPORTED` for a source with no program).
+  - S-7b-5 is option (a): one item per lot, a variant naming its archetype in `Item.ext architect_mc:site`.
+  - The link refusal is `NO_LINK {lot, port}`, before any write.
+  - A revision's realise with no site lot is byte-identical, checked by an LP gate item.
+  - The first RC is PL with SO.
