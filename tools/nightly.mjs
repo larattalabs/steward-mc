@@ -84,7 +84,9 @@ async function night(dry) {
         if (fs.existsSync(sum)) {
           fs.copyFileSync(sum, path.join(out, `${mode}-summary.json`));
           const s = JSON.parse(fs.readFileSync(sum, 'utf8'));
-          r.failed = s.failed ?? [];
+          // e2e's summary.json has failed as a count; the names are the results that are not ok, a repeated name once with its count
+          const names = (s.results ?? []).filter((x) => !x.ok).map((x) => x.check);
+          r.failed = [...new Set(names)].map((n) => { const k = names.filter((m) => m === n).length; return k > 1 ? `${n} x${k}` : n; });
           r.checks = (s.results ?? []).length;
           fs.rmSync(sum);
         }
