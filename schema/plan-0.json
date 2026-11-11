@@ -412,6 +412,7 @@
         "loopiness": { "type": "number", "minimum": 0, "maximum": 1, "description": "Loops added past the spanning tree, as a share of the tree's route cost (1/64 steps). Default 0.15." }
       }
     },
+    "terraces": {"type": "object", "additionalProperties": false, "description": "(S3, S-S3-1) Terraced: the lots are laid down the slope as steps, each lot (with its apron) on its own level, the levels rise apart (consecutive lots share a level where the ground allows); the street becomes routes between the lots' entrances (switchbacks and stairs within the zone's grade tolerance). Rims over 2 high are retained (wall: the bible's structure role, with a rail where the drop is over 3; blend: the relief blends them, a wall where its fill can't reach, noted). Write it on the zone (or district) for terraces inside a zone; form.terrace still stands beside zones. On a flat site: one level, noted. {} takes the defaults.", "properties": {"rise": {"type": "integer", "minimum": 2, "maximum": 6, "description": "Blocks between levels (default 3)."}, "retain": {"enum": ["wall", "blend"], "description": "How a rim over 2 high is held (default wall)."}, "stairs": {"type": "boolean", "description": "Stair flights on the routes between the levels (default true)."}}},
     "district": {
       "type": "object", "required": ["id", "size", "lots"], "additionalProperties": false,
       "description": "(D1) One district of a districts program: its own street of lots and shared space, on a survey candidate of its size at its level band.",
@@ -420,6 +421,7 @@
         "label": { "$ref": "#/$defs/label" },
         "size": { "$ref": "#/$defs/size", "description": "The district's rect (blocks; a range or a preset resolves to its largest); each side 24..256." },
         "lots": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/lot" } },
+        "terraces": { "$ref": "#/$defs/terraces" },
         "levelBand": { "enum": ["low", "mid", "high", "any"], "description": "The claim's height tercile the district sits in (default any)." },
         "prefer": { "type": "array", "maxItems": 7, "items": { "enum": ["flat", "sloped", "wet", "dry", "near_water", "wooded", "open"] }, "description": "Candidate tags preferred (each missing one costs; never a refusal)." },
         "near": { "type": "array", "maxItems": 15, "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,23}$" }, "description": "Other districts of this program it is placed near (after them, its cost the distance to them)." },
@@ -438,6 +440,7 @@
       "properties": {
         "id": { "$ref": "#/$defs/id" },
         "kind": { "const": "standard" },
+        "terraces": {"$ref": "#/$defs/terraces", "description": "(S3) The zone's lots on terraced levels down the slope (a lots program; placed as one district on its locator's candidates)."},
         "farmPond": { "type": "boolean", "description": "(H, S-H-2) Every farm lot of the zone gets a farm pond (as a lot's farmPond). Off by default." },
         "irrigate": { "type": "boolean", "description": "(IRR, S-IRR-1) Every farm lot of the zone is irrigated (as a lot's irrigate; its own false wins). Off by default." },
         "required": { "type": "boolean" },

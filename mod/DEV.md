@@ -307,3 +307,23 @@ run and removed after. 59 of 59 recorded, every one valid by Steward's plan chec
   - conquered_town and ruined_empire: a gatehouse lot in a town with no wall, which the zone can't place, and the road in ends on it (DEPENDENCY).
     14 unwalled plans write a gatehouse lot (12 in the old recordings); only these two have a part that depends on it.
   - rival_families: west_estate's shore band overlaps (OVERLAP); twin_villages: inn_stop waits on a village_road that doesn't fit.
+
+### The writer's faults, fixed forward (2026-11-10, $0)
+No paid re-record: each fix is shown on the recorded plans in `plans-2026-11-10`. The prompt rules were applied by hand and scored with the kit ($0).
+- **The shared space.** plan-check missed mushroom_town's `shared: "green"`. The schema gives each zone only `partBase`, and the program sits behind the
+  kit's `x-dispatch`, which Ajv doesn't follow. `checkAnswer` now dispatches each zone's program itself (template, lots or districts). It flags
+  mushroom_town and a second plan the score had not named, hidden_village (also "green"). It is only the program because the rest of this schema copy
+  lags Architect's kit schema (the wall's `walk` and `lots`, rule `over`, lot `refill`). Those are fields the writer uses and the kit accepts, so a full
+  per-kind check flagged 13 good plans. `terraces` is copied in from the kit schema: the prompt already asks for it, and old_new_town's district carries
+  it. The prompt now says `shared` is square, well or none, and that a green is a square.
+- **cliff_monks:** the sea stair's ends rise 0 (NO_CLIMB). Written as a `path` it scores READY. Rule: a stair, switchback or ladder only where the land
+  line gives a drop.
+- **conquered_town and ruined_empire:** the edge gatehouse in a town with no wall isn't placed, and the road that ends on it is blocked. 12 other
+  unwalled plans place theirs, so the gatehouse is not the fault. With the road ending on the zone, both score READY. Rule: a road into a town ends on
+  the zone, never on one of its lots.
+- **twin_villages:** inn_stop is placed `near` village_road, but zones are placed before connectors. Placed near inland_village, it scores READY. Rule: a
+  zone is placed by an anchor, the land or another zone, never by a connector.
+- **rival_families:** two zones `along` the same river always overlap: each takes the whole bank, whatever its side or distance. With one along the river
+  and the other `near` its anchor, it scores READY. Rule: one zone per shore or river. If two estates on one river should work, that is an Architect ask
+  (not filed).
+The new rules take effect for the next recorded plans; the recorded ones are unchanged.

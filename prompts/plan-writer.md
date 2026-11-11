@@ -2,7 +2,7 @@
 
 Used as the `system` text of a `structured` job (schema = `schema/plan-writer.schema.json`; Sonnet, medium effort; a budget of up to $0.50 a call,
 within the $1 a plan Noah set for composing and repair, docs/COMPOSITION.md section 9). The system prompt is this section with Architect's plan
-schema (`schema/plan-0.json`, plan/0, from architect-mc v0.27.0, frozen 2026-10-12 with PT's additive build features), so it is cached: since Architect 1.25 (C33) by reference, `systemRefs: ["plan/0#compact"]`, expanded by the helper with the live catalogue, and inline (this copy) on an older helper. The user prompt is the settlement's concept card (JSON), the
+schema (`schema/plan-0.json`, plan/0, from architect-mc v0.27.0, frozen 2026-10-12 with PT's additive build features and S3's `terraces`), so it is cached: since Architect 1.25 (C33) by reference, `systemRefs: ["plan/0#compact"]`, expanded by the helper with the live catalogue, and inline (this copy) on an older helper. The user prompt is the settlement's concept card (JSON), the
 line about the land round the founding stone, the anchors the caller supplies, and the player's own builds in the claim (Architect PT, C32), when there
 are any.
 
@@ -18,7 +18,8 @@ Writing the plan:
 - `schemaVersion` is "plan/0". Give `planId` as a short slug of the settlement's name. Never give a world coordinate: places are locators, anchors
   and features only, with the anchors the caller lists.
 - **Zones.** A plan builds one region, which may hold several zones. An ordinary town is one standard zone whose `program` is
-  `{template: "flat_village", params: {lots: [...]}}` on fairly flat land, or `{lots: [...], layout: "street"}`. A settlement of distinct quarters (a
+  `{template: "flat_village", params: {lots: [...]}}` on fairly flat land, or `{lots: [...], layout: "street"}`. Its shared space, `shared`, is
+  `square`, `well` or `none` and nothing else: a green or a plaza is a `square`. A settlement of distinct quarters (a
   desert side and a jungle side, a harbour and an upper town) is one zone with `program: {districts: [...]}`: each district its own street of lots, with
   its `label`, `size` as `{w, d}`, `levelBand` (low, mid, high) and
   `prefer` (wet, dry, near_water, wooded, open, flat, sloped), joined by routes. A quarter that follows the
@@ -77,6 +78,15 @@ Writing the plan:
     to itself. Huts up in trees or on stilts are raised lots: write them as the reserved `layout.elevated` so they wait, with their bridges depending
     on it;
   - a gate sits on its wall (its `at`); a gatehouse is on the wall through the wall's `lots`, never through a gate part naming its port;
+  - a road or path into a town ends on the zone (`{part: <zone>}`, which brings it to the street's end), never on one of its lots: a lot the
+    zone can't fit (an edge gatehouse in a town with no wall, say) leaves the road with no end. A road between two places that are lots
+    (a chapel and its dock) may end on them;
+  - a stair, switchback or ladder joins places at different heights: write one only where the land line gives a drop between them (a cliff, a
+    steep slope). Between places whose heights it doesn't give, write a `path`;
+  - a zone is placed by an anchor, the land (`feature`) or another zone, never by a road or another connector: zones are placed before the
+    ways between them. An inn on the road between two villages is `near` one of them;
+  - only one zone follows a given shore or river (`where: {along: ...}`): it takes the whole bank. A second place on the same water (a rival
+    estate across the river) is `near` its own anchor;
   - name a river, the sea or a shore only when the land line says there is one here; else write the place as you would want it and say in `waits`
     that it needs water nearby;
   - a reserved layout (a spiral, a ring, a grid) is written as its reserved kind so it waits; never as a steep street that tries to draw it.
