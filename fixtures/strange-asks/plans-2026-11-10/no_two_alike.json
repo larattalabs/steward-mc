@@ -1,0 +1,184 @@
+{
+  "prompt": "No two houses alike.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "unique_houses_village",
+      "style": {
+        "pending": "unique_houses_village"
+      },
+      "zones": [
+        {
+          "id": "village",
+          "kind": "standard",
+          "required": true,
+          "label": "Village",
+          "purpose": "home_base",
+          "style": {
+            "pending": "unique_houses_village"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "unique_home",
+                "label": "unique home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "No two alike: own footprint shape, roof form, wall materials and details."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "unique_home",
+                "label": "unique home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "No two alike: own footprint shape, roof form, wall materials and details."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "unique_home",
+                "label": "unique home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "No two alike: own footprint shape, roof form, wall materials and details."
+              },
+              {
+                "id": "house_4",
+                "type": "house",
+                "role": "unique_home",
+                "label": "unique home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "No two alike: own footprint shape, roof form, wall materials and details."
+              },
+              {
+                "id": "house_5",
+                "type": "house",
+                "role": "unique_home",
+                "label": "unique home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "No two alike: own footprint shape, roof form, wall materials and details."
+              },
+              {
+                "id": "house_6",
+                "type": "house",
+                "role": "unique_home",
+                "label": "unique home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "No two alike: own footprint shape, roof form, wall materials and details."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "family_house",
+                "label": "larger family house",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Distinct from every other house in massing, roof pitch and palette."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "family_house",
+                "label": "larger family house",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Distinct from every other house in massing, roof pitch and palette."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "village_hall",
+                "label": "village hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Gathering place at the heart of the village, with its own character."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "workshop",
+                "label": "smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "job",
+                "brief": "Small working smithy that serves the homes."
+              }
+            ],
+            "layout": "street",
+            "shared": "square"
+          }
+        }
+      ],
+      "rules": [
+        {
+          "id": "no_two_alike",
+          "kind": "variety",
+          "required": true,
+          "label": "No two houses alike",
+          "notes": "Every house differs in shape, roof and materials.",
+          "params": {
+            "minDistance": 0.5
+          }
+        }
+      ],
+      "notes": "Level ground assumed; no survey was available."
+    },
+    "waits": [
+      {
+        "part": "no_two_alike",
+        "words": "The rule that no two houses are alike waits for a later Architect release; houses are briefed individually meanwhile."
+      }
+    ],
+    "summary": "A medium village of ten buildings on one street with a central square: six small unique homes, two larger family houses, a village hall tavern at the heart and a smithy at the edge. Each house is briefed to have its own shape, roof and materials. The \"no two alike\" rule is recorded but waits for a later Architect release."
+  },
+  "usd": 0.034212,
+  "errors": []
+}

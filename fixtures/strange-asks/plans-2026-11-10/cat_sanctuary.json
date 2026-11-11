@@ -1,0 +1,147 @@
+{
+  "prompt": "A cat sanctuary run by a grumpy old librarian.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "whisker_hollow",
+      "style": {
+        "pending": "whisker_hollow"
+      },
+      "zones": [
+        {
+          "id": "sanctuary",
+          "kind": "standard",
+          "required": true,
+          "label": "Whisker Hollow compound",
+          "purpose": "sanctuary",
+          "style": {
+            "pending": "whisker_hollow"
+          },
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "library_home",
+                "label": "librarian's library and home",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Tall bookshelves, lectern, reading nooks, a grumpy sign or two; the librarian's bed upstairs; cats sleeping on shelves."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "cat_dorm",
+                "label": "cat dormitory",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Rows of cat beds, wool carpets, window perches and cat doors via trapdoors."
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "cat_dorm",
+                "label": "cat dormitory",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Rows of cat beds, wool carpets, window perches and cat doors via trapdoors."
+              },
+              {
+                "id": "cabin_3",
+                "type": "cabin",
+                "role": "cat_dorm",
+                "label": "cat dormitory",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Rows of cat beds, wool carpets, window perches and cat doors via trapdoors."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "feeding_hall",
+                "label": "feeding hall",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Fish troughs (cauldrons/barrels), food stores, water bowls."
+              },
+              {
+                "id": "cat_garden_1",
+                "type": "cat_garden",
+                "role": "cat_garden",
+                "label": "cat playground garden",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Fenced yard with climbing trees, hay bales, flowers, scratching posts, fish pond."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "sick_bay",
+                "label": "vet and sick bay",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Quiet infirmary with brewing stand, beds and curtains."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "fish_shed",
+                "label": "fish shed",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "brief": "Fishing supplies and smoked fish for feeding the cats."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "gatehouse with donations desk",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "brief": "Entry arch with 'No Dogs' sign and adoption desk."
+              }
+            ],
+            "layout": "organic",
+            "shared": "square"
+          }
+        }
+      ],
+      "notes": "Small cozy hamlet; grumpiness shows in signs and details only."
+    },
+    "waits": [],
+    "summary": "Whisker Hollow is one small organic hamlet of crooked lanes round a green. The librarian's large library-home stands at the centre beside the feeding hall. Three cat dorms, a garden courtyard, a sick bay and a fish shed fill out the lanes, and the gatehouse sits at the edge. The fish shed wants water nearby. The land isn't surveyed, so I wrote no pond or river. The style is set after this plan."
+  },
+  "usd": 0.037184,
+  "errors": []
+}

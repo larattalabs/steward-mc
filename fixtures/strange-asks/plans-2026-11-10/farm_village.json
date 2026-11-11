@@ -1,0 +1,178 @@
+{
+  "prompt": "A farming village that feeds my base.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "harvest_hamlet",
+      "style": {
+        "pending": "harvest_hamlet"
+      },
+      "zones": [
+        {
+          "id": "hamlet",
+          "kind": "standard",
+          "required": true,
+          "label": "Harvest Hamlet",
+          "purpose": "farming",
+          "style": {
+            "pending": "harvest_hamlet"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "program": {
+            "layout": "organic",
+            "shared": "well",
+            "lots": [
+              {
+                "id": "granary_1",
+                "type": "barn",
+                "role": "granary",
+                "label": "granary hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Large storage hall with chests of crops and a loading area where food is collected for the base."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "farmhouse",
+                "label": "farmhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "farmPond": true,
+                "brief": "Farmer's home with beds, a small kitchen garden and a chest."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "farmhouse",
+                "label": "farmhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "farmPond": true,
+                "brief": "Farmer's home with beds, a small kitchen garden and a chest."
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "farmhouse",
+                "label": "farmhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "farmPond": true,
+                "brief": "Farmer's home with beds, a small kitchen garden and a chest."
+              },
+              {
+                "id": "cottage_4",
+                "type": "cottage",
+                "role": "farmhouse",
+                "label": "farmhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "farmPond": true,
+                "brief": "Farmer's home with beds, a small kitchen garden and a chest."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "crop_barn",
+                "label": "crop barn",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Hay, seed and tool storage beside the fields."
+              },
+              {
+                "id": "barn_2",
+                "type": "barn",
+                "role": "crop_barn",
+                "label": "crop barn",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Hay, seed and tool storage beside the fields."
+              },
+              {
+                "id": "stable_1",
+                "type": "barn",
+                "role": "stable",
+                "label": "animal pens and stable",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Cows, sheep, pigs and chickens in fenced pens."
+              },
+              {
+                "id": "mill_1",
+                "type": "shop",
+                "role": "mill_bakery",
+                "label": "windmill and bakery",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "villager": "job",
+                "brief": "Mill grinds wheat; bakery makes bread. Stands by water if any."
+              },
+              {
+                "id": "well_1",
+                "type": "shop",
+                "role": "well_stall",
+                "label": "well and market stall",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "trading_hall",
+                "brief": "Village well with a produce stall."
+              }
+            ]
+          }
+        }
+      ],
+      "connectors": [],
+      "forms": [],
+      "rules": [],
+      "notes": "Low density: spread out so fields fit between buildings."
+    },
+    "waits": [],
+    "summary": "Harvest Hamlet is one spread-out rustic village near the founding stone. It has a central granary hall, a well and market stall, four farmhouses with kitchen-garden ponds, two crop barns, an animal stable, and a windmill and bakery that stands by water if any is nearby. The lanes wind organically, which leaves open ground for fields."
+  },
+  "usd": 0.033084,
+  "errors": []
+}

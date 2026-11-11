@@ -1,0 +1,122 @@
+{
+  "prompt": "A single tower arcology, every floor a different district.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "stacked_city",
+      "style": {
+        "pending": "stacked_city"
+      },
+      "zones": [
+        {
+          "id": "tower_site",
+          "kind": "standard",
+          "purpose": "arcology",
+          "required": true,
+          "label": "Tower and entrance plaza",
+          "style": {
+            "pending": "stacked_city"
+          },
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "arcology_tower_1",
+                "type": "arcology_tower",
+                "role": "arcology_tower",
+                "label": "arcology tower",
+                "size": [
+                  23,
+                  19
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "One tall tower of stone, glass and iron holding the whole city as stacked district floors, linked by a central stairwell and shafts, with a glass-crowned top."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "lobby",
+                "label": "ground-level gatehouse and lobby",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Entrance plaza at the tower base leading to the central stairwell."
+              }
+            ],
+            "layout": "street"
+          }
+        }
+      ],
+      "rules": [
+        {
+          "id": "tower_floors",
+          "kind": "stacked_floors",
+          "required": true,
+          "label": "Stacked district floors",
+          "scope": [
+            "arcology_tower_1"
+          ],
+          "notes": "Floors stacked in one tower, each its own district with its own palette and lighting, from the ground up.",
+          "params": {
+            "floors": [
+              {
+                "type": "market_floor",
+                "label": "market floor",
+                "size": "L",
+                "note": "stalls, shops and a tavern ring under lanterns"
+              },
+              {
+                "type": "residential_floor",
+                "label": "residential floor",
+                "size": "L",
+                "note": "dense small apartments along corridors"
+              },
+              {
+                "type": "farm_floor",
+                "label": "hydroponic farm floor",
+                "size": "L",
+                "note": "crop beds, water channels, glowstone grow lights"
+              },
+              {
+                "type": "workshop_floor",
+                "label": "forge and workshop floor",
+                "size": "L",
+                "note": "smithies, smelters, crafting benches"
+              },
+              {
+                "type": "garden_floor",
+                "label": "temple and garden floor",
+                "size": "L",
+                "note": "open-air garden and chapel near the top"
+              },
+              {
+                "type": "observatory",
+                "label": "observatory summit",
+                "size": "M",
+                "note": "glass-domed lookout capping the tower"
+              }
+            ],
+            "link": "central stairwell and shafts"
+          }
+        }
+      ],
+      "notes": "The district floors live inside the tower; they wait on stacked-floor support."
+    },
+    "waits": [
+      {
+        "part": "tower_floors",
+        "words": "The stacked district floors inside the tower (market to observatory) wait for a later Architect release; the tower and gatehouse are built first."
+      }
+    ],
+    "summary": "The Stacked City starts as one huge central tower on the flat ground, with a gatehouse and lobby plaza at its base. The six district floors (market, homes, farm, forge, garden and temple, observatory) are written as a stacked-floors rule. Architect can't build that yet, so it waits while the tower and gatehouse go up."
+  },
+  "usd": 0.035451,
+  "errors": []
+}

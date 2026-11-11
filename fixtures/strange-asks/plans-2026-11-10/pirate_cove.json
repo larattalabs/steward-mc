@@ -1,0 +1,205 @@
+{
+  "prompt": "A pirate cove: docks on stilts over the lagoon and a hidden cave for the treasure.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "pirate_cove",
+      "style": {
+        "pending": "pirate_cove"
+      },
+      "zones": [
+        {
+          "id": "cove_shore",
+          "kind": "standard",
+          "required": true,
+          "label": "Cove shore",
+          "purpose": "port",
+          "style": {
+            "pending": "pirate_cove"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 24
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "boathouse_1",
+                "type": "boathouse",
+                "role": "boathouse",
+                "label": "boathouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "villager": "job",
+                "brief": "Covered slip for small boats and ship repairs."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "store",
+                "label": "smuggler's store",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "trading_hall",
+                "brief": "Stash of supplies, rum and plunder for trade."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "lookout",
+                "label": "lookout tower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Crow's-nest watch over the lagoon mouth."
+              },
+              {
+                "id": "treasure_cave_1",
+                "type": "treasure_cave",
+                "role": "treasure_cave",
+                "label": "treasure cave",
+                "size": [
+                  17,
+                  15
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Hidden cave in the cliff with a concealed entrance, chests, and traps; mossy stone inside."
+              }
+            ],
+            "layout": "organic"
+          },
+          "notes": "The cave is written as a lot at the cliff edge; a true hidden cave interior needs a later block."
+        },
+        {
+          "id": "stilt_quarter",
+          "kind": "standard",
+          "required": true,
+          "label": "Stilt docks and hall",
+          "purpose": "port",
+          "style": {
+            "pending": "pirate_cove"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "program": {
+            "layout": "elevated",
+            "lots": [
+              {
+                "id": "dock_1",
+                "type": "dock",
+                "role": "stilt_dock",
+                "label": "stilt dock",
+                "size": [
+                  17,
+                  15
+                ],
+                "placement": "near_water",
+                "villager": "none",
+                "brief": "Plank pier on stilts over the lagoon with moored ship, barrels and crates."
+              },
+              {
+                "id": "dock_2",
+                "type": "dock",
+                "role": "stilt_dock",
+                "label": "stilt dock",
+                "size": [
+                  17,
+                  15
+                ],
+                "placement": "near_water",
+                "villager": "none",
+                "brief": "Plank pier on stilts over the lagoon with moored ship, barrels and crates."
+              },
+              {
+                "id": "hall_1",
+                "type": "tavern",
+                "role": "captains_hall",
+                "label": "captain's hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Large stilt hall at the head of the docks; captain's quarters and a rowdy common room."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "shack",
+                "label": "pirate shack",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "villager": "dwelling",
+                "brief": "Small stilt shack with hammock and sea chest."
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "shack",
+                "label": "pirate shack",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "villager": "dwelling",
+                "brief": "Small stilt shack with hammock and sea chest."
+              },
+              {
+                "id": "cabin_3",
+                "type": "cabin",
+                "role": "shack",
+                "label": "pirate shack",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "villager": "dwelling",
+                "brief": "Small stilt shack with hammock and sea chest."
+              }
+            ]
+          },
+          "notes": "Stilt buildings over the lagoon need water nearby; the land is not surveyed."
+        }
+      ],
+      "connectors": [],
+      "forms": [],
+      "rules": [],
+      "notes": "Land not surveyed: no water or cliff features named. A lagoon and cliffs are needed nearby."
+    },
+    "waits": [
+      {
+        "part": "stilt_quarter",
+        "words": "The stilt docks, captain's hall and shacks are raised lots over water and wait for a later release."
+      },
+      {
+        "part": "treasure_cave_1",
+        "words": "The cave is placed as a lot at the cliff edge; the hidden concealed interior needs a later release and nearby cliffs."
+      }
+    ],
+    "summary": "Pirate Cove has a shore zone with a boathouse, smuggler's store, lookout tower and a treasure cave lot at the edge. A second zone holds the stilt docks, captain's hall and three shacks. Stilt buildings wait for a later release, and the cove needs a lagoon and cliffs nearby."
+  },
+  "usd": 0.041855,
+  "errors": []
+}

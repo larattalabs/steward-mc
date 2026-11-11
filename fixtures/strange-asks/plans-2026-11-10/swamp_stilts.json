@@ -1,0 +1,238 @@
+{
+  "prompt": "A witch village on stilts in the swamp.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "stilt_hollow",
+      "style": {
+        "pending": "stilt_hollow"
+      },
+      "zones": [
+        {
+          "id": "hollow",
+          "kind": "standard",
+          "required": true,
+          "label": "Stilt Hollow",
+          "purpose": "coven",
+          "style": {
+            "pending": "stilt_hollow"
+          },
+          "notes": "Raised lots on timber piles over swamp water; needs swamp water nearby.",
+          "program": {
+            "layout": "elevated",
+            "shared": "none",
+            "lots": [
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "coven_mother",
+                "label": "coven mother's hut",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "dwelling",
+                "brief": "Largest stilt house, tall crooked roof, cauldron on the porch, brewing stand and bookshelves inside, hanging lanterns."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "witch_hut",
+                "label": "witch hut",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small stilt hut with bed, cauldron, flower pots, and a ladder down to the water."
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "witch_hut",
+                "label": "witch hut",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small stilt hut with bed, cauldron, flower pots, and a ladder down to the water."
+              },
+              {
+                "id": "cabin_3",
+                "type": "cabin",
+                "role": "witch_hut",
+                "label": "witch hut",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small stilt hut with bed, cauldron, flower pots, and a ladder down to the water."
+              },
+              {
+                "id": "cabin_4",
+                "type": "cabin",
+                "role": "witch_hut",
+                "label": "witch hut",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small stilt hut with bed, cauldron, flower pots, and a ladder down to the water."
+              },
+              {
+                "id": "potion_brewery_1",
+                "type": "potion_brewery",
+                "role": "brewing_house",
+                "label": "brewing house",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Rows of brewing stands, cauldrons, barrels and shelves of potion bottles."
+              },
+              {
+                "id": "cabin_5",
+                "type": "cabin",
+                "role": "herb_shed",
+                "label": "herb drying shed",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Hanging herbs, mushrooms and vines, farmland planter boxes on the deck."
+              },
+              {
+                "id": "ritual_platform_1",
+                "type": "ritual_platform",
+                "role": "coven_circle",
+                "label": "coven circle platform",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Open raised deck with soul lanterns and candles, a ring of cauldrons."
+              },
+              {
+                "id": "boathouse_1",
+                "type": "boathouse",
+                "role": "boathouse",
+                "label": "boathouse and jetty",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "villager": "none",
+                "brief": "Boats moored under the stilts, fishing racks."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watch_perch",
+                "label": "watch perch",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Tall stilt lookout with a lantern."
+              }
+            ]
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 64
+            }
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "bridge_hut_circle",
+          "kind": "rope_bridge",
+          "required": false,
+          "label": "rope bridge to the coven circle",
+          "from": {
+            "part": "cottage_1"
+          },
+          "to": {
+            "part": "ritual_platform_1"
+          },
+          "movers": [
+            "player"
+          ]
+        },
+        {
+          "id": "bridge_hut_brewery",
+          "kind": "rope_bridge",
+          "required": false,
+          "label": "rope bridge to the brewing house",
+          "from": {
+            "part": "cottage_1"
+          },
+          "to": {
+            "part": "potion_brewery_1"
+          },
+          "movers": [
+            "player"
+          ]
+        },
+        {
+          "id": "bridge_brewery_huts",
+          "kind": "rope_bridge",
+          "required": false,
+          "label": "rope bridge to the witch huts",
+          "from": {
+            "part": "potion_brewery_1"
+          },
+          "to": {
+            "part": "cabin_1"
+          },
+          "movers": [
+            "player"
+          ]
+        },
+        {
+          "id": "bridge_tower",
+          "kind": "rope_bridge",
+          "required": false,
+          "label": "rope bridge to the watch perch",
+          "from": {
+            "part": "boathouse_1"
+          },
+          "to": {
+            "part": "tower_1"
+          },
+          "movers": [
+            "player"
+          ]
+        }
+      ]
+    },
+    "waits": [
+      {
+        "part": "hollow",
+        "words": "The stilt huts and platforms wait for raised-lot support (layout.elevated); nothing in the zone is built until then."
+      },
+      {
+        "part": "bridge_hut_circle",
+        "words": "The rope bridges link raised lots, so they wait on the stilt layout."
+      }
+    ],
+    "summary": "Stilt Hollow is one zone of ten raised lots: a large coven mother's hut at the centre, four witch huts, a brewing house, a herb shed, a coven circle platform, a boathouse and a watch perch. Rope bridges link them. Raised-on-stilts lots aren't supported yet, so the zone and its bridges wait. The swamp land wasn't surveyed, so it also needs swamp water near the stone."
+  },
+  "usd": 0.044254,
+  "errors": []
+}

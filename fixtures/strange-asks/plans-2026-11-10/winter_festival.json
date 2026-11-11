@@ -1,0 +1,190 @@
+{
+  "prompt": "A town that decorates itself for a winter festival.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "frostlight_festival_town",
+      "style": {
+        "pending": "frostlight_festival_town"
+      },
+      "zones": [
+        {
+          "id": "town",
+          "kind": "standard",
+          "required": true,
+          "label": "Festival town",
+          "purpose": "festival",
+          "notes": "The shared square is the festival square: a tall decorated spruce, lantern posts and market stalls go there in the style pass.",
+          "style": {
+            "pending": "frostlight_festival_town"
+          },
+          "size": {
+            "preset": "M"
+          },
+          "program": {
+            "layout": "street",
+            "shared": "square",
+            "lots": [
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "festival_hall",
+                "label": "festival hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "job",
+                "brief": "Great timber hall facing the square, hung with garlands and lanterns, long feast tables and a big hearth"
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "home",
+                "label": "townsfolk home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Snow-capped cottage with a wreath on the door, lanterns and candle-lit windows"
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "home",
+                "label": "townsfolk home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Snow-capped cottage with a wreath on the door, lanterns and candle-lit windows"
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "home",
+                "label": "townsfolk home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Snow-capped cottage with a wreath on the door, lanterns and candle-lit windows"
+              },
+              {
+                "id": "house_4",
+                "type": "house",
+                "role": "home",
+                "label": "townsfolk home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Snow-capped cottage with a wreath on the door, lanterns and candle-lit windows"
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "bakery",
+                "label": "bakery and sweet shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "trading_hall",
+                "brief": "Festival cookies and warm drinks, stall at the front"
+              },
+              {
+                "id": "shop_2",
+                "type": "shop",
+                "role": "toymaker",
+                "label": "toymaker's workshop",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "trading_hall",
+                "brief": "Carved gifts and decorations, colourful window displays"
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "chapel",
+                "label": "chapel of lights",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Small shrine with a lit beacon-like lantern tower for the festival"
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "sleigh_stable",
+                "label": "sleigh stable",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Stores sleighs, hay and decorations for the season"
+              },
+              {
+                "id": "hut_1",
+                "type": "hut",
+                "role": "warming_hut",
+                "label": "warming hut",
+                "size": [
+                  7,
+                  7
+                ],
+                "villager": "none",
+                "brief": "Small warming hut beside the ice rink with a hearth and benches"
+              }
+            ]
+          }
+        }
+      ],
+      "forms": [
+        {
+          "id": "ice_rink",
+          "kind": "pond",
+          "required": false,
+          "label": "ice rink",
+          "notes": "Frozen pond with benches; capped with ice.",
+          "where": {
+            "adjacent": {
+              "to": {
+                "part": "town"
+              },
+              "side": "any",
+              "gap": [
+                2,
+                6
+              ]
+            }
+          },
+          "size": {
+            "w": 14,
+            "d": 12
+          },
+          "depth": 1,
+          "edge": "built"
+        }
+      ],
+      "notes": "Flat ground, no terrain sculpting. Festival decoration comes from the style."
+    },
+    "waits": [],
+    "summary": "A snug Nordic festival town on level ground: one street of lots around a central festival square, with a great festival hall, four homes, a bakery, a toymaker's workshop, a chapel of lights on high ground, a sleigh stable at the edge and a warming hut. A frozen pond ice rink sits beside the town. The decorated tree, banners and lanterns come with the style."
+  },
+  "usd": 0.038956,
+  "errors": []
+}

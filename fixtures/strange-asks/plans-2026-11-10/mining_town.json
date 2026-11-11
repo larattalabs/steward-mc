@@ -1,0 +1,205 @@
+{
+  "prompt": "A working mining town with minecarts down to the mine.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "minecart_mining_town",
+      "style": {
+        "pending": "minecart_mining_town"
+      },
+      "zones": [
+        {
+          "id": "mining_town",
+          "kind": "standard",
+          "label": "Hillside mining town",
+          "purpose": "mining",
+          "required": true,
+          "style": {
+            "pending": "minecart_mining_town"
+          },
+          "terraces": {
+            "rise": 3,
+            "retain": "wall",
+            "stairs": true
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "mine_head_1",
+                "type": "mine_head",
+                "role": "mine_head",
+                "label": "mine head and lift house",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "edge",
+                "brief": "Timber headframe over the main shaft where the minecart rails descend into the mine; the town's centrepiece, at the base of the slope."
+              },
+              {
+                "id": "rail_station_1",
+                "type": "rail_station",
+                "role": "rail_station",
+                "label": "minecart station",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Loading platform and rail yard where carts leave for the mine and ore comes up."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "miner_home",
+                "label": "miner's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "miner_home",
+                "label": "miner's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "miner_home",
+                "label": "miner's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "cottage_4",
+                "type": "cottage",
+                "role": "miner_home",
+                "label": "miner's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smelter",
+                "label": "smelter and smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Smelts ore and repairs tools and rails."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "assay_office",
+                "label": "assay office and ore store",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "trading_hall",
+                "brief": "Weighs and stores ore, buys and sells goods."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "tavern",
+                "label": "miners' tavern",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Gathering place for shift workers."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "foreman",
+                "label": "foreman's house",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "high_ground",
+                "villager": "dwelling",
+                "brief": "Overlooks the mine head and the rails."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "storehouse",
+                "label": "tool shed and storehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Stores timber, tools and spare rails."
+              }
+            ],
+            "layout": "street",
+            "shared": "none"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "cart_rails",
+          "kind": "rail",
+          "required": true,
+          "label": "Minecart rails to the mine",
+          "from": {
+            "part": "rail_station_1"
+          },
+          "to": {
+            "part": "mine_head_1"
+          },
+          "notes": "Minecart track running down the slope from the station to the mine head, lanterns along it."
+        },
+        {
+          "id": "rail_walk",
+          "kind": "path",
+          "required": false,
+          "label": "Walkway beside the rails",
+          "from": {
+            "part": "rail_station_1"
+          },
+          "to": {
+            "part": "mine_head_1"
+          },
+          "width": 2,
+          "lamps": "street",
+          "notes": "Lantern-lit walk running down beside the cart track."
+        }
+      ],
+      "notes": "Mine head sits at the bottom of the slope; rails are reserved and wait, the town and walkway are built first."
+    },
+    "waits": [
+      {
+        "part": "cart_rails",
+        "words": "The minecart rails down to the mine wait for a later Architect release; the town and a lantern-lit walk beside the route are built first."
+      }
+    ],
+    "summary": "A medium rustic mining town stepped down a hillside in terraces, with the mine head and its timber headframe at the bottom. Above it sit the cart station, tavern, smithy, assay office, storehouse, four miners' cottages and the foreman's house on the high ground. A lantern-lit walk runs from the station down to the mine. The minecart rails themselves can't be built yet, so they wait."
+  },
+  "usd": 0.039777,
+  "errors": []
+}

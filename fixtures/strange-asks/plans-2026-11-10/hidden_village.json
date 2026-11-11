@@ -1,0 +1,215 @@
+{
+  "prompt": "A hidden village nobody can find, behind a waterfall.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "hidden_falls",
+      "style": {
+        "pending": "hidden_falls"
+      },
+      "zones": [
+        {
+          "id": "hollow_village",
+          "kind": "standard",
+          "required": true,
+          "label": "Village in the hollow",
+          "purpose": "home_base",
+          "where": {
+            "near": {
+              "feature": {
+                "part": "curtain_falls"
+              },
+              "within": 24
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "elders_hall",
+                "label": "elder's hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Largest building, facing the waterfall curtain; lantern-lit, mossy stone and timber."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "hidden_dwelling",
+                "label": "hidden dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small timber home tucked against the cave wall."
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "hidden_dwelling",
+                "label": "hidden dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small timber home tucked against the cave wall."
+              },
+              {
+                "id": "cabin_3",
+                "type": "cabin",
+                "role": "hidden_dwelling",
+                "label": "hidden dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small timber home tucked against the cave wall."
+              },
+              {
+                "id": "cabin_4",
+                "type": "cabin",
+                "role": "hidden_dwelling",
+                "label": "hidden dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small timber home tucked against the cave wall."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "cottage_home",
+                "label": "cottage home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Cozy home with a small herb garden and moss."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "cottage_home",
+                "label": "cottage home",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Cozy home with a small herb garden and moss."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "waterfall_lookout",
+                "label": "waterfall lookout",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "brief": "Watches the water curtain from inside; a quiet sentry post."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "mushroom_herb_garden",
+                "label": "mushroom and herb garden",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "farm",
+                "brief": "Indoor growing hall for food in the dim cave, with glow berries and mushrooms."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "hearth_tavern",
+                "label": "hearth tavern",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Shared gathering place for the villagers."
+              }
+            ],
+            "layout": "organic",
+            "shared": "green"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "entry_path",
+          "kind": "path",
+          "required": false,
+          "label": "Path to the elder's hall",
+          "from": {
+            "anchor": "stone"
+          },
+          "to": {
+            "part": "house_1"
+          }
+        }
+      ],
+      "forms": [
+        {
+          "id": "curtain_falls",
+          "kind": "waterfall",
+          "required": true,
+          "label": "Waterfall curtain",
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "drop": 12,
+          "width": 5,
+          "lip": "auto",
+          "basin": "auto",
+          "notes": "Uses a natural drop where one is found, else sculpts a rock outcrop."
+        },
+        {
+          "id": "hollow_behind",
+          "kind": "hidden_room",
+          "required": true,
+          "label": "Hollow behind the falls",
+          "where": {
+            "near": {
+              "feature": {
+                "part": "curtain_falls"
+              },
+              "within": 8
+            }
+          },
+          "notes": "A cave-like hollow behind the water curtain, the only entrance being through the falling water."
+        }
+      ],
+      "notes": "Land not surveyed; the waterfall site is searched near the stone."
+    },
+    "waits": [
+      {
+        "part": "hollow_behind",
+        "words": "The cave hollow behind the waterfall waits for a later Architect release; the village is built beside the falls meanwhile."
+      }
+    ],
+    "summary": "Hidden Falls is a small village of ten buildings (elder's hall, four cabins, two cottages, lookout, garden hall and tavern) on crooked lanes around a green, beside a waterfall curtain near your stone. The cave hollow behind the water can't be built yet and waits. The style will be mossy stone, spruce and oak."
+  },
+  "usd": 0.042234,
+  "errors": []
+}

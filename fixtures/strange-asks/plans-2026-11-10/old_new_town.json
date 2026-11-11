@@ -1,0 +1,264 @@
+{
+  "prompt": "An old medieval quarter by the river and a newer art deco quarter on the hill.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "two_quarters",
+      "style": {
+        "pending": "two_quarters"
+      },
+      "zones": [
+        {
+          "id": "old_quarter",
+          "purpose": "market",
+          "label": "Old riverside quarter",
+          "required": true,
+          "style": {
+            "pending": "medieval_riverside"
+          },
+          "where": {
+            "near": {
+              "feature": {
+                "water": {
+                  "body": "river"
+                }
+              },
+              "within": 16
+            }
+          },
+          "notes": "Medieval timber, stone and thatch; the working riverside.",
+          "program": {
+            "lots": [
+              {
+                "id": "hall_1",
+                "type": "tavern",
+                "role": "guild_hall",
+                "label": "old town hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Medieval timber-framed guild hall at the heart of the old quarter, facing the river."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "townhouse",
+                "label": "medieval townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "townhouse",
+                "label": "medieval townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "townhouse",
+                "label": "medieval townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "inn",
+                "label": "riverside tavern",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Old quarter inn with a terrace over the water."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "warehouse",
+                "label": "quayside warehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Stone and timber store by the river for goods."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "old smithy",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "job"
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "chapel",
+                "label": "old chapel",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Small medieval stone chapel with bell turret."
+              }
+            ],
+            "layout": "street"
+          }
+        },
+        {
+          "id": "new_quarter",
+          "purpose": "civic",
+          "label": "Art deco hill quarter",
+          "required": true,
+          "style": {
+            "pending": "art_deco_hill"
+          },
+          "where": {
+            "adjacent": {
+              "to": {
+                "part": "old_quarter"
+              },
+              "side": "any",
+              "gap": [
+                4,
+                16
+              ]
+            }
+          },
+          "notes": "Art deco on the hill above the old quarter: symmetry, stepped setbacks, gold and black, quartz, lantern and sea lantern lighting.",
+          "program": {
+            "lots": [
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "civic_tower",
+                "label": "art deco civic tower",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "high_ground",
+                "brief": "Stepped setback tower with gold trim and quartz, crowning the hill."
+              },
+              {
+                "id": "flats_1",
+                "type": "house",
+                "role": "apartments",
+                "label": "art deco apartment block",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "flats_2",
+                "type": "house",
+                "role": "apartments",
+                "label": "art deco apartment block",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "arcade_shop",
+                "label": "deco shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "trading_hall"
+              },
+              {
+                "id": "shop_2",
+                "type": "shop",
+                "role": "arcade_shop",
+                "label": "deco shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "trading_hall"
+              },
+              {
+                "id": "theatre_1",
+                "type": "art_deco_theatre",
+                "role": "theatre",
+                "label": "deco cinema or theatre",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Marquee-fronted hall with vertical fins and sea lantern lighting."
+              }
+            ],
+            "layout": "street"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "hill_street",
+          "kind": "street",
+          "required": true,
+          "label": "Street up the hill",
+          "from": {
+            "part": "old_quarter"
+          },
+          "to": {
+            "part": "new_quarter"
+          }
+        },
+        {
+          "id": "hill_stair",
+          "kind": "stair",
+          "required": false,
+          "label": "Stairs between the quarters",
+          "from": {
+            "part": "old_quarter"
+          },
+          "to": {
+            "part": "new_quarter"
+          },
+          "movers": [
+            "player",
+            "villager"
+          ]
+        }
+      ],
+      "notes": "Land not surveyed: the river and hill are asked of the site search."
+    },
+    "waits": [],
+    "summary": "Two zones make the town. An old medieval quarter of 8 buildings sits by the river, with the guild hall, tavern, warehouse, smithy, chapel and three townhouses. A newer art deco quarter of 6 buildings is next to it on higher ground, with the civic tower, two apartment blocks, two shops and a theatre. A street and a stair link them. Each quarter has its own style, which is made after this plan. The land isn't surveyed yet, so the old quarter needs a river nearby and the new one needs rising ground."
+  },
+  "usd": 0.047163,
+  "errors": []
+}

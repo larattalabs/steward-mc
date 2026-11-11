@@ -1,0 +1,164 @@
+{
+  "prompt": "Identical row houses for the workers.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "workers_row",
+      "style": {
+        "pending": "workers_row"
+      },
+      "zones": [
+        {
+          "id": "row",
+          "kind": "standard",
+          "label": "Workers' Row",
+          "purpose": "housing",
+          "required": true,
+          "program": {
+            "lots": [
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "row_house",
+                "label": "worker row house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Identical terraced worker house: same plan, facade and roof as the others."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "row_house",
+                "label": "worker row house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Identical terraced worker house: same plan, facade and roof as the others."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "row_house",
+                "label": "worker row house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Identical terraced worker house: same plan, facade and roof as the others."
+              },
+              {
+                "id": "house_4",
+                "type": "house",
+                "role": "row_house",
+                "label": "worker row house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Identical terraced worker house: same plan, facade and roof as the others."
+              },
+              {
+                "id": "house_5",
+                "type": "house",
+                "role": "row_house",
+                "label": "worker row house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Identical terraced worker house: same plan, facade and roof as the others."
+              },
+              {
+                "id": "house_6",
+                "type": "house",
+                "role": "row_house",
+                "label": "worker row house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Identical terraced worker house: same plan, facade and roof as the others."
+              },
+              {
+                "id": "house_7",
+                "type": "house",
+                "role": "row_house",
+                "label": "worker row house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Identical terraced worker house: same plan, facade and roof as the others."
+              },
+              {
+                "id": "house_8",
+                "type": "house",
+                "role": "row_house",
+                "label": "worker row house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Identical terraced worker house: same plan, facade and roof as the others."
+              },
+              {
+                "id": "well_1",
+                "type": "well",
+                "role": "communal_well",
+                "label": "communal well",
+                "size": [
+                  7,
+                  7
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Shared well and small square at the end of the street."
+              }
+            ],
+            "layout": "street",
+            "shared": "none",
+            "orientation": "ew"
+          }
+        }
+      ],
+      "rules": [
+        {
+          "id": "identical_houses",
+          "kind": "variety",
+          "required": false,
+          "label": "Identical row houses",
+          "scope": [
+            "row"
+          ],
+          "notes": "The eight houses should be identical: same plan, facade and roof. Needs a variety rule Architect can't verify yet.",
+          "params": {
+            "identical": true,
+            "minDistance": 0
+          }
+        }
+      ],
+      "notes": "Flat site with one straight street; eight identical houses and a communal well."
+    },
+    "waits": [
+      {
+        "part": "identical_houses",
+        "words": "The 'identical houses' rule waits for a later Architect release; the houses are laid out and built meanwhile."
+      }
+    ],
+    "summary": "Workers' Row is one straight street on level ground, lined with eight same-sized worker houses and a small communal well at the heart of the row. The style is plain and utilitarian. The rule that the houses be exactly identical is recorded but waits for a later release."
+  },
+  "usd": 0.033737,
+  "errors": []
+}

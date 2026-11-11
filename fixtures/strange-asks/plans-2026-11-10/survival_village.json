@@ -1,0 +1,110 @@
+{
+  "prompt": "A small village I build up from my own materials.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "homegrown_village",
+      "style": {
+        "pending": "homegrown_village"
+      },
+      "zones": [
+        {
+          "id": "village",
+          "kind": "standard",
+          "required": true,
+          "label": "Homegrown Village",
+          "purpose": "home_base",
+          "style": {
+            "pending": "homegrown_village"
+          },
+          "size": {
+            "preset": "S"
+          },
+          "program": {
+            "template": "flat_village",
+            "params": {
+              "lots": [
+                {
+                  "id": "house_1",
+                  "type": "house",
+                  "role": "founders_hall",
+                  "label": "founder's hall",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "landmark": true,
+                  "placement": "central",
+                  "villager": "none",
+                  "brief": "Main gathering and storage hall at the heart of the village."
+                },
+                {
+                  "id": "cottage_1",
+                  "type": "cottage",
+                  "role": "villager_home",
+                  "label": "villager home",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "villager": "dwelling"
+                },
+                {
+                  "id": "cottage_2",
+                  "type": "cottage",
+                  "role": "villager_home",
+                  "label": "villager home",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "villager": "dwelling"
+                },
+                {
+                  "id": "cottage_3",
+                  "type": "cottage",
+                  "role": "villager_home",
+                  "label": "villager home",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "villager": "dwelling"
+                },
+                {
+                  "id": "smithy_1",
+                  "type": "smithy",
+                  "role": "workshop",
+                  "label": "workshop",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "villager": "job",
+                  "brief": "Place for crafting and tools."
+                },
+                {
+                  "id": "barn_1",
+                  "type": "barn",
+                  "role": "storehouse",
+                  "label": "storehouse barn",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "placement": "edge",
+                  "villager": "none",
+                  "brief": "Holds supplies and farm goods."
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A small, low-density rustic village on level ground: a founder's hall at the centre, three cottages, a workshop and a storehouse barn at the edge, all on one street. Its look is left pending, ready for you to grow it with your own materials."
+  },
+  "usd": 0.074619,
+  "errors": []
+}

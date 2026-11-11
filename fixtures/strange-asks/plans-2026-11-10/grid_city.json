@@ -1,0 +1,245 @@
+{
+  "prompt": "A planned grid city with numbered avenues.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "numbered-avenues",
+      "style": {
+        "pending": "numbered_avenues"
+      },
+      "zones": [
+        {
+          "id": "grid_city",
+          "kind": "standard",
+          "required": true,
+          "label": "Grid City of Numbered Avenues",
+          "purpose": "market",
+          "style": {
+            "pending": "numbered_avenues"
+          },
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "size": {
+            "preset": "L"
+          },
+          "notes": "Numbered avenue signs at every corner are a style wish, not a verified requirement.",
+          "program": {
+            "layout": "grid",
+            "shared": "square",
+            "orientation": "auto",
+            "lots": [
+              {
+                "id": "city_hall_1",
+                "type": "town_hall",
+                "role": "city_hall",
+                "label": "city hall",
+                "size": [
+                  23,
+                  19
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Civic centrepiece at the middle of the grid, facing the main plaza."
+              },
+              {
+                "id": "market_hall_1",
+                "type": "shop",
+                "role": "market_hall",
+                "label": "grand market hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "trading_hall",
+                "brief": "Covered market on the central plaza."
+              },
+              {
+                "id": "townhouse_1",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Uniform terraced home lining a numbered avenue."
+              },
+              {
+                "id": "townhouse_2",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Uniform terraced home lining a numbered avenue."
+              },
+              {
+                "id": "townhouse_3",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Uniform terraced home lining a numbered avenue."
+              },
+              {
+                "id": "townhouse_4",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Uniform terraced home lining a numbered avenue."
+              },
+              {
+                "id": "apartment_1",
+                "type": "house",
+                "role": "apartment_block",
+                "label": "apartment block",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Taller multi-storey homes near the centre."
+              },
+              {
+                "id": "apartment_2",
+                "type": "house",
+                "role": "apartment_block",
+                "label": "apartment block",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Taller multi-storey homes near the centre."
+              },
+              {
+                "id": "corner_shop_1",
+                "type": "shop",
+                "role": "corner_shop",
+                "label": "corner shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Street-corner store at an avenue crossing."
+              },
+              {
+                "id": "corner_shop_2",
+                "type": "shop",
+                "role": "corner_shop",
+                "label": "corner shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Street-corner store at an avenue crossing."
+              },
+              {
+                "id": "corner_shop_3",
+                "type": "shop",
+                "role": "corner_shop",
+                "label": "corner shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Street-corner store at an avenue crossing."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "tavern",
+                "label": "tavern",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "none",
+                "brief": "Public house on a busy crossing."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "job",
+                "brief": "Workshop district on the edge."
+              },
+              {
+                "id": "granary_1",
+                "type": "barn",
+                "role": "granary",
+                "label": "granary",
+                "size": [
+                  17,
+                  15
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Food store at the city edge."
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "chapel",
+                "label": "chapel",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "none",
+                "brief": "Small chapel on a quiet block."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Entry where Avenue 1 meets the city edge."
+              }
+            ]
+          }
+        }
+      ],
+      "rules": [],
+      "notes": "Planned grid city on level ground; uniform materials come from the style bible."
+    },
+    "waits": [],
+    "summary": "A single large grid city: regular blocks of numbered avenues around a central plaza, with the city hall and market hall at the centre. Townhouses, apartment blocks, corner shops and a tavern line the avenues, the chapel sits on a quiet block, and the smithy, granary and gatehouse stand on the edge. The style is uniform and tidy. The avenue number signs are noted as a style wish, not a checked requirement."
+  },
+  "usd": 0.039924,
+  "errors": []
+}

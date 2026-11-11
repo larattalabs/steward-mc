@@ -1,0 +1,180 @@
+{
+  "prompt": "Build a village around my house.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "village_around_my_house",
+      "style": {
+        "pending": "village_around_my_house"
+      },
+      "zones": [
+        {
+          "id": "village",
+          "kind": "standard",
+          "required": true,
+          "label": "Village around the house",
+          "purpose": "home_base",
+          "where": {
+            "near": {
+              "anchor": "player",
+              "within": 8
+            }
+          },
+          "notes": "Lanes grow out of a green beside the player's house; the house itself is never touched.",
+          "program": {
+            "layout": "organic",
+            "shared": "well",
+            "lots": [
+              {
+                "id": "well_square_1",
+                "type": "well_square",
+                "role": "well_square",
+                "label": "village well and green",
+                "size": [
+                  9,
+                  9
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Small gathering square with a well, near the player's house."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "villager cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with a garden facing the paths."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "villager cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with a garden facing the paths."
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "villager cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with a garden facing the paths."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "family_house",
+                "label": "family house",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Larger two-storey home along the main path."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "family_house",
+                "label": "family house",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Larger two-storey home along the main path."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "tavern",
+                "label": "village tavern",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "villager": "job",
+                "brief": "Warm common room near the green."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "job",
+                "brief": "Open forge with anvil and grindstone, on the village side away from homes."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "barn",
+                "label": "farm barn",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "farm",
+                "farmPond": true,
+                "brief": "Barn with crop plots and animal pens."
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "chapel",
+                "label": "chapel",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Small chapel with a bell, on a rise if one is available."
+              }
+            ]
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "main_path",
+          "kind": "path",
+          "required": false,
+          "label": "Path from the house to the green",
+          "from": {
+            "anchor": "player"
+          },
+          "to": {
+            "part": "well_square_1"
+          },
+          "width": 2
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A cozy medieval village of ten buildings grows around your house, which stays untouched. The buildings are a well green, three cottages, two family houses, a tavern, a smithy, a barn and a chapel. Crooked lanes grow out of the green next to your house. The tavern sits near the green, the smithy and barn sit at the edge, and the chapel goes on high ground if there is any. A path links your house to the green."
+  },
+  "usd": 0.068526,
+  "errors": []
+}

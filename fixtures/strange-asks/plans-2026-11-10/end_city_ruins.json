@@ -1,0 +1,171 @@
+{
+  "prompt": "Rebuild a ruined End city and settle it.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "restored_end_city",
+      "style": {
+        "pending": "restored_end_city"
+      },
+      "zones": [
+        {
+          "id": "city",
+          "required": true,
+          "label": "Restored End city",
+          "purpose": "home_base",
+          "program": {
+            "layout": "ring",
+            "shared": "square",
+            "lots": [
+              {
+                "id": "keep_1",
+                "type": "tower",
+                "role": "spire_keep",
+                "label": "Grand spire keep",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "high_ground",
+                "brief": "Tallest purpur tower with an end rod crown and a lookout; the heart of the rebuilt city."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "dwelling",
+                "label": "Dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "dwelling",
+                "brief": "Small purpur home with end rod lighting and a bedroom."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "dwelling",
+                "label": "Dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "dwelling",
+                "brief": "Small purpur home with end rod lighting and a bedroom."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "dwelling",
+                "label": "Dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "dwelling",
+                "brief": "Small purpur home with end rod lighting and a bedroom."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "spire_tower",
+                "label": "Spire tower",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "high_ground",
+                "brief": "Slender purpur tower with stairs and storage floors."
+              },
+              {
+                "id": "tower_2",
+                "type": "tower",
+                "role": "spire_tower",
+                "label": "Spire tower",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "high_ground",
+                "brief": "Slender purpur tower with stairs and storage floors."
+              },
+              {
+                "id": "hall_1",
+                "type": "tavern",
+                "role": "gathering_hall",
+                "label": "Gathering hall",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Communal hall for meals and meeting."
+              },
+              {
+                "id": "vault_1",
+                "type": "storage_vault",
+                "role": "shulker_vault",
+                "label": "Shulker vault",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Storage hall with chests and shulker-box shelves."
+              },
+              {
+                "id": "dock_1",
+                "type": "airship_dock",
+                "role": "ship_dock",
+                "label": "Ship dock",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Open platform at the edge with a ship-like prow, in the End city manner."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "workshop",
+                "label": "Workshop",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Crafting and brewing room with anvil and brewing stands."
+              }
+            ]
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "notes": "Ring layout puts the central lots on the terrace, towers and keep on high ground."
+        }
+      ],
+      "forms": [
+        {
+          "id": "land_blend",
+          "kind": "relief",
+          "required": false,
+          "around": [
+            "city"
+          ],
+          "notes": "Blends the rise of land into the city's pads."
+        }
+      ],
+      "notes": "Dwellings are linked by the ring street; raised bridges between them need elevated lots, which are not built yet."
+    },
+    "waits": [],
+    "summary": "A restored End city of ten buildings laid in a ring round a central terrace, near your founding stone. The grand spire keep and two spire towers take the high ground. The three dwellings, gathering hall, vault, workshop and ship dock sit round the terrace, with the dock at the edge. The land is blended into the pads, and the style is purpur and end stone, to be set once the style bible exists. Dwellings are joined by streets, not bridges."
+  },
+  "usd": 0.037515,
+  "errors": []
+}

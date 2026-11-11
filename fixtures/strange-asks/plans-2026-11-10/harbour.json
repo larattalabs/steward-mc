@@ -1,0 +1,199 @@
+{
+  "prompt": "A harbour town with docks and a lighthouse.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "lighthouse_harbour",
+      "style": {
+        "pending": "lighthouse_harbour"
+      },
+      "zones": [
+        {
+          "id": "harbour",
+          "purpose": "harbour",
+          "required": true,
+          "label": "Harbour town",
+          "style": {
+            "pending": "lighthouse_harbour"
+          },
+          "where": {
+            "near": {
+              "feature": {
+                "water": {
+                  "body": "any",
+                  "pick": "largest"
+                }
+              },
+              "within": 24
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "program": {
+            "layout": "street",
+            "shared": "square",
+            "lots": [
+              {
+                "id": "lighthouse_1",
+                "type": "tower",
+                "role": "lighthouse",
+                "label": "lighthouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "landmark": true,
+                "placement": "high_ground",
+                "brief": "Tall stone tower on the headland with a lantern room at the top that shines over the water."
+              },
+              {
+                "id": "boathouse_1",
+                "type": "boathouse",
+                "role": "boathouse",
+                "label": "boathouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Covered slip for boats and tackle."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "warehouse",
+                "label": "warehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "brief": "Stores cargo near the pier; barrels and crates."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "harbourmaster",
+                "label": "harbourmaster's office",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Overlooks the docks; ledgers and a notice board."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "tavern",
+                "label": "harbour tavern",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Sailors' inn with rooms upstairs."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "fisher",
+                "label": "fisherman's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "villager": "dwelling",
+                "brief": "Small home with drying racks and nets by the quay."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "fisher",
+                "label": "fisherman's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "villager": "dwelling",
+                "brief": "Small home with drying racks and nets by the quay."
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "fisher",
+                "label": "fisherman's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "villager": "dwelling",
+                "brief": "Small home with drying racks and nets by the quay."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "townsfolk",
+                "label": "townsfolk house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Home set back from the shore."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "townsfolk",
+                "label": "townsfolk house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Home set back from the shore."
+              }
+            ]
+          }
+        }
+      ],
+      "forms": [
+        {
+          "id": "main_dock",
+          "kind": "quay",
+          "required": true,
+          "label": "main dock and pier",
+          "where": {
+            "near": {
+              "feature": {
+                "water": {
+                  "body": "any",
+                  "pick": "largest"
+                }
+              },
+              "within": 16
+            }
+          },
+          "length": 32,
+          "reach": 6,
+          "notes": "Long plank pier with moorings and lamp posts; crates and tied boats come with the buildings."
+        }
+      ],
+      "notes": "Needs a shoreline in the claim; the land is not surveyed."
+    },
+    "waits": [
+      {
+        "part": "main_dock",
+        "words": "The dock and shore-side lots need natural water in the claim; the land isn't surveyed, so a dry site may refuse them."
+      }
+    ],
+    "summary": "A medium harbour town on the coast: one street of ten buildings (a stone lighthouse on high ground, boathouse, warehouse, harbourmaster's office, tavern, three fishermen's cottages and two townsfolk houses) with a long plank quay reaching into the water. It needs water nearby, and the land hasn't been surveyed yet."
+  },
+  "usd": 0.038271,
+  "errors": []
+}

@@ -1,0 +1,86 @@
+{
+  "prompt": "Just a hermit's hut and a garden.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "hermits_hut_garden",
+      "style": {
+        "pending": "hermits_hut_garden"
+      },
+      "zones": [
+        {
+          "id": "clearing",
+          "kind": "standard",
+          "required": true,
+          "label": "Hermit's clearing",
+          "purpose": "home",
+          "style": {
+            "pending": "hermits_hut_garden"
+          },
+          "size": {
+            "preset": "S"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 16
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "hermit_hut",
+                "label": "hermit's hut",
+                "size": [
+                  9,
+                  9
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "dwelling",
+                "brief": "One-room dwelling with a bed, hearth, small table, bookshelf and a lantern by the door. Modest and a little weathered."
+              },
+              {
+                "id": "garden_1",
+                "type": "garden",
+                "role": "garden_plot",
+                "label": "garden plot",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "farm",
+                "farmPond": true,
+                "brief": "Fenced vegetable and herb beds with a water source, a composter and a few flowers, tended beside the hut."
+              },
+              {
+                "id": "shed_1",
+                "type": "shed",
+                "role": "woodshed",
+                "label": "woodshed",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Small open-sided lean-to for firewood and tools, kept against the hut's wall or nearby."
+              }
+            ],
+            "layout": "organic",
+            "shared": "none"
+          }
+        }
+      ],
+      "connectors": [],
+      "forms": [],
+      "rules": []
+    },
+    "waits": [],
+    "summary": "A tiny, quiet hermit's clearing: a small weathered hut as the centrepiece, a fenced garden plot with its own little pond, and a small woodshed on the edge. It sits near the founding stone on flat ground, laid out loosely on a crooked lane, with a rustic style to follow."
+  },
+  "usd": 0.026978,
+  "errors": []
+}

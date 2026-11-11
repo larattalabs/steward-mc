@@ -1,0 +1,285 @@
+{
+  "prompt": "Two villages, one of fishermen on the coast and one of shepherds inland, joined by a road.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "fishermen_shepherds",
+      "style": {
+        "pending": "fishermen_shepherds"
+      },
+      "zones": [
+        {
+          "id": "coast_village",
+          "purpose": "farming",
+          "label": "Fishing village",
+          "required": true,
+          "style": {
+            "pending": "fishermen_shepherds"
+          },
+          "where": {
+            "near": {
+              "feature": {
+                "water": {
+                  "body": "any",
+                  "pick": "largest"
+                }
+              },
+              "within": 16
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "hall_1",
+                "type": "tavern",
+                "role": "harbour_hall",
+                "label": "harbour master's hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "near_water"
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "fisher_home",
+                "label": "fishermen's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water"
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "fisher_home",
+                "label": "fishermen's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water"
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "fisher_home",
+                "label": "fishermen's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water"
+              },
+              {
+                "id": "cottage_4",
+                "type": "cottage",
+                "role": "fisher_home",
+                "label": "fishermen's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water"
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "boathouse",
+                "label": "boathouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water"
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "boathouse",
+                "label": "boathouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water"
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "fish_market",
+                "label": "smokehouse and fish market",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central"
+              }
+            ],
+            "layout": "street"
+          }
+        },
+        {
+          "id": "inland_village",
+          "purpose": "farming",
+          "label": "Shepherds' village",
+          "required": true,
+          "style": {
+            "pending": "fishermen_shepherds"
+          },
+          "where": {
+            "near": {
+              "anchor": "claim_center",
+              "within": 48
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "shepherd_1",
+                "type": "cottage",
+                "role": "shepherd_home",
+                "label": "shepherds' cottage",
+                "size": [
+                  9,
+                  9
+                ]
+              },
+              {
+                "id": "shepherd_2",
+                "type": "cottage",
+                "role": "shepherd_home",
+                "label": "shepherds' cottage",
+                "size": [
+                  9,
+                  9
+                ]
+              },
+              {
+                "id": "shepherd_3",
+                "type": "cottage",
+                "role": "shepherd_home",
+                "label": "shepherds' cottage",
+                "size": [
+                  9,
+                  9
+                ]
+              },
+              {
+                "id": "shepherd_4",
+                "type": "cottage",
+                "role": "shepherd_home",
+                "label": "shepherds' cottage",
+                "size": [
+                  9,
+                  9
+                ]
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "sheepfold",
+                "label": "sheepfold and shearing barn",
+                "size": [
+                  17,
+                  15
+                ],
+                "placement": "edge"
+              },
+              {
+                "id": "barn_2",
+                "type": "barn",
+                "role": "sheepfold",
+                "label": "sheepfold and shearing barn",
+                "size": [
+                  17,
+                  15
+                ],
+                "placement": "edge"
+              },
+              {
+                "id": "shop_2",
+                "type": "shop",
+                "role": "weaver",
+                "label": "weaver's workshop",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central"
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "lookout",
+                "label": "hilltop lookout",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground"
+              }
+            ],
+            "layout": "street"
+          }
+        },
+        {
+          "id": "inn_stop",
+          "label": "Wayside inn",
+          "required": false,
+          "style": {
+            "pending": "fishermen_shepherds"
+          },
+          "where": {
+            "near": {
+              "feature": {
+                "part": "village_road"
+              },
+              "within": 12
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "inn_1",
+                "type": "tavern",
+                "role": "wayside_inn",
+                "label": "wayside inn",
+                "size": [
+                  13,
+                  11
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "village_road",
+          "kind": "road",
+          "required": true,
+          "label": "Road between the villages",
+          "from": {
+            "part": "coast_village",
+            "port": "end"
+          },
+          "to": {
+            "part": "inland_village",
+            "port": "start"
+          },
+          "lamps": "few"
+        }
+      ],
+      "rules": [],
+      "notes": "Land not surveyed: the fishing village needs a coast nearby; the inn sits beside the road, roughly midway."
+    },
+    "waits": [],
+    "summary": "Two small villages joined by a road: a fishing village on the coast (harbour hall, cottages, boathouses, fish market) and a shepherds' village inland (cottages, sheepfolds, weaver, lookout), with a wayside inn beside the road. The land isn't surveyed, so the coast village needs water nearby to place well."
+  },
+  "usd": 0.043851,
+  "errors": []
+}

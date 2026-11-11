@@ -1,0 +1,170 @@
+{
+  "prompt": "Make it look a thousand years old.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "thousand_year_hold",
+      "style": {
+        "pending": "thousand_year_hold"
+      },
+      "zones": [
+        {
+          "id": "hold",
+          "kind": "standard",
+          "required": true,
+          "label": "Thousand-Year Hold",
+          "purpose": "home_base",
+          "style": {
+            "pending": "thousand_year_hold"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "hall_1",
+                "type": "house",
+                "role": "great_hall",
+                "label": "ancient great hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Half-collapsed hall at the heart, moss-covered stone, broken roof, one wing still sheltered and usable."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "weathered cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Old home with sagging roof, mossy cobblestone, vines, gaps in the walls."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "weathered cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Old home with sagging roof, mossy cobblestone, vines, gaps in the walls."
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "weathered cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Old home with sagging roof, mossy cobblestone, vines, gaps in the walls."
+              },
+              {
+                "id": "cottage_4",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "weathered cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Old home with sagging roof, mossy cobblestone, vines, gaps in the walls."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "crumbling watchtower",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Leaning tower with a broken top, overgrown with ivy."
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "chapel",
+                "label": "old chapel",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "none",
+                "brief": "Roofless nave, cracked windows, a surviving altar."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "derelict smithy",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Cold forge, rusted fittings, collapsed chimney."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "barn",
+                "label": "fallen barn",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Collapsed timber barn at the edge, reclaimed by grass."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "broken gatehouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Ruined arch marking the entrance, partly fallen."
+              }
+            ],
+            "layout": "street",
+            "shared": "square"
+          },
+          "notes": "Ruined, mossy medieval stone; some buildings still usable."
+        }
+      ],
+      "notes": "Ruin and decay are carried by the style bible, not by geometry."
+    },
+    "waits": [],
+    "summary": "A medium ruined village near the founding stone: one street with a half-collapsed great hall at the heart, four cottages, a leaning watchtower on high ground, a roofless chapel, a cold smithy, a fallen barn at the edge and a broken gatehouse at the entrance. The weathered, mossy, overgrown look comes from the style, made after this plan."
+  },
+  "usd": 0.036764,
+  "errors": []
+}

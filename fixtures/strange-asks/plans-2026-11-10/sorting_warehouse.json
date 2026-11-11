@@ -1,0 +1,158 @@
+{
+  "prompt": "A trading post with an automatic sorting warehouse.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "sorting_house_post",
+      "style": {
+        "pending": "sorting_house_post"
+      },
+      "zones": [
+        {
+          "id": "post",
+          "required": true,
+          "label": "Trading post round the yard",
+          "purpose": "market",
+          "program": {
+            "layout": "street",
+            "shared": "square",
+            "lots": [
+              {
+                "id": "warehouse_1",
+                "type": "sorting_warehouse",
+                "role": "sorting_warehouse",
+                "label": "automatic sorting warehouse",
+                "size": [
+                  23,
+                  19
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Intake hoppers, banks of labelled sorter chests, overflow chests, visible redstone sorting lines. Large loading doors on the yard."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "trading_hall",
+                "label": "trading hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "placement": "central",
+                "villager": "trading_hall",
+                "brief": "Main counter and stalls where villagers trade; stocked from the warehouse next door."
+              },
+              {
+                "id": "shop_2",
+                "type": "shop",
+                "role": "stall",
+                "label": "market stall",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Open-fronted stall by the yard selling food, tools and goods."
+              },
+              {
+                "id": "shop_3",
+                "type": "shop",
+                "role": "stall",
+                "label": "market stall",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Open-fronted stall by the yard selling food, tools and goods."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "factor_office",
+                "label": "factor's office",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Ledgers, maps and a lectern; the manager of the post lives upstairs."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "inn",
+                "label": "traders' inn",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Beds and a hearth for travelling merchants."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "stable",
+                "label": "stable and cart shed",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Horses, llamas and carts for arriving caravans."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "worker_home",
+                "label": "workers' cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Home for a warehouse hand."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "worker_home",
+                "label": "workers' cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Home for a warehouse hand."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "gatehouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "brief": "Entry where goods are checked and tolls are taken."
+              }
+            ]
+          },
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "notes": "Lots face a central yard where carts and traders arrive."
+        }
+      ],
+      "notes": "Compact rustic trading post on flat ground; no wall was asked for, so the gatehouse is an entry lot."
+    },
+    "waits": [],
+    "summary": "A compact rustic trading post on level ground, built round a central yard. The large sorting warehouse sits at the centre with the trading hall beside it. Two stalls, the factor's office, the inn, the stable, two workers' cottages and a gatehouse stand around them. The hopper and redstone sorting machinery is part of the warehouse's design. Everything in the plan can be built now."
+  },
+  "usd": 0.035083,
+  "errors": []
+}

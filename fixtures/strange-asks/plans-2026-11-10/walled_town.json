@@ -1,0 +1,306 @@
+{
+  "prompt": "A walled market town with a gatehouse on each road.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "marketwall",
+      "style": {
+        "pending": "marketwall"
+      },
+      "zones": [
+        {
+          "id": "town",
+          "required": true,
+          "label": "Marketwall town",
+          "purpose": "market",
+          "style": {
+            "pending": "marketwall"
+          },
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "size": {
+            "preset": "L"
+          },
+          "program": {
+            "layout": "street",
+            "shared": "square",
+            "lots": [
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "north road gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Arched passage, portcullis, guard room above."
+              },
+              {
+                "id": "gatehouse_2",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "east road gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Arched passage, portcullis, guard room above."
+              },
+              {
+                "id": "gatehouse_3",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "south road gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Arched passage, portcullis, guard room above."
+              },
+              {
+                "id": "gatehouse_4",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "west road gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Arched passage, portcullis, guard room above."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "market_hall",
+                "label": "market hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Covered trading hall facing the market square."
+              },
+              {
+                "id": "shop_2",
+                "type": "shop",
+                "role": "stall",
+                "label": "merchant stall",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Open-fronted stall around the square."
+              },
+              {
+                "id": "shop_3",
+                "type": "shop",
+                "role": "stall",
+                "label": "merchant stall",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Open-fronted stall around the square."
+              },
+              {
+                "id": "shop_4",
+                "type": "shop",
+                "role": "stall",
+                "label": "merchant stall",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Open-fronted stall around the square."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "inn",
+                "label": "tavern and inn",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Lodging for travelling traders, near the main road."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Merchant home with shopfront below."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Merchant home with shopfront below."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Merchant home with shopfront below."
+              },
+              {
+                "id": "house_4",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Merchant home with shopfront below."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Tools and horseshoes for market goers."
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "chapel",
+                "label": "chapel",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Small town chapel off the square."
+              }
+            ]
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "road_ns",
+          "kind": "road",
+          "required": true,
+          "label": "north-south road",
+          "from": {
+            "anchor": "claim_n"
+          },
+          "to": {
+            "anchor": "claim_s"
+          },
+          "width": 3
+        },
+        {
+          "id": "road_ew",
+          "kind": "road",
+          "required": true,
+          "label": "east-west road",
+          "from": {
+            "anchor": "claim_w"
+          },
+          "to": {
+            "anchor": "claim_e"
+          },
+          "width": 3
+        },
+        {
+          "id": "town_wall",
+          "kind": "wall",
+          "required": true,
+          "label": "town wall",
+          "where": {
+            "around": {
+              "feature": {
+                "part": "town"
+              },
+              "ring": [
+                4,
+                12
+              ]
+            }
+          },
+          "height": 7,
+          "thickness": 3,
+          "crenels": true,
+          "corners": "tower",
+          "walk": true,
+          "lamps": "gates",
+          "lots": [
+            {
+              "lot": "gatehouse_1",
+              "at": "gate",
+              "near": {
+                "anchor": "claim_n"
+              },
+              "mech": "portcullis"
+            },
+            {
+              "lot": "gatehouse_2",
+              "at": "gate",
+              "near": {
+                "anchor": "claim_e"
+              },
+              "mech": "portcullis"
+            },
+            {
+              "lot": "gatehouse_3",
+              "at": "gate",
+              "near": {
+                "anchor": "claim_s"
+              },
+              "mech": "portcullis"
+            },
+            {
+              "lot": "gatehouse_4",
+              "at": "gate",
+              "near": {
+                "anchor": "claim_w"
+              },
+              "mech": "portcullis"
+            }
+          ],
+          "notes": "Stone brick wall, gatehouses with portcullis built into it."
+        }
+      ],
+      "notes": "Assumed four roads crossing at the market square."
+    },
+    "waits": [],
+    "summary": "Marketwall is a flat-land medieval market town in one zone: a market hall and three stalls around the central square, plus an inn, smithy, chapel and four townhouses. A stone wall rings it with a corner tower at each corner and a walkable top. Four gatehouses stand on the wall, one for each road. The land isn't surveyed yet, so the layout fits to the ground at check time."
+  },
+  "usd": 0.04449,
+  "errors": []
+}

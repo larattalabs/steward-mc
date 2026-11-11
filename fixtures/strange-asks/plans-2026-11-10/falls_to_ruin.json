@@ -1,0 +1,169 @@
+{
+  "prompt": "It slowly falls into ruin unless I visit and care for it.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "tended_hold",
+      "style": {
+        "pending": "tended_hold"
+      },
+      "zones": [
+        {
+          "id": "hold",
+          "kind": "standard",
+          "required": true,
+          "label": "The Tended Hold",
+          "purpose": "home_base",
+          "program": {
+            "template": "flat_village",
+            "params": {
+              "lots": [
+                {
+                  "id": "house_1",
+                  "type": "house",
+                  "role": "keepers_hall",
+                  "label": "keeper's hall",
+                  "size": [
+                    17,
+                    15
+                  ],
+                  "landmark": true,
+                  "placement": "central",
+                  "villager": "dwelling",
+                  "brief": "The heart of the place, best-kept building, with a hearth and a bed."
+                },
+                {
+                  "id": "cottage_1",
+                  "type": "cottage",
+                  "role": "keepers_cottage",
+                  "label": "keepers' cottage",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "villager": "dwelling",
+                  "brief": "Small home in varying repair, mossy walls, perhaps a fallen roof."
+                },
+                {
+                  "id": "cottage_2",
+                  "type": "cottage",
+                  "role": "keepers_cottage",
+                  "label": "keepers' cottage",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "villager": "dwelling",
+                  "brief": "Small home in varying repair, mossy walls, perhaps a fallen roof."
+                },
+                {
+                  "id": "cottage_3",
+                  "type": "cottage",
+                  "role": "keepers_cottage",
+                  "label": "keepers' cottage",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "villager": "dwelling",
+                  "brief": "Small home in varying repair, mossy walls, perhaps a fallen roof."
+                },
+                {
+                  "id": "smithy_1",
+                  "type": "smithy",
+                  "role": "workshop",
+                  "label": "workshop and smithy",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "villager": "job",
+                  "brief": "Where repairs are made; tool racks and anvil, partly collapsed chimney."
+                },
+                {
+                  "id": "barn_1",
+                  "type": "barn",
+                  "role": "storehouse",
+                  "label": "storehouse",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "placement": "edge",
+                  "villager": "none",
+                  "brief": "Stores repair materials: stone, timber, glass; sagging roof."
+                },
+                {
+                  "id": "cabin_1",
+                  "type": "cabin",
+                  "role": "garden_shed",
+                  "label": "gardens and orchard shed",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "villager": "none",
+                  "brief": "Overgrown plots a visitor could tend."
+                },
+                {
+                  "id": "chapel_1",
+                  "type": "chapel",
+                  "role": "chapel",
+                  "label": "old chapel",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "placement": "high_ground",
+                  "villager": "none",
+                  "brief": "Half-ruined, roof open to the sky, a quiet place of remembrance."
+                },
+                {
+                  "id": "gatehouse_1",
+                  "type": "gatehouse",
+                  "role": "gatehouse",
+                  "label": "gatehouse",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "villager": "none",
+                  "brief": "Leaning entrance, the first sight of how neglected the place is."
+                },
+                {
+                  "id": "tower_1",
+                  "type": "tower",
+                  "role": "lookout",
+                  "label": "lookout tower",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "placement": "high_ground",
+                  "villager": "none",
+                  "brief": "Cracked tower overlooking the claim."
+                }
+              ]
+            }
+          },
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "notes": "Ordinary flat site; the player chooses the place within the claim."
+        }
+      ],
+      "connectors": [],
+      "forms": [],
+      "rules": []
+    },
+    "waits": [],
+    "summary": "The Tended Hold is one medium village on level ground: a keeper's hall at the centre, three cottages, a smithy, a storehouse, a garden shed, a ruined chapel and a lookout tower on high ground, and a leaning gatehouse. The weathered, mossy look comes from the style, which is made next. Decay over time is left to later modules."
+  },
+  "usd": 0.035534,
+  "errors": []
+}

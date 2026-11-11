@@ -1,0 +1,253 @@
+{
+  "prompt": "A fortress with a redstone drawbridge.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "drawbridge_fortress",
+      "style": {
+        "pending": "drawbridge_fortress"
+      },
+      "zones": [
+        {
+          "id": "fortress",
+          "kind": "standard",
+          "required": true,
+          "label": "Fortress bailey",
+          "purpose": "fortress",
+          "style": {
+            "pending": "drawbridge_fortress"
+          },
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "size": {
+            "w": 40,
+            "d": 40
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "keep_1",
+                "type": "tower",
+                "role": "keep",
+                "label": "main keep",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Central stronghold with great hall and lord's quarters; the tallest structure."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "drawbridge gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Houses the redstone drawbridge mechanism, with a portcullis behind it. Faces the moat."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "corner watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "brief": "Corner tower with arrow slits and battlement access."
+              },
+              {
+                "id": "tower_2",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "corner watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "brief": "Corner tower with arrow slits and battlement access."
+              },
+              {
+                "id": "tower_3",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "corner watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "brief": "Corner tower with arrow slits and battlement access."
+              },
+              {
+                "id": "barracks_1",
+                "type": "house",
+                "role": "barracks",
+                "label": "barracks",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Bunks for the garrison, near the gate."
+              },
+              {
+                "id": "barracks_2",
+                "type": "house",
+                "role": "barracks",
+                "label": "barracks",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Bunks for the garrison, near the gate."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "armoury",
+                "label": "armoury smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Forges and stores weapons and armour."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "stables_granary",
+                "label": "stables and granary",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Horses and supplies for a siege."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "mess",
+                "label": "garrison mess",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Dining hall and gathering place for soldiers."
+              }
+            ],
+            "layout": "street"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "wall",
+          "kind": "wall",
+          "required": true,
+          "label": "Curtain wall",
+          "where": {
+            "around": {
+              "feature": {
+                "part": "fortress"
+              },
+              "ring": [
+                4,
+                6
+              ],
+              "closed": true
+            }
+          },
+          "height": 8,
+          "thickness": 3,
+          "crenels": true,
+          "corners": "tower",
+          "walk": true,
+          "lamps": "gates",
+          "lots": [
+            {
+              "lot": "gatehouse_1",
+              "at": "gate",
+              "mech": "portcullis"
+            },
+            {
+              "lot": "tower_1",
+              "at": "corner"
+            },
+            {
+              "lot": "tower_2",
+              "at": "corner"
+            },
+            {
+              "lot": "tower_3",
+              "at": "corner"
+            }
+          ]
+        },
+        {
+          "id": "moat",
+          "kind": "channel",
+          "required": true,
+          "label": "Moat",
+          "where": {
+            "around": {
+              "feature": {
+                "part": "fortress"
+              },
+              "ring": [
+                9,
+                13
+              ],
+              "closed": true
+            }
+          },
+          "width": 5,
+          "depth": 3
+        },
+        {
+          "id": "drawbridge",
+          "kind": "drawbridge",
+          "required": true,
+          "label": "Gate drawbridge",
+          "from": {
+            "part": "gatehouse_1"
+          },
+          "to": {
+            "anchor": "claim_s"
+          },
+          "width": 2,
+          "params": {
+            "mechanism": "redstone",
+            "movable": true
+          },
+          "notes": "Spans the moat at the main gate; a lever on each bank raises it."
+        }
+      ],
+      "dependencies": [
+        {
+          "part": "drawbridge",
+          "after": [
+            "moat",
+            "wall"
+          ],
+          "why": "The bridge spans the moat to the gatehouse."
+        }
+      ],
+      "notes": "Medieval stone fortress; stone taste belongs in the style bible."
+    },
+    "waits": [],
+    "summary": "A walled stone fortress on level ground: a central keep, a drawbridge gatehouse, three corner watchtowers, two barracks, an armoury smithy, stables and granary, and a garrison mess. A walled-walk curtain wall rings the bailey, with a moat outside it. A redstone drawbridge crosses the moat at the main gate."
+  },
+  "usd": 0.042819,
+  "errors": []
+}

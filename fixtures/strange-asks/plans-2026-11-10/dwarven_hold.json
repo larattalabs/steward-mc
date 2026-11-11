@@ -1,0 +1,238 @@
+{
+  "prompt": "A dwarven hold carved inside the mountain: great halls, forges and deep mines.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "deepforge_hold",
+      "style": {
+        "pending": "deepforge_hold"
+      },
+      "zones": [
+        {
+          "id": "hold",
+          "purpose": "mining",
+          "label": "Deepforge Hold",
+          "required": true,
+          "program": {
+            "lots": [
+              {
+                "id": "great_hall_1",
+                "type": "great_hall",
+                "role": "great_hall",
+                "label": "great hall",
+                "size": [
+                  23,
+                  19
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Vast pillared feast and moot hall with long tables, a high seat and braziers."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "grand_forge",
+                "label": "grand forge",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "job",
+                "brief": "Lava-fed forges, anvils and quenching channels; the hold's heart of industry."
+              },
+              {
+                "id": "smithy_2",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Workshop for tools, armour and gem-cutting."
+              },
+              {
+                "id": "smithy_3",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Workshop for tools, armour and gem-cutting."
+              },
+              {
+                "id": "mine_head_1",
+                "type": "mine_head",
+                "role": "mine_head",
+                "label": "mine head",
+                "size": [
+                  17,
+                  15
+                ],
+                "villager": "job",
+                "brief": "Lift and shaft down to the deep mines, with minecart rails and ore sorting."
+              },
+              {
+                "id": "smelter_1",
+                "type": "smelter",
+                "role": "smelter",
+                "label": "smelter and ore store",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Furnaces and stockpiles of ore and ingots beside the mine head."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "dwelling",
+                "label": "dwarf dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Rock-cut family home with stone beds, hearth and carved door."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "dwelling",
+                "label": "dwarf dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Rock-cut family home with stone beds, hearth and carved door."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "dwelling",
+                "label": "dwarf dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Rock-cut family home with stone beds, hearth and carved door."
+              },
+              {
+                "id": "house_4",
+                "type": "house",
+                "role": "dwelling",
+                "label": "dwarf dwelling",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Rock-cut family home with stone beds, hearth and carved door."
+              },
+              {
+                "id": "barracks_1",
+                "type": "barracks",
+                "role": "barracks",
+                "label": "barracks",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Guard quarters near the main gate, with weapon racks."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "mead_hall",
+                "label": "mead hall",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "none",
+                "brief": "Barrels and a stone hearth for off-shift miners."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "mountain_gate",
+                "label": "mountain gate",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Massive carved stone doors set in the mountainside."
+              }
+            ],
+            "layout": "street",
+            "shared": "square"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "notes": "Buildable stand-in for the hold's halls at the mountainside until carving into rock is supported."
+        }
+      ],
+      "forms": [
+        {
+          "id": "hollow_hold",
+          "kind": "hollow_mountain",
+          "required": true,
+          "label": "Hold carved inside the mountain",
+          "where": {
+            "inside": {
+              "part": "hold"
+            }
+          },
+          "size": {
+            "preset": "L"
+          },
+          "notes": "Halls and tunnels cut into mountain rock with an entrance in the mountainside; needs form.hollow_mountain."
+        },
+        {
+          "id": "forge_lava",
+          "kind": "pond",
+          "required": false,
+          "label": "Forge lava pool",
+          "fluid": "lava",
+          "depth": 1,
+          "edge": "built",
+          "where": {
+            "near": {
+              "feature": {
+                "part": "smithy_1"
+              },
+              "within": 12
+            }
+          }
+        }
+      ]
+    },
+    "waits": [
+      {
+        "part": "hollow_hold",
+        "words": "Halls and tunnels carved inside the mountain wait for a later Architect release; the hold is built at the mountainside first."
+      }
+    ],
+    "summary": "Deepforge Hold is planned as one zone beside the founding stone: a great hall, a grand forge, two smithies, a mine head with smelter, four dwellings, barracks, mead hall and mountain gate, with a small lava pool by the forge. Carving it inside the mountain isn't buildable yet, so that part waits and the buildings go up at the mountainside first."
+  },
+  "usd": 0.045694,
+  "errors": []
+}

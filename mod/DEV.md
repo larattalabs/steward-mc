@@ -288,3 +288,22 @@ The `plans-gc` recordings checked with v0.53.1's kit on the asks claim (`checkPl
 - In the mod, the composer applies such a fragment itself before any Claude repair round (`Composer.streetFixes`, $0), and the steward says which
   buildings were left out ("Left out for room (laid out on a street instead): townhouse 4, smithy 1 and chapel 1."). The e2e's `street hint` composes
   walled_town's grid plan in game.
+## Strange asks: all 59 plans re-recorded with today's writer (2026-11-10, paid, Noah approved; $2.64 of a $6 cap)
+`node tools/record-plans.mjs 6 --out fixtures/strange-asks/plans-2026-11-10` on main 0d39359 (Architect 0.56.0), the claude login's opt-in made for the
+run and removed after. 59 of 59 recorded, every one valid by Steward's plan check, about $0.03-0.07 each (the first call uncached at $0.28), in about 25 min.
+`plans/` stays the tests' input. The two runs before it spent $0: the claude CLI had no login ("found no login"); `claude` + `/login` fixed it.
+- **Gates:** 7 plans have a wall with 11 gatehouses, all 11 named on their wall (`at: "gate"`) with `mech: "portcullis"`, as in the 11-03 run.
+  redstone_gate (the one drawbridge ask) writes a real `connector.drawbridge` (gatehouse_1 to claim_s, no waits); before, it was a reserved part.
+  No plan writes a swing gate or a wall's `gateMech`: no card asks for a door or a lever gate, and both are opt-in (2026-11-03/04).
+- **Kit score** (v0.56.0 main 2d9c5b15, asks claim, Steward's anchors; old `plans/` -> new): READY 38 -> 28, REQUIRED_BLOCKED 21 -> 22, NEEDS_REPAIR
+  0 -> 6, INCOMPLETE 0 -> 3; refused parts 3 -> 10. Most of the drop isn't a fault in the plans:
+  - 3 zones refused NO_ROOM with `alt: "street"` (grid_city, metropolis's capital, nomad_camp's ring): `Composer.streetFixes` repairs these at $0.
+  - 3 quays and harbour walls INCOMPLETE (VOLUME): the kit can't read the water without a world (camp_to_city, fishing_village, harbour).
+  - 2 reserved features now written where the old plans dropped them: pirate_cove's `layout: "elevated"` (7b), row_houses' `rule.variety`.
+  - 4 gained: crater_mine, one_block, terraced_hill and two_districts are READY now.
+- **Writer faults to fix forward:**
+  - mushroom_town: `program.shared: "green"`, outside plan/0's enum (square, well, none): MALFORMED. Steward's plan check passed it, so it misses this enum.
+  - cliff_monks: a stair climb (`sea_stair`) between ends of the same height: NO_CLIMB.
+  - conquered_town and ruined_empire: a gatehouse lot in a town with no wall, which the zone can't place, and the road in ends on it (DEPENDENCY).
+    14 unwalled plans write a gatehouse lot (12 in the old recordings); only these two have a part that depends on it.
+  - rival_families: west_estate's shore band overlaps (OVERLAP); twin_villages: inn_stop waits on a village_road that doesn't fit.

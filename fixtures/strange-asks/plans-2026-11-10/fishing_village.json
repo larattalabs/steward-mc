@@ -1,0 +1,143 @@
+{
+  "prompt": "A small fishing village by the lake.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "lakeside_fishing_village",
+      "style": {
+        "pending": "lakeside_fishing_village"
+      },
+      "zones": [
+        {
+          "id": "village",
+          "required": true,
+          "label": "Fishing village",
+          "purpose": "fishing",
+          "style": {
+            "pending": "lakeside_fishing_village"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 24
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "boathouse_1",
+                "type": "boathouse",
+                "role": "boathouse",
+                "label": "fishing pier and boathouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "landmark": true,
+                "placement": "near_water",
+                "brief": "Covered boat shed at the head of the pier with moored boats; the village's centrepiece."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "fishers' cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with drying racks and nets by the door."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "fishers' cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with drying racks and nets by the door."
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "fishers' cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with drying racks and nets by the door."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "market",
+                "label": "smokehouse and fish market",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "job",
+                "brief": "Smokes and sells the catch; barrels and hanging fish."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "workshop",
+                "label": "net-mender's workshop",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "villager": "job",
+                "brief": "Nets, rope and floats stacked outside."
+              }
+            ],
+            "layout": "street",
+            "shared": "none"
+          }
+        }
+      ],
+      "forms": [
+        {
+          "id": "fishing_pier",
+          "kind": "quay",
+          "required": true,
+          "label": "Fishing pier",
+          "where": {
+            "near": {
+              "feature": {
+                "water": {
+                  "body": "lake",
+                  "pick": "nearest",
+                  "to": "stone"
+                }
+              },
+              "within": 12
+            }
+          },
+          "length": 24,
+          "reach": 6,
+          "notes": "Wooden pier reaching out over the lake with mooring posts and lamps."
+        }
+      ],
+      "notes": "Land not surveyed: the pier needs a lake near the founding stone."
+    },
+    "waits": [
+      {
+        "part": "fishing_pier",
+        "words": "The pier needs a lake near the founding stone; the land isn't surveyed, so it may be refused if there's no water."
+      }
+    ],
+    "summary": "A small, low-density fishing village near the founding stone: a boathouse as centrepiece, three fishers' cottages, a smokehouse market and a net-mender's workshop along one street. A 24-block pier reaches out over the lake. Style is rustic timber and thatch, to be set once its style bible is made."
+  },
+  "usd": 0.033626,
+  "errors": []
+}

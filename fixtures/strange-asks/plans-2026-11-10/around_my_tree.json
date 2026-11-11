@@ -1,0 +1,159 @@
+{
+  "prompt": "A grove village around the big oak I planted.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "oakheart_grove",
+      "style": {
+        "pending": "oakheart_grove"
+      },
+      "zones": [
+        {
+          "id": "grove_ring",
+          "kind": "standard",
+          "required": true,
+          "label": "Oakheart ring village",
+          "purpose": "home_base",
+          "style": {
+            "pending": "oakheart_grove"
+          },
+          "where": {
+            "near": {
+              "anchor": "claim_center",
+              "within": 16
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "notes": "Ring street round the planted oak at the claim centre; the hall faces the oak.",
+          "program": {
+            "layout": "ring",
+            "shared": "none",
+            "lots": [
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "hall",
+                "label": "oak warden's hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Gathering hall facing the big oak, open timber frame, lanterns hung from branches"
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "grove cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home among the trees, mossy roof"
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "grove cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home among the trees, mossy roof"
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "grove cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home among the trees, mossy roof"
+              },
+              {
+                "id": "cottage_4",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "grove cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home among the trees, mossy roof"
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "woodcutter",
+                "label": "woodcutter's cabin",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "job",
+                "brief": "Sapling beds and log stacks"
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "herb_shop",
+                "label": "herb garden shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Sells flowers, saplings and herbs"
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "shrine",
+                "label": "grove shrine",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Small open shrine of leaves and stone"
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "orchard_barn",
+                "label": "orchard barn",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Storage and animal pens"
+              }
+            ]
+          }
+        }
+      ],
+      "connectors": [],
+      "forms": [],
+      "rules": []
+    },
+    "waits": [],
+    "summary": "Oakheart Grove is one ring village round your planted oak at the claim centre. The hall faces the oak. Four cottages, the woodcutter, herb shop and shrine ring the street, and the barn stands at the edge. The style is a pending woodland bible of oak and spruce, moss and lanterns. The land isn't surveyed, so the fit is checked when the plan is built."
+  },
+  "usd": 0.033695,
+  "errors": []
+}

@@ -1,0 +1,177 @@
+{
+  "prompt": "A mining facility in a giant meteor crater, dressed as a hellish lair.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "meteor_crater_hellmine",
+      "style": {
+        "pending": "meteor_crater_hellmine"
+      },
+      "zones": [
+        {
+          "id": "crater_works",
+          "kind": "standard",
+          "required": true,
+          "label": "Crater mine and lair",
+          "purpose": "mining",
+          "style": {
+            "pending": "meteor_crater_hellmine"
+          },
+          "program": {
+            "template": "crater_works",
+            "params": {
+              "lots": [
+                {
+                  "id": "keep_1",
+                  "type": "tower",
+                  "role": "overseers_keep",
+                  "label": "overseer's keep",
+                  "size": [
+                    17,
+                    15
+                  ],
+                  "landmark": true,
+                  "placement": "high_ground",
+                  "villager": "dwelling",
+                  "brief": "Spiked basalt keep on the crater rim, lava-lit windows, looks down over the whole pit."
+                },
+                {
+                  "id": "mine_head_1",
+                  "type": "mine_head",
+                  "role": "mine_head",
+                  "label": "mine head",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "placement": "central",
+                  "villager": "job",
+                  "brief": "Winch frame and shaft over the crater floor, ore carts, chains descending into the dark."
+                },
+                {
+                  "id": "slag_foundry_1",
+                  "type": "slag_foundry",
+                  "role": "slag_foundry",
+                  "label": "slag foundry",
+                  "size": [
+                    17,
+                    15
+                  ],
+                  "villager": "job",
+                  "brief": "Lava channels, blast furnaces, smoking chimneys; processes ore from the shaft."
+                },
+                {
+                  "id": "ore_crusher_1",
+                  "type": "ore_crusher",
+                  "role": "ore_crusher",
+                  "label": "ore crusher",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "villager": "job",
+                  "brief": "Heavy stone mill with hopper and rails feeding the foundry."
+                },
+                {
+                  "id": "ore_crusher_2",
+                  "type": "ore_crusher",
+                  "role": "ore_crusher",
+                  "label": "ore crusher",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "villager": "job",
+                  "brief": "Heavy stone mill with hopper and rails feeding the foundry."
+                },
+                {
+                  "id": "barracks_1",
+                  "type": "barracks",
+                  "role": "worker_barracks",
+                  "label": "worker barracks",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "placement": "edge",
+                  "villager": "dwelling",
+                  "brief": "Grim soot-black bunkhouse cut into the crater wall, with iron bars."
+                },
+                {
+                  "id": "barracks_2",
+                  "type": "barracks",
+                  "role": "worker_barracks",
+                  "label": "worker barracks",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "placement": "edge",
+                  "villager": "dwelling",
+                  "brief": "Grim soot-black bunkhouse cut into the crater wall, with iron bars."
+                },
+                {
+                  "id": "barracks_3",
+                  "type": "barracks",
+                  "role": "worker_barracks",
+                  "label": "worker barracks",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "placement": "edge",
+                  "villager": "dwelling",
+                  "brief": "Grim soot-black bunkhouse cut into the crater wall, with iron bars."
+                },
+                {
+                  "id": "barracks_4",
+                  "type": "barracks",
+                  "role": "worker_barracks",
+                  "label": "worker barracks",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "placement": "edge",
+                  "villager": "dwelling",
+                  "brief": "Grim soot-black bunkhouse cut into the crater wall, with iron bars."
+                },
+                {
+                  "id": "shrine_1",
+                  "type": "shrine",
+                  "role": "brimstone_shrine",
+                  "label": "brimstone shrine",
+                  "size": [
+                    9,
+                    9
+                  ],
+                  "placement": "high_ground",
+                  "villager": "none",
+                  "brief": "Small altar of nether brick and crimson fire to the lair's dark master."
+                },
+                {
+                  "id": "warehouse_1",
+                  "type": "warehouse",
+                  "role": "ore_store_armoury",
+                  "label": "ore store and armoury",
+                  "size": [
+                    13,
+                    11
+                  ],
+                  "villager": "none",
+                  "brief": "Locked vault for ore and guards' weapons."
+                }
+              ]
+            }
+          },
+          "notes": "Whole-claim crater_works template: crater carved in the claim, mine in the pit, lair on the rim."
+        }
+      ],
+      "notes": "Infernal style (blackstone, nether brick, lava glow) comes from the style bible, not a rule."
+    },
+    "waits": [],
+    "summary": "A meteor-crater mining lair in one zone, using the crater_works template over the whole claim. The overseer's keep and brimstone shrine sit on the rim, and four barracks are cut into the crater wall. The mine head is in the pit, with the foundry, two ore crushers and the ore store and armoury around it. The infernal look comes from the style, which is made after this plan."
+  },
+  "usd": 0.038582,
+  "errors": []
+}

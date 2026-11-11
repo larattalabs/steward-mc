@@ -1,0 +1,168 @@
+{
+  "prompt": "An igloo village on a frozen lake.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "frozen_lake_igloo_village",
+      "style": {
+        "pending": "frozen_lake_igloo_village"
+      },
+      "zones": [
+        {
+          "id": "igloo_village",
+          "kind": "standard",
+          "required": true,
+          "label": "Igloo village on the ice",
+          "purpose": "home_base",
+          "notes": "Ring of igloos round a central hall on the frozen lake; the land is not surveyed, so a frozen lake must be found nearby.",
+          "program": {
+            "layout": "ring",
+            "shared": "square",
+            "lots": [
+              {
+                "id": "igloo_hall_1",
+                "type": "igloo_hall",
+                "role": "elder",
+                "label": "elder's great igloo",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Largest dome at the heart, shared hearth, lanterns, gathering space"
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "tavern",
+                "label": "hearth tavern igloo",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "villager": "job",
+                "brief": "Warm communal eating place with campfire and stew"
+              },
+              {
+                "id": "igloo_house_1",
+                "type": "igloo_house",
+                "role": "family",
+                "label": "family igloo",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Snow-block dome with beds, short entrance tunnel, furnace and chest"
+              },
+              {
+                "id": "igloo_house_2",
+                "type": "igloo_house",
+                "role": "family",
+                "label": "family igloo",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Snow-block dome with beds, short entrance tunnel, furnace and chest"
+              },
+              {
+                "id": "igloo_house_3",
+                "type": "igloo_house",
+                "role": "family",
+                "label": "family igloo",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Snow-block dome with beds, short entrance tunnel, furnace and chest"
+              },
+              {
+                "id": "igloo_house_4",
+                "type": "igloo_house",
+                "role": "family",
+                "label": "family igloo",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Snow-block dome with beds, short entrance tunnel, furnace and chest"
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "fishing",
+                "label": "fishing hut",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "job",
+                "brief": "Ice-hole fishing, barrels, drying racks"
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "fishing",
+                "label": "fishing hut",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "job",
+                "brief": "Ice-hole fishing, barrels, drying racks"
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "storehouse",
+                "label": "storehouse igloo",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "none",
+                "brief": "Stored fish, furs and supplies in barrels and chests"
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "lookout",
+                "label": "lookout post",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Ice-block watch tower over the lake"
+              }
+            ]
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "size": {
+            "preset": "M"
+          }
+        }
+      ],
+      "notes": "Frozen lake is assumed to exist near the stone; no sculpting."
+    },
+    "waits": [],
+    "summary": "A medium igloo village laid out as a ring round a central great igloo and hearth tavern, with four family igloos, two fishing huts at the edge, a storehouse and a lookout post. It needs a frozen lake near the founding stone, because the land isn't surveyed yet. The look (snow, packed ice, spruce, lanterns) comes with the style."
+  },
+  "usd": 0.035786,
+  "errors": []
+}

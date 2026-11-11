@@ -1,0 +1,177 @@
+{
+  "prompt": "A nomad camp of tents that packs up and moves with the seasons.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "seasonal_nomad_camp",
+      "style": {
+        "pending": "seasonal_nomad_camp"
+      },
+      "zones": [
+        {
+          "id": "camp",
+          "kind": "standard",
+          "required": true,
+          "label": "Nomad camp",
+          "purpose": "home_base",
+          "notes": "A loose ring of tents round a central fire, built as one season's encampment.",
+          "size": {
+            "preset": "M"
+          },
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "program": {
+            "layout": "ring",
+            "shared": "none",
+            "lots": [
+              {
+                "id": "tent_hall_1",
+                "type": "tent_hall",
+                "role": "council_tent",
+                "label": "elder's council tent",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Largest tent beside the central fire; banners, rugs, map table showing seasonal routes."
+              },
+              {
+                "id": "tent_1",
+                "type": "tent",
+                "role": "family_tent",
+                "label": "family tent",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Wool tent with beds, chest and rugs; its own colour."
+              },
+              {
+                "id": "tent_2",
+                "type": "tent",
+                "role": "family_tent",
+                "label": "family tent",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Wool tent with beds, chest and rugs; its own colour."
+              },
+              {
+                "id": "tent_3",
+                "type": "tent",
+                "role": "family_tent",
+                "label": "family tent",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Wool tent with beds, chest and rugs; its own colour."
+              },
+              {
+                "id": "tent_4",
+                "type": "tent",
+                "role": "family_tent",
+                "label": "family tent",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Wool tent with beds, chest and rugs; its own colour."
+              },
+              {
+                "id": "campfire_circle_1",
+                "type": "campfire_circle",
+                "role": "gathering_fire",
+                "label": "gathering fire",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "none",
+                "brief": "Ring of logs for seating around a campfire."
+              },
+              {
+                "id": "corral_1",
+                "type": "corral",
+                "role": "pack_animal_corral",
+                "label": "pack-animal corral",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Fenced pen for horses, sheep or camels with hay."
+              },
+              {
+                "id": "wagon_1",
+                "type": "wagon",
+                "role": "supply_wagon",
+                "label": "cart and supply wagon",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "none",
+                "brief": "Covered wagon loaded with crates and barrels, ready to roll."
+              },
+              {
+                "id": "wagon_2",
+                "type": "wagon",
+                "role": "supply_wagon",
+                "label": "cart and supply wagon",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "none",
+                "brief": "Covered wagon loaded with crates and barrels, ready to roll."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "trader_tent",
+                "label": "trader's tent",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "trading_hall",
+                "brief": "Open-fronted stall with barter goods."
+              },
+              {
+                "id": "cookhouse_1",
+                "type": "cookhouse",
+                "role": "cooking_racks",
+                "label": "cooking and drying racks",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Smoking racks, cauldron, furs and hides drying."
+              }
+            ]
+          }
+        }
+      ],
+      "notes": "Flat open ground; no relief or water needed."
+    },
+    "waits": [],
+    "summary": "A medium, low-density nomad camp: one ring-laid zone with the elder's council tent and gathering fire at the hub. Four family tents, a trader's stall, a cookhouse and two supply wagons stand round it, with a pack-animal corral at the edge. Everything is built as one season's encampment on flat ground, in a rustic style that will be made after this plan."
+  },
+  "usd": 0.036633,
+  "errors": []
+}

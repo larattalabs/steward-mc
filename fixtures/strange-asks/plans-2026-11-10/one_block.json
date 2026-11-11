@@ -1,0 +1,195 @@
+{
+  "prompt": "Everything built only of copper, in every stage of oxidation.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "verdigris_reach",
+      "style": {
+        "pending": "verdigris_reach"
+      },
+      "zones": [
+        {
+          "id": "reach",
+          "kind": "standard",
+          "required": true,
+          "label": "Verdigris Reach",
+          "purpose": "home_base",
+          "style": {
+            "pending": "verdigris_reach"
+          },
+          "size": {
+            "preset": "M"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "terraces": {
+            "rise": 3,
+            "retain": "wall",
+            "stairs": true
+          },
+          "notes": "Terraced gently; the newest, brightest copper at the centre, the most oxidized buildings at the edges.",
+          "program": {
+            "lots": [
+              {
+                "id": "hall_1",
+                "type": "tavern",
+                "role": "hall",
+                "label": "Founders' copper hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Central gathering hall in bright new copper, roof aged to exposed and weathered copper."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "Copper smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Workshop with copper bulb lights and a lightning rod chimney; semi-weathered copper."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "home",
+                "label": "Exposed copper cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Home in exposed copper."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "home",
+                "label": "Weathered copper cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Home in weathered copper."
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "home",
+                "label": "Mostly oxidized cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Home in weathered and oxidized copper."
+              },
+              {
+                "id": "cottage_4",
+                "type": "cottage",
+                "role": "home",
+                "label": "Fully oxidized cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Home in fully oxidized teal-green copper."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "Oxidized watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Tall tower fully oxidized, teal-green, topped with a lightning rod."
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "chapel",
+                "label": "Copper chapel of ageing",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "none",
+                "brief": "Shrine showing all four oxidation stages in a gradient from floor to spire."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "shop",
+                "label": "Trading shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "trading_hall",
+                "brief": "Small waxed-copper shop kept bright."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "barn",
+                "label": "Copper-roofed barn",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Storage barn in weathered copper."
+              }
+            ],
+            "layout": "street",
+            "shared": "square"
+          }
+        }
+      ],
+      "rules": [
+        {
+          "id": "copper_only",
+          "kind": "palette",
+          "required": true,
+          "label": "Only copper",
+          "family": "copper",
+          "share": [
+            1,
+            1
+          ],
+          "over": "lots",
+          "exempt": [
+            "terrain",
+            "support",
+            "ways",
+            "forms"
+          ],
+          "notes": "Buildings are copper and its oxidation variants only."
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "Verdigris Reach is one terraced zone of ten buildings on gentle level ground near the founding stone: a founders' hall, a smithy, four cottages, a watchtower, a chapel, a shop and a barn. A rule requires every building to be copper and its oxidation variants only. The brightest copper goes at the centre and the most weathered at the edges. Streets, terrain and supports are exempt from the rule."
+  },
+  "usd": 0.037975,
+  "errors": []
+}

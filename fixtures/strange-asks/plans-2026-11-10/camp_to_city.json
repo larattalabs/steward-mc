@@ -1,0 +1,277 @@
+{
+  "prompt": "Start as a survivors' camp and grow into a walled city.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "survivors_camp",
+      "style": {
+        "pending": "survivors_camp"
+      },
+      "zones": [
+        {
+          "id": "camp_core",
+          "purpose": "camp",
+          "label": "Survivors' camp core",
+          "required": true,
+          "where": {
+            "near": {
+              "anchor": "claim_center",
+              "within": 8
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "founders_hall",
+                "label": "founders' hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Oldest patched-together gathering hall at the camp's heart; communal hearth, bunks, notice board."
+              },
+              {
+                "id": "market_square_1",
+                "type": "market_square",
+                "role": "campfire_plaza",
+                "label": "campfire plaza",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Original camp fire pit, now an open square with stalls."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Crude lean-to cabin patched with scrap."
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Crude lean-to cabin patched with scrap."
+              },
+              {
+                "id": "cabin_3",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Crude lean-to cabin patched with scrap."
+              },
+              {
+                "id": "cabin_4",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Crude lean-to cabin patched with scrap."
+              }
+            ],
+            "layout": "ring"
+          }
+        },
+        {
+          "id": "city",
+          "purpose": "city",
+          "label": "Walled city",
+          "required": true,
+          "where": {
+            "adjacent": {
+              "to": {
+                "part": "camp_core"
+              },
+              "side": "any",
+              "gap": [
+                2,
+                6
+              ]
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Sturdier home with stone footings and timber upper floors."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Sturdier home with stone footings and timber upper floors."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Sturdier home with stone footings and timber upper floors."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Forge for tools and wall repairs."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "granary",
+                "label": "granary and farm barn",
+                "size": [
+                  17,
+                  15
+                ],
+                "placement": "edge",
+                "villager": "farm",
+                "irrigate": true,
+                "brief": "Food stores and crop plots just inside the wall."
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "infirmary",
+                "label": "infirmary chapel",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Place of healing and quiet."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Main gate in the city wall, with guard room."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "brief": "Wall tower overlooking approaches."
+              },
+              {
+                "id": "tower_2",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "brief": "Wall tower overlooking approaches."
+              }
+            ],
+            "layout": "street"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "city_wall",
+          "kind": "wall",
+          "required": true,
+          "label": "City wall",
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "height": 8,
+          "thickness": 2,
+          "walk": true,
+          "lots": [
+            {
+              "lot": "gatehouse_1",
+              "at": "gate",
+              "mech": "portcullis"
+            },
+            {
+              "lot": "tower_1",
+              "at": "corner"
+            },
+            {
+              "lot": "tower_2",
+              "at": "corner"
+            }
+          ],
+          "notes": "Wall on the claim's edge; the camp stays as the core inside."
+        },
+        {
+          "id": "main_street",
+          "kind": "street",
+          "required": false,
+          "label": "Gate street",
+          "from": {
+            "part": "gatehouse_1"
+          },
+          "to": {
+            "part": "market_square_1"
+          }
+        }
+      ],
+      "notes": "Camp core is improvised; the outer city is stone-and-timber."
+    },
+    "waits": [],
+    "summary": "A ragged survivors' camp sits at the claim's centre: founders' hall, campfire plaza and four scrap-patched shelters on a ring street. Around it the newer city stands: townhouses, smithy, chapel and an irrigated granary barn. A walled edge with a gatehouse, two corner towers and a wall walk encloses it all."
+  },
+  "usd": 0.045085,
+  "errors": []
+}

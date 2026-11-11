@@ -1,0 +1,255 @@
+{
+  "prompt": "A town with a craftsmen's district to the east.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "craftsmens_town",
+      "style": {
+        "pending": "craftsmens_town"
+      },
+      "zones": [
+        {
+          "id": "town",
+          "required": true,
+          "label": "Market town",
+          "purpose": "market",
+          "style": {
+            "pending": "craftsmens_town"
+          },
+          "size": {
+            "preset": "M"
+          },
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "hall_1",
+                "type": "house",
+                "role": "town_hall",
+                "label": "town hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Civic heart of the town, facing the central square."
+              },
+              {
+                "id": "stall_1",
+                "type": "shop",
+                "role": "market_stall",
+                "label": "market stall",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Stall around the square selling goods from the craftsmen."
+              },
+              {
+                "id": "stall_2",
+                "type": "shop",
+                "role": "market_stall",
+                "label": "market stall",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Stall around the square selling goods from the craftsmen."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "tavern",
+                "label": "tavern",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Near the square, with a common room and rooms upstairs."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "house_4",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "chapel",
+                "label": "chapel",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "high_ground",
+                "brief": "Small chapel on slightly higher ground."
+              }
+            ],
+            "layout": "street",
+            "shared": "square"
+          }
+        },
+        {
+          "id": "craftsmen",
+          "required": true,
+          "label": "Craftsmen's district",
+          "purpose": "crafts",
+          "style": {
+            "pending": "craftsmens_town"
+          },
+          "size": {
+            "w": 40,
+            "d": 36
+          },
+          "where": {
+            "adjacent": {
+              "to": {
+                "part": "town"
+              },
+              "side": "e",
+              "gap": [
+                4,
+                8
+              ]
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "smithy",
+                "label": "smithy",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Forge with an open yard and anvil."
+              },
+              {
+                "id": "carpenter_1",
+                "type": "cottage",
+                "role": "carpenter",
+                "label": "carpenter's workshop",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Timber stacks and a covered work area."
+              },
+              {
+                "id": "mason_1",
+                "type": "shop",
+                "role": "mason",
+                "label": "mason's workshop",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Stone blocks outside."
+              },
+              {
+                "id": "potter_1",
+                "type": "shop",
+                "role": "potter",
+                "label": "potter's workshop",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Kilns outside."
+              },
+              {
+                "id": "weaver_1",
+                "type": "cabin",
+                "role": "weaver_tanner",
+                "label": "weaver's and tanner's workshop",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "job",
+                "brief": "On the outer edge because of the smell."
+              }
+            ],
+            "layout": "street",
+            "shared": "well"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "east_road",
+          "kind": "road",
+          "required": false,
+          "label": "Road to the craftsmen's district",
+          "from": {
+            "part": "town"
+          },
+          "to": {
+            "part": "craftsmen"
+          },
+          "lamps": "few"
+        }
+      ],
+      "rules": [],
+      "notes": "East is true east of the founding stone."
+    },
+    "waits": [],
+    "summary": "A medium medieval market town on level ground: a central square with the town hall, tavern, two market stalls, four townhouses and a chapel on the higher ground. The craftsmen's district lies to the east, joined by a road: smithy, carpenter, mason, potter, and the weaver and tanner on the outer edge."
+  },
+  "usd": 0.039283,
+  "errors": []
+}

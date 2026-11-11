@@ -1,0 +1,195 @@
+{
+  "prompt": "A monastery on a floating island, reached by a long stair.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "stair_monastery",
+      "style": {
+        "pending": "stair_monastery"
+      },
+      "zones": [
+        {
+          "id": "cloister",
+          "kind": "standard",
+          "required": true,
+          "label": "Monastery cloister",
+          "purpose": "temple",
+          "style": {
+            "pending": "stair_monastery"
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "abbey_chapel",
+                "label": "abbey chapel",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Main church at the island's heart with a bell tower and tall windows open to the sky."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "stair_gatehouse",
+                "label": "stair gatehouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Where the long stair arrives on the island; the monastery's only entrance."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "monk_cell",
+                "label": "monk's cell",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small plain sleeping cell around the cloister."
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "monk_cell",
+                "label": "monk's cell",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small plain sleeping cell around the cloister."
+              },
+              {
+                "id": "cabin_3",
+                "type": "cabin",
+                "role": "monk_cell",
+                "label": "monk's cell",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small plain sleeping cell around the cloister."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "refectory",
+                "label": "refectory",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "villager": "none",
+                "brief": "Dining hall and kitchen with a long table."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "scriptorium",
+                "label": "scriptorium library",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Bookshelves, lecterns, lantern-lit writing room."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "herb_garden",
+                "label": "herb garden and greenhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "farm",
+                "farmPond": true,
+                "brief": "Walled garden with crops and flowers, tended by the monks."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "observatory",
+                "label": "stargazing observatory",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Open-topped lookout on the highest point of the island."
+              }
+            ],
+            "layout": "ring",
+            "shared": "none"
+          },
+          "where": {
+            "inside": {
+              "part": "sky_island"
+            }
+          },
+          "notes": "Cells ring a cloister; low density."
+        }
+      ],
+      "connectors": [
+        {
+          "id": "long_stair",
+          "kind": "stair",
+          "required": true,
+          "label": "the long stair",
+          "from": {
+            "anchor": "player"
+          },
+          "to": {
+            "part": "gatehouse_1"
+          },
+          "notes": "Rises from the ground below to the gatehouse at the island's edge.",
+          "lamps": "few"
+        }
+      ],
+      "forms": [
+        {
+          "id": "sky_island",
+          "kind": "floating_island",
+          "required": true,
+          "label": "floating island",
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "notes": "Sculpted custom sky island carrying the monastery."
+        }
+      ],
+      "rules": [],
+      "notes": "The island itself is reserved, so the cloister waits on it."
+    },
+    "waits": [
+      {
+        "part": "sky_island",
+        "words": "The floating island needs a form Architect can't build yet; the monastery waits on it."
+      }
+    ],
+    "summary": "A quiet pale-stone monastery on a floating island: a chapel at the heart, three monks' cells, a refectory, a scriptorium, a herb garden, an observatory on the high point, and a long stair rising to the gatehouse. The island is not yet buildable, so it waits."
+  },
+  "usd": 0.039525,
+  "errors": []
+}

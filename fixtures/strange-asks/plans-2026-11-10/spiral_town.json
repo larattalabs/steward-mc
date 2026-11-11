@@ -1,0 +1,188 @@
+{
+  "prompt": "A town that spirals up a hill to a temple at the top.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "spiral_hill_town",
+      "style": {
+        "pending": "spiral_hill_town"
+      },
+      "zones": [
+        {
+          "id": "hill_town",
+          "kind": "standard",
+          "required": true,
+          "label": "Spiral hill town",
+          "purpose": "pilgrimage",
+          "notes": "Spiral layout climbs the hill to the summit; the temple crowns the top.",
+          "program": {
+            "layout": "spiral",
+            "shared": "square",
+            "lots": [
+              {
+                "id": "temple_1",
+                "type": "temple",
+                "role": "summit_temple",
+                "label": "summit temple",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "high_ground",
+                "brief": "Crowns the hill, visible from every turn of the spiral; broad steps and a terrace overlooking the town."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "spiral_gatehouse",
+                "label": "spiral road gatehouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Marks the start of the spiral road at the foot of the hill."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Stepped along the spiral road, facing uphill toward the temple."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "house_4",
+                "type": "house",
+                "role": "townhouse",
+                "label": "townhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home tucked between the turns of the road."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "cottage",
+                "label": "cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling"
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "pilgrims_inn",
+                "label": "pilgrim's inn",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Rest stop at the lower third of the climb."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "market_shop",
+                "label": "market shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "trading_hall",
+                "brief": "Along the road, selling offerings and goods."
+              },
+              {
+                "id": "shop_2",
+                "type": "shop",
+                "role": "market_shop",
+                "label": "market shop",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "villager": "trading_hall"
+              },
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "wayside_shrine",
+                "label": "wayside shrine",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "none",
+                "brief": "Small shrine at the midpoint of the climb."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Just below the temple, overlooking the spiral."
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A medium pilgrimage town on one spiral-layout zone: a street winds up the hill from a small gatehouse at the foot to a grand temple at the summit. Along the way are the pilgrim's inn, market shops, a wayside shrine, townhouses, cottages and a watchtower just below the temple. The style is a warm stone-and-timber hill town, set once its style bible exists."
+  },
+  "usd": 0.036493,
+  "errors": []
+}

@@ -1,0 +1,122 @@
+{
+  "prompt": "A harvest hamlet with a big barn and a windmill.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "harvest_hamlet",
+      "style": {
+        "pending": "harvest_hamlet"
+      },
+      "zones": [
+        {
+          "id": "hamlet",
+          "kind": "standard",
+          "required": true,
+          "purpose": "farming",
+          "label": "Harvest Hamlet",
+          "style": {
+            "pending": "harvest_hamlet"
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "barn",
+                "label": "great harvest barn",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "edge",
+                "villager": "job",
+                "brief": "Big hayloft barn with wide doors, stacked hay and grain bins; the hamlet's centrepiece, facing the fields."
+              },
+              {
+                "id": "windmill_1",
+                "type": "windmill",
+                "role": "windmill",
+                "label": "windmill",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "high_ground",
+                "villager": "job",
+                "brief": "Tall tower with large sails on a rise, to catch the wind; grinds the harvest, with a flour store at the base."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "farmhouse",
+                "label": "farmhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with thatch roof, kitchen garden and a well.",
+                "farmPond": true
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "farmhouse",
+                "label": "farmhouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with thatch roof, kitchen garden and a well.",
+                "farmPond": true
+              },
+              {
+                "id": "granary_1",
+                "type": "granary",
+                "role": "granary",
+                "label": "granary",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "job",
+                "brief": "Raised storehouse for sacks of grain, close to the windmill and barn."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "farmers_hall",
+                "label": "farmers' hall",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "villager": "trading_hall",
+                "brief": "Harvest feast hall and gathering place at the heart of the hamlet."
+              }
+            ],
+            "layout": "street",
+            "shared": "well"
+          },
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "size": {
+            "preset": "S"
+          }
+        }
+      ],
+      "notes": "Flat open farmland; low density so the fields have room."
+    },
+    "waits": [],
+    "summary": "Harvest Hamlet is one small zone near the founding stone, laid out along a single street. It has the big harvest barn on the edge, the windmill on the highest ground, a granary, two farmhouses with kitchen-garden ponds, and the farmers' hall at the centre. The plan has no terrain work and is spaced loosely so the fields have room. Everything in it can be built now."
+  },
+  "usd": 0.03025,
+  "errors": []
+}
