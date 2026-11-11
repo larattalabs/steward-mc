@@ -1234,3 +1234,10 @@ Architect v0.57.0 (API 1.50.0, kit 0.53.0, catalogue 16) is pinned on pin-057 (r
 version-only commit (ead24960). The build and unit tests pass against the published package, and `npm test` gives 35/0. By the 2026-11-06 rule only the
 sanity set ran: `stub --only sanity`, PASS, 8 checks, 59 s; `status` reads API 1.50.0. Architect on the `[street]` note: NM's `held` case is a wall hard
 against the street's end, which rg2 doesn't hit, so nothing changes.
+
+### v0.58.0 pin (2026-11-11): PASS, merged
+Architect v0.58.0 (API 1.51.0, kit 0.53.0, catalogue 16) is pinned on pin-058 (runtime minimum 0.58.0). It went out without an RC: FS (`Library.followers`,
+`Designs.follow`/`followAll`) and LC (`Regions.landCheck`) add API only and change nothing Steward calls. The build and unit tests pass against the published
+package. By the 2026-11-06 rule only the sanity set ran: `stub --only sanity`, PASS, 8 checks; `status` reads API 1.51.0. Steward doesn't call FS or LC yet.
+Open for Steward when it adopts them: S-FS-5 (a follower takes its recipe's params), S-FS-6 (should `follow` check standing lots), and LC's `kinds` key and
+`playerPlaced` for identical blocks.
