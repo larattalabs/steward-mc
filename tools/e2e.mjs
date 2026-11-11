@@ -208,7 +208,7 @@ async function claimAndSteward() {
   const backups = fs.readdirSync(WORLD).filter((f) => /^steward-settlements\.json\.v\d+\.bak$/.test(f)).map((f) => f.match(/v\d+/)[0]);
   // format 4 (2026-10-24): districts with kinds and land; every square district a standing square
   const squares = file.settlements.flatMap((x) => x.lands?.districts ?? []).every((d) => d.kind && d.state);
-  if (file.format === 5 && squares && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `5, every entry an operation, every district with its kind${backups.length ? ', backups kept: ' + backups.join(' ') : ''}`);
+  if (file.format === 6 && squares && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `6, every entry an operation, every district with its kind${backups.length ? ', backups kept: ' + backups.join(' ') : ''}`);
   else fail('save format', `format ${file.format}`);
   let name = '';
   for (let i = 0; i < 10 && !/Steward/.test(name); i++) {
@@ -922,7 +922,7 @@ async function growthFlow() {
   const snap = path.join(ROOT, 'artifacts', 'e2e', `growth-town-${id}.snap.gz`);
   await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
   // asked for a library in talk, accepted: an addition with no district
-  await cmd(`/steward dev sim_answer talk ${fixture('talk/library.json')}`);
+  await cmd(`/steward dev sim_answer talk ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', 'library.json'), 'utf8')).answer)}`);
   await cmd(`/steward talk ${id} we need a library for the scholars`);
   let lib = null;
   for (let i = 0; i < 60 && !lib; i++) {
