@@ -1258,3 +1258,16 @@ bump lands with the release.
 Architect v0.59.0 (API 1.52.0, kit 0.54.0, catalogue 16) is pinned on pin-059 (runtime minimum 0.59.0). The release is the RC that passed (slice/AD
 68905263) plus the version stamp. The build and unit tests pass against the published package. By the 2026-11-06 rule only the sanity set ran:
 `stub --only sanity`, PASS, 8 checks; `status` reads API 1.52.0.
+
+## Phase 7b contract review (site-aware design; Architect docs/7b-contract cb587192, 2026-11-11)
+Noah approved 7b on 2026-11-11: $60 budget, $90 hard cap. Steward's answers:
+- **Yes:** S-7b-1 (adapt first), S-7b-2 (site lots in `$.lots[]` and `LotSpec.site`), S-7b-4 (`layout.elevated` supported), S-7b-6 (the binding in
+  `ext`), S-7b-7 (no crate or order assumption in Steward), S-7b-8 (no nav).
+- **Gap:** §2 has no call for a site variant (S-7b-1's step (a)). Asked for one per-lot call with a stable refusal code when the checker fails, and for
+  it to say whether it goes through a group.
+- **S-7b-5, change asked:** Steward binds a design to a lot by `itemKey == lotId`, one entry per item. Asked for one item per lot, the variants naming
+  their archetype (preferred), or else a `lotId -> entryId` map on the item.
+- **S-7b-3, yes with two asks:** the link refusal comes before any write, with a stable code naming `{lot, port}`; and a revision's realise
+  (Steward's growth, docs/GROWTH.md) is byte-identical with no `links` stage.
+- **Steward's side when SL ships:** the plan writer's schema copy and prompt gain `site` on lots; the recorded plans and the gap table are re-scored
+  at $0, and re-recorded only with Noah's OK.
