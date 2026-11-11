@@ -109,6 +109,9 @@ public final class Undo {
 		// a whole project is one site group: removeGroup does the newest-first removal over ticks (stages, survival refunds, the group's bookkeeping), the
 		// path Architect's gates prove exact. Only when the group holds nothing but this project's sites; else (a partial undo) site by site.
 		// a flat village (Architect V) is one region: removed whole, its ground, street, lanes, square and props with its buildings
+		// a growth of a region town (docs/GROWTH.md): taken up by its revision (Architect's undoRevision), never by removing the town
+		var growth = Growths.parse(entry.get().siteGroup());
+		if (growth.isPresent()) return growth(server, s, entry.get(), growth.get(), now, say, ok -> UNDOING.remove(s.id()));
 		String region = dev.larattalabs.steward.gateway.VPlan.regionOf(entry.get().siteGroup());
 		if (region != null) {
 			// the world closing mid-undo (null) is not its outcome: the undo can be run again after the restart
@@ -197,6 +200,15 @@ public final class Undo {
 			done.accept(true);
 			return true;
 		}
+		// a town that grew (docs/GROWTH.md): never removed whole while a revision of it stands or is in flight, whatever its sites say (a growth may have
+		// written only ground, or not yet its first site); its growths are undone first, newest first
+		var live = regions.get(region);
+		if (live.isPresent() && (Growths.hasRevisions(live.get()) || (live.get().busy() != null && !live.get().busy().isBlank()))) {
+			say.accept("Undo stopped: " + (Growths.hasRevisions(live.get()) ? "the village has grown since \"" + entry.text() + "\"; undo its newer changes first."
+				: "the village is busy (" + live.get().busy() + "); try again once it has settled."));
+			done.accept(false);
+			return false;
+		}
 		// removed whole: only when everything in it is this entry's (a site another build put in it would go too)
 		var others = ArchitectApi.get().sites(server).list(s.owner()).stream().filter(v -> region.equals(v.region())).map(dev.larattalabs.architect.api.SiteView::id)
 			.filter(id -> !regionSites.contains(id)).toList();
@@ -217,6 +229,28 @@ public final class Undo {
 			else say.accept("Undone: the village is taken up, the land restored.");
 			done.accept(ok);
 		}));
+		return true;
+	}
+
+	/**
+	 * Takes up a growth of a region town (its revision, by rid) for the history entry that placed it: an undo, and a cancel or an orphan's take-up, which log
+	 * the growth first. {@code done} as {@link #region}'s. The town itself is never removed here.
+	 */
+	public static boolean growth(MinecraftServer server, Settlement s, Settlement.LogEntry entry, Growths.Ref ref, java.util.Map<String, Integer> now,
+		Consumer<String> say, Consumer<Boolean> whenDone) {
+		UNDOING.add(s.id());
+		List<String> ids = List.copyOf(entry.siteIds());
+		say.accept("Taking up \"" + entry.text() + "\" (the town's change " + ref.rid() + ") and restoring the land...");
+		Growths.undo(server, s.owner(), ref, say, ok -> {
+			UNDOING.remove(s.id());
+			if (ok == null) { whenDone.accept(null); return; }
+			if (ok) {
+				if (!Settlements.log(s.id(), removed(entry, ids, true, now)).ok()) say.accept(UNLOGGED);
+				districts(server, s, say);
+				say.accept("Undone: the town's change is taken up, the land restored.");
+			} else say.accept("Run /steward undo " + s.id() + " again once it is clear.");
+			whenDone.accept(ok);
+		});
 		return true;
 	}
 

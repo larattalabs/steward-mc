@@ -141,6 +141,23 @@ class SaveCompatTest {
 	}
 
 	@Test
+	void theV5SettlementsOfARealWorldLoadAndMoveToFormat6(@TempDir Path dir) throws Exception {
+		// fixtures/saves/v5: the e2e world of the 2026-11-10 nightly (29 settlements; set_1 with its history); format 6 adds growths (docs/GROWTH.md)
+		Path f = dir.resolve("steward-settlements.json");
+		Files.writeString(f, fixture("v5/steward-settlements.json"));
+		SettlementStore st = SettlementStore.load(f);
+		assertEquals(5, st.readFormat());
+		assertEquals(29, st.all().size());
+		Settlement hamlet = st.get("set_1").orElseThrow();
+		assertEquals("E2E Hamlet", hamlet.name());
+		assertEquals(27, hamlet.log().size());
+		assertTrue(Files.exists(dir.resolve("steward-settlements.json.v5.bak")));
+		st.save(f);
+		assertTrue(Files.readString(f).contains("\"format\": 6"));
+		assertEquals(hamlet, SettlementStore.load(f).get("set_1").orElseThrow(), "saved again, unchanged");
+	}
+
+	@Test
 	void theV3DistrictsOfARealWorldLoadAsTheyWereSaved(@TempDir Path dir) throws Exception {
 		// fixtures/saves/v3: two settlements of the e2e world (2026-10-20), each with a square district: one with its founding road, a protected area
 		// and the link not undone, one whose link was undone

@@ -497,7 +497,9 @@ public record Settlement(
 			if (e.kind().placesSites()) {
 				List<String> left = e.siteIds().stream().filter(id -> !removed.contains(id)).toList();
 				// the group only while the project is whole: after a partial undo the rest goes site by site
-				if (!left.isEmpty()) return java.util.Optional.of(new LogEntry(e.at(), e.kind(), e.text(), left, left.size() == e.siteIds().size() ? e.siteGroup() : null, e.op(),
+				// a growth's revision is undone whole whatever was removed of it since (docs/GROWTH.md): its tag stays
+				boolean revision = e.siteGroup() != null && e.siteGroup().startsWith("revision:");
+				if (!left.isEmpty()) return java.util.Optional.of(new LogEntry(e.at(), e.kind(), e.text(), left, left.size() == e.siteIds().size() || revision ? e.siteGroup() : null, e.op(),
 					e.changes().stream().filter(c -> left.contains(c.siteId())).toList(), e.outcome(), e.district()));
 			}
 			// a reservation (a district founded with no site): undoable while it is still only reserved; once built, its build's entry is the newer one
