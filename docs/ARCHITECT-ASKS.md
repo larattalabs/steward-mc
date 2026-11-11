@@ -1253,3 +1253,8 @@ bump lands with the release.
   reach it.
 - **AD, FS-b, LC:** Steward calls none of them yet, so no Steward flow covers adopt. Provisional answers: S-AD-5, a later slice is fine (Steward doesn't adopt
   Supplied or Hardcore towns yet); S-AD-6, a new region id on re-adopt is fine, since Steward keys its settlement by its own id.
+
+### v0.59.0 pin (2026-11-11): PASS, merged
+Architect v0.59.0 (API 1.52.0, kit 0.54.0, catalogue 16) is pinned on pin-059 (runtime minimum 0.59.0). The release is the RC that passed (slice/AD
+68905263) plus the version stamp. The build and unit tests pass against the published package. By the 2026-11-06 rule only the sanity set ran:
+`stub --only sanity`, PASS, 8 checks; `status` reads API 1.52.0.
