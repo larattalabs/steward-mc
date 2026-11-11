@@ -1217,3 +1217,14 @@ Steward has no plain-bridge flow of its own beyond the drawbridge's. xllv-rc wai
 Architect v0.56.0 (API 1.49.0) is pinned on xllv-rc (601fb27, runtime minimum 0.56.0). The release is exactly the RC that passed, plus a version stamp. The
 build and unit tests pass against the published package, and `npm test` gives 34/0. By the 2026-11-06 rule only the sanity set ran: `stub --only sanity`,
 PASS, 8 checks, 47 s; `status` reads API 1.49.0.
+
+## v0.57.0 RC (rc/PG-NM-XR 90ff739d, 2026-11-10): PASS
+The RC jar was built from a fresh clone (sidecar first). `node tools/e2e.mjs stub --only gate,wall,gatehouse,district,growth,survival,undo,road,lot` on
+main 0d39359 with that jar: PASS, 98 checks, 0 failed, 5077 s; `status` reads API 1.49.0 (the bump lands with the release).
+- **PG:** wall lots bind all 5 (4 towers, gatehouse_1 17x15) after 10 refusals and redesigns, with a repair picked up after a restart. The gate-mech,
+  lots, swing and drawbridge flows pass, and so do the district and quarter flows.
+- **NM:** the gate waits still read as before ("Main gatehouse's portcullis waits for 1 × redstone comparator, ... in the stockpile."; "The gate's swing
+  gate waits for 2 × iron door in the stockpile."). Walled growth still answers kind `[street]`, "the street is stopped by wall town_wall", not `held`;
+  Steward's skip matches either, so nothing exact-matched broke.
+- **XR:** survival refunds are exact: survival 629, supplied plan 5550, portcullis 18877, swing 7520, wall swings 7514, drawbridge 4905. Undo and discard pass.
+By the 2026-11-06 rule the v0.57.0 pin then runs only `stub --only sanity`.
