@@ -96,10 +96,54 @@ Not covered by e2e: parent_moved and restarts mid-realise (unit tests and the de
 
 **Not in A.** Survival towns (A2), districts' growth (`dgrow`, D-S2), street towns (slice B).
 
-## Slice B: lazy adopt of a street town (outline, after A)
+## Slice B: a street town adopted at its first growth
 
-At a street town's first addition: `Regions.adopt` with the village's footprint as the claim (not the whole settlement claim: a district region
-inside it would refuse), `{streetZ, xLo, xHi}` from `Districts.streetOfPieces`, the `street`/`street#n` road sites, and lots `lotId -> siteId`
-made unique (`ProgramPlanner.Ids` repeats `house_1` across builds). A `PROJECT_PLACED`-like entry `region:<id>` records it, so `TownRegion.of` sees
-the town and slice A grows it; undoing that entry is `unadopt` (position 0 only). Any `NOT_ALLOWED` (survival or shared-crate sites, a gap in the
-street, not the Overworld): today's street-piece path, unchanged.
+Status: design, 2026-11-11, for review before code. Architect's AD (v0.59.0, `Regions.adopt`/`unadopt`, feature `regionAdopt`) as built; Steward's
+answers S-AD-1 (lazy, at a settlement's first growth; no migration on load), S-AD-5 (survival towns later), S-AD-6 (a new region id on re-adopt).
+
+**When.** `afterSurvey`, an addition with no district, where `TownRegion.of` finds no region town, Architect has `regionAdopt` and `growDistrict`,
+and the settlement has a standing street (`Districts.streetOf`, east-west; a north-south street the same with `{streetX, zLo, zHi}`). Anything that
+can't be adopted keeps today's street-piece path, unchanged, with the reason in the log (not said: the player sees the addition built as before).
+
+**The request** (`AdoptRegionRequest`):
+- `owner`, `dimension` the settlement's; `layout` `village_layout`;
+- `geometry` `{streetZ, xLo, xHi}` from `Districts.streetOf` (the pieces' `steward_mc:street_*` ext, else the boxes' middle);
+- `roadSiteIds`: the settlement's standing `street`/`street#n` road sites on that line (the founding builds' and additions');
+- `lots`: every standing lot site of the settlement's town builds (ext `steward_mc:settlement` = the settlement, no district) mapped from a lot
+  id: `steward_mc:lot` when it is unique among them and matches `[a-z][a-z0-9_]{0,47}`, else `<lot>_b<n>` (n counting the repeats, newest last);
+  not a lot site (a player's adopted build, a district's, a wall lot): left out, and stays as it is;
+- `claim`: the union of those sites' boxes plus 4 on each side (x/z), full height: not the settlement claim, which can hold district regions
+  (Architect refuses any overlap with another region);
+- `opKey` `steward.<build>.adopt`; `ext` the settlement tag.
+
+**Outcomes.**
+- `RegionView` PLACED: a history entry **`TOWN_ADOPTED`** (new kind): `siteGroup = region:<id>`, `siteIds` the adopted sites, text "Took the town on
+  as one region (Architect) to grow it", saved **before** the growth is planned. Then slice A grows it (`planGrowth`) in the same build.
+- `NOT_ALLOWED` (a survival construction site or a shared-crate group, a gap of more than 1 in the street, a lot off the street, not the Overworld,
+  an overlap): today's path; the reason in the log.
+- A lost answer or a restart: `Regions.list(owner)` filtered by the adopt key's region (`realiseByKey` has no adopt form, so the region's ext carries
+  the build tag and is matched by it), else the adoption is asked again with the same key (Architect answers the same region).
+
+**History and undo.**
+- `TOWN_ADOPTED` places nothing (`placesSites()` false: its sites are the older builds' sites, and a `PROJECT_REMOVED` of them would read those builds
+  as undone). `lastUndoable` returns it when it is the newest thing to undo and no later `TOWN_RELEASED` names its region.
+- Its undo is `Regions.unadopt(region)` (position 0, no revision standing: growths are undone first, newest first), then a **`TOWN_RELEASED`** entry
+  (new kind, siteGroup `region:<id>`); every site is back in its old group (Architect keeps changes made since), so the older builds' entries undo
+  as today (their group, else site by site).
+- `TownRegion.of` reads `TOWN_ADOPTED` entries not released as region towns, as it reads a V town's founding entry. `Districts.regionTownGone`
+  the same.
+- Undoing a growth of an adopted town is slice A's (`undoRevision`); removing a building inside it is `Sites.remove` (RV 4.6), as today.
+- The adopted region is never removed whole by Steward: the founding builds are undone through unadopt and their own entries. (`Undo.region`
+  is reached only by `region:` PROJECT_PLACED entries; `TOWN_ADOPTED` goes to unadopt.)
+
+**Saves.** Two new `Kind` values. Settlements format 6 (slice A's bump, unreleased) covers them: an older Steward refuses the file. A format-5 file
+has neither.
+
+**Not in B.** Survival and Supplied street towns (S-AD-5); street towns with districts whose land would overlap the village's claim (refused, today's
+path); the plan writer growing an adopted village through its artifact (`Regions.artifact` + `revision.parentArtifact`); slice A's `planRevision`
+grow covers additions.
+
+**Tests.** Unit: the request's lots (repeated `house_1`, a bad id, a district's and a player's site left out), the claim box, `lastUndoable` with
+`TOWN_ADOPTED`/`TOWN_RELEASED` (growths first, then the adoption, then the old builds), `TownRegion` reading an adoption. e2e (stub, `stub` flow's
+legacy street town): its first addition adopts the town (0 cells changed), grows it by a revision; undo: the growth, then the adoption (unadopt:
+the old group's sites back), then the founding build as before.
