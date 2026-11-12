@@ -376,4 +376,9 @@ offered as an update that always waits for the player (docs/FOLLOW.md).
     both copies followed, each offered as ASK, applied and reverted, and told once.
   - An earlier run's seed gave one copy `bar`. After the restart its new member set re-made it and it was refused again, $0, and not told twice.
   - The sim's SMALL stand-in (a shed) has no int param, so its `versionOf` writes nothing. The flow makes the huts M.
-- **Unit:** `FollowPlannerTest` 11, all of `build` passes.
+- **Fix pass (GPT round 2):** request changes, 1 blocker and 4 should-fixes, all taken (docs/FOLLOW.md). Then `--only follow,revision,survival`
+  (which pulls in `stub`): 69 of 70 passed. The one failure was the seed: both copies followed with nothing to write. The flow now builds up to 4
+  villages, as Architect's FS gate re-made families.
+- **`--only follow` after it:** PASS 23. Village 1 had cabin 2 followed with nothing to write, and cabin 3 refused `bar`, told once and not offered.
+  Village 2 had cabin 2 offered as ASK at Full, applied and reverted.
+- **Unit:** `FollowPlannerTest` 12, all of `build` passes.

@@ -104,3 +104,9 @@ version, not only `by: follow`), 7 (documented), 8 (the e2e sets the settlement 
 must follow with something to write; if the sim's seeds give none in a run, the flow says so and that run fails). Not taken: persisted
 operation receipts (2) and structured note ids (4): the inbox, not the note, is the offer, and the text identity covers the cases found.
 Service-level tests over a fake Architect for the races are left to Architect's own FS gate (its CAS, resume and frozen-set units).
+
+**Fix verification (GPT-6.1, round 2): request changes, 1 blocker, 4 should-fixes, all taken.** The COPY rule and the `approve` re-check
+read the mod's own library and sites, with or without the helper (blocker). The lost-answer retry re-arms until a scan can send. A copy
+refused at its head for a target is remembered for the session (`FollowPlanner.without`), so a mixed answer doesn't re-make it under the
+next member set's key; after a restart it may be re-made once, $0, and not told again. `SITE_UPDATED` and `SITE_REMOVED` rescan. Told-once
+matches the text and the note's sites. Accepted as before: no persisted receipts, and race tests left to Architect's FS gate.

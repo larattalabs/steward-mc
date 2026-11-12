@@ -54,6 +54,23 @@ public final class FollowPlanner {
 		return "steward_mc:follow:" + sourceEntryId + ":v" + target + ":" + hash(members);
 	}
 
+	/** What a refused copy is remembered by: the copy, its head and the target ({@code c1@1>v2}); the same three are not re-made. */
+	public static String refusedKey(String copy, int head, int target) {
+		return copy + "@" + head + ">v" + target;
+	}
+
+	/**
+	 * The source without the copies already refused at their head for this target (a mixed answer: one followed, one refused, then the next scan's
+	 * member set is the refused one alone, which would re-make it). Null when none is left.
+	 */
+	public static @Nullable Source without(Source src, java.util.Set<String> refused) {
+		List<String> left = src.copies().stream().filter(c -> !refused.contains(refusedKey(c, src.heads().getOrDefault(c, 0), src.target()))).toList();
+		if (left.isEmpty()) return null;
+		Map<String, Integer> heads = new java.util.TreeMap<>();
+		left.forEach(c -> heads.put(c, src.heads().getOrDefault(c, 0)));
+		return new Source(src.entryId(), src.target(), left, Map.copyOf(heads));
+	}
+
 	/** The first 10 hex digits of the SHA-256 of {@code s}. */
 	static String hash(String s) {
 		try {

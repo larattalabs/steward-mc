@@ -57,6 +57,9 @@ public final class Updates {
 
 	public static void init() {
 		SiteEvents.ENTRY_VERSIONED.register((entry, from) -> scanPending = true);
+		// a source updated or removed changes which copies follow and which copies' offers stand (docs/FOLLOW.md); placements are not (they stand at the head)
+		SiteEvents.SITE_UPDATED.register((before, after, result) -> scanPending = true);
+		SiteEvents.SITE_REMOVED.register((site, result) -> scanPending = true);
 		// after Architect loads its sites (SERVER_STARTED), on the first tick
 		ServerLifecycleEvents.SERVER_STARTED.register(s -> {
 			server = s;
@@ -99,8 +102,8 @@ public final class Updates {
 	static void refresh(MinecraftServer server, Settlement s) {
 		var sites = ArchitectApi.get().sites(server);
 		List<Pending> pending = new ArrayList<>();
-		boolean follows = Follows.available();
-		List<SiteView> buildings = follows ? Follows.buildings(server, s) : List.of();
+		// the library and the sites are the mod's own: a copy's update asks whether or not the helper is connected (docs/FOLLOW.md)
+		List<SiteView> buildings = Follows.buildings(server, s);
 		Map<String, Integer> standing = Follows.standing(buildings);
 		for (OutdatedSite o : sites.outdated(s.owner())) {
 			String key = o.siteId() + "@" + o.headVersion();
@@ -112,7 +115,7 @@ public final class Updates {
 			if (view.isPresent() && !view.get().dimension().identifier().toString().equals(s.claim().dimension())) continue;
 			String lot = view.map(Updates::lotOf).orElse(o.siteId());
 			// a copy that followed its source (docs/FOLLOW.md): offered while the source stands at the version it follows, and always asked
-			Follows.FollowOf follow = follows && view.isPresent() ? Follows.followOf(view.get().blueprintId(), o.headVersion()) : null;
+			Follows.FollowOf follow = view.isPresent() ? Follows.followOf(view.get().blueprintId(), o.headVersion()) : null;
 			if (follow != null && !FollowPlanner.offered(standing.get(follow.source()), follow.sourceVersion())) continue;
 			DeltaVerdict v = sites.checkDelta(UpdatePlanner.request(o.siteId(), o.headVersion(), UpdatePlanner.editsFor(s.permission()), s.owner()));
 			UpdatePlanner.Plan plan = UpdatePlanner.plan(lot, v, s.permission(), landFor(s, v), s.lands().protect());

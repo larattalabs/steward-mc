@@ -59,6 +59,22 @@ class FollowPlannerTest {
 		assertEquals(FollowPlanner.opKey(once.entryId(), once.target(), once.heads()), FollowPlanner.opKey(again.entryId(), again.target(), again.heads()));
 	}
 
+	@Test
+	void aCopyRefusedInAMixedAnswerIsNotReMadeWhenItsSiblingFollowed() {
+		// c1 and c2 behind v2; c1 followed, c2 refused: the next scan sees c2 alone (another member set, another key), but it is remembered
+		var first = new FollowPlanner.Source("hut", 2, List.of("c1", "c2"), Map.of("c1", 1, "c2", 1));
+		var refused = java.util.Set.of(FollowPlanner.refusedKey("c2", 1, 2));
+		var next = new FollowPlanner.Source("hut", 2, List.of("c2"), Map.of("c2", 1));
+		assertNull(FollowPlanner.without(next, refused));
+		// the first round itself keeps c1 only, under its own key
+		var kept = FollowPlanner.without(first, refused);
+		assertEquals(List.of("c1"), kept.copies());
+		assertEquals(Map.of("c1", 1), kept.heads());
+		// a later source version tries it again; so does a copy whose head moved
+		assertNotNull(FollowPlanner.without(new FollowPlanner.Source("hut", 3, List.of("c2"), Map.of("c2", 1)), refused));
+		assertNotNull(FollowPlanner.without(new FollowPlanner.Source("hut", 2, List.of("c2"), Map.of("c2", 2)), refused));
+	}
+
 	private static FollowResult refused(String why) {
 		return new FollowResult("hut_c1", false, 1, 1, 2, why, false, "msg");
 	}

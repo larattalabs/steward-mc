@@ -3358,7 +3358,7 @@ async function stubFlow(id) {
  * copy answers. A followed copy with a delta is offered (always asked), applied and reverted; a refused copy is told once and not offered; a follow
  * with nothing to write is fine (the sim's recipes are seeded by the group id, so which of these happens varies by run). A rescan tells nothing new.
  */
-async function followFlow() {
+async function followOnce(attempt, last) {
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} 39000 0 1 false @p`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
@@ -3467,8 +3467,18 @@ async function followFlow() {
   if (!again && notes().length === before) ok('follow told once', `${before} note(s): ${notes().map((t) => t.slice(0, 60)).join(' | ')}`);
   else fail('follow told once', `asked again ${!!again}; notes ${before} -> ${notes().length}`);
   // at least one copy took the new design: which ones do varies with the group's seed (a copy whose param is the one the sim changes stays)
-  if (applied > 0) ok('follow applied', `${applied} copy update(s) offered at Full, applied and reverted`);
-  else fail('follow applied', `no copy followed with something to write this run: ${family.map((c) => `${c.site} ${answers[c.entry].how}`).join('; ')}`);
+  if (applied > 0) ok('follow applied', `${applied} copy update(s) offered at Full, applied and reverted (village ${attempt})`);
+  else if (last) fail('follow applied', `no copy followed with something to write in ${attempt} villages: ${family.map((c) => `${c.site} ${answers[c.entry].how}`).join('; ')}`);
+  else console.log(`follow: village ${attempt}'s copies had nothing to write (${family.map((c) => `${c.site} ${answers[c.entry].how}`).join('; ')}); another village (a new seed)`);
+  return applied;
+}
+
+/** The follow flow, on up to 4 villages: the copies' recipes are seeded by the group, so a village whose copies all pin what the sim changes is made again. */
+async function followFlow() {
+  for (let i = 1; i <= 4; i++) {
+    const r = await followOnce(i, i === 4);
+    if (r !== 0) return;
+  }
 }
 
 // ------------------------------------------------------------------ run

@@ -29,6 +29,10 @@ public final class Follows {
 	private static final Set<String> ASKED = new HashSet<>();
 	/** Sources with a {@code followAll} on its way (one per source, whatever settlement asked). */
 	private static final Set<String> IN_FLIGHT = new HashSet<>();
+	/** Copies refused at their head for a target ({@link FollowPlanner#refusedKey}): not re-made this session (a restart may re-make one, at $0, untold). */
+	private static final Set<String> REFUSED = new HashSet<>();
+	/** A lost answer waits to be asked again: the retry is re-armed until a scan can send (the helper may be down longer than one wait). */
+	private static boolean lost;
 	/** Ticks until the scan that asks again after a lost answer (a lost request brings no version event); 0 when none is due. */
 	private static int retryIn;
 	/** Ticks a lost answer waits before it is asked again (30 s). */
@@ -41,6 +45,8 @@ public final class Follows {
 		ServerLifecycleEvents.SERVER_STOPPED.register(s -> {
 			ASKED.clear();
 			IN_FLIGHT.clear();
+			REFUSED.clear();
+			lost = false;
 			retryIn = 0;
 		});
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(s -> {
@@ -67,10 +73,17 @@ public final class Follows {
 
 	/** Re-makes the copies whose source stands at a newer version, at most once per key this session. */
 	static void scan(MinecraftServer server, Settlement s) {
-		if (!available()) return;
+		if (!available()) {
+			// a lost answer is asked again once the helper is back
+			if (lost && retryIn == 0) retryIn = RETRY_TICKS;
+			return;
+		}
+		lost = false;
 		List<SiteView> buildings = buildings(server, s);
 		var library = ArchitectApi.get().library();
-		for (FollowPlanner.Source src : FollowPlanner.toFollow(standing(buildings), library::followers)) {
+		for (FollowPlanner.Source all : FollowPlanner.toFollow(standing(buildings), library::followers)) {
+			FollowPlanner.Source src = FollowPlanner.without(all, REFUSED);
+			if (src == null) continue;
 			String key = FollowPlanner.opKey(src.entryId(), src.target(), src.heads());
 			if (IN_FLIGHT.contains(src.entryId()) || ASKED.contains(key)) continue;
 			ASKED.add(key);
@@ -109,6 +122,7 @@ public final class Follows {
 				followedLots.addAll(where.isEmpty() ? List.of(r.entryId()) : where);
 				at.forEach(v -> followedSites.add(v.id()));
 			} else if (FollowPlanner.refused(r)) {
+				REFUSED.add(FollowPlanner.refusedKey(r.entryId(), src.heads().getOrDefault(r.entryId(), r.fromVersion()), src.target()));
 				String copyLot = at.isEmpty() ? r.entryId() : Updates.lotOf(at.get(0)) + " (" + String.join(", ", where) + ")";
 				note(server, settlementId, FollowPlanner.refusalText(copyLot, sourceLot, src.target(), r), at.stream().map(SiteView::id).toList());
 			}
@@ -128,6 +142,7 @@ public final class Follows {
 			// a lost answer: Architect resumes the saved operation; the next scan asks again with the same key, which replays it
 			Steward.LOGGER.warn("follow {}: {} lost its answer ({}); asked again on the next scan", settlementId, key, e.getMessage());
 			ASKED.remove(key);
+			lost = true;
 			retryIn = RETRY_TICKS;
 		}
 	}
@@ -141,7 +156,7 @@ public final class Follows {
 	/** A note in the history and said by the steward, once: a note with the same text already there (a replay, a restart) says nothing. */
 	private static void note(MinecraftServer server, String settlementId, String text, List<String> siteIds) {
 		var s = Settlements.store().get(settlementId);
-		if (s.isEmpty() || told(s.get(), text)) return;
+		if (s.isEmpty() || told(s.get(), text, siteIds)) return;
 		var logged = Settlements.log(settlementId, new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, text, siteIds));
 		if (!logged.ok()) Steward.LOGGER.warn("follow {}: the note could not be saved: {}", settlementId, logged.error());
 		String said = text;
@@ -149,9 +164,9 @@ public final class Follows {
 		StewardVoice.say(server, settlementId, said);
 	}
 
-	/** Whether the history already holds this note. */
-	static boolean told(Settlement s, String text) {
-		return s.log().stream().anyMatch(e -> e.kind() == Settlement.Kind.NOTE && e.text().equals(text));
+	/** Whether the history already holds this note about these sites (a town's and a district's cabin 2 are told apart by their sites). */
+	static boolean told(Settlement s, String text, List<String> siteIds) {
+		return s.log().stream().anyMatch(e -> e.kind() == Settlement.Kind.NOTE && e.text().equals(text) && new HashSet<>(e.siteIds()).equals(new HashSet<>(siteIds)));
 	}
 
 	/**
@@ -159,13 +174,18 @@ public final class Follows {
 	 * version it follows; null when that version is not a copy's.
 	 */
 	static FollowOf followOf(String entryId, int version) {
-		var d = ArchitectApi.get().library().entry(entryId, version).flatMap(e -> e.derivation()).filter(x -> x.kind() == dev.larattalabs.architect.api.Library.Derivation.Kind.COPY);
-		return d.map(x -> new FollowOf(x.source(), x.sourceVersion())).orElse(null);
+		try {
+			var d = ArchitectApi.get().library().entry(entryId, version).flatMap(e -> e.derivation())
+				.filter(x -> x.kind() == dev.larattalabs.architect.api.Library.Derivation.Kind.COPY);
+			return d.map(x -> new FollowOf(x.source(), x.sourceVersion())).orElse(null);
+		} catch (UnsupportedOperationException e) {
+			return null;
+		}
 	}
 
 	/** Whether an update of {@code siteId} to {@code version} may be applied now: not a copy's, or its source stands at the version it follows. */
 	static boolean stillOffered(MinecraftServer server, Settlement s, String siteId, int version) {
-		if (!available()) return true;
+		// the library and the sites are the mod's own: checked whether or not the helper is connected
 		var v = ArchitectApi.get().sites(server).get(siteId);
 		if (v.isEmpty() || v.get().blueprintId() == null) return true;
 		FollowOf f = followOf(v.get().blueprintId(), version);
