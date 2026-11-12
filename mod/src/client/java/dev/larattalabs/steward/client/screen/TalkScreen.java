@@ -122,7 +122,7 @@ public final class TalkScreen extends KitScreen {
 		for (int i = 0; i < shown.size(); i++) {
 			Row r = shown.get(i);
 			if (i > 0 && r.turn()) ly += 4;
-			g.text(font, r.who(), cx + 6, ly, r.you() ? UiStyle.CLAY : UiBits.muted(), false);
+			g.text(font, r.who(), cx + 6, ly, r.you() ? attention() : UiBits.muted(), false);
 			g.text(font, r.text(), cx + 6 + col, ly, r.you() ? UiStyle.WALNUT : UiBits.ink(), false);
 			ly += 10;
 		}

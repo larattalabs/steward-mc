@@ -155,7 +155,7 @@ public final class Toasts implements HudElement {
 			int w = Math.min(W, font.width(text) + 12);
 			int x = g.guiWidth() - 6 - w;
 			Panels.sprite(g, Kit.PANEL_PAPER, x, l.moreY(), w, MORE_H, 0xFFFFFFFF);
-			g.text(font, TextUtil.ellipsize(font, text, w - 12), x + 6, l.moreY() + 3, l.hiddenNeed() > 0 ? UiStyle.CLAY_DARK : UiBits.muted(), false);
+			g.text(font, TextUtil.ellipsize(font, text, w - 12), x + 6, l.moreY() + 3, l.hiddenNeed() > 0 ? UiStyle.color("semantic.clay_text", 0xFF9A3F27) : UiBits.muted(), false);
 		}
 	}
 
@@ -232,7 +232,7 @@ public final class Toasts implements HudElement {
 		int py = y + p.top() - 1;
 		Panels.sprite(g, Kit.icon(t.icon), px + 2, py + 1, 12, 12, tint);
 		int tx = x + textX;
-		g.text(font, fitTitle(font, t, textW), tx, py + 1, UiStyle.withAlpha(need ? UiStyle.CLAY_DARK
+		g.text(font, fitTitle(font, t, textW), tx, py + 1, UiStyle.withAlpha(need ? UiStyle.color("semantic.clay_text", 0xFF9A3F27)
 			: t.level == Level.WARN ? UiBits.errorText() : UiBits.ink(), a), false);
 		int ly = py + 12;
 		for (FormattedCharSequence line : lines) {

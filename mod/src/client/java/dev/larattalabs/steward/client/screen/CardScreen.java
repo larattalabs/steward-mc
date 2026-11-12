@@ -160,9 +160,9 @@ public final class CardScreen extends KitScreen {
 		// what Steward cannot do yet for this card: first, before anything is spent
 		// the composed plan's summary first, when there is one
 		if (!payload.planSummary().isBlank()) add(out, "Plan: " + payload.planSummary(), w, UiBits.ink());
-		for (String l : limits()) add(out, "Not yet: " + l, w, UiStyle.CLAY_DARK);
+		for (String l : limits()) add(out, "Not yet: " + l, w, attention());
 		add(out, card.interpretation(), w, UiBits.ink());
-		for (ConceptCard.Contradiction c : card.contradictions()) add(out, "Tension: " + c.issue() + " → " + c.resolution(), w, UiStyle.CLAY_DARK);
+		for (ConceptCard.Contradiction c : card.contradictions()) add(out, "Tension: " + c.issue() + " → " + c.resolution(), w, attention());
 		for (String a : card.assumptions()) add(out, "Assumed: " + a, w, UiBits.muted());
 		return out;
 	}
@@ -185,7 +185,7 @@ public final class CardScreen extends KitScreen {
 		int lw = 50;
 		List<String> lines = TextUtil.wrapPlain(font, value, w - lw);
 		if (draw) {
-			g.text(font, label, x, y, UiStyle.CLAY_DARK, false);
+			g.text(font, label, x, y, attention(), false);
 			int ly = y;
 			for (String l : lines) {
 				g.text(font, l, x + lw, ly, UiBits.ink(), false);
@@ -256,10 +256,9 @@ public final class CardScreen extends KitScreen {
 		Panels.panel(g, x, y, w, h);
 		int cx = x + pad.left();
 		int top = y + pad.top();
-		Panels.header(g, font, payload.name(), cx - 2, top - 2, inner + 4);
 		int side = dev.larattalabs.steward.model.ClaimRules.side(payload.claimRadius());
 		String meta = "claim " + side + "×" + side + " (" + dev.larattalabs.steward.model.ClaimRules.sizeOf(payload.claimRadius()) + ") · terrain " + card.site().terrain();
-		g.text(font, meta, cx + inner - font.width(meta), top, UiBits.muted(), false);
+		header(g, payload.name(), meta, UiBits.muted(), cx - 2, top - 2, inner + 4);
 		int bodyTop = top + 18;
 		int controlsTop = y + h - pad.bottom() - controlsH;
 		int bodyBottom = controlsTop;
@@ -270,12 +269,12 @@ public final class CardScreen extends KitScreen {
 		ly += fact(g, "Purpose", card.purpose().text(), card.purpose().template(), cx, ly, colW, true);
 		if (story() != null) ly += fact(g, "Story", story(), null, cx, ly, colW, true);
 		if (!card.avoid().isEmpty()) {
-			g.text(font, "Avoid", cx, ly + 2, UiStyle.CLAY_DARK, false);
+			g.text(font, "Avoid", cx, ly + 2, attention(), false);
 			int px = cx + 50;
 			for (String a : card.avoid()) {
 				int pw = font.width(a) + 10;
 				if (px + pw > cx + colW) break;
-				px += Panels.pill(g, font, a, px, ly, UiStyle.CLAY_DARK) + 3;
+				px += Panels.pill(g, font, a, px, ly, attention()) + 3;
 			}
 			ly += 16;
 		}
@@ -283,7 +282,7 @@ public final class CardScreen extends KitScreen {
 		for (String l : limits()) {
 			if (ly + 10 > bodyBottom - 6) break;
 			// laid out as the facts above: the label in the same column, the text beside it
-			g.text(font, "Not yet", cx, ly, UiStyle.CLAY_DARK, false);
+			g.text(font, "Not yet", cx, ly, attention(), false);
 			// at most 3 lines here, a little clear of the right column; the whole text is under Interpretation
 			List<String> lines = TextUtil.wrapPlain(font, l, colW - 56);
 			for (int i = 0; i < Math.min(3, lines.size()); i++) {
@@ -359,7 +358,7 @@ public final class CardScreen extends KitScreen {
 					String more = "+" + below + " more (scroll)";
 					int mw = font.width(more) + 8;
 					g.fill(rx + colW - mw - 10, ry + listH - 12, rx + colW - 10, ry + listH - 2, 0xE0E9E1D3);
-					g.text(font, more, rx + colW - mw - 6, ry + listH - 11, UiStyle.CLAY_DARK, false);
+					g.text(font, more, rx + colW - mw - 6, ry + listH - 11, attention(), false);
 				}
 			}
 		}
@@ -394,7 +393,7 @@ public final class CardScreen extends KitScreen {
 		if (payload.busy()) {
 			ax += button(g, "Open the inbox", 1, true, false, true, ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new InboxScreen(payload.settlementId()))) + 6;
 		} else {
-			ax += button(g, sent ? "Starting..." : confirmShown ? String.format("Again: spend up to $%.0f", armedUsd) : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::start) + 6;
+			ax += button(g, sent ? "Starting..." : confirmShown ? String.format("Confirm: spend up to $%.0f", armedUsd) : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::start) + 6;
 		}
 		// the player's own words back in the box (else the card's reading of them), to change rather than retype
 		ax += button(g, "Describe again", 2, false, false, !sent && !payload.busy(), ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new DescribeScreen(
@@ -407,7 +406,8 @@ public final class CardScreen extends KitScreen {
 			say("Growing the claim...", false);
 		});
 		int fy = y + h - pad.bottom() - 8;
-		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, fy - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
+		// the armed start says what pressing again spends: clay text, the colour of what waits on the player, not the muted of a passing note
+		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, fy - 2, statusError ? UiBits.errorText() : confirmShown && !sent ? attention() : UiBits.muted(), false);
 		else {
 			String[] hints = {"←→", "buildings", "Tab", "builds / interpretation", "Enter ×2", "start", "Esc", "close"};
 			if (UiBits.hintsWidth(font, hints) <= inner) UiBits.hints(g, font, cx, fy - 4, false, hints);

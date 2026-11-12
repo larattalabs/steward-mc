@@ -12,7 +12,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Draws a {@link TextModel} as a kit text field (ui-style "Console field 18 px tall, prefix in brass,
- * ghost completion in #BCAD95, 1 px ink caret blinking every 500 ms"). Multi-line values grow the
+ * placeholder in muted (#BCAD95 was 1.9:1 on the field; lab-ui's semantic.placeholder), ghost completion in #BCAD95, 1 px ink caret blinking every 500 ms"). Multi-line values grow the
  * field up to {@code maxLines} visual lines and scroll to keep the caret in view.
  */
 public final class TextFieldView {
@@ -89,7 +89,7 @@ public final class TextFieldView {
 		if (m.isEmpty() && st.placeholder() != null) {
 			// cut to the field (a long placeholder in a narrow field ran past its border at 426x240)
 			g.text(font, dev.larattalabs.labui.client.ui.TextUtil.ellipsize(font, st.placeholder(), Math.max(0, x + w - p.right() - tx)), tx, ty,
-				UiStyle.color("ink_ui.ghost_on_paper", 0xFFBCAD95), false);
+				UiStyle.color("semantic.placeholder", 0xFF655E55), false);
 		}
 		int caretX = tx;
 		int caretY = ty;

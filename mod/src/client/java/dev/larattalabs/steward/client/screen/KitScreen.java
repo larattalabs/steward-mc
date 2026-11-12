@@ -4,6 +4,8 @@ import dev.larattalabs.labui.client.hud.UiBits;
 import dev.larattalabs.steward.client.text.TextFieldView;
 import dev.larattalabs.steward.client.text.TextKeys;
 import dev.larattalabs.steward.client.text.TextModel;
+import dev.larattalabs.labui.client.ui.Kit;
+import dev.larattalabs.labui.client.ui.Panels;
 import dev.larattalabs.labui.client.ui.UiStyle;
 import java.util.ArrayList;
 import java.util.List;
@@ -95,6 +97,78 @@ public abstract class KitScreen extends Screen {
 
 	protected int chipWidth(String label) {
 		return font.width(label) + 12;
+	}
+
+	/** Height of {@link #rowButton} and {@link #option}: lab-ui's 18 px Button minimum and Chip height. */
+	public static final int ROW_BUTTON_H = dev.larattalabs.labui.client.widget.Chip.H;
+
+	/** A row's own action (Approve, Build it, Update): lab-ui's kit button at its 18 px minimum, numberless; returns its width. */
+	protected int rowButton(GuiGraphicsExtractor g, String label, boolean primary, boolean enabled, int x, int y, int mouseX, int mouseY, Runnable action) {
+		int w = rowButtonWidth(label);
+		Btn b = new Btn(label, 0, primary, false, enabled, x, y, w, ROW_BUTTON_H, action);
+		dev.larattalabs.labui.client.widget.Button.paint(g, font, label, 0, x, y, w, ROW_BUTTON_H, primary, false, !enabled, enabled && b.hit(mouseX, mouseY), false);
+		buttons.add(b);
+		return w;
+	}
+
+	protected int rowButtonWidth(String label) {
+		return dev.larattalabs.labui.client.widget.Button.width(font, label);
+	}
+
+	/** One choice of several (a size, a permission, a way): lab-ui's {@code Chip}, 18 px, selected when {@code on}; returns its width. */
+	protected int option(GuiGraphicsExtractor g, String label, int x, int y, boolean on, boolean enabled, int mouseX, int mouseY, Runnable action) {
+		var c = new dev.larattalabs.labui.client.widget.Chip(label).selected(on);
+		c.disabled(!enabled);
+		int w = c.draw(g, font, x, y, mouseX, mouseY);
+		buttons.add(new Btn(label, 0, false, false, enabled, x, y, w, ROW_BUTTON_H, action));
+		return w;
+	}
+
+	protected int optionWidth(String label) {
+		return new dev.larattalabs.labui.client.widget.Chip(label).width(font);
+	}
+
+	/**
+	 * Text for what is blocked on the player: lab-ui's {@code semantic.clay_text} (UiStyle.clayText()) (#9A3F27, at least 4.5:1 on paper, the inset and the selected fill)
+	 * once the lab-ui release after 0.4.0 carries it, the same colour until then. Clay ({@code UiStyle.CLAY_DARK}) as text was 3.76:1 on the inset.
+	 */
+	protected static int attention() {
+		return UiStyle.color("semantic.clay_text", 0xFF9A3F27);
+	}
+
+	/**
+	 * The kit header with a right-aligned meta line on the title's own baseline (the meta used to sit 2 px above it). The same as lab-ui's
+	 * {@code Panels.header(g, font, title, meta, argb, x, y, w)} in the release after 0.4.0; switch to it then.
+	 */
+	protected void header(GuiGraphicsExtractor g, String title, String meta, int metaArgb, int x, int y, int w) {
+		Kit.Padding p = Kit.padding("header");
+		int mw = meta == null || meta.isEmpty() ? 0 : font.width(meta);
+		Panels.header(g, font, dev.larattalabs.labui.client.ui.TextUtil.ellipsize(font, title, Math.max(0, w - p.left() - p.right() - (mw > 0 ? mw + 8 : 0))), x, y, w);
+		if (mw > 0) g.text(font, meta, x + w - p.right() - mw, y + p.top() + 1, metaArgb, false);
+	}
+
+	/** A selected list row: the kit's selected fill with a 2 px clay bar at the left (muted text stays 4.8:1 on it; the old clay wash left it 3.95:1). */
+	protected static void selectedRow(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+		g.fill(x, y, x + w, y + h, UiStyle.selected());
+		g.fill(x, y, x + 2, y + h, UiStyle.selectedEdge());
+	}
+
+	/** A hovered list row: the kit's hover fill. */
+	protected static void hoverRow(GuiGraphicsExtractor g, int x, int y, int w, int h) {
+		g.fill(x, y, x + w, y + h, UiStyle.rowHover());
+	}
+
+	/** The hint for the number keys drawn this frame: "2-3", "1", or null when none is. */
+	protected @Nullable String numberHint() {
+		int lo = Integer.MAX_VALUE;
+		int hi = 0;
+		for (Btn b : buttons) {
+			if (b.number() > 0 && b.enabled()) {
+				lo = Math.min(lo, b.number());
+				hi = Math.max(hi, b.number());
+			}
+		}
+		return hi == 0 ? null : lo == hi ? Integer.toString(lo) : lo + "-" + hi;
 	}
 
 	protected int buttonWidth(String label, int number) {

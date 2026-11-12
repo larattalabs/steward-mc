@@ -446,7 +446,7 @@ public final class StewardCommands {
 							}
 							String site = r.siteId().orElse("?");
 							dev.larattalabs.steward.service.Settlements.log(id, new dev.larattalabs.steward.model.Settlement.LogEntry(System.currentTimeMillis(),
-								dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED, "Placed 1 buildings (dev)", java.util.List.of(site)));
+								dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED, "Placed 1 building (dev)", java.util.List.of(site)));
 							p.sendSystemMessage(Component.literal("dev placed " + site));
 						});
 					return 1;
