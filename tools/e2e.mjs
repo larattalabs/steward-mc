@@ -958,6 +958,7 @@ async function growthFlow() {
   else fail('growth town', `${rv.state}, founding entries ${still}`);
   // undone: only the revision goes, the town's ground as before the growth
   from = logSize();
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
   await cmd(`/steward undo ${id}`);
   let last = null;
   for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
@@ -975,6 +976,8 @@ async function growthFlow() {
   // then the town itself
   const v3 = await dev.request('dev.region.state', { region }).catch(() => null);
   const pre = v3?.view ?? v3 ?? {};
+  // clear of the town (Architect waits for a player in a box it restores)
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
   const said = await cmd(`/steward undo ${id}`);
   // logged as the town's removal (its founding entry's sites), as villageFlow's undo
   let gone = null;
