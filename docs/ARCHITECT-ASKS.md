@@ -1397,3 +1397,10 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
 - **The order is confirmed** (Noah via parent session: "Alongside 7c (A)"). Architect's "M5 support" contract (docs/m5-support 701e563b) is
   reviewed: ok, with one change asked. QT also quotes an approved artifact, not only a planId, because Steward's composed path realises
   through `realiseApproved`. RCs: GP+QT, then FC+IG, then FK.
+
+### v0.60.0 pin (2026-11-12): PASS, merged
+Architect v0.60.0 (API 1.53.0, kit 0.55.0, catalogue 17; the 7b PL+SO RC, released first under DEV MODE) is pinned on pin-060 (runtime minimum
+0.60.0). The build and unit tests pass against the published package (381/0). Steward calls no site API yet (PL, SO, DS, SL), so the run covers what
+the release can still break for it: `stub --only gate,wall,survival,place,player-builds,discard`, PASS, 94 checks over 17 flows (stub, survival and
+supplied billing, wall and gate lots, every gate mechanism and drawbridge in creative and survival, discard). `place` and `player-builds` are free-mode
+flows; they run with the v0.61.0 pass.
