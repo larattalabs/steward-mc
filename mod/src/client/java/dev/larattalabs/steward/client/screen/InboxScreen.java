@@ -420,7 +420,7 @@ public final class InboxScreen extends KitScreen {
 				return;
 			}
 			case InboxModel.LAND -> {
-				button(g, "Got it", 1, true, false, idle, bx, y, mx, my, () -> send("land_dismiss", "", "", 0, "Clearing it"));
+				button(g, "Got it", 1, false, false, idle, bx, y, mx, my, () -> send("land_dismiss", "", "", 0, "Clearing it"));
 				return;
 			}
 			case "UPDATE" -> {

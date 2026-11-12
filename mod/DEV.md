@@ -398,3 +398,6 @@ over the town and district regions, word it (`LandWords`) and keep one `LAND` in
     nothing else. The steward says "The smokehouse: 1 block broken or changed, 1 placed by a player." and nothing more. The inbox shows the row
     (`e2e-land-inbox.png`). "what changed?" is answered the same with no talk job. "Got it" clears it.
 - **Unit:** `LandWordsTest` 14, `LandChecksTest` 7; all of `build` (372) and `npm test` (35) pass.
+- **Design critic** (`e2e-land-inbox.png`): iterate. Taken: "Got it" blocks nothing, so it is the secondary button, not clay (run 4: PASS 14).
+  Left for the whole inbox, not this row: the muted token's contrast on cream, the footer's "↑↓ build" label on a non-build row, spacing
+  between a row's headline and its lines.
