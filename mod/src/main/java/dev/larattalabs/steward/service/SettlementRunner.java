@@ -1776,6 +1776,7 @@ public final class SettlementRunner {
 		}
 		entries.addAll(Updates.inboxEntries());
 		entries.addAll(Proposals.inboxEntries());
+		entries.addAll(LandChecks.inboxEntries());
 		net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new StewardNet.Inbox(List.copyOf(entries)));
 	}
 

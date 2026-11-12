@@ -112,6 +112,24 @@ public final class StewardCommands {
 				ctx.getSource().sendSuccess(() -> Component.literal("Checked for building updates: see the inbox (Y)."), false);
 				return 1;
 			}))
+			.then(Commands.literal("check").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
+				// the steward looks over the land (docs/LAND.md): a look, open to everyone, $0
+				var src = ctx.getSource();
+				String id = StringArgumentType.getString(ctx, "id");
+				var s = dev.larattalabs.steward.service.Settlements.store().get(id);
+				if (s.isEmpty()) { src.sendFailure(Component.literal("No such settlement: " + id + ".")); return 0; }
+				src.sendSuccess(() -> Component.literal("[" + s.get().name() + "] Let me look over the land."), false);
+				var player = src.getPlayer();
+				dev.larattalabs.steward.service.LandChecks.ask(src.getServer(), s.get(), lines -> {
+					// the answer comes later: to the player's chat (the command's own source may be gone by then)
+					for (String l : lines) {
+						if (player != null) player.sendSystemMessage(Component.literal("[" + s.get().name() + "] " + l));
+						else src.sendSuccess(() -> Component.literal("[" + s.get().name() + "] " + l), false);
+					}
+					dev.larattalabs.steward.service.StewardVoice.say(src.getServer(), id, lines.get(0));
+				});
+				return 1;
+			}).then(Commands.literal("dismiss").executes(ctx -> decide(ctx, "land_dismiss", "", "", 0)))))
 			.then(Commands.literal("expand").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "expand", "", "", 0))))
 			.then(Commands.literal("view").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "settlement", "", "", 0))
 				.then(Commands.argument("site", StringArgumentType.word()).executes(ctx -> decide(ctx, "building", StringArgumentType.getString(ctx, "site"), "", 0)))))
@@ -348,6 +366,29 @@ public final class StewardCommands {
 					String site = StringArgumentType.getString(ctx, "site");
 					var v = ArchitectApi.get().sites(ctx.getSource().getServer()).get(site);
 					ctx.getSource().sendSuccess(() -> Component.literal(v.map(x -> "site " + site + " stands (" + x.kind() + ")").orElse("site " + site + " is gone")), false);
+					return 1;
+				}))).then(Commands.literal("solid").then(Commands.argument("site",
+				StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check, docs/LAND.md): up to 4 solid cells of a site's box, the highest in its middle columns: "solid x,y,z x,y,z ..."
+					String site = StringArgumentType.getString(ctx, "site");
+					var v = ArchitectApi.get().sites(ctx.getSource().getServer()).get(site);
+					if (v.isEmpty()) { ctx.getSource().sendFailure(Component.literal("site " + site + " is gone")); return 0; }
+					var level = ctx.getSource().getServer().getLevel(v.get().dimension());
+					var b = v.get().box();
+					StringBuilder out = new StringBuilder("solid");
+					int cx = (b.minX() + b.maxX()) / 2, cz = (b.minZ() + b.maxZ()) / 2, n = 0;
+					for (int dx = 0; dx <= 1 && n < 4; dx++) for (int dz = 0; dz <= 1 && n < 4; dz++) {
+						for (int y = b.maxY(); y > b.minY(); y--) {
+							var pos = new net.minecraft.core.BlockPos(cx + dx, y, cz + dz);
+							var st = level.getBlockState(pos);
+							if (!st.isAir() && st.getFluidState().isEmpty() && !st.is(net.minecraft.tags.BlockTags.LEAVES)) {
+								out.append(' ').append(pos.getX()).append(',').append(pos.getY()).append(',').append(pos.getZ());
+								n++;
+								break;
+							}
+						}
+					}
+					ctx.getSource().sendSuccess(() -> Component.literal(out.toString()), false);
 					return 1;
 				}))).then(Commands.literal("permission").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("level",
 				StringArgumentType.word()).executes(ctx -> {

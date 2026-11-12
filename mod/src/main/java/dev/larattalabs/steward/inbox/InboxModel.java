@@ -39,7 +39,7 @@ public final class InboxModel {
 		public Entry(String settlementId, String name, String decision, String headline, List<String> lines, List<Lot> lots, double budgetUsd, double spentUsd,
 			double minRaiseUsd) {
 			this(settlementId, name, decision, headline, lines, lots, budgetUsd, spentUsd, minRaiseUsd,
-				!Pipeline.Decision.NONE.name().equals(decision) && !ENDED.contains(decision) && !"PROPOSAL".equals(decision), 0);
+				!Pipeline.Decision.NONE.name().equals(decision) && !ENDED.contains(decision) && !"PROPOSAL".equals(decision) && !LAND.equals(decision), 0);
 		}
 
 		/** Buildings done (designed, or placed once placing). */
@@ -54,11 +54,12 @@ public final class InboxModel {
 
 		/** Unique in the inbox: a settlement can have a build in progress and updates waiting at once. */
 		public String key() {
-			return "UPDATE".equals(decision) ? settlementId + "#updates" : "PROPOSAL".equals(decision) ? settlementId + "#proposals" : settlementId;
+			return "UPDATE".equals(decision) ? settlementId + "#updates" : "PROPOSAL".equals(decision) ? settlementId + "#proposals"
+				: LAND.equals(decision) ? settlementId + "#land" : settlementId;
 		}
 
 		public boolean waiting() {
-			return !Pipeline.Decision.NONE.name().equals(decision) && !ended();
+			return !Pipeline.Decision.NONE.name().equals(decision) && !ended() && !LAND.equals(decision);
 		}
 
 		/** Held by the player's usage limit: nothing moves until it resets ({@code limitResetsAt}). */
@@ -66,6 +67,9 @@ public final class InboxModel {
 			return !ended() && limitResetsAt > 0;
 		}
 	}
+
+	/** The decision of a settlement's land row (docs/LAND.md): what the steward saw changed; nothing to decide, "Got it" clears it. */
+	public static final String LAND = "LAND";
 
 	/** The line of a build held by the player's usage limit (then its reset time). */
 	public static final String HELD_LINE = "Waiting for your usage limit to reset";
@@ -122,6 +126,11 @@ public final class InboxModel {
 		String headline = ready == 0 ? "Updates are available but cannot be applied right now (see each building)."
 			: ready + (ready == 1 ? " building has" : " buildings have") + " a newer version: update, preview the change, or skip. Your own edits are kept.";
 		return new Entry(settlementId, name, "UPDATE", headline, List.of(), buildings, 0, 0, 0);
+	}
+
+	/** What the steward saw changed in a settlement's land (docs/LAND.md): one row, needing no one, its lines the buildings and parts that changed. */
+	public static Entry land(String settlementId, String name, String headline, List<String> lines) {
+		return new Entry(settlementId, name, LAND, headline, lines, List.of(), 0, 0, 0, false, 0);
 	}
 
 	static String working(Pipeline.Phase p) {

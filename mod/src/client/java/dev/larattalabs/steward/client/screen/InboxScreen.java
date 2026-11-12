@@ -127,6 +127,7 @@ public final class InboxScreen extends KitScreen {
 			case "PLACEMENT" -> new String[] {"waiting", "ready to place"};
 			case "UPDATE" -> new String[] {"done", "update available"};
 			case "PROPOSAL" -> new String[] {"thinking", "an idea"};
+			case InboxModel.LAND -> new String[] {"idle", "the land"};
 			case "DONE" -> new String[] {"done", "built"};
 			case "FAILED" -> new String[] {"error", "failed"};
 			case "CANCELLED" -> new String[] {"idle", "cancelled"};
@@ -218,11 +219,12 @@ public final class InboxScreen extends KitScreen {
 	}
 
 	/** The list's groups: what is blocked on the player, the steward's ideas, what is being built, what ended in the last minutes. */
-	private static final String[] GROUPS = {"Needs you", "Ideas", "Building", "Ended"};
+	private static final String[] GROUPS = {"Needs you", "Ideas", "Building", "Noticed", "Ended"};
 
 	private static int group(InboxModel.Entry e) {
 		// an idea is the player's to take or leave, never blocked on them: its own group, as the HUD and the nameplate leave it out of "needs you"
-		return e.needsYou() ? 0 : e.ended() ? 3 : e.waiting() ? 1 : 2;
+		// what the steward noticed in the land (docs/LAND.md) is news, not a decision: its own group, after the builds
+		return e.needsYou() ? 0 : e.ended() ? 4 : InboxModel.LAND.equals(e.decision()) ? 3 : e.waiting() ? 1 : 2;
 	}
 
 	private int listHeight(List<InboxModel.Entry> all) {
@@ -274,11 +276,11 @@ public final class InboxScreen extends KitScreen {
 		// the pill, the name, the spend
 		String[] p = pill(e);
 		int pw = UiBits.dotPill(g, font, p[0], p[1], x, y - 1, UiBits.ink());
-		String spend = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision()) ? "" : String.format("$%.2f of $%.0f", e.spentUsd(), e.budgetUsd());
+		String spend = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision()) || InboxModel.LAND.equals(e.decision()) ? "" : String.format("$%.2f of $%.0f", e.spentUsd(), e.budgetUsd());
 		g.text(font, spend, x + w - font.width(spend), y + 1, e.spentUsd() >= e.budgetUsd() * 0.8 ? UiStyle.CLAY_DARK : UiBits.muted(), false);
 		g.text(font, TextUtil.ellipsize(font, e.name(), w - pw - font.width(spend) - 14), x + pw + 6, y + 1, UiBits.ink(), false);
 		y += 14;
-		boolean update = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision());
+		boolean update = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision()) || InboxModel.LAND.equals(e.decision());
 		if (!update) {
 			// progress: buildings designed
 			int total = Math.max(1, e.lots().size());
@@ -415,6 +417,10 @@ public final class InboxScreen extends KitScreen {
 			}
 			case "PLACEMENT" -> bx += button(g, "Place it", 1, true, false, idle, bx, y, mx, my, () -> send("approve", "", "", 0, "Placing " + e.name())) + 6;
 			case "PROPOSAL" -> {
+				return;
+			}
+			case InboxModel.LAND -> {
+				button(g, "Got it", 1, true, false, idle, bx, y, mx, my, () -> send("land_dismiss", "", "", 0, "Clearing it"));
 				return;
 			}
 			case "UPDATE" -> {
