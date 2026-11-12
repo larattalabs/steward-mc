@@ -489,6 +489,17 @@ answers are the recommended defaults:
 5. **Upgrades:** no in-place upgrades. A second field is a second module.
 6. **Vanilla blocks only**, as for every template.
 
+**M0's results (Noah via parent session, 2026-11-12: "Merge M0, defaults").** The probe's findings (docs/PROBE-M0.md) change these bars; M2 and
+M4 build to them, and they override sections 3.1 and 3.2 where those say otherwise:
+1. **Hydration (3.1, measurement 1):** the farm writes its farmland as `moisture=7`, and the bar is "every cell still 7 after 24,000 ticks". "Every
+   cell moist within 240 s" is dropped: each cell hydrates on its own random tick (about 3% still dry at 4,800 ticks).
+2. **Light (3.1, measurement 2):** the bar is mob safety (block light for spawning), not growth. Open-sky crops grow at night by vanilla's rule; the
+   light-9 growth rule matters only for covered fields. The lamp role's "light 14 or more" rule stands.
+3. **The filler (3.2):** a filter hopper accepts its own filler, so the filler is one survival can't make (measured in M4) and is out of the test mix.
+   If M4 finds none, the offer names the risk and Remove/repair restores the filter.
+4. **Layout rules, recorded:** IRR's water sits level with the farmland or one above, never below; no hopper sits under a filter hopper; slot chests
+   written `type=single` stay single. Section 8's Steward dev hooks move to M2 and M4.
+
 **Open for later (phase 5b; not blocking phase 5):**
 - **Water for sugar cane.** Each cane base needs water beside it. Is that IRR's `irrigate` with a cane layout, or a new Architect member
   (contained channels along the rows, built on H)? To be decided with M7's design, as an ask if needed.
