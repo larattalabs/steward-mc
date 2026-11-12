@@ -1,6 +1,6 @@
 # Functional modules (phase 5)
 
-Status: design v2, 2026-11-12, for review before code. $0: no code and no paid runs. It builds after survival growth A2.
+Status: design v2.1, 2026-11-12, for review before code. $0: no code and no paid runs. It builds after survival growth A2.
 - Noah asked on 2026-11-12 for the design to start now.
 - PLAN.md "Phase 5" sets the scope:
   - a verified catalog: a crop farm, and a storage hall with sorting;
@@ -8,7 +8,7 @@ Status: design v2, 2026-11-12, for review before code. $0: no code and no paid r
   - the spine and connectors;
   - the gate: each module's output measured in the dev client, and two modules composed into a settlement.
 - Architect asks: ARCHITECT-ASKS.md, "Phase 5: functional modules (S-M5)". Noah's questions: section 9.
-- v2 folds in GPT's design review (section 10).
+- v2 folds in GPT's design review and its fix check (section 10).
 
 ## 1. What a module is
 
@@ -100,13 +100,14 @@ What a measurement covers, and so what may be offered:
 - **All four facings**, and placement across a chunk border.
 - **Pinned versions**: the program sha, the checker version and the kit version.
 - **Palette constraints.**
-  - The lamp role must give light 14 or more. Otherwise the program uses its fallback lantern.
+  - The lamp role must give light 14 or more. Otherwise the program uses its fallback lantern, which is part of the measured envelope and
+    shown on the offer ("lit by plain lanterns: your style's lamp is too dim"). This is the only substitution.
   - Roles that touch the core may not be redstone-conductive in the sorter's circuit plane, and may not be gravity blocks.
-  - The program validates these and refuses a bible that breaks them. It never substitutes silently.
+  - The program checks these and refuses a bible that breaks them. Apart from the lamp, it never substitutes.
 - **For the sorter, the item classes** that 3.2 allows.
 
-The M1 gate re-skins every branch with three bibles, one per palette family the strange-ask corpus uses most, and checks each with the
-checker. It measures one re-skin per module in full.
+The checker runs over every branch, each re-skinned by three bibles (one per palette family the strange-ask corpus uses most). M1 does this
+on fixture modules. M2 and M4 do it on their modules, and each measures one re-skin in full.
 
 ## 3. The first catalog
 
@@ -206,7 +207,8 @@ from the measured rate.
    - **Crash cases around activation:**
      - a cancel before the fill: no filter items are written, and none are refunded;
      - a crash between the fill and the unlock: the fill is not repeated;
-     - a crash mid-sort, then undo: the filter items are refunded once, and the cargo is not refunded.
+     - a filter hopper holding one extra item of its own kind: undo refused as cargo;
+     - crashes during capture, during removal and during refund crediting: refunded exactly once, never minted.
 
 **Tier.**
 - Hoppers need iron and comparators need nether quartz.
@@ -279,8 +281,11 @@ asks first when the **whole growth's bill** takes more than half of the stockpil
 4. **The binding.** Saved with the build (`moduleBindings`, BuildStore format 5) before the realise:
    - `lotId -> {entryId, version, programSha, params, bibleVersion, geometrySha}`;
    - `geometrySha` covers the lot's box, frame and irrigation cells.
-5. **The bill.** The whole revision's bill (the plan's `cost.bom`: the lot, the lanes, the lamps and the irrigation shells) is compared with
-   the bound approved at Accept (4.4). Over the bound, the build pauses and asks again.
+5. **The bill.** The whole operation's bill: the revision's parts (lanes, lamps, irrigation shells), every bound lot entry, and the filter
+   fill (S-M5-3). It comes from a read-only quote of the revision plan with the final `lotEntries` (S-M5-7). `planRevision` returns no bill, and
+   Architect's plan BOM leaves out unbound lots.
+   - The quote is compared with the bound approved at Accept (4.4), and Q4's threshold applies to it.
+   - Over the bound, the build pauses and asks again before anything is consumed.
 6. **Realise.** The module entries go straight into `lotEntries` beside the designed ones, outside the design group. DS's site variants are
    bound the same way. A module lot whose entry is missing refuses the realise; it is never left as a pad.
 
@@ -385,7 +390,7 @@ rules:
 | a crop the player replanted on a field cell | the player's block (a PT record) | **S-M5-4:** it goes with the lot, not a removal blocker; its planting item (one seed) is returned **once** as cargo, never the original construction seed |
 | any other player block on the field (a torch, a sign) | the player's | unchanged: kept, or a blocker, as PT says |
 | a chest, hopper or composter holding items (cargo) | "a container the player filled is not ours": refuses Remove | **refused and said** (Q3): "the sorting hall still holds 1,240 items in 9 chests; empty it first", with the containers named. Nothing is lost or duplicated. Optional S-M5-6: the cargo moves into the stockpile |
-| filter hoppers (S-M5-3) | their contents change as items pass | while they hold only their declared items, they are ours; on removal their contents are captured in the same tick the hopper is removed (no transfer in between, no vanilla drop); the filter count refunds as construction, any excess is cargo |
+| filter hoppers (S-M5-3) | their contents change as items pass | ours while they hold exactly their declared contents. **Anything more, even more of the filter's own item, is cargo and blocks removal** like any cargo (Q3). Cleared, the contents are captured in the same tick the hopper is removed (no transfer in between, no vanilla drop) and refunded as construction through the journal's durable replay |
 
 **Standing and reconcile.** A worked field is not "partly built" or damaged (S-M5-4):
 - Architect's standing score compares template blocks, so its field cells are judged by the field rule, not block by block.
@@ -415,6 +420,7 @@ rules:
   The flow is short enough for the sanity set of an Architect RC that touches regions, fluids or growth, and it runs nightly.
 - **Survival e2e:**
   - the farm from a stockpile, with partial feeding: the bill comes in, the materials are consumed, and an undo mid-build refunds them;
+  - an operation whose quote is over the approved bound, with a fully stocked stockpile: the build pauses and nothing is consumed;
   - the sorter's crash cases (3.2 item 6).
 
 ## 8. Slices and gates
@@ -428,9 +434,9 @@ rules:
 | **M0 probe** | Section 2.1's vanilla rules and the assembled sorter tile, measured on the running 26.3 server; `tools/module-probe.mjs`; Steward's dev hooks; the usefulness bars fixed | nothing | every rule measured, numbers committed; the sorter tile's 20 runs pass; any failure stops the phase and goes to Noah |
 | **M1 catalog** | The catalog format (program, schema, envelope, `measured.json`), gating, palette constraints, bindings (BuildStore 5) | S-M5-1 | a module entry installed at $0 by key; every branch re-skinned by three bibles, checker clean; unit tests |
 | **M2 crop farm** | `crop_farm@1` and its measurement | M0, M1, S-M5-2, S-M5-4 | 3.1's measurement passes over its envelope (items 1-7); gate-verifier |
-| **M3 offer and place** | `module.crop_farm`, identity coalescing, eligibility, the priced decorative substitute, talk naming a module, the bill bound, growth A, B and A2 placement, re-binding after a stale plan | M2, growth A2 merged, S-M5-2 shipped | e2e `module` (farm) and the survival e2e; GPT review (spending, undo, persistence) |
-| **M4 storage hall** | `storage_hall@1` and its measurement, `module.storage_hall`, the tier gate, undo refused while it holds cargo | M0, M1, S-M5-3 (or `slots = 0` only) | 3.2's measurement passes over its envelope, the crash cases included; e2e `module` (hall); GPT review |
-| **M5 composed** | The plan writer names modules; Steward binds module lots in plan v1 | M3, M4 | **phase 5 gate:** a composed settlement with a crop farm and a storage hall, built, each measured in place; gate-verifier; Noah's look |
+| **M3 offer and place** | `module.crop_farm`, identity coalescing, eligibility, the priced decorative substitute, talk naming a module, the bill bound, growth A, B and A2 placement, re-binding after a stale plan | M2, growth A2 merged, S-M5-2 and S-M5-7 shipped | e2e `module` (farm) and the survival e2e; GPT review (spending, undo, persistence) |
+| **M4 storage hall** | `storage_hall@1` and its measurement, `module.storage_hall`, the tier gate, undo refused while it holds cargo | M0, M1, S-M5-3 (the plain hall, `slots = 0`, may ship before it as an interim) | 3.2's measurement passes over its envelope, the crash cases included; e2e `module` (hall); GPT review |
+| **M5 composed** | The plan writer names modules; Steward binds module lots in plan v1 | M3, M4 with sorting | **phase 5 gate:** a composed settlement with a crop farm and a storage hall **with at least 4 sorting slots**, built, each measured in place (sorting included); gate-verifier; Noah's look. A plain hall does not meet it |
 | **M6 spine** (if Q2 says so) | `connector.items`, hopper chains only, from the farm's chest to the hall's input | S-M5-5 | items carried, measured with 3.2's bars; removal in both orders |
 
 **Order.**
@@ -503,3 +509,17 @@ plans, with Noah's OK on the spend.
   at Accept, the decorative substitute as its own priced offer.
 - **S10. The spine.** Taken: Q2 is put as a scope change. S-M5-5 now has its transport semantics, and M6 is bounded.
 - **N11. Geometry.** Taken: W = F + 2 and D = F + 3 from IRR's frame, the discrete sizes, and a smaller size only as an explicit new plan.
+
+**GPT fix check, round 2** (at 48aedba): 9 of the 11 findings resolved. B3 and B4 were only partly resolved, and the check raised 2 new
+blockers, 2 should-fixes and 1 nit. All are taken. This was the last round.
+- **R2-B1. The bill has no source.** `RegionPlan` carries no bill, and the plan BOM leaves out unbound lots. Taken: new ask S-M5-7, a
+  read-only quote of a revision plan with its final `lotEntries`, plus a gate for an over-bound bill with nothing consumed (4.2 step 5, 7).
+- **R2-B2. Excess filter items bypass the cargo refusal.** Taken:
+  - any content past the declared fill is cargo and blocks removal, even of the filter's own kind;
+  - captured contents are credited through durable replay;
+  - crash cases added for capture, removal and crediting (6, 3.2, S-M5-3).
+- **R2-S3. A plain hall can meet the gate.** Taken: the phase gate needs a sorting hall with at least 4 slots; the plain hall ships only as
+  an interim.
+- **R2-S4. M1's gate depends on M2 and M4.** Taken: M1 checks fixture modules; the full re-skin measurements move to M2 and M4.
+- **R2-N5. The lamp fallback contradicts the no-substitution rule.** Taken: the lantern is the one disclosed exception, inside the measured
+  envelope.

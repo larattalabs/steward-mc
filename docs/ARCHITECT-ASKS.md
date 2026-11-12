@@ -1332,10 +1332,11 @@ version. Each ask is a question with Steward's preferred answer. Revised after G
     - **Cancel.** A cancel before the fill writes and refunds no filter items.
   - **On removal:** each declared container's inventory is captured in the same tick as its removal, with no transfer in between and no
     vanilla drop.
-    - Up to the declared count, it refunds as construction.
-    - Anything more is cargo.
-  - **"Ours":** while a declared container holds only its declared item kinds, it stays ours (not a removal blocker). Any other item is cargo
-    and makes it a blocker, as today.
+    - The declared contents refund as construction.
+  - **"Ours" and removal:** a declared container is ours while it holds exactly its declared contents.
+    - Anything more, even more of its own item, is cargo, and cargo blocks removal as today, unless a transfer option (S-M5-6) is chosen.
+    - Captured contents and their refund credits take part in the journal's durable replay, so a crash during capture, removal or crediting
+      refunds once and mints nothing.
   - **Preferred:** yes, opt-in per cell, with an upper bound on items per entry.
 - **S-M5-4. Field cells of a module lot.** A worked field changes every day: harvested cells (air over farmland) and crops the player
   replants, which PT records as the player's.
@@ -1362,3 +1363,10 @@ version. Each ask is a question with Steward's preferred answer. Revised after G
   - **Today:** a filled container refuses Remove. Steward's default keeps that and tells the player to empty the hall.
   - **Asked:** is it feasible, as an option on a removal, to move every container's cargo into the owner's stockpile crate (C24) in the
     same commit, with overflow dropped at the crate as refunds are? Steward needs it only if Noah picks it (MODULES.md Q3).
+- **S-M5-7. A quote for a revision with its entries.**
+  - **Today:** `planRevision` returns a `RegionPlan` with no bill, and the survival plan BOM leaves out unbound lots.
+  - **Asked:** a read-only, $0 quote of a planned revision (or a plan/0 artifact) with the caller's final `lotEntries`:
+    - the per-item bill of the whole operation: its parts, every bound entry, S-M5-3's fills, and any placement costs;
+    - no consumption, no write.
+  - **Why:** Steward compares the quote with the bound the player approved before anything is consumed (MODULES.md 4.2 step 5).
+  - **Preferred:** `Regions.quote(planId, lotEntries)`, returning the same shape as the plan check's `cost.bom`, bound entries included.
