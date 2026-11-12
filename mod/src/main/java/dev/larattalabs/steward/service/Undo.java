@@ -112,7 +112,8 @@ public final class Undo {
 		for (String id : ids) all.get(id).ifPresent(v -> now.put(id, v.version()));
 		java.util.Collections.reverse(ids); // newest first
 		boolean adopted = entry.get().kind() == Settlement.Kind.BUILD_ADOPTED;
-		say.accept(adopted ? "Letting go of \"" + entry.get().text() + "\": the build stays as it stands..."
+		// a growth says its own (it may be refused before anything is asked: still built from the stockpile, slice A2)
+		if (!Growths.isGrowth(entry.get().siteGroup())) say.accept(adopted ? "Letting go of \"" + entry.get().text() + "\": the build stays as it stands..."
 			: "Removing " + ids.size() + " sites of \"" + entry.get().text() + "\" and restoring the land...");
 		var sites = ArchitectApi.get().sites(server);
 		RemoveOptions as = new RemoveOptions(false, s.owner());
