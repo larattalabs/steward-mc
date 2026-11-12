@@ -990,7 +990,11 @@ public final class SettlementRunner {
 			}
 			// an addition to a region town grows the town (docs/GROWTH.md, slice A): a revision of its region, never Steward's street pieces beside it
 			if (addition && district == null && existing != null && ArchitectApi.get().features().contains(Growths.FEATURE)) {
-				var town = TownRegion.of(existing).flatMap(id -> ArchitectApi.get().regions().get(id));
+				// an adoption a lost answer or a failed save left open is closed first: its receipt makes the town a region town (slice B)
+				if (!Adoption.reconcile(server, existing, true)) { abandon("The settlement's history could not be saved; try again."); return; }
+				var now = Settlements.store().get(existing.id()).orElse(existing);
+				if (Adoption.openIntent(now).isPresent()) { abandon("The town is being changed right now; ask again once it has settled."); return; }
+				var town = TownRegion.of(now).flatMap(id -> ArchitectApi.get().regions().get(id));
 				if (town.isPresent()) {
 					var v = town.get();
 					boolean inFlight = v.revisions() != null && v.revisions().stream().anyMatch(x -> !Growths.ended(x.state())
@@ -1046,6 +1050,15 @@ public final class SettlementRunner {
 	 * or a lost answer is closed by the reconcile; adopted, the receipt is saved and slice A grows it; refused outright (nothing moved), today's path
 	 * ({@code legacy}); any other answer (busy, lost, the world stopping) stops the build, never today's path while the outcome is unknown.
 	 */
+	/** This build's adoption call is in flight (the reconcile leaves its intent open meanwhile). */
+	private volatile boolean adopting;
+
+	/** Whether a build of the settlement has an adoption call in flight. */
+	public static boolean adoptInFlight(String settlementId) {
+		SettlementRunner r = ACTIVE.get(settlementId);
+		return r != null && r.adopting;
+	}
+
 	private void adoptTown(CardResult r, double budgetUsd, List<VillageLayout.LotSpec> specs, Adoption.Inventory inv, Runnable legacy) {
 		var saved = Settlements.store().get(settlement.id()).orElse(null);
 		if (saved == null) { legacy.run(); return; }
@@ -1072,10 +1085,12 @@ public final class SettlementRunner {
 		ext.addProperty(Adoption.KEY_EXT, key);
 		say("The town is taken on as one region (Architect), so it can grow...");
 		int session = Session.current();
+		adopting = true;
 		Steward.LOGGER.info("adopt {}: street z {} x {}..{}, {} roads, {} lots, key {}", settlement.id(), inv.streetZ(), inv.xLo(), inv.xHi(), inv.roads().size(),
 			inv.lots().size(), key);
 		ArchitectApi.get().regions().adopt(new dev.larattalabs.architect.api.AdoptRegionRequest(settlement.owner(), level.dimension(), box,
 			dev.larattalabs.architect.api.AdoptRegionRequest.VILLAGE_LAYOUT, geometry, inv.roads(), inv.lots(), key, ext)).whenComplete((v, err) -> server.execute(() -> {
+				adopting = false;
 				if (!Session.is(session) || !alive()) return;
 				if (worldStopped(err)) return;
 				if (err == null && v != null) {

@@ -37,48 +37,82 @@ public final class Adoption {
 	public static final String FEATURE = "regionAdopt";
 
 	/** What a town is adopted with: the street's line and ends, its road sites, and lot id -> site id. */
-	public record Inventory(int streetZ, int xLo, int xHi, List<String> roads, Map<String, String> lots) {}
+	public record Inventory(int streetZ, int xLo, int xHi, List<String> roads, Map<String, String> lots, Map<String, Integer> versions) {
+		public Inventory(int streetZ, int xLo, int xHi, List<String> roads, Map<String, String> lots) {
+			this(streetZ, xLo, xHi, roads, lots, Map.of());
+		}
+	}
 
-	/** A lot site as the inventory reads it (pure input): its id, its lot ext, its box's centre. */
-	public record LotSite(String siteId, @Nullable String lot, int cx, int cz) {}
+	/** A lot site as the inventory reads it (pure input): its id, its lot ext, its box's centre, its version. */
+	public record LotSite(String siteId, @Nullable String lot, int cx, int cz, int version) {
+		public LotSite(String siteId, @Nullable String lot, int cx, int cz) {
+			this(siteId, lot, cx, cz, 1);
+		}
+	}
+
+	/** A live site as the inventory reads it (pure input). */
+	public record Raw(String id, String kind, @Nullable String itemKey, String dimension, @Nullable String region, int minX, int maxX, int minZ, int maxZ,
+		com.google.gson.@Nullable JsonObject ext, int version) {}
 
 	// ------------------------------------------------------------------ the inventory
 
 	/** The town's adoptable inventory from the owner's live sites, or empty (no east-west street, or no lot). */
 	public static Optional<Inventory> inventory(MinecraftServer server, Settlement s) {
-		var all = ArchitectApi.get().sites(server).list(s.owner());
-		var street = Districts.streetOf(all, s, null);
+		List<Raw> raw = new ArrayList<>();
+		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
+			var b = v.box();
+			raw.add(new Raw(v.id(), v.kind(), v.itemKey(), v.dimension().identifier().toString(), v.region(), b.minX(), b.maxX(), b.minZ(), b.maxZ(), v.ext(),
+				v.version()));
+		}
+		return inventoryOf(raw, s);
+	}
+
+	/**
+	 * The inventory over live sites (pure): the town's street (as {@link Districts#streetOfPieces} reads it) and its road sites on that line; the lot sites
+	 * of this settlement in its dimension, standing in no region, centred in the town claim and in no district's land, not a player's build it took on.
+	 */
+	public static Optional<Inventory> inventoryOf(List<Raw> sites, Settlement s) {
+		String dim = s.claim().dimension();
+		List<Districts.Piece> pieces = new ArrayList<>();
+		for (Raw v : sites) {
+			if (!dim.equals(v.dimension()) || v.region() != null) continue;
+			pieces.add(new Districts.Piece(v.kind(), v.itemKey(), v.ext() != null && v.ext().has(BatchPlanner.REGION_STREET_EXT), v.minX(), v.maxX(), v.minZ(), v.maxZ(),
+				Districts.intExt(v.ext(), BatchPlanner.STREET_Z), Districts.intExt(v.ext(), BatchPlanner.STREET_X0), Districts.intExt(v.ext(), BatchPlanner.STREET_X1)));
+		}
+		var street = Districts.streetOfPieces(pieces, s, null);
 		if (street == null) return Optional.empty();
 		Set<String> playerBuilds = new HashSet<>();
 		for (var e : s.log()) if (e.kind() == Kind.BUILD_ADOPTED) playerBuilds.addAll(e.siteIds());
 		List<String> roads = new ArrayList<>();
 		List<LotSite> lots = new ArrayList<>();
-		String dim = s.claim().dimension();
-		for (SiteView v : all) {
-			if (v.region() != null || !dim.equals(v.dimension().identifier().toString())) continue;
-			var b = v.box();
-			int cx = Math.floorDiv(b.minX() + b.maxX(), 2), cz = Math.floorDiv(b.minZ() + b.maxZ(), 2);
+		Map<String, Integer> versions = new LinkedHashMap<>();
+		for (Raw v : sites) {
+			if (v.region() != null || !dim.equals(v.dimension())) continue;
+			int cx = Math.floorDiv(v.minX() + v.maxX(), 2), cz = Math.floorDiv(v.minZ() + v.maxZ(), 2);
 			if ("road".equals(v.kind()) && BatchPlanner.isStreet(v.itemKey())) {
-				if (onStreet(v, street, s)) roads.add(v.id());
+				if (onStreet(v, street, s)) {
+					roads.add(v.id());
+					versions.put(v.id(), v.version());
+				}
 				continue;
 			}
 			if (!s.id().equals(str(v.ext(), "steward_mc:settlement")) || str(v.ext(), "steward_mc:lot") == null || playerBuilds.contains(v.id())) continue;
 			if (!s.claim().contains(dim, cx, s.claim().minY(), cz) || s.districtAt(dim, cx, cz).isPresent()) continue;
-			lots.add(new LotSite(v.id(), str(v.ext(), "steward_mc:lot"), cx, cz));
+			lots.add(new LotSite(v.id(), str(v.ext(), "steward_mc:lot"), cx, cz, v.version()));
+			versions.put(v.id(), v.version());
 		}
 		if (roads.isEmpty() || lots.isEmpty()) return Optional.empty();
 		roads.sort(Adoption::bySiteId);
-		return Optional.of(new Inventory(street.z(), street.x0(), street.x1(), List.copyOf(roads), allocate(lots)));
+		return Optional.of(new Inventory(street.z(), street.x0(), street.x1(), List.copyOf(roads), allocate(lots), Map.copyOf(versions)));
 	}
 
 	/** A street road on the town's line (as {@link Districts#streetOfPieces} reads it). */
-	private static boolean onStreet(SiteView v, DistrictRules.Street street, Settlement s) {
-		var b = v.box();
+	private static boolean onStreet(Raw v, DistrictRules.Street street, Settlement s) {
 		Integer z = Districts.intExt(v.ext(), BatchPlanner.STREET_Z);
-		if (z == null && b.maxX() - b.minX() < b.maxZ() - b.minZ()) return false;
-		int cz = z != null ? z : Math.floorDiv(b.minZ() + b.maxZ(), 2);
+		if (z == null && v.maxX() - v.minX() < v.maxZ() - v.minZ()) return false;
+		int cz = z != null ? z : Math.floorDiv(v.minZ() + v.maxZ(), 2);
 		Integer x0 = Districts.intExt(v.ext(), BatchPlanner.STREET_X0), x1 = Districts.intExt(v.ext(), BatchPlanner.STREET_X1);
-		int mid = ((x0 != null ? x0 : b.minX()) + (x1 != null ? x1 : b.maxX())) / 2;
+		int mid = ((x0 != null ? x0 : v.minX()) + (x1 != null ? x1 : v.maxX())) / 2;
 		return cz == street.z() && s.districtAt(s.claim().dimension(), mid, cz).isEmpty();
 	}
 
@@ -138,8 +172,8 @@ public final class Adoption {
 
 	private static List<Settlement.SiteChange> changes(Inventory inv) {
 		List<Settlement.SiteChange> out = new ArrayList<>();
-		for (var e : inv.lots().entrySet()) out.add(new Settlement.SiteChange(e.getValue(), e.getKey(), 0, 1));
-		for (String r : inv.roads()) out.add(new Settlement.SiteChange(r, null, 0, 1));
+		for (var e : inv.lots().entrySet()) out.add(new Settlement.SiteChange(e.getValue(), e.getKey(), 0, inv.versions().getOrDefault(e.getValue(), 1)));
+		for (String r : inv.roads()) out.add(new Settlement.SiteChange(r, null, 0, inv.versions().getOrDefault(r, 1)));
 		return out;
 	}
 
@@ -214,7 +248,7 @@ public final class Adoption {
 
 	/** {@code inBuild}: asked by the settlement's own build before its adoption is asked (nothing of it is in flight). */
 	public static boolean reconcile(MinecraftServer server, Settlement s, boolean inBuild) {
-		if (!inBuild && SettlementRunner.active(s.id()) != null) return true;
+		if (!inBuild && SettlementRunner.adoptInFlight(s.id())) return true;
 		var regions = ArchitectApi.get().regions();
 		long now = System.currentTimeMillis();
 		var intent = openIntent(s);
@@ -237,16 +271,26 @@ public final class Adoption {
 			boolean out = !adopted.get().siteIds().isEmpty() && adopted.get().siteIds().stream().allMatch(id -> sites.get(id).map(x -> x.region() == null).orElse(true));
 			var close = standingClose(v.isPresent(), tombstone, out);
 			if (close == Close.REMOVED) {
-				List<String> gone = adopted.get().siteIds().stream().filter(id -> sites.get(id).isEmpty()).toList();
-				if (!Settlements.log(s.id(), released(adopted.get().siteGroup(), "The town's region was removed", now)).ok()) return false;
+				// the removal record first, then the release: a failure between leaves the adoption open, so the next reconcile writes what is missing
+				Set<String> recorded = removedSince(s, adopted.get());
+				List<String> gone = adopted.get().siteIds().stream().filter(id -> sites.get(id).isEmpty() && !recorded.contains(id)).toList();
 				if (!gone.isEmpty() && !Settlements.log(s.id(), new Settlement.LogEntry(now, Kind.PROJECT_REMOVED, "Removed with the town's region (" + gone.size()
 					+ " sites)", gone)).ok()) return false;
+				if (!Settlements.log(s.id(), released(adopted.get().siteGroup(), "The town's region was removed", now)).ok()) return false;
 			} else if (close == Close.RELEASED) {
 				if (!Settlements.log(s.id(), released(adopted.get().siteGroup(), "Let the town go as a region (Architect un-adopted it)", now)).ok()) return false;
 			}
 			if (close != Close.NONE) Steward.LOGGER.info("{}: the adoption of {} closed at the reconcile: {}", s.id(), region, close);
 		}
 		return true;
+	}
+
+	/** The sites a {@code PROJECT_REMOVED} after {@code entry} records. */
+	private static Set<String> removedSince(Settlement s, Settlement.LogEntry entry) {
+		Set<String> out = new HashSet<>();
+		int i = s.log().indexOf(entry);
+		for (int j = Math.max(0, i + 1); j < s.log().size(); j++) if (s.log().get(j).kind() == Kind.PROJECT_REMOVED) out.addAll(s.log().get(j).siteIds());
+		return out;
 	}
 
 	/**
@@ -259,8 +303,8 @@ public final class Adoption {
 		var v = regions.get(region);
 		// gone already (a lost unadopt answer, or removed): the reconcile closes it
 		if (v.isEmpty() || v.get().state() == RegionState.REMOVED) {
-			boolean ok = reconcile(server, s);
-			say.accept(ok ? "The town was let go as a region already." : Undo.UNLOGGED);
+			boolean ok = reconcile(server, s, true) && standing(Settlements.store().get(s.id()).orElse(s)).filter(e -> region.equals(regionOf(e))).isEmpty();
+			say.accept(ok ? "The town was let go as a region already." : "Undo stopped: the town's region can't be read as let go or removed yet; try again.");
 			done.accept(ok);
 			return ok;
 		}
@@ -270,7 +314,7 @@ public final class Adoption {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
 			if (err != null) {
 				// answered with an error after it went through (Architect deleted the record): the reconcile sees it
-				if (regions.get(region).isEmpty() && reconcile(server, Settlements.store().get(s.id()).orElse(s))
+				if (regions.get(region).isEmpty() && reconcile(server, Settlements.store().get(s.id()).orElse(s), true)
 					&& standing(Settlements.store().get(s.id()).orElse(s)).isEmpty()) {
 					say.accept("Undone: the town is a street town again (each building back in its own build).");
 					done.accept(true);

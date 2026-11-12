@@ -718,11 +718,11 @@ public final class Districts {
 	}
 
 	/** A placed site as {@link #streetOfPieces} reads it: its kind, key, the FL street flag, its box's columns and the line Steward recorded on its own streets. */
-	record Piece(String kind, @Nullable String itemKey, boolean streetFlag, int minX, int maxX, int minZ, int maxZ, @Nullable Integer z, @Nullable Integer x0,
+	public record Piece(String kind, @Nullable String itemKey, boolean streetFlag, int minX, int maxX, int minZ, int maxZ, @Nullable Integer z, @Nullable Integer x0,
 		@Nullable Integer x1) {}
 
 	/** {@link #streetOf} over pieces (pure). */
-	static DistrictRules.@Nullable Street streetOfPieces(List<Piece> pieces, Settlement s, Settlement.@Nullable District district) {
+	public static DistrictRules.@Nullable Street streetOfPieces(List<Piece> pieces, Settlement s, Settlement.@Nullable District district) {
 		String dim = s.claim().dimension();
 		Integer z = null;
 		int x0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE;
@@ -746,7 +746,7 @@ public final class Districts {
 	}
 
 	/** An int the ext records under {@code key}, or null (never unboxed here: a site without it is a region's or an older street). */
-	static @Nullable Integer intExt(com.google.gson.@Nullable JsonObject ext, String key) {
+	public static @Nullable Integer intExt(com.google.gson.@Nullable JsonObject ext, String key) {
 		if (ext == null || !ext.has(key) || !ext.get(key).isJsonPrimitive()) return null;
 		return Integer.valueOf(ext.get(key).getAsInt());
 	}

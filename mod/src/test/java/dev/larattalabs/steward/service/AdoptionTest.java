@@ -117,4 +117,58 @@ class AdoptionTest {
 		assertTrue(Adoption.bySiteId("r2", "s1") < 0);
 		assertEquals(0, Adoption.bySiteId("s3", "s3"));
 	}
+
+	private static com.google.gson.JsonObject ext(String... kv) {
+		var o = new com.google.gson.JsonObject();
+		for (int i = 0; i + 1 < kv.length; i += 2) o.addProperty(kv[i], kv[i + 1]);
+		return o;
+	}
+
+	private static Adoption.Raw lot(String id, String settlement, String lot, int x, int z) {
+		return new Adoption.Raw(id, "building", "lot", "minecraft:overworld", null, x - 4, x + 4, z - 4, z + 4, ext("steward_mc:settlement", settlement,
+			"steward_mc:lot", lot), 1);
+	}
+
+	private static Adoption.Raw road(String id, String key, int x0, int x1, int z) {
+		var e = ext("steward_mc:settlement", "set_1");
+		e.addProperty("steward_mc:street_z", z);
+		e.addProperty("steward_mc:street_x0", x0);
+		e.addProperty("steward_mc:street_x1", x1);
+		return new Adoption.Raw(id, "road", key, "minecraft:overworld", null, x0, x1, z - 1, z + 1, e, 1);
+	}
+
+	@Test
+	void theInventoryTakesTheTownsStreetAndLotsOnly() {
+		Settlement s = town();
+		// a square district inside the town's land (its lots and its own street are left out by land)
+		s = s.withLands(s.lands().next().withDistrict(new Settlement.District("dst_1", "East", "E", new Claim("minecraft:overworld", 50, 0, 12, -64, 320), 1L,
+			List.of())));
+		s = s.withLog(new Settlement.LogEntry(4L, Kind.BUILD_ADOPTED, "Took on noah's house", List.of("s9"), null));
+		List<Adoption.Raw> sites = new java.util.ArrayList<>(List.of(
+			road("r1", "street", -30, 20, 0),
+			road("r2", "street#1", 21, 30, 0),
+			road("r3", "street", 45, 60, 0),
+			road("r4", "street", -30, 20, 30),
+			lot("s1", "set_1", "house_1", -20, 8),
+			lot("s2", "set_1", "house_1", 0, -8),
+			lot("s3", "set_1", "library_1", 25, 8),
+			lot("s4", "set_1", "house_1", 52, 8),
+			lot("s5", "set_2", "house_1", 10, 8),
+			lot("s9", "set_1", "house_1", 15, -8),
+			lot("s6", "set_1", "far_1", 200, 0)));
+		sites.add(new Adoption.Raw("s7", "building", "lot", "minecraft:overworld", "rg1", -5, 3, 10, 18, ext("steward_mc:settlement", "set_1", "steward_mc:lot",
+			"tower_1"), 1));
+		sites.add(new Adoption.Raw("s8", "building", "lot", "minecraft:the_nether", null, -5, 3, 10, 18, ext("steward_mc:settlement", "set_1", "steward_mc:lot",
+			"house_1"), 1));
+		sites.add(new Adoption.Raw("s10", "building", "lot", "minecraft:overworld", null, 5, 13, 10, 18, ext("steward_mc:settlement", "set_1"), 3));
+		var inv = Adoption.inventoryOf(sites, s).orElseThrow();
+		assertEquals(0, inv.streetZ());
+		assertEquals(-30, inv.xLo());
+		assertEquals(30, inv.xHi());
+		assertEquals(List.of("r1", "r2"), inv.roads(), "the town's street pieces; not the district's (r3) nor another line (r4)");
+		assertEquals(Map.of("house_1", "s1", "house_1_2", "s2", "library_1", "s3"), inv.lots(),
+			"its lots; not the district's (s4), another settlement's (s5), a player's build (s9), one outside the claim (s6), a region's (s7), another dimension's (s8), "
+				+ "one with no lot (s10)");
+		assertTrue(Adoption.inventoryOf(List.of(lot("s1", "set_1", "house_1", 0, 8)), s).isEmpty(), "no street: nothing to adopt");
+	}
 }
