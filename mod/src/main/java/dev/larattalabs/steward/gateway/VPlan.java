@@ -26,6 +26,11 @@ public final class VPlan {
 	/** Settlements a host set to Steward's own layout (dev and the e2e check: both paths stay tested). One world's. */
 	private static final Set<String> LEGACY = new HashSet<>();
 
+	/** Whether this settlement's builds are held to Steward's own layout (dev: the e2e check); such a street town is never taken on as a region either. */
+	public static boolean isLegacy(String settlementId) {
+		return LEGACY.contains(settlementId);
+	}
+
 	private VPlan() {
 	}
 

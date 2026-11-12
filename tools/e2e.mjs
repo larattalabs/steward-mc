@@ -991,6 +991,107 @@ async function growthFlow() {
 }
 
 /**
+ * (docs/GROWTH.md, slice B) A street town (Steward's own street and lots) is taken on as one Architect region at its first addition: the adoption
+ * writes nothing, its receipt names the region, and the library grows it by a revision. Undone: the growth (undoRevision), then the adoption (un-adopt:
+ * every site back in its own build, nothing removed), then the founding build as before; the ground as before the town at the end.
+ */
+async function adoptFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 33000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  // Steward's own street for the first build (a street town, as every settlement built before regions)
+  await cmd(`/steward dev layout ${id} legacy`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Old Street Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} an old street town`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('adopt', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  const st0 = settlements().find((x) => x.id === id);
+  const claim = st0.claim;
+  const box = [claim.centerX - claim.radius - 16, 40, claim.centerZ - claim.radius - 16, claim.centerX + claim.radius + 16, 160, claim.centerZ + claim.radius + 16];
+  const snap0 = path.join(ROOT, 'artifacts', 'e2e', `adopt-before-${id}.snap.gz`);
+  await dev.call('dev.region.hash', { box, mode: 'snap', file: snap0 }, { timeoutMs: 1_800_000 });
+  from = logSize();
+  await cmd(`/steward start ${id} 4 30`);
+  const town = await buildThrough(id, from, 'adopt town');
+  if (!town) return;
+  const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  if (!founding || /^region:/.test(founding.siteGroup ?? '')) return fail('adopt', `not a street town: ${founding?.siteGroup}`);
+  // the next addition may take the town on as a region
+  await cmd(`/steward dev layout ${id} plan`);
+  const snap1 = path.join(ROOT, 'artifacts', 'e2e', `adopt-town-${id}.snap.gz`);
+  await dev.call('dev.region.hash', { box, mode: 'snap', file: snap1 }, { timeoutMs: 1_800_000 });
+  await cmd(`/steward dev sim_answer talk ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', 'library.json'), 'utf8')).answer)}`);
+  await cmd(`/steward talk ${id} we need a library for the scholars`);
+  let lib = null;
+  for (let i = 0; i < 60 && !lib; i++) {
+    await sleep(1000);
+    lib = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('asked_')) ?? null;
+  }
+  if (!lib) return fail('adopt', 'no library proposal');
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${lib.key}`);
+  const grew = await buildThrough(id, from, 'adopt growth');
+  if (!grew) return;
+  const log1 = settlements().find((x) => x.id === id)?.log ?? [];
+  const receipt = log1.filter((e) => e.kind === 'TOWN_ADOPTED' && /^region:/.test(e.siteGroup ?? '')).at(-1);
+  const intent = log1.filter((e) => e.kind === 'TOWN_ADOPTED' && /^adopt:/.test(e.siteGroup ?? '')).at(-1);
+  const region = receipt?.siteGroup?.slice('region:'.length);
+  const growth = log1.filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const v = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
+  const rv = v?.view ?? v ?? {};
+  const inRegion = (founding.siteIds ?? []).filter((x) => (receipt?.siteIds ?? []).includes(x)).length;
+  if (intent && receipt && region && growth?.siteGroup === `revision:${region}:1` && rv.state === 'PLACED' && inRegion > 0) {
+    ok('adopt', `the street town taken on as ${region} (${receipt.siteIds.length} sites, ${inRegion} of the founding build's), grown by revision 1 (${growth.siteIds.length} sites)`);
+  } else return fail('adopt', `intent ${!!intent}; receipt ${receipt?.siteGroup}; growth ${growth?.siteGroup}; region ${rv.state}`);
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
+  // 1: the growth
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) { await sleep(1000); last = settlements().find((x) => x.id === id)?.log.at(-1); }
+  const d1 = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap1 }, { timeoutMs: 1_800_000 });
+  const off1 = (d1.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
+  if (last?.kind === 'PROJECT_REMOVED' && off1.length === 0) ok('adopt growth undo', `${last.text}; the town as before its addition (0 cells differ: the adoption wrote nothing)`);
+  else fail('adopt growth undo', `last ${last?.kind}; ${off1.length} cell(s) differ ${JSON.stringify(off1.slice(0, 3))}`);
+  // 2: the adoption (un-adopt): every building stays, nothing removed
+  const said2 = await cmd(`/steward undo ${id}`);
+  let rel = null;
+  for (let i = 0; i < 120 && !rel; i++) {
+    await sleep(1000);
+    rel = (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'TOWN_RELEASED' && e.siteGroup === `region:${region}`) ?? null;
+  }
+  const sites = (await dev.request('dev.sites.state').catch(() => ({})))?.sites ?? [];
+  const list = Array.isArray(sites) ? sites : Object.values(sites);
+  // buildings from the sites' state (in no region now); every site, roads included (the sites' state lists buildings), by the dev site command
+  const back = (founding.siteIds ?? []).map((sid) => list.find((x) => x.id === sid)).filter(Boolean);
+  const standing = [];
+  for (const sid of founding.siteIds ?? []) if (/stands/.test(await cmd(`/steward dev site ${sid}`))) standing.push(sid);
+  const noneRemoved = !(settlements().find((x) => x.id === id)?.log ?? []).some((e) => e.kind === 'PROJECT_REMOVED' && (e.siteIds ?? []).some((x) => founding.siteIds.includes(x)));
+  if (rel && standing.length === founding.siteIds.length && back.every((x) => !x.region) && noneRemoved) ok('adopt release', `${rel.text}; ${standing.length} sites standing, none in a region`);
+  else fail('adopt release', `${said2}; released ${!!rel}; ${standing.length} of ${founding.siteIds.length} standing, regions ${JSON.stringify(back.map((x) => x.region))}`);
+  // 3: the founding build, as before
+  await cmd(`/steward undo ${id}`);
+  let gone = null;
+  for (let i = 0; i < 300 && !gone; i++) {
+    await sleep(1000);
+    const e = settlements().find((x) => x.id === id)?.log.at(-1);
+    if (e?.kind === 'PROJECT_REMOVED' && founding.siteIds.every((x) => e.siteIds.includes(x))) gone = e;
+  }
+  const d0 = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap0 }, { timeoutMs: 1_800_000 });
+  const off0 = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
+  if (gone && off0.length === 0) ok('adopt town undo', `${gone.text}; the ground as before the town (0 cells differ)`);
+  else fail('adopt town undo', `removed ${!!gone}; ${off0.length} cell(s) differ ${JSON.stringify(off0.slice(0, 3))}`);
+}
+
+/**
  * A settlement built from its composed plan (plan v1, docs/COMPOSITION.md section 10): a walled town whose wall waits for Architect. At Start the plan is
  * checked again without the wall (it stays pending), the buildings are designed for the artifact's lots, the village is realised from the approved artifact
  * as one region, and an undo takes it up whole.
@@ -3108,6 +3209,9 @@ async function stubFlow(id) {
   if (!lib) return fail('talk job', `no proposal: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
   ok('talk job', `${lib.title} proposed (${lib.key})`);
   await clearAnimals();
+  // still Steward's own street town (the dev layout is not kept over the restart above): its addition lays a street piece, and its districts below
+  // are a street town's (slice B's adoption has its own flow, adoptFlow)
+  await cmd(`/steward dev layout ${id} legacy`);
   from = logSize();
   await cmd(`/steward proposals ${id} accept ${lib.key}`);
   const reused = await waitLog(from, /style bible is reused/, 60_000);
@@ -3286,6 +3390,7 @@ try {
       await flow('stub', 'paid card plan wall revision undo', () => stubFlow(id));
       await flow('village', 'plan realise', () => villageFlow());
       await flow('growth', 'growth region realise undo', () => growthFlow());
+      await flow('adopt', 'adopt growth region undo', () => adoptFlow());
       await flow('plan-build', 'plan', () => planBuildFlow());
       await flow('street-hint', 'plan grid wall nofit', () => streetHintFlow());
       await flow('wall-offer', 'wall plan', () => wallOfferFlow());

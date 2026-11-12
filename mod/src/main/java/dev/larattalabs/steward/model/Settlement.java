@@ -45,7 +45,14 @@ public record Settlement(
 		 * A player's own build taken on as a building of the settlement (Architect PT2): its site wrote no block, and undoing it only lets the build go
 		 * (Architect un-adopts; the house stays).
 		 */
-		BUILD_ADOPTED;
+		BUILD_ADOPTED,
+		/**
+		 * The town taken on as one Architect region, to grow it (docs/GROWTH.md, slice B): {@code adopt:<key>} the intent, saved before it is asked;
+		 * {@code region:<id>} the receipt. It places nothing (its sites are the older builds'); undoing the receipt lets the town go (Architect un-adopts).
+		 */
+		TOWN_ADOPTED,
+		/** An adoption closed: {@code adopt:<key>} not adopted (refused, or Architect has no record), {@code region:<id>} let go or removed. */
+		TOWN_RELEASED;
 
 		/** Whether an operation of this kind put sites in the world that an undo removes (an adopted build's site: removed, the build stays). */
 		public boolean placesSites() {
@@ -491,9 +498,14 @@ public record Settlement(
 	 */
 	public java.util.Optional<LogEntry> lastUndoable() {
 		java.util.Set<String> removed = new java.util.HashSet<>();
+		java.util.Set<String> released = new java.util.HashSet<>();
 		for (int i = log.size() - 1; i >= 0; i--) {
 			LogEntry e = log.get(i);
 			if (e.kind() == Kind.PROJECT_REMOVED) removed.addAll(e.siteIds());
+			// the town taken on as a region (docs/GROWTH.md, slice B): undoable (let go) while no later release names its region; its intent never
+			if (e.kind() == Kind.TOWN_RELEASED && e.siteGroup() != null) released.add(e.siteGroup());
+			if (e.kind() == Kind.TOWN_ADOPTED && e.siteGroup() != null && e.siteGroup().startsWith("region:") && !released.contains(e.siteGroup()))
+				return java.util.Optional.of(e);
 			if (e.kind().placesSites()) {
 				List<String> left = e.siteIds().stream().filter(id -> !removed.contains(id)).toList();
 				// the group only while the project is whole: after a partial undo the rest goes site by site

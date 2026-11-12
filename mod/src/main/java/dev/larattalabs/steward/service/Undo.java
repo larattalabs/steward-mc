@@ -68,7 +68,13 @@ public final class Undo {
 	}
 
 	/** Starts the undo; {@code say} gets progress and the result. Returns false (having said why) when there is nothing to undo. */
-	public static boolean lastProject(MinecraftServer server, Settlement s, Consumer<String> sayTo) {
+	public static boolean lastProject(MinecraftServer server, Settlement given, Consumer<String> sayTo) {
+		// an adoption a lost answer left open is closed first, so the undo reads the history as it is
+		if (!Adoption.reconcile(server, given)) {
+			sayTo.accept(UNLOGGED);
+			return false;
+		}
+		final Settlement s = Settlements.store().get(given.id()).orElse(given);
 		Consumer<String> say = reportingOverflow(server, s, sayTo);
 		// a district region being built (or one whose build ended unresolved): the newest operation can't be told yet, unless it is that district's own
 		// region, recorded by the world-start sweep after its build ended (taking it up is what puts the district right)
@@ -85,6 +91,11 @@ public final class Undo {
 		if (entry.isEmpty()) {
 			say.accept("Nothing to undo for " + s.name() + ".");
 			return false;
+		}
+		// the town taken on as a region (docs/GROWTH.md, slice B): let go (Architect un-adopts), every building stays; its growths were undone first
+		if (entry.get().kind() == Settlement.Kind.TOWN_ADOPTED) {
+			UNDOING.add(s.id());
+			return Adoption.release(server, s, entry.get(), say, ok -> UNDOING.remove(s.id()));
 		}
 		// a reservation: no site, nothing in the world; giving it up is the undo ($0)
 		if (entry.get().siteIds().isEmpty() && entry.get().district() != null) {

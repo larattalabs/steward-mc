@@ -28,9 +28,19 @@ public final class VillageSweep {
 
 	public static void sweep(MinecraftServer server) {
 		var regions = ArchitectApi.get().regions();
+		// adoptions a crash or a lost answer left open are closed first (docs/GROWTH.md, slice B)
+		for (Settlement s : Settlements.store().all()) {
+			try {
+				if (!Adoption.reconcile(server, s)) Steward.LOGGER.warn("{}: an adoption could not be closed (the history was not saved); tried again at the next start", s.id());
+			} catch (RuntimeException | LinkageError e) {
+				Steward.LOGGER.warn("{}: could not reconcile its adoption", s.id(), e);
+			}
+		}
 		for (Settlement s : Settlements.store().all()) {
 			for (var v : regions.list(s.owner())) {
 				if (v.state() == RegionState.REMOVED) continue;
+				// a town Steward took on as a region is never taken up whole (docs/GROWTH.md, slice B)
+				if (v.ext() != null && v.ext().has(Adoption.KEY_EXT)) continue;
 				String build = v.ext() != null && v.ext().has(BatchPlanner.BUILD_EXT) && v.ext().get(BatchPlanner.BUILD_EXT).isJsonPrimitive()
 					? v.ext().get(BatchPlanner.BUILD_EXT).getAsString() : null;
 				// not Steward's build, the dev spike, a build that holds it, or the history (undo takes it up)
