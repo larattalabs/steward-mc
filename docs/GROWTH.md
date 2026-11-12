@@ -182,3 +182,18 @@ entry; none (Architect rolled its intent back at its own world start, or never g
   - undo: the growths, then the adoption (unadopt: the old groups' sites back, no `PROJECT_REMOVED`), then the founding build as before;
   - an update and a revert of an adopted building between.
 - **Not covered by e2e:** a restart between the intent and the answer (the reconcile's pure function is unit-tested).
+
+**As built (2026-11-11).** `service/Adoption.java` (the inventory as a pure function, the allocator, the history entries, the pairing, the reconcile,
+the release), `SettlementRunner.adoptTown`, the `TOWN_ADOPTED`/`TOWN_RELEASED` kinds, `lastUndoable`, `TownRegion`, `VillageSweep` (the reconcile
+of every settlement before the sweep; adopted towns skipped), `Undo` (the reconcile first, the release branch).
+- **The GPT implementation review** requested changes: 1 blocker and 3 should-fixes, all taken. The fix pass approved 1708516.
+  - The reconcile runs before an addition chooses between growth, adoption and Steward's street.
+  - Only an adopt call in flight holds the reconcile off.
+  - A removed town's removal record is saved before its release.
+  - The release's fast path checks that the adoption is closed.
+  - Live versions are recorded, and the inventory is unit-tested.
+- **The dev layout `legacy`** (the e2e) also holds a street town off adoption, so the `stub` flow keeps the street-town path for its districts.
+  The new `adopt` flow covers the adoption.
+- **Not covered by e2e:** a second addition that needs a street extension; an update or revert of an adopted building; restarts across the
+  adoption. The reconcile's decisions and the pairing are unit-tested.
+

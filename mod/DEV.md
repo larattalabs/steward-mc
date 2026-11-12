@@ -350,3 +350,16 @@ An addition to a standing region town (V or plan v1, not built from materials) i
   - The wider set `growth,village,stub,district,revision`: 57 of 58. The miss was the growth flow's own wait, fixed by moving the player clear.
 - **Gate-verifier:** PASS on all five items, its own e2e run PASS 41. `npm test` in a worktree needs `node_modules` (a symlink to the main checkout's).
 - **Saves:** settlements format 6, builds format 4; a real format-5 fixture (fixtures/saves/v5).
+
+### Growth slice B: street towns taken on as regions (2026-11-11, $0)
+A street town's first addition takes it on as one Architect region (`Regions.adopt`, nothing written), then grows it by a revision (slice A).
+The adoption's intent is saved in the history first (docs/GROWTH.md, slice B).
+- **Reviews:** GPT's design review requested changes (3 blockers, 5 should-fixes); design v2 was approved, with two clarifications folded in. The
+  implementation review requested changes (1 blocker, 3 should-fixes); the fix pass approved 1708516.
+- **e2e stub:**
+  - `--only stub,adopt,growth`: PASS 41.
+  - `adopt`: the street town is taken on as one region with 0 cells written, and grows by revision 1. Undoing the growth leaves 0 cells changed.
+    Undoing the adoption lets the town go: the old builds' 5 sites stand in no region. Undoing the founding build leaves the ground as before the
+    town.
+- **Unit:** 339, 0 failures.
+
