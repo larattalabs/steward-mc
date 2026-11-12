@@ -2713,8 +2713,11 @@ public final class SettlementRunner {
 			&& !"UNDOING".equalsIgnoreCase(rv.get().state())) {
 			Steward.LOGGER.warn("growth {} was realised for {}'s ended build {} and is still being placed: logged and taken up once it has ended", ref.tag(), settlement.id(), buildId);
 			// the note is the obligation (durable): the sweep finds the growth by it, whatever its sites say, also when it ends with none
-			if (!Settlements.log(settlement.id(), VillageSweep.orphanNote(ref.tag())).ok())
-				Steward.LOGGER.warn("{}: the note for growth {} could not be saved; the sweep still finds it by its sites' tags", settlement.id(), ref.tag());
+			var note = VillageSweep.orphanNote(ref.tag());
+			if (!Settlements.log(settlement.id(), note).ok()) {
+				Steward.LOGGER.warn("{}: the note for growth {} could not be saved; the sweep saves it again", settlement.id(), ref.tag());
+				VillageSweep.retryNote(settlement.id(), note);
+			}
 			return;
 		}
 		Steward.LOGGER.warn("growth {} was realised for {}'s ended build {}: taking it up", ref.tag(), settlement.id(), buildId);

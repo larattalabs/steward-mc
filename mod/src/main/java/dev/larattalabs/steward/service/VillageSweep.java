@@ -56,8 +56,19 @@ public final class VillageSweep {
 	static final String ORPHAN = "An addition realised after its build ended is still being placed";
 	/** A history note closing an {@link #ORPHAN} note that left nothing to log (taken up, or standing with nothing placed). */
 	static final String ORPHAN_CLOSED = "An addition realised after its build ended left nothing standing";
-	/** Growths being taken up by the sweep (not asked twice while one is in flight). */
+	/** Growths being taken up by the sweep (not asked twice while one is in flight). This world's session only: cleared when it stops. */
 	private static final java.util.Set<String> TAKING = new java.util.HashSet<>();
+	/** Orphan notes whose save failed, by settlement: saved again by the sweep until they are (this session; see GROWTH.md for a restart). */
+	private static final Map<String, List<Settlement.LogEntry>> UNSAVED = new java.util.HashMap<>();
+
+	static {
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> { TAKING.clear(); UNSAVED.clear(); });
+	}
+
+	/** An orphan note to save again on the sweep's next pass (its save failed). */
+	static void retryNote(String settlementId, Settlement.LogEntry note) {
+		UNSAVED.computeIfAbsent(settlementId, k -> new java.util.ArrayList<>()).add(note);
+	}
 
 	/**
 	 * (docs/GROWTH.md, slice A2) Growths of a settlement's town that no build holds and no history entry names, at each world start, every 10 s
@@ -71,9 +82,16 @@ public final class VillageSweep {
 		for (Settlement s : Settlements.store().all()) growths(server, s);
 	}
 
-	public static void growths(MinecraftServer server, Settlement s) {
+	public static void growths(MinecraftServer server, Settlement given) {
 		var regions = ArchitectApi.get().regions();
 		var sites = ArchitectApi.get().sites(server);
+		// orphan notes whose save failed: saved first, so the obligation is in the history before anything is decided from it
+		var unsaved = UNSAVED.get(given.id());
+		if (unsaved != null) {
+			for (var it = unsaved.iterator(); it.hasNext();) if (Settlements.log(given.id(), it.next()).ok()) it.remove();
+			if (unsaved.isEmpty()) UNSAVED.remove(given.id());
+		}
+		final Settlement s = Settlements.store().get(given.id()).orElse(given);
 		try {
 			var town = TownRegion.of(s).flatMap(regions::get);
 			if (town.isEmpty() || town.get().revisions() == null || Undo.busy(s.id())) return;
@@ -96,8 +114,10 @@ public final class VillageSweep {
 						if (ok == null) return;
 						var now = Settlements.store().get(s.id()).orElse(s);
 						if (ok) { close(now, tag, "taken up"); return; }
+						// only Architect having no such revision closes it; a newer change above it (NEWER) keeps the note open, so it is taken up once that
+						// is undone (an empty revision still holds the town's history)
 						var d = Growths.decide(ArchitectApi.get().regions().get(ref.region()), ref.rid());
-						if (d.step() == Growths.Step.NEWER || d.step() == Growths.Step.UNKNOWN) close(now, tag, "it stands with nothing placed: " + d.why());
+						if (d.step() == Growths.Step.UNKNOWN) close(now, tag, "Architect has no such revision");
 					});
 					continue;
 				}

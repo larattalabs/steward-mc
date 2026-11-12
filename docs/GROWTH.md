@@ -181,6 +181,11 @@ written), so a cancel needs no feeding.
 sweep found an orphan only by its first site and skipped one that ended with no sites. Round 2: undo head first, orphan notes, any standing
 site, empty orphans taken up (above), unit-tested.
 
+**Fix check, round 2** (GPT): the blocker resolved, every other item still resolved; 3 should-fixes, no blocker, fixed without a third
+round (the slice's limit is two): an empty orphan's note stays open while a newer change stands above it (only Architect having no such
+revision closes it); a note whose save failed is saved again by the sweep (this session: a restart before that save, with the revision then
+ending empty, still loses it, as any build's restart before its first save does); the sweep's in-flight set is cleared when the world stops.
+
 **Review** (GPT, 2026-11-11, request changes). Taken: 1 BUILDING from the revision's own sites; 2 a cancel once realised refused (the
 build goes on), one in flight waits as A; 3 an orphan still placing left to a durable sweep; should-fixes 1 (removal logged once), 2 (the
 stockpile checked at the realise, crates protected at the survey), 3 (the mode re-checked at the realise, both ways; `survival_unfinished`
