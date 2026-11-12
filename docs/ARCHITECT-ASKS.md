@@ -1394,3 +1394,6 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
     - wave M5-3: FK (S-M5-3);
     - 5b: CI (S-M5-5) after LP.
   - **Steward's order:** M0 now; M1 after GP; M2 after FC and IG; M3 after QT; M4 after FK; M5 after M4.
+- **The order is confirmed** (Noah via parent session: "Alongside 7c (A)"). Architect's "M5 support" contract (docs/m5-support 701e563b) is
+  reviewed: ok, with one change asked. QT also quotes an approved artifact, not only a planId, because Steward's composed path realises
+  through `realiseApproved`. RCs: GP+QT, then FC+IG, then FK.
