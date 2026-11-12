@@ -47,6 +47,11 @@ public final class CardScreen extends KitScreen {
 	/** The key that asked to start (Enter, numpad Enter or 1): held keys are told apart. */
 	private int startKey = -1;
 	private boolean confirmShown;
+	/**
+	 * lab-ui's two-press arm, mirrored from {@link #confirm} so the armed start draws as the kit's {@code Confirm} with its countdown ("Press again to
+	 * spend up to $35 (3)"), the same pattern as Architect's Delete (Noah, 2026-11-12). {@link #confirm} still decides (held keys count once).
+	 */
+	private final dev.larattalabs.labui.ui.ConfirmArm startArm = new dev.larattalabs.labui.ui.ConfirmArm(dev.larattalabs.steward.ui.TwoPress.WINDOW_MS);
 	private int wellScroll;
 	private int programScroll;
 	private int[] wellArea = new int[4];
@@ -107,6 +112,27 @@ public final class CardScreen extends KitScreen {
 			return;
 		}
 		start();
+	}
+
+	/** A click on Start (or its button by mouse): two presses, as Enter; the first arms and says what it spends. */
+	private void clickStart() {
+		if (sent || payload.busy() || field == null) {
+			start();
+			return;
+		}
+		double usd = budget();
+		if (Double.isNaN(usd)) return;
+		long now = net.minecraft.util.Util.getMillis();
+		if (confirmShown && confirm.armed(now) && usd == armedUsd && buildings == armedBuildings) {
+			start();
+			return;
+		}
+		confirm.reset();
+		confirm.press(now);
+		armedUsd = usd;
+		armedBuildings = buildings;
+		super.say(String.format("Press again to start: it spends up to $%.0f.", usd), false);
+		confirmShown = true;
 	}
 
 	/** Any other message (Expand, a wrong budget) replaces the press-again hint and forgets the first press. */
@@ -236,6 +262,14 @@ public final class CardScreen extends KitScreen {
 			confirmShown = false;
 			status = null;
 		}
+		// the kit's arm follows ours: armed while the first press waits, else not
+		long armNow = net.minecraft.util.Util.getMillis();
+		if (confirmShown && !sent) {
+			if (!startArm.armed("start", armNow)) {
+				startArm.cancel();
+				startArm.press("start", armNow);
+			}
+		} else startArm.cancel();
 		if (fieldFocused && field != null && !field.value().equals(String.valueOf(suggestedBudget()))) budgetEdited = true;
 		Kit.Padding pad = Kit.padding("panel_paper");
 		int w = Math.min(500, width - 16);
@@ -393,7 +427,15 @@ public final class CardScreen extends KitScreen {
 		if (payload.busy()) {
 			ax += button(g, "Open the inbox", 1, true, false, true, ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new InboxScreen(payload.settlementId()))) + 6;
 		} else {
-			ax += button(g, sent ? "Starting..." : confirmShown ? String.format("Confirm: spend up to $%.0f", armedUsd) : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::start) + 6;
+			if (confirmShown && !sent) {
+				// armed: lab-ui's Confirm, danger red with its countdown; a click or 1 on it is the second press
+				var c = new dev.larattalabs.labui.client.widget.Confirm(startArm, "start", "Start building", String.format("spend up to $%.0f", armedUsd), this::clickStart);
+				int cw = c.width(font);
+				c.draw(g, font, ax, cy, cw, 20, mouseX, mouseY);
+				ax += hitOnly("Start building", 1, true, ax, cy, cw, 20, this::clickStart) + 6;
+			} else {
+				ax += button(g, sent ? "Starting..." : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::clickStart) + 6;
+			}
 		}
 		// the player's own words back in the box (else the card's reading of them), to change rather than retype
 		ax += button(g, "Describe again", 2, false, false, !sent && !payload.busy(), ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new DescribeScreen(

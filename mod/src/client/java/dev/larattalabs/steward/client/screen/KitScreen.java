@@ -95,6 +95,12 @@ public abstract class KitScreen extends Screen {
 		return w;
 	}
 
+	/** A click target drawn by someone else (a lab-ui control): registered for this frame's clicks and number key; returns its width. */
+	protected int hitOnly(String label, int number, boolean enabled, int x, int y, int w, int h, Runnable action) {
+		buttons.add(new Btn(label, number, false, false, enabled, x, y, w, h, action));
+		return w;
+	}
+
 	protected int chipWidth(String label) {
 		return font.width(label) + 12;
 	}
