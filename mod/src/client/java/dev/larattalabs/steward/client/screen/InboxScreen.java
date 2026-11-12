@@ -241,7 +241,9 @@ public final class InboxScreen extends KitScreen {
 			int at = gi;
 			boolean needs = gi == 0;
 			List<InboxModel.Entry> group = all.stream().filter(en -> group(en) == at).toList();
+			// a head with no room for one of its rows would dangle: stop before it
 			if (group.isEmpty()) continue;
+			if (ry + 14 + ROW_H > y + h) break;
 			String label = needs ? GROUPS[gi] + " · " + group.size() : GROUPS[gi];
 			// only "Needs you" is blocked on the player: the attention colour; the other groups are labels
 			g.text(font, label, x + 5, ry + 1, needs ? attention() : UiBits.muted(), false);
@@ -322,24 +324,28 @@ public final class InboxScreen extends KitScreen {
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
 					int cy = ry;
 					String no = "Not now";
-					ax -= rowButtonWidth(no);
-					rowButton(g, no, false, true, ax, cy, mx, my, () -> send("proposal_decline", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Putting the waiting parts off"
-						: "Declining " + l.role().toLowerCase()));
 					String yes = "Build it";
-					ax -= rowButtonWidth(yes) + 3;
-					rowButton(g, yes, true, true, ax, cy, mx, my, () -> send("proposal_accept", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Fitting one waiting part"
+					// a pair shares one width, so the columns line up row to row
+					int bw = Math.max(rowButtonWidth(no), rowButtonWidth(yes));
+					ax -= bw;
+					rowButtonW(g, no, false, true, ax, cy, bw, mx, my, () -> send("proposal_decline", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Putting the waiting parts off"
+						: "Declining " + l.role().toLowerCase()));
+					ax -= bw + 3;
+					rowButtonW(g, yes, true, true, ax, cy, bw, mx, my, () -> send("proposal_accept", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Fitting one waiting part"
 						: "Starting " + l.role().toLowerCase()));
 					actionsW = x + w - ax + 4;
 				} else if ("UPDATE".equals(e.decision()) && sentAtVersion < 0) {
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
 					int cy = ry;
 					String pv = "Preview";
-					ax -= rowButtonWidth(pv);
-					rowButton(g, pv, false, true, ax, cy, mx, my, () -> send("update_preview", l.id(), "", 0, "Showing the change on " + l.role()));
+					String up = "Update";
+					int bw = Math.max(rowButtonWidth(pv), rowButtonWidth(up));
+					ax -= bw;
+					rowButtonW(g, pv, false, true, ax, cy, bw, mx, my, () -> send("update_preview", l.id(), "", 0, "Showing the change on " + l.role()));
 					if (l.waiting()) {
-						String up = "Update";
-						ax -= rowButtonWidth(up) + 3;
-						rowButton(g, up, true, true, ax, cy, mx, my, () -> send("update_apply", l.id(), "", 0, "Updating " + l.role()));
+						// secondary: "Update all N" below is the one primary
+						ax -= bw + 3;
+						rowButtonW(g, up, false, true, ax, cy, bw, mx, my, () -> send("update_apply", l.id(), "", 0, "Updating " + l.role()));
 					}
 					actionsW = x + w - ax + 4;
 				} else if (massings && l.waiting()) {
@@ -347,11 +353,13 @@ public final class InboxScreen extends KitScreen {
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
 					int cy = ry;
 					String rd = "Redirect…";
-					ax -= rowButtonWidth(rd);
-					rowButton(g, rd, false, true, ax, cy, mx, my, () -> startRedirect(l.id()));
 					String ap = "Approve";
-					ax -= rowButtonWidth(ap) + 3;
-					rowButton(g, ap, true, true, ax, cy, mx, my, () -> send("approve", l.id(), "", 0, "Approving " + l.id()));
+					int bw = Math.max(rowButtonWidth(rd), rowButtonWidth(ap));
+					ax -= bw;
+					rowButtonW(g, rd, false, true, ax, cy, bw, mx, my, () -> startRedirect(l.id()));
+					// secondary: "Approve all N" below is the one primary
+					ax -= bw + 3;
+					rowButtonW(g, ap, false, true, ax, cy, bw, mx, my, () -> send("approve", l.id(), "", 0, "Approving " + l.id()));
 					actionsW = x + w - ax + 4;
 				}
 				String title = l.role() + (l.landmark() ? " ★" : "");

@@ -117,6 +117,14 @@ public abstract class KitScreen extends Screen {
 		return w;
 	}
 
+	/** {@link #rowButton} at width {@code w} (a pair sharing one width). */
+	protected int rowButtonW(GuiGraphicsExtractor g, String label, boolean primary, boolean enabled, int x, int y, int w, int mouseX, int mouseY, Runnable action) {
+		Btn b = new Btn(label, 0, primary, false, enabled, x, y, w, ROW_BUTTON_H, action);
+		dev.larattalabs.labui.client.widget.Button.paint(g, font, label, 0, x, y, w, ROW_BUTTON_H, primary, false, !enabled, enabled && b.hit(mouseX, mouseY), false);
+		buttons.add(b);
+		return w;
+	}
+
 	protected int rowButtonWidth(String label) {
 		return dev.larattalabs.labui.client.widget.Button.width(font, label);
 	}
@@ -149,8 +157,9 @@ public abstract class KitScreen extends Screen {
 	protected void header(GuiGraphicsExtractor g, String title, String meta, int metaArgb, int x, int y, int w) {
 		Kit.Padding p = Kit.padding("header");
 		int mw = meta == null || meta.isEmpty() ? 0 : font.width(meta);
-		Panels.header(g, font, dev.larattalabs.labui.client.ui.TextUtil.ellipsize(font, title, Math.max(0, w - p.left() - p.right() - (mw > 0 ? mw + 8 : 0))), x, y, w);
-		if (mw > 0) g.text(font, meta, x + w - p.right() - mw, y + p.top() + 1, metaArgb, false);
+		Panels.header(g, font, dev.larattalabs.labui.client.ui.TextUtil.ellipsize(font, title, Math.max(0, w - p.left() - 2 - (mw > 0 ? mw + 8 : 0))), x, y, w);
+		// the meta's right edge on the content's (callers draw the strip 2 px past their content on each side), as before
+		if (mw > 0) g.text(font, meta, x + w - 2 - mw, y + p.top() + 1, metaArgb, false);
 	}
 
 	/** A selected list row: the kit's selected fill with a 2 px clay bar at the left (muted text stays 4.8:1 on it; the old clay wash left it 3.95:1). */
