@@ -3206,6 +3206,9 @@ async function stubFlow(id) {
   if (!lib) return fail('talk job', `no proposal: ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
   ok('talk job', `${lib.title} proposed (${lib.key})`);
   await clearAnimals();
+  // still Steward's own street town (the dev layout is not kept over the restart above): its addition lays a street piece, and its districts below
+  // are a street town's (slice B's adoption has its own flow, adoptFlow)
+  await cmd(`/steward dev layout ${id} legacy`);
   from = logSize();
   await cmd(`/steward proposals ${id} accept ${lib.key}`);
   const reused = await waitLog(from, /style bible is reused/, 60_000);
