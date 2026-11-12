@@ -215,4 +215,66 @@ real module lots.
 
 ## Verdict
 
-(Filled in from `fixtures/modules/probe-m0.json` after the runs.)
+Measured on 2026-11-12 in a fresh world ("Steward M0 Probe 202611120847", seed 257937981; Minecraft 26.3, Architect 0.59.0), with
+`node tools/module-probe.mjs` at Steward 34c0324 (script sha256 `ae8574ac…`). The raw data and the judged bars are in
+`fixtures/modules/probe-m0.json`; `node tools/module-probe.mjs --judge` re-judges it with no client. **41 bars: 40 pass, 1 fails (H1).**
+ST5, recorded against §3.2's own bar, is a second design failure.
+
+| Mechanic | Verdict | Measured |
+|---|---|---|
+| SE: sprint = real time | PASS | growth 0.663 vs 0.691 stages/cell (SE 0.063); hopper rate 0.1229 vs 0.1235 items/tick, same per-chest counts |
+| H1: hydration within 240 s | **FAIL** | 75, 76, 78, 79, 79 of 80 cells moist by 4,800 ticks; median cell ≈ 800-1,000 ticks |
+| H2: reach is 4 | PASS | the distance-5 ring is 0/40 moist in every run |
+| H3: moisture holds / dries | PASS | wet plot never dropped in 24,000 ticks; dry plot all < 7 |
+| H4: water one below / above (rec) | recorded | below: 0 of 81 moist; above: 74 of 80 |
+| G0: max ages | PASS | 7/7/7/3, age max+1 refused |
+| G1: time to mature majority T | PASS | median T: wheat 60,060, carrots 60,060, potatoes 56,056, beetroot 35,035 ticks (bands in the data) |
+| G2: water matters | PASS | unwatered T is 2.08-2.34× watered |
+| G3: net rate ≥ 24/day (9x9, 80 crops) | PASS | wheat 32.9, carrots 89.3, potatoes 91.4, beetroot 57.7 a day |
+| G4: light 9 threshold | PASS | falloff 15 − d exact to d = 7; light 8: 0 of 9 grew; light 9: 7 of 7 grew |
+| G5: open sky at midnight (rec) | recorded | location light 4, yet 75 of 80 crops grew (mean 2.6 stages in 24,000 ticks) |
+| G6: lamp levels (rec) | recorded | lantern, sea lantern, glowstone, shroomlight, lit lamp, froglight, jack o'lantern, copper lantern 15; torch, end rod, copper torch 14; soul lantern/torch 10; candles 3/6/9/12 |
+| TR1-TR4: trampling | PASS | cow 10/10 (0/10 without mob_griefing); chicken 0/10; zombie and villager 10/10; player drop 10/10, walking 0 |
+| HR: hopper rate | PASS | 8.03 ticks/item (2.49 items/s), 3 runs |
+| HL1-HL3: lock | PASS | locked: 0 moved in 400 ticks, first item 5 ticks after unlocking; receives 51, passes 0 |
+| HL4: pull through a lock (rec) | recorded | a hopper below pulled 51 items out of a locked hopper |
+| CS: comparator from fill | PASS | formula exact for n = 0..64 (+4 fillers): 41 → 2, 42 → 3, 64 → 3, empty → 0 |
+| FC: full chest at chain end | PASS | 2,048 = 2,048, 0 item entities |
+| ST1: sort, 4 facings + chunk border | PASS | 20 runs × 4 halls (rot0 straddles x = 1024): 100% sorted, conserved, 0 entities |
+| ST2: throughput | PASS | 2.458 items/s, within 10% of HR's 2.490 |
+| ST3: F stays exact | PASS | every F holds 41 + 4 fillers after 20 runs |
+| ST4: saturation and recovery | PASS | full slots back up into F (64) without a wrong item; recovery restores 41 |
+| ST5: filler on the line | **FAIL vs §3.2** | in all 4 halls F0 swallows the filler (45 fillers, its item gone) and slot 0's chest takes 23 fillers; nothing reaches overflow |
+| ST6: chests stay single | PASS | all 16 slot chests `type=single`, only their slot's item |
+
+### What the design must change
+
+1. **Hydration bound (§3.1 measurement 1, IRR's 240 s): change the bar.** A cell turns moist only on its own random tick, which comes
+   every 4096/3 ≈ 1,365 ticks on average. So P(a cell is still dry at 4,800 ticks) ≈ e^(−3.5) ≈ 3%: about 2.4 of 80 cells, as measured. No
+   fixed bound makes "every cell" certain; a bound with 99% confidence for all 80 cells would be ≈ 1,365 × ln(8,000) ≈ 12,300 ticks
+   (derived, not measured). Either:
+   - (recommended) write the farm's farmland as `moisture=7`, its settled state with water in reach (H3 shows it stays 7), and bar M2 on
+     "every cell still 7 after 24,000 ticks"; or
+   - bar on a percentile, e.g. ≥ 90% of cells within 240 s (the 5 runs gave 94-99%), and every cell by a longer recorded bound.
+2. **Light (§3.1 "Light" and measurement 2): reframe as mob safety, not growth.** In the open, crops grow at midnight with no lamp (G5);
+   the light-9 rule (G4) only matters for covered fields. Keep the lamps for mob spawning (block light), and state the bar that way. The
+   lamp role's "light 14 or more" rule is consistent with G6: every common lamp is 14 or 15; soul lights (10) and small candle groups are
+   too dim and take the fallback lantern.
+3. **The filler (§3.2 test mix and item domain): it can't be in the mix.** A filter hopper accepts its own filler (ST5), so a filler on the
+   line wrecks slot 0 and a renamed stick from an anvil is enough to do it. The design must either keep the filler out of the test mix and
+   out of reach of players (a filler survival can't make, such as an item carrying a component an anvil can't add; to be measured in M4),
+   or name the risk on the offer and give Remove/repair a way to restore F. "The filler goes to overflow" is not a promise this tile can make.
+4. **Recorded, no change:**
+   - water one block below farmland doesn't hydrate it (H4), so IRR's source must sit level with the farmland or one above (74 of 80 hydrated), never below;
+   - a hopper under a locked hopper can still pull from it (HL4), so the circuit's layout must not put a hopper under F;
+   - slot chests written `type=single` stay single (ST6).
+5. **Steward's own dev hooks (§8)** aren't needed for M0; they are built with M2 and M4.
+
+### How the probe was run (harness notes)
+
+- The game is frozen for the whole run and advances only by `/tick step` (exact, before SE passes) or `/tick sprint` (after). Reading
+  containers while the game runs loses ticks; with the freeze, HR is exactly 8.03 ticks/item.
+- A comparator reads its input only after a neighbour update, so every placed comparator is poked (glass set and cleared above it).
+- TR: each cell sits in a 3-high glass shaft, so villagers can't walk off; the difficulty is easy for the zombie, then back to peaceful.
+  "Trampled" counts any non-farmland cell, since grass spreads onto trampled dirt.
+- G3 harvests at 90% mature, per the restated bar. G4's falloff stops at d = 7: d = 8 is the room's wall.
