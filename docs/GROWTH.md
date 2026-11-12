@@ -160,8 +160,9 @@ revision (review 1). Order: GONE, WAIT (removing), UNKNOWN, GONE (undone/stale),
 | `cancelGrowth`, revision ended, its targets built (fed in time) | as slice A: logged, then taken up exactly, refunded once |
 | `cancelGrowth`, revision ended, its targets building | logged first (as A); `Growths.undo` answers BUILDING; the cancel ends as slice A's refused take-up (`BatchDone`): "The addition's construction sites stand and are built as the stockpile feeds them; it can't be taken up until it's built. /steward undo takes it up then." `watchBuild` |
 | `takeUpEmpty` (ended with no sites) | unchanged: a revision with no sites has no targets, so it is never BUILDING |
-| `takeUpOrphanGrowth` (realised after its build ended) | ended: logged first (as A), `Undo.growth` (BUILDING leaves the entry, said); **still placing** (review 3): left to the growth sweep below, never logged with half its sites |
-| the growth sweep (`VillageSweep.growths`, new; at world start and every 10 s from MaterialRequests' tick) | a town revision that has ended, whose sites carry this settlement's tag and a build id (`b<time>`) no live build holds, and that no history entry names: logged under its tag with all its sites, watched if built from materials, then `Undo.growth` (as an orphan village is taken up). Durable: nothing is held in memory, a failed save is tried again |
+| `takeUpOrphanGrowth` (realised after its build ended) | ended: logged first (as A), `Undo.growth` (BUILDING leaves the entry, said); **still placing** (review 3): an orphan note (a `NOTE` with the growth's tag) is saved, and the sweep below logs or takes it up once it has ended, never logged with half its sites |
+| the growth sweep (`VillageSweep.growths`, new; at world start, every 10 s from MaterialRequests' tick, and before an addition chooses its path) | a town revision that has ended, that no history entry names, and that is the settlement's: an open orphan note names it, or any standing site of it carries this settlement's tag and a build id (`b<time>`) no live build holds. With sites: logged under its tag, watched if built from materials, then `Undo.growth` (as an orphan village is taken up). With none (only a noted orphan): taken up by `Growths.undo` (an empty revision still holds the town's history: an adoption can't be let go above it), then the note closed. Durable: the notes and the history are the state |
+| `Undo.lastProject` | **head first** (fix round 2): a growth logged late (the sweep's) can be the newest entry while a newer revision stands above it; the standing entry of the town's head revision is undone first (`Undo.headFirst`), so undo never loops on a refusal |
 | `realiseVillage` | **re-checked at the realise** (review should-fixes 2, 3): the mode gate both ways, a town built from materials still fully built (an update since: "being built from the stockpile again", its own words), and its stockpile standing (gone: the build ends; making crates now could land on the planned lots) |
 | `realised`, refused | `survival_unfinished` and the mode refusals each in their own plain words |
 | `findVillage`, `settleLostRealise`, the cancel's lost-answer lookup | unchanged (keys and plan id) |
@@ -176,6 +177,10 @@ written), so a cancel needs no feeding.
 
 **Saves.** No format change: the build's mode is read from the town (a region's mode never changes), the growth fields are slice A's.
 
+**Fix check, round 1** (GPT): every finding resolved but B3, partly: an older orphan logged late above a newer growth blocked undo, and the
+sweep found an orphan only by its first site and skipped one that ended with no sites. Round 2: undo head first, orphan notes, any standing
+site, empty orphans taken up (above), unit-tested.
+
 **Review** (GPT, 2026-11-11, request changes). Taken: 1 BUILDING from the revision's own sites; 2 a cancel once realised refused (the
 build goes on), one in flight waits as A; 3 an orphan still placing left to a durable sweep; should-fixes 1 (removal logged once), 2 (the
 stockpile checked at the realise, crates protected at the survey), 3 (the mode re-checked at the realise, both ways; `survival_unfinished`
@@ -186,7 +191,8 @@ futures complete; recorded as a follow-up.
 **Tests.**
 - **Unit:** `Growths.decide` with `building` (BUILDING after NEWER; UNDOING resumes even while building; busy waits first; not building:
   UNDO); `Growths.unbuilt` (only the revision's sites; a gone site is built); the mode gate (town x world x built); the plain wording;
-  `Undo.retired`; `seedBuilds`'s region of a `revision:` entry.
+  `Undo.retired`; `Undo.headFirst` (an older orphan logged after a newer growth); the orphan note's open/closed reading; `seedBuilds`'s
+  region of a `revision:` entry.
 - **e2e (stub), flow `supplied-growth`**, through Steward only (no dev revision calls): a Supplied town from an unwalled composed plan
   (`no_wood`; the walled one has no room: `NO_ROOM [street]`), fed until built; the ground snapshotted; a library asked in talk and accepted;
   "The town grows" planned and realised as a revision under the build's keys (half its needs fed every 30 s while the revision is placed),

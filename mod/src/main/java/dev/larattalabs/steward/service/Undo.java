@@ -78,7 +78,7 @@ public final class Undo {
 		Consumer<String> say = reportingOverflow(server, s, sayTo);
 		// a district region being built (or one whose build ended unresolved): the newest operation can't be told yet, unless it is that district's own
 		// region, recorded by the world-start sweep after its build ended (taking it up is what puts the district right)
-		var entry = s.lastUndoable();
+		var entry = headFirst(s, s.lastUndoable());
 		var building = s.lands().districts().stream().filter(d -> Settlement.District.BUILDING.equals(d.state())).findFirst();
 		if (building.isPresent()) {
 			var live = Districts.liveRegionOf(s.owner(), building.get().id());
@@ -273,6 +273,43 @@ public final class Undo {
 			whenDone.accept(ok);
 		});
 		return true;
+	}
+
+	/**
+	 * (slice A2) A town's growths are undone in Architect's order (its head first), whatever order the history logged them in: a growth logged late (an
+	 * orphan the sweep found after a newer growth was logged) would otherwise be the newest entry and be refused (a newer change stands on it) forever.
+	 * When the newest undoable entry is a growth that is not its town's head, the standing growth entry of that town's head is undone instead.
+	 */
+	static java.util.Optional<Settlement.LogEntry> headFirst(Settlement s, java.util.Optional<Settlement.LogEntry> entry) {
+		var g = entry.flatMap(e -> Growths.parse(e.siteGroup()));
+		if (g.isEmpty()) return entry;
+		try {
+			var town = ArchitectApi.get().regions().get(g.get().region());
+			if (town.isEmpty() || town.get().revisions() == null) return entry;
+			int head = town.get().position();
+			var top = town.get().revisions().stream().filter(r -> r.position() == head && !"UNDONE".equalsIgnoreCase(r.state()) && !"STALE".equalsIgnoreCase(r.state()))
+				.findFirst();
+			return top.isEmpty() ? entry : headFirst(s, entry, top.get().rid());
+		} catch (RuntimeException | LinkageError e) {
+			return entry;
+		}
+	}
+
+	/** Pure: {@code headRid} the town's head revision; the entry kept when it is the head's, or when the head's growth has no standing entry. */
+	static java.util.Optional<Settlement.LogEntry> headFirst(Settlement s, java.util.Optional<Settlement.LogEntry> entry, int headRid) {
+		var g = entry.flatMap(e -> Growths.parse(e.siteGroup()));
+		if (g.isEmpty() || g.get().rid() == headRid) return entry;
+		return headEntry(s, Growths.tag(g.get().region(), headRid)).or(() -> entry);
+	}
+
+	/** The standing (not retired) placing entry with a growth's tag, as {@code lastUndoable} hands it out (its sites not removed since). Pure. */
+	static java.util.Optional<Settlement.LogEntry> headEntry(Settlement s, String tag) {
+		var log = s.log();
+		for (int i = log.size() - 1; i >= 0; i--) {
+			var e = log.get(i);
+			if (e.kind() == Settlement.Kind.PROJECT_PLACED && tag.equals(e.siteGroup())) return retired(s, e) ? java.util.Optional.empty() : java.util.Optional.of(e);
+		}
+		return java.util.Optional.empty();
 	}
 
 	/**

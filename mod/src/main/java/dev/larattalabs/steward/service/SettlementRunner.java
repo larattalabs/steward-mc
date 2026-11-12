@@ -1002,6 +1002,8 @@ public final class SettlementRunner {
 			if (addition && district == null && existing != null && ArchitectApi.get().features().contains(Growths.FEATURE)) {
 				// an adoption a lost answer or a failed save left open is closed first: its receipt makes the town a region town (slice B)
 				if (!Adoption.reconcile(server, existing, true)) { abandon("The settlement's history could not be saved; try again."); return; }
+				// (slice A2) a growth left without a build is logged first, so a new growth stacks above an entry, never above an unlogged revision
+				VillageSweep.growths(server, Settlements.store().get(existing.id()).orElse(existing));
 				var now = Settlements.store().get(existing.id()).orElse(existing);
 				if (Adoption.openIntent(now).isPresent()) { abandon("The town is being changed right now; ask again once it has settled."); return; }
 				var town = TownRegion.of(now).flatMap(id -> ArchitectApi.get().regions().get(id));
@@ -2710,6 +2712,9 @@ public final class SettlementRunner {
 		if (!Growths.ended(rv.get().state()) && !"UNDONE".equalsIgnoreCase(rv.get().state()) && !"STALE".equalsIgnoreCase(rv.get().state())
 			&& !"UNDOING".equalsIgnoreCase(rv.get().state())) {
 			Steward.LOGGER.warn("growth {} was realised for {}'s ended build {} and is still being placed: logged and taken up once it has ended", ref.tag(), settlement.id(), buildId);
+			// the note is the obligation (durable): the sweep finds the growth by it, whatever its sites say, also when it ends with none
+			if (!Settlements.log(settlement.id(), VillageSweep.orphanNote(ref.tag())).ok())
+				Steward.LOGGER.warn("{}: the note for growth {} could not be saved; the sweep still finds it by its sites' tags", settlement.id(), ref.tag());
 			return;
 		}
 		Steward.LOGGER.warn("growth {} was realised for {}'s ended build {}: taking it up", ref.tag(), settlement.id(), buildId);

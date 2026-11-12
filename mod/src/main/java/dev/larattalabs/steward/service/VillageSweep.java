@@ -52,45 +52,105 @@ public final class VillageSweep {
 		}
 	}
 
+	/** A history note naming a growth whose build ended while it was still being placed: it is logged or taken up once it has ended (its tag on the note). */
+	static final String ORPHAN = "An addition realised after its build ended is still being placed";
+	/** A history note closing an {@link #ORPHAN} note that left nothing to log (taken up, or standing with nothing placed). */
+	static final String ORPHAN_CLOSED = "An addition realised after its build ended left nothing standing";
+	/** Growths being taken up by the sweep (not asked twice while one is in flight). */
+	private static final java.util.Set<String> TAKING = new java.util.HashSet<>();
+
 	/**
-	 * (docs/GROWTH.md, slice A2) Growths of a settlement's town that no build holds and no history entry names: realised for a build that ended first (an
-	 * orphan whose revision was still being placed), or whose entry could not be saved. Once the revision has ended, it is logged under its tag (its sites,
-	 * all known by then) and taken up as an undo would: one still built from the stockpile keeps its entry, so undo takes it up once it is built. At each
-	 * world start and every few seconds (MaterialRequests' tick). A revision is Steward's when its sites carry the settlement's tag; one whose build (the
-	 * sites' build tag) still holds it is left to that build.
+	 * (docs/GROWTH.md, slice A2) Growths of a settlement's town that no build holds and no history entry names, at each world start, every 10 s
+	 * (MaterialRequests' tick), and before an addition chooses its path: realised for a build that ended first, or whose entry could not be saved.
+	 * A revision is the settlement's when an {@link #ORPHAN} note names it (the build that ended said so), or when any of its standing sites carries the
+	 * settlement's tag and a build id ({@code b<time>}) no live build holds. Once it has ended: with sites, logged under its tag and taken up as an undo
+	 * would (one still built from the stockpile keeps its entry); with none, taken up (an empty revision still holds the town's history: an adoption
+	 * can't be let go above it), then the note closed. Durable: the notes and the history are the state; a failed save is tried again.
 	 */
 	public static void growths(MinecraftServer server) {
+		for (Settlement s : Settlements.store().all()) growths(server, s);
+	}
+
+	public static void growths(MinecraftServer server, Settlement s) {
 		var regions = ArchitectApi.get().regions();
 		var sites = ArchitectApi.get().sites(server);
-		for (Settlement s : Settlements.store().all()) {
-			try {
-				var town = TownRegion.of(s).flatMap(regions::get);
-				if (town.isEmpty() || town.get().revisions() == null || Undo.busy(s.id())) continue;
-				for (var r : town.get().revisions()) {
-					if (!Growths.ended(r.state()) || r.sites().isEmpty()) continue;
-					String tag = Growths.tag(town.get().id(), r.rid());
-					if (s.log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && tag.equals(e.siteGroup()))) continue;
-					var first = sites.get(r.sites().get(0));
-					String settlement = first.map(x -> ext(x, "steward_mc:settlement")).orElse(null);
-					String build = first.map(x -> ext(x, BatchPlanner.BUILD_EXT)).orElse(null);
-					// a build's id (b<start time>), not one a dev call made up (the e2e's own revisions)
-					if (!s.id().equals(settlement) || build == null || !build.matches("b\\d+") || SettlementRunner.holds(build)) continue;
-					Steward.LOGGER.warn("growth {} of {} (build {}) is held by no build and no history entry: logged and taken up", tag, s.id(), build);
-					List<Settlement.SiteChange> changes = r.sites().stream().map(id -> new Settlement.SiteChange(id, sites.get(id).map(VillageSweep::role).orElse(null), 0,
-						sites.get(id).map(SiteView::version).orElse(1))).toList();
-					var placed = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "An addition placed after its build ended",
-						changes, tag, Settlement.Outcome.PARTIAL);
-					if (!Settlements.log(s.id(), placed).ok()) { Steward.LOGGER.warn("{}: growth {} could not be logged; tried again", s.id(), tag); continue; }
-					var saved = Settlements.store().get(s.id()).orElse(s);
-					var entry = saved.log().get(saved.log().size() - 1);
-					var ref = new Growths.Ref(town.get().id(), r.rid());
-					if (Growths.fromMaterials(town.get())) MaterialRequests.watchBuild(s.id(), town.get().id());
-					Undo.growth(server, saved, entry, ref, Map.of(), m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> { });
+		try {
+			var town = TownRegion.of(s).flatMap(regions::get);
+			if (town.isEmpty() || town.get().revisions() == null || Undo.busy(s.id())) return;
+			for (var r : town.get().revisions()) {
+				String tag = Growths.tag(town.get().id(), r.rid());
+				if (TAKING.contains(tag) || s.log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && tag.equals(e.siteGroup()))) continue;
+				boolean noted = orphanOpen(s, tag);
+				String st = r.state() == null ? "" : r.state().toUpperCase(java.util.Locale.ROOT);
+				if (st.equals("UNDONE") || st.equals("STALE")) {
+					if (noted) close(s, tag, "it was taken up");
+					continue;
 				}
-			} catch (RuntimeException | LinkageError e) {
-				Steward.LOGGER.warn("{}: could not look for growths without a build", s.id(), e);
+				if (!Growths.ended(st)) continue;
+				var ref = new Growths.Ref(town.get().id(), r.rid());
+				if (r.sites().isEmpty()) {
+					if (!noted) continue;
+					TAKING.add(tag);
+					Growths.undo(server, s.owner(), ref, m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> {
+						TAKING.remove(tag);
+						if (ok == null) return;
+						var now = Settlements.store().get(s.id()).orElse(s);
+						if (ok) { close(now, tag, "taken up"); return; }
+						var d = Growths.decide(ArchitectApi.get().regions().get(ref.region()), ref.rid());
+						if (d.step() == Growths.Step.NEWER || d.step() == Growths.Step.UNKNOWN) close(now, tag, "it stands with nothing placed: " + d.why());
+					});
+					continue;
+				}
+				if (!noted && !tagged(s, r, sites)) continue;
+				Steward.LOGGER.warn("growth {} of {} is held by no build and no history entry: logged and taken up", tag, s.id());
+				List<Settlement.SiteChange> changes = r.sites().stream().map(id -> new Settlement.SiteChange(id, sites.get(id).map(VillageSweep::role).orElse(null), 0,
+					sites.get(id).map(SiteView::version).orElse(1))).toList();
+				var placed = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "An addition placed after its build ended",
+					changes, tag, Settlement.Outcome.PARTIAL);
+				if (!Settlements.log(s.id(), placed).ok()) { Steward.LOGGER.warn("{}: growth {} could not be logged; tried again", s.id(), tag); continue; }
+				var saved = Settlements.store().get(s.id()).orElse(s);
+				var entry = saved.log().get(saved.log().size() - 1);
+				if (Growths.fromMaterials(town.get())) MaterialRequests.watchBuild(s.id(), town.get().id());
+				TAKING.add(tag);
+				Undo.growth(server, saved, entry, ref, Map.of(), m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> TAKING.remove(tag));
 			}
+		} catch (RuntimeException | LinkageError e) {
+			Steward.LOGGER.warn("{}: could not look for growths without a build", s.id(), e);
 		}
+	}
+
+	/** Whether a standing site of the revision carries the settlement's tag and a build id no live build holds (any of its sites: one may be gone). */
+	private static boolean tagged(Settlement s, dev.larattalabs.architect.api.RevisionView r, dev.larattalabs.architect.api.Sites sites) {
+		for (String id : r.sites()) {
+			var v = sites.get(id);
+			if (v.isEmpty()) continue;
+			String settlement = ext(v.get(), "steward_mc:settlement");
+			String build = ext(v.get(), BatchPlanner.BUILD_EXT);
+			if (settlement == null && build == null) continue;
+			// a build's id (b<start time>), not one a dev call made up (the e2e's own revisions)
+			return s.id().equals(settlement) && build != null && build.matches("b\\d+") && !SettlementRunner.holds(build);
+		}
+		return false;
+	}
+
+	/** Whether an {@link #ORPHAN} note names the growth and no {@link #ORPHAN_CLOSED} note after it does. Pure. */
+	static boolean orphanOpen(Settlement s, String tag) {
+		boolean open = false;
+		for (var e : s.log()) {
+			if (e.kind() != Settlement.Kind.NOTE || !tag.equals(e.siteGroup())) continue;
+			if (e.text().startsWith(ORPHAN_CLOSED)) open = false;
+			else if (e.text().startsWith(ORPHAN)) open = true;
+		}
+		return open;
+	}
+
+	/** The note a growth whose build ended while it was placed leaves, so the sweep finds it whatever its sites say. */
+	static Settlement.LogEntry orphanNote(String tag) {
+		return new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, ORPHAN + " (" + tag + "): logged and taken up once it has ended", List.of(), tag);
+	}
+
+	private static void close(Settlement s, String tag, String why) {
+		Settlements.log(s.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, ORPHAN_CLOSED + " (" + tag + "): " + why, List.of(), tag));
 	}
 
 	private static String ext(SiteView v, String key) {

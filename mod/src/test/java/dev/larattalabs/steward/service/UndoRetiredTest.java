@@ -34,4 +34,38 @@ class UndoRetiredTest {
 		var copy = new Settlement.LogEntry(5L, Settlement.Kind.PROJECT_PLACED, "library", List.of("s1", "s2"), "revision:rg1:2");
 		assertTrue(Undo.retired(whole, copy));
 	}
+
+	@Test
+	void growthsAreUndoneHeadFirstWhateverOrderTheyWereLoggedIn() {
+		// (fix round 2) revision 2 logged normally, then the sweep logs the orphan revision 1 late: the newest entry is 1, but 2 is the head
+		var two = new Settlement.LogEntry(6L, Settlement.Kind.PROJECT_PLACED, "school", List.of("s3"), "revision:rg1:2");
+		var one = new Settlement.LogEntry(7L, Settlement.Kind.PROJECT_PLACED, "An addition placed after its build ended", List.of("s1"), "revision:rg1:1");
+		var s = Settlement.founded("set_1", "Here", TOWN, Permission.PROPOSALS, Difficulty.SUPPLIED, 1L)
+			.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "town", List.of("t1"), "region:rg1")).withLog(two).withLog(one);
+		var newest = s.lastUndoable();
+		assertEquals("revision:rg1:1", newest.get().siteGroup());
+		assertEquals("revision:rg1:2", Undo.headFirst(s, newest, 2).get().siteGroup(), "the head's growth first");
+		assertEquals("revision:rg1:1", Undo.headFirst(s, newest, 1).get().siteGroup(), "once 2 is undone, 1 is the head");
+		// the head's growth undone already (retired): the newest entry is kept
+		var undone = s.withLog(new Settlement.LogEntry(8L, Settlement.Kind.PROJECT_REMOVED, "undid", List.of("s3")));
+		assertEquals("revision:rg1:1", Undo.headFirst(undone, undone.lastUndoable(), 2).get().siteGroup());
+		// the head is a revision Steward never logged: the newest entry is kept (its undo says a newer change stands)
+		assertEquals("revision:rg1:1", Undo.headFirst(s, newest, 5).get().siteGroup());
+		// not a growth: untouched
+		var town = java.util.Optional.of(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "town", List.of("t1"), "region:rg1"));
+		assertSame(town, Undo.headFirst(s, town, 2));
+	}
+
+	@Test
+	void anOrphansNoteKeepsItsObligationUntilClosed() {
+		var s = Settlement.founded("set_1", "Here", TOWN, Permission.PROPOSALS, Difficulty.SUPPLIED, 1L);
+		assertFalse(VillageSweep.orphanOpen(s, "revision:rg1:3"));
+		var noted = s.withLog(VillageSweep.orphanNote("revision:rg1:3"));
+		assertTrue(VillageSweep.orphanOpen(noted, "revision:rg1:3"));
+		assertFalse(VillageSweep.orphanOpen(noted, "revision:rg1:4"), "another growth's note");
+		var closed = noted.withLog(new Settlement.LogEntry(9L, Settlement.Kind.NOTE, VillageSweep.ORPHAN_CLOSED + " (revision:rg1:3): taken up", List.of(), "revision:rg1:3"));
+		assertFalse(VillageSweep.orphanOpen(closed, "revision:rg1:3"));
+		// the note places nothing and is never undoable
+		assertTrue(noted.lastUndoable().isEmpty());
+	}
 }
