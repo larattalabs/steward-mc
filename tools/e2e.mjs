@@ -3352,6 +3352,125 @@ async function stubFlow(id) {
   else fail('undo', 'not logged');
 }
 
+/**
+ * (docs/FOLLOW.md, Architect FS) A settlement's copies follow their source: a flat village with copies is built; a change is asked of a copy, and is
+ * asked of its source instead; the source's new version is applied; then Architect re-makes the copies from that version ($0, followAll) and each
+ * copy answers. A followed copy with a delta is offered (always asked), applied and reverted; a refused copy is told once and not offered; a follow
+ * with nothing to write is fine (the sim's recipes are seeded by the group id, so which of these happens varies by run). A rescan tells nothing new.
+ */
+async function followFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 39000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Follow Hamlet';
+  // the huts M: the sim's SMALL stand-in (a shed) has no int param, so its versionOf changes nothing; an M cabin's width grows by one
+  for (const e of card.program) if (e.role === "fisher's hut") e.footprint = 'M';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a hamlet of fishers' huts`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('follow', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  // seven buildings: some of the fisher's huts are copies of a hut design ($0)
+  await cmd(`/steward start ${id} 7 40`);
+  const town = await buildThrough(id, from, 'follow town');
+  if (!town) return;
+  const listed = await cmd(`/steward dev copies ${id}`);
+  const copies = [...listed.matchAll(/copy (\S+) (\S+) v(\d+) of (\S+) v(\d+) at (\S+)/g)].map((m) => ({ site: m[1], entry: m[2], v: Number(m[3]), source: m[4], sourceSite: m[6] }));
+  const fam = copies.find((c) => c.sourceSite !== '-');
+  if (!fam) return fail('follow copies', `no copy with its source standing: ${listed.slice(0, 200)}`);
+  const family = copies.filter((c) => c.source === fam.source);
+  ok('follow copies', `${family.map((c) => c.site).join(', ')} copy ${fam.source} at ${fam.sourceSite}`);
+  // a change asked of a copy, by its site: the proposal is the source's
+  const change = { reply: 'A wider hut: it is in the inbox.', intent: 'change', change: { target: fam.site, request: 'Make it a little wider.' } };
+  await cmd(`/steward dev sim_answer talk ${JSON.stringify(change)}`);
+  await cmd(`/steward talk ${id} make that hut a little wider`);
+  let cp = null;
+  for (let i = 0; i < 60 && !cp; i++) {
+    await sleep(1000);
+    cp = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('change_')) ?? null;
+  }
+  if (cp?.changeSite === fam.sourceSite) ok('follow change of a copy', `asked of ${fam.site}, proposed for its source ${cp.changeSite}`);
+  else return fail('follow change of a copy', `proposal ${JSON.stringify(cp)?.slice(0, 160)}`);
+  // Full: the source's own update applies by itself in creative; its copies' updates must still wait for the player
+  const perm = await cmd(`/steward dev permission ${id} full`);
+  if (!/permission FULL/.test(perm)) return fail('follow source', perm);
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${cp.key}`);
+  if (!(await waitLog(from, /The change to [^\n]* is designed/, 300_000))) return fail('follow source', 'the change was not designed');
+  let updated = await waitLog(from, new RegExp(`Updated [^\\n]* to version (\\d+)`), 30_000);
+  // asked instead (a version that takes a part away is a demolition): applied by hand
+  if (!updated) {
+    await cmd(`/steward update ${id} ${fam.sourceSite}`);
+    updated = await waitLog(from, /Updated [^\n]* to version (\d+)/, 120_000);
+  }
+  if (!updated) return fail('follow source', `not updated: ${logSince(from).split('\n').filter((l) => /update check|CHAT/.test(l)).slice(-3).join(' | ')}`);
+  const target = Number(updated[1]);
+  // nothing followed while the source stood at v1 (designed, not yet applied): the follow comes after the update
+  const all = logSince(from);
+  const followAt = all.search(new RegExp(`follow ${id}: ${fam.source} v\\d+ -> copies`));
+  // Architect's own line for the source's update (the server's; the chat line is the client's, printed later)
+  const sourceAt = all.indexOf(`Updated site ${fam.sourceSite} (`);
+  if (followAt >= 0 && (sourceAt < 0 || followAt < sourceAt)) return fail('follow source', `the copies followed before the source was updated (${followAt} < ${sourceAt})`);
+  ok('follow source', `${fam.sourceSite} updated to v${target} (Full); nothing followed while it stood at v1`);
+  // the copies are re-made from that version and each answers
+  const asked = await waitLog(from, new RegExp(`follow ${id}: ${fam.source} v${target} -> copies \\[([^\\]]*)\\] \\(([^)]*)\\)`), 120_000);
+  if (!asked) return fail('follow all', `no followAll: ${logSince(from).split('\n').filter((l) => /follow|CHAT/.test(l)).slice(-3).join(' | ')}`);
+  const answers = {};
+  for (let i = 0; i < 120 && Object.keys(answers).length < family.length; i++) {
+    for (const m of logSince(from).matchAll(new RegExp(`follow ${id}: (\\S+) (followed|already followed|refused (\\S+)) \\(v(\\d+) -> v(\\d+)`, 'g'))) answers[m[1]] = { how: m[2], refused: m[3], to: Number(m[5]) };
+    if (Object.keys(answers).length < family.length) await sleep(1000);
+  }
+  const missing = family.filter((c) => !answers[c.entry]);
+  if (missing.length) return fail('follow all', `no answer for ${missing.map((c) => c.entry).join(', ')} (key ${asked[2]})`);
+  ok('follow all', `${asked[2]}: ${family.map((c) => `${c.site} ${answers[c.entry].how}`).join('; ')}`);
+  // each copy as it answered
+  await sleep(3000);
+  const notes = () => (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'NOTE' && /follow|stays as it is/.test(e.text)).map((e) => e.text);
+  let applied = 0;
+  for (const c of family) {
+    const a = answers[c.entry];
+    if (a.how === 'followed') {
+      const check = await waitLog(from, new RegExp(`update check ${id} ${c.site} v\\d+ -> v${a.to}: (\\w+) \\(([^\\n]*)`), 60_000);
+      if (!check) { fail(`follow ${c.site}`, 'no update check for the followed copy'); continue; }
+      if (check[1] === 'NOTHING') { ok(`follow ${c.site}`, `followed to v${a.to}, nothing to write (its recipe pins what the source changed)`); continue; }
+      if (check[1] !== 'ASK' || !/follows the /.test(check[2])) { fail(`follow ${c.site}`, `${check[1]}: ${check[2].slice(0, 160)}`); continue; }
+      let f2 = logSize();
+      await cmd(`/steward update ${id} ${c.site}`);
+      const up = await waitLog(f2, /Updated [^\n]* to version (\d+)/, 120_000);
+      f2 = logSize();
+      await cmd(`/steward revert ${id} ${c.site} ${c.v}`);
+      const back = await waitLog(f2, new RegExp(`Reverted [^\\n]* to version ${c.v}`), 120_000);
+      const hist = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => (e.kind === 'UPDATED' || e.kind === 'REVERTED') && (e.siteIds ?? []).includes(c.site));
+      if (up && back && hist.length >= 2) { applied++; ok(`follow ${c.site}`, `offered (ASK: ${check[2].slice(0, 90)}), updated to v${up[1]}, reverted to v${c.v}`); }
+      else fail(`follow ${c.site}`, `updated ${!!up}, reverted ${!!back}, history ${hist.map((e) => e.kind).join(',')}`);
+    } else if (a.how.startsWith('refused')) {
+      const told = notes().filter((t) => t.includes('stays as it is')).length;
+      const offered = logSince(from).match(new RegExp(`update check ${id} ${c.site} v\\d+ -> v\\d+: ASK`));
+      if (told >= 1 && !offered) ok(`follow ${c.site}`, `refused ${a.refused}, told: ${notes().find((t) => t.includes('stays as it is')).slice(0, 120)}`);
+      else fail(`follow ${c.site}`, `refused ${a.refused}; told ${told}; offered ${!!offered}`);
+    } else ok(`follow ${c.site}`, a.how);
+  }
+  // asked again (a rescan): the key is answered, nothing new is told
+  const before = notes().length;
+  from = logSize();
+  await cmd('/steward updates');
+  await sleep(5000);
+  const again = logSince(from).match(new RegExp(`follow ${id}: ${fam.source} v${target} -> copies`));
+  if (!again && notes().length === before) ok('follow told once', `${before} note(s): ${notes().map((t) => t.slice(0, 60)).join(' | ')}`);
+  else fail('follow told once', `asked again ${!!again}; notes ${before} -> ${notes().length}`);
+  // at least one copy took the new design: which ones do varies with the group's seed (a copy whose param is the one the sim changes stays)
+  if (applied > 0) ok('follow applied', `${applied} copy update(s) offered at Full, applied and reverted`);
+  else fail('follow applied', `no copy followed with something to write this run: ${family.map((c) => `${c.site} ${answers[c.entry].how}`).join('; ')}`);
+}
+
 // ------------------------------------------------------------------ run
 
 const started = Date.now();
@@ -3391,6 +3510,7 @@ try {
       await flow('village', 'plan realise', () => villageFlow());
       await flow('growth', 'growth region realise undo', () => growthFlow());
       await flow('adopt', 'adopt growth region undo', () => adoptFlow());
+      await flow('follow', 'copies source update revert version', () => followFlow());
       await flow('plan-build', 'plan', () => planBuildFlow());
       await flow('street-hint', 'plan grid wall nofit', () => streetHintFlow());
       await flow('wall-offer', 'wall plan', () => wallOfferFlow());
