@@ -1006,6 +1006,19 @@ public final class SettlementRunner {
 						return;
 					}
 				}
+				// a street town, built free: taken on as one region first, then grown (docs/GROWTH.md, slice B); anything that can't be keeps today's path
+				else if (ArchitectApi.get().features().contains(Adoption.FEATURE) && existing.difficulty() == dev.larattalabs.steward.model.Difficulty.PATRON
+					&& !worldSurvival && overworld) {
+					var inv = Adoption.inventory(server, existing);
+					if (inv.isPresent()) {
+						java.util.function.Supplier<VillageLayout.Plan> legacyPlan = own;
+						adoptTown(r, budgetUsd, specs, inv.get(), () -> {
+							plan = legacyPlan.get();
+							continueWithPlan(r, budgetUsd, district);
+						});
+						return;
+					}
+				}
 			}
 			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(), worldSurvival, overworld, addition, districtId,
 				r.card().site().terrain(), stands, lo, hi)) {
@@ -1026,6 +1039,72 @@ public final class SettlementRunner {
 			plan = own.get();
 			continueWithPlan(r, budgetUsd, district);
 		}
+	}
+
+	/**
+	 * A street town taken on as one region, then grown (docs/GROWTH.md, slice B): the intent is saved in the history before Architect is asked, so a crash
+	 * or a lost answer is closed by the reconcile; adopted, the receipt is saved and slice A grows it; refused outright (nothing moved), today's path
+	 * ({@code legacy}); any other answer (busy, lost, the world stopping) stops the build, never today's path while the outcome is unknown.
+	 */
+	private void adoptTown(CardResult r, double budgetUsd, List<VillageLayout.LotSpec> specs, Adoption.Inventory inv, Runnable legacy) {
+		var saved = Settlements.store().get(settlement.id()).orElse(null);
+		if (saved == null) { legacy.run(); return; }
+		if (!Adoption.reconcile(server, saved, true)) { abandon("The settlement's history could not be saved; try again."); return; }
+		saved = Settlements.store().get(settlement.id()).orElse(saved);
+		// an adoption that stands but whose town could not be read (or one just closed as standing): nothing more is asked now
+		if (Adoption.standing(saved).isPresent() || Adoption.openIntent(saved).isPresent()) {
+			abandon("The town is being changed right now; ask again once it has settled.");
+			return;
+		}
+		String key = opKey("adopt");
+		var intent = Adoption.intent(key, inv, System.currentTimeMillis());
+		// not saved: not asked
+		if (!Settlements.log(settlement.id(), intent).ok()) { legacy.run(); return; }
+		ServerLevel level = level();
+		var c = saved.claim();
+		var box = new BoundingBox(c.centerX() - c.radius(), level.getMinY(), c.centerZ() - c.radius(), c.centerX() + c.radius(), level.getMaxY(), c.centerZ() + c.radius());
+		JsonObject geometry = new JsonObject();
+		geometry.addProperty("streetZ", inv.streetZ());
+		geometry.addProperty("xLo", inv.xLo());
+		geometry.addProperty("xHi", inv.xHi());
+		JsonObject ext = new JsonObject();
+		ext.addProperty("steward_mc:settlement", settlement.id());
+		ext.addProperty(Adoption.KEY_EXT, key);
+		say("The town is taken on as one region (Architect), so it can grow...");
+		int session = Session.current();
+		Steward.LOGGER.info("adopt {}: street z {} x {}..{}, {} roads, {} lots, key {}", settlement.id(), inv.streetZ(), inv.xLo(), inv.xHi(), inv.roads().size(),
+			inv.lots().size(), key);
+		ArchitectApi.get().regions().adopt(new dev.larattalabs.architect.api.AdoptRegionRequest(settlement.owner(), level.dimension(), box,
+			dev.larattalabs.architect.api.AdoptRegionRequest.VILLAGE_LAYOUT, geometry, inv.roads(), inv.lots(), key, ext)).whenComplete((v, err) -> server.execute(() -> {
+				if (!Session.is(session) || !alive()) return;
+				if (worldStopped(err)) return;
+				if (err == null && v != null) {
+					if (!Settlements.log(settlement.id(), Adoption.receipt(intent, v.id(), System.currentTimeMillis())).ok()) {
+						abandon("The town was taken on as a region, but the history could not be saved; it is put right at the next start.");
+						return;
+					}
+					Steward.LOGGER.info("adopt {}: region {}", settlement.id(), v.id());
+					planGrowth(r, budgetUsd, v.id(), specs, null);
+					return;
+				}
+				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
+				boolean definitive = e instanceof dev.larattalabs.architect.api.ArchitectRefused rf && switch (rf.reason()) {
+					case NOT_ALLOWED, OVERLAP, PROTECTED -> true;
+					default -> false;
+				};
+				if (definitive) {
+					String why = message(err);
+					Steward.LOGGER.info("adopt {}: refused ({}): Steward's own street instead", settlement.id(), why);
+					if (!Settlements.log(settlement.id(), Adoption.released(intent.siteGroup(), "Not taken on as one region: " + why, System.currentTimeMillis())).ok()) {
+						abandon("The settlement's history could not be saved; try again.");
+						return;
+					}
+					legacy.run();
+					return;
+				}
+				Steward.LOGGER.warn("adopt {}: no clear answer ({}); the reconcile closes it", settlement.id(), err == null ? "no region" : message(err));
+				abandon("The town is being changed right now; ask again once it has settled.");
+			}));
 	}
 
 	/**

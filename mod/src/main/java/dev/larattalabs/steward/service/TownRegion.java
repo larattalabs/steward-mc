@@ -34,9 +34,13 @@ public final class TownRegion {
 		Set<String> districts = new HashSet<>();
 		for (Settlement.District d : s.lands().districts()) if (d.region() != null) districts.add(d.region());
 		List<Settlement.LogEntry> log = s.log();
+		// a street town taken on as a region (docs/GROWTH.md, slice B): its adoption names the region while no later release does
+		Set<String> released = new HashSet<>();
 		for (int i = log.size() - 1; i >= 0; i--) {
 			Settlement.LogEntry e = log.get(i);
-			if (e.kind() != Settlement.Kind.PROJECT_PLACED) continue;
+			if (e.kind() == Settlement.Kind.TOWN_RELEASED && e.siteGroup() != null) released.add(e.siteGroup());
+			boolean adopted = e.kind() == Settlement.Kind.TOWN_ADOPTED && e.siteGroup() != null && !released.contains(e.siteGroup());
+			if (e.kind() != Settlement.Kind.PROJECT_PLACED && !adopted) continue;
 			String id = VPlan.regionOf(e.siteGroup());
 			if (id == null || districts.contains(id)) continue;
 			Optional<Seen> v = view.apply(id);
