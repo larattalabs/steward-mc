@@ -23,6 +23,13 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 
 ## Process
 
+- **Sessions** (Noah, 2026-11-11):
+  - The Steward session is the manager. It runs the queue, e2e ports, merges, Architect RCs and pins, the nightly window, and paid-spend asks.
+  - Each slice is built in its own visible session on Opus, in its own `_work` worktree. A slice session never merges or pushes main; it
+    reports to the manager.
+  - The manager sends every question, decision and end point for Noah to the parent session (`local_a69a2186-cbdd-40c1-bdf5-afdbf5a330cc`).
+    Slice briefs go there too, to be put up as cards there, not proposed here.
+  - Noah's answers relayed from the parent session, quoted as his words, are his decisions.
 - Phase 3 is in steps 3a-3f (`docs/PLAN.md`, "Order"). Each step ships on its own with unit tests and an e2e check, committed in coherent pieces.
 - Architect changes are asked for, never made here: write the ask into `docs/ARCHITECT-ASKS.md` and send it to the Architect session. Steward never edits
   `../architect-mc` or `../lab-ui`.

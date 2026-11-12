@@ -1288,3 +1288,10 @@ Steward calls `Regions.landCheck(region, null)` on 0.59.0 (feature `landCheck`) 
   stays). Steward promises no more than envelope cells (a mined piston) and asserts nothing about gates in its e2e. When the LCi fix is pinned,
   nothing changes on Steward's side. A broken lever reported as `removed` (finding 2's option) would be welcome but is not asked for now.
 - **No new ask.** `REGION_LIMIT` is said honestly ("too large to look over at once"); no Steward town is near 4M cells.
+
+## 7b DS merged (Architect main f2a90f2a, unreleased, 2026-11-11): Steward's answers on binding site lots
+- **Variant lots, (a):** Steward puts the `siteVariant` entry id straight into `lotEntries` for that lot, outside the group, and shows it as the
+  archetype fitted to the site. A `SITE_UNFIT` variant falls back to a group item (`versionOf` + `site`). No Architect change.
+- **Site items in a `massingFirst` group:** allowed, designed after massing and without a massing of their own. One group keeps a build's approvals,
+  budget and holds together.
+
