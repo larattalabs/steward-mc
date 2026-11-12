@@ -114,13 +114,14 @@ Else today's street-piece path, unchanged.
 - **roads:** the pieces `Districts.streetOf(sites, s, null)` reads as the town's street (it already tells district streets apart by district
   land): `street`/`street#n` road sites on that line;
 - **lots:** sites with `steward_mc:settlement` = the settlement and a `steward_mc:lot`, standing, in no region, with their box's centre in the
-  town claim and in no district's land, not a wall lot (`architect:wallLot` ext), not a player's build the settlement took on (a `BUILD_ADOPTED`
-  entry's site). Removed or partly undone builds give only their standing sites (the live list).
+  town claim and in no district's land, not a player's build the settlement took on (a `BUILD_ADOPTED` entry's site). Wall lots are left out
+  by "in no region" (they are a plan v1 town's region lots). Removed or partly undone builds give only their standing sites (the live list).
 - **lot ids** (review 6): a deterministic allocator, sites in id order (`s<N>` numerically): the base is `steward_mc:lot` lowercased, every
   character outside `[a-z0-9_]` dropped, `l_` put in front when it does not start with a letter, cut to 40; a base taken already gets `_2`, `_3`,
   ... (the whole at most 48). The map `lotId -> siteId` is saved in the intent below.
 - **claim** (review 3): the settlement's own **town claim** (its square, full height), so GR has the whole town's land to extend the street into.
-  District regions stand on their own claims, outside it; anything else Architect finds overlapping refuses, and B falls back.
+  A district region's claim can reach into it at its seam, and a pending part's region can stand on it: Architect refuses any overlap
+  (`OVERLAP`), and B falls back.
 
 **The adoption is saved before it is asked** (review 2). It happens before the build has a pipeline state, so its record is the settlement's
 history, not the build's save:
@@ -135,8 +136,12 @@ history, not the build's save:
 5. **Anything else** (busy `SITE_BUSY`, a timeout, a lost answer, the world stopping): the build stops ("the town is being changed; ask again");
    never today's path while the outcome is unknown.
 
-**Reconcile** (at world start, before `VillageSweep`, and before any undo or growth of the settlement), for an `adopt:<key>` intent with no later
-`region:` or `TOWN_RELEASED` entry for that key: a region of the owner whose ext `steward_mc:adopt` is the key, not removed → its `region:<id>`
+**Pairing** (design review 2): one build of a settlement runs at a time, so at most one intent is open. An intent `adopt:<key>` is closed by the
+first later `TOWN_ADOPTED region:` entry (adopted) or `TOWN_RELEASED adopt:<key>` entry (not adopted); a `TOWN_ADOPTED region:<id>` entry is closed
+by the first later `TOWN_RELEASED region:<id>`. Re-adopting after a release is a new build, a new key, a new intent: the region id may differ
+(S-AD-6), and the pairing never reads a region's ext once it is gone.
+
+**Reconcile** (at world start, before `VillageSweep`, and before any undo or growth of the settlement), for an open `adopt:<key>` intent: a region of the owner whose ext `steward_mc:adopt` is the key, not removed → its `region:<id>`
 entry; none (Architect rolled its intent back at its own world start, or never got the call) → `TOWN_RELEASED adopt:<key>` ("not adopted").
 
 **Never removed whole** (review 1): an adopted town is never taken up by `Regions.remove` from Steward:
@@ -152,6 +157,9 @@ entry; none (Architect rolled its intent back at its own world start, or never g
 - **A lost unadopt answer** (review 4): Architect deletes the record on success, so a retry would fail. Before asking again, and in the reconcile:
   the region is gone with no tombstone, and the entry's standing sites are in no region → unadopted: `TOWN_RELEASED` written once. A `REMOVED`
   tombstone is a removal, never read as a release.
+- **The town removed outside Steward's undo** (Architect's `Regions.remove`, a `REMOVED` tombstone): the open `TOWN_ADOPTED region:<id>` is retired
+  by `TOWN_RELEASED region:<id>` ("the town was removed") and a `PROJECT_REMOVED` of its sites that are gone, so the older builds' entries read as
+  undone and undo moves on (as a removed region's entry is retired today).
 - `TownRegion.of` and `Districts.regionTownGone` read an unreleased `TOWN_ADOPTED region:` entry as the town's region. After a release, the town is
   a street town again (district founding reads its street as before).
 
@@ -166,6 +174,7 @@ entry; none (Architect rolled its intent back at its own world start, or never g
   - the allocator: repeated `house_1`, an invalid or 60-character id, collisions with kept ids;
   - `lastUndoable` with `TOWN_ADOPTED`/`TOWN_RELEASED`: growths first, then the adoption, then the old builds;
   - the reconcile's decisions as a pure function: intent only, region found, region missing, tombstone vs released;
+  - the pairing: adopt, release, re-adopt (a new key), saved and read back;
   - `TownRegion` reading an adoption; save round trips.
 - **e2e (stub), on the `stub` flow's legacy street town:**
   - its library addition adopts the town (0 cells changed by the adoption) and grows it by a revision; a second addition that needs a street
