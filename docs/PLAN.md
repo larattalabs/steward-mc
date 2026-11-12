@@ -606,6 +606,7 @@ Survival e2e: 629 units delivered, consumed and refunded on undo. Three GPT revi
 
 ### Phase 5: Functional modules
 Verified catalog: crop farm, storage hall with sorting, then the rest. "You have seeds" offer. Spine/connectors.
+Design: `docs/MODULES.md` (v1, 2026-11-12, for review; asks S-M5-1..6). Slices M0 (probe) to M5 (two modules composed), M6 (spine) optional.
 - **Gate:** each module's measured output in the dev client; the steward composes two modules into a settlement.
 
 ### Phase 6: Villagers and animals
