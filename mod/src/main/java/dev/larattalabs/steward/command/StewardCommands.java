@@ -349,6 +349,35 @@ public final class StewardCommands {
 					var v = ArchitectApi.get().sites(ctx.getSource().getServer()).get(site);
 					ctx.getSource().sendSuccess(() -> Component.literal(v.map(x -> "site " + site + " stands (" + x.kind() + ")").orElse("site " + site + " is gone")), false);
 					return 1;
+				}))).then(Commands.literal("permission").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("level",
+				StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check): a settlement's permission level (the settlement screen sets it in play)
+					var p = dev.larattalabs.steward.model.Permission.valueOf(StringArgumentType.getString(ctx, "level").toUpperCase(java.util.Locale.ROOT));
+					var r = dev.larattalabs.steward.service.Settlements.permission(StringArgumentType.getString(ctx, "id"), p, System.currentTimeMillis());
+					ctx.getSource().sendSuccess(() -> Component.literal(r.ok() ? "permission " + p : "permission not set: " + r.error()), false);
+					return 1;
+				})))).then(Commands.literal("copies").then(Commands.argument("id",
+				StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check, docs/FOLLOW.md): the settlement's buildings that are copies, one line each: "copy <site> <entry> v<n> of <source entry>
+					// at <source site>"; then "copies: <n>"
+					String id = StringArgumentType.getString(ctx, "id");
+					var s = dev.larattalabs.steward.service.Settlements.store().get(id);
+					if (s.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No such settlement: " + id)); return 0; }
+					var all = ArchitectApi.get().sites(ctx.getSource().getServer()).list(s.get().owner()).stream().filter(v -> "building".equals(v.kind()) && v.blueprintId() != null).toList();
+					StringBuilder b = new StringBuilder();
+					int n = 0;
+					for (var v : all) {
+						var d = ArchitectApi.get().library().get(v.blueprintId()).flatMap(e -> e.derivation())
+							.filter(x -> x.kind() == dev.larattalabs.architect.api.Library.Derivation.Kind.COPY);
+						if (d.isEmpty()) continue;
+						String src = all.stream().filter(x -> d.get().source().equals(x.blueprintId())).map(x -> x.id()).findFirst().orElse("-");
+						b.append("copy ").append(v.id()).append(' ').append(v.blueprintId()).append(" v").append(v.version()).append(" of ").append(d.get().source())
+							.append(" v").append(d.get().sourceVersion()).append(" at ").append(src).append('\n');
+						n++;
+					}
+					String out = b + "copies: " + n;
+					ctx.getSource().sendSuccess(() -> Component.literal(out), false);
+					return 1;
 				}))).then(Commands.literal("say").then(Commands.argument("id",
 				StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString()).executes(ctx -> {
 					// dev (the e2e check): the settlement's steward says a line (its speech bubble)
