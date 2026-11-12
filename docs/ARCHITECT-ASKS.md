@@ -1306,7 +1306,7 @@ Steward's slice A2 (docs/GROWTH.md) grows a town built from materials through Ar
   undoes one still waiting for materials, needn't feed it first only to have the materials refunded. Until then Steward refuses a cancel once
   a survival growth is realised, and its undo until it is built, in plain words.
 
-## Phase 5: functional modules (S-M5; design in docs/MODULES.md v2, 2026-11-12; not sent yet)
+## Phase 5: functional modules (S-M5; design in docs/MODULES.md v2.2, 2026-11-12; sent to Architect 2026-11-12)
 Steward's phase 5 places verified modules (a crop farm, a storage hall with sorting) as additions on growth A, A2 and B, and as lots of plan v1.
 A module is a Steward-owned kit program, run at $0 with parameters and the settlement's bible roles, and measured in a dev client for each
 version. Each ask is a question with Steward's preferred answer. Revised after GPT's design review (MODULES.md section 10).
