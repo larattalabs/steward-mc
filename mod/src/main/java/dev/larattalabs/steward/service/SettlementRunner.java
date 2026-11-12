@@ -1008,7 +1008,7 @@ public final class SettlementRunner {
 				}
 				// a street town, built free: taken on as one region first, then grown (docs/GROWTH.md, slice B); anything that can't be keeps today's path
 				else if (ArchitectApi.get().features().contains(Adoption.FEATURE) && existing.difficulty() == dev.larattalabs.steward.model.Difficulty.PATRON
-					&& !worldSurvival && overworld) {
+					&& !worldSurvival && overworld && !dev.larattalabs.steward.gateway.VPlan.isLegacy(existing.id())) {
 					var inv = Adoption.inventory(server, existing);
 					if (inv.isPresent()) {
 						java.util.function.Supplier<VillageLayout.Plan> legacyPlan = own;
