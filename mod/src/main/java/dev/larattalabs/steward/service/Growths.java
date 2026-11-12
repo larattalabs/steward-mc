@@ -87,7 +87,13 @@ public final class Growths {
 		/** {@code undoRevision(region, toPosition)}: the revision is the head, or its own take-up was cut short and resumes. */
 		UNDO,
 		/** The region has no revision with that rid (Architect lost it, or the tag is wrong): nothing is asked. */
-		UNKNOWN
+		UNKNOWN,
+		/**
+		 * (slice A2) The town builds from materials and its construction targets are not all built: the revision, the head, is still being built from the
+		 * stockpile (a revision is realised only over a fully built town, and nothing newer stands on it), so Architect would refuse its undo
+		 * ({@code survival_building}). Nothing is asked; it can be undone once built.
+		 */
+		BUILDING
 	}
 
 	public record Decision(Step step, int toPosition, String why) {}
@@ -102,6 +108,15 @@ public final class Growths {
 
 	/** {@code removing}: the town is being removed (it may stop and stand again): later, never gone. */
 	public static Decision decide(boolean regionGone, boolean removing, @Nullable String busy, int head, @Nullable String revState, int revPosition) {
+		return decide(regionGone, removing, busy, head, revState, revPosition, false);
+	}
+
+	/**
+	 * {@code building} (slice A2): the town builds from materials and not every construction target of it is built. Decided after a newer revision (which
+	 * is said first) and before the take-up; its own interrupted take-up (UNDOING) still resumes.
+	 */
+	public static Decision decide(boolean regionGone, boolean removing, @Nullable String busy, int head, @Nullable String revState, int revPosition,
+		boolean building) {
 		if (regionGone) return new Decision(Step.GONE, 0, "the town is gone");
 		if (removing) return new Decision(Step.WAIT, 0, "the town is being taken up");
 		if (revState == null) return new Decision(Step.UNKNOWN, 0, "Architect has no such revision of the town");
@@ -112,14 +127,82 @@ public final class Growths {
 		if (busy != null && !busy.isBlank()) return new Decision(Step.WAIT, 0, "the town is busy (" + busy + ")");
 		if (st.equals("PLACING") || st.equals("PLANNED") || st.equals("ACCEPTED")) return new Decision(Step.WAIT, 0, "it is still being placed");
 		if (head != revPosition) return new Decision(Step.NEWER, 0, head > revPosition ? "a newer change to the town stands above it" : "the town's history moved below it");
+		if (building) return new Decision(Step.BUILDING, 0, "it is still being built from the stockpile");
 		return new Decision(Step.UNDO, revPosition - 1, "");
 	}
 
 	public static Decision decide(Optional<RegionView> v, int rid) {
+		return decide(v, rid, null);
+	}
+
+	/** {@code sites}: Architect's sites, to tell whether the revision's own construction targets are all built (slice A2); null reads none as building. */
+	public static Decision decide(Optional<RegionView> v, int rid, dev.larattalabs.architect.api.@Nullable Sites sites) {
 		boolean gone = v.isEmpty() || v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED;
 		boolean removing = v.isPresent() && v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVING;
 		RevisionView r = v.flatMap(x -> revision(x, rid)).orElse(null);
-		return decide(gone, removing, v.map(RegionView::busy).orElse(null), v.map(RegionView::position).orElse(0), r == null ? null : r.state(), r == null ? 0 : r.position());
+		boolean building = sites != null && r != null && v.map(Growths::fromMaterials).orElse(false) && unbuilt(r, id -> sites.get(id).map(dev.larattalabs.architect.api.SiteView::state)
+			.orElse(null)) > 0;
+		return decide(gone, removing, v.map(RegionView::busy).orElse(null), v.map(RegionView::position).orElse(0), r == null ? null : r.state(), r == null ? 0 : r.position(),
+			building);
+	}
+
+	/**
+	 * (slice A2) How many of the revision's own sites are construction targets not built yet (BUILDING or PLACING), as Architect's undo preflight reads its
+	 * suffix: never the town's other targets (an update of an older building makes the town's build unfinished again without touching the revision). A site
+	 * Architect no longer has ({@code state} null) counts as built. Pure over {@code state}.
+	 */
+	public static int unbuilt(RevisionView r, java.util.function.Function<String, dev.larattalabs.architect.api.@Nullable State> state) {
+		int n = 0;
+		for (String id : r.sites()) {
+			var st = state.apply(id);
+			if (st != null && st != dev.larattalabs.architect.api.State.BUILT) n++;
+		}
+		return n;
+	}
+
+	/** (slice A2) Whether the revision's own construction targets are not all built (the town builds from materials). */
+	public static boolean building(MinecraftServer server, Ref ref) {
+		var v = ArchitectApi.get().regions().get(ref.region());
+		var r = v.flatMap(x -> revision(x, ref.rid()));
+		if (r.isEmpty() || !fromMaterials(v.get())) return false;
+		var sites = ArchitectApi.get().sites(server);
+		return unbuilt(r.get(), id -> sites.get(id).map(dev.larattalabs.architect.api.SiteView::state).orElse(null)) > 0;
+	}
+
+	/** Whether the town builds from materials (Architect RS): a region's mode is fixed when it is realised, and a revision is realised only in it. */
+	public static boolean fromMaterials(RegionView v) {
+		return v.build() != null;
+	}
+
+	/**
+	 * (slice A2) Why a growth of the town may not be asked now, or null. Pure. Architect plans a revision in the world's mode and realises it only in the
+	 * town's own (a mismatch is refused at the realise, after the designs are paid for), and a town built from materials grows only once all of it is built
+	 * ({@code survival_unfinished}). {@code townFromMaterials}: the town's mode; {@code worldFromMaterials}: the world's now (the toggle on, the default game
+	 * type not creative); {@code built}/{@code percent}: the town's build (from materials only).
+	 */
+	public static @Nullable String modeRefusal(String town, boolean townFromMaterials, boolean worldFromMaterials, boolean built, double percent) {
+		if (townFromMaterials != worldFromMaterials) return town + " was built " + (townFromMaterials ? "from materials" : "at once") + " and this world builds "
+			+ (worldFromMaterials ? "from materials" : "at once") + " now: Architect grows a town only the way it was built.";
+		if (townFromMaterials && !built) return String.format(Locale.ROOT, "%s is still being built from the stockpile (%.0f%%): it can grow once it's built.", town, percent);
+		return null;
+	}
+
+	/** (slice A2) What the player is told when a growth can't be undone yet because it is still being built from the stockpile. */
+	public static String buildingLine(int unbuilt, int all) {
+		String left = all <= 0 ? "" : " (" + unbuilt + " of its " + all + " construction sites still to build)";
+		return "The addition is still being built from the stockpile" + left + ": it can be undone once it's built. Fill the stockpile to finish it.";
+	}
+
+	static String buildingLine(MinecraftServer server, Ref ref) {
+		var r = ArchitectApi.get().regions().get(ref.region()).flatMap(v -> revision(v, ref.rid())).orElse(null);
+		if (r == null) return buildingLine(0, 0);
+		var sites = ArchitectApi.get().sites(server);
+		return buildingLine(unbuilt(r, id -> sites.get(id).map(dev.larattalabs.architect.api.SiteView::state).orElse(null)), r.sites().size());
+	}
+
+	/** Whether Architect's refusal is its survival_building one (a target still building: undo refused, nothing written). */
+	public static boolean buildingRefusal(@Nullable String message) {
+		return message != null && message.contains("survival_building");
 	}
 
 	public static Optional<RevisionView> revision(RegionView v, int rid) {
@@ -183,11 +266,16 @@ public final class Growths {
 	 */
 	public static void undo(MinecraftServer server, String owner, Ref ref, Consumer<String> say, Consumer<@Nullable Boolean> done) {
 		var regions = ArchitectApi.get().regions();
-		Decision d = decide(regions.get(ref.region()), ref.rid());
+		Decision d = decide(regions.get(ref.region()), ref.rid(), ArchitectApi.get().sites(server));
 		switch (d.step()) {
 			case GONE -> { done.accept(true); return; }
 			case UNKNOWN, NEWER, WAIT -> {
 				say.accept("The town's change can't be taken up now: " + d.why() + ".");
+				done.accept(false);
+				return;
+			}
+			case BUILDING -> {
+				say.accept(buildingLine(server, ref));
 				done.accept(false);
 				return;
 			}
@@ -201,6 +289,8 @@ public final class Growths {
 			// answered not removed, or refused: read again (a lost answer of an undo that went through reads UNDONE)
 			var again = decide(regions.get(ref.region()), ref.rid());
 			if (again.step() == Step.GONE) { done.accept(true); return; }
+			// (slice A2) a target still building (a race past the check above): said plainly, never Architect's text
+			if (err != null && buildingRefusal(SettlementRunner.message(err))) { say.accept(buildingLine(server, ref)); done.accept(false); return; }
 			say.accept("The town's change could not be taken up: " + (err != null ? SettlementRunner.message(err) : "blocked by " + String.join(", ", r.blockers())) + ".");
 			done.accept(false);
 		}));

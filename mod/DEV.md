@@ -401,3 +401,20 @@ over the town and district regions, word it (`LandWords`) and keep one `LAND` in
 - **Design critic** (`e2e-land-inbox.png`): iterate. Taken: "Got it" blocks nothing, so it is the secondary button, not clay (run 4: PASS 14).
   Left for the whole inbox, not this row: the muted token's contrast on cream, the footer's "↑↓ build" label on a non-build row, spacing
   between a row's headline and its lines.
+
+### Growth slice A2: a town built from materials grows from materials (2026-11-11, $0)
+An addition to a Supplied region town (built from the stockpile, Architect RS) is planned and realised as a revision in the town's mode, watched
+until built, billed from the stockpile, refused undo while its own targets build and undone exactly once built (docs/GROWTH.md, "Slice A2").
+- **Reviews:** GPT's design review requested changes (3 blockers, 5 should-fixes, 2 nits; all but one should-fix taken, the shared lost-realise
+  lookup left as a follow-up). Fix check 1: every finding resolved but the orphan path (1 blocker, 1 should-fix). Fix check 2: the blocker resolved;
+  3 small should-fixes, fixed without a third round (the slice's limit).
+- **e2e stub:**
+  - `--only supplied-growth` (new flow, through Steward only): PASS 14. A Supplied town of 2 buildings fed until built; a library accepted grows it
+    as revision 1 under the build's keys; undo while 1 of its 2-3 targets still builds is refused in plain words with 0 cells written; fed until the
+    steward says the town is built; the growth's bills (drawn plus owed when it was put down) = what the stockpile paid; undone: revision UNDONE, the
+    ground as before the growth (but the stockpile's crates), the refund equal to what was paid and nothing more 20 s on; then the town undone.
+  - `--only supplied-growth,survival,realise,adopt` (every survival flow, slice A's growth and village, slice B's adopt, the sanity set): PASS 60
+    in 991 s, one skip as before (the walled supplied town's dev growth, `NO_ROOM [street]`).
+- **The old dev-call check's bills** (`survivalGrowth`) read `dev.rs.state` targets' `bom`, which Architect never sends (only `outstanding`), so
+  it could not have passed once a walled town grew; the new flow reads the stockpile's ledger.
+- **Unit:** all of `build` (380) and `npm test` (35) pass; `npm test` in a new worktree needs `npm ci --offline` first.

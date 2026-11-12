@@ -65,6 +65,12 @@ public final class MaterialRequests {
 				Steward.LOGGER.warn("could not read the material waits", e);
 			}
 			try {
+				// (slice A2) growths left without a build or an entry, once their revision has ended
+				if (SettlementRunner.canSave()) VillageSweep.growths(s);
+			} catch (RuntimeException | LinkageError e) {
+				Steward.LOGGER.warn("could not look for growths without a build", e);
+			}
+			try {
 				if (!seeded) seedBuilds();
 				readBuilds(s);
 			} catch (RuntimeException | LinkageError e) {
@@ -104,7 +110,7 @@ public final class MaterialRequests {
 		for (Settlement s : Settlements.store().all()) {
 			for (var e : s.log()) {
 				if (e.kind() != Settlement.Kind.PROJECT_PLACED) continue;
-				String id = dev.larattalabs.steward.gateway.VPlan.regionOf(e.siteGroup());
+				String id = regionOfEntry(e.siteGroup());
 				if (id == null) continue;
 				try {
 					var v = ArchitectApi.get().regions().get(id);
@@ -116,6 +122,12 @@ public final class MaterialRequests {
 			}
 		}
 		seeded = true;
+	}
+
+	/** The region a placed entry's tag names: a town's ({@code region:<id>}) or a growth's ({@code revision:<id>:<rid>}, slice A2); else null. Pure. */
+	static @org.jspecify.annotations.Nullable String regionOfEntry(@org.jspecify.annotations.Nullable String siteGroup) {
+		String id = dev.larattalabs.steward.gateway.VPlan.regionOf(siteGroup);
+		return id != null ? id : Growths.parse(siteGroup).map(Growths.Ref::region).orElse(null);
 	}
 
 	/** Watches a settlement's region being built from the stockpile: the steward says when it is fully built. */
@@ -134,7 +146,8 @@ public final class MaterialRequests {
 				continue;
 			}
 			var b = v.get().build();
-			if (b != null && b.done()) {
+			// done: built and the region PLACED; a town that stood PARTIAL before its growth reads PARTIAL again, so built is enough there (slice A2)
+			if (b != null && (b.done() || (b.built() && v.get().state() == dev.larattalabs.architect.api.RegionState.PARTIAL))) {
 				BUILDING.remove(e.getKey());
 				tell(srv, s.get(), s.get().name() + " is built: everything its plan laid out stands, from the stockpile.");
 			}

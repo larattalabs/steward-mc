@@ -78,7 +78,7 @@ public final class Undo {
 		Consumer<String> say = reportingOverflow(server, s, sayTo);
 		// a district region being built (or one whose build ended unresolved): the newest operation can't be told yet, unless it is that district's own
 		// region, recorded by the world-start sweep after its build ended (taking it up is what puts the district right)
-		var entry = s.lastUndoable();
+		var entry = headFirst(s, s.lastUndoable());
 		var building = s.lands().districts().stream().filter(d -> Settlement.District.BUILDING.equals(d.state())).findFirst();
 		if (building.isPresent()) {
 			var live = Districts.liveRegionOf(s.owner(), building.get().id());
@@ -112,7 +112,8 @@ public final class Undo {
 		for (String id : ids) all.get(id).ifPresent(v -> now.put(id, v.version()));
 		java.util.Collections.reverse(ids); // newest first
 		boolean adopted = entry.get().kind() == Settlement.Kind.BUILD_ADOPTED;
-		say.accept(adopted ? "Letting go of \"" + entry.get().text() + "\": the build stays as it stands..."
+		// a growth says its own (it may be refused before anything is asked: still built from the stockpile, slice A2)
+		if (!Growths.isGrowth(entry.get().siteGroup())) say.accept(adopted ? "Letting go of \"" + entry.get().text() + "\": the build stays as it stands..."
 			: "Removing " + ids.size() + " sites of \"" + entry.get().text() + "\" and restoring the land...");
 		var sites = ArchitectApi.get().sites(server);
 		RemoveOptions as = new RemoveOptions(false, s.owner());
@@ -249,6 +250,13 @@ public final class Undo {
 	 */
 	public static boolean growth(MinecraftServer server, Settlement s, Settlement.LogEntry entry, Growths.Ref ref, java.util.Map<String, Integer> now,
 		Consumer<String> say, Consumer<Boolean> whenDone) {
+		// (slice A2) still being built from the stockpile: nothing is asked (Architect would refuse it, survival_building); the entry stays
+		var town = ArchitectApi.get().regions().get(ref.region());
+		if (Growths.decide(town, ref.rid(), ArchitectApi.get().sites(server)).step() == Growths.Step.BUILDING) {
+			say.accept(Growths.buildingLine(server, ref));
+			whenDone.accept(false);
+			return true;
+		}
 		UNDOING.add(s.id());
 		List<String> ids = List.copyOf(entry.siteIds());
 		say.accept("Taking up \"" + entry.text() + "\" (the town's change " + ref.rid() + ") and restoring the land...");
@@ -256,13 +264,69 @@ public final class Undo {
 			UNDOING.remove(s.id());
 			if (ok == null) { whenDone.accept(null); return; }
 			if (ok) {
-				if (!Settlements.log(s.id(), removed(entry, ids, true, now)).ok()) say.accept(UNLOGGED);
+				// logged once: a replay after a crash between the removal's entry and the build's save finds it retired (Architect reads UNDONE again)
+				var fresh = Settlements.store().get(s.id()).orElse(s);
+				if (!retired(fresh, entry) && !Settlements.log(s.id(), removed(entry, ids, true, now)).ok()) say.accept(UNLOGGED);
 				districts(server, s, say);
 				say.accept("Undone: the town's change is taken up, the land restored.");
-			} else say.accept("Run /steward undo " + s.id() + " again once it is clear.");
+			} else if (!Growths.building(server, ref)) say.accept("Run /steward undo " + s.id() + " again once it is clear.");
 			whenDone.accept(ok);
 		});
 		return true;
+	}
+
+	/**
+	 * (slice A2) A town's growths are undone in Architect's order (its head first), whatever order the history logged them in: a growth logged late (an
+	 * orphan the sweep found after a newer growth was logged) would otherwise be the newest entry and be refused (a newer change stands on it) forever.
+	 * When the newest undoable entry is a growth that is not its town's head, the standing growth entry of that town's head is undone instead.
+	 */
+	static java.util.Optional<Settlement.LogEntry> headFirst(Settlement s, java.util.Optional<Settlement.LogEntry> entry) {
+		var g = entry.flatMap(e -> Growths.parse(e.siteGroup()));
+		if (g.isEmpty()) return entry;
+		try {
+			var town = ArchitectApi.get().regions().get(g.get().region());
+			if (town.isEmpty() || town.get().revisions() == null) return entry;
+			int head = town.get().position();
+			var top = town.get().revisions().stream().filter(r -> r.position() == head && !"UNDONE".equalsIgnoreCase(r.state()) && !"STALE".equalsIgnoreCase(r.state()))
+				.findFirst();
+			return top.isEmpty() ? entry : headFirst(s, entry, top.get().rid());
+		} catch (RuntimeException | LinkageError e) {
+			return entry;
+		}
+	}
+
+	/** Pure: {@code headRid} the town's head revision; the entry kept when it is the head's, or when the head's growth has no standing entry. */
+	static java.util.Optional<Settlement.LogEntry> headFirst(Settlement s, java.util.Optional<Settlement.LogEntry> entry, int headRid) {
+		var g = entry.flatMap(e -> Growths.parse(e.siteGroup()));
+		if (g.isEmpty() || g.get().rid() == headRid) return entry;
+		return headEntry(s, Growths.tag(g.get().region(), headRid)).or(() -> entry);
+	}
+
+	/** The standing (not retired) placing entry with a growth's tag, as {@code lastUndoable} hands it out (its sites not removed since). Pure. */
+	static java.util.Optional<Settlement.LogEntry> headEntry(Settlement s, String tag) {
+		var log = s.log();
+		for (int i = log.size() - 1; i >= 0; i--) {
+			var e = log.get(i);
+			if (e.kind() == Settlement.Kind.PROJECT_PLACED && tag.equals(e.siteGroup())) return retired(s, e) ? java.util.Optional.empty() : java.util.Optional.of(e);
+		}
+		return java.util.Optional.empty();
+	}
+
+	/**
+	 * Whether a placing entry is retired already: a later {@code PROJECT_REMOVED} names every one of its sites (an undo, or a cancel's take-up, logged before
+	 * a crash). Pure over the history; the entry is found by its time, kind and tag.
+	 */
+	static boolean retired(Settlement s, Settlement.LogEntry placed) {
+		var log = s.log();
+		int at = -1;
+		for (int i = log.size() - 1; i >= 0; i--) {
+			var e = log.get(i);
+			if (e.kind() == placed.kind() && e.at() == placed.at() && java.util.Objects.equals(e.siteGroup(), placed.siteGroup())) { at = i; break; }
+		}
+		if (at < 0) return false;
+		java.util.Set<String> gone = new java.util.HashSet<>();
+		for (int i = at + 1; i < log.size(); i++) if (log.get(i).kind() == Settlement.Kind.PROJECT_REMOVED) gone.addAll(log.get(i).siteIds());
+		return !placed.siteIds().isEmpty() && gone.containsAll(placed.siteIds());
 	}
 
 	/** The units of refunds that did not fit in the settlement's stockpile so far (0 without one). */

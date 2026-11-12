@@ -15,4 +15,14 @@ class MaterialRequestsPartTest {
 		assertEquals("rg part", MaterialRequests.partName(null, "rg_part"));
 		assertEquals("odd part", MaterialRequests.partName("not json", "odd_part"));
 	}
+
+	@Test
+	void aTownBuildingAnAdditionFromMaterialsIsWatchedAfterARestart() {
+		// (slice A2) seedBuilds reads a growth's entry as its town's region too
+		assertEquals("r12", MaterialRequests.regionOfEntry("region:r12"));
+		assertEquals("r12", MaterialRequests.regionOfEntry("revision:r12:3"));
+		assertNull(MaterialRequests.regionOfEntry("s4"));
+		assertNull(MaterialRequests.regionOfEntry(null));
+		assertNull(MaterialRequests.regionOfEntry("revision:r12:x"));
+	}
 }
