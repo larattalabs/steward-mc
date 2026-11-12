@@ -2423,10 +2423,16 @@ async function suppliedGrowthFlow() {
     const sp1 = await ledger();
     const rs1 = await dev.request('dev.rs.state', { region }, { timeoutMs: 120_000 }).catch(() => null);
     const paid = minusItems(sp1?.consumed, sp0?.consumed);
-    let bills = {};
-    for (const t of (rs1?.targets ?? []).filter((t) => !targets0.has(t.id))) bills = plusItems(bills, t.bom);
-    if (built && Object.keys(paid).length && sameItems(paid, bills)) ok(`${label} bills`, `built and said; its bills ${JSON.stringify(bills).slice(0, 160)} = what the stockpile paid`);
-    else return fail(`${label} bills`, `built ${!!built}; paid ${JSON.stringify(paid).slice(0, 160)}; bills ${JSON.stringify(bills).slice(0, 160)}`);
+    // the growth's bills: what its targets had drawn when it was put down plus what they still owed then (the town was fully built before it, so the
+    // stockpile's outstanding bill was the growth's alone); its lots' own bills (dev.site.state) are reported beside
+    const bills = plusItems(minusItems(spW?.consumed, sp0?.consumed), spW?.outstanding);
+    let lotBills = {};
+    for (const sid of op.siteIds ?? []) {
+      const st = await dev.request('dev.site.state', { site: sid }).catch(() => null);
+      if (st?.bom) lotBills = plusItems(lotBills, st.bom);
+    }
+    if (built && Object.keys(paid).length && sameItems(paid, bills)) ok(`${label} bills`, `built and said; its bills ${JSON.stringify(bills).slice(0, 140)} = what the stockpile paid (its lots' own ${JSON.stringify(lotBills).slice(0, 100)})`);
+    else return fail(`${label} bills`, `built ${!!built}; paid ${JSON.stringify(paid).slice(0, 160)}; bills ${JSON.stringify(bills).slice(0, 160)}; lots ${JSON.stringify(lotBills).slice(0, 100)}`);
     // undone through Steward: the revision taken up, what it consumed back once
     await away();
     from = logSize();
