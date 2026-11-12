@@ -31,6 +31,8 @@ const argv = process.argv.slice(2);
 const flag = (f) => argv.includes(f);
 const opt = (f, d) => { const i = argv.indexOf(f); return i >= 0 ? argv[i + 1] : d; };
 const ONLY = opt('--only') ? opt('--only').split(',').map((s) => s.trim().toUpperCase()) : null;
+const FILTERS = ['cobblestone', 'iron_ingot', 'wheat', 'oak_planks']; // the ST halls' four filter items, slot 0..3
+const SLOTS = 4;
 const RUNS_G = Number(opt('--runs-g', 5));
 const RUNS_ST = Number(opt('--runs-st', 20));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -142,7 +144,10 @@ const JUDGES = {
     c.push({ id: 'ST3', bar: 'after the 20 runs every F holds exactly 41 + 4 fillers', value: r.st3, pass: !!r.st3 && r.st3.every((h) => h.exact) });
     c.push({ id: 'ST4', bar: 'saturation: no wrong item, conserved, others 100%, F <= 3; recovery: all 100%, F back to 41', value: r.st4, pass: !!r.st4 && r.st4.every((h) => h.saturation.ok && h.recovery.ok) });
     c.push({ id: 'ST5', bar: 'recorded (the filler on the line); compared with §3.2\'s "the filler goes to overflow"', value: r.st5, pass: null });
-    c.push({ id: 'ST6', bar: 'every slot chest is type=single and holds only its slot\'s item', value: r.st6, pass: !!r.st6 && r.st6.every((h) => h.ok) });
+    // The chests are emptied after each counted run, so "holds only its slot's item" is read from every ST1 run's per-chest counts (ST5's own
+    // filler result excluded: it is ST5's finding); type=single is read after all runs.
+    const foreign = halls.flatMap((h) => (h.counts?.chest ?? []).flatMap((ch, u) => Object.keys(ch).filter((k) => k !== `minecraft:${FILTERS[u]}`).map((k) => ({ run: h.run, hall: h.hall, slot: u, item: k }))));
+    c.push({ id: 'ST6', bar: 'every slot chest is type=single and holds only its slot\'s item', value: { states: r.st6, contentsChecked: halls.length * SLOTS, foreign }, pass: !!r.st6 && r.st6.every((h) => h.ok) && halls.length >= 80 && foreign.length === 0 });
     return c;
   },
 };
@@ -672,7 +677,6 @@ P.TR = async () => {
 
 // ------------------------------------------------------------------ ST: the assembled sorter tile
 
-const FILTERS = ['cobblestone', 'iron_ingot', 'wheat', 'oak_planks'];
 const FILLER = 'stick[custom_name="Steward filler"]';
 const ROT = {
   0: (u, v) => [u, v], 90: (u, v) => [-v, u], 180: (u, v) => [-u, -v], 270: (u, v) => [v, -u],
@@ -693,7 +697,6 @@ function hallAt(h) {
   const face = (name) => { const [du, dv] = DIRS[name]; const [dx, dz] = f(du, dv); return dirName(dx, dz); };
   return { w, face };
 }
-const SLOTS = 4;
 async function buildHall(h) {
   const { w, face } = hallAt(h);
   const corners = [w(-1, -2, -5), w(SLOTS + 1, 3, 2)];

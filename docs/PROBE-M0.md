@@ -220,6 +220,12 @@ Measured on 2026-11-12 in a fresh world ("Steward M0 Probe 202611120847", seed 2
 `fixtures/modules/probe-m0.json`; `node tools/module-probe.mjs --judge` re-judges it with no client. **41 bars: 40 pass, 1 fails (H1).**
 ST5, recorded against §3.2's own bar, is a second design failure.
 
+**Judge amended after measurement (one bar, made stricter).** The gate-verifier found that the ST6 judge checked only `type=single`, not
+the bar's "holds only its slot's item", and that the chests are emptied after each counted run, so they can't be read for it at the end.
+The judge now also reads every ST1 run's per-chest counts (80 hall-runs, 320 chest readings): no slot chest received a foreign item. ST5's
+filler result is left out of this, since it is ST5's own finding. Only judge code changed (`git diff cc6932c -- tools/module-probe.mjs`);
+the measuring code and the data are as measured, so `meta.scriptSha256` is the hash of the script that measured, not of the current one.
+
 | Mechanic | Verdict | Measured |
 |---|---|---|
 | SE: sprint = real time | PASS | growth 0.663 vs 0.691 stages/cell (SE 0.063); hopper rate 0.1229 vs 0.1235 items/tick, same per-chest counts |
@@ -232,7 +238,7 @@ ST5, recorded against §3.2's own bar, is a second design failure.
 | G2: water matters | PASS | unwatered T is 2.08-2.34× watered |
 | G3: net rate ≥ 24/day (9x9, 80 crops) | PASS | wheat 32.9, carrots 89.3, potatoes 91.4, beetroot 57.7 a day |
 | G4: light 9 threshold | PASS | falloff 15 − d exact to d = 7; light 8: 0 of 9 grew; light 9: 7 of 7 grew |
-| G5: open sky at midnight (rec) | recorded | location light 4, yet 75 of 80 crops grew (mean 2.6 stages in 24,000 ticks) |
+| G5: open sky at midnight (rec) | recorded | location light 4, yet 75 of 80 crops grew (mean 2.6 stages in 24,000 ticks); vanilla's rule, see design change 2 |
 | G6: lamp levels (rec) | recorded | lantern, sea lantern, glowstone, shroomlight, lit lamp, froglight, jack o'lantern, copper lantern 15; torch, end rod, copper torch 14; soul lantern/torch 10; candles 3/6/9/12 |
 | TR1-TR4: trampling | PASS | cow 10/10 (0/10 without mob_griefing); chicken 0/10; zombie and villager 10/10; player drop 10/10, walking 0 |
 | HR: hopper rate | PASS | 8.03 ticks/item (2.49 items/s), 3 runs |
@@ -245,7 +251,7 @@ ST5, recorded against §3.2's own bar, is a second design failure.
 | ST3: F stays exact | PASS | every F holds 41 + 4 fillers after 20 runs |
 | ST4: saturation and recovery | PASS | full slots back up into F (64) without a wrong item; recovery restores 41 |
 | ST5: filler on the line | **FAIL vs §3.2** | in all 4 halls F0 swallows the filler (45 fillers, its item gone) and slot 0's chest takes 23 fillers; nothing reaches overflow |
-| ST6: chests stay single | PASS | all 16 slot chests `type=single`, only their slot's item |
+| ST6: chests stay single | PASS | all 16 slot chests `type=single` after all runs; in all 80 ST1 hall-runs each chest got only its slot's item (judge amended, above) |
 
 ### What the design must change
 
@@ -257,7 +263,10 @@ ST5, recorded against §3.2's own bar, is a second design failure.
      "every cell still 7 after 24,000 ticks"; or
    - bar on a percentile, e.g. ≥ 90% of cells within 240 s (the 5 runs gave 94-99%), and every cell by a longer recorded bound.
 2. **Light (§3.1 "Light" and measurement 2): reframe as mob safety, not growth.** In the open, crops grow at midnight with no lamp (G5);
-   the light-9 rule (G4) only matters for covered fields. Keep the lamps for mob spawning (block light), and state the bar that way. The
+   the light-9 rule (G4) only matters for covered fields. This is vanilla's rule, not a leak in the probe's frozen time: 26.3's
+   `CropBlock.randomTick` grows only if `getRawBrightness(pos, 0) >= 9` (read from the 26.3 jar with `javap`), and darkening 0 means sky
+   light counts in full at any time of day. G4's room is sealed, so its crops have block light only. G5's location reading of 4 (sky light
+   less night darkening) is not what the crop sees. Keep the lamps for mob spawning (block light), and state the bar that way. The
    lamp role's "light 14 or more" rule is consistent with G6: every common lamp is 14 or 15; soul lights (10) and small candle groups are
    too dim and take the fallback lantern.
 3. **The filler (§3.2 test mix and item domain): it can't be in the mix.** A filter hopper accepts its own filler (ST5), so a filler on the
