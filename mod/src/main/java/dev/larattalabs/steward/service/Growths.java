@@ -142,6 +142,11 @@ public final class Growths {
 	 * logged (another mod's, a dev revision) goes with the town, as Architect's removal takes the whole region (6d RV, Steward's RC).
 	 */
 	public static @Nullable String blocksTownRemoval(RegionView v, dev.larattalabs.steward.model.Settlement s) {
+		return blocksTownRemoval(v, s, null);
+	}
+
+	/** {@code sites}: Architect's sites, to read a revision's sites' tags; null skips that check. */
+	public static @Nullable String blocksTownRemoval(RegionView v, dev.larattalabs.steward.model.Settlement s, dev.larattalabs.architect.api.@Nullable Sites sites) {
 		if (v.busy() != null && !v.busy().isBlank()) return "the village is busy (" + v.busy() + "); try again once it has settled";
 		if (v.revisions() == null) return null;
 		for (RevisionView r : v.revisions()) {
@@ -151,8 +156,16 @@ public final class Growths {
 			String t = tag(v.id(), r.rid());
 			if (s.log().stream().anyMatch(e -> e.kind() == dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED && t.equals(e.siteGroup())))
 				return "the village has grown since (" + t + "); undo its newer changes first";
+			// Steward's own growth that was never logged (its log failed, or it placed nothing): its sites carry the settlement's tag (the realise's ext
+			// goes on every revision item), so it is not taken with the town unasked
+			if (sites != null && r.sites() != null && r.sites().stream().anyMatch(id -> sites.get(id).map(x -> s.id().equals(stringExt(x.ext(), "steward_mc:settlement")))
+				.orElse(false))) return "the village has an addition of this settlement's not in its history (" + t + "); it is noted, not taken with the town";
 		}
 		return null;
+	}
+
+	private static @Nullable String stringExt(com.google.gson.@Nullable JsonObject ext, String key) {
+		return ext != null && ext.has(key) && ext.get(key).isJsonPrimitive() ? ext.get(key).getAsString() : null;
 	}
 
 	/** Whether a revision state is ended (the revision's outcome is known). */

@@ -1097,7 +1097,8 @@ public final class SettlementRunner {
 		// planned again after its plan went stale (the designs are made): realised now
 		if (r != null) continueWithPlan(r, budgetUsd, null);
 		// cancelled while it was planned again: nothing is realised (the new plan is let go when the build ends)
-		else if (state != null && state.phase() == Pipeline.Phase.CANCELLING) feed(new Pipeline.CancelConfirmed());
+		else if (state == null || state.phase().terminal()) return;
+		else if (state.phase() == Pipeline.Phase.CANCELLING) feed(new Pipeline.CancelConfirmed());
 		else realiseVillage();
 	}
 
@@ -2487,6 +2488,8 @@ public final class SettlementRunner {
 	 * which it may not have yet); its rid names the history entry.
 	 */
 	private void adoptGrowth(String regionId) {
+		// taken already (a late answer after the lookup found it): not twice
+		if (regionId.equals(vRegionId)) return;
 		var rv = ArchitectApi.get().regions().get(regionId).flatMap(v -> Growths.byPlan(v, vPlanId));
 		if (rv.isPresent()) {
 			growRid = rv.get().rid();
@@ -2736,6 +2739,12 @@ public final class SettlementRunner {
 			lastSettleLook = System.currentTimeMillis();
 			var g = foundGrowth();
 			if (g.isPresent()) { queueInFlight = false; adoptGrowth(g.get()); }
+			// nothing by its keys and plan after the give-up time (the request never reached Architect, or the town is gone): nothing was placed
+			else if (System.currentTimeMillis() - inFlightSince >= LOST_GIVE_UP_MS) {
+				Steward.LOGGER.warn("{}: the cancelled growth's realise was never answered and Architect has nothing for it: let go", settlement.id());
+				queueInFlight = false;
+				feed(new Pipeline.CancelConfirmed());
+			}
 			return;
 		}
 		if (!village() || vRegionId == null || state == null || !alive()) return;
@@ -2807,6 +2816,12 @@ public final class SettlementRunner {
 			feed(new Pipeline.BatchDone(0, plan.lots().size(), "taken up"));
 			return;
 		}
+		// its own empty take-up, stopped part way (Architect leaves it UNDOING): the same call again
+		if ("UNDOING".equalsIgnoreCase(st)) {
+			var ref = new Growths.Ref(vRegionId, rv.get().rid());
+			takeUpEmpty(ref, "nothing of it stands", plan.lots().size(), () -> feed(new Pipeline.BatchDone(0, plan.lots().size(), "nothing of it stands")));
+			return;
+		}
 		if (!Growths.ended(st)) return;
 		List<String> added = rv.get().lotsAdded() == null ? List.of() : rv.get().lotsAdded();
 		long placed = v.get().lots().stream().filter(l -> added.contains(l.id()) && "placed".equalsIgnoreCase(String.valueOf(l.state()))).count();
@@ -2818,24 +2833,37 @@ public final class SettlementRunner {
 		var ref = new Growths.Ref(vRegionId, rv.get().rid());
 		siteGroupId = ref.tag();
 		if (sites.isEmpty()) {
-			// nothing of it is in the world: the revision is taken up (never the town) before the build ends, so its record is never lost; asked again each
-			// second while it waits. One that can't be taken up at all (a newer change stands on it) is said and noted, naming it
-			if (growthTakingUp) return;
-			growthTakingUp = true;
 			String why = note != null ? note : "nothing of it stands";
-			Growths.undo(server, settlement.owner(), ref, this::say, ok -> {
-				growthTakingUp = false;
-				if (ok == null || !alive()) return;
-				var d = Growths.decide(ArchitectApi.get().regions().get(ref.region()), ref.rid());
-				if (!ok && d.step() != Growths.Step.NEWER && d.step() != Growths.Step.UNKNOWN) return;
-				Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed (" + why
-					+ (ok ? "" : "; the town's change " + ref.tag() + " stands: " + d.why()) + ")", List.of()));
-				feed(new Pipeline.BatchDone(0, (int) skipped, why));
-			});
+			takeUpEmpty(ref, why, (int) skipped, () -> feed(new Pipeline.BatchDone(0, (int) skipped, why)));
 			return;
 		} else if (!logPlaced(sites, (int) placed, (int) skipped, note)) { logFailed(); return; }
 		feed(new Pipeline.BatchDone((int) placed, (int) skipped, note == null ? null : note.substring(4)));
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
+	}
+
+	/**
+	 * A growth with nothing of it in the world: its revision is taken up (never the town) before the build ends, so its record is never lost, asked again
+	 * each second while it waits (or its take-up stopped part way). One that can't be taken up at all (a newer change stands on it, or Architect has no such
+	 * revision) is noted in the history, naming it; the build ends ({@code end}) only once it is taken up or that note is saved.
+	 */
+	private void takeUpEmpty(Growths.Ref ref, String why, int skipped, Runnable end) {
+		if (growthTakingUp) return;
+		growthTakingUp = true;
+		Growths.undo(server, settlement.owner(), ref, this::say, ok -> {
+			growthTakingUp = false;
+			if (ok == null || !alive() || state == null || state.phase().terminal()) return;
+			if (ok) {
+				Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed (" + why + ")",
+					List.of()));
+				end.run();
+				return;
+			}
+			var d = Growths.decide(ArchitectApi.get().regions().get(ref.region()), ref.rid());
+			if (d.step() != Growths.Step.NEWER && d.step() != Growths.Step.UNKNOWN) return;
+			var saved = Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed ("
+				+ why + "); the town's change " + ref.tag() + " stands with nothing of it placed: " + d.why(), List.of()));
+			if (saved.ok()) end.run();
+		});
 	}
 
 	/**
@@ -2860,7 +2888,12 @@ public final class SettlementRunner {
 		}
 		List<String> sites = rv.get().sites() == null ? List.of() : List.copyOf(rv.get().sites());
 		var entry = growthEntry(ref.tag());
-		if (entry.isEmpty() && !sites.isEmpty()) {
+		// nothing of it shows and nothing logged: taken up before the cancel ends (asked again each second), or noted when it can't be
+		if (entry.isEmpty() && sites.isEmpty()) {
+			takeUpEmpty(ref, "cancelled", 0, () -> { vRegionId = null; feed(new Pipeline.CancelConfirmed()); });
+			return;
+		}
+		if (entry.isEmpty()) {
 			if (!logPlaced(sites, sites.size(), 0, "being cancelled")) { logFailed(); return; }
 			entry = growthEntry(ref.tag());
 		}
@@ -2877,8 +2910,7 @@ public final class SettlementRunner {
 			feed(new Pipeline.BatchDone(sites.size(), 0));
 		};
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
-		if (entry.isPresent()) Undo.growth(server, saved, entry.get(), ref, Map.of(), Undo.reportingOverflow(server, saved, this::say), after);
-		else Growths.undo(server, settlement.owner(), ref, this::say, after::accept);
+		Undo.growth(server, saved, entry.get(), ref, Map.of(), Undo.reportingOverflow(server, saved, this::say), after);
 	}
 
 	/**

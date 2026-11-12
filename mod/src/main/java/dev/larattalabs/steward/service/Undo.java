@@ -203,7 +203,7 @@ public final class Undo {
 		// a town that grew (docs/GROWTH.md): never removed whole while a revision of it stands or is in flight, whatever its sites say (a growth may have
 		// written only ground, or not yet its first site); its growths are undone first, newest first
 		var live = regions.get(region);
-		String blocked = live.map(v -> Growths.blocksTownRemoval(v, s)).orElse(null);
+		String blocked = live.map(v -> Growths.blocksTownRemoval(v, s, ArchitectApi.get().sites(server))).orElse(null);
 		if (blocked != null) {
 			say.accept("Undo stopped: " + blocked + ".");
 			done.accept(false);
