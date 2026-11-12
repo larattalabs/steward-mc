@@ -1404,3 +1404,11 @@ Architect v0.60.0 (API 1.53.0, kit 0.55.0, catalogue 17; the 7b PL+SO RC, releas
 the release can still break for it: `stub --only gate,wall,survival,place,player-builds,discard`, PASS, 94 checks over 17 flows (stub, survival and
 supplied billing, wall and gate lots, every gate mechanism and drawbridge in creative and survival, discard). `place` and `player-builds` are free-mode
 flows; they run with the v0.61.0 pass.
+
+### v0.61.0 pin (2026-11-12): PASS, merged
+Architect v0.61.0 (API 1.54.0, kit 0.56.0, catalogue 18; 7b's SL+LP RC, released first under DEV MODE) is pinned on pin-061 (runtime minimum
+0.61.0). The build and unit tests pass against the published package (381/0). Steward has no site lots or port links yet, so the run covers the plan
+and realise paths the link pass sits on: `stub --only plan,realise,growth,adopt,district,revision`, PASS, 108 checks over 20 flows (stub, village,
+growth, adopt, every plan flow, survival and supplied billing, revision, district region, quarter); and `free --only place,protect,farm`, PASS, 35 checks
+(place, proposals, districts, player-builds), which also closes the v0.60.0 placement areas. A first free run without `farm` failed districts on test
+order only (proposals didn't run first), as in an earlier RC.
