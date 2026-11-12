@@ -13,7 +13,7 @@
 //
 // It never kills a process it didn't start and never touches another checkout's tree:
 //   - one nightly at a time: artifacts/nightly/nightly.lock (pid); a live holder -> exit 0 ("already active");
-//   - the night is skipped (exit 0, SUMMARY.md says why) if the e2e ports (8590/8591) are taken, if any Steward client runs (a dev client
+//   - the night is skipped (exit 0, SUMMARY.md says why) if artifacts/nightly/skip-<local date> exists (one night, on purpose), if the e2e ports (8590/8591) are taken, if any Steward client runs (a dev client
 //     on mod/run, or record-plans), or if a claude-login opt-in exists in this checkout or the worktree;
 //   - the main checkout is only fetched, never checked out or pulled; the worktree is moved only when clean, else the night is skipped;
 //   - a hard limit of 2 h 45 min for the whole night: past it, the e2e's own process group (started here) is stopped and the night is a TIMEOUT.
@@ -107,6 +107,9 @@ async function night(dry) {
 /** Why tonight can't run, or [] when it can. */
 function busy() {
   const why = [];
+  // one night skipped on purpose (Noah, 2026-11-11): artifacts/nightly/skip-<local date> (local, not committed); the next night runs as usual
+  const skip = path.join(OUT_ROOT, `skip-${localDate()}`);
+  if (fs.existsSync(skip)) why.push(`skipped for tonight by ${skip}`);
   if (fs.existsSync(LOCK)) {
     const pid = Number(fs.readFileSync(LOCK, 'utf8'));
     if (alive(pid)) why.push(`already active (pid ${pid})`);
