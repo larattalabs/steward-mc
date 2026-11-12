@@ -115,6 +115,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-11-11 | **Copies auto-apply at Autonomous and Full** (Noah, "Yes, let copies auto-apply at Autonomous and Full", via the top session): a copy's update after it followed its source (docs/FOLLOW.md) applies by itself at those two levels, as any update that would; at Observer and Proposals it waits in the inbox. |
 | 2026-11-12 | **Growth A2 merged** (Noah via parent session: "Merge A2"): a town built from materials grows through Architect's revisions (docs/GROWTH.md, slice A2). Its undo is refused while the addition builds and is exact once built, with the refund once. An addition never fed can't be cancelled until Architect's ask A2-1 (`undoRevision` cancelling unbuilt targets) ships. |
 | 2026-11-12 | **e2e starts from a fresh world** (Noah via parent session: "Merge e2e-fresh-world"): each run moves the last run's "Steward E2E" aside as "Steward E2E (last)", one copy kept, and `--keep-world` keeps the old way. Noah knew the first run moves the main checkout's 9.4 GB world aside and the next run deletes it. |
+| 2026-11-12 | **Phase 5 scope** (Noah, "Go with option 1, defaults/recommendations for the rest", via the Steward manager; design in `docs/MODULES.md`): phase 5 is the first catalog (a crop farm and a sorting storage hall, the seeds offer, two modules composed; gate M5). **Phase 5b** follows right after M5, before phase 6: the sugar cane and melon/pumpkin farms with observer and piston harvest, then the spine (`connector.items`, S-M5-5), then the animal pen and the smelter array; its gate is items from an automatic farm carried by the spine and sorted in the hall, measured. The six answers: the player harvests v1's farm; the spine waits for 5b; a storage hall holding items is refused for undo until it is emptied; Autonomous and Full may build modules, but in survival Autonomous asks first when the bill takes more than half the stockpile's count of any item; no in-place upgrades; vanilla only. |
 
 ## Concept card
 
@@ -607,8 +608,15 @@ Survival e2e: 629 units delivered, consumed and refunded on undo. Three GPT revi
 - **Checks:** a survival e2e (the stockpile fed by the dev hook `dev.crate.insert`, a build finished from it, an undo whose refund matches), and a GPT review (it spends the player's materials).
 
 ### Phase 5: Functional modules
-Verified catalog: crop farm, storage hall with sorting, then the rest. "You have seeds" offer. Spine/connectors.
-- **Gate:** each module's measured output in the dev client; the steward composes two modules into a settlement.
+Design: `docs/MODULES.md` (v2.2, 2026-11-12, after two GPT review rounds and with Noah's answers; asks S-M5-1..7). Split by Noah (2026-11-12):
+- **Phase 5, the first catalog:** a verified catalog with a crop farm and a storage hall with sorting, the "You have seeds" offer, modules placed
+  by growth and composed by the plan writer. Slices M0 (probe) to M5.
+  - **Gate (M5):** each module's measured output in the dev client; the steward composes a crop farm and a sorting storage hall (at least 4
+    slots) into a settlement, each measured in place.
+- **Phase 5b, automation and the spine,** right after M5, before phase 6: the sugar cane and melon/pumpkin farms (observer and piston
+  harvest into a chest), then the spine (`connector.items`, S-M5-5: hopper chains between modules), then the animal pen and the smelter
+  array. Slices M7, M8, M9.
+  - **Gate (M8):** items from an automatic farm, carried by the spine and sorted in the hall, measured end to end.
 
 ### Phase 6: Villagers and animals
 Housing, trading hall with offer reading, animal detection and wing.

@@ -1305,3 +1305,80 @@ Steward's slice A2 (docs/GROWTH.md) grows a town built from materials through Ar
   the built ones refunded. Steward asks for that (or a `cancelRevision(region, rid)` that does it), so a player who cancels an addition, or
   undoes one still waiting for materials, needn't feed it first only to have the materials refunded. Until then Steward refuses a cancel once
   a survival growth is realised, and its undo until it is built, in plain words.
+
+## Phase 5: functional modules (S-M5; design in docs/MODULES.md v2, 2026-11-12; not sent yet)
+Steward's phase 5 places verified modules (a crop farm, a storage hall with sorting) as additions on growth A, A2 and B, and as lots of plan v1.
+A module is a Steward-owned kit program, run at $0 with parameters and the settlement's bible roles, and measured in a dev client for each
+version. Each ask is a question with Steward's preferred answer. Revised after GPT's design review (MODULES.md section 10).
+Noah's answers (2026-11-12, MODULES.md section 9): S-M5-6 isn't needed (a hall holding items is refused until it is emptied); S-M5-5 is for
+phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
+- **S-M5-1. Given-program designs, keyed.**
+  - **Asked:** a design request carries a caller-supplied kit program instead of a Claude brief: its source, params and a parameter schema.
+    Architect runs the kit, the checker and the renders, and installs an entry with that source, at $0.
+  - **Keyed variants:** variants of it take other params, another bible and reserved cells (`DesignRequest.Reserved` in the lot's frame).
+    Each variant is made under a caller opKey and is found again by that key after a restart (`variantByKey`). Today's `makeVariant` has
+    neither a key nor reserved cells.
+  - **Preferred:** yes, one general pair of calls (e.g. `Designs.fromProgram(source, params, bible, opKey)` and a keyed
+    `variant(entryId, params, bible, reserved, opKey)`). Refusals carry the checker's typed errors. The program runs in the same sandbox as
+    Claude-written programs. The entry records the program sha.
+  - **Alternative:** Architect hosts module builders as kit components to Steward's spec. Each new module then becomes an Architect release.
+- **S-M5-2. Irrigated growth, the whole lifecycle.**
+  - **Today:** `planRevision` grow lots don't take `irrigate`. `grow.mjs` doesn't forward it, and `revise.mjs` adds a fluids stage only for
+    explicit ponds.
+  - **Asked:** an irrigated grow lot works as IRR does in plan/0:
+    - the bodies are emitted;
+    - the revision plan reports `irrigation {cells, lotCells, sources, bodies}` on the lot, so Steward can make the variant before the realise;
+    - the mask, then the shell, the lot and the fluids stage, in IRR's order;
+    - survival waits and billing (the shells in the revision's `cost.bom`), as A2 bills a growth;
+    - restart recovery;
+    - drain-first `undoRevision`, including an undo that is interrupted.
+  - **Preferred gate:** a V town with no irrigation grows by an irrigated farm lot, instantly and from materials (fed partly, then the
+    rest), and is undone. One undo is interrupted by a restart.
+- **S-M5-3. Filled containers, as a transaction.** A sorter's filter hoppers must hold an exact count of their item plus fillers, but
+  templates and construction targets are written with empty containers.
+  - **Asked:** a given-program entry (S-M5-1) declares filled containers (cell → inventory), with a lifecycle:
+    - **Built locked.** The entry declares the lock cells that keep the circuit locked until activation.
+    - **Filled once.** The fill comes after every core cell stands, as one keyed and journaled step, never repeated after a crash.
+    - **Then unlocked.**
+    - **Billing.** The fill's items are billed in survival like any item and delivered before the fill.
+    - **Cancel.** A cancel before the fill writes and refunds no filter items.
+  - **On removal:** each declared container's inventory is captured in the same tick as its removal, with no transfer in between and no
+    vanilla drop.
+    - The declared contents refund as construction.
+  - **"Ours" and removal:** a declared container is ours while it holds exactly its declared contents.
+    - Anything more, even more of its own item, is cargo, and cargo blocks removal as today, unless a transfer option (S-M5-6) is chosen.
+    - Captured contents and their refund credits take part in the journal's durable replay, so a crash during capture, removal or crediting
+      refunds once and mints nothing.
+  - **Preferred:** yes, opt-in per cell, with an upper bound on items per entry.
+- **S-M5-4. Field cells of a module lot.** A worked field changes every day: harvested cells (air over farmland) and crops the player
+  replants, which PT records as the player's.
+  - **Asked:** a lot marks **field cells**: the farmland cells and the cell above each, with a set of crop kinds. For that lot only:
+    - **Land check and standing:** a field crop of any age, or air over our farmland, reads unchanged, and the standing or reconcile score
+      judges the field cells by this rule rather than block by block.
+    - **Undo:** a player's crop on a field cell goes with the lot and is not a removal blocker. Its planting item is returned once, as cargo,
+      never as the construction seed.
+    - **Other player blocks:** any other player block on the field (a torch, a sign) stays as PT says.
+  - **Preferred:** a lot member or entry member `field {cells, crops}`, honoured by LC, the standing score, removal blockers and refunds.
+  - **Needed before Steward's crop farm ships** (slice M2).
+- **S-M5-5. `connector.items`** (needed for **phase 5b**, slice M8, not for phase 5's M5 gate; Noah 2026-11-12). A connector from a lot's `item_out` port
+  to another lot's `item_in`.
+  - **The ends.** Each port has a direction and height.
+  - **Extraction.** A hopper from the source container.
+  - **Transport.** A hopper chain up to 16 cells. Water on ice only after its own probe (item entities: unloading, despawn, pickup).
+  - **A full sink.** Items back up in the chain; nothing drops.
+  - **Unload and restart.** Nothing is lost or duplicated.
+  - **Removal.** Removing an end lot first either refuses or takes the connector along (Architect's choice). Items in the connector's
+    hoppers are cargo.
+  - **Growth.** Routed as T2 routes are, billed in survival, and it works in a revision's realise (which has no links stage today).
+  - **Asked now so it can be scheduled.**
+- **S-M5-6. Removing a site whose containers hold items** (an option, answer for scheduling only).
+  - **Today:** a filled container refuses Remove. Steward's default keeps that and tells the player to empty the hall.
+  - **Asked:** is it feasible, as an option on a removal, to move every container's cargo into the owner's stockpile crate (C24) in the
+    same commit, with overflow dropped at the crate as refunds are? Steward needs it only if Noah picks it (MODULES.md Q3).
+- **S-M5-7. A quote for a revision with its entries.**
+  - **Today:** `planRevision` returns a `RegionPlan` with no bill, and the survival plan BOM leaves out unbound lots.
+  - **Asked:** a read-only, $0 quote of a planned revision (or a plan/0 artifact) with the caller's final `lotEntries`:
+    - the per-item bill of the whole operation: its parts, every bound entry, S-M5-3's fills, and any placement costs;
+    - no consumption, no write.
+  - **Why:** Steward compares the quote with the bound the player approved before anything is consumed (MODULES.md 4.2 step 5).
+  - **Preferred:** `Regions.quote(planId, lotEntries)`, returning the same shape as the plan check's `cost.bom`, bound entries included.
