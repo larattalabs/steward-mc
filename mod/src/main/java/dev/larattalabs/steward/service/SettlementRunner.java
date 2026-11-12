@@ -2163,7 +2163,7 @@ public final class SettlementRunner {
 			String no = growthRealiseRefusal();
 			if (no != null) { say("Not placed: " + no); feed(new Pipeline.Cancel()); return; }
 		}
-				say(growth() ? "Placing it in the town (" + lotEntries.size() + (lotEntries.size() == 1 ? " building" : " buildings") + ")..."
+		say(growth() ? "Placing it in the town (" + lotEntries.size() + (lotEntries.size() == 1 ? " building" : " buildings") + ")..."
 			: "Placing the village (" + lotEntries.size() + " buildings, its street, lanes and square)...");
 		queueInFlight = true;
 		inFlightSince = System.currentTimeMillis();
@@ -3005,9 +3005,10 @@ public final class SettlementRunner {
 		var b = v.build();
 		if (b == null) return;
 		if (!b.built()) {
-			String owed = b.outstanding().isEmpty() ? "" : Stockpiles.items(b.outstanding().entrySet().stream().toList(), 6);
-			say("From materials, the addition needs " + (owed.isEmpty() ? "what its construction sites ask for" : owed)
-				+ ": fill the stockpile and it's built as it's fed. I'll say when it's done.");
+			// the town's outstanding bill (Architect sums its targets', not one revision's): said as what the stockpile still owes
+			String owed = b.outstanding().isEmpty() ? "" : " (the stockpile still owes " + Stockpiles.items(b.outstanding().entrySet().stream().toList(), 6)
+				+ " for what is being built)";
+			say("The addition's construction sites stand and are built from the stockpile as it's fed" + owed + ". I'll say when it's done.");
 		}
 		MaterialRequests.watchBuild(settlement.id(), v.id());
 	}

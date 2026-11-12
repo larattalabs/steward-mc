@@ -132,8 +132,8 @@ the mode or `survival_unfinished` (the world's mode changed while the designs ra
 while it was designed: start it again"), as slice A's other refusals end it.
 
 **Watch.** `watchGrowth` unchanged up to the revision's end (by rid). Ended PLACED or PARTIAL with sites: logged under
-`revision:<region>:<rid>` and the build ends (`BatchDone`), as slice A. Then, when the town builds from materials: said what the addition
-still needs (`build().outstanding()`, "From materials, the addition needs ...; fill the stockpile and it's built as it's fed"), and
+`revision:<region>:<rid>` and the build ends (`BatchDone`), as slice A. Then, when the town builds from materials: said that its
+construction sites stand and are built as the stockpile is fed, with what the stockpile still owes (`build().outstanding()`, the town's), and
 `MaterialRequests.watchBuild(settlement, region)`, which says once when the town is fully built again. The material waits (bubble, inbox,
 the long-wait summons) are today's: the targets are the owner's, fed from the settlement's stockpile.
 
@@ -154,7 +154,7 @@ revision (review 1). Order: GONE, WAIT (removing), UNKNOWN, GONE (undone/stale),
 
 | Path | Change |
 |---|---|
-| `watchGrowth` | as slice A; after the entry and `BatchDone`, the bill still owed said and `watchBuild` |
+| `watchGrowth` | as slice A; after the entry and `BatchDone`, "The addition's construction sites stand and are built from the stockpile as it's fed (the stockpile still owes ...)" (the town's outstanding bill: Architect sums it per town) and `watchBuild` |
 | `cancel()` once realised | **refused** (review 2): "The addition is being placed from materials and can't be stopped part way: it's built as the stockpile feeds it, and /steward undo takes it up once it's built." The build goes on as if not cancelled: logged when its revision ends, watched |
 | `cancelGrowth`, a cancel that came while the realise was in flight | waits in CANCELLING as slice A (the obligation is saved with the build), said once in the words above: a revision can hold its later items until earlier targets are built, so this may need feeding |
 | `cancelGrowth`, revision ended, its targets built (fed in time) | as slice A: logged, then taken up exactly, refunded once |
@@ -190,7 +190,7 @@ futures complete; recorded as a follow-up.
 - **e2e (stub), flow `supplied-growth`**, through Steward only (no dev revision calls): a Supplied town from an unwalled composed plan
   (`no_wood`; the walled one has no room: `NO_ROOM [street]`), fed until built; the ground snapshotted; a library asked in talk and accepted;
   "The town grows" planned and realised as a revision under the build's keys (half its needs fed every 30 s while the revision is placed),
-  the entry `revision:`, the bill said; while its targets wait, `/steward undo` refused in plain words, nothing written (`dev.region.hash`),
+  the entry `revision:`, what the stockpile owes said; while its targets wait, `/steward undo` refused in plain words, nothing written (`dev.region.hash`),
   the entry kept; fed until the town is built again (the steward says so); the revision's targets' bills = what the stockpile paid;
   `/steward undo` takes it up (`PROJECT_REMOVED` once, revision UNDONE, the ground as before the growth but the crates), and what it consumed
   comes back, exactly once (nothing more 20 s on); then the town undone with the rest of its refund.

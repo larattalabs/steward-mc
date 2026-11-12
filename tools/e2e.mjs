@@ -2398,7 +2398,7 @@ async function suppliedGrowthFlow() {
     let rv = await view();
     const rev = (rv.revisions ?? []).find((r) => String(r.rid) === m?.[2]);
     const keyed = new RegExp(`steward\\.[^.]+\\.vgrowrealise`).test(String(rev?.opKey ?? '')) || rev?.opKey == null;
-    const bill = logSince(from).match(/From materials, the addition needs [^\n]*/);
+    const bill = logSince(from).match(/The addition's construction sites stand and are built from the stockpile[^\n]*/);
     if (planned && m && m[1] === region && rev && grew.placed >= 1 && bill) ok(label, `planned and realised from materials as revision ${m[2]} of ${region} (${rev.state}); ${bill[0].slice(0, 140)}`);
     else return fail(label, `planned ${!!planned}; entry ${op?.siteGroup}; revision ${JSON.stringify(rev)?.slice(0, 160)}; placed ${grew.placed}; bill ${bill ? 'said' : 'not said'}; keyed ${keyed}`);
     // its targets wait for items (nothing fed): undo is refused in plain words, nothing written, the entry kept
