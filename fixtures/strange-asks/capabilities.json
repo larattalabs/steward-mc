@@ -19,7 +19,9 @@
     },
     "big_program": {
       "name": "more buildings than one street holds",
-      "status": "now"
+      "status": "nearest",
+      "nearest": "the rest go to districts once the town stands",
+      "comes": "now, through districts"
     },
     "survival_materials": {
       "name": "building from the player's materials",

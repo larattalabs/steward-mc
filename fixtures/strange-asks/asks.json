@@ -9,7 +9,8 @@
         "zones",
         "biome_aware",
         "land_placed_districts",
-        "walls_gates"
+        "walls_gates",
+        "big_program"
       ]
     },
     {
@@ -46,7 +47,8 @@
       "ask": "Two villages, one of fishermen on the coast and one of shepherds inland, joined by a road.",
       "needs": [
         "zones",
-        "biome_aware"
+        "biome_aware",
+        "big_program"
       ]
     },
     {
