@@ -1295,3 +1295,13 @@ Steward calls `Regions.landCheck(region, null)` on 0.59.0 (feature `landCheck`) 
 - **Site items in a `massingFirst` group:** allowed, designed after massing and without a massing of their own. One group keeps a build's approvals,
   budget and holds together.
 
+
+## A2: survival growth (Steward branch survival-growth, 2026-11-11)
+
+Steward's slice A2 (docs/GROWTH.md) grows a town built from materials through Architect's revisions, as GR, RV §8 and XR built them. One gap:
+- **Ask A2-1 (not blocking):** `undoRevision` of a survival revision whose targets are not all built refuses `survival_building`, nothing
+  written (`Revisions.undo0`), and nothing cancels a revision's targets (`Sites.pause` stops one drawing, but a paused target never builds,
+  so it could never be undone). RV §8 as written said the suffix's unbuilt targets are cancelled first, their reservations released, then
+  the built ones refunded. Steward asks for that (or a `cancelRevision(region, rid)` that does it), so a player who cancels an addition, or
+  undoes one still waiting for materials, needn't feed it first only to have the materials refunded. Until then Steward refuses a cancel once
+  a survival growth is realised, and its undo until it is built, in plain words.

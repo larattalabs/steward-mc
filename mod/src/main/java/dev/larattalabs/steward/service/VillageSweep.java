@@ -36,6 +36,7 @@ public final class VillageSweep {
 				Steward.LOGGER.warn("{}: could not reconcile its adoption", s.id(), e);
 			}
 		}
+		growths(server);
 		for (Settlement s : Settlements.store().all()) {
 			for (var v : regions.list(s.owner())) {
 				if (v.state() == RegionState.REMOVED) continue;
@@ -49,6 +50,51 @@ public final class VillageSweep {
 				takeUp(server, s, v.id(), m -> Steward.LOGGER.info("{}: {}", s.id(), m));
 			}
 		}
+	}
+
+	/**
+	 * (docs/GROWTH.md, slice A2) Growths of a settlement's town that no build holds and no history entry names: realised for a build that ended first (an
+	 * orphan whose revision was still being placed), or whose entry could not be saved. Once the revision has ended, it is logged under its tag (its sites,
+	 * all known by then) and taken up as an undo would: one still built from the stockpile keeps its entry, so undo takes it up once it is built. At each
+	 * world start and every few seconds (MaterialRequests' tick). A revision is Steward's when its sites carry the settlement's tag; one whose build (the
+	 * sites' build tag) still holds it is left to that build.
+	 */
+	public static void growths(MinecraftServer server) {
+		var regions = ArchitectApi.get().regions();
+		var sites = ArchitectApi.get().sites(server);
+		for (Settlement s : Settlements.store().all()) {
+			try {
+				var town = TownRegion.of(s).flatMap(regions::get);
+				if (town.isEmpty() || town.get().revisions() == null || Undo.busy(s.id())) continue;
+				for (var r : town.get().revisions()) {
+					if (!Growths.ended(r.state()) || r.sites().isEmpty()) continue;
+					String tag = Growths.tag(town.get().id(), r.rid());
+					if (s.log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && tag.equals(e.siteGroup()))) continue;
+					var first = sites.get(r.sites().get(0));
+					String settlement = first.map(x -> ext(x, "steward_mc:settlement")).orElse(null);
+					String build = first.map(x -> ext(x, BatchPlanner.BUILD_EXT)).orElse(null);
+					// a build's id (b<start time>), not one a dev call made up (the e2e's own revisions)
+					if (!s.id().equals(settlement) || build == null || !build.matches("b\\d+") || SettlementRunner.holds(build)) continue;
+					Steward.LOGGER.warn("growth {} of {} (build {}) is held by no build and no history entry: logged and taken up", tag, s.id(), build);
+					List<Settlement.SiteChange> changes = r.sites().stream().map(id -> new Settlement.SiteChange(id, sites.get(id).map(VillageSweep::role).orElse(null), 0,
+						sites.get(id).map(SiteView::version).orElse(1))).toList();
+					var placed = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "An addition placed after its build ended",
+						changes, tag, Settlement.Outcome.PARTIAL);
+					if (!Settlements.log(s.id(), placed).ok()) { Steward.LOGGER.warn("{}: growth {} could not be logged; tried again", s.id(), tag); continue; }
+					var saved = Settlements.store().get(s.id()).orElse(s);
+					var entry = saved.log().get(saved.log().size() - 1);
+					var ref = new Growths.Ref(town.get().id(), r.rid());
+					if (Growths.fromMaterials(town.get())) MaterialRequests.watchBuild(s.id(), town.get().id());
+					Undo.growth(server, saved, entry, ref, Map.of(), m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> { });
+				}
+			} catch (RuntimeException | LinkageError e) {
+				Steward.LOGGER.warn("{}: could not look for growths without a build", s.id(), e);
+			}
+		}
+	}
+
+	private static String ext(SiteView v, String key) {
+		return v.ext() != null && v.ext().has(key) && v.ext().get(key).isJsonPrimitive() ? v.ext().get(key).getAsString() : null;
 	}
 
 	/**

@@ -65,6 +65,12 @@ public final class MaterialRequests {
 				Steward.LOGGER.warn("could not read the material waits", e);
 			}
 			try {
+				// (slice A2) growths left without a build or an entry, once their revision has ended
+				if (SettlementRunner.canSave()) VillageSweep.growths(s);
+			} catch (RuntimeException | LinkageError e) {
+				Steward.LOGGER.warn("could not look for growths without a build", e);
+			}
+			try {
 				if (!seeded) seedBuilds();
 				readBuilds(s);
 			} catch (RuntimeException | LinkageError e) {
@@ -140,7 +146,8 @@ public final class MaterialRequests {
 				continue;
 			}
 			var b = v.get().build();
-			if (b != null && b.done()) {
+			// done: built and the region PLACED; a town that stood PARTIAL before its growth reads PARTIAL again, so built is enough there (slice A2)
+			if (b != null && (b.done() || (b.built() && v.get().state() == dev.larattalabs.architect.api.RegionState.PARTIAL))) {
 				BUILDING.remove(e.getKey());
 				tell(srv, s.get(), s.get().name() + " is built: everything its plan laid out stands, from the stockpile.");
 			}

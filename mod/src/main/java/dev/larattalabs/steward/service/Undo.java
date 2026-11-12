@@ -251,8 +251,8 @@ public final class Undo {
 		Consumer<String> say, Consumer<Boolean> whenDone) {
 		// (slice A2) still being built from the stockpile: nothing is asked (Architect would refuse it, survival_building); the entry stays
 		var town = ArchitectApi.get().regions().get(ref.region());
-		if (Growths.decide(town, ref.rid()).step() == Growths.Step.BUILDING) {
-			say.accept(Growths.buildingLine(town.orElse(null)));
+		if (Growths.decide(town, ref.rid(), ArchitectApi.get().sites(server)).step() == Growths.Step.BUILDING) {
+			say.accept(Growths.buildingLine(server, ref));
 			whenDone.accept(false);
 			return true;
 		}
@@ -263,13 +263,32 @@ public final class Undo {
 			UNDOING.remove(s.id());
 			if (ok == null) { whenDone.accept(null); return; }
 			if (ok) {
-				if (!Settlements.log(s.id(), removed(entry, ids, true, now)).ok()) say.accept(UNLOGGED);
+				// logged once: a replay after a crash between the removal's entry and the build's save finds it retired (Architect reads UNDONE again)
+				var fresh = Settlements.store().get(s.id()).orElse(s);
+				if (!retired(fresh, entry) && !Settlements.log(s.id(), removed(entry, ids, true, now)).ok()) say.accept(UNLOGGED);
 				districts(server, s, say);
 				say.accept("Undone: the town's change is taken up, the land restored.");
-			} else if (!Growths.building(ArchitectApi.get().regions().get(ref.region()).orElse(null))) say.accept("Run /steward undo " + s.id() + " again once it is clear.");
+			} else if (!Growths.building(server, ref)) say.accept("Run /steward undo " + s.id() + " again once it is clear.");
 			whenDone.accept(ok);
 		});
 		return true;
+	}
+
+	/**
+	 * Whether a placing entry is retired already: a later {@code PROJECT_REMOVED} names every one of its sites (an undo, or a cancel's take-up, logged before
+	 * a crash). Pure over the history; the entry is found by its time, kind and tag.
+	 */
+	static boolean retired(Settlement s, Settlement.LogEntry placed) {
+		var log = s.log();
+		int at = -1;
+		for (int i = log.size() - 1; i >= 0; i--) {
+			var e = log.get(i);
+			if (e.kind() == placed.kind() && e.at() == placed.at() && java.util.Objects.equals(e.siteGroup(), placed.siteGroup())) { at = i; break; }
+		}
+		if (at < 0) return false;
+		java.util.Set<String> gone = new java.util.HashSet<>();
+		for (int i = at + 1; i < log.size(); i++) if (log.get(i).kind() == Settlement.Kind.PROJECT_REMOVED) gone.addAll(log.get(i).siteIds());
+		return !placed.siteIds().isEmpty() && gone.containsAll(placed.siteIds());
 	}
 
 	/** The units of refunds that did not fit in the settlement's stockpile so far (0 without one). */

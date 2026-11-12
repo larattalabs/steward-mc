@@ -129,7 +129,26 @@ class GrowthsTest {
 		assertTrue(Growths.buildingRefusal("NOT_ALLOWED: undo of region r1 to position 0 refused, nothing written: target s9 of revision 1 is still building (survival_building): let it finish"));
 		assertFalse(Growths.buildingRefusal("OVERLAP_BUSY: region r1 is busy (revising 2)"));
 		assertFalse(Growths.buildingRefusal(null));
-		assertTrue(Growths.buildingLine(null).contains("can be undone once it's built"));
-		assertFalse(Growths.buildingLine(null).contains("survival_building"));
+		assertTrue(Growths.buildingLine(0, 0).contains("can be undone once it's built"));
+		assertFalse(Growths.buildingLine(0, 0).contains("survival_building"));
+	}
+
+	private static dev.larattalabs.architect.api.RevisionView rev(List<String> sites) {
+		return new dev.larattalabs.architect.api.RevisionView(2, 2, 1, "p1", "sha", "PLACED", 0L, List.of(), List.of("g_1"), List.of(), 0L, null, true, null, sites);
+	}
+
+	@Test
+	void onlyTheRevisionsOwnTargetsCountAsBuilding() {
+		// (slice A2, review blocker 1) an older building updated from materials makes the town unfinished again; the revision's own sites decide
+		var states = new java.util.HashMap<String, dev.larattalabs.architect.api.State>();
+		states.put("s1", dev.larattalabs.architect.api.State.BUILT);
+		states.put("s2", dev.larattalabs.architect.api.State.BUILDING);
+		states.put("s3", dev.larattalabs.architect.api.State.PLACING);
+		states.put("old", dev.larattalabs.architect.api.State.BUILDING);
+		assertEquals(2, Growths.unbuilt(rev(List.of("s1", "s2", "s3")), states::get));
+		assertEquals(0, Growths.unbuilt(rev(List.of("s1")), states::get), "the town's other building still building is not the revision's");
+		assertEquals(0, Growths.unbuilt(rev(List.of("gone")), states::get), "a site Architect no longer has counts as built");
+		assertEquals(0, Growths.unbuilt(rev(List.of()), states::get));
+		assertTrue(Growths.buildingLine(2, 3).contains("2 of its 3 construction sites still to build"));
 	}
 }

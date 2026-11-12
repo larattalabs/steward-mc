@@ -275,6 +275,11 @@ public final class SettlementRunner {
 		if (second && batchId != null) return "Still stopping: what the build placed is being recorded first, so it can be undone. It ends on its own.";
 		// a growth realised or in flight: the same, its revision is recorded and taken up first (never dropped with the build's save)
 		if (second && growth() && (vRegionId != null || queueInFlight)) return "Still stopping: the town's change is being recorded and taken up first. It ends on its own.";
+		// (slice A2) a growth placed from materials can't be stopped part way (nothing cancels a revision's construction targets): it goes on, is logged
+		// once put down, and undo takes it up once it is built
+		if (!second && growth() && vRegionId != null && growRegion != null && ArchitectApi.get().regions().get(growRegion).map(Growths::fromMaterials).orElse(false))
+			return "The addition is being placed from materials and can't be stopped part way: it's built as the stockpile feeds it, and /steward undo "
+				+ settlement.id() + " takes it up once it's built.";
 		feed(new Pipeline.Cancel());
 		if (second) return "Stopped waiting for Architect.";
 		return state.phase() == Pipeline.Phase.CANCELLING ? "Cancelling: stopping what runs first. What is already placed stays (remove it with /steward undo " + settlement.id() + ")."
@@ -565,6 +570,11 @@ public final class SettlementRunner {
 	/** Whether a build with this id is running (restored or new) this session. */
 	static boolean running(String buildId) {
 		return ACTIVE.values().stream().anyMatch(r -> buildId.equals(r.buildId));
+	}
+
+	/** Whether a build in this session still holds its placement (not ended, or its realise still unanswered): an ended runner kept in ACTIVE does not. */
+	static boolean holds(String buildId) {
+		return ACTIVE.values().stream().anyMatch(r -> buildId.equals(r.buildId) && (r.state == null || !r.state.phase().terminal() || r.queueInFlight));
 	}
 
 	String opKey(String kind) {
@@ -1011,9 +1021,15 @@ public final class SettlementRunner {
 						v.build() == null ? 0 : v.build().percent());
 					if (no != null) { abandon(no); return; }
 					// built from materials: its targets draw from the settlement's stockpile, made again if it went
-					if (Growths.fromMaterials(v) && Stockpiles.ensure(server, now, this::say) == null) {
-						abandon("A town built from materials grows from its stockpile, and none could be made by the founding stone. Clear a spot beside it and start again.");
-						return;
+					if (Growths.fromMaterials(v)) {
+						var sp = Stockpiles.ensure(server, now, this::say);
+						if (sp == null) {
+							abandon("A town built from materials grows from its stockpile, and none could be made by the founding stone. Clear a spot beside it and start again.");
+							return;
+						}
+						// the growth keeps off the crates and the ring round them (a protected area, which Architect's growth keeps clear of), as planComposed
+						String held = Stockpiles.protectCrates(server, Settlements.store().get(now.id()).orElse(now), sp, true);
+						if (held != null) { abandon("The stockpile's ground could not be kept clear of the growth (" + held + "). Start again."); return; }
 					}
 					planGrowth(r, budgetUsd, v.id(), specs, null);
 					return;
@@ -2141,7 +2157,13 @@ public final class SettlementRunner {
 			feed(new Pipeline.Cancel());
 			return;
 		}
-		say(growth() ? "Placing it in the town (" + lotEntries.size() + (lotEntries.size() == 1 ? " building" : " buildings") + ")..."
+		// (slice A2) checked again at the realise (the designs took a while): the town's mode against the world's, a town built from materials fully built
+		// and its stockpile standing; else nothing is placed
+		if (growth()) {
+			String no = growthRealiseRefusal();
+			if (no != null) { say("Not placed: " + no); feed(new Pipeline.Cancel()); return; }
+		}
+				say(growth() ? "Placing it in the town (" + lotEntries.size() + (lotEntries.size() == 1 ? " building" : " buildings") + ")..."
 			: "Placing the village (" + lotEntries.size() + " buildings, its street, lanes and square)...");
 		queueInFlight = true;
 		inFlightSince = System.currentTimeMillis();
@@ -2161,6 +2183,22 @@ public final class SettlementRunner {
 		Mode mode = growth() && growRegion != null && api.regions().get(growRegion).map(Growths::fromMaterials).orElse(false) ? Mode.CONSTRUCTION : Mode.INSTANT;
 		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, mode, actor, lotEntries, null, true, null, false, ext, 0, key))
 			.whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
+	}
+
+	/** (slice A2) Why a growth may not be realised now, or null: the mode gate again, and a town built from materials keeps its stockpile. */
+	private @org.jspecify.annotations.Nullable String growthRealiseRefusal() {
+		var town = growRegion == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : ArchitectApi.get().regions().get(growRegion);
+		if (town.isEmpty()) return null;
+		var v = town.get();
+		boolean world = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
+		boolean built = v.build() != null && v.build().built();
+		if (Growths.fromMaterials(v) == world && Growths.fromMaterials(v) && !built)
+			return "the town is being built from the stockpile again (an update or another change); it can grow once it's built. Start it again then.";
+		String no = Growths.modeRefusal(settlement.name(), Growths.fromMaterials(v), world, built, v.build() == null ? 0 : v.build().percent());
+		if (no != null) return no + " Start it again.";
+		if (Growths.fromMaterials(v) && Stockpiles.of(server, Settlements.store().get(settlement.id()).orElse(settlement)).isEmpty())
+			return "the town's stockpile is gone, and a town built from materials grows from it. Start it again: a new one is made by the founding stone.";
+		return null;
 	}
 
 	/**
@@ -2668,6 +2706,12 @@ public final class SettlementRunner {
 			return;
 		}
 		var ref = new Growths.Ref(regionId, rv.get().rid());
+		// (slice A2) still being placed: its sites aren't all known yet; the growth sweep logs it once it has ended and takes it up (VillageSweep.growths)
+		if (!Growths.ended(rv.get().state()) && !"UNDONE".equalsIgnoreCase(rv.get().state()) && !"STALE".equalsIgnoreCase(rv.get().state())
+			&& !"UNDOING".equalsIgnoreCase(rv.get().state())) {
+			Steward.LOGGER.warn("growth {} was realised for {}'s ended build {} and is still being placed: logged and taken up once it has ended", ref.tag(), settlement.id(), buildId);
+			return;
+		}
 		Steward.LOGGER.warn("growth {} was realised for {}'s ended build {}: taking it up", ref.tag(), settlement.id(), buildId);
 		siteGroupId = ref.tag();
 		List<String> sites = rv.get().sites() == null ? List.of() : List.copyOf(rv.get().sites());
@@ -3010,7 +3054,10 @@ public final class SettlementRunner {
 		// still being placed: waits (the cancel stays CANCELLING and saved; asked again on the next world start or tick)
 		if (!Growths.ended(rv.get().state()) && !"UNDONE".equalsIgnoreCase(rv.get().state()) && !"STALE".equalsIgnoreCase(rv.get().state())
 			&& !"UNDOING".equalsIgnoreCase(rv.get().state())) {
-			if (saidRegionWaits.add("cancel " + ref.tag())) say("The addition is still being placed: it is taken up once it is in.");
+			if (saidRegionWaits.add("cancel " + ref.tag())) say(v.map(Growths::fromMaterials).orElse(false)
+				? "The addition is being placed from materials and can't be stopped part way: it's put down as the stockpile feeds it, then left standing; /steward undo "
+					+ settlement.id() + " takes it up once it's built."
+				: "The addition is still being placed: it is taken up once it is in.");
 			return;
 		}
 		List<String> sites = rv.get().sites() == null ? List.of() : List.copyOf(rv.get().sites());
@@ -3024,6 +3071,9 @@ public final class SettlementRunner {
 			if (!logPlaced(sites, sites.size(), 0, "being cancelled")) { logFailed(); return; }
 			entry = growthEntry(ref.tag());
 		}
+		// taken up and logged already (a crash after the removal's entry, before the build's save): the cancel ends, nothing logged twice
+		if (entry.isPresent() && Undo.retired(Settlements.store().get(settlement.id()).orElse(settlement), entry.get())
+			&& "UNDONE".equalsIgnoreCase(rv.get().state())) { vRegionId = null; feed(new Pipeline.CancelConfirmed()); return; }
 		growthTakingUp = true;
 		java.util.function.Consumer<Boolean> after = ok -> {
 			growthTakingUp = false;
@@ -3033,8 +3083,7 @@ public final class SettlementRunner {
 				feed(new Pipeline.CancelConfirmed());
 				return;
 			}
-			var town = ArchitectApi.get().regions().get(ref.region());
-			if (town.isPresent() && Growths.building(town.get())) {
+			if (Growths.building(server, ref)) {
 				// (slice A2) still being built from the stockpile: it can't be taken up until it is built (nothing cancels its targets)
 				say("The addition's construction sites stand and are built as the stockpile feeds them; it can't be taken up until it's built. /steward undo "
 					+ settlement.id() + " takes it up then.");
@@ -3221,7 +3270,8 @@ public final class SettlementRunner {
 	/** "Nothing to cancel", and when buildings are still being built from the stockpile, how to take them up (an undo refunds what they used). */
 	static String nothingToCancel(MinecraftServer server, @org.jspecify.annotations.Nullable Settlement s) {
 		if (s == null || unfinishedConstruction(server, s) == 0) return "Nothing to cancel.";
-		return "Nothing to cancel: the placed buildings are being built from the stockpile. /steward undo " + s.id() + " takes them up and gives back what they used.";
+		return "Nothing to cancel: the placed buildings are being built from the stockpile. /steward undo " + s.id() + " takes them up and gives back what they used"
+			+ " (an addition to the town once it's built).";
 	}
 
 	/** How many of these sites are not built yet. */

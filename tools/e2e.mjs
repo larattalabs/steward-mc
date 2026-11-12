@@ -2299,7 +2299,9 @@ async function suppliedGrowthFlow() {
   await cmd('/architect survival on');
   await cmd('/defaultgamemode survival');
   await cmd('/gamemode creative @p');
-  let feeding = false, stop = false;
+  // the feeder: 'all' feeds what the stockpile's targets need; 'nudge' feeds half of it every 30 s while the growth's revision is still being placed (Architect
+  // can hold a revision's later items until its earlier targets are built), so it ends with targets still waiting
+  let feeding = false, stop = false, nudge = null, nudgedAt = 0;
   let feeder = null;
   try {
     const n = settlements().length;
@@ -2337,6 +2339,16 @@ async function suppliedGrowthFlow() {
     feeder = (async () => {
       while (!stop) {
         await sleep(3000);
+        if (nudge && Date.now() - nudgedAt > 30_000) {
+          const v = await dev.request('dev.region.state', { region: nudge }).catch(() => null);
+          const revs = (v?.view ?? v ?? {}).revisions ?? [];
+          const head = revs.sort((x, y) => y.rid - x.rid)[0];
+          if (head && /^(ACCEPTED|PLACING)$/.test(head.state)) {
+            const sp = await ledger().catch(() => null);
+            const half = Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, n]) => [k, Math.max(1, Math.floor(n / 2))]));
+            if (Object.keys(half).length) { await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half }).catch(() => null); nudgedAt = Date.now(); }
+          }
+        }
         if (!feeding) continue;
         const sp = await ledger().catch(() => null);
         if (sp && Object.keys(sp.need ?? {}).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
@@ -2355,6 +2367,10 @@ async function suppliedGrowthFlow() {
     const region = /^region:(.+)$/.exec(founding?.siteGroup ?? '')?.[1];
     if (!region) return fail(label, `the town is not a region: ${founding?.siteGroup}`);
     ok(`${label} town`, `${region} built from the stockpile (${town.placed} buildings)`);
+    const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
+    // the ground before the growth: the growth's undo must leave it so (the stockpile's crates, whose contents the refund changes, aside)
+    const snapPre = path.join(ROOT, 'artifacts', 'e2e', `supplied-growth-pre-${id}.snap.gz`);
+    await dev.call('dev.region.hash', { box, mode: 'snap', file: snapPre }, { timeoutMs: 1_800_000 });
     const rs0 = await dev.request('dev.rs.state', { region }, { timeoutMs: 120_000 }).catch(() => null);
     const targets0 = new Set((rs0?.targets ?? []).map((t) => t.id));
     const sp0 = await ledger();
@@ -2369,9 +2385,11 @@ async function suppliedGrowthFlow() {
     if (!lib) return fail(label, 'no library proposal');
     await clearAnimals();
     from = logSize();
+    nudge = region;
     await cmd(`/steward proposals ${id} accept ${lib.key}`);
     const planned = await waitLog(from, /The town grows: Architect finds room[^\n]*/, 120_000);
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
+    nudge = null;
     if (!grew) return;
     const st1 = settlements().find((x) => x.id === id);
     const op = (st1?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
@@ -2384,7 +2402,6 @@ async function suppliedGrowthFlow() {
     if (planned && m && m[1] === region && rev && grew.placed >= 1 && bill) ok(label, `planned and realised from materials as revision ${m[2]} of ${region} (${rev.state}); ${bill[0].slice(0, 140)}`);
     else return fail(label, `planned ${!!planned}; entry ${op?.siteGroup}; revision ${JSON.stringify(rev)?.slice(0, 160)}; placed ${grew.placed}; bill ${bill ? 'said' : 'not said'}; keyed ${keyed}`);
     // its targets wait for items (nothing fed): undo is refused in plain words, nothing written, the entry kept
-    const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
     const snap = path.join(ROOT, 'artifacts', 'e2e', `supplied-growth-${id}.snap.gz`);
     await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
     const spW = await ledger();
@@ -2427,9 +2444,14 @@ async function suppliedGrowthFlow() {
     const sp3 = await ledger();
     const again = minusItems(plusItems(sp3?.returned, sp3?.refundOverflow), plusItems(sp2?.returned, sp2?.refundOverflow));
     const removedOnce = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_REMOVED').length === 1;
-    if (last?.kind === 'PROJECT_REMOVED' && undoneRev?.state === 'UNDONE' && sameItems(back, paid) && !Object.keys(again).length && removedOnce) {
-      ok(`${label} refund once`, `${last.text}; revision ${m[2]} UNDONE; ${JSON.stringify(back).slice(0, 140)} back in the stockpile, nothing more 20 s on`);
-    } else fail(`${label} refund once`, `last ${last?.kind}; revision ${undoneRev?.state}; back ${JSON.stringify(back).slice(0, 120)} of ${JSON.stringify(paid).slice(0, 120)}; more ${JSON.stringify(again).slice(0, 80)}; removed entries ${removedOnce}`);
+    // the ground as before the growth, but the stockpile's crates (their contents changed with the bills and the refund)
+    const area = (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
+    const inCrates = (x) => area && x.x >= area.x0 && x.x <= area.x1 && x.z >= area.z0 && x.z <= area.z1;
+    const dPre = await dev.call('dev.region.hash', { box, mode: 'diff', file: snapPre }, { timeoutMs: 1_800_000 });
+    const offPre = (dPre.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)) && !inCrates(x));
+    if (last?.kind === 'PROJECT_REMOVED' && undoneRev?.state === 'UNDONE' && sameItems(back, paid) && !Object.keys(again).length && removedOnce && offPre.length === 0) {
+      ok(`${label} refund once`, `${last.text}; revision ${m[2]} UNDONE, the ground as before the growth; ${JSON.stringify(back).slice(0, 140)} back in the stockpile, nothing more 20 s on`);
+    } else fail(`${label} refund once`, `last ${last?.kind}; revision ${undoneRev?.state}; back ${JSON.stringify(back).slice(0, 120)} of ${JSON.stringify(paid).slice(0, 120)}; more ${JSON.stringify(again).slice(0, 80)}; removed entries ${removedOnce}; ${offPre.length} cell(s) differ ${JSON.stringify(offPre.slice(0, 3))}`);
     // the next undo is the town's, with the rest of its refund
     await away();
     const before = await ledger();
