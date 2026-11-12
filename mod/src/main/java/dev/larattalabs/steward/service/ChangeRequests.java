@@ -72,7 +72,37 @@ public final class ChangeRequests {
 		var exact = all.stream().filter(v -> Updates.lotOf(v).equalsIgnoreCase(n) || v.id().equals(name)).toList();
 		if (exact.size() == 1) return Optional.of(exact.get(0));
 		var partial = all.stream().filter(v -> Updates.lotOf(v).toLowerCase().contains(n)).toList();
-		return partial.size() == 1 ? Optional.of(partial.get(0)) : Optional.empty();
+		if (partial.size() == 1) return Optional.of(partial.get(0));
+		// several of one family (a source and its copies, docs/FOLLOW.md): the source is the one meant, and its copies follow it
+		var family = familySource(exact.size() > 1 ? exact : partial);
+		return family.flatMap(id -> all.stream().filter(v -> v.id().equals(id)).findFirst());
+	}
+
+	/** Of several buildings, the source of their one family; empty when they are not one family. */
+	static Optional<String> familySource(List<SiteView> matches) {
+		if (matches.size() < 2) return Optional.empty();
+		var library = ArchitectApi.get().library();
+		List<dev.larattalabs.steward.gateway.FollowPlanner.Match> m = new java.util.ArrayList<>();
+		for (SiteView v : matches) {
+			if (v.blueprintId() == null) return Optional.empty();
+			String copyOf = copySource(library, v.blueprintId());
+			m.add(new dev.larattalabs.steward.gateway.FollowPlanner.Match(v.id(), v.blueprintId(), copyOf));
+		}
+		return dev.larattalabs.steward.gateway.FollowPlanner.familySource(m);
+	}
+
+	/** The building a change to {@code v} is asked of: its source's, when {@code v} is a copy and the source stands in the settlement; else {@code v}. */
+	public static SiteView sourceFor(MinecraftServer server, Settlement s, SiteView v) {
+		if (v.blueprintId() == null) return v;
+		String copyOf = copySource(ArchitectApi.get().library(), v.blueprintId());
+		if (copyOf == null) return v;
+		return ArchitectApi.get().sites(server).list(s.owner()).stream().filter(x -> "building".equals(x.kind()) && copyOf.equals(x.blueprintId())).findFirst().orElse(v);
+	}
+
+	/** The entry a library entry is a COPY of (Architect 0b), else null. */
+	static @Nullable String copySource(dev.larattalabs.architect.api.Library library, String entryId) {
+		return library.get(entryId).flatMap(e -> e.derivation()).filter(d -> d.kind() == dev.larattalabs.architect.api.Library.Derivation.Kind.COPY)
+			.map(dev.larattalabs.architect.api.Library.Derivation::source).orElse(null);
 	}
 
 	/** Whether a change of this site is being designed. */
@@ -94,6 +124,13 @@ public final class ChangeRequests {
 		SiteView v = view.get();
 		if (v.owner() == null || !v.owner().equals(s.owner())) return "That building is not " + s.name() + "'s.";
 		// a change keeps the settlement's look: its style bible, as approved; after a new description there is none until a build makes one
+		// a copy changes only by following its source (Architect FS): the change is asked of the source, before anything is saved or spent
+		String copyOf = v.blueprintId() == null ? null : copySource(ArchitectApi.get().library(), v.blueprintId());
+		if (copyOf != null) {
+			String sourceLot = ArchitectApi.get().sites(server).list(s.owner()).stream().filter(x -> copyOf.equals(x.blueprintId())).findFirst().map(Updates::lotOf)
+				.orElse(copyOf);
+			return dev.larattalabs.steward.gateway.FollowPlanner.copyChangeText(Updates.lotOf(v), sourceLot);
+		}
 		if (s.bible() == null || s.bible().styleVersion() != s.styleVersion()) return s.name() + "'s style changed since its bible was made: build something first, so the steward has the new style, then ask again.";
 		String name = the(v);
 		DesignRequest req;

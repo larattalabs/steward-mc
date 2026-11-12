@@ -6,6 +6,7 @@ import dev.larattalabs.architect.api.OutdatedSite;
 import dev.larattalabs.architect.api.SiteEvents;
 import dev.larattalabs.architect.api.SiteView;
 import dev.larattalabs.steward.Steward;
+import dev.larattalabs.steward.gateway.FollowPlanner;
 import dev.larattalabs.steward.gateway.UpdatePlanner;
 import dev.larattalabs.steward.inbox.InboxModel;
 import dev.larattalabs.steward.model.Settlement;
@@ -56,6 +57,9 @@ public final class Updates {
 
 	public static void init() {
 		SiteEvents.ENTRY_VERSIONED.register((entry, from) -> scanPending = true);
+		// a source updated or removed changes which copies follow and which copies' offers stand (docs/FOLLOW.md); placements are not (they stand at the head)
+		SiteEvents.SITE_UPDATED.register((before, after, result) -> scanPending = true);
+		SiteEvents.SITE_REMOVED.register((site, result) -> scanPending = true);
 		// after Architect loads its sites (SERVER_STARTED), on the first tick
 		ServerLifecycleEvents.SERVER_STARTED.register(s -> {
 			server = s;
@@ -80,6 +84,12 @@ public final class Updates {
 	public static void refreshAll(MinecraftServer server) {
 		for (Settlement s : Settlements.store().all()) {
 			try {
+				// copies follow a source that stands at a newer version (docs/FOLLOW.md): their lots are offered once Architect answers
+				Follows.scan(server, s);
+			} catch (RuntimeException e) {
+				Steward.LOGGER.warn("could not check {} for copies to follow", s.id(), e);
+			}
+			try {
 				refresh(server, s);
 			} catch (RuntimeException e) {
 				Steward.LOGGER.warn("could not check {} for updates", s.id(), e);
@@ -92,6 +102,9 @@ public final class Updates {
 	static void refresh(MinecraftServer server, Settlement s) {
 		var sites = ArchitectApi.get().sites(server);
 		List<Pending> pending = new ArrayList<>();
+		// the library and the sites are the mod's own: a copy's update asks whether or not the helper is connected (docs/FOLLOW.md)
+		List<SiteView> buildings = Follows.buildings(server, s);
+		Map<String, Integer> standing = Follows.standing(buildings);
 		for (OutdatedSite o : sites.outdated(s.owner())) {
 			String key = o.siteId() + "@" + o.headVersion();
 			if (SKIPPED.contains(key) || APPLYING.contains(o.siteId())) continue;
@@ -101,8 +114,12 @@ public final class Updates {
 			// a site of this owner in another dimension is not this settlement's
 			if (view.isPresent() && !view.get().dimension().identifier().toString().equals(s.claim().dimension())) continue;
 			String lot = view.map(Updates::lotOf).orElse(o.siteId());
+			// a copy that followed its source (docs/FOLLOW.md): offered while the source stands at the version it follows, and always asked
+			Follows.FollowOf follow = view.isPresent() ? Follows.followOf(view.get().blueprintId(), o.headVersion()) : null;
+			if (follow != null && !FollowPlanner.offered(standing.get(follow.source()), follow.sourceVersion())) continue;
 			DeltaVerdict v = sites.checkDelta(UpdatePlanner.request(o.siteId(), o.headVersion(), UpdatePlanner.editsFor(s.permission()), s.owner()));
 			UpdatePlanner.Plan plan = UpdatePlanner.plan(lot, v, s.permission(), landFor(s, v), s.lands().protect());
+			if (follow != null) plan = FollowPlanner.asFollow(plan, sourceLot(buildings, follow));
 			if (plan.action() == UpdatePlanner.Action.APPLY && FAILED.containsKey(key)) {
 				plan = new UpdatePlanner.Plan(UpdatePlanner.Action.ASK, lot + " could not be updated by itself (" + FAILED.get(key) + "); update to try again.", plan.playerEdits());
 			}
@@ -120,6 +137,11 @@ public final class Updates {
 		}
 		if (pending.isEmpty()) PENDING.remove(s.id());
 		else PENDING.put(s.id(), List.copyOf(pending));
+	}
+
+	/** The source's lot in words: the building that stands at it ("fisher's hut"), else its entry id. */
+	private static String sourceLot(List<SiteView> buildings, Follows.FollowOf f) {
+		return buildings.stream().filter(b -> b.blueprintId().equals(f.source())).findFirst().map(Updates::lotOf).orElse(f.source());
 	}
 
 	/** The claim an update is checked against: the town's or the district's the building stands in. */
@@ -170,6 +192,8 @@ public final class Updates {
 		for (Pending p : list) {
 			if (!siteId.isEmpty() && !p.siteId().equals(siteId)) continue;
 			if (p.action() == UpdatePlanner.Action.BLOCKED) continue;
+			// a copy's update only while its source stands at the version it follows (docs/FOLLOW.md): the offer may be older than a revert of the source
+			if (!Follows.stillOffered(server, s.get(), p.siteId(), p.to())) continue;
 			// checked again now: the offer may be old, and the world (or the claim) has changed since
 			var sites = ArchitectApi.get().sites(server);
 			DeltaVerdict now = sites.checkDelta(UpdatePlanner.request(p.siteId(), p.to(), UpdatePlanner.editsFor(s.get().permission()), s.get().owner()));

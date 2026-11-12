@@ -363,3 +363,22 @@ The adoption's intent is saved in the history first (docs/GROWTH.md, slice B).
     town.
 - **Unit:** 339, 0 failures.
 
+
+### Copies follow their source: Architect FS (2026-11-11, $0)
+Once a source's own lot stands at a newer version, its copies are re-made from that version at $0 (`Designs.followAll`), and each copy's lot is
+offered as an update that always waits for the player (docs/FOLLOW.md).
+- **Reviews:** GPT's design review requested changes (3 blockers, 5 should-fixes), and they were taken as listed in docs/FOLLOW.md "Review". The
+  main changes: the key covers the copies with their heads, one call runs per source, a lost answer is retried in 30 s, offers are re-checked in
+  `approve`, and every COPY version counts.
+- **e2e stub:**
+  - `--only follow`: PASS 16.
+  - The flat village's two hut copies, at Full: the change asked of a copy goes to its source, and the source applies by itself. Then `followAll`:
+    both copies followed, each offered as ASK, applied and reverted, and told once.
+  - An earlier run's seed gave one copy `bar`. After the restart its new member set re-made it and it was refused again, $0, and not told twice.
+  - The sim's SMALL stand-in (a shed) has no int param, so its `versionOf` writes nothing. The flow makes the huts M.
+- **Fix pass (GPT round 2):** request changes, 1 blocker and 4 should-fixes, all taken (docs/FOLLOW.md). Then `--only follow,revision,survival`
+  (which pulls in `stub`): 69 of 70 passed. The one failure was the seed: both copies followed with nothing to write. The flow now builds up to 4
+  villages, as Architect's FS gate re-made families.
+- **`--only follow` after it:** PASS 23. Village 1 had cabin 2 followed with nothing to write, and cabin 3 refused `bar`, told once and not offered.
+  Village 2 had cabin 2 offered as ASK at Full, applied and reverted.
+- **Unit:** `FollowPlannerTest` 12, all of `build` passes.
