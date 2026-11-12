@@ -63,6 +63,8 @@ class GrowthsTest {
 		assertEquals(Step.GONE, Growths.decide(false, null, 0, "UNDONE", 1).step());
 		assertEquals(Step.GONE, Growths.decide(false, null, 1, "STALE", 2).step());
 		assertEquals(Step.GONE, Growths.decide(true, null, 0, null, 0).step(), "the town is gone");
+		// being removed is not gone: Architect may stop the removal and the town stands again
+		assertEquals(Step.WAIT, Growths.decide(false, true, null, 1, "PLACED", 1).step());
 		// no revision with the rid: nothing is asked
 		assertEquals(Step.UNKNOWN, Growths.decide(false, null, 2, null, 0).step());
 		// still placing, or the town busy: later

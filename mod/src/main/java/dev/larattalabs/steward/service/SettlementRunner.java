@@ -273,6 +273,8 @@ public final class SettlementRunner {
 		// a placement still rolling back: a second cancel would end the build before what it placed is recorded (no undo could reach it, and from
 		// materials it would go on using the stockpile), so it waits for the rollback
 		if (second && batchId != null) return "Still stopping: what the build placed is being recorded first, so it can be undone. It ends on its own.";
+		// a growth realised or in flight: the same, its revision is recorded and taken up first (never dropped with the build's save)
+		if (second && growth() && (vRegionId != null || queueInFlight)) return "Still stopping: the town's change is being recorded and taken up first. It ends on its own.";
 		feed(new Pipeline.Cancel());
 		if (second) return "Stopped waiting for Architect.";
 		return state.phase() == Pipeline.Phase.CANCELLING ? "Cancelling: stopping what runs first. What is already placed stays (remove it with /steward undo " + settlement.id() + ")."
@@ -989,17 +991,20 @@ public final class SettlementRunner {
 			// an addition to a region town grows the town (docs/GROWTH.md, slice A): a revision of its region, never Steward's street pieces beside it
 			if (addition && district == null && existing != null && ArchitectApi.get().features().contains(Growths.FEATURE)) {
 				var town = TownRegion.of(existing).flatMap(id -> ArchitectApi.get().regions().get(id));
-				// built from materials: today's path until survival growth (slice A2)
-				if (town.isPresent() && town.get().build() == null) {
+				if (town.isPresent()) {
 					var v = town.get();
 					boolean inFlight = v.revisions() != null && v.revisions().stream().anyMatch(x -> !Growths.ended(x.state())
 						&& !"UNDONE".equalsIgnoreCase(x.state()) && !"STALE".equalsIgnoreCase(x.state()));
+					// a town being changed waits, whatever it is built from (never Steward's street pieces beside a change in flight)
 					if ((v.busy() != null && !v.busy().isBlank()) || inFlight) {
 						abandon("The town is being changed right now; ask again once it has settled.");
 						return;
 					}
-					planGrowth(r, budgetUsd, v.id(), specs, null);
-					return;
+					// built from materials: today's path until survival growth (slice A2)
+					if (v.build() == null) {
+						planGrowth(r, budgetUsd, v.id(), specs, null);
+						return;
+					}
 				}
 			}
 			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(), worldSurvival, overworld, addition, districtId,
@@ -1091,6 +1096,8 @@ public final class SettlementRunner {
 		persist();
 		// planned again after its plan went stale (the designs are made): realised now
 		if (r != null) continueWithPlan(r, budgetUsd, null);
+		// cancelled while it was planned again: nothing is realised (the new plan is let go when the build ends)
+		else if (state != null && state.phase() == Pipeline.Phase.CANCELLING) feed(new Pipeline.CancelConfirmed());
 		else realiseVillage();
 	}
 
@@ -2438,6 +2445,8 @@ public final class SettlementRunner {
 			if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
 			// another change of the town was accepted while the lots were designed: planned once more with the same lots, the designs kept by lot id
 			String m = message(err);
+			// cancelled meanwhile: a stale realise wrote nothing, so the cancel ends here
+			if (state.phase() == Pipeline.Phase.CANCELLING) { feed(new Pipeline.CancelConfirmed()); return; }
 			if ((m.contains("PLAN_STALE") || m.contains("parent_moved")) && !"vgrow3".equals(growKey) && growRegion != null) {
 				say("The town changed while the designs were made: finding room for it again...");
 				String stale = growKey;
@@ -2554,7 +2563,11 @@ public final class SettlementRunner {
 		var entry = growthEntry(ref.tag());
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
 		if (entry.isPresent()) Undo.growth(server, saved, entry.get(), ref, Map.of(), this::say, ok -> { });
-		else Growths.undo(server, settlement.owner(), ref, this::say, ok -> { });
+		// nothing of it shows: taken up now; when that can't be done, the history names the revision so it is not lost
+		else Growths.undo(server, settlement.owner(), ref, this::say, ok -> {
+			if (Boolean.FALSE.equals(ok)) Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE,
+				"An addition realised after its build ended could not be taken up: the town's change " + ref.tag() + " stands with nothing placed", List.of()));
+		});
 	}
 
 	/** The history entry that placed this growth (its tag), if it is logged. */
@@ -2717,6 +2730,14 @@ public final class SettlementRunner {
 
 	/** Reads the village's state while it is placed; once placed (wholly or in part), its sites are logged under the region and the build ends. */
 	void watchVillage() {
+		// a growth cancelled while its realise was in flight, whose answer was lost: looked up by its keys and plan, and taken up (adopting it cancels it)
+		if (growth() && vRegionId == null && queueInFlight && state != null && state.phase() == Pipeline.Phase.CANCELLING && alive()
+			&& inFlightSince > 0 && System.currentTimeMillis() - inFlightSince >= LOST_LOOK_MS && System.currentTimeMillis() - lastSettleLook >= 30_000) {
+			lastSettleLook = System.currentTimeMillis();
+			var g = foundGrowth();
+			if (g.isPresent()) { queueInFlight = false; adoptGrowth(g.get()); }
+			return;
+		}
 		if (!village() || vRegionId == null || state == null || !alive()) return;
 		// a growth cancelled while it was still being placed: asked again each second until it can be taken up
 		if (growth() && state.phase() == Pipeline.Phase.CANCELLING && !growthTakingUp) { cancelGrowth(); return; }
@@ -2797,10 +2818,21 @@ public final class SettlementRunner {
 		var ref = new Growths.Ref(vRegionId, rv.get().rid());
 		siteGroupId = ref.tag();
 		if (sites.isEmpty()) {
-			// nothing of it is in the world: the revision is taken up (never the town), and the history says it failed
-			Growths.undo(server, settlement.owner(), ref, this::say, ok -> { });
-			Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed ("
-				+ (note != null ? note : "nothing of it stands") + ")", List.of()));
+			// nothing of it is in the world: the revision is taken up (never the town) before the build ends, so its record is never lost; asked again each
+			// second while it waits. One that can't be taken up at all (a newer change stands on it) is said and noted, naming it
+			if (growthTakingUp) return;
+			growthTakingUp = true;
+			String why = note != null ? note : "nothing of it stands";
+			Growths.undo(server, settlement.owner(), ref, this::say, ok -> {
+				growthTakingUp = false;
+				if (ok == null || !alive()) return;
+				var d = Growths.decide(ArchitectApi.get().regions().get(ref.region()), ref.rid());
+				if (!ok && d.step() != Growths.Step.NEWER && d.step() != Growths.Step.UNKNOWN) return;
+				Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed (" + why
+					+ (ok ? "" : "; the town's change " + ref.tag() + " stands: " + d.why()) + ")", List.of()));
+				feed(new Pipeline.BatchDone(0, (int) skipped, why));
+			});
+			return;
 		} else if (!logPlaced(sites, (int) placed, (int) skipped, note)) { logFailed(); return; }
 		feed(new Pipeline.BatchDone((int) placed, (int) skipped, note == null ? null : note.substring(4)));
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));

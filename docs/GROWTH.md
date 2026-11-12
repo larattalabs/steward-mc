@@ -69,8 +69,9 @@ so a restart resumes the obligation (review 5).
 entries, so the founding entry still names the town.
 
 **Undo** (`Undo.lastProject`), before the region and group branches: a `revision:` entry → `Growths.undo`; done → `PROJECT_REMOVED` with its sites;
-the region gone → the entry retired. **The founding entry** (`Undo.region`) is refused while the region has any revision not `UNDONE`, or is busy
-(review 1), whatever its sites say.
+the region gone → the entry retired. **The founding entry** (`Undo.region`) is refused while the region is busy, has a revision in flight, or has one of Steward's own logged growths
+still standing (review 1), whatever its sites say. A revision Steward never logged (a dev or another mod's) goes with the town, as the RV RC agreed
+(`revisionFlow`'s "town undone with a revision").
 
 **Saves** (review 8). `BuildStore` FORMAT 3 → 4 (`growRegion`, `growRid`, `growPosition`, `growKey`; a format-3 build has none). Settlements FORMAT
 5 → 6 with a no-op migration, so an older Steward refuses a file whose history may hold `revision:` entries. `SaveCompatTest` fixtures for both.
@@ -81,6 +82,17 @@ recovery order; `lastUndoable` keeping the tag; both save formats. e2e (stub, `g
 → one revision under the build's ext and keys, no `street#` site, the town still found; undo of the town refused while it stands; undo of the
 growth by `undoRevision` leaves the town byte-equal (`dev.region.hash`); a cancel mid-design ends with nothing; then the town undone.
 Not covered by e2e: parent_moved and restarts mid-realise (unit tests and the decision function only).
+
+**As built (2026-11-11), after the GPT implementation review** (request changes: 2 blockers, 5 should-fixes, all but one taken):
+- a second cancel waits while a growth is realised or in flight (`cancel()`), so the build's save, and with it the take-up, is never dropped;
+- a growth that placed nothing keeps the build until its revision is taken up (asked again each second); one that can't be (a newer change stands on
+  it) ends with a note naming the revision; an orphan's empty revision that can't be taken up is noted the same way;
+- `REMOVING` reads as "wait", not "gone" (Architect can stop a removal and the town stands again);
+- a cancel whose realise answer was lost looks the growth up by its keys and plan after 3 minutes and takes it up;
+- a stale realise answered after a cancel ends the cancel (nothing was written), and a re-plan never realises a cancelled build;
+- a busy town waits before the materials check, whatever it is built from.
+- **Not taken:** a restart during the first `planRevision` (before the build's state exists) drops the build, as any build's restart before its
+  plan does. Nothing is spent then, and the candidate plan goes with Architect's sweep; the player accepts the proposal again.
 
 **Not in A.** Survival towns (A2), districts' growth (`dgrow`, D-S2), street towns (slice B).
 

@@ -978,7 +978,7 @@ async function growthFlow() {
   const said = await cmd(`/steward undo ${id}`);
   // logged as the town's removal (its founding entry's sites), as villageFlow's undo
   let gone = null;
-  for (let i = 0; i < 120 && !gone; i++) {
+  for (let i = 0; i < 300 && !gone; i++) {
     await sleep(1000);
     const e = settlements().find((x) => x.id === id)?.log.at(-1);
     if (e?.kind === 'PROJECT_REMOVED' && (e.siteIds ?? []).length === founding.siteIds.length && founding.siteIds.every((x) => e.siteIds.includes(x))) gone = e;

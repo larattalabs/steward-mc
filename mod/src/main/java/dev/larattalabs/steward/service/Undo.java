@@ -203,9 +203,9 @@ public final class Undo {
 		// a town that grew (docs/GROWTH.md): never removed whole while a revision of it stands or is in flight, whatever its sites say (a growth may have
 		// written only ground, or not yet its first site); its growths are undone first, newest first
 		var live = regions.get(region);
-		if (live.isPresent() && (Growths.hasRevisions(live.get()) || (live.get().busy() != null && !live.get().busy().isBlank()))) {
-			say.accept("Undo stopped: " + (Growths.hasRevisions(live.get()) ? "the village has grown since \"" + entry.text() + "\"; undo its newer changes first."
-				: "the village is busy (" + live.get().busy() + "); try again once it has settled."));
+		String blocked = live.map(v -> Growths.blocksTownRemoval(v, s)).orElse(null);
+		if (blocked != null) {
+			say.accept("Undo stopped: " + blocked + ".");
 			done.accept(false);
 			return false;
 		}

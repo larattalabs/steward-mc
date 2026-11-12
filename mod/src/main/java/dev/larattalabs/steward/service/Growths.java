@@ -97,7 +97,13 @@ public final class Growths {
 	 * {@code revState}/{@code revPosition}: the revision with the rid ({@code revState} null when there is none).
 	 */
 	public static Decision decide(boolean regionGone, @Nullable String busy, int head, @Nullable String revState, int revPosition) {
+		return decide(regionGone, false, busy, head, revState, revPosition);
+	}
+
+	/** {@code removing}: the town is being removed (it may stop and stand again): later, never gone. */
+	public static Decision decide(boolean regionGone, boolean removing, @Nullable String busy, int head, @Nullable String revState, int revPosition) {
 		if (regionGone) return new Decision(Step.GONE, 0, "the town is gone");
+		if (removing) return new Decision(Step.WAIT, 0, "the town is being taken up");
 		if (revState == null) return new Decision(Step.UNKNOWN, 0, "Architect has no such revision of the town");
 		String st = revState.toUpperCase(Locale.ROOT);
 		if (st.equals("UNDONE") || st.equals("STALE")) return new Decision(Step.GONE, 0, "it was taken up already");
@@ -110,10 +116,10 @@ public final class Growths {
 	}
 
 	public static Decision decide(Optional<RegionView> v, int rid) {
-		boolean gone = v.isEmpty() || v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED
-			|| v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVING;
+		boolean gone = v.isEmpty() || v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED;
+		boolean removing = v.isPresent() && v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVING;
 		RevisionView r = v.flatMap(x -> revision(x, rid)).orElse(null);
-		return decide(gone, v.map(RegionView::busy).orElse(null), v.map(RegionView::position).orElse(0), r == null ? null : r.state(), r == null ? 0 : r.position());
+		return decide(gone, removing, v.map(RegionView::busy).orElse(null), v.map(RegionView::position).orElse(0), r == null ? null : r.state(), r == null ? 0 : r.position());
 	}
 
 	public static Optional<RevisionView> revision(RegionView v, int rid) {
@@ -128,6 +134,25 @@ public final class Growths {
 	/** Whether a revision of the region stands or is in flight (any not undone or stale): the town itself may not be removed then. */
 	public static boolean hasRevisions(RegionView v) {
 		return v.revisions() != null && v.revisions().stream().anyMatch(r -> !"UNDONE".equalsIgnoreCase(r.state()) && !"STALE".equalsIgnoreCase(r.state()));
+	}
+
+	/**
+	 * Why the town itself may not be removed now, or null (docs/GROWTH.md): busy, a revision in flight (whatever it has written, sites or not), or one of
+	 * Steward's own growths of it still standing (logged in the settlement's history and not undone: undone newest first). A revision Steward never
+	 * logged (another mod's, a dev revision) goes with the town, as Architect's removal takes the whole region (6d RV, Steward's RC).
+	 */
+	public static @Nullable String blocksTownRemoval(RegionView v, dev.larattalabs.steward.model.Settlement s) {
+		if (v.busy() != null && !v.busy().isBlank()) return "the village is busy (" + v.busy() + "); try again once it has settled";
+		if (v.revisions() == null) return null;
+		for (RevisionView r : v.revisions()) {
+			String st = r.state() == null ? "" : r.state().toUpperCase(Locale.ROOT);
+			if (st.equals("UNDONE") || st.equals("STALE")) continue;
+			if (!ended(st)) return "a change to the village is still being made (" + tag(v.id(), r.rid()) + "); try again once it has settled";
+			String t = tag(v.id(), r.rid());
+			if (s.log().stream().anyMatch(e -> e.kind() == dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED && t.equals(e.siteGroup())))
+				return "the village has grown since (" + t + "); undo its newer changes first";
+		}
+		return null;
 	}
 
 	/** Whether a revision state is ended (the revision's outcome is known). */
