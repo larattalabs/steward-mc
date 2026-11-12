@@ -2317,7 +2317,11 @@ async function suppliedGrowthFlow() {
     card.name = name;
     await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
     // an unwalled town: the walled one's street can't extend through its wall (NO_ROOM [street])
-    await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'no_wood.json'), 'utf8')).answer)}`);
+    // no_wood's two cottages on a flat village street, without its palette rule (the sim's designs would break it, leaving every lot a pad)
+    const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'no_wood.json'), 'utf8')).answer;
+    delete answer.plan.rules;
+    answer.summary = 'A small town of stone cottages.';
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
     let from = logSize();
     await cmd(`/steward describe ${id} a little stone town that will grow`);
     if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
@@ -2366,6 +2370,7 @@ async function suppliedGrowthFlow() {
     const founding = (st0?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
     const region = /^region:(.+)$/.exec(founding?.siteGroup ?? '')?.[1];
     if (!region) return fail(label, `the town is not a region: ${founding?.siteGroup}`);
+    if (town.placed < 1) return fail(`${label} town`, `${region}: no building placed`);
     ok(`${label} town`, `${region} built from the stockpile (${town.placed} buildings)`);
     const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
     // the ground before the growth: the growth's undo must leave it so (the stockpile's crates, whose contents the refund changes, aside)
