@@ -1296,33 +1296,69 @@ Steward calls `Regions.landCheck(region, null)` on 0.59.0 (feature `landCheck`) 
   budget and holds together.
 
 
-## Phase 5: functional modules (S-M5; design in docs/MODULES.md, 2026-11-12; not sent yet)
-Steward's phase 5 places verified modules (a crop farm, a storage hall with sorting) as additions on growth A/A2/B and as lots of plan v1.
-A module is a Steward-owned kit program, run at $0 with parameters and the settlement's bible roles, measured in a dev client per version.
-Each ask is a question with Steward's preferred answer.
-- **S-M5-1. Given-program designs.** Can a design request carry a caller-supplied kit program (source, params, a parameter schema) instead of a
-  Claude brief, so Architect runs the kit, the checker and the renders, installs an entry with that source, at $0, and `makeVariant` then
-  re-runs it with other params and another bible? Preferred: yes, one general call (e.g. `Designs.fromProgram(source, params, bible, opKey)`),
-  keyed, refusing with the checker's typed errors. The program runs in the same sandbox as Claude-written programs. *Alternative:* Architect hosts
-  module builders as kit components to Steward's spec (each new module then becomes an Architect release).
-- **S-M5-2. Irrigation and members on grow lots.** Does a `planRevision` grow lot accept `irrigate: true` (and later members) as plan/0 lots
-  do, and does the revision plan report the lot's `irrigation {cells, sources}` as the artifact's `$.lots[]` does? Steward needs those cells
-  before it makes the field's variant, so the variant can leave them open. Preferred: yes to both, with `DesignRequest.reserved`/`makeVariant`
-  taking the same reserved cells.
-- **S-M5-3. Filled containers in a verified entry.** A sorter's filter hoppers must hold an exact count of their item plus fillers, but templates
-  and construction targets are written with empty containers. Can an entry declare **filled containers** (cell → inventory) that placement
-  writes, survival bills as ordinary items (delivered before the cell is built), and undo refunds? While such a container holds only its
-  declared items (any count), it stays "ours" (not a removal blocker). Preferred: yes, opt-in per cell, allowed only for given-program
-  entries (S-M5-1), with an upper bound on items per entry.
-- **S-M5-4. Crop cells of a module field.** A worked field changes every day: harvested cells (air over farmland) and crops the player replants
-  (PT records them as the player's). Can a lot mark **field cells** (farmland plus the crop cell above) so that, for that lot: a crop of any
-  age or air over our farmland reads unchanged in `landCheck`, and a player's crop there goes with the lot on undo (no refund, not a blocker)?
-  Preferred: a lot ext or entry member `field: cells` honoured by LC, removal blockers and refunds.
-- **S-M5-5. `connector.items` (later; for slice M6, not needed for phase 5's gate).** A connector from a lot's `item_out` port to another's
-  `item_in`: a hopper chain up to 16, a water channel on ice beyond, routed as T2 does, billed in survival, with a probe for throughput and
-  nothing lost at the joins. It must also work in a revision's realise (growth), which has no links stage today. Asked now so it can be scheduled;
-  built only when Noah wants it in phase 5 (MODULES.md Q2).
-- **S-M5-6. Removing a site whose containers hold items (an option).** Today a filled container refuses Remove. Steward's default is to keep
-  that and tell the player to empty the hall. Is it feasible, as a per-removal option, to move every container's contents into the owner's
-  stockpile crate (C24) in the same commit, with overflow dropped at the crate as refunds are? Answer for scheduling only; Steward doesn't need
-  it unless Noah picks it (MODULES.md Q3).
+## Phase 5: functional modules (S-M5; design in docs/MODULES.md v2, 2026-11-12; not sent yet)
+Steward's phase 5 places verified modules (a crop farm, a storage hall with sorting) as additions on growth A, A2 and B, and as lots of plan v1.
+A module is a Steward-owned kit program, run at $0 with parameters and the settlement's bible roles, and measured in a dev client for each
+version. Each ask is a question with Steward's preferred answer. Revised after GPT's design review (MODULES.md section 10).
+- **S-M5-1. Given-program designs, keyed.**
+  - **Asked:** a design request carries a caller-supplied kit program instead of a Claude brief: its source, params and a parameter schema.
+    Architect runs the kit, the checker and the renders, and installs an entry with that source, at $0.
+  - **Keyed variants:** variants of it take other params, another bible and reserved cells (`DesignRequest.Reserved` in the lot's frame).
+    Each variant is made under a caller opKey and is found again by that key after a restart (`variantByKey`). Today's `makeVariant` has
+    neither a key nor reserved cells.
+  - **Preferred:** yes, one general pair of calls (e.g. `Designs.fromProgram(source, params, bible, opKey)` and a keyed
+    `variant(entryId, params, bible, reserved, opKey)`). Refusals carry the checker's typed errors. The program runs in the same sandbox as
+    Claude-written programs. The entry records the program sha.
+  - **Alternative:** Architect hosts module builders as kit components to Steward's spec. Each new module then becomes an Architect release.
+- **S-M5-2. Irrigated growth, the whole lifecycle.**
+  - **Today:** `planRevision` grow lots don't take `irrigate`. `grow.mjs` doesn't forward it, and `revise.mjs` adds a fluids stage only for
+    explicit ponds.
+  - **Asked:** an irrigated grow lot works as IRR does in plan/0:
+    - the bodies are emitted;
+    - the revision plan reports `irrigation {cells, lotCells, sources, bodies}` on the lot, so Steward can make the variant before the realise;
+    - the mask, then the shell, the lot and the fluids stage, in IRR's order;
+    - survival waits and billing (the shells in the revision's `cost.bom`), as A2 bills a growth;
+    - restart recovery;
+    - drain-first `undoRevision`, including an undo that is interrupted.
+  - **Preferred gate:** a V town with no irrigation grows by an irrigated farm lot, instantly and from materials (fed partly, then the
+    rest), and is undone. One undo is interrupted by a restart.
+- **S-M5-3. Filled containers, as a transaction.** A sorter's filter hoppers must hold an exact count of their item plus fillers, but
+  templates and construction targets are written with empty containers.
+  - **Asked:** a given-program entry (S-M5-1) declares filled containers (cell → inventory), with a lifecycle:
+    - **Built locked.** The entry declares the lock cells that keep the circuit locked until activation.
+    - **Filled once.** The fill comes after every core cell stands, as one keyed and journaled step, never repeated after a crash.
+    - **Then unlocked.**
+    - **Billing.** The fill's items are billed in survival like any item and delivered before the fill.
+    - **Cancel.** A cancel before the fill writes and refunds no filter items.
+  - **On removal:** each declared container's inventory is captured in the same tick as its removal, with no transfer in between and no
+    vanilla drop.
+    - Up to the declared count, it refunds as construction.
+    - Anything more is cargo.
+  - **"Ours":** while a declared container holds only its declared item kinds, it stays ours (not a removal blocker). Any other item is cargo
+    and makes it a blocker, as today.
+  - **Preferred:** yes, opt-in per cell, with an upper bound on items per entry.
+- **S-M5-4. Field cells of a module lot.** A worked field changes every day: harvested cells (air over farmland) and crops the player
+  replants, which PT records as the player's.
+  - **Asked:** a lot marks **field cells**: the farmland cells and the cell above each, with a set of crop kinds. For that lot only:
+    - **Land check and standing:** a field crop of any age, or air over our farmland, reads unchanged, and the standing or reconcile score
+      judges the field cells by this rule rather than block by block.
+    - **Undo:** a player's crop on a field cell goes with the lot and is not a removal blocker. Its planting item is returned once, as cargo,
+      never as the construction seed.
+    - **Other player blocks:** any other player block on the field (a torch, a sign) stays as PT says.
+  - **Preferred:** a lot member or entry member `field {cells, crops}`, honoured by LC, the standing score, removal blockers and refunds.
+  - **Needed before Steward's crop farm ships** (slice M2).
+- **S-M5-5. `connector.items`** (slice M6, only if Noah keeps the spine in phase 5, MODULES.md Q2). A connector from a lot's `item_out` port
+  to another lot's `item_in`.
+  - **The ends.** Each port has a direction and height.
+  - **Extraction.** A hopper from the source container.
+  - **Transport.** A hopper chain up to 16 cells. Water on ice only after its own probe (item entities: unloading, despawn, pickup).
+  - **A full sink.** Items back up in the chain; nothing drops.
+  - **Unload and restart.** Nothing is lost or duplicated.
+  - **Removal.** Removing an end lot first either refuses or takes the connector along (Architect's choice). Items in the connector's
+    hoppers are cargo.
+  - **Growth.** Routed as T2 routes are, billed in survival, and it works in a revision's realise (which has no links stage today).
+  - **Asked now so it can be scheduled.**
+- **S-M5-6. Removing a site whose containers hold items** (an option, answer for scheduling only).
+  - **Today:** a filled container refuses Remove. Steward's default keeps that and tells the player to empty the hall.
+  - **Asked:** is it feasible, as an option on a removal, to move every container's cargo into the owner's stockpile crate (C24) in the
+    same commit, with overflow dropped at the crate as refunds are? Steward needs it only if Noah picks it (MODULES.md Q3).

@@ -1,285 +1,505 @@
 # Functional modules (phase 5)
 
-Status: design v1, 2026-11-12, for review before code. $0: no code, no paid runs. It builds after survival growth A2. Noah asked on
-2026-11-12 for the design to start now. PLAN.md "Phase 5" sets the scope: a verified catalog with a crop farm and a storage hall with sorting,
-the "You have seeds" offer, and the spine and connectors. Its gate is each module's measured output in the dev client, and two modules
-composed into a settlement. Architect asks are in ARCHITECT-ASKS.md, "Phase 5: functional modules (S-M5)". Noah's questions are in section 9.
+Status: design v2, 2026-11-12, for review before code. $0: no code and no paid runs. It builds after survival growth A2.
+- Noah asked on 2026-11-12 for the design to start now.
+- PLAN.md "Phase 5" sets the scope:
+  - a verified catalog: a crop farm, and a storage hall with sorting;
+  - the "You have seeds" offer;
+  - the spine and connectors;
+  - the gate: each module's output measured in the dev client, and two modules composed into a settlement.
+- Architect asks: ARCHITECT-ASKS.md, "Phase 5: functional modules (S-M5)". Noah's questions: section 9.
+- v2 folds in GPT's design review (section 10).
 
 ## 1. What a module is
 
-A **module** is a building whose job is to do something: grow crops, sort items. Most buildings only need to look right. A module also has to
-**work**, and keep working on 26.3. That changes three things:
+A **module** is a building whose job is to do something, such as growing crops or sorting items. Most buildings only need to look right. A
+module also has to **work**, and keep working on 26.3. That changes three things:
 
 | | An ordinary building | A module |
 |---|---|---|
-| Who decides the blocks | Claude designs them (bible, massing, detail; $2.5-4.6) | A **verified program** in Steward's catalog. Claude only chooses the module, its parameters and its place (2026-10-05 decision: "Claude composes and parametrises; it does not hand-wire redstone unverified") |
-| How it is checked | Architect's checker, the critique | The checker **and** a **measurement**: its output counted in the dev client, per catalog version |
-| What it costs to design | a design | **$0**: a run of the program with the parameters and the settlement's bible roles (principle 1: presets for verified modules) |
+| Who decides the blocks | Claude designs them: bible, massing, detail; $2.5-4.6. | A **verified program** in Steward's catalog. Claude only chooses the module, its parameters and its place (decision 2026-10-05: "Claude composes and parametrises; it does not hand-wire redstone unverified"). |
+| How it is checked | Architect's checker and the critique. | The checker, and a **measurement**: its output counted in the dev client, for each version in the catalog. |
+| What it costs to design | A design. | **$0**: one run of the program with the parameters and the settlement's bible roles (principle 1: presets for verified modules). |
 
-**One module = a functional core plus a styled shell, from one program.** The program writes the core (farmland and crops, hoppers,
-comparators, chests) in its **settled state**, as Architect's GM writes a gate (`gmCircuit` returns the rest state; template writes skip side
-effects, and template block entities are empty: CONTRACT "Survival", "Block entities"). It dresses the core from the bible's roles: fence,
-path, lamp, roof and wall blocks, like Architect's palette-driven kit components (`kit/lib/smalls.mjs`). The core's functional blocks are fixed
-(a hopper is a hopper); every block the core does not need is a role. So a module reads as the settlement's own without Claude designing it,
-and a re-skin is free.
+**A module is a functional core and a styled shell, from one program.**
+- **The core.** The program writes the farmland and crops, or the hoppers, comparators and chests. It writes them in their **settled state**,
+  as Architect's GM writes a gate (`gmCircuit` returns the rest state).
+- **The shell.** The program dresses the core from the bible's roles: fence, path, lamp, roof and wall. This works like Architect's
+  palette-driven kit components (`kit/lib/smalls.mjs`).
+- **What is fixed and what is a role.** The core's functional blocks are fixed and never come from a role (a hopper stays a hopper). The roles
+  that touch the core are constrained (section 2.2). Every other block is a free role.
+- So a module reads as the settlement's own without Claude designing it, and a re-skin costs nothing.
 
-**Where the program runs (recommended, S-M5-1).** Steward owns the catalog (PLAN "Boundary with Architect": "modules catalog" is
-Steward's). Steward ships each module's program as data: kit program source, a parameter schema and the tested parameter ranges. Architect
-runs it as a **given-program design**: a design request whose program is supplied rather than written by Claude. It runs the kit, the checker
-and the renders, installs a library entry with its source, and costs $0. Then `makeVariant` (other parameters, another bible) and placement
-work as for any entry. This is one general building block (COMPOSITION section 1), not code per module. **Alternative:** Architect hosts the
-module programs as kit components, written to Steward's spec. That is faster to start, but every new module and every fix becomes an Architect
-release.
+**Where the program runs (S-M5-1, recommended).**
+- Steward owns the catalog. PLAN "Boundary with Architect" lists the modules catalog as Steward's.
+- Steward ships each module as data: the kit program's source, a parameter schema and the tested parameter envelope.
+- Architect runs it as a **given-program design**: a design request that supplies its program instead of having Claude write one. Architect
+  runs the kit, the checker and the renders, and installs a library entry with that source, keyed, at $0. A keyed variant with other parameters,
+  another bible or reserved cells works as it does for any entry.
+- This is one general building block (COMPOSITION section 1), not code for each module.
+- **Alternative:** Architect hosts the module programs as kit components written to Steward's spec. That starts faster, but every new module
+  and every fix becomes an Architect release.
 
-**A module's identity.** `<id>@<version>`, for example `crop_farm@1`. A version is frozen once measured: a new layout, circuit or parameter range
-is a new version, measured again. Built modules carry `steward_mc:module = crop_farm@1` and their parameters in the lot's ext, so the screens,
-growth and undo know what they are.
+**A module's identity** is `<id>@<version>` (for example `crop_farm@1`) and the sha of its program source.
+- A version is frozen once it is measured. A new layout, circuit or envelope is a new version, measured again.
+- A built module carries `steward_mc:module {id, version, programSha, params}` in its lot's ext, so the screens, growth, land check and undo
+  know what it is.
+
+**A module never changes by an ordinary path.**
+- A module lot refuses free-text change requests and `versionOf`: a redesign would be unmeasured.
+- It is never a copy's source, and never follows one.
+- A bible re-skin is allowed within the palette constraints (2.2).
+- A change of size or version is a new module (section 4.5).
 
 ## 2. Verified: measured in the dev client
 
-"Verified" means **measured**, not reviewed. Each catalog version has a **measurement**: a scripted scenario in a dev client (DevBridge, $0),
-run at each corner of its tested parameter range, with stated bars. Its results are committed with the module (`modules/<id>/<version>/measured.json`):
-the numbers, the bars, the Minecraft version, the Architect version, the seeds and the run count. The gate-verifier re-runs it.
+"Verified" means **measured**, not reviewed. Each catalog version has a **measurement**: a scripted scenario in a dev client (DevBridge,
+$0) with **bars fixed before the first candidate is measured**.
+- **The results** are committed with the module in `modules/<id>/<version>/measured.json`: the numbers, the bars, the Minecraft, Architect and
+  program versions, the seeds and the number of runs.
+- **The check** is re-run by the gate-verifier.
 
-**The rules:**
-- **No measurement, no offer.** A module is offered only on the Minecraft version it was measured on, and only on an Architect version whose
-  RC ran its `module` e2e flow (section 7). A version that fails its measurement leaves the catalog. Nothing falls back silently to an
-  unmeasured version.
-- **A probe first** (slice M0, as Architect's `gm-probe`). Every vanilla rule a module relies on is checked on the running 26.3 server before any
-  module is built on it. If a rule fails, the slice stops and reports. The rules: farmland hydration reach (4 cells, so one source per 9x9) and how
-  long it takes; crop growth by random tick, by light level and by hydration; trampling; a hopper's transfer rate; a comparator's signal from a
-  hopper's fill, at the thresholds the sorter uses; a hopper locked by a torch; what a full chest does to the chain. The probe asserts nothing
-  from memory; it measures, and the module programs use its numbers.
-- **Random ticks are noisy.** Growth is measured over several runs (at least 5), at the default `randomTickSpeed` 3 (the bars hold there).
-  `/tick sprint` makes it faster, and the probe confirms that sprinting doesn't change the result. The bars are bands around the probe's own
-  figures, not exact counts.
-- **Dev hooks are Steward's** (its DevBridge, dev builds only): insert stacks into a container, count the items in a box's containers, harvest
-  every mature crop in a box as a fake player and count the drops, set a gamerule. No Architect ask.
+### 2.1 Rules
+
+- **No measurement, no offer.** A module is offered only:
+  - on the Minecraft version it was measured on;
+  - on an Architect version whose RC ran its `module` e2e flow (section 7).
+
+  A version that fails its measurement leaves the catalog. Nothing falls back silently to an unmeasured version.
+- **The probe comes first** (slice M0, as Architect's `gm-probe`).
+  - **The vanilla rules.** Every vanilla rule a module relies on is checked on the running 26.3 server, with numbers. If a rule fails, phase 5
+    stops and reports to Noah:
+    - farmland hydration reach and time;
+    - crop growth by random tick, light and hydration, with each crop's own maximum age (beetroot's is 3);
+    - trampling, and which mobs it needs;
+    - a hopper's transfer rate;
+    - a comparator's signal from a hopper's fill;
+    - a hopper locked by a torch;
+    - a full chest at the end of a chain.
+  - **The assembled sorter tile.** The probe also chooses and measures the actual tileable sorter circuit (section 3.2) as one assembled
+    piece: 20 runs of the full sorting mix, two neighbouring slots saturated, and recovery after they are cleared. The primitives alone don't
+    prove the circuit.
+- **Random ticks are noisy.** Growth is measured over at least 5 runs at the default `randomTickSpeed` of 3, and accepted on a band around
+  the probe's figures.
+  - `/tick sprint` speeds the runs up, once the probe has shown that sprinting doesn't change the result.
+  - Each module also has an **absolute usefulness bar**: a farm that is technically working but yields too little to be worth offering fails.
+- **The dev hooks are Steward's**, in its DevBridge and in dev builds only:
+  - insert stacks into a container;
+  - count the items in a box's containers;
+  - harvest a box's mature crops as a fake player and count the drops;
+  - replant;
+  - set a gamerule.
+
+  None of these needs an Architect ask.
+
+### 2.2 The certification envelope
+
+What a measurement covers, and so what may be offered:
+- **Every discrete layout branch**, not only the corners of the range: every field size in the set (3.1), every slot count (3.2), including the
+  plain hall's 0.
+- **All four facings**, and placement across a chunk border.
+- **Pinned versions**: the program sha, the checker version and the kit version.
+- **Palette constraints.**
+  - The lamp role must give light 14 or more. Otherwise the program uses its fallback lantern.
+  - Roles that touch the core may not be redstone-conductive in the sorter's circuit plane, and may not be gravity blocks.
+  - The program validates these and refuses a bible that breaks them. It never substitutes silently.
+- **For the sorter, the item classes** that 3.2 allows.
+
+The M1 gate re-skins every branch with three bibles, one per palette family the strange-ask corpus uses most, and checks each with the
+checker. It measures one re-skin per module in full.
 
 ## 3. The first catalog
 
-### 3.1 `crop_farm@1`: a hydrated, lit field
+### 3.1 `crop_farm@1`: a watered, lit field
 
-**What it is.** A rectangular field of farmland in rows, planted with the crop the player carries (wheat, carrots, potatoes or beetroot).
-Hydrated by Architect's farm irrigation (IRR: `irrigate: true` on a farm lot, one contained source per 9x9 of field, drained first on undo).
-Lit so it grows at night (lamps from the bible's lamp role, spaced so every crop cell has light 9 or more). Fenced so mobs don't trample it,
-with a gate on the lot's front. A composter and a chest by the gate as the field's output port (`item_out`, where the player puts the harvest).
-**The player harvests it** (v1; section 9, Q1): there is no redstone and nothing that can jam.
+**What it is.**
+- **The field.** Farmland in rows, planted with the crop the player has: wheat, carrots, potatoes or beetroot.
+- **Water.** Architect's farm irrigation (IRR: `irrigate: true` on a farm lot) puts one contained source in each 9x9 of the field, and drains
+  them first on undo.
+- **Light.** Lamps from the bible's lamp role, spaced so every crop cell has light 9 or more at night.
+- **Fence.** The field is fenced, with a gate on the lot's front row.
+- **The output port.** A composter and a chest by the gate are the field's `item_out` port, where the player puts the harvest.
+- **Who harvests.** The player does in v1 (section 9, Q1). There is no redstone and nothing that can jam.
 
-**Parameters.** `crop` (4 kinds); `field` (w x d), from 9x9 to 27x27 in steps that line up with IRR's 9x9 grid, so every source sits where the
-program left a gap; `lamps` (`role` or `none`, when the bible has no lamp, in which case the measured bar is the daylight one). The program
-takes the lot's irrigation cells (the artifact's `$.lots[].irrigation`, IRR) as reserved, and leaves them and the cell above each open.
+**Geometry** (this matches IRR's own frame, CONTRACT "Phase 6c slice IRR as built": field = u 1..W-2, v 1..D-3).
+- The lot is the field plus a one-cell border (the fence) and a front row of two (gate, chest, composter, path): **W = F + 2, D = F + 3**.
+- The field side F is one of **9, 18 or 27**. Those are whole multiples of IRR's 9x9 segments, so every source sits where the program left a
+  gap.
+- Fields need not be square: any pair of these sides.
+- The program takes the lot's irrigation cells (`irrigation.lotCells`, IRR) as reserved, and leaves them and the cell above each open.
 
-**Measurement.**
-1. **Hydration:** every farmland cell at `moisture=7` within 2 minutes of placement (IRR's own gate item 3, repeated here on the module).
-2. **Light:** every crop cell at block light 9 or more at midnight (lamps), counted.
-3. **Growth:** crops at age 7, as a share of the field, after 1, 2 and 3 in-game days at `randomTickSpeed` 3, at least 5 runs. Bars: within
-   the probe's band for a hydrated, lit field, and the field without irrigation (the probe's control) clearly slower.
-4. **Yield:** one scripted harvest of a mature field, drops counted per crop kind and size. This is the number the steward quotes in its offer. It is recorded, not a bar.
-5. **Trampling:** a mob let into the closed field for 10 minutes leaves the farmland as it was.
-6. **Restarts:** the field survives a restart and a chunk unload mid-growth (ages kept, moisture back within 2 minutes).
-7. **Survival:** placed from a stockpile; its bill (dirt for farmland, one seed per crop cell, fences, lamps, chest, composter; water free)
-   equals what was consumed; refunds on undo match (section 6).
+**Measurement** (per crop and per size):
+1. **Hydration.** Every farmland cell reaches `moisture=7` within IRR's as-built bound of 240 s.
+2. **Light.** Every crop cell has block light 9 or more at midnight.
+3. **Output rate.** Harvestable crops per in-game day:
+   - setup: plant, wait T, harvest and count, replant, repeat for 3 cycles, at least 5 runs;
+   - T is the probe's time to a mature majority for that crop;
+   - recorded as gross drops and as net of replanting stock;
+   - bar: within the probe's band for a watered, lit field, and above the absolute usefulness bar;
+   - control: the probe's unwatered field is clearly slower.
 
-**Limits carried from IRR.** A field side under 3 asks nothing. In a freezing biome the sources would freeze, so the module isn't offered there
-(the decorative farm is). An irrigated lot is never refilled (S-RV-14): a removed farm's lot stays free land.
+   The offer quotes this **net rate**. It never quotes a single mature harvest as a rate.
+4. **Exclusion.** Mobs are let loose outside the closed fence for 10 in-game minutes. None gets in, and the farmland is unchanged. A player
+   gets in and out through the gate.
+5. **Restarts.** A restart and a chunk unload mid-growth keep every crop's age, and moisture is back within the bound.
+6. **Working the field.** Harvest, then replant, then save and reload, then land check (LC), then undo, all under S-M5-4's rules. A player's
+   torch left on the field is still the player's after undo.
+7. **Survival.** The field is placed from a stockpile:
+   - the whole growth's bill equals what was consumed (section 6);
+   - refunds on undo follow 6's table.
+
+**Limits.**
+- From IRR: a field side under 3 is asked nothing.
+- A freezing biome freezes the sources, so the module isn't offered there.
+- An irrigated lot is never refilled (S-RV-14).
 
 ### 3.2 `storage_hall@1`: chests that sort
 
-**What it is.** A hall with an **input chest** at its door, a line of hoppers under a row of filtered chest slots (the long-standing vanilla
-comparator sorter: each slot's filter hopper holds its item and passes only that item down), an **overflow chest** at the end of the line for
-everything not filtered, and a bank of plain double chests for bulk. A sign and an item frame over each slot show its item. It has an `item_in`
-port at the input chest (where a later spine joins) and is styled from the bible's roles (walls, roof, floor, lamps).
+**What it is.**
+- An **input chest** at the hall's door, the `item_in` port. One hopper line runs from it under a row of filter slots.
+- **Each slot.** A filter hopper holds its item, and a comparator reads it. The slot passes only that item down into its chest. The concrete
+  tileable circuit is the one the probe measured (2.1).
+- An **overflow chest** at the end of the line takes everything not filtered.
+- A bank of plain double chests for bulk storage.
+- A sign and an item frame show each slot's item.
+- The walls, roof, floor and lamps are styled from the bible's roles.
 
-**Parameters.** `slots` (4 to 16, in steps of 4); `items`, the filtered item for each slot, chosen when the hall is offered from what the
-settlement has most of (the stockpile and the player's carried items, top kinds by count; the player can change them before accepting);
-`bulk` (0 to 8 double chests).
+**Parameters.**
+- `slots`: 0, 4, 8, 12 or 16. A hall with 0 slots is plain: chests and the input chest, no redstone.
+- `items`: one filter item per slot, chosen at the offer from what the settlement has most of (the stockpile and the player's carried items,
+  by count). The player can change them before accepting.
+- `bulk`: 0 to 8 double chests.
 
-**Filter items are the hard part.** Each filter hopper must hold an exact count of its item plus filler items. Architect strips container
-contents from templates and construction targets (CONTRACT "Survival": "Block entities placed by the template are empty"). Without a change,
-the hall would be built with empty filters and sort nothing. **Asked (S-M5-3):** a verified entry may declare **filled containers**: a cell's
-inventory written at placement, billed in survival as ordinary items, refunded on undo. **Fallback if refused:** the steward hands the player
-a filter kit and the hall shows which slot each goes in. It is error-prone and can't be measured as built, so the recommendation is to wait
-for S-M5-3.
+**The filter item domain** (enforced by the program):
+- **Allowed:** items that stack to 64, are plain (no components, names or enchantments) and are distinct, with no duplicate filters.
+- **Never a filter:** the filler item, a fixed item recorded with the module. Unstackable items, items that stack to 16, and items that carry
+  components always go to overflow.
+- The offer names the item classes the hall won't sort.
 
-**Measurement** (deterministic, so exact bars):
-1. **Sorting:** a test mix into the input chest: each slot's item times 3 stacks, 5 kinds the hall doesn't filter, and an unstackable item.
-   Every filtered item ends in its slot's chest, every other item in overflow, and the input is empty. **100%**, with items in = items out.
-2. **Throughput:** items moved per second, recorded (bar: within 10% of the probe's hopper rate times the line's parallelism).
-3. **Full chest:** one slot's chest filled to the top, then more of its item: it backs up into its own slot (or overflow) and every other slot
-   still sorts 100%. The probe says which; the bar is "no wrong item in any chest, nothing lost".
-4. **Filters hold:** after 10,000 items, every filter hopper still holds its filter count (no filter item drained away).
-5. **Restart and unload** mid-sort: nothing lost, nothing duplicated, sorting continues.
-6. **Survival:** bill (hoppers, comparators, chests, redstone, the filter items) consumed equals delivered; undo as section 6.
+**Throughput** comes from the single input line: one hopper chain. Slot count doesn't add capacity. The offer says "about N items a second"
+from the measured rate.
 
-**Tier.** Hoppers need iron and comparators need nether quartz. In survival the sorting hall is offered once the player's tier reaches the
-Nether (Progress already reads it). Before that, the steward may offer the hall with `slots = 0`: chests, signs and the input, no redstone. That is
-the same module version with a parameter, and needs no second measurement for sorting.
+**Filter items are the hard part** (S-M5-3).
+- Each filter hopper must hold an exact count of its item plus fillers.
+- Architect writes template and construction-target containers empty, so without a change the hall would sort nothing.
+- **Asked:** a given-program entry may declare filled containers, with a transactional lifecycle:
+  - **Locked while built.** The filter hoppers are built locked: the circuit's lock is powered until activation.
+  - **Filled once.** They are filled once, after every cell of the core stands, as one keyed and journaled step.
+  - **Then unlocked.**
+  - **Refunds.** A cancel before the fill refunds no filter items, because none were written. Filter items in place are refunded as
+    construction. Anything else in a container is cargo (section 6).
+- **Fallback if refused:** a hall with `slots = 0` only.
 
-### 3.3 What comes next (not in phase 5's first catalog)
+**Measurement** (deterministic, so the bars are exact):
+1. **Sorting.**
+   - The test mix: each slot's item times 3 stacks, 5 plain kinds the hall doesn't filter, an unstackable item, a 16-stack item, an item with
+     components, and the filler item itself.
+   - Bar: every filter item ends in its slot, everything else in overflow, and the input chest is empty. **100%**, items in = items out.
+2. **Throughput.** Items a second, end to end. Bar: within 10% of the probe's single-line rate.
+3. **Saturation.** Two neighbouring slots are filled to the top, then fed more of their items.
+   - No wrong item lands in any chest, nothing is lost, and every other slot still sorts 100%.
+   - Once the two slots are emptied, all of them sort 100% again.
+4. **The filters hold.** After 10,000 items, each filter hopper still holds exactly its filter count.
+5. **Restarts.** A restart and a chunk unload mid-sort lose and duplicate nothing, and sorting continues.
+6. **Survival.**
+   - The whole growth's bill (hoppers, comparators, chests, redstone, the filter items and fillers) equals what was consumed.
+   - **Crash cases around activation:**
+     - a cancel before the fill: no filter items are written, and none are refunded;
+     - a crash between the fill and the unlock: the fill is not repeated;
+     - a crash mid-sort, then undo: the filter items are refunded once, and the cargo is not refunded.
 
-Sugar cane and melon/pumpkin farms (observer and piston harvesters, the first modules with an automatic `item_out`), an animal pen, a smelter
-array, and the trading hall (phase 6, with villagers). Each one needs its own probe items and measurement. The spine (section 5) earns its keep
-once an automatic module exists.
+**Tier.**
+- Hoppers need iron and comparators need nether quartz.
+- In survival the sorting hall is offered from the Nether tier on. Progress already reads the tier.
+- Before that, the plain hall (`slots = 0`) is offered: one of the measured branches.
+
+### 3.3 Next, not in the first catalog
+
+- Sugar cane and melon/pumpkin farms: observer and piston harvesters, the first modules with an automatic `item_out`.
+- An animal pen and a smelter array.
+- The trading hall: phase 6, with villagers.
+
+Each needs its own probe items and measurement.
 
 ## 4. Offering and placing
 
 ### 4.1 The offers
 
-The steward offers modules through the phase 3e proposal rules and their guardrails (rejections remembered, cooldowns, at most three open, one
-per 20 minutes, worded by Claude). Two new rules:
+The steward offers modules through phase 3e's proposal rules and guardrails: rejections remembered, cooldowns, at most three open, one per
+20 minutes, worded by Claude. Two new rules:
 
 | Rule (key) | Sign | Offer |
 |---|---|---|
-| `module.crop_farm` | the player carries 8 or more seeds of a crop the catalog grows (today's `farm` sign) | "You carry wheat seeds. I can lay a watered, lit field by the town for them: about N wheat every three days" (N from the measured yield for that size). The size comes from the seeds carried and the room (Patron: the largest field that fits, up to 27x27; Supplied: one the stockpile and the player's seeds can pay for, with the bill shown). |
-| `module.storage_hall` | the stockpile, or the chests in the claim, hold 12 or more kinds of items, or the player's inventory is full twice within 20 minutes | "Your stores are getting mixed. A sorting hall would put your cobblestone, iron, wheat and wood in their own chests." Survival: sorting only from the Nether tier; before that, the plain hall. |
+| `module.crop_farm` | the player carries 8 or more seeds of a crop the catalog grows (today's `farm` sign) | "You carry wheat seeds. I can lay a watered, lit field by the town: about N wheat a day once it's going." N is the measured net rate for that size. |
+| `module.storage_hall` | the stockpile or the chests in the claim hold 12 or more kinds of items, or the player's inventory is full twice within 20 minutes | "Your stores are getting mixed. A sorting hall would put your cobblestone, iron, wheat and wood in their own chests." |
 
-**The old `farm` rule** (seeds, a decorative "farm and barn" designed by Claude) stays as the **fallback** when the module can't be placed
-(section 4.3). The module offer has its own key, so a player who declined the decorative farm still gets the working one offered **once**. A
-decline of `module.crop_farm` also retires `farm` for that settlement: the player has said no to farms. No save migration: keys are strings.
+**Eligibility.**
+- **Before the offer.** It is decided before anything is offered (section 4.3): the town's path, features, biome, tier and the Minecraft
+  version. An ineligible module is never offered.
+- **At Accept.** It is checked again, because the town may have changed. If the module is ineligible by then, the steward says so. A
+  decorative substitute is a **separate offer with its own price** ("a working field can't go here because …; a decorative farm would cost
+  about $3"), never a silent switch from a free module to a paid design.
 
-**Asked in talk.** "Build me a farm" or "I need somewhere to sort my stuff" goes through the talk job, which can now name a module
-(`module: crop_farm` with its parameters) in the proposal it puts in the inbox. Its schema gains the module ids from the live catalog.
+**Coalescing and declines** (`ProposalRules.propose`: today a rule is skipped when its key was declined, its key is open, or a building of its
+type stands):
+- **Type checks by module.** For module rules the type check reads **module identity**. A standing module of the same id suppresses the
+  offer. A decorative `farm` building does not, so a town with a decorative farm can still get the working one, **once**.
+- **Declines.**
+  - Declining `module.crop_farm` also retires `farm` for that settlement: the player has said no to farms.
+  - Declining the old decorative `farm` doesn't retire the module offer.
+- **Saves.** No save migration: keys are strings, and the module's ext tags the built lot.
 
-**Autonomous and Full** may build a module offer on their own, within the weekly allowance like any proposal. A module design costs $0, so in
-Patron it is free; in survival it spends the stockpile, and Autonomous asks first when the bill takes more than half of what the stockpile
-holds of any item (section 9, Q4).
+**Seeds and the stockpile.**
+- **Patron.** The field is free, and it is planted at placement.
+- **Supplied.** Construction draws only from the stockpile. The offer sizes the field from the stockpile plus what the player carries, and
+  says so: "put 160 wheat seeds in the stockpile".
+- **Material requests.** They name the seeds as any material. The steward never takes from the player's inventory.
+
+**Asked in talk.** "Build me a farm" or "I need somewhere to sort my stuff" goes through the talk job. The job can now name a module (`module:
+crop_farm` and its parameters) in the proposal it puts in the inbox. Its schema takes the module ids from the live catalog.
+
+**Autonomous and Full** may build a module offer on their own, within the weekly allowance. A module design costs $0. In survival, Autonomous
+asks first when the **whole growth's bill** takes more than half of the stockpile's count of any item (Q4).
 
 ### 4.2 Placing: a module is an addition on growth
 
-A module is placed as an **addition**, on the paths growth already has:
-
 | The town | Path | Module lot |
 |---|---|---|
-| a region town (V, plan v1), instant | growth A: `planRevision` grow | grow lot `{id, type: farm or storage, size from the parameters, ext, irrigate: true (farm)}` |
-| a region town, from materials | growth A2 | the same lot, billed from the stockpile |
+| a region town (V, plan v1), instant | growth A: a `planRevision` grow | grow lot `{id, type, size [W, D], ext, irrigate (farm)}` |
+| a region town built from materials | growth A2 | the same lot, billed from the stockpile |
 | a street town (east-west street), instant, not Supplied | growth B: adopted at its first growth, then A | the same lot |
 
-The lot's entry is the module's **variant** (`makeVariant` of the module's catalog entry with the parameters and the settlement's bible), bound in
-`lotEntries` like any design. No massing, no design job, no critique. The proposal shows the catalog's render and, in survival, the bill for the size
-offered (the measured BOM per size, kept with the catalog) before Accept. Once the lot is planned, the variant's own BOM is the bill; if it is
-larger than what was shown, the build pauses and asks again.
+**The order inside the build:**
+1. `planRevision` with the module lot at its exact size.
+   - If `NO_ROOM`, Steward tries the next smaller size of the discrete set **as a new plan**, and says so.
+   - It never accepts a box other than the one asked for.
+2. From the revision plan, read the lot's box, frame and `irrigation` (S-M5-2).
+3. **The variant.** The keyed variant of the module's catalog entry with the parameters, the bible and the irrigation cells as reserved.
+   - Its key is per lot: `steward.<build>.module.<lotId>`, so two module lots never share one.
+4. **The binding.** Saved with the build (`moduleBindings`, BuildStore format 5) before the realise:
+   - `lotId -> {entryId, version, programSha, params, bibleVersion, geometrySha}`;
+   - `geometrySha` covers the lot's box, frame and irrigation cells.
+5. **The bill.** The whole revision's bill (the plan's `cost.bom`: the lot, the lanes, the lamps and the irrigation shells) is compared with
+   the bound approved at Accept (4.4). Over the bound, the build pauses and asks again.
+6. **Realise.** The module entries go straight into `lotEntries` beside the designed ones, outside the design group. DS's site variants are
+   bound the same way. A module lot whose entry is missing refuses the realise; it is never left as a pad.
 
-**Order inside the build:**
-1. `planRevision` with the module's lot.
-2. Read the planned lot's box and, for a farm, its irrigation cells (asked, S-M5-2).
-3. `makeVariant` for that box and those reserved cells.
-4. Realise.
+**A stale plan** (`parent_moved` during design, growth A's re-plan under `vgrow3`).
+- If the re-planned lot's `geometrySha` changed, the variant is **made again** for the new geometry, under a new key
+  `steward.<build>.module.<lotId>.<n>`, and the binding is replaced.
+- Designed lots keep their designs by id, as now.
 
-The variant comes after the plan because the field must leave the planned sources open. If the planned box differs from the size asked
-(GR may place a smaller lot), the program is run for the box as planned, within the tested range, or the build ends saying so (never an
-unmeasured size).
+**Recovery.** After a restart, the binding and the key find the variant that was made (`variantByKey`, S-M5-1). Once a binding is saved, a
+variant is never made twice.
 
-### 4.3 Where a module isn't placed (yet), and what happens instead
+### 4.3 Where a module isn't placed (yet)
 
-- **Districts:** district growth (`dgrow`, D-S2) isn't built. A district's farm waits for it.
-- **North-south streets, Supplied street towns** (not adopted, S-AD-5), and the legacy street path: there is no region to irrigate. Lot designs
-  never own fluids (IRR), so a dry farm module would fail its bar.
-- **Freezing biomes** (farm), an Architect without the needed features (C38's catalogue and S-M5 features), and an unmeasured Minecraft version.
+- **Districts:** district growth (`dgrow`, D-S2) isn't built.
+- **North-south streets, Supplied street towns** (not adopted, S-AD-5) and the **legacy street path**: there is no region to irrigate. Lot
+  designs never own fluids (IRR).
+- **Freezing biomes** (the farm), an Architect without the S-M5 features, and an unmeasured Minecraft version.
 
-In all of these, the offer becomes the **decorative** farm (or, for the hall, an ordinary storehouse designed by Claude), and the card says why:
-"a working field needs the town's water system; this one is for looks".
+The steward doesn't offer the module in these cases. Where the old `farm` rule fires, its decorative offer is made as today, priced.
 
-### 4.4 Composing modules into a settlement (plan v1)
+### 4.4 What the player approves
 
-When a card asks for working things ("a farming village that feeds itself", "a trading post with a sorting warehouse"), the plan writer can name
-modules as lots of a composed plan: a lot with `type`, `ext steward_mc:module` and its parameters, and `irrigate` for a farm. The plan writer's
-catalogue copy gains the live module list: ids, parameter ranges, footprints, what each needs (tier, features). Steward binds each module lot's
-variant at the Start re-check, as it binds designed lots. Ordinary buildings around them are designed as today.
+The proposal shows:
+- the catalog's render of the module, re-skinned to the settlement's bible;
+- the measured rate;
+- in survival, an **upper bound on the whole bill**, per item: the catalog's measured BOM for that size plus a bound on the growth's own work
+  (lanes, lamps, irrigation shells), recorded from the measurement runs.
 
-**The two-module gate** is met here: a plan v1 settlement whose plan holds a crop farm and a storage hall, built, both measured in place
-(section 7). The hall's input chest stands by the farm's gate on the plan's path, so the player carries the harvest a few steps. Item transport
-between them is the spine (section 5), which is not needed for this gate (section 9, Q2).
+Accept approves that bound. Step 5 of 4.2 holds the build to it.
 
 ### 4.5 Growth and revisions over a standing module
 
-- **A module is a lot like any other** to growth: GR keeps its box (never writes under a standing lot box +1), and a later addition can sit next
-  to it.
-- **Upgrading** (a bigger field, more slots) is a new variant on the same lot: removing the lot and refilling it would need RV's refill, which
-  refuses irrigated lots (S-RV-14). Phase 5 doesn't upgrade in place. A second field is a second module lot. A version change offer (`crop_farm@2`)
-  waits until Architect can refill an irrigated lot (section 9, Q5).
-- **Land check** (LC): a harvested or replanted field should not read as "changed" every day. Crop age and farmland moisture are volatile
-  already, so a ripening field still reads unchanged. A harvested cell (air over farmland) or a player's replanted crop needs S-M5-4.
+- **A module is a lot like any other** to growth. GR never writes under a standing lot box +1, and a later addition can sit beside it.
+- **No in-place upgrades** in phase 5 (Q5). Refilling an irrigated lot is refused (S-RV-14), and a redesign would be unmeasured. A second
+  field is a second module lot.
+- **Land check.** A worked field must not read as "changed" every day. Crop age and moisture are volatile already. Harvested cells,
+  replanted crops and a module's standing score need S-M5-4.
+
+### 4.6 Composing modules into a settlement (plan v1)
+
+When a card asks for working things ("a farming village that feeds itself", "a trading post with a sorting warehouse"), the plan writer can
+name modules as lots of a composed plan:
+- **The lot.** A module lot has a `type`, `ext steward_mc:module` with its parameters, the exact `size` from 3.1's geometry, and `irrigate` for
+  a farm.
+- **The plan writer's catalogue copy** gains the live module list: ids, sizes, what each needs.
+- **Binding.** Steward binds each module lot's variant at the Start re-check, from the artifact's `$.lots[]` (box, frame, `irrigation`), with
+  the same bindings and the same bill bound as 4.2.
+- **The neighbours.** The ordinary buildings around the modules are designed as today.
+
+**The two-module gate** is met here: a plan v1 settlement whose plan holds a crop farm and a storage hall, built, and each measured in place
+(section 7). The hall's input chest stands by the farm's gate on the plan's path. Item transport between them is the spine (section 5).
 
 ## 5. The spine: item connections between modules
 
-PLAN's sketch has output hoppers feeding a central spine. What Architect has today: blueprints already declare ports (`item_out`, `item_in`,
-CONTRACT "Ports"), and 7b's link pass (LP) joins **walk** ports between lots at realise. It doesn't move items, and a revision's realise has
-no links stage (S-7b-3). So an item spine needs a new building block: **`connector.items`** (S-M5-5), from an `item_out` port to an `item_in`
-port. The connector is a hopper chain for short runs (up to 16) or a water channel on ice with a hopper at the end for long ones. It is routed
-as T2 routes are, billed in survival, and verified by the probe (throughput, nothing lost at the joins, a restart mid-flow).
+**What exists.** PLAN's sketch has output hoppers feeding a central spine. Architect today has:
+- **Ports.** Blueprints declare `item_out` and `item_in` ports (CONTRACT "Ports").
+- **The link pass.** 7b's link pass (LP) joins **walk** ports between lots at realise. It doesn't move items, and a revision's realise has no
+  links stage (S-7b-3).
 
-Phase 5's first two modules don't need it: the farm's output is a chest the player fills. So the spine is the **last** slice (M6), built when
-the first automatic module (sugar cane) is designed, and only if Noah wants it in phase 5 (Q2). Until then, modules that belong together are
-placed next to each other by the plan, with the hall's input by the farm's gate.
+So an item spine needs a new building block, **`connector.items`** (S-M5-5). Its semantics:
+- **The ends.** Each port has a direction and height. A connector runs from an `item_out` container to an `item_in` container.
+- **Extraction.** A hopper under or beside the source container pulls from it. The source is never emptied by anything else.
+- **Transport.** A hopper chain up to 16 cells long. Water on ice beyond that only once its own probe passes, because item entities in water
+  are a different risk: unloading, despawn timers and pickup.
+- **A full sink.** When the destination is full, items back up in the chain. Nothing drops or is lost.
+- **Unload and restart.** Nothing is lost or duplicated across a chunk unload or a restart.
+- **Removal.** Removing either module's lot first refuses while a connector depends on it, or takes the connector with it, Architect's
+  choice. The connector's own hoppers holding items count as cargo (section 6).
+- **Growth.** It works in a revision's realise.
+
+**Phase 5's default (Q2)** is to **defer the spine**. This changes PLAN's phase 5 scope, so it is put to Noah as a scope question, not
+assumed.
+- A player-filled farm chest *could* feed the hall through a connector. The default doesn't, because a hopper chain between two
+  player-fed chests saves only a few steps.
+- **The alternative** is a bounded slice M6 in phase 5: hopper chains only (16 cells or fewer), from the farm's chest to the hall's input,
+  measured with section 3.2's bars.
 
 ## 6. Survival: billing and undo
 
-**Billing.** A module is billed like any building from Architect's BOM of its variant, from the settlement's stockpile (phase 4), through
-growth A2 for region towns:
-- crops cost their seed (Architect's survival COSTS already map crop blocks to seed items), farmland costs dirt (CU treats farmland and dirt as
-  one), water is free (N-H-1);
-- hoppers, comparators, chests, redstone are ordinary items;
-- **filter items** are billed as items once S-M5-3 lets the entry declare them.
+### Billing
 
-The proposal shows the full bill before Accept. The steward's material requests name the module's part ("the sorting hall waits for 3 hoppers").
+A module is billed like any building, from the settlement's stockpile (phase 4), through growth A2 for region towns. **The bill is the whole
+revision's bill**, not only the variant's (4.2 step 5):
+- **Crops** cost their seed. Architect's survival COSTS map crop blocks to seed items.
+- **Farmland** costs dirt (CU treats farmland and dirt as one). **Water** is free (N-H-1).
+- **Hoppers, comparators, chests and redstone** are ordinary items.
+- **Filter items and fillers** come under S-M5-3.
+- **Masked cells.** Template cells masked out by irrigation are not billed. They are Architect's `droppedBlocks`, and the shells are billed in
+  the zone's `cost.bom`.
 
-**Undo.** A module lot goes like any growth: `undoRevision` (growth A), or with the town. Irrigation is drained first (IRR). The module-specific
-parts:
+**Material requests** name the module's part ("the sorting hall waits for 3 hoppers").
 
-| What the module holds | Today's rule (Architect) | Phase 5's answer |
+### Undo
+
+A module lot goes like any growth: `undoRevision` under growth A, or with the town. Irrigation is drained first (IRR). The module-specific
+rules:
+
+| What the module holds | Today (Architect) | Phase 5 |
 |---|---|---|
-| crops at any age | `age` is volatile: ours | refunded as Architect refunds standing blocks; a seed for a young crop? Architect's rule, recorded |
-| a harvested cell (air on farmland), farmland trampled to dirt | a mined block: not refunded (the player has the item); farmland and dirt interchangeable | as today: nothing to refund for the crop |
-| a crop the player replanted | a player-placed block (PT record): kept, or a removal blocker? | **asked, S-M5-4**: a crop in a module field's crop cell counts as the field's for undo and LC. Preferred: it goes with the lot like ours, with no refund (the player planted it) |
-| a chest, hopper or composter holding items | "A container the player filled is not ours": refuses Remove | **refused, said** (default; Q3): the steward says "the sorting hall still holds 1,240 items in 9 chests; empty it first", names the containers, and undo waits. Nothing is lost or duplicated. Alternative (asked as an option in S-M5-6): removal moves the contents into the settlement's stockpile |
-| filter hoppers (S-M5-3) | their contents change as items pass | declared filled containers are "ours" while they hold only their filter items, at any count. Refunded as their contents on undo |
+| our crops, at any age | `age` is volatile, so they are ours | refunded as Architect refunds standing blocks |
+| a harvested cell (air on our farmland); farmland trampled to dirt | mined, so not refunded; farmland and dirt interchangeable | nothing refunded for the crop |
+| a crop the player replanted on a field cell | the player's block (a PT record) | **S-M5-4:** it goes with the lot, not a removal blocker; its planting item (one seed) is returned **once** as cargo, never the original construction seed |
+| any other player block on the field (a torch, a sign) | the player's | unchanged: kept, or a blocker, as PT says |
+| a chest, hopper or composter holding items (cargo) | "a container the player filled is not ours": refuses Remove | **refused and said** (Q3): "the sorting hall still holds 1,240 items in 9 chests; empty it first", with the containers named. Nothing is lost or duplicated. Optional S-M5-6: the cargo moves into the stockpile |
+| filter hoppers (S-M5-3) | their contents change as items pass | while they hold only their declared items, they are ours; on removal their contents are captured in the same tick the hopper is removed (no transfer in between, no vanilla drop); the filter count refunds as construction, any excess is cargo |
 
-**Crash and restart.** Nothing new: a module build is a growth (A, A2, B), with their keys, recovery and save formats. The variant is made by
-key (`steward.<build>.module`), so a restart between the plan and the realise finds the variant it made, not a second one.
+**Standing and reconcile.** A worked field is not "partly built" or damaged (S-M5-4):
+- Architect's standing score compares template blocks, so its field cells are judged by the field rule, not block by block.
+- LC, removal blockers, refunds and the standing score each follow the field rule.
+
+**Crash and restart.**
+- A module build is a growth (A, A2, B), with their keys, recovery and save formats.
+- BuildStore format 5 (`moduleBindings`) comes with a `SaveCompatTest` fixture.
 
 ## 7. How it is tested
 
-- **Unit:** the proposal rules (signs to offer, keys, the `farm` fallback and declines), parameter choice (seeds and room to field size; the
-  stockpile to the hall's items), the catalog's gating (Minecraft and Architect versions, features, tier, biome), the lot spec for growth.
-- **Module measurement** (`tools/module-measure.mjs`, its own dev client on the e2e ports): section 3's items at each corner of the parameter range;
-  results into `modules/<id>/<version>/measured.json`; the gate-verifier re-runs it.
-- **e2e (stub), flow `module`:** a V town accepts a crop farm offer (growth with an irrigated module lot), hydration checked; a storage hall,
-  sorting a short mix (30 s); undo of both (the hall refused while it holds items, then emptied and undone). It is short enough for the sanity
-  of an Architect RC that touches regions, fluids or growth, and runs nightly.
-- **Survival e2e:** the farm from a stockpile, bill in = consumed, undo refunds.
+- **Unit tests:**
+  - the proposal rules: signs, keys, identity-based coalescing, declines both ways, eligibility at the offer and at Accept;
+  - parameter choice: seeds, stockpile and room to the field size; the stockpile to the hall's items, with the item domain filtered;
+  - the catalog's gating: versions, features, tier, biome, palette constraints;
+  - the lot spec and geometry (W = F + 2, D = F + 3);
+  - bindings and their `geometrySha`, re-binding after a stale plan, and the bill bound.
+- **Module measurement** (`tools/module-measure.mjs`, in its own dev client on the e2e ports):
+  - section 3's items over the whole certification envelope (2.2);
+  - results go into `measured.json`, and the gate-verifier re-runs them.
+- **e2e (stub), the `module` flow:**
+  - a V town accepts a crop farm (a growth with an irrigated module lot): hydration, then harvest, replant, LC and undo;
+  - a storage hall sorts a short mix (30 s);
+  - undo of the hall is refused while it holds cargo, then it is emptied and undone;
+  - two module lots in one build, with a restart between the variant and the realise.
+
+  The flow is short enough for the sanity set of an Architect RC that touches regions, fluids or growth, and it runs nightly.
+- **Survival e2e:**
+  - the farm from a stockpile, with partial feeding: the bill comes in, the materials are consumed, and an undo mid-build refunds them;
+  - the sorter's crash cases (3.2 item 6).
 
 ## 8. Slices and gates
 
-Each slice is one Opus session in its own worktree, per AGENTS.md. Each module's gate is its measurement, re-run by the gate-verifier. The
-gap map row "working modules" (`fixtures/strange-asks`) moves from *waits* to *nearest version* at M3 and to *built* at M5.
+**Process.** Each slice is one Opus session in its own worktree (AGENTS.md). A module's gate is its measurement, re-run by the gate-verifier.
+
+**The gap map.** The row "working modules" (`fixtures/strange-asks`) moves from *waits* to *nearest version* at M3, and to *built* at M5.
 
 | Slice | What | Needs | Gate |
 |---|---|---|---|
-| **M0 probe** | The vanilla rules of section 2 measured on the running 26.3 server; `tools/module-probe.mjs`; Steward's dev hooks | nothing | every rule measured, with numbers committed; any failure stops the phase and goes to Noah, with no silent fallback |
-| **M1 catalog** | The catalog format (program, schema, ranges, measured.json), its gating, a module as a lot spec; the given-program path, or Architect's kit component | S-M5-1 | a module entry installed at $0, re-skinned by two bibles, checker clean; unit tests |
-| **M2 crop farm** | `crop_farm@1` and its measurement | M0, M1, IRR, S-M5-2 | section 3.1's measurement passes at each corner; gate-verifier |
-| **M3 offer and place** | `module.crop_farm`, the `farm` fallback, talk naming a module, the card's render and bill, growth A, B and A2 placement, the variant after the plan | M2, growth A2 merged | e2e `module` (farm part) and the survival e2e; a GPT review (spending, undo) |
-| **M4 storage hall** | `storage_hall@1`, its measurement, `module.storage_hall`, the tier gate, undo refused while filled | M0, M1, S-M5-3, S-M5-6's answer | section 3.2's measurement passes; e2e `module` (hall part); GPT review |
-| **M5 composed** | The plan writer names modules; Steward binds module lots in plan v1; S-M5-4 adopted | M3, M4, S-M5-4 | **phase 5 gate:** a composed settlement with a crop farm and a storage hall, built, each measured in place; the gate-verifier; Noah's look |
-| **M6 spine** (optional, Q2) | `connector.items` in plans, with the first automatic module | S-M5-5, a sugar cane module | items carried from an `item_out` to an `item_in`, measured |
+| **M0 probe** | Section 2.1's vanilla rules and the assembled sorter tile, measured on the running 26.3 server; `tools/module-probe.mjs`; Steward's dev hooks; the usefulness bars fixed | nothing | every rule measured, numbers committed; the sorter tile's 20 runs pass; any failure stops the phase and goes to Noah |
+| **M1 catalog** | The catalog format (program, schema, envelope, `measured.json`), gating, palette constraints, bindings (BuildStore 5) | S-M5-1 | a module entry installed at $0 by key; every branch re-skinned by three bibles, checker clean; unit tests |
+| **M2 crop farm** | `crop_farm@1` and its measurement | M0, M1, S-M5-2, S-M5-4 | 3.1's measurement passes over its envelope (items 1-7); gate-verifier |
+| **M3 offer and place** | `module.crop_farm`, identity coalescing, eligibility, the priced decorative substitute, talk naming a module, the bill bound, growth A, B and A2 placement, re-binding after a stale plan | M2, growth A2 merged, S-M5-2 shipped | e2e `module` (farm) and the survival e2e; GPT review (spending, undo, persistence) |
+| **M4 storage hall** | `storage_hall@1` and its measurement, `module.storage_hall`, the tier gate, undo refused while it holds cargo | M0, M1, S-M5-3 (or `slots = 0` only) | 3.2's measurement passes over its envelope, the crash cases included; e2e `module` (hall); GPT review |
+| **M5 composed** | The plan writer names modules; Steward binds module lots in plan v1 | M3, M4 | **phase 5 gate:** a composed settlement with a crop farm and a storage hall, built, each measured in place; gate-verifier; Noah's look |
+| **M6 spine** (if Q2 says so) | `connector.items`, hopper chains only, from the farm's chest to the hall's input | S-M5-5 | items carried, measured with 3.2's bars; removal in both orders |
 
-Order: M0 and M1 can run alongside A2. M2 after M1. M3 after A2 merges. M4 can run alongside M3. M5 after both. Costs: $0 throughout (designs of
-modules are $0; e2e is stub). M5's plan writer change needs a small paid re-record of a few composed plans, with Noah's OK on the spend.
+**Order.**
+- M0 and M1 can run alongside A2.
+- M2 comes after M1 and S-M5-2/4.
+- M3 comes after A2 merges. M4 can run alongside M3.
+- M5 comes after both.
 
-## 9. Questions for Noah (each with a recommended default)
+**Cost.** $0 throughout: module designs are $0 and the e2e is stub. M5's plan-writer change needs a small paid re-record of a few composed
+plans, with Noah's OK on the spend.
 
-1. **Farm harvesting in v1.** **Default: the player harvests** a watered, lit field; automatic harvest comes with the sugar cane and melon
-   farms (observers and pistons) and with villager farmers (phase 6). Alternative: a water-flush harvester on a lever (uproots unripe crops too,
-   and needs replanting).
-2. **The spine in phase 5.** **Default: not needed for phase 5's gate.** Modules that belong together are placed side by side, and the item
-   connector comes with the first automatic module (slice M6). Alternative: build `connector.items` in phase 5 (an Architect slice, a week or
-   so on their side).
-3. **Undoing a storage hall that holds items.** **Default: refuse and say so** ("empty it first", the containers named). Alternative: the items
-   move into the settlement's stockpile (needs Architect's S-M5-6 option).
-4. **Autonomous and Full building modules on their own.** **Default: yes, as any proposal**, but in survival Autonomous asks first when the bill
-   takes more than half of the stockpile's count of any item. Alternative: modules always ask.
-5. **Upgrades and new module versions on a standing farm.** **Default: not in phase 5**: a second field is a second module; in-place upgrades wait for
-   Architect to refill an irrigated lot (S-RV-14). Alternative: ask Architect to lift S-RV-14 now.
-6. **Vanilla only.** **Default: vanilla blocks only**, the same as every template (principle 5, open question 2). Every module in this catalog is
-   vanilla.
+## 9. Questions for Noah, each with a recommended default
+
+1. **Harvesting in v1.**
+   - **Default:** the player harvests a watered, lit field. Automatic harvest comes with the sugar cane and melon farms (observers and pistons)
+     and with villager farmers (phase 6).
+   - **Alternative:** a water-flush harvester on a lever. It uproots unripe crops too, and needs replanting.
+2. **The spine in phase 5.** This is a scope change to PLAN's phase 5.
+   - **Default:** defer it to the first automatic module. Modules that belong together are placed side by side.
+   - **Alternative:** slice M6 in phase 5, hopper chains only, from the farm's chest to the hall. It needs Architect's S-M5-5.
+3. **Undoing a storage hall that holds items.**
+   - **Default:** refuse and say so ("empty it first", with the containers named).
+   - **Alternative:** the cargo moves into the settlement's stockpile. This needs Architect's S-M5-6.
+4. **Autonomous and Full building modules on their own.**
+   - **Default:** yes, like any proposal. In survival, Autonomous asks first when the whole bill takes more than half of the stockpile's
+     count of any item.
+   - **Alternative:** modules always ask.
+5. **Upgrades on a standing farm.**
+   - **Default:** none in phase 5. A second field is a second module, and in-place upgrades wait for Architect to refill an irrigated lot
+     (S-RV-14).
+   - **Alternative:** ask Architect to lift S-RV-14 now.
+6. **Vanilla only.**
+   - **Default:** vanilla blocks only, as for every template (principle 5, open question 2). Every module in this catalog is vanilla.
+
+## 10. Review record
+
+**GPT design review, round 1** (gpt-6.1-sol, at 25f8c82): request changes, with 5 blockers, 5 should-fixes and 1 nit. All are taken.
+- **B1. Irrigated growth isn't built.** `grow.mjs` doesn't forward `irrigate`, and `revise.mjs` adds a fluids stage only for ponds. Taken:
+  S-M5-2 now asks for the whole lifecycle, with its gate.
+- **B2. Variant binding and recovery.** Taken:
+  - bindings per lot, with `geometrySha`;
+  - per-lot keys, and a keyed variant (S-M5-1);
+  - the variant made again after a stale plan;
+  - direct `lotEntries`, and a refusal when an entry is missing (4.2).
+- **B3. Filled containers need a transaction.** Taken:
+  - S-M5-3's lifecycle: built locked, filled once, then unlocked;
+  - cargo kept apart from construction refunds;
+  - capture on removal in the same tick;
+  - crash tests (3.2).
+- **B4. The variant's BOM isn't the bill.** Taken: the whole revision's bill, against a bound approved at Accept (4.2, 4.4). Seeds come
+  through the stockpile (4.1).
+- **B5. Field rules come after the farm ships.** Taken: S-M5-4 is a prerequisite of M2. It now covers standing and reconcile, the planting
+  item returned once, and a foreign block that stays the player's.
+- **S6. The sorter's item domain and circuit.** Taken:
+  - the probe measures the assembled tile;
+  - the item domain is restricted, with a fixed filler and no duplicates;
+  - saturation and recovery are tested;
+  - throughput comes from the single input line.
+- **S7. The farm's claims.** Taken:
+  - crop-specific maturity (beetroot's is 3);
+  - the net rate, measured at the quoted elapsed time;
+  - bars fixed before measuring, and a usefulness bar;
+  - hydration within IRR's 240 s;
+  - an exclusion test instead of the trampling test.
+- **S8. The certification envelope.** Taken (2.2):
+  - every layout branch, all four facings, chunk borders;
+  - pinned versions, palette constraints;
+  - change requests, copies and follows refused for modules.
+- **S9. Coalescing by type, and a paid fallback.** Taken: coalescing by module identity, declines both ways, eligibility at the offer and
+  at Accept, the decorative substitute as its own priced offer.
+- **S10. The spine.** Taken: Q2 is put as a scope change. S-M5-5 now has its transport semantics, and M6 is bounded.
+- **N11. Geometry.** Taken: W = F + 2 and D = F + 3 from IRR's frame, the discrete sizes, and a smaller size only as an explicit new plan.
