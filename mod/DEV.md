@@ -338,3 +338,15 @@ The 23:00 nightly on 3986daf passed free (43 checks) and failed stub (30 of 40, 
   to load its mods against about 11 s normally, with no stall in the log, so the whole machine was slow. The 400 s wait stays; this is a chance failure.
 - **SUMMARY.md** printed "undefined failed", because e2e's `failed` is a count. nightly.mjs now lists the names of the checks that aren't ok, with repeats
   counted ("gate mechanism x4").
+
+### Growth slice A: region towns grow through Architect's revisions (2026-11-11, $0)
+An addition to a standing region town (V or plan v1, not built from materials) is planned as a revision of the town (`planRevision`, `revise` with
+`grow`), realised into it under the build's keys, logged as `revision:<region>:<rid>`, and undone by `undoRevision` (docs/GROWTH.md).
+- **Reviews:** GPT's design review requested changes (5 blockers, 4 should-fixes), all taken into the design. The implementation review requested
+  changes (2 blockers, 5 should-fixes); its first fix pass found 1 blocker and 4 should-fixes, and the second fix pass returned PASS on 1f74469.
+- **e2e stub:**
+  - `--only growth,revision`: PASS 41. The town grows by a library as revision 1, under the build's own lot ids. Undone, only the revision goes,
+    with 0 cells changed. The town is then undone. A dev revision goes with the town.
+  - The wider set `growth,village,stub,district,revision`: 57 of 58. The miss was the growth flow's own wait, fixed by moving the player clear.
+- **Gate-verifier:** PASS on all five items, its own e2e run PASS 41. `npm test` in a worktree needs `node_modules` (a symlink to the main checkout's).
+- **Saves:** settlements format 6, builds format 4; a real format-5 fixture (fixtures/saves/v5).
