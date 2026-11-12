@@ -1070,10 +1070,13 @@ async function adoptFlow() {
   }
   const sites = (await dev.request('dev.sites.state').catch(() => ({})))?.sites ?? [];
   const list = Array.isArray(sites) ? sites : Object.values(sites);
+  // buildings from the sites' state (in no region now); every site, roads included (the sites' state lists buildings), by the dev site command
   const back = (founding.siteIds ?? []).map((sid) => list.find((x) => x.id === sid)).filter(Boolean);
+  const standing = [];
+  for (const sid of founding.siteIds ?? []) if (/stands/.test(await cmd(`/steward dev site ${sid}`))) standing.push(sid);
   const noneRemoved = !(settlements().find((x) => x.id === id)?.log ?? []).some((e) => e.kind === 'PROJECT_REMOVED' && (e.siteIds ?? []).some((x) => founding.siteIds.includes(x)));
-  if (rel && back.length === founding.siteIds.length && back.every((x) => !x.region) && noneRemoved) ok('adopt release', `${rel.text}; ${back.length} sites standing, in no region`);
-  else fail('adopt release', `${said2}; released ${!!rel}; ${back.length} of ${founding.siteIds.length} standing, regions ${JSON.stringify(back.map((x) => x.region))}`);
+  if (rel && standing.length === founding.siteIds.length && back.every((x) => !x.region) && noneRemoved) ok('adopt release', `${rel.text}; ${standing.length} sites standing, none in a region`);
+  else fail('adopt release', `${said2}; released ${!!rel}; ${standing.length} of ${founding.siteIds.length} standing, regions ${JSON.stringify(back.map((x) => x.region))}`);
   // 3: the founding build, as before
   await cmd(`/steward undo ${id}`);
   let gone = null;
