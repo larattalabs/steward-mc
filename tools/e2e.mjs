@@ -887,6 +887,104 @@ async function villageFlow() {
 }
 
 /**
+ * (docs/LAND.md, Architect LC) The steward sees what changed in its town: a flat village is built and looked over (nothing changed); then a player
+ * breaks two cells of one building and refills one with cobblestone (Architect's PT: dev.pt.breaks and dev.pt.uses, so the cobblestone carries a
+ * player's record). Looked over again, the steward names that building, 1 block broken or changed and 1 placed by a player, and nothing else; the
+ * inbox holds one LAND row (a screenshot); "what changed?" said to the steward answers the same, $0; "Got it" clears the row.
+ */
+async function landFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 63000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Lookout Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little hamlet to keep an eye on`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('land', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 4 30`);
+  const built = await buildThrough(id, from, 'land town');
+  if (!built) return;
+  const st = settlements().find((x) => x.id === id);
+  const placedOp = (st?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const region = /^region:(.+)$/.exec(placedOp?.siteGroup ?? '')?.[1];
+  if (!region) return fail('land', `the town is not a region: ${placedOp?.siteGroup}`);
+  // stand in the town (its chunks loaded; an automatic look may run too)
+  await cmd(`/tp @p ${st.claim.centerX} 120 ${st.claim.centerZ}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await sleep(2000);
+  const name = st.name;
+  const said = (re) => new RegExp(`\\[${name}\\] ${re}`);
+  from = logSize();
+  await cmd(`/steward check ${id}`);
+  // an automatic look of the new town may be running: asked again once it is done
+  if (await waitLog(from, /looking over the land already/, 3000)) {
+    await sleep(5000);
+    from = logSize();
+    await cmd(`/steward check ${id}`);
+  }
+  const fresh = await waitLog(from, said('(I found nothing[^\\n]*|I looked over[^\\n]*|I couldn.t[^\\n]*)'), 120_000);
+  if (fresh && /I found nothing broken or changed in what we built in /.test(fresh[1])) ok('land fresh', fresh[1]);
+  else return fail('land fresh', `${fresh?.[1] ?? 'no answer'}; ${logSince(from).split('\n').filter((l) => /land check|\[CHAT\]/.test(l)).slice(-6).join(' / ')}`);
+  // a building of the town and two of its solid cells (the roof in its middle columns)
+  const b = (placedOp.changes ?? []).find((c) => c.lot && c.siteId);
+  if (!b) return fail('land', `no building in ${JSON.stringify(placedOp.changes ?? []).slice(0, 160)}`);
+  const solid = (await cmd(`/steward dev solid ${b.siteId}`)).match(/-?\d+,-?\d+,-?\d+/g) ?? [];
+  if (solid.length < 2) return fail('land', `no two solid cells of ${b.siteId}: ${solid.join(' ')}`);
+  const [c1, c2] = solid.slice(0, 2).map((t) => t.split(',').map(Number));
+  const br = await dev.call('dev.pt.breaks', { at: [c1, c2], placer: 'LandAlex' }, { timeoutMs: 120_000 });
+  const uses = (await dev.call('dev.pt.uses', { ops: [{ item: 'minecraft:cobblestone', at: c2, placer: 'LandAlex' }] }, { timeoutMs: 120_000 })).results ?? [];
+  await sleep(2000);
+  if (br.broken === 2 && uses[0]?.tracked) ok('land damage', `a player broke ${c1.join(',')} and ${c2.join(',')} of ${b.lot} (${b.siteId}) and put cobblestone back at the second`);
+  else return fail('land damage', `broken ${br.broken}, use ${JSON.stringify(uses[0] ?? {}).slice(0, 160)}`);
+  // Architect's own report, for the record
+  await sleep(3500); // the steward's 3 s between looks
+  const lc = await dev.call('dev.region.landCheck', { region }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+  const lotRow = (lc.lots ?? []).find((l) => l.siteId === b.siteId);
+  const others = [...(lc.lots ?? []).filter((l) => l.siteId !== b.siteId && l.changed + l.playerPlaced > 0), ...(lc.parts ?? []).filter((p) => p.removed + p.changed + p.playerPlaced > 0)];
+  console.log(`land: Architect's report: ${JSON.stringify({ lot: lotRow, others, unloaded: lc.unloaded, refused: lc.refused })}`);
+  from = logSize();
+  await cmd(`/steward check ${id}`);
+  const seen = await waitLog(from, said('(I looked over[^\\n]*|I found nothing[^\\n]*|I couldn.t[^\\n]*)'), 120_000);
+  await sleep(1000);
+  const lines = logSince(from).split('\n').map((l) => l.match(said('(.*)'))?.[1]).filter((l) => l && !/^Let me look/.test(l));
+  const role = String(b.lot).replace(/_/g, ' ');
+  const want = `The ${role}: 1 block broken or changed, 1 placed by a player.`;
+  if (seen && /broken or changed/.test(seen[1]) && lines.includes(want) && lines.length === 2) ok('land seen', lines.join(' / '));
+  else fail('land seen', `${lines.join(' / ')} (wanted "${want}" alone; Architect: ${JSON.stringify({ lot: lotRow, others }).slice(0, 300)})`);
+  // the inbox: one LAND row, needing no one
+  await cmd(`/steward ui inbox ${id}`);
+  await sleep(1500);
+  const shot = (await dev.request('dev.screenshot', { name: 'e2e-land-inbox', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  const screen = JSON.stringify((await dev.request('dev.state')).screen ?? '');
+  await closeScreens();
+  if (/InboxScreen/.test(screen)) ok('land inbox', shot);
+  else fail('land inbox', screen.slice(0, 120));
+  // talking: "what changed?" is answered by the steward itself, no talk job
+  await sleep(3500);
+  from = logSize();
+  await cmd(`/steward talk ${id} what changed?`);
+  const talk = await waitLog(from, said('(I looked over[^\\n]*)'), 120_000);
+  const job = /talk job|Let me think about that/.test(logSince(from));
+  if (talk && talk[1].includes(want) && !job) ok('land talk', talk[1]);
+  else fail('land talk', `${talk?.[1] ?? 'no answer'}; talk job ${job}`);
+  // "Got it": the row goes
+  const gone = await cmd(`/steward check ${id} dismiss`);
+  const again = await cmd(`/steward check ${id} dismiss`);
+  if (/Noted/.test(gone) && /Nothing to dismiss/.test(again)) ok('land dismiss', `${gone} then ${again}`);
+  else fail('land dismiss', `${gone} then ${again}`);
+  await cmd(`/steward undo ${id}`);
+}
+
+/**
  * (docs/GROWTH.md, slice A) A region town grows through Architect's revisions: a flat village is built, a library the steward was asked for is accepted,
  * and the addition is planned as a revision of the town (Steward's keys and tags, lots renamed to the build's own ids), realised into it, logged under
  * revision:<region>:<rid> with no street piece of Steward's beside it. Undone, only the revision goes (undoRevision): the town's ground is as before the
@@ -3521,6 +3619,7 @@ try {
       await flow('growth', 'growth region realise undo', () => growthFlow());
       await flow('adopt', 'adopt growth region undo', () => adoptFlow());
       await flow('follow', 'copies source update revert version', () => followFlow());
+      await flow('land', 'land check perception inbox talk', () => landFlow());
       await flow('plan-build', 'plan', () => planBuildFlow());
       await flow('street-hint', 'plan grid wall nofit', () => streetHintFlow());
       await flow('wall-offer', 'wall plan', () => wallOfferFlow());

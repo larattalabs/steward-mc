@@ -1278,3 +1278,13 @@ Noah approved 7b on 2026-11-11: $60 budget, $90 hard cap. Steward's answers:
   - The link refusal is `NO_LINK {lot, port}`, before any write.
   - A revision's realise with no site lot is byte-identical, checked by an LP gate item.
   - The first RC is PL with SO.
+
+## LC adopted (docs/LAND.md, branch land-check, 2026-11-11)
+Steward calls `Regions.landCheck(region, null)` on 0.59.0 (feature `landCheck`) for its town and district regions: on demand (`/steward check`,
+"what changed?") and at most every 20 minutes while a player is in the claim. Read-only, $0; nothing is repaired. Answers to LC's open points:
+- **`kinds` keyed by the block now there:** fine. Steward words it "now <block>".
+- **A player's identical block over ours reads unchanged:** fine (the land is as built).
+- **Gate mechanisms:** on 0.59.0 a player's block in a lane, or a broken lever, does not show (LCi's finding 1 fix lands after 0.59.0; finding 2
+  stays). Steward promises no more than envelope cells (a mined piston) and asserts nothing about gates in its e2e. When the LCi fix is pinned,
+  nothing changes on Steward's side. A broken lever reported as `removed` (finding 2's option) would be welcome but is not asked for now.
+- **No new ask.** `REGION_LIMIT` is said honestly ("too large to look over at once"); no Steward town is near 4M cells.

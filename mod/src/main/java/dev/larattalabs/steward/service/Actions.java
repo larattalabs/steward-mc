@@ -203,6 +203,9 @@ public final class Actions {
 			case "update_apply" -> {
 				return Result.ok(Updates.approve(player.level().getServer(), id, lot == null ? "" : lot));
 			}
+			case "land_dismiss" -> {
+				return Result.ok(LandChecks.dismiss(player.level().getServer(), id));
+			}
 			case "update_skip" -> {
 				return Result.ok(Updates.skip(player.level().getServer(), id, lot == null ? "" : lot));
 			}

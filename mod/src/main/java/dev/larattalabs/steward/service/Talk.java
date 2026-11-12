@@ -82,6 +82,15 @@ public final class Talk {
 			answer(server, p.getUUID(), s.id(), local.get());
 			return Actions.Result.ok("");
 		}
+		// "what changed?": the steward looks over the land itself, $0 (docs/LAND.md), and answers when the look comes back
+		if (dev.larattalabs.steward.gateway.LandWords.asked(said)) {
+			UUID who = p.getUUID();
+			int session = Session.current();
+			LandChecks.ask(server, s, lines -> {
+				if (Session.is(session)) answer(server, who, s.id(), String.join(" ", lines));
+			});
+			return Actions.Result.ok("");
+		}
 		if (!s.described()) {
 			answer(server, p.getUUID(), s.id(), "Describe " + s.name() + " to me first, then we can talk about what it needs.");
 			return Actions.Result.ok("");

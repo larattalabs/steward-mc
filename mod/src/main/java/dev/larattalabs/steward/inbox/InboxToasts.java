@@ -23,7 +23,7 @@ public final class InboxToasts {
 		List<Toast> out = new ArrayList<>();
 		Set<String> present = new HashSet<>();
 		for (InboxModel.Entry e : entries) {
-			if ("UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision())) continue;
+			if ("UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision()) || InboxModel.LAND.equals(e.decision())) continue;
 			String key = e.key();
 			present.add(key);
 			if (e.ended()) {
