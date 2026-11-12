@@ -56,24 +56,30 @@ measured here, on the running Minecraft 26.3 server, before any module is built.
   water, 81 crops). All are under open sky at noon; 5 runs, each with fresh plots at age 0.
 - **Measured:** each cell's age every 1,000 ticks, until 90% of the watered plot is mature or 150,000 ticks.
   - **T** is the first sample at which at least half of a plot is mature: the time to a mature majority.
-  - The yield: at T, the mature crops on the watered plot are broken with `/setblock ... destroy` (no tool, no fortune, as a player's hand).
-    Their drops are counted from the ground.
+  - **t_cell**, per crop cell, is the first sample at which that cell is mature.
+  - The yield: when the watered plot is 90% mature (or at 150,000 ticks), every mature crop on it is broken with `/setblock ... destroy` (no
+    tool, no fortune, as a player's hand). Their drops are counted from the ground, per mature crop.
 - **G1 (watered growth).** The 5 runs' T for each crop is recorded with its band (min, median, max). **Bar:** every run reaches T within
   150,000 ticks.
 - **G2 (the unwatered control).** **Bar:** for each crop, the unwatered plot's median T is at least 1.5x the watered plot's median T.
   Plots that never reach a majority count as 150,000.
 - **G3 (the absolute usefulness bar, set now).** For each crop, the net harvest rate of a 9x9 watered field (80 crops) must be at least
   **24 items a day**:
-  - net harvest = the drops of the crop's harvested item (wheat, carrot, potato, beetroot) from the mature cells at T, minus one item per
-    replanted cell where the item itself is the planting item (carrots, potatoes);
-  - rate = net harvest / (median T / 24,000).
+  - y = the mean drops of the crop's harvested item (wheat, carrot, potato, beetroot) per mature crop broken, over the 5 runs;
+  - net per crop = y, minus 1 where the item itself is the planting item (carrots, potatoes; wheat and beetroot replant from their seeds);
+  - t = the mean t_cell over every cell and run that matured (a player harvests and replants each crop as it ripens);
+  - rate = 80 × net per crop / (t / 24,000).
 
   A field below this isn't worth offering at its size.
-- **G4 (block light; the design's lamp bar).** Inside a sealed stone room at midnight, with no sky light, one lantern. Crops on moist
-  farmland sit at measured block light 9, then 8, in two runs of 24,000 ticks.
+  - *Amended before any measurement* (second commit). The first draft counted only the cells mature at T, which understates a field that is
+    harvested as it ripens.
+- **G4 (block light; the design's lamp bar).** Inside a sealed stone room at midnight, with no sky light, one lantern, and a water source so the
+  farmland stays moist. Single crops, not touching each other, on moist farmland at measured block light 8 and 9, for 24,000 ticks.
   - The light level is read with a `location_check` light predicate. That reading is checked first against a lantern's falloff of 15 minus
     the taxicab distance.
-  - **Bar:** the light-8 crops gain 0 stages. The light-9 crops gain stages at a rate within the watered band (G1).
+  - **Bar:** every light-8 crop gains 0 stages, and at least 80% of the light-9 crops gain at least one.
+  - *Amended before any measurement.* The first draft compared the light-9 rate with the field's band, but single crops grow at another rate
+    than a planted field.
 - **G5 (recorded, never judged).** An open-sky plot at midnight with no block light: whether it grows. If it does, lamps are needed only to
   stop mobs spawning, not for growth. §3.1's light item then changes meaning, but it stays as a mob-safety bar.
 - **G6 (recorded).** The block light each candidate lamp gives, for the palette rule "lamp role gives light 14 or more" (§2.2). Read one
@@ -98,14 +104,20 @@ measured here, on the running Minecraft 26.3 server, before any module is built.
 
 ### HL: a hopper locked by redstone (§2.1, the tile's lock)
 
-- **HL1 (a torch beside it).** A hopper with a lit redstone torch beside it, holding 64 items, over an empty hopper that pulls from it. A
-  locked hopper moves nothing.
-  - **Bar:** 0 items move in 400 ticks, in either direction (it neither pushes nor is pulled through).
-  - Then the torch is removed: the first item moves within 20 ticks.
+- **HL1 (a torch beside it).** As in the tile:
+  - the upper hopper holds 64 items and points sideways into a solid block, so it never pushes;
+  - the lower hopper D, under it, has a lit redstone torch beside it and points into an empty chest.
+
+  A locked hopper doesn't pull and doesn't push.
+  - **Bar:** 0 items reach D or the chest in 400 ticks.
+  - Then the torch is removed: the first item reaches the chest within 20 ticks.
+  - *Amended before any measurement.* The first draft had the locked hopper on top and said it "is not pulled through". In vanilla, a
+    hopper below may pull from a locked one, and the tile relies on that. That case is recorded as HL4.
 - **HL2 (a strongly powered block beside it).** The same hopper with a solid block beside it, strongly powered by a torch under that block,
   as in the tile. **Bar:** as HL1.
 - **HL3 (a locked hopper still receives).** A locked hopper under an unlocked hopper that points into it. **Bar:** it receives items, and
   passes none on.
+- **HL4 (recorded).** An unlocked hopper under a locked one: whether it pulls items out of it.
 
 ### CS: a comparator's signal from a hopper's fill (§2.1, the tile's threshold)
 
