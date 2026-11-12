@@ -382,3 +382,19 @@ offered as an update that always waits for the player (docs/FOLLOW.md).
 - **`--only follow` after it:** PASS 23. Village 1 had cabin 2 followed with nothing to write, and cabin 3 refused `bar`, told once and not offered.
   Village 2 had cabin 2 offered as ASK at Full, applied and reverted.
 - **Unit:** `FollowPlannerTest` 12, all of `build` passes.
+
+### The steward sees what changed in its town: Architect LC (2026-11-11, $0)
+`/steward check <id>`, "what changed?" said to the steward, and a look every 20 minutes while a player is in the claim read `Regions.landCheck`
+over the town and district regions, word it (`LandWords`) and keep one `LAND` inbox row per settlement (docs/LAND.md). Nothing is repaired or saved.
+- **Review:** GPT's design review requested changes (2 blockers, 5 should-fixes), all taken (docs/LAND.md "Review"): a look with a gap is unknown,
+  not zero; the damage signature is per region and part or lot, not a sum; repeated roles are told apart by their lot; the row is capped at 6 lines
+  with its time; the regions are re-read before a look is kept.
+- **e2e stub, `--only land`** (ports 8594/8595):
+  - Run 1: 1 FAIL. The look ran but the command's late answer went to DevBridge's captured source, gone by then; it now goes to the player's chat.
+  - Run 2: 3 FAILs. A 10 s reuse of the last look answered "nothing changed" right after the player broke a block; it became a 3 s "I just
+    looked" limit.
+  - Run 3: **PASS 14.** A flat village is looked over: "I found nothing broken or changed in what we built". A player (`dev.pt.breaks`,
+    `dev.pt.uses`) breaks two smokehouse cells and puts cobblestone back in one; Architect's report reads that lot changed 1, playerPlaced 1,
+    nothing else. The steward says "The smokehouse: 1 block broken or changed, 1 placed by a player." and nothing more. The inbox shows the row
+    (`e2e-land-inbox.png`). "what changed?" is answered the same with no talk job. "Got it" clears it.
+- **Unit:** `LandWordsTest` 14, `LandChecksTest` 7; all of `build` (372) and `npm test` (35) pass.
