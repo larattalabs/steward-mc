@@ -123,8 +123,17 @@ public final class FollowPlanner {
 
 	/** A follow update always waits for the player (the player changed one building, not its copies), and says what it follows. */
 	public static UpdatePlanner.Plan asFollow(UpdatePlanner.Plan p, String sourceLot) {
+		return asFollow(p, sourceLot, dev.larattalabs.steward.model.Permission.PROPOSALS);
+	}
+
+	/**
+	 * A copy's update: at Autonomous and Full an update that would apply by itself applies (Noah, 2026-11-11: "let copies auto-apply at Autonomous and
+	 * Full"); below them it waits for the player.
+	 */
+	public static UpdatePlanner.Plan asFollow(UpdatePlanner.Plan p, String sourceLot, dev.larattalabs.steward.model.Permission permission) {
 		if (p.action() == UpdatePlanner.Action.NOTHING) return p;
-		UpdatePlanner.Action a = p.action() == UpdatePlanner.Action.APPLY ? UpdatePlanner.Action.ASK : p.action();
+		boolean auto = permission == dev.larattalabs.steward.model.Permission.AUTONOMOUS || permission == dev.larattalabs.steward.model.Permission.FULL;
+		UpdatePlanner.Action a = p.action() == UpdatePlanner.Action.APPLY && !auto ? UpdatePlanner.Action.ASK : p.action();
 		// "hut: follows the cottage's new design; 2 parts changed ...": the inbox line keeps what follows the first ": "
 		String text = p.text().replaceFirst(" has an update: ", java.util.regex.Matcher.quoteReplacement(": follows the " + sourceLot + "'s new design; "));
 		return new UpdatePlanner.Plan(a, text, p.playerEdits());

@@ -3453,7 +3453,7 @@ async function stubFlow(id) {
 /**
  * (docs/FOLLOW.md, Architect FS) A settlement's copies follow their source: a flat village with copies is built; a change is asked of a copy, and is
  * asked of its source instead; the source's new version is applied; then Architect re-makes the copies from that version ($0, followAll) and each
- * copy answers. A followed copy with a delta is offered (always asked), applied and reverted; a refused copy is told once and not offered; a follow
+ * copy answers. A followed copy with a delta applies by itself at Full (Noah, 2026-11-11) and is reverted; a refused copy is told once and not offered; a follow
  * with nothing to write is fine (the sim's recipes are seeded by the group id, so which of these happens varies by run). A rescan tells nothing new.
  */
 async function followOnce(attempt, last) {
@@ -3539,15 +3539,19 @@ async function followOnce(attempt, last) {
       const check = await waitLog(from, new RegExp(`update check ${id} ${c.site} v\\d+ -> v${a.to}: (\\w+) \\(([^\\n]*)`), 60_000);
       if (!check) { fail(`follow ${c.site}`, 'no update check for the followed copy'); continue; }
       if (check[1] === 'NOTHING') { ok(`follow ${c.site}`, `followed to v${a.to}, nothing to write (its recipe pins what the source changed)`); continue; }
-      if (check[1] !== 'ASK' || !/follows the /.test(check[2])) { fail(`follow ${c.site}`, `${check[1]}: ${check[2].slice(0, 160)}`); continue; }
+      // at Full a copy's update applies by itself (Noah, 2026-11-11: copies auto-apply at Autonomous and Full)
+      if (check[1] !== 'APPLY' || !/follows the /.test(check[2])) { fail(`follow ${c.site}`, `${check[1]}: ${check[2].slice(0, 160)}`); continue; }
+      let up = null;
+      for (let i = 0; i < 120 && !up; i++) {
+        const e = (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'UPDATED' && (e.siteIds ?? []).includes(c.site));
+        if (e) up = [null, String((e.changes ?? []).find((x) => x.siteId === c.site)?.to ?? a.to)];
+        else await sleep(1000);
+      }
       let f2 = logSize();
-      await cmd(`/steward update ${id} ${c.site}`);
-      const up = await waitLog(f2, /Updated [^\n]* to version (\d+)/, 120_000);
-      f2 = logSize();
       await cmd(`/steward revert ${id} ${c.site} ${c.v}`);
       const back = await waitLog(f2, new RegExp(`Reverted [^\\n]* to version ${c.v}`), 120_000);
       const hist = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => (e.kind === 'UPDATED' || e.kind === 'REVERTED') && (e.siteIds ?? []).includes(c.site));
-      if (up && back && hist.length >= 2) { applied++; ok(`follow ${c.site}`, `offered (ASK: ${check[2].slice(0, 90)}), updated to v${up[1]}, reverted to v${c.v}`); }
+      if (up && back && hist.length >= 2) { applied++; ok(`follow ${c.site}`, `applied by itself at Full (${check[2].slice(0, 90)}), updated to v${up[1]}, reverted to v${c.v}`); }
       else fail(`follow ${c.site}`, `updated ${!!up}, reverted ${!!back}, history ${hist.map((e) => e.kind).join(',')}`);
     } else if (a.how.startsWith('refused')) {
       const told = notes().filter((t) => t.includes('stays as it is')).length;
@@ -3565,7 +3569,7 @@ async function followOnce(attempt, last) {
   if (!again && notes().length === before) ok('follow told once', `${before} note(s): ${notes().map((t) => t.slice(0, 60)).join(' | ')}`);
   else fail('follow told once', `asked again ${!!again}; notes ${before} -> ${notes().length}`);
   // at least one copy took the new design: which ones do varies with the group's seed (a copy whose param is the one the sim changes stays)
-  if (applied > 0) ok('follow applied', `${applied} copy update(s) offered at Full, applied and reverted (village ${attempt})`);
+  if (applied > 0) ok('follow applied', `${applied} copy update(s) applied by themselves at Full, then reverted (village ${attempt})`);
   else if (last) fail('follow applied', `no copy followed with something to write in ${attempt} villages: ${family.map((c) => `${c.site} ${answers[c.entry].how}`).join('; ')}`);
   else console.log(`follow: village ${attempt}'s copies had nothing to write (${family.map((c) => `${c.site} ${answers[c.entry].how}`).join('; ')}); another village (a new seed)`);
   return applied;
