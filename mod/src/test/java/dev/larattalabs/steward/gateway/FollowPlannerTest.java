@@ -140,6 +140,23 @@ class FollowPlannerTest {
 	}
 
 	@Test
+	void aFollowUpdateAppliesByItselfAtAutonomousAndFull() {
+		// Noah, 2026-11-11: copies auto-apply at Autonomous and Full; below them they wait in the inbox
+		Plan apply = new Plan(Action.APPLY, "fisher's hut has an update: 1 part changed (hall), 12 blocks", PlayerEdits.KEEP);
+		assertEquals(Action.APPLY, FollowPlanner.asFollow(apply, "fisher's hut", dev.larattalabs.steward.model.Permission.FULL).action());
+		assertEquals(Action.APPLY, FollowPlanner.asFollow(apply, "fisher's hut", dev.larattalabs.steward.model.Permission.AUTONOMOUS).action());
+		assertEquals(Action.ASK, FollowPlanner.asFollow(apply, "fisher's hut", dev.larattalabs.steward.model.Permission.PROPOSALS).action());
+		assertEquals(Action.ASK, FollowPlanner.asFollow(apply, "fisher's hut", dev.larattalabs.steward.model.Permission.OBSERVER).action());
+		// an update that asks (the player's edits, a protected area) still asks at Full; a blocked one stays blocked
+		Plan ask = new Plan(Action.ASK, "fisher's hut has an update: it touches your edits", PlayerEdits.KEEP);
+		assertEquals(Action.ASK, FollowPlanner.asFollow(ask, "fisher's hut", dev.larattalabs.steward.model.Permission.FULL).action());
+		Plan blocked = new Plan(Action.BLOCKED, "hut cannot be updated: covered", PlayerEdits.KEEP);
+		assertEquals(Action.BLOCKED, FollowPlanner.asFollow(blocked, "hut", dev.larattalabs.steward.model.Permission.FULL).action());
+		// the inbox line and the history keep saying what it follows
+		assertTrue(FollowPlanner.asFollow(apply, "fisher's hut", dev.larattalabs.steward.model.Permission.FULL).text().contains("follows the fisher's hut's new design"));
+	}
+
+	@Test
 	void aNameThatMatchesAFamilyMeansItsSource() {
 		var fam = List.of(new Match("s2", "hut_c1", "hut"), new Match("s1", "hut", null), new Match("s3", "hut_c2", "hut"));
 		assertEquals(Optional.of("s1"), FollowPlanner.familySource(fam));

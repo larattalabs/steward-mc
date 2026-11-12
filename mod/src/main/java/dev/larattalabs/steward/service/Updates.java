@@ -114,12 +114,13 @@ public final class Updates {
 			// a site of this owner in another dimension is not this settlement's
 			if (view.isPresent() && !view.get().dimension().identifier().toString().equals(s.claim().dimension())) continue;
 			String lot = view.map(Updates::lotOf).orElse(o.siteId());
-			// a copy that followed its source (docs/FOLLOW.md): offered while the source stands at the version it follows, and always asked
+			// a copy that followed its source (docs/FOLLOW.md): offered while the source stands at the version it follows; applied by itself at Autonomous
+			// and Full when an ordinary update would be (Noah, 2026-11-11), else asked
 			Follows.FollowOf follow = view.isPresent() ? Follows.followOf(view.get().blueprintId(), o.headVersion()) : null;
 			if (follow != null && !FollowPlanner.offered(standing.get(follow.source()), follow.sourceVersion())) continue;
 			DeltaVerdict v = sites.checkDelta(UpdatePlanner.request(o.siteId(), o.headVersion(), UpdatePlanner.editsFor(s.permission()), s.owner()));
 			UpdatePlanner.Plan plan = UpdatePlanner.plan(lot, v, s.permission(), landFor(s, v), s.lands().protect());
-			if (follow != null) plan = FollowPlanner.asFollow(plan, sourceLot(buildings, follow));
+			if (follow != null) plan = FollowPlanner.asFollow(plan, sourceLot(buildings, follow), s.permission());
 			if (plan.action() == UpdatePlanner.Action.APPLY && FAILED.containsKey(key)) {
 				plan = new UpdatePlanner.Plan(UpdatePlanner.Action.ASK, lot + " could not be updated by itself (" + FAILED.get(key) + "); update to try again.", plan.playerEdits());
 			}

@@ -55,8 +55,8 @@ version ($0, `Designs.followAll`), and each copy's lot is offered as an ordinary
    be told once more. No save-format change.
 5. **The lots (S-FS-2 "both": `followAll`, lots one by one).** `Updates.refresh` unchanged except for a lot whose target version is a
    COPY (`derivation.kind == COPY` on that version), however it got there (a follow, or a library revert of the entry: review 6):
-   - **Always ASK**, at every permission level and in creative: the player asked to change one building, not its copies. (Applying
-     follows automatically under Autonomous/Full is a one-line change if Noah wants it.)
+   - **Asked at Observer and Proposals; applied by itself at Autonomous and Full** when an ordinary update would be (Noah, 2026-11-11:
+     "let copies auto-apply at Autonomous and Full"). An update that asks for another reason (the player's edits, a protected area) still asks.
    - The inbox line says so: "follows the <source>'s new design · v1 → v2 · <delta summary>".
    - **Offered while the source stands at that version or later** (the head's `derivation.sourceVersion` <= the source's standing
      version in this settlement). A source reverted below it hides its copies' offers; they come back if the source goes forward
