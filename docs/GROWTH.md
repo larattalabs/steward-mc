@@ -21,7 +21,7 @@ never by its position (positions are reused after an undo, and `undoRevision` ta
 `planRevision`:
 - the region is busy (`RegionView.busy() != null`), or a revision of it is not ended: the build ends, "the town is being changed; ask again once it
   has settled". It never falls through to street pieces (review 6).
-- the region builds from materials (`RegionView.build() != null`): today's path, unchanged (survival growth is slice A2).
+- the region builds from materials (`RegionView.build() != null`): today's path, unchanged (survival growth is slice A2, below).
 - else the growth below. A town that is not a region (a street town) keeps today's path until slice B.
 
 **Lot ids** (review 2). Region lot ids are unique across the region, and `ProgramPlanner` restarts `house_1` per build. A growth's lots are renamed
@@ -95,6 +95,90 @@ Not covered by e2e: parent_moved and restarts mid-realise (unit tests and the de
   plan does. Nothing is spent then, and the candidate plan goes with Architect's sweep; the player accepts the proposal again.
 
 **Not in A.** Survival towns (A2), districts' growth (`dgrow`, D-S2), street towns (slice B).
+
+## Slice A2: a town built from materials grows from materials
+
+Status: design v1, 2026-11-11, for review before code. It lifts slice A's "built from materials: today's path" (`RegionView.build() != null`):
+such a town still laid Steward's own street pieces beside the region. Everything slice A says (rid not position, lot ids, keys, the runner's
+paths, history, saves) holds; this section says only what changes. Architect's side, as built (CONTRACT RV §8, GR, XR; `Revisions.realise`
+and `undo0`):
+- a revision is planned in the **world's** mode (`RegionSurvival.on`: the toggle on, the default game type not creative) and realised only
+  in the **region's** own mode (`rec.survival()`, fixed at its realise): a mismatch refuses the realise, `NOT_ALLOWED` ("plan it again"),
+  after Steward has paid for the designs. The realise's `mode` is not read for a revision;
+- the realise refuses `NOT_ALLOWED survival_unfinished` while any target of the region (its own or an earlier revision's) is not built;
+- a survival revision ends PLACED once its targets are put down (RS: "requests start at PLACED and built is done"); its targets then draw
+  from the owner's stockpile, and `RegionView.build()` (the whole region's: `built`, `done`, `percent`, `outstanding`) covers them;
+- `undoRevision` refuses `NOT_ALLOWED survival_building`, nothing written, while a suffix target is not built (§8's "unbuilt targets are
+  cancelled first" is not what shipped); once built, the suffix's paid blocks are refunded once per key (`rev:<region>:<rid>:<entry>`) into
+  the stockpile, the land back free;
+- nothing cancels a revision's unbuilt targets: `Sites.pause` stops one drawing, but a paused target never builds, so it could never be
+  undone.
+
+**When** (`afterSurvey`, slice A's addition branch, the town found and not busy, no revision in flight). One rule for both kinds of town:
+a growth is asked only when the **town's mode equals the world's mode now** (town `build() != null` iff `regionSurvival`). Else the build
+ends before anything is spent: "<the town> was built <from materials | at once> and this world builds <at once | from materials> now:
+Architect grows a town only the way it was built." (This also closes slice A's gap: a town built at once in a world turned survival since
+planned in survival and was refused at the realise, after its designs.)
+For a town built from materials, also:
+- **not fully built** (`!build().built()`): "<the town> is still being built from the stockpile (<percent>%): it can grow once it's built."
+  Nothing spent (Architect would refuse `survival_unfinished` at the realise);
+- **its stockpile**: `Stockpiles.ensure` (the town's targets draw from it); none can be made: ended as `planComposed` ends it;
+- then slice A's `planGrowth`, unchanged (keys `vgrow`/`vgrow2`/`vgrow3`, the lots renamed, the answer saved first).
+
+**Realise.** The same keyed `realise` (`vgrowrealise`/`vgrowrealise3`), with `Mode.CONSTRUCTION` when the town builds from materials
+(read from the town at the realise; Architect ignores it for a revision, but the request then says what it does). A realise refused for
+the mode or `survival_unfinished` (the world's mode changed while the designs ran) ends the build in plain words ("the world's mode changed
+while it was designed: start it again"), as slice A's other refusals end it.
+
+**Watch.** `watchGrowth` unchanged up to the revision's end (by rid). Ended PLACED or PARTIAL with sites: logged under
+`revision:<region>:<rid>` and the build ends (`BatchDone`), as slice A. Then, when the town builds from materials: said what the addition
+still needs (`build().outstanding()`, "From materials, the addition needs ...; fill the stockpile and it's built as it's fed"), and
+`MaterialRequests.watchBuild(settlement, region)`, which says once when the town is fully built again. The material waits (bubble, inbox,
+the long-wait summons) are today's: the targets are the owner's, fed from the settlement's stockpile.
+
+**Undo** (`Growths.decide` gains one input, `building`: the town builds from materials and `!build().built()`). Order: GONE, WAIT
+(removing), UNKNOWN, GONE (undone/stale), UNDO (resuming its own UNDOING take-up), WAIT (busy), WAIT (placing), NEWER, then **BUILDING**,
+then UNDO. Because a revision is realised only over a fully built town and nothing newer stands on it (NEWER is decided first), an unbuilt
+target while the revision is the head is the revision's own. BUILDING asks nothing:
+- `Undo.growth`: "The addition is still being built from the stockpile (<percent>% of the town built; it needs <outstanding>): it can be
+  undone once it's built. Fill the stockpile to finish it." The entry stays; `/steward undo` again later. A `survival_building` refusal
+  that slips past (a race) is said in the same words, never Architect's text.
+- once built: `undoRevision` as slice A; Architect refunds each paid block once into the stockpile (`Undo.reportingOverflow` says what did
+  not fit); `PROJECT_REMOVED` logged once; a lost answer reads UNDONE and is logged once; the entry retired, so a second undo moves on to
+  the next entry (the town), never the growth again.
+
+**The runner's paths for a growth built from materials:**
+
+| Path | Change |
+|---|---|
+| `watchGrowth` | as slice A; after the entry and `BatchDone`, the bill still owed said and `watchBuild` |
+| `cancelVillage`/`cancelGrowth`, before the realise is answered or while the revision places | as slice A: waits in CANCELLING |
+| `cancelGrowth`, revision ended, targets built (fed in time) | as slice A: logged, then taken up exactly, refunded once |
+| `cancelGrowth`, revision ended, targets building | logged first (as A); `Growths.undo` answers BUILDING; the cancel ends as slice A's refused take-up (`BatchDone`): "The addition's construction sites stand and are built as the stockpile feeds them; it can't be taken up until it's built. /steward undo takes it up then." `watchBuild` |
+| `takeUpEmpty` (ended with no sites) | unchanged: a revision with no sites has no targets (and the town was built when it was realised), so it is never BUILDING |
+| `takeUpOrphanGrowth` (realised after its build ended) | logged first (as A), `Undo.growth`: BUILDING leaves the entry, said as above; `watchBuild` |
+| `findVillage`, `settleLostRealise`, the cancel's lost-answer lookup | unchanged (keys and plan id) |
+| world start | `MaterialRequests.seedBuilds` also reads `revision:` entries (their region, `Growths.parse`), so a town still building an addition after a restart is watched and said done once |
+
+Pausing the targets on a cancel was rejected: a paused target never builds, so the growth could never be undone. Waiting in CANCELLING
+until it is built was rejected: the build would hang on the player feeding materials only to have them refunded. Asked of Architect
+(ARCHITECT-ASKS "A2"): `undoRevision` of a survival revision with unbuilt targets cancels them first, refunding what they consumed (§8 as
+written), so a cancel needs no feeding.
+
+**Saves.** No format change: the build's mode is read from the town (a region's mode never changes), the growth fields are slice A's.
+
+**Tests.**
+- **Unit:** `Growths.decide` with `building` (BUILDING after NEWER; UNDOING resumes even while building; busy waits first; not building:
+  UNDO); the mode gate as a pure function (town built from materials or not x world in survival or not x built or not); the
+  `survival_building` wording; `seedBuilds`'s region of a `revision:` entry.
+- **e2e (stub), flow `supplied-growth`**, through Steward only (no dev revision calls): a Supplied town from an unwalled composed plan
+  (the walled one has no room: `NO_ROOM [street]`), fed until built; a library asked in talk and accepted; "The town grows" planned and
+  realised as a revision under the build's keys, the entry `revision:`; while its targets wait, `/steward undo` refused in plain words,
+  nothing written (`dev.region.hash`), the entry kept; fed until the town is built again (the steward says so); the revision's targets'
+  bills = what the stockpile paid; `/steward undo` takes it up (`PROJECT_REMOVED`, revision UNDONE), and what it consumed comes back,
+  exactly once (the ledger unchanged a while after, and the next undo is the town's); then the town undone with its refund.
+- **Not covered by e2e:** a cancel while the targets build, an orphan, a restart while building, a mode change between survey and
+  realise (unit tests and the decision function only).
 
 ## Slice B: a street town adopted at its first growth
 
