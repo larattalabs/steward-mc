@@ -1300,6 +1300,8 @@ Steward calls `Regions.landCheck(region, null)` on 0.59.0 (feature `landCheck`) 
 Steward's phase 5 places verified modules (a crop farm, a storage hall with sorting) as additions on growth A, A2 and B, and as lots of plan v1.
 A module is a Steward-owned kit program, run at $0 with parameters and the settlement's bible roles, and measured in a dev client for each
 version. Each ask is a question with Steward's preferred answer. Revised after GPT's design review (MODULES.md section 10).
+Noah's answers (2026-11-12, MODULES.md section 9): S-M5-6 isn't needed (a hall holding items is refused until it is emptied); S-M5-5 is for
+phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
 - **S-M5-1. Given-program designs, keyed.**
   - **Asked:** a design request carries a caller-supplied kit program instead of a Claude brief: its source, params and a parameter schema.
     Architect runs the kit, the checker and the renders, and installs an entry with that source, at $0.
@@ -1348,7 +1350,7 @@ version. Each ask is a question with Steward's preferred answer. Revised after G
     - **Other player blocks:** any other player block on the field (a torch, a sign) stays as PT says.
   - **Preferred:** a lot member or entry member `field {cells, crops}`, honoured by LC, the standing score, removal blockers and refunds.
   - **Needed before Steward's crop farm ships** (slice M2).
-- **S-M5-5. `connector.items`** (slice M6, only if Noah keeps the spine in phase 5, MODULES.md Q2). A connector from a lot's `item_out` port
+- **S-M5-5. `connector.items`** (needed for **phase 5b**, slice M8, not for phase 5's M5 gate; Noah 2026-11-12). A connector from a lot's `item_out` port
   to another lot's `item_in`.
   - **The ends.** Each port has a direction and height.
   - **Extraction.** A hopper from the source container.

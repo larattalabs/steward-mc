@@ -1,13 +1,14 @@
 # Functional modules (phase 5)
 
-Status: design v2.1, 2026-11-12, for review before code. $0: no code and no paid runs. It builds after survival growth A2.
+Status: design v2.2, 2026-11-12, with Noah's decisions. $0: no code and no paid runs. It builds after survival growth A2.
 - Noah asked on 2026-11-12 for the design to start now.
-- PLAN.md "Phase 5" sets the scope:
-  - a verified catalog: a crop farm, and a storage hall with sorting;
-  - the "You have seeds" offer;
-  - the spine and connectors;
-  - the gate: each module's output measured in the dev client, and two modules composed into a settlement.
-- Architect asks: ARCHITECT-ASKS.md, "Phase 5: functional modules (S-M5)". Noah's questions: section 9.
+- **Scope, as Noah set it on 2026-11-12** (PLAN Decisions):
+  - **Phase 5, the first catalog:** a crop farm and a storage hall with sorting, the "You have seeds" offer, and two modules composed into a
+    settlement. Its gate is slice M5.
+  - **Phase 5b, automation and the spine** (section 3.3), right after M5 and before phase 6: automatic farms, then the spine
+    (`connector.items`), then the animal pen and the smelter array. Its gate is items from an automatic farm, carried by the spine and sorted
+    in the hall, measured.
+- Architect asks: ARCHITECT-ASKS.md, "Phase 5: functional modules (S-M5)". Noah's answers: section 9.
 - v2 folds in GPT's design review and its fix check (section 10).
 
 ## 1. What a module is
@@ -215,13 +216,35 @@ from the measured rate.
 - In survival the sorting hall is offered from the Nether tier on. Progress already reads the tier.
 - Before that, the plain hall (`slots = 0`) is offered: one of the measured branches.
 
-### 3.3 Next, not in the first catalog
+### 3.3 Phase 5b: automation and the spine
 
-- Sugar cane and melon/pumpkin farms: observer and piston harvesters, the first modules with an automatic `item_out`.
-- An animal pen and a smelter array.
-- The trading hall: phase 6, with villagers.
+Noah, 2026-11-12: the rest of PLAN's original phase 5 comes right after the M5 gate, ahead of phase 6. Each module follows the same rules as
+the first catalog:
+- its own probe items, added to M0's probe and measured on the running server before the module is built on them (2.1);
+- its own certification envelope (2.2) and measurement, with bars fixed before the first candidate is measured;
+- offered and placed as in section 4, billed and undone as in section 6.
 
-Each needs its own probe items and measurement.
+**The modules, in order:**
+1. **Automatic farms** (slice M7): `sugar_cane_farm@1` and `melon_farm@1` (melons and pumpkins, one module with a `crop` parameter).
+   - **How they work.** Observers watch the crop's growth cell. A piston breaks the grown block (the cane above its base, or the melon or
+     pumpkin beside its stem). The drops are collected by hoppers under the field into a chest, the module's automatic `item_out`.
+   - **Probe items:** an observer's pulse on growth; a piston breaking cane and a melon, with the drop it leaves; hopper pickup of dropped
+     items from the field's floor; and cane or stem growth on hydrated or irrigated soil.
+   - **Measurement:** output per in-game day into the chest, net, over at least 5 runs; nothing left on the ground after a cycle; no piston
+     or observer left in a stuck state after a restart or a chunk unload.
+   - **Water:** sugar cane needs water beside each base. It comes from IRR-style contained sources or an H channel (an ask, decided with
+     the M7 design, section 9).
+2. **The spine** (slice M8): `connector.items` (S-M5-5), hopper chains between modules, from an `item_out` to an `item_in` (section 5).
+3. **The animal pen and the smelter array** (slice M9).
+   - **The pen:** a fenced pen with a gate, a feeding trough, and later breeding and harvest into a chest.
+   - **The smelter array:** input, fuel and output chests on a line of furnaces, fed by hoppers. Its input chest is an `item_in` port and
+     its output chest an `item_out` port, so the spine can feed it from the hall's overflow, or from a farm.
+
+**The 5b gate** (slice M8's measurement, re-run by the gate-verifier): an automatic farm's output, carried by the spine into a storage hall
+and sorted there. Measured end to end: items harvested = items in the hall's chests, each in its slot or in overflow, over at least 3 in-game
+days; nothing lost at the joins; a restart and a chunk unload mid-flow included.
+
+**Still for phase 6:** the trading hall, with villagers.
 
 ## 4. Offering and placing
 
@@ -356,12 +379,8 @@ So an item spine needs a new building block, **`connector.items`** (S-M5-5). Its
   choice. The connector's own hoppers holding items count as cargo (section 6).
 - **Growth.** It works in a revision's realise.
 
-**Phase 5's default (Q2)** is to **defer the spine**. This changes PLAN's phase 5 scope, so it is put to Noah as a scope question, not
-assumed.
-- A player-filled farm chest *could* feed the hall through a connector. The default doesn't, because a hopper chain between two
-  player-fed chests saves only a few steps.
-- **The alternative** is a bounded slice M6 in phase 5: hopper chains only (16 cells or fewer), from the farm's chest to the hall's input,
-  measured with section 3.2's bars.
+**When:** in **phase 5b**, slice M8, after the first automatic farm (Noah, 2026-11-12, Q2). Phase 5's first catalog has no spine. Modules
+that belong together are placed side by side by the plan, with the hall's input chest by the farm's gate.
 
 ## 6. Survival: billing and undo
 
@@ -437,39 +456,51 @@ rules:
 | **M3 offer and place** | `module.crop_farm`, identity coalescing, eligibility, the priced decorative substitute, talk naming a module, the bill bound, growth A, B and A2 placement, re-binding after a stale plan | M2, growth A2 merged, S-M5-2 and S-M5-7 shipped | e2e `module` (farm) and the survival e2e; GPT review (spending, undo, persistence) |
 | **M4 storage hall** | `storage_hall@1` and its measurement, `module.storage_hall`, the tier gate, undo refused while it holds cargo | M0, M1, S-M5-3 (the plain hall, `slots = 0`, may ship before it as an interim) | 3.2's measurement passes over its envelope, the crash cases included; e2e `module` (hall); GPT review |
 | **M5 composed** | The plan writer names modules; Steward binds module lots in plan v1 | M3, M4 with sorting | **phase 5 gate:** a composed settlement with a crop farm and a storage hall **with at least 4 sorting slots**, built, each measured in place (sorting included); gate-verifier; Noah's look. A plain hall does not meet it |
-| **M6 spine** (if Q2 says so) | `connector.items`, hopper chains only, from the farm's chest to the hall's input | S-M5-5 | items carried, measured with 3.2's bars; removal in both orders |
+
+**Phase 5b** (section 3.3), right after M5:
+
+| Slice | What | Needs | Gate |
+|---|---|---|---|
+| **M7 auto farms** | `sugar_cane_farm@1` and `melon_farm@1`: their probe items, envelopes and measurement; offers (a sugar cane or melon sign) and placement as in section 4 | M5; the water ask decided with M7 (section 9) | 3.3's measurement passes over each envelope; gate-verifier |
+| **M8 spine** | `connector.items` in plans and growth, between an `item_out` and an `item_in`; billed and undone | M7, S-M5-5 | **the 5b gate:** an automatic farm's output carried by the spine and sorted in the hall, measured end to end (3.3); removal in both orders; gate-verifier; GPT review (accounting, removal) |
+| **M9 pen and smelter** | the animal pen and the smelter array, each with its probe items and measurement; the smelter fed by the spine | M8 | each module's measurement passes over its envelope; gate-verifier |
 
 **Order.**
 - M0 and M1 can run alongside A2.
 - M2 comes after M1 and S-M5-2/4.
 - M3 comes after A2 merges. M4 can run alongside M3.
 - M5 comes after both.
+- Phase 5b: M7 after M5, then M8, then M9.
 
 **Cost.** $0 throughout: module designs are $0 and the e2e is stub. M5's plan-writer change needs a small paid re-record of a few composed
 plans, with Noah's OK on the spend.
 
-## 9. Questions for Noah, each with a recommended default
+## 9. Noah's answers (2026-11-12)
 
-1. **Harvesting in v1.**
-   - **Default:** the player harvests a watered, lit field. Automatic harvest comes with the sugar cane and melon farms (observers and pistons)
-     and with villager farmers (phase 6).
-   - **Alternative:** a water-flush harvester on a lever. It uproots unripe crops too, and needs replanting.
-2. **The spine in phase 5.** This is a scope change to PLAN's phase 5.
-   - **Default:** defer it to the first automatic module. Modules that belong together are placed side by side.
-   - **Alternative:** slice M6 in phase 5, hopper chains only, from the farm's chest to the hall. It needs Architect's S-M5-5.
-3. **Undoing a storage hall that holds items.**
-   - **Default:** refuse and say so ("empty it first", with the containers named).
-   - **Alternative:** the cargo moves into the settlement's stockpile. This needs Architect's S-M5-6.
-4. **Autonomous and Full building modules on their own.**
-   - **Default:** yes, like any proposal. In survival, Autonomous asks first when the whole bill takes more than half of the stockpile's
-     count of any item.
-   - **Alternative:** modules always ask.
-5. **Upgrades on a standing farm.**
-   - **Default:** none in phase 5. A second field is a second module, and in-place upgrades wait for Architect to refill an irrigated lot
-     (S-RV-14).
-   - **Alternative:** ask Architect to lift S-RV-14 now.
-6. **Vanilla only.**
-   - **Default:** vanilla blocks only, as for every template (principle 5, open question 2). Every module in this catalog is vanilla.
+Noah, in the Steward manager session: "Go with option 1, defaults/recommendations for the rest". Option 1 is phase 5b (section 3.3). The six
+answers are the recommended defaults:
+1. **Harvesting in v1:** the player harvests a watered, lit field. Automatic harvest comes with 5b's sugar cane and melon farms, and with
+   villager farmers in phase 6.
+2. **The spine:** not in phase 5's first catalog. It comes in **phase 5b** (slice M8), after the first automatic farm.
+3. **Undoing a storage hall that holds items:** refused until it is emptied. The steward says so and names the containers. S-M5-6 isn't
+   needed.
+4. **Autonomous and Full** may build module offers on their own, like any proposal. In survival, Autonomous asks first when the whole bill
+   takes more than half of the stockpile's count of any item.
+5. **Upgrades:** no in-place upgrades. A second field is a second module.
+6. **Vanilla blocks only**, as for every template.
+
+**Open for later (phase 5b; not blocking phase 5):**
+- **Water for sugar cane.** Each cane base needs water beside it. Is that IRR's `irrigate` with a cane layout, or a new Architect member
+  (contained channels along the rows, built on H)? To be decided with M7's design, as an ask if needed.
+- **Pistons and observers in "still ours".** A piston harvester's moving parts change state. GM's gate mechanisms show the pattern (a settled
+  rest state, the piston's records). M7's design says whether S-M5-4's field cells cover cane and melon cells (the grown block is produce,
+  the base or stem is ours), or whether it needs an ask of its own.
+- **Animals in the pen.** Templates never place entities, and moving animals needs the player's approval (PLAN "Villagers and animals"). Does
+  the pen wait for the player to lead animals in, or does the steward bring them? M9 decides, perhaps with phase 6.
+- **The smelter's fuel and input.** These are cargo the player or the spine brings (section 6). Undo is refused while it holds items, as for
+  the hall.
+- **Spine routing in a town.** A hopper chain is at most 16 cells long, so connected modules must stand near each other, or the spine runs
+  underground or as water on ice (S-M5-5's probe). M8 decides with Architect.
 
 ## 10. Review record
 

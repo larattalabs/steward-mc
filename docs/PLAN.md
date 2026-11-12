@@ -113,6 +113,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-11-10 | **A Steward nightly at 23:00** (Noah, via the top session): the LaunchAgent `dev.larattalabs.steward-nightly` runs `tools/nightly.mjs`: a detached `../_work/steward-nightly` worktree at origin/main, the build, then `e2e.mjs free` and `stub` on ports 8590/8591, $0, no notification, a hard limit of 2 h 45 min, results in `artifacts/nightly/<date>/` (SUMMARY.md, the two summaries, logs). It skips the night when the ports, a Steward client, a claude-login opt-in or another nightly is in the way; it takes no Architect gate slot and ends before Architect's 02:00 nightly on a normal night. |
 | 2026-11-11 | **Slices in their own sessions** (Noah, "Yes, from next slice, and let's use opus", via the top session): from the slice after growth slice B, each Steward slice is built in its own visible session on Opus (its own `_work` worktree, a clear title and short name, a brief that stands on its own: the docs, main's SHA, its branch, its e2e ports, what done looks like). A slice session never merges or pushes main; it reports to the Steward session, which stays the manager: the queue, ports, merges, Architect RCs and pins, the nightly window, paid-spend asks to Noah. |
 | 2026-11-11 | **Copies auto-apply at Autonomous and Full** (Noah, "Yes, let copies auto-apply at Autonomous and Full", via the top session): a copy's update after it followed its source (docs/FOLLOW.md) applies by itself at those two levels, as any update that would; at Observer and Proposals it waits in the inbox. |
+| 2026-11-12 | **Phase 5 scope** (Noah, "Go with option 1, defaults/recommendations for the rest", via the Steward manager; design in `docs/MODULES.md`): phase 5 is the first catalog (a crop farm and a sorting storage hall, the seeds offer, two modules composed; gate M5). **Phase 5b** follows right after M5, before phase 6: the sugar cane and melon/pumpkin farms with observer and piston harvest, then the spine (`connector.items`, S-M5-5), then the animal pen and the smelter array; its gate is items from an automatic farm carried by the spine and sorted in the hall, measured. The six answers: the player harvests v1's farm; the spine waits for 5b; a storage hall holding items is refused for undo until it is emptied; Autonomous and Full may build modules, but in survival Autonomous asks first when the bill takes more than half the stockpile's count of any item; no in-place upgrades; vanilla only. |
 
 ## Concept card
 
@@ -605,9 +606,15 @@ Survival e2e: 629 units delivered, consumed and refunded on undo. Three GPT revi
 - **Checks:** a survival e2e (the stockpile fed by the dev hook `dev.crate.insert`, a build finished from it, an undo whose refund matches), and a GPT review (it spends the player's materials).
 
 ### Phase 5: Functional modules
-Verified catalog: crop farm, storage hall with sorting, then the rest. "You have seeds" offer. Spine/connectors.
-Design: `docs/MODULES.md` (v2, 2026-11-12, after a GPT review; asks S-M5-1..7). Slices M0 (probe) to M5 (two modules composed); M6 (spine) if Noah keeps it in phase 5 (MODULES Q2).
-- **Gate:** each module's measured output in the dev client; the steward composes two modules into a settlement.
+Design: `docs/MODULES.md` (v2.2, 2026-11-12, after two GPT review rounds and with Noah's answers; asks S-M5-1..7). Split by Noah (2026-11-12):
+- **Phase 5, the first catalog:** a verified catalog with a crop farm and a storage hall with sorting, the "You have seeds" offer, modules placed
+  by growth and composed by the plan writer. Slices M0 (probe) to M5.
+  - **Gate (M5):** each module's measured output in the dev client; the steward composes a crop farm and a sorting storage hall (at least 4
+    slots) into a settlement, each measured in place.
+- **Phase 5b, automation and the spine,** right after M5, before phase 6: the sugar cane and melon/pumpkin farms (observer and piston
+  harvest into a chest), then the spine (`connector.items`, S-M5-5: hopper chains between modules), then the animal pen and the smelter
+  array. Slices M7, M8, M9.
+  - **Gate (M8):** items from an automatic farm, carried by the spine and sorted in the hall, measured end to end.
 
 ### Phase 6: Villagers and animals
 Housing, trading hall with offer reading, animal detection and wing.
