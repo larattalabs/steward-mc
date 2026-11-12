@@ -249,6 +249,13 @@ public final class Undo {
 	 */
 	public static boolean growth(MinecraftServer server, Settlement s, Settlement.LogEntry entry, Growths.Ref ref, java.util.Map<String, Integer> now,
 		Consumer<String> say, Consumer<Boolean> whenDone) {
+		// (slice A2) still being built from the stockpile: nothing is asked (Architect would refuse it, survival_building); the entry stays
+		var town = ArchitectApi.get().regions().get(ref.region());
+		if (Growths.decide(town, ref.rid()).step() == Growths.Step.BUILDING) {
+			say.accept(Growths.buildingLine(town.orElse(null)));
+			whenDone.accept(false);
+			return true;
+		}
 		UNDOING.add(s.id());
 		List<String> ids = List.copyOf(entry.siteIds());
 		say.accept("Taking up \"" + entry.text() + "\" (the town's change " + ref.rid() + ") and restoring the land...");
@@ -259,7 +266,7 @@ public final class Undo {
 				if (!Settlements.log(s.id(), removed(entry, ids, true, now)).ok()) say.accept(UNLOGGED);
 				districts(server, s, say);
 				say.accept("Undone: the town's change is taken up, the land restored.");
-			} else say.accept("Run /steward undo " + s.id() + " again once it is clear.");
+			} else if (!Growths.building(ArchitectApi.get().regions().get(ref.region()).orElse(null))) say.accept("Run /steward undo " + s.id() + " again once it is clear.");
 			whenDone.accept(ok);
 		});
 		return true;

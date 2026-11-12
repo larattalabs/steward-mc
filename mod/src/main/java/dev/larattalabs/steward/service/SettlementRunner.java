@@ -1004,11 +1004,19 @@ public final class SettlementRunner {
 						abandon("The town is being changed right now; ask again once it has settled.");
 						return;
 					}
-					// built from materials: today's path until survival growth (slice A2)
-					if (v.build() == null) {
-						planGrowth(r, budgetUsd, v.id(), specs, null);
+					// (slice A2) the town grows only in the mode it was built in (Architect plans in the world's mode, realises in the town's), and a town
+					// built from materials only once all of it is built: else nothing is spent
+					boolean regionMaterials = worldSurvival && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
+					String no = Growths.modeRefusal(now.name(), Growths.fromMaterials(v), regionMaterials, v.build() != null && v.build().built(),
+						v.build() == null ? 0 : v.build().percent());
+					if (no != null) { abandon(no); return; }
+					// built from materials: its targets draw from the settlement's stockpile, made again if it went
+					if (Growths.fromMaterials(v) && Stockpiles.ensure(server, now, this::say) == null) {
+						abandon("A town built from materials grows from its stockpile, and none could be made by the founding stone. Clear a spot beside it and start again.");
 						return;
 					}
+					planGrowth(r, budgetUsd, v.id(), specs, null);
+					return;
 				}
 				// a street town, built free: taken on as one region first, then grown (docs/GROWTH.md, slice B); anything that can't be keeps today's path
 				else if (ArchitectApi.get().features().contains(Adoption.FEATURE) && existing.difficulty() == dev.larattalabs.steward.model.Difficulty.PATRON
@@ -2149,7 +2157,9 @@ public final class SettlementRunner {
 		String key = growth() ? opKey("vgrow3".equals(growKey) ? "vgrowrealise3" : "vgrowrealise")
 			: districtId != null && api.regions().planByKey(settlement.owner(), opKey("vplan2")).map(p -> p.planId().equals(vPlanId)).orElse(false)
 			? opKey("vrealise2") : opKey("vrealise");
-		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, Mode.INSTANT, actor, lotEntries, null, true, null, false, ext, 0, key))
+		// (slice A2) a growth of a town built from materials is built from them (Architect realises a revision in its town's own mode; the request says so)
+		Mode mode = growth() && growRegion != null && api.regions().get(growRegion).map(Growths::fromMaterials).orElse(false) ? Mode.CONSTRUCTION : Mode.INSTANT;
+		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, mode, actor, lotEntries, null, true, null, false, ext, 0, key))
 			.whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
 	}
 
@@ -2549,7 +2559,11 @@ public final class SettlementRunner {
 				planGrowth(null, 0, growRegion, List.of(), stale);
 				return;
 			}
-			say("Architect could not place it in the town: " + m);
+			// (slice A2) the world's mode changed while it was designed, or the town is being built from materials again: plain words
+			if (m.contains("survival_unfinished")) say("Not placed: the town is being built from the stockpile again; it can grow once it's built.");
+			else if (m.contains("plan it again") && (m.contains("in survival") || m.contains("in creative") || m.contains("not in survival")))
+				say("Not placed: the world's mode changed while it was designed (the town grows only the way it was built). Start it again.");
+			else say("Architect could not place it in the town: " + m);
 			feed(new Pipeline.Cancel());
 			return;
 		}
@@ -2660,6 +2674,8 @@ public final class SettlementRunner {
 		if (!sites.isEmpty() && !logPlaced(sites, sites.size(), 0, "after its build ended")) { logFailed(); return; }
 		var entry = growthEntry(ref.tag());
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
+		// (slice A2) built from materials: watched, so the steward says when it is built (and undo can take it up)
+		if (regions.get(regionId).map(Growths::fromMaterials).orElse(false)) MaterialRequests.watchBuild(settlement.id(), regionId);
 		if (entry.isPresent()) Undo.growth(server, saved, entry.get(), ref, Map.of(), this::say, ok -> { });
 		// nothing of it shows: taken up now; when that can't be done, the history names the revision so it is not lost
 		else Growths.undo(server, settlement.owner(), ref, this::say, ok -> {
@@ -2934,6 +2950,22 @@ public final class SettlementRunner {
 		} else if (!logPlaced(sites, (int) placed, (int) skipped, note)) { logFailed(); return; }
 		feed(new Pipeline.BatchDone((int) placed, (int) skipped, note == null ? null : note.substring(4)));
 		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
+		watchMaterials(v.get());
+	}
+
+	/**
+	 * (slice A2) A growth of a town built from materials: placed means its construction sites stand; what it still needs is said, and the town is watched
+	 * until all of it is built again (the steward says so, once).
+	 */
+	private void watchMaterials(dev.larattalabs.architect.api.RegionView v) {
+		var b = v.build();
+		if (b == null) return;
+		if (!b.built()) {
+			String owed = b.outstanding().isEmpty() ? "" : Stockpiles.items(b.outstanding().entrySet().stream().toList(), 6);
+			say("From materials, the addition needs " + (owed.isEmpty() ? "what its construction sites ask for" : owed)
+				+ ": fill the stockpile and it's built as it's fed. I'll say when it's done.");
+		}
+		MaterialRequests.watchBuild(settlement.id(), v.id());
 	}
 
 	/**
@@ -3001,7 +3033,13 @@ public final class SettlementRunner {
 				feed(new Pipeline.CancelConfirmed());
 				return;
 			}
-			say("What the addition placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
+			var town = ArchitectApi.get().regions().get(ref.region());
+			if (town.isPresent() && Growths.building(town.get())) {
+				// (slice A2) still being built from the stockpile: it can't be taken up until it is built (nothing cancels its targets)
+				say("The addition's construction sites stand and are built as the stockpile feeds them; it can't be taken up until it's built. /steward undo "
+					+ settlement.id() + " takes it up then.");
+				MaterialRequests.watchBuild(settlement.id(), ref.region());
+			} else say("What the addition placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
 			feed(new Pipeline.BatchDone(sites.size(), 0));
 		};
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);

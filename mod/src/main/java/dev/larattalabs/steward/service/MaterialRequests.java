@@ -104,7 +104,7 @@ public final class MaterialRequests {
 		for (Settlement s : Settlements.store().all()) {
 			for (var e : s.log()) {
 				if (e.kind() != Settlement.Kind.PROJECT_PLACED) continue;
-				String id = dev.larattalabs.steward.gateway.VPlan.regionOf(e.siteGroup());
+				String id = regionOfEntry(e.siteGroup());
 				if (id == null) continue;
 				try {
 					var v = ArchitectApi.get().regions().get(id);
@@ -116,6 +116,12 @@ public final class MaterialRequests {
 			}
 		}
 		seeded = true;
+	}
+
+	/** The region a placed entry's tag names: a town's ({@code region:<id>}) or a growth's ({@code revision:<id>:<rid>}, slice A2); else null. Pure. */
+	static @org.jspecify.annotations.Nullable String regionOfEntry(@org.jspecify.annotations.Nullable String siteGroup) {
+		String id = dev.larattalabs.steward.gateway.VPlan.regionOf(siteGroup);
+		return id != null ? id : Growths.parse(siteGroup).map(Growths.Ref::region).orElse(null);
 	}
 
 	/** Watches a settlement's region being built from the stockpile: the steward says when it is fully built. */
