@@ -1382,3 +1382,15 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
     - no consumption, no write.
   - **Why:** Steward compares the quote with the bound the player approved before anything is consumed (MODULES.md 4.2 step 5).
   - **Preferred:** `Regions.quote(planId, lotEntries)`, returning the same shape as the plan check's `cost.bom`, bound entries included.
+- **Architect's answers (coordinator, 2026-11-12):** all as preferred.
+  - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
+  - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.
+  - S-M5-4 is a lot member `field {cells, crops}`.
+  - S-M5-5 is for 5b; a revision gets a links stage only with an items connector.
+  - S-M5-7 is `Regions.quote(planId, lotEntries)`.
+  - **Proposed slotting, beside 7c with one gate lane kept for M5; it waits on Noah's confirmation:**
+    - wave M5-1: GP (S-M5-1) and QT (S-M5-7), after 7b's release;
+    - wave M5-2: FC (S-M5-4) and IG (S-M5-2);
+    - wave M5-3: FK (S-M5-3);
+    - 5b: CI (S-M5-5) after LP.
+  - **Steward's order:** M0 now; M1 after GP; M2 after FC and IG; M3 after QT; M4 after FK; M5 after M4.
