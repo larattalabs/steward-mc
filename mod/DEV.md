@@ -167,6 +167,18 @@ It refuses to start while the claude-login opt-in exists or another Steward clie
 new version always differs from the placed one. Results go to `artifacts/e2e/summary.json`. On a failed update it prints Steward's `update check` log
 line (action, reason, write box).
 
+**A fresh world every run (2026-11-12).** The world used to be kept between runs. The main checkout's had grown to 559 settlements and 9.4 GB, and
+`/steward status` got empty replies.
+- **What happens.** Before the first launch, `e2e.mjs` moves the last run's world to `Steward E2E (last)` (one copy: the one before it is deleted). The
+  client's autoworld then creates a new flat world, and the restarts inside the run reopen it. Only that world under this checkout's `mod/run/saves` is
+  touched: never the dev world, and Architect's game-level `mod/run/architect` (library, `api-*.json`) is kept.
+- **`--keep-world`** reopens the old world instead, to look at a run's leftovers.
+- **The client check** looks only for this checkout's own client (`<checkout>/mod/...KnotClient`). A worktree's run is no longer refused when the main
+  checkout's client is up, and its own leftover client is caught.
+- **Load.** The client starts once the 1-minute load is at most `E2E_LOAD_MAX` (default 40), waiting at most `E2E_LOAD_WAIT_MIN` minutes (20), then
+  starts anyway and says so. `E2E_LOAD_MAX=0` turns this off.
+- **Another checkout's ports:** set `STEWARD_PORT` / `STEWARD_DEV_PORT` (e.g. 8598/8599).
+
 `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's helper in sim mode (v0.12.2: `ARCHITECT_SIDECAR_BACKEND=sim`, notional measured
 costs, never Claude). Job answers are scripted with `/steward dev sim_answer card|talk <json>` (`ext["architect:simAnswer"]`, checked against the job's schema).
 It covers:

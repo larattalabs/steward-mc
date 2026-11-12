@@ -28,10 +28,12 @@ const OUT = path.join(ROOT, 'artifacts', 'e2e');
 const LOG = path.join(GAME, 'logs', 'latest.log');
 const mode = process.argv[2] ?? 'free';
 // --only a,b: run only the flows whose name or tags hold one of the words, plus the sanity set (status, claim, expand, restart); an RC's run
+// --keep-world: open the existing "Steward E2E" world instead of a fresh one (to look at a run's leftovers); by default every run starts fresh
+const keepWorld = process.argv.includes('--keep-world');
 const onlyAt = process.argv.indexOf('--only');
 const only = onlyAt > 0 ? (process.argv[onlyAt + 1] ?? '').toLowerCase().split(',').map((w) => w.trim()).filter(Boolean) : null;
 if (!['free', 'stub'].includes(mode) || (only && !only.length)) {
-  console.error('usage: node tools/e2e.mjs free|stub [--only word,word]');
+  console.error('usage: node tools/e2e.mjs free|stub [--only word,word] [--keep-world]');
   process.exit(2);
 }
 const { DevClient } = await import(pathToFileURL(path.join(ARCH, 'tools', 'lib', 'devclient.mjs')).href);
@@ -172,13 +174,60 @@ function ensureStubEntry() {
   }
 }
 
+// ------------------------------------------------------------------ a fresh world
+
+/**
+ * Every run starts from a fresh world (2026-11-12): the world used to be kept, and the main checkout's had grown to 559 settlements and 9.4 GB, so
+ * `/steward status` got empty replies and every run started slower. The last run's world is kept beside it as "<name> (last)" for a look after a
+ * failure (one copy: the one before it is deleted), and the client's autoworld creates the new one. Once per run, before the first launch; the
+ * restarts inside a run reopen the same world. Only the e2e's own world under this checkout's mod/run/saves is touched, never the dev world, and
+ * Architect's game-level state (mod/run/architect: library, api-*.json) stays.
+ */
+function freshWorld() {
+  const saves = path.join(GAME, 'saves');
+  if (path.dirname(WORLD) !== saves || !path.basename(WORLD).trim()) throw new Error(`the e2e world ${WORLD} is not a world under ${saves}`);
+  if (keepWorld) return ok('fresh world', `--keep-world: ${path.basename(WORLD)} kept (${fs.existsSync(WORLD) ? 'exists' : 'new'})`);
+  if (!fs.existsSync(WORLD)) return ok('fresh world', `${path.basename(WORLD)} is new`);
+  const last = `${WORLD} (last)`;
+  const n = settlementsIn(WORLD);
+  fs.rmSync(last, { recursive: true, force: true });
+  fs.renameSync(WORLD, last);
+  ok('fresh world', `the last run's world (${n} settlement(s)) moved to "${path.basename(last)}"`);
+}
+
+const settlementsIn = (dir) => {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(dir, 'steward-settlements.json'), 'utf8')).settlements?.length ?? 0;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * A loaded machine first (2026-11-12): three Architect gate runs, Gradle tests and this e2e together took the load to 75-85, and checks timed out. The
+ * client starts once the 1-minute load average is at most E2E_LOAD_MAX (default 40, about twice the cores), waiting at most E2E_LOAD_WAIT_MIN minutes
+ * (default 20; then it starts anyway and says so). E2E_LOAD_MAX=0 turns the wait off.
+ */
+async function waitForLoad() {
+  const max = Number(process.env.E2E_LOAD_MAX ?? 40);
+  const waitMin = Number(process.env.E2E_LOAD_WAIT_MIN ?? 20);
+  const load = () => Math.round(os.loadavg()[0] * 10) / 10;
+  if (!(max > 0) || load() <= max) return;
+  const t0 = Date.now();
+  console.log(`waiting for the 1-min load ${load()} to drop to ${max} (at most ${waitMin} min)`);
+  while (load() > max && Date.now() - t0 < waitMin * 60_000) await sleep(15_000);
+  const mins = ((Date.now() - t0) / 60_000).toFixed(1);
+  console.log(load() > max ? `load ${load()} still above ${max} after ${mins} min: starting anyway` : `load ${load()} after ${mins} min: starting`);
+}
+
 // ------------------------------------------------------------------ steps
 
 async function preflight() {
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists (mod/run/architect/sidecar-data/secrets.json): remove it');
   try {
-    execFileSync('pgrep', ['-f', 'steward-mc/mod.*KnotClient']);
-    throw new Error('a Steward client already runs on mod/run; quit it first');
+    // this checkout's client only (a worktree's path is not steward-mc/...): another checkout's client has its own mod/run and ports
+    execFileSync('pgrep', ['-f', `${ROOT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/mod/.*KnotClient`]);
+    throw new Error(`a Steward client already runs on ${path.join(ROOT, 'mod', 'run')}; quit it first`);
   } catch (e) {
     if (e.message.startsWith('a Steward client')) throw e;
   }
@@ -188,8 +237,8 @@ async function preflight() {
 let spikesCleared = false;
 
 async function claimAndSteward() {
-  // the world is kept between runs: a region a dev spike realised would put its lots in this run's inbox
-  if (!spikesCleared) {
+  // with --keep-world the world is kept between runs: a region a dev spike realised would put its lots in this run's inbox
+  if (keepWorld && !spikesCleared) {
     spikesCleared = true;
     const said = await cmd('/steward dev v_spike all remove');
     if (!/removing 0 /.test(said)) await sleep(5000);
@@ -3799,7 +3848,9 @@ async function flow(name, tags, fn) {
 }
 try {
   await preflight();
+  freshWorld();
   ensureStubEntry();
+  await waitForLoad();
   launch();
   await connect();
   const r = await cmd('/steward status');
