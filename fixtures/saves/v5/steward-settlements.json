@@ -1,0 +1,1834 @@
+{
+  "format": 5,
+  "settlements": [
+    {
+      "id": "set_1",
+      "name": "E2E Hamlet",
+      "card": {
+        "name": "E2E Hamlet",
+        "site": {
+          "text": "a meadow by a stream",
+          "terrain": "find",
+          "size": "M"
+        },
+        "style": {
+          "text": "timber cottages with thatched roofs"
+        },
+        "purpose": {
+          "text": "a quiet hamlet"
+        },
+        "constraints": {
+          "density": "low"
+        },
+        "avoid": [],
+        "interpretation": "a few cottages and a well",
+        "contradictions": [],
+        "assumptions": [],
+        "program": [
+          {
+            "role": "cottage",
+            "type": "cottage",
+            "count": 3,
+            "footprint": "S",
+            "landmark": false
+          }
+        ]
+      },
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 899,
+        "centerZ": 0,
+        "radius": 128,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 2,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794376879568,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794376883704,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794376883801,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 257 x 257",
+          "siteIds": [],
+          "op": "op_3",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794376901442,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 1 buildings (dev)",
+          "siteIds": [
+            "s1"
+          ],
+          "op": "op_4",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794376941181,
+          "kind": "UPDATED",
+          "text": "Updated dev building to version 2 (1 blocks).",
+          "siteIds": [
+            "s1"
+          ],
+          "op": "op_5",
+          "changes": [
+            {
+              "siteId": "s1",
+              "lot": "dev building",
+              "from": 1,
+              "to": 2
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794376956331,
+          "kind": "REVERTED",
+          "text": "Reverted dev building to version 1 (1 blocks).",
+          "siteIds": [
+            "s1"
+          ],
+          "op": "op_6",
+          "changes": [
+            {
+              "siteId": "s1",
+              "lot": "dev building",
+              "from": 2,
+              "to": 1
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794376959173,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Placed 1 buildings (dev)\" (op_4)",
+          "siteIds": [
+            "s1"
+          ],
+          "op": "op_7",
+          "changes": [
+            {
+              "siteId": "s1",
+              "from": 1,
+              "to": 0
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377061999,
+          "kind": "CARD_EDITED",
+          "text": "Described as: a meadow by a stream, timber cottages with thatched roofs",
+          "siteIds": [],
+          "op": "op_8",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377063560,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 1 buildings (dev)",
+          "siteIds": [
+            "s2"
+          ],
+          "op": "op_9",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377105543,
+          "kind": "PROTECTED_CHANGED",
+          "text": "Protected \"e2e garden\" (7 x 7 at 836,-3)",
+          "siteIds": [],
+          "op": "op_10",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377106625,
+          "kind": "PROTECTED_CHANGED",
+          "text": "Protected \"e2e lawn\" (21 x 21 at 829,-10)",
+          "siteIds": [],
+          "op": "op_11",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377110804,
+          "kind": "PROTECTED_CHANGED",
+          "text": "No longer protected: \"e2e lawn\"",
+          "siteIds": [],
+          "op": "op_12",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377119535,
+          "kind": "DISTRICT_FOUNDED",
+          "text": "Founded e2e harbour (east, 97 x 97) and its road",
+          "siteIds": [
+            "r1"
+          ],
+          "op": "op_13",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377139843,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Founded e2e harbour (east, 97 x 97) and its road\" (op_13)",
+          "siteIds": [
+            "r1"
+          ],
+          "op": "op_14",
+          "changes": [
+            {
+              "siteId": "r1",
+              "from": 1,
+              "to": 0
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377139844,
+          "kind": "DISTRICT_REMOVED",
+          "text": "Gave up e2e harbour (its road was undone)",
+          "siteIds": [],
+          "op": "op_15",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377140066,
+          "kind": "PROTECTED_CHANGED",
+          "text": "No longer protected: \"e2e garden\"",
+          "siteIds": [],
+          "op": "op_16",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377145140,
+          "kind": "DISTRICT_FOUNDED",
+          "text": "Founded e2e south quarter (east, 97 x 97) and its road",
+          "siteIds": [
+            "r2"
+          ],
+          "op": "op_17",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377147809,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Founded e2e south quarter (east, 97 x 97) and its road\" (op_17)",
+          "siteIds": [
+            "r2"
+          ],
+          "op": "op_18",
+          "changes": [
+            {
+              "siteId": "r2",
+              "from": 1,
+              "to": 0
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377147811,
+          "kind": "DISTRICT_REMOVED",
+          "text": "Gave up e2e south quarter (its road was undone)",
+          "siteIds": [],
+          "op": "op_19",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377155795,
+          "kind": "DISTRICT_FOUNDED",
+          "text": "Founded e2e lumber camp (north, 97 x 97) and its road",
+          "siteIds": [
+            "r3"
+          ],
+          "op": "op_20",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377158042,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Founded e2e lumber camp (north, 97 x 97) and its road\" (op_20)",
+          "siteIds": [
+            "r3"
+          ],
+          "op": "op_21",
+          "changes": [
+            {
+              "siteId": "r3",
+              "from": 1,
+              "to": 0
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377158044,
+          "kind": "DISTRICT_REMOVED",
+          "text": "Gave up e2e lumber camp (its road was undone)",
+          "siteIds": [],
+          "op": "op_22",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377171483,
+          "kind": "DISTRICT_FOUNDED",
+          "text": "Founded the east district (east, 97 x 97) and its road",
+          "siteIds": [
+            "r4"
+          ],
+          "op": "op_23",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377174171,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Founded the east district (east, 97 x 97) and its road\" (op_23)",
+          "siteIds": [
+            "r4"
+          ],
+          "op": "op_24",
+          "changes": [
+            {
+              "siteId": "r4",
+              "from": 1,
+              "to": 0
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377174173,
+          "kind": "DISTRICT_REMOVED",
+          "text": "Gave up the east district (its road was undone)",
+          "siteIds": [],
+          "op": "op_25",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377196295,
+          "kind": "BUILD_ADOPTED",
+          "text": "Took on noahlaratta\u0027s house (build-1)",
+          "siteIds": [
+            "s3"
+          ],
+          "op": "op_26",
+          "changes": [
+            {
+              "siteId": "s3",
+              "from": 0,
+              "to": 1
+            }
+          ],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377197873,
+          "kind": "PROJECT_REMOVED",
+          "text": "Undid 1 sites of \"Took on noahlaratta\u0027s house (build-1)\" (op_26)",
+          "siteIds": [
+            "s3"
+          ],
+          "op": "op_27",
+          "changes": [
+            {
+              "siteId": "s3",
+              "from": 1,
+              "to": 0
+            }
+          ],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [
+          "farm",
+          "asked_mwbpuu5x_library",
+          "district_E"
+        ],
+        "accepted": [
+          "district_E"
+        ],
+        "lastAt": 1794377096401
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 6
+      }
+    },
+    {
+      "id": "set_2",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 1800,
+        "centerZ": 0,
+        "radius": 128,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794377339413,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377343324,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377343426,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 257 x 257",
+          "siteIds": [],
+          "op": "op_3",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_3",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 2701,
+        "centerZ": 5999,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794377519875,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377521465,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_4",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 3599,
+        "centerZ": 15001,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794377661046,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377661917,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_5",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 4500,
+        "centerZ": 16500,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794377801300,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377802097,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_6",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 5399,
+        "centerZ": 18001,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794377954523,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794377955835,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_7",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 6300,
+        "centerZ": 21001,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794378104666,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794378106082,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_8",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 7201,
+        "centerZ": 27000,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794378254807,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794378256079,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_9",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 8101,
+        "centerZ": 30001,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794378400100,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794378401183,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_10",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 9000,
+        "centerZ": 33001,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794378552867,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794378554465,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_11",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 9900,
+        "centerZ": 36000,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794378710691,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794378712392,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_12",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 10799,
+        "centerZ": 24000,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794378853876,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794378854704,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_13",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 11699,
+        "centerZ": 8999,
+        "radius": 64,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "SUPPLIED",
+      "log": [
+        {
+          "at": 1794379044906,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_14",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 12600,
+        "centerZ": 39000,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "SUPPLIED",
+      "log": [
+        {
+          "at": 1794379194083,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794379195200,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_15",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 13499,
+        "centerZ": 42000,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794379337529,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794379339273,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_16",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 14400,
+        "centerZ": 45000,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794379482105,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794379483123,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_17",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 15299,
+        "centerZ": 48001,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794379643871,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794379645151,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_18",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 16200,
+        "centerZ": 60000,
+        "radius": 64,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794379845981,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_19",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 17099,
+        "centerZ": 52000,
+        "radius": 64,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794380006882,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_20",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 18000,
+        "centerZ": 56000,
+        "radius": 64,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794380151851,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_21",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 18899,
+        "centerZ": 32999,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794380295134,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794380296019,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_22",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 19799,
+        "centerZ": 33001,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794380487694,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794380489717,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_23",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 20700,
+        "centerZ": 32999,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794380679411,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794380683877,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_24",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 21600,
+        "centerZ": 33001,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794380831067,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794380832145,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_25",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 22501,
+        "centerZ": 45001,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "SUPPLIED",
+      "log": [
+        {
+          "at": 1794380984691,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794380986278,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_26",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 23399,
+        "centerZ": 44999,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "SUPPLIED",
+      "log": [
+        {
+          "at": 1794381166740,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794381168316,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_27",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 24300,
+        "centerZ": 45001,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "SUPPLIED",
+      "log": [
+        {
+          "at": 1794381334799,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794381335880,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_28",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 25199,
+        "centerZ": 33000,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794381482159,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794381483592,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_29",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 26100,
+        "centerZ": 45000,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "SUPPLIED",
+      "log": [
+        {
+          "at": 1794382015957,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794382018286,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    }
+  ],
+  "nextSerial": 30
+}

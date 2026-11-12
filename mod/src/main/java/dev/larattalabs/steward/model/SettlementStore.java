@@ -33,10 +33,12 @@ public final class SettlementStore {
 	 * format-4 file rather than dropping the new members on its next save.
 	 */
 	/** 5 (2026-10-26): a proposal may carry a quarter (Noah's Q2); an older Steward would drop it and found a free square district instead, so it refuses. */
-	public static final int FORMAT = 5;
+	public static final int FORMAT = 6;
+	// 6 (2026-11-11): a history entry may be a region town's growth (siteGroup revision:<region>:<rid>, docs/GROWTH.md), undone by Architect's undoRevision;
+	// an older Steward would take it for a site group and remove its sites one by one, leaving the town's revision standing, so it refuses the file
 
 	/** Step {@code i} upgrades format {@code i + 1} to {@code i + 2}, on the file's JSON. */
-	private static final List<java.util.function.Consumer<JsonObject>> MIGRATIONS = List.of(SettlementStore::v1ToV2, SettlementStore::v2ToV3, SettlementStore::v3ToV4, SettlementStore::v4ToV5);
+	private static final List<java.util.function.Consumer<JsonObject>> MIGRATIONS = List.of(SettlementStore::v1ToV2, SettlementStore::v2ToV3, SettlementStore::v3ToV4, SettlementStore::v4ToV5, SettlementStore::v5ToV6);
 
 	/** The format the file had when read (equal to {@link #FORMAT} unless it was migrated). */
 	private int readFormat = FORMAT;
@@ -155,6 +157,10 @@ public final class SettlementStore {
 
 	/** Format 2 to 3: nothing to rewrite; a settlement without {@code lands} reads with no districts and no protected areas. */
 	static void v2ToV3(JsonObject file) {
+	}
+
+	/** Format 5 to 6: nothing to rewrite (a format-5 history has no growth). */
+	static void v5ToV6(JsonObject file) {
 	}
 
 	/** Format 4 to 5: nothing to rewrite (a proposal without a quarter reads as before). */

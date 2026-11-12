@@ -147,6 +147,26 @@ class SettlementTest {
 	}
 
 	@Test
+	void aGrowthsEntryKeepsItsRevisionTagAfterAPartialRemoval() throws Exception {
+		// docs/GROWTH.md: a growth is undone by its revision whatever was removed of it since, never site by site
+		Settlement s = Settlement.found("set_1", card(), claim(0, 0), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		s = s.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "Placed 2 buildings", List.of("s1", "s2"), "revision:rg_1:2"));
+		s = s.withLog(new Settlement.LogEntry(3L, Settlement.Kind.PROJECT_REMOVED, "Removed 1", List.of("s1")));
+		var u = s.lastUndoable().orElseThrow();
+		assertEquals(List.of("s2"), u.siteIds());
+		assertEquals("revision:rg_1:2", u.siteGroup());
+		// a site group's entry still drops its group after a partial removal (site by site, as before)
+		Settlement g = Settlement.found("set_2", card(), claim(0, 0), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		g = g.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "Placed 2 buildings", List.of("s1", "s2"), "g5"));
+		g = g.withLog(new Settlement.LogEntry(3L, Settlement.Kind.PROJECT_REMOVED, "Removed 1", List.of("s1")));
+		assertNull(g.lastUndoable().orElseThrow().siteGroup());
+		// saved and read back in format 6, the tag as it was
+		SettlementStore st = new SettlementStore();
+		st.put(s);
+		assertEquals("revision:rg_1:2", SettlementStore.fromJson(st.toJson()).get("set_1").orElseThrow().log().get(1).siteGroup());
+	}
+
+	@Test
 	void anAdoptedBuildIsUndoneLikeAPlacementAndSavedAndReadBack() throws Exception {
 		Settlement s = Settlement.found("set_1", card(), claim(0, 0), Permission.PROPOSALS, Difficulty.PATRON, 1L);
 		s = s.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "Placed 1 buildings", List.of("s1")));

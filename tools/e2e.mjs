@@ -208,7 +208,7 @@ async function claimAndSteward() {
   const backups = fs.readdirSync(WORLD).filter((f) => /^steward-settlements\.json\.v\d+\.bak$/.test(f)).map((f) => f.match(/v\d+/)[0]);
   // format 4 (2026-10-24): districts with kinds and land; every square district a standing square
   const squares = file.settlements.flatMap((x) => x.lands?.districts ?? []).every((d) => d.kind && d.state);
-  if (file.format === 5 && squares && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `5, every entry an operation, every district with its kind${backups.length ? ', backups kept: ' + backups.join(' ') : ''}`);
+  if (file.format === 6 && squares && file.settlements.every((x) => (x.log ?? []).every((e) => e.op))) ok('save format', `6, every entry an operation, every district with its kind${backups.length ? ', backups kept: ' + backups.join(' ') : ''}`);
   else fail('save format', `format ${file.format}`);
   let name = '';
   for (let i = 0; i < 10 && !/Steward/.test(name); i++) {
@@ -884,6 +884,110 @@ async function villageFlow() {
   if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placedOp.siteIds.length && /is gone/.test(streetLeft)) {
     ok('village undo', `${last.text} (${last.siteIds.length} sites); ${streetLeft}`);
   } else fail('village undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${placedOp.siteIds.length} sites), ${streetLeft}`);
+}
+
+/**
+ * (docs/GROWTH.md, slice A) A region town grows through Architect's revisions: a flat village is built, a library the steward was asked for is accepted,
+ * and the addition is planned as a revision of the town (Steward's keys and tags, lots renamed to the build's own ids), realised into it, logged under
+ * revision:<region>:<rid> with no street piece of Steward's beside it. Undone, only the revision goes (undoRevision): the town's ground is as before the
+ * growth, cell for cell, and the town still stands; a second undo takes the town itself.
+ */
+async function growthFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 27000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Growing Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little hamlet that will grow`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('growth', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 4 30`);
+  const town = await buildThrough(id, from, 'growth town');
+  if (!town) return;
+  const st0 = settlements().find((x) => x.id === id);
+  const founding = (st0?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const region = /^region:(.+)$/.exec(founding?.siteGroup ?? '')?.[1];
+  if (!region) return fail('growth', `the town is not a region: ${founding?.siteGroup}`);
+  const claim = st0.claim;
+  const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
+  const snap = path.join(ROOT, 'artifacts', 'e2e', `growth-town-${id}.snap.gz`);
+  await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
+  // asked for a library in talk, accepted: an addition with no district
+  await cmd(`/steward dev sim_answer talk ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', 'library.json'), 'utf8')).answer)}`);
+  await cmd(`/steward talk ${id} we need a library for the scholars`);
+  let lib = null;
+  for (let i = 0; i < 60 && !lib; i++) {
+    await sleep(1000);
+    lib = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('asked_')) ?? null;
+  }
+  if (!lib) return fail('growth', 'no library proposal');
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${lib.key}`);
+  const planned = await waitLog(from, /The town grows: Architect finds room[^\n]*/, 120_000);
+  const grew = await buildThrough(id, from, 'growth');
+  if (!grew) return;
+  const st1 = settlements().find((x) => x.id === id);
+  const op = (st1?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const m = /^revision:(.+):(\d+)$/.exec(op?.siteGroup ?? '');
+  const v = await dev.request('dev.region.state', { region }).catch(() => null);
+  const rv = v?.view ?? v ?? {};
+  const rev = (rv.revisions ?? []).find((r) => String(r.rid) === m?.[2]);
+  // its sites: the revision's own, under the build's tags; no street piece of Steward's (street, street#n) among them
+  const sites = [];
+  for (const sid of op?.siteIds ?? []) sites.push(await cmd(`/steward dev site ${sid}`));
+  const streetPiece = sites.some((t) => /\bstreet(#\d+)?\b/.test(t) && !/road:street_/.test(t));
+  if (planned && m && m[1] === region && rev && grew.placed >= 1 && !streetPiece && (op.siteIds ?? []).every((sid) => (rev.sites ?? []).includes(sid))) {
+    ok('growth', `${grew.steps.join(' > ')} > ${grew.placed} placed as revision ${m[2]} of ${region} (${rev.state}, ${op.siteIds.length} sites, lots ${(rev.lotsAdded ?? []).join(', ')})`);
+  } else return fail('growth', `planned ${!!planned}; entry ${op?.siteGroup}; revision ${JSON.stringify(rev)?.slice(0, 200)}; street piece ${streetPiece}`);
+  // the lots carry the build's own ids (never a repeat of the town's library_1 or house_1)
+  if ((rev.lotsAdded ?? []).length && rev.lotsAdded.every((l) => /^g[a-z0-9]+_\d+$/.test(l))) ok('growth lot ids', rev.lotsAdded.join(', '));
+  else fail('growth lot ids', JSON.stringify(rev.lotsAdded));
+  // the town is still the settlement's town (the founding entry names it)
+  const still = (st1.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === `region:${region}`).length === 1;
+  if (still && rv.state === 'PLACED') ok('growth town', `${region} ${rv.state}, position ${rv.position}`);
+  else fail('growth town', `${rv.state}, founding entries ${still}`);
+  // undone: only the revision goes, the town's ground as before the growth
+  from = logSize();
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  const v2 = await dev.request('dev.region.state', { region }).catch(() => null);
+  const after = v2?.view ?? v2 ?? {};
+  const d0 = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
+  const off = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
+  const undoneRev = (after.revisions ?? []).find((r) => String(r.rid) === m[2]);
+  if (last?.kind === 'PROJECT_REMOVED' && undoneRev?.state === 'UNDONE' && after.state === 'PLACED' && after.position === 0 && off.length === 0) {
+    ok('growth undo', `${last.text}; revision ${m[2]} UNDONE, ${region} PLACED at position 0, the ground as before the growth (0 cells differ)`);
+  } else fail('growth undo', `last ${last?.kind}; revision ${undoneRev?.state}; town ${after.state} at ${after.position}; ${off.length} cell(s) differ ${JSON.stringify(off.slice(0, 3))}; ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-2).join(' | ')}`);
+  // then the town itself
+  const v3 = await dev.request('dev.region.state', { region }).catch(() => null);
+  const pre = v3?.view ?? v3 ?? {};
+  // clear of the town (Architect waits for a player in a box it restores)
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
+  const said = await cmd(`/steward undo ${id}`);
+  // logged as the town's removal (its founding entry's sites), as villageFlow's undo
+  let gone = null;
+  for (let i = 0; i < 300 && !gone; i++) {
+    await sleep(1000);
+    const e = settlements().find((x) => x.id === id)?.log.at(-1);
+    if (e?.kind === 'PROJECT_REMOVED' && (e.siteIds ?? []).length === founding.siteIds.length && founding.siteIds.every((x) => e.siteIds.includes(x))) gone = e;
+  }
+  if (gone) ok('growth town undo', `${gone.text}: the town itself, once its growth was undone`);
+  else fail('growth town undo', `${said}; the town was ${pre.state}, busy ${pre.busy}, revisions ${JSON.stringify((pre.revisions ?? []).map((r) => [r.rid, r.state]))}`);
 }
 
 /**
@@ -3181,6 +3285,7 @@ try {
       // stub: the first settlement's whole paid flow; the flows after it build their own
       await flow('stub', 'paid card plan wall revision undo', () => stubFlow(id));
       await flow('village', 'plan realise', () => villageFlow());
+      await flow('growth', 'growth region realise undo', () => growthFlow());
       await flow('plan-build', 'plan', () => planBuildFlow());
       await flow('street-hint', 'plan grid wall nofit', () => streetHintFlow());
       await flow('wall-offer', 'wall plan', () => wallOfferFlow());

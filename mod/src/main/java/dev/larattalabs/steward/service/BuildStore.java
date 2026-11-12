@@ -31,7 +31,9 @@ public final class BuildStore {
 	 * 2 (2026-10-24): moves with the settlements file's format 4 (a build's settlement copy has districts with kinds and land), so an older Steward refuses
 	 * the file rather than dropping their new members. A format-1 file reads as it is (its districts as standing squares).
 	 */
-	static final int FORMAT = 3;
+	static final int FORMAT = 4;
+	// 4 (2026-11-11): moves with the settlements file's format 6 (a history entry may be a growth, revision:<region>:<rid>); a build may be a region
+	// town's growth (growRegion, growRid, growPosition, growKey; docs/GROWTH.md). A format-3 build has none and reads as before.
 	// 3 (2026-10-26): moves with the settlements file's format 5 (a build's settlement copy may hold a quarter proposal); a district build keeps its card's
 	// lots ({@code districtSpecs}), as asked of Architect, for a re-plan after a restart; a build's state may hold a wall lot's repair (Architect K3: the
 	// REPAIRING phase, Pipeline.State.repair and repairs)
@@ -43,7 +45,17 @@ public final class BuildStore {
 	public record Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement, Pipeline.State state,
 		VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId, List<String> landmarkIds,
 		List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street, @Nullable Boolean keyed,
-		@Nullable String vPlan, @Nullable String vRegion, @Nullable List<VillageLayout.LotSpec> districtSpecs) {
+		@Nullable String vPlan, @Nullable String vRegion, @Nullable List<VillageLayout.LotSpec> districtSpecs, @Nullable String growRegion, @Nullable Integer growRid,
+		@Nullable Integer growPosition, @Nullable String growKey) {
+		/** As saved before a build could be a region town's growth (format 3). */
+		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
+			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,
+			List<String> landmarkIds, List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street,
+			@Nullable Boolean keyed, @Nullable String vPlan, @Nullable String vRegion, @Nullable List<VillageLayout.LotSpec> districtSpecs) {
+			this(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId, landmarkIds,
+				decided, lastAwaiting, addition, districtId, street, keyed, vPlan, vRegion, districtSpecs, null, null, null, null);
+		}
+
 		/** As saved before a district build kept its card's lots (format 3): a re-plan after a restart reads them back from the plan. */
 		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
 			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,

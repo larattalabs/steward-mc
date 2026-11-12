@@ -273,6 +273,8 @@ public final class SettlementRunner {
 		// a placement still rolling back: a second cancel would end the build before what it placed is recorded (no undo could reach it, and from
 		// materials it would go on using the stockpile), so it waits for the rollback
 		if (second && batchId != null) return "Still stopping: what the build placed is being recorded first, so it can be undone. It ends on its own.";
+		// a growth realised or in flight: the same, its revision is recorded and taken up first (never dropped with the build's save)
+		if (second && growth() && (vRegionId != null || queueInFlight)) return "Still stopping: the town's change is being recorded and taken up first. It ends on its own.";
 		feed(new Pipeline.Cancel());
 		if (second) return "Stopped waiting for Architect.";
 		return state.phase() == Pipeline.Phase.CANCELLING ? "Cancelling: stopping what runs first. What is already placed stays (remove it with /steward undo " + settlement.id() + ")."
@@ -367,6 +369,10 @@ public final class SettlementRunner {
 		this.vPlanId = b.vPlan();
 		this.vRegionId = b.vRegion();
 		this.districtSpecs = b.districtSpecs() == null ? null : List.copyOf(b.districtSpecs());
+		this.growRegion = b.growRegion();
+		this.growRid = b.growRid() == null ? 0 : b.growRid();
+		this.growPosition = b.growPosition() == null ? 0 : b.growPosition();
+		this.growKey = b.growKey();
 	}
 
 	private ServerLevel level() {
@@ -382,7 +388,8 @@ public final class SettlementRunner {
 		boolean ended = state.phase().terminal();
 		if (ended) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs));
+			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, growRegion,
+			growth() ? growRid : null, growth() ? growPosition : null, growKey));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -534,6 +541,16 @@ public final class SettlementRunner {
 
 	/** Architect's flat village (slice V) this build is laid out on: its plan, and the region once realised. Null for Steward's own layout. */
 	private @org.jspecify.annotations.Nullable String vPlanId, vRegionId;
+	/**
+	 * A region town's growth (docs/GROWTH.md): the town region, the revision's rid and position as planned, and the key that planned it ({@code vgrow},
+	 * {@code vgrow2}, {@code vgrow3}). Saved with the build; null for any other build.
+	 */
+	private @org.jspecify.annotations.Nullable String growRegion, growKey;
+	private int growRid, growPosition;
+
+	private boolean growth() {
+		return growRegion != null;
+	}
 	/** (Architect RS) This build lays a Supplied settlement out from its composed plan: a plan that can't be used falls back to Steward's own layout, never the flat village. */
 	private boolean supplied;
 
@@ -971,6 +988,25 @@ public final class SettlementRunner {
 				planDistrict(r, budgetUsd, district, specs);
 				return;
 			}
+			// an addition to a region town grows the town (docs/GROWTH.md, slice A): a revision of its region, never Steward's street pieces beside it
+			if (addition && district == null && existing != null && ArchitectApi.get().features().contains(Growths.FEATURE)) {
+				var town = TownRegion.of(existing).flatMap(id -> ArchitectApi.get().regions().get(id));
+				if (town.isPresent()) {
+					var v = town.get();
+					boolean inFlight = v.revisions() != null && v.revisions().stream().anyMatch(x -> !Growths.ended(x.state())
+						&& !"UNDONE".equalsIgnoreCase(x.state()) && !"STALE".equalsIgnoreCase(x.state()));
+					// a town being changed waits, whatever it is built from (never Steward's street pieces beside a change in flight)
+					if ((v.busy() != null && !v.busy().isBlank()) || inFlight) {
+						abandon("The town is being changed right now; ask again once it has settled.");
+						return;
+					}
+					// built from materials: today's path until survival growth (slice A2)
+					if (v.build() == null) {
+						planGrowth(r, budgetUsd, v.id(), specs, null);
+						return;
+					}
+				}
+			}
 			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(), worldSurvival, overworld, addition, districtId,
 				r.card().site().terrain(), stands, lo, hi)) {
 				// the settlement's composed plan, when it has one (plan v1); else Architect's flat village from the card
@@ -990,6 +1026,87 @@ public final class SettlementRunner {
 			plan = own.get();
 			continueWithPlan(r, budgetUsd, district);
 		}
+	}
+
+	/**
+	 * A region town's growth (docs/GROWTH.md): the addition's lots, renamed so their ids are the region's own, planned as a revision of the town on its
+	 * streets' frontage, else on an extension of a street end; full on both, the steward looks to a district. The plan is saved before anything else, and
+	 * a plan asked for before (a restart) is found by its key first, so a lost answer never plans twice. {@code stale}: the key of a plan that went stale
+	 * while its lots were designed: planned once more with the same lots under {@code vgrow3}, its designs kept by lot id.
+	 */
+	private void planGrowth(CardResult r, double budgetUsd, String region, List<VillageLayout.LotSpec> specs, @org.jspecify.annotations.Nullable String stale) {
+		var regions = ArchitectApi.get().regions();
+		List<VillageLayout.LotSpec> lots = stale != null && districtSpecs != null ? districtSpecs : Growths.rename(specs, buildId);
+		districtSpecs = lots;
+		growRegion = region;
+		if (stale == null) say("The town grows: Architect finds room on its streets...");
+		// asked before (a restart before the answer was saved): the newest of this build's growth plans
+		if (stale == null) {
+			for (String k : List.of("vgrow3", "vgrow2", "vgrow")) {
+				var found = regions.planByKey(settlement.owner(), opKey(k)).filter(p -> p.revisionOf() != null && region.equals(p.revisionOf().region()));
+				if (found.isPresent()) { grown(r, budgetUsd, found.get(), k, lots); return; }
+			}
+		}
+		List<String[]> tries = stale != null ? List.<String[]>of(new String[] {"vgrow3", "vgrow2".equals(stale) ? "extend" : "frontage"})
+			: List.of(new String[] {"vgrow", "frontage"}, new String[] {"vgrow2", "extend"});
+		planGrowthTry(r, budgetUsd, region, lots, tries, 0, Session.current());
+	}
+
+	private void planGrowthTry(CardResult r, double budgetUsd, String region, List<VillageLayout.LotSpec> lots, List<String[]> tries, int i, int session) {
+		String key = tries.get(i)[0], prefer = tries.get(i)[1];
+		JsonObject params = dev.larattalabs.steward.gateway.VPlan.params(lots, settlement.id(), buildId);
+		JsonObject grow = new JsonObject();
+		grow.add("lots", params.getAsJsonArray("lots"));
+		grow.addProperty("prefer", prefer);
+		JsonObject p = new JsonObject();
+		p.add("grow", grow);
+		JsonObject ext = new JsonObject();
+		ext.addProperty("steward_mc:settlement", settlement.id());
+		ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
+		ArchitectApi.get().regions().planRevision(region, new dev.larattalabs.architect.api.RevisionRequest(Growths.PROGRAM, p, opKey(key), "steward", ext))
+			.whenComplete((rp, err) -> server.execute(() -> {
+				if (!Session.is(session) || !alive()) return;
+				if (worldStopped(err)) return;
+				if (err != null) {
+					String m = message(err);
+					boolean full = m.contains("NO_ROOM") || m.contains("REGION_LIMIT");
+					if (full && i + 1 < tries.size()) { planGrowthTry(r, budgetUsd, region, lots, tries, i + 1, session); return; }
+					if (full) Proposals.full(settlement.id(), null);
+					growthNotPlanned(r, full ? "No room left in the town for it: its streets are full. A district could take it."
+						: "Architect could not find room for it in the town: " + m);
+					return;
+				}
+				try {
+					grown(r, budgetUsd, rp, key, lots);
+				} catch (RuntimeException e) {
+					Steward.LOGGER.error("the growth of {} failed after its plan", settlement.id(), e);
+					growthNotPlanned(r, "The build stopped after the town's growth plan: " + e);
+				}
+			}));
+	}
+
+	/** The growth's plan: saved (plan, rid, position, key) before anything else, then the lots go on as the build's plan. */
+	private void grown(CardResult r, double budgetUsd, dev.larattalabs.architect.api.RegionPlan rp, String key, List<VillageLayout.LotSpec> lots) {
+		vPlanId = rp.planId();
+		growKey = key;
+		growRid = rp.revisionOf() == null ? 0 : rp.revisionOf().rid();
+		growPosition = rp.revisionOf() == null ? 0 : rp.revisionOf().position();
+		plan = dev.larattalabs.steward.gateway.DPlan.toPlan(rp.lots(), lots);
+		Steward.LOGGER.info("growth {} of {}: plan {} under {}, revision {} at position {}", buildId, growRegion, vPlanId, key, growRid, growPosition);
+		persist();
+		// planned again after its plan went stale (the designs are made): realised now
+		if (r != null) continueWithPlan(r, budgetUsd, null);
+		// cancelled while it was planned again: nothing is realised (the new plan is let go when the build ends)
+		else if (state == null || state.phase().terminal()) return;
+		else if (state.phase() == Pipeline.Phase.CANCELLING) feed(new Pipeline.CancelConfirmed());
+		else realiseVillage();
+	}
+
+	/** A growth not planned: before its designs, the build is abandoned (nothing spent); planned again after them (a stale plan), it is cancelled. */
+	private void growthNotPlanned(@org.jspecify.annotations.Nullable CardResult r, String why) {
+		if (r != null) { abandon(why); return; }
+		say(why + " The designs stay in the library.");
+		feed(new Pipeline.Cancel());
 	}
 
 	/** Asks Architect for the flat village over the claim, then goes on with its lots as the plan. */
@@ -1921,7 +2038,8 @@ public final class SettlementRunner {
 			feed(new Pipeline.Cancel());
 			return;
 		}
-		say("Placing the village (" + lotEntries.size() + " buildings, its street, lanes and square)...");
+		say(growth() ? "Placing it in the town (" + lotEntries.size() + (lotEntries.size() == 1 ? " building" : " buildings") + ")..."
+			: "Placing the village (" + lotEntries.size() + " buildings, its street, lanes and square)...");
 		queueInFlight = true;
 		inFlightSince = System.currentTimeMillis();
 		ServerPlayer actor = server.getPlayerList().getPlayer(playerId);
@@ -1933,7 +2051,8 @@ public final class SettlementRunner {
 		}
 		// keyed: asked again (a restart, a lost answer) it is the same realise, never a second village
 		// a district planned again after its realise was refused realises under the second key (found again by it after a restart)
-		String key = districtId != null && api.regions().planByKey(settlement.owner(), opKey("vplan2")).map(p -> p.planId().equals(vPlanId)).orElse(false)
+		String key = growth() ? opKey("vgrow3".equals(growKey) ? "vgrowrealise3" : "vgrowrealise")
+			: districtId != null && api.regions().planByKey(settlement.owner(), opKey("vplan2")).map(p -> p.planId().equals(vPlanId)).orElse(false)
 			? opKey("vrealise2") : opKey("vrealise");
 		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, Mode.INSTANT, actor, lotEntries, null, true, null, false, ext, 0, key))
 			.whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
@@ -2306,7 +2425,7 @@ public final class SettlementRunner {
 		try {
 			String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
 			if (sha != null) pin(sha);
-			else ArchitectApi.get().regions().planByKey(settlement.owner(), opKey("vplan"));
+			else ArchitectApi.get().regions().planByKey(settlement.owner(), opKey(growth() && growKey != null ? growKey : "vplan"));
 			Steward.LOGGER.info("resume {}: plan {} used again (kept from Architect's sweep)", settlement.id(), vPlanId);
 		} catch (RuntimeException | LinkageError e) {
 			Steward.LOGGER.warn("could not use the plan {} of {} again", vPlanId, settlement.id(), e);
@@ -2323,6 +2442,22 @@ public final class SettlementRunner {
 			if (err == null) takeUpOrphan(id);
 			return;
 		}
+		if (err != null && growth()) {
+			if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
+			// another change of the town was accepted while the lots were designed: planned once more with the same lots, the designs kept by lot id
+			String m = message(err);
+			// cancelled meanwhile: a stale realise wrote nothing, so the cancel ends here
+			if (state.phase() == Pipeline.Phase.CANCELLING) { feed(new Pipeline.CancelConfirmed()); return; }
+			if ((m.contains("PLAN_STALE") || m.contains("parent_moved")) && !"vgrow3".equals(growKey) && growRegion != null) {
+				say("The town changed while the designs were made: finding room for it again...");
+				String stale = growKey;
+				planGrowth(null, 0, growRegion, List.of(), stale);
+				return;
+			}
+			say("Architect could not place it in the town: " + m);
+			feed(new Pipeline.Cancel());
+			return;
+		}
 		if (err != null) {
 			// a lost answer, or the key asked with another body (the player who placed it changed): looked up by its key
 			if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
@@ -2337,6 +2472,7 @@ public final class SettlementRunner {
 
 	/** Takes the realised region as this build's placement. */
 	private void adoptVillage(String regionId) {
+		if (growth()) { adoptGrowth(regionId); return; }
 		vRegionId = regionId;
 		// a plan's village: the region keeps its artifact now (Architect writes it before answering)
 		releasePin();
@@ -2348,10 +2484,47 @@ public final class SettlementRunner {
 	}
 
 	/**
+	 * Takes a growth's realise as this build's placement: the revision is the one realised from this build's plan (by its plan id, never by tagged sites,
+	 * which it may not have yet); its rid names the history entry.
+	 */
+	private void adoptGrowth(String regionId) {
+		// taken already (a late answer after the lookup found it): not twice
+		if (regionId.equals(vRegionId)) return;
+		var rv = ArchitectApi.get().regions().get(regionId).flatMap(v -> Growths.byPlan(v, vPlanId));
+		if (rv.isPresent()) {
+			growRid = rv.get().rid();
+			growPosition = rv.get().position();
+		}
+		vRegionId = regionId;
+		siteGroupId = Growths.tag(regionId, growRid);
+		persist();
+		if (state.phase() == Pipeline.Phase.CANCELLING) { cancelVillage(); return; }
+		if (state.phase() == Pipeline.Phase.READY_TO_PLACE) feed(new Pipeline.BatchQueued(regionId));
+		watchVillage();
+	}
+
+	/** A growth realised under its keys: the town region, when the revision realised from this build's plan is in it. */
+	private java.util.Optional<String> foundGrowth() {
+		var regions = ArchitectApi.get().regions();
+		return regions.realiseByKey(settlement.owner(), opKey("vgrowrealise"))
+			.or(() -> regions.realiseByKey(settlement.owner(), opKey("vgrowrealise3")))
+			.or(() -> growRegion == null ? java.util.Optional.empty() : regions.get(growRegion))
+			.filter(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVED && vPlanId != null && Growths.byPlan(v, vPlanId).isPresent())
+			.map(dev.larattalabs.architect.api.RegionView::id);
+	}
+
+	/**
 	 * This build's village region (a restart came, or an answer was lost, before its id was saved): by its realise key, or (a village realised before keys)
 	 * by its owner and the build's tag. A removed one (its tombstone) is not this build's placement.
 	 */
 	private boolean findVillage() {
+		if (growth()) {
+			var g = foundGrowth();
+			if (g.isEmpty()) return false;
+			say("Architect had it placed in the town: picking it up.");
+			adoptGrowth(g.get());
+			return true;
+		}
 		var regions = ArchitectApi.get().regions();
 		var found = regions.realiseByKey(settlement.owner(), opKey("vrealise"))
 			// a plan's village realised from its re-checked artifact (plan v1, after a stale one) is under the second key
@@ -2369,8 +2542,46 @@ public final class SettlementRunner {
 	 * undo would; when that stops, the entry stays and undo takes it up once it is clear.
 	 */
 	private void takeUpOrphan(String regionId) {
+		if (growth()) { takeUpOrphanGrowth(regionId); return; }
 		Steward.LOGGER.warn("village region {} was realised for {}'s ended build {}: taking it up", regionId, settlement.id(), buildId);
 		Settlements.store().get(settlement.id()).ifPresent(saved -> VillageSweep.takeUp(server, saved, regionId, this::say));
+	}
+
+	/**
+	 * A growth realised for a build that has ended: logged under its revision first (undo finds it by that entry), then taken up by its revision, never by
+	 * removing the town; when that is refused or waits, the entry stays and undo takes it up later.
+	 */
+	private void takeUpOrphanGrowth(String regionId) {
+		var regions = ArchitectApi.get().regions();
+		var rv = regions.get(regionId).flatMap(v -> Growths.byPlan(v, vPlanId));
+		if (rv.isEmpty()) {
+			Steward.LOGGER.warn("growth of {} for ended build {}: no revision from plan {} in {}", settlement.id(), buildId, vPlanId, regionId);
+			return;
+		}
+		var ref = new Growths.Ref(regionId, rv.get().rid());
+		Steward.LOGGER.warn("growth {} was realised for {}'s ended build {}: taking it up", ref.tag(), settlement.id(), buildId);
+		siteGroupId = ref.tag();
+		List<String> sites = rv.get().sites() == null ? List.of() : List.copyOf(rv.get().sites());
+		if (!sites.isEmpty() && !logPlaced(sites, sites.size(), 0, "after its build ended")) { logFailed(); return; }
+		var entry = growthEntry(ref.tag());
+		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
+		if (entry.isPresent()) Undo.growth(server, saved, entry.get(), ref, Map.of(), this::say, ok -> { });
+		// nothing of it shows: taken up now; when that can't be done, the history names the revision so it is not lost
+		else Growths.undo(server, settlement.owner(), ref, this::say, ok -> {
+			if (Boolean.FALSE.equals(ok)) Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE,
+				"An addition realised after its build ended could not be taken up: the town's change " + ref.tag() + " stands with nothing placed", List.of()));
+		});
+	}
+
+	/** The history entry that placed this growth (its tag), if it is logged. */
+	private java.util.Optional<Settlement.LogEntry> growthEntry(String tag) {
+		return Settlements.store().get(settlement.id()).flatMap(s -> {
+			for (int i = s.log().size() - 1; i >= 0; i--) {
+				var e = s.log().get(i);
+				if (e.kind() == Settlement.Kind.PROJECT_PLACED && tag.equals(e.siteGroup())) return java.util.Optional.of(e);
+			}
+			return java.util.Optional.empty();
+		});
 	}
 
 	/** The region's sites as Steward records them: its streets and buildings, or (when it left nothing else) the ground tiles it wrote. */
@@ -2394,7 +2605,8 @@ public final class SettlementRunner {
 		lastSettleLook = now;
 		try {
 			var regions = ArchitectApi.get().regions();
-			var found = regions.realiseByKey(settlement.owner(), opKey("vrealise"))
+			// a growth: only the revision realised from this build's plan (never a region found by the build tag: the town has its first build's)
+			var found = growth() ? foundGrowth().flatMap(regions::get) : regions.realiseByKey(settlement.owner(), opKey("vrealise"))
 				.or(() -> regions.realiseByKey(settlement.owner(), opKey("vrealise2")))
 				.or(() -> regions.list(settlement.owner()).stream().filter(v -> buildId.equals(extString(v.ext(), BatchPlanner.BUILD_EXT))).findFirst())
 				.filter(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVED);
@@ -2521,8 +2733,26 @@ public final class SettlementRunner {
 
 	/** Reads the village's state while it is placed; once placed (wholly or in part), its sites are logged under the region and the build ends. */
 	void watchVillage() {
+		// a growth cancelled while its realise was in flight, whose answer was lost: looked up by its keys and plan, and taken up (adopting it cancels it)
+		if (growth() && vRegionId == null && queueInFlight && state != null && state.phase() == Pipeline.Phase.CANCELLING && alive()
+			&& inFlightSince > 0 && System.currentTimeMillis() - inFlightSince >= LOST_LOOK_MS && System.currentTimeMillis() - lastSettleLook >= 30_000) {
+			lastSettleLook = System.currentTimeMillis();
+			var g = foundGrowth();
+			if (g.isPresent()) { queueInFlight = false; adoptGrowth(g.get()); }
+			// nothing by its keys and plan after the give-up time (the request never reached Architect, or the town is gone): nothing was placed
+			else if (System.currentTimeMillis() - inFlightSince >= LOST_GIVE_UP_MS) {
+				Steward.LOGGER.warn("{}: the cancelled growth's realise was never answered and Architect has nothing for it: let go", settlement.id());
+				queueInFlight = false;
+				feed(new Pipeline.CancelConfirmed());
+			}
+			return;
+		}
 		if (!village() || vRegionId == null || state == null || !alive()) return;
+		// a growth cancelled while it was still being placed: asked again each second until it can be taken up
+		if (growth() && state.phase() == Pipeline.Phase.CANCELLING && !growthTakingUp) { cancelGrowth(); return; }
 		if (state.phase() != Pipeline.Phase.PLACING && state.phase() != Pipeline.Phase.READY_TO_PLACE) return;
+		if (growth()) { watchGrowth(); return; }
+
 		var v = ArchitectApi.get().regions().get(vRegionId);
 		if (v.isEmpty()) return;
 		// what the region waits for that the player can act on (Architect's wait actions): a held stage, a place to come nearer to
@@ -2571,6 +2801,119 @@ public final class SettlementRunner {
 	}
 
 	/**
+	 * A growth while it is placed: its revision (by rid) is read, not the town's state (which reads the town's own again once the revision ends); once
+	 * the revision has ended, its own sites are logged under {@code revision:<region>:<rid>} and the build ends. One that placed nothing is taken up.
+	 */
+	private void watchGrowth() {
+		var regions = ArchitectApi.get().regions();
+		var v = regions.get(vRegionId);
+		if (v.isEmpty()) return;
+		var rv = Growths.revision(v.get(), growRid).or(() -> Growths.byPlan(v.get(), vPlanId));
+		if (rv.isEmpty()) return;
+		String st = rv.get().state();
+		if ("UNDONE".equalsIgnoreCase(st) || "STALE".equalsIgnoreCase(st)) {
+			say("The town's change was taken up before it was logged: nothing of it stands.");
+			feed(new Pipeline.BatchDone(0, plan.lots().size(), "taken up"));
+			return;
+		}
+		// its own empty take-up, stopped part way (Architect leaves it UNDOING): the same call again
+		if ("UNDOING".equalsIgnoreCase(st)) {
+			var ref = new Growths.Ref(vRegionId, rv.get().rid());
+			takeUpEmpty(ref, "nothing of it stands", plan.lots().size(), () -> feed(new Pipeline.BatchDone(0, plan.lots().size(), "nothing of it stands")));
+			return;
+		}
+		if (!Growths.ended(st)) return;
+		List<String> added = rv.get().lotsAdded() == null ? List.of() : rv.get().lotsAdded();
+		long placed = v.get().lots().stream().filter(l -> added.contains(l.id()) && "placed".equalsIgnoreCase(String.valueOf(l.state()))).count();
+		long skipped = Math.max(0, added.size() - placed);
+		String note = "PLACED".equalsIgnoreCase(st) ? null : "the town's change is " + st.toLowerCase(java.util.Locale.ROOT) + ": " + placed + " of " + added.size()
+			+ " lots placed";
+		if (note != null) say("The " + note.substring(4) + ".");
+		List<String> sites = rv.get().sites() == null ? List.of() : List.copyOf(rv.get().sites());
+		var ref = new Growths.Ref(vRegionId, rv.get().rid());
+		siteGroupId = ref.tag();
+		if (sites.isEmpty()) {
+			String why = note != null ? note : "nothing of it stands";
+			takeUpEmpty(ref, why, (int) skipped, () -> feed(new Pipeline.BatchDone(0, (int) skipped, why)));
+			return;
+		} else if (!logPlaced(sites, (int) placed, (int) skipped, note)) { logFailed(); return; }
+		feed(new Pipeline.BatchDone((int) placed, (int) skipped, note == null ? null : note.substring(4)));
+		say(String.format("Settlement spend: $%.2f of $%.0f.", state.spentUsd(), state.budgetUsd()));
+	}
+
+	/**
+	 * A growth with nothing of it in the world: its revision is taken up (never the town) before the build ends, so its record is never lost, asked again
+	 * each second while it waits (or its take-up stopped part way). One that can't be taken up at all (a newer change stands on it, or Architect has no such
+	 * revision) is noted in the history, naming it; the build ends ({@code end}) only once it is taken up or that note is saved.
+	 */
+	private void takeUpEmpty(Growths.Ref ref, String why, int skipped, Runnable end) {
+		if (growthTakingUp) return;
+		growthTakingUp = true;
+		Growths.undo(server, settlement.owner(), ref, this::say, ok -> {
+			growthTakingUp = false;
+			if (ok == null || !alive() || state == null || state.phase().terminal()) return;
+			if (ok) {
+				Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed (" + why + ")",
+					List.of()));
+				end.run();
+				return;
+			}
+			var d = Growths.decide(ArchitectApi.get().regions().get(ref.region()), ref.rid());
+			if (d.step() != Growths.Step.NEWER && d.step() != Growths.Step.UNKNOWN) return;
+			var saved = Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed ("
+				+ why + "); the town's change " + ref.tag() + " stands with nothing of it placed: " + d.why(), List.of()));
+			if (saved.ok()) end.run();
+		});
+	}
+
+	/**
+	 * Cancelling a growth once realised: its revision is logged first (a restart, or undo, finds it by that entry), then taken up by its revision, never by
+	 * removing the town. Still placing, or refused: the entry stays, said, and undo takes it up later.
+	 */
+	/** A growth's take-up is in flight (cancel): not asked twice. */
+	private boolean growthTakingUp;
+
+	private void cancelGrowth() {
+		var regions = ArchitectApi.get().regions();
+		var v = regions.get(vRegionId);
+		var rv = v.flatMap(x -> Growths.revision(x, growRid).or(() -> Growths.byPlan(x, vPlanId)));
+		if (rv.isEmpty()) { vRegionId = null; feed(new Pipeline.CancelConfirmed()); return; }
+		var ref = new Growths.Ref(vRegionId, rv.get().rid());
+		siteGroupId = ref.tag();
+		// still being placed: waits (the cancel stays CANCELLING and saved; asked again on the next world start or tick)
+		if (!Growths.ended(rv.get().state()) && !"UNDONE".equalsIgnoreCase(rv.get().state()) && !"STALE".equalsIgnoreCase(rv.get().state())
+			&& !"UNDOING".equalsIgnoreCase(rv.get().state())) {
+			if (saidRegionWaits.add("cancel " + ref.tag())) say("The addition is still being placed: it is taken up once it is in.");
+			return;
+		}
+		List<String> sites = rv.get().sites() == null ? List.of() : List.copyOf(rv.get().sites());
+		var entry = growthEntry(ref.tag());
+		// nothing of it shows and nothing logged: taken up before the cancel ends (asked again each second), or noted when it can't be
+		if (entry.isEmpty() && sites.isEmpty()) {
+			takeUpEmpty(ref, "cancelled", 0, () -> { vRegionId = null; feed(new Pipeline.CancelConfirmed()); });
+			return;
+		}
+		if (entry.isEmpty()) {
+			if (!logPlaced(sites, sites.size(), 0, "being cancelled")) { logFailed(); return; }
+			entry = growthEntry(ref.tag());
+		}
+		growthTakingUp = true;
+		java.util.function.Consumer<Boolean> after = ok -> {
+			growthTakingUp = false;
+			if (ok == null || !alive()) return;
+			if (ok) {
+				vRegionId = null;
+				feed(new Pipeline.CancelConfirmed());
+				return;
+			}
+			say("What the addition placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
+			feed(new Pipeline.BatchDone(sites.size(), 0));
+		};
+		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
+		Undo.growth(server, saved, entry.get(), ref, Map.of(), Undo.reportingOverflow(server, saved, this::say), after);
+	}
+
+	/**
 	 * Cancelling a village: one not realised yet ends at once. One realised is logged under its region first (a restart, or undo, finds it by that entry),
 	 * then taken up whole as an undo would (what it placed goes, the land restored); when that stops, the entry stays, undo takes it up once it is clear,
 	 * and the cancel ends.
@@ -2580,6 +2923,7 @@ public final class SettlementRunner {
 			if (!queueInFlight) later.add(new Pipeline.CancelConfirmed());
 			return;
 		}
+		if (growth()) { cancelGrowth(); return; }
 		String id = vRegionId;
 		var regions = ArchitectApi.get().regions();
 		var v = regions.get(id);
