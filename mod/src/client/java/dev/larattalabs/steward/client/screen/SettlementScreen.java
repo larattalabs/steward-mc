@@ -67,10 +67,9 @@ public final class SettlementScreen extends KitScreen {
 		Panels.panel(g, x, y, w, h);
 		int cx = x + pad.left();
 		int top = y + pad.top();
-		Panels.header(g, font, view.name(), cx - 2, top - 2, inner + 4);
 		String sub = UiBits.plural(view.buildings().size(), "building", "buildings") + " · " + view.claim().side() + " x " + view.claim().side()
 			+ (view.busy() ? " · building now" : "");
-		g.text(font, sub, cx + inner - font.width(sub), top, UiBits.muted(), false);
+		header(g, view.name(), sub, UiBits.muted(), cx - 2, top - 2, inner + 4);
 		// tabs
 		int ty = top + 16;
 		int tx = cx;
@@ -107,7 +106,15 @@ public final class SettlementScreen extends KitScreen {
 			if (minecraft != null) minecraft.gui.setScreen(new InboxScreen(view.id()));
 		});
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, footerY - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
-		else UiBits.hints(g, font, cx, footerY - 4, false, "1-3", "act", "click", "a building", "Esc", "close");
+		else {
+			// the number keys drawn, and "click a building" only where there are buildings to click
+			java.util.List<String> hs = new java.util.ArrayList<>();
+			String keys = numberHint();
+			if (keys != null) hs.addAll(java.util.List.of(keys, "act"));
+			if (tab == Tab.BUILDINGS && !view.buildings().isEmpty()) hs.addAll(java.util.List.of("click", "a building"));
+			hs.addAll(java.util.List.of("Tab", "next tab", "Esc", "close"));
+			UiBits.hints(g, font, cx, footerY - 4, false, hs.toArray(String[]::new));
+		}
 	}
 
 	// ------------------------------------------------------------------ buildings
@@ -322,13 +329,13 @@ public final class SettlementScreen extends KitScreen {
 			fy += 11;
 			// what the player should know of it: its own line, so a long name never hides it
 			if (d.note() != null && fy + 10 <= bottom) {
-				g.text(font, TextUtil.ellipsize(font, "  " + d.note(), fw - 90), lx, fy, UiStyle.CLAY_DARK, false);
+				g.text(font, TextUtil.ellipsize(font, "  " + d.note(), fw - 90), lx, fy, attention(), false);
 				fy += 11;
 			}
 		}
-		if (fy + CHIP_H <= bottom) {
+		if (fy + ROW_BUTTON_H <= bottom) {
 			int bx = lx;
-			g.text(font, "Found", fx, fy + 3, UiBits.muted(), false);
+			g.text(font, "Found", fx, fy + 5, UiBits.muted(), false);
 			for (String way : new String[] {"N", "E", "S", "W"}) {
 				boolean taken = view.districts().stream().anyMatch(d -> d.direction().equals(way));
 				String label = switch (way) {
@@ -337,40 +344,40 @@ public final class SettlementScreen extends KitScreen {
 					case "S" -> "South";
 					default -> "West";
 				};
-				bx += chip(g, label, bx, fy, false, !taken && !view.busy(), mx, my, () -> send("district_found", way + ":" + districtSize, "Founding a district")) + 3;
+				bx += option(g, label, bx, fy, false, !taken && !view.busy(), mx, my, () -> send("district_found", way + ":" + districtSize, "Founding a district")) + 3;
 			}
 			bx += 6;
-			for (String size : new String[] {"S", "M"}) bx += chip(g, size, bx, fy, districtSize.equals(size), true, mx, my, () -> districtSize = size) + 3;
-			fy += CHIP_H + 4;
+			for (String size : new String[] {"S", "M"}) bx += option(g, size, bx, fy, districtSize.equals(size), true, mx, my, () -> districtSize = size) + 3;
+			fy += ROW_BUTTON_H + 4;
 		}
 		// quarters (Noah's Q2): offered in the inbox, built at once beside a town Architect laid out; the side that suits it is chosen for the player
-		if (fy + CHIP_H <= bottom) {
+		if (fy + ROW_BUTTON_H <= bottom) {
 			int bx = lx;
-			g.text(font, "Quarter", fx, fy + 3, UiBits.muted(), false);
-			bx += chip(g, "By the water", bx, fy, false, !view.busy(), mx, my, () -> sendText("district_quarter", "auto", "along shore", "Offering a quarter by the water", 0)) + 3;
-			chip(g, "Outpost", bx, fy, false, !view.busy(), mx, my, () -> sendText("district_quarter", "auto", "outpost", "Offering an outpost", 0));
-			fy += CHIP_H + 6;
+			g.text(font, "Quarter", fx, fy + 5, UiBits.muted(), false);
+			bx += option(g, "By the water", bx, fy, false, !view.busy(), mx, my, () -> sendText("district_quarter", "auto", "along shore", "Offering a quarter by the water", 0)) + 3;
+			option(g, "Outpost", bx, fy, false, !view.busy(), mx, my, () -> sendText("district_quarter", "auto", "outpost", "Offering an outpost", 0));
+			fy += ROW_BUTTON_H + 6;
 		}
 		// protected areas: ground the steward never builds on
 		if (fy + 10 <= bottom) {
-			g.text(font, "Protected", fx, fy + 3, UiBits.muted(), false);
+			g.text(font, "Protected", fx, fy + 5, UiBits.muted(), false);
 			int bx = lx;
-			bx += chip(g, "Protect 8 around me", bx, fy, false, true, mx, my, () -> send("protect", "", "Protecting the ground around you", 8)) + 3;
-			chip(g, "16", bx, fy, false, true, mx, my, () -> send("protect", "", "Protecting the ground around you", 16));
-			fy += CHIP_H + 4;
+			bx += option(g, "Protect 8 around me", bx, fy, false, true, mx, my, () -> send("protect", "", "Protecting the ground around you", 8)) + 3;
+			option(g, "16", bx, fy, false, true, mx, my, () -> send("protect", "", "Protecting the ground around you", 16));
+			fy += ROW_BUTTON_H + 4;
 		}
 		var areas = view.areas();
 		for (int i = 0; i < areas.size(); i++) {
 			var a = areas.get(i);
-			if (fy + CHIP_H > bottom) {
+			if (fy + ROW_BUTTON_H > bottom) {
 				g.text(font, "and " + (areas.size() - i) + " more (/steward protect)", lx, fy, UiBits.muted(), false);
 				break;
 			}
 			String line = a.label() + " · " + (a.x1() - a.x0() + 1) + " x " + (a.z1() - a.z0() + 1);
-			int cw = font.width("Clear") + 12;
-			g.text(font, TextUtil.ellipsize(font, line, fw - 90 - cw - 6), lx, fy + 3, UiBits.ink(), false);
-			chip(g, "Clear", x + w - 8 - cw, fy, false, true, mx, my, () -> send("unprotect", a.id(), "Clearing the protected area"));
-			fy += CHIP_H + 2;
+			int cw = optionWidth("Clear");
+			g.text(font, TextUtil.ellipsize(font, line, fw - 90 - cw - 6), lx, fy + 5, UiBits.ink(), false);
+			option(g, "Clear", x + w - 8 - cw, fy, false, true, mx, my, () -> send("unprotect", a.id(), "Clearing the protected area"));
+			fy += ROW_BUTTON_H + 2;
 		}
 	}
 
@@ -378,13 +385,13 @@ public final class SettlementScreen extends KitScreen {
 		Panels.inset(g, x, y, w, h);
 		int fx = x + 8, fy = y + 8, fw = w - 16;
 		// the permission level: a chip each, the current one lit (host only: the server refuses a guest)
-		g.text(font, "Permission", fx, fy + 3, UiBits.muted(), false);
+		g.text(font, "Permission", fx, fy + 5, UiBits.muted(), false);
 		int cx = fx + 90;
 		for (String p : new String[] {"OBSERVER", "PROPOSALS", "AUTONOMOUS", "FULL"}) {
 			String label = p.charAt(0) + p.substring(1).toLowerCase();
-			cx += chip(g, label, cx, fy, p.equals(view.permission()), true, mx, my, () -> send("permission", p, "Setting the permission")) + 3;
+			cx += option(g, label, cx, fy, p.equals(view.permission()), true, mx, my, () -> send("permission", p, "Setting the permission")) + 3;
 		}
-		fy += CHIP_H + 4;
+		fy += ROW_BUTTON_H + 4;
 		fy = fact(g, fx, fy, fw, "", switch (view.permission()) {
 			case "OBSERVER" -> "Asks about everything.";
 			case "PROPOSALS" -> "You approve each project; its ideas wait in the inbox.";
@@ -393,15 +400,15 @@ public final class SettlementScreen extends KitScreen {
 			default -> view.permission();
 		});
 		// the weekly allowance: what it may spend on its own at Autonomous and Full
-		g.text(font, "Allowance", fx, fy + 3, UiBits.muted(), false);
+		g.text(font, "Allowance", fx, fy + 5, UiBits.muted(), false);
 		String a = String.format("$%.0f a week", view.weeklyUsd());
-		g.text(font, a, fx + 90, fy + 3, UiBits.ink(), false);
+		g.text(font, a, fx + 90, fy + 5, UiBits.ink(), false);
 		int ax = fx + 90 + font.width(a) + 8;
-		ax += chip(g, "- $50", ax, fy, false, view.weeklyUsd() > 50, mx, my, () -> send("allowance", "", "Lowering the allowance", Math.max(dev.larattalabs.steward.service.Actions.MIN_ALLOWANCE,
+		ax += option(g, "- $50", ax, fy, false, view.weeklyUsd() > 50, mx, my, () -> send("allowance", "", "Lowering the allowance", Math.max(dev.larattalabs.steward.service.Actions.MIN_ALLOWANCE,
 			view.weeklyUsd() - 50))) + 3;
-		chip(g, "+ $50", ax, fy, false, view.weeklyUsd() < dev.larattalabs.steward.service.Actions.MAX_ALLOWANCE, mx, my, () -> send("allowance", "", "Raising the allowance",
+		option(g, "+ $50", ax, fy, false, view.weeklyUsd() < dev.larattalabs.steward.service.Actions.MAX_ALLOWANCE, mx, my, () -> send("allowance", "", "Raising the allowance",
 			Math.min(dev.larattalabs.steward.service.Actions.MAX_ALLOWANCE, view.weeklyUsd() + 50)));
-		fy += CHIP_H + 4;
+		fy += ROW_BUTTON_H + 4;
 		fy = fact(g, fx, fy, fw, "", String.format("Spent on its own this week: $%.0f.", view.spentWeekUsd()));
 		fact(g, fx, fy, fw, "Difficulty", switch (view.difficulty()) {
 			case "PATRON" -> "Patron: free, instant builds";

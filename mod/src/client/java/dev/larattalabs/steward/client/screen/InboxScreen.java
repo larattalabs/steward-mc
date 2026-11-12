@@ -29,7 +29,7 @@ import org.jspecify.annotations.Nullable;
 public final class InboxScreen extends KitScreen {
 	private static final int MAX_W = 480;
 	private static final int LIST_W = 128;
-	private static final int ROW_H = 22;
+	private static final int ROW_H = 24;
 	private @Nullable String selectedId;
 	/** The player picked {@link #selectedId} in the list (else the screen was opened for a settlement, or picked the first row itself). */
 	private boolean picked;
@@ -175,9 +175,8 @@ public final class InboxScreen extends KitScreen {
 		Panels.panel(g, x, y, w, h);
 		int cx = x + pad.left();
 		int top = y + pad.top();
-		Panels.header(g, font, "Steward", cx - 2, top - 2, inner + 4);
 		String count = ClientInbox.waiting() > 0 ? ClientInbox.waiting() + " waiting for you" : all.isEmpty() ? "" : "nothing waits for you";
-		g.text(font, count, cx + inner - font.width(count), top, UiBits.muted(), false);
+		header(g, "Steward", count, UiBits.muted(), cx - 2, top - 2, inner + 4);
 		int bodyTop = top + 18;
 		int footerY = y + h - pad.bottom() - 10;
 		int actionsY = footerY - 10 - 20;
@@ -242,17 +241,20 @@ public final class InboxScreen extends KitScreen {
 			int at = gi;
 			boolean needs = gi == 0;
 			List<InboxModel.Entry> group = all.stream().filter(en -> group(en) == at).toList();
+			// a head with no room for one of its rows would dangle: stop before it
 			if (group.isEmpty()) continue;
+			if (ry + 14 + ROW_H > y + h) break;
 			String label = needs ? GROUPS[gi] + " · " + group.size() : GROUPS[gi];
-			g.text(font, label, x + 5, ry + 1, UiStyle.CLAY_DARK, false);
+			// only "Needs you" is blocked on the player: the attention colour; the other groups are labels
+			g.text(font, label, x + 5, ry + 1, needs ? attention() : UiBits.muted(), false);
 			Panels.divider(g, x + 9 + font.width(label), ry + 5, Math.max(0, w - 18 - font.width(label)));
 			ry += 14;
 			for (InboxModel.Entry en : group) {
 				if (ry + ROW_H > y + h) break;
 				boolean sel = en == selected();
 				boolean hov = mx >= x && mx < x + w && my >= ry - 2 && my < ry + ROW_H - 2;
-				if (sel) g.fill(x + 2, ry - 2, x + w - 2, ry + ROW_H - 3, 0x30B4553A);
-				else if (hov) g.fill(x + 2, ry - 2, x + w - 2, ry + ROW_H - 3, 0x14000000);
+				if (sel) selectedRow(g, x + 2, ry - 3, w - 4, ROW_H - 1);
+				else if (hov) hoverRow(g, x + 2, ry - 3, w - 4, ROW_H - 1);
 				Panels.dot(g, pill(en)[0], x + 6, ry + 1, false);
 				g.text(font, TextUtil.ellipsize(font, en.name(), w - 22), x + 16, ry, needs ? UiBits.ink() : UiBits.muted(), false);
 				g.text(font, TextUtil.ellipsize(font, pill(en)[1], w - 22), x + 16, ry + 10, UiBits.muted(), false);
@@ -277,7 +279,7 @@ public final class InboxScreen extends KitScreen {
 		String[] p = pill(e);
 		int pw = UiBits.dotPill(g, font, p[0], p[1], x, y - 1, UiBits.ink());
 		String spend = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision()) || InboxModel.LAND.equals(e.decision()) ? "" : String.format("$%.2f of $%.0f", e.spentUsd(), e.budgetUsd());
-		g.text(font, spend, x + w - font.width(spend), y + 1, e.spentUsd() >= e.budgetUsd() * 0.8 ? UiStyle.CLAY_DARK : UiBits.muted(), false);
+		g.text(font, spend, x + w - font.width(spend), y + 1, e.spentUsd() >= e.budgetUsd() * 0.8 ? UiStyle.warn() : UiBits.muted(), false);
 		g.text(font, TextUtil.ellipsize(font, e.name(), w - pw - font.width(spend) - 14), x + pw + 6, y + 1, UiBits.ink(), false);
 		y += 14;
 		boolean update = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision()) || InboxModel.LAND.equals(e.decision());
@@ -291,7 +293,7 @@ public final class InboxScreen extends KitScreen {
 		}
 		for (String l : TextUtil.wrapPlain(font, e.headline(), w)) {
 			// clay is for what is blocked on the player only: an idea's words, and a build's, are ink
-			g.text(font, l, x, y, e.needsYou() ? UiStyle.CLAY_DARK : "FAILED".equals(e.decision()) ? UiBits.errorText() : UiBits.ink(), false);
+			g.text(font, l, x, y, e.needsYou() ? attention() : "FAILED".equals(e.decision()) ? UiBits.errorText() : UiBits.ink(), false);
 			y += 10;
 		}
 		// the further lines: the buildings by stage, a usage limit it waits for
@@ -320,38 +322,44 @@ public final class InboxScreen extends KitScreen {
 				int actionsW = 0;
 				if ("PROPOSAL".equals(e.decision()) && sentAtVersion < 0) {
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
-					int cy = ry + (20 - CHIP_H) / 2 - 1;
+					int cy = ry;
 					String no = "Not now";
-					ax -= chipWidth(no);
-					chip(g, no, ax, cy, false, true, mx, my, () -> send("proposal_decline", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Putting the waiting parts off"
-						: "Declining " + l.role().toLowerCase()));
 					String yes = "Build it";
-					ax -= chipWidth(yes) + 3;
-					chip(g, yes, ax, cy, true, true, mx, my, () -> send("proposal_accept", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Fitting one waiting part"
+					// a pair shares one width, so the columns line up row to row
+					int bw = Math.max(rowButtonWidth(no), rowButtonWidth(yes));
+					ax -= bw;
+					rowButtonW(g, no, false, true, ax, cy, bw, mx, my, () -> send("proposal_decline", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Putting the waiting parts off"
+						: "Declining " + l.role().toLowerCase()));
+					ax -= bw + 3;
+					rowButtonW(g, yes, true, true, ax, cy, bw, mx, my, () -> send("proposal_accept", l.id(), "", 0, InboxModel.PARTS_KEY.equals(l.id()) ? "Fitting one waiting part"
 						: "Starting " + l.role().toLowerCase()));
 					actionsW = x + w - ax + 4;
 				} else if ("UPDATE".equals(e.decision()) && sentAtVersion < 0) {
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
-					int cy = ry + (20 - CHIP_H) / 2 - 1;
+					int cy = ry;
 					String pv = "Preview";
-					ax -= chipWidth(pv);
-					chip(g, pv, ax, cy, false, true, mx, my, () -> send("update_preview", l.id(), "", 0, "Showing the change on " + l.role()));
+					String up = "Update";
+					int bw = Math.max(rowButtonWidth(pv), rowButtonWidth(up));
+					ax -= bw;
+					rowButtonW(g, pv, false, true, ax, cy, bw, mx, my, () -> send("update_preview", l.id(), "", 0, "Showing the change on " + l.role()));
 					if (l.waiting()) {
-						String up = "Update";
-						ax -= chipWidth(up) + 3;
-						chip(g, up, ax, cy, true, true, mx, my, () -> send("update_apply", l.id(), "", 0, "Updating " + l.role()));
+						// secondary: "Update all N" below is the one primary
+						ax -= bw + 3;
+						rowButtonW(g, up, false, true, ax, cy, bw, mx, my, () -> send("update_apply", l.id(), "", 0, "Updating " + l.role()));
 					}
 					actionsW = x + w - ax + 4;
 				} else if (massings && l.waiting()) {
 					// a fixed column on the right, the chips centred on the two-line row
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);
-					int cy = ry + (20 - CHIP_H) / 2 - 1;
+					int cy = ry;
 					String rd = "Redirect…";
-					ax -= chipWidth(rd);
-					chip(g, rd, ax, cy, l.id().equals(redirectLot), true, mx, my, () -> startRedirect(l.id()));
 					String ap = "Approve";
-					ax -= chipWidth(ap) + 3;
-					chip(g, ap, ax, cy, true, true, mx, my, () -> send("approve", l.id(), "", 0, "Approving " + l.id()));
+					int bw = Math.max(rowButtonWidth(rd), rowButtonWidth(ap));
+					ax -= bw;
+					rowButtonW(g, rd, false, true, ax, cy, bw, mx, my, () -> startRedirect(l.id()));
+					// secondary: "Approve all N" below is the one primary
+					ax -= bw + 3;
+					rowButtonW(g, ap, false, true, ax, cy, bw, mx, my, () -> send("approve", l.id(), "", 0, "Approving " + l.id()));
 					actionsW = x + w - ax + 4;
 				}
 				String title = l.role() + (l.landmark() ? " ★" : "");
@@ -379,7 +387,7 @@ public final class InboxScreen extends KitScreen {
 			}
 			TextFieldView.Style st = redirectLot != null
 				? new TextFieldView.Style(null, 0, "e.g. taller stilts, a wraparound porch; Enter sends", null, field.length() + "/" + Actions.MAX_NOTES, UiBits.muted(), 2)
-				: new TextFieldView.Style("New budget  $ ", UiStyle.CLAY_DARK, "USD", null, String.format("at least $%.0f", e.minRaiseUsd()), UiBits.muted(), 1);
+				: new TextFieldView.Style("New budget  $ ", attention(), "USD", null, String.format("at least $%.0f", e.minRaiseUsd()), UiBits.muted(), 1);
 			drawField(g, x, y, w, st);
 		}
 	}
@@ -447,8 +455,10 @@ public final class InboxScreen extends KitScreen {
 		}
 		// "1-9 act" only when a numbered button is drawn (an idea's row buttons are not numbered)
 		List<String> h = new ArrayList<>();
-		if (numbered()) h.addAll(List.of("1-9", "act"));
-		if (several) h.addAll(List.of("↑↓", "build"));
+		// the keys of the numbered buttons drawn ("1-9" claimed keys that did nothing); the arrows walk every row, builds or not
+		String keys = numberHint();
+		if (keys != null) h.addAll(List.of(keys, "act"));
+		if (several) h.addAll(List.of("↑↓", "select"));
 		h.addAll(List.of("Esc", "close"));
 		String[] hints = h.toArray(String[]::new);
 		if (UiBits.hintsWidth(font, hints) <= inner) UiBits.hints(g, font, cx, fy - 4, false, hints);

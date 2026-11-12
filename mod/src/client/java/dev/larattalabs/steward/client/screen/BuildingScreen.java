@@ -43,8 +43,7 @@ public final class BuildingScreen extends KitScreen {
 		Panels.panel(g, x, y, w, h);
 		int cx = x + pad.left();
 		int top = y + pad.top();
-		Panels.header(g, font, b.role(), cx - 2, top - 2, inner + 4);
-		g.text(font, view.name(), cx + inner - font.width(view.name()), top, UiBits.muted(), false);
+		header(g, b.role(), view.name(), UiBits.muted(), cx - 2, top - 2, inner + 4);
 		int fy = top + 18;
 		String[] st = SettlementScreen.state(b);
 		UiBits.dotPill(g, font, st[0], st[1], cx, fy - 1, UiBits.ink());
@@ -103,7 +102,11 @@ public final class BuildingScreen extends KitScreen {
 			});
 		}
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, footerY - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
-		else UiBits.hints(g, font, cx, footerY - 4, false, "1-3", "act", "Esc", "close");
+		else {
+			String keys = numberHint();
+			if (keys != null) UiBits.hints(g, font, cx, footerY - 4, false, keys, "act", "Esc", "close");
+			else UiBits.hints(g, font, cx, footerY - 4, false, "Esc", "close");
+		}
 	}
 
 	private int fact(GuiGraphicsExtractor g, int x, int y, int w, String label, String value) {

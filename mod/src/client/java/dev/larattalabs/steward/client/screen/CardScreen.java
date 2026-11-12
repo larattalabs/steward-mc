@@ -47,6 +47,11 @@ public final class CardScreen extends KitScreen {
 	/** The key that asked to start (Enter, numpad Enter or 1): held keys are told apart. */
 	private int startKey = -1;
 	private boolean confirmShown;
+	/**
+	 * lab-ui's two-press arm, mirrored from {@link #confirm} so the armed start draws as the kit's {@code Confirm} with its countdown ("Press again to
+	 * spend up to $35 (3)"), the same pattern as Architect's Delete (Noah, 2026-11-12). {@link #confirm} still decides (held keys count once).
+	 */
+	private final dev.larattalabs.labui.ui.ConfirmArm startArm = new dev.larattalabs.labui.ui.ConfirmArm(dev.larattalabs.steward.ui.TwoPress.WINDOW_MS);
 	private int wellScroll;
 	private int programScroll;
 	private int[] wellArea = new int[4];
@@ -109,6 +114,27 @@ public final class CardScreen extends KitScreen {
 		start();
 	}
 
+	/** A click on Start (or its button by mouse): two presses, as Enter; the first arms and says what it spends. */
+	private void clickStart() {
+		if (sent || payload.busy() || field == null) {
+			start();
+			return;
+		}
+		double usd = budget();
+		if (Double.isNaN(usd)) return;
+		long now = net.minecraft.util.Util.getMillis();
+		if (confirmShown && confirm.armed(now) && usd == armedUsd && buildings == armedBuildings) {
+			start();
+			return;
+		}
+		confirm.reset();
+		confirm.press(now);
+		armedUsd = usd;
+		armedBuildings = buildings;
+		super.say(String.format("Press again to start: it spends up to $%.0f.", usd), false);
+		confirmShown = true;
+	}
+
 	/** Any other message (Expand, a wrong budget) replaces the press-again hint and forgets the first press. */
 	@Override
 	protected void say(String text, boolean error) {
@@ -160,9 +186,9 @@ public final class CardScreen extends KitScreen {
 		// what Steward cannot do yet for this card: first, before anything is spent
 		// the composed plan's summary first, when there is one
 		if (!payload.planSummary().isBlank()) add(out, "Plan: " + payload.planSummary(), w, UiBits.ink());
-		for (String l : limits()) add(out, "Not yet: " + l, w, UiStyle.CLAY_DARK);
+		for (String l : limits()) add(out, "Not yet: " + l, w, attention());
 		add(out, card.interpretation(), w, UiBits.ink());
-		for (ConceptCard.Contradiction c : card.contradictions()) add(out, "Tension: " + c.issue() + " → " + c.resolution(), w, UiStyle.CLAY_DARK);
+		for (ConceptCard.Contradiction c : card.contradictions()) add(out, "Tension: " + c.issue() + " → " + c.resolution(), w, attention());
 		for (String a : card.assumptions()) add(out, "Assumed: " + a, w, UiBits.muted());
 		return out;
 	}
@@ -185,7 +211,7 @@ public final class CardScreen extends KitScreen {
 		int lw = 50;
 		List<String> lines = TextUtil.wrapPlain(font, value, w - lw);
 		if (draw) {
-			g.text(font, label, x, y, UiStyle.CLAY_DARK, false);
+			g.text(font, label, x, y, attention(), false);
 			int ly = y;
 			for (String l : lines) {
 				g.text(font, l, x + lw, ly, UiBits.ink(), false);
@@ -236,6 +262,14 @@ public final class CardScreen extends KitScreen {
 			confirmShown = false;
 			status = null;
 		}
+		// the kit's arm follows ours: armed while the first press waits, else not
+		long armNow = net.minecraft.util.Util.getMillis();
+		if (confirmShown && !sent) {
+			if (!startArm.armed("start", armNow)) {
+				startArm.cancel();
+				startArm.press("start", armNow);
+			}
+		} else startArm.cancel();
 		if (fieldFocused && field != null && !field.value().equals(String.valueOf(suggestedBudget()))) budgetEdited = true;
 		Kit.Padding pad = Kit.padding("panel_paper");
 		int w = Math.min(500, width - 16);
@@ -256,10 +290,9 @@ public final class CardScreen extends KitScreen {
 		Panels.panel(g, x, y, w, h);
 		int cx = x + pad.left();
 		int top = y + pad.top();
-		Panels.header(g, font, payload.name(), cx - 2, top - 2, inner + 4);
 		int side = dev.larattalabs.steward.model.ClaimRules.side(payload.claimRadius());
 		String meta = "claim " + side + "×" + side + " (" + dev.larattalabs.steward.model.ClaimRules.sizeOf(payload.claimRadius()) + ") · terrain " + card.site().terrain();
-		g.text(font, meta, cx + inner - font.width(meta), top, UiBits.muted(), false);
+		header(g, payload.name(), meta, UiBits.muted(), cx - 2, top - 2, inner + 4);
 		int bodyTop = top + 18;
 		int controlsTop = y + h - pad.bottom() - controlsH;
 		int bodyBottom = controlsTop;
@@ -270,12 +303,12 @@ public final class CardScreen extends KitScreen {
 		ly += fact(g, "Purpose", card.purpose().text(), card.purpose().template(), cx, ly, colW, true);
 		if (story() != null) ly += fact(g, "Story", story(), null, cx, ly, colW, true);
 		if (!card.avoid().isEmpty()) {
-			g.text(font, "Avoid", cx, ly + 2, UiStyle.CLAY_DARK, false);
+			g.text(font, "Avoid", cx, ly + 2, attention(), false);
 			int px = cx + 50;
 			for (String a : card.avoid()) {
 				int pw = font.width(a) + 10;
 				if (px + pw > cx + colW) break;
-				px += Panels.pill(g, font, a, px, ly, UiStyle.CLAY_DARK) + 3;
+				px += Panels.pill(g, font, a, px, ly, attention()) + 3;
 			}
 			ly += 16;
 		}
@@ -283,7 +316,7 @@ public final class CardScreen extends KitScreen {
 		for (String l : limits()) {
 			if (ly + 10 > bodyBottom - 6) break;
 			// laid out as the facts above: the label in the same column, the text beside it
-			g.text(font, "Not yet", cx, ly, UiStyle.CLAY_DARK, false);
+			g.text(font, "Not yet", cx, ly, attention(), false);
 			// at most 3 lines here, a little clear of the right column; the whole text is under Interpretation
 			List<String> lines = TextUtil.wrapPlain(font, l, colW - 56);
 			for (int i = 0; i < Math.min(3, lines.size()); i++) {
@@ -359,7 +392,7 @@ public final class CardScreen extends KitScreen {
 					String more = "+" + below + " more (scroll)";
 					int mw = font.width(more) + 8;
 					g.fill(rx + colW - mw - 10, ry + listH - 12, rx + colW - 10, ry + listH - 2, 0xE0E9E1D3);
-					g.text(font, more, rx + colW - mw - 6, ry + listH - 11, UiStyle.CLAY_DARK, false);
+					g.text(font, more, rx + colW - mw - 6, ry + listH - 11, attention(), false);
 				}
 			}
 		}
@@ -394,7 +427,15 @@ public final class CardScreen extends KitScreen {
 		if (payload.busy()) {
 			ax += button(g, "Open the inbox", 1, true, false, true, ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new InboxScreen(payload.settlementId()))) + 6;
 		} else {
-			ax += button(g, sent ? "Starting..." : confirmShown ? String.format("Again: spend up to $%.0f", armedUsd) : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::start) + 6;
+			if (confirmShown && !sent) {
+				// armed: lab-ui's Confirm, danger red with its countdown; a click or 1 on it is the second press
+				var c = new dev.larattalabs.labui.client.widget.Confirm(startArm, "start", "Start building", String.format("spend up to $%.0f", armedUsd), this::clickStart);
+				int cw = c.width(font);
+				c.draw(g, font, ax, cy, cw, 20, mouseX, mouseY);
+				ax += hitOnly("Start building", 1, true, ax, cy, cw, 20, this::clickStart) + 6;
+			} else {
+				ax += button(g, sent ? "Starting..." : "Start building", 1, true, false, !sent, ax, cy, mouseX, mouseY, this::clickStart) + 6;
+			}
 		}
 		// the player's own words back in the box (else the card's reading of them), to change rather than retype
 		ax += button(g, "Describe again", 2, false, false, !sent && !payload.busy(), ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new DescribeScreen(
@@ -407,7 +448,8 @@ public final class CardScreen extends KitScreen {
 			say("Growing the claim...", false);
 		});
 		int fy = y + h - pad.bottom() - 8;
-		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, fy - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
+		// the armed start says what pressing again spends: clay text, the colour of what waits on the player, not the muted of a passing note
+		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, fy - 2, statusError ? UiBits.errorText() : confirmShown && !sent ? attention() : UiBits.muted(), false);
 		else {
 			String[] hints = {"←→", "buildings", "Tab", "builds / interpretation", "Enter ×2", "start", "Esc", "close"};
 			if (UiBits.hintsWidth(font, hints) <= inner) UiBits.hints(g, font, cx, fy - 4, false, hints);
