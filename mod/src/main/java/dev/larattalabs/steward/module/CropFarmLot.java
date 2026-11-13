@@ -11,7 +11,8 @@ import java.util.Set;
  * The lot {@code crop_farm@1} asks Architect for (docs/MODULES.md 3.1, slice M2): a {@code planRevision} grow lot
  * {@code {id, type: crop_farm, size: [W, D], irrigate: true, field: {cells, crops}}} (S-M5-2, S-M5-4), with W = width + 2 and D = depth + 3.
  * The field's cells are the program's own farmland cells (modules/crop_farm/1/program.mjs {@code layout}): the field u 1..W-2, v 1..D-3 of
- * IRR's frame, less each source of IRR's grid (one per 9x9, at its segment's centre) and its 4 sides (where the program's well posts stand).
+ * IRR's frame, less each source of IRR's grid (one per 9x9, at its segment's centre) and its 4 sides (where the program's well posts stand), and the
+ * port (the composter and the chest just inside the gate).
  * The crops are all four, so a player who replants another crop stays inside FC's rule. Pure; the measurement uses it and M3 will.
  */
 public final class CropFarmLot {
@@ -22,7 +23,7 @@ public final class CropFarmLot {
 	static final int SPAN = 9;
 
 	/** The farm's geometry in the lot's frame. */
-	public record Layout(int width, int depth, int w, int d, List<int[]> sources, List<int[]> posts, List<int[]> field) {}
+	public record Layout(int width, int depth, int w, int d, List<int[]> sources, List<int[]> posts, List<int[]> port, List<int[]> field) {}
 
 	/** IRR's sources along one side [a, b]: ceil(L / 9) segments, each at its centre, a tie to the low end (irrigate.mjs axisSources). */
 	static List<Integer> axisSources(int a, int b) {
@@ -51,8 +52,11 @@ public final class CropFarmLot {
 				}
 			}
 		}
+		int gate = w / 2;
+		List<int[]> port = List.of(new int[] {gate - 1, d - 3}, new int[] {gate + 1, d - 3});
+		for (int[] c : port) skip.add(key(c[0], c[1]));
 		for (int v = 1; v <= d - 3; v++) for (int u = 1; u <= w - 2; u++) if (!skip.contains(key(u, v))) field.add(new int[] {u, v});
-		return new Layout(width, depth, w, d, List.copyOf(sources), List.copyOf(posts), List.copyOf(field));
+		return new Layout(width, depth, w, d, List.copyOf(sources), List.copyOf(posts), port, List.copyOf(field));
 	}
 
 	private static long key(int u, int v) {

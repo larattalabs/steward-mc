@@ -12,7 +12,10 @@
 //                    irrigation cells (`reserved`) and are left open. Over each of the 4 sides stands a fence post (the well), one with a lamp
 //                    on it: FC drops IRR's sides from a field, so the cell over a side holds no crop, and the lamp lights the field's middle.
 //   v = D-2          front: a fence on the foundation role, the gate (on a path) at u = floor(W / 2), a lamp on each corner post and on each post beside the gate
-//   v = D-1          the front row: path, a composter left of the gate and a chest right of it (the field's `item_out` port)
+//   v = D-1          the front row: path
+//   the port         the field's `item_out` port, just inside the gate: a composter left of it and a chest right of it (field row v = D-3,
+//                    on path). Never outside the fence: a composter (full height) or a chest (0.875) against the fence is a step a mob
+//                    climbs over it by (measured: tools/module-measure.mjs skin, the first candidate)
 //
 // Light (M0, docs/MODULES.md section 9): open-sky crops grow at night; the lamps are for mob safety (26.3: a monster spawns only at block
 // light 0). Every open cell at floor + 1 in the lot gets block light >= 1 (measured: tools/module-measure.mjs).
@@ -72,10 +75,12 @@ export function axisSources(a, b) {
 
 /**
  * The farm's layout in the lot's frame, pure: {W, D, gate, sources: [[u, v]], posts: [[u, v]], lampPosts: [[u, v]], field: [[u, v]]
- * (the farmland cells: the field less the irrigation cells and the posts)}. Steward's lot spec reads `field` for FC's `field.cells`.
+ * (the farmland cells: the field less the irrigation cells, the posts and the port)}. Steward's lot spec reads `field` for FC's `field.cells`.
  */
 export function layout(width, depth) {
   const W = width + 2, D = depth + 3;
+  const gate = Math.floor(W / 2);
+  const port = [[gate - 1, D - 3], [gate + 1, D - 3]];
   const sources = [];
   for (const v of axisSources(1, D - 3)) for (const u of axisSources(1, W - 2)) sources.push([u, v]);
   const skip = new Set();
@@ -89,9 +94,10 @@ export function layout(width, depth) {
     }
     lampPosts.push([u, v - 1]);
   }
+  for (const [u, v] of port) skip.add(`${u},${v}`);
   const field = [];
   for (let v = 1; v <= D - 3; v++) for (let u = 1; u <= W - 2; u++) if (!skip.has(`${u},${v}`)) field.push([u, v]);
-  return { W, D, gate: Math.floor(W / 2), sources, posts, lampPosts, field };
+  return { W, D, gate, sources, posts, lampPosts, port, field };
 }
 
 export default function build({ palette = PALETTES.rustic, width = 9, depth = 9, crop = 'wheat', reserved } = {}) {
@@ -141,10 +147,11 @@ export default function build({ palette = PALETTES.rustic, width = 9, depth = 9,
       put(u, 1, v, 'minecraft:farmland', { moisture: '7' });
       put(u, 2, v, `minecraft:${crop}`, { age: '0' });
     }
-    put(gate - 1, 1, D - 1, p.path);
-    put(gate - 1, 2, D - 1, 'minecraft:composter');
-    put(gate + 1, 1, D - 1, p.path);
-    put(gate + 1, 2, D - 1, 'minecraft:chest', { facing: 'south', type: 'single' });
+    const [[cu, cv], [hu, hv]] = L.port;
+    put(cu, 1, cv, p.path);
+    put(cu, 2, cv, 'minecraft:composter');
+    put(hu, 1, hv, p.path);
+    put(hu, 2, hv, 'minecraft:chest', { facing: 'south', type: 'single' });
   });
   bp.part('shell', () => {
     for (let x = 0; x < W; x++) {
@@ -155,7 +162,7 @@ export default function build({ palette = PALETTES.rustic, width = 9, depth = 9,
         else put(x, 2, z, p.fence);
       }
     }
-    for (let x = 0; x < W; x++) if (x !== gate - 1 && x !== gate + 1) put(x, 1, D - 1, p.path);
+    for (let x = 0; x < W; x++) put(x, 1, D - 1, p.path);
     for (const [u, v] of L.posts) put(u, 2, v, p.fence);
     for (const [u, v] of L.lampPosts) put(u, 3, v, pc.lamp);
     for (const [x, z] of [[0, 0], [W - 1, 0], [0, D - 2], [W - 1, D - 2], [gate - 1, D - 2], [gate + 1, D - 2]]) put(x, 3, z, pc.lamp);

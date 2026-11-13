@@ -69,8 +69,8 @@ For every crop x size branch, rustic, 5 runs, each 3 cycles.
   median time to a mature majority: wheat 60,060, carrots 60,060, potatoes 56,056, beetroot 35,035 ticks. Then the player breaks every mature
   crop (`destroyBlock`), the drops are counted from the ground, and the player replants each broken cell. Repeat 3 times. At the end of the
   run every crop left is broken (not counted) and the field is replanted at age 0.
-- **The crops counted are the cells actually planted.** The well gives up 5 of every 81 field cells (a source and its 4 sides), so a 9x9 has
-  76 crops, an 18x18 304 and a 27x27 684. Every per-day rate here, and the rate the offer quotes, is computed over those planted cells
+- **The crops counted are the cells actually planted.** The well gives up 5 of every 81 field cells (a source and its 4 sides), and the port
+  (the composter and the chest just inside the gate) 2 more, so a 9x9 has 74 crops, an 18x18 302 and a 27x27 682. Every per-day rate here, and the rate the offer quotes, is computed over those planted cells
   (the `n` of each branch below), never over the field's area.
 - **The net rate:** a crop's item counted (wheat, carrot, potato, beetroot), minus one per replant when the item is its own planting item
   (carrots, potatoes), over 3 T, per crop cell a day. The offer quotes this rate.
@@ -89,46 +89,48 @@ For every crop x size branch, rustic, 5 runs, each 3 cycles.
   2.08-2.34 times slower, under the same loop.
 - **Recorded:** gross drops, the replant stock, the seeds, the poisonous potatoes, and the cells that matured per cycle.
 
-The bands (net items per crop cell a day; one run; `node tools/module-measure.mjs bands`):
+The bands (net items per crop cell a day; one run; `node tools/module-measure.mjs bands`). *Re-cut once for the second candidate's crop
+counts (the port moved inside the fence, below): the same model and widening, only n changed. Before it, one 1-run harness trial of the first
+candidate (beetroot) had run, never recorded: its 9 rates were 0.386-0.418, inside the old and the new bands alike.*
 
 | Branch (crops) | Predicted per crop a day | Band of one run | Usefulness | Unwatered (predicted) |
 |---|---|---|---|---|
-| wheat:9x9 (76) | 0.248 | 0.189-0.312 | 0.3 | 0.115 |
-| wheat:9x18 (152) | 0.248 | 0.196-0.304 | 0.3 | 0.115 |
-| wheat:9x27 (228) | 0.248 | 0.199-0.301 | 0.3 | 0.115 |
-| wheat:18x9 (152) | 0.248 | 0.196-0.304 | 0.3 | 0.115 |
-| wheat:18x18 (304) | 0.248 | 0.201-0.299 | 0.3 | 0.115 |
-| wheat:18x27 (456) | 0.248 | 0.202-0.296 | 0.3 | 0.115 |
-| wheat:27x9 (228) | 0.248 | 0.199-0.301 | 0.3 | 0.115 |
-| wheat:27x18 (456) | 0.248 | 0.202-0.296 | 0.3 | 0.115 |
-| wheat:27x27 (684) | 0.248 | 0.204-0.294 | 0.3 | 0.115 |
-| carrots:9x9 (76) | 0.663 | 0.507-0.843 | 0.3 | 0.317 |
-| carrots:9x18 (152) | 0.663 | 0.521-0.822 | 0.3 | 0.318 |
-| carrots:9x27 (228) | 0.663 | 0.527-0.815 | 0.3 | 0.318 |
-| carrots:18x9 (152) | 0.663 | 0.521-0.822 | 0.3 | 0.318 |
-| carrots:18x18 (304) | 0.663 | 0.533-0.806 | 0.3 | 0.318 |
-| carrots:18x27 (456) | 0.663 | 0.537-0.803 | 0.3 | 0.318 |
-| carrots:27x9 (228) | 0.663 | 0.527-0.815 | 0.3 | 0.318 |
-| carrots:27x18 (456) | 0.663 | 0.537-0.803 | 0.3 | 0.318 |
-| carrots:27x27 (684) | 0.662 | 0.541-0.800 | 0.3 | 0.318 |
-| potatoes:9x9 (76) | 0.703 | 0.507-0.906 | 0.3 | 0.282 |
-| potatoes:9x18 (152) | 0.703 | 0.519-0.885 | 0.3 | 0.282 |
-| potatoes:9x27 (228) | 0.702 | 0.525-0.872 | 0.3 | 0.282 |
-| potatoes:18x9 (152) | 0.703 | 0.519-0.885 | 0.3 | 0.282 |
-| potatoes:18x18 (304) | 0.702 | 0.530-0.868 | 0.3 | 0.282 |
-| potatoes:18x27 (456) | 0.703 | 0.535-0.861 | 0.3 | 0.282 |
-| potatoes:27x9 (228) | 0.702 | 0.525-0.872 | 0.3 | 0.282 |
-| potatoes:27x18 (456) | 0.703 | 0.535-0.861 | 0.3 | 0.282 |
-| potatoes:27x27 (684) | 0.703 | 0.536-0.855 | 0.3 | 0.282 |
-| beetroots:9x9 (76) | 0.411 | 0.312-0.525 | 0.3 | 0.176 |
-| beetroots:9x18 (152) | 0.412 | 0.323-0.511 | 0.3 | 0.176 |
-| beetroots:9x27 (228) | 0.411 | 0.327-0.504 | 0.3 | 0.177 |
-| beetroots:18x9 (152) | 0.412 | 0.323-0.511 | 0.3 | 0.176 |
-| beetroots:18x18 (304) | 0.411 | 0.330-0.499 | 0.3 | 0.176 |
-| beetroots:18x27 (456) | 0.412 | 0.334-0.495 | 0.3 | 0.176 |
-| beetroots:27x9 (228) | 0.411 | 0.327-0.504 | 0.3 | 0.177 |
-| beetroots:27x18 (456) | 0.412 | 0.334-0.495 | 0.3 | 0.176 |
-| beetroots:27x27 (684) | 0.412 | 0.337-0.490 | 0.3 | 0.176 |
+| wheat:9x9 (74) | 0.248 | 0.191-0.313 | 0.3 | 0.115 |
+| wheat:9x18 (150) | 0.248 | 0.195-0.305 | 0.3 | 0.115 |
+| wheat:9x27 (226) | 0.248 | 0.199-0.302 | 0.3 | 0.115 |
+| wheat:18x9 (150) | 0.248 | 0.195-0.305 | 0.3 | 0.115 |
+| wheat:18x18 (302) | 0.248 | 0.201-0.299 | 0.3 | 0.115 |
+| wheat:18x27 (454) | 0.248 | 0.202-0.297 | 0.3 | 0.115 |
+| wheat:27x9 (226) | 0.248 | 0.199-0.302 | 0.3 | 0.115 |
+| wheat:27x18 (454) | 0.248 | 0.202-0.297 | 0.3 | 0.115 |
+| wheat:27x27 (682) | 0.248 | 0.204-0.294 | 0.3 | 0.115 |
+| carrots:9x9 (74) | 0.663 | 0.508-0.847 | 0.3 | 0.318 |
+| carrots:9x18 (150) | 0.663 | 0.523-0.821 | 0.3 | 0.318 |
+| carrots:9x27 (226) | 0.663 | 0.530-0.813 | 0.3 | 0.318 |
+| carrots:18x9 (150) | 0.663 | 0.523-0.821 | 0.3 | 0.318 |
+| carrots:18x18 (302) | 0.663 | 0.534-0.809 | 0.3 | 0.318 |
+| carrots:18x27 (454) | 0.663 | 0.537-0.802 | 0.3 | 0.318 |
+| carrots:27x9 (226) | 0.663 | 0.530-0.813 | 0.3 | 0.318 |
+| carrots:27x18 (454) | 0.663 | 0.537-0.802 | 0.3 | 0.318 |
+| carrots:27x27 (682) | 0.663 | 0.541-0.799 | 0.3 | 0.318 |
+| potatoes:9x9 (74) | 0.703 | 0.508-0.910 | 0.3 | 0.282 |
+| potatoes:9x18 (150) | 0.702 | 0.520-0.886 | 0.3 | 0.282 |
+| potatoes:9x27 (226) | 0.703 | 0.526-0.873 | 0.3 | 0.283 |
+| potatoes:18x9 (150) | 0.702 | 0.520-0.886 | 0.3 | 0.282 |
+| potatoes:18x18 (302) | 0.703 | 0.530-0.871 | 0.3 | 0.282 |
+| potatoes:18x27 (454) | 0.702 | 0.534-0.862 | 0.3 | 0.282 |
+| potatoes:27x9 (226) | 0.703 | 0.526-0.873 | 0.3 | 0.283 |
+| potatoes:27x18 (454) | 0.702 | 0.534-0.862 | 0.3 | 0.282 |
+| potatoes:27x27 (682) | 0.702 | 0.536-0.857 | 0.3 | 0.282 |
+| beetroots:9x9 (74) | 0.411 | 0.309-0.525 | 0.3 | 0.177 |
+| beetroots:9x18 (150) | 0.412 | 0.322-0.511 | 0.3 | 0.177 |
+| beetroots:9x27 (226) | 0.412 | 0.326-0.504 | 0.3 | 0.177 |
+| beetroots:18x9 (150) | 0.412 | 0.322-0.511 | 0.3 | 0.177 |
+| beetroots:18x18 (302) | 0.412 | 0.330-0.501 | 0.3 | 0.177 |
+| beetroots:18x27 (454) | 0.412 | 0.334-0.497 | 0.3 | 0.177 |
+| beetroots:27x9 (226) | 0.412 | 0.326-0.504 | 0.3 | 0.177 |
+| beetroots:27x18 (454) | 0.412 | 0.334-0.497 | 0.3 | 0.177 |
+| beetroots:27x27 (682) | 0.412 | 0.337-0.491 | 0.3 | 0.177 |
 
 ### 4. Exclusion (§3.1 item 4)
 
@@ -186,6 +188,14 @@ crops, rustic. Fed from the stockpile until PLACED.
 - **The save rule (IG's open issue, JR not in 0.63.0).** A kill or restart case saves first (`/save-all flush`).
 - **Spending code.** M2 changes no billing or undo code in Steward; it measures Architect's. If that stops being true, the change gets a GPT
   second opinion.
+
+## Candidates
+
+- **Candidate 1** (program sha `b0824ea4…`, d9045b2): the composter and the chest stood in the front row, outside the fence, against it.
+  Its first skin run (rustic) failed 4a and 4b: zombies and villagers got into 5 of 9 fields and trampled 24 cells. The fence ring was whole
+  (every ring cell a fence, checked) and no mob was inside when summoned: they climbed the composter (full height) or the chest (0.875) and
+  stepped over the 1.5-high fence. A design fault, not a vanilla rule: a fence keeps mobs out only where nothing beside it is a step.
+- **Candidate 2:** the port just inside the gate (field row v = D-3, either side of the gate column, on path). 2 crop cells fewer per farm.
 
 ## Results
 

@@ -19,7 +19,7 @@ class CropFarmLotTest {
 				assertEquals(d + 3, l.d());
 				int sources = (w / 9) * (d / 9);
 				assertEquals(sources, l.sources().size(), "one IRR source per 9x9");
-				assertEquals(w * d - 5 * sources, l.field().size(), "the field less each source and its 4 sides");
+				assertEquals(w * d - 5 * sources - 2, l.field().size(), "the field less each source and its 4 sides, and the port's 2 cells");
 				JsonObject lot = CropFarmLot.growLot("farm_1", w, d);
 				assertEquals(w + 2, lot.getAsJsonArray("size").get(0).getAsInt());
 				assertEquals(d + 3, lot.getAsJsonArray("size").get(1).getAsInt());

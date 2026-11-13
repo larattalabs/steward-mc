@@ -253,7 +253,14 @@ let run36 = Date.now().toString(36);
  */
 async function growFarms(region, specs, { prefer = 'frontage', survival = false } = {}) {
   const lots = [];
-  for (const s of specs) lots.push((await mod({ op: 'growLot', id: s.id, width: s.width, depth: s.depth })).lot);
+  const P = await program();
+  for (const s of specs) {
+    const lot = (await mod({ op: 'growLot', id: s.id, width: s.width, depth: s.depth })).lot;
+    // Steward's lot spec (Java) and the program's own layout name the same field cells
+    const want = P.layout(s.width, s.depth).field.map(([u, v]) => `${u},0,${v}`).sort().join(';');
+    check(lot.field.cells.map((c) => c.join(',')).sort().join(';') === want, `${s.id}: CropFarmLot's field cells = the program's layout (${lot.field.cells.length})`);
+    lots.push(lot);
+  }
   let p = null;
   for (const pr of [prefer, prefer === 'frontage' ? 'extend' : 'frontage']) {
     p = await req('dev.rv.plan', { region, program: 'flat_village', params: { grow: { lots, prefer: pr } }, opKey: `steward.m2${run36}.${specs[0].id}.plan` }, 900_000);
@@ -712,12 +719,31 @@ async function skin() {
     const m = await moistAll(farms);
     out.hydration = { atPlaced: placed.bad.length, at24000: m.bad.length, n: m.n };
     check(m.bad.length === 0, `1a hydration ${bible}: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (${m.n} cells, ${m.bad.length} below; ${placed.bad.length} below at PLACED, recorded)`, m.bad.slice(0, 3));
+    // the fence ring as built: every ring cell (frame y 1) a fence, the gate's a fence gate (structural, recorded with item 4)
+    out.ring = {};
+    for (const f of farms) {
+      const { W, D, gate } = f.L;
+      const ring = [];
+      for (let u = 0; u < W; u++) for (let v = 0; v <= D - 2; v++) if (u === 0 || u === W - 1 || v === 0 || v === D - 2) ring.push([u, v]);
+      const r = await readCells(ring.map(([u, v]) => f.frame.toWorld(u, 1, v)));
+      const bad = ring.map((c, i) => [c, r[i]]).filter(([[u, v], c]) => !(u === gate && v === D - 2 ? /fence_gate$/.test(c?.[0] ?? '') : /fence$/.test(c?.[0] ?? '')));
+      out.ring[f.id] = { cells: ring.length, bad: bad.slice(0, 8), badN: bad.length };
+      check(bad.length === 0, `4 fence ${f.id}: every one of ${ring.length} ring cells a fence (the gate a fence gate): ${bad.length} not (${json(bad.slice(0, 4))})`);
+    }
     // ---- item 4: mobs outside the closed fences, midnight, easy, 12,000 ticks
     const before = await agesOf(farms);
     await cmd('/time set 18000');
     await cmd('/difficulty easy');
     const kinds = ['zombie', 'zombie', 'villager', 'villager', 'cow', 'cow'];
-    for (const f of farms) for (const [i, [x, y, z]] of mobSpots(f).entries()) await cmd(`/summon minecraft:${kinds[i]} ${x + 0.5} ${y} ${z + 0.5} {PersistenceRequired:1b}`);
+    out.spots = {};
+    for (const f of farms) for (const [i, [x, y, z]] of mobSpots(f).entries()) {
+      (out.spots[f.id] ??= []).push([kinds[i], x, y, z, inBox(insideBox(f), x + 0.5, y, z + 0.5), farms.filter((g) => inBox(insideBox(g), x + 0.5, y, z + 0.5)).map((g) => g.id)]);
+      await cmd(`/summon minecraft:${kinds[i]} ${x + 0.5} ${y} ${z + 0.5} {PersistenceRequired:1b}`);
+    }
+    const t0mobs = [];
+    for (const f of farms) t0mobs.push(...(await mod({ op: 'mobs', box: insideBox(f) })).mobs.map((m) => [f.id, ...m]));
+    out.insideAtSummon = t0mobs;
+    log(`  mobs inside right after the summon: ${t0mobs.length} ${json(t0mobs.slice(0, 4))}`);
     const whole = (f) => { const b = f.frame.box; return [b.minX - 8, f.frame.floorY - 2, b.minZ - 8, b.maxX + 8, f.frame.floorY + 6, b.maxZ + 8]; };
     const samples = [];
     for (let t = 1000; t <= 12000; t += 1000) {
