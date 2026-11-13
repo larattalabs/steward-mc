@@ -430,3 +430,32 @@ until built, billed from the stockpile, refused undo while its own targets build
 - **The old dev-call check's bills** (`survivalGrowth`) read `dev.rs.state` targets' `bom`, which Architect never sends (only `outstanding`), so
   it could not have passed once a walled town grew; the new flow reads the stockpile's ledger.
 - **Unit:** all of `build` (380) and `npm test` (35) pass; `npm test` in a new worktree needs `npm ci --offline` first.
+
+### Phase 5 slice M1: the module catalog (2026-11-12, $0)
+The catalog format, gating, palette constraints, `steward_mc:module` bindings and BuildStore format 5 (docs/MODULES.md, "M1 as built"), checked
+on the fixture module `fixture_plot@1` (2 sides x 2 crops x 3 Styles) with `tools/module-catalog.mjs`:
+- **offline** (Architect's kit at v0.62.0, kit 0.57.0, archived from the tag): PASS 19. The pinned sha; module.json's params = the program's;
+  all 12 branch x Style builds checker-clean (110 and 258 blocks, no warnings); a soul-lantern lamp (light 10) becomes the plain lantern and
+  is said; gravel as `path` or `frame` is refused (`palette: ...`); the lot's reserved cells are left open.
+- **ingame** (`tools/run-e2e-client.sh` on 8592/8593, a fresh flat creative world, the bundled 0.62.0 helper, no login): PASS 19 in 37 s.
+  Minecraft 26.3, Architect 0.62.0, `givenPrograms`; the gate offers it; `Designs.fromProgram` installs it at $0 under
+  `steward.catalog.fixture_plot.v1.f613be4e3299` (the entry's `givenProgram.sha` and key recorded) and the key replays to the same entry;
+  12 keyed `Designs.variant`s, one per branch x Style, each installed (the checker passed) with the catalog's sha and its Style; `side 7`
+  refused by Steward before Architect is asked; `variantByKey` finds a variant, an unknown key finds none.
+  - The first run never reached the bridge (the tool did not set `ARCHITECT_GAME_DIR`, so no token); the second found that Architect's keys
+    take no `@` (the catalog key became `...fixture_plot.v1...`).
+- **GPT second opinion** (gpt-6.1-sol, max, at 4e5cdd6): 1 blocker, 7 should-fixes, all taken. The blocker: measured.json did not certify
+  anything (a failed or bar-less file, or an envelope widened after it, still offered). Now a certificate needs `result: pass`, the program sha
+  and module.json's `moduleSha`, on the pinned kit and checker, written only by `record` from passing runs over the same files. The others:
+  bibles resolved to an exact version before the check; variants only from the entry's own install; strict binding and ext values; a dropped
+  newest row blocks the module; the tool never drives or quits a client it did not start; the hook runs in a development environment only.
+- **After the fixes:** offline PASS 18; ingame PASS 20 in 125 s (the plain gate: not certified, nothing offered; a measuring run installs it and
+  its 12 variants, each with its bible pinned at v1 and made from the catalog install); `record`; ingame again PASS 20 in 36 s, the plain gate
+  now offering it.
+- **GPT fix check** (at ef6d016): 5 of 8 resolved; 3 partial and 1 new should-fix, all fixed (the slice's one fix check, no further round):
+  integers in a binding or the lot ext read exactly (`1.0000000000000001`, `1e0`, `4294967297` refused); `record` checks the checker it ran
+  (the kit's own, its version the kit's) against the pin; the tool takes an exclusive claim on `mod/run` before launching and fails at once if
+  its client exits; a module certified for another Architect version reads as refused for the version, not a failure, so a pin bump can be
+  re-certified (the versions of an unchanged certificate are kept). Ingame again: PASS 20 in 40 s; recorded.
+- **Unit:** `ModuleCatalogTest`, `PaletteCheckTest`, `ModuleRefTest`, `BuildStoreFormat5Test`, SaveCompatTest's format-4 growth file
+  (`fixtures/saves/v6`); all of `build` passes (402).

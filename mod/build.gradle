@@ -104,6 +104,8 @@ processResources {
 	inputs.property "version", version
 	from('../schema') { into 'steward/schema' }
 	from('../prompts') { into 'steward/prompts' }
+	// the live module catalog (docs/MODULES.md, slice M1): programs are copied byte for byte (no filtering), their sha256 is their identity
+	from('../modules') { into 'steward/modules' }
 	filesMatching("fabric.mod.json") {
 		expand "version": version
 	}

@@ -1,0 +1,321 @@
+{
+  "id": "fixture_plot",
+  "version": 1,
+  "fixture": true,
+  "programSha": "f613be4e32994935130a72d7ac0cbeb191d5938ce3ebc1fcf66745da0bc0507e",
+  "minecraft": "26.3",
+  "architect": [
+    "0.62.0"
+  ],
+  "kit": "0.57.0",
+  "checker": "0.57.0",
+  "what": "A fixture: no function is measured. M1 checks the catalog's shape: every branch of the envelope re-skinned by each of its three bibles and checked clean by Architect's checker, offline on the pinned kit and in game through Designs.fromProgram / variant at $0 (tools/module-catalog.mjs).",
+  "bars": {
+    "branches": "every branch x bible: installed, the checker clean (no error)",
+    "lamp": "a lamp role under light 14: the fallback lantern, said",
+    "gravity": "a gravity block on a core role: refused",
+    "reserved": "the lot's reserved cells left open"
+  },
+  "runs": 1,
+  "moduleSha": "df8e2ef93942812a7f8635190130890f9ce5707b8a47c5f763bf92a584905043",
+  "result": "pass",
+  "checks": {
+    "offline": {
+      "at": "2026-11-13T02:31:40.834Z",
+      "head": "ef6d016c987266001275196c05f198f14c96261b",
+      "architect": "0.62.0",
+      "kit": "0.57.0",
+      "branches": [
+        {
+          "branch": {
+            "side": 5,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 110,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 5,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 110,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 5,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 110,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 5,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 110,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 5,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 110,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 5,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 110,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 258,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 258,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 258,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 258,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 258,
+          "warnings": 0
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 258,
+          "warnings": 0
+        }
+      ],
+      "probes": {
+        "dimLamp": {
+          "ok": true,
+          "lamps": [
+            "minecraft:lantern"
+          ],
+          "said": true
+        },
+        "gravity_path": {
+          "ok": false,
+          "threw": "palette: fixture_plot@1 refuses this bible: path 'minecraft:gravel' is a gravity block"
+        },
+        "gravity_frame": {
+          "ok": false,
+          "threw": "palette: fixture_plot@1 refuses this bible: frame 'minecraft:gravel' is a gravity block"
+        },
+        "reserved": {
+          "ok": true,
+          "open": true
+        }
+      }
+    },
+    "ingame": {
+      "at": "2026-11-13T02:42:28.569Z",
+      "head": "ef6d016c987266001275196c05f198f14c96261b",
+      "env": {
+        "minecraft": "26.3",
+        "architect": "0.62.0",
+        "givenPrograms": true,
+        "measuring": false,
+        "label": "m1_61895_1",
+        "request": {
+          "op": "env"
+        }
+      },
+      "install": {
+        "key": "steward.catalog.fixture_plot.v1.f613be4e3299",
+        "ok": true
+      },
+      "variants": [
+        {
+          "branch": {
+            "side": 5,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 5,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 5,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 5,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 5,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 5,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "side": 9,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        }
+      ],
+      "outside": {
+        "refused": true,
+        "detail": "params"
+      },
+      "byKey": {
+        "found": true,
+        "unknownFound": false
+      }
+    }
+  }
+}

@@ -79,6 +79,29 @@ class SaveCompatTest {
 	}
 
 	@Test
+	void theFormat4GrowthBuildLoadsWithNoModuleBindingsAndMovesToFormat5(@TempDir Path dir) throws Exception {
+		// fixtures/saves/v6/steward-builds.json: a region town's growth checkpoint written by main's format-4 BuildStore (0826c98, with settlements
+		// format 6); BuildStore format 5 (phase 5 M1) adds moduleBindings, which it has none of
+		Path f = dir.resolve("steward-builds.json");
+		Files.writeString(f, fixture("v6/steward-builds.json"));
+		BuildStore b = BuildStore.load(f);
+		assertEquals(4, b.readFormat());
+		var g = b.all().get(0);
+		assertEquals("reg_set_4", g.growRegion());
+		assertEquals(2, g.growRid());
+		assertEquals("vgrow3", g.growKey());
+		assertEquals(java.util.Map.of(), g.moduleBindings(), "a format-4 build has no module lots");
+		assertTrue(Files.exists(dir.resolve("steward-builds.json.v4.bak")), "the format-4 file is kept as it was");
+		assertEquals(fixture("v6/steward-builds.json"), Files.readString(dir.resolve("steward-builds.json.v4.bak")));
+		b.save(f);
+		assertTrue(Files.readString(f).contains("\"format\": 5"));
+		BuildStore again = BuildStore.load(f);
+		assertEquals(5, again.readFormat());
+		assertEquals(g, again.all().get(0), "every field survives the move");
+		assertEquals(fixture("v6/steward-builds.json"), Files.readString(dir.resolve("steward-builds.json.v4.bak")), "backed up once, never over");
+	}
+
+	@Test
 	void aVillageBuildCheckpointLoadsAndKeepsItsRegion() throws Exception {
 		// a flat village build (Architect V) placing: the v1 file's build with the fields V added (its plan and region, keyed); a restart finds it by these
 		BuildStore b = BuildStore.fromJson(fixture("v2/steward-builds.json"));

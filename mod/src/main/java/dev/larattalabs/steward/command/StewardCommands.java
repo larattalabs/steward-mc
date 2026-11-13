@@ -212,7 +212,19 @@ public final class StewardCommands {
 					String said = dev.larattalabs.steward.service.PlanStore.pend(id, StringArgumentType.getString(ctx, "block"), StringArgumentType.getString(ctx, "part"));
 					ctx.getSource().sendSuccess(() -> Component.literal(said), false);
 					return 1;
-				}))))).then(Commands.literal("check_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("plan", StringArgumentType.greedyString())
+				}))))).then(Commands.literal("module").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("request", StringArgumentType.greedyString())
+				.executes(ctx -> {
+					// dev (tools/module-catalog.mjs): the module catalog's gate and installs on a catalog directory; the answer written to
+					// <gameDir>/steward-modules/<label>.json and logged "module dev <label> ..."
+					CommandSourceStack src = ctx.getSource();
+					if (!host(src)) return 0;
+					String label = StringArgumentType.getString(ctx, "label");
+					if (!label.matches("[a-z0-9_]{1,64}")) { src.sendFailure(Component.literal("a label is a-z, 0-9 and _")); return 0; }
+					var req = com.google.gson.JsonParser.parseString(StringArgumentType.getString(ctx, "request")).getAsJsonObject();
+					dev.larattalabs.steward.module.ModuleDev.run(src.getServer(), label, req);
+					src.sendSuccess(() -> Component.literal("module " + label), false);
+					return 1;
+				})))).then(Commands.literal("check_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("plan", StringArgumentType.greedyString())
 				.executes(ctx -> {
 					// dev (the e2e check): Architect's plan check on a plan/0 plan round the player; the summary logged as "plan check <label> {...}"
 					CommandSourceStack src = ctx.getSource();

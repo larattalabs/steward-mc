@@ -378,6 +378,7 @@ public final class SettlementRunner {
 		this.growRid = b.growRid() == null ? 0 : b.growRid();
 		this.growPosition = b.growPosition() == null ? 0 : b.growPosition();
 		this.growKey = b.growKey();
+		this.moduleBindings = b.moduleBindings();
 	}
 
 	private ServerLevel level() {
@@ -394,7 +395,7 @@ public final class SettlementRunner {
 		if (ended) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
 			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, growRegion,
-			growth() ? growRid : null, growth() ? growPosition : null, growKey));
+			growth() ? growRid : null, growth() ? growPosition : null, growKey, moduleBindings));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -552,6 +553,8 @@ public final class SettlementRunner {
 	 */
 	private @org.jspecify.annotations.Nullable String growRegion, growKey;
 	private int growRid, growPosition;
+	/** Module lots' bindings (docs/MODULES.md 4.2 step 4; BuildStore format 5): carried through every save. Made by growth placement (slice M3). */
+	private java.util.Map<String, dev.larattalabs.steward.module.ModuleBinding> moduleBindings = java.util.Map.of();
 
 	private boolean growth() {
 		return growRegion != null;

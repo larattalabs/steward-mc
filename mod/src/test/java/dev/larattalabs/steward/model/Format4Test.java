@@ -126,12 +126,13 @@ class Format4Test {
 		assertEquals(1, b.readFormat());
 		assertTrue(Files.exists(dir.resolve("steward-builds.json.v1.bak")));
 		b.save(f);
-		assertTrue(Files.readString(f).contains("\"format\": 4"));
+		assertTrue(Files.readString(f).contains("\"format\": 5"), "written in the current format (5 since phase 5 M1)");
 		BuildStore again = BuildStore.load(f);
-		assertEquals(4, again.readFormat());
+		assertEquals(5, again.readFormat());
 		assertEquals(b.all().get(0).vRegion(), again.all().get(0).vRegion());
 		assertNull(again.all().get(0).growRegion(), "a build saved before growths is no growth");
-		String newer = Files.readString(f).replaceFirst("\"format\": 4", "\"format\": 5");
+		assertEquals(java.util.Map.of(), again.all().get(0).moduleBindings(), "nor a module build");
+		String newer = Files.readString(f).replaceFirst("\"format\": 5", "\"format\": 6");
 		assertThrows(JsonParseException.class, () -> BuildStore.fromJson(newer));
 	}
 }
