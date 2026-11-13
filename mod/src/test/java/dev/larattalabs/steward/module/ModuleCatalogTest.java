@@ -233,6 +233,9 @@ class ModuleCatalogTest {
 		assertTrue(ModuleGate.offer(live.get("fixture_plot", 1).orElseThrow(), player).ok(), "version 1 alone is offerable");
 		assertTrue(live.blocked("fixture_plot"));
 		assertEquals(Why.INVALID, ModuleGate.offer(live, "fixture_plot", player).why());
+		// a bad version row blocks it the same way
+		f.put("catalog.json", "{\"format\":1,\"modules\":[{\"id\":\"fixture_plot\",\"version\":1},{\"id\":\"fixture_plot\",\"version\":0}]}");
+		assertEquals(Why.INVALID, ModuleGate.offer(ModuleCatalog.load(rel -> Optional.ofNullable(files.get(rel)), false), "fixture_plot", player).why());
 		// a duplicate row blocks it the same way
 		f.put("catalog.json", "{\"format\":1,\"modules\":[{\"id\":\"fixture_plot\",\"version\":1},{\"id\":\"fixture_plot\",\"version\":1}]}");
 		assertEquals(Why.INVALID, ModuleGate.offer(ModuleCatalog.load(rel -> Optional.ofNullable(files.get(rel)), false), "fixture_plot", player).why());

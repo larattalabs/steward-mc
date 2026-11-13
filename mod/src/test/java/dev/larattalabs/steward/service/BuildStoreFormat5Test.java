@@ -73,7 +73,8 @@ class BuildStoreFormat5Test {
 		var j = JsonParser.parseString(st.toJson()).getAsJsonObject();
 		j.getAsJsonArray("builds").get(0).getAsJsonObject().getAsJsonObject("moduleBindings").getAsJsonObject("lot_3").addProperty("version", 0);
 		assertThrows(JsonParseException.class, () -> BuildStore.fromJson(j.toString()), "version 0");
-		for (String[] bad : new String[][] {{"version", "1.5"}, {"params", "[]"}, {"params", "\"side=9\""}, {"bibleVersion", "0"}, {"programSha", "\"abc\""}}) {
+		for (String[] bad : new String[][] {{"version", "1.5"}, {"version", "1.0000000000000001"}, {"version", "1e0"}, {"version", "4294967297"}, {"bibleVersion", "1.0000000000000001"},
+			{"params", "[]"}, {"params", "\"side=9\""}, {"bibleVersion", "0"}, {"programSha", "\"abc\""}}) {
 			var k = JsonParser.parseString(st.toJson()).getAsJsonObject();
 			k.getAsJsonArray("builds").get(0).getAsJsonObject().getAsJsonObject("moduleBindings").getAsJsonObject("lot_3").add(bad[0], JsonParser.parseString(bad[1]));
 			assertThrows(RuntimeException.class, () -> BuildStore.fromJson(k.toString()), bad[0] + " " + bad[1]);

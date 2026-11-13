@@ -85,7 +85,8 @@ async function offline() {
   const { PALETTES } = await import(pathToFileURL(path.join(kit, 'lib', 'kit.mjs')).href);
   const { parseReserved, frameToTemplate } = await import(pathToFileURL(path.join(kit, 'lib', 'reserved.mjs')).href);
   const kitVersion = (/EVAL_KIT_VERSION\s*=\s*'([^']+)'/.exec(fs.readFileSync(path.join(kit, 'lib', 'realise.mjs'), 'utf8')) ?? [])[1];
-  const out = { architect: ARCH_VERSION, kit: kitVersion ?? null, entries: {} };
+  // the checker is the kit's own lib/check.mjs: its version is the kit's (no separate version exists), read from the archived kit
+  const out = { architect: ARCH_VERSION, kit: kitVersion ?? null, checker: kitVersion ?? null, entries: {} };
   for (const e of entries()) {
     const key = `${e.id}@${e.version}`;
     const r = (out.entries[key] = { ...stamp(e), branches: [], probes: {} });
@@ -159,11 +160,34 @@ const listening = (port) => new Promise((resolve) => {
   s.once('connect', () => { s.destroy(); resolve(true); });
   s.once('error', () => resolve(false));
 });
-let launched = false, exited = false;
+let launched = false, exited = false, claimed = null;
+/** An exclusive claim on mod/run for this run (O_EXCL; a claim whose pid is gone is taken over). Released at exit. */
+function claim() {
+  const f = path.join(GAME, 'steward-module-catalog.lock');
+  fs.mkdirSync(GAME, { recursive: true });
+  for (let i = 0; i < 2; i++) {
+    try {
+      fs.writeFileSync(f, String(process.pid), { flag: 'wx' });
+      claimed = f;
+      process.on('exit', () => { try { if (fs.readFileSync(f, 'utf8') === String(process.pid)) fs.rmSync(f); } catch { /* gone */ } });
+      return;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+      const pid = Number(fs.readFileSync(f, 'utf8'));
+      let alive = false;
+      try { process.kill(pid, 0); alive = true; } catch { /* gone */ }
+      if (alive) throw new Error(`another module-catalog run (pid ${pid}) holds ${f}: refusing to launch`);
+      fs.rmSync(f, { force: true });
+    }
+  }
+  throw new Error(`could not claim ${f}`);
+}
 async function startClient() {
   const { DevClient } = await import(pathToFileURL(path.join(ARCH, 'tools', 'lib', 'devclient.mjs')).href);
   if (flag('--attach')) { dev = await DevClient.connect({ port: PORT, timeoutMs: 30_000 }); await dev.waitInWorld({ timeoutMs: 60_000 }); return; }
-  // never drive (or quit) a client this run did not start: both ports must be free before the launch
+  // never drive (or quit) a client this run did not start: an exclusive claim on this game dir (two runs of this tool can't both launch),
+  // then both ports must be free before the launch
+  claim();
   for (const p of [PORT - 1, PORT]) if (await listening(p)) throw new Error(`port ${p} is in use (another client?): refusing to launch; use --attach to drive it`);
   if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
@@ -177,7 +201,9 @@ async function startClient() {
   child.once('exit', () => { exited = true; });
   log(`client launched (launcher pid ${child.pid}), world "${world}", ports ${PORT - 1}/${PORT}`);
   // the token is the one this launch writes (removed above), so a client that is not ours can't be reached by it
-  dev = await DevClient.connect({ port: PORT, timeoutMs: 600_000 });
+  const died = new Promise((_, reject) => child.once('exit', (code) => reject(new Error(`the launched client exited (code ${code}) before its bridge answered: see artifacts/m1/client.log`))));
+  died.catch(() => {});
+  dev = await Promise.race([DevClient.connect({ port: PORT, timeoutMs: 600_000 }), died]);
   if (exited) throw new Error('the launched client exited before its bridge answered');
   await dev.waitInWorld({ timeoutMs: 600_000 });
 }
@@ -223,8 +249,11 @@ async function ingame() {
       // the gate as a player's game sees it (no measuring): offered exactly when measured.json certifies these files
       const plain = await mod({ op: 'gate', dir: CATALOG, id: e.id, version: e.version });
       r.plainGate = plain;
-      if (plain.uncertified?.length) check(!plain.ok && plain.why === 'NOT_MEASURED', `${key}: not certified yet, so a player's game is offered nothing (${plain.uncertified.join('; ')})`);
-      else check(plain.ok, `${key}: certified, so a player's game is offered it (${plain.message})`);
+      // not certified: nothing offered; certified for other versions (a pin bump, before re-certifying): refused for the version; else offered
+      if (plain.uncertified?.length) check(!plain.ok && plain.why === 'NOT_MEASURED', `${key}: not certified yet, so the plain gate offers nothing (${plain.uncertified.join('; ')})`);
+      else if (e.measured?.minecraft !== env.minecraft || !(e.measured?.architect ?? []).includes(env.architect)) {
+        check(!plain.ok && ['MINECRAFT', 'ARCHITECT'].includes(plain.why), `${key}: certified for other versions, so the plain gate offers nothing here (${plain.message})`);
+      } else check(plain.ok, `${key}: certified, so the plain gate offers it (${plain.message})`);
       const gate = await mod({ op: 'gate', ...base });
       r.gate = gate;
       check(gate.ok && gate.problems.length === 0, `${key}: a measurement run may install it (${gate.message})`, gate.problems);
@@ -292,10 +321,15 @@ function record() {
     if (off.data?.architect !== ARCH_VERSION) why.push(`offline ran on Architect ${off.data?.architect}, pinned ${ARCH_VERSION}`);
     if (inn.data?.env?.architect !== ARCH_VERSION || inn.data?.env?.minecraft !== MC_VERSION) why.push('ingame ran on other versions');
     if (off.data?.kit !== e.module.pins?.kit) why.push(`offline ran kit ${off.data?.kit}, pinned ${e.module.pins?.kit}`);
+    if (off.data?.checker !== e.module.pins?.checker) why.push(`offline ran checker ${off.data?.checker}, pinned ${e.module.pins?.checker}`);
     if (!g?.gate?.moduleSha) why.push('no moduleSha from the game');
     if (why.length) { refused++; log(`REFUSED ${key}: ${why.join('; ')}`); continue; }
-    const m = { ...(e.measured ?? {}), id: e.id, version: e.version, fixture: !!e.module.fixture, programSha: now.programSha, moduleSha: g.gate.moduleSha,
-      minecraft: MC_VERSION, architect: [ARCH_VERSION], kit: e.module.pins.kit, checker: e.module.pins.checker, result: 'pass' };
+    // a re-certification on a new Architect pin (same program and module.json, same Minecraft) keeps the versions the old certificate covers
+    const prev = e.measured;
+    const same = prev?.result === 'pass' && prev.programSha === now.programSha && prev.moduleSha === g.gate.moduleSha && prev.minecraft === MC_VERSION;
+    const architect = [...new Set([...(same ? prev.architect ?? [] : []), ARCH_VERSION])];
+    const m = { ...(prev ?? {}), id: e.id, version: e.version, fixture: !!e.module.fixture, programSha: now.programSha, moduleSha: g.gate.moduleSha,
+      minecraft: MC_VERSION, architect, kit: off.data.kit, checker: off.data.checker, result: 'pass' };
     m.checks = {
       offline: { at: off.at, head: off.head, architect: off.data.architect, kit: off.data.kit, branches: o.branches.map(({ branch, bible, ok, blocks, warnings }) => ({ branch, bible, ok, blocks, warnings })), probes: o.probes },
       ingame: { at: inn.at, head: inn.head, env: inn.data.env, install: { key: g.install.key, ok: g.install.ok }, variants: g.variants.map(({ branch, bible, ok, sha, sent }) => ({ branch, bible, version: sent?.version ?? null, ok, sha })), outside: { refused: !g.outside?.ok, detail: g.outside?.detail }, byKey: g.byKey ? { found: g.byKey.k.found, unknownFound: g.byKey.none.found } : null },

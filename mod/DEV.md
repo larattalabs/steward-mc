@@ -452,5 +452,10 @@ on the fixture module `fixture_plot@1` (2 sides x 2 crops x 3 Styles) with `tool
 - **After the fixes:** offline PASS 18; ingame PASS 20 in 125 s (the plain gate: not certified, nothing offered; a measuring run installs it and
   its 12 variants, each with its bible pinned at v1 and made from the catalog install); `record`; ingame again PASS 20 in 36 s, the plain gate
   now offering it.
+- **GPT fix check** (at ef6d016): 5 of 8 resolved; 3 partial and 1 new should-fix, all fixed (the slice's one fix check, no further round):
+  integers in a binding or the lot ext read exactly (`1.0000000000000001`, `1e0`, `4294967297` refused); `record` checks the checker it ran
+  (the kit's own, its version the kit's) against the pin; the tool takes an exclusive claim on `mod/run` before launching and fails at once if
+  its client exits; a module certified for another Architect version reads as refused for the version, not a failure, so a pin bump can be
+  re-certified (the versions of an unchanged certificate are kept). Ingame again: PASS 20 in 40 s; recorded.
 - **Unit:** `ModuleCatalogTest`, `PaletteCheckTest`, `ModuleRefTest`, `BuildStoreFormat5Test`, SaveCompatTest's format-4 growth file
   (`fixtures/saves/v6`); all of `build` passes (402).

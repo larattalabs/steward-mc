@@ -166,6 +166,7 @@ public final class BuildStore {
 	}
 
 	public static BuildStore fromJson(String json) {
+		strictBindings(json);
 		FileShape f = GSON.fromJson(json, new TypeToken<FileShape>() {});
 		if (f == null || f.builds == null) throw new JsonParseException("not a Steward builds file");
 		if (f.format < 1 || f.format > FORMAT) throw new JsonParseException("unsupported builds format " + f.format + " (this build reads 1.." + FORMAT + ")");
@@ -187,6 +188,35 @@ public final class BuildStore {
 			s.put(b);
 		}
 		return s;
+	}
+
+	/**
+	 * Module bindings' integers are read exactly: Gson would read {@code 1.0000000000000001} or {@code 1e0} as 1 (another module version than
+	 * was saved). Any binding whose {@code version} or {@code bibleVersion} is not a plain integer refuses the file.
+	 */
+	private static void strictBindings(String json) {
+		com.google.gson.JsonElement root;
+		try {
+			root = com.google.gson.JsonParser.parseString(json);
+		} catch (RuntimeException e) {
+			throw new JsonParseException("not a Steward builds file: " + e.getMessage());
+		}
+		if (!root.isJsonObject() || !root.getAsJsonObject().has("builds") || !root.getAsJsonObject().get("builds").isJsonArray()) return;
+		for (var b : root.getAsJsonObject().getAsJsonArray("builds")) {
+			if (!b.isJsonObject() || !b.getAsJsonObject().has("moduleBindings")) continue;
+			var mb = b.getAsJsonObject().get("moduleBindings");
+			if (mb.isJsonNull()) continue;
+			if (!mb.isJsonObject()) throw new JsonParseException("moduleBindings is not an object");
+			for (var e : mb.getAsJsonObject().entrySet()) {
+				if (!e.getValue().isJsonObject()) throw new JsonParseException("module binding " + e.getKey() + " is not an object");
+				var o = e.getValue().getAsJsonObject();
+				for (String k : List.of("version", "bibleVersion")) {
+					if (o.has(k) && dev.larattalabs.steward.module.ModuleRef.exactInt(o.get(k)) == null) {
+						throw new JsonParseException("module binding " + e.getKey() + ": " + k + " " + o.get(k) + " is not an integer");
+					}
+				}
+			}
+		}
 	}
 
 	public void save(Path file) throws IOException {

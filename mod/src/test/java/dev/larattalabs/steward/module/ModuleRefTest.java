@@ -32,6 +32,9 @@ class ModuleRefTest {
 		assertNull(ModuleRef.of(j("{\"steward_mc:module\":{\"id\":\"x\",\"version\":1,\"programSha\":\"" + SHA + "\",\"params\":[]}}")), "params [] is not {}");
 		assertNull(ModuleRef.of(j("{\"steward_mc:module\":{\"id\":\"x\",\"version\":1,\"programSha\":\"" + SHA + "\"}}")), "no params is not {}");
 		assertNotNull(ModuleRef.of(j("{\"steward_mc:module\":{\"id\":\"x\",\"version\":1,\"programSha\":\"" + SHA + "\",\"params\":{}}}")));
+		for (String v : new String[] {"1.0000000000000001", "1.0", "1e0", "4294967297", "\"1\""}) {
+			assertNull(ModuleRef.of(j("{\"steward_mc:module\":{\"id\":\"x\",\"version\":" + v + ",\"programSha\":\"" + SHA + "\",\"params\":{}}}")), v);
+		}
 	}
 
 	@Test
