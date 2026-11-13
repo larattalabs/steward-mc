@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pickFlows } from './lib/e2e-flows.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARCH = process.env.ARCHITECT_CHECKOUT ?? path.resolve(ROOT, '..', 'architect-mc');
@@ -27,7 +28,7 @@ const WORLD = path.join(GAME, 'saves', process.env.ARCHITECT_AUTOWORLD_NAME ?? '
 const OUT = path.join(ROOT, 'artifacts', 'e2e');
 const LOG = path.join(GAME, 'logs', 'latest.log');
 const mode = process.argv[2] ?? 'free';
-// --only a,b: run only the flows whose name or tags hold one of the words, plus the sanity set (status, claim, expand, restart); an RC's run
+// --only a,b: run only the flows whose name or tags hold one of the words (and the flows they need), plus the sanity set (status, claim, expand, restart); an RC's run
 // --keep-world: open the existing "Steward E2E" world instead of a fresh one (to look at a run's leftovers); by default every run starts fresh
 const keepWorld = process.argv.includes('--keep-world');
 const onlyAt = process.argv.indexOf('--only');
@@ -3839,12 +3840,24 @@ async function followFlow() {
 
 const started = Date.now();
 const skipped = [];
-/** Runs a flow when no --only is given or a word of it is in the flow's name or tags (`flow` lines name each, for a rerun of what failed). */
-async function flow(name, tags, fn) {
-  if (only && !only.some((w) => `${name} ${tags}`.toLowerCase().includes(w))) return skipped.push(name);
-  console.log(`flow ${name}`);
-  await clearAnimals();
-  await fn();
+const flows = [];
+/**
+ * Names a flow; runFlows runs them in this order. `needs`: the earlier flows whose world this one builds on (districts needs the settlement proposals
+ * describes), pulled into an --only run that picks this flow.
+ */
+function flow(name, tags, fn, needs = []) {
+  for (const n of needs) if (!flows.some((f) => f.name === n)) throw new Error(`flow ${name} needs ${n}, which is not named before it`);
+  flows.push({ name, tags, fn, needs });
+}
+/** Runs the named flows (`flow` lines name each, for a rerun of what failed; a pulled-in one says which flow needs it). */
+async function runFlows() {
+  const why = pickFlows(flows, only);
+  for (const f of flows.splice(0)) {
+    if (!why.has(f.name)) { skipped.push(f.name); continue; }
+    console.log(`flow ${f.name}${why.get(f.name) ? ` (needed by ${why.get(f.name)})` : ''}`);
+    await clearAnimals();
+    await f.fn();
+  }
 }
 try {
   await preflight();
@@ -3866,7 +3879,8 @@ try {
       await flow('place', 'update revert undo screens', () => placeUpdateUndo(id));
       await flow('steward-life', 'sit sleep walk', () => stewardLife(id));
       await flow('proposals', 'farm', () => proposals(id));
-      await flow('districts', 'protect road layout', () => districts(id));
+      // districts builds on the settlement proposals describes (its own run alone says "Describe set_1 first")
+      await flow('districts', 'protect road layout', () => districts(id), ['proposals']);
       await flow('player-builds', 'protect', () => playerBuilds(id));
       await flow('talk', 'screens', () => talk(id));
     }
@@ -3909,6 +3923,7 @@ try {
     }
   }
   await flow('migrated-steward', 'save migration', () => migratedSteward());
+  await runFlows();
   await restartRestore();
 } catch (e) {
   fail('run', e.message);
