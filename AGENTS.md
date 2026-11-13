@@ -62,7 +62,7 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 
 - Steward dev client: 8490 (Architect sidecar) / 8491 (DevBridge); override with `STEWARD_PORT` / `STEWARD_DEV_PORT`.
 - Steward e2e client: 8590 / 8591 (`tools/run-e2e-client.sh`).
-- Architect gate runners: 8890-8905; Architect agents: 8960-8989. AgentCraft Foreman: 7880 and 7890-7909.
+- Architect's ports: see `../architect-mc/docs/GATES.md`, its port table (gate runners, slice pairs, turbo). Steward uses only 8490-8491 and 8590-8601.
 
 ## Hard rules
 
