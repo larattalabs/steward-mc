@@ -542,3 +542,28 @@ raw hex becomes tokens (`CLAY_DARK` at 0x60, `paper.disabled`).
   - The first stub toast check failed because Architect's massing bar is an avoided rect, so the column ended above it and Steward's toasts
     waited under "+3 more". The check now counts the stack, not only the toasts on screen.
 - **Unit:** `InboxJobsTest` (6).
+
+### Phase 5 slice M2: crop_farm@1 measured (2026-11-13, $0)
+`node tools/module-measure.mjs <step>` (ports 8594/8595 via `STEWARD_PORT`/`STEWARD_DEV_PORT`, default 8595; its own client and fresh
+world per step; `--attach`, `--keep-client`). The bars and results are in docs/MEASURE-M2.md, the design in docs/MODULES.md "M2 as built".
+- **Steps.**
+  - `field --crop <c> [--runs 5]`: items 1, 2, 3 and 5 over the 9 sizes, on an ew and an ns town.
+  - `skin --bible <b>`: items 1a, 2 and 4, with spiders recorded.
+  - `survival`: items 6 and 7, in a survival-mode world.
+  - `bounds`: 108 QT quotes, never realised.
+  - `border`: the 9x9 and 27x9 sizes on chunk corners.
+  - `cover`: the envelope's facing and border bars, no client.
+  - `bands`: item 3's predicted bands, no client.
+  - `look`: geometry only, never judged.
+- **Then** `tools/module-catalog.mjs offline|ingame|record --catalog modules` (ingame with `STEWARD_DEV_PORT=8595`). Times: about 4 hours in
+  all, the four field steps 28-41 min each.
+- **Harness lessons.**
+  - Random ticks run only in block-ticking chunks: every field stands within simulation distance 16, which the tool writes to options.txt.
+  - `/tick freeze` is not saved, so the restart check saves with random ticks off.
+  - A removal waits a settle bound after draining, so never undo frozen.
+  - A survival-mode player dies from a teleport's fall and then loads no chunks: fall damage off.
+  - A region bills only in a survival-mode world (`ARCHITECT_AUTOWORLD_MODE=survival`).
+- **Shakedowns** (not recorded; MEASURE-M2.md "Candidates"):
+  - candidate 1's composter and chest outside the fence let mobs climb over it;
+  - candidate 2's path under them turned to dirt.
+
