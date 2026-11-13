@@ -543,6 +543,24 @@ public final class Actions {
 		var level = server.getLevel(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,
 			net.minecraft.resources.Identifier.parse(s.claim().dimension())));
 		if (level == null) return Result.fail("The dimension of " + s.id() + " is not loaded.");
+		if (p.get().offersModule()) {
+			// a module (docs/MODULES.md 4.1): checked again at Accept, the town may have changed; ineligible, the steward says so and offers the decorative
+			// building as its own priced proposal, never a silent switch to a paid design
+			var order = p.get().module();
+			var kind = ModuleOffers.kind(order);
+			String no = ModuleOffers.recheck(server, player, s, p.get());
+			if (no != null || kind.isEmpty()) {
+				ModuleOffers.withdraw(s, key);
+				String said = kind.map(k -> ModuleOffers.substitute(server, player, s, k, no == null ? "Steward doesn't know it" : no)).orElse("It can't be built: " + no);
+				StewardVoice.say(server, s.id(), said);
+				return Result.fail(said);
+			}
+			var accepted = order.accepted(autonomous);
+			new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, null),
+				() -> Proposals.giveBack(s.id(), p.get(), null), () -> Proposals.backOff(s.id(), key)).startModule(s, p.get().building(), accepted);
+			return Result.ok(String.format("Laying %s in %s: a working module from the catalog (%s@%d), at no design cost%s.", kind.get().title(), s.name(), order.moduleId(),
+				order.version(), order.bound() == null ? "" : "; its bill from the stockpile is held to at most " + dev.larattalabs.steward.module.ModuleBound.bill(order.bound(), 4)));
+		}
 		int budget = Proposals.estimate(p.get());
 		if (autonomous && !s.autonomy().allows(budget, System.currentTimeMillis())) return Result.fail("Past this week's allowance.");
 		String title = p.get().title();

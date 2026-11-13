@@ -40,6 +40,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
+import dev.larattalabs.steward.module.ModuleInstalls;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -379,6 +381,7 @@ public final class SettlementRunner {
 		this.growPosition = b.growPosition() == null ? 0 : b.growPosition();
 		this.growKey = b.growKey();
 		this.moduleBindings = b.moduleBindings();
+		this.moduleOrders = b.moduleOrders();
 	}
 
 	private ServerLevel level() {
@@ -395,7 +398,7 @@ public final class SettlementRunner {
 		if (ended) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
 			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, growRegion,
-			growth() ? growRid : null, growth() ? growPosition : null, growKey, moduleBindings));
+			growth() ? growRid : null, growth() ? growPosition : null, growKey, moduleBindings, moduleOrders));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -457,7 +460,8 @@ public final class SettlementRunner {
 			Steward.LOGGER.info("resume {}: village {} (region {}), phase {}", settlement.id(), vPlanId, vRegionId, state.phase());
 			switch (state.phase()) {
 				case AWAITING_PLACEMENT_APPROVAL -> { }
-				case READY_TO_PLACE -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) queueVillage(!permission.needsApproval(Permission.Action.NEW_PROJECT)); }
+				// (slice M3) a module build was approved at Accept: bound (by its saved keys) and quoted again, then placed, never asked again
+				case READY_TO_PLACE -> { if (vRegionId != null) watchVillage(); else if (!findVillage()) { if (moduleBuild()) realiseVillage(); else queueVillage(!permission.needsApproval(Permission.Action.NEW_PROJECT)); } }
 				// not found by its key: realised again under the same key (Architect answers a realise it has with that region, never a second one), unless
 				// something of it is in the world without its record (a batch of this build in any state, or a site, tiles included, of a region Architect
 				// does not list): then it is not placed twice
@@ -555,6 +559,24 @@ public final class SettlementRunner {
 	private int growRid, growPosition;
 	/** Module lots' bindings (docs/MODULES.md 4.2 step 4; BuildStore format 5): carried through every save. Made by growth placement (slice M3). */
 	private java.util.Map<String, dev.larattalabs.steward.module.ModuleBinding> moduleBindings = java.util.Map.of();
+	/**
+	 * (slice M3) What the player accepted for each module lot (BuildStore format 6): the catalog version, program, params and in survival the approved
+	 * bound. Set when the growth is planned, saved with the build; empty for any other build.
+	 */
+	private java.util.Map<String, dev.larattalabs.steward.module.ModuleOrder> moduleOrders = java.util.Map.of();
+	/** (slice M3) A module build's order before its lot has an id (from {@link #startModule} until the growth is planned). */
+	private dev.larattalabs.steward.module.@org.jspecify.annotations.Nullable ModuleOrder pendingModule;
+	/** (slice M3) A bind or a quote is out: the realise waits for it, and nothing starts a second. */
+	private boolean moduleBusy;
+	/** (slice M3) The quote past the bound the player is asked about now (its bill), null when none waits. This session. */
+	private @org.jspecify.annotations.Nullable JsonObject heldBill;
+	/** (slice M3) The plan and entries whose quote passed this session ({@code planId|lot=entry,...}): the realise goes on only for exactly them. */
+	private @org.jspecify.annotations.Nullable String quoteCleared;
+
+	/** Whether this build places module lots (slice M3): its lots come from the catalog, never a design. */
+	private boolean moduleBuild() {
+		return pendingModule != null || !moduleOrders.isEmpty();
+	}
 
 	private boolean growth() {
 		return growRegion != null;
@@ -926,6 +948,22 @@ public final class SettlementRunner {
 			s.proposals(), s.bible(), s.autonomy(), s.lands()), Math.max(1, buildings), budgetUsd);
 	}
 
+	/**
+	 * (docs/MODULES.md 4.2, slice M3) Places an accepted module offer: one module lot, the catalog's program run at $0, as an addition on growth (A, A2,
+	 * or B then A). Never a design, never Steward's street pieces: a town that can't grow that way ends the build before anything is spent.
+	 */
+	public void startModule(Settlement s, dev.larattalabs.steward.model.ConceptCard.Building lot, dev.larattalabs.steward.module.ModuleOrder order) {
+		this.pendingModule = order;
+		startAddition(s, lot, 0, null);
+	}
+
+	/** (slice M3) The module lot's spec: its exact frame [W, D] (never a footprint class), the role and the catalog's words. */
+	private List<VillageLayout.LotSpec> moduleSpecs(dev.larattalabs.steward.model.ConceptCard.Building b) {
+		var kind = dev.larattalabs.steward.module.ModuleKind.of(pendingModule.moduleId()).orElseThrow();
+		int[] f = kind.frame(pendingModule.params());
+		return List.of(new VillageLayout.LotSpec("module_1", kind.lotType(), f[0], f[1], kind.role(), b.notes(), false, null));
+	}
+
 	/** Start from a settlement the player claimed with the Founding Stone and described: its claim and card are used, no card job runs. */
 	public void startExisting(Settlement s, int buildings, double budgetUsd) {
 		if (!s.described()) { say("Describe " + s.id() + " first: /steward describe " + s.id() + " <your words>"); return; }
@@ -982,7 +1020,11 @@ public final class SettlementRunner {
 			ProgramPlanner.Result program = ProgramPlanner.lots(r.card(), buildings, maxLandmarks);
 			if (!program.fromCard()) say("This card has no building program (it was described before programs existed), so this is a generic village. Describe it again to get buildings of its own.");
 			if (!program.leftOut().isEmpty()) say("Left out at " + buildings + " buildings: " + String.join(", ", program.leftOut()) + ".");
-			List<VillageLayout.LotSpec> specs = program.specs();
+			List<VillageLayout.LotSpec> specs = moduleBuild() && pendingModule != null ? moduleSpecs(r.card().program().get(0)) : program.specs();
+			if (moduleBuild() && dev.larattalabs.steward.module.ModuleKind.of(pendingModule == null ? null : pendingModule.moduleId()).isEmpty()) {
+				abandon("Steward doesn't know how to place that module.");
+				return;
+			}
 			// a district keeps a wider margin (the road along its edge); its first building lays its street, east and west on the town street's line
 			var rules = district != null ? new VillageLayout.Rules(5, 3, 3, dev.larattalabs.steward.model.DistrictRules.MARGIN) : VillageLayout.Rules.defaults();
 			newStreet = !addition || (district != null && streetZ == null);
@@ -1046,12 +1088,20 @@ public final class SettlementRunner {
 					if (inv.isPresent()) {
 						java.util.function.Supplier<VillageLayout.Plan> legacyPlan = own;
 						adoptTown(r, budgetUsd, specs, inv.get(), () -> {
+							// (slice M3) a module grows a region or nothing: never Steward's own street pieces
+							if (moduleBuild()) { abandon("The town couldn't be taken on as one region, and a working module is placed only by growing one. Nothing was spent."); return; }
 							plan = legacyPlan.get();
 							continueWithPlan(r, budgetUsd, district);
 						});
 						return;
 					}
 				}
+			}
+			// (slice M3) a module is placed only as an addition on growth (A, A2, B): a town that took none of those paths ends here, before anything is spent
+			if (moduleBuild()) {
+				abandon("A working module is placed only by growing the town through Architect, and this town can't grow that way now (a district, a north-south or "
+					+ "Supplied street town, or an Architect without growth). Nothing was spent.");
+				return;
 			}
 			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(), worldSurvival, overworld, addition, districtId,
 				r.card().site().terrain(), stands, lo, hi)) {
@@ -1162,6 +1212,12 @@ public final class SettlementRunner {
 		List<VillageLayout.LotSpec> lots = stale != null && districtSpecs != null ? districtSpecs : Growths.rename(specs, buildId);
 		districtSpecs = lots;
 		growRegion = region;
+		// (slice M3) the module lot's order under its region lot id, saved with the build from its plan on
+		if (pendingModule != null && stale == null) {
+			var ids = lots.stream().map(VillageLayout.LotSpec::id).toList();
+			moduleOrders = Map.of(ids.get(0), pendingModule);
+			pendingModule = null;
+		}
 		if (stale == null) say("The town grows: Architect finds room on its streets...");
 		// asked before (a restart before the answer was saved): the newest of this build's growth plans
 		if (stale == null) {
@@ -1170,7 +1226,7 @@ public final class SettlementRunner {
 				if (found.isPresent()) { grown(r, budgetUsd, found.get(), k, lots); return; }
 			}
 		}
-		List<String[]> tries = stale != null ? List.<String[]>of(new String[] {"vgrow3", "vgrow2".equals(stale) ? "extend" : "frontage"})
+		List<String[]> tries = stale != null ? List.<String[]>of(new String[] {"vgrow3", stale.startsWith("vgrow2") ? "extend" : "frontage"})
 			: List.of(new String[] {"vgrow", "frontage"}, new String[] {"vgrow2", "extend"});
 		planGrowthTry(r, budgetUsd, region, lots, tries, 0, Session.current());
 	}
@@ -1179,7 +1235,7 @@ public final class SettlementRunner {
 		String key = tries.get(i)[0], prefer = tries.get(i)[1];
 		JsonObject params = dev.larattalabs.steward.gateway.VPlan.params(lots, settlement.id(), buildId);
 		JsonObject grow = new JsonObject();
-		grow.add("lots", params.getAsJsonArray("lots"));
+		grow.add("lots", moduleGrowLots(params.getAsJsonArray("lots")));
 		grow.addProperty("prefer", prefer);
 		JsonObject p = new JsonObject();
 		p.add("grow", grow);
@@ -1194,6 +1250,8 @@ public final class SettlementRunner {
 					String m = message(err);
 					boolean full = m.contains("NO_ROOM") || m.contains("REGION_LIMIT");
 					if (full && i + 1 < tries.size()) { planGrowthTry(r, budgetUsd, region, lots, tries, i + 1, session); return; }
+					// (slice M3) no room for the module at this size: the next smaller size of its discrete set, as a new plan (never another box), said
+					if (full && r != null && smallerModule(r, budgetUsd, region, lots, session)) return;
 					if (full) Proposals.full(settlement.id(), null);
 					growthNotPlanned(r, full ? "No room left in the town for it: its streets are full. A district could take it."
 						: "Architect could not find room for it in the town: " + m);
@@ -1206,6 +1264,60 @@ public final class SettlementRunner {
 					growthNotPlanned(r, "The build stopped after the town's growth plan: " + e);
 				}
 			}));
+	}
+
+	/**
+	 * (slice M3) The grow lots as sent: a module lot gets the catalog's lot (its type, exact size, {@code irrigate} and FC's {@code field} where the
+	 * module has them) and its {@code steward_mc:module} ext beside Steward's tags; any other lot as it was.
+	 */
+	private com.google.gson.JsonArray moduleGrowLots(com.google.gson.JsonArray lots) {
+		if (moduleOrders.isEmpty()) return lots;
+		com.google.gson.JsonArray out = new com.google.gson.JsonArray();
+		for (var e : lots) {
+			JsonObject l = e.getAsJsonObject();
+			var order = moduleOrders.get(l.get("id").getAsString());
+			var kind = order == null ? java.util.Optional.<dev.larattalabs.steward.module.ModuleKind>empty() : dev.larattalabs.steward.module.ModuleKind.of(order.moduleId());
+			if (kind.isEmpty()) { out.add(l); continue; }
+			JsonObject m = kind.get().growLot(l.get("id").getAsString(), order.params());
+			JsonObject ext = l.has("ext") ? l.getAsJsonObject("ext").deepCopy() : new JsonObject();
+			m.add("ext", order.ref().into(ext));
+			if (l.has("role")) m.add("role", l.get("role"));
+			out.add(m);
+		}
+		return out;
+	}
+
+	/**
+	 * (slice M3, docs/MODULES.md 4.2 step 1) The module had no room at its size on either preference: the next smaller size of its discrete set is
+	 * planned as a new plan (its own keys), said, with its own measured bound, which must stay within the one the player approved. False when there is
+	 * no smaller size (or no bound for it): the caller ends the build as for any growth with no room.
+	 */
+	private boolean smallerModule(CardResult r, double budgetUsd, String region, List<VillageLayout.LotSpec> lots, int session) {
+		if (moduleOrders.size() != 1 || lots.size() != 1) return false;
+		String lotId = lots.get(0).id();
+		var order = moduleOrders.get(lotId);
+		var kind = dev.larattalabs.steward.module.ModuleKind.of(order.moduleId());
+		if (kind.isEmpty()) return false;
+		var next = kind.get().smaller(order.params());
+		if (next.isEmpty()) return false;
+		var entry = ModuleOffers.catalog().get(order.moduleId(), order.version()).filter(e -> e.programSha().equals(order.programSha()));
+		if (entry.isEmpty()) return false;
+		var p = dev.larattalabs.steward.module.ModuleGate.params(entry.get(), next.get());
+		if (!p.ok()) return false;
+		JsonObject bound = null;
+		if (order.bound() != null) {
+			bound = ModuleOffers.bound(entry.get(), p.values());
+			if (bound == null || !dev.larattalabs.steward.module.ModuleBound.over(bound, order.bound()).isEmpty()) return false;
+		}
+		int[] was = kind.get().frame(order.params()), now = kind.get().frame(p.values());
+		say("No room in the town for the " + was[0] + " by " + was[1] + " " + kind.get().role() + ": trying a smaller one, " + now[0] + " by " + now[1] + ", as a new plan.");
+		moduleOrders = Map.of(lotId, order.resized(p.values(), bound));
+		var spec = lots.get(0);
+		List<VillageLayout.LotSpec> resized = List.of(new VillageLayout.LotSpec(spec.id(), spec.type(), now[0], now[1], spec.role(), spec.notes(), spec.landmark(), spec.placement()));
+		districtSpecs = resized;
+		String sfx = ".s" + now[0] + "x" + now[1];
+		planGrowthTry(r, budgetUsd, region, resized, List.of(new String[] {"vgrow" + sfx, "frontage"}, new String[] {"vgrow2" + sfx, "extend"}), 0, session);
+		return true;
 	}
 
 	/** The growth's plan: saved (plan, rid, position, key) before anything else, then the lots go on as the build's plan. */
@@ -1501,6 +1613,16 @@ public final class SettlementRunner {
 			}
 			// an accepted proposal records itself now (acceptance, spend), or does not start
 			if (onStart != null && !onStart.getAsBoolean()) { abandon("Could not save the settlement, so nothing is built."); return; }
+			// (slice M3) a module lot is never designed: its entry is the catalog's variant, bound before the realise (docs/MODULES.md 4.2)
+			if (moduleBuild()) {
+				var bible = existing != null && existing.bible() != null && existing.bible().styleVersion() == existing.styleVersion() ? existing.bible() : null;
+				state = new State(Pipeline.Phase.READY_TO_PLACE, settlement.id(), r.card(), bible == null ? null : bible.id(), bible == null ? null : bible.version(), null,
+					Map.of(), 0, 0, 0, false, null, null);
+				persist();
+				say("A working module from Steward's catalog: no design, $0. Making it for its lot...");
+				realiseVillage();
+				return;
+			}
 			state = State.start(settlement.id(), r.card(), budgetUsd);
 			var bible = existing != null && existing.bible() != null && existing.bible().styleVersion() == existing.styleVersion() ? existing.bible() : null;
 			if (bible != null) say("Designing in " + settlement.name() + "'s own style (its style bible is reused).");
@@ -1967,7 +2089,11 @@ public final class SettlementRunner {
 				else if (!groupInFlight && !recovering) { if (keyed) cancelByKeys(); else later.add(new Pipeline.CancelConfirmed()); }
 			}
 			case Pipeline.FitAndQueue f -> fitAndQueue(f.autoApprove());
-			case Pipeline.ApproveStages a -> { if (village()) realiseVillage(); else approveStages(); }
+			case Pipeline.ApproveStages a -> {
+				// (slice M3) the player approved a held bill: the next quote within it goes on
+				if (moduleBuild()) approvedHeld = heldBill != null;
+				if (village()) realiseVillage(); else approveStages();
+			}
 			case Pipeline.CancelBatch cb -> {
 				if (village()) cancelVillage();
 				else if (batchId != null) cancelBatch(batchId);
@@ -2141,14 +2267,26 @@ public final class SettlementRunner {
 	private void realiseVillage() {
 		if (vRegionId != null || queueInFlight) return;
 		var api = ArchitectApi.get();
-		Group g = groupId == null ? null : api.designs().group(groupId).orElse(null);
-		if (g == null) { say("The group disappeared."); return; }
 		Map<String, String> entries = new LinkedHashMap<>();
-		for (Group.Item it : g.items()) it.entryId().ifPresent(e -> entries.put(it.itemKey(), e));
+		// (slice M3) module lots: their bound variants, made (or found by key) and their bill quoted first; the realise waits until then
+		if (moduleBuild()) {
+			if (!modulesReady()) return;
+			moduleBindings.forEach((lot, b) -> { if (b.entryId() != null && moduleOrders.containsKey(lot)) entries.put(lot, b.entryId()); });
+		}
+		Group g = groupId == null ? null : api.designs().group(groupId).orElse(null);
+		if (g == null && !moduleBuild()) { say("The group disappeared."); return; }
+		if (g != null) for (Group.Item it : g.items()) it.entryId().ifPresent(e -> entries.put(it.itemKey(), e));
 		// only the planned lots, each with its design (a copy included); a lot with none stays a pad
 		Map<String, String> lotEntries = new LinkedHashMap<>();
 		for (VillageLayout.Lot l : plan.lots()) if (entries.containsKey(l.id())) lotEntries.put(l.id(), entries.get(l.id()));
 		var missing = plan.lots().stream().map(VillageLayout.Lot::id).filter(id -> !lotEntries.containsKey(id)).toList();
+		// (docs/MODULES.md 4.2 step 6) a module lot whose entry is missing refuses the realise: never left as a pad
+		var moduleMissing = missing.stream().filter(moduleOrders::containsKey).toList();
+		if (!moduleMissing.isEmpty()) {
+			say("Not placed: the module lot " + String.join(", ", moduleMissing) + " has no entry bound, and a module lot is never left as a pad.");
+			feed(new Pipeline.Cancel());
+			return;
+		}
 		if (!missing.isEmpty()) say("Left as pads (no design): " + String.join(", ", missing));
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", settlement.id());
@@ -2168,6 +2306,8 @@ public final class SettlementRunner {
 			String no = growthRealiseRefusal();
 			if (no != null) { say("Not placed: " + no); feed(new Pipeline.Cancel()); return; }
 		}
+		// (slice M3) the player approved it at Accept (or approved the bill since): placed now, never asked again
+		if (moduleBuild() && state.phase() == Pipeline.Phase.READY_TO_PLACE) feed(new Pipeline.ModulePlace());
 		say(growth() ? "Placing it in the town (" + lotEntries.size() + (lotEntries.size() == 1 ? " building" : " buildings") + ")..."
 			: "Placing the village (" + lotEntries.size() + " buildings, its street, lanes and square)...");
 		queueInFlight = true;
@@ -2188,6 +2328,199 @@ public final class SettlementRunner {
 		Mode mode = growth() && growRegion != null && api.regions().get(growRegion).map(Growths::fromMaterials).orElse(false) ? Mode.CONSTRUCTION : Mode.INSTANT;
 		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, mode, actor, lotEntries, null, true, null, false, ext, 0, key))
 			.whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
+	}
+
+	// ----------------------------------------------------------------- module lots (slice M3, docs/MODULES.md 4.2)
+
+	/** The growth plan's own lots (box, frame, IRR's report), read back by the key that planned it; null when Architect has it no more. */
+	private @org.jspecify.annotations.Nullable List<dev.larattalabs.architect.api.LotSpec> growthPlanLots() {
+		if (vPlanId == null || growKey == null) return null;
+		return ArchitectApi.get().regions().planByKey(settlement.owner(), opKey(growKey)).filter(p -> vPlanId.equals(p.planId()))
+			.map(dev.larattalabs.architect.api.RegionPlan::lots).orElse(null);
+	}
+
+	/** Whether a callback may still act: the runner is the world's, and the build is still being placed (not cancelled, not ended). */
+	private boolean placingModules(int session) {
+		return Session.is(session) && alive() && state != null && switch (state.phase()) {
+			case READY_TO_PLACE, PLACING -> true;
+			default -> false;
+		};
+	}
+
+	/**
+	 * Whether every module lot is bound to a variant made for its geometry now, and (from materials) its quote cleared for exactly these entries.
+	 * When not, it starts what is missing (one at a time) and answers false; that work calls {@link #realiseVillage} again when it is done.
+	 */
+	private boolean modulesReady() {
+		if (moduleBusy || !placingModules(Session.current())) return false;
+		var lots = growthPlanLots();
+		if (lots == null) {
+			say("Not placed: the town's growth plan can't be read back from Architect, so the module can't be bound to its lot. Nothing was placed.");
+			feed(new Pipeline.Cancel());
+			return false;
+		}
+		for (var e : moduleOrders.entrySet()) {
+			var spec = lots.stream().filter(l -> l.id().equals(e.getKey())).findFirst();
+			if (spec.isEmpty()) {
+				say("Not placed: the growth plan has no lot " + e.getKey() + " for the module. Nothing was placed.");
+				feed(new Pipeline.Cancel());
+				return false;
+			}
+			var b = moduleBindings.get(e.getKey());
+			if (!ModulePlacement.holds(b, e.getValue(), ModulePlacement.geometry(spec.get())) || b.entryId() == null) {
+				bindModule(e.getKey(), e.getValue(), spec.get());
+				return false;
+			}
+		}
+		if (growRegion != null && ArchitectApi.get().regions().get(growRegion).map(Growths::fromMaterials).orElse(false)) {
+			Map<String, String> entries = new TreeMap<>();
+			moduleBindings.forEach((lot, b) -> { if (moduleOrders.containsKey(lot)) entries.put(lot, b.entryId()); });
+			if (!ModulePlacement.cleared(vPlanId, entries).equals(quoteCleared)) {
+				quoteModules(entries);
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Binds one module lot (4.2 steps 3-4, "A stale plan", "Recovery"): a binding that still holds is kept; else (none, or the re-plan moved the lot)
+	 * a new binding under the next key is saved <b>before</b> Architect is asked, so a restart finds the variant by that key and never makes a
+	 * second. The variant is looked up by its key first, then made (a keyed request: asked again with the same body, the same entry).
+	 */
+	private void bindModule(String lotId, dev.larattalabs.steward.module.ModuleOrder order, dev.larattalabs.architect.api.LotSpec spec) {
+		var entry = ModuleOffers.catalog().get(order.moduleId(), order.version()).filter(x -> x.programSha().equals(order.programSha()));
+		if (entry.isEmpty()) {
+			say("Not placed: the catalog no longer holds " + order.moduleId() + "@" + order.version() + " as it was offered. Nothing was placed.");
+			feed(new Pipeline.Cancel());
+			return;
+		}
+		JsonObject geometry = ModulePlacement.geometry(spec);
+		var old = moduleBindings.get(lotId);
+		dev.larattalabs.steward.module.ModuleBinding b;
+		if (ModulePlacement.holds(old, order, geometry)) b = old;
+		else {
+			var bible = settlement.bible() != null && settlement.bible().styleVersion() == settlement.styleVersion() ? settlement.bible() : null;
+			String key = ModulePlacement.nextKey(old, buildId, lotId);
+			if (old != null) say("The town changed under the plan: the module is made again for its new lot.");
+			b = new dev.larattalabs.steward.module.ModuleBinding(order.moduleId(), order.version(), order.programSha(), order.params(), null,
+				bible == null ? null : bible.id(), bible == null ? 0 : bible.version(), dev.larattalabs.steward.module.Canon.sha(geometry), key, settlement.owner());
+			var next = new LinkedHashMap<>(moduleBindings);
+			next.put(lotId, b);
+			moduleBindings = java.util.Collections.unmodifiableMap(next);
+			// saved before it is asked: a restart finds the variant by this key, never makes a second
+			if (!persist()) { say("Not placed: the build could not be saved, so the module is not asked for."); feed(new Pipeline.Cancel()); return; }
+		}
+		moduleBusy = true;
+		int session = Session.current();
+		var bound = b;
+		ModuleInstalls.byKey(b.opKey(), b.owner()).whenComplete((found, err) -> server.execute(() -> {
+			if (!placingModules(session)) { moduleBusy = false; return; }
+			if (err == null && found.isPresent()) { moduleBound(lotId, bound, found.get()); return; }
+			var pin = bound.bibleId() == null ? null : new dev.larattalabs.architect.api.BiblePin(bound.bibleId(), bound.bibleVersion());
+			ModuleInstalls.variant(entry.get(), ModuleOffers.env(), bound.params(), pin, ModulePlacement.reserved(spec), bound.opKey(), bound.owner(),
+				dev.larattalabs.steward.module.McBlockFacts.INSTANCE).whenComplete((o, err2) -> server.execute(() -> {
+					if (!placingModules(session)) { moduleBusy = false; return; }
+					if (err2 != null || o == null || !o.ok()) {
+						moduleBusy = false;
+						say("Not placed: the module couldn't be made for its lot (" + (o == null ? message(err2) : o.message()) + "). Nothing was placed.");
+						feed(new Pipeline.Cancel());
+						return;
+					}
+					moduleBound(lotId, bound, o.entryId());
+				}));
+		}));
+	}
+
+	private void moduleBound(String lotId, dev.larattalabs.steward.module.ModuleBinding b, String entryId) {
+		var next = new LinkedHashMap<>(moduleBindings);
+		next.put(lotId, b.withEntry(entryId));
+		moduleBindings = java.util.Collections.unmodifiableMap(next);
+		moduleBusy = false;
+		if (!persist()) { say("Not placed: the build could not be saved."); feed(new Pipeline.Cancel()); return; }
+		Steward.LOGGER.info("module {} lot {}: {} under {}", settlement.id(), lotId, entryId, b.opKey());
+		realiseVillage();
+	}
+
+	/**
+	 * (4.2 step 5, section 6) The whole growth's bill, quoted read-only with the final entries (Architect's {@code Regions.quote}), against the bound the
+	 * player approved, before anything is consumed. Past it (or, Autonomous, over half the stockpile's count of an item: Q4) the build holds and asks;
+	 * within it, the realise goes on for exactly these entries.
+	 */
+	private void quoteModules(Map<String, String> entries) {
+		JsonObject bound = null;
+		boolean autonomous = false;
+		for (var o : moduleOrders.values()) {
+			if (o.bound() == null) {
+				say("Not placed: the town builds from materials and the module has no approved bound to hold its bill to. Nothing was consumed.");
+				feed(new Pipeline.Cancel());
+				return;
+			}
+			bound = bound == null ? o.bound().deepCopy() : sum(bound, o.bound());
+			autonomous |= o.autonomous();
+		}
+		moduleBusy = true;
+		int session = Session.current();
+		JsonObject approved = bound;
+		boolean ask = autonomous;
+		String key = ModulePlacement.cleared(vPlanId, entries);
+		ArchitectApi.get().regions().quote(vPlanId, entries).whenComplete((q, err) -> server.execute(() -> {
+			moduleBusy = false;
+			if (!placingModules(session)) return;
+			if (err != null || q == null) {
+				say("Not placed: the bill couldn't be quoted (" + message(err) + "), and nothing is consumed unchecked.");
+				feed(new Pipeline.Cancel());
+				return;
+			}
+			JsonObject bill = dev.larattalabs.steward.module.ModuleBound.clean(q.bom());
+			if (bill == null) { say("Not placed: Architect's quote is not a bill of items."); feed(new Pipeline.Cancel()); return; }
+			Steward.LOGGER.info("module {} quote {}: {} (bound {}, exact {})", settlement.id(), vPlanId, bill, approved, q.exact());
+			var over = dev.larattalabs.steward.module.ModuleBound.over(bill, approved);
+			List<dev.larattalabs.steward.module.ModuleBound.Heavy> heavy = List.of();
+			if (ask) {
+				Map<String, Integer> stock = new HashMap<>();
+				Stockpiles.of(server, Settlements.store().get(settlement.id()).orElse(settlement))
+					.ifPresent(sp -> sp.stock().forEach((it, n) -> stock.put(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(it).toString(), n)));
+				heavy = dev.larattalabs.steward.module.ModuleBound.heavy(bill, stock);
+			}
+			// a quote the player was asked about and approved: within what they saw, it goes on
+			if (heldBill != null && dev.larattalabs.steward.module.ModuleBound.over(bill, heldBill).isEmpty() && approvedHeld) {
+				approveHeld(heldBill);
+				over = List.of();
+				heavy = List.of();
+			}
+			approvedHeld = false;
+			if (!over.isEmpty() || !heavy.isEmpty()) {
+				heldBill = bill;
+				String why = !over.isEmpty() ? "The bill came to more than you approved: " + dev.larattalabs.steward.module.ModuleBound.words(over, 4) + "."
+					: "The whole bill takes more than half of the stockpile's " + heavy.stream().limit(3).map(h -> dev.larattalabs.steward.module.ModuleBound.plain(h.item())
+						+ " (" + h.bill() + " of " + h.stock() + ")").collect(Collectors.joining(", ")) + ", so I ask first.";
+				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.bill(bill, 8)
+					+ ". Approve to build it with this bill, or cancel."));
+				return;
+			}
+			heldBill = null;
+			quoteCleared = key;
+			realiseVillage();
+		}));
+	}
+
+	/** The player approved the held bill (the approve that ends AWAITING_PLACEMENT_APPROVAL): the next quote within it goes on. This session. */
+	private boolean approvedHeld;
+
+	/** The held bill, approved: it becomes the orders' bound (one module lot: its own; it is no longer the steward's own choice). */
+	private void approveHeld(JsonObject bill) {
+		var next = new LinkedHashMap<String, dev.larattalabs.steward.module.ModuleOrder>();
+		moduleOrders.forEach((lot, o) -> next.put(lot, moduleOrders.size() == 1 ? o.approved(bill).accepted(false) : o.accepted(false)));
+		moduleOrders = java.util.Collections.unmodifiableMap(next);
+		heldBill = null;
+		persist();
+	}
+
+	private static JsonObject sum(JsonObject a, JsonObject b) {
+		JsonObject o = a.deepCopy();
+		for (var e : b.entrySet()) o.addProperty(e.getKey(), (o.has(e.getKey()) ? o.get(e.getKey()).getAsInt() : 0) + e.getValue().getAsInt());
+		return o;
 	}
 
 	/** (slice A2) Why a growth may not be realised now, or null: the mode gate again, and a town built from materials keeps its stockpile. */
