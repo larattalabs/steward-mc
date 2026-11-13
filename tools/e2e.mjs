@@ -4487,8 +4487,12 @@ async function moduleSurvivalFlow() {
     const whole = /The whole bill: ([^.]*)\./.exec(held[0])?.[1] ?? '';
     // the quote, as logged, against crop_farm's own measured bound (what a player would have approved): within it item by item
     const quoted = (() => { const m = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(from)); return m ? JSON.parse(m[1]) : null; })();
-    const pastMeasured = quoted ? Object.entries(quoted).filter(([k, n]) => n > (measuredBound[k] ?? 0)) : null;
-    if (quoted && pastMeasured.length === 0) ok(`${label} measured bound`, `the quote ${JSON.stringify(quoted).slice(0, 160)} is within crop_farm's measured bound`);
+    // the bound is per item over the three measured Styles, so only the items no Style dresses compare across styles (this town's Style is none of
+    // the three: its fences, lamps and paths are other blocks, and its bill is held for that, as it should be)
+    const styleFree = ['minecraft:dirt', 'minecraft:wheat_seeds', 'minecraft:chest', 'minecraft:composter'];
+    const pastMeasured = quoted ? styleFree.filter((k) => (quoted[k] ?? 0) > (measuredBound[k] ?? 0)).map((k) => [k, quoted[k], measuredBound[k]]) : null;
+    const otherItems = quoted ? Object.keys(quoted).filter((k) => !(k in measuredBound)) : [];
+    if (quoted && pastMeasured.length === 0) ok(`${label} measured bound`, `the quote's style-free items are within crop_farm's measured bound (${styleFree.map((k) => `${quoted[k] ?? 0}/${measuredBound[k]}`).join(', ')}); items of this Style the bound doesn't name: ${otherItems.join(', ') || 'none'}`);
     else fail(`${label} measured bound`, `quote ${JSON.stringify(quoted)}; past the measured bound: ${JSON.stringify(pastMeasured)}`);
     // approved: the bill becomes the bound; realised from materials, fed in part while placed
     nudge = region;
@@ -4501,7 +4505,9 @@ async function moduleSurvivalFlow() {
     const mods = await moduleSites(g.op);
     const bill = logSince(from).match(/The addition's construction sites stand and are built from the stockpile[^\n]*/);
     const order = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id);
-    if (g.m && g.m[1] === region && g.rev && mods.length === 1 && bill) ok(label, `approved (${whole.slice(0, 100)}); revision ${g.m[2]} realised from materials; lot ${mods[0].sid} = ${mods[0].blueprint}`);
+    // from materials: said while its sites wait for the stockpile, or built at once when the stockpile held it all
+    const builtNow = /is built: \d+ buildings placed/.test(logSince(from));
+    if (g.m && g.m[1] === region && g.rev && mods.length === 1 && (bill || builtNow)) ok(label, `approved (${whole.slice(0, 100)}); revision ${g.m[2]} realised from materials; lot ${mods[0].sid} = ${mods[0].blueprint}`);
     else return fail(label, `entry ${g.op?.siteGroup}; module sites ${mods.length}; bill said ${!!bill}; build ${order?.state?.phase}`);
     // undo refused while its targets are built, nothing written
     const spW = await ledger();
@@ -4511,19 +4517,23 @@ async function moduleSurvivalFlow() {
     const refused = `${refusedSaid}\n${logSince(from)}`.match(/still being built from the stockpile[^\n]*/);
     if (Object.keys(spW?.need ?? {}).length === 0 || refused) ok(`${label} undo while building`, refused ? refused[0].slice(0, 140) : 'built before the undo (nothing waited)');
     else fail(`${label} undo while building`, `${refusedSaid}`);
-    // fed until built, then undone: what it consumed comes back, exactly once
-    feeding = true;
-    for (let i = 0; i < 300; i++) {
-      const sp = await ledger();
-      if (Object.keys(sp?.need ?? {}).length === 0 && Object.keys(sp?.outstanding ?? {}).length === 0) break;
-      await sleep(3000);
+    // fed until built, then undone: what it consumed comes back, exactly once. Built before the first undo (the stockpile held it all): that undo
+    // took it up already, and its refund is measured from just before it (never a second undo, which would take the town)
+    let spB = spW;
+    if (refused) {
+      feeding = true;
+      for (let i = 0; i < 300; i++) {
+        const sp = await ledger();
+        if (Object.keys(sp?.need ?? {}).length === 0 && Object.keys(sp?.outstanding ?? {}).length === 0) break;
+        await sleep(3000);
+      }
+      feeding = false;
+      spB = await ledger();
+      await away();
+      from = logSize();
+      await cmd(`/steward undo ${id}`);
     }
-    feeding = false;
-    const spB = await ledger();
     const paid = Object.fromEntries(Object.entries(spB?.consumed ?? {}).map(([k, c]) => [k, c - (sp0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
-    await away();
-    from = logSize();
-    await cmd(`/steward undo ${id}`);
     let last = null;
     for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
       await sleep(1000);
