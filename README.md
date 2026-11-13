@@ -77,8 +77,8 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@25      # or any Java 25
 ./gradlew test
 ```
 
-Architect's artifact (`dev.larattalabs:architect_mc`) comes from GitHub Packages (a token is needed even for public packages: `GITHUB_ACTOR` and `GITHUB_TOKEN` with `read:packages`) or from
-`publishToMavenLocal` in an Architect checkout. See [mod/DEV.md](mod/DEV.md), including how to run a dev client and how to repeat a live run safely.
+Architect's artifact (`dev.larattalabs:architect_mc`) comes from GitHub Packages (a token is needed even for public packages: `GITHUB_ACTOR` and `GITHUB_TOKEN` with `read:packages`), never from
+Maven Local; a local Architect jar is `ARCHITECT_JAR`, for dev and e2e only. See [mod/DEV.md](mod/DEV.md), including how to run a dev client and how to repeat a live run safely.
 
 The concept-card tests (`npm install && npm test`) validate the schema against fixtures, including real Claude outputs.
 

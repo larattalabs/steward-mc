@@ -11,14 +11,15 @@ export GRADLE_USER_HOME=$PWD/../.gradle-home   # an APFS clone of Architect's ca
 First build without a cache needs network (Minecraft download and decompile). `.gradle-home/` is gitignored.
 
 ## Architect dependency
-`build.gradle` depends on `dev.larattalabs:architect_mc:${architect_version}` (gradle.properties, currently 0.11.2, API version 1.8.0; Steward refuses an API older than 1.8 and `fabric.mod.json` asks for `architect_mc >=0.11.0`) from mavenLocal. Build and
-publish it from Architect's checkout (or any clone of main at bac28db or later):
+`build.gradle` depends on `dev.larattalabs:architect_mc:${architect_version}` (gradle.properties) from GitHub Packages, the released artifact.
+Maven Local never supplies it (nor lab-ui): an Architect slice keeps main's `mod_version`, so a local publish would shadow the release under its
+coordinates. A release candidate is checked with `ARCHITECT_JAR` (or `-Parchitect.jar`), for dev and e2e only.
 
-```sh
-cd ../../architect-mc/mod && ./gradlew build publishToMavenLocal      # -> ~/.m2/repository/dev/larattalabs/architect_mc/<version>/
-```
+The pin sets the lower end of `fabric.mod.json`'s `architect_mc` range; its upper end is `<1.0.0`, below the next major API (Noah, 2026-11-13).
+At runtime `ArchitectGateway.check()` reads the loaded Architect's API version (`apiVersion()` once Architect has it, else the loaded `ArchitectApi.VERSION`
+by reflection) and reports a major other than 1, or a minor below the pinned API's (taken from the `ArchitectApi.VERSION` it compiled against), as not ok:
+the startup log says so and `/steward status` fails. It does not stop Steward; Fabric's range is what refuses to load.
 
-Architect's artifact is also on GitHub Packages (`dev.larattalabs:architect_mc:0.4.0`, public); `build.gradle` has that repository after mavenLocal.
 CI (`.github/workflows/ci.yml`) resolves it with the workflow's `GITHUB_TOKEN` (`packages: read`); verified green 2026-10-05, no extra access grant needed.
 Outside builders need a PAT with `read:packages` (`GITHUB_ACTOR` + `GITHUB_TOKEN` env vars). The API is `dev.larattalabs.architect.api`; `gateway/ArchitectGateway` is the only class that should touch it for
 checks, and `gateway/ConceptCardJob`, `gateway/LotBrief` build its job and design types.
