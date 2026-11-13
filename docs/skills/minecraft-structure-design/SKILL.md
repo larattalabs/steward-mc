@@ -9,6 +9,9 @@ You write a program (`kit/designs/<id>.mjs`) that builds a vanilla structure. Th
 **looking** at it two ways: layered ASCII slices (exact, cheap, good for logic) and rendered images (good for shape and feel).
 BRIEF.md says what to build; this says how to work. It adds to BRIEF.md and CONTRACT.md and never overrides them.
 
+> **Current version:** Architect's `kit/PLAYBOOK.md` is the source of truth; it's what the design agent reads. This is Steward's
+> original (2026-10-05), kept for reference with later rules folded in by hand (agreed with Architect, 2026-11-12).
+
 ## 0. Conventions (Architect's, do not mix)
 
 - Template-local coordinates: origin = minimum corner, **+x east, +y up, +z south**. `front` is south unless the notes say
@@ -85,6 +88,9 @@ problem left that a player would notice, not when you run out of ideas.
 - [ ] Reachability: from `entrance` you can walk to every floor with no step above 1 and no head bump (2 free rows above every step).
 - [ ] No floating pieces: eaves, balconies and chimneys sit on supports; the roof has a lining under each course.
 - [ ] Palette: no literal wood/stone ids; all structure blocks come from `p.*`.
+- [ ] On a site, inside `site.size` on any land: storeys and the roof are sized from the lot's height, and every coordinate derived
+  from the land is clamped to `0 .. site.size.x/y/z - 1`. A site variant re-runs the program on taller or differently shaped land;
+  build fewer storeys or a lower roof rather than writing outside the lot (Architect PLAYBOOK §7, PA).
 - [ ] Final summary is one line.
 
 ## 5. Common failures and fixes
@@ -100,6 +106,7 @@ problem left that a player would notice, not when you run out of ideas.
 | Variants break at a corner | geometry assumes the default | sweep the corners early; derive positions from the params (centre = floor(width/2)), not constants |
 | Palette swap looks wrong | literal blocks | read from the palette; check a second preset |
 | Size error | forgot overhang/chimney/garden | budget them in the plan; trim the footprint, not the quality |
+| A site variant refuses `site_bound`: the design threw "set(...) outside size" | a height or position derived from the land, unclamped | clamp derived coordinates to `site.size`; fewer storeys or a lower roof on taller land |
 
 ## 6. Style and proportion rules of thumb
 
