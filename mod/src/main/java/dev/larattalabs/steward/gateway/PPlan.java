@@ -119,7 +119,7 @@ public final class PPlan {
 	 * Every lot of every zone: a zone's own {@code program.lots}, its named template's {@code program.params.lots}, or each district's lots of a
 	 * districts program ({@code program.districts[].lots}, D1). An outpost's are its program's, as any zone's.
 	 */
-	static List<JsonObject> lots(JsonObject plan) {
+	public static List<JsonObject> lots(JsonObject plan) {
 		List<JsonObject> out = new ArrayList<>();
 		if (!plan.has("zones") || !plan.get("zones").isJsonArray()) return out;
 		for (JsonElement z : plan.getAsJsonArray("zones")) {
