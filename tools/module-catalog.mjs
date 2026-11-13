@@ -69,6 +69,15 @@ function combinations(branches) {
   for (const [k, vs] of Object.entries(branches)) out = out.flatMap((m) => vs.map((v) => ({ ...m, [k]: v })));
   return out;
 }
+/** Params outside the envelope: the first int param's first value inside its schema's range that no branch lists (fixture_plot: side 6). */
+function outsideParams(m) {
+  for (const [k, vs] of Object.entries(m.envelope.branches)) {
+    const p = m.params[k];
+    if (p?.type !== 'int') continue;
+    for (let v = p.min ?? 0; v <= (p.max ?? 64); v++) if (!vs.includes(v)) return { [k]: v };
+  }
+  return { [Object.keys(m.envelope.branches)[0]]: '__outside__' };
+}
 const label = (c) => Object.entries(c).map(([k, v]) => `${k}=${v}`).join(',');
 
 // ------------------------------------------------------------------ offline: the pinned kit
@@ -134,7 +143,8 @@ async function offline() {
         check(!g.ok && /palette: .*gravity/.test(g.threw ?? ''), `${key}: gravel as ${role} (a gravity block on a core role) is refused: ${g.threw ?? 'not refused'}`);
       }
       // the lot's reserved cells: one field cell (the farmland and the cell above), in the lot's frame, left open
-      const [W, , D] = [first.side + 2, 3, first.side + 3];
+      // (W = field + 2, D = field + 3: a square `side`, or crop_farm's `width` x `depth`)
+      const [W, , D] = [(first.width ?? first.side) + 2, 3, (first.depth ?? first.side) + 3];
       if (Number.isInteger(W)) {
         const res = parseReserved({ front: 'south', size: [W, D], cells: [[2, -1, 2], [2, 0, 2]] });
         const rv = await build(first, { bible: base }, res);
@@ -282,7 +292,7 @@ async function ingame() {
           if (v.ok && !firstKey) { firstKey = vkey; firstId = v.entryId; }
         }
       }
-      const off = await mod({ op: 'variant', ...base, params: { side: 7 }, bible: { id: e.module.envelope.bibles[0], version: 0 }, key: `steward.m1gate${run}.module.off` });
+      const off = await mod({ op: 'variant', ...base, params: outsideParams(e.module), bible: { id: e.module.envelope.bibles[0], version: 0 }, key: `steward.m1gate${run}.module.off` });
       r.outside = off;
       check(!off.ok && off.detail === 'params', `${key}: params outside the envelope are refused before Architect is asked (${off.detail}: ${off.message})`);
       if (firstKey) {
