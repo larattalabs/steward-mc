@@ -512,7 +512,7 @@ plans, with Noah's OK on the spend.
 
 ### M2 as built (2026-11-13)
 
-- **`crop_farm@1`** (`modules/crop_farm/1/`, program sha `c406df05…`, certified on Minecraft 26.3, Architect 0.63.0, kit/checker 0.58.0).
+- **`crop_farm@1`** (`modules/crop_farm/1/`, program sha `c406df05…`, certified on Minecraft 26.3, Architect 0.64.1, kit/checker 0.59.0; fully re-measured from the 0.63.0 certificate, docs/MEASURE-M2.md).
   - **Sizes and crops.** Field sides 9, 18 or 27 (W = F + 2, D = F + 3); wheat, carrots, potatoes or beetroots. Three Styles: rustic,
     fortress, desert.
   - **The field.** Farmland at frame y 0, written `moisture=7`, with crops at age 0 (a ripe crop billed at one seed would be a free

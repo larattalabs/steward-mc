@@ -210,7 +210,15 @@ crops, rustic. Fed from the stockpile until PLACED.
 
 ## Results
 
-Measured 2026-11-13 on candidate 3 (program sha `c406df05…`, moduleSha `dc7b1751…`). The steps ran at heads 834480e to e46d693 (the field steps last, under the amended 3b judge); the
+**Re-certified on Architect 0.64.1 (2026-11-13, the manager's ask after main's c9d3273 pin).** The pins moved to kit/checker 0.59.0
+(239e3dd), which changes module.json's sha, so every step was measured again with the program unchanged (`c406df05…`, moduleSha
+`ad0decb0…`). The steps were offline 115/115, ingame 116/116, survival 63/63, bounds 111/111, skin rustic/fortress/desert 53/53 each, border
+23/23, field wheat/carrots/potatoes/beetroots 62/62 each (5 runs, amended 3b judge) and cover 11/11. They ran at 239e3dd, ports 8594/8595, $0.
+`measured.json` now certifies Architect 0.64.1 only. Its 36 bounds are identical to 0.63.0's. Each quoted rate is within 3% of
+0.63.0's (for example wheat 9x9 18 a day, 27x27 180; carrots 27x27 484; potatoes 27x27 492; beetroot 27x27 282). M1's certification rule is
+unchanged. The tables below are the 0.63.0 measurement, kept for its per-run detail; `artifacts/m2/` holds the 0.64.1 evidence.
+
+Measured on 0.63.0, 2026-11-13, on candidate 3 (program sha `c406df05…`, moduleSha `dc7b1751…`). The steps ran at heads 834480e to e46d693 (the field steps last, under the amended 3b judge); the
 program and module.json were unchanged throughout, since every step stamps their sha256. The runs used Minecraft 26.3, Architect 0.63.0 and
 kit/checker 0.58.0, on ports 8594/8595, at $0. `measured.json` was written by `tools/module-catalog.mjs record` (result pass).
 **Every bar passes.**
