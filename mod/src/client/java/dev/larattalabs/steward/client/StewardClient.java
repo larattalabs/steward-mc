@@ -5,24 +5,22 @@ import dev.larattalabs.architect.api.PreviewLayer;
 import dev.larattalabs.architect.api.PreviewStyle;
 import dev.larattalabs.steward.Steward;
 import dev.larattalabs.steward.client.hud.Keys;
-import dev.larattalabs.steward.client.hud.StewardHud;
 import dev.larattalabs.steward.client.screen.ClientInbox;
 import dev.larattalabs.steward.client.screen.InboxScreen;
-import dev.larattalabs.labui.client.ui.GuardedHud;
+import dev.larattalabs.labui.client.jobs.JobBoard;
 import dev.larattalabs.steward.net.StewardNet;
 import java.util.List;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.block.Rotation;
 
 /**
- * Client entrypoint: the inbox (state, screen, {@code Y}, HUD line), the screens the server opens, and the ghost layers the server sends (massings waiting
+ * Client entrypoint: the inbox (state, screen, {@code Y}, its rows on lab-ui's Jobs panel and pill), the screens the server opens, and the ghost layers the server sends (massings waiting
  * for approval) through Architect's client API. Payload handlers run on the client thread.
  */
 public class StewardClient implements ClientModInitializer {
@@ -32,8 +30,9 @@ public class StewardClient implements ClientModInitializer {
 		net.minecraft.client.renderer.entity.EntityRenderers.register(dev.larattalabs.steward.entity.StewardEntity.TYPE, dev.larattalabs.steward.client.entity.StewardRenderer::new);
 		net.minecraft.client.renderer.blockentity.BlockEntityRenderers.register(dev.larattalabs.steward.block.StewardBlocks.BOARD_ENTITY,
 			ctx -> new dev.larattalabs.steward.client.world.BoardRenderer());
-		HudElementRegistry.addLast(Steward.id("hud/inbox"), GuardedHud.of("steward.hud.inbox", new StewardHud()));
-		HudElementRegistry.addLast(Steward.id("hud/toasts"), GuardedHud.of("steward.hud.toasts", new dev.larattalabs.steward.client.hud.Toasts()));
+		// the shared HUD (S-J4): lab-ui's Jobs & spend panel (K), its needs-you pill in the top-left zone and its one toast stack, never a HUD of our own
+		JobBoard.install();
+		JobBoard.name(dev.larattalabs.steward.inbox.InboxJobs.MOD, "Steward");
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			while (Keys.inbox.consumeClick()) {
 				if (mc.player != null && mc.gui.screen() == null) mc.gui.setScreen(new InboxScreen(null));
