@@ -1317,6 +1317,10 @@ async function planBuildFlow() {
   await cmd(`/steward ui card ${id}`);
   await sleep(1500);
   const cardShot = (await dev.request('dev.screenshot', { name: 'e2e-secrets-card', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  // the plan's summary and what waits are under Interpretation (Tab: builds / interpretation)
+  await dev.request('dev.key', { key: 'tab' });
+  await sleep(800);
+  const planShot = (await dev.request('dev.screenshot', { name: 'e2e-secrets-plan', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
   await closeScreens();
   await cmd(`/steward view ${id}`);
   await sleep(1500);
@@ -1325,8 +1329,8 @@ async function planBuildFlow() {
   await sleep(800);
   const historyShot = (await dev.request('dev.screenshot', { name: 'e2e-secrets-history', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
   await closeScreens();
-  if (cardShot && historyShot) ok('plan build shots', `${cardShot}, ${historyShot}`);
-  else fail('plan build shots', `card ${cardShot || 'none'}, history ${historyShot || 'none'}`);
+  if (cardShot && planShot && historyShot) ok('plan build shots', `${cardShot}, ${planShot}, ${historyShot}`);
+  else fail('plan build shots', `card ${cardShot || 'none'}, plan ${planShot || 'none'}, history ${historyShot || 'none'}`);
   await cmd(`/tp @p ~ ~ ~90`);
   await cmd(`/steward undo ${id}`);
   let last = null;
