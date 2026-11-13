@@ -322,6 +322,19 @@ which has been false since BF (0.63.0); StrangeAsksTest counts ring_city and sky
 7c catalogue first (LEFTOVERS). The new ring_city card has `site.size: null`, outside the card schema (S/M/L/XL or absent), so `cards/` keeps the old
 card; the new one is the prompt inside `plans-2026-11-13/ring_city.json`.
 
+## The repair round's catalogue text, proved in one in-game compose (2026-11-13, paid, Noah approved; $0.16)
+Noah via parent session: "n cap 1.50 + compose". One compose in a flat creative dev world on Architect 0.63.0 (main f66031d's code), the claude
+login's opt-in made for the run and removed after: `/steward claim`, then `/steward describe set_1 A monastery on a floating island, reached by a
+long stair.` (sky_monastery's ask, chosen because its climb is refused). Card $0.019 ("Stairway Monastery", 10 buildings); plan $0.144 over three
+calls (Composer caps a compose at $1.00):
+- **Round 0:** REQUIRED_BLOCKED, 1 part to repair; the repair round carried `planCatalogue([zone.standard])`, 1,373 characters.
+- **Round 1:** the zone part fixed; REQUIRED_BLOCKED on the long stair; the repair carried `planCatalogue([connector.stair])`, 1,326 characters.
+- **Round 2:** the stair rewritten as a `connector.switchback` with landings; still unfit. REQUIRED_BLOCKED after 2 repairs, 1 unfit, nothing pending.
+So the repair round uses the catalogue text for exactly the failing kinds, and the first repair fixed its part. The last one can't: no stair or
+switchback climbs 40 blocks to a floating island today (sky_monastery's known gap, Architect's "climbs to a raised form"), and the steward's summary
+says the stair "can make the climb" when the check says it can't. That wording is a writer fault (LEFTOVERS). The driver was a one-off scratch
+script built on `tools/record-plans.mjs`'s launch (it must set `ARCHITECT_GAME_DIR` to Steward's `mod/run`, or devclient reads Architect's token).
+
 ## Strange asks: all 59 plans re-recorded with today's writer (2026-11-10, paid, Noah approved; $2.64 of a $6 cap)
 `node tools/record-plans.mjs 6 --out fixtures/strange-asks/plans-2026-11-10` on main 0d39359 (Architect 0.56.0), the claude login's opt-in made for the
 run and removed after. 59 of 59 recorded, every one valid by Steward's plan check, about $0.03-0.07 each (the first call uncached at $0.28), in about 25 min.
