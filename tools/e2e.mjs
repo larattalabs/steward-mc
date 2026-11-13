@@ -325,6 +325,63 @@ async function inboxScreen() {
   ok('inbox and toast pictures', `${inboxShot} ${partsShot} ${limitShot} ${toastShot}`);
 }
 
+/**
+ * S-J4, the shared HUD: Steward's inbox reaches lab-ui's Jobs & spend panel (K) as steward_mc rows, the needs-you line is lab-ui's one pill in the
+ * top-left zone (no Steward HUD element of its own), and Steward's toasts go into lab-ui's one stack. In stub mode an Architect massing waits as well
+ * (the sim helper, $0), so the pictures show both mods waiting on the player: one pill, one toast column, K with both mods' rows.
+ */
+async function sharedHud() {
+  let archRow = null;
+  if (mode === 'stub') {
+    await dev.request('dev.ui.open', { tab: 'design' });
+    await dev.request('dev.design.fill', { reset: true, buildingType: 'cabin', style: 'medieval', size: 'L', name: 'E2E Massed cabin', massingFirst: true });
+    const s = await dev.request('dev.design.submit', {}, { timeoutMs: 30_000 });
+    if (!s.sent?.designId || s.sent.error) fail('shared hud: an Architect massing', JSON.stringify(s.sent ?? s).slice(0, 160));
+    await closeScreens();
+    for (let end = Date.now() + 180_000; Date.now() < end && !archRow; await sleep(2000)) {
+      archRow = ((await dev.request('dev.j3.state')).rows ?? []).find((r) => r.mod === 'architect_mc' && r.state === 'needs_you') ?? null;
+    }
+    if (archRow) ok('shared hud: an Architect massing waits', archRow.id);
+    else fail('shared hud: an Architect massing waits', 'no architect_mc row needs you after 180 s');
+  }
+  // Steward's sample inbox (two builds waiting, one held by the usage limit, one ended, waiting parts) under ids of its own, so its toasts come again
+  await cmd('/steward ui sample hud');
+  await sleep(1500);
+  await closeScreens();
+  // need-you, so it shows on top of the stack (need-you first, newest on top) beside Steward's, not queued under "+N more"
+  await dev.request('dev.ui03.toast', { level: 'need', title: 'Architect: E2E Massed cabin needs you', body: 'pushed by the e2e into the same stack as Steward\'s', subject: 'Architect: E2E Massed cabin' });
+  await sleep(1200);
+  const jobs = await dev.request('dev.j3.state');
+  const mine = (jobs.rows ?? []).filter((r) => r.mod === 'steward_mc');
+  const waiting = mine.filter((r) => r.state === 'needs_you' || r.state === 'paused_budget');
+  if (mine.length && waiting.length && mine.every((r) => r.id.startsWith('steward_mc:settlement/'))) ok('shared hud: Steward rows on the Jobs panel', `${mine.length} rows, ${waiting.length} waiting; pill "${jobs.pill}"`);
+  else fail('shared hud: Steward rows on the Jobs panel', JSON.stringify(jobs.rows ?? jobs).slice(0, 200));
+  const wantWaiting = waiting.length + (archRow ? 1 : 0);
+  if (jobs.needsYou >= wantWaiting && /need/.test(jobs.pill ?? '')) ok('shared hud: one pill counts both mods', `${jobs.needsYou} waiting: ${jobs.pill}`);
+  else fail('shared hud: one pill counts both mods', `needsYou ${jobs.needsYou}, want >= ${wantWaiting}; pill ${jobs.pill}`);
+  const z = await dev.request('dev.hud.zones');
+  const regs = z.registered ?? [];
+  const pills = (z.zones?.top_left?.slots ?? []).filter((s) => s.id === 'lab_ui:jobs_pill');
+  const ownHud = regs.filter((r) => r.startsWith('steward_mc:'));
+  if (pills.length === 1 && !ownHud.length) ok('shared hud: one pill, no Steward HUD of its own', JSON.stringify(pills[0]));
+  else fail('shared hud: one pill, no Steward HUD of its own', `pills ${pills.length}, steward elements ${ownHud.join(' ')}`);
+  const toasts = await dev.request('dev.ui2b.toasts');
+  const shownToasts = toasts.shown ?? [];
+  const stewardToast = shownToasts.find((t) => (t.ref ?? '').startsWith('steward_mc:settlement/'));
+  // one stack: Steward's toasts show beside Architect's, or wait in the same stack under "+N more" (in stub mode Architect's massing bar is an avoided
+  // rect, so the column ends above it and holds one toast)
+  const sameStack = stewardToast || (toasts.queued ?? 0) > shownToasts.length;
+  if (sameStack && shownToasts.some((t) => /^Architect/.test(t.title))) ok('shared hud: both mods\' toasts in one stack', `${shownToasts.map((t) => t.title).join(' | ')}; ${toasts.queued} in the stack`);
+  else fail('shared hud: both mods\' toasts in one stack', JSON.stringify(toasts).slice(0, 240));
+  const hudShot = (await dev.request('dev.screenshot', { name: 'e2e-shared-hud', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.j3.open', {});
+  await sleep(800);
+  const panelShot = (await dev.request('dev.screenshot', { name: 'e2e-jobs-panel', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  const st = await dev.request('dev.j3.state');
+  ok('shared hud pictures', `${hudShot} ${panelShot}; today ${JSON.stringify(st.todayByMod ?? {})}`);
+  await closeScreens();
+}
+
 async function placeUpdateUndo(id) {
   // the building stands 6 blocks south of the player, 9 x 9 from there (dev place, rotation none)
   const me = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
@@ -3862,6 +3919,7 @@ try {
     await expand(id);
     await flow('stone-recipe', 'screens', () => stoneRecipe());
     await flow('inbox', 'screens', () => inboxScreen());
+    await flow('shared-hud', 'screens inbox hud jobs', () => sharedHud());
     if (mode === 'free') {
       await flow('place', 'update revert undo screens', () => placeUpdateUndo(id));
       await flow('steward-life', 'sit sleep walk', () => stewardLife(id));

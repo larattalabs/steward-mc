@@ -25,7 +25,7 @@ class InboxJobsTest {
 	void aBuildRowIsTheSettlementsOwnerWithItsSpendAndBudget() {
 		JobRow r = only(new InboxJobs().rows(List.of(build("set_4", "Stilt", "MASSINGS")), 1000, null));
 		assertEquals("steward_mc:settlement/set_4", r.id(), "Architect's jobs owned by the settlement fold under it");
-		assertEquals("settlement", r.kind());
+		assertEquals("build", r.kind(), "short enough for the panel's kind chip");
 		assertEquals("Stilt", r.title());
 		assertEquals(JobState.NEEDS_YOU, r.state());
 		assertTrue(r.waiting());

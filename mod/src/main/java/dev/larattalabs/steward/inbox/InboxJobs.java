@@ -79,8 +79,8 @@ public final class InboxJobs {
 	static String kind(InboxModel.Entry e) {
 		return switch (e.decision()) {
 			case "UPDATE" -> "update";
-			case "PROPOSAL" -> "proposal";
-			default -> "settlement";
+			case "PROPOSAL" -> "idea";
+			default -> "build";
 		};
 	}
 
