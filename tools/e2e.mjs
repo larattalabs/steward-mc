@@ -1312,6 +1312,21 @@ async function planBuildFlow() {
   if (laid && /^region:/.test(region ?? '') && built.placed > 0 && !cellarWaits && cellarBuilt) {
     ok('plan build', `${built.steps.join(' > ')} > ${built.placed} placed from the approved plan, its wall and its cellar with it (${region}; ${secretLog[3]}, ${secretLog[2]} secret in the artifact)`);
   } else return fail('plan build', `laid out ${!!laid}, region ${region}, placed ${built.placed}, cellar pending ${cellarWaits}, secrets ${secretLog ? secretLog[0] : 'none logged'}`);
+  // (S-7c-4) the plan screen (the card) and the history of a town with a hidden cellar, for a look at what they say (artifacts/shots/)
+  await closeScreens();
+  await cmd(`/steward ui card ${id}`);
+  await sleep(1500);
+  const cardShot = (await dev.request('dev.screenshot', { name: 'e2e-secrets-card', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await closeScreens();
+  await cmd(`/steward view ${id}`);
+  await sleep(1500);
+  // Tab moves along: Buildings, History
+  await dev.request('dev.key', { key: 'tab' });
+  await sleep(800);
+  const historyShot = (await dev.request('dev.screenshot', { name: 'e2e-secrets-history', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await closeScreens();
+  if (cardShot && historyShot) ok('plan build shots', `${cardShot}, ${historyShot}`);
+  else fail('plan build shots', `card ${cardShot || 'none'}, history ${historyShot || 'none'}`);
   await cmd(`/tp @p ~ ~ ~90`);
   await cmd(`/steward undo ${id}`);
   let last = null;
