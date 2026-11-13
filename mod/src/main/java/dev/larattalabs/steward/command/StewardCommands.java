@@ -87,7 +87,7 @@ public final class StewardCommands {
 			}))
 			.then(Commands.literal("settlements").executes(ctx -> {
 				var all = dev.larattalabs.steward.service.Settlements.store().all();
-				if (all.isEmpty()) ctx.getSource().sendSuccess(() -> Component.literal("No settlements yet. Right-click a block with a Founding Stone. Craft one from five stone bricks, a book and a gold ingot (it shows in the recipe book once you hold a book); in creative it is in the Tools tab."), false);
+				if (all.isEmpty()) ctx.getSource().sendSuccess(() -> Component.literal("No settlements yet. Right-click a block with a Founding Stone. Craft one at a crafting table from five stone bricks, a book and a gold ingot (it shows in the recipe book once you hold a book); in creative it is in the Tools tab."), false);
 				for (var s : all) ctx.getSource().sendSuccess(() -> Component.literal(s.id() + "  " + s.name() + "  at " + s.claim().centerX() + "," + s.claim().centerZ() + "  " + (s.described() ? s.card().site().text() + " / " + s.card().style().text() : "(not described)")), false);
 				return all.size();
 			}))
