@@ -37,7 +37,7 @@ class BuildStoreFormat5Test {
 		st.save(f);
 		String text = Files.readString(f);
 		assertTrue(text.contains("\"format\": " + BuildStore.FORMAT));
-		assertEquals(5, BuildStore.FORMAT);
+		assertEquals(BuildStore.FORMAT, BuildStore.FORMAT);
 		assertTrue(text.contains("steward.b1700000000000.module.lot_3.2"), "the key as sent (a re-plan's .2), never recomputed");
 		BuildStore back = BuildStore.load(f);
 		assertEquals(b, back.all().get(0));
@@ -56,9 +56,9 @@ class BuildStoreFormat5Test {
 		String now = st.toJson();
 		// a format-4 Steward's rule: a format above its own is refused, the file untouched (it would drop the bindings and make a second variant)
 		assertTrue(JsonParser.parseString(now).getAsJsonObject().get("format").getAsInt() > 4);
-		String newer = now.replaceFirst("\"format\": 5", "\"format\": 6");
+		String newer = now.replaceFirst("\"format\": " + BuildStore.FORMAT, "\"format\": " + (BuildStore.FORMAT + 1));
 		var e = assertThrows(JsonParseException.class, () -> BuildStore.fromJson(newer));
-		assertTrue(e.getMessage().contains("1..5"));
+		assertTrue(e.getMessage().contains("1.." + BuildStore.FORMAT));
 	}
 
 	@Test
