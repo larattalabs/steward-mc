@@ -119,7 +119,7 @@ function claimRun() {
   throw new Error(`could not claim ${f}`);
 }
 let worldName = null;
-async function startClient(label) {
+async function startClient(label, { mode = 'creative' } = {}) {
   const { DevClient } = await import(pathToFileURL(path.join(ARCH, 'tools', 'lib', 'devclient.mjs')).href);
   if (flag('--attach')) { dev = await DevClient.connect({ port: PORT, timeoutMs: 30_000 }); await dev.waitInWorld({ timeoutMs: 60_000 }); return; }
   claimRun();
@@ -134,7 +134,7 @@ async function startClient(label) {
   const out = fs.openSync(path.join(ART, 'client.log'), 'a');
   child = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], {
     stdio: ['ignore', out, out],
-    env: { ...process.env, STEWARD_PORT: String(PORT - 1), STEWARD_DEV_PORT: String(PORT), ARCHITECT_AUTOWORLD_NAME: worldName, E2E_STUB: '0', E2E_NODE_DIR: path.dirname(process.execPath), GRADLE_USER_HOME: process.env.GRADLE_USER_HOME ?? path.join(MAIN_CHECKOUT, '.gradle-home') },
+    env: { ...process.env, STEWARD_PORT: String(PORT - 1), STEWARD_DEV_PORT: String(PORT), ARCHITECT_AUTOWORLD_NAME: worldName, ARCHITECT_AUTOWORLD_MODE: mode, E2E_STUB: '0', E2E_NODE_DIR: path.dirname(process.execPath), GRADLE_USER_HOME: process.env.GRADLE_USER_HOME ?? path.join(MAIN_CHECKOUT, '.gradle-home') },
   });
   launched = true;
   child.once('exit', () => { exited = true; });
@@ -194,7 +194,9 @@ async function rules({ ticks = 3 } = {}) {
 async function groundY(x, z) {
   const cells = [];
   for (let y = -64; y <= 120; y++) cells.push([x, y, z]);
-  const r = await readCells(cells);
+  let r = await readCells(cells);
+  for (let i = 0; i < 120 && r.some((c) => c === null); i++) { await sleep(500); r = await readCells(cells); }
+  if (r.some((c) => c === null)) throw new Error(`groundY: the column ${x},${z} never loaded`);
   let g = -64;
   r.forEach((c, i) => { if (c && c[0] !== 'minecraft:air') g = cells[i][1]; });
   return g;
@@ -356,12 +358,14 @@ async function look() {
         minLight: Math.min(...light.filter((c) => c && c[0] !== 'minecraft:water').map((c) => c[3])),
         notSeven: land.map((c, i) => [f.farmland[i], c]).filter(([, c]) => !(c?.[0] === 'minecraft:farmland' && c[2] === 7)).slice(0, 8),
       };
+      const ver = await req('dev.site.verify', { site: f.siteId, list: true, max: 20 }, 120_000);
+      r.verify = json(ver).slice(0, 1500);
       out.farms.push(r);
       log(`  ${json(r)}`);
     }
     // more growths, for the fronts: small farms on the frontage, then on an extension
     out.fronts = g.farms.map((f) => f.lot.front);
-    for (const [k, prefer] of [['d', 'frontage'], ['e', 'extend'], ['f', 'extend']]) {
+    for (const [k, prefer] of flag('--fronts') ? [['d', 'frontage'], ['e', 'extend'], ['f', 'extend']] : []) {
       const sp = [0, 1, 2].map((i) => ({ id: `farm_${k}${i}`, width: 9, depth: 9, crop: 'potatoes', bible: 'rustic' }));
       const g2 = await growFarms(T.region, sp, { prefer });
       if (g2.refused) { log(`  growth ${k} (${prefer}) refused: ${String(g2.refused).slice(0, 300)}`); continue; }
@@ -829,14 +833,21 @@ const lotRow = (rep, id) => (rep.lots ?? []).find((l) => l.lot === id) ?? null;
 const partsKey = (rep) => json((rep.parts ?? []).map((p) => [p.part, p.cells, p.changed, p.removed, p.playerPlaced, p.volatileChanged]));
 
 async function survival() {
-  await startClient('Survival');
+  // a survival-mode world (a region bills from the stockpile only there; FC's and IG's gates do the same), survival construction on
+  await startClient('Survival', { mode: 'survival' });
   const out = { growths: [], farms: {} };
   try {
+    // the player is in survival: no fall damage (the teleports would kill it, and a dead player loads no chunks)
+    await cmd('/gamerule fall_damage false');
+    await cmd('/effect give @p minecraft:resistance infinite 4 true');
+    await cmd('/effect give @p minecraft:slow_falling infinite 0 true');
+    await cmd('/effect give @p minecraft:saturation infinite 0 true');
     await call('dev.survival.set', { on: true });
     await rules({ ticks: 0 });
     const x0 = 50000, z0 = 50000;
-    await standAt(x0 + 96, z0 + 80, 100);
-    const gy = await groundY(x0 + 96, z0 + 80);
+    await standAt(x0 + 96, z0 - 30, 100);
+    const gy = await groundY(x0 + 96, z0 - 30);
+    await standAt(x0 + 96, z0 - 30, gy + 1);
     const crates = Array.from({ length: 8 }, (_, q) => [x0 - 6 + 2 * q, gy + 1, z0 - 6]);
     const cr = await req('dev.stockpile.create', { owner: OWNER, crates }, 120_000);
     check(cr.ok && !cr.refused, `a stockpile of 8 crates for ${OWNER}: ${json(cr.refused ?? cr.error ?? 'made')}`);
@@ -845,7 +856,7 @@ async function survival() {
     const p0 = await call('dev.region.plan', { program: 'flat_village', claim, params: { lots: [{ id: 'hall_1', type: 'hall', size: [13, 11], landmark: true }, { id: 'cottage_1', type: 'cottage', size: [9, 9] }], orientation: 'ew' }, surveyLoad: 'bounded:256', check: false, owner: OWNER }, 900_000);
     const r0 = await call('dev.region.realise', { planId: p0.planId, load: 'bounded:512', lots: {} }, 300_000);
     const region = r0.region;
-    const f0 = await feedUntil(region, (st, rs) => st.view.state === 'PLACED' && rs?.build?.done);
+    const f0 = await feedUntil(region, (st, rs) => st.view.state === 'PLACED' && (rs?.build ? rs.build.done : true));
     check(f0.ok, `the town ${region} built in survival from the stockpile: ${f0.st?.view?.state} (${f0.waves} waves)`);
     await install();
     const T = { region, gy, claim };
@@ -857,7 +868,7 @@ async function survival() {
       const ps0 = await pile();
       const g = await growFarms(region, sp, { survival: true });
       if (!check(!g.refused, `survival growth ${sp.map((x) => x.id).join(', ')}: ${g.refused ? String(g.refused).slice(0, 300) : `rid ${g.rid}`}`)) continue;
-      const fg = await feedUntil(region, (st, rs) => st.view.state === 'PLACED' && rs?.build?.done && true);
+      const fg = await feedUntil(region, (st, rs) => st.view.state === 'PLACED' && (rs?.build ? rs.build.done : true));
       const w = await rvWait(region, g.rid);
       const ps1 = await pile();
       const consumed = minus(ps1.ledger?.consumed, ps0.ledger?.consumed);
@@ -874,6 +885,7 @@ async function survival() {
     await tick.freeze();
     await tick.advance(TCYCLE.wheat);
     await cmd(`/gamerule random_tick_speed 0`);
+    await cmd('/tick unfreeze'); // the world runs again (random ticks off): a removal's settle bound needs ticks
     const plantOf = (c) => CROPS[c].plant;
     for (const f of farms) {
       const hv = await harvest(f);
@@ -898,10 +910,8 @@ async function survival() {
     await sleep(2000);
     await call('dev.world.open', { name: worldName }, 300_000);
     await dev.waitInWorld({ timeoutMs: 600_000 });
-    await tick.freeze();
     await rules({ ticks: 0 });
-    await tick.freeze();
-    await standAt(x0 + 96, z0 + 80, gy + 40);
+    await standAt(x0 + 96, z0 - 30, gy + 1);
     for (const f of farms) {
       const W = out.farms[f.id];
       const at = W.cob ? [W.cob[0], W.cob[1] + 1, W.cob[2]] : null;

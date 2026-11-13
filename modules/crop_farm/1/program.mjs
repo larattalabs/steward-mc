@@ -14,7 +14,7 @@
 //   v = D-2          front: a fence on the foundation role, the gate (on a path) at u = floor(W / 2), a lamp on each corner post and on each post beside the gate
 //   v = D-1          the front row: path
 //   the port         the field's `item_out` port, just inside the gate: a composter left of it and a chest right of it (field row v = D-3,
-//                    on path). Never outside the fence: a composter (full height) or a chest (0.875) against the fence is a step a mob
+//                    on the foundation role). Never outside the fence: a composter (full height) or a chest (0.875) against the fence is a step a mob
 //                    climbs over it by (measured: tools/module-measure.mjs skin, the first candidate)
 //
 // Light (M0, docs/MODULES.md section 9): open-sky crops grow at night; the lamps are for mob safety (26.3: a monster spawns only at block
@@ -148,9 +148,10 @@ export default function build({ palette = PALETTES.rustic, width = 9, depth = 9,
       put(u, 2, v, `minecraft:${crop}`, { age: '0' });
     }
     const [[cu, cv], [hu, hv]] = L.port;
-    put(cu, 1, cv, p.path);
+    // on the foundation role, not on a path: vanilla turns a dirt path to dirt under a solid block (a standing mismatch)
+    put(cu, 1, cv, roles.foundation ?? p.path);
     put(cu, 2, cv, 'minecraft:composter');
-    put(hu, 1, hv, p.path);
+    put(hu, 1, hv, roles.foundation ?? p.path);
     put(hu, 2, hv, 'minecraft:chest', { facing: 'south', type: 'single' });
   });
   bp.part('shell', () => {

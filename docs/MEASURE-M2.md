@@ -196,6 +196,9 @@ crops, rustic. Fed from the stockpile until PLACED.
   (every ring cell a fence, checked) and no mob was inside when summoned: they climbed the composter (full height) or the chest (0.875) and
   stepped over the 1.5-high fence. A design fault, not a vanilla rule: a fence keeps mobs out only where nothing beside it is a step.
 - **Candidate 2:** the port just inside the gate (field row v = D-3, either side of the gate column, on path). 2 crop cells fewer per farm.
+  Its skin rustic shakedown passed 53/53. Its survival shakedown read 2 standing mismatches on every farm as built: the dirt path under the
+  composter and the chest, turned to dirt by vanilla (a dirt path under a solid block). Not volatile, so standing counts it.
+- **Candidate 3:** the port on the foundation role instead of a path. The layout and the crop counts are candidate 2's.
 
 ## Results
 

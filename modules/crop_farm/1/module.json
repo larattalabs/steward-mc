@@ -2,7 +2,7 @@
   "id": "crop_farm",
   "version": 1,
   "title": "Crop farm",
-  "programSha": "b6804dc67df1b4f6c31c05a4d8226664b118046de7963f29f7eb33b7ddabb7ba",
+  "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
   "params": {
     "width": { "type": "int", "min": 9, "max": 27, "default": 9, "label": "Field width" },
     "depth": { "type": "int", "min": 9, "max": 27, "default": 9, "label": "Field depth" },
