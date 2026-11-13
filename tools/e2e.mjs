@@ -959,6 +959,47 @@ async function migratedSteward() {
   else fail('steward migrated', `new: ${found || 'none'}; old: ${old || 'none'}`);
 }
 
+/**
+ * (Architect 0.64.1 HF: the stockpile save) A normal save and stop changes nothing: each settlement's stockpile (its stock and ledger) and the player's
+ * inventory read the same after the client quits and comes back. Read at the first crate, its chunks loaded, before and after.
+ */
+async function stockSaveFlow() {
+  const read = async () => {
+    const out = {};
+    for (const st of settlements()) {
+      const owner = `steward_mc:settlement/${st.id}`;
+      const r = await dev.request('dev.stockpile.state', { owner }, { timeoutMs: 60_000 }).catch(() => null);
+      const sp = r?.stockpile;
+      if (!sp || !(sp.crates ?? []).length) continue;
+      out[st.id] = { owner, at: sp.crates[0].pos ?? sp.crates[0], stock: sp.stock ?? null, ledger: sp.ledger ?? null };
+    }
+    return out;
+  };
+  const audit = async (owner) => {
+    const a = await dev.request('dev.stockpile.audit', { owner }, { timeoutMs: 60_000 }).catch(() => null);
+    return a ? JSON.stringify(a.inventory ?? a.player ?? a.playerInventory ?? null) : null;
+  };
+  const before = await read();
+  const ids = Object.keys(before);
+  if (!ids.length) return fail('stock save', 'no settlement has a stockpile (supplied-plan first)');
+  const first = before[ids[0]];
+  const at = Array.isArray(first.at) ? first.at : [first.at?.x, first.at?.y, first.at?.z];
+  await cmd(`/tp @p ${at[0]} ${Number(at[1]) + 2} ${Number(at[2]) + 2}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  const b = await read();
+  const invB = await audit(first.owner);
+  await cmd('/save-all flush');
+  await quit();
+  launch();
+  await connect();
+  await dev.request('dev.waitChunks', { timeoutMs: 120_000 });
+  const a = await read();
+  const invA = await audit(first.owner);
+  const diffs = Object.keys(b).filter((id) => JSON.stringify(b[id].stock) !== JSON.stringify(a[id]?.stock) || JSON.stringify(b[id].ledger) !== JSON.stringify(a[id]?.ledger));
+  if (!diffs.length && invB === invA && invB !== null) ok('stock save', `${Object.keys(b).length} stockpile(s) and the player's inventory unchanged across a save and stop`);
+  else fail('stock save', `changed ${diffs.join(', ') || 'none'}; inventory same ${invB === invA} (${String(invB).slice(0, 80)}); before ${JSON.stringify(b[diffs[0] ?? ids[0]])?.slice(0, 160)}; after ${JSON.stringify(a[diffs[0] ?? ids[0]])?.slice(0, 160)}`);
+}
+
 async function restartRestore() {
   const uuid = await playerUuid();
   await quit();
@@ -4065,6 +4106,7 @@ try {
       await flow('survival-mech-wall', 'survival gate wall mechanism swing gatemech bill refund', () => survivalMechFlow('wall'));
       await flow('drawbridge', 'bridge drawbridge gate moat water mechanism undo catalogue', () => gateMechFlow('drawbridge'));
       await flow('survival-drawbridge', 'survival bridge drawbridge gate moat water mechanism bill refund', () => survivalMechFlow('drawbridge'));
+      await flow('stock-save', 'stockpile supplied save', () => stockSaveFlow(), ['supplied-plan']);
     }
   }
   await flow('migrated-steward', 'save migration', () => migratedSteward());
