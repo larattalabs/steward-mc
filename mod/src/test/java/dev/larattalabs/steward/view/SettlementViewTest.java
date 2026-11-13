@@ -103,4 +103,46 @@ class SettlementViewTest {
 		assertFalse(old.contains("districts"));
 		assertEquals(List.of(), SettlementView.fromJson(old).districts());
 	}
+
+	@Test
+	void everyKindHasItsOwnLabelAndOnlyNoteIsNote() {
+		for (Kind k : Kind.values()) {
+			String l = SettlementView.kindLabel(k.name());
+			if (k == Kind.NOTE) assertEquals("Note", l);
+			else assertNotEquals("Note", l, k + " falls to Note");
+		}
+		assertEquals("Taken on", SettlementView.kindLabel("BUILD_ADOPTED"));
+		assertEquals("Town let go", SettlementView.kindLabel("TOWN_RELEASED"));
+	}
+
+	@Test
+	void theUndoTargetIsTheServersAndSurvivesTheTrip() {
+		SettlementView v = SettlementView.of(settlement(), false, sites());
+		assertNull(v.undo(), "of() is pure: the server's Actions.view adds the target");
+		var e = settlement().lastUndoable().orElseThrow();
+		SettlementView t = v.withUndo(new SettlementView.UndoTarget(e.op(), e.kind().name(), e.text()));
+		SettlementView back = SettlementView.fromJson(t.toJson());
+		assertEquals("op_2", back.undo().op(), "the placed project, not the update after it");
+		assertEquals("PROJECT_PLACED", back.undo().kind());
+		assertEquals(v.buildings(), back.buildings());
+		assertNull(SettlementView.fromJson(v.toJson()).undo(), "an older view without one reads as nothing to undo");
+	}
+
+	@Test
+	void revertGoesToAnyEarlierVersionStartingFromTheOneBefore() {
+		var b = SettlementView.of(settlement(), false, sites()).building("s2");
+		// at v2, stood at v1 before: starts on 1, stays in 1..1
+		assertEquals(1, b.firstRevertTarget());
+		assertEquals(1, b.stepRevert(1, 1));
+		assertEquals(1, b.stepRevert(1, -1));
+		var v5 = new SettlementView.Building("s9", "hall", null, "e", 5, 5, 0, "built", false, 0, 0, 1, 1, List.of(), 4, 0, 0, 0, null);
+		assertEquals(4, v5.firstRevertTarget());
+		assertEquals(3, v5.stepRevert(4, -1));
+		assertEquals(4, v5.stepRevert(4, 1), "never the version it stands at");
+		assertEquals(1, v5.stepRevert(1, -1));
+		var placedAt3 = new SettlementView.Building("s8", "hall", null, "e", 3, 3, 0, "built", false, 0, 0, 1, 1, List.of(), 0, 0, 0, 0, null);
+		assertEquals(2, placedAt3.firstRevertTarget(), "placed at v3: the earlier versions of its design all the same");
+		var v1 = new SettlementView.Building("s7", "hall", null, "e", 1, 2, 0, "built", false, 0, 0, 1, 1, List.of(), 0, 0, 0, 0, null);
+		assertEquals(0, v1.firstRevertTarget(), "nothing earlier than v1");
+	}
 }

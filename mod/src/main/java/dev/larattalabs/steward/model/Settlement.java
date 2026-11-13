@@ -455,6 +455,11 @@ public record Settlement(
 
 	/** The Architect owner string for this settlement's sites: {@code steward_mc:settlement/<id>}. */
 	public String owner() {
+		return ownerOf(id);
+	}
+
+	/** The owner string of settlement {@code id}, before it exists too (a dev build's card is asked for before its settlement is founded). */
+	public static String ownerOf(String id) {
 		return "steward_mc:settlement/" + id;
 	}
 

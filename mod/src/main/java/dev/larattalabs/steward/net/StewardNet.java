@@ -174,12 +174,18 @@ public final class StewardNet {
 	}
 
 	/** Open the settlement screen with this view ({@link dev.larattalabs.steward.view.SettlementView} as JSON); {@code siteId} non-empty opens that building's panel. */
-	public record SettlementPanel(String viewJson, String siteId) implements CustomPacketPayload {
+	/** {@code refresh}: only for a settlement or building screen of it already open (an action's progress); else the screen opens. */
+	public record SettlementPanel(String viewJson, String siteId, boolean refresh) implements CustomPacketPayload {
+		public SettlementPanel(String viewJson, String siteId) {
+			this(viewJson, siteId, false);
+		}
+
 		public static final Type<SettlementPanel> TYPE = new Type<>(id("settlement"));
 		public static final StreamCodec<RegistryFriendlyByteBuf, SettlementPanel> CODEC = StreamCodec.of((buf, p) -> {
 			buf.writeUtf(p.viewJson, 1 << 20);
 			buf.writeUtf(p.siteId);
-		}, buf -> new SettlementPanel(buf.readUtf(1 << 20), buf.readUtf()));
+			buf.writeBoolean(p.refresh);
+		}, buf -> new SettlementPanel(buf.readUtf(1 << 20), buf.readUtf(), buf.readBoolean()));
 
 		@Override
 		public Type<SettlementPanel> type() {
