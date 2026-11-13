@@ -50,6 +50,10 @@ Writing the plan:
   (`channel.aqueduct`), a shape rule, a variety rule ("identical houses", "no two alike": `rule.variety`). The catalogue's own states are the truth: a
   kind it lists as supported (a tunnel under flat ground, raised lots, a hidden room) is written to be built, not to wait. Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
   drop what the player asked for silently, and never pretend it is supported.
+- **Hidden rooms are secrets.** When the card asks for a hidden room, a secret cellar or a room behind a waterfall, write it as a
+  `form.hidden_room` part in its host (a lot of this plan, a hollow mountain or a waterfall), so it is built. Never name it in the `summary`, the
+  `waits`, or any part's `label`, `brief` or `notes` beyond its own: the player who asked knows, and anyone else finds it. The summary may say there
+  is more to the place than it looks. Never leave the room out because it is a secret.
 - **Layouts.** A layout that is not one street (a ring, a spiral, a grid, a hamlet that grew organically) is the zone's `program.layout`
   when the catalogue supports it; floors stacked in one tower, or a layout it reserves, is written as the kind it reserves so it waits. It is
   never just left out, and what waits is said in `waits`.
