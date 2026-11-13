@@ -19,23 +19,32 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.MinecraftServer;
 
 /**
- * The module catalog's dev hook ({@code /steward dev module <label> <request JSON>}, game masters only; tools/module-catalog.mjs): it drives
+ * The module catalog's dev hook ({@code /steward dev module <label> <request JSON>}, game masters in a development environment only;
+ * tools/module-catalog.mjs): it drives
  * Steward's own catalog, gate and installs on a catalog directory (fixtures allowed), and writes the answer to
  * {@code <gameDir>/steward-modules/<label>.json} (and logs {@code module dev <label> ...}). Requests ({@code op}):
  * <ul>
  * <li>{@code env}: the gating environment (Minecraft and Architect versions, features);</li>
  * <li>{@code gate {dir, id, version?}}: the catalog's verdict (the newest version when none is given) and the entry's problems;</li>
  * <li>{@code install {dir, id, version}}: the catalog entry by its key ({@link ModuleInstalls#install});</li>
- * <li>{@code variant {dir, id, version, entry, params?, bible? {id, version}, reserved? {front, size [w, d], cells}, key, owner?}};</li>
+ * <li>{@code variant {dir, id, version, params?, bible? {id, version}, reserved? {front, size [w, d], cells}, key, owner?}}: made from the
+ * entry's own catalog install;</li>
+ * <li>{@code measuring: true} on gate, install or variant: a measurement run (an uncertified entry may be installed).</li>
  * <li>{@code byKey {key, owner?}}.</li>
  * </ul>
  */
 public final class ModuleDev {
 	private ModuleDev() {}
 
-	/** The gating environment of this game. */
-	public static ModuleGate.Env env(boolean fixtures) {
-		return new ModuleGate.Env(modVersion("minecraft"), modVersion("architect_mc"), ArchitectApi.get().features(), fixtures);
+	/** Whether this game may run the hook at all: a development environment only (the dev client), never a released game. */
+	public static boolean allowed() {
+		return FabricLoader.getInstance().isDevelopmentEnvironment();
+	}
+
+	/** The gating environment of this game (fixtures and measuring only in a development environment). */
+	public static ModuleGate.Env env(boolean fixtures, boolean measuring) {
+		boolean dev = allowed();
+		return new ModuleGate.Env(modVersion("minecraft"), modVersion("architect_mc"), ArchitectApi.get().features(), fixtures && dev, measuring && dev);
 	}
 
 	private static String modVersion(String mod) {
@@ -46,7 +55,7 @@ public final class ModuleDev {
 	public static CompletableFuture<JsonObject> run(MinecraftServer server, String label, JsonObject req) {
 		CompletableFuture<JsonObject> f;
 		try {
-			f = op(req);
+			f = allowed() ? op(req) : CompletableFuture.completedFuture(error("the module hook runs only in a development environment"));
 		} catch (RuntimeException e) {
 			f = CompletableFuture.completedFuture(error(e.toString()));
 		}
@@ -69,7 +78,7 @@ public final class ModuleDev {
 		String op = req.get("op").getAsString();
 		switch (op) {
 			case "env" -> {
-				return CompletableFuture.completedFuture(envJson(env(true)));
+				return CompletableFuture.completedFuture(envJson(env(true, false)));
 			}
 			case "byKey" -> {
 				String owner = str(req, "owner", ModuleInstalls.CATALOG_OWNER);
@@ -85,7 +94,8 @@ public final class ModuleDev {
 		}
 		ModuleCatalog cat = ModuleCatalog.dir(Path.of(req.get("dir").getAsString()), true);
 		String id = req.get("id").getAsString();
-		var env = env(true);
+		// measuring: a dev measurement run installs an entry whose measurement is missing or stale (the run that measures it)
+		var env = env(true, req.has("measuring") && req.get("measuring").getAsBoolean());
 		if (op.equals("gate")) {
 			var v = req.has("version") ? cat.get(id, req.get("version").getAsInt()).map(e -> ModuleGate.offer(e, env)).orElse(new ModuleGate.Verdict(null,
 				ModuleGate.Why.UNKNOWN, "no such version")) : ModuleGate.offer(cat, id, env);
@@ -97,6 +107,8 @@ public final class ModuleDev {
 				a.addProperty("entry", v.entry().key());
 				a.addProperty("programSha", v.entry().programSha());
 				a.add("problems", strings(v.entry().problems()));
+				a.add("uncertified", strings(v.entry().uncertified()));
+				a.addProperty("moduleSha", v.entry().moduleSha());
 				a.addProperty("key", ModuleInstalls.catalogKey(v.entry()));
 				JsonArray combos = new JsonArray();
 				for (var c : v.entry().envelope().combinations()) {
@@ -118,7 +130,7 @@ public final class ModuleDev {
 					JsonObject b = req.getAsJsonObject("bible");
 					bible = new BiblePin(b.get("id").getAsString(), b.has("version") ? b.get("version").getAsInt() : 0);
 				}
-				yield ModuleInstalls.variant(e, env, req.get("entry").getAsString(), req.has("params") ? req.getAsJsonObject("params") : null, bible,
+				yield ModuleInstalls.variant(e, env, req.has("params") ? req.getAsJsonObject("params") : null, bible,
 					reserved(req), req.get("key").getAsString(), str(req, "owner", ModuleInstalls.CATALOG_OWNER), McBlockFacts.INSTANCE);
 			}
 			default -> throw new IllegalArgumentException("unknown op " + op);
@@ -134,6 +146,13 @@ public final class ModuleDev {
 			a.addProperty("detail", o.detail());
 			a.addProperty("message", o.message());
 			a.add("findings", strings(o.findings()));
+			a.addProperty("baseEntryId", o.baseEntryId());
+			if (o.bible() != null) {
+				JsonObject b = new JsonObject();
+				b.addProperty("id", o.bible().id());
+				b.addProperty("version", o.bible().version());
+				a.add("bible", b);
+			}
 			a.addProperty("lamp", o.lamp());
 			a.addProperty("lampFallback", o.lampFallback());
 			return a;
@@ -157,6 +176,7 @@ public final class ModuleDev {
 		a.addProperty("minecraft", env.minecraft());
 		a.addProperty("architect", env.architect());
 		a.addProperty("givenPrograms", env.features().contains(ModuleGate.FEATURE));
+		a.addProperty("measuring", env.measuring());
 		return a;
 	}
 

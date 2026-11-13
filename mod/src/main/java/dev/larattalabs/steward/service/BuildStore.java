@@ -179,7 +179,8 @@ public final class BuildStore {
 			for (var mb : b.moduleBindings().entrySet()) {
 				ModuleBinding v = mb.getValue();
 				if (mb.getKey() == null || mb.getKey().isBlank() || v == null || v.moduleId() == null || v.version() < 1 || v.programSha() == null
-					|| v.geometrySha() == null || v.opKey() == null || v.opKey().isBlank()) {
+					|| !v.programSha().matches("[0-9a-f]{64}") || v.params() == null || v.geometrySha() == null || v.opKey() == null || v.opKey().isBlank()
+					|| (v.bibleId() != null && v.bibleVersion() < 1)) {
 					throw new JsonParseException("incomplete module binding for lot " + mb.getKey() + " in build " + b.buildId());
 				}
 			}

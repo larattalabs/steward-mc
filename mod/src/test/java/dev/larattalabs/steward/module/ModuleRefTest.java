@@ -28,12 +28,16 @@ class ModuleRefTest {
 		assertNull(ModuleRef.of(j("{\"steward_mc:module\":{\"id\":\"x\",\"version\":0,\"programSha\":\"" + SHA + "\"}}")));
 		assertNull(ModuleRef.of(j("{\"steward_mc:module\":{\"id\":\"x\",\"version\":1,\"programSha\":\"abc\"}}")));
 		assertNull(ModuleRef.of(j("{\"steward_mc:module\":\"crop_farm\"}")));
+		assertNull(ModuleRef.of(j("{\"steward_mc:module\":{\"id\":\"x\",\"version\":1.5,\"programSha\":\"" + SHA + "\",\"params\":{}}}")), "a version 1.5 is not 1");
+		assertNull(ModuleRef.of(j("{\"steward_mc:module\":{\"id\":\"x\",\"version\":1,\"programSha\":\"" + SHA + "\",\"params\":[]}}")), "params [] is not {}");
+		assertNull(ModuleRef.of(j("{\"steward_mc:module\":{\"id\":\"x\",\"version\":1,\"programSha\":\"" + SHA + "\"}}")), "no params is not {}");
+		assertNotNull(ModuleRef.of(j("{\"steward_mc:module\":{\"id\":\"x\",\"version\":1,\"programSha\":\"" + SHA + "\",\"params\":{}}}")));
 	}
 
 	@Test
 	void aBindingKnowsItsGeometryWhateverTheKeyOrder() {
 		JsonObject geo = j("{\"box\":[0,64,0,10,70,11],\"frame\":{\"front\":\"south\",\"size\":[11,12]},\"irrigation\":[[5,-1,5]]}");
-		ModuleBinding b = new ModuleBinding("fixture_plot", 1, SHA, j("{\"side\":9,\"crop\":\"wheat\"}"), null, "fortress", 0, Canon.sha(geo),
+		ModuleBinding b = new ModuleBinding("fixture_plot", 1, SHA, j("{\"side\":9,\"crop\":\"wheat\"}"), null, "fortress", 1, Canon.sha(geo),
 			ModuleInstalls.lotKey("b1", "lot_3", 1), "steward_mc:settlement/set_4");
 		assertTrue(b.fits(j("{\"irrigation\":[[5,-1,5]],\"frame\":{\"size\":[11,12],\"front\":\"south\"},\"box\":[0,64,0,10,70,11]}")));
 		assertFalse(b.fits(j("{\"box\":[0,64,0,10,70,12],\"frame\":{\"front\":\"south\",\"size\":[11,12]},\"irrigation\":[[5,-1,5]]}")));

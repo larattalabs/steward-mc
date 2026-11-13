@@ -22,7 +22,7 @@ class BuildStoreFormat5Test {
 		Map<String, ModuleBinding> m = new LinkedHashMap<>();
 		var geo = JsonParser.parseString("{\"box\":[0,64,0,10,66,11],\"irrigation\":[]}");
 		m.put("lot_3", new ModuleBinding("fixture_plot", 1, SHA, JsonParser.parseString("{\"side\":9,\"crop\":\"wheat\"}").getAsJsonObject(), "fixture_plot_kv_2",
-			"fortress", 0, Canon.sha(geo), ModuleInstalls.lotKey("b1700000000000", "lot_3", 2), "steward_mc:settlement/set_4"));
+			"fortress", 1, Canon.sha(geo), ModuleInstalls.lotKey("b1700000000000", "lot_3", 2), "steward_mc:settlement/set_4"));
 		m.put("lot_5", new ModuleBinding("fixture_plot", 1, SHA, JsonParser.parseString("{}").getAsJsonObject(), null, null, 0, Canon.sha(geo),
 			ModuleInstalls.lotKey("b1700000000000", "lot_5", 1), null));
 		return m;
@@ -65,7 +65,7 @@ class BuildStoreFormat5Test {
 	void anIncompleteBindingRefusesTheFileNeverDropsIt() {
 		BuildStore st = new BuildStore();
 		st.put(BuildStoreTestAccess.saved().withModuleBindings(bindings()));
-		for (String field : new String[] {"opKey", "geometrySha", "programSha", "moduleId"}) {
+		for (String field : new String[] {"opKey", "geometrySha", "programSha", "moduleId", "params"}) {
 			var j = JsonParser.parseString(st.toJson()).getAsJsonObject();
 			j.getAsJsonArray("builds").get(0).getAsJsonObject().getAsJsonObject("moduleBindings").getAsJsonObject("lot_3").remove(field);
 			assertThrows(JsonParseException.class, () -> BuildStore.fromJson(j.toString()), field);
@@ -73,6 +73,11 @@ class BuildStoreFormat5Test {
 		var j = JsonParser.parseString(st.toJson()).getAsJsonObject();
 		j.getAsJsonArray("builds").get(0).getAsJsonObject().getAsJsonObject("moduleBindings").getAsJsonObject("lot_3").addProperty("version", 0);
 		assertThrows(JsonParseException.class, () -> BuildStore.fromJson(j.toString()), "version 0");
+		for (String[] bad : new String[][] {{"version", "1.5"}, {"params", "[]"}, {"params", "\"side=9\""}, {"bibleVersion", "0"}, {"programSha", "\"abc\""}}) {
+			var k = JsonParser.parseString(st.toJson()).getAsJsonObject();
+			k.getAsJsonArray("builds").get(0).getAsJsonObject().getAsJsonObject("moduleBindings").getAsJsonObject("lot_3").add(bad[0], JsonParser.parseString(bad[1]));
+			assertThrows(RuntimeException.class, () -> BuildStore.fromJson(k.toString()), bad[0] + " " + bad[1]);
+		}
 	}
 
 	@Test

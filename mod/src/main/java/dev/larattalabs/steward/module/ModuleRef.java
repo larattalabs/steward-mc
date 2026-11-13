@@ -42,10 +42,12 @@ public record ModuleRef(String id, int version, String programSha, JsonObject pa
 		JsonObject o = ext.getAsJsonObject(EXT);
 		try {
 			String id = o.get("id").getAsString();
-			int version = o.get("version").getAsInt();
+			var ver = o.get("version").getAsJsonPrimitive();
+			if (!ver.isNumber() || ver.getAsDouble() != Math.rint(ver.getAsDouble())) return null;
+			int version = ver.getAsInt();
 			String sha = o.get("programSha").getAsString();
-			if (!id.matches(ModuleCatalog.ID_RE) || version < 1 || !sha.matches("[0-9a-f]{64}")) return null;
-			return new ModuleRef(id, version, sha, o.has("params") && o.get("params").isJsonObject() ? o.getAsJsonObject("params") : new JsonObject());
+			if (!id.matches(ModuleCatalog.ID_RE) || version < 1 || !sha.matches("[0-9a-f]{64}") || !o.has("params") || !o.get("params").isJsonObject()) return null;
+			return new ModuleRef(id, version, sha, o.getAsJsonObject("params"));
 		} catch (RuntimeException e) {
 			return null;
 		}

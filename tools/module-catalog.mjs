@@ -19,6 +19,7 @@
 //
 // Evidence: artifacts/m1/<step>.json (gitignored) and stdout ("ok"/"FAIL" per check). Exit code 1 when a check fails.
 import { spawn, execFileSync } from 'node:child_process';
+import net from 'node:net';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -51,6 +52,9 @@ const prop = (k) => (new RegExp(`^${k}=(.*)$`, 'm').exec(fs.readFileSync(path.jo
 const ARCH_VERSION = prop('architect_version');
 const MC_VERSION = prop('minecraft_version');
 
+const fileSha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
+/** What a run checked, to tie its evidence to these exact files: the program's and module.json's sha256 (raw bytes). */
+const stamp = (e) => ({ programSha: fileSha(path.join(e.dir, 'program.mjs')), moduleJsonSha: fileSha(path.join(e.dir, 'module.json')) });
 function entries() {
   const idx = JSON.parse(fs.readFileSync(path.join(CATALOG, 'catalog.json'), 'utf8'));
   return idx.modules.map(({ id, version }) => {
@@ -84,9 +88,8 @@ async function offline() {
   const out = { architect: ARCH_VERSION, kit: kitVersion ?? null, entries: {} };
   for (const e of entries()) {
     const key = `${e.id}@${e.version}`;
-    const r = (out.entries[key] = { programSha: sha256(e.source), branches: [], probes: {} });
+    const r = (out.entries[key] = { ...stamp(e), branches: [], probes: {} });
     check(e.module.programSha === r.programSha, `${key}: program.mjs is the program module.json pins (${r.programSha.slice(0, 12)})`);
-    check(e.measured?.programSha === r.programSha, `${key}: measured.json measured this program`);
     // the program as a design in a temp dir, its kit imports pointed at the pinned kit (as kit/test/gp.test.mjs does)
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'steward-m1-'));
     const lib = pathToFileURL(path.join(kit, 'lib')).href;
@@ -150,9 +153,19 @@ async function offline() {
 
 let dev = null, child = null;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/** Whether something already listens on a local port. */
+const listening = (port) => new Promise((resolve) => {
+  const s = net.connect({ host: '127.0.0.1', port });
+  s.once('connect', () => { s.destroy(); resolve(true); });
+  s.once('error', () => resolve(false));
+});
+let launched = false, exited = false;
 async function startClient() {
   const { DevClient } = await import(pathToFileURL(path.join(ARCH, 'tools', 'lib', 'devclient.mjs')).href);
   if (flag('--attach')) { dev = await DevClient.connect({ port: PORT, timeoutMs: 30_000 }); await dev.waitInWorld({ timeoutMs: 60_000 }); return; }
+  // never drive (or quit) a client this run did not start: both ports must be free before the launch
+  for (const p of [PORT - 1, PORT]) if (await listening(p)) throw new Error(`port ${p} is in use (another client?): refusing to launch; use --attach to drive it`);
+  if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
   const world = `Steward M1 Catalog ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
   const out = fs.openSync(path.join(ART, 'client.log'), 'a');
@@ -160,12 +173,16 @@ async function startClient() {
     stdio: ['ignore', out, out],
     env: { ...process.env, STEWARD_PORT: String(PORT - 1), STEWARD_DEV_PORT: String(PORT), ARCHITECT_AUTOWORLD_NAME: world, E2E_STUB: '0', E2E_NODE_DIR: path.dirname(process.execPath), GRADLE_USER_HOME: process.env.GRADLE_USER_HOME ?? path.join(MAIN_CHECKOUT, '.gradle-home') },
   });
+  launched = true;
+  child.once('exit', () => { exited = true; });
   log(`client launched (launcher pid ${child.pid}), world "${world}", ports ${PORT - 1}/${PORT}`);
+  // the token is the one this launch writes (removed above), so a client that is not ours can't be reached by it
   dev = await DevClient.connect({ port: PORT, timeoutMs: 600_000 });
+  if (exited) throw new Error('the launched client exited before its bridge answered');
   await dev.waitInWorld({ timeoutMs: 600_000 });
 }
 async function stopClient() {
-  if (!dev || flag('--attach') || flag('--keep-client')) return;
+  if (!dev || !launched || exited || flag('--attach') || flag('--keep-client')) return;
   const r = await dev.request('dev.quit');
   if (r.ok) await dev.waitClosed(120_000);
 }
@@ -201,11 +218,16 @@ async function ingame() {
     const run = Date.now().toString(36);
     for (const e of entries()) {
       const key = `${e.id}@${e.version}`;
-      const r = (out.entries[key] = { variants: [] });
-      const base = { dir: CATALOG, id: e.id, version: e.version };
+      const r = (out.entries[key] = { ...stamp(e), variants: [] });
+      const base = { dir: CATALOG, id: e.id, version: e.version, measuring: true };
+      // the gate as a player's game sees it (no measuring): offered exactly when measured.json certifies these files
+      const plain = await mod({ op: 'gate', dir: CATALOG, id: e.id, version: e.version });
+      r.plainGate = plain;
+      if (plain.uncertified?.length) check(!plain.ok && plain.why === 'NOT_MEASURED', `${key}: not certified yet, so a player's game is offered nothing (${plain.uncertified.join('; ')})`);
+      else check(plain.ok, `${key}: certified, so a player's game is offered it (${plain.message})`);
       const gate = await mod({ op: 'gate', ...base });
       r.gate = gate;
-      check(gate.ok && gate.problems.length === 0, `${key}: the gate offers it here (${gate.message})`, gate.problems);
+      check(gate.ok && gate.problems.length === 0, `${key}: a measurement run may install it (${gate.message})`, gate.problems);
       const t0 = Date.now();
       const a = await mod({ op: 'install', ...base });
       r.install = { ...a, ms: Date.now() - t0 };
@@ -221,15 +243,17 @@ async function ingame() {
         for (const bible of e.module.envelope.bibles) {
           const vkey = `steward.m1gate${run}.module.${e.id}_${Object.values(c).join('_')}_${bible}`;
           const t1 = Date.now();
-          const v = await mod({ op: 'variant', ...base, entry: a.entryId, params: c, bible: { id: bible, version: 0 }, key: vkey });
+          const v = await mod({ op: 'variant', ...base, params: c, bible: { id: bible, version: 0 }, key: vkey });
           const vl = v.ok ? entryFile(v.entryId) ?? {} : {};
           const shaOk = vl.givenProgram?.sha === e.module.programSha;
-          r.variants.push({ branch: c, bible, ok: v.ok, entryId: v.entryId, detail: v.detail, ms: Date.now() - t1, sha: shaOk, bibleRecorded: vl.bible ?? null, findings: v.findings });
-          check(v.ok && shaOk && vl.bible?.id === bible, `${key} ${label(c)} as ${bible}: variant ${v.entryId ?? '-'} installed, checker clean (${Date.now() - t1} ms)${v.ok ? '' : `: ${v.detail} ${v.message} ${v.findings.join('; ')}`}`);
+          const pinned = v.bible?.id === bible && v.bible?.version >= 1 && vl.bible?.id === bible && vl.bible?.version === v.bible.version;
+          r.variants.push({ branch: c, bible, ok: v.ok, entryId: v.entryId, base: v.baseEntryId, detail: v.detail, ms: Date.now() - t1, sha: shaOk, sent: v.bible ?? null, bibleRecorded: vl.bible ?? null, findings: v.findings });
+          check(v.ok && shaOk && pinned && v.baseEntryId === a.entryId,
+            `${key} ${label(c)} as ${bible} v${v.bible?.version}: variant ${v.entryId ?? '-'} of ${v.baseEntryId} installed, checker clean (${Date.now() - t1} ms)${v.ok ? '' : `: ${v.detail} ${v.message} ${v.findings.join('; ')}`}`);
           if (v.ok && !firstKey) { firstKey = vkey; firstId = v.entryId; }
         }
       }
-      const off = await mod({ op: 'variant', ...base, entry: a.entryId, params: { side: 7 }, bible: { id: e.module.envelope.bibles[0], version: 0 }, key: `steward.m1gate${run}.module.off` });
+      const off = await mod({ op: 'variant', ...base, params: { side: 7 }, bible: { id: e.module.envelope.bibles[0], version: 0 }, key: `steward.m1gate${run}.module.off` });
       r.outside = off;
       check(!off.ok && off.detail === 'params', `${key}: params outside the envelope are refused before Architect is asked (${off.detail}: ${off.message})`);
       if (firstKey) {
@@ -247,21 +271,39 @@ async function ingame() {
 
 // ------------------------------------------------------------------ record
 
+/**
+ * Writes the evidence into measured.json, only when both steps passed on these exact files (program and module.json bytes), on the pinned
+ * Architect and Minecraft versions; it then certifies them: `result: "pass"` and the `moduleSha` the game computed for this module.json.
+ */
 function record() {
   const off = JSON.parse(fs.readFileSync(path.join(ART, 'offline.json'), 'utf8'));
   const inn = JSON.parse(fs.readFileSync(path.join(ART, 'ingame.json'), 'utf8'));
+  let refused = 0;
   for (const e of entries()) {
     const key = `${e.id}@${e.version}`;
-    const o = off.data.entries[key], g = inn.data.entries[key];
-    if (!o || !g || !e.measured) { log(`skip ${key}`); continue; }
-    const m = e.measured;
+    const o = off.data?.entries?.[key], g = inn.data?.entries?.[key], now = stamp(e);
+    const why = [];
+    if (!off.ok) why.push('the offline step did not pass');
+    if (!inn.ok) why.push('the ingame step did not pass');
+    if (!o || !g) why.push('no evidence for it');
+    for (const [n, r] of [['offline', o], ['ingame', g]]) {
+      if (r && (r.programSha !== now.programSha || r.moduleJsonSha !== now.moduleJsonSha)) why.push(`the ${n} run checked other files`);
+    }
+    if (off.data?.architect !== ARCH_VERSION) why.push(`offline ran on Architect ${off.data?.architect}, pinned ${ARCH_VERSION}`);
+    if (inn.data?.env?.architect !== ARCH_VERSION || inn.data?.env?.minecraft !== MC_VERSION) why.push('ingame ran on other versions');
+    if (off.data?.kit !== e.module.pins?.kit) why.push(`offline ran kit ${off.data?.kit}, pinned ${e.module.pins?.kit}`);
+    if (!g?.gate?.moduleSha) why.push('no moduleSha from the game');
+    if (why.length) { refused++; log(`REFUSED ${key}: ${why.join('; ')}`); continue; }
+    const m = { ...(e.measured ?? {}), id: e.id, version: e.version, fixture: !!e.module.fixture, programSha: now.programSha, moduleSha: g.gate.moduleSha,
+      minecraft: MC_VERSION, architect: [ARCH_VERSION], kit: e.module.pins.kit, checker: e.module.pins.checker, result: 'pass' };
     m.checks = {
-      offline: { ok: off.ok, at: off.at, architect: off.data.architect, kit: off.data.kit, branches: o.branches.map(({ branch, bible, ok, blocks, warnings }) => ({ branch, bible, ok, blocks, warnings })), probes: o.probes },
-      ingame: { ok: inn.ok, at: inn.at, env: inn.data.env, install: { key: g.install.key, ok: g.install.ok }, variants: g.variants.map(({ branch, bible, ok, sha }) => ({ branch, bible, ok, sha })), outside: { refused: !g.outside?.ok, detail: g.outside?.detail }, byKey: g.byKey ? { found: g.byKey.k.found, unknownFound: g.byKey.none.found } : null },
+      offline: { at: off.at, head: off.head, architect: off.data.architect, kit: off.data.kit, branches: o.branches.map(({ branch, bible, ok, blocks, warnings }) => ({ branch, bible, ok, blocks, warnings })), probes: o.probes },
+      ingame: { at: inn.at, head: inn.head, env: inn.data.env, install: { key: g.install.key, ok: g.install.ok }, variants: g.variants.map(({ branch, bible, ok, sha, sent }) => ({ branch, bible, version: sent?.version ?? null, ok, sha })), outside: { refused: !g.outside?.ok, detail: g.outside?.detail }, byKey: g.byKey ? { found: g.byKey.k.found, unknownFound: g.byKey.none.found } : null },
     };
     fs.writeFileSync(path.join(e.dir, 'measured.json'), `${JSON.stringify(m, null, 2)}\n`);
-    log(`recorded ${key}`);
+    log(`recorded ${key}: result pass, moduleSha ${m.moduleSha.slice(0, 12)}`);
   }
+  if (refused) process.exit(1);
 }
 
 const steps = { offline, ingame };

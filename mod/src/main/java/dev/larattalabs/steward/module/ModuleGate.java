@@ -18,6 +18,8 @@ import org.jspecify.annotations.Nullable;
  * nothing is offered: an older version is never put in its place.</li>
  * <li>Architect's helper must run given programs (feature {@code givenPrograms}).</li>
  * <li>A fixture module is test data: only a dev caller ({@link Env#fixtures()}) may install one.</li>
+ * <li>A measurement certifies the exact program, schema, envelope, palette rules and pins ({@code result: pass}, {@code moduleSha}); a missing,
+ * failed or stale one offers nothing. Only a dev measurement run ({@link Env#measuring()}) installs an uncertified entry, to measure it.</li>
  * <li><b>Params within the envelope.</b> A branch param must be one of its measured values; any other param stays at its default.</li>
  * </ul>
  */
@@ -31,10 +33,18 @@ public final class ModuleGate {
 		UNKNOWN, INVALID, NOT_MEASURED, MINECRAFT, ARCHITECT, FEATURE, FIXTURE, PARAMS
 	}
 
-	/** Where we are: the running Minecraft and Architect (mod) versions, Architect's features, whether fixtures are allowed (dev only). */
-	public record Env(String minecraft, String architect, Set<String> features, boolean fixtures) {
+	/**
+	 * Where we are: the running Minecraft and Architect (mod) versions, Architect's features, whether fixtures are allowed, and whether this is
+	 * a measurement run (both dev only: {@code measuring} installs an entry whose measurement is missing or stale, to measure it).
+	 */
+	public record Env(String minecraft, String architect, Set<String> features, boolean fixtures, boolean measuring) {
 		public Env {
 			features = features == null ? Set.of() : Set.copyOf(features);
+		}
+
+		/** A player's game: no fixtures, no measuring. */
+		public Env(String minecraft, String architect, Set<String> features) {
+			this(minecraft, architect, features, false, false);
 		}
 	}
 
@@ -52,6 +62,7 @@ public final class ModuleGate {
 	/** The verdict on a module's newest version (never an older one in its place). */
 	public static Verdict offer(ModuleCatalog catalog, String id, Env env) {
 		Optional<Entry> e = catalog.newest(id);
+		if (catalog.blocked(id)) return Verdict.no(e.orElse(null), Why.INVALID, "The catalog has a row of " + id + " it could not load: " + String.join("; ", catalog.problems()));
 		if (e.isEmpty()) return Verdict.no(null, Why.UNKNOWN, "No module " + id + " in the catalog.");
 		return offer(e.get(), env);
 	}
@@ -60,13 +71,14 @@ public final class ModuleGate {
 	public static Verdict offer(Entry e, Env env) {
 		if (!e.valid()) return Verdict.no(e, Why.INVALID, e.key() + " is not a valid catalog entry: " + String.join("; ", e.problems()));
 		if (e.fixture() && !env.fixtures()) return Verdict.no(e, Why.FIXTURE, e.key() + " is a test fixture, never offered.");
+		if (!env.features().contains(FEATURE)) return Verdict.no(e, Why.FEATURE, "Architect's helper does not run given programs (" + FEATURE + ").");
+		if (env.measuring()) return new Verdict(e, null, e.key() + " may be installed to measure it.");
 		var m = e.measured();
-		if (m == null) return Verdict.no(e, Why.NOT_MEASURED, e.key() + " has no measurement.");
+		if (m == null || !e.uncertified().isEmpty()) return Verdict.no(e, Why.NOT_MEASURED, e.key() + " is not certified: " + String.join("; ", e.uncertified()));
 		if (!m.minecraft().equals(env.minecraft()))
 			return Verdict.no(e, Why.MINECRAFT, e.key() + " was measured on Minecraft " + m.minecraft() + ", not " + env.minecraft() + ".");
 		if (!m.architect().contains(env.architect()))
 			return Verdict.no(e, Why.ARCHITECT, e.key() + " was measured with Architect " + String.join(", ", m.architect()) + ", not " + env.architect() + ".");
-		if (!env.features().contains(FEATURE)) return Verdict.no(e, Why.FEATURE, "Architect's helper does not run given programs (" + FEATURE + ").");
 		return new Verdict(e, null, e.key() + " may be offered.");
 	}
 

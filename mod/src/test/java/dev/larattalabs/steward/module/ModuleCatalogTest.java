@@ -20,10 +20,27 @@ import org.junit.jupiter.api.Test;
 /** The module catalog (docs/MODULES.md 1, 2.1, 2.2; slice M1): its format, the fixture module, gating and the params envelope. */
 class ModuleCatalogTest {
 	static final Path FIXTURES = Path.of(System.getProperty("user.dir")).resolve("../fixtures/modules/catalog").normalize();
-	static final Env HERE = new Env("26.3", "0.62.0", Set.of("givenPrograms"), true);
+	static final Env HERE = new Env("26.3", "0.62.0", Set.of("givenPrograms"), true, false);
 
-	static Entry fixture() {
+	/** The fixture as committed (its measured.json may or may not certify it yet). */
+	static Entry committed() {
 		return ModuleCatalog.dir(FIXTURES, true).get("fixture_plot", 1).orElseThrow();
+	}
+
+	/** The fixture with a measured.json that certifies it (result pass, the current moduleSha, the pins). */
+	static Entry fixture() throws Exception {
+		return of(certify(files(), "fixture_plot/1")).get("fixture_plot", 1).orElseThrow();
+	}
+
+	/** files with {@code dir}'s measured.json made a passing certificate of its module.json. */
+	static Map<String, String> certify(Map<String, String> f, String dir) {
+		JsonObject mod = JsonParser.parseString(f.get(dir + "/module.json")).getAsJsonObject();
+		String m = f.get(dir + "/measured.json");
+		m = with(m, "result", "\"pass\"");
+		m = with(m, "moduleSha", "\"" + ModuleCatalog.moduleSha(mod) + "\"");
+		m = with(m, "programSha", "\"" + Canon.sha256(f.get(dir + "/program.mjs")) + "\"");
+		f.put(dir + "/measured.json", m);
+		return f;
 	}
 
 	/** The fixture catalog's files as a map (rel path -> text), to tamper with. */
@@ -49,6 +66,10 @@ class ModuleCatalogTest {
 	void theFixtureModuleLoadsWithItsProgramSchemaEnvelopeAndMeasurement() throws Exception {
 		Entry e = fixture();
 		assertTrue(e.valid(), () -> String.join("; ", e.problems()));
+		assertTrue(e.certified(), () -> String.join("; ", e.uncertified()));
+		assertTrue(committed().valid(), () -> String.join("; ", committed().problems()));
+		assertTrue(committed().certified(), () -> "the committed measured.json certifies the committed files (tools/module-catalog.mjs record): "
+			+ String.join("; ", committed().uncertified()));
 		assertTrue(e.fixture());
 		assertEquals("fixture_plot@1", e.key());
 		assertEquals(Canon.sha256(Files.readString(FIXTURES.resolve("fixture_plot/1/program.mjs"))), e.programSha(), "the identity is the exact source's sha256");
@@ -86,12 +107,12 @@ class ModuleCatalogTest {
 
 	@Test
 	void aTamperedOrUnmatchedEntryIsKeptWithItsProblemsAndNeverOffered() throws Exception {
-		var f = files();
+		var f = certify(files(), "fixture_plot/1");
 		f.put("fixture_plot/1/program.mjs", f.get("fixture_plot/1/program.mjs").replace("RIPE = { wheat: 7", "RIPE = { wheat: 6"));
 		Entry e = of(f).get("fixture_plot", 1).orElseThrow();
 		assertFalse(e.valid());
 		assertTrue(e.problems().stream().anyMatch(p -> p.contains("not the program module.json pins")));
-		assertTrue(e.problems().stream().anyMatch(p -> p.contains("measured another program")));
+		assertTrue(e.uncertified().stream().anyMatch(p -> p.contains("measured another program")));
 		assertEquals(Why.INVALID, ModuleGate.offer(e, HERE).why());
 
 		f = files();
@@ -117,31 +138,74 @@ class ModuleCatalogTest {
 		var f = files();
 		f.remove("fixture_plot/1/measured.json");
 		Entry e = of(f).get("fixture_plot", 1).orElseThrow();
-		assertFalse(e.valid());
+		assertTrue(e.valid(), "a well-formed entry, only not certified");
+		assertFalse(e.certified());
 		assertNull(e.measured());
-		assertFalse(ModuleGate.offer(e, HERE).ok());
+		assertEquals(Why.NOT_MEASURED, ModuleGate.offer(e, HERE).why());
+		// a dev measurement run may install it, to measure it; a player's game never
+		assertTrue(ModuleGate.offer(e, new Env("26.3", "0.62.0", Set.of("givenPrograms"), true, true)).ok());
 	}
 
 	@Test
-	void offeredOnlyOnTheVersionsItWasMeasuredOnWithGivenProgramsAndFixturesOnlyInDev() {
+	void aFailedIncompleteOrStaleCertificateOffersNothing() throws Exception {
+		// failed
+		var f = certify(files(), "fixture_plot/1");
+		f.put("fixture_plot/1/measured.json", with(f.get("fixture_plot/1/measured.json"), "result", "\"fail\""));
+		assertEquals(Why.NOT_MEASURED, ModuleGate.offer(of(f).get("fixture_plot", 1).orElseThrow(), HERE).why());
+		// no verdict at all (bars, but no result)
+		f = certify(files(), "fixture_plot/1");
+		var m = JsonParser.parseString(f.get("fixture_plot/1/measured.json")).getAsJsonObject();
+		m.remove("result");
+		f.put("fixture_plot/1/measured.json", m.toString());
+		assertEquals(Why.NOT_MEASURED, ModuleGate.offer(of(f).get("fixture_plot", 1).orElseThrow(), HERE).why());
+		// stale: an unmeasured branch added to the envelope after the measurement
+		f = certify(files(), "fixture_plot/1");
+		var mod = JsonParser.parseString(f.get("fixture_plot/1/module.json")).getAsJsonObject();
+		mod.getAsJsonObject("envelope").getAsJsonObject("branches").getAsJsonArray("side").add(7);
+		f.put("fixture_plot/1/module.json", mod.toString());
+		Entry stale = of(f).get("fixture_plot", 1).orElseThrow();
+		assertTrue(stale.valid());
+		assertTrue(stale.uncertified().stream().anyMatch(p -> p.contains("certifies another")));
+		assertEquals(Why.NOT_MEASURED, ModuleGate.offer(stale, HERE).why());
+		// stale: the palette rules loosened after the measurement
+		f = certify(files(), "fixture_plot/1");
+		mod = JsonParser.parseString(f.get("fixture_plot/1/module.json")).getAsJsonObject();
+		mod.getAsJsonObject("palette").getAsJsonObject("lamp").addProperty("minLight", 9);
+		f.put("fixture_plot/1/module.json", mod.toString());
+		assertEquals(Why.NOT_MEASURED, ModuleGate.offer(of(f).get("fixture_plot", 1).orElseThrow(), HERE).why());
+		// measured with another checker than pinned
+		f = certify(files(), "fixture_plot/1");
+		f.put("fixture_plot/1/measured.json", with(f.get("fixture_plot/1/measured.json"), "checker", "\"0.56.0\""));
+		assertEquals(Why.NOT_MEASURED, ModuleGate.offer(of(f).get("fixture_plot", 1).orElseThrow(), HERE).why());
+		// the title is not certified content: changing it keeps the certificate
+		f = certify(files(), "fixture_plot/1");
+		f.put("fixture_plot/1/module.json", with(f.get("fixture_plot/1/module.json"), "title", "\"Another title\""));
+		assertTrue(ModuleGate.offer(of(f).get("fixture_plot", 1).orElseThrow(), HERE).ok());
+	}
+
+	@Test
+	void offeredOnlyOnTheVersionsItWasMeasuredOnWithGivenProgramsAndFixturesOnlyInDev() throws Exception {
 		Entry e = fixture();
 		assertTrue(ModuleGate.offer(e, HERE).ok());
-		assertEquals(Why.MINECRAFT, ModuleGate.offer(e, new Env("26.4", "0.62.0", Set.of("givenPrograms"), true)).why());
-		assertEquals(Why.ARCHITECT, ModuleGate.offer(e, new Env("26.3", "0.63.0", Set.of("givenPrograms"), true)).why());
-		assertEquals(Why.ARCHITECT, ModuleGate.offer(e, new Env("26.3", "0.61.0", Set.of("givenPrograms"), true)).why());
-		assertEquals(Why.FEATURE, ModuleGate.offer(e, new Env("26.3", "0.62.0", Set.of(), true)).why());
-		assertEquals(Why.FIXTURE, ModuleGate.offer(e, new Env("26.3", "0.62.0", Set.of("givenPrograms"), false)).why());
+		assertEquals(Why.MINECRAFT, ModuleGate.offer(e, new Env("26.4", "0.62.0", Set.of("givenPrograms"), true, false)).why());
+		assertEquals(Why.ARCHITECT, ModuleGate.offer(e, new Env("26.3", "0.63.0", Set.of("givenPrograms"), true, false)).why());
+		assertEquals(Why.ARCHITECT, ModuleGate.offer(e, new Env("26.3", "0.61.0", Set.of("givenPrograms"), true, false)).why());
+		assertEquals(Why.FEATURE, ModuleGate.offer(e, new Env("26.3", "0.62.0", Set.of(), true, false)).why());
+		assertEquals(Why.FEATURE, ModuleGate.offer(e, new Env("26.3", "0.62.0", Set.of(), true, true)).why(), "measuring needs given programs too");
+		assertEquals(Why.FIXTURE, ModuleGate.offer(e, new Env("26.3", "0.62.0", Set.of("givenPrograms"))).why());
 		assertEquals(Why.UNKNOWN, ModuleGate.offer(ModuleCatalog.dir(FIXTURES, true), "crop_farm", HERE).why());
 	}
 
 	@Test
 	void theNewestVersionIsJudgedAndNeverFallsBackToAnOlderOne() throws Exception {
-		var f = files();
+		var f = certify(files(), "fixture_plot/1");
 		// a version 2 that was measured on another Minecraft: version 1 is measured here, but is not offered in its place
 		f.put("catalog.json", "{\"format\":1,\"modules\":[{\"id\":\"fixture_plot\",\"version\":1},{\"id\":\"fixture_plot\",\"version\":2}]}");
 		f.put("fixture_plot/2/program.mjs", f.get("fixture_plot/1/program.mjs"));
 		f.put("fixture_plot/2/module.json", with(f.get("fixture_plot/1/module.json"), "version", "2"));
-		f.put("fixture_plot/2/measured.json", with(with(f.get("fixture_plot/1/measured.json"), "version", "2"), "minecraft", "\"26.2\""));
+		f.put("fixture_plot/2/measured.json", with(f.get("fixture_plot/1/measured.json"), "version", "2"));
+		certify(f, "fixture_plot/2");
+		f.put("fixture_plot/2/measured.json", with(f.get("fixture_plot/2/measured.json"), "minecraft", "\"26.2\""));
 		ModuleCatalog c = of(f);
 		assertTrue(ModuleGate.offer(c.get("fixture_plot", 1).orElseThrow(), HERE).ok());
 		var v = ModuleGate.offer(c, "fixture_plot", HERE);
@@ -151,7 +215,31 @@ class ModuleCatalogTest {
 	}
 
 	@Test
-	void paramsStayInsideTheEnvelopeInCanonicalForm() {
+	void aNewestRowTheLiveLoaderDropsBlocksTheWholeModule() throws Exception {
+		// version 1 an ordinary certified module, version 2 a fixture (or a duplicate row): the live loader drops the row, and must not then
+		// offer version 1 in its place
+		var f = certify(files(), "fixture_plot/1");
+		f.put("fixture_plot/1/module.json", with(f.get("fixture_plot/1/module.json"), "fixture", "false"));
+		f.put("fixture_plot/1/measured.json", with(f.get("fixture_plot/1/measured.json"), "fixture", "false"));
+		certify(f, "fixture_plot/1");
+		f.put("catalog.json", "{\"format\":1,\"modules\":[{\"id\":\"fixture_plot\",\"version\":1},{\"id\":\"fixture_plot\",\"version\":2}]}");
+		f.put("fixture_plot/2/program.mjs", f.get("fixture_plot/1/program.mjs"));
+		f.put("fixture_plot/2/module.json", with(with(f.get("fixture_plot/1/module.json"), "version", "2"), "fixture", "true"));
+		f.put("fixture_plot/2/measured.json", with(with(f.get("fixture_plot/1/measured.json"), "version", "2"), "fixture", "true"));
+		certify(f, "fixture_plot/2");
+		var files = f;
+		ModuleCatalog live = ModuleCatalog.load(rel -> Optional.ofNullable(files.get(rel)), false);
+		Env player = new Env("26.3", "0.62.0", Set.of("givenPrograms"));
+		assertTrue(ModuleGate.offer(live.get("fixture_plot", 1).orElseThrow(), player).ok(), "version 1 alone is offerable");
+		assertTrue(live.blocked("fixture_plot"));
+		assertEquals(Why.INVALID, ModuleGate.offer(live, "fixture_plot", player).why());
+		// a duplicate row blocks it the same way
+		f.put("catalog.json", "{\"format\":1,\"modules\":[{\"id\":\"fixture_plot\",\"version\":1},{\"id\":\"fixture_plot\",\"version\":1}]}");
+		assertEquals(Why.INVALID, ModuleGate.offer(ModuleCatalog.load(rel -> Optional.ofNullable(files.get(rel)), false), "fixture_plot", player).why());
+	}
+
+	@Test
+	void paramsStayInsideTheEnvelopeInCanonicalForm() throws Exception {
 		Entry e = fixture();
 		var d = ModuleGate.params(e, null);
 		assertTrue(d.ok());
@@ -166,7 +254,7 @@ class ModuleCatalogTest {
 	}
 
 	@Test
-	void keysAreTheCatalogsAndTheLotsShapes() {
+	void keysAreTheCatalogsAndTheLotsShapes() throws Exception {
 		Entry e = fixture();
 		assertEquals("steward.catalog.fixture_plot.v1." + e.programSha().substring(0, 12), ModuleInstalls.catalogKey(e));
 		assertTrue(ModuleInstalls.catalogKey(e).matches(ModuleInstalls.KEY_RE), "Architect's opKey alphabet");

@@ -475,6 +475,39 @@ rules:
 **Cost.** $0 throughout: module designs are $0 and the e2e is stub. M5's plan-writer change needs a small paid re-record of a few composed
 plans, with Noah's OK on the spend.
 
+### M1 as built (2026-11-12)
+
+- **The catalog.** `modules/<id>/<version>/` holds `program.mjs` (sent exactly as stored; its sha256 is the identity), `module.json` (the params
+  schema, the envelope's discrete `branches`, facings and bibles, the `palette` constraints, the kit and checker pins) and `measured.json`.
+  `modules/catalog.json` lists the live entries; it ships in the jar (`steward/modules/`) and is empty until M2. `.gitattributes` keeps the
+  programs' bytes (no line-ending changes).
+- **Fixtures** live in `fixtures/modules/catalog/` and load only from a directory (unit tests, the dev hook); the live loader refuses one.
+  `fixture_plot@1`: a fenced plot of farmland and a ripe crop (the core), path, fence and lamps from the bible (the shell), sides 5 and 9 x wheat
+  and beetroot, re-skinned by **rustic, fortress and desert**. The strange-ask cards carry no palette field, so section 2.2's "palette family the
+  corpus uses most" can't be read from them; these three built-in Styles span wood, stone and sand.
+- **Certification.** measured.json certifies only with `result: "pass"`, the program's sha, and the `moduleSha` of module.json's certified
+  fields (program sha, params schema, envelope, palette rules, pins; not the title), measured on the pinned kit and checker. A missing, failed or
+  stale certificate offers nothing. `tools/module-catalog.mjs record` writes one only from passing offline and in-game runs over these exact
+  files and versions. A dev measurement run (`measuring`, development environment only) may install an uncertified entry, to measure it.
+- **Gating** (`ModuleGate`): a certified entry, measured.json's Minecraft version and Architect (mod) versions, Architect's `givenPrograms`, and
+  fixtures only for a dev caller. A module with a catalog row the loader could not keep (a fixture in the live catalog, a duplicate) is blocked
+  whole. Only a module's newest version is judged; a refused newest version is never replaced by an older one. Params must be
+  one of the envelope's measured branch values (other params stay at their defaults), canonical with sorted keys.
+- **Palette constraints** (`PaletteCheck`, mirrored in the program): the lamp role under light 14 becomes the fallback lantern, said; a gravity
+  block on a core role, or a conductive one in a circuit plane, is refused before Architect is asked. A program that refuses a bible throws
+  `palette: ...`; Architect reports a throw as detail `program`, with the message (its `palette` detail is for bibles it can't resolve).
+- **Variants** are always made from the entry's own catalog install (by its key), never a caller's entry id, and with the bible resolved to
+  its exact version before the palette check, so what was checked is what Architect runs, also after a restart.
+- **Keys.** The catalog entry: `steward.catalog.<id>.v<version>.<sha12>` under owner `steward_mc:catalog` (Architect's keys take no `@`). A lot's
+  variant: `steward.<build>.module.<lotId>`, `.<n>` after a re-plan.
+- **Bindings.** `steward_mc:module {id, version, programSha, params}` is the lot ext (`ModuleRef`). BuildStore format 5 keeps `moduleBindings`
+  (lotId -> id, version, program sha, params, entry id, bible, `geometrySha`, and the exact opKey and owner). A format-4 file reads with none;
+  `fixtures/saves/v6/steward-builds.json` is a format-4 growth checkpoint written by main's writer (no non-empty one existed in a dev world).
+  M3 makes the bindings; M1 carries them through every save.
+- **The check** (`tools/module-catalog.mjs`, mod/DEV.md): offline on the kit at the pinned tag, and in game through Steward's own code
+  (`/steward dev module`). Architect exposes no kit or checker version at runtime, so those pins are recorded, not gated. Facings and chunk
+  borders are placement properties: M2's measurement covers them, not M1's checker run.
+
 ## 9. Noah's answers (2026-11-12)
 
 Noah, in the Steward manager session: "Go with option 1, defaults/recommendations for the rest". Option 1 is phase 5b (section 3.3). The six

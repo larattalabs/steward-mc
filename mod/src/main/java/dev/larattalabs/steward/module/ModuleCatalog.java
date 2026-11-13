@@ -106,20 +106,34 @@ public final class ModuleCatalog {
 		}
 	}
 
-	/** What was measured (measured.json): the versions it holds for, and its bars and results as recorded. */
-	public record Measured(String programSha, String minecraft, List<String> architect, @Nullable String kit, @Nullable String checker, boolean fixture,
-		JsonObject raw) {
+	/**
+	 * What was measured (measured.json): the versions it holds for, its verdict ({@code result: "pass"} only when every bar passed), the
+	 * {@code moduleSha} it certifies (module.json's program, params schema, envelope, palette rules and pins: {@link Entry#moduleSha()}), and its
+	 * bars and results as recorded.
+	 */
+	public record Measured(String programSha, String moduleSha, String result, String minecraft, List<String> architect, @Nullable String kit,
+		@Nullable String checker, boolean fixture, JsonObject raw) {
 		public Measured {
 			architect = architect == null ? List.of() : List.copyOf(architect);
 		}
 	}
 
-	/** One catalog version. {@code problems} non-empty means it is never offered. */
-	public record Entry(String id, int version, String title, boolean fixture, String source, String programSha, Map<String, Param> params,
-		Envelope envelope, PaletteRules palette, @Nullable String kitPin, @Nullable String checkerPin, @Nullable Measured measured, List<String> problems) {
+	/**
+	 * One catalog version. {@code problems} non-empty: a malformed entry, never offered nor measured. {@code uncertified} non-empty: its
+	 * measurement does not certify this program, schema, envelope, palette rules and pins (missing, failed or stale), so it is never offered,
+	 * only measured (a dev caller, {@link ModuleGate.Env#measuring()}).
+	 */
+	public record Entry(String id, int version, String title, boolean fixture, String source, String programSha, String moduleSha, Map<String, Param> params,
+		Envelope envelope, PaletteRules palette, @Nullable String kitPin, @Nullable String checkerPin, @Nullable Measured measured, List<String> problems,
+		List<String> uncertified) {
 		public Entry {
 			params = params == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(params));
 			problems = problems == null ? List.of() : List.copyOf(problems);
+			uncertified = uncertified == null ? List.of() : List.copyOf(uncertified);
+		}
+
+		public boolean certified() {
+			return problems.isEmpty() && uncertified.isEmpty();
 		}
 
 		/** {@code <id>@<version>}. */
@@ -134,10 +148,24 @@ public final class ModuleCatalog {
 
 	private final List<Entry> entries;
 	private final List<String> problems;
+	private final java.util.Set<String> blocked;
 
-	private ModuleCatalog(List<Entry> entries, List<String> problems) {
+	private ModuleCatalog(List<Entry> entries, List<String> problems, java.util.Set<String> blocked) {
 		this.entries = List.copyOf(entries);
 		this.problems = List.copyOf(problems);
+		this.blocked = java.util.Set.copyOf(blocked);
+	}
+
+	private ModuleCatalog(List<Entry> entries, List<String> problems) {
+		this(entries, problems, java.util.Set.of());
+	}
+
+	/**
+	 * Whether a module id had a row the loader could not keep (a fixture in the live catalog, a duplicate, a bad version): then none of its
+	 * versions is offered, so dropping its newest row never lets an older one through.
+	 */
+	public boolean blocked(String id) {
+		return blocked.contains(id);
 	}
 
 	public List<Entry> entries() {
@@ -203,25 +231,28 @@ public final class ModuleCatalog {
 		if (format != FORMAT) return new ModuleCatalog(List.of(), List.of("catalog.json format " + format + " (this build reads " + FORMAT + ")"));
 		JsonArray mods = idx.has("modules") && idx.get("modules").isJsonArray() ? idx.getAsJsonArray("modules") : new JsonArray();
 		java.util.Set<String> seen = new java.util.HashSet<>();
+		java.util.Set<String> blocked = new java.util.HashSet<>();
 		for (JsonElement m : mods) {
 			if (!m.isJsonObject()) { problems.add("a catalog row is not an object"); continue; }
 			String id = strOr(m.getAsJsonObject(), "id", null);
 			int version = intOr(m.getAsJsonObject(), "version", -1);
-			if (id == null || !id.matches(ID_RE) || version < 1) { problems.add("a catalog row has a bad id or version: " + m); continue; }
-			if (!seen.add(id + "@" + version)) { problems.add("duplicate catalog row " + id + "@" + version); continue; }
+			if (id == null || !id.matches(ID_RE)) { problems.add("a catalog row has a bad id: " + m); continue; }
+			if (version < 1) { problems.add("a catalog row of " + id + " has a bad version: " + m); blocked.add(id); continue; }
+			if (!seen.add(id + "@" + version)) { problems.add("duplicate catalog row " + id + "@" + version); blocked.add(id); continue; }
 			Entry e = entry(id, version, read);
-			if (e.fixture() && !fixtures) { problems.add(e.key() + " is a fixture module: not part of the live catalog"); continue; }
+			if (e.fixture() && !fixtures) { problems.add(e.key() + " is a fixture module: not part of the live catalog"); blocked.add(id); continue; }
 			entries.add(e);
 		}
-		return new ModuleCatalog(entries, problems);
+		return new ModuleCatalog(entries, problems, blocked);
 	}
 
 	private static Entry entry(String id, int version, Function<String, Optional<String>> read) {
 		String dir = id + "/" + version + "/";
 		List<String> problems = new ArrayList<>();
+		List<String> uncertified = new ArrayList<>();
 		String source = read.apply(dir + "program.mjs").orElse(null);
 		JsonObject mod = json(read.apply(dir + "module.json"), "module.json", problems);
-		JsonObject meas = json(read.apply(dir + "measured.json"), "measured.json", problems);
+		JsonObject meas = json(read.apply(dir + "measured.json"), "measured.json", uncertified);
 		if (source == null) problems.add("no program.mjs");
 		else {
 			if (source.isEmpty()) problems.add("program.mjs is empty");
@@ -230,7 +261,7 @@ public final class ModuleCatalog {
 		String sha = source == null ? "" : Canon.sha256(source);
 		String title = id;
 		boolean fixture = false;
-		String declaredSha = null, kitPin = null, checkerPin = null;
+		String declaredSha = null, kitPin = null, checkerPin = null, moduleSha = "";
 		Map<String, Param> params = new LinkedHashMap<>();
 		Envelope env = new Envelope(Map.of(), List.of(), List.of());
 		PaletteRules palette = new PaletteRules(null, List.of(), List.of());
@@ -247,21 +278,38 @@ public final class ModuleCatalog {
 			JsonObject pins = mod.has("pins") && mod.get("pins").isJsonObject() ? mod.getAsJsonObject("pins") : new JsonObject();
 			kitPin = strOr(pins, "kit", null);
 			checkerPin = strOr(pins, "checker", null);
+			if (kitPin == null || checkerPin == null) problems.add("module.json pins no kit or checker version");
+			moduleSha = moduleSha(mod);
 		} catch (RuntimeException ex) {
 			problems.add("module.json is malformed: " + ex.getMessage());
 		}
 		Measured measured = null;
-		if (meas != null) {
-			measured = new Measured(strOr(meas, "programSha", ""), strOr(meas, "minecraft", ""), strings(meas, "architect"), strOr(meas, "kit", null),
-				strOr(meas, "checker", null), meas.has("fixture") && meas.get("fixture").isJsonPrimitive() && meas.get("fixture").getAsBoolean(), meas);
-			if (!id.equals(strOr(meas, "id", null)) || version != intOr(meas, "version", -1)) problems.add("measured.json names another module than " + id + "@" + version);
-			if (!measured.programSha().equals(sha)) problems.add("measured.json measured another program (sha " + shortSha(measured.programSha()) + ")");
-			if (measured.minecraft().isEmpty()) problems.add("measured.json names no Minecraft version");
-			if (measured.architect().isEmpty()) problems.add("measured.json names no Architect version");
-			if (measured.fixture() != fixture) problems.add("measured.json and module.json disagree on whether it is a fixture");
-			if (kitPin != null && measured.kit() != null && !kitPin.equals(measured.kit())) problems.add("measured on kit " + measured.kit() + ", pinned " + kitPin);
+		if (meas != null) try {
+			measured = new Measured(strOr(meas, "programSha", ""), strOr(meas, "moduleSha", ""), strOr(meas, "result", ""), strOr(meas, "minecraft", ""),
+				strings(meas, "architect"), strOr(meas, "kit", null), strOr(meas, "checker", null),
+				meas.has("fixture") && meas.get("fixture").isJsonPrimitive() && meas.get("fixture").getAsBoolean(), meas);
+			if (!id.equals(strOr(meas, "id", null)) || version != intOr(meas, "version", -1)) uncertified.add("measured.json names another module than " + id + "@" + version);
+			if (!"pass".equals(measured.result())) uncertified.add("measured.json's result is '" + measured.result() + "', not pass");
+			if (!measured.programSha().equals(sha)) uncertified.add("measured.json measured another program (sha " + shortSha(measured.programSha()) + ")");
+			if (!measured.moduleSha().equals(moduleSha)) uncertified.add("measured.json certifies another schema, envelope, palette or pins (moduleSha " + shortSha(measured.moduleSha()) + ", now " + shortSha(moduleSha) + ")");
+			if (measured.minecraft().isEmpty()) uncertified.add("measured.json names no Minecraft version");
+			if (measured.architect().isEmpty()) uncertified.add("measured.json names no Architect version");
+			if (measured.fixture() != fixture) uncertified.add("measured.json and module.json disagree on whether it is a fixture");
+			if (kitPin == null || !kitPin.equals(measured.kit())) uncertified.add("measured on kit " + measured.kit() + ", pinned " + kitPin);
+			if (checkerPin == null || !checkerPin.equals(measured.checker())) uncertified.add("measured with checker " + measured.checker() + ", pinned " + checkerPin);
+		} catch (RuntimeException ex) {
+			uncertified.add("measured.json is malformed: " + ex.getMessage());
+			measured = null;
 		}
-		return new Entry(id, version, title, fixture, source == null ? "" : source, sha, params, env, palette, kitPin, checkerPin, measured, problems);
+		return new Entry(id, version, title, fixture, source == null ? "" : source, sha, moduleSha, params, env, palette, kitPin, checkerPin, measured, problems,
+			uncertified);
+	}
+
+	/** The fields of module.json a measurement certifies (all but its title): their canonical sha256. */
+	public static String moduleSha(JsonObject mod) {
+		JsonObject o = new JsonObject();
+		for (String k : List.of("id", "version", "fixture", "programSha", "params", "envelope", "palette", "pins")) if (mod.has(k)) o.add(k, mod.get(k));
+		return Canon.sha(o);
 	}
 
 	private static Map<String, Param> params(JsonObject mod, List<String> problems) {

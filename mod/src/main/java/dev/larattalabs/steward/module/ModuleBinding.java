@@ -15,7 +15,7 @@ import org.jspecify.annotations.Nullable;
  * @param params the canonical params (sorted keys) the variant was made with
  * @param entryId the variant's library entry, null until Architect answers (the key finds it)
  * @param bibleId the bible the variant was re-skinned with, null for the program's own palette
- * @param bibleVersion that bible's version (0: its latest when asked)
+ * @param bibleVersion that bible's exact version as sent (resolved, never "latest"; 0 only when there is no bible)
  * @param geometrySha {@link Canon#sha} of the lot's box, frame and irrigation cells: a re-plan that changes it makes the variant again
  * @param opKey the key the variant was asked under, exactly as sent ({@code steward.<build>.module.<lotId>}, {@code .<n>} after a re-plan)
  * @param owner the key's owner scope, exactly as sent
@@ -23,7 +23,8 @@ import org.jspecify.annotations.Nullable;
 public record ModuleBinding(String moduleId, int version, String programSha, JsonObject params, @Nullable String entryId, @Nullable String bibleId,
 	int bibleVersion, String geometrySha, String opKey, @Nullable String owner) {
 	public ModuleBinding {
-		params = params == null ? new JsonObject() : Canon.sorted(params).getAsJsonObject();
+		// a missing params stays missing: BuildStore refuses such a binding rather than read it as {} (other params under the same key)
+		params = params == null ? null : Canon.sorted(params).getAsJsonObject();
 	}
 
 	/** The lot ext Architect keeps on the placed lot: {@code steward_mc:module {id, version, programSha, params}}. */
