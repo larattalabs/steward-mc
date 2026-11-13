@@ -1420,3 +1420,11 @@ and billing paths the release touches: `stub --only plan,survival,gate,wall,grow
 one flow, `survival-mech`, stalled at BIBLE_RUNNING before any billing at load average 87, while its swing, wall and drawbridge siblings passed;
 rerun alone (`--only survival-mech`), PASS, 21 checks. Steward's `planCatalogue()` read is unchanged (Architect confirmed `limits` identical); the
 compact plan/0 text's shorter kind lines are in LEFTOVERS for the plan writer's repair round.
+
+### v0.63.0 pin (2026-11-12): PASS, merged
+Architect v0.63.0 (API 1.56.0, kit 0.58.0, catalogue 20; FC + IG for M2, with 7c wave 1's SF, BF and CM-a) is pinned on pin-063 (runtime minimum
+0.63.0). The build and unit tests pass against the published package (402/0). The run aimed at IG's behaviour change (every grown lot waits on its
+stage in survival) and FC's standing/land-check rule: `stub --only survival,growth,revision,adopt,plan,land,gate`, 128 of 129 checks over 28 flows,
+survival and supplied growth passing; the one failure was `land fresh` hitting the land check's 3-second guard ("ask me again in a moment") under load,
+rerun alone PASS (15 checks). `free --only place,protect,farm` PASS, 35 checks. Steward calls neither IG nor FC yet (M2 will), and makes no zone Styles.
+**SF answer:** "shares core roles" means all 11 CORE_ROLES identical; zone Styles differ only outside them.
