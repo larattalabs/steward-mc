@@ -14,8 +14,8 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 /**
  * One building's panel (docs/PLAN.md "Interface", phase 3a, read-only first): its role and state, the version of its design it stands at and the newest,
  * the player's edits that updates keep, where it stands, and the operations that touched it. Its actions arrive with the features behind them (a change
- * in your own words, pin, make independent); today: preview an available update, go back to the version before (asks twice), back to the settlement.
- * Client thread.
+ * in your own words, pin, make independent); today: preview an available update, go back to any earlier version ({@code /steward revert}: the arrows
+ * or the &lt; &gt; beside the button choose it, the version it stood at before first; asks twice), back to the settlement. Client thread.
  */
 public final class BuildingScreen extends KitScreen {
 	private static final int ROW_H = 22;
@@ -24,12 +24,33 @@ public final class BuildingScreen extends KitScreen {
 	private final SettlementScreen back;
 	private int scroll;
 	private boolean confirmRevert;
+	/** The version the revert button takes it back to: any earlier one ({@code /steward revert} takes any); first the one it stood at before. */
+	private int revertTo;
 
 	public BuildingScreen(SettlementView view, Building b, SettlementScreen back) {
 		super(b.role());
 		this.view = view;
 		this.b = b;
 		this.back = back;
+		this.revertTo = b.firstRevertTarget();
+	}
+
+	private void pick(int dir) {
+		int to = b.stepRevert(revertTo, dir);
+		if (to != revertTo) {
+			revertTo = to;
+			// a confirm is for the version it named
+			confirmRevert = false;
+			status = null;
+		}
+	}
+
+	public SettlementScreen settlement() {
+		return back;
+	}
+
+	public String siteId() {
+		return b.siteId();
 	}
 
 	@Override
@@ -88,24 +109,34 @@ public final class BuildingScreen extends KitScreen {
 				say("Showing what changes...", false);
 			}) + 6;
 		}
-		if (b.revertible()) {
+		if (revertTo > 0) {
 			// asks twice: a revert rewrites the building (your own edits are kept)
-			String label = confirmRevert ? "Really go back to v" + b.previous() + "?" : "Back to version " + b.previous();
-			button(g, label, 3, false, confirmRevert, !b.updating() && !view.busy(), bx, actionsY, mouseX, mouseY, () -> {
+			boolean can = !b.updating() && !view.busy();
+			if (revertTo > 1) bx += option(g, "<", bx, actionsY + 1, false, can, mouseX, mouseY, () -> pick(-1)) + 2;
+			String label = confirmRevert ? "Really go back to v" + revertTo + "?" : "Back to version " + revertTo;
+			bx += button(g, label, 3, false, confirmRevert, can, bx, actionsY, mouseX, mouseY, () -> {
 				if (!confirmRevert) {
 					confirmRevert = true;
 					return;
 				}
 				confirmRevert = false;
-				ClientPlayNetworking.send(new StewardNet.Decide(view.id(), "revert", b.siteId(), "", b.previous()));
-				say("Going back to version " + b.previous() + "...", false);
-			});
+				ClientPlayNetworking.send(new StewardNet.Decide(view.id(), "revert", b.siteId(), "", revertTo));
+				say("Going back to version " + revertTo + "...", false);
+			}) + 2;
+			if (revertTo < b.version() - 1) bx += option(g, ">", bx, actionsY + 1, false, can, mouseX, mouseY, () -> pick(1)) + 2;
+			if (!can) {
+				String why = b.updating() ? "It is being updated." : "Revert once the build is done or cancelled.";
+				g.text(font, TextUtil.ellipsize(font, why, x + w - pad.right() - bx - 6), bx + 6, actionsY + 6, UiBits.muted(), false);
+			}
 		}
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, footerY - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
 		else {
 			String keys = numberHint();
-			if (keys != null) UiBits.hints(g, font, cx, footerY - 4, false, keys, "act", "Esc", "close");
-			else UiBits.hints(g, font, cx, footerY - 4, false, "Esc", "close");
+			java.util.List<String> hs = new java.util.ArrayList<>();
+			if (keys != null) hs.addAll(java.util.List.of(keys, "act"));
+			if (b.version() > 2) hs.addAll(java.util.List.of("\u2190\u2192", "version"));
+			hs.addAll(java.util.List.of("Esc", "close"));
+			UiBits.hints(g, font, cx, footerY - 4, false, hs.toArray(String[]::new));
 		}
 	}
 
@@ -117,6 +148,21 @@ public final class BuildingScreen extends KitScreen {
 			y += 10;
 		}
 		return y + 3;
+	}
+
+	@Override
+	protected boolean keyOther(net.minecraft.client.input.KeyEvent e) {
+		// Left and Right choose the version to go back to; Up and Down scroll its history
+		switch (e.key()) {
+			case com.mojang.blaze3d.platform.InputConstants.KEY_LEFT -> pick(-1);
+			case com.mojang.blaze3d.platform.InputConstants.KEY_RIGHT -> pick(1);
+			case com.mojang.blaze3d.platform.InputConstants.KEY_UP -> scroll = Math.max(0, scroll - 1);
+			case com.mojang.blaze3d.platform.InputConstants.KEY_DOWN -> scroll++;
+			default -> {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	@Override

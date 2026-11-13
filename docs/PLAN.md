@@ -313,6 +313,12 @@ board and ledger the player chooses to place.
 
 After a build there is no screen for the settlement or for one building, and in the world there are no labels and no claim border.
 
+**Built since (S-UI-actions, 2026-11-13):** every command-only player action has a button that sends the command's own action (`Actions.decide`):
+- History: Undo the newest project (asks twice; the row it takes is marked, chosen on the server as `/steward undo` chooses it), and a label for every kind.
+- Building panel: revert to any earlier version (`<` `>` or the arrows choose it).
+- Buildings: Look for updates. Claim: Check the land, add a stockpile crate, claim / look after / release a hand-built build, name the next district.
+- The keyboard on the rows and the map, a map legend (every mark edged; the claim edge opaque), and why a button is off (the Card, Undo, Expand, revert).
+
 **Screens:**
 - **Settlement screen**, opened from the steward, the board, the ledger or the inbox. Tabs:
   - **Buildings:** a list and a top-down map. Each building shows its role, state, version and source (original, adapted or copy) and has a badge when it has an update.

@@ -84,7 +84,8 @@ public final class TalkScreen extends KitScreen {
 		int w = Math.min(380, width - 16);
 		Kit.Padding pad = Kit.padding("panel_paper");
 		int inner = w - pad.left() - pad.right();
-		TextFieldView.Style st = new TextFieldView.Style(null, 0, "ask for a building, a district, a change, or what it is doing", null,
+		// focused and empty: the placeholder a space in, so the caret sits before its words, not on them (lab-ui draws both at the field's start)
+		TextFieldView.Style st = new TextFieldView.Style(null, 0, (fieldFocused ? " " : "") + "ask for a building, a district, a change, or what it is doing", null,
 			(field == null ? 0 : field.length()) + "/" + TalkRules.MAX_SAID, UiBits.muted(), 3);
 		// the conversation, newest last: who said it once per turn, a gap between turns; as many lines as fit
 		int col = Math.max(font.width("Steward"), font.width("You")) + 8;
