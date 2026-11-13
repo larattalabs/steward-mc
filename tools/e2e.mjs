@@ -3841,16 +3841,19 @@ async function followFlow() {
 const started = Date.now();
 const skipped = [];
 const flows = [];
+let flowsRan = false;
 /**
  * Names a flow; runFlows runs them in this order. `needs`: the earlier flows whose world this one builds on (districts needs the settlement proposals
  * describes), pulled into an --only run that picks this flow.
  */
 function flow(name, tags, fn, needs = []) {
+  if (flowsRan) throw new Error(`flow ${name} is named after runFlows (or inside a flow): it would never run`);
   for (const n of needs) if (!flows.some((f) => f.name === n)) throw new Error(`flow ${name} needs ${n}, which is not named before it`);
   flows.push({ name, tags, fn, needs });
 }
 /** Runs the named flows (`flow` lines name each, for a rerun of what failed; a pulled-in one says which flow needs it). */
 async function runFlows() {
+  flowsRan = true;
   const why = pickFlows(flows, only);
   for (const f of flows.splice(0)) {
     if (!why.has(f.name)) { skipped.push(f.name); continue; }

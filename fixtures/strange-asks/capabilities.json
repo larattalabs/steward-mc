@@ -34,7 +34,7 @@
     "style_by_part": {
       "name": "style by quarter or by age (an old town and a new one)",
       "status": "waits",
-      "comes": "Architect 7c SF (Style format 3: zone Styles related to the settlement Style)"
+      "comes": "Steward asking zone Styles related to the settlement's (Architect SF's relatedTo, built in 0.62.0); a recorded plan's two-style palette rule still refuses NO_FEATURE"
     },
     "biome_aware": {
       "name": "knowing the biomes the claim spans",
@@ -52,7 +52,7 @@
       "name": "big custom forms (a crater, an island, a sky city)",
       "status": "nearest",
       "nearest": "craters, floating islands and hollowed mountains are built (7c BF), with relief, terraces, rock spires, ice spikes, giant trees and mushrooms; a long stair up to a floating island is refused NO_CLIMB and a hold stands beside its mountain, not inside",
-      "comes": "Architect's climbs to a raised form (connector.stair NO_CLIMB); kept nearest while StrangeAsksTest's card baseline holds (ring_city and sky_monastery's cards say what waits)"
+      "comes": "Architect's climbs to a raised form (a long stair answers NO_CLIMB)"
     },
     "over_water": {
       "name": "buildings over or on water (stilts, a lagoon)",
