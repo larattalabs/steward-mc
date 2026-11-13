@@ -168,7 +168,9 @@ class ModuleCatalogTest {
 	@Test
 	void keysAreTheCatalogsAndTheLotsShapes() {
 		Entry e = fixture();
-		assertEquals("steward.catalog.fixture_plot@1." + e.programSha().substring(0, 12), ModuleInstalls.catalogKey(e));
+		assertEquals("steward.catalog.fixture_plot.v1." + e.programSha().substring(0, 12), ModuleInstalls.catalogKey(e));
+		assertTrue(ModuleInstalls.catalogKey(e).matches(ModuleInstalls.KEY_RE), "Architect's opKey alphabet");
+		assertTrue(ModuleInstalls.lotKey("b1700000000000", "lot_3", 2).matches(ModuleInstalls.KEY_RE));
 		assertEquals("steward.b17.module.lot_3", ModuleInstalls.lotKey("b17", "lot_3", 1));
 		assertEquals("steward.b17.module.lot_3.2", ModuleInstalls.lotKey("b17", "lot_3", 2));
 	}

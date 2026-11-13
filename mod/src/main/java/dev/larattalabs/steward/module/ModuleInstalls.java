@@ -34,9 +34,15 @@ public final class ModuleInstalls {
 	/** The owner scope of catalog entries' keys (every catalog install is under it, so its keys are found again under it). */
 	public static final String CATALOG_OWNER = "steward_mc:catalog";
 
-	/** The catalog entry's key: its identity and the program's short sha (a changed program never collides with an old key). */
+	/** Architect's opKey alphabet and length (Designs: {@code [A-Za-z0-9_.:-]{1,128}}). */
+	public static final String KEY_RE = "[A-Za-z0-9_.:-]{1,128}";
+
+	/**
+	 * The catalog entry's key, {@code steward.catalog.<id>.v<version>.<sha12>}: its identity and the program's short sha (a changed program never
+	 * collides with an old key). Architect's keys take no {@code @}.
+	 */
 	public static String catalogKey(Entry e) {
-		return "steward.catalog." + e.id() + "@" + e.version() + "." + ModuleCatalog.shortSha(e.programSha());
+		return "steward.catalog." + e.id() + ".v" + e.version() + "." + ModuleCatalog.shortSha(e.programSha());
 	}
 
 	/** A module lot's variant key (docs/MODULES.md 4.2 step 3): {@code steward.<build>.module.<lotId>}, {@code .<n>} for the n-th (n > 1) after a re-plan. */

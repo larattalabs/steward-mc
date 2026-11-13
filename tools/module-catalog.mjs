@@ -29,6 +29,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
 const ARCH = process.env.ARCHITECT_CHECKOUT ?? path.resolve(MAIN_CHECKOUT, '..', 'architect-mc');
 const GAME = path.join(ROOT, 'mod', 'run');
+process.env.ARCHITECT_GAME_DIR = GAME; // the DevBridge token is found there
 const PORT = Number(process.env.STEWARD_DEV_PORT ?? 8593);
 const ART = path.join(ROOT, 'artifacts', 'm1');
 fs.mkdirSync(ART, { recursive: true });
