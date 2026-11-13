@@ -982,6 +982,67 @@ async function survival() {
   return out;
 }
 
+// ------------------------------------------------------------------ bounds: the whole growth's bill per params (M3's survival bound)
+
+/**
+ * For every branch x Style: a single-farm growth planned on a survival V town's frontage, its keyed variant, and `Regions.quote` (QT) of
+ * the plan with that entry, never realised (a quote consumes and writes nothing). The survival step shows a growth consumes its quote item
+ * for item. A params' bound is the per-item maximum of its three Styles' quotes: {params, bom, styles: {bible: bom}}.
+ */
+async function bounds() {
+  await startClient('Bounds', { mode: 'survival' });
+  const out = { bounds: [], quotes: [] };
+  try {
+    await cmd('/gamerule fall_damage false');
+    await cmd('/effect give @p minecraft:resistance infinite 4 true');
+    await cmd('/effect give @p minecraft:saturation infinite 0 true');
+    await call('dev.survival.set', { on: true });
+    await rules({ ticks: 0 });
+    const x0 = 60000, z0 = 60000;
+    await standAt(x0 + 96, z0 - 30, 100);
+    const gy = await groundY(x0 + 96, z0 - 30);
+    await standAt(x0 + 96, z0 - 30, gy + 1);
+    const crates = Array.from({ length: 4 }, (_, q) => [x0 - 6 + 2 * q, gy + 1, z0 - 6]);
+    await req('dev.stockpile.create', { owner: OWNER, crates }, 120_000);
+    const claim = [x0, z0, x0 + 191, z0 + 159];
+    const p0 = await call('dev.region.plan', { program: 'flat_village', claim, params: { lots: [{ id: 'hall_1', type: 'hall', size: [13, 11], landmark: true }, { id: 'cottage_1', type: 'cottage', size: [9, 9] }], orientation: 'ew' }, surveyLoad: 'bounded:256', check: false, owner: OWNER }, 900_000);
+    const r0 = await call('dev.region.realise', { planId: p0.planId, load: 'bounded:512', lots: {} }, 300_000);
+    const f0 = await feedUntil(r0.region, (st, rs) => st.view.state === 'PLACED' && (rs?.build ? rs.build.done : true));
+    check(f0.ok, `the town ${r0.region} built in survival: ${f0.st?.view?.state}`);
+    await install();
+    const P = await program();
+    for (const [w, d] of SIZES) {
+      for (const crop of Object.keys(CROPS)) {
+        const styles = {};
+        for (const bible of MODULE_JSON.envelope.bibles) {
+          const id = `bd_${w}x${d}_${crop.slice(0, 3)}_${bible.slice(0, 3)}`;
+          const lot = (await mod({ op: 'growLot', id, width: w, depth: d })).lot;
+          const p = await req('dev.rv.plan', { region: r0.region, program: 'flat_village', params: { grow: { lots: [lot], prefer: 'frontage' } } }, 900_000);
+          if (!p.planId) { check(false, `bounds ${id}: the growth planned: ${String(p.refused ?? p.error).slice(0, 200)}`); continue; }
+          const pl = p.lots.find((l) => l.id === id);
+          const irr = pl.ext['architect_mc:lotIrrigation'];
+          const v = await mod({ op: 'variant', dir: CATALOG, id: MODULE.id, version: MODULE.version, measuring: true, params: { width: w, depth: d, crop },
+            bible: { id: bible, version: 0 }, reserved: { front: pl.front, size: irr.frame, cells: runsCells(irr.lotCells) }, key: `steward.m2${run36}.bound.${id}` });
+          if (!v.ok) { check(false, `bounds ${id}: variant ${v.detail} ${v.message}`); continue; }
+          const q = await req('dev.region.quote', { planId: p.planId, lotEntries: { [id]: v.entryId } }, 300_000);
+          const ok = q.ok && !q.refused && q.survival === true && q.bom && Object.keys(q.bom).length > 0;
+          check(ok, `bounds ${w}x${d} ${crop} ${bible}: quoted (survival ${q.survival}, exact ${q.exact}, ${Object.values(q.bom ?? {}).reduce((a, b) => a + b, 0)} items; ${P.layout(w, d).field.length} crop cells)`);
+          if (ok) { styles[bible] = q.bom; out.quotes.push({ params: { crop, depth: d, width: w }, bible, bom: q.bom, bomParts: q.bomParts, exact: q.exact, notes: q.notes }); }
+        }
+        if (Object.keys(styles).length === MODULE_JSON.envelope.bibles.length) {
+          const bom = {};
+          for (const b of Object.values(styles)) for (const [k, n] of Object.entries(b)) bom[k] = Math.max(bom[k] ?? 0, n);
+          out.bounds.push({ params: { crop, depth: d, width: w }, bom: Object.fromEntries(Object.entries(bom).sort()) });
+        }
+      }
+    }
+    check(out.bounds.length === 36, `bounds: every one of the 36 branches has a bound over its 3 Styles (${out.bounds.length})`);
+  } finally {
+    await stopClient().catch((e) => log(`stop: ${e}`));
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ bands
 
 function bandsStep() {
@@ -1001,7 +1062,7 @@ function bandsStep() {
   })();
 }
 
-const steps = { look, bands: bandsStep, field, skin, survival };
+const steps = { look, bands: bandsStep, field, skin, survival, bounds };
 if (steps[step]) {
   const t0 = Date.now();
   let data, error;

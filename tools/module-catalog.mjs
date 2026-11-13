@@ -347,17 +347,33 @@ function record() {
       offline: { at: off.at, head: off.head, architect: off.data.architect, kit: off.data.kit, branches: o.branches.map(({ branch, bible, ok, blocks, warnings }) => ({ branch, bible, ok, blocks, warnings })), probes: o.probes },
       ingame: { at: inn.at, head: inn.head, env: inn.data.env, install: { key: g.install.key, ok: g.install.ok }, variants: g.variants.map(({ branch, bible, ok, sha, sent }) => ({ branch, bible, version: sent?.version ?? null, ok, sha })), outside: { refused: !g.outside?.ok, detail: g.outside?.detail }, byKey: g.byKey ? { found: g.byKey.k.found, unknownFound: g.byKey.none.found } : null },
     };
-    if (measure) { m.checks.measure = measure; m.what = MEASURES[e.id]?.what; m.bars = MEASURES[e.id]?.bars; m.runs = 5; }
+    if (measure) {
+      m.checks.measure = measure; m.what = MEASURES[e.id]?.what; m.bars = MEASURES[e.id]?.bars; m.runs = 5;
+      // M3 reads these: the whole growth's bill per params (the survival bound) and the quoted net rate (the fixed-cycle protocol rate)
+      const art = (s) => JSON.parse(fs.readFileSync(path.join(ROOT, 'artifacts', 'm2', `${s}.json`), 'utf8')).data;
+      m.bounds = art('bounds').bounds;
+      m.rates = [];
+      for (const crop of ['wheat', 'carrots', 'potatoes', 'beetroots']) {
+        const F = art(`field-${crop}`);
+        for (const f of F.farms) {
+          const J = F.judged[f.id];
+          const [width, depth] = f.size.split('x').map(Number);
+          m.rates.push({ params: { crop, depth, width }, perDay: Math.floor(J.mean * J.n), item: ITEM_OF[crop], perCropDay: J.mean, crops: J.n, ripenPerCropDay: J.ripenPerCropDay });
+        }
+      }
+      m.rates.sort((a, b) => JSON.stringify(a.params).localeCompare(JSON.stringify(b.params)));
+    }
     fs.writeFileSync(path.join(e.dir, 'measured.json'), `${JSON.stringify(m, null, 2)}\n`);
     log(`recorded ${key}: result pass, moduleSha ${m.moduleSha.slice(0, 12)}`);
   }
   if (refused) process.exit(1);
 }
 
+const ITEM_OF = { wheat: 'minecraft:wheat', carrots: 'minecraft:carrot', potatoes: 'minecraft:potato', beetroots: 'minecraft:beetroot' };
 /** Each real module's measurement: its evidence steps (artifacts/m2/<step>.json) and what measured.json says it covers. */
 const MEASURES = {
   crop_farm: {
-    steps: ['field-wheat', 'field-carrots', 'field-potatoes', 'field-beetroots', 'skin-rustic', 'skin-fortress', 'skin-desert', 'survival'],
+    steps: ['field-wheat', 'field-carrots', 'field-potatoes', 'field-beetroots', 'skin-rustic', 'skin-fortress', 'skin-desert', 'survival', 'bounds'],
     what: 'docs/MEASURE-M2.md: MODULES.md 3.1 items 1-7 as amended by section 9, measured in a dev client over the envelope (36 branches x 5 runs for the output rate; all four facings; chunk borders; rustic in full, fortress and desert for light, hydration and exclusion; survival bill and refunds) by tools/module-measure.mjs.',
     bars: 'docs/MEASURE-M2.md "The bars" (committed before the first measurement)',
   },
