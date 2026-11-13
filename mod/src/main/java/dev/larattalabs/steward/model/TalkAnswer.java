@@ -13,14 +13,25 @@ import org.jspecify.annotations.Nullable;
  * and an intent that misses what it needs reads as chat. Pure.
  */
 public record TalkAnswer(String reply, Intent intent, ConceptCard.@Nullable Building building, @Nullable String way, @Nullable String district,
-	@Nullable String changeTarget, @Nullable String changeRequest) {
+	@Nullable String changeTarget, @Nullable String changeRequest, @Nullable Module module) {
+	/** (docs/MODULES.md 4.1 "Asked in talk") A working module the player asked for: a catalog id and the params they named (checked against its envelope later). */
+	public record Module(String id, JsonObject params) {}
+
+	/** As before modules. */
+	public TalkAnswer(String reply, Intent intent, ConceptCard.@Nullable Building building, @Nullable String way, @Nullable String district,
+		@Nullable String changeTarget, @Nullable String changeRequest) {
+		this(reply, intent, building, way, district, changeTarget, changeRequest, null);
+	}
+
 	public enum Intent { CHAT, BUILDING, DISTRICT, CHANGE, UNDO, UNCLEAR }
 
 	public static final int MAX_REPLY = 240;
 	private static final Gson GSON = new Gson();
 	private static final Set<String> WAYS = Set.of("N", "E", "S", "W");
 
-	private record Shape(String reply, String intent, ConceptCard.Building building, String way, String district, Change change) {}
+	private record Shape(String reply, String intent, ConceptCard.Building building, String way, String district, Change change, ModuleShape module) {}
+
+	private record ModuleShape(String id, JsonObject params) {}
 
 	private record Change(String target, String request) {}
 
@@ -52,8 +63,13 @@ public record TalkAnswer(String reply, Intent intent, ConceptCard.@Nullable Buil
 		}
 		// an intent without what it needs is only talk
 		if ((intent == Intent.BUILDING && b == null) || (intent == Intent.CHANGE && request == null)) intent = Intent.CHAT;
+		// a module only beside the building asked for (its decorative stand-in, should the module not fit): an id of the catalog's form
+		Module module = null;
+		if (intent == Intent.BUILDING && s.module() != null && s.module().id() != null && s.module().id().matches("[a-z][a-z0-9_]{0,39}")) {
+			module = new Module(s.module().id(), s.module().params() == null ? new JsonObject() : s.module().params().deepCopy());
+		}
 		return new TalkAnswer(reply, intent, b, intent == Intent.DISTRICT ? way : null, intent == Intent.DISTRICT || intent == Intent.BUILDING ? district : null,
-			target, request);
+			target, request, module);
 	}
 
 	private static String clip(String s, int max) {
