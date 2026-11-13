@@ -13,7 +13,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <ul>
  * <li><b>The bound the player approves</b> at Accept is the measured bound for the module's params: measured.json {@code bounds}, a list of
- * {@code {params, bom}}, where {@code bom} (item id -> count) covers the whole growth (the module's own blocks plus the growth's lanes, lamps and
+ * {@code {params, bom}} or, per measured Style, {@code {params, style, bom, roleParts}} re-expressed in the town's blocks ({@link StyleBound}), where {@code bom} (item id -> count) covers the whole growth (the module's own blocks plus the growth's lanes, lamps and
  * irrigation shells), recorded from the measurement runs. A module with no bound for its params is not offered in survival: there is nothing to
  * show the player, nor to hold the build to.</li>
  * <li><b>The quote</b> (Architect's {@code Regions.quote}, S-M5-7) is compared with that bound before anything is consumed: any item over it, or

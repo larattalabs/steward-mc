@@ -537,8 +537,8 @@ plans, with Noah's OK on the spend.
   - It ran over the whole envelope (36 branches x 5 runs, all four facings, chunk corners, three Styles) and passed. The verdicts are in
     MEASURE-M2.md.
 - **Recording.** `tools/module-catalog.mjs record` certifies a real module only with its measurement's evidence: every step passed on these
-  exact files and versions, with field steps of 5 runs or more. It writes `bounds` (the whole growth's quoted bill per params, the maximum
-  over the 3 Styles) and `rates` (`{params, perDay, item}`) for M3.
+  exact files and versions, with field steps of 5 runs or more. It writes `bounds` (the whole growth's quoted bill per params and
+  measured Style, with each palette role's share of the lot: `[{params, style, bom, roleParts}]`, MEASURE-M2.md "For M3") and `rates` (`{params, perDay, item}`) for M3.
 - **Dev hooks** (ModuleDev, development environment only): `cells`, `growLot`, `takeItems`, `mobs` and `walk` (a fake player's collision
   walk). Harvest and replant use Architect's PT hooks (`dev.pt.breaks`, `dev.pt.uses`), so a player's crops are PT-recorded.
 - **No billing or undo code changed** in Steward: M2 measures Architect's.
@@ -562,8 +562,11 @@ certification gate, with a dev-only override bound that holds its bill on purpos
   - a watered module never goes to a town it would adopt: Architect's IG can't irrigate an adopted region (ask **S-M5-8**).
 
   Its params are the crop carried most and the largest size those seeds plant (a town built from materials counts its stockpile too). In
-  survival the measured bound (`measured.json bounds: [{params, bom}]`, the whole growth's bill) is shown and approved; with no bound, it is not
-  offered. The rate comes from `measured.json rates: [{params, perDay, item}]`, when there is one. A module offer is never reworded by
+  survival the measured bound (`measured.json bounds`, the whole growth's bill) is shown and approved; with no bound, it is not
+  offered. A per-Style bound (`{params, style, bom, roleParts}`) is re-expressed in the town bible's blocks first (`StyleBound`, Noah's "a" of
+  2026-11-13): each Style's role counts move to the town's item for the same role (the lamp after the palette check, the wood by the kit's
+  rule, a dirt path billed as dirt), and the bound is the per-item maximum over the Styles. An entry without `roleParts` (the dev source) is
+  used as it is; with no readable bible, the Styles' bills as measured. The rate comes from `measured.json rates: [{params, perDay, item}]`, when there is one. A module offer is never reworded by
   ProposalWords, and is priced $0 in the inbox (in survival, "at most <bound>").
 - **Coalescing and declines** (`ProposalRules`): by module identity (a standing site whose lot ext names the module, or an offer of the same id
   waiting, asked in talk included), never by building type. A standing or waiting module holds the decorative rule back. Declining

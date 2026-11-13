@@ -307,6 +307,17 @@ kit/checker 0.58.0, on ports 8594/8595, at $0. `measured.json` was written by `t
   - Every size pair has a farm crossing a chunk corner. The 9x9 and 27x9 cases are from `border`.
 - **For M3** (`measured.json`):
   - `rates` `[{params, perDay, item}]`: the quoted protocol rate, whole, over the planted cells.
-  - `bounds` `[{params, bom}]`: the whole growth's quoted bill (the lot, the IRR shells, and the growth's street and lane on a V town's
-    first frontage slot), per item the maximum over the 3 Styles. A placement whose lanes cost more quotes over it, so M3 holds the build
-    and asks again.
+  - `bounds` `[{params, style, bom, roleParts}]` (since the 0.65.0 re-certification; Noah's "a", 2026-11-13): one entry per params and
+    measured Style. `bom` is that Style's whole quoted bill (the lot, the IRR shells, and the growth's street and lane on a V town's first
+    frontage slot). A placement whose lanes cost more quotes over it, so M3 holds the build and asks again.
+  - **The bound per Style.** `roleParts` `[{role, block, item, count}]` is the share of the lot's bill a palette role writes: `foundation`,
+    `light` (the lamp after the fallback rule), `path`, and the wood set's `wood.fence` and `wood.fence_gate`. `record` counts them over the
+    program's own template in that Style (tools/lib/style-bounds.mjs). It refuses unless the lot's quote bills each role-only item exactly
+    that often, and bills at least the path's count of dirt (a dirt path is billed as dirt, the same item as the dirt layer and the
+    farmland, which is why the split is by role with counts and not by item). The street, its lane and IRR's shells stay as measured: none of
+    their blocks is a role's on any measured Style (gravel, an oak fence post and a lantern). Not shown by the data, since every measured
+    Style lights with a lantern: whether the street's lamp posts follow the town's `light`. If they do, a town with a lane holds and asks
+    again, which is the safe direction.
+  - Steward re-expresses each Style's bill in the town's bible (StyleBound): each role's count moves to the town's item for that role, and
+    the bound is the per-item maximum over the Styles. Counts are conserved, so a wrong guess of the town's block only names an item the
+    quote won't use, and the build holds.
