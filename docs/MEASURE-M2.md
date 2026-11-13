@@ -81,8 +81,14 @@ For every crop x size branch, rustic, 5 runs, each 3 cycles.
 - **3b. Usefulness** (G3's bar, 24 a day per 80 crops: 0.3 per crop cell a day). **Noah's decision, 2026-11-12, option (a)** (relayed by
   the Steward manager):
   - It is judged on G3's own basis, harvested as each crop ripens: `n × (mean drops per crop − replant) / (mean t_cell / 24,000)`, from the
-    per-cell maturity times each farm records in cycle 1 of every run (each crop cell's age read every 1,000 ticks). A cell not mature at T
-    counts as T, which understates the rate.
+    maturity times of each run's first planting. Each crop cell's age is read every 1,000 ticks through all 3 cycles. A cell keeps its first
+    planting until it is harvested mature, so a cell not mature at T is followed into cycles 2 and 3. A cell still immature at 3T counts as
+    4T, which lowers the rate.
+  - *Judge amended after the first measurement, made stricter* (2026-11-13). The first judge read ages in cycle 1 only and counted a cell
+    not mature at T as maturing at T. That shortens the mean t_cell and **overstates** the rate; this doc had said it understated it.
+    About half of wheat's cells are such cells. The review that found it was the advisor, before the gate-verifier. All four field steps
+    were measured again under the amended judge. The first evidence is kept locally in `artifacts/m2-recorded` as the record of what
+    changed.
   - The band (3a) and the rate the offer quotes stay §3.1's fixed-cycle protocol rate, the conservative number. Wheat's is predicted at 0.248
     per crop a day, about 20 a day per 80 crops, under G3's 24 on that basis; carrots, potatoes and beetroot clear 0.3 either way.
 - **3c. The control.** The mean over 5 runs is at least 1.5 times the predicted unwatered rate below. That is the probe's unwatered field,

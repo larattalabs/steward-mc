@@ -547,29 +547,36 @@ async function field() {
       const R = { run, farms: {} };
       for (const f of farms) R.farms[f.id] = { planted: await resetField(f), cycles: [], tCells: null };
       const t0 = await gameTime();
-      // cycle 1: every crop's age every 1,000 ticks (its maturity time: G3's basis)
+      // the run's first planting: each crop cell's maturity time (G3's basis), read every 1,000 ticks through all 3 cycles. A cell keeps its
+      // first planting until it is harvested mature, so a cell not mature at T is followed into cycles 2 and 3 (never filled in)
       const firstMature = Object.fromEntries(farms.map((f) => [f.id, new Array(f.crops.length).fill(null)]));
       const max = crop === 'beetroots' ? 3 : 7;
-      for (let t = 1000; t <= Tc; t += 1000) {
-        await tick.advance(Math.min(1000, Tc - (t - 1000)));
+      const sample = async () => {
         const now = (await gameTime()) - t0;
         for (const f of farms) {
-          const r = await readCells(f.crops);
-          r.forEach((c, i) => { if (firstMature[f.id][i] === null && c?.[1] === max) firstMature[f.id][i] = now; });
+          const fm = firstMature[f.id];
+          const idx = fm.map((t, i) => (t === null ? i : -1)).filter((i) => i >= 0);
+          if (!idx.length) continue;
+          const r = await readCells(idx.map((i) => f.crops[i]));
+          r.forEach((c, j) => { if (c?.[1] === max) fm[idx[j]] = now; });
         }
-      }
-      if ((await gameTime()) - t0 < Tc) await tick.advance(Tc - ((await gameTime()) - t0));
-      for (const f of farms) R.farms[f.id].tCells = firstMature[f.id];
+      };
+      /** Advance to `target` ticks after t0 in steps of at most 1,000, sampling the first planting after each. */
+      const to = async (target) => {
+        for (let el = (await gameTime()) - t0; el < target; el = (await gameTime()) - t0) {
+          await tick.advance(Math.min(1000, target - el));
+          await sample();
+        }
+      };
       for (let cyc = 1; cyc <= CYCLES; cyc++) {
-        if (cyc > 1) {
-          // ---- item 5, in run 1 after the first harvest, at half a cycle
-          if (run === 1 && cyc === 2 && !flag('--no-restart')) {
-            await tick.advance(Math.floor(Tc / 2));
-            out.restart = await restartCheck(farms, A.gy);
-            out.unload = await unloadCheck(farms, px, pz, A.gy);
-            await tick.advance(Tc - Math.floor(Tc / 2));
-          } else await tick.advance(Tc);
+        // ---- item 5, in run 1 after the first harvest, at half a cycle (the unload's ticks count as elapsed time: stricter for 3b)
+        if (run === 1 && cyc === 2 && !flag('--no-restart')) {
+          await to(Tc + Math.floor(Tc / 2));
+          out.restart = await restartCheck(farms, A.gy);
+          out.unload = await unloadCheck(farms, px, pz, A.gy);
+          await sample();
         }
+        await to(cyc * Tc);
         const m = await moistAll(farms);
         for (const f of farms) {
           const hv = await harvest(f);
@@ -579,6 +586,7 @@ async function field() {
         R.moist = R.moist ?? [];
         R.moist.push({ cycle: cyc, below7: m.bad.length, n: m.n, first: m.bad.slice(0, 2) });
       }
+      for (const f of farms) R.farms[f.id].tCells = firstMature[f.id];
       out.runs.push(R);
       fs.writeFileSync(path.join(ART, `field-${crop}.partial.json`), json(out));
       log(`  ${crop} run ${run}: ${farms.map((f) => `${f.id} ${R.farms[f.id].cycles.map((c) => c.broken).join('/')}`).join('; ')}`);
@@ -654,15 +662,17 @@ function judgeField(out, farms) {
       return { run: r.run, broken, got, net, perCropDay, tMatured: tc.length, tMean: tc.length ? tc.reduce((a, x) => a + x, 0) / tc.length : null, yPerCrop: broken ? got / broken : 0 };
     });
     const mean = runs.reduce((a, r) => a + r.perCropDay, 0) / runs.length;
-    // G3's basis: harvested as each crop ripens, from cycle 1's maturity times (cells matured within T; the rest are counted at T, a bound)
-    const allT = out.runs.flatMap((r) => (r.farms[f.id].tCells ?? []).map((t) => (t === null ? Tc : t)));
+    // G3's basis: harvested as each crop ripens, from the maturity times of each run's first planting, followed through all 3 cycles;
+    // a cell still immature at 3T counts as 4T (a longer time than any it could have had by then: it lowers the rate)
+    const allT = out.runs.flatMap((r) => (r.farms[f.id].tCells ?? []).map((t) => (t === null ? (CYCLES + 1) * Tc : t)));
+    const censored = out.runs.reduce((a, r) => a + (r.farms[f.id].tCells ?? []).filter((t) => t === null).length, 0);
     const tMean = allT.reduce((a, x) => a + x, 0) / allT.length;
     const y = runs.reduce((a, r) => a + r.got, 0) / Math.max(1, runs.reduce((a, r) => a + r.broken, 0));
     const ripen = (y - (c.plantIsItem ? 1 : 0)) / (tMean / DAY);
-    const J = { n, band: b.band, runs, mean, ripenPerCropDay: ripen, unwatered: b.unwatered.mean, useful: USEFUL_PER_CROP_DAY };
+    const J = { n, band: b.band, runs, mean, ripenPerCropDay: ripen, tMean, censoredAt3T: censored, unwatered: b.unwatered.mean, useful: USEFUL_PER_CROP_DAY };
     out.judged[f.id] = J;
     check(runs.length >= 5 && runs.every((r) => r.perCropDay >= b.band[0] && r.perCropDay <= b.band[1]), `3a band ${f.id} (${n} crops, front ${f.lot.front}): every run's net rate per crop a day inside [${b.band.map((x) => x.toFixed(3)).join(', ')}]: ${runs.map((r) => r.perCropDay.toFixed(3)).join(', ')} (${runs.length} runs)`);
-    check(ripen >= USEFUL_PER_CROP_DAY, `3b usefulness ${f.id}: harvested as it ripens, ${ripen.toFixed(3)} per crop a day = ${(ripen * 80).toFixed(1)} per 80 crops (bar 24); the protocol's quoted rate ${mean.toFixed(3)} = ${(mean * 80).toFixed(1)} per 80`);
+    check(ripen >= USEFUL_PER_CROP_DAY, `3b usefulness ${f.id}: harvested as it ripens, ${ripen.toFixed(3)} per crop a day = ${(ripen * 80).toFixed(1)} per 80 crops (bar 24; mean t_cell ${Math.round(tMean)}, ${censored} cells immature at 3T counted as 4T); the protocol's quoted rate ${mean.toFixed(3)} = ${(mean * 80).toFixed(1)} per 80`);
     check(mean >= 1.5 * b.unwatered.mean, `3c control ${f.id}: the mean ${mean.toFixed(3)} >= 1.5 x the probe's unwatered ${b.unwatered.mean.toFixed(3)}`);
   }
 }
