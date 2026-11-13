@@ -104,31 +104,16 @@ public final class StewardCommands {
 			.then(Commands.literal("raise").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("budget", DoubleArgumentType.doubleArg(Actions.MIN_BUDGET,
 				Actions.MAX_RAISE)).executes(ctx -> decide(ctx, "raise", "", "", DoubleArgumentType.getDouble(ctx, "budget"))))))
 			.then(Commands.literal("cancel").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "cancel", "", "", 0))))
-			.then(Commands.literal("updates").executes(ctx -> {
-				var no = Actions.refusal(ctx.getSource().getPlayerOrException());
-				if (no != null) { ctx.getSource().sendFailure(Component.literal(no)); return 0; }
-				// look again for newer versions of placed buildings (they are found at world load and when Architect announces a version)
-				dev.larattalabs.steward.service.Updates.refreshAll(ctx.getSource().getServer());
-				ctx.getSource().sendSuccess(() -> Component.literal("Checked for building updates: see the inbox (Y)."), false);
-				return 1;
-			}))
+			.then(Commands.literal("updates").executes(ctx -> answer(ctx.getSource(), Actions.lookForUpdates(ctx.getSource().getPlayerOrException()))))
 			.then(Commands.literal("check").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
-				// the steward looks over the land (docs/LAND.md): a look, open to everyone, $0
+				// the steward looks over the land (docs/LAND.md): a look, open to everyone (the console too), $0; the Claim tab's button takes the same path
 				var src = ctx.getSource();
-				String id = StringArgumentType.getString(ctx, "id");
-				var s = dev.larattalabs.steward.service.Settlements.store().get(id);
-				if (s.isEmpty()) { src.sendFailure(Component.literal("No such settlement: " + id + ".")); return 0; }
-				src.sendSuccess(() -> Component.literal("[" + s.get().name() + "] Let me look over the land."), false);
 				var player = src.getPlayer();
-				dev.larattalabs.steward.service.LandChecks.ask(src.getServer(), s.get(), lines -> {
-					// the answer comes later: to the player's chat (the command's own source may be gone by then)
-					for (String l : lines) {
-						if (player != null) player.sendSystemMessage(Component.literal("[" + s.get().name() + "] " + l));
-						else src.sendSuccess(() -> Component.literal("[" + s.get().name() + "] " + l), false);
-					}
-					dev.larattalabs.steward.service.StewardVoice.say(src.getServer(), id, lines.get(0));
-				});
-				return 1;
+				// the answer comes later: to the player's chat (the command's own source may be gone by then)
+				return answer(src, Actions.landCheck(src.getServer(), StringArgumentType.getString(ctx, "id"), line -> {
+					if (player != null) player.sendSystemMessage(Component.literal(line));
+					else src.sendSuccess(() -> Component.literal(line), false);
+				}));
 			}).then(Commands.literal("dismiss").executes(ctx -> decide(ctx, "land_dismiss", "", "", 0)))))
 			.then(Commands.literal("expand").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "expand", "", "", 0))))
 			.then(Commands.literal("view").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "settlement", "", "", 0))
@@ -511,13 +496,9 @@ public final class StewardCommands {
 					return 1;
 				}))))
 			.then(Commands.literal("undo").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
+				// the History tab's Undo takes the same path (Actions.decide "undo")
 				CommandSourceStack src = ctx.getSource();
-				var no = Actions.refusal(src.getPlayerOrException());
-				if (no != null) { src.sendFailure(Component.literal(no)); return 0; }
-				var s = dev.larattalabs.steward.service.Settlements.store().get(StringArgumentType.getString(ctx, "id"));
-				if (s.isEmpty()) { src.sendFailure(Component.literal("No such settlement (see /steward settlements).")); return 0; }
-				if (SettlementRunner.busy(s.get().id())) { src.sendFailure(Component.literal(s.get().id() + " is being built; cancel it first (/steward cancel " + s.get().id() + ").")); return 0; }
-				return dev.larattalabs.steward.service.Undo.lastProject(src.getServer(), s.get(), line -> src.sendSuccess(() -> Component.literal(line), false)) ? 1 : 0;
+				return answer(src, Actions.undo(src.getPlayerOrException(), StringArgumentType.getString(ctx, "id"), line -> src.sendSuccess(() -> Component.literal(line), false)));
 			})))
 			.then(Commands.literal("resume").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.argument("group", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.word())
 				.then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200)).executes(ctx -> {
