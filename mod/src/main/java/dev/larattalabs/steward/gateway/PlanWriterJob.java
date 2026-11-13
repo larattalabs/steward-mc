@@ -40,15 +40,22 @@ public final class PlanWriterJob {
 		return build(card, land, anchors, builds, owner, previous, answers, false);
 	}
 
-	/**
-	 * As above; {@code refs}: the helper has {@code job.systemRefs} (Architect 1.25, C33), so the schema goes as {@link #SCHEMA_REF}, expanded by the helper
-	 * from its own copy with the live catalogue, and the system text is only the instructions.
-	 */
+	/** As below, with no catalogue text for the repair. */
 	public static JobSpec build(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner, @Nullable String previous,
 		@Nullable String answers, boolean refs) {
+		return build(card, land, anchors, builds, owner, previous, answers, refs, null);
+	}
+
+	/**
+	 * As above; {@code refs}: the helper has {@code job.systemRefs} (Architect 1.25, C33), so the schema goes as {@link #SCHEMA_REF}, expanded by the helper
+	 * from its own copy with the live catalogue, and the system text is only the instructions. {@code catalogue}: in a repair round, the long text of the
+	 * failing parts' kinds ({@link #catalogueFor}), which {@code plan/0#compact} leaves out since Architect 0.62.0; null for none.
+	 */
+	public static JobSpec build(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner, @Nullable String previous,
+		@Nullable String answers, boolean refs, @Nullable String catalogue) {
 		String user = userPrompt(card, land, anchors, builds);
 		if (previous != null && answers != null) {
-			user += "\nYour previous plan:\n" + previous + "\n\nArchitect's check of it, part by part:\n" + answers
+			user += "\nYour previous plan:\n" + previous + "\n\nArchitect's check of it, part by part:\n" + answers + catalogueSection(catalogue)
 				+ "\nRevise the plan: make the refused and malformed parts fit (use wouldFit where it is given), keep what fits as it is, and keep the unsupported parts"
 				+ " as they are (they wait for Architect). Answer with the whole revised plan.\n";
 		}
@@ -67,6 +74,12 @@ public final class PlanWriterJob {
 	 */
 	public static JobSpec part(String card, String keptPlan, String partJson, String block, List<String> others, @Nullable String owner, @Nullable String previous,
 		@Nullable String answers, boolean refs) {
+		return part(card, keptPlan, partJson, block, others, owner, previous, answers, refs, null);
+	}
+
+	/** As above; {@code catalogue}: in a repair round, the long text of the part's kind ({@link #catalogueFor}), or null. */
+	public static JobSpec part(String card, String keptPlan, String partJson, String block, List<String> others, @Nullable String owner, @Nullable String previous,
+		@Nullable String answers, boolean refs, @Nullable String catalogue) {
 		StringBuilder b = new StringBuilder();
 		b.append("The settlement's concept card:\n").append(card.strip()).append("\n\n");
 		b.append("Its plan as it was kept (the parts Architect could not build then waited):\n").append(keptPlan.strip()).append("\n\n");
@@ -79,12 +92,58 @@ public final class PlanWriterJob {
 		b.append("Answer with the plan, waits (empty unless it still can't be built) and summary (one sentence for the player: what will be built).\n");
 		String user = b.toString();
 		if (previous != null && answers != null) {
-			user += "\nYour previous plan:\n" + previous + "\n\nArchitect's check of it, part by part:\n" + answers
+			user += "\nYour previous plan:\n" + previous + "\n\nArchitect's check of it, part by part:\n" + answers + catalogueSection(catalogue)
 				+ "\nRevise the plan: make the part fit (use wouldFit where it is given), and answer with the whole revised plan.\n";
 		}
 		JobSpec spec = new JobSpec("structured", user, refs ? instructions() : systemPrompt(), MODEL, "medium", schema(), List.of(), BUDGET_USD, 4, owner, TAG, null,
 			SimAnswers.ext(SimAnswers.PART), List.of());
 		return refs ? spec.systemRefs(List.of(SCHEMA_REF, VOCAB_REF)) : spec;
+	}
+
+	/** The kinds a repair round looks up: each refused or malformed part's catalogue id (its answer's {@code block}), sorted, once each. */
+	public static java.util.SortedSet<String> repairKinds(List<JsonObject> parts) {
+		java.util.SortedSet<String> out = new java.util.TreeSet<>();
+		for (JsonObject p : parts) {
+			String cls = p.has("class") && p.get("class").isJsonPrimitive() ? p.get("class").getAsString() : "";
+			if ((cls.equals("refused") || cls.equals("malformed")) && p.has("block") && p.get("block").isJsonPrimitive() && !p.get("block").getAsString().isBlank())
+				out.add(p.get("block").getAsString());
+		}
+		return out;
+	}
+
+	/** At most this much catalogue text in a repair prompt (a full kind's entry is about 1,300 characters; more kinds than fit are named only). */
+	static final int CATALOGUE_CHARS = 20_000;
+
+	/**
+	 * The long text of {@code kinds} from Architect's {@code Regions.planCatalogue(kinds)} ({@code lookup}): each kind's entry (state, note, limits) with
+	 * its plan/0 def and every description, one line a kind. Null when there are no kinds, or the lookup throws (an Architect before 0.62.0) or has no entries:
+	 * the repair round goes without it.
+	 */
+	public static @Nullable String catalogueFor(java.util.Set<String> kinds, java.util.function.Function<java.util.Set<String>, @Nullable JsonObject> lookup) {
+		if (kinds.isEmpty()) return null;
+		JsonObject cat;
+		try {
+			cat = lookup.apply(kinds);
+		} catch (RuntimeException | LinkageError e) {
+			return null;
+		}
+		if (cat == null || !cat.has("entries") || !cat.get("entries").isJsonArray() || cat.getAsJsonArray("entries").isEmpty()) return null;
+		StringBuilder b = new StringBuilder();
+		List<String> over = new java.util.ArrayList<>();
+		for (JsonElement e : cat.getAsJsonArray("entries")) {
+			if (!e.isJsonObject()) continue;
+			String line = e.toString();
+			String id = e.getAsJsonObject().has("id") && e.getAsJsonObject().get("id").isJsonPrimitive() ? e.getAsJsonObject().get("id").getAsString() : "?";
+			if (b.length() + line.length() > CATALOGUE_CHARS) over.add(id);
+			else b.append(line).append('\n');
+		}
+		if (!over.isEmpty()) b.append("(left out for length: ").append(String.join(", ", over)).append(")\n");
+		return b.length() == 0 ? null : b.toString();
+	}
+
+	private static String catalogueSection(@Nullable String catalogue) {
+		return catalogue == null ? "" : "\nArchitect's catalogue for the kinds to repair (each kind's note, limits and its plan/0 def with every description, which the schema"
+			+ " you were given leaves out):\n" + catalogue;
 	}
 
 	static String userPrompt(String card, @Nullable String land, List<String> anchors) {

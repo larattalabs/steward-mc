@@ -46,8 +46,9 @@ Writing the plan:
   moat or a narrow channel: a level deck 2 wide of 1 to 7 iron trapdoors, lowered at rest, a lever on each bank raises it. Write it only where the
   card asks for a drawbridge or a lifting bridge, over water at most 7 across on level banks; a wider or sloping crossing is a stone bridge.
 - **What can't be built yet.** When the player asked for something that needs a kind the catalogue lists as reserved, or a kind it doesn't list, still
-  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a tunnel under flat ground (`tunnel.under`), huts up in trees (`layout.elevated`), a hidden room, a shape rule, a variety rule ("identical houses", "no two
-  alike": `rule.variety`). Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
+  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a railway (`connector.rail`), a glass tube under water (`connector.tube`), an aqueduct
+  (`channel.aqueduct`), a shape rule, a variety rule ("identical houses", "no two alike": `rule.variety`). The catalogue's own states are the truth: a
+  kind it lists as supported (a tunnel under flat ground, raised lots, a hidden room) is written to be built, not to wait. Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
   drop what the player asked for silently, and never pretend it is supported.
 - **Layouts.** A layout that is not one street (a ring, a spiral, a grid, a hamlet that grew organically) is the zone's `program.layout`
   when the catalogue supports it; floors stacked in one tower, or a layout it reserves, is written as the kind it reserves so it waits. It is
@@ -75,8 +76,8 @@ Writing the plan:
     between them; `rise`, `retain`, `stairs` when the card says how); a terrace form (`form.terrace`) stands beside zones, never under their
     lots;
   - a bridge (rope or stone) spans a real gap, water or a drop, between two places: never between places on the same ground, and never from a place
-    to itself. Huts up in trees or on stilts are raised lots: write them as the reserved `layout.elevated` so they wait, with their bridges depending
-    on it;
+    to itself. Huts up in trees or on stilts are raised lots: write them as `layout.elevated` (supported: the catalogue gives its shape), with their
+    bridges depending on it;
   - a gate sits on its wall (its `at`); a gatehouse is on the wall through the wall's `lots`, never through a gate part naming its port;
   - a road or path into a town ends on the zone (`{part: <zone>}`, which brings it to the street's end), never on one of its lots: a lot the
     zone can't fit (an edge gatehouse in a town with no wall, say) leaves the road with no end. A road between two places that are lots

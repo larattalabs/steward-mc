@@ -110,11 +110,60 @@ class ModelTest {
 	@Test
 	void gatewayStatusChecksMajorVersionAndFeatures() {
 		Set<String> ok = Set.of("designs", "sites", "events", "survey");
-		assertTrue(ArchitectGateway.Status.evaluate("1.40.0", ok).ok());
-		assertTrue(ArchitectGateway.Status.evaluate("1.41.2", ok).ok());
-		assertFalse(ArchitectGateway.Status.evaluate("1.39.0", ok).ok(), "districts beside a town (D3, checkBeside) need 1.40");
-		assertFalse(ArchitectGateway.Status.evaluate("2.0.0", ok).ok());
-		assertFalse(ArchitectGateway.Status.evaluate("1.40.0", Set.of("sites", "events")).ok());
+		int m = ArchitectGateway.REQUIRED_MINOR;
+		assertTrue(ArchitectGateway.Status.evaluate("1." + m + ".0", ok).ok());
+		assertTrue(ArchitectGateway.Status.evaluate("1." + (m + 1) + ".2", ok).ok());
+		assertFalse(ArchitectGateway.Status.evaluate("1." + (m - 1) + ".9", ok).ok(), "a loaded Architect older than the pin is refused");
+		assertFalse(ArchitectGateway.Status.evaluate("2.0.0", ok).ok(), "the next major API is refused");
+		assertFalse(ArchitectGateway.Status.evaluate("0." + m + ".0", ok).ok());
+		assertFalse(ArchitectGateway.Status.evaluate("1." + m + ".0", Set.of("sites", "events")).ok());
 		assertFalse(ArchitectGateway.Status.evaluate("x.y", ok).ok());
+		assertFalse(ArchitectGateway.Status.evaluate(null, ok).ok(), "an unreadable loaded version is refused");
+	}
+
+	@Test
+	void gatewayMinimumIsThePinnedApi() {
+		// the pin's own API version, inlined at compile time: a pin bump moves the minimum with it
+		assertEquals(dev.larattalabs.architect.api.ArchitectApi.VERSION, ArchitectGateway.PINNED_VERSION);
+		assertEquals(Integer.parseInt(ArchitectGateway.PINNED_VERSION.split("\\.")[1]), ArchitectGateway.REQUIRED_MINOR);
+		assertTrue(ArchitectGateway.REQUIRED_MINOR >= 56, "at least Architect 0.63.0's API 1.56");
+	}
+
+	/** Stand-ins for the loaded Architect API class, whose constant javac can't inline into the check. */
+	public interface OldApi {
+		String VERSION = "1.12.0";
+	}
+
+	public interface NewApi {
+		String VERSION = "1.12.0";
+
+		default String apiVersion() {
+			return "1.99.1";
+		}
+	}
+
+	@Test
+	void gatewayReadsTheLoadedVersionNotTheInlinedOne() {
+		assertEquals("1.12.0", ArchitectGateway.loadedVersion(new OldApi() {}, OldApi.class), "the loaded class's field, by reflection");
+		assertEquals("1.99.1", ArchitectGateway.loadedVersion(new NewApi() {}, NewApi.class), "apiVersion() wins once Architect has it");
+		assertNull(ArchitectGateway.loadedVersion(new Object(), Object.class));
+		assertFalse(ArchitectGateway.Status.evaluate(ArchitectGateway.loadedVersion(new OldApi() {}, OldApi.class), Set.of("designs", "sites", "events")).ok(),
+				"an old loaded Architect fails even though Steward compiled against a newer one");
+	}
+
+	@Test
+	void everyRecipeUnlocksInTheRecipeBook() throws Exception {
+		// survival players find the Founding Stone, Ledger and Board in the recipe book only through these advancements (UI audit F6)
+		String[][] unlocks = {{"founding_stone", "misc"}, {"steward_ledger", "misc"}, {"settlement_board", "building_blocks"}};
+		for (String[] u : unlocks) {
+			assertNotNull(ModelTest.class.getResourceAsStream("/data/steward_mc/recipe/" + u[0] + ".json"), u[0]);
+			try (InputStream in = ModelTest.class.getResourceAsStream("/data/steward_mc/advancement/recipes/" + u[1] + "/" + u[0] + ".json")) {
+				assertNotNull(in, "an unlock advancement for " + u[0]);
+				JsonObject a = JsonParser.parseReader(new InputStreamReader(in)).getAsJsonObject();
+				assertEquals("steward_mc:" + u[0], a.getAsJsonObject("rewards").getAsJsonArray("recipes").get(0).getAsString());
+				assertEquals("steward_mc:" + u[0], a.getAsJsonObject("criteria").getAsJsonObject("has_the_recipe").getAsJsonObject("conditions").get("recipes").getAsString());
+				assertTrue(a.getAsJsonObject("criteria").has("has_book"), "unlocks once the player holds a book");
+			}
+		}
 	}
 }

@@ -1350,11 +1350,17 @@ public final class SettlementRunner {
 	 * or a required part refused or malformed. Optional parts that did not fit are dropped by Architect and said.
 	 */
 	static @org.jspecify.annotations.Nullable String unbuildable(dev.larattalabs.architect.api.PlanCheck c) {
+		return unbuildable(c, Secrets.NONE);
+	}
+
+	/** As {@link #unbuildable(dev.larattalabs.architect.api.PlanCheck)}; a secret part (S-7c-4) is "a part of the plan", never its name. */
+	static @org.jspecify.annotations.Nullable String unbuildable(dev.larattalabs.architect.api.PlanCheck c, Secrets secrets) {
 		List<String> stuck = new ArrayList<>();
 		for (JsonObject part : c.parts()) {
 			String cls = part.has("class") ? part.get("class").getAsString() : "";
 			boolean required = part.has("required") && part.get("required").getAsBoolean();
-			if (required && !cls.equals("fits") && !cls.equals("adjusted")) stuck.add((part.has("part") ? part.get("part").getAsString() : "?").replace('_', ' ') + " (" + cls
+			String id = part.has("part") ? part.get("part").getAsString() : "?";
+			if (required && !cls.equals("fits") && !cls.equals("adjusted")) stuck.add((secrets.hides(id) ? "one part" : id.replace('_', ' ')) + " (" + cls
 				+ (part.has("reasons") && part.get("reasons").isJsonArray() && !part.getAsJsonArray("reasons").isEmpty()
 					&& part.getAsJsonArray("reasons").get(0).isJsonObject() && part.getAsJsonArray("reasons").get(0).getAsJsonObject().has("code")
 					? " " + part.getAsJsonArray("reasons").get(0).getAsJsonObject().get("code").getAsString() : "") + ")");
@@ -1367,9 +1373,11 @@ public final class SettlementRunner {
 	}
 
 	/** The optional parts Architect left out of what is built (they did not fit), in plain words. */
-	private static List<String> leftOut(dev.larattalabs.architect.api.PlanCheck c) {
+	private static List<String> leftOut(dev.larattalabs.architect.api.PlanCheck c, Secrets secrets) {
 		List<String> out = new ArrayList<>();
 		for (JsonObject part : c.parts()) {
+			// (S-7c-4) a hidden room that didn't fit is left out unsaid
+			if (part.has("part") && secrets.hides(part.get("part").getAsString())) continue;
 			String cls = part.has("class") ? part.get("class").getAsString() : "";
 			boolean required = part.has("required") && part.get("required").getAsBoolean();
 			if (!required && (cls.equals("refused") || cls.equals("malformed") || cls.equals("incomplete"))) out.add(part.has("part") ? part.get("part").getAsString().replace('_', ' ') : "?");
@@ -1417,7 +1425,7 @@ public final class SettlementRunner {
 				return;
 			}
 			try {
-				String no = unbuildable(c);
+				String no = unbuildable(c, Secrets.of(built, null));
 				if (no != null) { abandon("The plan can't be built as it stands: " + no + ". Describe the settlement again for a new plan."); return; }
 				// Architect builds a region from materials only in a survival world (its toggle on, the world's default mode not creative): its check says
 				// whether it ran in survival; otherwise the town would be refused at the realise, so Steward's own layout builds it from materials
@@ -1436,14 +1444,19 @@ public final class SettlementRunner {
 					String bill = Composer.billLine(c.cost());
 					if (bill != null) say("From materials, the plan's ground, streets and parts need " + bill + ". Fill the stockpile as they're built.");
 				}
-				var out = leftOut(c);
+				var out = leftOut(c, Secrets.of(built, art.map(a -> a.body()).orElse(null)));
 				if (!out.isEmpty()) say("Left out of what is built (they didn't fit here): " + String.join(", ", out) + ".");
-				var waits = PlanStore.get(settlement.id()).map(PlanStore.Entry::pending).orElse(List.of());
+				var waits = Composer.shown(PlanStore.get(settlement.id()).map(PlanStore.Entry::pending).orElse(List.of()), Secrets.ofSettlement(settlement.id()));
 				if (!waits.isEmpty()) say("Built now without " + String.join(", ", waits.stream().map(w -> w.part().replace('_', ' ')).toList()) + ": "
 					+ (waits.size() == 1 ? "it waits" : "they wait") + " for Architect.");
 				pin(c.artifactSha());
 				vPlanId = dev.larattalabs.steward.gateway.PPlan.ARTIFACT_PREFIX + c.artifactSha();
-				plan = dev.larattalabs.steward.gateway.PPlan.toPlan(lots.get(), built);
+				// (S-7c-4) the designs never hear of a hidden room: a lot's brief without the sentences naming one (Architect builds the room, not the design)
+				var secrets = Secrets.of(built, art.map(a -> a.body()).orElse(null));
+				if (secrets.any()) Steward.LOGGER.info("plan as built for {}: {} secret part(s) {} in the artifact, answered {}", settlement.id(), secrets.parts().size(),
+					art.map(a -> a.body()).filter(b -> b.has("secrets") && b.get("secrets").isJsonArray()).map(b -> b.getAsJsonArray("secrets").size()).orElse(0),
+					c.parts().stream().filter(x -> x.has("part") && secrets.hides(x.get("part").getAsString())).map(x -> x.get("part").getAsString() + "=" + (x.has("class") ? x.get("class").getAsString() : "?")).toList());
+				plan = dev.larattalabs.steward.gateway.PPlan.toPlan(lots.get(), secrets.scrubBriefs(built));
 				// (Architect K3) a wall lot narrower than 7 is asked for only of an Architect that takes it (wallLots; an older one refuses the request), and its
 				// repair needs keyed designs: stopped here, before anything is spent
 				var walls = plan.lots().stream().filter(VillageLayout.Lot::exact).map(l -> l.id() + " " + l.type() + " " + l.along() + "x" + l.deep() + "x" + l.maxHeight()).toList();
@@ -2247,7 +2260,7 @@ public final class SettlementRunner {
 						if (state != null && state.phase() == Pipeline.Phase.CANCELLING) feed(new Pipeline.CancelConfirmed());
 						return;
 					}
-					String no = cerr != null ? "Architect could not check it again (" + message(cerr) + ")" : unbuildable(c);
+					String no = cerr != null ? "Architect could not check it again (" + message(cerr) + ")" : unbuildable(c, Secrets.of(frozen, null));
 					// the world's mode changed while the buildings were designed: built from materials now, or no longer; this build stops, a new Start plans anew
 					if (no == null && c.survival() != artifactSurvival(sha)) no = "the world's mode changed while the buildings were designed (" + (c.survival()
 						? "it builds from materials now" : "it no longer builds from materials") + "): start the build again";
@@ -3303,6 +3316,11 @@ public final class SettlementRunner {
 
 	private void say(String text) {
 		Steward.LOGGER.info("settlement: {}", text);
+		// (S-7c-4) everything the build tells the player, Architect's reasons included, without a hidden room's name
+		if (settlement != null) {
+			String told = Secrets.ofSettlement(settlement.id()).mask(text);
+			text = told.isBlank() ? "Architect's reason concerns a part of the plan kept private." : told;
+		}
 		if (!Session.is(session)) return;
 		if (settlement != null) StewardVoice.say(server, settlement.id(), text);
 		ServerPlayer p = server.getPlayerList().getPlayer(playerId);

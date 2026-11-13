@@ -1,0 +1,232 @@
+{
+  "prompt": "A ring city around a crater lake, every house facing the water.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "crater_lake_ring_city",
+      "style": {
+        "pending": "crater_lake_ring_city"
+      },
+      "zones": [
+        {
+          "id": "ring_town",
+          "label": "Ring city",
+          "required": true,
+          "purpose": "home",
+          "style": {
+            "pending": "crater_lake_ring_city"
+          },
+          "where": {
+            "around": {
+              "feature": {
+                "part": "crater"
+              },
+              "ring": [
+                8,
+                30
+              ],
+              "closed": true
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "hall_1",
+                "type": "tavern",
+                "role": "hall",
+                "label": "lakeside hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "job",
+                "brief": "Civic hall on the ring road with a wide terrace facing the lake."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "lakefront_house",
+                "label": "lakefront house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Doors and windows face the water."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "lakefront_house",
+                "label": "lakefront house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Doors and windows face the water."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "lakefront_house",
+                "label": "lakefront house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Doors and windows face the water."
+              },
+              {
+                "id": "house_4",
+                "type": "house",
+                "role": "lakefront_house",
+                "label": "lakefront house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Doors and windows face the water."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "rim_cottage",
+                "label": "rim cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Smaller home, front toward the lake."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "rim_cottage",
+                "label": "rim cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Smaller home, front toward the lake."
+              },
+              {
+                "id": "boathouse_1",
+                "type": "cabin",
+                "role": "boathouse",
+                "label": "boathouse and jetty",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "near_water",
+                "villager": "job",
+                "brief": "Boats and fishing gear at the water's edge, with a pier."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "market_shop",
+                "label": "market shop",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "trading_hall",
+                "brief": "Stall-fronted shop on the ring road facing the lake."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "rim watchtower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Overlooks the whole ring and lake."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "gatehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Entrance on the outer ring wall, where the road enters."
+              }
+            ],
+            "layout": "ring",
+            "shared": "none"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "outer_wall",
+          "kind": "wall",
+          "required": false,
+          "label": "Outer ring wall",
+          "where": {
+            "around": {
+              "feature": {
+                "part": "ring_town"
+              },
+              "ring": [
+                4,
+                12
+              ],
+              "closed": true
+            }
+          },
+          "lamps": "gates",
+          "lots": [
+            {
+              "lot": "gatehouse_1",
+              "at": "gate",
+              "mech": "portcullis"
+            }
+          ]
+        }
+      ],
+      "forms": [
+        {
+          "id": "crater",
+          "kind": "crater",
+          "required": true,
+          "label": "Crater lake",
+          "where": {
+            "inside": {
+              "claim": true
+            }
+          },
+          "size": {
+            "w": 48,
+            "d": 48
+          },
+          "depth": 10,
+          "rim": 3,
+          "lake": true,
+          "lakeDepth": 4
+        }
+      ],
+      "rules": []
+    },
+    "waits": [],
+    "summary": "A crater is sculpted with a lake in the middle. A ring-street city circles it, with every house facing the water. It has a lakeside hall, four houses, two cottages, a boathouse, a shop and a rim watchtower. An outer wall with a gatehouse surrounds the town. The style is pending, a stone-and-timber medieval look."
+  },
+  "usd": 0.040488,
+  "errors": []
+}

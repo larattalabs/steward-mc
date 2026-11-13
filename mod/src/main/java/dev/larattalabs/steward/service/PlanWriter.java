@@ -6,6 +6,7 @@ import dev.larattalabs.architect.api.SiteEvents;
 import dev.larattalabs.steward.gateway.PlanWriterJob;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import org.jspecify.annotations.Nullable;
@@ -29,7 +30,21 @@ public final class PlanWriter {
 	/** A repair round: {@code previous} the last plan, {@code answers} Architect's check of it (see {@link PlanWriterJob#build}). */
 	public static CompletableFuture<PlanWriterJob.Result> write(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner,
 		@Nullable String previous, @Nullable String answers) {
-		return run(refs -> PlanWriterJob.build(card, land, anchors, builds, owner, previous, answers, refs));
+		return write(card, land, anchors, builds, owner, previous, answers, Set.of());
+	}
+
+	/** As above; {@code kinds}: the failing parts' kinds ({@link PlanWriterJob#repairKinds}), whose catalogue text the repair round carries. */
+	public static CompletableFuture<PlanWriterJob.Result> write(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner,
+		@Nullable String previous, @Nullable String answers, Set<String> kinds) {
+		String catalogue = previous != null && answers != null ? catalogue(kinds) : null;
+		return run(refs -> PlanWriterJob.build(card, land, anchors, builds, owner, previous, answers, refs, catalogue));
+	}
+
+	/** The long text of {@code kinds} from Architect ({@code Regions.planCatalogue(kinds)}, 0.62.0), logged by size; null for none. */
+	private static @Nullable String catalogue(Set<String> kinds) {
+		String text = PlanWriterJob.catalogueFor(kinds, k -> ArchitectApi.get().regions().planCatalogue(k));
+		if (!kinds.isEmpty()) dev.larattalabs.steward.Steward.LOGGER.info("plan writer: repair catalogue for {}: {}", kinds, text == null ? "none" : text.length() + " chars");
+		return text;
 	}
 
 	/**
@@ -38,7 +53,8 @@ public final class PlanWriter {
 	 */
 	public static CompletableFuture<PlanWriterJob.Result> writePart(String card, String keptPlan, String partJson, String block, List<String> others,
 		@Nullable String owner, @Nullable String previous, @Nullable String answers) {
-		return run(refs -> PlanWriterJob.part(card, keptPlan, partJson, block, others, owner, previous, answers, refs));
+		String catalogue = previous != null && answers != null ? catalogue(Set.of(block)) : null;
+		return run(refs -> PlanWriterJob.part(card, keptPlan, partJson, block, others, owner, previous, answers, refs, catalogue));
 	}
 
 	private static CompletableFuture<PlanWriterJob.Result> run(java.util.function.Function<Boolean, dev.larattalabs.architect.api.JobSpec> spec) {

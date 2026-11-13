@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pickFlows } from './lib/e2e-flows.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARCH = process.env.ARCHITECT_CHECKOUT ?? path.resolve(ROOT, '..', 'architect-mc');
@@ -27,7 +28,7 @@ const WORLD = path.join(GAME, 'saves', process.env.ARCHITECT_AUTOWORLD_NAME ?? '
 const OUT = path.join(ROOT, 'artifacts', 'e2e');
 const LOG = path.join(GAME, 'logs', 'latest.log');
 const mode = process.argv[2] ?? 'free';
-// --only a,b: run only the flows whose name or tags hold one of the words, plus the sanity set (status, claim, expand, restart); an RC's run
+// --only a,b: run only the flows whose name or tags hold one of the words (and the flows they need), plus the sanity set (status, claim, expand, restart); an RC's run
 // --keep-world: open the existing "Steward E2E" world instead of a fresh one (to look at a run's leftovers); by default every run starts fresh
 const keepWorld = process.argv.includes('--keep-world');
 const onlyAt = process.argv.indexOf('--only');
@@ -143,6 +144,37 @@ const settlements = () => {
   return fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')).settlements : [];
 };
 
+/**
+ * (S-7c-4) What the player sees of settlement {@code id} that names its hidden room: the steward's chat since {@code from} (its "[Name] ..." lines, which its
+ * speech bubble repeats), the history (each entry's text and its sites' names), the inbox (open, declined and accepted ideas), and the card's plan lines
+ * (the kept summary and the waiting parts shown). Logger lines are not the player's and are not read. Returns the lines that leak.
+ */
+const SECRET_WORDS = /\b(hidden|secret\w*|cellar\w*|concealed)\b/i;
+function secretLeaks(id, from) {
+  const st = settlements().find((x) => x.id === id);
+  const name = st?.name ?? id;
+  const out = [];
+  const seen = (where, t) => { if (t && SECRET_WORDS.test(String(t))) out.push(`${where}: ${String(t).slice(0, 160)}`); };
+  for (const l of logSince(from).split('\n')) {
+    const m = /\[CHAT\] (.*)$/.exec(l);
+    if (m && m[1].startsWith(`[${name}]`)) seen('chat', m[1]);
+  }
+  for (const e of st?.log ?? []) {
+    seen('history', e.text);
+    for (const c of e.changes ?? e.sites ?? []) seen('history site', c.lot);
+  }
+  const ps = st?.proposals ?? {};
+  for (const p of ps.open ?? []) { seen('inbox', p.title); seen('inbox', p.why); seen('inbox', p.key); }
+  for (const k of [...(ps.declined ?? []), ...(ps.accepted ?? [])]) seen('inbox', k);
+  const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
+  const kept = plans[id];
+  seen('card', kept?.summary);
+  for (const c of kept?.crossings ?? []) seen('card', c);
+  // the waiting parts the card shows (a secret one is kept pending unsaid: its words are empty)
+  for (const w of kept?.pending ?? []) if (w.words) seen('card', w.words);
+  return out;
+}
+
 // ------------------------------------------------------------------ a building of our own (kit-built, no Claude)
 
 // a new entry each run: the world keeps earlier runs' settlements, and their copies of one shared entry were offered the update first (set_28's, not
@@ -234,6 +266,24 @@ async function preflight() {
   ok('preflight', 'no credentials, no other client');
 }
 
+/**
+ * A stockpile ledger with copper's weathered refunds under the item that was billed: a copper block weathers where it stands (the 11-12 nightly's
+ * lightning rod came back as exposed_lightning_rod after 106 min), and Architect refunds the block as it stands. Waxed copper doesn't weather.
+ */
+function unweathered(sp) {
+  const base = (k) => {
+    const m = /^minecraft:(?:exposed|weathered|oxidized)_(.+)$/.exec(k);
+    return m ? `minecraft:${m[1] === 'copper' ? 'copper_block' : m[1]}` : k;
+  };
+  for (const key of ['returned', 'refundOverflow']) {
+    if (!sp?.[key]) continue;
+    const out = {};
+    for (const [k, v] of Object.entries(sp[key])) out[base(k)] = (out[base(k)] ?? 0) + v;
+    sp[key] = out;
+  }
+  return sp;
+}
+
 let spikesCleared = false;
 
 async function claimAndSteward() {
@@ -323,6 +373,63 @@ async function inboxScreen() {
   // toasts are HUD, which a screenshot hides unless asked
   const toastShot = (await dev.request('dev.screenshot', { name: 'e2e-toasts', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
   ok('inbox and toast pictures', `${inboxShot} ${partsShot} ${limitShot} ${toastShot}`);
+}
+
+/**
+ * S-J4, the shared HUD: Steward's inbox reaches lab-ui's Jobs & spend panel (K) as steward_mc rows, the needs-you line is lab-ui's one pill in the
+ * top-left zone (no Steward HUD element of its own), and Steward's toasts go into lab-ui's one stack. In stub mode an Architect massing waits as well
+ * (the sim helper, $0), so the pictures show both mods waiting on the player: one pill, one toast column, K with both mods' rows.
+ */
+async function sharedHud() {
+  let archRow = null;
+  if (mode === 'stub') {
+    await dev.request('dev.ui.open', { tab: 'design' });
+    await dev.request('dev.design.fill', { reset: true, buildingType: 'cabin', style: 'medieval', size: 'L', name: 'E2E Massed cabin', massingFirst: true });
+    const s = await dev.request('dev.design.submit', {}, { timeoutMs: 30_000 });
+    if (!s.sent?.designId || s.sent.error) fail('shared hud: an Architect massing', JSON.stringify(s.sent ?? s).slice(0, 160));
+    await closeScreens();
+    for (let end = Date.now() + 180_000; Date.now() < end && !archRow; await sleep(2000)) {
+      archRow = ((await dev.request('dev.j3.state')).rows ?? []).find((r) => r.mod === 'architect_mc' && r.state === 'needs_you') ?? null;
+    }
+    if (archRow) ok('shared hud: an Architect massing waits', archRow.id);
+    else fail('shared hud: an Architect massing waits', 'no architect_mc row needs you after 180 s');
+  }
+  // Steward's sample inbox (two builds waiting, one held by the usage limit, one ended, waiting parts) under ids of its own, so its toasts come again
+  await cmd('/steward ui sample hud');
+  await sleep(1500);
+  await closeScreens();
+  // need-you, so it shows on top of the stack (need-you first, newest on top) beside Steward's, not queued under "+N more"
+  await dev.request('dev.ui03.toast', { level: 'need', title: 'Architect: E2E Massed cabin needs you', body: 'pushed by the e2e into the same stack as Steward\'s', subject: 'Architect: E2E Massed cabin' });
+  await sleep(1200);
+  const jobs = await dev.request('dev.j3.state');
+  const mine = (jobs.rows ?? []).filter((r) => r.mod === 'steward_mc');
+  const waiting = mine.filter((r) => r.state === 'needs_you' || r.state === 'paused_budget');
+  if (mine.length && waiting.length && mine.every((r) => r.id.startsWith('steward_mc:settlement/'))) ok('shared hud: Steward rows on the Jobs panel', `${mine.length} rows, ${waiting.length} waiting; pill "${jobs.pill}"`);
+  else fail('shared hud: Steward rows on the Jobs panel', JSON.stringify(jobs.rows ?? jobs).slice(0, 200));
+  const wantWaiting = waiting.length + (archRow ? 1 : 0);
+  if (jobs.needsYou >= wantWaiting && /need/.test(jobs.pill ?? '')) ok('shared hud: one pill counts both mods', `${jobs.needsYou} waiting: ${jobs.pill}`);
+  else fail('shared hud: one pill counts both mods', `needsYou ${jobs.needsYou}, want >= ${wantWaiting}; pill ${jobs.pill}`);
+  const z = await dev.request('dev.hud.zones');
+  const regs = z.registered ?? [];
+  const pills = (z.zones?.top_left?.slots ?? []).filter((s) => s.id === 'lab_ui:jobs_pill');
+  const ownHud = regs.filter((r) => r.startsWith('steward_mc:'));
+  if (pills.length === 1 && !ownHud.length) ok('shared hud: one pill, no Steward HUD of its own', JSON.stringify(pills[0]));
+  else fail('shared hud: one pill, no Steward HUD of its own', `pills ${pills.length}, steward elements ${ownHud.join(' ')}`);
+  const toasts = await dev.request('dev.ui2b.toasts');
+  const shownToasts = toasts.shown ?? [];
+  const stewardToast = shownToasts.find((t) => (t.ref ?? '').startsWith('steward_mc:settlement/'));
+  // one stack: Steward's toasts show beside Architect's, or wait in the same stack under "+N more" (in stub mode Architect's massing bar is an avoided
+  // rect, so the column ends above it and holds one toast)
+  const sameStack = stewardToast || (toasts.queued ?? 0) > shownToasts.length;
+  if (sameStack && shownToasts.some((t) => /^Architect/.test(t.title))) ok('shared hud: both mods\' toasts in one stack', `${shownToasts.map((t) => t.title).join(' | ')}; ${toasts.queued} in the stack`);
+  else fail('shared hud: both mods\' toasts in one stack', JSON.stringify(toasts).slice(0, 240));
+  const hudShot = (await dev.request('dev.screenshot', { name: 'e2e-shared-hud', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.j3.open', {});
+  await sleep(800);
+  const panelShot = (await dev.request('dev.screenshot', { name: 'e2e-jobs-panel', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  const st = await dev.request('dev.j3.state');
+  ok('shared hud pictures', `${hudShot} ${panelShot}; today ${JSON.stringify(st.todayByMod ?? {})}`);
+  await closeScreens();
 }
 
 async function placeUpdateUndo(id) {
@@ -852,6 +959,47 @@ async function migratedSteward() {
   else fail('steward migrated', `new: ${found || 'none'}; old: ${old || 'none'}`);
 }
 
+/**
+ * (Architect 0.64.1 HF: the stockpile save) A normal save and stop changes nothing: each settlement's stockpile (its stock and ledger) and the player's
+ * inventory read the same after the client quits and comes back. Read at the first crate, its chunks loaded, before and after.
+ */
+async function stockSaveFlow() {
+  const read = async () => {
+    const out = {};
+    for (const st of settlements()) {
+      const owner = `steward_mc:settlement/${st.id}`;
+      const r = await dev.request('dev.stockpile.state', { owner }, { timeoutMs: 60_000 }).catch(() => null);
+      const sp = r?.stockpile;
+      if (!sp || !(sp.crates ?? []).length) continue;
+      out[st.id] = { owner, at: sp.crates[0].pos ?? sp.crates[0], stock: sp.stock ?? null, ledger: sp.ledger ?? null };
+    }
+    return out;
+  };
+  const audit = async (owner) => {
+    const a = await dev.request('dev.stockpile.audit', { owner }, { timeoutMs: 60_000 }).catch(() => null);
+    return a ? JSON.stringify(a.inventory ?? a.player ?? a.playerInventory ?? null) : null;
+  };
+  const before = await read();
+  const ids = Object.keys(before);
+  if (!ids.length) return fail('stock save', 'no settlement has a stockpile (supplied-plan first)');
+  const first = before[ids[0]];
+  const at = Array.isArray(first.at) ? first.at : [first.at?.x, first.at?.y, first.at?.z];
+  await cmd(`/tp @p ${at[0]} ${Number(at[1]) + 2} ${Number(at[2]) + 2}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  const b = await read();
+  const invB = await audit(first.owner);
+  await cmd('/save-all flush');
+  await quit();
+  launch();
+  await connect();
+  await dev.request('dev.waitChunks', { timeoutMs: 120_000 });
+  const a = await read();
+  const invA = await audit(first.owner);
+  const diffs = Object.keys(b).filter((id) => JSON.stringify(b[id].stock) !== JSON.stringify(a[id]?.stock) || JSON.stringify(b[id].ledger) !== JSON.stringify(a[id]?.ledger));
+  if (!diffs.length && invB === invA && invB !== null) ok('stock save', `${Object.keys(b).length} stockpile(s) and the player's inventory unchanged across a save and stop`);
+  else fail('stock save', `changed ${diffs.join(', ') || 'none'}; inventory same ${invB === invA} (${String(invB).slice(0, 80)}); before ${JSON.stringify(b[diffs[0] ?? ids[0]])?.slice(0, 160)}; after ${JSON.stringify(a[diffs[0] ?? ids[0]])?.slice(0, 160)}`);
+}
+
 async function restartRestore() {
   const uuid = await playerUuid();
   await quit();
@@ -1257,6 +1405,7 @@ async function planBuildFlow() {
   await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
   await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'walled_town.json'), 'utf8')).answer)}`);
   let from = logSize();
+  const from0 = from;
   await cmd(`/steward describe ${id} a little walled market town`);
   if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('plan build', 'no card');
   if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail('plan build', 'no plan composed');
@@ -1267,7 +1416,8 @@ async function planBuildFlow() {
   const laid = await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
   // off the plan's lots (a player in a lot's box holds its placement, with no time limit), its chunks still loaded
   await cmd('/tp @p ~ ~ ~90');
-  const without = await waitLog(from, /Built now without ([^\n]*)/, 60_000);
+  // (S-7c-4) the hidden cellar under the market hall is built with the town, unsaid (nothing waits now: no "Built now without")
+  const secretLog = await waitLog(from, new RegExp(`plan as built for ${id}: (\\d+) secret part\\(s\\) (\\d+) in the artifact, answered \\[([^\\]]*)\\]`), 60_000);
   const built = await buildThrough(id, from, 'plan build');
   if (!built) return;
   const st = settlements().find((x) => x.id === id);
@@ -1275,9 +1425,29 @@ async function planBuildFlow() {
   const region = placedOp?.siteGroup;
   const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
   const cellarWaits = plans[id]?.pending?.some((x) => x.part === 'secret_cellar');
-  if (laid && without && /^region:/.test(region ?? '') && built.placed > 0 && cellarWaits) {
-    ok('plan build', `${built.steps.join(' > ')} > ${built.placed} placed from the approved plan, its wall with it (${region}); ${without[0]}; the cellar still waits`);
-  } else return fail('plan build', `laid out ${!!laid}, without ${without ? without[1] : 'none'}, region ${region}, placed ${built.placed}, cellar pending ${cellarWaits}`);
+  const cellarBuilt = secretLog && Number(secretLog[2]) >= 1 && /secret_cellar=(fits|adjusted)/.test(secretLog[3]);
+  if (laid && /^region:/.test(region ?? '') && built.placed > 0 && !cellarWaits && cellarBuilt) {
+    ok('plan build', `${built.steps.join(' > ')} > ${built.placed} placed from the approved plan, its wall and its cellar with it (${region}; ${secretLog[3]}, ${secretLog[2]} secret in the artifact)`);
+  } else return fail('plan build', `laid out ${!!laid}, region ${region}, placed ${built.placed}, cellar pending ${cellarWaits}, secrets ${secretLog ? secretLog[0] : 'none logged'}`);
+  // (S-7c-4) the plan screen (the card) and the history of a town with a hidden cellar, for a look at what they say (artifacts/shots/)
+  await closeScreens();
+  await cmd(`/steward ui card ${id}`);
+  await sleep(1500);
+  const cardShot = (await dev.request('dev.screenshot', { name: 'e2e-secrets-card', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  // the plan's summary and what waits are under Interpretation (Tab: builds / interpretation)
+  await dev.request('dev.key', { key: 'tab' });
+  await sleep(800);
+  const planShot = (await dev.request('dev.screenshot', { name: 'e2e-secrets-plan', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await closeScreens();
+  await cmd(`/steward view ${id}`);
+  await sleep(1500);
+  // Tab moves along: Buildings, History
+  await dev.request('dev.key', { key: 'tab' });
+  await sleep(800);
+  const historyShot = (await dev.request('dev.screenshot', { name: 'e2e-secrets-history', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await closeScreens();
+  if (cardShot && planShot && historyShot) ok('plan build shots', `${cardShot}, ${planShot}, ${historyShot}`);
+  else fail('plan build shots', `card ${cardShot || 'none'}, plan ${planShot || 'none'}, history ${historyShot || 'none'}`);
   await cmd(`/tp @p ~ ~ ~90`);
   await cmd(`/steward undo ${id}`);
   let last = null;
@@ -1287,6 +1457,10 @@ async function planBuildFlow() {
   }
   if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placedOp.siteIds.length) ok('plan build undo', `${last.text} (${last.siteIds.length} sites)`);
   else fail('plan build undo', `last op ${last?.kind} (${last?.siteIds?.length} of ${placedOp.siteIds.length} sites)`);
+  // (S-7c-4) from the description through the undo: what the player saw never names the cellar
+  const leaks = secretLeaks(id, from0);
+  if (leaks.length === 0) ok('plan build secrets', `no chat line, history entry (${(settlements().find((x) => x.id === id)?.log ?? []).length}), inbox item or card line names the cellar`);
+  else fail('plan build secrets', leaks.slice(0, 4).join(' | '));
 }
 
 /**
@@ -1776,6 +1950,8 @@ async function gateJoinFlow(id, town, wallRegion, before) {
   if (!stale?.region && /ARTIFACT_STALE/.test(staleText) && staleText.includes(`gate ${gt.id}`)) ok('gate walled up', staleText.slice(0, 160));
   else { fail('gate walled up', JSON.stringify(stale).slice(0, 260)); return null; }
   await across('minecraft:air');
+  // a solid block over a dirt path turns it to dirt on its next tick (then grass spreads): lay the gate's path again, as the wall wrote it
+  for (const was of ['minecraft:dirt', 'minecraft:grass_block']) await cmd(`/fill ${bx0} ${gt.y} ${bz0} ${bx1} ${gt.y} ${bz1} minecraft:dirt_path replace ${was}`);
   const p3 = await besideAsk(id, town, { check: false, opKey: `steward.${b2}.vplan2`, ext: kept });
   if (!p3?.planId) { fail('gate open again', `not planned: ${JSON.stringify(p3).slice(0, 260)}`); return null; }
   await away();
@@ -1901,7 +2077,7 @@ async function survivalFlow() {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     let sp = await ledger();
@@ -1994,7 +2170,7 @@ async function suppliedPlanFlow() {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     const half = (o) => Object.fromEntries(Object.entries(o ?? {}).map(([k, v]) => [k, Math.max(1, Math.floor(v / 2))]).filter(([, v]) => v > 0));
@@ -2386,7 +2562,7 @@ async function suppliedGrowthFlow() {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     // the feeder: what the stockpile's targets need, while feeding is on
     feeder = (async () => {
@@ -3212,7 +3388,7 @@ async function survivalMechFlow(form = 'lots') {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     // what only the gate takes, held back until the steward names it: the portcullis's redstone parts (billed crafted: GM-a2's bill), the swing's iron doors
@@ -3418,7 +3594,8 @@ async function wallLotsFlow() {
 
 /**
  * Architect's plan check (P0; docs/COMPOSITION.md): recorded plans checked round the player on fresh flat land, answered part by part. A plain village
- * is ready, with an artifact; the walled town's hidden cellar is unsupported, naming form.hidden_room (its wall fits: K1). The ready one is realised from its artifact and taken up again.
+ * is ready, with an artifact; the walled town's hidden cellar fits under its market hall (Architect HR), its entrance in the artifact's secrets only (its wall
+ * fits: K1). The ready one is realised from its artifact and taken up again.
  */
 async function planCheckFlow() {
   const n = settlements().length;
@@ -3438,10 +3615,11 @@ async function planCheckFlow() {
   const walled = await checked('walled_town', plan('plans/walled_town.json'));
   const cellar = walled?.parts?.find((x) => x.part === 'secret_cellar');
   const wall = walled?.parts?.find((x) => x.part === 'town_wall');
-  if (cellar?.class === 'unsupported' && cellar.block === 'form.hidden_room' && /fits|adjusted/.test(wall?.class ?? '')) {
-    ok('plan check unsupported', `the cellar: ${cellar.class} ${cellar.block}; the wall ${wall.class}; overall ${walled.overall}`);
+  // (Architect 0.64.0, HR) the cellar under the market hall fits (or is shrunk to fit); where it is goes to the artifact's secrets only
+  if (/fits|adjusted/.test(cellar?.class ?? '') && /fits|adjusted/.test(wall?.class ?? '') && walled.secrets >= 1 && !JSON.stringify(cellar).match(/"(cell|room|box)"/)) {
+    ok('plan check hidden room', `the cellar: ${cellar.class}; the wall ${wall.class}; overall ${walled.overall}; ${walled.secrets} secret in the artifact, none in the answer`);
   }
-  else fail('plan check unsupported', JSON.stringify(walled)?.slice(0, 300));
+  else fail('plan check hidden room', JSON.stringify(walled)?.slice(0, 300));
   let from = logSize();
   await cmd('/steward dev realise_plan market_town');
   const realised = await waitLog(from, /plan realised market_town (\S+)/, 120_000);
@@ -3475,7 +3653,7 @@ async function stubFlow(id) {
   // this settlement stays on Steward's own layout (additions, districts and the rest below rest on it); villageFlow builds one on Architect's flat village
   await cmd(`/steward dev layout ${id} legacy`);
   await cmd(`/steward dev sim_answer card ${fixture('stilt_village.json')}`);
-  // the plan Claude composes from the card (plan v0): a walled town (its wall fits, K1), whose hidden cellar waits for Architect (form.hidden_room, 7b)
+  // the plan Claude composes from the card (plan v0): a walled town (its wall fits, K1) with a hidden cellar under its market hall (form.hidden_room, HR)
   await cmd(`/steward dev sim_answer plan ${fixture('plans/walled_town.json')}`);
   let from = logSize();
   await cmd(`/steward describe ${id} a fishing village on stilts over a swamp`);
@@ -3486,10 +3664,15 @@ async function stubFlow(id) {
   // the kept plan's line (a repair round logs "round n" first)
   const composed = await waitLog(from, new RegExp(`plan for ${id}: ([A-Z_]+ after [^\n]*)`), 240_000);
   const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
-  const wallWaits = plans[id]?.pending?.find((x) => x.part === 'secret_cellar');
+  const cellarWaits = plans[id]?.pending?.find((x) => x.part === 'secret_cellar');
   const schemaBy = (logSince(from).match(/plan writer: the schema ([^\n(]*)/) ?? [0, '?'])[1].trim();
-  if (wallWaits?.block === 'form.hidden_room' && /Not yet: The hidden cellar/.test(logSince(from))) ok('composition', `${plans[id].overall} after ${plans[id].rounds} repair(s); the cellar waits on ${wallWaits.block}; the schema ${schemaBy}`);
-  else fail('composition', `${composed ? composed[1] : 'no plan'}; ${JSON.stringify(plans[id] ?? null)?.slice(0, 200)}`);
+  // (S-7c-4) the cellar fits and nothing says so: the summary's sentence naming it is gone, and the steward only hints
+  const planLines = logSince(from).split('\n').filter((l) => /\[CHAT\] \[[^\]]*\] (The plan: |Not yet: |There's more to it)/.test(l));
+  const hinted = planLines.some((l) => /There's more to it than it looks/.test(l));
+  const named = secretLeaks(id, from);
+  if (composed && !cellarWaits && hinted && named.length === 0 && /^A small walled market town/.test(plans[id]?.summary ?? '')) {
+    ok('composition', `${plans[id].overall} after ${plans[id].rounds} repair(s); the cellar unsaid (a hint only); the schema ${schemaBy}`);
+  } else fail('composition', `${composed ? composed[1] : 'no plan'}; hinted ${hinted}; leaks ${named.slice(0, 3).join(' | ')}; ${JSON.stringify(plans[id] ?? null)?.slice(0, 200)}`);
   // what waits for Architect, on the card before anything is spent: a stilt village over a swamp stands beside the water for now
   const limit = logSince(0).match(/Not yet: (Buildings over water[^\n]*)/);
   await closeScreens();
@@ -3839,12 +4022,27 @@ async function followFlow() {
 
 const started = Date.now();
 const skipped = [];
-/** Runs a flow when no --only is given or a word of it is in the flow's name or tags (`flow` lines name each, for a rerun of what failed). */
-async function flow(name, tags, fn) {
-  if (only && !only.some((w) => `${name} ${tags}`.toLowerCase().includes(w))) return skipped.push(name);
-  console.log(`flow ${name}`);
-  await clearAnimals();
-  await fn();
+const flows = [];
+let flowsRan = false;
+/**
+ * Names a flow; runFlows runs them in this order. `needs`: the earlier flows whose world this one builds on (districts needs the settlement proposals
+ * describes), pulled into an --only run that picks this flow.
+ */
+function flow(name, tags, fn, needs = []) {
+  if (flowsRan) throw new Error(`flow ${name} is named after runFlows (or inside a flow): it would never run`);
+  for (const n of needs) if (!flows.some((f) => f.name === n)) throw new Error(`flow ${name} needs ${n}, which is not named before it`);
+  flows.push({ name, tags, fn, needs });
+}
+/** Runs the named flows (`flow` lines name each, for a rerun of what failed; a pulled-in one says which flow needs it). */
+async function runFlows() {
+  flowsRan = true;
+  const why = pickFlows(flows, only);
+  for (const f of flows.splice(0)) {
+    if (!why.has(f.name)) { skipped.push(f.name); continue; }
+    console.log(`flow ${f.name}${why.get(f.name) ? ` (needed by ${why.get(f.name)})` : ''}`);
+    await clearAnimals();
+    await f.fn();
+  }
 }
 try {
   await preflight();
@@ -3862,11 +4060,13 @@ try {
     await expand(id);
     await flow('stone-recipe', 'screens', () => stoneRecipe());
     await flow('inbox', 'screens', () => inboxScreen());
+    await flow('shared-hud', 'screens inbox hud jobs', () => sharedHud());
     if (mode === 'free') {
       await flow('place', 'update revert undo screens', () => placeUpdateUndo(id));
       await flow('steward-life', 'sit sleep walk', () => stewardLife(id));
       await flow('proposals', 'farm', () => proposals(id));
-      await flow('districts', 'protect road layout', () => districts(id));
+      // districts builds on the settlement proposals describes (its own run alone says "Describe set_1 first")
+      await flow('districts', 'protect road layout', () => districts(id), ['proposals']);
       await flow('player-builds', 'protect', () => playerBuilds(id));
       await flow('talk', 'screens', () => talk(id));
     }
@@ -3906,9 +4106,11 @@ try {
       await flow('survival-mech-wall', 'survival gate wall mechanism swing gatemech bill refund', () => survivalMechFlow('wall'));
       await flow('drawbridge', 'bridge drawbridge gate moat water mechanism undo catalogue', () => gateMechFlow('drawbridge'));
       await flow('survival-drawbridge', 'survival bridge drawbridge gate moat water mechanism bill refund', () => survivalMechFlow('drawbridge'));
+      await flow('stock-save', 'stockpile supplied save', () => stockSaveFlow(), ['supplied-plan']);
     }
   }
   await flow('migrated-steward', 'save migration', () => migratedSteward());
+  await runFlows();
   await restartRestore();
 } catch (e) {
   fail('run', e.message);

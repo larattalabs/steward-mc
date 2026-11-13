@@ -30,7 +30,7 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
   - The manager sends every question, decision and end point for Noah to the parent session (`local_a69a2186-cbdd-40c1-bdf5-afdbf5a330cc`).
     Slice briefs go there too, to be put up as cards there, not proposed here.
   - Noah's answers relayed from the parent session, quoted as his words, are his decisions.
-- Phase 3 is in steps 3a-3f (`docs/PLAN.md`, "Order"). Each step ships on its own with unit tests and an e2e check, committed in coherent pieces.
+- Phase 5 is in slices M0-M5, then 5b's M7-M9 (`docs/MODULES.md` §8); earlier phases are in `docs/PLAN.md`, "Phases". Each step ships on its own with unit tests and an e2e check, committed in coherent pieces.
 - Architect changes are asked for, never made here: write the ask into `docs/ARCHITECT-ASKS.md` and send it to the Architect session. Steward never edits
   `../architect-mc` or `../lab-ui`.
 - Branch work happens in a worktree under `../_work/` (`git worktree add ../_work/steward-<name> <branch>` from this checkout), never in `/tmp` or the
@@ -49,11 +49,11 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 ## Build and test
 
 - **Java:** from `mod/`, `JAVA_HOME=/opt/homebrew/opt/openjdk@25 GRADLE_USER_HOME=$PWD/../.gradle-home ./gradlew build --offline` (compile, unit tests, jar).
-  Architect and lab-ui come from Maven Local (`./gradlew publishToMavenLocal` in each) or GitHub Packages (a token with `read:packages`).
+  Architect comes from GitHub Packages (a token with `read:packages`, cached in `.gradle-home` for offline builds), never Maven Local; a release candidate is checked with `ARCHITECT_JAR`. lab-ui comes from a clean `../lab-ui` checkout at its release tag (settings.gradle), else GitHub Packages.
 - **Tools:** `npm test` (the concept card and talk schemas against the fixtures).
 - **End to end ($0):** `node tools/e2e.mjs free`, after the jar is built (`--only word,word`: only the flows whose name or tags hold a word, plus the sanity set). It runs its own client and checks the claim, the steward (its nameplate, bubble and "!"), Expand,
   the screens, an update (the steward walks to it), revert, undo, the steward sitting and sleeping, proposals, a protected area and a district with its road, talking to the steward, a migrated old steward and a restored build; results in `artifacts/e2e/summary.json`, screenshots in `artifacts/shots/`. It refuses
-  to start while the claude-login opt-in exists or another Steward client uses `mod/run`. `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's sim helper (v0.12.2; `mod/DEV.md`).
+  to start while the claude-login opt-in exists or another Steward client uses `mod/run`. `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's sim helper (`mod/DEV.md`).
 - **Art:** `uv run --with pillow==11.3.0 python assets-src/build.py --verify`, then `--sync` to copy into the mod.
 - **Dev client:** `./gradlew runClient --offline` from `mod/`; drive it with `node ../architect-mc/tools/devcli.mjs ... --port 8491` and
   `ARCHITECT_GAME_DIR=$PWD/run` (`mod/DEV.md`).
@@ -62,7 +62,7 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 
 - Steward dev client: 8490 (Architect sidecar) / 8491 (DevBridge); override with `STEWARD_PORT` / `STEWARD_DEV_PORT`.
 - Steward e2e client: 8590 / 8591 (`tools/run-e2e-client.sh`).
-- Architect gate runners: 8890-8905; Architect agents: 8960-8989. AgentCraft Foreman: 7880 and 7890-7909.
+- Architect's ports: see `../architect-mc/docs/GATES.md`, its port table (gate runners, slice pairs, turbo). Steward uses only 8490-8491 and 8590-8601.
 
 ## Hard rules
 

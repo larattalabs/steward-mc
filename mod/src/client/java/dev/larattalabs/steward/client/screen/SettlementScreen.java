@@ -69,7 +69,7 @@ public final class SettlementScreen extends KitScreen {
 		int top = y + pad.top();
 		String sub = UiBits.plural(view.buildings().size(), "building", "buildings") + " · " + view.claim().side() + " x " + view.claim().side()
 			+ (view.busy() ? " · building now" : "");
-		header(g, view.name(), sub, UiBits.muted(), cx - 2, top - 2, inner + 4);
+		Panels.header(g, font, view.name(), sub, UiBits.muted(), cx - 2, top - 2, inner + 4);
 		// tabs
 		int ty = top + 16;
 		int tx = cx;
@@ -151,7 +151,7 @@ public final class SettlementScreen extends KitScreen {
 			boolean hov = mx >= x && mx < x + lw && my >= ry - 2 && my < ry + ROW_H - 2;
 			if (hov) {
 				hovered = b.siteId();
-				g.fill(x + 2, ry - 2, x + lw - 2, ry + ROW_H - 3, 0x14000000);
+				Panels.hoverRow(g, x + 2, ry - 2, lw - 4, ROW_H - 1);
 			}
 			String[] st = state(b);
 			Panels.dot(g, st[0], x + 5, ry + 1, false);
@@ -188,10 +188,11 @@ public final class SettlementScreen extends KitScreen {
 		int ox = x + size / 2, oy = y + size / 2;
 		if (half >= c.radius()) {
 			int r = (int) (c.radius() * scale);
-			g.fill(ox - r, oy - r, ox + r, oy - r + 1, 0x60B4553A);
-			g.fill(ox - r, oy + r - 1, ox + r, oy + r, 0x60B4553A);
-			g.fill(ox - r, oy - r, ox - r + 1, oy + r, 0x60B4553A);
-			g.fill(ox + r - 1, oy - r, ox + r, oy + r, 0x60B4553A);
+			int claimEdge = UiStyle.withAlpha(UiStyle.CLAY_DARK, 0x60);
+			g.fill(ox - r, oy - r, ox + r, oy - r + 1, claimEdge);
+			g.fill(ox - r, oy + r - 1, ox + r, oy + r, claimEdge);
+			g.fill(ox - r, oy - r, ox - r + 1, oy + r, claimEdge);
+			g.fill(ox + r - 1, oy - r, ox + r, oy + r, claimEdge);
 		}
 		for (Building b : view.buildings()) {
 			int x0 = ox + (int) Math.floor((b.minX() - c.centerX()) * scale), x1 = ox + (int) Math.ceil((b.maxX() + 1 - c.centerX()) * scale);
@@ -203,7 +204,7 @@ public final class SettlementScreen extends KitScreen {
 				case "waiting" -> UiStyle.CLAY;
 				case "working" -> UiStyle.BRASS;
 				case "done" -> UiStyle.SAGE;
-				default -> 0xFFA39B8E;
+				default -> UiStyle.color("paper.disabled");
 			};
 			boolean hov = b.siteId().equals(hovered) || (mx >= x0 && mx < x1 && my >= z0 && my < z1);
 			if (hov) hovered = b.siteId();
