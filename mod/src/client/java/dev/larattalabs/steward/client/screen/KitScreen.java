@@ -1,9 +1,9 @@
 package dev.larattalabs.steward.client.screen;
 
 import dev.larattalabs.labui.client.hud.UiBits;
-import dev.larattalabs.steward.client.text.TextFieldView;
-import dev.larattalabs.steward.client.text.TextKeys;
-import dev.larattalabs.steward.client.text.TextModel;
+import dev.larattalabs.labui.client.text.TextFieldView;
+import dev.larattalabs.labui.client.text.TextKeys;
+import dev.larattalabs.labui.client.text.TextModel;
 import dev.larattalabs.labui.client.ui.Kit;
 import dev.larattalabs.labui.client.ui.Panels;
 import dev.larattalabs.labui.client.ui.UiStyle;
@@ -89,8 +89,8 @@ public abstract class KitScreen extends Screen {
 		dev.larattalabs.labui.client.ui.Panels.sprite(g, on ? dev.larattalabs.labui.client.ui.Kit.TAB_ACTIVE : dev.larattalabs.labui.client.ui.Kit.TAB_INACTIVE, x, y, w,
 			CHIP_H, enabled ? 0xFFFFFFFF : 0x90FFFFFF);
 		boolean hover = enabled && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + CHIP_H;
-		if (hover && !on) g.fill(x + 1, y + 1, x + w - 1, y + CHIP_H - 1, 0x14000000);
-		g.text(font, label, x + 6, y + 3, !enabled ? 0xFFA39B8E : UiBits.ink(), false);
+		if (hover && !on) g.fill(x + 1, y + 1, x + w - 1, y + CHIP_H - 1, UiStyle.rowHover());
+		g.text(font, label, x + 6, y + 3, !enabled ? UiStyle.color("paper.disabled") : UiBits.ink(), false);
 		buttons.add(new Btn(label, 0, false, false, enabled, x, y, w, CHIP_H, action));
 		return w;
 	}
@@ -142,35 +142,9 @@ public abstract class KitScreen extends Screen {
 		return new dev.larattalabs.labui.client.widget.Chip(label).width(font);
 	}
 
-	/**
-	 * Text for what is blocked on the player: lab-ui's {@code semantic.clay_text} (UiStyle.clayText()) (#9A3F27, at least 4.5:1 on paper, the inset and the selected fill)
-	 * once the lab-ui release after 0.4.0 carries it, the same colour until then. Clay ({@code UiStyle.CLAY_DARK}) as text was 3.76:1 on the inset.
-	 */
+	/** Text for what is blocked on the player: lab-ui's {@link UiStyle#clayText()} (#9A3F27, at least 4.5:1 on paper, the inset and the selected fill). */
 	protected static int attention() {
-		return UiStyle.color("semantic.clay_text", 0xFF9A3F27);
-	}
-
-	/**
-	 * The kit header with a right-aligned meta line on the title's own baseline (the meta used to sit 2 px above it). The same as lab-ui's
-	 * {@code Panels.header(g, font, title, meta, argb, x, y, w)} in the release after 0.4.0; switch to it then.
-	 */
-	protected void header(GuiGraphicsExtractor g, String title, String meta, int metaArgb, int x, int y, int w) {
-		Kit.Padding p = Kit.padding("header");
-		int mw = meta == null || meta.isEmpty() ? 0 : font.width(meta);
-		Panels.header(g, font, dev.larattalabs.labui.client.ui.TextUtil.ellipsize(font, title, Math.max(0, w - p.left() - 2 - (mw > 0 ? mw + 8 : 0))), x, y, w);
-		// the meta's right edge on the content's (callers draw the strip 2 px past their content on each side), as before
-		if (mw > 0) g.text(font, meta, x + w - 2 - mw, y + p.top() + 1, metaArgb, false);
-	}
-
-	/** A selected list row: the kit's selected fill with a 2 px clay bar at the left (muted text stays 4.8:1 on it; the old clay wash left it 3.95:1). */
-	protected static void selectedRow(GuiGraphicsExtractor g, int x, int y, int w, int h) {
-		g.fill(x, y, x + w, y + h, UiStyle.selected());
-		g.fill(x, y, x + 2, y + h, UiStyle.selectedEdge());
-	}
-
-	/** A hovered list row: the kit's hover fill. */
-	protected static void hoverRow(GuiGraphicsExtractor g, int x, int y, int w, int h) {
-		g.fill(x, y, x + w, y + h, UiStyle.rowHover());
+		return UiStyle.clayText();
 	}
 
 	/** The hint for the number keys drawn this frame: "2-3", "1", or null when none is. */

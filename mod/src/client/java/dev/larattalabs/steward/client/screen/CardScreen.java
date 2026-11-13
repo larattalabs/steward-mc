@@ -3,9 +3,9 @@ package dev.larattalabs.steward.client.screen;
 import com.google.gson.JsonParser;
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.larattalabs.labui.client.hud.UiBits;
-import dev.larattalabs.steward.client.text.TextFieldView;
-import dev.larattalabs.steward.client.text.TextKeys;
-import dev.larattalabs.steward.client.text.TextModel;
+import dev.larattalabs.labui.client.text.TextFieldView;
+import dev.larattalabs.labui.client.text.TextKeys;
+import dev.larattalabs.labui.client.text.TextModel;
 import dev.larattalabs.labui.client.ui.Kit;
 import dev.larattalabs.labui.client.ui.Panels;
 import dev.larattalabs.labui.client.ui.TextUtil;
@@ -292,7 +292,7 @@ public final class CardScreen extends KitScreen {
 		int top = y + pad.top();
 		int side = dev.larattalabs.steward.model.ClaimRules.side(payload.claimRadius());
 		String meta = "claim " + side + "×" + side + " (" + dev.larattalabs.steward.model.ClaimRules.sizeOf(payload.claimRadius()) + ") · terrain " + card.site().terrain();
-		header(g, payload.name(), meta, UiBits.muted(), cx - 2, top - 2, inner + 4);
+		Panels.header(g, font, payload.name(), meta, UiBits.muted(), cx - 2, top - 2, inner + 4);
 		int bodyTop = top + 18;
 		int controlsTop = y + h - pad.bottom() - controlsH;
 		int bodyBottom = controlsTop;
@@ -391,7 +391,7 @@ public final class CardScreen extends KitScreen {
 				if (below > 0) {
 					String more = "+" + below + " more (scroll)";
 					int mw = font.width(more) + 8;
-					g.fill(rx + colW - mw - 10, ry + listH - 12, rx + colW - 10, ry + listH - 2, 0xE0E9E1D3);
+					g.fill(rx + colW - mw - 10, ry + listH - 12, rx + colW - 10, ry + listH - 2, UiStyle.withAlpha(UiStyle.PAPER, 0xE0));
 					g.text(font, more, rx + colW - mw - 6, ry + listH - 11, attention(), false);
 				}
 			}
