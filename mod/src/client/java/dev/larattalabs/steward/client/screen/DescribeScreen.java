@@ -1,8 +1,8 @@
 package dev.larattalabs.steward.client.screen;
 
 import dev.larattalabs.labui.client.hud.UiBits;
-import dev.larattalabs.steward.client.text.TextFieldView;
-import dev.larattalabs.steward.client.text.TextModel;
+import dev.larattalabs.labui.client.text.TextFieldView;
+import dev.larattalabs.labui.client.text.TextModel;
 import dev.larattalabs.labui.client.ui.Kit;
 import dev.larattalabs.labui.client.ui.Panels;
 import dev.larattalabs.labui.client.ui.TextUtil;

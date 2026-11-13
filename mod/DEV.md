@@ -471,3 +471,26 @@ on the fixture module `fixture_plot@1` (2 sides x 2 crops x 3 Styles) with `tool
   re-certified (the versions of an unchanged certificate are kept). Ingame again: PASS 20 in 40 s; recorded.
 - **Unit:** `ModuleCatalogTest`, `PaletteCheckTest`, `ModuleRefTest`, `BuildStoreFormat5Test`, SaveCompatTest's format-4 growth file
   (`fixtures/saves/v6`); all of `build` passes (402).
+
+### S-J4 and S-kit: Steward on lab-ui's shared HUD (2026-11-13, $0)
+Steward publishes its inbox into lab-ui 0.4.1's Jobs & spend panel (`inbox/InboxJobs`): a build's row is the settlement's Architect owner
+(`steward_mc:settlement/<id>`), so the Architect jobs it owns fold under it, and updates and ideas get rows of their own. StewardHud's line at
+(6, 6) is gone in favour of the shared needs-you pill, and Steward's toast copy and `ToastStack` in favour of lab-ui's one stack. Each toast
+carries its build's row as its `ref`, so K opens the panel on that row. Steward publishes **no ledger**: Architect's ledger already lists every
+Steward-owned sidecar job and credits it to `steward_mc` by owner, so entries under any other id would count the same spend twice. S-kit swaps
+in lab-ui's `clayText()`, `placeholder()`, `Panels.header` with meta and `selectedRow`/`hoverRow`, plus its text classes and `UiRules`. The map's
+raw hex becomes tokens (`CLAY_DARK` at 0x60, `paper.disabled`).
+- **e2e** (ports 8600/8601): the new `shared-hud` flow (tags `screens inbox hud jobs`) checks:
+  - Steward rows in `JobBoard.json()`;
+  - the pill counting both mods;
+  - exactly one `lab_ui:jobs_pill` slot in TOP_LEFT, and no `steward_mc:*` HUD element;
+  - Steward's toasts in the one stack beside an Architect toast;
+  - pictures `e2e-shared-hud`, `e2e-jobs-panel`.
+
+  In stub mode it also waits for a real Architect massing (sim helper).
+- **Runs:**
+  - `free --only screens,inbox`: PASS 30.
+  - `stub --only hud`: PASS 15 ("4 jobs need you": Steward's 2 and Architect's massings; today `{"architect_mc": 0.38}`, sim costs).
+  - The first stub toast check failed because Architect's massing bar is an avoided rect, so the column ended above it and Steward's toasts
+    waited under "+3 more". The check now counts the stack, not only the toasts on screen.
+- **Unit:** `InboxJobsTest` (6).

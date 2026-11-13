@@ -1,7 +1,7 @@
 package dev.larattalabs.steward.client.ui;
 
 import dev.larattalabs.steward.client.ClientEnv;
-import dev.larattalabs.steward.ui.UiRules;
+import dev.larattalabs.labui.ui.UiRules;
 import org.jspecify.annotations.Nullable;
 
 /**
