@@ -1,6 +1,8 @@
 # Functional modules (phase 5)
 
-Status: design v2.2, 2026-11-12, with Noah's decisions. $0: no code and no paid runs. It builds after survival growth A2.
+Status (2026-11-13): design v2.2 (2026-11-12, with Noah's decisions), being built at $0. **M0** (the probe, `docs/PROBE-M0.md`) and **M1** (the
+catalog) are merged; **M2** (the crop farm) and **M3** (offer and place) are being built, M3 ahead of M2 on M1's fixture module by design, and M2
+merges first (Noah, 2026-11-13). M4 waits on Architect's FK (S-M5-3), then M5. Section 9 holds the decisions that override the earlier sections.
 - Noah asked on 2026-11-12 for the design to start now.
 - **Scope, as Noah set it on 2026-11-12** (PLAN Decisions):
   - **Phase 5, the first catalog:** a crop farm and a storage hall with sorting, the "You have seeds" offer, and two modules composed into a

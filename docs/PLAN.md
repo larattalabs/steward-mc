@@ -9,6 +9,13 @@ It is a **sibling mod to Architect** (`larattalabs/architect-mc`). Architect is 
 construction engine. Steward is the director on top: concept, site, layout, a standing NPC, proactive upgrades,
 functional modules, villagers, animals, an inbox. Steward depends on Architect and does not copy it.
 
+Status (2026-11-13): **phases 1-4 are built** (phase 3's perception, proposals, change requests, screens and districts; phase 4's survival stockpile and
+billing), with growth after them: region towns grow through Architect revisions (A, A2 in survival), old street towns are adopted (B), copies follow
+their source, and the land check. **Phase 5 is under way** (`docs/MODULES.md`): M0 (the vanilla probe) and M1 (the catalog) merged; M2 (the crop
+farm) and M3 (offer and place) are being built; M4 (the storage hall) waits on Architect's FK, then M5. Steward pins Architect 0.63.0; 0.64.0 (7c's
+first RC) is held for Steward's secrets slice (S-7c-4). Process: the manager session runs the queue, and each slice is its own session (AGENTS.md).
+The rest of this status is the 2026-10-11 snapshot, kept as history.
+
 Status (2026-10-11): written 2026-10-05; **phase 1 is done** (gate passed, Noah). The hardening slice from the GPT reviews is done. **Phase 3 is under way:**
 - **3a: done.** The change log as operations, save migrations, the settlement screen, and a read-only building panel.
 - **3b: done** (conversation 2026-10-10: right-click the steward to talk; small talk is answered for free, anything else by a talk job of a few cents that replies and can put a building or a district in the inbox, or note a change). The steward is its own mob with its own skin. It walks to its work and comes to find you when a decision waits. It sits and sleeps. It has a nameplate, a "!" and speech bubbles, ported from AgentCraft onto lab-ui.
@@ -24,7 +31,7 @@ Status (2026-10-11): written 2026-10-05; **phase 1 is done** (gate passed, Noah)
 
 - **Architect's flat village (V): done** (2026-10-11, on Architect 0.17.0, slice X). A new Patron settlement on flat Overworld ground is laid out and placed by Architect: its lots, lanes, square and props. Its buildings are Steward's designs, tagged with their roles. Plan and realise are keyed, cancel works like undo, and a world-start sweep takes up any village no build holds. Three GPT review rounds; the REMOVING busy check waits for Architect 0.17.1 (C23).
 
-The free e2e check runs 34 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper) runs the whole paid flow at $0: 21 checks on v0.12.2, and 22 on Architect's 0b release candidate, which adds a change request designed, applied and reverted.
+The free e2e check runs 34 checks, with a screenshot of each in-world piece. The stub check (Architect's sim helper) runs the whole paid flow at $0 (in 2026-10: 21 checks on v0.12.2, 22 on Architect's 0b RC; today well over a hundred over some thirty flows; `mod/DEV.md`).
 
 ## Principles
 
