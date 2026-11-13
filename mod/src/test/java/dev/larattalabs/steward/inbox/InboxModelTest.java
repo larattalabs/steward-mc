@@ -84,4 +84,14 @@ class InboxModelTest {
 		assertEquals(0, BudgetPolicy.landmarksFor("L", 12, 0), "only flagged buildings");
 		assertEquals(1, BudgetPolicy.maxLandmarks("S", 2), "at least one");
 	}
+
+	@Test
+	void aModuleOffersWholeBillIsALineOfItsOwnNeverCutByItsRow() {
+		String why = "You carry wheat seeds. I can lay a watered, lit field by the town (11 by 12). Planting it takes 74 wheat seeds from the stockpile. "
+			+ InboxModel.BILL + "210 dirt, 74 wheat seeds, 43 crimson fence, 41 blackstone, 12 coarse dirt, 7 beacon, 1 chest, 1 composter, 1 crimson fence gate."
+			+ " It's lit by plain lanterns.";
+		var e = InboxModel.proposals("s", "Town", java.util.List.of(new InboxModel.Lot("module.crop_farm", "Crop farm", "proposal", false, true, "$0 · at most 210 dirt · " + why),
+			new InboxModel.Lot("farm", "Farm", "proposal", false, true, "about $1 · a farm")));
+		assertEquals(java.util.List.of("Crop farm: " + InboxModel.BILL + "210 dirt, 74 wheat seeds, 43 crimson fence, 41 blackstone, 12 coarse dirt, 7 beacon, 1 chest, 1 composter, 1 crimson fence gate."), e.lines());
+	}
 }

@@ -4566,6 +4566,13 @@ async function moduleSurvivalFlow() {
     if (offer2.module?.params?.width === 9 && offer2.module?.params?.depth === 9 && Object.keys(bound2).length && own.length && /at most/.test(offer2.why) && !unshown.length)
       ok(`${lbl} offer`, `the bound in the town's blocks: ${JSON.stringify(bound2)} (its own: ${own.join(', ')}; the measured Styles' it doesn't name: ${theirs.join(', ') || 'none'})`);
     else return fail(`${lbl} offer`, `${JSON.stringify(offer2).slice(0, 400)}; items of its own ${own.join(', ')}; not shown ${unshown.join(', ')}`);
+    // the inbox shows the whole bill as its own wrapped line (the row cuts the offer's words): a shot for the design check
+    await cmd(`/steward ui inbox ${id}`);
+    await sleep(1500);
+    const inboxShot2 = (await dev.request('dev.screenshot', { name: 'e2e-module-offer-inbox', frames: 5 }, { timeoutMs: 120_000 }).catch(() => ({}))).path ?? '';
+    await dev.request('dev.key', { key: 'escape' }).catch(() => null);
+    await sleep(800);
+    ok(`${lbl} inbox`, `shot ${inboxShot2 || 'none'}`);
     // stocked with the bound (twice, the seeds as they are: the refund put them back), so nothing waits and nothing is heavy
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound2).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
     const sq0 = await ledger();
