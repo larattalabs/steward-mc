@@ -57,8 +57,7 @@ public final class SettlementScreen extends KitScreen {
 		selected = was.selected != null && view.building(was.selected) != null ? was.selected : null;
 		districtName.set(was.districtName.value());
 		districtSize = was.districtSize;
-		status = was.status;
-		statusError = was.statusError;
+		// the status line is not kept: "Undoing..." would outstay the undo (its lines are in the chat)
 	}
 
 	/** Shows this screen, or the panel of {@code siteId} on it when that building still stands (a refresh while the panel was open). */
@@ -160,14 +159,14 @@ public final class SettlementScreen extends KitScreen {
 			case HISTORY -> {
 				var u = view.undo();
 				boolean can = u != null && !view.busy();
-				if (u == null) why.add("Nothing to undo.");
-				else if (view.busy()) why.add("Undo once the build is done or cancelled.");
-				String label = confirmUndo && can ? "Really undo it?" : "Undo the newest";
+				if (u == null) why.add("Undo: nothing to undo.");
+				else if (view.busy()) why.add("Undo: once the build is done.");
+				String label = confirmUndo && can ? "Really undo it?" : "Undo last project";
 				bx += button(g, label, 1, false, confirmUndo && can, can, bx, y, mx, my, () -> {
 					// asks twice: an undo takes the project up and restores the land (the command's own path once confirmed)
 					if (!confirmUndo) {
 						confirmUndo = true;
-						say("Undo takes up " + kindLabel(u.kind()).toLowerCase(java.util.Locale.ROOT) + ": \"" + u.text() + "\". Press again to undo it.", false);
+						say("Undo \"" + u.text() + "\" (the marked row)? Press 1 again.", false);
 						return;
 					}
 					confirmUndo = false;
@@ -176,13 +175,13 @@ public final class SettlementScreen extends KitScreen {
 			}
 			case CLAIM -> {
 				bx += button(g, "Expand the claim", 1, true, false, !view.busy(), bx, y, mx, my, () -> send("expand", "settlement", "Expanding")) + 6;
-				if (view.busy()) why.add("Expand once the build is done.");
+				if (view.busy()) why.add("Expand: once the build is done.");
 				bx += button(g, "Check the land", 4, false, false, true, bx, y, mx, my, () -> send("land_check", "settlement", "The steward looks over the land")) + 6;
 			}
 			case SETTINGS -> {
 			}
 		}
-		if (!view.described()) why.add("Card: describe the settlement first (talk to its steward).");
+		if (!view.described()) why.add("Card: describe it first.");
 		int inboxW = buttonWidth("Inbox", 3), cardW = buttonWidth("Card", 2);
 		int ix = x + w - inboxW, cardX = ix - 6 - cardW;
 		button(g, "Card", 2, false, false, view.described(), cardX, y, mx, my, () -> send("card", "", "Opening the card"));
@@ -190,11 +189,10 @@ public final class SettlementScreen extends KitScreen {
 			if (minecraft != null) minecraft.gui.setScreen(new InboxScreen(view.id()));
 		});
 		int room = cardX - 8 - bx;
+		// one line per button that is off, each named ("Card: describe it first.")
 		if (!why.isEmpty() && room > 30) {
-			List<String> lines = TextUtil.wrapPlain(font, String.join(" ", why), room);
-			int ly = lines.size() > 1 ? y + 1 : y + 6;
-			for (int i = 0; i < Math.min(2, lines.size()); i++) g.text(font, i == 1 && lines.size() > 2 ? TextUtil.ellipsize(font, lines.get(1) + "...", room) : lines.get(i), bx + 2,
-				ly + i * 10, UiBits.muted(), false);
+			int ly = why.size() > 1 ? y + 1 : y + 6;
+			for (int i = 0; i < Math.min(2, why.size()); i++) g.text(font, TextUtil.ellipsize(font, why.get(i), room), bx + 2, ly + i * 10, UiBits.muted(), false);
 		}
 	}
 
@@ -282,7 +280,7 @@ public final class SettlementScreen extends KitScreen {
 
 	/** What the map's marks mean, in two columns of three under it: the four states, the claim's edge and the stone. */
 	private void drawLegend(GuiGraphicsExtractor g, int x, int y, int w) {
-		String[][] items = {{"done", "built"}, {"working", "building"}, {"waiting", "update"}, {"idle", "idle"}, {"claim", "claim edge"}, {"stone", "stone"}};
+		String[][] items = {{"done", "built"}, {"working", "building"}, {"waiting", "update"}, {"idle", "idle"}, {"claim", "claim"}, {"stone", "stone"}};
 		int col = w / 2;
 		for (int i = 0; i < items.length; i++) {
 			int ix = x + (i % 2) * col, iy = y + (i / 2) * 11;
@@ -444,7 +442,7 @@ public final class SettlementScreen extends KitScreen {
 		int cbw = optionWidth(claimLabel);
 		rows.add(new Row(ROW_BUTTON_H + 2, ry -> {
 			g.text(font, "Hand-built", fx, ry + 5, UiBits.muted(), false);
-			String what = view.playerBuilds().isEmpty() ? "None found. Stand in an older one to claim it." : "Kept as built.";
+			String what = view.playerBuilds().isEmpty() ? "None tracked. Built one before? Stand in it and claim it." : "Kept as built.";
 			g.text(font, TextUtil.ellipsize(font, what, fw - 90 - cbw - 6), lx, ry + 5, UiBits.ink(), false);
 			option(g, claimLabel, x + w - 8 - cbw, ry, false, true, mx, my, () -> send("build_claim", "", "Claiming the build you stand in", CLAIM_REACH));
 		}));

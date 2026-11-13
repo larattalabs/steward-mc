@@ -112,8 +112,9 @@ public final class BuildingScreen extends KitScreen {
 		if (revertTo > 0) {
 			// asks twice: a revert rewrites the building (your own edits are kept)
 			boolean can = !b.updating() && !view.busy();
-			if (revertTo > 1) bx += option(g, "<", bx, actionsY + 1, false, can, mouseX, mouseY, () -> pick(-1)) + 2;
-			String label = confirmRevert ? "Really go back to v" + revertTo + "?" : "Back to version " + revertTo;
+			// a stepper that stays put: < and > always drawn, off at the ends
+			bx += option(g, "<", bx, actionsY + 1, false, can && revertTo > 1, mouseX, mouseY, () -> pick(-1)) + 2;
+			String label = confirmRevert ? "Really go back to v" + revertTo + "?" : "Back to v" + revertTo;
 			bx += button(g, label, 3, false, confirmRevert, can, bx, actionsY, mouseX, mouseY, () -> {
 				if (!confirmRevert) {
 					confirmRevert = true;
@@ -123,7 +124,7 @@ public final class BuildingScreen extends KitScreen {
 				ClientPlayNetworking.send(new StewardNet.Decide(view.id(), "revert", b.siteId(), "", revertTo));
 				say("Going back to version " + revertTo + "...", false);
 			}) + 2;
-			if (revertTo < b.version() - 1) bx += option(g, ">", bx, actionsY + 1, false, can, mouseX, mouseY, () -> pick(1)) + 2;
+			bx += option(g, ">", bx, actionsY + 1, false, can && revertTo < b.version() - 1, mouseX, mouseY, () -> pick(1)) + 2;
 			if (!can) {
 				String why = b.updating() ? "It is being updated." : "Revert once the build is done or cancelled.";
 				g.text(font, TextUtil.ellipsize(font, why, x + w - pad.right() - bx - 6), bx + 6, actionsY + 6, UiBits.muted(), false);
