@@ -1,0 +1,18 @@
+{
+  "id": "fixture_plot",
+  "version": 1,
+  "fixture": true,
+  "programSha": "f613be4e32994935130a72d7ac0cbeb191d5938ce3ebc1fcf66745da0bc0507e",
+  "minecraft": "26.3",
+  "architect": ["0.62.0"],
+  "kit": "0.57.0",
+  "checker": "0.57.0",
+  "what": "A fixture: no function is measured. M1 checks the catalog's shape: every branch of the envelope re-skinned by each of its three bibles and checked clean by Architect's checker, offline on the pinned kit and in game through Designs.fromProgram / variant at $0 (tools/module-catalog.mjs).",
+  "bars": {
+    "branches": "every branch x bible: installed, the checker clean (no error)",
+    "lamp": "a lamp role under light 14: the fallback lantern, said",
+    "gravity": "a gravity block on a core role: refused",
+    "reserved": "the lot's reserved cells left open"
+  },
+  "runs": 1
+}

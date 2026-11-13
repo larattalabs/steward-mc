@@ -1,0 +1,22 @@
+{
+  "id": "fixture_plot",
+  "version": 1,
+  "title": "Fixture plot (catalog test data)",
+  "fixture": true,
+  "programSha": "f613be4e32994935130a72d7ac0cbeb191d5938ce3ebc1fcf66745da0bc0507e",
+  "params": {
+    "side": { "type": "int", "min": 5, "max": 9, "default": 5, "label": "Field side" },
+    "crop": { "type": "enum", "options": ["wheat", "beetroots"], "default": "wheat", "label": "Crop" }
+  },
+  "envelope": {
+    "branches": { "side": [5, 9], "crop": ["wheat", "beetroots"] },
+    "facings": ["north", "east", "south", "west"],
+    "bibles": ["rustic", "fortress", "desert"]
+  },
+  "palette": {
+    "lamp": { "role": "light", "minLight": 14, "fallback": "minecraft:lantern" },
+    "noGravity": ["path", "frame"],
+    "nonConductive": []
+  },
+  "pins": { "kit": "0.57.0", "checker": "0.57.0" }
+}
