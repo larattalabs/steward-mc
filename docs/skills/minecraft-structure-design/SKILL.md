@@ -91,6 +91,8 @@ problem left that a player would notice, not when you run out of ideas.
 - [ ] On a site, inside `site.size` on any land: storeys and the roof are sized from the lot's height, and every coordinate derived
   from the land is clamped to `0 .. site.size.x/y/z - 1`. A site variant re-runs the program on taller or differently shaped land;
   build fewer storeys or a lower roof rather than writing outside the lot (Architect PLAYBOOK §7, PA).
+- [ ] On a site, every side-facing walk port (`architect:walk`, not a hatch) has its feet at the site hint's y exactly (x and z may move
+  within 2); build the deck or floor under it to that height, never move the port to your floor (Architect PLAYBOOK §7, WL).
 - [ ] Final summary is one line.
 
 ## 5. Common failures and fixes
@@ -107,6 +109,7 @@ problem left that a player would notice, not when you run out of ideas.
 | Palette swap looks wrong | literal blocks | read from the palette; check a second preset |
 | Size error | forgot overhang/chimney/garden | budget them in the plan; trim the footprint, not the quality |
 | A site variant refuses `site_bound`: the design threw "set(...) outside size" | a height or position derived from the land, unclamped | clamp derived coordinates to `site.size`; fewer storeys or a lower roof on taller land |
+| `ports_met: walk port '...' has its feet at y A, not the hint's y B` | the walk port follows a floor one or two rows off the hint | raise or lower that floor (or a landing at the port) to y B and put the port there |
 
 ## 6. Style and proportion rules of thumb
 
