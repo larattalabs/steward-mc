@@ -8,6 +8,7 @@ import dev.larattalabs.architect.api.BlockSize;
 import dev.larattalabs.architect.api.LotSpec;
 import dev.larattalabs.steward.module.Canon;
 import dev.larattalabs.steward.module.ModuleBinding;
+import dev.larattalabs.steward.module.ModuleInstalls;
 import dev.larattalabs.steward.module.ModuleOrder;
 import java.util.Map;
 import net.minecraft.core.Direction;
@@ -98,6 +99,19 @@ class ModulePlacementTest {
 		assertNotNull(ModulePlacement.quoteCheck(false, java.util.List.of()).ask(), "inexact for no reason given: asked");
 		var masked = ModulePlacement.quoteCheck(false, java.util.List.of("fluids: a lava bucket per lava source (an upper bound)", "something new Architect says"));
 		assertNotNull(masked.ask(), "the fluids' bound never masks an unknown reason");
+	}
+
+	@Test
+	void aLostVariantAnswerIsAskedAgainButARefusalIsNot() {
+		var timeout = new ModuleInstalls.Outcome(null, "error", "java.util.concurrent.TimeoutException", java.util.List.of(), null, null, null, false);
+		assertTrue(SettlementRunner.lostAnswer(null, timeout));
+		assertTrue(SettlementRunner.lostAnswer(new java.util.concurrent.CompletionException(new java.util.concurrent.TimeoutException()), null));
+		var helperGone = new ModuleInstalls.Outcome(null, "sidecar_unavailable", "the helper is not connected", java.util.List.of(), null, null, null, false);
+		assertTrue(SettlementRunner.lostAnswer(null, helperGone));
+		var palette = new ModuleInstalls.Outcome(null, "palette", "fixture_plot@1 can't take the style", java.util.List.of(), null, null, null, false);
+		assertFalse(SettlementRunner.lostAnswer(null, palette), "a refusal is definitive");
+		var program = new ModuleInstalls.Outcome(null, "program", "palette: refuses", java.util.List.of("x: y"), null, null, null, false);
+		assertFalse(SettlementRunner.lostAnswer(null, program));
 	}
 
 	@Test

@@ -2430,6 +2430,14 @@ public final class SettlementRunner {
 					if (!placingModules(session)) { moduleBusy = false; return; }
 					if (err2 != null || o == null || !o.ok()) {
 						moduleBusy = false;
+						// a lost or late answer is not a refusal: the variant may still be made, and its key finds it, so it is asked again (bounded)
+						if (lostAnswer(err2, o) && moduleRetries++ < MODULE_RETRIES) {
+							Steward.LOGGER.info("module {} lot {}: no answer for {} ({}), asking again by its key", settlement.id(), lotId, bound.opKey(), o == null ? message(err2) : o.message());
+							java.util.concurrent.CompletableFuture.delayedExecutor(5, java.util.concurrent.TimeUnit.SECONDS).execute(() -> server.execute(() -> {
+								if (placingModules(session)) realiseVillage();
+							}));
+							return;
+						}
 						say("Not placed: the module couldn't be made for its lot (" + (o == null ? message(err2) : o.message()) + "). Nothing was placed.");
 						feed(new Pipeline.Cancel());
 						return;
@@ -2437,6 +2445,19 @@ public final class SettlementRunner {
 					moduleBound(lotId, bound, o.entryId());
 				}));
 		}));
+	}
+
+	/** Lost or late variant answers asked again by key, this build (a refusal is never retried). */
+	private int moduleRetries;
+	static final int MODULE_RETRIES = 3;
+
+	/** Whether a variant's answer was lost or late (a timeout, the helper's link), not a refusal: Architect's typed refusals and the checker's findings are definitive. */
+	static boolean lostAnswer(@org.jspecify.annotations.Nullable Throwable err, ModuleInstalls.@org.jspecify.annotations.Nullable Outcome o) {
+		if (err != null) return uncertain(err);
+		if (o == null || o.detail() == null) return o == null;
+		if (o.detail().startsWith("sidecar_unavailable")) return true;
+		String m = String.valueOf(o.message()).toLowerCase(java.util.Locale.ROOT);
+		return o.detail().equals("error") && (m.contains("timeoutexception") || uncertain(new RuntimeException(o.message())));
 	}
 
 	private void moduleBound(String lotId, dev.larattalabs.steward.module.ModuleBinding b, String entryId) {
