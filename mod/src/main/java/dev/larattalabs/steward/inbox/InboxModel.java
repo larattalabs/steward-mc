@@ -98,7 +98,8 @@ public final class InboxModel {
 			case MASSINGS -> waitingLots.stream().filter(Lot::waiting).count() + " massings wait for you: approve them, or send one back with notes.";
 			case BUDGET -> String.format("Paused at %d%% of the $%.0f budget. Raise it to at least $%.0f to go on.", (int) (BudgetPolicy.SOFT_FRACTION * 100), s.budgetUsd(),
 				Pipeline.minimumRaise(s));
-			case PLACEMENT -> "The designs are done and fitted to their lots. Approve to place them.";
+			// (slice M3) a module's bill held past its bound: the decision is that bill, whole, as the player approves it
+			case PLACEMENT -> s.heldNote() != null && !s.heldNote().isBlank() ? s.heldNote() : "The designs are done and fitted to their lots. Approve to place them.";
 			case NONE -> working(s.phase());
 		};
 		List<String> lines = new ArrayList<>();

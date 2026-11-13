@@ -1,4 +1,6 @@
 {
   "format": 1,
-  "modules": []
+  "modules": [
+    { "id": "crop_farm", "version": 1 }
+  ]
 }

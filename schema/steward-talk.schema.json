@@ -112,6 +112,25 @@
         }
       },
       "description": "With intent change: what to change."
+    },
+    "module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,39}$",
+          "description": "A working module's catalog id, only one listed under \"Working modules\" in the user prompt."
+        },
+        "params": {
+          "type": "object",
+          "description": "The module's params the player named (a crop, a size), using the names and values listed for it; leave out what they did not say."
+        }
+      },
+      "description": "With intent building, when the player asks for something a listed working module does (a farm that grows food): that module, beside `building` (the decorative stand-in should the module not fit here). Leave it out when no module is listed or none fits."
     }
   }
 }

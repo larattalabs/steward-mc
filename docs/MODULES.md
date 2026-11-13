@@ -510,6 +510,102 @@ plans, with Noah's OK on the spend.
   (`/steward dev module`). Architect exposes no kit or checker version at runtime, so those pins are recorded, not gated. Facings and chunk
   borders are placement properties: M2's measurement covers them, not M1's checker run.
 
+### M2 as built (2026-11-13)
+
+- **`crop_farm@1`** (`modules/crop_farm/1/`, program sha `c406df05…`, certified on Minecraft 26.3, Architect 0.64.1, kit/checker 0.59.0; fully re-measured from the 0.63.0 certificate, docs/MEASURE-M2.md).
+  - **Sizes and crops.** Field sides 9, 18 or 27 (W = F + 2, D = F + 3); wheat, carrots, potatoes or beetroots. Three Styles: rustic,
+    fortress, desert.
+  - **The field.** Farmland at frame y 0, written `moisture=7`, with crops at age 0 (a ripe crop billed at one seed would be a free
+    harvest). Template row 0 is a dirt layer, groundY 1.
+  - **Water and light: the well.** IRR's grid is left open, and the program computes it itself, with IRR's rule, as well as taking the
+    lot's reserved cells. A fence post stands over each of a source's 4 farmland sides, since FC drops the sides from a field, so a crop
+    there would read as changed. One lamp per source sits on the back post, which lights the middle of a 27-wide field. That costs 5 field
+    cells per 9x9.
+  - **The fence.** The fence and gate stand on the `foundation` role; the lamps are on the corner and gate posts.
+  - **The port.** The composter and chest (`item_out`) stand **just inside the gate**, on the foundation role. 2 more field cells.
+    - Measured against two earlier candidates. Outside, against the fence, mobs climbed them over it.
+    - On a path, vanilla turned the path to dirt (a standing mismatch).
+  - **Crop counts.** A 9x9 holds 74 crops, an 18x18 302, a 27x27 682. Every rate is over those cells.
+  - **Palette.** `noGravity`: path, frame, foundation. The lamp's fallback is the lantern, which is also all three Styles' lamp.
+- **`CropFarmLot.growLot(id, width, depth)`**: the grow lot `{type: crop_farm, size, irrigate: true, field {cells, crops: all 4}}`, from the
+  program's own layout. The measurement checks the Java cells equal the program's on every growth. M3 uses it.
+- **The measurement** (`docs/MEASURE-M2.md`, `tools/module-measure.mjs`, `tools/lib/crop-farm-bars.mjs`): §3.1 items 1-7 as amended by
+  section 9, and Noah's 3b answer (2026-11-12, "a").
+  - Usefulness is judged on G3's ripen-as-you-go basis, from the per-cell maturity times measured in the farm (each run's first planting
+    followed through all 3 cycles; the judge was amended once after measuring, made stricter).
+  - The band, and the rate the offer quotes, are the fixed-cycle protocol rate. Wheat's is 18 a day for a 9x9, 180 for a 27x27.
+  - It ran over the whole envelope (36 branches x 5 runs, all four facings, chunk corners, three Styles) and passed. The verdicts are in
+    MEASURE-M2.md.
+- **Recording.** `tools/module-catalog.mjs record` certifies a real module only with its measurement's evidence: every step passed on these
+  exact files and versions, with field steps of 5 runs or more. It writes `bounds` (the whole growth's quoted bill per params, the maximum
+  over the 3 Styles) and `rates` (`{params, perDay, item}`) for M3.
+- **Dev hooks** (ModuleDev, development environment only): `cells`, `growLot`, `takeItems`, `mobs` and `walk` (a fake player's collision
+  walk). Harvest and replant use Architect's PT hooks (`dev.pt.breaks`, `dev.pt.uses`), so a player's crops are PT-recorded.
+- **No billing or undo code changed** in Steward: M2 measures Architect's.
+
+### M3 as built (2026-11-13)
+
+Branch `m3-offer-place`. It was built on M1's dry `fixture_plot@1` behind the dev gate while M2 measured, then switched to `crop_farm@1` once M2
+merged. The module id is a parameter of every path:
+- `ModuleKind.CropFarm` takes M2's `CropFarmLot.growLot` as its lot and `CropFarmLot`'s own field as its cells (a 9x9 plants 74).
+- Its sizes are every width x depth of 9, 18 and 27, the most cells first.
+- Carrots and potatoes are planted from the crop itself.
+- It reads `measured.json`'s `bounds` and `rates`.
+
+The e2e `module` flow offers it through the player's own gate (the live catalog). `module-survival` uses the live catalog under its real
+certification gate, with a dev-only override bound that holds its bill on purpose, and checks the quote against crop_farm's measured bound.
+- **The offer** (`ModuleKind`, `ModuleOffer`, `service/ModuleOffers`). Rule `module.<id>`; its sign is 8 or more seeds of a crop it grows. It
+  is offered before the decorative `farm`, and only where it can grow the town:
+  - the paths: a region town built at once (A); one built from materials and fully built (A2); a Patron, instant, east-west street town Architect
+    can adopt (B, then A);
+  - never a district, a freezing biome (a warm-only kind), a town in the wrong mode, or a style whose roles break the palette rules;
+  - a watered module never goes to a town it would adopt: Architect's IG can't irrigate an adopted region (ask **S-M5-8**).
+
+  Its params are the crop carried most and the largest size those seeds plant (a town built from materials counts its stockpile too). In
+  survival the measured bound (`measured.json bounds: [{params, bom}]`, the whole growth's bill) is shown and approved; with no bound, it is not
+  offered. The rate comes from `measured.json rates: [{params, perDay, item}]`, when there is one. A module offer is never reworded by
+  ProposalWords, and is priced $0 in the inbox (in survival, "at most <bound>").
+- **Coalescing and declines** (`ProposalRules`): by module identity (a standing site whose lot ext names the module, or an offer of the same id
+  waiting, asked in talk included), never by building type. A standing or waiting module holds the decorative rule back. Declining
+  `module.<id>` also declines `farm`; declining `farm` declines nothing more.
+- **At Accept** (`Actions`, `ModuleOffers.recheck`): checked again. It must still be eligible, the same catalog version and program, the same
+  params, a bound in survival, and no module of the id standing. Else it is said, the offer leaves the inbox (not declined), and the decorative
+  building is offered as its own priced proposal. A `module.*` proposal without its order is refused, never built as a design.
+- **Talk** (`TalkJob`, `Talk`): the schema's `module.id` takes the offerable ids (left out when there are none). The user prompt lists them with
+  their params. An answer's module rides beside the building asked for. Eligible: a module proposal. Not: said, and the building is offered as
+  its own priced design.
+- **Placement** (`SettlementRunner`): `startModule` is an addition with one lot at its exact frame, which only takes growth paths (anything else
+  ends before anything is spent).
+  1. The grow lot carries the kind's lot (type, size, and `irrigate` and FC's `field` where the kind has them) and the `steward_mc:module` ext.
+     NO_ROOM on both preferences tries the next smaller size as a new plan (keys `vgrow.s<W>x<D>`, `vgrow2...`), said, still held to the bound
+     approved.
+  2. The build skips the design pipeline (state READY_TO_PLACE at $0).
+  3. **The binding** is saved before the keyed variant is asked (`steward.<build>.module.<lot>`, `.<n>` when a re-plan moved the lot:
+     `ModulePlacement.holds` compares module, program, params and `geometrySha`). After a restart the key finds the variant (`byKey` first).
+  4. **The quote** (from materials, `Regions.quote` with the final entries) is held to the order's bound. It holds and asks (`HoldBill`, phase
+     AWAITING_PLACEMENT_APPROVAL, nothing consumed) when:
+     - the bill is past the bound;
+     - the steward accepted it on its own and the bill takes over half the stockpile's count of an item (Q4);
+     - Architect can't quote it exactly: only notes known to be harmless pass, and the fluids' upper bound is conservative.
+
+     A quote that leaves a part unbilled is refused. The held bill is saved with the build (`ModuleOrder.held`) and is the decision's own text in
+     the inbox. Approving makes exactly that bill the bound, saved before the phase moves on.
+  5. **The realise** (`ModulePlace`, never asked again) carries the module entries; a module lot without an entry refuses it.
+
+  A stale realise (`parent_moved`) re-plans under `vgrow3`; the lot is bound again when its geometry moved.
+- **Undo and cancel** are growth A/A2's. A cancel while a variant or quote is out ends at once; their late answers change nothing. The offer is
+  given back only when nothing of it stands (never realised, or taken up whole), also by a build restored after a restart (the build's
+  settlement copy holds the proposal as offered).
+- **A module site isn't redesigned**: change requests (talk, start) and updates to a redesigned version are refused.
+- **Saves:** settlements format 7 (a proposal's `module` order, read exactly: integers, bills, a `module.*` key with its order) and builds
+  format 6 (`moduleOrders` lotId -> order, with its approved bound, held bill and proposal key). Older Stewards refuse both files.
+- **Dev:** `/steward dev modules {dir, id, measuring, bounds}` (development environment only) offers a catalog directory's module (the e2e's
+  fixture, measured on Architect 0.62.0, under a measuring gate). `/steward dev site_module <site>` reads a site's module identity.
+- **Asks:** S-M5-8 (irrigated growth of an adopted town), S-M5-9 (a survival realise held to an approved bill: Steward checks the quote but
+  can't cap what Architect then consumes).
+- **Not covered by e2e** (unit-tested, or the decision functions only): a restart between the binding and the realise, a stale re-plan that
+  moves the lot, the smaller-size fallback, Q4, an inexact quote, decline both ways, an adopted (B) town.
+
 ## 9. Noah's answers (2026-11-12)
 
 Noah, in the Steward manager session: "Go with option 1, defaults/recommendations for the rest". Option 1 is phase 5b (section 3.3). The six

@@ -202,10 +202,36 @@ public final class Talk {
 			district = where.district();
 		}
 		String role = a.building().role();
+		// (docs/MODULES.md 4.1) a working module asked for: offered when it can go here; else the steward says why, and the building asked for is its own
+		// priced proposal (the decorative stand-in), never a silent switch
+		String moduleNo = null;
+		if (a.module() != null) {
+			var kind = dev.larattalabs.steward.module.ModuleKind.of(a.module().id());
+			var v = kind.isEmpty() ? null : ModuleOffers.verdict(kind.get().id());
+			if (kind.isEmpty() || ModuleOffers.kinds().stream().noneMatch(k -> k.id().equals(kind.get().id()))) moduleNo = "there is no working " + a.module().id().replace('_', ' ') + " in the catalog";
+			else if (s.proposals().open().stream().anyMatch(x -> x.module() != null && x.module().moduleId().equals(kind.get().id())))
+				return "A working " + kind.get().role() + " waits in the inbox already.";
+			else if (ModuleOffers.standing(server, s, kind.get().id())) moduleNo = "one stands already";
+			else {
+				var player = server.getPlayerList().getPlayers().stream().filter(x -> Settlements.at(x.level(), x.blockPosition()).map(h -> h.id().equals(s.id())).orElse(false))
+					.findFirst().orElse(null);
+				var town = ModuleOffers.town(server, s, player, district != null);
+				var d = dev.larattalabs.steward.module.ModuleOffer.decide(kind.get(), v, town, a.module().params(), ModuleOffers::bound);
+				var lamp = d.ok() ? ModuleOffers.lamp(s, v.entry()) : null;
+				if (d.ok() && lamp.refused() == null) {
+					Proposal m = ModuleOffers.proposal(kind.get(), d, s, town.path() == dev.larattalabs.steward.module.ModuleOffer.Path.REGION_MATERIALS, lamp.fallback(),
+						"asked_" + Long.toString(now, 36) + "_" + kind.get().lotType(), "asked", now);
+					String added = addProposal(s, m);
+					return added != null ? added : a.reply() + " (A working " + kind.get().role() + " from the catalog: no design, $0. See the inbox.)";
+				}
+				moduleNo = d.ok() ? lamp.refused() : d.why();
+			}
+		}
 		Proposal p = new Proposal("asked_" + Long.toString(now, 36) + "_" + a.building().type(), Character.toUpperCase(role.charAt(0)) + role.substring(1),
-			"You asked: \"" + clip(said, 120) + "\"", a.building(), now, "asked", district, null);
+			"You asked: \"" + clip(said, 120) + "\"" + (moduleNo == null ? "" : " A working one can't go here (" + moduleNo + "), so this is a decorative " + role
+				+ ", designed: about $" + Proposals.estimate(new Proposal("x", role, "", a.building(), now, "asked")) + "."), a.building(), now, "asked", district, null);
 		String added = addProposal(s, p);
-		return added != null ? added : a.reply();
+		return added != null ? added : moduleNo == null ? a.reply() : "A working " + role + " can't go here: " + moduleNo + ". I put a decorative one in the inbox instead, as its own proposal at its own price.";
 	}
 
 	/**
@@ -221,6 +247,9 @@ public final class Talk {
 		var site = ChangeRequests.building(server, s, a.changeTarget());
 		if (site.isEmpty()) return "Which building do you mean? I could not tell which one is the " + a.changeTarget() + ".";
 		// a copy changes with its source (docs/FOLLOW.md): the change is asked of the source, and the copies follow it
+		// a working module isn't redesigned (docs/MODULES.md section 1): said before anything is proposed
+		String module = ChangeRequests.moduleRefusal(site.get());
+		if (module != null) return module;
 		site = Optional.of(ChangeRequests.sourceFor(server, s, site.get()));
 		String name = ChangeRequests.the(site.get());
 		if (ChangeRequests.designing(site.get().id())) return "A change to " + name + " is being designed already.";
@@ -379,7 +408,20 @@ public final class Talk {
 		var counts = Districts.counts(server, s);
 		boolean full = ProposalRules.where(counts.town(), new java.util.LinkedHashMap<>(), Proposals.full(s.id(), System.currentTimeMillis())).full();
 		return new TalkJob.Context(s.name(), card.site().text(), card.style().text(), card.purpose().text(), town, districts,
-			s.proposals().open().stream().map(Proposal::title).toList(), s.permission().name().toLowerCase(), full);
+			s.proposals().open().stream().map(Proposal::title).toList(), s.permission().name().toLowerCase(), full, moduleLines());
+	}
+
+	/** The working modules the catalog may offer now, as the talk job reads them: {@code "<id>: <what> (params ...)"}. */
+	static List<String> moduleLines() {
+		List<String> out = new ArrayList<>();
+		for (var k : ModuleOffers.kinds()) {
+			var v = ModuleOffers.verdict(k.id());
+			if (!v.ok() || v.entry() == null) continue;
+			List<String> ps = new ArrayList<>();
+			v.entry().envelope().branches().forEach((name, vals) -> ps.add(name + " " + vals.toString().replace(",", " |")));
+			out.add(k.id() + ": " + k.title() + " (params " + String.join("; ", ps) + ")");
+		}
+		return out;
 	}
 
 	private static String clip(String t, int max) {

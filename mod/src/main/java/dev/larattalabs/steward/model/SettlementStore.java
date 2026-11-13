@@ -33,12 +33,14 @@ public final class SettlementStore {
 	 * format-4 file rather than dropping the new members on its next save.
 	 */
 	/** 5 (2026-10-26): a proposal may carry a quarter (Noah's Q2); an older Steward would drop it and found a free square district instead, so it refuses. */
-	public static final int FORMAT = 6;
+	public static final int FORMAT = 7;
+	// 7 (2026-11-13, phase 5 slice M3; docs/MODULES.md 4.1): a proposal may offer a module (its catalog version, program, params and in survival the
+	// bound the player approves); an older Steward would drop it and design the lot as a paid decorative building, so it refuses the file
 	// 6 (2026-11-11): a history entry may be a region town's growth (siteGroup revision:<region>:<rid>, docs/GROWTH.md), undone by Architect's undoRevision;
 	// an older Steward would take it for a site group and remove its sites one by one, leaving the town's revision standing, so it refuses the file
 
 	/** Step {@code i} upgrades format {@code i + 1} to {@code i + 2}, on the file's JSON. */
-	private static final List<java.util.function.Consumer<JsonObject>> MIGRATIONS = List.of(SettlementStore::v1ToV2, SettlementStore::v2ToV3, SettlementStore::v3ToV4, SettlementStore::v4ToV5, SettlementStore::v5ToV6);
+	private static final List<java.util.function.Consumer<JsonObject>> MIGRATIONS = List.of(SettlementStore::v1ToV2, SettlementStore::v2ToV3, SettlementStore::v3ToV4, SettlementStore::v4ToV5, SettlementStore::v5ToV6, SettlementStore::v6ToV7);
 
 	/** The format the file had when read (equal to {@link #FORMAT} unless it was migrated). */
 	private int readFormat = FORMAT;
@@ -105,10 +107,19 @@ public final class SettlementStore {
 		if (format < 1 || format > FORMAT) throw new JsonParseException("unsupported settlements format " + format + " (this build reads 1.." + FORMAT + ")");
 		for (int v = format; v < FORMAT; v++) MIGRATIONS.get(v - 1).accept(o);
 		o.addProperty("format", FORMAT);
+		strictModules(o);
 		FileShape f = GSON.fromJson(o, new TypeToken<FileShape>() {});
 		if (f == null || f.settlements == null) throw new JsonParseException("not a Steward settlements file");
 		SettlementStore s = new SettlementStore();
-		for (Settlement x : f.settlements) s.put(x);
+		for (Settlement x : f.settlements) {
+			// (slice M3) a module offer is whole or the file is refused: a module rule's proposal without its order would be built as a paid design
+			for (var p : x.proposals() == null ? List.<Proposal>of() : x.proposals().open()) {
+				if (p.key().startsWith(dev.larattalabs.steward.module.ModuleKind.RULE_PREFIX) && p.module() == null)
+					throw new JsonParseException("module offer " + p.key() + " of " + x.id() + " has no order");
+				if (p.module() != null && !p.module().valid()) throw new JsonParseException("module offer " + p.key() + " of " + x.id() + " is incomplete");
+			}
+			s.put(x);
+		}
 		s.nextSerial = Math.max(s.nextSerial, f.nextSerial);
 		s.readFormat = format;
 		return s;
@@ -116,6 +127,29 @@ public final class SettlementStore {
 
 	public int readFormat() {
 		return readFormat;
+	}
+
+	/**
+	 * (slice M3) Module offers' integers and bills are read exactly, as BuildStore's orders are: Gson would read {@code 1.0000000000000001} as version
+	 * 1, and a bound it can't read would become none. Either refuses the file.
+	 */
+	private static void strictModules(JsonObject file) {
+		if (!file.has("settlements") || !file.get("settlements").isJsonArray()) return;
+		for (JsonElement st : file.getAsJsonArray("settlements")) {
+			if (!st.isJsonObject() || !st.getAsJsonObject().has("proposals") || !st.getAsJsonObject().get("proposals").isJsonObject()) continue;
+			var ps = st.getAsJsonObject().getAsJsonObject("proposals");
+			if (!ps.has("open") || !ps.get("open").isJsonArray()) continue;
+			for (JsonElement p : ps.getAsJsonArray("open")) {
+				if (!p.isJsonObject() || !p.getAsJsonObject().has("module") || p.getAsJsonObject().get("module").isJsonNull()) continue;
+				if (!p.getAsJsonObject().get("module").isJsonObject()) throw new JsonParseException("a module offer is not an object");
+				var m = p.getAsJsonObject().getAsJsonObject("module");
+				if (!m.has("version") || dev.larattalabs.steward.module.ModuleRef.exactInt(m.get("version")) == null) throw new JsonParseException("a module offer's version is not an integer");
+				for (String k : List.of("bound", "held")) {
+					if (m.has(k) && !m.get(k).isJsonNull() && (!m.get(k).isJsonObject() || dev.larattalabs.steward.module.ModuleBound.clean(m.getAsJsonObject(k)) == null))
+						throw new JsonParseException("a module offer's " + k + " is not item -> count");
+				}
+			}
+		}
 	}
 
 	private static final java.util.regex.Pattern UPDATED_NOTE = java.util.regex.Pattern.compile("Updated (.+) to version (\\d+).*");
@@ -161,6 +195,10 @@ public final class SettlementStore {
 
 	/** Format 5 to 6: nothing to rewrite (a format-5 history has no growth). */
 	static void v5ToV6(JsonObject file) {
+	}
+
+	/** Format 6 to 7: nothing to rewrite (a proposal without a module reads as before). */
+	static void v6ToV7(JsonObject file) {
 	}
 
 	/** Format 4 to 5: nothing to rewrite (a proposal without a quarter reads as before). */

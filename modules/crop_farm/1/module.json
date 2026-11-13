@@ -1,0 +1,22 @@
+{
+  "id": "crop_farm",
+  "version": 1,
+  "title": "Crop farm",
+  "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
+  "params": {
+    "width": { "type": "int", "min": 9, "max": 27, "default": 9, "label": "Field width" },
+    "depth": { "type": "int", "min": 9, "max": 27, "default": 9, "label": "Field depth" },
+    "crop": { "type": "enum", "options": ["wheat", "carrots", "potatoes", "beetroots"], "default": "wheat", "label": "Crop" }
+  },
+  "envelope": {
+    "branches": { "width": [9, 18, 27], "depth": [9, 18, 27], "crop": ["wheat", "carrots", "potatoes", "beetroots"] },
+    "facings": ["north", "east", "south", "west"],
+    "bibles": ["rustic", "fortress", "desert"]
+  },
+  "palette": {
+    "lamp": { "role": "light", "minLight": 14, "fallback": "minecraft:lantern" },
+    "noGravity": ["path", "frame", "foundation"],
+    "nonConductive": []
+  },
+  "pins": { "kit": "0.59.0", "checker": "0.59.0" }
+}

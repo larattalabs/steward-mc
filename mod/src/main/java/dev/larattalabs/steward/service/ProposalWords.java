@@ -47,7 +47,9 @@ public final class ProposalWords {
 
 	/** Starts wording {@code p}; false when it cannot (no Claude link, a district, or an error): the caller says the rule's wording. */
 	static boolean start(MinecraftServer server, Settlement s, Proposal p, UUID player) {
-		if (p.foundsDistrict() || p.building() == null || s.card() == null) return false;
+		// a module offer keeps the catalog's words (its measured rate and, in survival, the bound the player approves): never reworded, never rebuilt as
+		// a plain building (docs/MODULES.md 4.1, 4.4)
+		if (p.foundsDistrict() || p.building() == null || s.card() == null || p.offersModule()) return false;
 		var jobs = ArchitectApi.get().jobs();
 		if (!jobs.available()) return false;
 		dev.larattalabs.architect.api.JobSpec spec;
@@ -88,7 +90,7 @@ public final class ProposalWords {
 		List<Proposal> open = new ArrayList<>(ps.open());
 		for (int i = 0; i < open.size(); i++) {
 			Proposal x = open.get(i);
-			if (!x.key().equals(p.key()) || x.building() == null) continue;
+			if (!x.key().equals(p.key()) || x.building() == null || x.offersModule()) continue;
 			var b = x.building();
 			// the rules decided the building: its type, size and place stay; only its name and description are the settlement's own
 			var nb = new ConceptCard.Building(w.role(), b.type(), b.count(), b.footprint(), b.landmark(), w.notes() != null ? w.notes() : b.notes(), b.placement());

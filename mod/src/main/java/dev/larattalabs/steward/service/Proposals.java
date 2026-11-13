@@ -81,9 +81,11 @@ public final class Proposals {
 			return;
 		} else {
 			// a waiting part of the plan is not a building: it takes none of the room new proposals have
+			// the catalog's modules first (docs/MODULES.md 4.1): offered only where they can grow the town, never into a district
+			var modules = ModuleOffers.candidates(server, p, s, where.district() != null, now);
 			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open.stream().filter(x -> !x.offersPart()).toList(),
-				s.proposals().lastAt(), now).stream()
-				.map(x -> x.in(where.district())).toList();
+				s.proposals().lastAt(), now, modules).stream()
+				.map(x -> x.offersModule() ? x : x.in(where.district())).toList();
 		}
 		if (fresh.isEmpty()) return;
 		List<Proposal> all = new ArrayList<>(open);
@@ -246,9 +248,14 @@ public final class Proposals {
 			if (adv != null && p.getAdvancements().getOrStartProgress(adv).isDone()) done.add(id);
 		}
 		int seeds = 0, saplings = 0;
+		Map<String, Integer> seedItems = new HashMap<>();
 		for (ItemStack st : p.getInventory()) {
 			if (st.isEmpty()) continue;
-			if (BuiltInRegistries.ITEM.getKey(st.getItem()).getPath().endsWith("_seeds")) seeds += st.getCount();
+			String path = BuiltInRegistries.ITEM.getKey(st.getItem()).getPath();
+			if (path.endsWith("_seeds")) seeds += st.getCount();
+			// what a module's crops are planted from: seeds, and carrots and potatoes themselves (the module's own seeds map decides)
+			if (path.endsWith("_seeds") || path.equals("carrot") || path.equals("potato"))
+				seedItems.merge(BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), Integer::sum);
 			if (st.is(ItemTags.SAPLINGS)) saplings += st.getCount();
 		}
 		Map<String, Integer> animals = new HashMap<>();
@@ -257,7 +264,7 @@ public final class Proposals {
 			if (!s.contains(dim, a.getBlockX(), a.getBlockY(), a.getBlockZ())) continue;
 			animals.merge(BuiltInRegistries.ENTITY_TYPE.getKey(a.getType()).toString(), 1, Integer::sum);
 		}
-		return new ProposalRules.Signs(Progress.tier(done), seeds, saplings, animals);
+		return new ProposalRules.Signs(Progress.tier(done), seeds, saplings, animals, seedItems);
 	}
 
 	/** Starts a proposal on the steward's own authority; the spend is recorded as the build starts ({@link #recordAccepted}). */
@@ -323,7 +330,7 @@ public final class Proposals {
 			if (s.proposals().open().isEmpty()) continue;
 			// the cost first, where the row never cuts it
 			List<InboxModel.Lot> ideas = new ArrayList<>(s.proposals().open().stream().filter(p -> !p.offersPart()).map(p -> new InboxModel.Lot(p.key(), p.title(), "proposal",
-				false, true, (p.foundsDistrict() ? "free" : "about $" + estimate(p)) + (p.district() == null ? "" : " · in " + s.lands().district(p.district())
+				false, true, (p.foundsDistrict() ? "free" : p.offersModule() ? (p.module().bound() == null ? "free" : "$0 · at most " + dev.larattalabs.steward.module.ModuleBound.bill(p.module().bound(), 3)) : "about $" + estimate(p)) + (p.district() == null ? "" : " · in " + s.lands().district(p.district())
 					.map(Settlement.District::name).orElse("a district")) + " · " + p.why())).toList());
 			// the waiting parts, however many: one row
 			var parts = PendingOffers.offered(s);
@@ -344,7 +351,8 @@ public final class Proposals {
 
 	/** About what building a proposal costs (the high estimate of one building, rounded up to $5): its budget when accepted. A district costs nothing. */
 	public static int estimate(Proposal p) {
-		if (p.foundsDistrict()) return 0;
+		// a module is a verified program run at $0 (docs/MODULES.md section 1); in survival its bill is items, shown as its bound
+		if (p.foundsDistrict() || p.offersModule()) return 0;
 		// a waiting part: Claude fits it to what stands (about $0.50 a round, at most $1); Architect builds it at no cost
 		if (p.offersPart()) return 1;
 		// a quarter is priced like a build of its buildings (Noah's Q2)
@@ -358,7 +366,12 @@ public final class Proposals {
 		var p = s.proposals();
 		if (p.open().stream().noneMatch(x -> x.key().equals(key))) return "No proposal " + key + " waits.";
 		List<String> declined = new ArrayList<>(p.declined());
-		declined.add(key);
+		// declining a module also retires its decorative rule (farm): the player said no to farms (docs/MODULES.md 4.1)
+		var pr = p.open().stream().filter(x -> x.key().equals(key)).findFirst().orElseThrow();
+		List<String> retire = new ArrayList<>(ProposalRules.declines(key));
+		// a module asked for in talk and declined: the module's own rule goes too, and its decorative ones
+		if (pr.offersModule() && !key.startsWith(dev.larattalabs.steward.module.ModuleKind.RULE_PREFIX)) retire.addAll(ProposalRules.declines(dev.larattalabs.steward.module.ModuleKind.RULE_PREFIX + pr.module().moduleId()));
+		for (String k : retire) if (!declined.contains(k)) declined.add(k);
 		var res = Settlements.proposals(s.id(), new Settlement.Proposals(p.open().stream().filter(x -> !x.key().equals(key)).toList(), declined, p.accepted(), p.lastAt()));
 		return res.ok() ? "Noted: the steward will not propose that again." : res.error();
 	}
