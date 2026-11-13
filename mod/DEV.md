@@ -322,6 +322,20 @@ which has been false since BF (0.63.0); StrangeAsksTest counts ring_city and sky
 7c catalogue first (LEFTOVERS). The new ring_city card has `site.size: null`, outside the card schema (S/M/L/XL or absent), so `cards/` keeps the old
 card; the new one is the prompt inside `plans-2026-11-13/ring_city.json`.
 
+## hidden_village re-recorded on 0.64.1 with the hidden-rooms prompt line (2026-11-13, paid, Noah approved; $0.25 of a $0.55 cap)
+Noah via parent session: "hidden_village: cap 0.55". On main 80d3926 (Architect 0.64.1, catalogue 21: hidden_room supported; the prompt's
+"Hidden rooms are secrets" line). `node tools/record-plans.mjs 0.55`, one plan, $0.2471 (the uncached first call), the opt-in made and removed.
+Kept as `plans-2026-11-13/hidden_village-0.64.1.json`.
+- **The room is not written, again.** The plan has the waterfall (`falls`) and the village's ten lots, no `form.hidden_room`, no wait. Claude read
+  "a hidden village nobody can find, behind a waterfall" as the whole village hidden, and its summary says the village "sits in a hollow behind a
+  waterfall curtain": nothing behind the falls is built. That is a silent drop dressed as a fit, against the prompt's never-drop rule.
+- **Secrecy:** nothing to leak (no room part); the cabins' label "hidden dwelling" describes the village, not a room.
+- **What it needs:** the never-drop rule must cover a summary that claims a part the plan doesn't write ("behind", "inside", "hidden" without the
+  form), and the writer should be told that a place "behind a waterfall" is the waterfall's hollow (`form.hidden_room` with `host` the waterfall) or a
+  wait. With slice PW (LEFTOVERS).
+- **Two earlier tries spent $0.00:** the record tools sent their first job while Architect's helper was still running `npm ci` for its Claude Agent
+  SDK, which it does at every launch ("Claude link is not available"). Both tools now wait for the launcher's "running" line first.
+
 ## The repair round's catalogue text, proved in one in-game compose (2026-11-13, paid, Noah approved; $0.16)
 Noah via parent session: "n cap 1.50 + compose". One compose in a flat creative dev world on Architect 0.63.0 (main f66031d's code), the claude
 login's opt-in made for the run and removed after: `/steward claim`, then `/steward describe set_1 A monastery on a floating island, reached by a

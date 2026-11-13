@@ -61,6 +61,14 @@ try {
   client = spawn('./gradlew', ['--offline', ':runClient'], { cwd: path.join(ROOT, 'mod'), env, stdio: ['ignore', log, log] });
   dev = await DevClient.connect({ port: PORT, timeoutMs: 400_000 });
   await dev.waitInWorld({ timeoutMs: 400_000 });
+  // Architect's helper installs its Claude Agent SDK (npm ci) at each launch: a job sent before it runs answers "Claude link is not available"
+  // and spends nothing (11-13). Wait for the launcher's "running" line before the first job.
+  for (let i = 0; i < 180; i++) {
+    const t = fs.existsSync(path.join(GAME, 'logs', 'latest.log')) ? fs.readFileSync(path.join(GAME, 'logs', 'latest.log'), 'utf8') : '';
+    if (/Launcher: running/.test(t)) break;
+    if (i === 179) throw new Error("Architect's helper didn't start in 6 minutes");
+    await sleep(2000);
+  }
   for (const a of todo) {
     if (spent >= cap - 0.5) {
       console.log(`stopping: $${spent.toFixed(2)} spent, near the cap`);
