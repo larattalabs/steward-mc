@@ -51,14 +51,14 @@
     "sculpted_forms": {
       "name": "big custom forms (a crater, an island, a sky city)",
       "status": "nearest",
-      "nearest": "relief, terraces, rock spires, ice spikes, giant trees and mushrooms; a crater or a floating island not yet",
-      "comes": "Architect 7c BF (form.crater, form.hollow_mountain, form.floating_island)"
+      "nearest": "craters, floating islands and hollowed mountains are built (7c BF), with relief, terraces, rock spires, ice spikes, giant trees and mushrooms; a long stair up to a floating island is refused NO_CLIMB and a hold stands beside its mountain, not inside",
+      "comes": "Architect's climbs to a raised form (connector.stair NO_CLIMB); kept nearest while StrangeAsksTest's card baseline holds (ring_city and sky_monastery's cards say what waits)"
     },
     "over_water": {
       "name": "buildings over or on water (stilts, a lagoon)",
       "status": "nearest",
       "nearest": "ponds, quays, waterfalls and water gates; buildings stand on dry ground beside the water",
-      "comes": "Architect 7b AF/SL (the water affordance, stilt lots)"
+      "comes": "Steward's plan writer writing stilt lots as layout.elevated site lots (S-7b-2); Architect builds them since 0.61.0"
     },
     "steep_ground": {
       "name": "buildings on cliffs, terraces and steep ground",
@@ -67,8 +67,8 @@
     "carved_interiors": {
       "name": "rooms, halls and shafts carved into rock or under ground",
       "status": "nearest",
-      "nearest": "tunnels through rock and caves by the forms; rooms carved into rock not yet",
-      "comes": "Architect 7b (carve_into site lots), 7c BF (hollow mountain)"
+      "nearest": "tunnels under ground (tunnel.under), a hollowed mountain and hidden rooms are built; a hold carved inside its mountain is not (it stands beside it), and secret_tunnels' tunnels are refused NO_FEATURE",
+      "comes": "Steward's plan writer writing carve_into site lots (S-7b-2), Architect's tunnel features"
     },
     "underwater": {
       "name": "building under water (domes, a sunken town)",
@@ -78,7 +78,7 @@
     "off_ground": {
       "name": "building on trees, giant mushrooms or stilts above dry ground",
       "status": "waits",
-      "comes": "Architect 7b SL (layout.elevated: canopy and ledge lots)"
+      "comes": "Steward's plan writer writing raised lots as layout.elevated site lots (S-7b-2); Architect builds them since 0.61.0, and the three recorded site asks are refused NO_FEATURE until then"
     },
     "aerial_connectors": {
       "name": "bridges and walkways in the air (rope bridges, sky walks)",
@@ -95,8 +95,9 @@
     },
     "megastructure": {
       "name": "one giant structure that is the settlement (a castle, an arcology)",
-      "status": "waits",
-      "comes": "Architect 7c CM (composites)"
+      "status": "nearest",
+      "nearest": "a walled town around a keep; one composite structure is built by Architect (7c CM) but not through Steward's placement",
+      "comes": "Steward placing Architect's composites (CM-b refuses a composite in a design-group item NOT_ALLOWED; Architect's Q1)"
     },
     "moving": {
       "name": "a settlement that moves (a nomad camp, a ship)",
@@ -166,8 +167,9 @@
     },
     "secrets": {
       "name": "secrets (hidden rooms, concealed entrances, puzzles)",
-      "status": "waits",
-      "comes": "Architect 7c HR (form.hidden_room)"
+      "status": "nearest",
+      "nearest": "a hidden room (form.hidden_room); concealed tunnels are refused NO_FEATURE, and the placement ghost shows the room",
+      "comes": "Steward's answer on the ghost showing the room (Architect HR's Q2), Architect's tunnel features"
     },
     "build_around": {
       "name": "building around the player's own things (their house, a tree)",
