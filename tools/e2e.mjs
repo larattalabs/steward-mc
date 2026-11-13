@@ -53,7 +53,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let client = null;
 let dev = null;
 
+/**
+ * The client's options before it starts: no vanilla tutorial toasts ("Move with WASD", the recipe book) over the HUD shots, no first-launch
+ * accessibility screen. Only these keys are set; the rest of options.txt is the game's (a missing file starts as just these, the game fills the rest).
+ */
+function quietOptions() {
+  const file = path.join(GAME, 'options.txt');
+  const want = { tutorialStep: 'none', onboardAccessibility: 'false', joinedFirstServer: 'true', skipMultiplayerWarning: 'true' };
+  const lines = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter((l) => l.length) : [];
+  for (const [k, v] of Object.entries(want)) {
+    const i = lines.findIndex((l) => l.startsWith(`${k}:`));
+    if (i >= 0) lines[i] = `${k}:${v}`;
+    else lines.push(`${k}:${v}`);
+  }
+  fs.mkdirSync(GAME, { recursive: true });
+  fs.writeFileSync(file, lines.join('\n') + '\n');
+}
+
 function launch() {
+  quietOptions();
   const log = fs.openSync(path.join(OUT, 'client.log'), 'a');
   client = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], { stdio: ['ignore', log, log], env: { ...process.env, E2E_STUB: mode === 'stub' ? '1' : '0', E2E_NODE_DIR: path.dirname(process.execPath) } });
 }
@@ -180,6 +198,8 @@ function secretLeaks(id, from) {
 // a new entry each run: the world keeps earlier runs' settlements, and their copies of one shared entry were offered the update first (set_28's, not
 // loaded, on the WE-WS RC); an earlier run's entry never gets a new version, so the inbox's only update is this run's
 const STUB = `e2e_stub_${Date.now().toString(36)}`;
+/** The ui-actions flow's own entry, so its versions don't depend on what the place flow installed. */
+const STUB_UI = `${STUB}_ui`;
 
 function stubBlueprint(extraLantern, id = STUB) {
   const p = PALETTES.rustic;
@@ -188,6 +208,8 @@ function stubBlueprint(extraLantern, id = STUB) {
   bp.door(4, 1, 5, 'south');
   bp.lantern(2, 1, 2);
   if (extraLantern) bp.lantern(6, 1, 2);
+  // a third version (the ui-actions flow reverts from v3 to v1, past the one before)
+  if (extraLantern === 2) bp.lantern(4, 1, 3);
   bp.floor(3, 6, 5, 8, 0, p.path);
   bp.spot('entrance', 4, 6, 180);
   bp.name = 'E2E stub';
@@ -199,7 +221,7 @@ function stubBlueprint(extraLantern, id = STUB) {
  * `e2e_stub` is written too, for the dev commands that realise it (PlanChecks.realise, VSpike).
  */
 function ensureStubEntry() {
-  for (const id of [STUB, 'e2e_stub']) {
+  for (const id of [STUB, 'e2e_stub', STUB_UI]) {
     const dir = path.join(GAME, 'architect', 'library', id);
     fs.rmSync(dir, { recursive: true, force: true });
     writeBlueprint(stubBlueprint(false, id), dir);
@@ -602,6 +624,179 @@ async function placeUpdateUndo(id) {
   const last = settlements().find((s) => s.id === id)?.log.at(-1);
   if (!standing && last?.kind === 'PROJECT_REMOVED') ok('undo', `${site} removed, logged`);
   else fail('undo', `standing ${standing}, last log ${last?.kind}`);
+}
+
+/**
+ * The settlement screen's and building panel's buttons (S-UI-actions): each does what its command does. Two buildings of a fresh entry at v3; one
+ * reverted to v2 from the panel (not v1, the one before: the old button's only choice) and one by /steward revert, their history entries compared; the newest undone from the
+ * History tab and the other by /steward undo, compared; then nothing left: the Undo button off and the command's "Nothing to undo". Also the keyboard
+ * on the Buildings tab, Look for updates and Check the land against their commands, and shots of each new state for the design check.
+ */
+async function uiActions(id) {
+  const shot = async (name) => (await dev.request('dev.screenshot', { name, frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  const pos = async () => (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/)?.slice(1).map(Number);
+  const log = () => settlements().find((s) => s.id === id)?.log ?? [];
+  const screen = async () => (await dev.request('dev.state')).screen?.class ?? 'none';
+  const key = async (k, n = 1) => {
+    for (let i = 0; i < n; i++) {
+      await dev.request('dev.key', { key: k });
+      await sleep(300);
+    }
+  };
+  // two buildings of the flow's entry, 14 blocks apart; then v2 and v3 installed (each placed at v1, then updated to v3 by command)
+  const me = await pos();
+  if (!me) return fail('ui place', 'no player position');
+  const sites = [];
+  for (const dx of [0, 14]) {
+    await cmd(`/tp @p ${me[0] + 30 + dx} ${me[1]} ${me[2]}`);
+    await dev.request('dev.waitChunks', { timeoutMs: 30_000 });
+    await clearAnimals();
+    const from = logSize();
+    await cmd(`/steward dev place ${id} ${STUB_UI}`);
+    const placed = await waitLog(from, /dev placed (s\d+)/, 30_000);
+    if (!placed) return fail('ui place', (await waitLog(from, /dev place refused[^\n]*/, 1) ?? ['no answer'])[0]);
+    sites.push(placed[1]);
+  }
+  await cmd(`/tp @p ${me[0]} ${me[1]} ${me[2]}`);
+  for (const variant of [true, 2]) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'steward-e2e-ui-'));
+    writeBlueprint(stubBlueprint(variant, STUB_UI), dir);
+    const inst = await dev.request('dev.entry.installVersion', { entry: STUB_UI, dir, by: 'design', summary: `e2e ui: v${variant === 2 ? 3 : 2}` });
+    if (!inst.ok) return fail('ui place', `installVersion: ${JSON.stringify(inst).slice(0, 160)}`);
+  }
+  await cmd('/steward updates');
+  for (const s of sites) {
+    const from = logSize();
+    await cmd(`/steward update ${id} ${s}`);
+    await waitLog(from, /Updated dev building to version 3/, 30_000);
+  }
+  const ver = async (s) => {
+    const h = await dev.request('dev.site.history', { site: s });
+    return h.version ?? h.site?.version;
+  };
+  const vs = [await ver(sites[0]), await ver(sites[1])];
+  if (vs[0] === 3 && vs[1] === 3) ok('ui place', `${sites.join(', ')} at v3 of ${STUB_UI}`);
+  else return fail('ui place', `versions ${vs}`);
+  // the Buildings tab by keyboard: Down chooses the first row (the map rings it too), Enter opens its panel
+  await cmd(`/steward view ${id}`);
+  await sleep(1500);
+  await key('down');
+  const keysShot = await shot('e2e-settlement-keys');
+  await key('enter');
+  await sleep(500);
+  const opened = await screen();
+  if (/BuildingScreen/.test(opened)) ok('ui keyboard', `Down then Enter opens ${opened.replace(/.*\./, '')}; ${keysShot}`);
+  else fail('ui keyboard', `screen ${opened}`);
+  await closeScreens();
+  // Look for updates (1 on the Buildings tab) says what /steward updates says
+  {
+    const said = await cmd('/steward updates');
+    await cmd(`/steward view ${id}`);
+    await sleep(1500);
+    const from = logSize();
+    await key('1');
+    const ui = await waitLog(from, /Checked for building updates[^\n]*/, 10_000);
+    if (ui && said.includes(ui[0].replace(/^.*?(Checked)/, '$1'))) ok('ui updates', ui[0].replace(/^.*?(Checked)/, '$1'));
+    else fail('ui updates', `button ${ui ? ui[0] : 'silent'}; command "${said}"`);
+    await closeScreens();
+  }
+  // revert from the panel to v2: it starts on v1 (the version it stood at before v3, Architect's history; the old button's only choice), Right takes
+  // it to v2, 3 twice (asked twice); /steward revert to v2 for the other
+
+  await cmd(`/steward view ${id} ${sites[0]}`);
+  await sleep(1500);
+  const versionsShot = await shot('e2e-building-versions');
+  await key('right');
+  await key('3');
+  const confirmShot = await shot('e2e-building-revert-confirm');
+  let from = logSize();
+  await key('3');
+  const uiRev = await waitLog(from, /Reverted dev building to version (\d+)[^\n]*/, 30_000);
+  await closeScreens();
+  from = logSize();
+  const cmdSaid = await cmd(`/steward revert ${id} ${sites[1]} 2`);
+  const cmdRev = await waitLog(from, /Reverted dev building to version (\d+)[^\n]*/, 30_000);
+  const reverted = log().filter((e) => e.kind === 'REVERTED').slice(-2);
+  const shape = (e, s) => e && JSON.stringify({ kind: e.kind, outcome: e.outcome, changes: (e.changes ?? []).map((c) => ({ ...c, siteId: c.siteId === s ? 'S' : c.siteId })) });
+  const [r0, r1] = [reverted.find((e) => e.siteIds?.includes(sites[0]) || e.changes?.some((c) => c.siteId === sites[0])),
+    reverted.find((e) => e.siteIds?.includes(sites[1]) || e.changes?.some((c) => c.siteId === sites[1]))];
+  const v0 = await ver(sites[0]), v1 = await ver(sites[1]);
+  if (uiRev && cmdRev && v0 === 2 && v1 === 2 && shape(r0, sites[0]) === shape(r1, sites[1]) && r0?.changes?.[0]?.from === 3) {
+    ok('ui revert', `panel and /steward revert both v3 -> v2 (not v1, the one it stood at before), logged alike ${shape(r0, sites[0])}; ${versionsShot}, ${confirmShot}`);
+  } else fail('ui revert', `panel ${uiRev?.[0] ?? 'silent'} (v${v0}); command "${cmdSaid}" ${cmdRev?.[0] ?? 'silent'} (v${v1}); ${shape(r0, sites[0])} vs ${shape(r1, sites[1])}`);
+  // undo from the History tab (Tab once, 1 twice), then /steward undo: each the newest project, logged alike, said alike
+  await cmd(`/steward view ${id}`);
+  await sleep(1500);
+  await key('tab');
+  const historyShot = await shot('e2e-history-undo');
+  await clearAnimals();
+  await key('1');
+  const undoConfirmShot = await shot('e2e-history-undo-confirm');
+  from = logSize();
+  await key('1');
+  const uiDone = await waitLog(from, /Undone: [^\n]*/, 30_000);
+  const uiLines = (logSince(from).match(/(Removing|Undone|Undo stopped|Nothing to undo)[^\n]*/g) ?? []);
+  await sleep(1500);
+  const afterUiShot = await shot('e2e-history-after-undo');
+  const tabKept = /SettlementScreen/.test(await screen());
+  await closeScreens();
+  const uiEntry = log().at(-1);
+  from = logSize();
+  const cmdUndo = await cmd(`/steward undo ${id}`);
+  // the command's own lines come back as its answer (an undo of one site finishes within it); else they reach the chat later
+  const cmdDone = cmdUndo.match(/Undone: [^|]*/) ?? await waitLog(from, /Undone: [^\n]*/, 30_000);
+  await sleep(1000);
+  const cmdEntry = log().at(-1);
+  const gone = [];
+  for (const s of sites) if (/is gone/.test(await cmd(`/steward dev site ${s}`))) gone.push(s);
+  const ushape = (e) => e && JSON.stringify({ kind: e.kind, outcome: e.outcome, n: e.changes?.length, to: e.changes?.map((c) => c.to) });
+  const norm = (l) => l.replace(/^.*?(Removing|Undone)/, '$1').trim();
+  if (uiDone && cmdDone && gone.length === 2 && uiEntry?.kind === 'PROJECT_REMOVED' && ushape(uiEntry) === ushape(cmdEntry)
+    && uiEntry.changes?.[0]?.siteId === sites[1] && norm(uiDone[0]) === norm(cmdDone[0])) {
+    ok('ui undo', `History's Undo took ${sites[1]} (the newest), /steward undo ${sites[0]}; logged alike ${ushape(uiEntry)}; said "${norm(uiDone[0])}"; screen kept open: ${tabKept}; ${historyShot}, ${undoConfirmShot}, ${afterUiShot}`);
+  } else fail('ui undo', `button ${uiDone?.[0] ?? 'silent'} [${uiLines.join(' / ')}]; command "${cmdUndo}" ${cmdDone?.[0] ?? 'silent'}; gone ${gone}; ${ushape(uiEntry)} (${uiEntry?.changes?.[0]?.siteId}) vs ${ushape(cmdEntry)}`);
+  // nothing left to undo: the command says so, and the button is off with its reason (seen in the shot)
+  {
+    const said = await cmd(`/steward undo ${id}`);
+    await sleep(1000);
+    await cmd(`/steward view ${id}`);
+    await sleep(1500);
+    await key('tab');
+    from = logSize();
+    await key('1');
+    await sleep(1500);
+    const pressed = logSince(from).match(/(Undone|Removing|Undo stopped)[^\n]*/);
+    const noneShot = await shot('e2e-history-nothing');
+    await closeScreens();
+    if (/Nothing to undo/.test(said + logSince(from - 1)) && !pressed) ok('ui undo refused', `command: "${said || 'Nothing to undo'}"; the button is off; ${noneShot}`);
+    else fail('ui undo refused', `command "${said}"; button ${pressed ? pressed[0] : 'did nothing'}`);
+  }
+  // the Claim tab: Check the land (4) says what /steward check says first; a district name typed into its box (not founded)
+  {
+    await cmd(`/steward view ${id}`);
+    await sleep(1500);
+    await key('tab', 2);
+    let from2 = logSize();
+    await key('4');
+    const ui = await waitLog(from2, /\] Let me look over the land\./, 10_000);
+    await key('enter');
+    await dev.request('dev.type', { text: 'Harbour Row' });
+    await sleep(300);
+    const claimShot = await shot('e2e-claim-actions');
+    await key('escape');
+    await closeScreens();
+    from2 = logSize();
+    const said = await cmd(`/steward check ${id}`);
+    const byCmd = await waitLog(from2, /\] Let me look over the land\./, 10_000);
+    if (ui && byCmd) ok('ui land check', `button and /steward check both "${ui[0].slice(1)}"; ${claimShot}`);
+    else fail('ui land check', `button ${ui ? 'said it' : 'silent'}; command "${said}" ${byCmd ? '' : 'silent'}`);
+  }
+  // talk, focused and empty: the caret before the placeholder, "Say it" off (a shot for the design check)
+  await cmd(`/steward ui talk ${id}`);
+  await sleep(1500);
+  const talkShot = await shot('e2e-talk-empty');
+  await closeScreens();
+  ok('ui shots', talkShot);
 }
 
 /** The player's UUID, from {@code /data get entity @p UUID} ("... [I; a, b, c, d]"): the restored build must be this player's, or cancel refuses it. */
@@ -4373,6 +4568,7 @@ try {
     await flow('shared-hud', 'screens inbox hud jobs', () => sharedHud());
     if (mode === 'free') {
       await flow('place', 'update revert undo screens', () => placeUpdateUndo(id));
+      await flow('ui-actions', 'screens place undo revert', () => uiActions(id));
       await flow('steward-life', 'sit sleep walk', () => stewardLife(id));
       await flow('proposals', 'farm', () => proposals(id));
       // districts builds on the settlement proposals describes (its own run alone says "Describe set_1 first")

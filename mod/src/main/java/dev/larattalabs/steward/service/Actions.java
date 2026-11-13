@@ -195,7 +195,7 @@ public final class Actions {
 	/** A decision on the player's own build: approve, redirect, raise, cancel, show, hide; "card" shows the settlement's card again. */
 	public static Result decide(ServerPlayer player, String id, String action, String lot, String text, double amount) {
 		// looking is open to everyone; deciding is the host's
-		if (!List.of("card", "show", "hide", "update_preview", "settlement", "building").contains(action == null ? "" : action)) {
+		if (!List.of("card", "show", "hide", "update_preview", "settlement", "building", "land_check").contains(action == null ? "" : action)) {
 			String no = refusal(player);
 			if (no != null) return Result.fail(no);
 		}
@@ -217,6 +217,21 @@ public final class Actions {
 			}
 			default -> {
 			}
+		}
+		if ("undo".equals(action) || "updates".equals(action) || "land_check".equals(action)) {
+			// the settlement screen's Undo, Look for updates and Check the land: the commands' own paths; lot "settlement" refreshes the open screen as it goes
+			MinecraftServer server = player.level().getServer();
+			UUID who = player.getUUID();
+			boolean fromScreen = "settlement".equals(lot);
+			Consumer<String> say = line -> {
+				ServerPlayer p = server.getPlayerList().getPlayer(who);
+				if (p == null) return;
+				p.sendSystemMessage(Component.literal(line));
+				if (fromScreen) Settlements.store().get(id).ifPresent(x -> refreshSettlement(p, x));
+			};
+			Result r = "undo".equals(action) ? undo(player, id, say) : "updates".equals(action) ? lookForUpdates(player) : landCheck(server, id, say);
+			if (fromScreen && "updates".equals(action)) Settlements.store().get(id).ifPresent(x -> refreshSettlement(player, x));
+			return r;
 		}
 		if ("expand".equals(action)) {
 			Optional<Settlement> s = Settlements.store().get(id);
@@ -596,6 +611,50 @@ public final class Actions {
 		ServerPlayNetworking.send(p, new StewardNet.SettlementPanel(view(p.level().getServer(), s).toJson(), siteId == null ? "" : siteId));
 	}
 
+	/** The settlement's view again, for its screen if the player still has it open (the client drops it otherwise): an action's progress. */
+	public static void refreshSettlement(ServerPlayer p, Settlement s) {
+		ServerPlayNetworking.send(p, new StewardNet.SettlementPanel(view(p.level().getServer(), s).toJson(), "", true));
+	}
+
+	// ------------------------------------------------------------------ undo, updates, the land check (each command's path and its screen button's)
+
+	/**
+	 * {@code /steward undo <id>} and the History tab's Undo: the settlement's newest undoable project taken up ({@link Undo#lastProject}); its progress and
+	 * result go to {@code say}. Refused for a guest, an unknown settlement and a settlement being built.
+	 */
+	public static Result undo(ServerPlayer player, String id, Consumer<String> say) {
+		String no = refusal(player);
+		if (no != null) return Result.fail(no);
+		var s = Settlements.store().get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement (see /steward settlements).");
+		if (SettlementRunner.busy(s.get().id())) return Result.fail(s.get().id() + " is being built; cancel it first (/steward cancel " + s.get().id() + ").");
+		return new Result(Undo.lastProject(player.level().getServer(), s.get(), say), "");
+	}
+
+	/** {@code /steward updates} and the Buildings tab's button: look again for newer versions of placed buildings (the inbox offers them). The host's. */
+	public static Result lookForUpdates(ServerPlayer player) {
+		String no = refusal(player);
+		if (no != null) return Result.fail(no);
+		// they are found at world load and when Architect announces a version
+		Updates.refreshAll(player.level().getServer());
+		return Result.ok("Checked for building updates: see the inbox (Y).");
+	}
+
+	/**
+	 * {@code /steward check <id>} and the Claim tab's button: the steward looks over the land (docs/LAND.md), open to everyone, $0. "Let me look" now, the
+	 * answer later, each line to {@code say} (the steward says its first line too).
+	 */
+	public static Result landCheck(MinecraftServer server, String id, Consumer<String> say) {
+		var s = Settlements.store().get(id);
+		if (s.isEmpty()) return Result.fail("No such settlement: " + id + ".");
+		say.accept("[" + s.get().name() + "] Let me look over the land.");
+		LandChecks.ask(server, s.get(), lines -> {
+			for (String l : lines) say.accept("[" + s.get().name() + "] " + l);
+			StewardVoice.say(server, id, lines.get(0));
+		});
+		return Result.ok("");
+	}
+
 	/** The settlement as its screens show it, with its buildings as Architect has them now. */
 	public static dev.larattalabs.steward.view.SettlementView view(MinecraftServer server, Settlement s) {
 		var api = ArchitectApi.get().sites(server);
@@ -625,7 +684,9 @@ public final class Actions {
 				if (dangling || dev.larattalabs.steward.gateway.DistrictLand.standingRemoved(v.ext()) != null) notes.put(d.id(), gate ? "the gate its road came through is gone" : "its road to the town is gone");
 			});
 		}
-		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock, builds, StewardStatus.attention(s.id(), ""), notes);
+		// what an undo would take up, chosen as Undo.lastProject chooses it (read only: the adoption reconcile it runs first is left to the undo itself)
+		var undo = Undo.headFirst(s, s.lastUndoable()).map(e -> new dev.larattalabs.steward.view.SettlementView.UndoTarget(e.op(), e.kind().name(), e.text())).orElse(null);
+		return dev.larattalabs.steward.view.SettlementView.of(s, SettlementRunner.busy(s.id()), sites, proposed, stock, builds, StewardStatus.attention(s.id(), ""), notes).withUndo(undo);
 	}
 
 	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.Sites sites, dev.larattalabs.architect.api.SiteView v) {

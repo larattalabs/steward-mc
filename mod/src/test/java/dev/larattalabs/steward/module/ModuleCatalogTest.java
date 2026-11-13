@@ -106,6 +106,28 @@ class ModuleCatalogTest {
 	}
 
 	@Test
+	void theLiveCropFarmIsCertifiedAndOfferedOnItsMeasuredVersionsOnly() {
+		// crop_farm@1 (slice M2): measured.json certifies these exact files on Minecraft 26.3 and Architect 0.64.1 (docs/MEASURE-M2.md)
+		ModuleCatalog live = ModuleCatalog.live(getClass().getClassLoader());
+		var env = new ModuleGate.Env("26.3", "0.64.1", java.util.Set.of(ModuleGate.FEATURE), false, false);
+		var v = ModuleGate.offer(live, "crop_farm", env);
+		assertTrue(v.ok(), v.message());
+		assertEquals(List.of(), v.entry().uncertified());
+		assertFalse(ModuleGate.offer(live, "crop_farm", new ModuleGate.Env("26.3", "0.63.0", java.util.Set.of(ModuleGate.FEATURE), false, false)).ok());
+		var p = new com.google.gson.JsonObject();
+		p.addProperty("width", 27);
+		p.addProperty("depth", 9);
+		p.addProperty("crop", "potatoes");
+		assertNotNull(ModuleGate.params(v.entry(), p).values());
+		p.addProperty("width", 10);
+		assertNull(ModuleGate.params(v.entry(), p).values(), "a field side outside the measured 9, 18 and 27 is refused");
+		// M3's members: a bound and a quoted rate for every one of the 36 branches
+		var raw = v.entry().measured().raw();
+		assertEquals(36, raw.getAsJsonArray("bounds").size());
+		assertEquals(36, raw.getAsJsonArray("rates").size());
+	}
+
+	@Test
 	void aTamperedOrUnmatchedEntryIsKeptWithItsProblemsAndNeverOffered() throws Exception {
 		var f = certify(files(), "fixture_plot/1");
 		f.put("fixture_plot/1/program.mjs", f.get("fixture_plot/1/program.mjs").replace("RIPE = { wheat: 7", "RIPE = { wheat: 6"));

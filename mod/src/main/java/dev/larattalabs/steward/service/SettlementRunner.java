@@ -876,7 +876,8 @@ public final class SettlementRunner {
 	public void start(String prompt, int buildings, double budgetUsd) {
 		if (!claim(DEV_ID)) return;
 		say("Reading your description...");
-		cards.submit(prompt, Map.of(), new ConceptCardJob.Settings(false, "patron", CLAIM_RADIUS), null).whenComplete((r, err) -> {
+		// owned by the settlement-to-be (founded as DEV_ID once the card is in), so its cost is Steward's in Architect's jobs ledger, not Architect's own
+		cards.submit(prompt, Map.of(), new ConceptCardJob.Settings(false, "patron", CLAIM_RADIUS), Settlement.ownerOf(DEV_ID)).whenComplete((r, err) -> {
 			if (err != null) { abandon("Card failed: " + err.getMessage()); return; }
 			if (!r.ok()) { abandon("Card failed: " + r.error()); return; }
 			for (String l : CardResult.lines(r.card(), r.cost())) say(l);

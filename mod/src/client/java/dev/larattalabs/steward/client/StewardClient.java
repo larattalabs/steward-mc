@@ -77,7 +77,18 @@ public class StewardClient implements ClientModInitializer {
 		});
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.SettlementPanel.TYPE, (payload, ctx) -> {
 			var view = dev.larattalabs.steward.view.SettlementView.fromJson(payload.viewJson());
+			var open = ctx.client().gui.screen();
+			// an action's progress (an undo's lines): only the settlement's own screen, still open, takes it, on the tab it shows
+			var was = open instanceof dev.larattalabs.steward.client.screen.SettlementScreen ss && ss.view().id().equals(view.id()) ? ss
+				: open instanceof dev.larattalabs.steward.client.screen.BuildingScreen bs && bs.settlement().view().id().equals(view.id()) ? bs.settlement() : null;
+			if (payload.refresh() && was == null) return;
 			var screen = new dev.larattalabs.steward.client.screen.SettlementScreen(view);
+			if (was != null) screen.keepFrom(was);
+			if (payload.refresh() && open instanceof dev.larattalabs.steward.client.screen.BuildingScreen bs) {
+				// the panel stays open, on the building as it is now (gone, after an undo: back to the settlement)
+				screen.setScreenFor(ctx.client(), bs.siteId());
+				return;
+			}
 			ctx.client().gui.setScreen(screen);
 			if (!payload.siteId().isEmpty()) screen.openBuilding(payload.siteId());
 		});

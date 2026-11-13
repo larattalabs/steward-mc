@@ -322,6 +322,20 @@ which has been false since BF (0.63.0); StrangeAsksTest counts ring_city and sky
 7c catalogue first (LEFTOVERS). The new ring_city card has `site.size: null`, outside the card schema (S/M/L/XL or absent), so `cards/` keeps the old
 card; the new one is the prompt inside `plans-2026-11-13/ring_city.json`.
 
+## hidden_village re-recorded on 0.64.1 with the hidden-rooms prompt line (2026-11-13, paid, Noah approved; $0.25 of a $0.55 cap)
+Noah via parent session: "hidden_village: cap 0.55". On main 80d3926 (Architect 0.64.1, catalogue 21: hidden_room supported; the prompt's
+"Hidden rooms are secrets" line). `node tools/record-plans.mjs 0.55`, one plan, $0.2471 (the uncached first call), the opt-in made and removed.
+Kept as `plans-2026-11-13/hidden_village-0.64.1.json`.
+- **The room is not written, again.** The plan has the waterfall (`falls`) and the village's ten lots, no `form.hidden_room`, no wait. Claude read
+  "a hidden village nobody can find, behind a waterfall" as the whole village hidden, and its summary says the village "sits in a hollow behind a
+  waterfall curtain": nothing behind the falls is built. That is a silent drop dressed as a fit, against the prompt's never-drop rule.
+- **Secrecy:** nothing to leak (no room part); the cabins' label "hidden dwelling" describes the village, not a room.
+- **What it needs:** the never-drop rule must cover a summary that claims a part the plan doesn't write ("behind", "inside", "hidden" without the
+  form), and the writer should be told that a place "behind a waterfall" is the waterfall's hollow (`form.hidden_room` with `host` the waterfall) or a
+  wait. With slice PW (LEFTOVERS).
+- **Two earlier tries spent $0.00:** the record tools sent their first job while Architect's helper was still running `npm ci` for its Claude Agent
+  SDK, which it does at every launch ("Claude link is not available"). Both tools now wait for the launcher's "running" line first.
+
 ## The repair round's catalogue text, proved in one in-game compose (2026-11-13, paid, Noah approved; $0.16)
 Noah via parent session: "n cap 1.50 + compose". One compose in a flat creative dev world on Architect 0.63.0 (main f66031d's code), the claude
 login's opt-in made for the run and removed after: `/steward claim`, then `/steward describe set_1 A monastery on a floating island, reached by a
@@ -528,3 +542,28 @@ raw hex becomes tokens (`CLAY_DARK` at 0x60, `paper.disabled`).
   - The first stub toast check failed because Architect's massing bar is an avoided rect, so the column ended above it and Steward's toasts
     waited under "+3 more". The check now counts the stack, not only the toasts on screen.
 - **Unit:** `InboxJobsTest` (6).
+
+### Phase 5 slice M2: crop_farm@1 measured (2026-11-13, $0)
+`node tools/module-measure.mjs <step>` (ports 8594/8595 via `STEWARD_PORT`/`STEWARD_DEV_PORT`, default 8595; its own client and fresh
+world per step; `--attach`, `--keep-client`). The bars and results are in docs/MEASURE-M2.md, the design in docs/MODULES.md "M2 as built".
+- **Steps.**
+  - `field --crop <c> [--runs 5]`: items 1, 2, 3 and 5 over the 9 sizes, on an ew and an ns town.
+  - `skin --bible <b>`: items 1a, 2 and 4, with spiders recorded.
+  - `survival`: items 6 and 7, in a survival-mode world.
+  - `bounds`: 108 QT quotes, never realised.
+  - `border`: the 9x9 and 27x9 sizes on chunk corners.
+  - `cover`: the envelope's facing and border bars, no client.
+  - `bands`: item 3's predicted bands, no client.
+  - `look`: geometry only, never judged.
+- **Then** `tools/module-catalog.mjs offline|ingame|record --catalog modules` (ingame with `STEWARD_DEV_PORT=8595`). Times: about 4 hours in
+  all, the four field steps 28-41 min each.
+- **Harness lessons.**
+  - Random ticks run only in block-ticking chunks: every field stands within simulation distance 16, which the tool writes to options.txt.
+  - `/tick freeze` is not saved, so the restart check saves with random ticks off.
+  - A removal waits a settle bound after draining, so never undo frozen.
+  - A survival-mode player dies from a teleport's fall and then loads no chunks: fall damage off.
+  - A region bills only in a survival-mode world (`ARCHITECT_AUTOWORLD_MODE=survival`).
+- **Shakedowns** (not recorded; MEASURE-M2.md "Candidates"):
+  - candidate 1's composter and chest outside the fence let mobs climb over it;
+  - candidate 2's path under them turned to dirt.
+

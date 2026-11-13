@@ -75,7 +75,8 @@ public abstract class KitScreen extends Screen {
 		Runnable action) {
 		int w = UiBits.buttonWidth(font, label, number);
 		Btn b = new Btn(label, number, primary, danger, enabled, x, y, w, 20, action);
-		UiBits.button(g, font, label, number, x, y, w, primary, !enabled ? UiBits.ButtonState.DISABLED : b.hit(mouseX, mouseY) ? UiBits.ButtonState.HOVER
+		// a disabled primary is drawn as a disabled plain button: lab-ui's disabled primary sprite reads as the hovered one ("Say it" with nothing typed)
+		UiBits.button(g, font, label, number, x, y, w, primary && enabled, !enabled ? UiBits.ButtonState.DISABLED : b.hit(mouseX, mouseY) ? UiBits.ButtonState.HOVER
 			: UiBits.ButtonState.NORMAL, danger);
 		buttons.add(b);
 		return w;
