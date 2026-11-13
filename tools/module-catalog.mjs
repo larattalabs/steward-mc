@@ -373,7 +373,7 @@ const ITEM_OF = { wheat: 'minecraft:wheat', carrots: 'minecraft:carrot', potatoe
 /** Each real module's measurement: its evidence steps (artifacts/m2/<step>.json) and what measured.json says it covers. */
 const MEASURES = {
   crop_farm: {
-    steps: ['field-wheat', 'field-carrots', 'field-potatoes', 'field-beetroots', 'skin-rustic', 'skin-fortress', 'skin-desert', 'survival', 'bounds'],
+    steps: ['field-wheat', 'field-carrots', 'field-potatoes', 'field-beetroots', 'skin-rustic', 'skin-fortress', 'skin-desert', 'survival', 'bounds', 'border', 'cover'],
     what: 'docs/MEASURE-M2.md: MODULES.md 3.1 items 1-7 as amended by section 9, measured in a dev client over the envelope (36 branches x 5 runs for the output rate; all four facings; chunk borders; rustic in full, fortress and desert for light, hydration and exclusion; survival bill and refunds) by tools/module-measure.mjs.',
     bars: 'docs/MEASURE-M2.md "The bars" (committed before the first measurement)',
   },

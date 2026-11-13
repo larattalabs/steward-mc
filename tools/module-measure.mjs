@@ -982,6 +982,96 @@ async function survival() {
   return out;
 }
 
+// ------------------------------------------------------------------ border: the sizes whose placements did not straddle a chunk corner
+
+/**
+ * The 9x9 and 27x9 placements of the field and skin steps never crossed a chunk border in both x and z (a 12-deep lot often sits inside
+ * one chunk row). Farms of those sizes are grown on towns at shifted claims until at least one of each straddles both, and those are
+ * measured for items 1a, 2, 4 and 5 (hydration, light, exclusion and the gate, restart and unload).
+ */
+async function border() {
+  await startClient('Border');
+  const out = { tries: [], farms: [] };
+  try {
+    await rules();
+    await install();
+    const want = [[9, 9], [27, 9]];
+    const got = [];
+    let k = 0;
+    for (const [dx, dz] of [[0, 0], [5, 7], [11, 3], [3, 13], [8, 9], [13, 5]]) {
+      if (want.every(([w, d]) => got.some((f) => f.width === w && f.depth === d))) break;
+      const T = await town(70000 + dx + 400 * (k % 2), 70000 + dz + 300 * Math.floor(k / 2), { w: 192, d: 160, lots: 4, orientation: k % 2 ? 'ns' : 'ew' });
+      const specs = [];
+      for (const [w, d] of want) for (let i = 0; i < 2; i++) specs.push({ id: `bord${k}_${w}x${d}_${i}`, width: w, depth: d, crop: Object.keys(CROPS)[(k + i) % 4], bible: MODULE_JSON.envelope.bibles[(k + i) % 3] });
+      const farms = await growAll(T, specs);
+      k++;
+      for (const f of farms) {
+        out.tries.push({ id: f.id, front: f.lot.front, box: f.lot.box, chunkBorder: f.chunkBorder });
+        if (f.chunkBorder.x && f.chunkBorder.z) got.push(f);
+      }
+    }
+    // keep only what one player position covers: the farms near the first one that straddles
+    const pick = [];
+    for (const [w, d] of want) { const f = got.find((g) => g.width === w && g.depth === d); if (f) pick.push(f); }
+    check(want.every(([w, d]) => pick.some((f) => f.width === w && f.depth === d)), `border: a ${want.map(([w, d]) => `${w}x${d}`).join(' and a ')} farm straddling a chunk border in x and z (${pick.map((f) => `${f.id} ${json(f.lot.box)}`).join('; ')})`);
+    out.farms = pick.map((f) => ({ id: f.id, size: `${f.width}x${f.depth}`, crop: f.crop, bible: f.bible, front: f.lot.front, box: f.lot.box, chunkBorder: f.chunkBorder }));
+    for (const f of pick) {
+      const b = f.frame.box;
+      const px = Math.floor((b.minX + b.maxX) / 2), pz = Math.floor((b.minZ + b.maxZ) / 2);
+      await standAt(px, pz, f.frame.floorY + 40);
+      await tick.freeze();
+      const lt = await lightBar([f], `border ${f.id}`);
+      await tick.advance(24000);
+      const m = await moistAll([f]);
+      check(m.bad.length === 0, `1a hydration border ${f.id}: every farmland cell moisture 7 24,000 ticks after PLACED (${m.n}, ${m.bad.length} below)`);
+      const r5a = await restartCheck([f], f.frame.floorY);
+      await tick.freeze();
+      const r5b = await unloadCheck([f], px, pz, f.frame.floorY);
+      // item 4 on this farm
+      await cmd('/time set 18000');
+      await cmd('/difficulty easy');
+      const kinds = ['zombie', 'zombie', 'villager', 'villager', 'cow', 'cow'];
+      for (const [i, [x, y, z]] of mobSpots(f).entries()) await cmd(`/summon minecraft:${kinds[i]} ${x + 0.5} ${y} ${z + 0.5} {PersistenceRequired:1b}`);
+      let inside = 0;
+      for (let t = 1000; t <= 12000; t += 1000) { await tick.advance(1000); inside += (await mod({ op: 'mobs', box: insideBox(f) })).mobs.length; }
+      const after = await agesOf([f]);
+      const changed = after[f.id].land.filter((c) => c?.[0] !== 'minecraft:farmland').length + after[f.id].crops.filter((c) => c?.[0] !== CROPS[f.crop].block).length;
+      check(inside === 0 && changed === 0, `4a/4b exclusion border ${f.id}: no mob inside over 12,000 ticks (${inside} sightings), the field unchanged (${changed})`);
+      await cmd('/kill @e[type=!minecraft:player]');
+      await cmd('/difficulty peaceful');
+      const g = await gateWalk(f);
+      check(g.closed === false && g.in && g.out && g.closedAgain === false, `4c gate border ${f.id}: ${json(g)}`);
+      await cmd('/time set 6000');
+      await cmd('/tick unfreeze');
+      out[f.id] = { light: lt[f.id], restart: r5a, unload: r5b, gate: g };
+    }
+  } finally {
+    await stopClient().catch((e) => log(`stop: ${e}`));
+  }
+  return out;
+}
+
+/** The envelope's cover bars over all the evidence (docs/MEASURE-M2.md "The envelope"): facings and chunk borders. No client. */
+function cover() {
+  const read = (s) => JSON.parse(fs.readFileSync(path.join(ART, `${s}.json`), 'utf8'));
+  const fronts = {}, border2 = {}, orient = {};
+  const now = stamp();
+  for (const s of ['field-wheat', 'field-carrots', 'field-potatoes', 'field-beetroots', 'skin-rustic', 'skin-fortress', 'skin-desert', 'border']) {
+    const a = read(s);
+    check(a.ok && a.programSha === now.programSha && a.moduleJsonSha === now.moduleJsonSha, `${s}: passed on these files`);
+    for (const f of a.data.farms) {
+      fronts[f.front] = (fronts[f.front] ?? 0) + 1;
+      (border2[f.size] ??= []).push(!!(f.chunkBorder?.x && f.chunkBorder?.z));
+      if (s.startsWith('field-')) (orient[s] ??= new Set()).add(['north', 'south'].includes(f.front) ? 'ew' : 'ns');
+    }
+  }
+  check(['north', 'east', 'south', 'west'].every((d) => (fronts[d] ?? 0) >= 9), `facings: every facing has at least 9 measured farms (${json(fronts)})`);
+  check(Object.values(orient).length === 4 && Object.values(orient).every((o) => o.size === 2), `facings: each crop measured on both street orientations (${json(Object.fromEntries(Object.entries(orient).map(([k, v]) => [k, [...v]])))})`);
+  const sizes = Object.fromEntries(Object.entries(border2).map(([k, v]) => [k, `${v.filter(Boolean).length}/${v.length}`]));
+  check(SIZES.every(([w, d]) => (border2[`${w}x${d}`] ?? []).some(Boolean)), `chunk borders: at least one farm of every size pair crosses in both x and z (${json(sizes)})`);
+  return { fronts, chunkBorders: sizes };
+}
+
 // ------------------------------------------------------------------ bounds: the whole growth's bill per params (M3's survival bound)
 
 /**
@@ -1062,7 +1152,7 @@ function bandsStep() {
   })();
 }
 
-const steps = { look, bands: bandsStep, field, skin, survival, bounds };
+const steps = { look, bands: bandsStep, field, skin, survival, bounds, border, cover };
 if (steps[step]) {
   const t0 = Date.now();
   let data, error;
