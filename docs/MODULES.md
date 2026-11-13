@@ -529,8 +529,9 @@ plans, with Noah's OK on the spend.
   program's own layout. The measurement checks the Java cells equal the program's on every growth. M3 uses it.
 - **The measurement** (`docs/MEASURE-M2.md`, `tools/module-measure.mjs`, `tools/lib/crop-farm-bars.mjs`): §3.1 items 1-7 as amended by
   section 9, and Noah's 3b answer (2026-11-12, "a").
-  - Usefulness is judged on G3's ripen-as-you-go basis, from the per-cell maturity times measured in the farm.
-  - The band, and the rate the offer quotes, are the fixed-cycle protocol rate. Wheat's is about 18 a day for a 9x9, 179 for a 27x27.
+  - Usefulness is judged on G3's ripen-as-you-go basis, from the per-cell maturity times measured in the farm (each run's first planting
+    followed through all 3 cycles; the judge was amended once after measuring, made stricter).
+  - The band, and the rate the offer quotes, are the fixed-cycle protocol rate. Wheat's is 18 a day for a 9x9, 180 for a 27x27.
   - It ran over the whole envelope (36 branches x 5 runs, all four facings, chunk corners, three Styles) and passed. The verdicts are in
     MEASURE-M2.md.
 - **Recording.** `tools/module-catalog.mjs record` certifies a real module only with its measurement's evidence: every step passed on these
