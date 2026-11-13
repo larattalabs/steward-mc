@@ -96,6 +96,8 @@ class ModulePlacementTest {
 			java.util.List.of("fluids: a lava bucket per lava source and an iron bars per grate cell of every body (an upper bound)", "the region's cells are the kit's bill")),
 			"the fluids' upper bound is conservative");
 		assertNotNull(ModulePlacement.quoteCheck(false, java.util.List.of()).ask(), "inexact for no reason given: asked");
+		var masked = ModulePlacement.quoteCheck(false, java.util.List.of("fluids: a lava bucket per lava source (an upper bound)", "something new Architect says"));
+		assertNotNull(masked.ask(), "the fluids' bound never masks an unknown reason");
 	}
 
 	@Test

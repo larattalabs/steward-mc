@@ -71,6 +71,8 @@ class ModuleBoundTest {
 		assertEquals(j("{\"minecraft:dirt\": 9}"), ok.bound(), "the bill shown becomes the bound");
 		assertNull(ok.held());
 		assertFalse(ok.autonomous(), "the player's word now");
+		assertTrue(ok.inexactApproved(), "an approved inexact bill is not asked about again");
+		assertFalse(held.inexactApproved());
 		assertFalse(new ModuleOrder("Bad Id", 1, "a".repeat(64), j("{}"), null, null, false, false).valid());
 	}
 }

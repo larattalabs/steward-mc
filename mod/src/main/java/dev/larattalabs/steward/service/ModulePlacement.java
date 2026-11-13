@@ -114,8 +114,11 @@ public final class ModulePlacement {
 		for (String n : notes) {
 			if (n == null) continue;
 			if (n.contains("not billed") || n.contains("no construction plan") || n.contains("could not be read")) refused.add(n);
-			else if (n.contains("may differ")) ask.add(n);
 			else if (n.startsWith("fluids: a lava bucket")) conservative = true;
+			// what the quote read, not why it is inexact
+			else if (n.startsWith("fluids: region") || n.startsWith("the region's cells are") || n.startsWith("an INSTANT")) continue;
+			// "may differ", and anything not known to be harmless: the player decides
+			else ask.add(n);
 		}
 		if (!refused.isEmpty()) return new QuoteCheck(String.join("; ", refused), null);
 		if (!ask.isEmpty()) return new QuoteCheck(null, String.join("; ", ask));

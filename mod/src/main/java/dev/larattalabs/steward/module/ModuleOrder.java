@@ -21,9 +21,11 @@ import org.jspecify.annotations.Nullable;
  * @param proposal the key of the proposal accepted (null on an offer): a build that ends with nothing placed gives it back, also after a restart
  * @param held a quote past the bound the player is asked about now (its whole bill), saved with the build so the approval binds to what was shown,
  *     also across a restart; null when nothing waits
+ * @param inexactApproved the player approved a held bill that Architect could not quote exactly: a later quote with the same uncertainty, within
+ *     that bill, is not asked about again
  */
 public record ModuleOrder(String moduleId, int version, String programSha, JsonObject params, @Nullable JsonObject bound, @Nullable String rate,
-	boolean lampFallback, boolean autonomous, @Nullable String proposal, @Nullable JsonObject held) {
+	boolean lampFallback, boolean autonomous, @Nullable String proposal, @Nullable JsonObject held, boolean inexactApproved) {
 	public ModuleOrder {
 		params = params == null ? null : Canon.sorted(params).getAsJsonObject();
 		bound = ModuleBound.clean(bound);
@@ -33,12 +35,12 @@ public record ModuleOrder(String moduleId, int version, String programSha, JsonO
 	/** An offer (not accepted, nothing held). */
 	public ModuleOrder(String moduleId, int version, String programSha, JsonObject params, @Nullable JsonObject bound, @Nullable String rate,
 		boolean lampFallback, boolean autonomous) {
-		this(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, null, null);
+		this(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, null, null, false);
 	}
 
 	/** The same order with other params (a smaller size) and the bound that goes with them. */
 	public ModuleOrder resized(JsonObject p, @Nullable JsonObject b) {
-		return new ModuleOrder(moduleId, version, programSha, p, b, rate, lampFallback, autonomous, proposal, held);
+		return new ModuleOrder(moduleId, version, programSha, p, b, rate, lampFallback, autonomous, proposal, held, inexactApproved);
 	}
 
 	/**
@@ -46,22 +48,22 @@ public record ModuleOrder(String moduleId, int version, String programSha, JsonO
 	 * player's word now).
 	 */
 	public ModuleOrder approvedHeld() {
-		return new ModuleOrder(moduleId, version, programSha, params, held, rate, lampFallback, false, proposal, null);
+		return new ModuleOrder(moduleId, version, programSha, params, held, rate, lampFallback, false, proposal, null, true);
 	}
 
 	/** The same order holding this quote for the player's word. */
 	public ModuleOrder holding(JsonObject bill) {
-		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, bill);
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, bill, inexactApproved);
 	}
 
 	/** The order as accepted: by the player, or by the steward on its own, from the proposal {@code key}. */
 	public ModuleOrder accepted(boolean byTheSteward, String key) {
-		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, byTheSteward, key, null);
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, byTheSteward, key, null, false);
 	}
 
 	/** The same offer, with the lamp the bible gives (the plain lantern when its lamp is too dim). */
 	public ModuleOrder withLamp(boolean fallback) {
-		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, fallback, autonomous, proposal, held);
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, fallback, autonomous, proposal, held, inexactApproved);
 	}
 
 	/** The lot ext Architect keeps on the placed lot. */

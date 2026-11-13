@@ -232,7 +232,12 @@ public final class SettlementRunner {
 				feed(new Pipeline.MassingDecision(lots, Map.of(), List.of()));
 				yield "Approved " + lots.size() + " massings; detailing them.";
 			}
-			case PLACEMENT -> { feed(new Pipeline.PlacementApproved()); yield "Approved; placing the settlement stage by stage."; }
+			case PLACEMENT -> {
+				// (slice M3) a held bill: the bill shown becomes the bound, saved before the phase moves on (a crash between leaves it approved, never lost)
+				if (moduleBuild()) approveHeld();
+				feed(new Pipeline.PlacementApproved());
+				yield "Approved; placing the settlement stage by stage.";
+			}
 			case BUDGET -> "The design group is paused at its budget: /steward raise " + settlement.id() + " <new budget in USD>.";
 			case NONE -> "Nothing is waiting for you (" + state.phase().name().toLowerCase().replace('_', ' ') + ").";
 		};
@@ -2094,8 +2099,6 @@ public final class SettlementRunner {
 			}
 			case Pipeline.FitAndQueue f -> fitAndQueue(f.autoApprove());
 			case Pipeline.ApproveStages a -> {
-				// (slice M3) the player approved a held bill: it becomes the bound (saved), then quoted again
-				if (moduleBuild()) approveHeld();
 				if (village()) realiseVillage(); else approveStages();
 			}
 			case Pipeline.CancelBatch cb -> {
@@ -2497,7 +2500,7 @@ public final class SettlementRunner {
 			String why = !over.isEmpty() ? "The bill came to more than you approved: " + dev.larattalabs.steward.module.ModuleBound.words(over, 100) + "."
 				: !heavy.isEmpty() ? "The whole bill takes more than half of the stockpile's " + heavy.stream().map(h -> dev.larattalabs.steward.module.ModuleBound.plain(h.item())
 					+ " (" + h.bill() + " of " + h.stock() + ")").collect(Collectors.joining(", ")) + ", so I ask first."
-				: check.ask() != null ? "Architect can't quote the bill exactly (" + check.ask() + "), so I ask first." : null;
+				: check.ask() != null && !now.inexactApproved() ? "Architect can't quote the bill exactly (" + check.ask() + "), so I ask first." : null;
 			if (why != null) {
 				// held, saved with the build: the approval binds to exactly this bill, also after a restart
 				moduleOrders = Map.of(lot, now.holding(bill));
@@ -2527,6 +2530,10 @@ public final class SettlementRunner {
 	/** A restored module build that ended with nothing standing: its proposal back in the inbox (once), as the accepting hook would have. */
 	private void giveModuleBack() {
 		for (var o : moduleOrders.values()) {
+			// the proposal exactly as it was offered: the build's copy of the settlement holds it as it was when the build started
+			var offered = o.proposal() == null ? java.util.Optional.<dev.larattalabs.steward.model.Proposal>empty()
+				: settlement.proposals().open().stream().filter(x -> o.proposal().equals(x.key()) && x.offersModule()).findFirst();
+			if (offered.isPresent()) { Proposals.giveBack(settlement.id(), offered.get(), null); continue; }
 			var kind = dev.larattalabs.steward.module.ModuleKind.of(o.moduleId());
 			if (o.proposal() == null || kind.isEmpty() || plan == null) continue;
 			var lot = new dev.larattalabs.steward.model.ConceptCard.Building(kind.get().role(), kind.get().lotType(), 1, "L", false, null, null);
