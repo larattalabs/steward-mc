@@ -150,4 +150,20 @@ class ModelTest {
 		assertFalse(ArchitectGateway.Status.evaluate(ArchitectGateway.loadedVersion(new OldApi() {}, OldApi.class), Set.of("designs", "sites", "events")).ok(),
 				"an old loaded Architect fails even though Steward compiled against a newer one");
 	}
+
+	@Test
+	void everyRecipeUnlocksInTheRecipeBook() throws Exception {
+		// survival players find the Founding Stone, Ledger and Board in the recipe book only through these advancements (UI audit F6)
+		String[][] unlocks = {{"founding_stone", "misc"}, {"steward_ledger", "misc"}, {"settlement_board", "building_blocks"}};
+		for (String[] u : unlocks) {
+			assertNotNull(ModelTest.class.getResourceAsStream("/data/steward_mc/recipe/" + u[0] + ".json"), u[0]);
+			try (InputStream in = ModelTest.class.getResourceAsStream("/data/steward_mc/advancement/recipes/" + u[1] + "/" + u[0] + ".json")) {
+				assertNotNull(in, "an unlock advancement for " + u[0]);
+				JsonObject a = JsonParser.parseReader(new InputStreamReader(in)).getAsJsonObject();
+				assertEquals("steward_mc:" + u[0], a.getAsJsonObject("rewards").getAsJsonArray("recipes").get(0).getAsString());
+				assertEquals("steward_mc:" + u[0], a.getAsJsonObject("criteria").getAsJsonObject("has_the_recipe").getAsJsonObject("conditions").get("recipes").getAsString());
+				assertTrue(a.getAsJsonObject("criteria").has("has_book"), "unlocks once the player holds a book");
+			}
+		}
+	}
 }
