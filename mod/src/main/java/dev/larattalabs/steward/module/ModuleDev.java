@@ -16,7 +16,14 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.MoverType;
+import net.minecraft.world.level.LightLayer;
+import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 /**
  * The module catalog's dev hook ({@code /steward dev module <label> <request JSON>}, game masters in a development environment only;
@@ -31,6 +38,11 @@ import net.minecraft.server.MinecraftServer;
  * entry's own catalog install;</li>
  * <li>{@code measuring: true} on gate, install or variant: a measurement run (an uncertified entry may be installed).</li>
  * <li>{@code byKey {key, owner?}}.</li>
+ * <li>{@code cells {cells: [[x, y, z]...]}} (M2, the measurement): per cell {@code [block, age | -1, moisture | -1, block light]}, read on the
+ * server thread in the overworld (an unloaded cell reads {@code null}).</li>
+ * <li>{@code growLot {id, width, depth}} (M2): crop_farm@1's grow lot as {@link CropFarmLot#growLot} makes it.</li>
+ * <li>{@code walk {from: [x, y, z], to: [x, y, z], steps?}} (M2, the exclusion test): a fake player (Fabric's) set at {@code from} walks in
+ * straight steps of 0.2 towards {@code to} with vanilla's collision ({@code Entity.move(SELF, ...)}, gravity each step); answers where it ended.</li>
  * </ul>
  */
 public final class ModuleDev {
@@ -55,7 +67,7 @@ public final class ModuleDev {
 	public static CompletableFuture<JsonObject> run(MinecraftServer server, String label, JsonObject req) {
 		CompletableFuture<JsonObject> f;
 		try {
-			f = allowed() ? op(req) : CompletableFuture.completedFuture(error("the module hook runs only in a development environment"));
+			f = allowed() ? op(server, req) : CompletableFuture.completedFuture(error("the module hook runs only in a development environment"));
 		} catch (RuntimeException e) {
 			f = CompletableFuture.completedFuture(error(e.toString()));
 		}
@@ -74,9 +86,20 @@ public final class ModuleDev {
 		});
 	}
 
-	private static CompletableFuture<JsonObject> op(JsonObject req) {
+	private static CompletableFuture<JsonObject> op(MinecraftServer server, JsonObject req) {
 		String op = req.get("op").getAsString();
 		switch (op) {
+			case "cells" -> {
+				return CompletableFuture.supplyAsync(() -> cells(server, req.getAsJsonArray("cells")), server);
+			}
+			case "walk" -> {
+				return CompletableFuture.supplyAsync(() -> walk(server, req), server);
+			}
+			case "growLot" -> {
+				JsonObject a = new JsonObject();
+				a.add("lot", CropFarmLot.growLot(req.get("id").getAsString(), req.get("width").getAsInt(), req.get("depth").getAsInt()));
+				return CompletableFuture.completedFuture(a);
+			}
 			case "env" -> {
 				return CompletableFuture.completedFuture(envJson(env(true, false)));
 			}
@@ -157,6 +180,64 @@ public final class ModuleDev {
 			a.addProperty("lampFallback", o.lampFallback());
 			return a;
 		});
+	}
+
+	/** Each cell's block, crop age, farmland moisture and block light (the measurement's reads; the server thread). */
+	private static JsonObject cells(MinecraftServer server, JsonArray cells) {
+		ServerLevel level = server.overworld();
+		JsonArray out = new JsonArray();
+		for (JsonElement c : cells) {
+			var a = c.getAsJsonArray();
+			BlockPos pos = new BlockPos(a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt());
+			if (!level.hasChunkAt(pos)) {
+				out.add(com.google.gson.JsonNull.INSTANCE);
+				continue;
+			}
+			BlockState st = level.getBlockState(pos);
+			JsonArray r = new JsonArray();
+			r.add(BuiltInRegistries.BLOCK.getKey(st.getBlock()).toString());
+			r.add(st.hasProperty(BlockStateProperties.AGE_7) ? st.getValue(BlockStateProperties.AGE_7) : st.hasProperty(BlockStateProperties.AGE_3) ? st.getValue(BlockStateProperties.AGE_3) : -1);
+			r.add(st.hasProperty(BlockStateProperties.MOISTURE) ? st.getValue(BlockStateProperties.MOISTURE) : -1);
+			r.add(level.getBrightness(LightLayer.BLOCK, pos));
+			out.add(r);
+		}
+		JsonObject o = new JsonObject();
+		o.add("cells", out);
+		o.addProperty("gameTime", level.getGameTime());
+		return o;
+	}
+
+	/** A fake player walks from {@code from} towards {@code to} with vanilla's collision; where it ended and whether it reached {@code to}. */
+	private static JsonObject walk(MinecraftServer server, JsonObject req) {
+		ServerLevel level = server.overworld();
+		var f = req.getAsJsonArray("from");
+		var t = req.getAsJsonArray("to");
+		Vec3 to = new Vec3(t.get(0).getAsDouble(), t.get(1).getAsDouble(), t.get(2).getAsDouble());
+		int steps = req.has("steps") ? req.get("steps").getAsInt() : 400;
+		var p = net.fabricmc.fabric.api.entity.FakePlayer.get(level);
+		p.setPos(f.get(0).getAsDouble(), f.get(1).getAsDouble(), f.get(2).getAsDouble());
+		for (int i = 0; i < steps; i++) {
+			Vec3 at = p.position();
+			Vec3 d = new Vec3(to.x - at.x, 0, to.z - at.z);
+			if (d.length() < 0.25) break;
+			Vec3 step = d.normalize().scale(0.2);
+			p.move(MoverType.SELF, new Vec3(step.x, -0.08, step.z));
+			if (p.horizontalCollision) {
+				// a one-block step up (a path's 15/16 to a full block): vanilla's step height covers it; a fence (1.5) does not
+				p.move(MoverType.SELF, new Vec3(0, 0.6, 0));
+				p.move(MoverType.SELF, new Vec3(step.x, 0, step.z));
+				p.move(MoverType.SELF, new Vec3(0, -0.6, 0));
+			}
+		}
+		Vec3 end = p.position();
+		JsonObject o = new JsonObject();
+		JsonArray e = new JsonArray();
+		e.add(end.x);
+		e.add(end.y);
+		e.add(end.z);
+		o.add("end", e);
+		o.addProperty("reached", Math.hypot(end.x - to.x, end.z - to.z) < 0.5);
+		return o;
 	}
 
 	private static DesignRequest.Reserved reserved(JsonObject req) {
