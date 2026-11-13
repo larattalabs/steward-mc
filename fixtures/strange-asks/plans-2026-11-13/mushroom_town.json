@@ -1,0 +1,154 @@
+{
+  "prompt": "Houses inside giant mushrooms on a mushroom island.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "mushroom_island_hamlet",
+      "style": {
+        "pending": "mushroom_island_hamlet"
+      },
+      "zones": [
+        {
+          "id": "hamlet",
+          "required": true,
+          "label": "Mushroom Island Hamlet",
+          "purpose": "residential",
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 24
+            }
+          },
+          "size": {
+            "preset": "M"
+          },
+          "program": {
+            "layout": "organic",
+            "shared": "square",
+            "lots": [
+              {
+                "id": "hall_1",
+                "type": "mushroom_hall",
+                "role": "great_hall",
+                "label": "great mushroom hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Largest mushroom, a communal hall with a wide cap and spiral stairs inside the stem."
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "mushroom_house",
+                "label": "mushroom house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Hollowed giant mushroom stem and cap; round rooms, door in stem, windows in cap, glowstone lighting."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "mushroom_house",
+                "label": "mushroom house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Hollowed giant mushroom stem and cap; round rooms, door in stem, windows in cap, glowstone lighting."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "mushroom_house",
+                "label": "mushroom house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Hollowed giant mushroom stem and cap; round rooms, door in stem, windows in cap, glowstone lighting."
+              },
+              {
+                "id": "house_4",
+                "type": "house",
+                "role": "mushroom_house",
+                "label": "mushroom house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Hollowed giant mushroom stem and cap; round rooms, door in stem, windows in cap, glowstone lighting."
+              },
+              {
+                "id": "house_5",
+                "type": "house",
+                "role": "mushroom_house",
+                "label": "mushroom house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Hollowed giant mushroom stem and cap; round rooms, door in stem, windows in cap, glowstone lighting."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "spore_garden",
+                "label": "spore garden",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "dwelling",
+                "brief": "Small mushroom-farm cottage tending crops of mushrooms."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "boathouse",
+                "label": "lakeside boathouse",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "villager": "none",
+                "brief": "Small mushroom-capped shed for boats at the shore."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "lookout",
+                "label": "cap-top lookout",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Tall thin mushroom stem with a lookout in the cap."
+              }
+            ]
+          }
+        }
+      ],
+      "connectors": [],
+      "forms": [],
+      "rules": []
+    },
+    "waits": [],
+    "summary": "A small hamlet of nine buildings near the founding stone: five mushroom houses around a great mushroom hall at the centre. It also has a spore-garden cottage, a boathouse near water and a lookout on high ground, all on winding organic lanes round a small square. Whether the land is really a mushroom island couldn't be checked, because it isn't surveyed."
+  },
+  "usd": 0.035991,
+  "errors": []
+}
