@@ -17,7 +17,8 @@ coordinates. A release candidate is checked with `ARCHITECT_JAR` (or `-Parchitec
 
 The pin sets the lower end of `fabric.mod.json`'s `architect_mc` range; its upper end is `<1.0.0`, below the next major API (Noah, 2026-11-13).
 At runtime `ArchitectGateway.check()` reads the loaded Architect's API version (`apiVersion()` once Architect has it, else the loaded `ArchitectApi.VERSION`
-by reflection) and refuses a major other than 1 or a minor below the pinned API's, which it takes from the `ArchitectApi.VERSION` it compiled against.
+by reflection) and reports a major other than 1, or a minor below the pinned API's (taken from the `ArchitectApi.VERSION` it compiled against), as not ok:
+the startup log says so and `/steward status` fails. It does not stop Steward; Fabric's range is what refuses to load.
 
 CI (`.github/workflows/ci.yml`) resolves it with the workflow's `GITHUB_TOKEN` (`packages: read`); verified green 2026-10-05, no extra access grant needed.
 Outside builders need a PAT with `read:packages` (`GITHUB_ACTOR` + `GITHUB_TOKEN` env vars). The API is `dev.larattalabs.architect.api`; `gateway/ArchitectGateway` is the only class that should touch it for

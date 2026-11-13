@@ -8,7 +8,7 @@ import java.util.Set;
  * written against a draft contract) is fixed in one place. Pure checks live in {@link Status} so they are unit-testable.
  */
 public final class ArchitectGateway {
-	/** The Architect API major version Steward is written against. A loaded API of another major is refused (Noah, 2026-11-13: an upper bound at the next major API). */
+	/** The Architect API major version Steward is written against. A loaded API of another major is reported as not ok (Noah, 2026-11-13: an upper bound at the next major API). */
 	public static final int REQUIRED_MAJOR = 1;
 	/**
 	 * The pinned API: the {@code ArchitectApi.VERSION} Steward was compiled against. javac inlines that constant into Steward's bytecode, so it names
@@ -26,7 +26,7 @@ public final class ArchitectGateway {
 	private ArchitectGateway() {
 	}
 
-	/** Reads the real API. Never throws: a missing, older or newer-major Architect is reported in the status. */
+	/** Reads the real API. Never throws: a missing, older or other-major Architect is reported in the status (the startup log, /steward status); nothing else is gated on it. */
 	public static Status check() {
 		try {
 			ArchitectApi api = ArchitectApi.get();
