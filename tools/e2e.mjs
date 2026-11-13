@@ -4220,9 +4220,16 @@ const started = Date.now();
 const skipped = [];
 // ------------------------------------------------------------------ phase 5 slice M3: offering and placing a module (docs/MODULES.md 4, 6, 7)
 
-/** The fixture module's catalog (M1's fixture_plot, measured on Architect 0.62.0) as the offer's dev source: a measuring gate; optional bounds. */
+/** The module the flows offer: crop_farm@1 (M2), certified on the pinned Architect. */
+const MODULE = 'crop_farm';
+const MODULE_DIR = path.join(ROOT, 'modules', MODULE, '1');
+
+/**
+ * The live catalog's crop_farm as the offer's dev source, its real certification gate (no measuring), with bounds that override its measured ones
+ * (dev only: to hold its bill on purpose).
+ */
 async function moduleSource(bounds) {
-  const req = { dir: path.join(ROOT, 'fixtures', 'modules', 'catalog'), id: 'fixture_plot', measuring: true, ...(bounds ? { bounds } : {}) };
+  const req = { dir: path.join(ROOT, 'modules'), id: MODULE, measuring: false, ...(bounds ? { bounds, override: true } : {}) };
   return cmd(`/steward dev modules ${JSON.stringify(req)}`);
 }
 
@@ -4230,7 +4237,7 @@ async function moduleSource(bounds) {
 async function moduleOffer(id, ms = 90_000) {
   for (let i = 0; i < ms / 1000; i++) {
     await sleep(1000);
-    const p = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.key === 'module.fixture_plot');
+    const p = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.key === `module.${MODULE}`);
     if (p) return p;
   }
   return null;
@@ -4247,7 +4254,7 @@ async function growthOf(id) {
   return { op, m, rev: (view.revisions ?? []).find((r) => String(r.rid) === m[2]) ?? null, view };
 }
 
-/** The module lots among a growth's sites ("site <id> module fixture_plot@1 <sha12> {...} blueprint <entry>"). */
+/** The module lots among a growth's sites ("site <id> module crop_farm@1 <sha12> {...} blueprint <entry>"). */
 async function moduleSites(op) {
   const out = [];
   for (const sid of op?.siteIds ?? []) {
@@ -4295,31 +4302,33 @@ async function moduleFlow() {
   const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
   const snap = path.join(ROOT, 'artifacts', 'e2e', `module-town-${id}.snap.gz`);
   await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
-  ok(`${label} source`, await moduleSource());
+  // the live catalog, the player's own gate (no dev source): crop_farm@1 certified on the pinned Architect
+  await cmd('/steward dev modules {}');
   // the sign: 16 wheat seeds carried, in the town
   await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
   await cmd('/give @p minecraft:wheat_seeds 16');
   const offer = await moduleOffer(id);
-  if (!offer) return fail(`${label} offer`, 'no module.fixture_plot proposal within 90 s');
+  if (!offer) return fail(`${label} offer`, `no module.${MODULE} proposal within 90 s`);
   const farmToo = settlements().find((x) => x.id === id)?.proposals?.open?.some((p) => p.key === 'farm');
-  if (offer.module?.moduleId === 'fixture_plot' && offer.module.params?.side === 5 && offer.module.bound == null && /You carry wheat seeds/.test(offer.why) && !farmToo) {
-    ok(`${label} offer`, `${offer.title}: ${offer.why.slice(0, 140)} (side 5 for 16 seeds; no decorative farm beside it)`);
+  if (offer.module?.moduleId === MODULE && offer.module.params?.width === 9 && offer.module.params?.depth === 9 && offer.module.bound == null && /You carry wheat seeds/.test(offer.why)
+    && /a day once it's going/.test(offer.why) && !farmToo) {
+    ok(`${label} offer`, `${offer.title}: ${offer.why.slice(0, 160)} (9x9 for 16 seeds, the measured rate; no decorative farm beside it)`);
   } else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 300));
   // asked for in talk while it waits: one module offer, coalesced by module identity
   const ask = { reply: 'A working field: I have put it in the inbox.', intent: 'building', building: { role: 'farm', type: 'farm', footprint: 'L', landmark: false },
-    module: { id: 'fixture_plot', params: { crop: 'wheat' } } };
+    module: { id: MODULE, params: { crop: 'wheat' } } };
   await cmd(`/steward dev sim_answer talk ${JSON.stringify(ask)}`);
   from = logSize();
   await cmd(`/steward talk ${id} we need a farm that grows food`);
   const coalesced = await waitLog(from, /waits in the inbox already/, 60_000);
   const opens = settlements().find((x) => x.id === id)?.proposals?.open ?? [];
-  if (coalesced && opens.filter((p) => p.module?.moduleId === 'fixture_plot').length === 1) ok(`${label} talk coalesced`, coalesced[0].slice(0, 120));
+  if (coalesced && opens.filter((p) => p.module?.moduleId === MODULE).length === 1) ok(`${label} talk coalesced`, coalesced[0].slice(0, 120));
   else fail(`${label} talk coalesced`, `said ${!!coalesced}; open ${opens.map((p) => p.key).join(', ')}`);
   // accepted: a growth whose lot is the catalog's variant, $0
   await clearAnimals();
   await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
   from = logSize();
-  const accepted = await cmd(`/steward proposals ${id} accept module.fixture_plot`);
+  const accepted = await cmd(`/steward proposals ${id} accept module.${MODULE}`);
   const planned = await waitLog(from, /The town grows: Architect finds room[^\n]*/, 120_000);
   const grew = await buildThrough(id, from, label);
   if (!grew) return;
@@ -4327,15 +4336,15 @@ async function moduleFlow() {
   const g = await growthOf(id);
   const mods = await moduleSites(g.op);
   const noDesign = !/Designing|massings|Style bible/.test(said);
-  const sha = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'modules', 'catalog', 'fixture_plot', '1', 'module.json'), 'utf8')).programSha;
-  if (planned && g.m && g.m[1] === region && g.rev && mods.length === 1 && mods[0].key === 'fixture_plot@1' && sha.startsWith(mods[0].sha) && mods[0].params.side === 5 && noDesign) {
+  const sha = JSON.parse(fs.readFileSync(path.join(MODULE_DIR, 'module.json'), 'utf8')).programSha;
+  if (planned && g.m && g.m[1] === region && g.rev && mods.length === 1 && mods[0].key === `${MODULE}@1` && sha.startsWith(mods[0].sha) && mods[0].params.width === 9 && noDesign) {
     ok(label, `${accepted.slice(0, 80)}; revision ${g.m[2]} of ${region} (${g.rev.state}); lot ${mods[0].sid} = ${mods[0].blueprint} (${mods[0].key}, ${JSON.stringify(mods[0].params)}); no design`);
   } else return fail(label, `planned ${!!planned}; entry ${g.op?.siteGroup}; revision ${JSON.stringify(g.rev)?.slice(0, 160)}; module sites ${JSON.stringify(mods)}; no design ${noDesign}`);
   const keyed = new RegExp(`module ${id} lot (\\S+): (\\S+) under steward\\.b\\d+\\.module\\.\\S+`).exec(logSince(from));
   if (keyed) ok(`${label} binding`, `${keyed[1]} -> ${keyed[2]}, made under its lot key`);
   else fail(`${label} binding`, 'no "module ... under steward.<build>.module.<lot>" line');
   const proposalsAfter = settlements().find((x) => x.id === id)?.proposals ?? {};
-  if ((proposalsAfter.accepted ?? []).includes('module.fixture_plot') && !(proposalsAfter.open ?? []).some((p) => p.module)) ok(`${label} accepted`, 'the offer left the inbox for the accepted');
+  if ((proposalsAfter.accepted ?? []).includes(`module.${MODULE}`) && !(proposalsAfter.open ?? []).some((p) => p.module)) ok(`${label} accepted`, 'the offer left the inbox for the accepted');
   else fail(`${label} accepted`, JSON.stringify(proposalsAfter).slice(0, 200));
   // asked again in talk once it stands: no second module; the decorative farm as its own priced proposal, said
   await cmd(`/steward dev sim_answer talk ${JSON.stringify(ask)}`);
@@ -4447,22 +4456,27 @@ async function moduleSurvivalFlow() {
     const snapPre = path.join(ROOT, 'artifacts', 'e2e', `module-survival-pre-${id}.snap.gz`);
     await dev.call('dev.region.hash', { box, mode: 'snap', file: snapPre }, { timeoutMs: 1_800_000 });
     // the bound the player approves: deliberately tiny (1 dirt), so the quote is past it
-    const tiny = [5, 9].flatMap((side) => ['wheat', 'beetroots'].map((crop) => ({ params: { side, crop }, bom: { 'minecraft:dirt': 1 } })));
+    const sides = [9, 18, 27];
+    const tiny = sides.flatMap((width) => sides.flatMap((depth) => ['wheat', 'carrots', 'potatoes', 'beetroots'].map((crop) => ({ params: { crop, depth, width }, bom: { 'minecraft:dirt': 1 } }))));
     ok(`${label} source`, await moduleSource(tiny));
     // fully stocked: plenty of what a fenced plot takes (so nothing waits on the stockpile once approved)
-    const stock = { 'minecraft:dirt': 256, 'minecraft:wheat_seeds': 128, 'minecraft:oak_fence': 64, 'minecraft:oak_fence_gate': 8, 'minecraft:lantern': 16, 'minecraft:dirt_path': 128,
-      'minecraft:composter': 4, 'minecraft:oak_planks': 128, 'minecraft:cobblestone': 128, 'minecraft:torch': 16, 'minecraft:stone_bricks': 128 };
+    // what crop_farm's measured bound for a wheat 9x9 names (its three Styles' maximum), and more of each
+    const measuredBound = (JSON.parse(fs.readFileSync(path.join(MODULE_DIR, 'measured.json'), 'utf8')).bounds ?? [])
+      .find((b) => b.params.crop === 'wheat' && b.params.width === 9 && b.params.depth === 9)?.bom ?? {};
+    // twice each item, but the seeds exactly the 9x9's (with the 16 carried, too few for a larger field: the offer stays 9x9)
+    const stock = Object.fromEntries(Object.entries(measuredBound).map(([k, n]) => [k, k === 'minecraft:wheat_seeds' ? n : n * 2 + 16]));
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: stock });
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
     await cmd('/give @p minecraft:wheat_seeds 16');
     const offer = await moduleOffer(id);
-    if (!offer) return fail(`${label} offer`, 'no module.fixture_plot proposal within 90 s');
-    if (offer.module?.bound?.['minecraft:dirt'] === 1 && /from the stockpile/.test(offer.why) && /at most 1 dirt/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 200));
+    if (!offer) return fail(`${label} offer`, `no module.${MODULE} proposal within 90 s`);
+    if (offer.module?.bound?.['minecraft:dirt'] === 1 && offer.module?.params?.width === 9 && offer.module?.params?.depth === 9 && /from the stockpile/.test(offer.why)
+      && /at most 1 dirt/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 200));
     else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 300));
     const sp0 = await ledger();
     await away();
     from = logSize();
-    await cmd(`/steward proposals ${id} accept module.fixture_plot`);
+    await cmd(`/steward proposals ${id} accept module.${MODULE}`);
     const held = await waitLog(from, /The bill came to more than you approved[^\n]*/, 240_000);
     await sleep(5000);
     const sp1 = await ledger();
@@ -4471,6 +4485,11 @@ async function moduleSurvivalFlow() {
     if (held && same && bnow?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && !bnow.vRegion) ok(`${label} over the bound`, `${held[0].slice(0, 200)}; nothing consumed, not realised`);
     else return fail(`${label} over the bound`, `held ${!!held}; consumed unchanged ${same}; phase ${bnow?.state?.phase}; region ${bnow?.vRegion}`);
     const whole = /The whole bill: ([^.]*)\./.exec(held[0])?.[1] ?? '';
+    // the quote, as logged, against crop_farm's own measured bound (what a player would have approved): within it item by item
+    const quoted = (() => { const m = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(from)); return m ? JSON.parse(m[1]) : null; })();
+    const pastMeasured = quoted ? Object.entries(quoted).filter(([k, n]) => n > (measuredBound[k] ?? 0)) : null;
+    if (quoted && pastMeasured.length === 0) ok(`${label} measured bound`, `the quote ${JSON.stringify(quoted).slice(0, 160)} is within crop_farm's measured bound`);
+    else fail(`${label} measured bound`, `quote ${JSON.stringify(quoted)}; past the measured bound: ${JSON.stringify(pastMeasured)}`);
     // approved: the bill becomes the bound; realised from materials, fed in part while placed
     nudge = region;
     from = logSize();

@@ -251,10 +251,11 @@ public final class Proposals {
 		Map<String, Integer> seedItems = new HashMap<>();
 		for (ItemStack st : p.getInventory()) {
 			if (st.isEmpty()) continue;
-			if (BuiltInRegistries.ITEM.getKey(st.getItem()).getPath().endsWith("_seeds")) {
-				seeds += st.getCount();
+			String path = BuiltInRegistries.ITEM.getKey(st.getItem()).getPath();
+			if (path.endsWith("_seeds")) seeds += st.getCount();
+			// what a module's crops are planted from: seeds, and carrots and potatoes themselves (the module's own seeds map decides)
+			if (path.endsWith("_seeds") || path.equals("carrot") || path.equals("potato"))
 				seedItems.merge(BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), Integer::sum);
-			}
 			if (st.is(ItemTags.SAPLINGS)) saplings += st.getCount();
 		}
 		Map<String, Integer> animals = new HashMap<>();

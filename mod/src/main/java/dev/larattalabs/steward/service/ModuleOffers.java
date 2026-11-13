@@ -47,7 +47,7 @@ public final class ModuleOffers {
 	private ModuleOffers() {}
 
 	/** The dev source: a catalog directory, the one module offered, whether its gate is a measuring one, and bounds for its params. */
-	public record DevSource(Path dir, String id, boolean measuring, JsonArray bounds) {}
+	public record DevSource(Path dir, String id, boolean measuring, JsonArray bounds, boolean override) {}
 
 	private static @Nullable DevSource devSource;
 	private static @Nullable ModuleCatalog live;
@@ -64,7 +64,8 @@ public final class ModuleOffers {
 			return "modules: the live catalog";
 		}
 		devSource = new DevSource(Path.of(req.get("dir").getAsString()), req.get("id").getAsString(), req.has("measuring") && req.get("measuring").getAsBoolean(),
-			req.has("bounds") && req.get("bounds").isJsonArray() ? req.getAsJsonArray("bounds").deepCopy() : new JsonArray());
+			req.has("bounds") && req.get("bounds").isJsonArray() ? req.getAsJsonArray("bounds").deepCopy() : new JsonArray(),
+			req.has("override") && req.get("override").getAsBoolean());
 		return "modules: " + devSource.id() + " from " + devSource.dir() + (devSource.measuring() ? " (measuring gate)" : "");
 	}
 
@@ -100,7 +101,8 @@ public final class ModuleOffers {
 	public static @Nullable JsonObject bound(ModuleCatalog.Entry e, JsonObject params) {
 		JsonObject b = ModuleBound.of(e.measured(), params);
 		DevSource d = devSource;
-		if (b != null || d == null) return b;
+		// the dev source's bounds stand in for a measurement's only when it has none, or (dev, override) to hold a measured module's bill on purpose
+		if (d == null || (b != null && !d.override())) return b;
 		JsonObject raw = new JsonObject();
 		raw.add(ModuleBound.MEMBER, d.bounds());
 		return ModuleBound.of(new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, raw), params);

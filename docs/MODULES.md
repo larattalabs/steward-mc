@@ -545,9 +545,15 @@ plans, with Noah's OK on the spend.
 
 ### M3 as built (2026-11-13)
 
-Branch `m3-offer-place`, on M1's dry `fixture_plot@1` behind the dev gate (M2's `crop_farm@1` was still being measured). The module id is a
-parameter of every path; the switch to `crop_farm` is one `ModuleKind` (M2's `CropFarmLot.growLot` as its lot) and its `measured.json`
-`bounds` and `rates`.
+Branch `m3-offer-place`. It was built on M1's dry `fixture_plot@1` behind the dev gate while M2 measured, then switched to `crop_farm@1` once M2
+merged. The module id is a parameter of every path:
+- `ModuleKind.CropFarm` takes M2's `CropFarmLot.growLot` as its lot and `CropFarmLot`'s own field as its cells (a 9x9 plants 74).
+- Its sizes are every width x depth of 9, 18 and 27, the most cells first.
+- Carrots and potatoes are planted from the crop itself.
+- It reads `measured.json`'s `bounds` and `rates`.
+
+The e2e `module` flow offers it through the player's own gate (the live catalog). `module-survival` uses the live catalog under its real
+certification gate, with a dev-only override bound that holds its bill on purpose, and checks the quote against crop_farm's measured bound.
 - **The offer** (`ModuleKind`, `ModuleOffer`, `service/ModuleOffers`). Rule `module.<id>`; its sign is 8 or more seeds of a crop it grows. It
   is offered before the decorative `farm`, and only where it can grow the town:
   - the paths: a region town built at once (A); one built from materials and fully built (A2); a Patron, instant, east-west street town Architect

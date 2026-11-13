@@ -114,6 +114,28 @@ class ModuleOfferTest {
 		assertNull(ModuleOffer.rate(m, JsonParser.parseString("{\"crop\": \"wheat\", \"side\": 5}").getAsJsonObject()));
 	}
 
+	@Test
+	void theLiveCropFarmIsOfferedToAPlayerOnItsMeasuredVersionsWithItsBound() {
+		var live = ModuleCatalog.dir(ModuleCatalogTest.FIXTURES.resolve("../../../modules").normalize(), false);
+		var player = new ModuleGate.Env("26.3", "0.64.1", Set.of(ModuleGate.FEATURE));
+		var v = ModuleGate.offer(live, "crop_farm", player);
+		assertTrue(v.ok(), v.message());
+		assertFalse(ModuleGate.offer(live, "crop_farm", new ModuleGate.Env("26.3", "0.63.0", Set.of(ModuleGate.FEATURE))).ok(), "only on its measured Architect");
+		var c = ModuleKind.CropFarm.INSTANCE;
+		var t = new Town(Path.REGION_MATERIALS, null, true, 100, false, false, Map.of("minecraft:carrot", 40), Map.of("minecraft:carrot", 300));
+		var d = ModuleOffer.decide(c, v, t, null);
+		assertTrue(d.ok(), d.why());
+		assertEquals("carrots", d.crop());
+		assertNotNull(d.order().bound(), "the measured bound for those params");
+		assertTrue(d.order().bound().has("minecraft:dirt"));
+		assertNotNull(d.order().rate(), "the measured rate");
+		assertTrue(d.order().rate().contains("carrot"), d.order().rate());
+		// 340 carrots plant 18x18 at most? the largest size whose field those plant
+		assertTrue(c.cells(d.order().params()) <= 340);
+		// in an adopted street town: never (IRR can't water it, S-M5-8)
+		assertFalse(ModuleOffer.decide(c, v, new Town(Path.ADOPT, null, true, 100, false, false, Map.of("minecraft:wheat_seeds", 80), Map.of()), null).ok());
+	}
+
 	/** A watered, warm-only kind like crop_farm, on the fixture's catalog entry. */
 	static final class Wet implements ModuleKind {
 		@Override public String id() { return K.id(); }

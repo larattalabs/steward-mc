@@ -93,6 +93,7 @@ public interface ModuleKind {
 		if (id == null) return Optional.empty();
 		return switch (id) {
 			case FixturePlot.ID -> Optional.of(FixturePlot.INSTANCE);
+			case CropFarm.ID -> Optional.of(CropFarm.INSTANCE);
 			default -> Optional.empty();
 		};
 	}
@@ -100,6 +101,57 @@ public interface ModuleKind {
 	/** The catalog id a rule key offers ({@code module.crop_farm} -> {@code crop_farm}), or null for any other key. */
 	static @Nullable String idOf(@Nullable String ruleKey) {
 		return ruleKey != null && ruleKey.startsWith(RULE_PREFIX) && ruleKey.length() > RULE_PREFIX.length() ? ruleKey.substring(RULE_PREFIX.length()) : null;
+	}
+
+	/**
+	 * {@code crop_farm@1} (docs/MODULES.md 3.1, slice M2): a watered, lit field, sides 9, 18 or 27 each way, wheat, carrots, potatoes or beetroots.
+	 * Its lot is M2's {@link CropFarmLot#growLot} (type {@code crop_farm}, IRR's {@code irrigate}, FC's {@code field}); its cells are
+	 * {@link CropFarmLot}'s own field (the sources, their posts and the port left out: a 9x9 plants 74). Warm biomes only (IRR refuses a freezing one).
+	 */
+	final class CropFarm implements ModuleKind {
+		public static final String ID = "crop_farm";
+		public static final CropFarm INSTANCE = new CropFarm();
+
+		private CropFarm() {}
+
+		@Override public String id() { return ID; }
+		@Override public String title() { return "a watered, lit field"; }
+		@Override public String role() { return "crop farm"; }
+		@Override public String lotType() { return "crop_farm"; }
+		@Override public boolean irrigate() { return true; }
+		@Override public boolean warmOnly() { return true; }
+		@Override public Set<String> decorative() { return Set.of("farm"); }
+		@Override public Map<String, String> seeds() {
+			return Map.of("minecraft:wheat_seeds", "wheat", "minecraft:carrot", "carrots", "minecraft:potato", "potatoes", "minecraft:beetroot_seeds", "beetroots");
+		}
+		@Override public String cropParam() { return "crop"; }
+
+		/** Every width x depth of the measured sides, the most cells first (a tie: the wider first). */
+		@Override
+		public List<JsonObject> sizes() {
+			List<int[]> wd = new java.util.ArrayList<>();
+			for (int w : CropFarmLot.SIDES) for (int d : CropFarmLot.SIDES) wd.add(new int[] {w, d});
+			wd.sort((a, b) -> a[0] * a[1] != b[0] * b[1] ? Integer.compare(b[0] * b[1], a[0] * a[1]) : Integer.compare(b[0], a[0]));
+			List<JsonObject> out = new java.util.ArrayList<>();
+			for (int[] x : wd) {
+				JsonObject o = new JsonObject();
+				o.addProperty("width", x[0]);
+				o.addProperty("depth", x[1]);
+				out.add(o);
+			}
+			return List.copyOf(out);
+		}
+
+		@Override public int cells(JsonObject params) { return CropFarmLot.layout(params.get("width").getAsInt(), params.get("depth").getAsInt()).field().size(); }
+
+		@Override public int[] frame(JsonObject params) {
+			var l = CropFarmLot.layout(params.get("width").getAsInt(), params.get("depth").getAsInt());
+			return new int[] {l.w(), l.d()};
+		}
+
+		@Override public JsonObject growLot(String lotId, JsonObject params) {
+			return CropFarmLot.growLot(lotId, params.get("width").getAsInt(), params.get("depth").getAsInt());
+		}
 	}
 
 	/**
