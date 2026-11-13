@@ -32,7 +32,11 @@ public final class BuildStore {
 	 * 2 (2026-10-24): moves with the settlements file's format 4 (a build's settlement copy has districts with kinds and land), so an older Steward refuses
 	 * the file rather than dropping their new members. A format-1 file reads as it is (its districts as standing squares).
 	 */
-	static final int FORMAT = 5;
+	static final int FORMAT = 6;
+	// 6 (2026-11-13, phase 5 slice M3; docs/MODULES.md 4.1, 4.4): moves with the settlements file's format 7 (a build's settlement copy may hold a
+	// module offer); a build may hold module orders (moduleOrders: lotId -> ModuleOrder: the catalog version, program, params and in survival the
+	// approved bound), saved before the growth is planned. A format-5 build has none and reads with none; an older Steward refuses the file rather
+	// than dropping them (a restart would plan the module lot as a designed building, unbounded).
 	// 5 (2026-11-12, phase 5 slice M1; docs/MODULES.md 4.2 step 4): a build may hold module lots' bindings (moduleBindings: lotId -> ModuleBinding,
 	// with the exact opKey and owner its variant was asked under), saved before the realise. A format-4 build has none and reads with none; an
 	// older Steward refuses the file rather than dropping them (a restart would make a second variant, or realise a module lot as a pad).
@@ -50,7 +54,18 @@ public final class BuildStore {
 		VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId, List<String> landmarkIds,
 		List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street, @Nullable Boolean keyed,
 		@Nullable String vPlan, @Nullable String vRegion, @Nullable List<VillageLayout.LotSpec> districtSpecs, @Nullable String growRegion, @Nullable Integer growRid,
-		@Nullable Integer growPosition, @Nullable String growKey, Map<String, ModuleBinding> moduleBindings) {
+		@Nullable Integer growPosition, @Nullable String growKey, Map<String, ModuleBinding> moduleBindings,
+		Map<String, dev.larattalabs.steward.module.ModuleOrder> moduleOrders) {
+		/** As saved before module orders (format 5): bindings, no orders. */
+		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
+			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,
+			List<String> landmarkIds, List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street,
+			@Nullable Boolean keyed, @Nullable String vPlan, @Nullable String vRegion, @Nullable List<VillageLayout.LotSpec> districtSpecs, @Nullable String growRegion,
+			@Nullable Integer growRid, @Nullable Integer growPosition, @Nullable String growKey, Map<String, ModuleBinding> moduleBindings) {
+			this(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId, landmarkIds,
+				decided, lastAwaiting, addition, districtId, street, keyed, vPlan, vRegion, districtSpecs, growRegion, growRid, growPosition, growKey, moduleBindings, Map.of());
+		}
+
 		/** As saved before module lots (format 4): no bindings. */
 		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
 			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,
@@ -64,7 +79,8 @@ public final class BuildStore {
 		/** The same build with these module bindings. */
 		public Saved withModuleBindings(Map<String, ModuleBinding> bindings) {
 			return new Saved(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-				landmarkIds, decided, lastAwaiting, addition, districtId, street, keyed, vPlan, vRegion, districtSpecs, growRegion, growRid, growPosition, growKey, bindings);
+				landmarkIds, decided, lastAwaiting, addition, districtId, street, keyed, vPlan, vRegion, districtSpecs, growRegion, growRid, growPosition, growKey, bindings,
+				moduleOrders);
 		}
 
 		/** As saved before a build could be a region town's growth (format 3). */
@@ -136,6 +152,14 @@ public final class BuildStore {
 			decided = decided == null ? List.of() : List.copyOf(decided);
 			lastAwaiting = lastAwaiting == null ? List.of() : List.copyOf(lastAwaiting);
 			moduleBindings = moduleBindings == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(moduleBindings));
+			moduleOrders = moduleOrders == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(moduleOrders));
+		}
+
+		/** The same build with these module orders. */
+		public Saved withModuleOrders(Map<String, dev.larattalabs.steward.module.ModuleOrder> orders) {
+			return new Saved(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
+				landmarkIds, decided, lastAwaiting, addition, districtId, street, keyed, vPlan, vRegion, districtSpecs, growRegion, growRid, growPosition, growKey,
+				moduleBindings, orders);
 		}
 	}
 
@@ -185,6 +209,12 @@ public final class BuildStore {
 					throw new JsonParseException("incomplete module binding for lot " + mb.getKey() + " in build " + b.buildId());
 				}
 			}
+			for (var mo : b.moduleOrders().entrySet()) {
+				var v = mo.getValue();
+				if (mo.getKey() == null || mo.getKey().isBlank() || v == null || !v.valid()) {
+					throw new JsonParseException("incomplete module order for lot " + mo.getKey() + " in build " + b.buildId());
+				}
+			}
 			s.put(b);
 		}
 		return s;
@@ -203,7 +233,9 @@ public final class BuildStore {
 		}
 		if (!root.isJsonObject() || !root.getAsJsonObject().has("builds") || !root.getAsJsonObject().get("builds").isJsonArray()) return;
 		for (var b : root.getAsJsonObject().getAsJsonArray("builds")) {
-			if (!b.isJsonObject() || !b.getAsJsonObject().has("moduleBindings")) continue;
+			if (!b.isJsonObject()) continue;
+			strictOrders(b.getAsJsonObject());
+			if (!b.getAsJsonObject().has("moduleBindings")) continue;
 			var mb = b.getAsJsonObject().get("moduleBindings");
 			if (mb.isJsonNull()) continue;
 			if (!mb.isJsonObject()) throw new JsonParseException("moduleBindings is not an object");
@@ -214,6 +246,24 @@ public final class BuildStore {
 					if (o.has(k) && dev.larattalabs.steward.module.ModuleRef.exactInt(o.get(k)) == null) {
 						throw new JsonParseException("module binding " + e.getKey() + ": " + k + " " + o.get(k) + " is not an integer");
 					}
+				}
+			}
+		}
+	}
+
+	/** Module orders' integers and bounds are read exactly, as bindings are: a bound count that is not a plain non-negative integer refuses the file. */
+	private static void strictOrders(com.google.gson.JsonObject b) {
+		if (!b.has("moduleOrders") || b.get("moduleOrders").isJsonNull()) return;
+		if (!b.get("moduleOrders").isJsonObject()) throw new JsonParseException("moduleOrders is not an object");
+		for (var e : b.getAsJsonObject("moduleOrders").entrySet()) {
+			if (!e.getValue().isJsonObject()) throw new JsonParseException("module order " + e.getKey() + " is not an object");
+			var o = e.getValue().getAsJsonObject();
+			if (!o.has("version") || dev.larattalabs.steward.module.ModuleRef.exactInt(o.get("version")) == null) {
+				throw new JsonParseException("module order " + e.getKey() + ": version " + o.get("version") + " is not an integer");
+			}
+			for (String k : List.of("bound", "held")) {
+				if (o.has(k) && !o.get(k).isJsonNull() && (!o.get(k).isJsonObject() || dev.larattalabs.steward.module.ModuleBound.clean(o.getAsJsonObject(k)) == null)) {
+					throw new JsonParseException("module order " + e.getKey() + ": its " + k + " is not item -> count");
 				}
 			}
 		}

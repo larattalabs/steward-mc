@@ -113,6 +113,8 @@ public final class Updates {
 			var view = sites.get(o.siteId());
 			// a site of this owner in another dimension is not this settlement's
 			if (view.isPresent() && !view.get().dimension().identifier().toString().equals(s.claim().dimension())) continue;
+			// (docs/MODULES.md section 1, slice M3) a working module is never updated to a redesigned version: it would be unmeasured
+			if (view.isPresent() && ChangeRequests.moduleRefusal(view.get()) != null) continue;
 			String lot = view.map(Updates::lotOf).orElse(o.siteId());
 			// a copy that followed its source (docs/FOLLOW.md): offered while the source stands at the version it follows; applied by itself at Autonomous
 			// and Full when an ordinary update would be (Noah, 2026-11-11), else asked
@@ -227,6 +229,11 @@ public final class Updates {
 
 	private static void apply(MinecraftServer server, Settlement s, Pending p) {
 		var sites = ArchitectApi.get().sites(server);
+		// a working module is never updated to a redesigned version (checked again as it is applied)
+		if (sites.get(p.siteId()).map(ChangeRequests::moduleRefusal).orElse(null) != null) {
+			StewardVoice.say(server, s.id(), "The " + p.lot() + " is a working module: it isn't updated to a redesign.");
+			return;
+		}
 		if (!APPLYING.add(p.siteId())) return;
 		int session = Session.current();
 		sites.get(p.siteId()).ifPresent(v -> StewardMotion.clear(server, s, v.box()));

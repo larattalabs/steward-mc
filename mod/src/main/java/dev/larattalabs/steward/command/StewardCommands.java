@@ -209,7 +209,14 @@ public final class StewardCommands {
 					dev.larattalabs.steward.module.ModuleDev.run(src.getServer(), label, req);
 					src.sendSuccess(() -> Component.literal("module " + label), false);
 					return 1;
-				})))).then(Commands.literal("check_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("plan", StringArgumentType.greedyString())
+				})))).then(Commands.literal("modules").then(Commands.argument("request", StringArgumentType.greedyString()).executes(ctx -> {
+					// dev (the e2e check, slice M3): offer modules from a catalog directory ({dir, id, measuring?, bounds?}; {} the live catalog again)
+					if (!host(ctx.getSource())) return 0;
+					var req = com.google.gson.JsonParser.parseString(StringArgumentType.getString(ctx, "request")).getAsJsonObject();
+					String said = dev.larattalabs.steward.service.ModuleOffers.dev(req);
+					ctx.getSource().sendSuccess(() -> Component.literal(said), false);
+					return 1;
+				}))).then(Commands.literal("check_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("plan", StringArgumentType.greedyString())
 				.executes(ctx -> {
 					// dev (the e2e check): Architect's plan check on a plan/0 plan round the player; the summary logged as "plan check <label> {...}"
 					CommandSourceStack src = ctx.getSource();
@@ -363,6 +370,15 @@ public final class StewardCommands {
 					String site = StringArgumentType.getString(ctx, "site");
 					var v = ArchitectApi.get().sites(ctx.getSource().getServer()).get(site);
 					ctx.getSource().sendSuccess(() -> Component.literal(v.map(x -> "site " + site + " stands (" + x.kind() + ")").orElse("site " + site + " is gone")), false);
+					return 1;
+				}))).then(Commands.literal("site_module").then(Commands.argument("site",
+				StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check, slice M3): a site's module identity (its lot ext steward_mc:module) and the entry it was placed from
+					String site = StringArgumentType.getString(ctx, "site");
+					var v = ArchitectApi.get().sites(ctx.getSource().getServer()).get(site);
+					var ref = v.map(x -> dev.larattalabs.steward.module.ModuleRef.of(x.ext())).orElse(null);
+					ctx.getSource().sendSuccess(() -> Component.literal(v.isEmpty() ? "site " + site + " is gone" : "site " + site + " module "
+						+ (ref == null ? "none" : ref.key() + " " + ref.programSha().substring(0, 12) + " " + ref.params()) + " blueprint " + v.get().blueprintId()), false);
 					return 1;
 				}))).then(Commands.literal("solid").then(Commands.argument("site",
 				StringArgumentType.word()).executes(ctx -> {

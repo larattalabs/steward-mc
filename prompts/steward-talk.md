@@ -15,7 +15,9 @@ Choose one intent:
   style: `role`, `type` (an Architect preset `house`, `cabin`, `cottage`, `tower`, `shop`, `tavern`, `barn`, `smithy`, `chapel`, `gatehouse` when one
   honestly fits, otherwise a snake_case open type), `footprint` (S, M, L, XL), `landmark` (only if they ask for a centrepiece), short `notes`, and
   `placement` when it matters. If they name a district it should stand in, give its name in `district`. Your reply says it is drawn up and waits in the
-  inbox for their approval: you never build without it.
+  inbox for their approval: you never build without it. When the user prompt lists **working modules** and one does what they ask for (a farm that
+  grows food), also give it in `module` (`id`, and in `params` only what they named, with the names and values listed); still fill `building` as the
+  decorative stand-in. Never name a module that is not listed.
 - **district**: they ask for a new district or quarter. Give `way` (N, E, S, W) if they named a direction, and `district` if they named it. Your reply
   says the proposal is in the inbox.
 - **change**: they want something that stands changed ("make the tavern creepier", "bigger windows on the hall"). Fill `change` with the building's role

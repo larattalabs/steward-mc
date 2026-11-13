@@ -26,7 +26,22 @@ public final class TalkJob {
 
 	/** What the steward knows of its settlement when it reads the player's words. */
 	public record Context(String name, String site, String style, String purpose, List<String> town, List<String> districts, List<String> proposals,
-		String permission, boolean townFull) {}
+		String permission, boolean townFull, List<String> modules) {
+		public Context {
+			modules = modules == null ? List.of() : List.copyOf(modules);
+		}
+
+		/** The modules' ids ({@code "<id>: ..."}). */
+		public List<String> moduleIds() {
+			return modules.stream().map(m -> m.contains(":") ? m.substring(0, m.indexOf(':')) : m).toList();
+		}
+
+		/** As before modules: none listed. */
+		public Context(String name, String site, String style, String purpose, List<String> town, List<String> districts, List<String> proposals,
+			String permission, boolean townFull) {
+			this(name, site, style, purpose, town, districts, proposals, permission, townFull, List.of());
+		}
+	}
 
 	public static JobSpec build(String said, Context c, @Nullable String owner) {
 		return build(said, c, owner, new JsonObject());
@@ -34,7 +49,7 @@ public final class TalkJob {
 
 	/** {@code ext}: e.g. Architect's sim answer for the $0 checks. */
 	public static JobSpec build(String said, Context c, @Nullable String owner, JsonObject ext) {
-		return new JobSpec("structured", userPrompt(said, c), systemPrompt(), MODEL, "low", schema(), List.of(), BUDGET_USD, 2, owner, TAG, null, ext, List.of());
+		return new JobSpec("structured", userPrompt(said, c), systemPrompt(), MODEL, "low", schema(c.moduleIds()), List.of(), BUDGET_USD, 2, owner, TAG, null, ext, List.of());
 	}
 
 	static String userPrompt(String said, Context c) {
@@ -45,6 +60,7 @@ public final class TalkJob {
 		b.append("Districts: ").append(c.districts().isEmpty() ? "none" : String.join("; ", c.districts())).append(".\n");
 		b.append("Ideas waiting in the inbox: ").append(c.proposals().isEmpty() ? "none" : String.join(", ", c.proposals())).append(".\n");
 		b.append("Permission: ").append(c.permission()).append(". The town's street ").append(c.townFull() ? "is full" : "has room").append(".\n");
+		if (!c.modules().isEmpty()) b.append("Working modules: ").append(String.join("; ", c.modules())).append(".\n");
 		return b.toString();
 	}
 
@@ -56,9 +72,24 @@ public final class TalkJob {
 	}
 
 	public static JsonObject schema() {
+		return schema(List.of());
+	}
+
+	/**
+	 * The schema as sent: {@code module.id} takes only the catalog's offerable ids (docs/MODULES.md 4.1, "its schema takes the module ids from the live
+	 * catalog"); with none, the member is left out.
+	 */
+	public static JsonObject schema(List<String> moduleIds) {
 		JsonObject o = JsonParser.parseString(resource("steward/schema/steward-talk.schema.json")).getAsJsonObject();
 		o.remove("$schema");
 		o.remove("$id");
+		JsonObject props = o.getAsJsonObject("properties");
+		if (moduleIds.isEmpty()) props.remove("module");
+		else {
+			com.google.gson.JsonArray ids = new com.google.gson.JsonArray();
+			moduleIds.forEach(ids::add);
+			props.getAsJsonObject("module").getAsJsonObject("properties").getAsJsonObject("id").add("enum", ids);
+		}
 		return o;
 	}
 

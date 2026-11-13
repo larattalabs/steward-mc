@@ -115,6 +115,13 @@ public final class ChangeRequests {
 	 * {@code accept} saves the acceptance (the proposal leaves the inbox) before anything is sent: nothing is spent unless that is saved. A definite refusal
 	 * gives the proposal back ({@code giveBack}); a request whose answer was lost may still be designed, so it is not given back (no second charge).
 	 */
+	/** Why a site can't be changed by a redesign: a working module (its lot ext names one), or null. */
+	public static @Nullable String moduleRefusal(SiteView v) {
+		var ref = dev.larattalabs.steward.module.ModuleRef.of(v.ext());
+		return ref == null ? null : "That is a working module (" + ref.key() + "): it isn't redesigned, since a redesign would be unmeasured. A second one is a new module; "
+			+ "undo it to take it up.";
+	}
+
 	public static @Nullable String start(MinecraftServer server, UUID player, Settlement s, String siteId, String notes, double budgetUsd,
 		java.util.function.BooleanSupplier accept, Runnable giveBack) {
 		if (VERSION_OF == null) return "Changing a building that stands needs Architect 0b.";
@@ -123,6 +130,9 @@ public final class ChangeRequests {
 		if (view.isEmpty()) return "That building no longer stands.";
 		SiteView v = view.get();
 		if (v.owner() == null || !v.owner().equals(s.owner())) return "That building is not " + s.name() + "'s.";
+		// (docs/MODULES.md section 1, slice M3) a working module never changes by an ordinary path: a redesign would be unmeasured
+		String module = moduleRefusal(v);
+		if (module != null) return module;
 		// a change keeps the settlement's look: its style bible, as approved; after a new description there is none until a build makes one
 		// a copy changes only by following its source (Architect FS): the change is asked of the source, before anything is saved or spent
 		String copyOf = v.blueprintId() == null ? null : copySource(ArchitectApi.get().library(), v.blueprintId());

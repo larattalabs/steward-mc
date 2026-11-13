@@ -11,7 +11,8 @@ import org.jspecify.annotations.Nullable;
  * {@code pendingPart} offers a part of the settlement's plan that waited for Architect and can be built now (docs/COMPOSITION.md section 11).
  */
 public record Proposal(String key, String title, String why, ConceptCard.@Nullable Building building, long at, String trigger, @Nullable String district,
-	@Nullable String found, @Nullable String changeSite, @Nullable String changeNotes, @Nullable String pendingPart, @Nullable Quarter quarter) {
+	@Nullable String found, @Nullable String changeSite, @Nullable String changeNotes, @Nullable String pendingPart, @Nullable Quarter quarter,
+	dev.larattalabs.steward.module.@Nullable ModuleOrder module) {
 	/**
 	 * A quarter apart from the town's street (docs/DISTRICTS.md section 6, Noah's Q2): an {@code along} district following a boundary ({@code shore},
 	 * {@code ridge} or {@code biome_edge} between two families) or an {@code outpost} apart from the town, built at once with its buildings (the proposal's
@@ -25,6 +26,24 @@ public record Proposal(String key, String title, String why, ConceptCard.@Nullab
 			}
 			between = between == null ? List.of() : List.copyOf(between);
 		}
+	}
+
+	/** As before module offers (phase 5 M3): no module. */
+	public Proposal(String key, String title, String why, ConceptCard.@Nullable Building building, long at, String trigger, @Nullable String district,
+		@Nullable String found, @Nullable String changeSite, @Nullable String changeNotes, @Nullable String pendingPart, @Nullable Quarter quarter) {
+		this(key, title, why, building, at, trigger, district, found, changeSite, changeNotes, pendingPart, quarter, null);
+	}
+
+	/**
+	 * A module offer (docs/MODULES.md 4.1): its catalog module, params and (in survival) the bound the player approves, with the lot as its building
+	 * (the type Architect is asked for, never designed by Claude). Its key is the rule's ({@code module.<id>}), or {@code asked_...} when asked in talk.
+	 */
+	public static Proposal module(String key, String title, String why, ConceptCard.Building lot, long at, String trigger, dev.larattalabs.steward.module.ModuleOrder order) {
+		return new Proposal(key, title, why, lot, at, trigger, null, null, null, null, null, null, order);
+	}
+
+	public boolean offersModule() {
+		return module != null;
 	}
 
 	/** As before quarters. */
@@ -80,7 +99,7 @@ public record Proposal(String key, String title, String why, ConceptCard.@Nullab
 
 	/** The same building, to be built in district {@code districtId} (null: the town). */
 	public Proposal in(@Nullable String districtId) {
-		return new Proposal(key, title, why, building, at, trigger, districtId, found, changeSite, changeNotes, pendingPart, quarter);
+		return new Proposal(key, title, why, building, at, trigger, districtId, found, changeSite, changeNotes, pendingPart, quarter, module);
 	}
 
 	/** A new district towards {@code way} (N, E, S, W): founding it lays its road ($0); it always waits for the player. */

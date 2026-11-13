@@ -94,9 +94,10 @@ class SaveCompatTest {
 		assertTrue(Files.exists(dir.resolve("steward-builds.json.v4.bak")), "the format-4 file is kept as it was");
 		assertEquals(fixture("v6/steward-builds.json"), Files.readString(dir.resolve("steward-builds.json.v4.bak")));
 		b.save(f);
-		assertTrue(Files.readString(f).contains("\"format\": 5"));
+		// the current builds format (6 since phase 5 M3: module orders)
+		assertTrue(Files.readString(f).contains("\"format\": 6"));
 		BuildStore again = BuildStore.load(f);
-		assertEquals(5, again.readFormat());
+		assertEquals(6, again.readFormat());
 		assertEquals(g, again.all().get(0), "every field survives the move");
 		assertEquals(fixture("v6/steward-builds.json"), Files.readString(dir.resolve("steward-builds.json.v4.bak")), "backed up once, never over");
 	}
@@ -176,7 +177,7 @@ class SaveCompatTest {
 		assertEquals(27, hamlet.log().size());
 		assertTrue(Files.exists(dir.resolve("steward-settlements.json.v5.bak")));
 		st.save(f);
-		assertTrue(Files.readString(f).contains("\"format\": 6"));
+		assertTrue(Files.readString(f).contains("\"format\": " + SettlementStore.FORMAT));
 		assertEquals(hamlet, SettlementStore.load(f).get("set_1").orElseThrow(), "saved again, unchanged");
 	}
 
