@@ -1,0 +1,4458 @@
+{
+  "id": "crop_farm",
+  "version": 1,
+  "fixture": false,
+  "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
+  "moduleSha": "dc7b1751482a1937173e77f8055ac0b7f451bb80cbce7a2bfecd4232a6e21749",
+  "minecraft": "26.3",
+  "architect": [
+    "0.63.0"
+  ],
+  "kit": "0.58.0",
+  "checker": "0.58.0",
+  "result": "pass",
+  "checks": {
+    "offline": {
+      "at": "2026-11-13T11:31:59.193Z",
+      "head": "32e4298cb1e2832d18a2ff7dbdcfb364a8805b4e",
+      "architect": "0.63.0",
+      "kit": "0.58.0",
+      "branches": [
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 385,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 676,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 967,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 694,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1222,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1750,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1003,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 1768,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "ok": true,
+          "blocks": 2533,
+          "warnings": 1
+        }
+      ],
+      "probes": {
+        "dimLamp": {
+          "ok": true,
+          "lamps": [
+            "minecraft:lantern"
+          ],
+          "said": true
+        },
+        "gravity_path": {
+          "ok": false,
+          "threw": "palette: crop_farm@1 refuses this bible: path 'minecraft:gravel' is a gravity block"
+        },
+        "gravity_frame": {
+          "ok": false,
+          "threw": "palette: crop_farm@1 refuses this bible: frame 'minecraft:gravel' is a gravity block"
+        },
+        "gravity_foundation": {
+          "ok": false,
+          "threw": "palette: crop_farm@1 refuses this bible: foundation 'minecraft:gravel' is a gravity block"
+        },
+        "reserved": {
+          "ok": true,
+          "open": true
+        }
+      }
+    },
+    "ingame": {
+      "at": "2026-11-13T11:41:09.813Z",
+      "head": "32e4298cb1e2832d18a2ff7dbdcfb364a8805b4e",
+      "env": {
+        "minecraft": "26.3",
+        "architect": "0.63.0",
+        "givenPrograms": true,
+        "measuring": false,
+        "label": "m1_90205_1",
+        "request": {
+          "op": "env"
+        }
+      },
+      "install": {
+        "key": "steward.catalog.crop_farm.v1.c406df05dbc0",
+        "ok": true
+      },
+      "variants": [
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 9,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 18,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 9,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 18,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "wheat"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "carrots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "potatoes"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "rustic",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "fortress",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        },
+        {
+          "branch": {
+            "width": 27,
+            "depth": 27,
+            "crop": "beetroots"
+          },
+          "bible": "desert",
+          "version": 1,
+          "ok": true,
+          "sha": true
+        }
+      ],
+      "outside": {
+        "refused": true,
+        "detail": "params"
+      },
+      "byKey": {
+        "found": true,
+        "unknownFound": false
+      }
+    },
+    "measure": {
+      "field-wheat": {
+        "at": "2026-11-13T11:23:57.934Z",
+        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
+        "world": "Steward M2 Field wheat 202611131055",
+        "seconds": 1703.958,
+        "runs": 5,
+        "passed": 62,
+        "of": 62,
+        "results": [
+          "crop_farm@1 installed at $0 by its key steward.catalog.crop_farm.v1.c406df05dbc0 as crop_farm_3",
+          "a V town rg1 (flat_village ew, 4 pads, no irrigation) at 30000,30000,30191,30159: PLACED",
+          "a V town rg2 (flat_village ns, 4 pads, no irrigation) at 30224,30000,30383,30191: PLACED",
+          "whea_9x9: CropFarmLot's field cells = the program's layout (74)",
+          "whea_18x18: CropFarmLot's field cells = the program's layout (302)",
+          "whea_27x27: CropFarmLot's field cells = the program's layout (682)",
+          "rg1: grown by whea_9x9 9x9 wheat rustic, whea_18x18 18x18 wheat rustic, whea_27x27 27x27 wheat rustic: rid 1",
+          "rg1 rid 1: PLACED",
+          "whea_9x27: CropFarmLot's field cells = the program's layout (226)",
+          "whea_27x9: CropFarmLot's field cells = the program's layout (226)",
+          "rg1: grown by whea_9x27 9x27 wheat rustic, whea_27x9 27x9 wheat rustic: rid 2",
+          "rg1 rid 2: PLACED",
+          "whea_9x18: CropFarmLot's field cells = the program's layout (150)",
+          "whea_18x9: CropFarmLot's field cells = the program's layout (150)",
+          "whea_18x27: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by whea_9x18 9x18 wheat rustic, whea_18x9 18x9 wheat rustic, whea_18x27 18x27 wheat rustic: rid 1",
+          "rg2 rid 1: PLACED",
+          "whea_27x18: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by whea_27x18 27x18 wheat rustic: rid 2",
+          "rg2 rid 2: PLACED",
+          "wheat: all 9 size pairs placed (9)",
+          "wheat: every crop cell within 9 chunks of the player (simulation distance 16)",
+          "2 light wheat whea_9x9 (9x9 rustic, front north): every open floor+1 cell has block light >= 1 (86 cells, lowest 9; crop cells at 9+: 100%)",
+          "2 light wheat whea_18x18 (18x18 rustic, front south): every open floor+1 cell has block light >= 1 (326 cells, lowest 6; crop cells at 9+: 82%)",
+          "2 light wheat whea_27x27 (27x27 rustic, front south): every open floor+1 cell has block light >= 1 (720 cells, lowest 6; crop cells at 9+: 74%)",
+          "2 light wheat whea_9x27 (9x27 rustic, front north): every open floor+1 cell has block light >= 1 (240 cells, lowest 6; crop cells at 9+: 79%)",
+          "2 light wheat whea_27x9 (27x9 rustic, front north): every open floor+1 cell has block light >= 1 (258 cells, lowest 7; crop cells at 9+: 85%)",
+          "2 light wheat whea_9x18 (9x18 rustic, front west): every open floor+1 cell has block light >= 1 (163 cells, lowest 6; crop cells at 9+: 84%)",
+          "2 light wheat whea_18x9 (18x9 rustic, front east): every open floor+1 cell has block light >= 1 (172 cells, lowest 7; crop cells at 9+: 96%)",
+          "2 light wheat whea_18x27 (18x27 rustic, front east): every open floor+1 cell has block light >= 1 (480 cells, lowest 6; crop cells at 9+: 78%)",
+          "2 light wheat whea_27x18 (27x18 rustic, front west): every open floor+1 cell has block light >= 1 (489 cells, lowest 6; crop cells at 9+: 77%)",
+          "1a hydration wheat: every farmland cell of the 9 farms reads moisture=7 24,000 ticks after PLACED (2718 cells; 0 below)",
+          "5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (0 differ; 0 farmland below 7)",
+          "5b unload: the farms' chunks unloaded (true), 2,000 ticks away, back: every crop's age the same (0 differ), every farmland cell moisture 7 (0 below)",
+          "1b hydration wheat: every farmland cell moisture 7 at every harvest (15 harvests; 0 cell-readings below)",
+          "3a band whea_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.191, 0.313]: 0.259, 0.243, 0.247, 0.247, 0.256 (5 runs)",
+          "3b usefulness whea_9x9: harvested as it ripens, 0.460 per crop a day = 36.8 per 80 crops (bar 24); the protocol's quoted rate 0.250 = 20.0 per 80",
+          "3c control whea_9x9: the mean 0.250 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.201, 0.299]: 0.266, 0.262, 0.255, 0.272, 0.257 (5 runs)",
+          "3b usefulness whea_18x18: harvested as it ripens, 0.467 per crop a day = 37.3 per 80 crops (bar 24); the protocol's quoted rate 0.263 = 21.0 per 80",
+          "3c control whea_18x18: the mean 0.263 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.204, 0.294]: 0.264, 0.265, 0.262, 0.259, 0.262 (5 runs)",
+          "3b usefulness whea_27x27: harvested as it ripens, 0.470 per crop a day = 37.6 per 80 crops (bar 24); the protocol's quoted rate 0.263 = 21.0 per 80",
+          "3c control whea_27x27: the mean 0.263 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.199, 0.302]: 0.253, 0.263, 0.249, 0.259, 0.252 (5 runs)",
+          "3b usefulness whea_9x27: harvested as it ripens, 0.465 per crop a day = 37.2 per 80 crops (bar 24); the protocol's quoted rate 0.255 = 20.4 per 80",
+          "3c control whea_9x27: the mean 0.255 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.199, 0.302]: 0.257, 0.250, 0.259, 0.254, 0.259 (5 runs)",
+          "3b usefulness whea_27x9: harvested as it ripens, 0.464 per crop a day = 37.1 per 80 crops (bar 24); the protocol's quoted rate 0.256 = 20.5 per 80",
+          "3c control whea_27x9: the mean 0.256 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.195, 0.305]: 0.254, 0.257, 0.258, 0.258, 0.268 (5 runs)",
+          "3b usefulness whea_9x18: harvested as it ripens, 0.470 per crop a day = 37.6 per 80 crops (bar 24); the protocol's quoted rate 0.259 = 20.7 per 80",
+          "3c control whea_9x18: the mean 0.259 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.195, 0.305]: 0.248, 0.261, 0.253, 0.266, 0.256 (5 runs)",
+          "3b usefulness whea_18x9: harvested as it ripens, 0.470 per crop a day = 37.6 per 80 crops (bar 24); the protocol's quoted rate 0.257 = 20.5 per 80",
+          "3c control whea_18x9: the mean 0.257 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.202, 0.297]: 0.262, 0.261, 0.263, 0.262, 0.259 (5 runs)",
+          "3b usefulness whea_18x27: harvested as it ripens, 0.469 per crop a day = 37.5 per 80 crops (bar 24); the protocol's quoted rate 0.261 = 20.9 per 80",
+          "3c control whea_18x27: the mean 0.261 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.202, 0.297]: 0.264, 0.271, 0.264, 0.268, 0.264 (5 runs)",
+          "3b usefulness whea_27x18: harvested as it ripens, 0.474 per crop a day = 37.9 per 80 crops (bar 24); the protocol's quoted rate 0.266 = 21.3 per 80",
+          "3c control whea_27x18: the mean 0.266 >= 1.5 x the probe's unwatered 0.115"
+        ]
+      },
+      "field-carrots": {
+        "at": "2026-11-13T10:55:33.841Z",
+        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
+        "world": "Steward M2 Field carrots 202611131024",
+        "seconds": 1881.157,
+        "runs": 5,
+        "passed": 62,
+        "of": 62,
+        "results": [
+          "crop_farm@1 installed at $0 by its key steward.catalog.crop_farm.v1.c406df05dbc0 as crop_farm_3",
+          "a V town rg1 (flat_village ew, 4 pads, no irrigation) at 30000,30000,30191,30159: PLACED",
+          "a V town rg2 (flat_village ns, 4 pads, no irrigation) at 30224,30000,30383,30191: PLACED",
+          "carr_9x9: CropFarmLot's field cells = the program's layout (74)",
+          "carr_18x18: CropFarmLot's field cells = the program's layout (302)",
+          "carr_27x27: CropFarmLot's field cells = the program's layout (682)",
+          "rg1: grown by carr_9x9 9x9 carrots rustic, carr_18x18 18x18 carrots rustic, carr_27x27 27x27 carrots rustic: rid 1",
+          "rg1 rid 1: PLACED",
+          "carr_9x27: CropFarmLot's field cells = the program's layout (226)",
+          "carr_27x9: CropFarmLot's field cells = the program's layout (226)",
+          "rg1: grown by carr_9x27 9x27 carrots rustic, carr_27x9 27x9 carrots rustic: rid 2",
+          "rg1 rid 2: PLACED",
+          "carr_9x18: CropFarmLot's field cells = the program's layout (150)",
+          "carr_18x9: CropFarmLot's field cells = the program's layout (150)",
+          "carr_18x27: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by carr_9x18 9x18 carrots rustic, carr_18x9 18x9 carrots rustic, carr_18x27 18x27 carrots rustic: rid 1",
+          "rg2 rid 1: PLACED",
+          "carr_27x18: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by carr_27x18 27x18 carrots rustic: rid 2",
+          "rg2 rid 2: PLACED",
+          "carrots: all 9 size pairs placed (9)",
+          "carrots: every crop cell within 9 chunks of the player (simulation distance 16)",
+          "2 light carrots carr_9x9 (9x9 rustic, front north): every open floor+1 cell has block light >= 1 (86 cells, lowest 9; crop cells at 9+: 100%)",
+          "2 light carrots carr_18x18 (18x18 rustic, front south): every open floor+1 cell has block light >= 1 (326 cells, lowest 6; crop cells at 9+: 82%)",
+          "2 light carrots carr_27x27 (27x27 rustic, front south): every open floor+1 cell has block light >= 1 (720 cells, lowest 6; crop cells at 9+: 74%)",
+          "2 light carrots carr_9x27 (9x27 rustic, front north): every open floor+1 cell has block light >= 1 (240 cells, lowest 6; crop cells at 9+: 79%)",
+          "2 light carrots carr_27x9 (27x9 rustic, front north): every open floor+1 cell has block light >= 1 (258 cells, lowest 7; crop cells at 9+: 85%)",
+          "2 light carrots carr_9x18 (9x18 rustic, front west): every open floor+1 cell has block light >= 1 (163 cells, lowest 6; crop cells at 9+: 84%)",
+          "2 light carrots carr_18x9 (18x9 rustic, front east): every open floor+1 cell has block light >= 1 (172 cells, lowest 7; crop cells at 9+: 96%)",
+          "2 light carrots carr_18x27 (18x27 rustic, front east): every open floor+1 cell has block light >= 1 (480 cells, lowest 6; crop cells at 9+: 78%)",
+          "2 light carrots carr_27x18 (27x18 rustic, front west): every open floor+1 cell has block light >= 1 (489 cells, lowest 6; crop cells at 9+: 77%)",
+          "1a hydration carrots: every farmland cell of the 9 farms reads moisture=7 24,000 ticks after PLACED (2718 cells; 0 below)",
+          "5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (0 differ; 0 farmland below 7)",
+          "5b unload: the farms' chunks unloaded (true), 2,000 ticks away, back: every crop's age the same (0 differ), every farmland cell moisture 7 (0 below)",
+          "1b hydration carrots: every farmland cell moisture 7 at every harvest (15 harvests; 0 cell-readings below)",
+          "3a band carr_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.508, 0.847]: 0.592, 0.646, 0.637, 0.707, 0.682 (5 runs)",
+          "3b usefulness carr_9x9: harvested as it ripens, 1.241 per crop a day = 99.3 per 80 crops (bar 24); the protocol's quoted rate 0.653 = 52.2 per 80",
+          "3c control carr_9x9: the mean 0.653 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.534, 0.809]: 0.700, 0.707, 0.703, 0.686, 0.681 (5 runs)",
+          "3b usefulness carr_18x18: harvested as it ripens, 1.253 per crop a day = 100.3 per 80 crops (bar 24); the protocol's quoted rate 0.696 = 55.6 per 80",
+          "3c control carr_18x18: the mean 0.696 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.541, 0.799]: 0.689, 0.710, 0.714, 0.705, 0.717 (5 runs)",
+          "3b usefulness carr_27x27: harvested as it ripens, 1.276 per crop a day = 102.0 per 80 crops (bar 24); the protocol's quoted rate 0.707 = 56.6 per 80",
+          "3c control carr_27x27: the mean 0.707 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.530, 0.813]: 0.697, 0.697, 0.667, 0.705, 0.694 (5 runs)",
+          "3b usefulness carr_9x27: harvested as it ripens, 1.267 per crop a day = 101.3 per 80 crops (bar 24); the protocol's quoted rate 0.692 = 55.4 per 80",
+          "3c control carr_9x27: the mean 0.692 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.530, 0.813]: 0.668, 0.675, 0.685, 0.694, 0.698 (5 runs)",
+          "3b usefulness carr_27x9: harvested as it ripens, 1.250 per crop a day = 100.0 per 80 crops (bar 24); the protocol's quoted rate 0.684 = 54.7 per 80",
+          "3c control carr_27x9: the mean 0.684 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.523, 0.821]: 0.659, 0.694, 0.648, 0.701, 0.687 (5 runs)",
+          "3b usefulness carr_9x18: harvested as it ripens, 1.270 per crop a day = 101.6 per 80 crops (bar 24); the protocol's quoted rate 0.678 = 54.2 per 80",
+          "3c control carr_9x18: the mean 0.678 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.523, 0.821]: 0.717, 0.681, 0.661, 0.648, 0.697 (5 runs)",
+          "3b usefulness carr_18x9: harvested as it ripens, 1.242 per crop a day = 99.4 per 80 crops (bar 24); the protocol's quoted rate 0.681 = 54.5 per 80",
+          "3c control carr_18x9: the mean 0.681 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.537, 0.802]: 0.712, 0.703, 0.724, 0.710, 0.709 (5 runs)",
+          "3b usefulness carr_18x27: harvested as it ripens, 1.280 per crop a day = 102.4 per 80 crops (bar 24); the protocol's quoted rate 0.712 = 56.9 per 80",
+          "3c control carr_18x27: the mean 0.712 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.537, 0.802]: 0.715, 0.707, 0.697, 0.720, 0.714 (5 runs)",
+          "3b usefulness carr_27x18: harvested as it ripens, 1.283 per crop a day = 102.6 per 80 crops (bar 24); the protocol's quoted rate 0.711 = 56.8 per 80",
+          "3c control carr_27x18: the mean 0.711 >= 1.5 x the probe's unwatered 0.318"
+        ]
+      },
+      "field-potatoes": {
+        "at": "2026-11-13T10:24:12.571Z",
+        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
+        "world": "Steward M2 Field potatoes 202611130950",
+        "seconds": 2004.084,
+        "runs": 5,
+        "passed": 62,
+        "of": 62,
+        "results": [
+          "crop_farm@1 installed at $0 by its key steward.catalog.crop_farm.v1.c406df05dbc0 as crop_farm_3",
+          "a V town rg1 (flat_village ew, 4 pads, no irrigation) at 30000,30000,30191,30159: PLACED",
+          "a V town rg2 (flat_village ns, 4 pads, no irrigation) at 30224,30000,30383,30191: PLACED",
+          "pota_9x9: CropFarmLot's field cells = the program's layout (74)",
+          "pota_18x18: CropFarmLot's field cells = the program's layout (302)",
+          "pota_27x27: CropFarmLot's field cells = the program's layout (682)",
+          "rg1: grown by pota_9x9 9x9 potatoes rustic, pota_18x18 18x18 potatoes rustic, pota_27x27 27x27 potatoes rustic: rid 1",
+          "rg1 rid 1: PLACED",
+          "pota_9x27: CropFarmLot's field cells = the program's layout (226)",
+          "pota_27x9: CropFarmLot's field cells = the program's layout (226)",
+          "rg1: grown by pota_9x27 9x27 potatoes rustic, pota_27x9 27x9 potatoes rustic: rid 2",
+          "rg1 rid 2: PLACED",
+          "pota_9x18: CropFarmLot's field cells = the program's layout (150)",
+          "pota_18x9: CropFarmLot's field cells = the program's layout (150)",
+          "pota_18x27: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by pota_9x18 9x18 potatoes rustic, pota_18x9 18x9 potatoes rustic, pota_18x27 18x27 potatoes rustic: rid 1",
+          "rg2 rid 1: PLACED",
+          "pota_27x18: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by pota_27x18 27x18 potatoes rustic: rid 2",
+          "rg2 rid 2: PLACED",
+          "potatoes: all 9 size pairs placed (9)",
+          "potatoes: every crop cell within 9 chunks of the player (simulation distance 16)",
+          "2 light potatoes pota_9x9 (9x9 rustic, front north): every open floor+1 cell has block light >= 1 (86 cells, lowest 9; crop cells at 9+: 100%)",
+          "2 light potatoes pota_18x18 (18x18 rustic, front south): every open floor+1 cell has block light >= 1 (326 cells, lowest 6; crop cells at 9+: 82%)",
+          "2 light potatoes pota_27x27 (27x27 rustic, front south): every open floor+1 cell has block light >= 1 (720 cells, lowest 6; crop cells at 9+: 74%)",
+          "2 light potatoes pota_9x27 (9x27 rustic, front north): every open floor+1 cell has block light >= 1 (240 cells, lowest 6; crop cells at 9+: 79%)",
+          "2 light potatoes pota_27x9 (27x9 rustic, front north): every open floor+1 cell has block light >= 1 (258 cells, lowest 7; crop cells at 9+: 85%)",
+          "2 light potatoes pota_9x18 (9x18 rustic, front west): every open floor+1 cell has block light >= 1 (163 cells, lowest 6; crop cells at 9+: 84%)",
+          "2 light potatoes pota_18x9 (18x9 rustic, front east): every open floor+1 cell has block light >= 1 (172 cells, lowest 7; crop cells at 9+: 96%)",
+          "2 light potatoes pota_18x27 (18x27 rustic, front east): every open floor+1 cell has block light >= 1 (480 cells, lowest 6; crop cells at 9+: 78%)",
+          "2 light potatoes pota_27x18 (27x18 rustic, front west): every open floor+1 cell has block light >= 1 (489 cells, lowest 6; crop cells at 9+: 77%)",
+          "1a hydration potatoes: every farmland cell of the 9 farms reads moisture=7 24,000 ticks after PLACED (2718 cells; 0 below)",
+          "5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (0 differ; 0 farmland below 7)",
+          "5b unload: the farms' chunks unloaded (true), 2,000 ticks away, back: every crop's age the same (0 differ), every farmland cell moisture 7 (0 below)",
+          "1b hydration potatoes: every farmland cell moisture 7 at every harvest (15 harvests; 0 cell-readings below)",
+          "3a band pota_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.508, 0.910]: 0.679, 0.660, 0.663, 0.723, 0.714 (5 runs)",
+          "3b usefulness pota_9x9: harvested as it ripens, 1.299 per crop a day = 103.9 per 80 crops (bar 24); the protocol's quoted rate 0.688 = 55.0 per 80",
+          "3c control pota_9x9: the mean 0.688 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.530, 0.871]: 0.680, 0.723, 0.688, 0.674, 0.708 (5 runs)",
+          "3b usefulness pota_18x18: harvested as it ripens, 1.307 per crop a day = 104.6 per 80 crops (bar 24); the protocol's quoted rate 0.695 = 55.6 per 80",
+          "3c control pota_18x18: the mean 0.695 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.536, 0.857]: 0.721, 0.721, 0.733, 0.722, 0.702 (5 runs)",
+          "3b usefulness pota_27x27: harvested as it ripens, 1.341 per crop a day = 107.3 per 80 crops (bar 24); the protocol's quoted rate 0.720 = 57.6 per 80",
+          "3c control pota_27x27: the mean 0.720 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.526, 0.873]: 0.686, 0.718, 0.693, 0.703, 0.714 (5 runs)",
+          "3b usefulness pota_9x27: harvested as it ripens, 1.321 per crop a day = 105.7 per 80 crops (bar 24); the protocol's quoted rate 0.703 = 56.2 per 80",
+          "3c control pota_9x27: the mean 0.703 >= 1.5 x the probe's unwatered 0.283",
+          "3a band pota_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.526, 0.873]: 0.702, 0.679, 0.691, 0.700, 0.686 (5 runs)",
+          "3b usefulness pota_27x9: harvested as it ripens, 1.319 per crop a day = 105.6 per 80 crops (bar 24); the protocol's quoted rate 0.692 = 55.3 per 80",
+          "3c control pota_27x9: the mean 0.692 >= 1.5 x the probe's unwatered 0.283",
+          "3a band pota_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.520, 0.886]: 0.703, 0.732, 0.681, 0.684, 0.717 (5 runs)",
+          "3b usefulness pota_9x18: harvested as it ripens, 1.327 per crop a day = 106.2 per 80 crops (bar 24); the protocol's quoted rate 0.703 = 56.3 per 80",
+          "3c control pota_9x18: the mean 0.703 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.520, 0.886]: 0.672, 0.676, 0.669, 0.714, 0.674 (5 runs)",
+          "3b usefulness pota_18x9: harvested as it ripens, 1.311 per crop a day = 104.9 per 80 crops (bar 24); the protocol's quoted rate 0.681 = 54.5 per 80",
+          "3c control pota_18x9: the mean 0.681 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.534, 0.862]: 0.687, 0.691, 0.709, 0.694, 0.711 (5 runs)",
+          "3b usefulness pota_18x27: harvested as it ripens, 1.314 per crop a day = 105.1 per 80 crops (bar 24); the protocol's quoted rate 0.698 = 55.9 per 80",
+          "3c control pota_18x27: the mean 0.698 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.534, 0.862]: 0.714, 0.700, 0.700, 0.710, 0.691 (5 runs)",
+          "3b usefulness pota_27x18: harvested as it ripens, 1.311 per crop a day = 104.9 per 80 crops (bar 24); the protocol's quoted rate 0.703 = 56.2 per 80",
+          "3c control pota_27x18: the mean 0.703 >= 1.5 x the probe's unwatered 0.282"
+        ]
+      },
+      "field-beetroots": {
+        "at": "2026-11-13T09:50:48.417Z",
+        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
+        "world": "Steward M2 Field beetroots 202611130909",
+        "seconds": 2472.309,
+        "runs": 5,
+        "passed": 62,
+        "of": 62,
+        "results": [
+          "crop_farm@1 installed at $0 by its key steward.catalog.crop_farm.v1.c406df05dbc0 as crop_farm_3",
+          "a V town rg1 (flat_village ew, 4 pads, no irrigation) at 30000,30000,30191,30159: PLACED",
+          "a V town rg2 (flat_village ns, 4 pads, no irrigation) at 30224,30000,30383,30191: PLACED",
+          "beet_9x9: CropFarmLot's field cells = the program's layout (74)",
+          "beet_18x18: CropFarmLot's field cells = the program's layout (302)",
+          "beet_27x27: CropFarmLot's field cells = the program's layout (682)",
+          "rg1: grown by beet_9x9 9x9 beetroots rustic, beet_18x18 18x18 beetroots rustic, beet_27x27 27x27 beetroots rustic: rid 1",
+          "rg1 rid 1: PLACED",
+          "beet_9x27: CropFarmLot's field cells = the program's layout (226)",
+          "beet_27x9: CropFarmLot's field cells = the program's layout (226)",
+          "rg1: grown by beet_9x27 9x27 beetroots rustic, beet_27x9 27x9 beetroots rustic: rid 2",
+          "rg1 rid 2: PLACED",
+          "beet_9x18: CropFarmLot's field cells = the program's layout (150)",
+          "beet_18x9: CropFarmLot's field cells = the program's layout (150)",
+          "beet_18x27: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by beet_9x18 9x18 beetroots rustic, beet_18x9 18x9 beetroots rustic, beet_18x27 18x27 beetroots rustic: rid 1",
+          "rg2 rid 1: PLACED",
+          "beet_27x18: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by beet_27x18 27x18 beetroots rustic: rid 2",
+          "rg2 rid 2: PLACED",
+          "beetroots: all 9 size pairs placed (9)",
+          "beetroots: every crop cell within 9 chunks of the player (simulation distance 16)",
+          "2 light beetroots beet_9x9 (9x9 rustic, front north): every open floor+1 cell has block light >= 1 (86 cells, lowest 9; crop cells at 9+: 100%)",
+          "2 light beetroots beet_18x18 (18x18 rustic, front south): every open floor+1 cell has block light >= 1 (326 cells, lowest 6; crop cells at 9+: 82%)",
+          "2 light beetroots beet_27x27 (27x27 rustic, front south): every open floor+1 cell has block light >= 1 (720 cells, lowest 6; crop cells at 9+: 74%)",
+          "2 light beetroots beet_9x27 (9x27 rustic, front north): every open floor+1 cell has block light >= 1 (240 cells, lowest 6; crop cells at 9+: 79%)",
+          "2 light beetroots beet_27x9 (27x9 rustic, front north): every open floor+1 cell has block light >= 1 (258 cells, lowest 7; crop cells at 9+: 85%)",
+          "2 light beetroots beet_9x18 (9x18 rustic, front west): every open floor+1 cell has block light >= 1 (163 cells, lowest 6; crop cells at 9+: 84%)",
+          "2 light beetroots beet_18x9 (18x9 rustic, front east): every open floor+1 cell has block light >= 1 (172 cells, lowest 7; crop cells at 9+: 96%)",
+          "2 light beetroots beet_18x27 (18x27 rustic, front east): every open floor+1 cell has block light >= 1 (480 cells, lowest 6; crop cells at 9+: 78%)",
+          "2 light beetroots beet_27x18 (27x18 rustic, front west): every open floor+1 cell has block light >= 1 (489 cells, lowest 6; crop cells at 9+: 77%)",
+          "1a hydration beetroots: every farmland cell of the 9 farms reads moisture=7 24,000 ticks after PLACED (2718 cells; 0 below)",
+          "5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (0 differ; 0 farmland below 7)",
+          "5b unload: the farms' chunks unloaded (true), 2,000 ticks away, back: every crop's age the same (0 differ), every farmland cell moisture 7 (0 below)",
+          "1b hydration beetroots: every farmland cell moisture 7 at every harvest (15 harvests; 0 cell-readings below)",
+          "3a band beet_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.309, 0.525]: 0.395, 0.432, 0.423, 0.398, 0.420 (5 runs)",
+          "3b usefulness beet_9x9: harvested as it ripens, 0.849 per crop a day = 67.9 per 80 crops (bar 24); the protocol's quoted rate 0.413 = 33.1 per 80",
+          "3c control beet_9x9: the mean 0.413 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.330, 0.501]: 0.401, 0.407, 0.417, 0.409, 0.413 (5 runs)",
+          "3b usefulness beet_18x18: harvested as it ripens, 0.844 per crop a day = 67.5 per 80 crops (bar 24); the protocol's quoted rate 0.410 = 32.8 per 80",
+          "3c control beet_18x18: the mean 0.410 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.337, 0.491]: 0.406, 0.407, 0.412, 0.418, 0.424 (5 runs)",
+          "3b usefulness beet_27x27: harvested as it ripens, 0.844 per crop a day = 67.5 per 80 crops (bar 24); the protocol's quoted rate 0.413 = 33.1 per 80",
+          "3c control beet_27x27: the mean 0.413 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.326, 0.504]: 0.399, 0.405, 0.409, 0.406, 0.396 (5 runs)",
+          "3b usefulness beet_9x27: harvested as it ripens, 0.833 per crop a day = 66.7 per 80 crops (bar 24); the protocol's quoted rate 0.403 = 32.3 per 80",
+          "3c control beet_9x27: the mean 0.403 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.326, 0.504]: 0.375, 0.424, 0.418, 0.414, 0.391 (5 runs)",
+          "3b usefulness beet_27x9: harvested as it ripens, 0.829 per crop a day = 66.3 per 80 crops (bar 24); the protocol's quoted rate 0.405 = 32.4 per 80",
+          "3c control beet_27x9: the mean 0.405 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.322, 0.511]: 0.391, 0.428, 0.416, 0.409, 0.409 (5 runs)",
+          "3b usefulness beet_9x18: harvested as it ripens, 0.845 per crop a day = 67.6 per 80 crops (bar 24); the protocol's quoted rate 0.411 = 32.9 per 80",
+          "3c control beet_9x18: the mean 0.411 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.322, 0.511]: 0.388, 0.393, 0.402, 0.397, 0.419 (5 runs)",
+          "3b usefulness beet_18x9: harvested as it ripens, 0.839 per crop a day = 67.1 per 80 crops (bar 24); the protocol's quoted rate 0.400 = 32.0 per 80",
+          "3c control beet_18x9: the mean 0.400 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.334, 0.497]: 0.415, 0.421, 0.421, 0.415, 0.406 (5 runs)",
+          "3b usefulness beet_18x27: harvested as it ripens, 0.846 per crop a day = 67.7 per 80 crops (bar 24); the protocol's quoted rate 0.416 = 33.3 per 80",
+          "3c control beet_18x27: the mean 0.416 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.334, 0.497]: 0.422, 0.428, 0.419, 0.398, 0.405 (5 runs)",
+          "3b usefulness beet_27x18: harvested as it ripens, 0.852 per crop a day = 68.1 per 80 crops (bar 24); the protocol's quoted rate 0.414 = 33.2 per 80",
+          "3c control beet_27x18: the mean 0.414 >= 1.5 x the probe's unwatered 0.177"
+        ]
+      },
+      "skin-rustic": {
+        "at": "2026-11-13T08:45:56.728Z",
+        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
+        "world": "Steward M2 Skin rustic 202611130840",
+        "seconds": 342.98,
+        "runs": null,
+        "passed": 53,
+        "of": 53,
+        "results": [
+          "crop_farm@1 installed at $0 by its key steward.catalog.crop_farm.v1.c406df05dbc0 as crop_farm_3",
+          "a V town rg1 (flat_village ew, 4 pads, no irrigation) at 40000,40000,40191,40159: PLACED",
+          "a V town rg2 (flat_village ns, 4 pads, no irrigation) at 40224,40000,40383,40191: PLACED",
+          "rust_9x9: CropFarmLot's field cells = the program's layout (74)",
+          "rust_18x18: CropFarmLot's field cells = the program's layout (302)",
+          "rust_27x27: CropFarmLot's field cells = the program's layout (682)",
+          "rg1: grown by rust_9x9 9x9 wheat rustic, rust_18x18 18x18 carrots rustic, rust_27x27 27x27 potatoes rustic: rid 1",
+          "rg1 rid 1: PLACED",
+          "rust_9x27: CropFarmLot's field cells = the program's layout (226)",
+          "rust_27x9: CropFarmLot's field cells = the program's layout (226)",
+          "rg1: grown by rust_9x27 9x27 beetroots rustic, rust_27x9 27x9 wheat rustic: rid 2",
+          "rg1 rid 2: PLACED",
+          "rust_9x18: CropFarmLot's field cells = the program's layout (150)",
+          "rust_18x9: CropFarmLot's field cells = the program's layout (150)",
+          "rust_18x27: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by rust_9x18 9x18 carrots rustic, rust_18x9 18x9 potatoes rustic, rust_18x27 18x27 beetroots rustic: rid 1",
+          "rg2 rid 1: PLACED",
+          "rust_27x18: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by rust_27x18 27x18 wheat rustic: rid 2",
+          "rg2 rid 2: PLACED",
+          "rustic: all 9 size pairs placed (9)",
+          "rustic: the lamp is minecraft:lantern (the fallback minecraft:lantern: its light is measured on every farm)",
+          "rustic: every farm inside the simulation distance",
+          "2 light rustic rust_9x9 (9x9 rustic, front north): every open floor+1 cell has block light >= 1 (86 cells, lowest 9; crop cells at 9+: 100%)",
+          "2 light rustic rust_18x18 (18x18 rustic, front south): every open floor+1 cell has block light >= 1 (326 cells, lowest 6; crop cells at 9+: 82%)",
+          "2 light rustic rust_27x27 (27x27 rustic, front south): every open floor+1 cell has block light >= 1 (720 cells, lowest 6; crop cells at 9+: 74%)",
+          "2 light rustic rust_9x27 (9x27 rustic, front north): every open floor+1 cell has block light >= 1 (240 cells, lowest 6; crop cells at 9+: 79%)",
+          "2 light rustic rust_27x9 (27x9 rustic, front north): every open floor+1 cell has block light >= 1 (258 cells, lowest 7; crop cells at 9+: 85%)",
+          "2 light rustic rust_9x18 (9x18 rustic, front west): every open floor+1 cell has block light >= 1 (163 cells, lowest 6; crop cells at 9+: 84%)",
+          "2 light rustic rust_18x9 (18x9 rustic, front east): every open floor+1 cell has block light >= 1 (172 cells, lowest 7; crop cells at 9+: 96%)",
+          "2 light rustic rust_18x27 (18x27 rustic, front east): every open floor+1 cell has block light >= 1 (480 cells, lowest 6; crop cells at 9+: 78%)",
+          "2 light rustic rust_27x18 (27x18 rustic, front west): every open floor+1 cell has block light >= 1 (489 cells, lowest 6; crop cells at 9+: 77%)",
+          "1a hydration rustic: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (2718 cells, 0 below; 20 below at PLACED, recorded)",
+          "4 fence rust_9x9: every one of 40 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence rust_18x18: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence rust_27x27: every one of 112 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence rust_9x27: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence rust_27x9: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence rust_9x18: every one of 58 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence rust_18x9: every one of 58 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence rust_18x27: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence rust_27x18: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4a exclusion rustic: no zombie, villager or cow inside a closed fence over 12,000 ticks (9 farms x 6 mobs; 29 mobs near the farms at the end; 0 sightings inside)",
+          "4b exclusion rustic: every farmland cell still farmland and every crop cell still its crop (0 changed)",
+          "4c gate rust_9x9 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate rust_18x18 (front south): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate rust_27x27 (front south): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate rust_9x27 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate rust_27x9 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate rust_9x18 (front west): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate rust_18x9 (front east): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate rust_18x27 (front east): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate rust_27x18 (front west): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})"
+        ]
+      },
+      "skin-fortress": {
+        "at": "2026-11-13T08:57:49.052Z",
+        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
+        "world": "Steward M2 Skin fortress 202611130845",
+        "seconds": 712.216,
+        "runs": null,
+        "passed": 53,
+        "of": 53,
+        "results": [
+          "crop_farm@1 installed at $0 by its key steward.catalog.crop_farm.v1.c406df05dbc0 as crop_farm_3",
+          "a V town rg1 (flat_village ew, 4 pads, no irrigation) at 40000,40000,40191,40159: PLACED",
+          "a V town rg2 (flat_village ns, 4 pads, no irrigation) at 40224,40000,40383,40191: PLACED",
+          "fort_9x9: CropFarmLot's field cells = the program's layout (74)",
+          "fort_18x18: CropFarmLot's field cells = the program's layout (302)",
+          "fort_27x27: CropFarmLot's field cells = the program's layout (682)",
+          "rg1: grown by fort_9x9 9x9 wheat fortress, fort_18x18 18x18 carrots fortress, fort_27x27 27x27 potatoes fortress: rid 1",
+          "rg1 rid 1: PLACED",
+          "fort_9x27: CropFarmLot's field cells = the program's layout (226)",
+          "fort_27x9: CropFarmLot's field cells = the program's layout (226)",
+          "rg1: grown by fort_9x27 9x27 beetroots fortress, fort_27x9 27x9 wheat fortress: rid 2",
+          "rg1 rid 2: PLACED",
+          "fort_9x18: CropFarmLot's field cells = the program's layout (150)",
+          "fort_18x9: CropFarmLot's field cells = the program's layout (150)",
+          "fort_18x27: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by fort_9x18 9x18 carrots fortress, fort_18x9 18x9 potatoes fortress, fort_18x27 18x27 beetroots fortress: rid 1",
+          "rg2 rid 1: PLACED",
+          "fort_27x18: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by fort_27x18 27x18 wheat fortress: rid 2",
+          "rg2 rid 2: PLACED",
+          "fortress: all 9 size pairs placed (9)",
+          "fortress: the lamp is minecraft:lantern (the fallback minecraft:lantern: its light is measured on every farm)",
+          "fortress: every farm inside the simulation distance",
+          "2 light fortress fort_9x9 (9x9 fortress, front north): every open floor+1 cell has block light >= 1 (86 cells, lowest 9; crop cells at 9+: 100%)",
+          "2 light fortress fort_18x18 (18x18 fortress, front south): every open floor+1 cell has block light >= 1 (326 cells, lowest 6; crop cells at 9+: 82%)",
+          "2 light fortress fort_27x27 (27x27 fortress, front south): every open floor+1 cell has block light >= 1 (720 cells, lowest 6; crop cells at 9+: 74%)",
+          "2 light fortress fort_9x27 (9x27 fortress, front north): every open floor+1 cell has block light >= 1 (240 cells, lowest 6; crop cells at 9+: 79%)",
+          "2 light fortress fort_27x9 (27x9 fortress, front north): every open floor+1 cell has block light >= 1 (258 cells, lowest 7; crop cells at 9+: 85%)",
+          "2 light fortress fort_9x18 (9x18 fortress, front west): every open floor+1 cell has block light >= 1 (163 cells, lowest 6; crop cells at 9+: 84%)",
+          "2 light fortress fort_18x9 (18x9 fortress, front east): every open floor+1 cell has block light >= 1 (172 cells, lowest 7; crop cells at 9+: 96%)",
+          "2 light fortress fort_18x27 (18x27 fortress, front east): every open floor+1 cell has block light >= 1 (480 cells, lowest 6; crop cells at 9+: 78%)",
+          "2 light fortress fort_27x18 (27x18 fortress, front west): every open floor+1 cell has block light >= 1 (489 cells, lowest 6; crop cells at 9+: 77%)",
+          "1a hydration fortress: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (2718 cells, 0 below; 19 below at PLACED, recorded)",
+          "4 fence fort_9x9: every one of 40 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence fort_18x18: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence fort_27x27: every one of 112 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence fort_9x27: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence fort_27x9: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence fort_9x18: every one of 58 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence fort_18x9: every one of 58 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence fort_18x27: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence fort_27x18: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4a exclusion fortress: no zombie, villager or cow inside a closed fence over 12,000 ticks (9 farms x 6 mobs; 33 mobs near the farms at the end; 0 sightings inside)",
+          "4b exclusion fortress: every farmland cell still farmland and every crop cell still its crop (0 changed)",
+          "4c gate fort_9x9 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate fort_18x18 (front south): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate fort_27x27 (front south): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate fort_9x27 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate fort_27x9 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate fort_9x18 (front west): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate fort_18x9 (front east): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate fort_18x27 (front east): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate fort_27x18 (front west): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})"
+        ]
+      },
+      "skin-desert": {
+        "at": "2026-11-13T09:09:35.839Z",
+        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
+        "world": "Steward M2 Skin desert 202611130857",
+        "seconds": 706.665,
+        "runs": null,
+        "passed": 53,
+        "of": 53,
+        "results": [
+          "crop_farm@1 installed at $0 by its key steward.catalog.crop_farm.v1.c406df05dbc0 as crop_farm_3",
+          "a V town rg1 (flat_village ew, 4 pads, no irrigation) at 40000,40000,40191,40159: PLACED",
+          "a V town rg2 (flat_village ns, 4 pads, no irrigation) at 40224,40000,40383,40191: PLACED",
+          "dese_9x9: CropFarmLot's field cells = the program's layout (74)",
+          "dese_18x18: CropFarmLot's field cells = the program's layout (302)",
+          "dese_27x27: CropFarmLot's field cells = the program's layout (682)",
+          "rg1: grown by dese_9x9 9x9 wheat desert, dese_18x18 18x18 carrots desert, dese_27x27 27x27 potatoes desert: rid 1",
+          "rg1 rid 1: PLACED",
+          "dese_9x27: CropFarmLot's field cells = the program's layout (226)",
+          "dese_27x9: CropFarmLot's field cells = the program's layout (226)",
+          "rg1: grown by dese_9x27 9x27 beetroots desert, dese_27x9 27x9 wheat desert: rid 2",
+          "rg1 rid 2: PLACED",
+          "dese_9x18: CropFarmLot's field cells = the program's layout (150)",
+          "dese_18x9: CropFarmLot's field cells = the program's layout (150)",
+          "dese_18x27: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by dese_9x18 9x18 carrots desert, dese_18x9 18x9 potatoes desert, dese_18x27 18x27 beetroots desert: rid 1",
+          "rg2 rid 1: PLACED",
+          "dese_27x18: CropFarmLot's field cells = the program's layout (454)",
+          "rg2: grown by dese_27x18 27x18 wheat desert: rid 2",
+          "rg2 rid 2: PLACED",
+          "desert: all 9 size pairs placed (9)",
+          "desert: the lamp is minecraft:lantern (the fallback minecraft:lantern: its light is measured on every farm)",
+          "desert: every farm inside the simulation distance",
+          "2 light desert dese_9x9 (9x9 desert, front north): every open floor+1 cell has block light >= 1 (86 cells, lowest 9; crop cells at 9+: 100%)",
+          "2 light desert dese_18x18 (18x18 desert, front south): every open floor+1 cell has block light >= 1 (326 cells, lowest 6; crop cells at 9+: 82%)",
+          "2 light desert dese_27x27 (27x27 desert, front south): every open floor+1 cell has block light >= 1 (720 cells, lowest 6; crop cells at 9+: 74%)",
+          "2 light desert dese_9x27 (9x27 desert, front north): every open floor+1 cell has block light >= 1 (240 cells, lowest 6; crop cells at 9+: 79%)",
+          "2 light desert dese_27x9 (27x9 desert, front north): every open floor+1 cell has block light >= 1 (258 cells, lowest 7; crop cells at 9+: 85%)",
+          "2 light desert dese_9x18 (9x18 desert, front west): every open floor+1 cell has block light >= 1 (163 cells, lowest 6; crop cells at 9+: 84%)",
+          "2 light desert dese_18x9 (18x9 desert, front east): every open floor+1 cell has block light >= 1 (172 cells, lowest 7; crop cells at 9+: 96%)",
+          "2 light desert dese_18x27 (18x27 desert, front east): every open floor+1 cell has block light >= 1 (480 cells, lowest 6; crop cells at 9+: 78%)",
+          "2 light desert dese_27x18 (27x18 desert, front west): every open floor+1 cell has block light >= 1 (489 cells, lowest 6; crop cells at 9+: 77%)",
+          "1a hydration desert: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (2718 cells, 0 below; 11 below at PLACED, recorded)",
+          "4 fence dese_9x9: every one of 40 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence dese_18x18: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence dese_27x27: every one of 112 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence dese_9x27: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence dese_27x9: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence dese_9x18: every one of 58 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence dese_18x9: every one of 58 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence dese_18x27: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4 fence dese_27x18: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
+          "4a exclusion desert: no zombie, villager or cow inside a closed fence over 12,000 ticks (9 farms x 6 mobs; 25 mobs near the farms at the end; 0 sightings inside)",
+          "4b exclusion desert: every farmland cell still farmland and every crop cell still its crop (0 changed)",
+          "4c gate dese_9x9 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate dese_18x18 (front south): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate dese_27x27 (front south): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate dese_9x27 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate dese_27x9 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate dese_9x18 (front west): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate dese_18x9 (front east): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate dese_18x27 (front east): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
+          "4c gate dese_27x18 (front west): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})"
+        ]
+      },
+      "survival": {
+        "at": "2026-11-13T08:40:13.635Z",
+        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
+        "world": "Steward M2 Survival 202611130833",
+        "seconds": 380.317,
+        "runs": null,
+        "passed": 63,
+        "of": 63,
+        "results": [
+          "a stockpile of 8 crates for steward_mc:measure: \"made\"",
+          "the town rg1 built in survival from the stockpile: PLACED (3 waves)",
+          "crop_farm@1 installed at $0 by its key steward.catalog.crop_farm.v1.c406df05dbc0 as crop_farm_3",
+          "surv_9x9: CropFarmLot's field cells = the program's layout (74)",
+          "surv_18x18: CropFarmLot's field cells = the program's layout (302)",
+          "surv_27x27: CropFarmLot's field cells = the program's layout (682)",
+          "survival growth surv_9x9, surv_18x18, surv_27x27: rid 1",
+          "7a bill rid 1 (surv_9x9, surv_18x18, surv_27x27): PLACED; consumed = the quote item for item (equal; 4477 items)",
+          "surv_9x27: CropFarmLot's field cells = the program's layout (226)",
+          "surv_27x9: CropFarmLot's field cells = the program's layout (226)",
+          "surv_9x18: CropFarmLot's field cells = the program's layout (150)",
+          "survival growth surv_9x27, surv_27x9, surv_9x18: rid 2",
+          "7a bill rid 2 (surv_9x27, surv_27x9, surv_9x18): PLACED; consumed = the quote item for item (equal; 2890 items)",
+          "surv_18x9: CropFarmLot's field cells = the program's layout (150)",
+          "surv_18x27: CropFarmLot's field cells = the program's layout (454)",
+          "surv_27x18: CropFarmLot's field cells = the program's layout (454)",
+          "survival growth surv_18x9, surv_18x27, surv_27x18: rid 3",
+          "7a bill rid 3 (surv_18x9, surv_18x27, surv_27x18): PLACED; consumed = the quote item for item (equal; 4481 items)",
+          "6 worked surv_9x9: 48 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_18x18: 170 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_27x27: 369 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_9x27: 187 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_27x9: 132 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_9x18: 77 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_18x9: 79 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_18x27: 385 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_27x18: 262 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6a after a restart: each farm's torch is still the player's (PT): 9/9",
+          "6b land check surv_9x9: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
+          "6c standing surv_9x9: 0.9974025974025974 (worked field standing; the one cell the cobblestone took is the only mismatch of 385 blocks: >= 0.9974)",
+          "6b land check surv_18x18: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
+          "6c standing surv_18x18: 0.9991816693944353 (worked field standing; the one cell the cobblestone took is the only mismatch of 1222 blocks: >= 0.9992)",
+          "6b land check surv_27x27: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
+          "6c standing surv_27x27: 0.9996052112120016 (worked field standing; the one cell the cobblestone took is the only mismatch of 2533 blocks: >= 0.9996)",
+          "6b land check surv_9x27: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
+          "6c standing surv_9x27: 0.9989658738366081 (worked field standing; the one cell the cobblestone took is the only mismatch of 967 blocks: >= 0.9990)",
+          "6b land check surv_27x9: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
+          "6c standing surv_27x9: 0.9990029910269193 (worked field standing; the one cell the cobblestone took is the only mismatch of 1003 blocks: >= 0.9990)",
+          "6b land check surv_9x18: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
+          "6c standing surv_9x18: 0.9985207100591716 (worked field standing; the one cell the cobblestone took is the only mismatch of 676 blocks: >= 0.9985)",
+          "6b land check surv_18x9: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
+          "6c standing surv_18x9: 0.9985590778097982 (worked field standing; the one cell the cobblestone took is the only mismatch of 694 blocks: >= 0.9986)",
+          "6b land check surv_18x27: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
+          "6c standing surv_18x27: 0.9994285714285714 (worked field standing; the one cell the cobblestone took is the only mismatch of 1750 blocks: >= 0.9994)",
+          "6b land check surv_27x18: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
+          "6c standing surv_27x18: 0.9994343891402715 (worked field standing; the one cell the cobblestone took is the only mismatch of 1768 blocks: >= 0.9994)",
+          "6b land check: the town's and the growths' parts as before the field was worked",
+          "6d undo rid 3: removed true, blockers []",
+          "7b refund rid 3: credited (with overflow) = consumed less one construction seed per harvested cell (equal)",
+          "7b cargo surv_18x9: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "7b cargo surv_18x27: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "7b cargo surv_27x18: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "6d undo rid 2: removed true, blockers []",
+          "7b refund rid 2: credited (with overflow) = consumed less one construction seed per harvested cell (equal)",
+          "7b cargo surv_9x27: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "7b cargo surv_27x9: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "7b cargo surv_9x18: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "6d undo rid 1: removed true, blockers []",
+          "7b refund rid 1: credited (with overflow) = consumed less one construction seed per harvested cell (equal)",
+          "7b cargo surv_9x9: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "7b cargo surv_18x18: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "7b cargo surv_27x27: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "7b after a restart: nothing given twice (the ledger and stock unchanged; items on the ground {})"
+        ]
+      },
+      "bounds": {
+        "at": "2026-11-13T11:31:55.940Z",
+        "head": "32e4298cb1e2832d18a2ff7dbdcfb364a8805b4e",
+        "world": "Steward M2 Bounds 202611131124",
+        "seconds": 460.492,
+        "runs": null,
+        "passed": 111,
+        "of": 111,
+        "results": [
+          "the town rg1 built in survival: PLACED",
+          "crop_farm@1 installed at $0 by its key steward.catalog.crop_farm.v1.c406df05dbc0 as crop_farm_3",
+          "bounds 9x9 wheat rustic: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 wheat fortress: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 wheat desert: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 carrots rustic: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 carrots fortress: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 carrots desert: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 potatoes rustic: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 potatoes fortress: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 potatoes desert: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 beetroots rustic: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 beetroots fortress: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 9x9 beetroots desert: quoted (survival true, exact false, 489 items; 74 crop cells)",
+          "bounds 18x18 wheat rustic: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 wheat fortress: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 wheat desert: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 carrots rustic: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 carrots fortress: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 carrots desert: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 potatoes rustic: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 potatoes fortress: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 potatoes desert: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 beetroots rustic: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 beetroots fortress: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 18x18 beetroots desert: quoted (survival true, exact false, 1388 items; 302 crop cells)",
+          "bounds 27x27 wheat rustic: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 wheat fortress: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 wheat desert: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 carrots rustic: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 carrots fortress: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 carrots desert: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 potatoes rustic: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 potatoes fortress: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 potatoes desert: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 beetroots rustic: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 beetroots fortress: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 27x27 beetroots desert: quoted (survival true, exact false, 2771 items; 682 crop cells)",
+          "bounds 9x27 wheat rustic: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 wheat fortress: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 wheat desert: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 carrots rustic: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 carrots fortress: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 carrots desert: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 potatoes rustic: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 potatoes fortress: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 potatoes desert: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 beetroots rustic: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 beetroots fortress: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 9x27 beetroots desert: quoted (survival true, exact false, 1081 items; 226 crop cells)",
+          "bounds 27x9 wheat rustic: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 wheat fortress: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 wheat desert: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 carrots rustic: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 carrots fortress: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 carrots desert: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 potatoes rustic: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 potatoes fortress: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 potatoes desert: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 beetroots rustic: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 beetroots fortress: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 27x9 beetroots desert: quoted (survival true, exact false, 1211 items; 226 crop cells)",
+          "bounds 9x18 wheat rustic: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 wheat fortress: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 wheat desert: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 carrots rustic: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 carrots fortress: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 carrots desert: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 potatoes rustic: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 potatoes fortress: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 potatoes desert: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 beetroots rustic: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 beetroots fortress: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 9x18 beetroots desert: quoted (survival true, exact false, 785 items; 150 crop cells)",
+          "bounds 18x9 wheat rustic: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 wheat fortress: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 wheat desert: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 carrots rustic: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 carrots fortress: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 carrots desert: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 potatoes rustic: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 potatoes fortress: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 potatoes desert: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 beetroots rustic: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 beetroots fortress: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x9 beetroots desert: quoted (survival true, exact false, 850 items; 150 crop cells)",
+          "bounds 18x27 wheat rustic: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 wheat fortress: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 wheat desert: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 carrots rustic: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 carrots fortress: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 carrots desert: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 potatoes rustic: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 potatoes fortress: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 potatoes desert: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 beetroots rustic: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 beetroots fortress: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 18x27 beetroots desert: quoted (survival true, exact false, 1926 items; 454 crop cells)",
+          "bounds 27x18 wheat rustic: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 wheat fortress: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 wheat desert: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 carrots rustic: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 carrots fortress: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 carrots desert: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 potatoes rustic: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 potatoes fortress: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 potatoes desert: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 beetroots rustic: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 beetroots fortress: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds 27x18 beetroots desert: quoted (survival true, exact false, 1991 items; 454 crop cells)",
+          "bounds: every one of the 36 branches has a bound over its 3 Styles (36)"
+        ]
+      },
+      "border": {
+        "at": "2026-11-13T11:44:17.447Z",
+        "head": "f58bedfff645da02265167903fb80cb741b37e61",
+        "world": "Steward M2 Border 202611131141",
+        "seconds": 177.481,
+        "runs": null,
+        "passed": 23,
+        "of": 23,
+        "results": [
+          "crop_farm@1 installed at $0 by its key steward.catalog.crop_farm.v1.c406df05dbc0 as crop_farm_3",
+          "a V town rg1 (flat_village ew, 4 pads, no irrigation) at 70000,70000,70191,70159: PLACED",
+          "bord0_9x9_0: CropFarmLot's field cells = the program's layout (74)",
+          "bord0_9x9_1: CropFarmLot's field cells = the program's layout (74)",
+          "bord0_27x9_0: CropFarmLot's field cells = the program's layout (226)",
+          "rg1: grown by bord0_9x9_0 9x9 wheat rustic, bord0_9x9_1 9x9 carrots fortress, bord0_27x9_0 27x9 wheat rustic: rid 1",
+          "rg1 rid 1: PLACED",
+          "bord0_27x9_1: CropFarmLot's field cells = the program's layout (226)",
+          "rg1: grown by bord0_27x9_1 27x9 carrots fortress: rid 2",
+          "rg1 rid 2: PLACED",
+          "border: a 9x9 and a 27x9 farm straddling a chunk border in x and z (bord0_9x9_1 [70074,65,70060,70084,96,70071]; bord0_27x9_0 [70119,65,70063,70147,96,70074])",
+          "2 light border bord0_9x9_1 bord0_9x9_1 (9x9 fortress, front south): every open floor+1 cell has block light >= 1 (86 cells, lowest 9; crop cells at 9+: 100%)",
+          "1a hydration border bord0_9x9_1: every farmland cell moisture 7 24,000 ticks after PLACED (74, 0 below)",
+          "5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (0 differ; 0 farmland below 7)",
+          "5b unload: the farms' chunks unloaded (true), 2,000 ticks away, back: every crop's age the same (0 differ), every farmland cell moisture 7 (0 below)",
+          "4a/4b exclusion border bord0_9x9_1: no mob inside over 12,000 ticks (0 sightings), the field unchanged (0)",
+          "4c gate border bord0_9x9_1: {\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false}",
+          "2 light border bord0_27x9_0 bord0_27x9_0 (27x9 rustic, front south): every open floor+1 cell has block light >= 1 (258 cells, lowest 7; crop cells at 9+: 85%)",
+          "1a hydration border bord0_27x9_0: every farmland cell moisture 7 24,000 ticks after PLACED (226, 0 below)",
+          "5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (0 differ; 0 farmland below 7)",
+          "5b unload: the farms' chunks unloaded (true), 2,000 ticks away, back: every crop's age the same (0 differ), every farmland cell moisture 7 (0 below)",
+          "4a/4b exclusion border bord0_27x9_0: no mob inside over 12,000 ticks (0 sightings), the field unchanged (0)",
+          "4c gate border bord0_27x9_0: {\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false}"
+        ]
+      },
+      "cover": {
+        "at": "2026-11-13T11:44:17.604Z",
+        "head": "f58bedfff645da02265167903fb80cb741b37e61",
+        "world": null,
+        "seconds": 0.077,
+        "runs": null,
+        "passed": 11,
+        "of": 11,
+        "results": [
+          "field-wheat: passed on these files",
+          "field-carrots: passed on these files",
+          "field-potatoes: passed on these files",
+          "field-beetroots: passed on these files",
+          "skin-rustic: passed on these files",
+          "skin-fortress: passed on these files",
+          "skin-desert: passed on these files",
+          "border: passed on these files",
+          "facings: every facing has at least 9 measured farms ({\"north\":21,\"south\":16,\"west\":14,\"east\":14})",
+          "facings: each crop measured on both street orientations ({\"field-wheat\":[\"ew\",\"ns\"],\"field-carrots\":[\"ew\",\"ns\"],\"field-potatoes\":[\"ew\",\"ns\"],\"field-beetroots\":[\"ew\",\"ns\"]})",
+          "chunk borders: at least one farm of every size pair crosses in both x and z ({\"9x9\":\"1/8\",\"18x18\":\"7/7\",\"27x27\":\"7/7\",\"9x27\":\"7/7\",\"27x9\":\"1/8\",\"9x18\":\"7/7\",\"18x9\":\"7/7\",\"18x27\":\"7/7\",\"27x18\":\"7/7\"})"
+        ]
+      }
+    }
+  },
+  "what": "docs/MEASURE-M2.md: MODULES.md 3.1 items 1-7 as amended by section 9, measured in a dev client over the envelope (36 branches x 5 runs for the output rate; all four facings; chunk borders; rustic in full, fortress and desert for light, hydration and exclusion; survival bill and refunds) by tools/module-measure.mjs.",
+  "bars": "docs/MEASURE-M2.md \"The bars\" (committed before the first measurement)",
+  "runs": 5,
+  "bounds": [
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 9,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 41,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 222,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 43,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 9,
+        "minecraft:oak_fence": 2,
+        "minecraft:sandstone": 41,
+        "minecraft:spruce_fence": 43,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 41,
+        "minecraft:wheat_seeds": 74
+      }
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 9,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:carrot": 74,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 41,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 222,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 43,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 9,
+        "minecraft:oak_fence": 2,
+        "minecraft:sandstone": 41,
+        "minecraft:spruce_fence": 43,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 41
+      }
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 9,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 41,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 222,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 43,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 9,
+        "minecraft:oak_fence": 2,
+        "minecraft:potato": 74,
+        "minecraft:sandstone": 41,
+        "minecraft:spruce_fence": 43,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 41
+      }
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 9,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:beetroot_seeds": 74,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 41,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 222,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 43,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 9,
+        "minecraft:oak_fence": 2,
+        "minecraft:sandstone": 41,
+        "minecraft:spruce_fence": 43,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 41
+      }
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 18,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 759,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 91,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 13,
+        "minecraft:oak_fence": 3,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 91,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77,
+        "minecraft:wheat_seeds": 302
+      }
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 18,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:carrot": 302,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 759,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 91,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 13,
+        "minecraft:oak_fence": 3,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 91,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77
+      }
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 18,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 759,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 91,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 13,
+        "minecraft:oak_fence": 3,
+        "minecraft:potato": 302,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 91,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77
+      }
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 18,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:beetroot_seeds": 302,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 759,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 91,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 13,
+        "minecraft:oak_fence": 3,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 91,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77
+      }
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 27,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 113,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1618,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 147,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 19,
+        "minecraft:oak_fence": 4,
+        "minecraft:sandstone": 113,
+        "minecraft:spruce_fence": 147,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 113,
+        "minecraft:wheat_seeds": 682
+      }
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 27,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:carrot": 682,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 113,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1618,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 147,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 19,
+        "minecraft:oak_fence": 4,
+        "minecraft:sandstone": 113,
+        "minecraft:spruce_fence": 147,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 113
+      }
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 27,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 113,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1618,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 147,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 19,
+        "minecraft:oak_fence": 4,
+        "minecraft:potato": 682,
+        "minecraft:sandstone": 113,
+        "minecraft:spruce_fence": 147,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 113
+      }
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 27,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:beetroot_seeds": 682,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 113,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1618,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 147,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 19,
+        "minecraft:oak_fence": 4,
+        "minecraft:sandstone": 113,
+        "minecraft:spruce_fence": 147,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 113
+      }
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 27,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 580,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 87,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 11,
+        "minecraft:oak_fence": 2,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 87,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77,
+        "minecraft:wheat_seeds": 226
+      }
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 27,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:carrot": 226,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 580,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 87,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 11,
+        "minecraft:oak_fence": 2,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 87,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77
+      }
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 27,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 580,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 87,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 11,
+        "minecraft:oak_fence": 2,
+        "minecraft:potato": 226,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 87,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77
+      }
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 27,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:beetroot_seeds": 226,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 580,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 87,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 11,
+        "minecraft:oak_fence": 2,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 87,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77
+      }
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 9,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 616,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 87,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 13,
+        "minecraft:oak_fence": 4,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 87,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77,
+        "minecraft:wheat_seeds": 226
+      }
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 9,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:carrot": 226,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 616,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 87,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 13,
+        "minecraft:oak_fence": 4,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 87,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77
+      }
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 9,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 616,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 87,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 13,
+        "minecraft:oak_fence": 4,
+        "minecraft:potato": 226,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 87,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77
+      }
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 9,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:beetroot_seeds": 226,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 77,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 616,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 87,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 13,
+        "minecraft:oak_fence": 4,
+        "minecraft:sandstone": 77,
+        "minecraft:spruce_fence": 87,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 77
+      }
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 18,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 59,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 401,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 65,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 10,
+        "minecraft:oak_fence": 2,
+        "minecraft:sandstone": 59,
+        "minecraft:spruce_fence": 65,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 59,
+        "minecraft:wheat_seeds": 150
+      }
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 18,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:carrot": 150,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 59,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 401,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 65,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 10,
+        "minecraft:oak_fence": 2,
+        "minecraft:sandstone": 59,
+        "minecraft:spruce_fence": 65,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 59
+      }
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 18,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 59,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 401,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 65,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 10,
+        "minecraft:oak_fence": 2,
+        "minecraft:potato": 150,
+        "minecraft:sandstone": 59,
+        "minecraft:spruce_fence": 65,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 59
+      }
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 18,
+        "width": 9
+      },
+      "bom": {
+        "minecraft:beetroot_seeds": 150,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 59,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 401,
+        "minecraft:gravel": 95,
+        "minecraft:jungle_fence": 65,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 10,
+        "minecraft:oak_fence": 2,
+        "minecraft:sandstone": 59,
+        "minecraft:spruce_fence": 65,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 59
+      }
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 9,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 59,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 419,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 65,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 11,
+        "minecraft:oak_fence": 3,
+        "minecraft:sandstone": 59,
+        "minecraft:spruce_fence": 65,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 59,
+        "minecraft:wheat_seeds": 150
+      }
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 9,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:carrot": 150,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 59,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 419,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 65,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 11,
+        "minecraft:oak_fence": 3,
+        "minecraft:sandstone": 59,
+        "minecraft:spruce_fence": 65,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 59
+      }
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 9,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 59,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 419,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 65,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 11,
+        "minecraft:oak_fence": 3,
+        "minecraft:potato": 150,
+        "minecraft:sandstone": 59,
+        "minecraft:spruce_fence": 65,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 59
+      }
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 9,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:beetroot_seeds": 150,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 59,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 419,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 65,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 11,
+        "minecraft:oak_fence": 3,
+        "minecraft:sandstone": 59,
+        "minecraft:spruce_fence": 65,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 59
+      }
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 27,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 95,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1099,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 117,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 15,
+        "minecraft:oak_fence": 3,
+        "minecraft:sandstone": 95,
+        "minecraft:spruce_fence": 117,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 95,
+        "minecraft:wheat_seeds": 454
+      }
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 27,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:carrot": 454,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 95,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1099,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 117,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 15,
+        "minecraft:oak_fence": 3,
+        "minecraft:sandstone": 95,
+        "minecraft:spruce_fence": 117,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 95
+      }
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 27,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 95,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1099,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 117,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 15,
+        "minecraft:oak_fence": 3,
+        "minecraft:potato": 454,
+        "minecraft:sandstone": 95,
+        "minecraft:spruce_fence": 117,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 95
+      }
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 27,
+        "width": 18
+      },
+      "bom": {
+        "minecraft:beetroot_seeds": 454,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 95,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1099,
+        "minecraft:gravel": 140,
+        "minecraft:jungle_fence": 117,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 15,
+        "minecraft:oak_fence": 3,
+        "minecraft:sandstone": 95,
+        "minecraft:spruce_fence": 117,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 95
+      }
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 18,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 95,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1117,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 117,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 16,
+        "minecraft:oak_fence": 4,
+        "minecraft:sandstone": 95,
+        "minecraft:spruce_fence": 117,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 95,
+        "minecraft:wheat_seeds": 454
+      }
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 18,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:carrot": 454,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 95,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1117,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 117,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 16,
+        "minecraft:oak_fence": 4,
+        "minecraft:sandstone": 95,
+        "minecraft:spruce_fence": 117,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 95
+      }
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 18,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 95,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1117,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 117,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 16,
+        "minecraft:oak_fence": 4,
+        "minecraft:potato": 454,
+        "minecraft:sandstone": 95,
+        "minecraft:spruce_fence": 117,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 95
+      }
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 18,
+        "width": 27
+      },
+      "bom": {
+        "minecraft:beetroot_seeds": 454,
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 95,
+        "minecraft:composter": 1,
+        "minecraft:dirt": 1117,
+        "minecraft:gravel": 185,
+        "minecraft:jungle_fence": 117,
+        "minecraft:jungle_fence_gate": 1,
+        "minecraft:lantern": 16,
+        "minecraft:oak_fence": 4,
+        "minecraft:sandstone": 95,
+        "minecraft:spruce_fence": 117,
+        "minecraft:spruce_fence_gate": 1,
+        "minecraft:stone_bricks": 95
+      }
+    }
+  ],
+  "rates": [
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 18,
+        "width": 18
+      },
+      "perDay": 123,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.40950534801055144,
+      "crops": 302,
+      "ripenPerCropDay": 0.843852322769881
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 18,
+        "width": 27
+      },
+      "perDay": 188,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.4144376705736052,
+      "crops": 454,
+      "ripenPerCropDay": 0.8518504081259399
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 18,
+        "width": 9
+      },
+      "perDay": 61,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.41071309642738213,
+      "crops": 150,
+      "ripenPerCropDay": 0.8451387875178823
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 27,
+        "width": 18
+      },
+      "perDay": 188,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.4159465455878294,
+      "crops": 454,
+      "ripenPerCropDay": 0.8464846090825934
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 27,
+        "width": 27
+      },
+      "perDay": 282,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.41349517679639175,
+      "crops": 682,
+      "ripenPerCropDay": 0.8436947707367192
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 27,
+        "width": 9
+      },
+      "perDay": 91,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.4031366863225271,
+      "crops": 226,
+      "ripenPerCropDay": 0.8334227603330592
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 9,
+        "width": 18
+      },
+      "perDay": 59,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.39975262832405695,
+      "crops": 150,
+      "ripenPerCropDay": 0.8393398983391515
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 9,
+        "width": 27
+      },
+      "perDay": 91,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.40455120101137804,
+      "crops": 226,
+      "ripenPerCropDay": 0.8291124366651496
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 9,
+        "width": 9
+      },
+      "perDay": 30,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.41348612777184207,
+      "crops": 74,
+      "ripenPerCropDay": 0.8485058700266735
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 18,
+        "width": 18
+      },
+      "perDay": 210,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.6955516889291723,
+      "crops": 302,
+      "ripenPerCropDay": 1.2534476352406374
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 18,
+        "width": 27
+      },
+      "perDay": 322,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.7105376268371864,
+      "crops": 454,
+      "ripenPerCropDay": 1.2829404617880955
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 18,
+        "width": 9
+      },
+      "perDay": 101,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.6778998778998778,
+      "crops": 150,
+      "ripenPerCropDay": 1.270132957115315
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 27,
+        "width": 18
+      },
+      "perDay": 323,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.7117111962926941,
+      "crops": 454,
+      "ripenPerCropDay": 1.2797081097409295
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 27,
+        "width": 27
+      },
+      "perDay": 482,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.707132554639886,
+      "crops": 682,
+      "ripenPerCropDay": 1.275601560700645
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 27,
+        "width": 9
+      },
+      "perDay": 156,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.6919334352962672,
+      "crops": 226,
+      "ripenPerCropDay": 1.2667552430998748
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 9,
+        "width": 18
+      },
+      "perDay": 102,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.6807414807414807,
+      "crops": 150,
+      "ripenPerCropDay": 1.242406366915628
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 9,
+        "width": 27
+      },
+      "perDay": 154,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.6841536045075868,
+      "crops": 226,
+      "ripenPerCropDay": 1.24972678597988
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 9,
+        "width": 9
+      },
+      "perDay": 48,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.653040653040653,
+      "crops": 74,
+      "ripenPerCropDay": 1.2406832706751227
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 18,
+        "width": 18
+      },
+      "perDay": 209,
+      "item": "minecraft:potato",
+      "perCropDay": 0.6946695688417542,
+      "crops": 302,
+      "ripenPerCropDay": 1.3071724172729549
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 18,
+        "width": 27
+      },
+      "perDay": 319,
+      "item": "minecraft:potato",
+      "perCropDay": 0.7030100170440007,
+      "crops": 454,
+      "ripenPerCropDay": 1.3108405040985553
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 18,
+        "width": 9
+      },
+      "perDay": 105,
+      "item": "minecraft:potato",
+      "perCropDay": 0.7034869892012751,
+      "crops": 150,
+      "ripenPerCropDay": 1.3270777736169541
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 27,
+        "width": 18
+      },
+      "perDay": 317,
+      "item": "minecraft:potato",
+      "perCropDay": 0.6983576524168092,
+      "crops": 454,
+      "ripenPerCropDay": 1.313712219025555
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 27,
+        "width": 27
+      },
+      "perDay": 490,
+      "item": "minecraft:potato",
+      "perCropDay": 0.7196406442321818,
+      "crops": 682,
+      "ripenPerCropDay": 1.3414095365681733
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 27,
+        "width": 9
+      },
+      "perDay": 158,
+      "item": "minecraft:potato",
+      "perCropDay": 0.7028369860228267,
+      "crops": 226,
+      "ripenPerCropDay": 1.3211919436927255
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 9,
+        "width": 18
+      },
+      "perDay": 102,
+      "item": "minecraft:potato",
+      "perCropDay": 0.6806526806526807,
+      "crops": 150,
+      "ripenPerCropDay": 1.3114560428139734
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 9,
+        "width": 27
+      },
+      "perDay": 156,
+      "item": "minecraft:potato",
+      "perCropDay": 0.691596646084636,
+      "crops": 226,
+      "ripenPerCropDay": 1.3193900525574438
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 9,
+        "width": 9
+      },
+      "perDay": 50,
+      "item": "minecraft:potato",
+      "perCropDay": 0.6877292591578306,
+      "crops": 74,
+      "ripenPerCropDay": 1.299240178806081
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 18,
+        "width": 18
+      },
+      "perDay": 79,
+      "item": "minecraft:wheat",
+      "perCropDay": 0.2625189380156267,
+      "crops": 302,
+      "ripenPerCropDay": 0.46679039445836334
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 18,
+        "width": 27
+      },
+      "perDay": 120,
+      "item": "minecraft:wheat",
+      "perCropDay": 0.26640026640026643,
+      "crops": 454,
+      "ripenPerCropDay": 0.4735335139476611
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 18,
+        "width": 9
+      },
+      "perDay": 38,
+      "item": "minecraft:wheat",
+      "perCropDay": 0.25876345876345874,
+      "crops": 150,
+      "ripenPerCropDay": 0.4696024752433402
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 27,
+        "width": 18
+      },
+      "perDay": 118,
+      "item": "minecraft:wheat",
+      "perCropDay": 0.26135391774158295,
+      "crops": 454,
+      "ripenPerCropDay": 0.46897979703384224
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 27,
+        "width": 27
+      },
+      "perDay": 179,
+      "item": "minecraft:wheat",
+      "perCropDay": 0.2626503506268902,
+      "crops": 682,
+      "ripenPerCropDay": 0.46989115577687596
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 27,
+        "width": 9
+      },
+      "perDay": 57,
+      "item": "minecraft:wheat",
+      "perCropDay": 0.2550841488894586,
+      "crops": 226,
+      "ripenPerCropDay": 0.46543389611590946
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 9,
+        "width": 18
+      },
+      "perDay": 38,
+      "item": "minecraft:wheat",
+      "perCropDay": 0.25663225663225664,
+      "crops": 150,
+      "ripenPerCropDay": 0.46951664487370376
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 9,
+        "width": 27
+      },
+      "perDay": 57,
+      "item": "minecraft:wheat",
+      "perCropDay": 0.2560271586820259,
+      "crops": 226,
+      "ripenPerCropDay": 0.4636100394070243
+    },
+    {
+      "params": {
+        "crop": "wheat",
+        "depth": 9,
+        "width": 9
+      },
+      "perDay": 18,
+      "item": "minecraft:wheat",
+      "perCropDay": 0.25020025020025016,
+      "crops": 74,
+      "ripenPerCropDay": 0.4595725468128722
+    }
+  ]
+}

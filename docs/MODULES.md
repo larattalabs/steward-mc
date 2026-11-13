@@ -508,6 +508,38 @@ plans, with Noah's OK on the spend.
   (`/steward dev module`). Architect exposes no kit or checker version at runtime, so those pins are recorded, not gated. Facings and chunk
   borders are placement properties: M2's measurement covers them, not M1's checker run.
 
+### M2 as built (2026-11-13)
+
+- **`crop_farm@1`** (`modules/crop_farm/1/`, program sha `c406df05…`, certified on Minecraft 26.3, Architect 0.63.0, kit/checker 0.58.0).
+  - **Sizes and crops.** Field sides 9, 18 or 27 (W = F + 2, D = F + 3); wheat, carrots, potatoes or beetroots. Three Styles: rustic,
+    fortress, desert.
+  - **The field.** Farmland at frame y 0, written `moisture=7`, with crops at age 0 (a ripe crop billed at one seed would be a free
+    harvest). Template row 0 is a dirt layer, groundY 1.
+  - **Water and light: the well.** IRR's grid is left open, and the program computes it itself, with IRR's rule, as well as taking the
+    lot's reserved cells. A fence post stands over each of a source's 4 farmland sides, since FC drops the sides from a field, so a crop
+    there would read as changed. One lamp per source sits on the back post, which lights the middle of a 27-wide field. That costs 5 field
+    cells per 9x9.
+  - **The fence.** The fence and gate stand on the `foundation` role; the lamps are on the corner and gate posts.
+  - **The port.** The composter and chest (`item_out`) stand **just inside the gate**, on the foundation role. 2 more field cells.
+    - Measured against two earlier candidates. Outside, against the fence, mobs climbed them over it.
+    - On a path, vanilla turned the path to dirt (a standing mismatch).
+  - **Crop counts.** A 9x9 holds 74 crops, an 18x18 302, a 27x27 682. Every rate is over those cells.
+  - **Palette.** `noGravity`: path, frame, foundation. The lamp's fallback is the lantern, which is also all three Styles' lamp.
+- **`CropFarmLot.growLot(id, width, depth)`**: the grow lot `{type: crop_farm, size, irrigate: true, field {cells, crops: all 4}}`, from the
+  program's own layout. The measurement checks the Java cells equal the program's on every growth. M3 uses it.
+- **The measurement** (`docs/MEASURE-M2.md`, `tools/module-measure.mjs`, `tools/lib/crop-farm-bars.mjs`): §3.1 items 1-7 as amended by
+  section 9, and Noah's 3b answer (2026-11-12, "a").
+  - Usefulness is judged on G3's ripen-as-you-go basis, from the per-cell maturity times measured in the farm.
+  - The band, and the rate the offer quotes, are the fixed-cycle protocol rate. Wheat's is about 18 a day for a 9x9, 179 for a 27x27.
+  - It ran over the whole envelope (36 branches x 5 runs, all four facings, chunk corners, three Styles) and passed. The verdicts are in
+    MEASURE-M2.md.
+- **Recording.** `tools/module-catalog.mjs record` certifies a real module only with its measurement's evidence: every step passed on these
+  exact files and versions, with field steps of 5 runs or more. It writes `bounds` (the whole growth's quoted bill per params, the maximum
+  over the 3 Styles) and `rates` (`{params, perDay, item}`) for M3.
+- **Dev hooks** (ModuleDev, development environment only): `cells`, `growLot`, `takeItems`, `mobs` and `walk` (a fake player's collision
+  walk). Harvest and replant use Architect's PT hooks (`dev.pt.breaks`, `dev.pt.uses`), so a player's crops are PT-recorded.
+- **No billing or undo code changed** in Steward: M2 measures Architect's.
+
 ## 9. Noah's answers (2026-11-12)
 
 Noah, in the Steward manager session: "Go with option 1, defaults/recommendations for the rest". Option 1 is phase 5b (section 3.3). The six

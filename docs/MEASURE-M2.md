@@ -202,5 +202,94 @@ crops, rustic. Fed from the stockpile until PLACED.
 
 ## Results
 
-Recorded by `tools/module-catalog.mjs record` into `modules/crop_farm/1/measured.json` once every step passes; the verdict table is added
-here after the measurement.
+Measured 2026-11-13 on candidate 3 (program sha `c406df05…`, moduleSha `dc7b1751…`). The steps ran at heads 834480e to f58bedf; the
+program and module.json were unchanged throughout, since every step stamps their sha256. The runs used Minecraft 26.3, Architect 0.63.0 and
+kit/checker 0.58.0, on ports 8594/8595, at $0. `measured.json` was written by `tools/module-catalog.mjs record` (result pass).
+**Every bar passes.**
+
+| Step | Result | Time |
+|---|---|---|
+| `field --crop wheat` | PASS 62/62 (5 runs) | 28 min |
+| `field --crop carrots` | PASS 62/62 (5 runs) | 31 min |
+| `field --crop potatoes` | PASS 62/62 (5 runs) | 33 min |
+| `field --crop beetroots` | PASS 62/62 (5 runs) | 41 min |
+| `skin --bible rustic`, `fortress`, `desert` | PASS 53/53 each | 6-12 min |
+| `survival` | PASS 63/63 | 6 min |
+| `bounds` | PASS 111/111 (108 quotes) | 8 min |
+| `border` | PASS 23/23 | 3 min |
+| `cover` | PASS 11/11 | - |
+| `module-catalog offline` / `ingame` (M1's checker over 36 branches x 3 Styles) | PASS 115/115, 116/116 | 9 min |
+
+- **1. Hydration.** 1a: every farmland cell is at 7 after 24,000 ticks on every farm. That is 2,718 cells per crop on the 9 rustic
+  farms, plus every skin and border farm. 1b: 7 at every one of the 15 harvests per crop. Recorded: 11-21 cells per 2,718 read 6 at PLACED
+  (the lot is placed before the fluids stage); all were at 7 by the next samples.
+- **2. Light.** On every farm, every open floor+1 cell has block light ≥ 1. The lowest is 6, and 78-100% of crop cells are at 9 or more.
+  All three Styles' lamp role is the fallback lantern.
+- **3. Output.** Every run sits inside its band. The protocol rate, which the offer quotes, is the mean of 5 runs times the planted cells:
+
+| Branch | Crops | Front | Runs (per crop a day) | Band | Mean (quoted) | Ripen basis, 3b |
+|---|---|---|---|---|---|---|
+| wheat 9x9 | 74 | north | 0.243-0.259 | 0.191-0.313 | 0.250 (18 a day) | 0.460 (37 per 80) |
+| wheat 18x18 | 302 | south | 0.255-0.272 | 0.201-0.299 | 0.263 (79 a day) | 0.467 (37 per 80) |
+| wheat 27x27 | 682 | south | 0.259-0.265 | 0.204-0.294 | 0.263 (179 a day) | 0.470 (38 per 80) |
+| wheat 9x27 | 226 | north | 0.249-0.263 | 0.199-0.302 | 0.255 (57 a day) | 0.465 (37 per 80) |
+| wheat 27x9 | 226 | north | 0.250-0.259 | 0.199-0.302 | 0.256 (57 a day) | 0.464 (37 per 80) |
+| wheat 9x18 | 150 | west | 0.254-0.268 | 0.195-0.305 | 0.259 (38 a day) | 0.470 (38 per 80) |
+| wheat 18x9 | 150 | east | 0.248-0.266 | 0.195-0.305 | 0.257 (38 a day) | 0.470 (38 per 80) |
+| wheat 18x27 | 454 | east | 0.259-0.263 | 0.202-0.297 | 0.261 (118 a day) | 0.469 (38 per 80) |
+| wheat 27x18 | 454 | west | 0.264-0.271 | 0.202-0.297 | 0.266 (120 a day) | 0.474 (38 per 80) |
+| carrots 9x9 | 74 | north | 0.592-0.707 | 0.508-0.847 | 0.653 (48 a day) | 1.241 (99 per 80) |
+| carrots 18x18 | 302 | south | 0.681-0.707 | 0.534-0.809 | 0.696 (210 a day) | 1.253 (100 per 80) |
+| carrots 27x27 | 682 | south | 0.689-0.717 | 0.541-0.799 | 0.707 (482 a day) | 1.276 (102 per 80) |
+| carrots 9x27 | 226 | north | 0.667-0.705 | 0.530-0.813 | 0.692 (156 a day) | 1.267 (101 per 80) |
+| carrots 27x9 | 226 | north | 0.668-0.698 | 0.530-0.813 | 0.684 (154 a day) | 1.250 (100 per 80) |
+| carrots 9x18 | 150 | west | 0.648-0.701 | 0.523-0.821 | 0.678 (101 a day) | 1.270 (102 per 80) |
+| carrots 18x9 | 150 | east | 0.648-0.717 | 0.523-0.821 | 0.681 (102 a day) | 1.242 (99 per 80) |
+| carrots 18x27 | 454 | east | 0.703-0.724 | 0.537-0.802 | 0.712 (323 a day) | 1.280 (102 per 80) |
+| carrots 27x18 | 454 | west | 0.697-0.720 | 0.537-0.802 | 0.711 (322 a day) | 1.283 (103 per 80) |
+| potatoes 9x9 | 74 | north | 0.660-0.723 | 0.508-0.910 | 0.688 (50 a day) | 1.299 (104 per 80) |
+| potatoes 18x18 | 302 | south | 0.674-0.723 | 0.530-0.871 | 0.695 (209 a day) | 1.307 (105 per 80) |
+| potatoes 27x27 | 682 | south | 0.702-0.733 | 0.536-0.857 | 0.720 (490 a day) | 1.341 (107 per 80) |
+| potatoes 9x27 | 226 | north | 0.686-0.718 | 0.526-0.873 | 0.703 (158 a day) | 1.321 (106 per 80) |
+| potatoes 27x9 | 226 | north | 0.679-0.702 | 0.526-0.873 | 0.692 (156 a day) | 1.319 (106 per 80) |
+| potatoes 9x18 | 150 | west | 0.681-0.732 | 0.520-0.886 | 0.703 (105 a day) | 1.327 (106 per 80) |
+| potatoes 18x9 | 150 | east | 0.669-0.714 | 0.520-0.886 | 0.681 (102 a day) | 1.311 (105 per 80) |
+| potatoes 18x27 | 454 | east | 0.687-0.711 | 0.534-0.862 | 0.698 (317 a day) | 1.314 (105 per 80) |
+| potatoes 27x18 | 454 | west | 0.691-0.714 | 0.534-0.862 | 0.703 (319 a day) | 1.311 (105 per 80) |
+| beetroots 9x9 | 74 | north | 0.395-0.432 | 0.309-0.525 | 0.413 (30 a day) | 0.849 (68 per 80) |
+| beetroots 18x18 | 302 | south | 0.401-0.417 | 0.330-0.501 | 0.410 (123 a day) | 0.844 (68 per 80) |
+| beetroots 27x27 | 682 | south | 0.406-0.424 | 0.337-0.491 | 0.413 (282 a day) | 0.844 (67 per 80) |
+| beetroots 9x27 | 226 | north | 0.396-0.409 | 0.326-0.504 | 0.403 (91 a day) | 0.833 (67 per 80) |
+| beetroots 27x9 | 226 | north | 0.375-0.424 | 0.326-0.504 | 0.405 (91 a day) | 0.829 (66 per 80) |
+| beetroots 9x18 | 150 | west | 0.391-0.428 | 0.322-0.511 | 0.411 (61 a day) | 0.845 (68 per 80) |
+| beetroots 18x9 | 150 | east | 0.388-0.419 | 0.322-0.511 | 0.400 (59 a day) | 0.839 (67 per 80) |
+| beetroots 18x27 | 454 | east | 0.406-0.421 | 0.334-0.497 | 0.416 (188 a day) | 0.846 (68 per 80) |
+| beetroots 27x18 | 454 | west | 0.398-0.428 | 0.334-0.497 | 0.414 (188 a day) | 0.852 (68 per 80) |
+
+  - 3b: every branch clears 0.3 per crop a day on G3's basis.
+  - 3c: every mean is at least 1.5 times the probe's unwatered rate.
+- **4. Exclusion.** Across 27 farms (9 sizes x 3 Styles) plus the 2 border farms:
+  - 4a: 0 mob sightings inside the fence over 12,000 ticks, with 6 zombies, villagers and cows per farm;
+  - 4b: 0 cells changed;
+  - 4c: every gate works: shut, a walking player stays out; open, in and out.
+  - Recorded: spiders beside 9 farms, 0 inside, 0 trampled.
+- **5. Restarts.** In each crop's run 1 and on the border farms:
+  - 5a, a save/leave/open: 0 crop ages or moisture values differ;
+  - 5b, chunks unloaded for 2,000 ticks: 0 differ.
+- **6 and 7. Survival** (9 farms covering all 9 sizes and all 4 crops):
+  - 7a: each growth consumed exactly its QT quote (4,477, 2,890 and 4,481 items).
+  - 6a: the player's records survive a restart.
+  - 6b: LC changed 0 with playerPlaced 2 (the cobblestone and the torch); the parts are unchanged.
+  - 6c: standing is 1 as built, and loses only the cobblestone's cell when worked.
+  - 6d: undo removes, with no blockers.
+  - 7b: credited = consumed less one seed per harvested cell. Each player replant's planting item came back once as cargo, along with the
+    cobblestone and the torch. Nothing was given twice after a restart.
+- **The envelope.**
+  - Fronts: north 21, south 16, west 14, east 14.
+  - Every crop ran on both street orientations.
+  - Every size pair has a farm crossing a chunk corner. The 9x9 and 27x9 cases are from `border`.
+- **For M3** (`measured.json`):
+  - `rates` `[{params, perDay, item}]`: the quoted protocol rate, whole, over the planted cells.
+  - `bounds` `[{params, bom}]`: the whole growth's quoted bill (the lot, the IRR shells, and the growth's street and lane on a V town's
+    first frontage slot), per item the maximum over the 3 Styles. A placement whose lanes cost more quotes over it, so M3 holds the build
+    and asks again.
