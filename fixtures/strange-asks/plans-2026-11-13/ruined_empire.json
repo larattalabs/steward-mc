@@ -1,0 +1,212 @@
+{
+  "prompt": "The ruins of an old empire, with survivors living among them.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "ashes_of_the_empire",
+      "style": {
+        "pending": "ashes_of_the_empire"
+      },
+      "zones": [
+        {
+          "id": "ruined_city",
+          "kind": "standard",
+          "required": true,
+          "label": "Ruined imperial city and survivors' camp",
+          "purpose": "home_base",
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "program": {
+            "lots": [
+              {
+                "id": "imperial_hall_ruin_1",
+                "type": "imperial_hall_ruin",
+                "role": "collapsed_hall",
+                "label": "collapsed imperial hall",
+                "size": [
+                  23,
+                  19
+                ],
+                "landmark": true,
+                "placement": "central",
+                "villager": "none",
+                "brief": "Great broken hall with half a dome, fallen columns and a partly roofed corner the survivors use as a gathering place."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Timber and cloth lean-to built into ruined walls."
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Timber and cloth lean-to built into ruined walls."
+              },
+              {
+                "id": "cabin_3",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Timber and cloth lean-to built into ruined walls."
+              },
+              {
+                "id": "cabin_4",
+                "type": "cabin",
+                "role": "shelter",
+                "label": "survivor shelter",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Timber and cloth lean-to built into ruined walls."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "watchtower",
+                "label": "ruined watchtower",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "high_ground",
+                "villager": "none",
+                "brief": "Cracked imperial tower, repaired at the top as a lookout."
+              },
+              {
+                "id": "smithy_1",
+                "type": "smithy",
+                "role": "workshop",
+                "label": "scavengers' workshop",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "job",
+                "brief": "Forge set in a vaulted ruin, reworking salvaged metal."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "kitchen",
+                "label": "communal kitchen and hearth",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "villager": "trading_hall",
+                "brief": "Open fire under a surviving arch with long tables."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "garden_store",
+                "label": "garden plots and storehouse",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "farm",
+                "farmPond": true,
+                "brief": "Crops grown in a collapsed courtyard, store in a patched cellar."
+              },
+              {
+                "id": "monument_ruin_1",
+                "type": "monument_ruin",
+                "role": "monument",
+                "label": "toppled monument",
+                "size": [
+                  13,
+                  11
+                ],
+                "villager": "none",
+                "brief": "Broken statue of an emperor, a place of memory with vines."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "gatehouse remnant",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "villager": "none",
+                "brief": "Broken arch gate, barricaded with timber."
+              }
+            ],
+            "layout": "organic",
+            "shared": "square"
+          },
+          "style": {
+            "pending": "ashes_of_the_empire"
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "broken_wall",
+          "kind": "wall",
+          "required": false,
+          "label": "broken city wall",
+          "where": {
+            "around": {
+              "feature": {
+                "part": "ruined_city"
+              },
+              "ring": [
+                4,
+                12
+              ],
+              "closed": true
+            }
+          },
+          "height": 6,
+          "thickness": 2,
+          "gates": 1,
+          "lots": [
+            {
+              "lot": "gatehouse_1",
+              "at": "gate",
+              "mech": "portcullis"
+            }
+          ],
+          "notes": "Weathered, partly fallen wall; the gate is barricaded with timber."
+        }
+      ],
+      "forms": [],
+      "rules": []
+    },
+    "waits": [],
+    "summary": "A survivors' camp among the ruins of an imperial city: one organic-layout zone near the founding stone with the collapsed hall at its heart, a communal hearth, a forge, a garden barn, a repaired watchtower, a toppled monument and four lean-to shelters. A broken city wall rings it, with the gatehouse remnant as its barricaded way in."
+  },
+  "usd": 0.040682,
+  "errors": []
+}
