@@ -49,7 +49,7 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 ## Build and test
 
 - **Java:** from `mod/`, `JAVA_HOME=/opt/homebrew/opt/openjdk@25 GRADLE_USER_HOME=$PWD/../.gradle-home ./gradlew build --offline` (compile, unit tests, jar).
-  Architect and lab-ui come from GitHub Packages (a token with `read:packages`, cached in `.gradle-home` for offline builds). A local Architect jar for an RC comes through `ARCHITECT_JAR`; Maven Local is never used for either.
+  Architect comes from GitHub Packages (a token with `read:packages`, cached in `.gradle-home` for offline builds), never Maven Local; a release candidate is checked with `ARCHITECT_JAR`. lab-ui comes from a clean `../lab-ui` checkout at its release tag (settings.gradle), else GitHub Packages.
 - **Tools:** `npm test` (the concept card and talk schemas against the fixtures).
 - **End to end ($0):** `node tools/e2e.mjs free`, after the jar is built (`--only word,word`: only the flows whose name or tags hold a word, plus the sanity set). It runs its own client and checks the claim, the steward (its nameplate, bubble and "!"), Expand,
   the screens, an update (the steward walks to it), revert, undo, the steward sitting and sleeping, proposals, a protected area and a district with its road, talking to the steward, a migrated old steward and a restored build; results in `artifacts/e2e/summary.json`, screenshots in `artifacts/shots/`. It refuses
