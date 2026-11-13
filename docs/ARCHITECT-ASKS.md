@@ -1400,6 +1400,12 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
     approved bound is enforced, not only checked.
   - **Until then** Steward refuses a quote that leaves a part unbilled, puts any other inexact quote to the player, and lets only the fluids'
     upper bound pass (MODULES.md "M3 as built").
+- **Architect's answers to S-M5-8 and S-M5-9 (coordinator, 2026-11-13):** both accepted.
+  - S-M5-8 is **IG-b**: a revision of an adopted region gains IRR's stages, with the shells before the lots, and fluids. It comes after RU, on
+    M5's lane.
+  - S-M5-9 is **BC**: an optional `maxBill` on `RealiseRequest`/`realiseApproved`, refused before any write, and a typed `bill_cap` wait. It
+    comes after the safety queue (HF, PS, RL, SA, JR-b). It changes the API, so it reaches Steward as an RC.
+  - At their releases, Steward offers watered modules in adopted street towns and passes the approved bound as `maxBill`.
 - **Architect's answers (coordinator, 2026-11-12):** all as preferred.
   - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
   - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.
