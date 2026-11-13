@@ -356,7 +356,8 @@ The 23:00 nightly on 074ca44 (Architect 0.63.0) passed free (44 checks) and fail
 or Architect; fixed on `nightly-fixes` (124c51c).
 - **survival mechanism refund: lightning_rod 0/1.** The rod is copper and weathered where it stood during the long run: the ledger has
   `refundOverflow: {exposed_lightning_rod: 1}` (the stockpile was full, so it dropped). Architect refunds the block as it stands. The e2e's ledger
-  readers now fold weathered copper refunds under the billed item; waxed copper doesn't weather. Asked Architect to confirm the rule.
+  readers now fold weathered copper refunds under the billed item; waxed copper doesn't weather. Architect confirmed the rule (slice CU, v0.40.0:
+  the refund is the standing block's item, never an unweathered one the world no longer holds).
 - **gate open again: ARTIFACT_STALE, grass_block where the wall wrote dirt_path.** The flow walls the gate up with cobblestone over its path; vanilla
   turns a dirt path under a solid block to dirt on its next tick, then grass spreads. Architect's refusal was right. The flow now lays the path again
   after the wall comes down.
