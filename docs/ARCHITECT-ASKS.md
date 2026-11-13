@@ -1428,3 +1428,18 @@ stage in survival) and FC's standing/land-check rule: `stub --only survival,grow
 survival and supplied growth passing; the one failure was `land fresh` hitting the land check's 3-second guard ("ask me again in a moment") under load,
 rerun alone PASS (15 checks). `free --only place,protect,farm` PASS, 35 checks. Steward calls neither IG nor FC yet (M2 will), and makes no zone Styles.
 **SF answer:** "shares core roles" means all 11 CORE_ROLES identical; zone Styles differ only outside them.
+
+### v0.64.1 pin (2026-11-13): PASS, not merged (branch secrets-7c)
+Architect v0.64.1 (API 1.57.0, kit 0.59.0, catalogue 21; 0.64.0, the first 7c release with CM-b, HR, TC, RM, WL, DM and JR, plus HF: the stockpile
+save after a crash) is pinned on secrets-7c (runtime minimum 0.64.1, `<1.0.0` from pin-guard). It lands with Steward's secret handling (S-7c-4,
+`service/Secrets`): no chat line, screen, inbox item or history entry names a hidden room or anything in `$.secrets[]`; Claude's summary, waits and
+lot briefs lose each sentence naming one; a waiting room stays pending unsaid and is never offered; the steward may hint ("There's more to it than it
+looks."). walled_town's `secret_cellar` is now a valid HR part (host market_hall_1, size S, trapdoor), and the three checks that expected it
+unsupported now expect it built: `plan check hidden room` (fits, 1 secret in the artifact, none in the answer), `plan build` (built with the town,
+not pending) and `composition` (unsaid, a hint only), with `plan build secrets` reading what the player sees. The build and unit tests pass against
+the published package (422/0; npm 41/0). The 0.64.0 RC run (`stub --only plan,composition`) passed every plan check; its one failure, `gate open
+again`, was ARTIFACT_STALE on a path cell grown back to grass. On 0.64.1: `stub --only survival,refund,bill,village,growth,revision,plan,gate,
+stockpile,supplied,adopt`, 127 of 130 checks over 27 flows; the 3 failures were `survival-mech` stalled at PLACING and `survival-drawbridge` (2), at
+load average 100+, and rerun alone with `plan-build` and the new `stock-save` (a normal save and stop leaves 5 stockpiles and the player's inventory
+unchanged), PASS, 40 checks. `free --only districts,place,protect,farm` PASS, 35 checks. Screenshots of the card, its Interpretation tab and the
+history of the town with its cellar had a design-critic look: no leak in any visible line.
