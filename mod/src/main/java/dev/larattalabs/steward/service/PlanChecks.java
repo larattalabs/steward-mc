@@ -43,6 +43,9 @@ public final class PlanChecks {
 			var o = new JsonObject();
 			o.addProperty("overall", c.overall().name());
 			o.addProperty("artifact", c.artifactSha());
+			// (Architect HR) how many hidden rooms the artifact keeps in its $.secrets[] (where they are is never in the answer)
+			var body = Composer.artifactBody(c);
+			o.addProperty("secrets", body != null && body.has("secrets") && body.get("secrets").isJsonArray() ? body.getAsJsonArray("secrets").size() : 0);
 			Map<String, Integer> classes = new LinkedHashMap<>();
 			var parts = new JsonArray();
 			for (JsonObject part : c.parts()) {

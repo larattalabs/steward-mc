@@ -190,7 +190,7 @@ public final class LandChecks {
 				if (onDemand) done.accept(new LandWords.Note("The land changed while I looked: ask me again.", List.of(), 0, 0, false, false, ""));
 				return;
 			}
-			LandWords.Note note = LandWords.note(s.name(), looks, siteId -> buildingName(server, siteId), onDemand);
+			LandWords.Note note = LandWords.note(s.name(), looks, siteId -> buildingName(server, siteId), onDemand, Secrets.ofSettlement(s.id())::hides);
 			Steward.LOGGER.info("land check {}: {} ({} lines, damage {}, placed {}{})", s.id(), note.headline(), note.lines().size(), note.damage(), note.placed(),
 				onDemand ? ", asked" : "");
 			LAST.put(s.id(), new Kept(note, System.currentTimeMillis()));

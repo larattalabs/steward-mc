@@ -211,12 +211,42 @@ public final class MaterialRequests {
 		if ("road".equals(v.kind())) return "road";
 		// a region's construction target (Architect RS): its plan part, unless it is a lot (which carries its role)
 		String part = v.ext() != null && v.ext().has(PART_EXT) && v.ext().get(PART_EXT).isJsonPrimitive() ? v.ext().get(PART_EXT).getAsString() : null;
-		if (part != null && (v.ext() == null || !v.ext().has("steward_mc:role"))) return partName(PlanStore.get(s.id()).map(PlanStore.Entry::plan).orElse(null), part);
+		if (part != null && (v.ext() == null || !v.ext().has("steward_mc:role"))) {
+			String plan = PlanStore.get(s.id()).map(PlanStore.Entry::plan).orElse(null);
+			// (S-7c-4) a hidden room's entrance is asked for under its host ("market hall"), never its own name
+			if (Secrets.of(plan).hides(part)) return hostName(plan, part, s.name());
+			return partName(plan, part);
+		}
 		return Updates.lotOf(v);
 	}
 
 	/** The ext key naming the plan part a region's construction target builds (Architect RS). */
 	static final String PART_EXT = "architect_mc:part";
+
+	/**
+	 * A secret part's host in words (S-7c-4): its host lot's label or role ("market hall"), else {@code fallback} (the settlement's name); never the
+	 * part's own name.
+	 */
+	static String hostName(@org.jspecify.annotations.Nullable String planJson, String part, String fallback) {
+		if (planJson == null) return fallback;
+		try {
+			var plan = com.google.gson.JsonParser.parseString(planJson).getAsJsonObject();
+			String id = part.replaceFirst("@\\d+$", "").replaceFirst(":.*$", "").replaceFirst("^f_", "").replaceFirst("_door$", "");
+			var form = PendingOffers.partOf(plan, id).orElse(null);
+			if (form == null) form = PendingOffers.partOf(plan, part.replaceFirst(":.*$", "")).orElse(null);
+			String host = form != null && form.has("host") && form.get("host").isJsonPrimitive() ? form.get("host").getAsString() : null;
+			if (host == null) return fallback;
+			for (var lot : dev.larattalabs.steward.gateway.PPlan.lots(plan)) {
+				if (!host.equals(lot.get("id").getAsString())) continue;
+				for (String k : new String[] {"label", "role", "type"}) if (lot.has(k) && lot.get(k).isJsonPrimitive()) return lot.get(k).getAsString().replace('_', ' ');
+			}
+			var other = PendingOffers.partOf(plan, host).orElse(null);
+			if (other != null && other.has("label") && other.get("label").isJsonPrimitive()) return other.get("label").getAsString();
+			return host.replace('_', ' ');
+		} catch (RuntimeException e) {
+			return fallback;
+		}
+	}
 
 	/** A plan part in words: its label in the plan ("the town wall"), else its id ("north road"); the route lamps as "street lamps". */
 	static String partName(@org.jspecify.annotations.Nullable String planJson, String part) {
