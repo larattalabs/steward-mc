@@ -121,6 +121,7 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-11-12 | **M1, the module catalog, merged** (Noah via parent session: "merge m1, defaults"): the catalog format `modules/<id>/<version>/` with a certificate check, gating on the measured Minecraft and Architect versions (newest version only, no fallback), palette rules, the `steward_mc:module` ext, BuildStore format 5 (`moduleBindings`, migrated from 4), installs at $0 through Architect's given programs. **The three test styles are rustic, fortress and desert** (wood, stone and sand): the strange-ask cards carry no palette, so MODULES §2.2's "most-used families" couldn't be measured. The format-4 save fixture was written by the format-4 writer; no real world held a non-empty format-4 builds file. |
 | 2026-11-12 | **M2's usefulness bar is judged ripen-as-you-go** (Noah, in the manager session: "a"). §3.1's fixed-cycle harvest test (wait T, harvest the ripe crops, replant, 3 cycles) predicts wheat at 19.8 a day against M0's usefulness bar of 24, because a cell not ripe at T waits a whole extra cycle; M0 defined the bar as harvested and replanted as each crop ripens (wheat 32.9). So usefulness is judged on that basis, from the per-cell maturity times measured in the farm. The band and the rate the offer quotes stay the fixed-cycle protocol rate, the conservative number (wheat about 20 a day). |
 | 2026-11-13 | **Architect's after-7c items noted for Steward review** (Noah via parent session: "let's add all of it to plans"): Architect's players' Settlement tab on lab-ui and its flowing rivers and waterfalls; Steward reviews both contracts and may use them (Phases, "Architect's after-7c items"). Phase 5 goes on as before. |
+| 2026-11-13 | **Steward owns the player settlement UI** (Noah via parent session: "sounds good"): grow `SettlementScreen`, the board and the ledger to show the settlement map (lots, districts, connectors), lot status, the survival bill and what is owed, and the actions (grow a district, swap a lot's design, undo, preview or approve a plan, mark connector points). Architect provides settlement data APIs and an optional read-only Regions view. With phase 3's interface items, not scheduled; phase 5 first. Replaces the previous row's shared Settlement tab. |
 
 ## Concept card
 
@@ -668,15 +669,18 @@ Claude composes a settlement (zones, connectors, forms, rules, stages, schedules
   - **Built (2026-10-17), waiting parts offered (COMPOSITION section 11):** at a world's start the live catalogue (C38) is read; each waiting part whose block now ships (K1's walls first), in a Patron settlement whose town stands as a region, is offered in the inbox; accepted, Claude fits it round the town as it stands (only that part, at most 2 repairs, $1), Architect checks it and builds it as a region of its own (adjusted: shown, built on a second accept), recorded with the offer's acceptance in one commit, so an undo takes it away and leaves the town. GPT review: 2 blockers and 7 should-fixes, then 1 and 5, then 2, all fixed. e2e (stub): a market town's wall offered, built round it and undone.
   - **Still to do:** plan v1 for Supplied builds, additions and districts, and for north-south streets; the 7 parts that didn't fit in P0's CI over the 59 plans.
 
-### Architect's after-7c items Steward will review (Noah, 2026-11-13, via parent session: "let's add all of it to plans")
-Architect is planning three deferred items after 7c, each with a contract and a Steward review before any building starts. Steward reviews two and
-may use them:
-- **A settlement UI for players:** an in-game Settlement tab on lab-ui, with a map, lot status, the bill and actions. Steward will likely share it
-  instead of growing its own settlement screens; the review settles what is Steward's (the steward's talk, proposals, history) and what is shared.
-- **Flowing rivers and waterfalls:** possibly feeding water mechanics, such as phase 5b's spine (MODULES §3.3, §5: water on ice) and sugar cane
-  water (MODULES §9). The review checks they can carry items or water a field under Steward's undo and billing rules.
+### Architect's after-7c items, and the player settlement UI (Noah, 2026-11-13, via parent session)
+Noah: "let's add all of it to plans", then, on the settlement UI, "sounds good". Not scheduled; phase 5 comes first.
+- **Steward owns the player settlement UI.** It grows the existing `SettlementScreen`, board and ledger ("Interface" above) to cover:
+  - the settlement map, with its lots, districts and connectors;
+  - each lot's status, and in survival the bill and what is owed;
+  - the actions: grow a district, swap a lot's design, undo, preview or approve a plan, mark points for a connector.
 
-The third, survival construction for forms and relief, is Architect's alone; Steward picks it up when survival plans use forms.
+  It sits with phase 3's interface items. **Architect's side** is the settlement data APIs these screens read, plus an optional small read-only
+  Regions view for players without Steward. Steward reviews that contract before either side builds.
+- **Flowing rivers and waterfalls (Architect):** these could feed water mechanics, such as phase 5b's spine (MODULES §3.3, §5: water on ice) and
+  sugar cane water (MODULES §9). Steward reviews the contract to check they can carry items or water a field under its undo and billing rules.
+- **Survival construction for forms and relief (Architect):** Architect's alone. Steward picks it up when survival plans use forms.
 
 ### Strange asks: the gap map (started 2026-10-11)
 How much freedom a player has is measured, not guessed. `fixtures/strange-asks/` holds about 60 strange asks: where (treetops, inside a mountain, under the sea), shape (a ring city, one giant castle, a nomad camp), rules (only copper, no right angles), time (a camp that becomes a city), function, who lives there, relations, and plain ones. Each lists the capabilities it needs, and each capability says whether it is built now, built as a nearest version (and what that is), or waits (and for which step).
