@@ -234,6 +234,24 @@ async function preflight() {
   ok('preflight', 'no credentials, no other client');
 }
 
+/**
+ * A stockpile ledger with copper's weathered refunds under the item that was billed: a copper block weathers where it stands (the 11-12 nightly's
+ * lightning rod came back as exposed_lightning_rod after 106 min), and Architect refunds the block as it stands. Waxed copper doesn't weather.
+ */
+function unweathered(sp) {
+  const base = (k) => {
+    const m = /^minecraft:(?:exposed|weathered|oxidized)_(.+)$/.exec(k);
+    return m ? `minecraft:${m[1] === 'copper' ? 'copper_block' : m[1]}` : k;
+  };
+  for (const key of ['returned', 'refundOverflow']) {
+    if (!sp?.[key]) continue;
+    const out = {};
+    for (const [k, v] of Object.entries(sp[key])) out[base(k)] = (out[base(k)] ?? 0) + v;
+    sp[key] = out;
+  }
+  return sp;
+}
+
 let spikesCleared = false;
 
 async function claimAndSteward() {
@@ -1776,6 +1794,8 @@ async function gateJoinFlow(id, town, wallRegion, before) {
   if (!stale?.region && /ARTIFACT_STALE/.test(staleText) && staleText.includes(`gate ${gt.id}`)) ok('gate walled up', staleText.slice(0, 160));
   else { fail('gate walled up', JSON.stringify(stale).slice(0, 260)); return null; }
   await across('minecraft:air');
+  // a solid block over a dirt path turns it to dirt on its next tick (then grass spreads): lay the gate's path again, as the wall wrote it
+  for (const was of ['minecraft:dirt', 'minecraft:grass_block']) await cmd(`/fill ${bx0} ${gt.y} ${bz0} ${bx1} ${gt.y} ${bz1} minecraft:dirt_path replace ${was}`);
   const p3 = await besideAsk(id, town, { check: false, opKey: `steward.${b2}.vplan2`, ext: kept });
   if (!p3?.planId) { fail('gate open again', `not planned: ${JSON.stringify(p3).slice(0, 260)}`); return null; }
   await away();
@@ -1901,7 +1921,7 @@ async function survivalFlow() {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     let sp = await ledger();
@@ -1994,7 +2014,7 @@ async function suppliedPlanFlow() {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     const half = (o) => Object.fromEntries(Object.entries(o ?? {}).map(([k, v]) => [k, Math.max(1, Math.floor(v / 2))]).filter(([, v]) => v > 0));
@@ -2386,7 +2406,7 @@ async function suppliedGrowthFlow() {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     // the feeder: what the stockpile's targets need, while feeding is on
     feeder = (async () => {
@@ -3212,7 +3232,7 @@ async function survivalMechFlow(form = 'lots') {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     // what only the gate takes, held back until the steward names it: the portcullis's redstone parts (billed crafted: GM-a2's bill), the swing's iron doors
