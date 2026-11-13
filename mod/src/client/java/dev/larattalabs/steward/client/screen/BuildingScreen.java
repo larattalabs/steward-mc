@@ -43,7 +43,7 @@ public final class BuildingScreen extends KitScreen {
 		Panels.panel(g, x, y, w, h);
 		int cx = x + pad.left();
 		int top = y + pad.top();
-		header(g, b.role(), view.name(), UiBits.muted(), cx - 2, top - 2, inner + 4);
+		Panels.header(g, font, b.role(), view.name(), UiBits.muted(), cx - 2, top - 2, inner + 4);
 		int fy = top + 18;
 		String[] st = SettlementScreen.state(b);
 		UiBits.dotPill(g, font, st[0], st[1], cx, fy - 1, UiBits.ink());

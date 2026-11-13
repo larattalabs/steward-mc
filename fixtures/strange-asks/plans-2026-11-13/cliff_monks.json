@@ -1,0 +1,164 @@
+{
+  "prompt": "Monks' cells built into the cliff face above the sea.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "cliffside_monastery",
+      "style": {
+        "pending": "cliffside_monastery"
+      },
+      "zones": [
+        {
+          "id": "monastery",
+          "required": true,
+          "label": "Cliffside Monastery",
+          "purpose": "temple",
+          "notes": "Stepped down a sea cliff; needs a cliff over water nearby, which the survey has not confirmed.",
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 32
+            }
+          },
+          "terraces": {
+            "rise": 3,
+            "retain": "wall",
+            "stairs": true
+          },
+          "program": {
+            "layout": "street",
+            "shared": "none",
+            "lots": [
+              {
+                "id": "chapel_1",
+                "type": "chapel",
+                "role": "chapel",
+                "label": "cliff chapel",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Largest hall, carved into the cliff at its heart with a window facing the sea."
+              },
+              {
+                "id": "cell_1",
+                "type": "cell",
+                "role": "cell",
+                "label": "monk's cell",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Small room cut into the rock on a ledge, with a bed, lectern and sea window."
+              },
+              {
+                "id": "cell_2",
+                "type": "cell",
+                "role": "cell",
+                "label": "monk's cell",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Small room cut into the rock on a ledge, with a bed, lectern and sea window."
+              },
+              {
+                "id": "cell_3",
+                "type": "cell",
+                "role": "cell",
+                "label": "monk's cell",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Small room cut into the rock on a ledge, with a bed, lectern and sea window."
+              },
+              {
+                "id": "cell_4",
+                "type": "cell",
+                "role": "cell",
+                "label": "monk's cell",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Small room cut into the rock on a ledge, with a bed, lectern and sea window."
+              },
+              {
+                "id": "cell_5",
+                "type": "cell",
+                "role": "cell",
+                "label": "monk's cell",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Small room cut into the rock on a ledge, with a bed, lectern and sea window."
+              },
+              {
+                "id": "hall_1",
+                "type": "hall",
+                "role": "refectory",
+                "label": "refectory",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Shared dining hall with kitchen, near the chapel."
+              },
+              {
+                "id": "library_1",
+                "type": "library",
+                "role": "scriptorium",
+                "label": "scriptorium and library",
+                "size": [
+                  13,
+                  11
+                ],
+                "brief": "Bookshelves, lecterns and lanterns for copying manuscripts."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "bell_tower",
+                "label": "bell tower",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "brief": "Atop the cliff, overlooking the sea."
+              },
+              {
+                "id": "dock_1",
+                "type": "dock",
+                "role": "landing",
+                "label": "sea stair landing",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "near_water",
+                "brief": "Small landing at the cliff foot reached by a carved stair."
+              }
+            ]
+          }
+        }
+      ],
+      "connectors": [],
+      "forms": [],
+      "rules": []
+    },
+    "waits": [
+      {
+        "part": "dock_1",
+        "words": "The sea landing needs water below the cliff; the land isn't surveyed, so it may not place."
+      }
+    ],
+    "summary": "A compact, sparse monastery stepped down a cliff in terraces near the founding stone. It has a cliff chapel at its heart, five monks' cells, a refectory, a scriptorium, a bell tower on high ground and a sea landing. The land isn't surveyed, so I haven't named any sea or cliff. The landing and cliff setting need water and a slope nearby."
+  },
+  "usd": 0.035892,
+  "errors": []
+}

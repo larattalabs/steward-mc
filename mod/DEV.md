@@ -11,14 +11,15 @@ export GRADLE_USER_HOME=$PWD/../.gradle-home   # an APFS clone of Architect's ca
 First build without a cache needs network (Minecraft download and decompile). `.gradle-home/` is gitignored.
 
 ## Architect dependency
-`build.gradle` depends on `dev.larattalabs:architect_mc:${architect_version}` (gradle.properties, currently 0.11.2, API version 1.8.0; Steward refuses an API older than 1.8 and `fabric.mod.json` asks for `architect_mc >=0.11.0`) from mavenLocal. Build and
-publish it from Architect's checkout (or any clone of main at bac28db or later):
+`build.gradle` depends on `dev.larattalabs:architect_mc:${architect_version}` (gradle.properties) from GitHub Packages, the released artifact.
+Maven Local never supplies it (nor lab-ui): an Architect slice keeps main's `mod_version`, so a local publish would shadow the release under its
+coordinates. A release candidate is checked with `ARCHITECT_JAR` (or `-Parchitect.jar`), for dev and e2e only.
 
-```sh
-cd ../../architect-mc/mod && ./gradlew build publishToMavenLocal      # -> ~/.m2/repository/dev/larattalabs/architect_mc/<version>/
-```
+The pin sets the lower end of `fabric.mod.json`'s `architect_mc` range; its upper end is `<1.0.0`, below the next major API (Noah, 2026-11-13).
+At runtime `ArchitectGateway.check()` reads the loaded Architect's API version (`apiVersion()` once Architect has it, else the loaded `ArchitectApi.VERSION`
+by reflection) and reports a major other than 1, or a minor below the pinned API's (taken from the `ArchitectApi.VERSION` it compiled against), as not ok:
+the startup log says so and `/steward status` fails. It does not stop Steward; Fabric's range is what refuses to load.
 
-Architect's artifact is also on GitHub Packages (`dev.larattalabs:architect_mc:0.4.0`, public); `build.gradle` has that repository after mavenLocal.
 CI (`.github/workflows/ci.yml`) resolves it with the workflow's `GITHUB_TOKEN` (`packages: read`); verified green 2026-10-05, no extra access grant needed.
 Outside builders need a PAT with `read:packages` (`GITHUB_ACTOR` + `GITHUB_TOKEN` env vars). The API is `dev.larattalabs.architect.api`; `gateway/ArchitectGateway` is the only class that should touch it for
 checks, and `gateway/ConceptCardJob`, `gateway/LotBrief` build its job and design types.
@@ -300,6 +301,40 @@ The `plans-gc` recordings checked with v0.53.1's kit on the asks claim (`checkPl
 - In the mod, the composer applies such a fragment itself before any Claude repair round (`Composer.streetFixes`, $0), and the steward says which
   buildings were left out ("Left out for room (laid out on a street instead): townhouse 4, smithy 1 and chapel 1."). The e2e's `street hint` composes
   walled_town's grid plan in game.
+## Strange asks: the 11-10 writer fixes proved on 8 re-recorded plans (2026-11-13, paid, Noah approved; $0.55 of a $1.50 cap)
+Noah via parent session: "n cap 1.50 + compose". On main 194afd3 (Architect 0.63.0), with the plan-writer prompt's reserved wording fixed (8b6311a),
+the claude login's opt-in made for each run and removed after. `node tools/record-cards.mjs 0.55` (ring_city's card, $0.03), then
+`node tools/record-plans.mjs 1.47 --out fixtures/strange-asks/plans-2026-11-13` from a folder holding every plan but the 8 targets ($0.52; the first
+call uncached at $0.25). The record tools start a call only while $0.50 (a job's cap) is left under their cap, so a $0.20 cap records nothing.
+`plans-2026-11-13/` keeps the 8; `plans/` stays the tests' input. Scored with Architect v0.63.0's kit (`checkPlanLocal` on the asks claim, Steward's
+anchors; 11-10 recording -> 11-13):
+- mushroom_town: REQUIRED_BLOCKED (`shared: "green"`, SCHEMA) -> READY.
+- hidden_village: REQUIRED_BLOCKED (SCHEMA, UNKNOWN_REF, the hidden room unsupported) -> READY, **but the hidden room is dropped**, with no wait
+  line: 0.63.0's catalogue lists hidden_room reserved while the prompt already calls it supported. To re-record on 0.64.0 (LEFTOVERS).
+- cliff_monks: REQUIRED_BLOCKED (`sea_stair` NO_CLIMB) -> READY.
+- conquered_town, ruined_empire: NEEDS_REPAIR (a road into an unwalled town's gatehouse, DEPENDENCY) -> READY.
+- rival_families: REQUIRED_BLOCKED (`west_estate` OVERLAP) -> READY.
+- twin_villages: NEEDS_REPAIR (`inn_stop` DEPENDENCY) -> READY.
+- ring_city: REQUIRED_BLOCKED (`ring_town` NO_ROOM) -> READY.
+
+What didn't move: **sculpted_forms stays nearest.** Steward's own `CardLimits` still tells the player big forms and buildings over water wait,
+which has been false since BF (0.63.0); StrangeAsksTest counts ring_city and sky_monastery as false alarms when the row moves. CardLimits needs the
+7c catalogue first (LEFTOVERS). The new ring_city card has `site.size: null`, outside the card schema (S/M/L/XL or absent), so `cards/` keeps the old
+card; the new one is the prompt inside `plans-2026-11-13/ring_city.json`.
+
+## The repair round's catalogue text, proved in one in-game compose (2026-11-13, paid, Noah approved; $0.16)
+Noah via parent session: "n cap 1.50 + compose". One compose in a flat creative dev world on Architect 0.63.0 (main f66031d's code), the claude
+login's opt-in made for the run and removed after: `/steward claim`, then `/steward describe set_1 A monastery on a floating island, reached by a
+long stair.` (sky_monastery's ask, chosen because its climb is refused). Card $0.019 ("Stairway Monastery", 10 buildings); plan $0.144 over three
+calls (Composer caps a compose at $1.00):
+- **Round 0:** REQUIRED_BLOCKED, 1 part to repair; the repair round carried `planCatalogue([zone.standard])`, 1,373 characters.
+- **Round 1:** the zone part fixed; REQUIRED_BLOCKED on the long stair; the repair carried `planCatalogue([connector.stair])`, 1,326 characters.
+- **Round 2:** the stair rewritten as a `connector.switchback` with landings; still unfit. REQUIRED_BLOCKED after 2 repairs, 1 unfit, nothing pending.
+So the repair round uses the catalogue text for exactly the failing kinds, and the first repair fixed its part. The last one can't: no stair or
+switchback climbs 40 blocks to a floating island today (sky_monastery's known gap, Architect's "climbs to a raised form"), and the steward's summary
+says the stair "can make the climb" when the check says it can't. That wording is a writer fault (LEFTOVERS). The driver was a one-off scratch
+script built on `tools/record-plans.mjs`'s launch (it must set `ARCHITECT_GAME_DIR` to Steward's `mod/run`, or devclient reads Architect's token).
+
 ## Strange asks: all 59 plans re-recorded with today's writer (2026-11-10, paid, Noah approved; $2.64 of a $6 cap)
 `node tools/record-plans.mjs 6 --out fixtures/strange-asks/plans-2026-11-10` on main 0d39359 (Architect 0.56.0), the claude login's opt-in made for the
 run and removed after. 59 of 59 recorded, every one valid by Steward's plan check, about $0.03-0.07 each (the first call uncached at $0.28), in about 25 min.
@@ -350,6 +385,17 @@ The 23:00 nightly on 3986daf passed free (43 checks) and failed stub (30 of 40, 
   to load its mods against about 11 s normally, with no stall in the log, so the whole machine was slow. The 400 s wait stays; this is a chance failure.
 - **SUMMARY.md** printed "undefined failed", because e2e's `failed` is a count. nightly.mjs now lists the names of the checks that aren't ok, with repeats
   counted ("gate mechanism x4").
+
+### The 11-12 nightly's two stub FAILs (triaged 2026-11-13, $0)
+The 23:00 nightly on 074ca44 (Architect 0.63.0) passed free (44 checks) and failed 2 of 159 stub checks in 106 min. Both were the test, not Steward
+or Architect; fixed on `nightly-fixes` (124c51c).
+- **survival mechanism refund: lightning_rod 0/1.** The rod is copper and weathered where it stood during the long run: the ledger has
+  `refundOverflow: {exposed_lightning_rod: 1}` (the stockpile was full, so it dropped). Architect refunds the block as it stands. The e2e's ledger
+  readers now fold weathered copper refunds under the billed item; waxed copper doesn't weather. Architect confirmed the rule (slice CU, v0.40.0:
+  the refund is the standing block's item, never an unweathered one the world no longer holds).
+- **gate open again: ARTIFACT_STALE, grass_block where the wall wrote dirt_path.** The flow walls the gate up with cobblestone over its path; vanilla
+  turns a dirt path under a solid block to dirt on its next tick, then grass spreads. Architect's refusal was right. The flow now lays the path again
+  after the wall comes down.
 
 ### Growth slice A: region towns grow through Architect's revisions (2026-11-11, $0)
 An addition to a standing region town (V or plan v1, not built from materials) is planned as a revision of the town (`planRevision`, `revise` with
@@ -459,3 +505,26 @@ on the fixture module `fixture_plot@1` (2 sides x 2 crops x 3 Styles) with `tool
   re-certified (the versions of an unchanged certificate are kept). Ingame again: PASS 20 in 40 s; recorded.
 - **Unit:** `ModuleCatalogTest`, `PaletteCheckTest`, `ModuleRefTest`, `BuildStoreFormat5Test`, SaveCompatTest's format-4 growth file
   (`fixtures/saves/v6`); all of `build` passes (402).
+
+### S-J4 and S-kit: Steward on lab-ui's shared HUD (2026-11-13, $0)
+Steward publishes its inbox into lab-ui 0.4.1's Jobs & spend panel (`inbox/InboxJobs`): a build's row is the settlement's Architect owner
+(`steward_mc:settlement/<id>`), so the Architect jobs it owns fold under it, and updates and ideas get rows of their own. StewardHud's line at
+(6, 6) is gone in favour of the shared needs-you pill, and Steward's toast copy and `ToastStack` in favour of lab-ui's one stack. Each toast
+carries its build's row as its `ref`, so K opens the panel on that row. Steward publishes **no ledger**: Architect's ledger already lists every
+Steward-owned sidecar job and credits it to `steward_mc` by owner, so entries under any other id would count the same spend twice. S-kit swaps
+in lab-ui's `clayText()`, `placeholder()`, `Panels.header` with meta and `selectedRow`/`hoverRow`, plus its text classes and `UiRules`. The map's
+raw hex becomes tokens (`CLAY_DARK` at 0x60, `paper.disabled`).
+- **e2e** (ports 8600/8601): the new `shared-hud` flow (tags `screens inbox hud jobs`) checks:
+  - Steward rows in `JobBoard.json()`;
+  - the pill counting both mods;
+  - exactly one `lab_ui:jobs_pill` slot in TOP_LEFT, and no `steward_mc:*` HUD element;
+  - Steward's toasts in the one stack beside an Architect toast;
+  - pictures `e2e-shared-hud`, `e2e-jobs-panel`.
+
+  In stub mode it also waits for a real Architect massing (sim helper).
+- **Runs:**
+  - `free --only screens,inbox`: PASS 30.
+  - `stub --only hud`: PASS 15 ("4 jobs need you": Steward's 2 and Architect's massings; today `{"architect_mc": 0.38}`, sim costs).
+  - The first stub toast check failed because Architect's massing bar is an avoided rect, so the column ended above it and Steward's toasts
+    waited under "+3 more". The check now counts the stack, not only the toasts on screen.
+- **Unit:** `InboxJobsTest` (6).

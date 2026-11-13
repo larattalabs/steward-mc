@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pickFlows } from './lib/e2e-flows.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARCH = process.env.ARCHITECT_CHECKOUT ?? path.resolve(ROOT, '..', 'architect-mc');
@@ -27,7 +28,7 @@ const WORLD = path.join(GAME, 'saves', process.env.ARCHITECT_AUTOWORLD_NAME ?? '
 const OUT = path.join(ROOT, 'artifacts', 'e2e');
 const LOG = path.join(GAME, 'logs', 'latest.log');
 const mode = process.argv[2] ?? 'free';
-// --only a,b: run only the flows whose name or tags hold one of the words, plus the sanity set (status, claim, expand, restart); an RC's run
+// --only a,b: run only the flows whose name or tags hold one of the words (and the flows they need), plus the sanity set (status, claim, expand, restart); an RC's run
 // --keep-world: open the existing "Steward E2E" world instead of a fresh one (to look at a run's leftovers); by default every run starts fresh
 const keepWorld = process.argv.includes('--keep-world');
 const onlyAt = process.argv.indexOf('--only');
@@ -265,6 +266,24 @@ async function preflight() {
   ok('preflight', 'no credentials, no other client');
 }
 
+/**
+ * A stockpile ledger with copper's weathered refunds under the item that was billed: a copper block weathers where it stands (the 11-12 nightly's
+ * lightning rod came back as exposed_lightning_rod after 106 min), and Architect refunds the block as it stands. Waxed copper doesn't weather.
+ */
+function unweathered(sp) {
+  const base = (k) => {
+    const m = /^minecraft:(?:exposed|weathered|oxidized)_(.+)$/.exec(k);
+    return m ? `minecraft:${m[1] === 'copper' ? 'copper_block' : m[1]}` : k;
+  };
+  for (const key of ['returned', 'refundOverflow']) {
+    if (!sp?.[key]) continue;
+    const out = {};
+    for (const [k, v] of Object.entries(sp[key])) out[base(k)] = (out[base(k)] ?? 0) + v;
+    sp[key] = out;
+  }
+  return sp;
+}
+
 let spikesCleared = false;
 
 async function claimAndSteward() {
@@ -354,6 +373,63 @@ async function inboxScreen() {
   // toasts are HUD, which a screenshot hides unless asked
   const toastShot = (await dev.request('dev.screenshot', { name: 'e2e-toasts', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
   ok('inbox and toast pictures', `${inboxShot} ${partsShot} ${limitShot} ${toastShot}`);
+}
+
+/**
+ * S-J4, the shared HUD: Steward's inbox reaches lab-ui's Jobs & spend panel (K) as steward_mc rows, the needs-you line is lab-ui's one pill in the
+ * top-left zone (no Steward HUD element of its own), and Steward's toasts go into lab-ui's one stack. In stub mode an Architect massing waits as well
+ * (the sim helper, $0), so the pictures show both mods waiting on the player: one pill, one toast column, K with both mods' rows.
+ */
+async function sharedHud() {
+  let archRow = null;
+  if (mode === 'stub') {
+    await dev.request('dev.ui.open', { tab: 'design' });
+    await dev.request('dev.design.fill', { reset: true, buildingType: 'cabin', style: 'medieval', size: 'L', name: 'E2E Massed cabin', massingFirst: true });
+    const s = await dev.request('dev.design.submit', {}, { timeoutMs: 30_000 });
+    if (!s.sent?.designId || s.sent.error) fail('shared hud: an Architect massing', JSON.stringify(s.sent ?? s).slice(0, 160));
+    await closeScreens();
+    for (let end = Date.now() + 180_000; Date.now() < end && !archRow; await sleep(2000)) {
+      archRow = ((await dev.request('dev.j3.state')).rows ?? []).find((r) => r.mod === 'architect_mc' && r.state === 'needs_you') ?? null;
+    }
+    if (archRow) ok('shared hud: an Architect massing waits', archRow.id);
+    else fail('shared hud: an Architect massing waits', 'no architect_mc row needs you after 180 s');
+  }
+  // Steward's sample inbox (two builds waiting, one held by the usage limit, one ended, waiting parts) under ids of its own, so its toasts come again
+  await cmd('/steward ui sample hud');
+  await sleep(1500);
+  await closeScreens();
+  // need-you, so it shows on top of the stack (need-you first, newest on top) beside Steward's, not queued under "+N more"
+  await dev.request('dev.ui03.toast', { level: 'need', title: 'Architect: E2E Massed cabin needs you', body: 'pushed by the e2e into the same stack as Steward\'s', subject: 'Architect: E2E Massed cabin' });
+  await sleep(1200);
+  const jobs = await dev.request('dev.j3.state');
+  const mine = (jobs.rows ?? []).filter((r) => r.mod === 'steward_mc');
+  const waiting = mine.filter((r) => r.state === 'needs_you' || r.state === 'paused_budget');
+  if (mine.length && waiting.length && mine.every((r) => r.id.startsWith('steward_mc:settlement/'))) ok('shared hud: Steward rows on the Jobs panel', `${mine.length} rows, ${waiting.length} waiting; pill "${jobs.pill}"`);
+  else fail('shared hud: Steward rows on the Jobs panel', JSON.stringify(jobs.rows ?? jobs).slice(0, 200));
+  const wantWaiting = waiting.length + (archRow ? 1 : 0);
+  if (jobs.needsYou >= wantWaiting && /need/.test(jobs.pill ?? '')) ok('shared hud: one pill counts both mods', `${jobs.needsYou} waiting: ${jobs.pill}`);
+  else fail('shared hud: one pill counts both mods', `needsYou ${jobs.needsYou}, want >= ${wantWaiting}; pill ${jobs.pill}`);
+  const z = await dev.request('dev.hud.zones');
+  const regs = z.registered ?? [];
+  const pills = (z.zones?.top_left?.slots ?? []).filter((s) => s.id === 'lab_ui:jobs_pill');
+  const ownHud = regs.filter((r) => r.startsWith('steward_mc:'));
+  if (pills.length === 1 && !ownHud.length) ok('shared hud: one pill, no Steward HUD of its own', JSON.stringify(pills[0]));
+  else fail('shared hud: one pill, no Steward HUD of its own', `pills ${pills.length}, steward elements ${ownHud.join(' ')}`);
+  const toasts = await dev.request('dev.ui2b.toasts');
+  const shownToasts = toasts.shown ?? [];
+  const stewardToast = shownToasts.find((t) => (t.ref ?? '').startsWith('steward_mc:settlement/'));
+  // one stack: Steward's toasts show beside Architect's, or wait in the same stack under "+N more" (in stub mode Architect's massing bar is an avoided
+  // rect, so the column ends above it and holds one toast)
+  const sameStack = stewardToast || (toasts.queued ?? 0) > shownToasts.length;
+  if (sameStack && shownToasts.some((t) => /^Architect/.test(t.title))) ok('shared hud: both mods\' toasts in one stack', `${shownToasts.map((t) => t.title).join(' | ')}; ${toasts.queued} in the stack`);
+  else fail('shared hud: both mods\' toasts in one stack', JSON.stringify(toasts).slice(0, 240));
+  const hudShot = (await dev.request('dev.screenshot', { name: 'e2e-shared-hud', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.j3.open', {});
+  await sleep(800);
+  const panelShot = (await dev.request('dev.screenshot', { name: 'e2e-jobs-panel', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  const st = await dev.request('dev.j3.state');
+  ok('shared hud pictures', `${hudShot} ${panelShot}; today ${JSON.stringify(st.todayByMod ?? {})}`);
+  await closeScreens();
 }
 
 async function placeUpdateUndo(id) {
@@ -1833,6 +1909,8 @@ async function gateJoinFlow(id, town, wallRegion, before) {
   if (!stale?.region && /ARTIFACT_STALE/.test(staleText) && staleText.includes(`gate ${gt.id}`)) ok('gate walled up', staleText.slice(0, 160));
   else { fail('gate walled up', JSON.stringify(stale).slice(0, 260)); return null; }
   await across('minecraft:air');
+  // a solid block over a dirt path turns it to dirt on its next tick (then grass spreads): lay the gate's path again, as the wall wrote it
+  for (const was of ['minecraft:dirt', 'minecraft:grass_block']) await cmd(`/fill ${bx0} ${gt.y} ${bz0} ${bx1} ${gt.y} ${bz1} minecraft:dirt_path replace ${was}`);
   const p3 = await besideAsk(id, town, { check: false, opKey: `steward.${b2}.vplan2`, ext: kept });
   if (!p3?.planId) { fail('gate open again', `not planned: ${JSON.stringify(p3).slice(0, 260)}`); return null; }
   await away();
@@ -1958,7 +2036,7 @@ async function survivalFlow() {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     let sp = await ledger();
@@ -2051,7 +2129,7 @@ async function suppliedPlanFlow() {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     const half = (o) => Object.fromEntries(Object.entries(o ?? {}).map(([k, v]) => [k, Math.max(1, Math.floor(v / 2))]).filter(([, v]) => v > 0));
@@ -2443,7 +2521,7 @@ async function suppliedGrowthFlow() {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     // the feeder: what the stockpile's targets need, while feeding is on
     feeder = (async () => {
@@ -3269,7 +3347,7 @@ async function survivalMechFlow(form = 'lots') {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     // what only the gate takes, held back until the steward names it: the portcullis's redstone parts (billed crafted: GM-a2's bill), the swing's iron doors
@@ -3903,12 +3981,27 @@ async function followFlow() {
 
 const started = Date.now();
 const skipped = [];
-/** Runs a flow when no --only is given or a word of it is in the flow's name or tags (`flow` lines name each, for a rerun of what failed). */
-async function flow(name, tags, fn) {
-  if (only && !only.some((w) => `${name} ${tags}`.toLowerCase().includes(w))) return skipped.push(name);
-  console.log(`flow ${name}`);
-  await clearAnimals();
-  await fn();
+const flows = [];
+let flowsRan = false;
+/**
+ * Names a flow; runFlows runs them in this order. `needs`: the earlier flows whose world this one builds on (districts needs the settlement proposals
+ * describes), pulled into an --only run that picks this flow.
+ */
+function flow(name, tags, fn, needs = []) {
+  if (flowsRan) throw new Error(`flow ${name} is named after runFlows (or inside a flow): it would never run`);
+  for (const n of needs) if (!flows.some((f) => f.name === n)) throw new Error(`flow ${name} needs ${n}, which is not named before it`);
+  flows.push({ name, tags, fn, needs });
+}
+/** Runs the named flows (`flow` lines name each, for a rerun of what failed; a pulled-in one says which flow needs it). */
+async function runFlows() {
+  flowsRan = true;
+  const why = pickFlows(flows, only);
+  for (const f of flows.splice(0)) {
+    if (!why.has(f.name)) { skipped.push(f.name); continue; }
+    console.log(`flow ${f.name}${why.get(f.name) ? ` (needed by ${why.get(f.name)})` : ''}`);
+    await clearAnimals();
+    await f.fn();
+  }
 }
 try {
   await preflight();
@@ -3926,11 +4019,13 @@ try {
     await expand(id);
     await flow('stone-recipe', 'screens', () => stoneRecipe());
     await flow('inbox', 'screens', () => inboxScreen());
+    await flow('shared-hud', 'screens inbox hud jobs', () => sharedHud());
     if (mode === 'free') {
       await flow('place', 'update revert undo screens', () => placeUpdateUndo(id));
       await flow('steward-life', 'sit sleep walk', () => stewardLife(id));
       await flow('proposals', 'farm', () => proposals(id));
-      await flow('districts', 'protect road layout', () => districts(id));
+      // districts builds on the settlement proposals describes (its own run alone says "Describe set_1 first")
+      await flow('districts', 'protect road layout', () => districts(id), ['proposals']);
       await flow('player-builds', 'protect', () => playerBuilds(id));
       await flow('talk', 'screens', () => talk(id));
     }
@@ -3973,6 +4068,7 @@ try {
     }
   }
   await flow('migrated-steward', 'save migration', () => migratedSteward());
+  await runFlows();
   await restartRestore();
 } catch (e) {
   fail('run', e.message);

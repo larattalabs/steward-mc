@@ -78,13 +78,13 @@ public final class Composer {
 		int session = Session.current();
 		if (!available() || Integer.valueOf(session).equals(COMPOSING.get(s.id()))) return;
 		COMPOSING.put(s.id(), session);
-		round(server, player, s, cardJson, land, session, 0, 0, null, null, null, List.of());
+		round(server, player, s, cardJson, land, session, 0, 0, null, null, null, List.of(), java.util.Set.of());
 	}
 
 	private static void round(MinecraftServer server, UUID player, Settlement s, String cardJson, @Nullable String land, int session, int round, double spent,
-		@Nullable String previous, @Nullable String answers, @Nullable String lastAnswers, List<String> leftOut) {
+		@Nullable String previous, @Nullable String answers, @Nullable String lastAnswers, List<String> leftOut, java.util.Set<String> kinds) {
 		var builds = PlayerBuilds.promptLines(server, s, PlayerBuilds.in(server, s));
-		PlanWriter.write(cardJson, land, ANCHORS, builds, s.owner(), previous, answers).whenComplete((r, err) -> server.execute(() -> {
+		PlanWriter.write(cardJson, land, ANCHORS, builds, s.owner(), previous, answers, kinds).whenComplete((r, err) -> server.execute(() -> {
 			if (!Session.is(session)) return;
 			if (err != null || r.answer() == null || !r.answer().has("plan") || !r.answer().get("plan").isJsonObject()) {
 				done(s, "The plan could not be composed (" + (err != null ? String.valueOf(err.getMessage()) : r.error() != null ? r.error() : "no plan in the answer") + "): the build takes today's layout.", server, player);
@@ -132,7 +132,7 @@ public final class Composer {
 		if (repairable && round < ROUNDS && cost < CAP_USD - PlanWriterJob.BUDGET_USD && !lines.equals(lastAnswers)) {
 			Steward.LOGGER.info("plan for {}: round {} {} ({} parts to repair), ${}", s.id(), round, c.overall(), count(c, "refused") + count(c, "malformed"),
 				String.format("%.3f", cost));
-			round(server, player, s, cardJson, land, session, round + 1, cost, plan.toString(), lines, lines, leftOut);
+			round(server, player, s, cardJson, land, session, round + 1, cost, plan.toString(), lines, lines, leftOut, PlanWriterJob.repairKinds(c.parts()));
 			return;
 		}
 		keep(server, player, s, plan, answer, c, cost, round, leftOut);

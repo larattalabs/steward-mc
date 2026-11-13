@@ -2,8 +2,8 @@ package dev.larattalabs.steward.client.screen;
 
 import com.mojang.blaze3d.platform.InputConstants;
 import dev.larattalabs.labui.client.hud.UiBits;
-import dev.larattalabs.steward.client.text.TextFieldView;
-import dev.larattalabs.steward.client.text.TextModel;
+import dev.larattalabs.labui.client.text.TextFieldView;
+import dev.larattalabs.labui.client.text.TextModel;
 import dev.larattalabs.labui.client.ui.Kit;
 import dev.larattalabs.labui.client.ui.Panels;
 import dev.larattalabs.labui.client.ui.TextUtil;
@@ -176,7 +176,7 @@ public final class InboxScreen extends KitScreen {
 		int cx = x + pad.left();
 		int top = y + pad.top();
 		String count = ClientInbox.waiting() > 0 ? ClientInbox.waiting() + " waiting for you" : all.isEmpty() ? "" : "nothing waits for you";
-		header(g, "Steward", count, UiBits.muted(), cx - 2, top - 2, inner + 4);
+		Panels.header(g, font, "Steward", count, UiBits.muted(), cx - 2, top - 2, inner + 4);
 		int bodyTop = top + 18;
 		int footerY = y + h - pad.bottom() - 10;
 		int actionsY = footerY - 10 - 20;
@@ -253,8 +253,8 @@ public final class InboxScreen extends KitScreen {
 				if (ry + ROW_H > y + h) break;
 				boolean sel = en == selected();
 				boolean hov = mx >= x && mx < x + w && my >= ry - 2 && my < ry + ROW_H - 2;
-				if (sel) selectedRow(g, x + 2, ry - 3, w - 4, ROW_H - 1);
-				else if (hov) hoverRow(g, x + 2, ry - 3, w - 4, ROW_H - 1);
+				if (sel) Panels.selectedRow(g, x + 2, ry - 3, w - 4, ROW_H - 1);
+				else if (hov) Panels.hoverRow(g, x + 2, ry - 3, w - 4, ROW_H - 1);
 				Panels.dot(g, pill(en)[0], x + 6, ry + 1, false);
 				g.text(font, TextUtil.ellipsize(font, en.name(), w - 22), x + 16, ry, needs ? UiBits.ink() : UiBits.muted(), false);
 				g.text(font, TextUtil.ellipsize(font, pill(en)[1], w - 22), x + 16, ry + 10, UiBits.muted(), false);
