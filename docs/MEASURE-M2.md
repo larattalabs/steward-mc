@@ -34,8 +34,9 @@ If a bar fails because of a vanilla rule, the slice stops and reports it (it goe
 - **Chunk borders.** Each farm records whether its box crosses a chunk border in x and in z. Bar: at least one farm of every size pair crosses
   in both. Every lot wider or deeper than 16 crosses on that axis whatever its placement.
 - **Styles.** rustic, fortress and desert (§9). rustic is measured in full (items 1-7). Items 1, 2 and 4 also run on fortress and desert
-  over all 9 size pairs, since the lamp and fence roles change with the Style. One farm built with a too-dim lamp (soul lantern) is
-  measured for item 2 with its fallback lanterns.
+  over all 9 size pairs, since the lamp and fence roles change with the Style. The fallback lantern needs no farm of its own: all three
+  Styles' lamp role is `minecraft:lantern`, the fallback block itself, so every farm measures its light (amended before any measurement:
+  the first draft named a soul-lantern farm).
 - **The checker** over every branch x Style: `tools/module-catalog.mjs offline` and `ingame` (M1's), clean.
 
 ## The bars
@@ -56,8 +57,8 @@ The program writes every farmland cell of its field as `farmland[moisture=7]`.
 (`Monster.isDarkEnoughToSpawn`, read from the 26.3 jar with `javap`).
 - **2.** At midnight, every cell at floor + 1 of the lot (frame y 1) that holds air or a crop has **block light 1 or more**. That covers the
   crop cells, the front row's open cells and the cells over the sources; fence, gate, lamp, chest, composter and water cells are left out.
-  - Read with `level.getBrightness(BLOCK, pos)` on every farm: every branch in rustic, all 9 size pairs in fortress and in desert, and the
-    dim-lamp farm.
+  - Read with `level.getBrightness(BLOCK, pos)` on every farm: every branch in rustic, all 9 size pairs in fortress and in desert (each with the
+    fallback lantern, above).
 - **Recorded:** the lowest block light per farm, and the share of crop cells at 9 or more (vanilla's growth threshold, which matters only
   under a roof).
 
@@ -68,17 +69,22 @@ For every crop x size branch, rustic, 5 runs, each 3 cycles.
   median time to a mature majority: wheat 60,060, carrots 60,060, potatoes 56,056, beetroot 35,035 ticks. Then the player breaks every mature
   crop (`destroyBlock`), the drops are counted from the ground, and the player replants each broken cell. Repeat 3 times. At the end of the
   run every crop left is broken (not counted) and the field is replanted at age 0.
+- **The crops counted are the cells actually planted.** The well gives up 5 of every 81 field cells (a source and its 4 sides), so a 9x9 has
+  76 crops, an 18x18 304 and a 27x27 684. Every per-day rate here, and the rate the offer quotes, is computed over those planted cells
+  (the `n` of each branch below), never over the field's area.
 - **The net rate:** a crop's item counted (wheat, carrot, potato, beetroot), minus one per replant when the item is its own planting item
   (carrots, potatoes), over 3 T, per crop cell a day. The offer quotes this rate.
 - **3a. The band.** Each run's net rate per crop cell a day lies inside the band below.
   - The band is predicted from the probe's own per-cell maturity times and yields (`tools/lib/crop-farm-bars.mjs`, deterministic). It is
     the 99% band of 4,000 simulated fields of that branch's crop count, widened 15% each way.
   - The probe field had a centre source and every cell planted; ours has a well of posts.
-- **3b. Usefulness (G3's bar, 24 a day per 80 crops: 0.3 per crop cell a day).**
-  - *Pending the manager's answer (sent before any measurement). Proposed:* judged on G3's own basis, harvested as each crop ripens.
-  - That basis: `n × (mean drops per crop − replant) / (mean t_cell / 24,000)`, from the per-cell maturity times each farm records in
-    cycle 1 of every run (each crop cell's age read every 1,000 ticks).
-  - Under §3.1's fixed-T cycle, wheat is predicted at 0.248 per crop a day, under 0.3. Carrots, potatoes and beetroot clear 0.3 either way.
+- **3b. Usefulness** (G3's bar, 24 a day per 80 crops: 0.3 per crop cell a day). **Noah's decision, 2026-11-12, option (a)** (relayed by
+  the Steward manager):
+  - It is judged on G3's own basis, harvested as each crop ripens: `n × (mean drops per crop − replant) / (mean t_cell / 24,000)`, from the
+    per-cell maturity times each farm records in cycle 1 of every run (each crop cell's age read every 1,000 ticks). A cell not mature at T
+    counts as T, which understates the rate.
+  - The band (3a) and the rate the offer quotes stay §3.1's fixed-cycle protocol rate, the conservative number. Wheat's is predicted at 0.248
+    per crop a day, about 20 a day per 80 crops, under G3's 24 on that basis; carrots, potatoes and beetroot clear 0.3 either way.
 - **3c. The control.** The mean over 5 runs is at least 1.5 times the predicted unwatered rate below. That is the probe's unwatered field,
   2.08-2.34 times slower, under the same loop.
 - **Recorded:** gross drops, the replant stock, the seeds, the poisonous potatoes, and the cells that matured per cycle.
