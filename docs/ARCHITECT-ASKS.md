@@ -1412,3 +1412,11 @@ and realise paths the link pass sits on: `stub --only plan,realise,growth,adopt,
 growth, adopt, every plan flow, survival and supplied billing, revision, district region, quarter); and `free --only place,protect,farm`, PASS, 35 checks
 (place, proposals, districts, player-builds), which also closes the v0.60.0 placement areas. A first free run without `farm` failed districts on test
 order only (proposals didn't run first), as in an earlier RC.
+
+### v0.62.0 pin (2026-11-12): PASS, merged
+Architect v0.62.0 (API 1.55.0, kit 0.57.0, catalogue 19; GP+QT, with 7cF's inert stubs) is pinned on pin-062 (runtime minimum 0.62.0). The build
+and unit tests pass against the published package (381/0). Steward calls neither GP nor QT yet (M1 and M3 will), so the run covers the plan, design
+and billing paths the release touches: `stub --only plan,survival,gate,wall,growth,revision`, 127 of 131 checks over 28 flows. The 4 failures were
+one flow, `survival-mech`, stalled at BIBLE_RUNNING before any billing at load average 87, while its swing, wall and drawbridge siblings passed;
+rerun alone (`--only survival-mech`), PASS, 21 checks. Steward's `planCatalogue()` read is unchanged (Architect confirmed `limits` identical); the
+compact plan/0 text's shorter kind lines are in LEFTOVERS for the plan writer's repair round.
