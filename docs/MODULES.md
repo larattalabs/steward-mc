@@ -533,6 +533,9 @@ M4 build to them, and they override sections 3.1 and 3.2 where those say otherwi
 4. **Layout rules, recorded:** IRR's water sits level with the farmland or one above, never below; no hopper sits under a filter hopper; slot chests
    written `type=single` stay single. Section 8's Steward dev hooks move to M2 and M4.
 
+**The three test styles (Noah via parent session, 2026-11-12: "merge m1, defaults").** Section 2.2's re-skin uses **rustic, fortress and desert**
+(wood, stone and sand). The strange-ask cards carry no palette, so "the three families used most" couldn't be read from them.
+
 **Open for later (phase 5b; not blocking phase 5):**
 - **Water for sugar cane.** Each cane base needs water beside it. Is that IRR's `irrigate` with a cane layout, or a new Architect member
   (contained channels along the rows, built on H)? To be decided with M7's design, as an ask if needed.
