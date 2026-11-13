@@ -13,8 +13,8 @@
   "result": "pass",
   "checks": {
     "offline": {
-      "at": "2026-11-13T11:31:59.193Z",
-      "head": "32e4298cb1e2832d18a2ff7dbdcfb364a8805b4e",
+      "at": "2026-11-13T14:35:43.894Z",
+      "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
       "architect": "0.63.0",
       "kit": "0.58.0",
       "branches": [
@@ -1234,14 +1234,14 @@
       }
     },
     "ingame": {
-      "at": "2026-11-13T11:41:09.813Z",
-      "head": "32e4298cb1e2832d18a2ff7dbdcfb364a8805b4e",
+      "at": "2026-11-13T14:38:54.067Z",
+      "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
       "env": {
         "minecraft": "26.3",
         "architect": "0.63.0",
         "givenPrograms": true,
         "measuring": false,
-        "label": "m1_90205_1",
+        "label": "m1_66278_1",
         "request": {
           "op": "env"
         }
@@ -2451,10 +2451,10 @@
     },
     "measure": {
       "field-wheat": {
-        "at": "2026-11-13T12:33:38.735Z",
-        "head": "e46d693f90ae81b23751c964a1b616ae088f823e",
-        "world": "Steward M2 Field wheat 202611131148",
-        "seconds": 2698.104,
+        "at": "2026-11-13T15:32:36.445Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
+        "world": "Steward M2 Field wheat 202611131449",
+        "seconds": 2587.875,
         "runs": 5,
         "passed": 62,
         "of": 62,
@@ -2494,40 +2494,40 @@
           "5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (0 differ; 0 farmland below 7)",
           "5b unload: the farms' chunks unloaded (true), 2,000 ticks away, back: every crop's age the same (0 differ), every farmland cell moisture 7 (0 below)",
           "1b hydration wheat: every farmland cell moisture 7 at every harvest (15 harvests; 0 cell-readings below)",
-          "3a band whea_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.191, 0.313]: 0.241, 0.247, 0.252, 0.254, 0.252 (5 runs)",
-          "3b usefulness whea_9x9: harvested as it ripens, 0.373 per crop a day = 29.8 per 80 crops (bar 24; mean t_cell 64426, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.249 = 19.9 per 80",
-          "3c control whea_9x9: the mean 0.249 >= 1.5 x the probe's unwatered 0.115",
-          "3a band whea_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.201, 0.299]: 0.255, 0.257, 0.266, 0.259, 0.256 (5 runs)",
-          "3b usefulness whea_18x18: harvested as it ripens, 0.396 per crop a day = 31.7 per 80 crops (bar 24; mean t_cell 60640, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.259 = 20.7 per 80",
-          "3c control whea_18x18: the mean 0.259 >= 1.5 x the probe's unwatered 0.115",
-          "3a band whea_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.204, 0.294]: 0.264, 0.269, 0.262, 0.264, 0.265 (5 runs)",
-          "3b usefulness whea_27x27: harvested as it ripens, 0.404 per crop a day = 32.3 per 80 crops (bar 24; mean t_cell 59462, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.265 = 21.2 per 80",
+          "3a band whea_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.191, 0.313]: 0.272, 0.239, 0.259, 0.236, 0.245 (5 runs)",
+          "3b usefulness whea_9x9: harvested as it ripens, 0.379 per crop a day = 30.3 per 80 crops (bar 24; mean t_cell 63341, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.250 = 20.0 per 80",
+          "3c control whea_9x9: the mean 0.250 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.201, 0.299]: 0.265, 0.263, 0.266, 0.264, 0.260 (5 runs)",
+          "3b usefulness whea_18x18: harvested as it ripens, 0.397 per crop a day = 31.7 per 80 crops (bar 24; mean t_cell 60490, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.264 = 21.1 per 80",
+          "3c control whea_18x18: the mean 0.264 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.204, 0.294]: 0.263, 0.267, 0.264, 0.265, 0.265 (5 runs)",
+          "3b usefulness whea_27x27: harvested as it ripens, 0.401 per crop a day = 32.1 per 80 crops (bar 24; mean t_cell 59844, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.265 = 21.2 per 80",
           "3c control whea_27x27: the mean 0.265 >= 1.5 x the probe's unwatered 0.115",
-          "3a band whea_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.199, 0.302]: 0.263, 0.252, 0.252, 0.255, 0.266 (5 runs)",
-          "3b usefulness whea_9x27: harvested as it ripens, 0.385 per crop a day = 30.8 per 80 crops (bar 24; mean t_cell 62306, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.258 = 20.6 per 80",
-          "3c control whea_9x27: the mean 0.258 >= 1.5 x the probe's unwatered 0.115",
-          "3a band whea_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.199, 0.302]: 0.257, 0.262, 0.255, 0.264, 0.256 (5 runs)",
-          "3b usefulness whea_27x9: harvested as it ripens, 0.391 per crop a day = 31.3 per 80 crops (bar 24; mean t_cell 61378, 2 cells immature at 3T counted as 4T); the protocol's quoted rate 0.259 = 20.7 per 80",
-          "3c control whea_27x9: the mean 0.259 >= 1.5 x the probe's unwatered 0.115",
-          "3a band whea_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.195, 0.305]: 0.250, 0.265, 0.250, 0.250, 0.250 (5 runs)",
-          "3b usefulness whea_9x18: harvested as it ripens, 0.384 per crop a day = 30.7 per 80 crops (bar 24; mean t_cell 62574, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.253 = 20.2 per 80",
-          "3c control whea_9x18: the mean 0.253 >= 1.5 x the probe's unwatered 0.115",
-          "3a band whea_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.195, 0.305]: 0.252, 0.258, 0.249, 0.247, 0.262 (5 runs)",
-          "3b usefulness whea_18x9: harvested as it ripens, 0.395 per crop a day = 31.6 per 80 crops (bar 24; mean t_cell 60831, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.253 = 20.3 per 80",
-          "3c control whea_18x9: the mean 0.253 >= 1.5 x the probe's unwatered 0.115",
-          "3a band whea_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.202, 0.297]: 0.263, 0.265, 0.259, 0.264, 0.272 (5 runs)",
-          "3b usefulness whea_18x27: harvested as it ripens, 0.403 per crop a day = 32.3 per 80 crops (bar 24; mean t_cell 59518, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.265 = 21.2 per 80",
-          "3c control whea_18x27: the mean 0.265 >= 1.5 x the probe's unwatered 0.115",
-          "3a band whea_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.202, 0.297]: 0.264, 0.263, 0.261, 0.261, 0.263 (5 runs)",
-          "3b usefulness whea_27x18: harvested as it ripens, 0.401 per crop a day = 32.1 per 80 crops (bar 24; mean t_cell 59874, 2 cells immature at 3T counted as 4T); the protocol's quoted rate 0.262 = 21.0 per 80",
-          "3c control whea_27x18: the mean 0.262 >= 1.5 x the probe's unwatered 0.115"
+          "3a band whea_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.199, 0.302]: 0.250, 0.261, 0.256, 0.267, 0.260 (5 runs)",
+          "3b usefulness whea_9x27: harvested as it ripens, 0.397 per crop a day = 31.8 per 80 crops (bar 24; mean t_cell 60470, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.259 = 20.7 per 80",
+          "3c control whea_9x27: the mean 0.259 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.199, 0.302]: 0.260, 0.260, 0.263, 0.251, 0.251 (5 runs)",
+          "3b usefulness whea_27x9: harvested as it ripens, 0.393 per crop a day = 31.5 per 80 crops (bar 24; mean t_cell 61029, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.257 = 20.6 per 80",
+          "3c control whea_27x9: the mean 0.257 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.195, 0.305]: 0.246, 0.250, 0.256, 0.242, 0.260 (5 runs)",
+          "3b usefulness whea_9x18: harvested as it ripens, 0.382 per crop a day = 30.5 per 80 crops (bar 24; mean t_cell 62861, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.251 = 20.1 per 80",
+          "3c control whea_9x18: the mean 0.251 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.195, 0.305]: 0.260, 0.274, 0.258, 0.249, 0.247 (5 runs)",
+          "3b usefulness whea_18x9: harvested as it ripens, 0.391 per crop a day = 31.3 per 80 crops (bar 24; mean t_cell 61405, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.258 = 20.6 per 80",
+          "3c control whea_18x9: the mean 0.258 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.202, 0.297]: 0.260, 0.262, 0.263, 0.260, 0.262 (5 runs)",
+          "3b usefulness whea_18x27: harvested as it ripens, 0.401 per crop a day = 32.1 per 80 crops (bar 24; mean t_cell 59800, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.261 = 20.9 per 80",
+          "3c control whea_18x27: the mean 0.261 >= 1.5 x the probe's unwatered 0.115",
+          "3a band whea_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.202, 0.297]: 0.263, 0.258, 0.258, 0.255, 0.266 (5 runs)",
+          "3b usefulness whea_27x18: harvested as it ripens, 0.399 per crop a day = 31.9 per 80 crops (bar 24; mean t_cell 60131, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.260 = 20.8 per 80",
+          "3c control whea_27x18: the mean 0.260 >= 1.5 x the probe's unwatered 0.115"
         ]
       },
       "field-carrots": {
-        "at": "2026-11-13T13:17:09.861Z",
-        "head": "e46d693f90ae81b23751c964a1b616ae088f823e",
-        "world": "Steward M2 Field carrots 202611131233",
-        "seconds": 2611.073,
+        "at": "2026-11-13T16:16:37.633Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
+        "world": "Steward M2 Field carrots 202611131532",
+        "seconds": 2641.133,
         "runs": 5,
         "passed": 62,
         "of": 62,
@@ -2567,40 +2567,40 @@
           "5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (0 differ; 0 farmland below 7)",
           "5b unload: the farms' chunks unloaded (true), 2,000 ticks away, back: every crop's age the same (0 differ), every farmland cell moisture 7 (0 below)",
           "1b hydration carrots: every farmland cell moisture 7 at every harvest (15 harvests; 0 cell-readings below)",
-          "3a band carr_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.508, 0.847]: 0.621, 0.644, 0.671, 0.679, 0.733 (5 runs)",
-          "3b usefulness carr_9x9: harvested as it ripens, 0.994 per crop a day = 79.5 per 80 crops (bar 24; mean t_cell 64535, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.670 = 53.6 per 80",
-          "3c control carr_9x9: the mean 0.670 >= 1.5 x the probe's unwatered 0.318",
-          "3a band carr_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.534, 0.809]: 0.701, 0.729, 0.690, 0.669, 0.709 (5 runs)",
-          "3b usefulness carr_18x18: harvested as it ripens, 1.061 per crop a day = 84.9 per 80 crops (bar 24; mean t_cell 61087, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.700 = 56.0 per 80",
-          "3c control carr_18x18: the mean 0.700 >= 1.5 x the probe's unwatered 0.318",
-          "3a band carr_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.541, 0.799]: 0.701, 0.714, 0.724, 0.695, 0.709 (5 runs)",
-          "3b usefulness carr_27x27: harvested as it ripens, 1.089 per crop a day = 87.1 per 80 crops (bar 24; mean t_cell 59815, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.708 = 56.7 per 80",
-          "3c control carr_27x27: the mean 0.708 >= 1.5 x the probe's unwatered 0.318",
-          "3a band carr_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.530, 0.813]: 0.678, 0.694, 0.685, 0.700, 0.714 (5 runs)",
-          "3b usefulness carr_9x27: harvested as it ripens, 1.068 per crop a day = 85.4 per 80 crops (bar 24; mean t_cell 61305, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.694 = 55.5 per 80",
-          "3c control carr_9x27: the mean 0.694 >= 1.5 x the probe's unwatered 0.318",
-          "3a band carr_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.530, 0.813]: 0.681, 0.698, 0.693, 0.677, 0.708 (5 runs)",
-          "3b usefulness carr_27x9: harvested as it ripens, 1.036 per crop a day = 82.9 per 80 crops (bar 24; mean t_cell 62499, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.691 = 55.3 per 80",
-          "3c control carr_27x9: the mean 0.691 >= 1.5 x the probe's unwatered 0.318",
-          "3a band carr_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.523, 0.821]: 0.706, 0.710, 0.690, 0.664, 0.667 (5 runs)",
-          "3b usefulness carr_9x18: harvested as it ripens, 1.021 per crop a day = 81.6 per 80 crops (bar 24; mean t_cell 63440, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.687 = 55.0 per 80",
-          "3c control carr_9x18: the mean 0.687 >= 1.5 x the probe's unwatered 0.318",
-          "3a band carr_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.523, 0.821]: 0.686, 0.715, 0.698, 0.676, 0.679 (5 runs)",
-          "3b usefulness carr_18x9: harvested as it ripens, 1.062 per crop a day = 85.0 per 80 crops (bar 24; mean t_cell 61586, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.691 = 55.3 per 80",
-          "3c control carr_18x9: the mean 0.691 >= 1.5 x the probe's unwatered 0.318",
-          "3a band carr_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.537, 0.802]: 0.707, 0.709, 0.719, 0.727, 0.707 (5 runs)",
-          "3b usefulness carr_18x27: harvested as it ripens, 1.071 per crop a day = 85.7 per 80 crops (bar 24; mean t_cell 60678, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.714 = 57.1 per 80",
-          "3c control carr_18x27: the mean 0.714 >= 1.5 x the probe's unwatered 0.318",
-          "3a band carr_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.537, 0.802]: 0.717, 0.746, 0.712, 0.726, 0.711 (5 runs)",
-          "3b usefulness carr_27x18: harvested as it ripens, 1.097 per crop a day = 87.7 per 80 crops (bar 24; mean t_cell 59641, 4 cells immature at 3T counted as 4T); the protocol's quoted rate 0.722 = 57.8 per 80",
-          "3c control carr_27x18: the mean 0.722 >= 1.5 x the probe's unwatered 0.318"
+          "3a band carr_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.508, 0.847]: 0.655, 0.653, 0.709, 0.655, 0.637 (5 runs)",
+          "3b usefulness carr_9x9: harvested as it ripens, 1.002 per crop a day = 80.2 per 80 crops (bar 24; mean t_cell 65254, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.662 = 53.0 per 80",
+          "3c control carr_9x9: the mean 0.662 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.534, 0.809]: 0.674, 0.725, 0.703, 0.678, 0.696 (5 runs)",
+          "3b usefulness carr_18x18: harvested as it ripens, 1.062 per crop a day = 85.0 per 80 crops (bar 24; mean t_cell 60928, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.695 = 55.6 per 80",
+          "3c control carr_18x18: the mean 0.695 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.541, 0.799]: 0.700, 0.721, 0.697, 0.692, 0.702 (5 runs)",
+          "3b usefulness carr_27x27: harvested as it ripens, 1.090 per crop a day = 87.2 per 80 crops (bar 24; mean t_cell 59790, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.702 = 56.2 per 80",
+          "3c control carr_27x27: the mean 0.702 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.530, 0.813]: 0.706, 0.700, 0.730, 0.678, 0.708 (5 runs)",
+          "3b usefulness carr_9x27: harvested as it ripens, 1.066 per crop a day = 85.2 per 80 crops (bar 24; mean t_cell 61228, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.704 = 56.3 per 80",
+          "3c control carr_9x27: the mean 0.704 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.530, 0.813]: 0.671, 0.704, 0.718, 0.714, 0.715 (5 runs)",
+          "3b usefulness carr_27x9: harvested as it ripens, 1.069 per crop a day = 85.5 per 80 crops (bar 24; mean t_cell 60834, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.704 = 56.3 per 80",
+          "3c control carr_27x9: the mean 0.704 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.523, 0.821]: 0.686, 0.699, 0.710, 0.701, 0.724 (5 runs)",
+          "3b usefulness carr_9x18: harvested as it ripens, 1.054 per crop a day = 84.3 per 80 crops (bar 24; mean t_cell 61683, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.704 = 56.3 per 80",
+          "3c control carr_9x18: the mean 0.704 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.523, 0.821]: 0.657, 0.675, 0.696, 0.682, 0.689 (5 runs)",
+          "3b usefulness carr_18x9: harvested as it ripens, 1.032 per crop a day = 82.5 per 80 crops (bar 24; mean t_cell 62667, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.680 = 54.4 per 80",
+          "3c control carr_18x9: the mean 0.680 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.537, 0.802]: 0.692, 0.699, 0.707, 0.717, 0.721 (5 runs)",
+          "3b usefulness carr_18x27: harvested as it ripens, 1.078 per crop a day = 86.2 per 80 crops (bar 24; mean t_cell 60512, 3 cells immature at 3T counted as 4T); the protocol's quoted rate 0.707 = 56.6 per 80",
+          "3c control carr_18x27: the mean 0.707 >= 1.5 x the probe's unwatered 0.318",
+          "3a band carr_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.537, 0.802]: 0.725, 0.709, 0.707, 0.712, 0.663 (5 runs)",
+          "3b usefulness carr_27x18: harvested as it ripens, 1.070 per crop a day = 85.6 per 80 crops (bar 24; mean t_cell 60875, 2 cells immature at 3T counted as 4T); the protocol's quoted rate 0.703 = 56.3 per 80",
+          "3c control carr_27x18: the mean 0.703 >= 1.5 x the probe's unwatered 0.318"
         ]
       },
       "field-potatoes": {
-        "at": "2026-11-13T14:00:45.214Z",
-        "head": "e46d693f90ae81b23751c964a1b616ae088f823e",
-        "world": "Steward M2 Field potatoes 202611131317",
-        "seconds": 2615.298,
+        "at": "2026-11-13T16:59:22.450Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
+        "world": "Steward M2 Field potatoes 202611131616",
+        "seconds": 2564.768,
         "runs": 5,
         "passed": 62,
         "of": 62,
@@ -2640,40 +2640,40 @@
           "5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (0 differ; 0 farmland below 7)",
           "5b unload: the farms' chunks unloaded (true), 2,000 ticks away, back: every crop's age the same (0 differ), every farmland cell moisture 7 (0 below)",
           "1b hydration potatoes: every farmland cell moisture 7 at every harvest (15 harvests; 0 cell-readings below)",
-          "3a band pota_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.508, 0.910]: 0.613, 0.667, 0.708, 0.696, 0.658 (5 runs)",
-          "3b usefulness pota_9x9: harvested as it ripens, 1.013 per crop a day = 81.0 per 80 crops (bar 24; mean t_cell 64367, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.668 = 53.5 per 80",
-          "3c control pota_9x9: the mean 0.668 >= 1.5 x the probe's unwatered 0.282",
-          "3a band pota_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.530, 0.871]: 0.678, 0.710, 0.694, 0.679, 0.701 (5 runs)",
-          "3b usefulness pota_18x18: harvested as it ripens, 1.061 per crop a day = 84.9 per 80 crops (bar 24; mean t_cell 61072, 2 cells immature at 3T counted as 4T); the protocol's quoted rate 0.692 = 55.4 per 80",
-          "3c control pota_18x18: the mean 0.692 >= 1.5 x the probe's unwatered 0.282",
-          "3a band pota_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.536, 0.857]: 0.704, 0.709, 0.715, 0.724, 0.735 (5 runs)",
-          "3b usefulness pota_27x27: harvested as it ripens, 1.083 per crop a day = 86.6 per 80 crops (bar 24; mean t_cell 60501, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.718 = 57.4 per 80",
-          "3c control pota_27x27: the mean 0.718 >= 1.5 x the probe's unwatered 0.282",
-          "3a band pota_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.526, 0.873]: 0.676, 0.674, 0.690, 0.726, 0.719 (5 runs)",
-          "3b usefulness pota_9x27: harvested as it ripens, 1.051 per crop a day = 84.1 per 80 crops (bar 24; mean t_cell 62105, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.697 = 55.7 per 80",
-          "3c control pota_9x27: the mean 0.697 >= 1.5 x the probe's unwatered 0.283",
-          "3a band pota_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.526, 0.873]: 0.649, 0.714, 0.671, 0.652, 0.681 (5 runs)",
-          "3b usefulness pota_27x9: harvested as it ripens, 1.039 per crop a day = 83.2 per 80 crops (bar 24; mean t_cell 62610, 2 cells immature at 3T counted as 4T); the protocol's quoted rate 0.673 = 53.9 per 80",
-          "3c control pota_27x9: the mean 0.673 >= 1.5 x the probe's unwatered 0.283",
-          "3a band pota_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.520, 0.886]: 0.652, 0.654, 0.691, 0.700, 0.689 (5 runs)",
-          "3b usefulness pota_9x18: harvested as it ripens, 1.017 per crop a day = 81.4 per 80 crops (bar 24; mean t_cell 62833, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.677 = 54.2 per 80",
-          "3c control pota_9x18: the mean 0.677 >= 1.5 x the probe's unwatered 0.282",
-          "3a band pota_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.520, 0.886]: 0.681, 0.711, 0.725, 0.664, 0.721 (5 runs)",
-          "3b usefulness pota_18x9: harvested as it ripens, 1.070 per crop a day = 85.6 per 80 crops (bar 24; mean t_cell 61277, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.700 = 56.0 per 80",
-          "3c control pota_18x9: the mean 0.700 >= 1.5 x the probe's unwatered 0.282",
-          "3a band pota_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.534, 0.862]: 0.713, 0.689, 0.741, 0.692, 0.679 (5 runs)",
-          "3b usefulness pota_18x27: harvested as it ripens, 1.074 per crop a day = 85.9 per 80 crops (bar 24; mean t_cell 60498, 2 cells immature at 3T counted as 4T); the protocol's quoted rate 0.703 = 56.2 per 80",
-          "3c control pota_18x27: the mean 0.703 >= 1.5 x the probe's unwatered 0.282",
-          "3a band pota_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.534, 0.862]: 0.723, 0.721, 0.688, 0.711, 0.702 (5 runs)",
-          "3b usefulness pota_27x18: harvested as it ripens, 1.068 per crop a day = 85.4 per 80 crops (bar 24; mean t_cell 60696, 3 cells immature at 3T counted as 4T); the protocol's quoted rate 0.709 = 56.7 per 80",
-          "3c control pota_27x18: the mean 0.709 >= 1.5 x the probe's unwatered 0.282"
+          "3a band pota_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.508, 0.910]: 0.671, 0.665, 0.642, 0.704, 0.694 (5 runs)",
+          "3b usefulness pota_9x9: harvested as it ripens, 1.016 per crop a day = 81.3 per 80 crops (bar 24; mean t_cell 65223, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.675 = 54.0 per 80",
+          "3c control pota_9x9: the mean 0.675 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.530, 0.871]: 0.687, 0.698, 0.724, 0.680, 0.706 (5 runs)",
+          "3b usefulness pota_18x18: harvested as it ripens, 1.069 per crop a day = 85.5 per 80 crops (bar 24; mean t_cell 60289, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.699 = 55.9 per 80",
+          "3c control pota_18x18: the mean 0.699 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.536, 0.857]: 0.719, 0.707, 0.722, 0.739, 0.722 (5 runs)",
+          "3b usefulness pota_27x27: harvested as it ripens, 1.094 per crop a day = 87.5 per 80 crops (bar 24; mean t_cell 60004, 4 cells immature at 3T counted as 4T); the protocol's quoted rate 0.722 = 57.8 per 80",
+          "3c control pota_27x27: the mean 0.722 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.526, 0.873]: 0.733, 0.678, 0.695, 0.688, 0.739 (5 runs)",
+          "3b usefulness pota_9x27: harvested as it ripens, 1.076 per crop a day = 86.1 per 80 crops (bar 24; mean t_cell 60720, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.707 = 56.5 per 80",
+          "3c control pota_9x27: the mean 0.707 >= 1.5 x the probe's unwatered 0.283",
+          "3a band pota_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.526, 0.873]: 0.639, 0.682, 0.678, 0.687, 0.704 (5 runs)",
+          "3b usefulness pota_27x9: harvested as it ripens, 1.035 per crop a day = 82.8 per 80 crops (bar 24; mean t_cell 62116, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.678 = 54.2 per 80",
+          "3c control pota_27x9: the mean 0.678 >= 1.5 x the probe's unwatered 0.283",
+          "3a band pota_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.520, 0.886]: 0.698, 0.685, 0.692, 0.672, 0.739 (5 runs)",
+          "3b usefulness pota_9x18: harvested as it ripens, 1.054 per crop a day = 84.3 per 80 crops (bar 24; mean t_cell 62171, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.697 = 55.8 per 80",
+          "3c control pota_9x18: the mean 0.697 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.520, 0.886]: 0.682, 0.712, 0.708, 0.646, 0.708 (5 runs)",
+          "3b usefulness pota_18x9: harvested as it ripens, 1.037 per crop a day = 83.0 per 80 crops (bar 24; mean t_cell 63064, 1 cells immature at 3T counted as 4T); the protocol's quoted rate 0.691 = 55.3 per 80",
+          "3c control pota_18x9: the mean 0.691 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.534, 0.862]: 0.709, 0.710, 0.705, 0.703, 0.686 (5 runs)",
+          "3b usefulness pota_18x27: harvested as it ripens, 1.061 per crop a day = 84.8 per 80 crops (bar 24; mean t_cell 61327, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.702 = 56.2 per 80",
+          "3c control pota_18x27: the mean 0.702 >= 1.5 x the probe's unwatered 0.282",
+          "3a band pota_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.534, 0.862]: 0.707, 0.682, 0.713, 0.710, 0.707 (5 runs)",
+          "3b usefulness pota_27x18: harvested as it ripens, 1.075 per crop a day = 86.0 per 80 crops (bar 24; mean t_cell 59992, 0 cells immature at 3T counted as 4T); the protocol's quoted rate 0.704 = 56.3 per 80",
+          "3c control pota_27x18: the mean 0.704 >= 1.5 x the probe's unwatered 0.282"
         ]
       },
       "field-beetroots": {
-        "at": "2026-11-13T14:34:10.508Z",
-        "head": "e46d693f90ae81b23751c964a1b616ae088f823e",
-        "world": "Steward M2 Field beetroots 202611131400",
-        "seconds": 2005.142,
+        "at": "2026-11-13T17:28:14.974Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
+        "world": "Steward M2 Field beetroots 202611131659",
+        "seconds": 1732.469,
         "runs": 5,
         "passed": 62,
         "of": 62,
@@ -2713,40 +2713,40 @@
           "5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (0 differ; 0 farmland below 7)",
           "5b unload: the farms' chunks unloaded (true), 2,000 ticks away, back: every crop's age the same (0 differ), every farmland cell moisture 7 (0 below)",
           "1b hydration beetroots: every farmland cell moisture 7 at every harvest (15 harvests; 0 cell-readings below)",
-          "3a band beet_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.309, 0.525]: 0.392, 0.380, 0.404, 0.395, 0.386 (5 runs)",
-          "3b usefulness beet_9x9: harvested as it ripens, 0.552 per crop a day = 44.2 per 80 crops (bar 24; mean t_cell 43487, 5 cells immature at 3T counted as 4T); the protocol's quoted rate 0.391 = 31.3 per 80",
-          "3c control beet_9x9: the mean 0.391 >= 1.5 x the probe's unwatered 0.177",
-          "3a band beet_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.330, 0.501]: 0.399, 0.392, 0.418, 0.417, 0.417 (5 runs)",
-          "3b usefulness beet_18x18: harvested as it ripens, 0.605 per crop a day = 48.4 per 80 crops (bar 24; mean t_cell 39675, 25 cells immature at 3T counted as 4T); the protocol's quoted rate 0.409 = 32.7 per 80",
-          "3c control beet_18x18: the mean 0.409 >= 1.5 x the probe's unwatered 0.177",
-          "3a band beet_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.337, 0.491]: 0.404, 0.421, 0.419, 0.420, 0.419 (5 runs)",
-          "3b usefulness beet_27x27: harvested as it ripens, 0.616 per crop a day = 49.3 per 80 crops (bar 24; mean t_cell 38961, 50 cells immature at 3T counted as 4T); the protocol's quoted rate 0.416 = 33.3 per 80",
-          "3c control beet_27x27: the mean 0.416 >= 1.5 x the probe's unwatered 0.177",
-          "3a band beet_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.326, 0.504]: 0.416, 0.390, 0.403, 0.405, 0.407 (5 runs)",
-          "3b usefulness beet_9x27: harvested as it ripens, 0.606 per crop a day = 48.5 per 80 crops (bar 24; mean t_cell 39616, 20 cells immature at 3T counted as 4T); the protocol's quoted rate 0.404 = 32.3 per 80",
-          "3c control beet_9x27: the mean 0.404 >= 1.5 x the probe's unwatered 0.177",
-          "3a band beet_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.326, 0.504]: 0.405, 0.388, 0.388, 0.395, 0.404 (5 runs)",
-          "3b usefulness beet_27x9: harvested as it ripens, 0.577 per crop a day = 46.1 per 80 crops (bar 24; mean t_cell 41625, 24 cells immature at 3T counted as 4T); the protocol's quoted rate 0.396 = 31.7 per 80",
-          "3c control beet_27x9: the mean 0.396 >= 1.5 x the probe's unwatered 0.177",
-          "3a band beet_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.322, 0.511]: 0.396, 0.403, 0.382, 0.382, 0.414 (5 runs)",
-          "3b usefulness beet_9x18: harvested as it ripens, 0.588 per crop a day = 47.1 per 80 crops (bar 24; mean t_cell 40801, 12 cells immature at 3T counted as 4T); the protocol's quoted rate 0.395 = 31.6 per 80",
-          "3c control beet_9x18: the mean 0.395 >= 1.5 x the probe's unwatered 0.177",
-          "3a band beet_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.322, 0.511]: 0.406, 0.381, 0.393, 0.396, 0.403 (5 runs)",
-          "3b usefulness beet_18x9: harvested as it ripens, 0.599 per crop a day = 47.9 per 80 crops (bar 24; mean t_cell 40073, 6 cells immature at 3T counted as 4T); the protocol's quoted rate 0.396 = 31.7 per 80",
-          "3c control beet_18x9: the mean 0.396 >= 1.5 x the probe's unwatered 0.177",
-          "3a band beet_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.334, 0.497]: 0.430, 0.418, 0.416, 0.405, 0.413 (5 runs)",
-          "3b usefulness beet_18x27: harvested as it ripens, 0.616 per crop a day = 49.3 per 80 crops (bar 24; mean t_cell 38960, 34 cells immature at 3T counted as 4T); the protocol's quoted rate 0.416 = 33.3 per 80",
-          "3c control beet_18x27: the mean 0.416 >= 1.5 x the probe's unwatered 0.177",
-          "3a band beet_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.334, 0.497]: 0.396, 0.399, 0.416, 0.408, 0.424 (5 runs)",
-          "3b usefulness beet_27x18: harvested as it ripens, 0.605 per crop a day = 48.4 per 80 crops (bar 24; mean t_cell 39637, 27 cells immature at 3T counted as 4T); the protocol's quoted rate 0.409 = 32.7 per 80",
-          "3c control beet_27x18: the mean 0.409 >= 1.5 x the probe's unwatered 0.177"
+          "3a band beet_9x9 (74 crops, front north): every run's net rate per crop a day inside [0.309, 0.525]: 0.376, 0.401, 0.417, 0.389, 0.395 (5 runs)",
+          "3b usefulness beet_9x9: harvested as it ripens, 0.565 per crop a day = 45.2 per 80 crops (bar 24; mean t_cell 42480, 5 cells immature at 3T counted as 4T); the protocol's quoted rate 0.396 = 31.6 per 80",
+          "3c control beet_9x9: the mean 0.396 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_18x18 (302 crops, front south): every run's net rate per crop a day inside [0.330, 0.501]: 0.407, 0.417, 0.400, 0.401, 0.417 (5 runs)",
+          "3b usefulness beet_18x18: harvested as it ripens, 0.604 per crop a day = 48.3 per 80 crops (bar 24; mean t_cell 39725, 18 cells immature at 3T counted as 4T); the protocol's quoted rate 0.408 = 32.7 per 80",
+          "3c control beet_18x18: the mean 0.408 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_27x27 (682 crops, front south): every run's net rate per crop a day inside [0.337, 0.491]: 0.404, 0.405, 0.411, 0.409, 0.418 (5 runs)",
+          "3b usefulness beet_27x27: harvested as it ripens, 0.609 per crop a day = 48.7 per 80 crops (bar 24; mean t_cell 39409, 52 cells immature at 3T counted as 4T); the protocol's quoted rate 0.409 = 32.7 per 80",
+          "3c control beet_27x27: the mean 0.409 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_9x27 (226 crops, front north): every run's net rate per crop a day inside [0.326, 0.504]: 0.402, 0.397, 0.389, 0.397, 0.402 (5 runs)",
+          "3b usefulness beet_9x27: harvested as it ripens, 0.592 per crop a day = 47.4 per 80 crops (bar 24; mean t_cell 40523, 13 cells immature at 3T counted as 4T); the protocol's quoted rate 0.397 = 31.8 per 80",
+          "3c control beet_9x27: the mean 0.397 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_27x9 (226 crops, front north): every run's net rate per crop a day inside [0.326, 0.504]: 0.393, 0.419, 0.401, 0.404, 0.414 (5 runs)",
+          "3b usefulness beet_27x9: harvested as it ripens, 0.610 per crop a day = 48.8 per 80 crops (bar 24; mean t_cell 39325, 11 cells immature at 3T counted as 4T); the protocol's quoted rate 0.406 = 32.5 per 80",
+          "3c control beet_27x9: the mean 0.406 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_9x18 (150 crops, front west): every run's net rate per crop a day inside [0.322, 0.511]: 0.387, 0.385, 0.420, 0.405, 0.408 (5 runs)",
+          "3b usefulness beet_9x18: harvested as it ripens, 0.591 per crop a day = 47.3 per 80 crops (bar 24; mean t_cell 40601, 16 cells immature at 3T counted as 4T); the protocol's quoted rate 0.401 = 32.1 per 80",
+          "3c control beet_9x18: the mean 0.401 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_18x9 (150 crops, front east): every run's net rate per crop a day inside [0.322, 0.511]: 0.422, 0.391, 0.391, 0.399, 0.428 (5 runs)",
+          "3b usefulness beet_18x9: harvested as it ripens, 0.602 per crop a day = 48.1 per 80 crops (bar 24; mean t_cell 39879, 14 cells immature at 3T counted as 4T); the protocol's quoted rate 0.406 = 32.5 per 80",
+          "3c control beet_18x9: the mean 0.406 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_18x27 (454 crops, front east): every run's net rate per crop a day inside [0.334, 0.497]: 0.413, 0.422, 0.395, 0.405, 0.416 (5 runs)",
+          "3b usefulness beet_18x27: harvested as it ripens, 0.625 per crop a day = 50.0 per 80 crops (bar 24; mean t_cell 38382, 32 cells immature at 3T counted as 4T); the protocol's quoted rate 0.410 = 32.8 per 80",
+          "3c control beet_18x27: the mean 0.410 >= 1.5 x the probe's unwatered 0.177",
+          "3a band beet_27x18 (454 crops, front west): every run's net rate per crop a day inside [0.334, 0.497]: 0.407, 0.422, 0.417, 0.401, 0.418 (5 runs)",
+          "3b usefulness beet_27x18: harvested as it ripens, 0.623 per crop a day = 49.9 per 80 crops (bar 24; mean t_cell 38507, 29 cells immature at 3T counted as 4T); the protocol's quoted rate 0.413 = 33.1 per 80",
+          "3c control beet_27x18: the mean 0.413 >= 1.5 x the probe's unwatered 0.177"
         ]
       },
       "skin-rustic": {
-        "at": "2026-11-13T08:45:56.728Z",
-        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
-        "world": "Steward M2 Skin rustic 202611130840",
-        "seconds": 342.98,
+        "at": "2026-11-13T14:45:16.506Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
+        "world": "Steward M2 Skin rustic 202611131443",
+        "seconds": 133.539,
         "runs": null,
         "passed": 53,
         "of": 53,
@@ -2783,7 +2783,7 @@
           "2 light rustic rust_18x9 (18x9 rustic, front east): every open floor+1 cell has block light >= 1 (172 cells, lowest 7; crop cells at 9+: 96%)",
           "2 light rustic rust_18x27 (18x27 rustic, front east): every open floor+1 cell has block light >= 1 (480 cells, lowest 6; crop cells at 9+: 78%)",
           "2 light rustic rust_27x18 (27x18 rustic, front west): every open floor+1 cell has block light >= 1 (489 cells, lowest 6; crop cells at 9+: 77%)",
-          "1a hydration rustic: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (2718 cells, 0 below; 20 below at PLACED, recorded)",
+          "1a hydration rustic: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (2718 cells, 0 below; 23 below at PLACED, recorded)",
           "4 fence rust_9x9: every one of 40 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence rust_18x18: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence rust_27x27: every one of 112 ring cells a fence (the gate a fence gate): 0 not ([])",
@@ -2793,7 +2793,7 @@
           "4 fence rust_18x9: every one of 58 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence rust_18x27: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence rust_27x18: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
-          "4a exclusion rustic: no zombie, villager or cow inside a closed fence over 12,000 ticks (9 farms x 6 mobs; 29 mobs near the farms at the end; 0 sightings inside)",
+          "4a exclusion rustic: no zombie, villager or cow inside a closed fence over 12,000 ticks (9 farms x 6 mobs; 26 mobs near the farms at the end; 0 sightings inside)",
           "4b exclusion rustic: every farmland cell still farmland and every crop cell still its crop (0 changed)",
           "4c gate rust_9x9 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
           "4c gate rust_18x18 (front south): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
@@ -2807,10 +2807,10 @@
         ]
       },
       "skin-fortress": {
-        "at": "2026-11-13T08:57:49.052Z",
-        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
-        "world": "Steward M2 Skin fortress 202611130845",
-        "seconds": 712.216,
+        "at": "2026-11-13T14:47:22.947Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
+        "world": "Steward M2 Skin fortress 202611131445",
+        "seconds": 126.392,
         "runs": null,
         "passed": 53,
         "of": 53,
@@ -2847,7 +2847,7 @@
           "2 light fortress fort_18x9 (18x9 fortress, front east): every open floor+1 cell has block light >= 1 (172 cells, lowest 7; crop cells at 9+: 96%)",
           "2 light fortress fort_18x27 (18x27 fortress, front east): every open floor+1 cell has block light >= 1 (480 cells, lowest 6; crop cells at 9+: 78%)",
           "2 light fortress fort_27x18 (27x18 fortress, front west): every open floor+1 cell has block light >= 1 (489 cells, lowest 6; crop cells at 9+: 77%)",
-          "1a hydration fortress: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (2718 cells, 0 below; 19 below at PLACED, recorded)",
+          "1a hydration fortress: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (2718 cells, 0 below; 20 below at PLACED, recorded)",
           "4 fence fort_9x9: every one of 40 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence fort_18x18: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence fort_27x27: every one of 112 ring cells a fence (the gate a fence gate): 0 not ([])",
@@ -2857,7 +2857,7 @@
           "4 fence fort_18x9: every one of 58 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence fort_18x27: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence fort_27x18: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
-          "4a exclusion fortress: no zombie, villager or cow inside a closed fence over 12,000 ticks (9 farms x 6 mobs; 33 mobs near the farms at the end; 0 sightings inside)",
+          "4a exclusion fortress: no zombie, villager or cow inside a closed fence over 12,000 ticks (9 farms x 6 mobs; 27 mobs near the farms at the end; 0 sightings inside)",
           "4b exclusion fortress: every farmland cell still farmland and every crop cell still its crop (0 changed)",
           "4c gate fort_9x9 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
           "4c gate fort_18x18 (front south): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
@@ -2871,10 +2871,10 @@
         ]
       },
       "skin-desert": {
-        "at": "2026-11-13T09:09:35.839Z",
-        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
-        "world": "Steward M2 Skin desert 202611130857",
-        "seconds": 706.665,
+        "at": "2026-11-13T14:49:28.513Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
+        "world": "Steward M2 Skin desert 202611131447",
+        "seconds": 125.512,
         "runs": null,
         "passed": 53,
         "of": 53,
@@ -2911,7 +2911,7 @@
           "2 light desert dese_18x9 (18x9 desert, front east): every open floor+1 cell has block light >= 1 (172 cells, lowest 7; crop cells at 9+: 96%)",
           "2 light desert dese_18x27 (18x27 desert, front east): every open floor+1 cell has block light >= 1 (480 cells, lowest 6; crop cells at 9+: 78%)",
           "2 light desert dese_27x18 (27x18 desert, front west): every open floor+1 cell has block light >= 1 (489 cells, lowest 6; crop cells at 9+: 77%)",
-          "1a hydration desert: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (2718 cells, 0 below; 11 below at PLACED, recorded)",
+          "1a hydration desert: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (2718 cells, 0 below; 13 below at PLACED, recorded)",
           "4 fence dese_9x9: every one of 40 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence dese_18x18: every one of 76 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence dese_27x27: every one of 112 ring cells a fence (the gate a fence gate): 0 not ([])",
@@ -2921,7 +2921,7 @@
           "4 fence dese_18x9: every one of 58 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence dese_18x27: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
           "4 fence dese_27x18: every one of 94 ring cells a fence (the gate a fence gate): 0 not ([])",
-          "4a exclusion desert: no zombie, villager or cow inside a closed fence over 12,000 ticks (9 farms x 6 mobs; 25 mobs near the farms at the end; 0 sightings inside)",
+          "4a exclusion desert: no zombie, villager or cow inside a closed fence over 12,000 ticks (9 farms x 6 mobs; 24 mobs near the farms at the end; 0 sightings inside)",
           "4b exclusion desert: every farmland cell still farmland and every crop cell still its crop (0 changed)",
           "4c gate dese_9x9 (front north): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
           "4c gate dese_18x18 (front south): closed, a walking player stays out; opened, in and out; closed again, out ({\"closed\":false,\"in\":true,\"out\":true,\"closedAgain\":false})",
@@ -2935,10 +2935,10 @@
         ]
       },
       "survival": {
-        "at": "2026-11-13T08:40:13.635Z",
-        "head": "834480e15e74d25b6958a176382bd66f75beb7b8",
-        "world": "Steward M2 Survival 202611130833",
-        "seconds": 380.317,
+        "at": "2026-11-13T17:40:20.952Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
+        "world": "Steward M2 Survival 202611131736",
+        "seconds": 222.631,
         "runs": null,
         "passed": 63,
         "of": 63,
@@ -2961,16 +2961,16 @@
           "surv_27x18: CropFarmLot's field cells = the program's layout (454)",
           "survival growth surv_18x9, surv_18x27, surv_27x18: rid 3",
           "7a bill rid 3 (surv_18x9, surv_18x27, surv_27x18): PLACED; consumed = the quote item for item (equal; 4481 items)",
-          "6 worked surv_9x9: 48 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
-          "6 worked surv_18x18: 170 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
-          "6 worked surv_27x27: 369 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
-          "6 worked surv_9x27: 187 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
-          "6 worked surv_27x9: 132 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
-          "6 worked surv_9x18: 77 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
-          "6 worked surv_18x9: 79 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
-          "6 worked surv_18x27: 385 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
-          "6 worked surv_27x18: 262 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
-          "6a after a restart: each farm's torch is still the player's (PT): 9/9",
+          "6 worked surv_9x9: 39 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_18x18: 162 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_27x27: 402 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_9x27: 192 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_27x9: 122 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_9x18: 75 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_18x9: 75 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_18x27: 391 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6 worked surv_27x18: 257 harvested by the player, 8 replanted (2 of each crop: 8 took, PT records), a cobblestone and a torch on it (tracked true/true)",
+          "6a after a restart: each farm's torch and every one of its replants are still the player's (PT): torches 9/9, replants 72/72",
           "6b land check surv_9x9: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
           "6c standing surv_9x9: 0.9974025974025974 (worked field standing; the one cell the cobblestone took is the only mismatch of 385 blocks: >= 0.9974)",
           "6b land check surv_18x18: built changed 0 standing 1; worked changed 0, playerPlaced 2 (the cobblestone and the torch)",
@@ -2992,27 +2992,27 @@
           "6b land check: the town's and the growths' parts as before the field was worked",
           "6d undo rid 3: removed true, blockers []",
           "7b refund rid 3: credited (with overflow) = consumed less one construction seed per harvested cell (equal)",
-          "7b cargo surv_18x9: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
-          "7b cargo surv_18x27: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
-          "7b cargo surv_27x18: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "7b cargo surv_18x9: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:cobblestone\":1,\"minecraft:carrot\":2,\"minecraft:potato\":2,\"minecraft:torch\":1,\"minecraft:beetroot_seeds\":2,\"minecraft:wheat_seeds\":2}",
+          "7b cargo surv_18x27: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:cobblestone\":1,\"minecraft:carrot\":2,\"minecraft:potato\":2,\"minecraft:torch\":1,\"minecraft:beetroot_seeds\":2,\"minecraft:wheat_seeds\":2}",
+          "7b cargo surv_27x18: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:cobblestone\":1,\"minecraft:carrot\":2,\"minecraft:potato\":2,\"minecraft:torch\":1,\"minecraft:beetroot_seeds\":2,\"minecraft:wheat_seeds\":2}",
           "6d undo rid 2: removed true, blockers []",
           "7b refund rid 2: credited (with overflow) = consumed less one construction seed per harvested cell (equal)",
-          "7b cargo surv_9x27: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
-          "7b cargo surv_27x9: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
-          "7b cargo surv_9x18: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "7b cargo surv_9x27: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:cobblestone\":1,\"minecraft:carrot\":2,\"minecraft:potato\":2,\"minecraft:torch\":1,\"minecraft:beetroot_seeds\":2,\"minecraft:wheat_seeds\":2}",
+          "7b cargo surv_27x9: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:cobblestone\":1,\"minecraft:carrot\":2,\"minecraft:potato\":2,\"minecraft:torch\":1,\"minecraft:beetroot_seeds\":2,\"minecraft:wheat_seeds\":2}",
+          "7b cargo surv_9x18: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:cobblestone\":1,\"minecraft:carrot\":2,\"minecraft:potato\":2,\"minecraft:torch\":1,\"minecraft:beetroot_seeds\":2,\"minecraft:wheat_seeds\":2}",
           "6d undo rid 1: removed true, blockers []",
           "7b refund rid 1: credited (with overflow) = consumed less one construction seed per harvested cell (equal)",
-          "7b cargo surv_9x9: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
-          "7b cargo surv_18x18: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
-          "7b cargo surv_27x27: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:torch\":1,\"minecraft:potato\":2,\"minecraft:carrot\":2,\"minecraft:cobblestone\":1,\"minecraft:wheat_seeds\":2,\"minecraft:beetroot_seeds\":2}",
+          "7b cargo surv_9x9: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:cobblestone\":1,\"minecraft:carrot\":2,\"minecraft:potato\":2,\"minecraft:torch\":1,\"minecraft:beetroot_seeds\":2,\"minecraft:wheat_seeds\":2}",
+          "7b cargo surv_18x18: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:cobblestone\":1,\"minecraft:carrot\":2,\"minecraft:potato\":2,\"minecraft:torch\":1,\"minecraft:beetroot_seeds\":2,\"minecraft:wheat_seeds\":2}",
+          "7b cargo surv_27x27: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): {\"minecraft:cobblestone\":1,\"minecraft:carrot\":2,\"minecraft:potato\":2,\"minecraft:torch\":1,\"minecraft:beetroot_seeds\":2,\"minecraft:wheat_seeds\":2}",
           "7b after a restart: nothing given twice (the ledger and stock unchanged; items on the ground {})"
         ]
       },
       "bounds": {
-        "at": "2026-11-13T11:31:55.940Z",
-        "head": "32e4298cb1e2832d18a2ff7dbdcfb364a8805b4e",
-        "world": "Steward M2 Bounds 202611131124",
-        "seconds": 460.492,
+        "at": "2026-11-13T17:33:28.749Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
+        "world": "Steward M2 Bounds 202611131728",
+        "seconds": 313.721,
         "runs": null,
         "passed": 111,
         "of": 111,
@@ -3131,10 +3131,10 @@
         ]
       },
       "border": {
-        "at": "2026-11-13T11:44:17.447Z",
-        "head": "f58bedfff645da02265167903fb80cb741b37e61",
-        "world": "Steward M2 Border 202611131141",
-        "seconds": 177.481,
+        "at": "2026-11-13T17:35:05.023Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
+        "world": "Steward M2 Border 202611131733",
+        "seconds": 96.22,
         "runs": null,
         "passed": 23,
         "of": 23,
@@ -3165,10 +3165,10 @@
         ]
       },
       "cover": {
-        "at": "2026-11-13T14:34:10.593Z",
-        "head": "e46d693f90ae81b23751c964a1b616ae088f823e",
+        "at": "2026-11-13T17:35:05.089Z",
+        "head": "743d395e2f5deecc3517d20612b27b16ab29a871",
         "world": null,
-        "seconds": 0.023,
+        "seconds": 0.013,
         "runs": null,
         "passed": 11,
         "of": 11,
@@ -4030,9 +4030,9 @@
       },
       "perDay": 123,
       "item": "minecraft:beetroot",
-      "perCropDay": 0.4085980244920643,
+      "perCropDay": 0.4084468039056497,
       "crops": 302,
-      "ripenPerCropDay": 0.6049164888083105
+      "ripenPerCropDay": 0.6041462738820115
     },
     {
       "params": {
@@ -4040,11 +4040,11 @@
         "depth": 18,
         "width": 27
       },
-      "perDay": 185,
+      "perDay": 187,
       "item": "minecraft:beetroot",
-      "perCropDay": 0.40880453718716775,
+      "perCropDay": 0.4131299788946108,
       "crops": 454,
-      "ripenPerCropDay": 0.605494953391837
+      "ripenPerCropDay": 0.6232704331283336
     },
     {
       "params": {
@@ -4052,11 +4052,11 @@
         "depth": 18,
         "width": 9
       },
-      "perDay": 59,
+      "perDay": 60,
       "item": "minecraft:beetroot",
-      "perCropDay": 0.3954902240616527,
+      "perCropDay": 0.40097045811331533,
       "crops": 150,
-      "ripenPerCropDay": 0.5882212998331281
+      "ripenPerCropDay": 0.5911123693777127
     },
     {
       "params": {
@@ -4064,11 +4064,11 @@
         "depth": 27,
         "width": 18
       },
-      "perDay": 189,
+      "perDay": 186,
       "item": "minecraft:beetroot",
-      "perCropDay": 0.41634891225828924,
+      "perCropDay": 0.4102128205337771,
       "crops": 454,
-      "ripenPerCropDay": 0.6160235458491694
+      "ripenPerCropDay": 0.6252880321948046
     },
     {
       "params": {
@@ -4076,47 +4076,47 @@
         "depth": 27,
         "width": 27
       },
-      "perDay": 283,
+      "perDay": 279,
       "item": "minecraft:beetroot",
-      "perCropDay": 0.4163745764080913,
+      "perCropDay": 0.409343484333011,
       "crops": 682,
-      "ripenPerCropDay": 0.6160061474764029
+      "ripenPerCropDay": 0.6090041531940124
     },
     {
       "params": {
         "crop": "beetroots",
         "depth": 27,
         "width": 9
-      },
-      "perDay": 91,
-      "item": "minecraft:beetroot",
-      "perCropDay": 0.40434912748439933,
-      "crops": 226,
-      "ripenPerCropDay": 0.6058100805501792
-    },
-    {
-      "params": {
-        "crop": "beetroots",
-        "depth": 9,
-        "width": 18
-      },
-      "perDay": 59,
-      "item": "minecraft:beetroot",
-      "perCropDay": 0.3957946815089673,
-      "crops": 150,
-      "ripenPerCropDay": 0.598912634185128
-    },
-    {
-      "params": {
-        "crop": "beetroots",
-        "depth": 9,
-        "width": 27
       },
       "perDay": 89,
       "item": "minecraft:beetroot",
-      "perCropDay": 0.3960641128782722,
+      "perCropDay": 0.39747862756712316,
       "crops": 226,
-      "ripenPerCropDay": 0.5765752036690251
+      "ripenPerCropDay": 0.592255770983254
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 9,
+        "width": 18
+      },
+      "perDay": 60,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.40614623471766337,
+      "crops": 150,
+      "ripenPerCropDay": 0.6018276703912889
+    },
+    {
+      "params": {
+        "crop": "beetroots",
+        "depth": 9,
+        "width": 27
+      },
+      "perDay": 91,
+      "item": "minecraft:beetroot",
+      "perCropDay": 0.4063698627541864,
+      "crops": 226,
+      "ripenPerCropDay": 0.6103015663866781
     },
     {
       "params": {
@@ -4124,167 +4124,167 @@
         "depth": 9,
         "width": 9
       },
-      "perDay": 28,
+      "perDay": 29,
       "item": "minecraft:beetroot",
-      "perCropDay": 0.3912689626975342,
+      "perCropDay": 0.3955889670175385,
       "crops": 74,
-      "ripenPerCropDay": 0.5518863606320069
+      "ripenPerCropDay": 0.564972038973909
     },
     {
       "params": {
         "crop": "carrots",
-        "depth": 18,
-        "width": 18
-      },
-      "perDay": 211,
-      "item": "minecraft:carrot",
-      "perCropDay": 0.6996976533400374,
-      "crops": 302,
-      "ripenPerCropDay": 1.0610625163437748
-    },
-    {
-      "params": {
-        "crop": "carrots",
-        "depth": 18,
-        "width": 27
-      },
-      "perDay": 327,
-      "item": "minecraft:carrot",
-      "perCropDay": 0.7223906783378149,
-      "crops": 454,
-      "ripenPerCropDay": 1.096752433403207
-    },
-    {
-      "params": {
-        "crop": "carrots",
-        "depth": 18,
-        "width": 9
-      },
-      "perDay": 103,
-      "item": "minecraft:carrot",
-      "perCropDay": 0.6874902874902874,
-      "crops": 150,
-      "ripenPerCropDay": 1.020521026702612
-    },
-    {
-      "params": {
-        "crop": "carrots",
-        "depth": 27,
-        "width": 18
-      },
-      "perDay": 323,
-      "item": "minecraft:carrot",
-      "perCropDay": 0.7136475858942819,
-      "crops": 454,
-      "ripenPerCropDay": 1.0711319839539883
-    },
-    {
-      "params": {
-        "crop": "carrots",
-        "depth": 27,
-        "width": 27
-      },
-      "perDay": 483,
-      "item": "minecraft:carrot",
-      "perCropDay": 0.7083825265643446,
-      "crops": 682,
-      "ripenPerCropDay": 1.0891152828699093
-    },
-    {
-      "params": {
-        "crop": "carrots",
-        "depth": 27,
-        "width": 9
-      },
-      "perDay": 156,
-      "item": "minecraft:carrot",
-      "perCropDay": 0.6942909597776853,
-      "crops": 226,
-      "ripenPerCropDay": 1.0675206087317937
-    },
-    {
-      "params": {
-        "crop": "carrots",
-        "depth": 9,
-        "width": 18
-      },
-      "perDay": 103,
-      "item": "minecraft:carrot",
-      "perCropDay": 0.6908646908646909,
-      "crops": 150,
-      "ripenPerCropDay": 1.0623146032902948
-    },
-    {
-      "params": {
-        "crop": "carrots",
-        "depth": 9,
-        "width": 27
-      },
-      "perDay": 156,
-      "item": "minecraft:carrot",
-      "perCropDay": 0.6914619303999835,
-      "crops": 226,
-      "ripenPerCropDay": 1.0361496278743523
-    },
-    {
-      "params": {
-        "crop": "carrots",
-        "depth": 9,
-        "width": 9
-      },
-      "perDay": 49,
-      "item": "minecraft:carrot",
-      "perCropDay": 0.6696006696006696,
-      "crops": 74,
-      "ripenPerCropDay": 0.9938424442164229
-    },
-    {
-      "params": {
-        "crop": "potatoes",
         "depth": 18,
         "width": 18
       },
       "perDay": 209,
-      "item": "minecraft:potato",
-      "perCropDay": 0.6923067471790273,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.6951106288854633,
       "crops": 302,
-      "ripenPerCropDay": 1.0614136178221474
+      "ripenPerCropDay": 1.061914324632499
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 18,
+        "width": 27
+      },
+      "perDay": 319,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.703261496213038,
+      "crops": 454,
+      "ripenPerCropDay": 1.0697543394551665
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 18,
+        "width": 9
+      },
+      "perDay": 105,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.7040071040071039,
+      "crops": 150,
+      "ripenPerCropDay": 1.054236001380162
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 27,
+        "width": 18
+      },
+      "perDay": 321,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.7071342754162137,
+      "crops": 454,
+      "ripenPerCropDay": 1.0779534798249117
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 27,
+        "width": 27
+      },
+      "perDay": 479,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.7023670366778871,
+      "crops": 682,
+      "ripenPerCropDay": 1.0899580556245458
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 27,
+        "width": 9
+      },
+      "perDay": 159,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.7043104388237131,
+      "crops": 226,
+      "ripenPerCropDay": 1.0655446049827924
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 9,
+        "width": 18
+      },
+      "perDay": 101,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.6798534798534799,
+      "crops": 150,
+      "ripenPerCropDay": 1.0316936806733843
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 9,
+        "width": 27
+      },
+      "perDay": 159,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.7043104388237131,
+      "crops": 226,
+      "ripenPerCropDay": 1.0685581488136633
+    },
+    {
+      "params": {
+        "crop": "carrots",
+        "depth": 9,
+        "width": 9
+      },
+      "perDay": 48,
+      "item": "minecraft:carrot",
+      "perCropDay": 0.6620406620406619,
+      "crops": 74,
+      "ripenPerCropDay": 1.0020378952874596
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 18,
+        "width": 18
+      },
+      "perDay": 211,
+      "item": "minecraft:potato",
+      "perCropDay": 0.699017160701172,
+      "crops": 302,
+      "ripenPerCropDay": 1.0690677089843448
     },
     {
       "params": {
         "crop": "potatoes",
         "depth": 18,
         "width": 27
-      },
-      "perDay": 321,
-      "item": "minecraft:potato",
-      "perCropDay": 0.7091712566854166,
-      "crops": 454,
-      "ripenPerCropDay": 1.0678082535264573
-    },
-    {
-      "params": {
-        "crop": "potatoes",
-        "depth": 18,
-        "width": 9
-      },
-      "perDay": 101,
-      "item": "minecraft:potato",
-      "perCropDay": 0.67703724846582,
-      "crops": 150,
-      "ripenPerCropDay": 1.017232012969552
-    },
-    {
-      "params": {
-        "crop": "potatoes",
-        "depth": 27,
-        "width": 18
       },
       "perDay": 319,
       "item": "minecraft:potato",
-      "perCropDay": 0.7028214076672226,
+      "perCropDay": 0.7040788035124097,
       "crops": 454,
-      "ripenPerCropDay": 1.0743219753877318
+      "ripenPerCropDay": 1.0754226869728116
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 18,
+        "width": 9
+      },
+      "perDay": 104,
+      "item": "minecraft:potato",
+      "perCropDay": 0.6972075543504117,
+      "crops": 150,
+      "ripenPerCropDay": 1.053966288039824
+    },
+    {
+      "params": {
+        "crop": "potatoes",
+        "depth": 27,
+        "width": 18
+      },
+      "perDay": 318,
+      "item": "minecraft:potato",
+      "perCropDay": 0.7024441889136666,
+      "crops": 454,
+      "ripenPerCropDay": 1.060519310743885
     },
     {
       "params": {
@@ -4292,11 +4292,11 @@
         "depth": 27,
         "width": 27
       },
-      "perDay": 489,
+      "perDay": 492,
       "item": "minecraft:potato",
-      "perCropDay": 0.7175899090436167,
+      "perCropDay": 0.7219424898519997,
       "crops": 682,
-      "ripenPerCropDay": 1.082879399291267
+      "ripenPerCropDay": 1.0939574332885411
     },
     {
       "params": {
@@ -4304,11 +4304,11 @@
         "depth": 27,
         "width": 9
       },
-      "perDay": 157,
+      "perDay": 159,
       "item": "minecraft:potato",
-      "perCropDay": 0.6966484842591038,
+      "perCropDay": 0.7067521606080392,
       "crops": 226,
-      "ripenPerCropDay": 1.0510859445398886
+      "ripenPerCropDay": 1.0758070932906902
     },
     {
       "params": {
@@ -4316,11 +4316,11 @@
         "depth": 9,
         "width": 18
       },
-      "perDay": 105,
+      "perDay": 103,
       "item": "minecraft:potato",
-      "perCropDay": 0.7004424147281291,
+      "perCropDay": 0.6911184054041197,
       "crops": 150,
-      "ripenPerCropDay": 1.0695242961551583
+      "ripenPerCropDay": 1.036914699721857
     },
     {
       "params": {
@@ -4328,11 +4328,11 @@
         "depth": 9,
         "width": 27
       },
-      "perDay": 152,
+      "perDay": 153,
       "item": "minecraft:potato",
-      "perCropDay": 0.6732837327021903,
+      "perCropDay": 0.6780829789679348,
       "crops": 226,
-      "ripenPerCropDay": 1.0394187045966934
+      "ripenPerCropDay": 1.0346389187195346
     },
     {
       "params": {
@@ -4342,9 +4342,9 @@
       },
       "perDay": 49,
       "item": "minecraft:potato",
-      "perCropDay": 0.6684435255863828,
+      "perCropDay": 0.675386389672104,
       "crops": 74,
-      "ripenPerCropDay": 1.0128109599480266
+      "ripenPerCropDay": 1.0162722302589549
     },
     {
       "params": {
@@ -4352,11 +4352,11 @@
         "depth": 18,
         "width": 18
       },
-      "perDay": 78,
+      "perDay": 79,
       "item": "minecraft:wheat",
-      "perCropDay": 0.2587258216397289,
+      "perCropDay": 0.2636656941292702,
       "crops": 302,
-      "ripenPerCropDay": 0.3957802875533816
+      "ripenPerCropDay": 0.3967578707253157
     },
     {
       "params": {
@@ -4364,11 +4364,11 @@
         "depth": 18,
         "width": 27
       },
-      "perDay": 119,
+      "perDay": 118,
       "item": "minecraft:wheat",
-      "perCropDay": 0.26246880872431533,
+      "perCropDay": 0.26012166981329976,
       "crops": 454,
-      "ripenPerCropDay": 0.4008428146920517
+      "ripenPerCropDay": 0.39912542008628127
     },
     {
       "params": {
@@ -4378,9 +4378,9 @@
       },
       "perDay": 37,
       "item": "minecraft:wheat",
-      "perCropDay": 0.25272505272505275,
+      "perCropDay": 0.25094905094905096,
       "crops": 150,
-      "ripenPerCropDay": 0.3835475652464483
+      "ripenPerCropDay": 0.3817960573151393
     },
     {
       "params": {
@@ -4388,11 +4388,11 @@
         "depth": 27,
         "width": 18
       },
-      "perDay": 120,
+      "perDay": 118,
       "item": "minecraft:wheat",
-      "perCropDay": 0.2646399122170047,
+      "perCropDay": 0.2614125962143583,
       "crops": 454,
-      "ripenPerCropDay": 0.4032416543299738
+      "ripenPerCropDay": 0.40133458187087717
     },
     {
       "params": {
@@ -4402,9 +4402,9 @@
       },
       "perDay": 180,
       "item": "minecraft:wheat",
-      "perCropDay": 0.264837801494693,
+      "perCropDay": 0.264720616626775,
       "crops": 682,
-      "ripenPerCropDay": 0.40361598495660495
+      "ripenPerCropDay": 0.40104316108923227
     },
     {
       "params": {
@@ -4414,9 +4414,9 @@
       },
       "perDay": 58,
       "item": "minecraft:wheat",
-      "perCropDay": 0.25755954959494776,
+      "perCropDay": 0.258738311835657,
       "crops": 226,
-      "ripenPerCropDay": 0.3851949962317788
+      "ripenPerCropDay": 0.39688942305053865
     },
     {
       "params": {
@@ -4426,9 +4426,9 @@
       },
       "perDay": 38,
       "item": "minecraft:wheat",
-      "perCropDay": 0.2534354534354534,
+      "perCropDay": 0.2575202575202575,
       "crops": 150,
-      "ripenPerCropDay": 0.39453574135446706
+      "ripenPerCropDay": 0.39084552916141924
     },
     {
       "params": {
@@ -4438,9 +4438,9 @@
       },
       "perDay": 58,
       "item": "minecraft:wheat",
-      "perCropDay": 0.258738311835657,
+      "perCropDay": 0.2569701684745932,
       "crops": 226,
-      "ripenPerCropDay": 0.3910212016107478
+      "ripenPerCropDay": 0.39325650359905834
     },
     {
       "params": {
@@ -4450,9 +4450,9 @@
       },
       "perDay": 18,
       "item": "minecraft:wheat",
-      "perCropDay": 0.2491202491202491,
+      "perCropDay": 0.25020025020025016,
       "crops": 74,
-      "ripenPerCropDay": 0.37252097360202274
+      "ripenPerCropDay": 0.37890370017384345
     }
   ]
 }

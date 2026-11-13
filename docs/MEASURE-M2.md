@@ -36,7 +36,9 @@ If a bar fails because of a vanilla rule, the slice stops and reports it (it goe
 - **Styles.** rustic, fortress and desert (§9). rustic is measured in full (items 1-7). Items 1, 2 and 4 also run on fortress and desert
   over all 9 size pairs, since the lamp and fence roles change with the Style. The fallback lantern needs no farm of its own: all three
   Styles' lamp role is `minecraft:lantern`, the fallback block itself, so every farm measures its light (amended before any measurement:
-  the first draft named a soul-lantern farm).
+  the first draft named a soul-lantern farm). *This narrowed the measurement, it did not make it stricter (the gate-verifier's flag): the
+  substitution itself, a lamp under light 14 replaced by the lantern and said, is checked offline over the kit (`module-catalog.mjs
+  offline`, the `dimLamp` probe), not by a farm in game; the block that results is measured on every farm.*
 - **The checker** over every branch x Style: `tools/module-catalog.mjs offline` and `ingame` (M1's), clean.
 
 ## The bars

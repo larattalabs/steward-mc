@@ -911,7 +911,7 @@ async function survival() {
         torch = await call('dev.pt.uses', { ops: [{ item: 'minecraft:torch', at: [cob[0], cob[1] + 1, cob[2]], on: cob, face: 'up', placer: PLACER }] }, 120_000);
       }
       await mod({ op: 'takeItems', box: dropBox(f) });
-      out.farms[f.id] = { crop: f.crop, size: `${f.width}x${f.depth}`, front: f.lot.front, harvested: hv.broken, replanted: Object.fromEntries(crops.map((c) => [c, rp[c].length])), took, cobble: cobble?.results?.[0] ?? null, torch: torch?.results?.[0] ?? null, cob };
+      out.farms[f.id] = { crop: f.crop, size: `${f.width}x${f.depth}`, front: f.lot.front, harvested: hv.broken, replanted: Object.fromEntries(crops.map((c) => [c, rp[c].length])), replantCells: crops.flatMap((c) => rp[c]), took, cobble: cobble?.results?.[0] ?? null, torch: torch?.results?.[0] ?? null, cob };
       check(hv.broken >= 9 && took === 8 && cobble?.results?.[0]?.tracked && torch?.results?.[0]?.tracked, `6 worked ${f.id}: ${hv.broken} harvested by the player, 8 replanted (2 of each crop: ${took} took, PT records), a cobblestone and a torch on it (tracked ${!!cobble?.results?.[0]?.tracked}/${!!torch?.results?.[0]?.tracked})`);
     }
     // ---- a restart: the records hold (6a)
@@ -927,8 +927,12 @@ async function survival() {
       const at = W.cob ? [W.cob[0], W.cob[1] + 1, W.cob[2]] : null;
       const t = at ? await call('dev.pt.at', { at }, 30_000) : null;
       W.torchAfterRestart = t?.tracked ?? null;
+      // every planting the player made, each still the player's (PT) after the restart
+      W.replantsAfterRestart = 0;
+      for (const c of W.replantCells) if ((await call('dev.pt.at', { at: c }, 30_000))?.tracked === true) W.replantsAfterRestart++;
     }
-    check(farms.every((f) => out.farms[f.id].torchAfterRestart === true), `6a after a restart: each farm's torch is still the player's (PT): ${farms.filter((f) => out.farms[f.id].torchAfterRestart === true).length}/${farms.length}`);
+    check(farms.every((f) => out.farms[f.id].torchAfterRestart === true && out.farms[f.id].replantsAfterRestart === out.farms[f.id].replantCells.length),
+      `6a after a restart: each farm's torch and every one of its replants are still the player's (PT): torches ${farms.filter((f) => out.farms[f.id].torchAfterRestart === true).length}/${farms.length}, replants ${farms.reduce((a, f) => a + out.farms[f.id].replantsAfterRestart, 0)}/${farms.reduce((a, f) => a + out.farms[f.id].replantCells.length, 0)}`);
     // ---- 6b, 6c: land check and standing
     const land1 = await land(region);
     out.land = { before: (land0.lots ?? []).filter((l) => farms.some((f) => f.id === l.lot)), after: (land1.lots ?? []).filter((l) => farms.some((f) => f.id === l.lot)), partsSame: partsKey(land0) === partsKey(land1) };
