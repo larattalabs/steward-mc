@@ -3316,6 +3316,11 @@ public final class SettlementRunner {
 
 	private void say(String text) {
 		Steward.LOGGER.info("settlement: {}", text);
+		// (S-7c-4) everything the build tells the player, Architect's reasons included, without a hidden room's name
+		if (settlement != null) {
+			String told = Secrets.ofSettlement(settlement.id()).mask(text);
+			text = told.isBlank() ? "Architect's reason concerns a part of the plan kept private." : told;
+		}
 		if (!Session.is(session)) return;
 		if (settlement != null) StewardVoice.say(server, settlement.id(), text);
 		ServerPlayer p = server.getPlayerList().getPlayer(playerId);

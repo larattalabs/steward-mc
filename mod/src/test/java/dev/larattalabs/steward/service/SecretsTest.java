@@ -94,4 +94,17 @@ class SecretsTest {
 		assertEquals("Marketwall", MaterialRequests.hostName(null, "secret_cellar", "Marketwall"));
 		assertTrue(s.hides("secret_cellar"));
 	}
+
+	@Test
+	void architectsOwnReasonIsToldWithoutTheRoom() throws Exception {
+		var s = Secrets.of(walledTown().getAsJsonObject("plan"), null);
+		assertEquals("The land under the plan changed (a part of the plan at 1, 2, 3 is grass, not the trapdoor its plan wrote; re-plan): checking it again...",
+			s.mask("The land under the plan changed (f_secret_cellar_door at 1, 2, 3 is grass, not the trapdoor its plan wrote; re-plan): checking it again..."));
+		assertEquals("Stage a part of the plan could not be approved.", s.mask("Stage secret_cellar:entrance could not be approved."));
+		assertFalse(s.names(s.mask("The hidden cellar's hatch is blocked. The wall is fine.")));
+		assertEquals("a part of the plan's hatch is blocked. The wall is fine.", s.mask("The hidden cellar's hatch is blocked. The wall is fine."));
+		String plain = "Gate town_wall_g1 of region rg4 is grass.";
+		assertEquals(plain, s.mask(plain));
+		assertEquals(plain, Secrets.NONE.mask(plain));
+	}
 }

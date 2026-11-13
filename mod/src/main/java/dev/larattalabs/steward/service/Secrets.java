@@ -31,6 +31,8 @@ public final class Secrets {
 	private static final Pattern SENTENCE = Pattern.compile("(?<=[.!?;])\\s+");
 
 	private final Set<String> parts;
+	/** The names alone, without the tells (what {@link #mask} replaces). */
+	private final List<Pattern> own;
 	/** Lower-case words and phrases that name a secret (its id in words, its label, the label's own words), and the tells. */
 	private final List<Pattern> names;
 
@@ -39,6 +41,18 @@ public final class Secrets {
 		List<Pattern> p = new ArrayList<>();
 		for (String w : words) p.add(Pattern.compile("(?<![\\p{L}\\p{N}])" + Pattern.quote(w) + "(?![\\p{L}\\p{N}])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE));
 		this.names = List.copyOf(p);
+		// longest first, so "f_secret_cellar_door" goes whole before "secret_cellar" or "cellar"
+		List<String> mine = new ArrayList<>();
+		for (String id : parts) {
+			mine.add("f_" + id.toLowerCase(Locale.ROOT) + "_door");
+			mine.add("f_" + id.toLowerCase(Locale.ROOT));
+		}
+		for (String w : words) if (!TELLS.contains(w)) mine.add(w);
+		mine.sort(java.util.Comparator.comparingInt(String::length).reversed());
+		List<Pattern> o = new ArrayList<>();
+		for (String w : mine.stream().distinct().toList())
+			o.add(Pattern.compile("(?<![\\p{L}\\p{N}])(?:(?:the|a|an|its) )?" + Pattern.quote(w) + "(?:@\\d+|:entrance)?(?![\\p{L}\\p{N}])", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE));
+		this.own = List.copyOf(o);
 	}
 
 	/** The secrets of a kept plan (as JSON); none when it can't be read. */
@@ -153,6 +167,18 @@ public final class Secrets {
 		List<String> kept = new ArrayList<>();
 		for (String s : SENTENCE.split(text.strip())) if (!names(s)) kept.add(s);
 		return String.join(" ", kept);
+	}
+
+	/**
+	 * A message Steward didn't write (Architect's reason, a refusal, a stale artifact's cell) told without the secret: each name of one (its id, its region
+	 * parts, its label) becomes "a part of the plan", and a sentence still giving it away is dropped. The text as it is when the plan has none.
+	 */
+	public String mask(@Nullable String text) {
+		if (text == null) return "";
+		if (names.isEmpty() || !names(text)) return text;
+		String out = text;
+		for (Pattern p : own) out = p.matcher(out).replaceAll("a part of the plan");
+		return names(out) ? scrub(out) : out;
 	}
 
 	/** {@code lines} without those that name a secret. */

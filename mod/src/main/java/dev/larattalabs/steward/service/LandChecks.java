@@ -190,7 +190,7 @@ public final class LandChecks {
 				if (onDemand) done.accept(new LandWords.Note("The land changed while I looked: ask me again.", List.of(), 0, 0, false, false, ""));
 				return;
 			}
-			LandWords.Note note = LandWords.note(s.name(), looks, siteId -> buildingName(server, siteId), onDemand, Secrets.ofSettlement(s.id())::hides);
+			LandWords.Note note = LandWords.note(s.name(), looks, siteId -> buildingName(server, siteId), onDemand, secretOf(s.id()));
 			Steward.LOGGER.info("land check {}: {} ({} lines, damage {}, placed {}{})", s.id(), note.headline(), note.lines().size(), note.damage(), note.placed(),
 				onDemand ? ", asked" : "");
 			LAST.put(s.id(), new Kept(note, System.currentTimeMillis()));
@@ -304,5 +304,11 @@ public final class LandChecks {
 	private static @Nullable String buildingName(MinecraftServer server, String siteId) {
 		if (siteId == null) return null;
 		return ArchitectApi.get().sites(server).get(siteId).map(Updates::lotOf).filter(n -> !n.equals(siteId)).orElse(null);
+	}
+
+	/** (S-7c-4) A region part or a message of the settlement's land report that would name a hidden room. */
+	static java.util.function.Predicate<String> secretOf(String settlementId) {
+		var sec = Secrets.ofSettlement(settlementId);
+		return x -> sec.hides(x) || sec.names(x);
 	}
 }

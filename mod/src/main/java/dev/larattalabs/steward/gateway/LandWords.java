@@ -93,7 +93,7 @@ public final class LandWords {
 			if (look.report() == null) {
 				complete = false;
 				if ("REGION_LIMIT".equals(look.refusal())) gaps.add(look.label() + " is too large for me to look over at once.");
-				else gaps.add("I couldn't look over " + look.label() + (look.message() == null || look.message().isBlank() ? "." : ": " + look.message()));
+				else gaps.add("I couldn't look over " + look.label() + (look.message() == null || look.message().isBlank() || secret.test(look.message()) ? "." : ": " + look.message()));
 				continue;
 			}
 			seen = true;
