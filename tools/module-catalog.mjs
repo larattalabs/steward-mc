@@ -25,6 +25,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { styleBounds } from './lib/style-bounds.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -314,7 +315,7 @@ async function ingame() {
  * Writes the evidence into measured.json, only when both steps passed on these exact files (program and module.json bytes), on the pinned
  * Architect and Minecraft versions; it then certifies them: `result: "pass"` and the `moduleSha` the game computed for this module.json.
  */
-function record() {
+async function record() {
   const off = JSON.parse(fs.readFileSync(path.join(ART, 'offline.json'), 'utf8'));
   const inn = JSON.parse(fs.readFileSync(path.join(ART, 'ingame.json'), 'utf8'));
   let refused = 0;
@@ -351,7 +352,15 @@ function record() {
       m.checks.measure = measure; m.what = MEASURES[e.id]?.what; m.bars = MEASURES[e.id]?.bars; m.runs = 5;
       // M3 reads these: the whole growth's bill per params (the survival bound) and the quoted net rate (the fixed-cycle protocol rate)
       const art = (s) => JSON.parse(fs.readFileSync(path.join(ROOT, 'artifacts', 'm2', `${s}.json`), 'utf8')).data;
-      m.bounds = art('bounds').bounds;
+      // per measured Style, with each palette role's share of the lot (tools/lib/style-bounds.mjs): Steward re-expresses it in the town's blocks
+      const sb = await styleBounds({ quotes: art('bounds').quotes, kit: path.join(ART, `kit-${ARCH_VERSION}`, 'kit'), source: e.source, id: e.id });
+      const styles = new Set(e.module.envelope.bibles);
+      for (const b of sb.bounds) styles.has(b.style) || sb.problems.push(`a bound for ${b.style}, not one of the envelope's Styles`);
+      const per = new Map();
+      for (const b of sb.bounds) per.set(JSON.stringify(b.params), [...(per.get(JSON.stringify(b.params)) ?? []), b.style]);
+      if (per.size !== combinations(e.module.envelope.branches).length || [...per.values()].some((v) => v.length !== styles.size || new Set(v).size !== styles.size)) sb.problems.push(`bounds: ${per.size} params, not every one with each of the ${styles.size} Styles once`);
+      if (sb.problems.length) { refused++; log(`REFUSED ${key}: the per-Style bounds: ${sb.problems.slice(0, 5).join('; ')}`); continue; }
+      m.bounds = sb.bounds;
       m.rates = [];
       for (const crop of ['wheat', 'carrots', 'potatoes', 'beetroots']) {
         const F = art(`field-${crop}`);
@@ -398,7 +407,7 @@ function measurement(e, now, why) {
 }
 
 const steps = { offline, ingame };
-if (step === 'record') record();
+if (step === 'record') await record();
 else if (steps[step]) {
   const t0 = Date.now();
   let data, error;

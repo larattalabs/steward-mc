@@ -11,6 +11,7 @@ import dev.larattalabs.steward.model.Settlement;
 import dev.larattalabs.steward.module.Canon;
 import dev.larattalabs.steward.module.McBlockFacts;
 import dev.larattalabs.steward.module.ModuleBound;
+import dev.larattalabs.steward.module.StyleBound;
 import dev.larattalabs.steward.module.ModuleCatalog;
 import dev.larattalabs.steward.module.ModuleDev;
 import dev.larattalabs.steward.module.ModuleGate;
@@ -97,15 +98,38 @@ public final class ModuleOffers {
 		return ModuleGate.offer(catalog(), id, env());
 	}
 
-	/** The bound for these params: the measurement's, else (dev source only) the dev JSON's. */
+	/** The bound for these params in the measured Styles' blocks (no town): see {@link #bound(ModuleCatalog.Entry, JsonObject, Map)}. */
 	public static @Nullable JsonObject bound(ModuleCatalog.Entry e, JsonObject params) {
-		JsonObject b = ModuleBound.of(e.measured(), params);
+		return bound(e, params, null);
+	}
+
+	/**
+	 * The bound for these params: the measurement's, in the town's blocks ({@code town}: {@link #townBlocks}; null: as measured), else (dev
+	 * source only) the dev JSON's.
+	 */
+	public static @Nullable JsonObject bound(ModuleCatalog.Entry e, JsonObject params, @Nullable Map<String, String> town) {
+		JsonObject b = ModuleBound.of(e.measured(), params, town);
 		DevSource d = devSource;
 		// the dev source's bounds stand in for a measurement's only when it has none, or (dev, override) to hold a measured module's bill on purpose
 		if (d == null || (b != null && !d.override())) return b;
 		JsonObject raw = new JsonObject();
 		raw.add(ModuleBound.MEMBER, d.bounds());
-		return ModuleBound.of(new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, raw), params);
+		return ModuleBound.of(new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, raw), params, town);
+	}
+
+	/** The town's block for each role a measured bound re-expresses (StyleBound), from the settlement's bible; null when it can't be read. */
+	public static @Nullable Map<String, String> townBlocks(Settlement s, ModuleCatalog.Entry e) {
+		var b = s.bible();
+		if (b == null || b.styleVersion() != s.styleVersion()) return null;
+		var bible = ArchitectApi.get().bibles().get(b.id(), b.version());
+		if (bible.isEmpty()) return null;
+		var pc = PaletteCheck.check(e.palette(), bible.get().roles(), McBlockFacts.INSTANCE);
+		return StyleBound.townBlocks(bible.get().roles(), pc.lamp());
+	}
+
+	/** The bound function for this settlement's offers. */
+	public static java.util.function.BiFunction<ModuleCatalog.Entry, JsonObject, @Nullable JsonObject> bounds(Settlement s) {
+		return (e, p) -> bound(e, p, townBlocks(s, e));
 	}
 
 	/** Whether a module of this id stands in the settlement (module identity: a standing site whose lot ext names it). */
@@ -190,7 +214,7 @@ public final class ModuleOffers {
 		for (ModuleKind k : kinds()) {
 			var v = verdict(k.id());
 			if (town == null) town = town(server, s, p, district);
-			var d = ModuleOffer.decide(k, v, town, null, ModuleOffers::bound);
+			var d = ModuleOffer.decide(k, v, town, null, bounds(s));
 			Proposal offer = null;
 			String why = d.why();
 			if (d.ok()) {
@@ -219,7 +243,7 @@ public final class ModuleOffers {
 		if (standing(server, s, o.moduleId())) return "a working " + kind.get().role() + " stands already";
 		var town = town(server, s, p, pr.district() != null);
 		// the params as offered: checked again against the envelope (the seeds may be gone, but the size was approved)
-		var d = ModuleOffer.decide(kind.get(), v, town, o.params(), ModuleOffers::bound);
+		var d = ModuleOffer.decide(kind.get(), v, town, o.params(), bounds(s));
 		if (!d.ok()) return d.why();
 		boolean materials = town.path() == ModuleOffer.Path.REGION_MATERIALS;
 		if (materials && o.bound() == null) return "the town builds from materials now, and the offer had no bill to approve";

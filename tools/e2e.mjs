@@ -4460,9 +4460,12 @@ async function moduleSurvivalFlow() {
     const tiny = sides.flatMap((width) => sides.flatMap((depth) => ['wheat', 'carrots', 'potatoes', 'beetroots'].map((crop) => ({ params: { crop, depth, width }, bom: { 'minecraft:dirt': 1 } }))));
     ok(`${label} source`, await moduleSource(tiny));
     // fully stocked: plenty of what a fenced plot takes (so nothing waits on the stockpile once approved)
-    // what crop_farm's measured bound for a wheat 9x9 names (its three Styles' maximum), and more of each
-    const measuredBound = (JSON.parse(fs.readFileSync(path.join(MODULE_DIR, 'measured.json'), 'utf8')).bounds ?? [])
-      .find((b) => b.params.crop === 'wheat' && b.params.width === 9 && b.params.depth === 9)?.bom ?? {};
+    // what crop_farm's measured bound for a wheat 9x9 names in the measured Styles' own blocks (the per-item maximum of its three), and more of each
+    const measuredBound = {};
+    for (const b of JSON.parse(fs.readFileSync(path.join(MODULE_DIR, 'measured.json'), 'utf8')).bounds ?? []) {
+      if (b.params.crop !== 'wheat' || b.params.width !== 9 || b.params.depth !== 9) continue;
+      for (const [k, n] of Object.entries(b.bom)) measuredBound[k] = Math.max(measuredBound[k] ?? 0, n);
+    }
     // twice each item, but the seeds exactly the 9x9's (with the 16 carried, too few for a larger field: the offer stays 9x9)
     const stock = Object.fromEntries(Object.entries(measuredBound).map(([k, n]) => [k, k === 'minecraft:wheat_seeds' ? n : n * 2 + 16]));
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: stock });
@@ -4547,6 +4550,60 @@ async function moduleSurvivalFlow() {
     const off = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)) && !/crate|barrel|chest/.test(JSON.stringify(x)));
     if (last?.kind === 'PROJECT_REMOVED' && exact) ok(`${label} undo refund`, `paid ${JSON.stringify(paid)}, returned the same once; ${off.length} cell(s) differ outside the crates`);
     else fail(`${label} undo refund`, `last ${last?.kind}; paid ${JSON.stringify(paid)}; returned ${JSON.stringify(back)}`);
+    // the measured bound in this town's own blocks (Noah's "a", 2026-11-13): this town's Style is none of the three measured ones, and the
+    // live catalog's bound, re-expressed through its bible, is shown at the offer and holds the quote: placed without being asked again
+    const lbl = `${label} mapped`;
+    ok(`${lbl} source`, await moduleSource());
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+    const offer2 = await moduleOffer(id);
+    if (!offer2) return fail(`${lbl} offer`, `no module.${MODULE} proposal within 90 s after the undo`);
+    const bound2 = offer2.module?.bound ?? {};
+    const own = Object.keys(bound2).filter((k) => !(k in measuredBound));
+    const theirs = Object.keys(measuredBound).filter((k) => !(k in bound2));
+    if (offer2.module?.params?.width === 9 && offer2.module?.params?.depth === 9 && Object.keys(bound2).length && own.length && /at most/.test(offer2.why))
+      ok(`${lbl} offer`, `the bound in the town's blocks: ${JSON.stringify(bound2)} (its own: ${own.join(', ')}; the measured Styles' it doesn't name: ${theirs.join(', ') || 'none'})`);
+    else return fail(`${lbl} offer`, `${JSON.stringify(offer2).slice(0, 400)}; items of its own ${own.join(', ')}`);
+    // stocked with the bound (twice, the seeds as they are: the refund put them back), so nothing waits and nothing is heavy
+    await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound2).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
+    const sq0 = await ledger();
+    await away();
+    from = logSize();
+    nudge = region;
+    await cmd(`/steward proposals ${id} accept module.${MODULE}`);
+    const grew2 = await buildThrough(id, from, lbl, false, null, 1_200_000);
+    nudge = null;
+    const said2 = logSince(from);
+    const quoted2 = (() => { const m = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(said2); return m ? JSON.parse(m[1]) : null; })();
+    const past2 = quoted2 ? Object.entries(quoted2).filter(([k, n]) => n > (bound2[k] ?? 0)) : null;
+    const asked2 = /The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(said2);
+    const g2 = await growthOf(id);
+    const mods2 = await moduleSites(g2.op);
+    if (grew2 && quoted2 && past2.length === 0 && !asked2 && g2.m && g2.m[1] === region && mods2.length === 1)
+      ok(lbl, `quoted ${JSON.stringify(quoted2)}, within the bound item by item; placed without being asked again; revision ${g2.m[2]}, lot ${mods2[0].sid} = ${mods2[0].blueprint}`);
+    else return fail(lbl, `grew ${!!grew2}; quote ${JSON.stringify(quoted2)}; past ${JSON.stringify(past2)}; asked again ${asked2}; entry ${g2.op?.siteGroup}; module sites ${mods2.length}`);
+    // fed until built, then undone: the second growth comes off and what it consumed comes back
+    feeding = true;
+    for (let i = 0; i < 300; i++) {
+      const sp = await ledger();
+      if (Object.keys(sp?.need ?? {}).length === 0 && Object.keys(sp?.outstanding ?? {}).length === 0) break;
+      await sleep(3000);
+    }
+    feeding = false;
+    const sqB = await ledger();
+    await away();
+    await cmd(`/steward undo ${id}`);
+    let last2 = null;
+    for (let i = 0; i < 300 && last2?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(1000);
+      last2 = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    await sleep(20_000);
+    const sqR = await ledger();
+    const paid2 = Object.fromEntries(Object.entries(sqB?.consumed ?? {}).map(([k, c]) => [k, c - (sq0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const back2 = Object.fromEntries(Object.entries(sqR?.returned ?? {}).map(([k, c]) => [k, c - (sqB?.returned?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const within2 = Object.entries(paid2).every(([k, c]) => c <= (bound2[k] ?? 0));
+    if (last2?.kind === 'PROJECT_REMOVED' && within2 && Object.entries(paid2).every(([k, c]) => back2[k] === c)) ok(`${lbl} undo`, `paid ${JSON.stringify(paid2)} (within the bound), returned the same`);
+    else fail(`${lbl} undo`, `last ${last2?.kind}; paid ${JSON.stringify(paid2)}; within ${within2}; returned ${JSON.stringify(back2)}`);
   } finally {
     stop = true;
     if (feeder) await feeder.catch(() => null);

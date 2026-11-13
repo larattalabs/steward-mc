@@ -28,19 +28,39 @@ public final class ModuleBound {
 	/** The measured.json member that holds the bounds. */
 	public static final String MEMBER = "bounds";
 
-	/** The measured bound for these params (canonical), or null when the measurement recorded none for them. */
+	/** The measured bound for these params in the measured Styles' own blocks (no town): see {@link #of(ModuleCatalog.Measured, JsonObject, Map)}. */
 	public static @Nullable JsonObject of(ModuleCatalog.@Nullable Measured m, JsonObject params) {
+		return of(m, params, null);
+	}
+
+	/**
+	 * The measured bound for these params (canonical), re-expressed in the town's blocks, or null when the measurement recorded none for them or
+	 * one of its entries can't be read. Every entry for the params counts: a per-Style one ({@code style} with {@code roleParts}) in the town's
+	 * blocks ({@link StyleBound}; {@code town} null: as measured), any other as it is; the bound is their per-item maximum.
+	 *
+	 * @param town role key -> the town's block ({@link StyleBound#townBlocks}), or null
+	 */
+	public static @Nullable JsonObject of(ModuleCatalog.@Nullable Measured m, JsonObject params, @Nullable Map<String, String> town) {
 		if (m == null || m.raw() == null || !m.raw().has(MEMBER) || !m.raw().get(MEMBER).isJsonArray()) return null;
 		JsonElement want = Canon.sorted(params);
+		List<Map<String, Integer>> bills = new ArrayList<>();
 		for (JsonElement b : m.raw().getAsJsonArray(MEMBER)) {
 			if (!b.isJsonObject()) continue;
 			JsonObject o = b.getAsJsonObject();
-			if (!o.has("params") || !o.has("bom") || !o.get("bom").isJsonObject()) continue;
-			if (!Canon.sorted(o.get("params")).equals(want)) continue;
-			JsonObject bom = clean(o.getAsJsonObject("bom"));
-			return bom;
+			if (!o.has("params") || !Canon.sorted(o.get("params")).equals(want)) continue;
+			JsonObject bom = o.has("bom") && o.get("bom").isJsonObject() ? clean(o.getAsJsonObject("bom")) : null;
+			if (bom == null) return null;
+			Map<String, Integer> bill = new TreeMap<>();
+			for (var e : bom.entrySet()) bill.put(e.getKey(), e.getValue().getAsInt());
+			if (o.has("roleParts")) {
+				var parts = StyleBound.parts(o);
+				if (parts == null) return null;
+				bill = StyleBound.mapped(bill, parts, town);
+				if (bill == null) return null;
+			}
+			bills.add(bill);
 		}
-		return null;
+		return bills.isEmpty() ? null : StyleBound.json(StyleBound.max(bills));
 	}
 
 	/** A bill as item -> count: only positive whole counts kept, sorted by id; anything else makes the whole bill unreadable (null). */
