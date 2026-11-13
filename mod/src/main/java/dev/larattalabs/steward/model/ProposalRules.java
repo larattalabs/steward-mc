@@ -20,7 +20,50 @@ public final class ProposalRules {
 	public static final long COOLDOWN_MS = 20 * 60_000L;
 
 	/** What the steward sees: the player's tier and what they carry; animals gathering in the claim, by kind. */
-	public record Signs(Progress.Tier tier, int seeds, int saplings, Map<String, Integer> animals) {}
+	public record Signs(Progress.Tier tier, int seeds, int saplings, Map<String, Integer> animals, Map<String, Integer> seedItems) {
+		public Signs {
+			seedItems = seedItems == null ? Map.of() : Map.copyOf(seedItems);
+		}
+
+		/** As before module offers: the seeds' kinds not known. */
+		public Signs(Progress.Tier tier, int seeds, int saplings, Map<String, Integer> animals) {
+			this(tier, seeds, saplings, animals, Map.of());
+		}
+	}
+
+	/**
+	 * A module the catalog may offer (docs/MODULES.md 4.1), as the steward read it: its kind, whether one of the same id stands in the settlement
+	 * (module identity, read from the lots' {@code steward_mc:module} ext), and its offer when it is eligible here ({@code offer} null: not, and
+	 * {@code why} says so). A decorative building's type never suppresses a module.
+	 */
+	public record ModuleCandidate(dev.larattalabs.steward.module.ModuleKind kind, boolean standing, @org.jspecify.annotations.Nullable Proposal offer,
+		@org.jspecify.annotations.Nullable String why) {}
+
+	/** Whether a module's sign fires: the player carries {@link dev.larattalabs.steward.module.ModuleOffer#SIGN_SEEDS} or more seeds of one crop it grows. */
+	public static boolean moduleFires(dev.larattalabs.steward.module.ModuleKind k, Signs s) {
+		Map<String, Integer> byCrop = new java.util.HashMap<>();
+		for (var e : k.seeds().entrySet()) byCrop.merge(e.getValue(), s.seedItems().getOrDefault(e.getKey(), 0), Integer::sum);
+		return byCrop.values().stream().anyMatch(n -> n >= dev.larattalabs.steward.module.ModuleOffer.SIGN_SEEDS);
+	}
+
+	/**
+	 * Whether a module offer is skipped (4.1 "Coalescing and declines"): its key was declined, an offer of the same module waits (by key or by
+	 * module id: one asked in talk counts), or a module of the same id stands. Never by building type.
+	 */
+	public static boolean moduleSkipped(ModuleCandidate c, Set<String> declined, List<Proposal> open) {
+		String id = c.kind().id();
+		return declined.contains(c.kind().rule()) || c.standing()
+			|| open.stream().anyMatch(p -> p.key().equals(c.kind().rule()) || (p.module() != null && id.equals(p.module().moduleId())));
+	}
+
+	/** Declining a module offer also retires its decorative rules ({@code farm}): the player has said no to farms. Declining {@code farm} retires nothing more. */
+	public static List<String> declines(String key) {
+		var k = dev.larattalabs.steward.module.ModuleKind.of(dev.larattalabs.steward.module.ModuleKind.idOf(key));
+		List<String> out = new ArrayList<>();
+		out.add(key);
+		k.ifPresent(x -> x.decorative().stream().sorted().filter(d -> !out.contains(d)).forEach(out::add));
+		return out;
+	}
 
 	/** One rule: when it fires, and the building it suggests. */
 	record Rule(String key, String title, String why, String role, String type, String footprint, String notes) {}
@@ -56,12 +99,30 @@ public final class ProposalRules {
 	 * @param lastAt when the last proposal was made (epoch ms; 0 none)
 	 */
 	public static List<Proposal> propose(Signs s, Set<String> types, Set<String> declined, List<Proposal> open, long lastAt, long now) {
+		return propose(s, types, declined, open, lastAt, now, List.of());
+	}
+
+	/**
+	 * As above, with the catalog's modules first (4.1): a module whose sign fires and that is not skipped is offered when eligible; when it isn't, the
+	 * old decorative rule ({@code farm}) is offered as today, priced. A module that stands or waits also holds its decorative rule back.
+	 */
+	public static List<Proposal> propose(Signs s, Set<String> types, Set<String> declined, List<Proposal> open, long lastAt, long now, List<ModuleCandidate> modules) {
 		if (!room(open, lastAt, now)) return List.of();
 		Set<String> openKeys = new java.util.HashSet<>();
 		for (Proposal p : open) openKeys.add(p.key());
+		Set<String> heldBack = new java.util.HashSet<>();
+		for (ModuleCandidate c : modules) {
+			if (!moduleFires(c.kind(), s)) continue;
+			if (moduleSkipped(c, declined, open)) {
+				if (c.standing() || open.stream().anyMatch(p -> p.module() != null && c.kind().id().equals(p.module().moduleId()))) heldBack.addAll(c.kind().decorative());
+				continue;
+			}
+			// one at a time: the next waits for the cooldown
+			if (c.offer() != null) return List.of(c.offer());
+		}
 		List<Proposal> out = new ArrayList<>();
 		for (Rule r : RULES) {
-			if (!fires(r.key(), s) || declined.contains(r.key()) || openKeys.contains(r.key()) || types.contains(r.type())) continue;
+			if (!fires(r.key(), s) || declined.contains(r.key()) || openKeys.contains(r.key()) || types.contains(r.type()) || heldBack.contains(r.key())) continue;
 			out.add(new Proposal(r.key(), r.title(), r.why(), new ConceptCard.Building(r.role(), r.type(), 1, r.footprint(), false, r.notes(), null), now, trigger(r.key())));
 			// one at a time: the next waits for the cooldown
 			break;
