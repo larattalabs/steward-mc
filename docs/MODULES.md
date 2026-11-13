@@ -567,7 +567,8 @@ certification gate, with a dev-only override bound that holds its bill on purpos
   2026-11-13): each Style's role counts move to the town's item for the same role (the lamp after the palette check, the wood by the kit's
   rule, a dirt path billed as dirt), and the bound is the per-item maximum over the Styles. An entry without `roleParts` (the dev source) is
   used as it is; with no readable bible, the Styles' bills as measured. The rate comes from `measured.json rates: [{params, perDay, item}]`, when there is one. A module offer is never reworded by
-  ProposalWords, and is priced $0 in the inbox (in survival, "at most <bound>").
+  ProposalWords, and is priced $0 in the inbox (in survival, "at most <bound>"). The offer's words name every item of the bound, and the
+  inbox shows that bill as its own wrapped line of the proposals entry, so nothing the player approves at "Build it" is cut by its row.
 - **Coalescing and declines** (`ProposalRules`): by module identity (a standing site whose lot ext names the module, or an offer of the same id
   waiting, asked in talk included), never by building type. A standing or waiting module holds the decorative rule back. Declining
   `module.<id>` also declines `farm`; declining `farm` declines nothing more.
