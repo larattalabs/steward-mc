@@ -135,6 +135,7 @@ public final class SettlementScreen extends KitScreen {
 		}
 		drawActions(g, cx, actionsY, inner, mouseX, mouseY);
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, footerY - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
+		else if (footerWhy != null) g.text(font, TextUtil.ellipsize(font, footerWhy, inner), cx, footerY - 2, UiBits.muted(), false);
 		else {
 			// the number keys drawn, and "click a building" only where there are buildings to click
 			java.util.List<String> hs = new java.util.ArrayList<>();
@@ -151,6 +152,9 @@ public final class SettlementScreen extends KitScreen {
 	 * The tab's own buttons on the left (1, and 4 on the Claim tab), the Card (2) and Inbox (3) on the right, and between them why a button is off (the
 	 * Card before the settlement is described, Undo with nothing to undo).
 	 */
+	/** The reasons a button is off, when the gap beside the buttons is too narrow for them: drawn on the footer line instead of the key hints. */
+	private @Nullable String footerWhy;
+
 	private void drawActions(GuiGraphicsExtractor g, int x, int y, int w, int mx, int my) {
 		List<String> why = new ArrayList<>();
 		int bx = x;
@@ -189,8 +193,10 @@ public final class SettlementScreen extends KitScreen {
 			if (minecraft != null) minecraft.gui.setScreen(new InboxScreen(view.id()));
 		});
 		int room = cardX - 8 - bx;
-		// one line per button that is off, each named ("Card: describe it first.")
-		if (!why.isEmpty() && room > 30) {
+		// one line per button that is off, each named ("Card: describe it first."); where the gap is too narrow for them, the footer line takes them
+		footerWhy = null;
+		if (why.stream().anyMatch(l -> font.width(l) > room)) footerWhy = String.join("  ", why);
+		else if (!why.isEmpty()) {
 			int ly = why.size() > 1 ? y + 1 : y + 6;
 			for (int i = 0; i < Math.min(2, why.size()); i++) g.text(font, TextUtil.ellipsize(font, why.get(i), room), bx + 2, ly + i * 10, UiBits.muted(), false);
 		}
@@ -442,7 +448,7 @@ public final class SettlementScreen extends KitScreen {
 		int cbw = optionWidth(claimLabel);
 		rows.add(new Row(ROW_BUTTON_H + 2, ry -> {
 			g.text(font, "Hand-built", fx, ry + 5, UiBits.muted(), false);
-			String what = view.playerBuilds().isEmpty() ? "None tracked. Built one before? Stand in it and claim it." : "Kept as built.";
+			String what = view.playerBuilds().isEmpty() ? "None tracked. Stand in an old build to claim it." : "Kept as built.";
 			g.text(font, TextUtil.ellipsize(font, what, fw - 90 - cbw - 6), lx, ry + 5, UiBits.ink(), false);
 			option(g, claimLabel, x + w - 8 - cbw, ry, false, true, mx, my, () -> send("build_claim", "", "Claiming the build you stand in", CLAIM_REACH));
 		}));
