@@ -107,10 +107,19 @@ public final class SettlementStore {
 		if (format < 1 || format > FORMAT) throw new JsonParseException("unsupported settlements format " + format + " (this build reads 1.." + FORMAT + ")");
 		for (int v = format; v < FORMAT; v++) MIGRATIONS.get(v - 1).accept(o);
 		o.addProperty("format", FORMAT);
+		strictModules(o);
 		FileShape f = GSON.fromJson(o, new TypeToken<FileShape>() {});
 		if (f == null || f.settlements == null) throw new JsonParseException("not a Steward settlements file");
 		SettlementStore s = new SettlementStore();
-		for (Settlement x : f.settlements) s.put(x);
+		for (Settlement x : f.settlements) {
+			// (slice M3) a module offer is whole or the file is refused: a module rule's proposal without its order would be built as a paid design
+			for (var p : x.proposals() == null ? List.<Proposal>of() : x.proposals().open()) {
+				if (p.key().startsWith(dev.larattalabs.steward.module.ModuleKind.RULE_PREFIX) && p.module() == null)
+					throw new JsonParseException("module offer " + p.key() + " of " + x.id() + " has no order");
+				if (p.module() != null && !p.module().valid()) throw new JsonParseException("module offer " + p.key() + " of " + x.id() + " is incomplete");
+			}
+			s.put(x);
+		}
 		s.nextSerial = Math.max(s.nextSerial, f.nextSerial);
 		s.readFormat = format;
 		return s;
@@ -118,6 +127,29 @@ public final class SettlementStore {
 
 	public int readFormat() {
 		return readFormat;
+	}
+
+	/**
+	 * (slice M3) Module offers' integers and bills are read exactly, as BuildStore's orders are: Gson would read {@code 1.0000000000000001} as version
+	 * 1, and a bound it can't read would become none. Either refuses the file.
+	 */
+	private static void strictModules(JsonObject file) {
+		if (!file.has("settlements") || !file.get("settlements").isJsonArray()) return;
+		for (JsonElement st : file.getAsJsonArray("settlements")) {
+			if (!st.isJsonObject() || !st.getAsJsonObject().has("proposals") || !st.getAsJsonObject().get("proposals").isJsonObject()) continue;
+			var ps = st.getAsJsonObject().getAsJsonObject("proposals");
+			if (!ps.has("open") || !ps.get("open").isJsonArray()) continue;
+			for (JsonElement p : ps.getAsJsonArray("open")) {
+				if (!p.isJsonObject() || !p.getAsJsonObject().has("module") || p.getAsJsonObject().get("module").isJsonNull()) continue;
+				if (!p.getAsJsonObject().get("module").isJsonObject()) throw new JsonParseException("a module offer is not an object");
+				var m = p.getAsJsonObject().getAsJsonObject("module");
+				if (!m.has("version") || dev.larattalabs.steward.module.ModuleRef.exactInt(m.get("version")) == null) throw new JsonParseException("a module offer's version is not an integer");
+				for (String k : List.of("bound", "held")) {
+					if (m.has(k) && !m.get(k).isJsonNull() && (!m.get(k).isJsonObject() || dev.larattalabs.steward.module.ModuleBound.clean(m.getAsJsonObject(k)) == null))
+						throw new JsonParseException("a module offer's " + k + " is not item -> count");
+				}
+			}
+		}
 	}
 
 	private static final java.util.regex.Pattern UPDATED_NOTE = java.util.regex.Pattern.compile("Updated (.+) to version (\\d+).*");

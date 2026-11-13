@@ -382,7 +382,11 @@ public final class SettlementRunner {
 		this.growKey = b.growKey();
 		this.moduleBindings = b.moduleBindings();
 		this.moduleOrders = b.moduleOrders();
+		this.restored = true;
 	}
+
+	/** Restored from the builds file after a restart (its accepting hooks are gone). */
+	private boolean restored;
 
 	private ServerLevel level() {
 		ServerLevel l = server.getLevel(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION, net.minecraft.resources.Identifier.parse(dimension)));
@@ -568,8 +572,6 @@ public final class SettlementRunner {
 	private dev.larattalabs.steward.module.@org.jspecify.annotations.Nullable ModuleOrder pendingModule;
 	/** (slice M3) A bind or a quote is out: the realise waits for it, and nothing starts a second. */
 	private boolean moduleBusy;
-	/** (slice M3) The quote past the bound the player is asked about now (its bill), null when none waits. This session. */
-	private @org.jspecify.annotations.Nullable JsonObject heldBill;
 	/** (slice M3) The plan and entries whose quote passed this session ({@code planId|lot=entry,...}): the realise goes on only for exactly them. */
 	private @org.jspecify.annotations.Nullable String quoteCleared;
 
@@ -1304,11 +1306,8 @@ public final class SettlementRunner {
 		if (entry.isEmpty()) return false;
 		var p = dev.larattalabs.steward.module.ModuleGate.params(entry.get(), next.get());
 		if (!p.ok()) return false;
-		JsonObject bound = null;
-		if (order.bound() != null) {
-			bound = ModuleOffers.bound(entry.get(), p.values());
-			if (bound == null || !dev.larattalabs.steward.module.ModuleBound.over(bound, order.bound()).isEmpty()) return false;
-		}
+		// the bound the player approved stays the authorization: the smaller field's quote is held to it, never to the smaller size's own estimate
+		JsonObject bound = order.bound();
 		int[] was = kind.get().frame(order.params()), now = kind.get().frame(p.values());
 		say("No room in the town for the " + was[0] + " by " + was[1] + " " + kind.get().role() + ": trying a smaller one, " + now[0] + " by " + now[1] + ", as a new plan.");
 		moduleOrders = Map.of(lotId, order.resized(p.values(), bound));
@@ -1760,9 +1759,14 @@ public final class SettlementRunner {
 		}
 		// ended before any paid request of it was sent (only setup steps ran): an accepted proposal is given back. Once a bible job or a group was asked for,
 		// it may have cost something, whatever the spend says or whether its acknowledgement came
-		if (before != null && !before.terminal() && state.phase().terminal() && state.phase() != Pipeline.Phase.DONE && !paidRequestAcked && onNothingSpent != null) {
-			onNothingSpent.run();
-			onNothingSpent = null;
+		// (slice M3) a module build spends nothing paid: its offer is given back exactly when nothing of it stands (never realised, or taken up whole), also
+		// for a build restored after a restart (its hook is gone: the order names the proposal)
+		boolean nothingStands = moduleBuild() ? vRegionId == null && !queueInFlight : !paidRequestAcked;
+		if (before != null && !before.terminal() && state.phase().terminal() && state.phase() != Pipeline.Phase.DONE && nothingStands) {
+			if (onNothingSpent != null) {
+				onNothingSpent.run();
+				onNothingSpent = null;
+			} else if (moduleBuild() && restored) giveModuleBack();
 		}
 		boolean saved = persist();
 		if (!saved && step.commands().stream().anyMatch(SettlementRunner::spends)) {
@@ -2090,8 +2094,8 @@ public final class SettlementRunner {
 			}
 			case Pipeline.FitAndQueue f -> fitAndQueue(f.autoApprove());
 			case Pipeline.ApproveStages a -> {
-				// (slice M3) the player approved a held bill: the next quote within it goes on
-				if (moduleBuild()) approvedHeld = heldBill != null;
+				// (slice M3) the player approved a held bill: it becomes the bound (saved), then quoted again
+				if (moduleBuild()) approveHeld();
 				if (village()) realiseVillage(); else approveStages();
 			}
 			case Pipeline.CancelBatch cb -> {
@@ -2448,21 +2452,20 @@ public final class SettlementRunner {
 	 * within it, the realise goes on for exactly these entries.
 	 */
 	private void quoteModules(Map<String, String> entries) {
-		JsonObject bound = null;
-		boolean autonomous = false;
-		for (var o : moduleOrders.values()) {
-			if (o.bound() == null) {
-				say("Not placed: the town builds from materials and the module has no approved bound to hold its bill to. Nothing was consumed.");
-				feed(new Pipeline.Cancel());
-				return;
-			}
-			bound = bound == null ? o.bound().deepCopy() : sum(bound, o.bound());
-			autonomous |= o.autonomous();
+		if (moduleOrders.size() != 1) {
+			say("Not placed: one module lot is billed per growth for now. Nothing was consumed.");
+			feed(new Pipeline.Cancel());
+			return;
+		}
+		var lot = moduleOrders.keySet().iterator().next();
+		var order = moduleOrders.get(lot);
+		if (order.bound() == null) {
+			say("Not placed: the town builds from materials and the module has no approved bound to hold its bill to. Nothing was consumed.");
+			feed(new Pipeline.Cancel());
+			return;
 		}
 		moduleBusy = true;
 		int session = Session.current();
-		JsonObject approved = bound;
-		boolean ask = autonomous;
 		String key = ModulePlacement.cleared(vPlanId, entries);
 		ArchitectApi.get().regions().quote(vPlanId, entries).whenComplete((q, err) -> server.execute(() -> {
 			moduleBusy = false;
@@ -2473,48 +2476,65 @@ public final class SettlementRunner {
 				return;
 			}
 			JsonObject bill = dev.larattalabs.steward.module.ModuleBound.clean(q.bom());
-			if (bill == null) { say("Not placed: Architect's quote is not a bill of items."); feed(new Pipeline.Cancel()); return; }
-			Steward.LOGGER.info("module {} quote {}: {} (bound {}, exact {})", settlement.id(), vPlanId, bill, approved, q.exact());
-			var over = dev.larattalabs.steward.module.ModuleBound.over(bill, approved);
+			if (bill == null) { say("Not placed: Architect's quote is not a bill of items. Nothing was consumed."); feed(new Pipeline.Cancel()); return; }
+			var now = moduleOrders.get(lot);
+			Steward.LOGGER.info("module {} quote {}: {} (bound {}, exact {}, notes {})", settlement.id(), vPlanId, bill, now.bound(), q.exact(), q.notes());
+			var check = ModulePlacement.quoteCheck(q.exact(), q.notes());
+			// a quote that leaves a part unbilled can't hold the build to anything: refused, nothing consumed
+			if (check.refused() != null) {
+				say("Not placed: Architect couldn't quote the whole bill (" + check.refused() + "), so nothing is consumed unchecked.");
+				feed(new Pipeline.Cancel());
+				return;
+			}
+			var over = dev.larattalabs.steward.module.ModuleBound.over(bill, now.bound());
 			List<dev.larattalabs.steward.module.ModuleBound.Heavy> heavy = List.of();
-			if (ask) {
+			if (now.autonomous()) {
 				Map<String, Integer> stock = new HashMap<>();
 				Stockpiles.of(server, Settlements.store().get(settlement.id()).orElse(settlement))
 					.ifPresent(sp -> sp.stock().forEach((it, n) -> stock.put(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(it).toString(), n)));
 				heavy = dev.larattalabs.steward.module.ModuleBound.heavy(bill, stock);
 			}
-			// a quote the player was asked about and approved: within what they saw, it goes on
-			if (heldBill != null && dev.larattalabs.steward.module.ModuleBound.over(bill, heldBill).isEmpty() && approvedHeld) {
-				approveHeld(heldBill);
-				over = List.of();
-				heavy = List.of();
-			}
-			approvedHeld = false;
-			if (!over.isEmpty() || !heavy.isEmpty()) {
-				heldBill = bill;
-				String why = !over.isEmpty() ? "The bill came to more than you approved: " + dev.larattalabs.steward.module.ModuleBound.words(over, 4) + "."
-					: "The whole bill takes more than half of the stockpile's " + heavy.stream().limit(3).map(h -> dev.larattalabs.steward.module.ModuleBound.plain(h.item())
-						+ " (" + h.bill() + " of " + h.stock() + ")").collect(Collectors.joining(", ")) + ", so I ask first.";
-				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.bill(bill, 8)
-					+ ". Approve to build it with this bill, or cancel."));
+			String why = !over.isEmpty() ? "The bill came to more than you approved: " + dev.larattalabs.steward.module.ModuleBound.words(over, 100) + "."
+				: !heavy.isEmpty() ? "The whole bill takes more than half of the stockpile's " + heavy.stream().map(h -> dev.larattalabs.steward.module.ModuleBound.plain(h.item())
+					+ " (" + h.bill() + " of " + h.stock() + ")").collect(Collectors.joining(", ")) + ", so I ask first."
+				: check.ask() != null ? "Architect can't quote the bill exactly (" + check.ask() + "), so I ask first." : null;
+			if (why != null) {
+				// held, saved with the build: the approval binds to exactly this bill, also after a restart
+				moduleOrders = Map.of(lot, now.holding(bill));
+				persist();
+				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.bill(bill, 1000)
+					+ ". Approve to build it with this bill (it becomes the bound), or cancel."));
 				return;
 			}
-			heldBill = null;
+			if (now.held() != null) { moduleOrders = Map.of(lot, now.holding(null)); persist(); }
 			quoteCleared = key;
 			realiseVillage();
 		}));
 	}
 
-	/** The player approved the held bill (the approve that ends AWAITING_PLACEMENT_APPROVAL): the next quote within it goes on. This session. */
-	private boolean approvedHeld;
-
-	/** The held bill, approved: it becomes the orders' bound (one module lot: its own; it is no longer the steward's own choice). */
-	private void approveHeld(JsonObject bill) {
+	/**
+	 * The player approved a held bill (the approve that ends AWAITING_PLACEMENT_APPROVAL): the bill they were shown becomes the bound, saved before
+	 * anything is quoted again, so the next quote within it goes on, also after a restart. Nothing held (an approve after a hold that cleared): unchanged.
+	 */
+	private void approveHeld() {
 		var next = new LinkedHashMap<String, dev.larattalabs.steward.module.ModuleOrder>();
-		moduleOrders.forEach((lot, o) -> next.put(lot, moduleOrders.size() == 1 ? o.approved(bill).accepted(false) : o.accepted(false)));
+		moduleOrders.forEach((lot, o) -> next.put(lot, o.held() == null ? o : o.approvedHeld()));
 		moduleOrders = java.util.Collections.unmodifiableMap(next);
-		heldBill = null;
+		quoteCleared = null;
 		persist();
+	}
+
+	/** A restored module build that ended with nothing standing: its proposal back in the inbox (once), as the accepting hook would have. */
+	private void giveModuleBack() {
+		for (var o : moduleOrders.values()) {
+			var kind = dev.larattalabs.steward.module.ModuleKind.of(o.moduleId());
+			if (o.proposal() == null || kind.isEmpty() || plan == null) continue;
+			var lot = new dev.larattalabs.steward.model.ConceptCard.Building(kind.get().role(), kind.get().lotType(), 1, "L", false, null, null);
+			var p = dev.larattalabs.steward.model.Proposal.module(o.proposal(), Character.toUpperCase(kind.get().title().charAt(0)) + kind.get().title().substring(1),
+				"Offered again: the last try placed nothing.", lot, System.currentTimeMillis(), "seeds", new dev.larattalabs.steward.module.ModuleOrder(o.moduleId(), o.version(),
+					o.programSha(), o.params(), o.bound(), o.rate(), o.lampFallback(), false));
+			Proposals.giveBack(settlement.id(), p, null);
+		}
 	}
 
 	private static JsonObject sum(JsonObject a, JsonObject b) {

@@ -84,6 +84,21 @@ class ModulePlacementTest {
 	}
 
 	@Test
+	void anInexactQuoteNeverClearsTheBuildByItself() {
+		assertEquals(new ModulePlacement.QuoteCheck(null, null), ModulePlacement.quoteCheck(true, java.util.List.of("anything")));
+		var unbilled = ModulePlacement.quoteCheck(false, java.util.List.of("lot gb1_1 (e@1): no construction plan over the land now"));
+		assertNotNull(unbilled.refused(), "a part left unbilled: refused, nothing consumed");
+		assertNotNull(ModulePlacement.quoteCheck(false, java.util.List.of("road r1: its check refuses over the land now (x): not billed")).refused());
+		var drift = ModulePlacement.quoteCheck(false, java.util.List.of("lot gb1_1 (e@1) may differ: drift"));
+		assertNull(drift.refused());
+		assertNotNull(drift.ask(), "may differ: the player decides");
+		assertEquals(new ModulePlacement.QuoteCheck(null, null), ModulePlacement.quoteCheck(false,
+			java.util.List.of("fluids: a lava bucket per lava source and an iron bars per grate cell of every body (an upper bound)", "the region's cells are the kit's bill")),
+			"the fluids' upper bound is conservative");
+		assertNotNull(ModulePlacement.quoteCheck(false, java.util.List.of()).ask(), "inexact for no reason given: asked");
+	}
+
+	@Test
 	void aQuoteClearsExactlyItsPlanAndEntries() {
 		assertEquals("p1|a=e1|b=e2", ModulePlacement.cleared("p1", Map.of("b", "e2", "a", "e1")));
 		assertNotEquals(ModulePlacement.cleared("p1", Map.of("a", "e1")), ModulePlacement.cleared("p1", Map.of("a", "e3")));

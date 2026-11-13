@@ -555,12 +555,14 @@ public final class Actions {
 				StewardVoice.say(server, s.id(), said);
 				return Result.fail(said);
 			}
-			var accepted = order.accepted(autonomous);
+			var accepted = order.accepted(autonomous, key);
 			new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, null),
 				() -> Proposals.giveBack(s.id(), p.get(), null), () -> Proposals.backOff(s.id(), key)).startModule(s, p.get().building(), accepted);
 			return Result.ok(String.format("Laying %s in %s: a working module from the catalog (%s@%d), at no design cost%s.", kind.get().title(), s.name(), order.moduleId(),
 				order.version(), order.bound() == null ? "" : "; its bill from the stockpile is held to at most " + dev.larattalabs.steward.module.ModuleBound.bill(order.bound(), 4)));
 		}
+		// a module rule's proposal without its order is never built as a paid design (a damaged save): refused
+		if (p.get().key().startsWith(dev.larattalabs.steward.module.ModuleKind.RULE_PREFIX)) return Result.fail("That module offer is damaged; it is not built.");
 		int budget = Proposals.estimate(p.get());
 		if (autonomous && !s.autonomy().allows(budget, System.currentTimeMillis())) return Result.fail("Past this week's allowance.");
 		String title = p.get().title();

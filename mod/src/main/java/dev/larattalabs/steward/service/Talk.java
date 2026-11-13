@@ -247,6 +247,9 @@ public final class Talk {
 		var site = ChangeRequests.building(server, s, a.changeTarget());
 		if (site.isEmpty()) return "Which building do you mean? I could not tell which one is the " + a.changeTarget() + ".";
 		// a copy changes with its source (docs/FOLLOW.md): the change is asked of the source, and the copies follow it
+		// a working module isn't redesigned (docs/MODULES.md section 1): said before anything is proposed
+		String module = ChangeRequests.moduleRefusal(site.get());
+		if (module != null) return module;
 		site = Optional.of(ChangeRequests.sourceFor(server, s, site.get()));
 		String name = ChangeRequests.the(site.get());
 		if (ChangeRequests.designing(site.get().id())) return "A change to " + name + " is being designed already.";

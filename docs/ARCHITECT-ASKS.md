@@ -1382,6 +1382,24 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
     - no consumption, no write.
   - **Why:** Steward compares the quote with the bound the player approved before anything is consumed (MODULES.md 4.2 step 5).
   - **Preferred:** `Regions.quote(planId, lotEntries)`, returning the same shape as the plan check's `cost.bom`, bound entries included.
+- **S-M5-8. Irrigated growth of an adopted street town** (found by M3, 2026-11-13; not blocking M3, which builds on the dry fixture).
+  - **Today (IG, v0.63.0):** a grow lot with `irrigate: true` in a region whose stages have none between the pads' and the lots' refuses
+    `NOT_ALLOWED [irrigate] region stages (...) have no stage between ...`. An adopted street town (slice B, `Regions.adopt`) has one
+    `adopted` stage, so its first growth can never take a watered field: MODULES.md 4.2's row "a street town ... growth B: adopted at its
+    first growth, then A" fails for `crop_farm`.
+  - **Asked:** a revision of an adopted region adds the stages IRR needs (the shells' stage before the lots', and `fluids`), as a V town's
+    `street` does, so an irrigated grow lot works there too: the same report, mask, survival waits and drain-first undo as IG.
+  - **Until then** Steward does not offer a watered module in a street town it would adopt (`ModuleOffer`: "a street town can't take a
+    watered field yet"); the decorative farm is offered as today. A dry module (the fixture) grows through B.
+- **S-M5-9. A survival realise held to an approved bill** (from M3's GPT review, 2026-11-13; not blocking M3).
+  - **Today:** Steward quotes a revision with its final entries (QT) and realises only when the quote is within the bound the player approved.
+    But the quote is a snapshot: the realise's targets draw from the stockpile over time, and a lot whose land drifts (QT `exact` false, "may
+    differ") can take more than was quoted. Steward can't cap what Architect consumes after the realise.
+  - **Asked:** an optional `maxBill` (item -> count) on `RealiseRequest` (and `realiseApproved`): Architect refuses the realise when its own
+    bill at put-down is past it, and a target that would draw past it waits (a typed wait, `bill_cap`) instead of consuming. With it, the
+    approved bound is enforced, not only checked.
+  - **Until then** Steward refuses a quote that leaves a part unbilled, puts any other inexact quote to the player, and lets only the fluids'
+    upper bound pass (MODULES.md "M3 as built").
 - **Architect's answers (coordinator, 2026-11-12):** all as preferred.
   - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
   - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.

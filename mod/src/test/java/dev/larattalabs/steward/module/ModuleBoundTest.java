@@ -64,8 +64,13 @@ class ModuleBoundTest {
 		var o = new ModuleOrder("fixture_plot", 1, "a".repeat(64), j("{\"side\": 5, \"crop\": \"wheat\"}"), j("{\"minecraft:dirt\": 2}"), null, false, false);
 		assertTrue(o.valid());
 		assertEquals("{\"crop\":\"wheat\",\"side\":5}", Canon.text(o.params()), "params canonical");
-		assertEquals(j("{\"minecraft:dirt\": 9}"), o.approved(j("{\"minecraft:dirt\": 9}")).bound());
-		assertTrue(o.accepted(true).autonomous());
+		var held = o.accepted(true, "module.fixture_plot").holding(j("{\"minecraft:dirt\": 9}"));
+		assertTrue(held.autonomous());
+		assertEquals("module.fixture_plot", held.proposal());
+		var ok = held.approvedHeld();
+		assertEquals(j("{\"minecraft:dirt\": 9}"), ok.bound(), "the bill shown becomes the bound");
+		assertNull(ok.held());
+		assertFalse(ok.autonomous(), "the player's word now");
 		assertFalse(new ModuleOrder("Bad Id", 1, "a".repeat(64), j("{}"), null, null, false, false).valid());
 	}
 }

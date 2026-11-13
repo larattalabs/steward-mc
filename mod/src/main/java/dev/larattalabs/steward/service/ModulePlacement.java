@@ -98,6 +98,30 @@ public final class ModulePlacement {
 		return dev.larattalabs.steward.module.ModuleInstalls.lotKey(buildId, lotId, b == null ? 1 : keyIndex(b.opKey(), buildId, lotId) + 1);
 	}
 
+	/** How far a quote can hold the build to the bound: {@code refused} (a part left unbilled), {@code ask} (it may differ: the player decides), or neither. */
+	public record QuoteCheck(@Nullable String refused, @Nullable String ask) {}
+
+	/**
+	 * (docs/MODULES.md 4.2 step 5; Architect QT's {@code exact} and {@code notes}) A quote that is not exact never clears the build by itself. A
+	 * part Architect could not bill ("not billed", "no construction plan", "could not be read") makes the quote lower than the realise could take:
+	 * refused. A lot that "may differ" (drift, unloaded cells) is put to the player. The fluids' upper bound is conservative and passes; any other
+	 * inexact quote is put to the player.
+	 */
+	public static QuoteCheck quoteCheck(boolean exact, java.util.List<String> notes) {
+		if (exact) return new QuoteCheck(null, null);
+		java.util.List<String> refused = new java.util.ArrayList<>(), ask = new java.util.ArrayList<>();
+		boolean conservative = false;
+		for (String n : notes) {
+			if (n == null) continue;
+			if (n.contains("not billed") || n.contains("no construction plan") || n.contains("could not be read")) refused.add(n);
+			else if (n.contains("may differ")) ask.add(n);
+			else if (n.startsWith("fluids: a lava bucket")) conservative = true;
+		}
+		if (!refused.isEmpty()) return new QuoteCheck(String.join("; ", refused), null);
+		if (!ask.isEmpty()) return new QuoteCheck(null, String.join("; ", ask));
+		return conservative ? new QuoteCheck(null, null) : new QuoteCheck(null, "its quote is not exact");
+	}
+
 	/** What a quote cleared: the plan and the exact entries (a different entry or plan is quoted again before it is realised). */
 	public static String cleared(String planId, Map<String, String> entries) {
 		StringBuilder b = new StringBuilder(planId);

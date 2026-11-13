@@ -261,9 +261,9 @@ public final class BuildStore {
 			if (!o.has("version") || dev.larattalabs.steward.module.ModuleRef.exactInt(o.get("version")) == null) {
 				throw new JsonParseException("module order " + e.getKey() + ": version " + o.get("version") + " is not an integer");
 			}
-			if (o.has("bound") && !o.get("bound").isJsonNull()) {
-				if (!o.get("bound").isJsonObject() || dev.larattalabs.steward.module.ModuleBound.clean(o.getAsJsonObject("bound")) == null) {
-					throw new JsonParseException("module order " + e.getKey() + ": its bound is not item -> count");
+			for (String k : List.of("bound", "held")) {
+				if (o.has(k) && !o.get(k).isJsonNull() && (!o.get(k).isJsonObject() || dev.larattalabs.steward.module.ModuleBound.clean(o.getAsJsonObject(k)) == null)) {
+					throw new JsonParseException("module order " + e.getKey() + ": its " + k + " is not item -> count");
 				}
 			}
 		}

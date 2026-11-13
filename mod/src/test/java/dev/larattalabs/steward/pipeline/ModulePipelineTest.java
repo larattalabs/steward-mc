@@ -33,6 +33,9 @@ class ModulePipelineTest {
 		assertEquals(Phase.AWAITING_PLACEMENT_APPROVAL, held.next().phase());
 		var n = (Notify) held.commands().get(0);
 		assertTrue(n.needsDecision());
+		assertEquals("The bill came to more than you approved.", held.next().heldNote(), "the bill is the decision, kept with the build (the inbox shows it)");
+		var entry = dev.larattalabs.steward.inbox.InboxModel.entry("set_1", "Here", held.next(), java.util.List.of());
+		assertEquals("The bill came to more than you approved.", entry.headline());
 		assertEquals(Pipeline.Decision.PLACEMENT, Pipeline.awaiting(held.next()));
 		// asked again while waiting: still waiting
 		var again = Pipeline.step(held.next(), new HoldBill("again"), Permission.AUTONOMOUS);
@@ -40,6 +43,7 @@ class ModulePipelineTest {
 		// approved: placed (the runner quotes again against what was approved)
 		var go = Pipeline.step(held.next(), new PlacementApproved(), Permission.AUTONOMOUS);
 		assertEquals(Phase.PLACING, go.next().phase());
+		assertNull(go.next().heldNote());
 		assertTrue(go.commands().stream().anyMatch(c -> c instanceof ApproveStages));
 		// held from PLACING (the quote after an approval past it again)
 		var placing = Pipeline.step(ready(), new ModulePlace(), Permission.PROPOSALS).next();

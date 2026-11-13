@@ -214,6 +214,7 @@ public final class ModuleOffers {
 		if (!v.ok()) return v.message();
 		if (v.entry().version() != o.version() || !v.entry().programSha().equals(o.programSha()))
 			return "the catalog's " + o.moduleId() + " has changed since it was offered (" + v.entry().key() + " now), so what you'd approve isn't what would be built";
+		if (standing(server, s, o.moduleId())) return "a working " + kind.get().role() + " stands already";
 		var town = town(server, s, p, pr.district() != null);
 		// the params as offered: checked again against the envelope (the seeds may be gone, but the size was approved)
 		var d = ModuleOffer.decide(kind.get(), v, town, o.params(), ModuleOffers::bound);

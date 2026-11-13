@@ -64,6 +64,11 @@ public final class Pipeline {
 			return new State(phase, settlementId, card, bibleId, bibleVersion, id, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, heldNote, failure, repair, repairs);
 		}
 
+		/** (slice M3) The same state holding (or, with null, no longer holding) this note: the bill the player is asked to approve, shown with the decision. */
+		public State withHeldNote(@Nullable String note) {
+			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, items, bibleCostUsd, spentUsd, budgetUsd, pausedForBudget, note, failure, repair, repairs);
+		}
+
 		State withProgress(Map<String, String> newItems, double spent, boolean paused, @Nullable String held) {
 			return new State(phase, settlementId, card, bibleId, bibleVersion, groupId, newItems, bibleCostUsd, spent, budgetUsd, paused, held, failure, repair, repairs);
 		}
@@ -268,8 +273,8 @@ public final class Pipeline {
 				default -> Step.of(s);
 			};
 			case READY_TO_PLACE -> switch (e) {
-				case ModulePlace m -> Step.of(s.with(Phase.PLACING));
-				case HoldBill h -> Step.of(s.with(Phase.AWAITING_PLACEMENT_APPROVAL), new Notify(h.note(), true));
+				case ModulePlace m -> Step.of(s.with(Phase.PLACING).withHeldNote(null));
+				case HoldBill h -> Step.of(s.with(Phase.AWAITING_PLACEMENT_APPROVAL).withHeldNote(h.note()), new Notify(h.note(), true));
 				case BatchQueued q -> perm.needsApproval(Permission.Action.NEW_PROJECT)
 					? Step.of(s.with(Phase.AWAITING_PLACEMENT_APPROVAL), new Notify("The designs of " + label(s) + " are done and fitted to their lots. Approve to place them.", true))
 					: Step.of(s.with(Phase.PLACING));
@@ -280,15 +285,15 @@ public final class Pipeline {
 				default -> Step.of(s);
 			};
 			case AWAITING_PLACEMENT_APPROVAL -> switch (e) {
-				case PlacementApproved p -> Step.of(s.with(Phase.PLACING), new ApproveStages());
+				case PlacementApproved p -> Step.of(s.with(Phase.PLACING).withHeldNote(null), new ApproveStages());
 				// asked again (a quote past the bound once more): still waiting, said
-				case HoldBill h -> Step.of(s, new Notify(h.note(), true));
+				case HoldBill h -> Step.of(s.withHeldNote(h.note()), new Notify(h.note(), true));
 				case BatchDone b -> built(s, b);
 				default -> Step.of(s);
 			};
 			case PLACING -> switch (e) {
 				case BatchDone b -> built(s, b);
-				case HoldBill h -> Step.of(s.with(Phase.AWAITING_PLACEMENT_APPROVAL), new Notify(h.note(), true));
+				case HoldBill h -> Step.of(s.with(Phase.AWAITING_PLACEMENT_APPROVAL).withHeldNote(h.note()), new Notify(h.note(), true));
 				case WallRefused w -> wallRefused(s, w);
 				default -> Step.of(s);
 			};

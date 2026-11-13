@@ -18,32 +18,50 @@ import org.jspecify.annotations.Nullable;
  * @param lampFallback whether the offer said the style's lamp is too dim (the plain lantern is used)
  * @param autonomous the steward accepted it on its own (Autonomous, Full): in survival it asks first when the whole bill takes more than half of
  *     the stockpile's count of any item (Q4); false on an offer
+ * @param proposal the key of the proposal accepted (null on an offer): a build that ends with nothing placed gives it back, also after a restart
+ * @param held a quote past the bound the player is asked about now (its whole bill), saved with the build so the approval binds to what was shown,
+ *     also across a restart; null when nothing waits
  */
 public record ModuleOrder(String moduleId, int version, String programSha, JsonObject params, @Nullable JsonObject bound, @Nullable String rate,
-	boolean lampFallback, boolean autonomous) {
+	boolean lampFallback, boolean autonomous, @Nullable String proposal, @Nullable JsonObject held) {
 	public ModuleOrder {
 		params = params == null ? null : Canon.sorted(params).getAsJsonObject();
 		bound = ModuleBound.clean(bound);
+		held = ModuleBound.clean(held);
+	}
+
+	/** An offer (not accepted, nothing held). */
+	public ModuleOrder(String moduleId, int version, String programSha, JsonObject params, @Nullable JsonObject bound, @Nullable String rate,
+		boolean lampFallback, boolean autonomous) {
+		this(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, null, null);
 	}
 
 	/** The same order with other params (a smaller size) and the bound that goes with them. */
 	public ModuleOrder resized(JsonObject p, @Nullable JsonObject b) {
-		return new ModuleOrder(moduleId, version, programSha, p, b, rate, lampFallback, autonomous);
+		return new ModuleOrder(moduleId, version, programSha, p, b, rate, lampFallback, autonomous, proposal, held);
 	}
 
-	/** The same order with a new approved bound (the player approved a quote past the first one). */
-	public ModuleOrder approved(JsonObject b) {
-		return new ModuleOrder(moduleId, version, programSha, params, b, rate, lampFallback, autonomous);
+	/**
+	 * The held bill, approved by the player: it becomes the bound, nothing waits any more, and it is no longer the steward's own choice (Q4 is the
+	 * player's word now).
+	 */
+	public ModuleOrder approvedHeld() {
+		return new ModuleOrder(moduleId, version, programSha, params, held, rate, lampFallback, false, proposal, null);
 	}
 
-	/** The order as accepted: by the player, or by the steward on its own. */
-	public ModuleOrder accepted(boolean byTheSteward) {
-		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, byTheSteward);
+	/** The same order holding this quote for the player's word. */
+	public ModuleOrder holding(JsonObject bill) {
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, bill);
+	}
+
+	/** The order as accepted: by the player, or by the steward on its own, from the proposal {@code key}. */
+	public ModuleOrder accepted(boolean byTheSteward, String key) {
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, byTheSteward, key, null);
 	}
 
 	/** The same offer, with the lamp the bible gives (the plain lantern when its lamp is too dim). */
 	public ModuleOrder withLamp(boolean fallback) {
-		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, fallback, autonomous);
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, fallback, autonomous, proposal, held);
 	}
 
 	/** The lot ext Architect keeps on the placed lot. */
