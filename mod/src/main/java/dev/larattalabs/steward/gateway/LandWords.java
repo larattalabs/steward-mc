@@ -76,6 +76,12 @@ public final class LandWords {
 	 * @param onDemand the player asked: gaps (unloaded cells, a region too large, a refusal) are said; an automatic look says nothing of them
 	 */
 	public static Note note(String name, List<Look> looks, Function<String, @Nullable String> buildingName, boolean onDemand) {
+		return note(name, looks, buildingName, onDemand, part -> false);
+	}
+
+	/** As above; a region part {@code secret} names (a hidden room's, S-7c-4) is told as "other built areas", never by its own name. */
+	public static Note note(String name, List<Look> looks, Function<String, @Nullable String> buildingName, boolean onDemand,
+		java.util.function.Predicate<String> secret) {
 		List<String> lines = new ArrayList<>();
 		List<String> gaps = new ArrayList<>();
 		long damage = 0, placed = 0;
@@ -87,7 +93,7 @@ public final class LandWords {
 			if (look.report() == null) {
 				complete = false;
 				if ("REGION_LIMIT".equals(look.refusal())) gaps.add(look.label() + " is too large for me to look over at once.");
-				else gaps.add("I couldn't look over " + look.label() + (look.message() == null || look.message().isBlank() ? "." : ": " + look.message()));
+				else gaps.add("I couldn't look over " + look.label() + (look.message() == null || look.message().isBlank() || secret.test(look.message()) ? "." : ": " + look.message()));
 				continue;
 			}
 			seen = true;
@@ -113,7 +119,7 @@ public final class LandWords {
 				damage += p.removed() + p.changed();
 				placed += p.playerPlaced();
 				if (p.removed() + p.changed() > 0) sig.add(r.region() + "|part:" + p.part() + "=" + (p.removed() + p.changed()));
-				lines.add(cap(in + partName(p.part())) + ": " + counts(p.removed(), p.changed(), p.playerPlaced(), p.kinds(), false) + ".");
+				lines.add(cap(in + partName(secret.test(p.part()) ? null : p.part())) + ": " + counts(p.removed(), p.changed(), p.playerPlaced(), p.kinds(), false) + ".");
 			}
 		}
 		boolean real = !lines.isEmpty();

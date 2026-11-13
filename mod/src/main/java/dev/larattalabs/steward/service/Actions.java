@@ -657,8 +657,10 @@ public final class Actions {
 		// the plan composed from it, when there is one: its summary and what waits, in Claude's words (they replace the word rules' guesses)
 		var plan = PlanStore.get(s.id());
 		// the summary, then its bridges and tunnels as Architect resolved them
-		String summary = plan.map(e -> clip(e.summary() + (e.crossings().isEmpty() ? "" : " Crossings: " + String.join("; ", e.crossings()) + "."), 4000)).orElse("");
-		List<String> waits = plan.map(e -> e.pending().stream().map(x -> clip(x.words(), 1000)).limit(12).toList()).orElse(List.of());
+		// (S-7c-4) never a hidden room: Claude's words scrubbed again (a plan kept before they were), its waiting part not said
+		var secrets = Secrets.of(plan.orElse(null));
+		String summary = plan.map(e -> clip(secrets.scrub(e.summary()) + (e.crossings().isEmpty() ? "" : " Crossings: " + String.join("; ", secrets.keep(e.crossings())) + "."), 4000)).orElse("");
+		List<String> waits = plan.map(e -> Composer.shown(e.pending(), secrets).stream().map(x -> clip(secrets.scrub(x.words()), 1000)).filter(x -> !x.isBlank()).limit(12).toList()).orElse(List.of());
 		ServerPlayNetworking.send(p, new StewardNet.Card(s.id(), s.name(), CARD_GSON.toJson(s.card()), SettlementRunner.busy(s.id()), s.claim().radius(), summary,
 			waits, refresh));
 	}

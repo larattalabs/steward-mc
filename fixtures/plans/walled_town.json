@@ -28,7 +28,8 @@
                     15
                   ],
                   "landmark": true,
-                  "placement": "central"
+                  "placement": "central",
+                  "brief": "The town's market hall, open-sided on the square. Under it lies a secret cellar nobody mentions."
                 },
                 {
                   "id": "cottage_1",
@@ -82,16 +83,16 @@
           "kind": "hidden_room",
           "required": false,
           "label": "a hidden cellar",
+          "host": "market_hall_1",
+          "size": {
+            "preset": "S"
+          },
+          "entrance": "trapdoor",
           "notes": "A secret cellar under the market hall, reached by a trapdoor."
         }
       ]
     },
-    "waits": [
-      {
-        "part": "secret_cellar",
-        "words": "The hidden cellar under the market hall waits for a later Architect release; the town and its wall are built first."
-      }
-    ],
-    "summary": "A small walled market town round a central market hall, with merchants' houses on its street. Its hidden cellar waits for Architect."
+    "waits": [],
+    "summary": "A small walled market town round a central market hall, with merchants' houses on its street. Under the market hall, a hidden cellar is reached by a trapdoor."
   }
 }

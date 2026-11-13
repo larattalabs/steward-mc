@@ -279,9 +279,21 @@ public final class Composer {
 		if (answer.has("waits") && answer.get("waits").isJsonArray()) for (var w : answer.getAsJsonArray("waits")) if (w.isJsonObject() && w.getAsJsonObject().has("part") && w.getAsJsonObject().has("words")) words.put(w.getAsJsonObject().get("part").getAsString(), w.getAsJsonObject().get("words").getAsString());
 		List<PlanStore.Pending> pending = new ArrayList<>();
 		List<String> unfit = new ArrayList<>();
+		// (S-7c-4) the plan's hidden rooms are never named to the player: kept (a waiting one stays pending, so the build doesn't require it), never said
+		Secrets secrets = Secrets.of(plan, artifactBody(c));
+		boolean secretBuilt = false;
 		for (JsonObject part : c.parts()) {
 			String id = part.has("part") ? part.get("part").getAsString() : "?";
 			boolean required = part.has("required") && part.get("required").getAsBoolean();
+			if (secrets.hides(id)) {
+				switch (cls(part)) {
+					case "unsupported", "blocked" -> pending.add(new PlanStore.Pending(id, part.has("block") ? part.get("block").getAsString() : "", required, ""));
+					case "fits", "adjusted" -> secretBuilt = true;
+					default -> {
+					}
+				}
+				continue;
+			}
 			switch (cls(part)) {
 				case "unsupported", "blocked" -> pending.add(new PlanStore.Pending(id, part.has("block") ? part.get("block").getAsString() : "", required,
 					words.getOrDefault(id, unplacedEnd(part) != null ? id.replace('_', ' ') + " waits on " + unplacedEnd(part) + ", which there wasn't room to place"
@@ -291,7 +303,10 @@ public final class Composer {
 				}
 			}
 		}
-		String summary = answer.has("summary") ? answer.get("summary").getAsString() : "";
+		// Claude's summary and what waits, without a sentence that names a secret
+		String summary = secrets.scrub(answer.has("summary") ? answer.get("summary").getAsString() : "");
+		pending.replaceAll(x -> secrets.hides(x.part()) ? x : new PlanStore.Pending(x.part(), x.block(), x.required(), secrets.scrub(x.words()).isBlank()
+			? x.part().replace('_', ' ') + " waits for a later Architect release" : secrets.scrub(x.words())));
 		PlanStore.put(new PlanStore.Entry(s.id(), plan.toString(), c.overall().name(), c.artifactSha(), summary, List.copyOf(pending), cost, System.currentTimeMillis(), rounds,
 			crossings(c.preview())));
 		Steward.LOGGER.info("plan for {}: {} after {} repair(s), {} pending, {} unfit, ${}", s.id(), c.overall(), rounds, pending.size(), unfit.size(),
@@ -300,13 +315,29 @@ public final class Composer {
 		// what composing cost, with the card's cost already shown: the player asked for it, so it is theirs, not the steward's weekly allowance
 		if (!summary.isBlank()) out.add("The plan: " + summary + String.format(java.util.Locale.ROOT, " (composing it cost $%.2f)", cost));
 		if (!leftOut.isEmpty()) out.add("Left out for room (laid out on a street instead): " + words(leftOut) + ".");
-		for (var p : pending) out.add("Not yet: " + p.words());
+		for (var p : shown(pending, secrets)) out.add("Not yet: " + p.words());
 		if (!unfit.isEmpty()) out.add("Didn't fit here: " + String.join(", ", unfit) + ".");
+		if (secretBuilt) out.add(Secrets.HINT);
 		COMPOSING.remove(s.id(), Session.current());
 		tell(server, player, s, out);
 		// a card screen open on it shows the plan now
 		var p = server.getPlayerList().getPlayer(player);
 		if (p != null) Settlements.store().get(s.id()).ifPresent(now -> Actions.sendCard(p, now, true));
+	}
+
+	/** The waiting parts the player is told of: all but the secret ones (S-7c-4). */
+	public static List<PlanStore.Pending> shown(List<PlanStore.Pending> pending, Secrets secrets) {
+		return secrets.any() ? pending.stream().filter(p -> !secrets.hides(p.part())).toList() : pending;
+	}
+
+	/** The check's approved artifact's body (its {@code $.secrets[]}); null without one, or from an Architect that can't say. */
+	static @Nullable JsonObject artifactBody(PlanCheck c) {
+		if (c.artifactSha() == null) return null;
+		try {
+			return ArchitectApi.get().regions().artifact(c.artifactSha()).map(a -> a.body()).orElse(null);
+		} catch (RuntimeException | LinkageError e) {
+			return null;
+		}
 	}
 
 	private static void done(Settlement s, String why, MinecraftServer server, UUID player) {

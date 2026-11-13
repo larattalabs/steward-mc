@@ -217,8 +217,10 @@ public final class PendingOffers {
 			JsonObject plan = JsonParser.parseString(entry.get().plan()).getAsJsonObject();
 			List<Proposal> open = new ArrayList<>(s.proposals().open());
 			boolean added = false;
+			// (S-7c-4) a waiting hidden room is never offered: an inbox item would name it (and a room in a standing build waits, S-7c-8)
+			var secrets = Secrets.of(entry.get());
 			for (var p : entry.get().pending()) {
-				if (!"supported".equals(states.get(p.block())) || !offerable(p.block())) continue;
+				if (!"supported".equals(states.get(p.block())) || !offerable(p.block()) || secrets.hides(p.part())) continue;
 				String key = "part_" + p.part();
 				if (open.stream().anyMatch(x -> x.key().equals(key)) || s.proposals().declined().contains(key) || s.proposals().accepted().contains(key)) continue;
 				String what = name(partOf(plan, p.part()).orElse(null), p.part());
@@ -250,7 +252,7 @@ public final class PendingOffers {
 		JsonObject plan = JsonParser.parseString(entry.get().plan()).getAsJsonObject();
 		var partJson = partOf(plan, part);
 		if (partJson.isEmpty()) return "That part is not in the kept plan.";
-		if (!offerable(pending.get().block())) return "It can't be built on its own: it waits for the part it belongs to.";
+		if (!offerable(pending.get().block()) || Secrets.of(entry.get()).hides(part)) return "It can't be built on its own: it waits for the part it belongs to.";
 		if (s.proposals().accepted().contains(p.key())) return "It is built already.";
 		String no = noInstant(server, s);
 		if (no != null) return "Not yet: " + no + ".";
