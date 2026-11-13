@@ -8,31 +8,62 @@ import java.util.Set;
  * written against a draft contract) is fixed in one place. Pure checks live in {@link Status} so they are unit-testable.
  */
 public final class ArchitectGateway {
-	/** The Architect API major version Steward is written against. */
+	/** The Architect API major version Steward is written against. A loaded API of another major is refused (Noah, 2026-11-13: an upper bound at the next major API). */
 	public static final int REQUIRED_MAJOR = 1;
 	/**
-	 * The oldest minor version Steward runs on: groups, batches, critique and delta apply (1.8.0), and the flat village with tagged lots, keyed plan and
-	 * realise and removal tombstones (1.14.0), the settlement stockpile with its waiting status (1.17.0), pausing a construction target (1.19.0), the plan check (1.23.0), the player's own builds (1.24.0), adopting one as a site (1.26.0), a village street's orientation with a design's block count (1.30.0), a plan check that loads a tunnel's corridor (1.33.0), contained water with its report (1.34.0), water courses (1.36.0), irrigated fields with palette rules (1.37.0), regions built from materials with natural forms (1.38.0), keyed pins, discarded plans and stage waits Steward can say (1.39.0), and districts beside a town (checkBeside, API 1.40.0 = Architect 0.43.0; fabric.mod.json says the same).
+	 * The pinned API: the {@code ArchitectApi.VERSION} Steward was compiled against. javac inlines that constant into Steward's bytecode, so it names
+	 * the pin ({@code architect_version} in gradle.properties), never the Architect that is loaded.
 	 */
-	public static final int REQUIRED_MINOR = 40;
+	public static final String PINNED_VERSION = ArchitectApi.VERSION;
+	/**
+	 * The oldest minor version Steward runs on: the pinned API's. A pin bump moves it with no edit here, as it moves fabric.mod.json's
+	 * {@code architect_mc} range to the pinned release.
+	 */
+	public static final int REQUIRED_MINOR = minorOf(PINNED_VERSION);
 	/** Features Steward cannot work without (names from ArchitectApi.features()). */
 	public static final Set<String> REQUIRED_FEATURES = Set.of("designs", "sites", "events");
 
 	private ArchitectGateway() {
 	}
 
-	/** Reads the real API. Never throws: a missing or older Architect is reported in the status. */
+	/** Reads the real API. Never throws: a missing, older or newer-major Architect is reported in the status. */
 	public static Status check() {
 		try {
 			ArchitectApi api = ArchitectApi.get();
-			return Status.evaluate(ArchitectApi.VERSION, api.features());
+			return Status.evaluate(loadedVersion(api, ArchitectApi.class), api.features());
 		} catch (Throwable t) {
 			return new Status(false, "unavailable", Set.of(), "Architect API not available: " + t);
 		}
 	}
 
+	/**
+	 * The API version of the Architect that is loaded, not the one Steward compiled against: {@code apiVersion()} on the implementation when
+	 * Architect has it (the AV ask), else the {@code VERSION} field read by reflection from the loaded API class, which a constant inlined at
+	 * compile time can't stand in for. (The architect_mc mod container gives the mod version, 0.x, not the API version.) Null if neither is readable.
+	 */
+	public static String loadedVersion(Object api, Class<?> apiClass) {
+		try {
+			Object v = apiClass.getMethod("apiVersion").invoke(api);
+			if (v instanceof String s && !s.isBlank()) return s;
+		} catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+			// no apiVersion() yet: Architect's AV ask; fall back to the loaded class's constant
+		}
+		try {
+			Object v = apiClass.getField("VERSION").get(null);
+			if (v instanceof String s && !s.isBlank()) return s;
+		} catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
+			// fall through
+		}
+		return null;
+	}
+
+	static int minorOf(String version) {
+		return Integer.parseInt(version.split("\\.")[1]);
+	}
+
 	public record Status(boolean ok, String version, Set<String> features, String problem) {
 		public static Status evaluate(String version, Set<String> features) {
+			if (version == null) return new Status(false, "unknown", features, "the loaded Architect's API version can't be read");
 			int major, minor;
 			try {
 				String[] parts = version.split("\\.");
