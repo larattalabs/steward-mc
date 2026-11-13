@@ -40,7 +40,9 @@ const DIR = path.join(CATALOG, MODULE.id, String(MODULE.version));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const json = (o) => JSON.stringify(o);
 const k3 = (c) => `${c[0]},${c[1]},${c[2]}`;
-const logFile = path.join(ART, `${step ?? 'none'}.log`);
+/** The evidence's name: field-<crop>, skin-<bible>, or the step. */
+const LABEL = step === 'field' ? `field-${opt('--crop')}` : step === 'skin' ? `skin-${opt('--bible')}` : step;
+const logFile = path.join(ART, `${LABEL ?? 'none'}.log`);
 const log = (m) => { console.log(m); fs.appendFileSync(logFile, `${m}\n`); };
 const checks = [];
 function check(ok, what, data) {
@@ -124,6 +126,10 @@ async function startClient(label) {
   for (const p of [PORT - 1, PORT]) if (await listening(p)) throw new Error(`port ${p} is in use (another client?): refusing to launch; use --attach to drive it`);
   if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
+  // every field measured sits inside the player's simulation distance (random ticks run in block-ticking chunks only): 16 chunks
+  const opts = path.join(GAME, 'options.txt');
+  if (fs.existsSync(opts)) fs.writeFileSync(opts, fs.readFileSync(opts, 'utf8').replace(/^simulationDistance:\d+$/m, `simulationDistance:${SIM_DISTANCE}`));
+  else fs.writeFileSync(opts, `simulationDistance:${SIM_DISTANCE}\n`);
   worldName = `Steward M2 ${label} ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
   const out = fs.openSync(path.join(ART, 'client.log'), 'a');
   child = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], {
@@ -177,6 +183,7 @@ async function gameTime() { return (await mod({ op: 'cells', cells: [] })).gameT
 // ------------------------------------------------------------------ the world, the town and the farms
 
 const OWNER = 'steward_mc:measure';
+const SIM_DISTANCE = 16;
 /** Frozen time and weather, no mob spawning, random ticks at vanilla's 3 (M0's conventions). */
 async function rules({ ticks = 3 } = {}) {
   for (const r of [`random_tick_speed ${ticks}`, 'mob_griefing true', 'advance_time false', 'advance_weather false', 'spawn_mobs false', 'spawn_monsters false', 'fire_spread_radius_around_player 0']) await cmd(`/gamerule ${r}`);
@@ -362,6 +369,583 @@ async function look() {
   return out;
 }
 
+// ------------------------------------------------------------------ the frozen game, the harvest and the replant
+
+const tick = {
+  frozen: false,
+  async freeze() { await cmd('/tick freeze'); this.frozen = true; },
+  /** Advance n ticks with the game frozen around it (M0's advance): /tick sprint n, then wait until the game time moved n. */
+  async advance(n) {
+    const t0 = await gameTime();
+    await cmd(`/tick sprint ${n}`);
+    const end = Date.now() + Math.max(300_000, n * 20);
+    for (;;) {
+      const t = await gameTime();
+      if (t - t0 >= n) {
+        for (let i = 0; i < 200; i++) { const q = await cmd('/tick query'); if (/frozen/i.test(String(q?.text ?? (q?.messages ?? []).join(' ')))) break; await sleep(25); }
+        return (await gameTime()) - t0;
+      }
+      if (Date.now() > end) { await cmd('/tick sprint stop'); throw new Error(`advance of ${n} stuck at ${t - t0}`); }
+      await sleep(n > 2000 ? 250 : 25);
+    }
+  },
+};
+const PLACER = 'M2Farmer';
+/** The player breaks these cells (destroyBlock: PT sees the player's break), in batches. */
+async function breakCells(cells) {
+  for (let i = 0; i < cells.length; i += 1024) await call('dev.pt.breaks', { at: cells.slice(i, i + 1024), placer: PLACER }, 900_000);
+}
+/** The player plants `item` on each farmland cell below these crop cells (useItemOn, face up). Returns how many took. */
+async function plant(item, cropCells) {
+  let n = 0;
+  for (let i = 0; i < cropCells.length; i += 1024) {
+    const ops = cropCells.slice(i, i + 1024).map(([x, y, z]) => ({ item, at: [x, y, z], on: [x, y - 1, z], face: 'up', placer: PLACER }));
+    const r = await call('dev.pt.uses', { ops }, 900_000);
+    n += (r.results ?? []).filter((o) => /minecraft:(wheat|carrots|potatoes|beetroots)/.test(String(o.state ?? ''))).length;
+  }
+  return n;
+}
+/** The farm's box (the lot's, floor - 1 .. floor + 3) for counting drops. */
+const dropBox = (f) => [f.frame.box.minX - 1, f.frame.floorY - 1, f.frame.box.minZ - 1, f.frame.box.maxX + 1, f.frame.floorY + 4, f.frame.box.maxZ + 1];
+/** Harvest one farm: the player breaks every mature crop, the drops are counted and taken away. {broken, cells, items}. */
+async function harvest(f) {
+  const c = CROPS[f.crop];
+  const max = f.crop === 'beetroots' ? 3 : 7;
+  const r = await readCells(f.crops);
+  const mature = f.crops.filter((_, i) => r[i]?.[0] === c.block && r[i][1] === max);
+  await breakCells(mature);
+  const t = await mod({ op: 'takeItems', box: dropBox(f) });
+  return { broken: mature.length, cells: mature, items: t.items };
+}
+/** Start a run: every crop cell broken (not counted) and planted at age 0 by the player. */
+async function resetField(f) {
+  const r = await readCells(f.crops);
+  await breakCells(f.crops.filter((_, i) => r[i] && r[i][0] !== 'minecraft:air'));
+  await mod({ op: 'takeItems', box: dropBox(f) });
+  const n = await plant(CROPS[f.crop].plant, f.crops);
+  return n;
+}
+/** Whether a cell holds a design block that is not part of the light bar (fence, gate, lamp, chest, composter, water). */
+const LIGHT_CELL = (c) => c && (c[0] === 'minecraft:air' || /minecraft:(wheat|carrots|potatoes|beetroots)$/.test(c[0]));
+
+/** Grows `T` by farms `specs` in revisions of at most 3, each PLACED. Returns the farms (farmCells done). */
+async function growAll(T, specs, opts = {}) {
+  const farms = [];
+  for (let i = 0; i < specs.length; i += 3) {
+    const g = await growFarms(T.region, specs.slice(i, i + 3), opts);
+    if (!check(!g.refused, `${T.region}: grown by ${specs.slice(i, i + 3).map((s) => `${s.id} ${s.width}x${s.depth} ${s.crop} ${s.bible}`).join(', ')}: ${g.refused ? String(g.refused).slice(0, 300) : `rid ${g.rid}`}`)) continue;
+    const w = await rvWait(T.region, g.rid);
+    check(w.r.state === 'PLACED', `${T.region} rid ${g.rid}: ${w.r.state}`);
+    await farmCells(T.region, g.farms);
+    for (const f of g.farms) { f.region = T.region; f.rid = g.rid; f.town = T; }
+    farms.push(...g.farms);
+  }
+  return farms;
+}
+const SIZES = [[9, 9], [18, 18], [27, 27], [9, 27], [27, 9], [9, 18], [18, 9], [18, 27], [27, 18]];
+/** Two towns side by side (ew then ns), within the simulation distance of a player standing between them. */
+async function twoTowns(x0, z0) {
+  const A = await town(x0, z0, { w: 192, d: 160, lots: 4, orientation: 'ew' });
+  const B = await town(x0 + 224, z0, { w: 160, d: 192, lots: 4, orientation: 'ns' });
+  return [A, B];
+}
+async function standAt(x, z, y) {
+  await cmd(`/tp @p ${x} ${y} ${z}`);
+  await call('dev.waitChunks', { timeoutMs: 120_000 }, 180_000).catch(() => null);
+}
+/** Every farm cell's chunk within the simulation distance of the player's chunk (Chebyshev, chunks). */
+function inSim(farms, px, pz) {
+  const pcx = Math.floor(px / 16), pcz = Math.floor(pz / 16);
+  let worst = 0;
+  for (const f of farms) for (const [x, , z] of f.crops) worst = Math.max(worst, Math.abs(Math.floor(x / 16) - pcx), Math.abs(Math.floor(z / 16) - pcz));
+  return worst;
+}
+/** Item 2 at midnight: per farm {min, n, under1, at9}. */
+async function lightBar(farms, label) {
+  await cmd('/time set 18000');
+  const out = {};
+  for (const f of farms) {
+    const r = await readCells(f.floor1);
+    const lit = r.filter(LIGHT_CELL);
+    const crops = r.filter((c) => c && /(wheat|carrots|potatoes|beetroots)$/.test(c[0]));
+    const under = r.map((c, i) => [f.floor1[i], c]).filter(([, c]) => LIGHT_CELL(c) && c[3] < 1);
+    out[f.id] = { bible: f.bible, size: `${f.width}x${f.depth}`, front: f.lot.front, min: Math.min(...lit.map((c) => c[3])), cells: lit.length, under1: under.length, at9: crops.filter((c) => c[3] >= 9).length / Math.max(1, crops.length), lamp: f.variant?.lamp ?? null, fallback: f.variant?.lampFallback ?? null };
+    check(under.length === 0 && lit.length > 0, `2 light ${label} ${f.id} (${f.width}x${f.depth} ${f.bible}, front ${f.lot.front}): every open floor+1 cell has block light >= 1 (${lit.length} cells, lowest ${out[f.id].min}; crop cells at 9+: ${(out[f.id].at9 * 100).toFixed(0)}%)`, under.slice(0, 5));
+  }
+  await cmd('/time set 6000');
+  return out;
+}
+/** Every farmland cell of the farms at moisture 7: {ok, notSeven: [[cell, state]]}. */
+async function moistAll(farms) {
+  const bad = [];
+  let n = 0;
+  for (const f of farms) {
+    const r = await readCells(f.farmland);
+    n += r.length;
+    r.forEach((c, i) => { if (!(c?.[0] === 'minecraft:farmland' && c[2] === 7)) bad.push([f.id, f.farmland[i], c]); });
+  }
+  return { n, bad };
+}
+async function agesOf(farms) {
+  const out = {};
+  for (const f of farms) out[f.id] = { crops: await readCells(f.crops), land: await readCells(f.farmland) };
+  return out;
+}
+const sameAges = (a, b) => {
+  let diff = 0, first = null;
+  for (const id of Object.keys(a)) for (const k of ['crops', 'land']) a[id][k].forEach((c, i) => { if (json(c?.slice(0, 3)) !== json(b[id]?.[k]?.[i]?.slice(0, 3))) { diff++; first ??= [id, k, i, c, b[id]?.[k]?.[i]]; } });
+  return { diff, first };
+};
+
+/** Items 1, 2, 3 and 5 for one crop over the 9 size pairs, rustic (docs/MEASURE-M2.md). */
+async function field() {
+  const crop = opt('--crop');
+  if (!CROPS[crop]) throw new Error(`--crop must be one of ${Object.keys(CROPS).join(', ')}`);
+  const RUNS = Number(opt('--runs', 5));
+  await startClient(`Field ${crop}`);
+  const out = { crop, runs: [], placedMoisture: null, hydration: [], light: null, restart: null, unload: null };
+  try {
+    await rules();
+    await install();
+    const [A, B] = await twoTowns(30000, 30000);
+    const specs = SIZES.map(([w, d], i) => ({ id: `${crop.slice(0, 4)}_${w}x${d}`, width: w, depth: d, crop, bible: 'rustic', town: i < 5 ? 'A' : 'B' }));
+    const farms = [...(await growAll(A, specs.filter((s) => s.town === 'A'))), ...(await growAll(B, specs.filter((s) => s.town === 'B')))];
+    out.farms = farms.map((f) => ({ id: f.id, size: `${f.width}x${f.depth}`, front: f.lot.front, box: f.lot.box, chunkBorder: f.chunkBorder, crops: f.crops.length, siteId: f.siteId, region: f.region, entryId: f.entryId }));
+    check(farms.length === 9, `${crop}: all 9 size pairs placed (${farms.length})`);
+    const px = 30000 + 208, pz = 30000 + 96;
+    await standAt(px, pz, A.gy + 40);
+    const worst = inSim(farms, px, pz);
+    check(worst <= SIM_DISTANCE - 2, `${crop}: every crop cell within ${worst} chunks of the player (simulation distance ${SIM_DISTANCE})`);
+    await tick.freeze();
+    out.placedMoisture = await moistAll(farms);
+    log(`  ${crop}: at PLACED, ${out.placedMoisture.bad.length} of ${out.placedMoisture.n} farmland cells below 7 (recorded)`);
+    // ---- item 2: light at midnight
+    out.light = await lightBar(farms, crop);
+    // ---- item 1: 24,000 ticks, sampled every 4,000
+    for (let t = 4000; t <= 24000; t += 4000) {
+      await tick.advance(4000);
+      const m = await moistAll(farms);
+      out.hydration.push({ t, below7: m.bad.length, n: m.n, first: m.bad.slice(0, 3) });
+      log(`  ${crop}: hydration at ${t}: ${m.bad.length} of ${m.n} below 7`);
+    }
+    const h = out.hydration.at(-1);
+    check(h.below7 === 0, `1a hydration ${crop}: every farmland cell of the 9 farms reads moisture=7 24,000 ticks after PLACED (${h.n} cells; ${h.below7} below)`, h.first);
+    // ---- item 3: 5 runs x 3 cycles
+    const Tc = TCYCLE[crop];
+    for (let run = 1; run <= RUNS; run++) {
+      const R = { run, farms: {} };
+      for (const f of farms) R.farms[f.id] = { planted: await resetField(f), cycles: [], tCells: null };
+      const t0 = await gameTime();
+      // cycle 1: every crop's age every 1,000 ticks (its maturity time: G3's basis)
+      const firstMature = Object.fromEntries(farms.map((f) => [f.id, new Array(f.crops.length).fill(null)]));
+      const max = crop === 'beetroots' ? 3 : 7;
+      for (let t = 1000; t <= Tc; t += 1000) {
+        await tick.advance(Math.min(1000, Tc - (t - 1000)));
+        const now = (await gameTime()) - t0;
+        for (const f of farms) {
+          const r = await readCells(f.crops);
+          r.forEach((c, i) => { if (firstMature[f.id][i] === null && c?.[1] === max) firstMature[f.id][i] = now; });
+        }
+      }
+      if ((await gameTime()) - t0 < Tc) await tick.advance(Tc - ((await gameTime()) - t0));
+      for (const f of farms) R.farms[f.id].tCells = firstMature[f.id];
+      for (let cyc = 1; cyc <= CYCLES; cyc++) {
+        if (cyc > 1) {
+          // ---- item 5, in run 1 after the first harvest, at half a cycle
+          if (run === 1 && cyc === 2 && !flag('--no-restart')) {
+            await tick.advance(Math.floor(Tc / 2));
+            out.restart = await restartCheck(farms, A.gy);
+            out.unload = await unloadCheck(farms, px, pz, A.gy);
+            await tick.advance(Tc - Math.floor(Tc / 2));
+          } else await tick.advance(Tc);
+        }
+        const m = await moistAll(farms);
+        for (const f of farms) {
+          const hv = await harvest(f);
+          const replanted = await plant(CROPS[crop].plant, hv.cells);
+          R.farms[f.id].cycles.push({ cycle: cyc, at: (await gameTime()) - t0, broken: hv.broken, items: hv.items, replanted });
+        }
+        R.moist = R.moist ?? [];
+        R.moist.push({ cycle: cyc, below7: m.bad.length, n: m.n, first: m.bad.slice(0, 2) });
+      }
+      out.runs.push(R);
+      fs.writeFileSync(path.join(ART, `field-${crop}.partial.json`), json(out));
+      log(`  ${crop} run ${run}: ${farms.map((f) => `${f.id} ${R.farms[f.id].cycles.map((c) => c.broken).join('/')}`).join('; ')}`);
+    }
+    judgeField(out, farms);
+  } finally {
+    await stopClient().catch((e) => log(`stop: ${e}`));
+  }
+  return out;
+}
+
+/** Item 5a: read, save and leave, open again, read: the same. */
+async function restartCheck(farms, gy) {
+  // random ticks off in the save (a gamerule is saved; /tick freeze is not), so the ticks a reopened world runs before it is frozen again
+  // grow nothing: the check is what the save kept
+  await cmd('/gamerule random_tick_speed 0');
+  const before = await agesOf(farms);
+  await cmd('/save-all flush');
+  const l = await call('dev.world.leave', {}, 300_000);
+  await sleep(2000);
+  await call('dev.world.open', { name: worldName }, 300_000);
+  await dev.waitInWorld({ timeoutMs: 600_000 });
+  await tick.freeze();
+  await rules({ ticks: 0 });
+  await tick.freeze();
+  await call('dev.waitChunks', { timeoutMs: 120_000 }, 180_000).catch(() => null);
+  const after = await agesOf(farms);
+  const d = sameAges(before, after);
+  const m = await moistAll(farms);
+  await cmd('/gamerule random_tick_speed 3');
+  check(d.diff === 0 && m.bad.length === 0, `5a restart: after save, leave and open, every crop's block and age and every farmland cell's moisture are the same (${d.diff} differ; ${m.bad.length} farmland below 7)`, d.first);
+  return { left: l.left ?? true, diff: d.diff, first: d.first, below7: m.bad.length };
+}
+/** Item 5b: away until the farms' chunks unload, 2,000 ticks there, back: the same. */
+async function unloadCheck(farms, px, pz, gy) {
+  const before = await agesOf(farms);
+  const probe = farms.map((f) => f.crops[0]);
+  await standAt(px + 4000, pz, gy + 40);
+  let unloaded = false;
+  for (let i = 0; i < 120 && !unloaded; i++) {
+    await tick.advance(100);
+    const r = await readCells(probe);
+    unloaded = r.every((c) => c === null);
+  }
+  await tick.advance(2000);
+  await standAt(px, pz, gy + 40);
+  for (let i = 0; i < 60; i++) { const r = await readCells(probe); if (r.every((c) => c !== null)) break; await sleep(500); }
+  const after = await agesOf(farms);
+  const d = sameAges(before, after);
+  const m = await moistAll(farms);
+  check(unloaded && d.diff === 0 && m.bad.length === 0, `5b unload: the farms' chunks unloaded (${unloaded}), 2,000 ticks away, back: every crop's age the same (${d.diff} differ), every farmland cell moisture 7 (${m.bad.length} below)`, d.first);
+  return { unloaded, diff: d.diff, first: d.first, below7: m.bad.length };
+}
+
+/** The bars of items 1b, 3a, 3b and 3c over a field step's runs. */
+function judgeField(out, farms) {
+  const probe = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'modules', 'probe-m0.json'), 'utf8'));
+  const c = CROPS[out.crop];
+  const Tc = TCYCLE[out.crop];
+  const moist = out.runs.flatMap((r) => r.moist ?? []);
+  check(moist.length > 0 && moist.every((m) => m.below7 === 0), `1b hydration ${out.crop}: every farmland cell moisture 7 at every harvest (${moist.length} harvests; ${moist.reduce((a, m) => a + m.below7, 0)} cell-readings below)`);
+  out.judged = {};
+  for (const f of farms) {
+    const n = f.crops.length;
+    const b = barBands(probe, out.crop, n);
+    const runs = out.runs.map((r) => {
+      const F = r.farms[f.id];
+      const got = F.cycles.reduce((a, x) => a + (x.items[c.item] ?? 0), 0);
+      const broken = F.cycles.reduce((a, x) => a + x.broken, 0);
+      const net = got - (c.plantIsItem ? broken : 0);
+      const perCropDay = net / ((CYCLES * Tc) / DAY) / n;
+      const tc = (F.tCells ?? []).filter((t) => t !== null);
+      return { run: r.run, broken, got, net, perCropDay, tMatured: tc.length, tMean: tc.length ? tc.reduce((a, x) => a + x, 0) / tc.length : null, yPerCrop: broken ? got / broken : 0 };
+    });
+    const mean = runs.reduce((a, r) => a + r.perCropDay, 0) / runs.length;
+    // G3's basis: harvested as each crop ripens, from cycle 1's maturity times (cells matured within T; the rest are counted at T, a bound)
+    const allT = out.runs.flatMap((r) => (r.farms[f.id].tCells ?? []).map((t) => (t === null ? Tc : t)));
+    const tMean = allT.reduce((a, x) => a + x, 0) / allT.length;
+    const y = runs.reduce((a, r) => a + r.got, 0) / Math.max(1, runs.reduce((a, r) => a + r.broken, 0));
+    const ripen = (y - (c.plantIsItem ? 1 : 0)) / (tMean / DAY);
+    const J = { n, band: b.band, runs, mean, ripenPerCropDay: ripen, unwatered: b.unwatered.mean, useful: USEFUL_PER_CROP_DAY };
+    out.judged[f.id] = J;
+    check(runs.length >= 5 && runs.every((r) => r.perCropDay >= b.band[0] && r.perCropDay <= b.band[1]), `3a band ${f.id} (${n} crops, front ${f.lot.front}): every run's net rate per crop a day inside [${b.band.map((x) => x.toFixed(3)).join(', ')}]: ${runs.map((r) => r.perCropDay.toFixed(3)).join(', ')} (${runs.length} runs)`);
+    check(ripen >= USEFUL_PER_CROP_DAY, `3b usefulness ${f.id}: harvested as it ripens, ${ripen.toFixed(3)} per crop a day = ${(ripen * 80).toFixed(1)} per 80 crops (bar 24); the protocol's quoted rate ${mean.toFixed(3)} = ${(mean * 80).toFixed(1)} per 80`);
+    check(mean >= 1.5 * b.unwatered.mean, `3c control ${f.id}: the mean ${mean.toFixed(3)} >= 1.5 x the probe's unwatered ${b.unwatered.mean.toFixed(3)}`);
+  }
+}
+
+// ------------------------------------------------------------------ skin: items 1a, 2 and 4 for one Style (and the dim lamp)
+
+/** The fence's inside in world coordinates (u 1..W-2, v 1..D-3 of the frame, floor .. floor + 3) as a box. */
+function insideBox(f) {
+  const a = f.frame.toWorld(1, 0, 1), b = f.frame.toWorld(f.L.W - 2, 3, f.L.D - 3);
+  return [Math.min(a[0], b[0]), a[1], Math.min(a[2], b[2]), Math.max(a[0], b[0]), b[1], Math.max(a[2], b[2])];
+}
+const inBox = (b, x, y, z) => x >= b[0] && x < b[3] + 1 && y >= b[1] && y < b[4] + 1 && z >= b[2] && z < b[5] + 1;
+/** Where a farm's mobs are summoned: 3 cells outside the fence at the middle of its back and of each side (frame), floor + 1. */
+function mobSpots(f) {
+  const { W, D } = f.L;
+  const m = Math.floor(W / 2), mv = Math.floor((D - 2) / 2);
+  return [[m, 1, -3], [m - 2, 1, -3], [-3, 1, mv], [-3, 1, mv + 2], [W + 2, 1, mv], [W + 2, 1, mv - 2]].map(([u, y, v]) => f.frame.toWorld(u, y, v));
+}
+/** Item 4c: the gate. A fake player from the front row walks in (closed: it stays out), the gate opened, in, out. */
+async function gateWalk(f) {
+  const { gate, D } = f.L;
+  const c = (u, v) => { const w = f.frame.toWorld(u, 1, v); return [w[0] + 0.5, w[1] + 0.05, w[2] + 0.5]; };
+  const out = c(gate, D - 1), inn = c(gate, D - 3), g = f.frame.toWorld(gate, 1, D - 2);
+  const closed = await mod({ op: 'walk', from: out, to: inn });
+  const use = () => call('dev.pt.uses', { ops: [{ item: 'minecraft:stick', at: g, on: g, face: f.lot.front, placer: PLACER }] }, 120_000);
+  await use();
+  const walkIn = await mod({ op: 'walk', from: out, to: inn });
+  const walkOut = await mod({ op: 'walk', from: inn, to: out });
+  await use(); // closed again
+  const closedAgain = await mod({ op: 'walk', from: out, to: inn });
+  return { closed: closed.reached, in: walkIn.reached, out: walkOut.reached, closedAgain: closedAgain.reached };
+}
+
+async function skin() {
+  const bible = opt('--bible');
+  if (!MODULE_JSON.envelope.bibles.includes(bible)) throw new Error(`--bible must be one of ${MODULE_JSON.envelope.bibles.join(', ')}`);
+  await startClient(`Skin ${bible}`);
+  const out = { bible, light: null, hydration: null, exclusion: {}, gate: {}, spiders: null };
+  const crops = Object.keys(CROPS);
+  try {
+    await rules();
+    await install();
+    const [A, B] = await twoTowns(40000, 40000);
+    const specs = SIZES.map(([w, d], i) => ({ id: `${bible.slice(0, 4)}_${w}x${d}`, width: w, depth: d, crop: crops[i % 4], bible, town: i < 5 ? 'A' : 'B' }));
+    const farms = [...(await growAll(A, specs.filter((s) => s.town === 'A'))), ...(await growAll(B, specs.filter((s) => s.town === 'B')))];
+    out.farms = farms.map((f) => ({ id: f.id, size: `${f.width}x${f.depth}`, crop: f.crop, front: f.lot.front, box: f.lot.box, chunkBorder: f.chunkBorder, lamp: f.variant.lamp }));
+    check(farms.length === 9, `${bible}: all 9 size pairs placed (${farms.length})`);
+    // (the dim lamp: all three Styles' lamp role is minecraft:lantern, the fallback itself, so every farm here measures the fallback's light)
+    const dim = [];
+    check(farms.every((f) => f.variant.lamp === MODULE_JSON.palette.lamp.fallback), `${bible}: the lamp is ${farms[0]?.variant?.lamp} (the fallback ${MODULE_JSON.palette.lamp.fallback}: its light is measured on every farm)`);
+    const px = 40000 + 208, pz = 40000 + 96;
+    await standAt(px, pz, A.gy + 40);
+    check(inSim(farms, px, pz) <= SIM_DISTANCE - 2, `${bible}: every farm inside the simulation distance`);
+    await tick.freeze();
+    out.light = await lightBar([...farms, ...dim], bible);
+    const placed = await moistAll(farms);
+    await tick.advance(24000);
+    const m = await moistAll(farms);
+    out.hydration = { atPlaced: placed.bad.length, at24000: m.bad.length, n: m.n };
+    check(m.bad.length === 0, `1a hydration ${bible}: every farmland cell of the 9 farms moisture 7 24,000 ticks after PLACED (${m.n} cells, ${m.bad.length} below; ${placed.bad.length} below at PLACED, recorded)`, m.bad.slice(0, 3));
+    // ---- item 4: mobs outside the closed fences, midnight, easy, 12,000 ticks
+    const before = await agesOf(farms);
+    await cmd('/time set 18000');
+    await cmd('/difficulty easy');
+    const kinds = ['zombie', 'zombie', 'villager', 'villager', 'cow', 'cow'];
+    for (const f of farms) for (const [i, [x, y, z]] of mobSpots(f).entries()) await cmd(`/summon minecraft:${kinds[i]} ${x + 0.5} ${y} ${z + 0.5} {PersistenceRequired:1b}`);
+    const whole = (f) => { const b = f.frame.box; return [b.minX - 8, f.frame.floorY - 2, b.minZ - 8, b.maxX + 8, f.frame.floorY + 6, b.maxZ + 8]; };
+    const samples = [];
+    for (let t = 1000; t <= 12000; t += 1000) {
+      await tick.advance(1000);
+      const s = { t, inside: [], near: 0 };
+      for (const f of farms) {
+        const ib = insideBox(f);
+        const ms = (await mod({ op: 'mobs', box: whole(f) })).mobs;
+        s.near += ms.length;
+        for (const [type, x, y, z] of ms) if (inBox(ib, x, y, z)) s.inside.push([f.id, type, x, y, z]);
+      }
+      samples.push(s);
+    }
+    const after = await agesOf(farms);
+    // 4b: every farmland cell still farmland, every crop cell still its crop (ages may grow)
+    const changed = [];
+    for (const f of farms) {
+      after[f.id].land.forEach((c, i) => { if (c?.[0] !== 'minecraft:farmland') changed.push([f.id, f.farmland[i], c]); });
+      after[f.id].crops.forEach((c, i) => { if (c?.[0] !== CROPS[f.crop].block) changed.push([f.id, f.crops[i], c, before[f.id].crops[i]]); });
+    }
+    const inside = samples.flatMap((x) => x.inside);
+    out.exclusion = { samples: samples.map((x) => ({ t: x.t, inside: x.inside.length, near: x.near })), inside: inside.slice(0, 10), changed: changed.slice(0, 10), changedN: changed.length };
+    check(inside.length === 0, `4a exclusion ${bible}: no zombie, villager or cow inside a closed fence over 12,000 ticks (9 farms x 6 mobs; ${samples.at(-1).near} mobs near the farms at the end; ${inside.length} sightings inside)`, inside.slice(0, 5));
+    check(changed.length === 0, `4b exclusion ${bible}: every farmland cell still farmland and every crop cell still its crop (${changed.length} changed)`, changed.slice(0, 5));
+    await cmd('/kill @e[type=!minecraft:player]');
+    await cmd('/difficulty peaceful');
+    // ---- 4c: the gate
+    for (const f of farms) {
+      const g = await gateWalk(f);
+      out.gate[f.id] = g;
+      check(g.closed === false && g.in === true && g.out === true && g.closedAgain === false, `4c gate ${f.id} (front ${f.lot.front}): closed, a walking player stays out; opened, in and out; closed again, out (${json(g)})`);
+    }
+    // ---- spiders (recorded): one beside each of 3 farms, 12,000 ticks
+    if (!flag('--no-spiders')) {
+      await cmd('/difficulty easy');
+      const sp = farms.slice(0, 3);
+      const before2 = await agesOf(sp);
+      for (const f of sp) { const [x, y, z] = mobSpots(f)[0]; await cmd(`/summon minecraft:spider ${x + 0.5} ${y} ${z + 0.5} {PersistenceRequired:1b}`); }
+      let seen = 0;
+      for (let t = 1000; t <= 12000; t += 1000) {
+        await tick.advance(1000);
+        for (const f of sp) seen += (await mod({ op: 'mobs', box: insideBox(f) })).mobs.filter((x) => /spider/.test(x[0])).length;
+      }
+      const after2 = await agesOf(sp);
+      const trampled = sp.reduce((a, f) => a + after2[f.id].land.filter((c) => c?.[0] !== 'minecraft:farmland').length, 0);
+      out.spiders = { farms: sp.map((f) => f.id), sightingsInside: seen, trampled, cropsChanged: sameAges(before2, after2).diff };
+      log(`  spiders (recorded): ${json(out.spiders)}`);
+      await cmd('/kill @e[type=!minecraft:player]');
+      await cmd('/difficulty peaceful');
+    }
+    await cmd('/time set 6000');
+  } finally {
+    await stopClient().catch((e) => log(`stop: ${e}`));
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------ survival: items 6 and 7
+
+const same = (a, b) => { for (const x of new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])) if ((a?.[x] ?? 0) !== (b?.[x] ?? 0)) return false; return true; };
+const minus = (a, b) => { const o = {}; for (const x of new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])) { const d = (a?.[x] ?? 0) - (b?.[x] ?? 0); if (d) o[x] = d; } return o; };
+const plus = (a, b) => { const o = { ...(a ?? {}) }; for (const [k, v] of Object.entries(b ?? {})) o[k] = (o[k] ?? 0) + v; for (const k of Object.keys(o)) if (!o[k]) delete o[k]; return o; };
+const pile = async () => (await call('dev.stockpile.state', { owner: OWNER }, 60_000)).stockpile ?? {};
+/** Feeds the stockpile what it still owes until `until(st)` (gate6crs-game feed). */
+async function feedUntil(region, until, { timeoutMs = 3_600_000, every = 2500 } = {}) {
+  const end = Date.now() + timeoutMs;
+  let waves = 0, st = null, rs = null;
+  while (Date.now() < end) {
+    st = await call('dev.region.state', { region }, 60_000);
+    rs = await call('dev.rs.state', { region }, 120_000).catch(() => null);
+    if (until(st, rs)) return { waves, st, rs, ok: true };
+    if (['FAILED', 'PARTIAL'].includes(st.view.state)) break;
+    const ps = await pile();
+    const need = {};
+    for (const [it, n] of Object.entries(ps.outstanding ?? {})) { const lack = n - (ps.stock?.[it] ?? 0); if (lack > 0) need[it] = lack; }
+    if (Object.keys(need).length) { await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: need, exact: true }, 120_000); waves++; }
+    await sleep(every);
+  }
+  return { waves, st, rs, ok: false };
+}
+const land = (region) => call('dev.region.landCheck', { region }, 900_000);
+const lotRow = (rep, id) => (rep.lots ?? []).find((l) => l.lot === id) ?? null;
+const partsKey = (rep) => json((rep.parts ?? []).map((p) => [p.part, p.cells, p.changed, p.removed, p.playerPlaced, p.volatileChanged]));
+
+async function survival() {
+  await startClient('Survival');
+  const out = { growths: [], farms: {} };
+  try {
+    await call('dev.survival.set', { on: true });
+    await rules({ ticks: 0 });
+    const x0 = 50000, z0 = 50000;
+    await standAt(x0 + 96, z0 + 80, 100);
+    const gy = await groundY(x0 + 96, z0 + 80);
+    const crates = Array.from({ length: 8 }, (_, q) => [x0 - 6 + 2 * q, gy + 1, z0 - 6]);
+    const cr = await req('dev.stockpile.create', { owner: OWNER, crates }, 120_000);
+    check(cr.ok && !cr.refused, `a stockpile of 8 crates for ${OWNER}: ${json(cr.refused ?? cr.error ?? 'made')}`);
+    // the town in survival (pads), fed until built
+    const claim = [x0, z0, x0 + 191, z0 + 159];
+    const p0 = await call('dev.region.plan', { program: 'flat_village', claim, params: { lots: [{ id: 'hall_1', type: 'hall', size: [13, 11], landmark: true }, { id: 'cottage_1', type: 'cottage', size: [9, 9] }], orientation: 'ew' }, surveyLoad: 'bounded:256', check: false, owner: OWNER }, 900_000);
+    const r0 = await call('dev.region.realise', { planId: p0.planId, load: 'bounded:512', lots: {} }, 300_000);
+    const region = r0.region;
+    const f0 = await feedUntil(region, (st, rs) => st.view.state === 'PLACED' && rs?.build?.done);
+    check(f0.ok, `the town ${region} built in survival from the stockpile: ${f0.st?.view?.state} (${f0.waves} waves)`);
+    await install();
+    const T = { region, gy, claim };
+    const crops = Object.keys(CROPS);
+    const specs = SIZES.map(([w, d], i) => ({ id: `surv_${w}x${d}`, width: w, depth: d, crop: crops[i % 4], bible: 'rustic' }));
+    const farms = [];
+    for (let i = 0; i < specs.length; i += 3) {
+      const sp = specs.slice(i, i + 3);
+      const ps0 = await pile();
+      const g = await growFarms(region, sp, { survival: true });
+      if (!check(!g.refused, `survival growth ${sp.map((x) => x.id).join(', ')}: ${g.refused ? String(g.refused).slice(0, 300) : `rid ${g.rid}`}`)) continue;
+      const fg = await feedUntil(region, (st, rs) => st.view.state === 'PLACED' && rs?.build?.done && true);
+      const w = await rvWait(region, g.rid);
+      const ps1 = await pile();
+      const consumed = minus(ps1.ledger?.consumed, ps0.ledger?.consumed);
+      const quote = g.quote?.bom ?? null;
+      out.growths.push({ rid: g.rid, position: g.position, farms: sp.map((x) => x.id), quote, consumed, quoteExact: g.quote?.exact, waves: fg.waves });
+      check(w.r.state === 'PLACED' && quote && same(consumed, quote), `7a bill rid ${g.rid} (${sp.map((x) => x.id).join(', ')}): ${w.r.state}; consumed = the quote item for item (${same(consumed, quote ?? {}) ? 'equal' : `consumed ${json(minus(consumed, quote ?? {}))} more than quoted`}; ${Object.values(consumed).reduce((a, b) => a + b, 0)} items)`, { quote, consumed });
+      await farmCells(region, g.farms);
+      for (const f of g.farms) { f.region = region; f.rid = g.rid; f.position = g.position; }
+      farms.push(...g.farms);
+    }
+    // ---- 6: grown T, harvested, replanted with each crop, a cobblestone and a torch
+    const land0 = await land(region);
+    await cmd(`/gamerule random_tick_speed 3`);
+    await tick.freeze();
+    await tick.advance(TCYCLE.wheat);
+    await cmd(`/gamerule random_tick_speed 0`);
+    const plantOf = (c) => CROPS[c].plant;
+    for (const f of farms) {
+      const hv = await harvest(f);
+      const cells = hv.cells;
+      const rp = {};
+      for (const [j, c] of crops.entries()) rp[c] = cells.slice(1 + 2 * j, 3 + 2 * j);
+      let took = 0;
+      for (const c of crops) took += await plant(plantOf(c), rp[c]);
+      const cob = cells[0];
+      let cobble = null, torch = null;
+      if (cob) {
+        cobble = await call('dev.pt.uses', { ops: [{ item: 'minecraft:cobblestone', at: cob, on: [cob[0], cob[1] - 1, cob[2]], face: 'up', placer: PLACER }] }, 120_000);
+        torch = await call('dev.pt.uses', { ops: [{ item: 'minecraft:torch', at: [cob[0], cob[1] + 1, cob[2]], on: cob, face: 'up', placer: PLACER }] }, 120_000);
+      }
+      await mod({ op: 'takeItems', box: dropBox(f) });
+      out.farms[f.id] = { crop: f.crop, size: `${f.width}x${f.depth}`, front: f.lot.front, harvested: hv.broken, replanted: Object.fromEntries(crops.map((c) => [c, rp[c].length])), took, cobble: cobble?.results?.[0] ?? null, torch: torch?.results?.[0] ?? null, cob };
+      check(hv.broken >= 9 && took === 8 && cobble?.results?.[0]?.tracked && torch?.results?.[0]?.tracked, `6 worked ${f.id}: ${hv.broken} harvested by the player, 8 replanted (2 of each crop: ${took} took, PT records), a cobblestone and a torch on it (tracked ${!!cobble?.results?.[0]?.tracked}/${!!torch?.results?.[0]?.tracked})`);
+    }
+    // ---- a restart: the records hold (6a)
+    await cmd('/save-all flush');
+    await call('dev.world.leave', {}, 300_000);
+    await sleep(2000);
+    await call('dev.world.open', { name: worldName }, 300_000);
+    await dev.waitInWorld({ timeoutMs: 600_000 });
+    await tick.freeze();
+    await rules({ ticks: 0 });
+    await tick.freeze();
+    await standAt(x0 + 96, z0 + 80, gy + 40);
+    for (const f of farms) {
+      const W = out.farms[f.id];
+      const at = W.cob ? [W.cob[0], W.cob[1] + 1, W.cob[2]] : null;
+      const t = at ? await call('dev.pt.at', { at }, 30_000) : null;
+      W.torchAfterRestart = t?.tracked ?? null;
+    }
+    check(farms.every((f) => out.farms[f.id].torchAfterRestart === true), `6a after a restart: each farm's torch is still the player's (PT): ${farms.filter((f) => out.farms[f.id].torchAfterRestart === true).length}/${farms.length}`);
+    // ---- 6b, 6c: land check and standing
+    const land1 = await land(region);
+    out.land = { before: (land0.lots ?? []).filter((l) => farms.some((f) => f.id === l.lot)), after: (land1.lots ?? []).filter((l) => farms.some((f) => f.id === l.lot)), partsSame: partsKey(land0) === partsKey(land1) };
+    const P = await program();
+    const { PALETTES } = await import(pathToFileURL(path.join(ROOT, 'artifacts', 'm1', `kit-${ARCH_VERSION}`, 'kit', 'lib', 'kit.mjs')).href);
+    for (const f of farms) {
+      const r0 = lotRow(land0, f.id), r1 = lotRow(land1, f.id);
+      const blocks = P.default({ palette: PALETTES.rustic, width: f.width, depth: f.depth, crop: f.crop }).cells.size;
+      check(r0?.changed === 0 && r0?.standing === 1 && r1?.changed === 0 && r1?.playerPlaced === 2, `6b land check ${f.id}: built changed ${r0?.changed} standing ${r0?.standing}; worked changed ${r1?.changed}, playerPlaced ${r1?.playerPlaced} (the cobblestone and the torch)`, { r0, r1 });
+      check(r1?.standing < 1 && r1?.standing >= (blocks - 1) / blocks - 1e-9, `6c standing ${f.id}: ${r1?.standing} (worked field standing; the one cell the cobblestone took is the only mismatch of ${blocks} blocks: >= ${((blocks - 1) / blocks).toFixed(4)})`);
+    }
+    check(out.land.partsSame, `6b land check: the town's and the growths' parts as before the field was worked`);
+    // ---- 6d, 7b: undo every growth, newest first; refunds
+    const ledger0 = await pile();
+    await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] });
+    await standAt(x0 - 20, z0 - 20, gy + 2);
+    const growths = [...out.growths].reverse();
+    const allFarms = new Map(farms.map((f) => [f.id, f]));
+    for (const g of growths) {
+      const before = await pile();
+      const u = await call('dev.rv.undo', { region, toPosition: g.position - 1 }, 4 * 3_600_000);
+      await sleep(6000);
+      const after = await pile();
+      const credited = minus(after.ledger?.returned, before.ledger?.returned);
+      const overflow = minus(after.ledger?.refundOverflow, before.ledger?.refundOverflow);
+      // the cargo: per farm, the items dropped at it (counted and taken away)
+      const cargo = {};
+      for (const id of g.farms) { const f = allFarms.get(id); const b = dropBox(f); b[4] += 40; cargo[id] = (await mod({ op: 'takeItems', box: b })).items; }
+      // expected: credited = consumed less one construction seed per harvested cell; cargo per farm = 2 planting items of each crop + cobblestone + torch
+      let harvestedSeeds = {};
+      for (const id of g.farms) { const f = allFarms.get(id); harvestedSeeds = plus(harvestedSeeds, { [CROPS[f.crop].plant]: out.farms[id].harvested }); }
+      const want = minus(g.consumed, harvestedSeeds);
+      const back = plus(credited, overflow);
+      g.undo = { removed: u.removed, blockers: u.blockers ?? [], refused: u.refused ?? null, credited, overflow, cargo, want };
+      check(u.removed === true && !(u.blockers ?? []).length, `6d undo rid ${g.rid}: removed ${u.removed}, blockers ${json(u.blockers ?? [])}${u.refused ? ` (${u.refused})` : ''}`);
+      check(same(back, want), `7b refund rid ${g.rid}: credited (with overflow) = consumed less one construction seed per harvested cell (${same(back, want) ? 'equal' : `off by ${json(minus(back, want))}`})`, { back, want });
+      for (const id of g.farms) {
+        const wantCargo = plus(Object.fromEntries(crops.map((c) => [plantOf(c), 0])), {});
+        for (const c of crops) wantCargo[plantOf(c)] = (wantCargo[plantOf(c)] ?? 0) + out.farms[id].replanted[c];
+        wantCargo['minecraft:cobblestone'] = 1;
+        wantCargo['minecraft:torch'] = 1;
+        check(same(cargo[id], wantCargo), `7b cargo ${id}: each player replant's planting item once, the cobblestone and the torch, as the player's (dropped, never credited): ${json(cargo[id])}`, { wantCargo });
+      }
+    }
+    const ledger1 = await pile();
+    out.items = { consumedTotal: minus(ledger1.ledger?.consumed, ledger0.ledger?.consumed) };
+    // a restart after the undo gives nothing twice
+    await cmd('/save-all flush');
+    await call('dev.world.leave', {}, 300_000);
+    await sleep(2000);
+    await call('dev.world.open', { name: worldName }, 300_000);
+    await dev.waitInWorld({ timeoutMs: 600_000 });
+    await standAt(x0 - 20, z0 - 20, gy + 2);
+    await sleep(6000);
+    const ledger2 = await pile();
+    const stray = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
+    check(json(ledger2.ledger) === json(ledger1.ledger) && json(ledger2.stock) === json(ledger1.stock) && Object.keys(stray).length === 0, `7b after a restart: nothing given twice (the ledger and stock unchanged; items on the ground ${json(stray)})`);
+  } finally {
+    await stopClient().catch((e) => log(`stop: ${e}`));
+  }
+  return out;
+}
+
 // ------------------------------------------------------------------ bands
 
 function bandsStep() {
@@ -381,14 +965,14 @@ function bandsStep() {
   })();
 }
 
-const steps = { look, bands: bandsStep };
+const steps = { look, bands: bandsStep, field, skin, survival };
 if (steps[step]) {
   const t0 = Date.now();
   let data, error;
   try { data = await steps[step](); } catch (e) { error = String(e?.stack ?? e); check(false, `${step}: ${String(e?.message ?? e).slice(0, 400)}`); }
   const ok = checks.every((c) => c.ok);
   const head = execFileSync('git', ['-C', ROOT, 'rev-parse', 'HEAD']).toString().trim();
-  fs.writeFileSync(path.join(ART, `${step}.json`), `${JSON.stringify({ step, ok, at: new Date().toISOString(), head, ...stamp(), world: worldName, seconds: (Date.now() - t0) / 1000, spendUsd: 0, error, checks, data }, null, 2)}\n`);
+  fs.writeFileSync(path.join(ART, `${LABEL}.json`), `${JSON.stringify({ step: LABEL, ok, runs: step === 'field' ? Number(opt('--runs', 5)) : undefined, minecraft: MC_VERSION, architect: ARCH_VERSION, at: new Date().toISOString(), head, ...stamp(), world: worldName, seconds: (Date.now() - t0) / 1000, spendUsd: 0, error, checks, data }, null, 2)}\n`);
   log(`${step}: ${ok ? 'PASS' : 'FAIL'}, ${checks.filter((c) => c.ok).length}/${checks.length} checks, ${((Date.now() - t0) / 1000).toFixed(0)} s`);
   process.exit(ok ? 0 : 1);
 } else {

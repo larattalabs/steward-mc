@@ -333,6 +333,9 @@ function record() {
     if (off.data?.kit !== e.module.pins?.kit) why.push(`offline ran kit ${off.data?.kit}, pinned ${e.module.pins?.kit}`);
     if (off.data?.checker !== e.module.pins?.checker) why.push(`offline ran checker ${off.data?.checker}, pinned ${e.module.pins?.checker}`);
     if (!g?.gate?.moduleSha) why.push('no moduleSha from the game');
+    // a real module (not a fixture) certifies only with its measurement (docs/MEASURE-M2.md for crop_farm@1): every step passed, on these
+    // exact files and the pinned versions, field steps with 5 runs or more
+    const measure = e.module.fixture ? null : measurement(e, now, why);
     if (why.length) { refused++; log(`REFUSED ${key}: ${why.join('; ')}`); continue; }
     // a re-certification on a new Architect pin (same program and module.json, same Minecraft) keeps the versions the old certificate covers
     const prev = e.measured;
@@ -344,10 +347,38 @@ function record() {
       offline: { at: off.at, head: off.head, architect: off.data.architect, kit: off.data.kit, branches: o.branches.map(({ branch, bible, ok, blocks, warnings }) => ({ branch, bible, ok, blocks, warnings })), probes: o.probes },
       ingame: { at: inn.at, head: inn.head, env: inn.data.env, install: { key: g.install.key, ok: g.install.ok }, variants: g.variants.map(({ branch, bible, ok, sha, sent }) => ({ branch, bible, version: sent?.version ?? null, ok, sha })), outside: { refused: !g.outside?.ok, detail: g.outside?.detail }, byKey: g.byKey ? { found: g.byKey.k.found, unknownFound: g.byKey.none.found } : null },
     };
+    if (measure) { m.checks.measure = measure; m.what = MEASURES[e.id]?.what; m.bars = MEASURES[e.id]?.bars; m.runs = 5; }
     fs.writeFileSync(path.join(e.dir, 'measured.json'), `${JSON.stringify(m, null, 2)}\n`);
     log(`recorded ${key}: result pass, moduleSha ${m.moduleSha.slice(0, 12)}`);
   }
   if (refused) process.exit(1);
+}
+
+/** Each real module's measurement: its evidence steps (artifacts/m2/<step>.json) and what measured.json says it covers. */
+const MEASURES = {
+  crop_farm: {
+    steps: ['field-wheat', 'field-carrots', 'field-potatoes', 'field-beetroots', 'skin-rustic', 'skin-fortress', 'skin-desert', 'survival'],
+    what: 'docs/MEASURE-M2.md: MODULES.md 3.1 items 1-7 as amended by section 9, measured in a dev client over the envelope (36 branches x 5 runs for the output rate; all four facings; chunk borders; rustic in full, fortress and desert for light, hydration and exclusion; survival bill and refunds) by tools/module-measure.mjs.',
+    bars: 'docs/MEASURE-M2.md "The bars" (committed before the first measurement)',
+  },
+};
+/** The measurement's evidence for a real module, summarised; reasons it can't certify go into `why`. */
+function measurement(e, now, why) {
+  const M = MEASURES[e.id];
+  if (!M) { why.push(`no measurement is defined for ${e.id}`); return null; }
+  const out = {};
+  for (const s of M.steps) {
+    const f = path.join(ROOT, 'artifacts', 'm2', `${s}.json`);
+    if (!fs.existsSync(f)) { why.push(`no measurement evidence ${s}`); continue; }
+    const r = JSON.parse(fs.readFileSync(f, 'utf8'));
+    if (!r.ok) why.push(`measurement ${s} did not pass`);
+    if (r.programSha !== now.programSha || r.moduleJsonSha !== now.moduleJsonSha) why.push(`measurement ${s} measured other files`);
+    if (r.architect !== ARCH_VERSION || r.minecraft !== MC_VERSION) why.push(`measurement ${s} ran on other versions`);
+    if (s.startsWith('field-') && !(r.runs >= 5)) why.push(`measurement ${s} has ${r.runs} runs (5 needed)`);
+    out[s] = { at: r.at, head: r.head, world: r.world, seconds: r.seconds, runs: r.runs ?? null, passed: r.checks.filter((c) => c.ok).length, of: r.checks.length,
+      results: r.checks.map((c) => c.what) };
+  }
+  return out;
 }
 
 const steps = { offline, ingame };

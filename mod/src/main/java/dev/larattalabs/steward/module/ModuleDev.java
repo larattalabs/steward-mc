@@ -41,6 +41,10 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
  * <li>{@code cells {cells: [[x, y, z]...]}} (M2, the measurement): per cell {@code [block, age | -1, moisture | -1, block light]}, read on the
  * server thread in the overworld (an unloaded cell reads {@code null}).</li>
  * <li>{@code growLot {id, width, depth}} (M2): crop_farm@1's grow lot as {@link CropFarmLot#growLot} makes it.</li>
+ * <li>{@code takeItems {box: [x0, y0, z0, x1, y1, z1]}} (M2, the harvest count): the dropped item entities in the box, counted per item
+ * and discarded.</li>
+ * <li>{@code mobs {box: [x0, y0, z0, x1, y1, z1]}} (M2, the exclusion test): the living non-player entities in the box: {@code [type, x, y,
+ * z, uuid]}.</li>
  * <li>{@code walk {from: [x, y, z], to: [x, y, z], steps?}} (M2, the exclusion test): a fake player (Fabric's) set at {@code from} walks in
  * straight steps of 0.2 towards {@code to} with vanilla's collision ({@code Entity.move(SELF, ...)}, gravity each step); answers where it ended.</li>
  * </ul>
@@ -91,6 +95,12 @@ public final class ModuleDev {
 		switch (op) {
 			case "cells" -> {
 				return CompletableFuture.supplyAsync(() -> cells(server, req.getAsJsonArray("cells")), server);
+			}
+			case "takeItems" -> {
+				return CompletableFuture.supplyAsync(() -> takeItems(server, req.getAsJsonArray("box")), server);
+			}
+			case "mobs" -> {
+				return CompletableFuture.supplyAsync(() -> mobs(server, req.getAsJsonArray("box")), server);
 			}
 			case "walk" -> {
 				return CompletableFuture.supplyAsync(() -> walk(server, req), server);
@@ -204,6 +214,44 @@ public final class ModuleDev {
 		JsonObject o = new JsonObject();
 		o.add("cells", out);
 		o.addProperty("gameTime", level.getGameTime());
+		return o;
+	}
+
+	/** The dropped items in a box, counted per item id, then discarded (the harvest's count). */
+	private static JsonObject takeItems(MinecraftServer server, JsonArray b) {
+		ServerLevel level = server.overworld();
+		var box = new net.minecraft.world.phys.AABB(b.get(0).getAsDouble(), b.get(1).getAsDouble(), b.get(2).getAsDouble(), b.get(3).getAsDouble() + 1, b.get(4).getAsDouble() + 1, b.get(5).getAsDouble() + 1);
+		JsonObject items = new JsonObject();
+		int entities = 0;
+		for (var e : level.getEntitiesOfClass(net.minecraft.world.entity.item.ItemEntity.class, box, x -> true)) {
+			var st = e.getItem();
+			String id = BuiltInRegistries.ITEM.getKey(st.getItem()).toString();
+			items.addProperty(id, (items.has(id) ? items.get(id).getAsInt() : 0) + st.getCount());
+			entities++;
+			e.discard();
+		}
+		JsonObject o = new JsonObject();
+		o.add("items", items);
+		o.addProperty("entities", entities);
+		return o;
+	}
+
+	/** The living non-player entities in a box: [type, x, y, z, uuid]. */
+	private static JsonObject mobs(MinecraftServer server, JsonArray b) {
+		ServerLevel level = server.overworld();
+		var box = new net.minecraft.world.phys.AABB(b.get(0).getAsDouble(), b.get(1).getAsDouble(), b.get(2).getAsDouble(), b.get(3).getAsDouble() + 1, b.get(4).getAsDouble() + 1, b.get(5).getAsDouble() + 1);
+		JsonArray out = new JsonArray();
+		for (var e : level.getEntitiesOfClass(net.minecraft.world.entity.LivingEntity.class, box, x -> !(x instanceof net.minecraft.world.entity.player.Player))) {
+			JsonArray r = new JsonArray();
+			r.add(BuiltInRegistries.ENTITY_TYPE.getKey(e.getType()).toString());
+			r.add(e.getX());
+			r.add(e.getY());
+			r.add(e.getZ());
+			r.add(e.getStringUUID());
+			out.add(r);
+		}
+		JsonObject o = new JsonObject();
+		o.add("mobs", out);
 		return o;
 	}
 
