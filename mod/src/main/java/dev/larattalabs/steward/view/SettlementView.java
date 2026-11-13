@@ -15,7 +15,8 @@ import org.jspecify.annotations.Nullable;
  */
 public record SettlementView(String id, String name, boolean described, boolean busy, ClaimInfo claim, String permission, String difficulty,
 	List<Building> buildings, int roads, List<Op> history, int historyTotal, double weeklyUsd, double spentWeekUsd, List<DistrictInfo> districts, List<AreaInfo> areas,
-	List<DistrictInfo> proposed, List<String> stockpile, List<PlayerBuildInfo> playerBuilds, dev.larattalabs.steward.inbox.@org.jspecify.annotations.Nullable Attention attention) {
+	List<DistrictInfo> proposed, List<String> stockpile, List<PlayerBuildInfo> playerBuilds, dev.larattalabs.steward.inbox.@org.jspecify.annotations.Nullable Attention attention,
+	@Nullable UndoTarget undo) {
 	public SettlementView {
 		districts = districts == null ? List.of() : districts;
 		// districts waiting in the inbox, where they would go (survey mode previews them)
@@ -47,6 +48,43 @@ public record SettlementView(String id, String name, boolean described, boolean 
 		}
 	}
 
+	/**
+	 * What {@code /steward undo} (and the History tab's Undo) takes up next: the operation ({@code op}, as {@link Op#op}), its kind and its words. Null when
+	 * nothing is undoable. Chosen on the server as the undo chooses it (the newest undoable entry, a town's growths head first), never guessed from the rows.
+	 */
+	public record UndoTarget(String op, String kind, String text) {}
+
+	/** This view with its undo target (the server's {@code Actions.view} reads it; {@link #of} is pure and leaves it null). */
+	public SettlementView withUndo(@Nullable UndoTarget target) {
+		return new SettlementView(id, name, described, busy, claim, permission, difficulty, buildings, roads, history, historyTotal, weeklyUsd, spentWeekUsd, districts,
+			areas, proposed, stockpile, playerBuilds, attention, target);
+	}
+
+	/** The History tab's word for an operation's kind: every kind has its own ("Note" is NOTE's). */
+	public static String kindLabel(String kind) {
+		return switch (kind) {
+			case "FOUNDED" -> "Founded";
+			case "CARD_EDITED" -> "Described";
+			case "RESKIN" -> "Restyled";
+			case "RELAYOUT" -> "Laid out again";
+			case "PROJECT_PROPOSED" -> "Proposed";
+			case "PROJECT_APPROVED" -> "Approved";
+			case "PROJECT_PLACED" -> "Built";
+			case "PROJECT_REMOVED" -> "Undone";
+			case "PERMISSION_CHANGED" -> "Permission";
+			case "UPDATED" -> "Updated";
+			case "REVERTED" -> "Reverted";
+			case "CLAIM_CHANGED" -> "Claim";
+			case "DISTRICT_FOUNDED", "DISTRICT_REMOVED" -> "District";
+			case "ROAD_PLACED" -> "Road";
+			case "PROTECTED_CHANGED" -> "Protected";
+			case "BUILD_ADOPTED" -> "Taken on";
+			case "TOWN_ADOPTED" -> "Town taken on";
+			case "TOWN_RELEASED" -> "Town let go";
+			default -> "Note";
+		};
+	}
+
 	/** An area the player protected (columns x0..x1, z0..z1). */
 	public record AreaInfo(String id, String label, int x0, int z0, int x1, int z1) {}
 
@@ -66,6 +104,20 @@ public record SettlementView(String id, String name, boolean described, boolean 
 		/** A newer version the player has not reverted away from. */
 		public boolean updateAvailable() {
 			return head > version && head > heldFrom;
+		}
+
+		/**
+		 * Where the building panel's revert starts: the version it stood at before this one, else the one below it; 0 at version 1 (nothing earlier).
+		 * {@code /steward revert} takes any version, and so does the panel (Architect reverts to one off its chain by a forward delta).
+		 */
+		public int firstRevertTarget() {
+			if (previous > 0 && previous < version) return previous;
+			return version > 1 ? version - 1 : 0;
+		}
+
+		/** The panel's next revert choice from {@code at}: a step down ({@code dir} -1) or up (1), kept to 1 .. version - 1. */
+		public int stepRevert(int at, int dir) {
+			return Math.max(1, Math.min(version - 1, at + dir));
 		}
 
 		/** It stood at an earlier version it can go back to. */
@@ -151,7 +203,7 @@ public record SettlementView(String id, String name, boolean described, boolean 
 		}
 		List<AreaInfo> areas = s.lands().protect().stream().map(a -> new AreaInfo(a.id(), a.label(), a.x0(), a.z0(), a.x1(), a.z1())).toList();
 		return new SettlementView(s.id(), s.name(), s.described(), busy, claim, s.permission().name(), s.difficulty().name(), List.copyOf(buildings), roads,
-			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()), List.copyOf(districts), areas, List.copyOf(proposed), List.copyOf(stockpile), List.copyOf(playerBuilds), attention);
+			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()), List.copyOf(districts), areas, List.copyOf(proposed), List.copyOf(stockpile), List.copyOf(playerBuilds), attention, null);
 	}
 
 	public String toJson() {
