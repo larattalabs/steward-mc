@@ -4560,9 +4560,12 @@ async function moduleSurvivalFlow() {
     const bound2 = offer2.module?.bound ?? {};
     const own = Object.keys(bound2).filter((k) => !(k in measuredBound));
     const theirs = Object.keys(measuredBound).filter((k) => !(k in bound2));
-    if (offer2.module?.params?.width === 9 && offer2.module?.params?.depth === 9 && Object.keys(bound2).length && own.length && /at most/.test(offer2.why))
+    // every item of the bound is shown at the offer: what the player approves is the whole of it
+    const plain = (k) => k.replace(/^[^:]*:/, '').replaceAll('_', ' ');
+    const unshown = Object.entries(bound2).filter(([k, n]) => !new RegExp(`(^|[ ,])${n} ${plain(k)}(,| and|\\.|$)`).test(offer2.why)).map(([k]) => k);
+    if (offer2.module?.params?.width === 9 && offer2.module?.params?.depth === 9 && Object.keys(bound2).length && own.length && /at most/.test(offer2.why) && !unshown.length)
       ok(`${lbl} offer`, `the bound in the town's blocks: ${JSON.stringify(bound2)} (its own: ${own.join(', ')}; the measured Styles' it doesn't name: ${theirs.join(', ') || 'none'})`);
-    else return fail(`${lbl} offer`, `${JSON.stringify(offer2).slice(0, 400)}; items of its own ${own.join(', ')}`);
+    else return fail(`${lbl} offer`, `${JSON.stringify(offer2).slice(0, 400)}; items of its own ${own.join(', ')}; not shown ${unshown.join(', ')}`);
     // stocked with the bound (twice, the seeds as they are: the refund put them back), so nothing waits and nothing is heavy
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound2).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
     const sq0 = await ledger();
@@ -4573,7 +4576,9 @@ async function moduleSurvivalFlow() {
     const grew2 = await buildThrough(id, from, lbl, false, null, 1_200_000);
     nudge = null;
     const said2 = logSince(from);
-    const quoted2 = (() => { const m = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(said2); return m ? JSON.parse(m[1]) : null; })();
+    const qline2 = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\}) \\(bound .*?, exact (true|false)`).exec(said2);
+    const quoted2 = qline2 ? JSON.parse(qline2[1]) : null;
+    const exact2 = qline2?.[2] === 'true';
     const past2 = quoted2 ? Object.entries(quoted2).filter(([k, n]) => n > (bound2[k] ?? 0)) : null;
     const asked2 = /The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(said2);
     const g2 = await growthOf(id);
@@ -4601,9 +4606,13 @@ async function moduleSurvivalFlow() {
     const sqR = await ledger();
     const paid2 = Object.fromEntries(Object.entries(sqB?.consumed ?? {}).map(([k, c]) => [k, c - (sq0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
     const back2 = Object.fromEntries(Object.entries(sqR?.returned ?? {}).map(([k, c]) => [k, c - (sqB?.returned?.[k] ?? 0)]).filter(([, c]) => c > 0));
-    const within2 = Object.entries(paid2).every(([k, c]) => c <= (bound2[k] ?? 0));
-    if (last2?.kind === 'PROJECT_REMOVED' && within2 && Object.entries(paid2).every(([k, c]) => back2[k] === c)) ok(`${lbl} undo`, `paid ${JSON.stringify(paid2)} (within the bound), returned the same`);
-    else fail(`${lbl} undo`, `last ${last2?.kind}; paid ${JSON.stringify(paid2)}; within ${within2}; returned ${JSON.stringify(back2)}`);
+    // what it paid is what Architect quoted (exactly, for an exact quote; never an item or a count past it), and it all came back, nothing else
+    const eq = (a, b) => Object.keys({ ...a, ...b }).every((k) => (a[k] ?? 0) === (b[k] ?? 0));
+    const asQuoted2 = exact2 ? eq(paid2, quoted2) : Object.entries(paid2).every(([k, c]) => c <= (quoted2[k] ?? 0));
+    const ledgers2 = !!(sq0 && sqB && sqR);
+    if (last2?.kind === 'PROJECT_REMOVED' && ledgers2 && Object.keys(paid2).length && asQuoted2 && eq(paid2, back2))
+      ok(`${lbl} undo`, `paid ${JSON.stringify(paid2)} (as quoted${exact2 ? ', exactly' : ', within it'}), returned the same once`);
+    else fail(`${lbl} undo`, `last ${last2?.kind}; ledgers ${ledgers2}; paid ${JSON.stringify(paid2)}; quote ${JSON.stringify(quoted2)} exact ${exact2}; returned ${JSON.stringify(back2)}`);
   } finally {
     stop = true;
     if (feeder) await feeder.catch(() => null);

@@ -53,7 +53,7 @@ class StyleBoundTest {
 	static Map<String, String> town(String style) {
 		var r = roles(WOODS.getAsJsonObject(style).getAsJsonObject("roles"));
 		// the crop farm's lamp rule (light 14 or more, else the lantern): every Style here lights with 14 or more
-		return StyleBound.townBlocks(r, r.get("light"));
+		return StyleBound.townItems(r, r.get("light"), b -> b);
 	}
 
 	@Test
@@ -67,10 +67,28 @@ class StyleBoundTest {
 	}
 
 	@Test
-	void aDirtPathAndFarmlandAreBilledAsDirt() {
-		assertEquals("minecraft:dirt", StyleBound.itemOf("minecraft:dirt_path"));
-		assertEquals("minecraft:dirt", StyleBound.itemOf("farmland"));
-		assertEquals("minecraft:coarse_dirt", StyleBound.itemOf("minecraft:coarse_dirt"));
+	void blocksAreBilledAsArchitectBillsThem() {
+		// Architect's special cases are the kit's own (vocab/survival.json costs at v0.65.0), every one of them
+		var kit = res("survival-costs-kit-0.60.0.json").getAsJsonObject("costs");
+		Map<String, String> want = new HashMap<>();
+		for (var e : kit.entrySet()) want.put(e.getKey(), e.getValue().isJsonNull() ? null : e.getValue().getAsString());
+		assertEquals(want, StyleBound.COSTS);
+		java.util.function.UnaryOperator<String> mc = b -> b.equals("minecraft:wall_torch") ? "minecraft:torch" : b.equals("minecraft:air") ? null : b;
+		assertEquals("minecraft:dirt", StyleBound.itemOf("minecraft:dirt_path", mc));
+		assertEquals("minecraft:dirt", StyleBound.itemOf("farmland", mc));
+		assertEquals("minecraft:dirt", StyleBound.itemOf("minecraft:grass_block", mc));
+		assertEquals("minecraft:coarse_dirt", StyleBound.itemOf("minecraft:coarse_dirt", mc));
+		assertEquals("minecraft:torch", StyleBound.itemOf("minecraft:wall_torch", mc), "else the block's own item, as the game has it");
+		assertNull(StyleBound.itemOf("minecraft:water", mc), "a block billed as nothing");
+		// a grass path is billed as dirt, so its 12 stay dirt: the whole 222, nothing named grass
+		var r = new HashMap<>(roles(WOODS.getAsJsonObject("nether").getAsJsonObject("roles")));
+		r.put("path", "minecraft:grass_block");
+		var b = ModuleBound.of(measured(BOUNDS.getAsJsonArray("perStyle")), params(9, 9, "wheat"), StyleBound.townItems(r, r.get("light"), mc));
+		assertEquals(222, b.get("minecraft:dirt").getAsInt());
+		assertFalse(b.has("minecraft:grass_block"));
+		// a path on nothing (water) keeps its measured item
+		r.put("path", "minecraft:water");
+		assertEquals(222, ModuleBound.of(measured(BOUNDS.getAsJsonArray("perStyle")), params(9, 9, "wheat"), StyleBound.townItems(r, r.get("light"), mc)).get("minecraft:dirt").getAsInt());
 	}
 
 	@Test

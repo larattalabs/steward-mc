@@ -20,8 +20,9 @@ import org.jspecify.annotations.Nullable;
  * item for the same role; items no role writes (dirt, seeds, the chest, the street's gravel) stay as measured. The bound is the per-item
  * maximum over the Styles.
  *
- * <p>Counts are conserved per role, so a wrong guess of the town's block only names an item the quote won't use: the build then holds and asks
- * again, with nothing consumed. A role whose town block can't be told keeps its measured item.
+ * <p>Counts are conserved per role. The safety is the approved per-item ceiling itself, checked against Architect's quote before anything is
+ * consumed: a wrong guess of the town's block names an item the quote won't use, and the quote's own item then holds the build, unless a
+ * ceiling left for another part (the street's gravel) happens to cover it. A role whose town block has no item keeps its measured item.
  *
  * <p>Role keys: {@code foundation}, {@code light} (the lamp after the palette's fallback rule: {@link PaletteCheck}), {@code path}, and the
  * wood set's {@code wood.fence} and {@code wood.fence_gate}, from Architect's kit 0.60.0 ({@code paletteFromBible}): the wood is
@@ -40,13 +41,50 @@ public final class StyleBound {
 	private static final Pattern WOOD_PART = Pattern.compile(
 		"^(planks|log|wood|stem|hyphae|block|stairs|slab|fence|fence_gate|door|trapdoor|button|pressure_plate|sign|wall_sign|hanging_sign|wall_hanging_sign|shelf|mosaic|mosaic_stairs|mosaic_slab)$");
 
-	/** The item a block is billed as in survival where it is not its own (Architect's quote digs a dirt path and farmland as dirt). */
-	public static String itemOf(String block) {
+	/**
+	 * Architect's survival block-to-item special cases (kit/vocab/survival.json {@code costs} at v0.65.0, kit 0.60.0): a placed block charged as
+	 * another item (a dirt path, farmland and a grass block as dirt), or as nothing (null: water, fire...). Every other block costs its own item.
+	 */
+	static final Map<String, @Nullable String> COSTS = new java.util.HashMap<>();
+	static {
+		COSTS.put("minecraft:dirt_path", "minecraft:dirt");
+		COSTS.put("minecraft:farmland", "minecraft:dirt");
+		COSTS.put("minecraft:grass_block", "minecraft:dirt");
+		COSTS.put("minecraft:attached_melon_stem", "minecraft:melon_seeds");
+		COSTS.put("minecraft:attached_pumpkin_stem", "minecraft:pumpkin_seeds");
+		COSTS.put("minecraft:melon_stem", "minecraft:melon_seeds");
+		COSTS.put("minecraft:pumpkin_stem", "minecraft:pumpkin_seeds");
+		COSTS.put("minecraft:cave_vines_plant", "minecraft:glow_berries");
+		COSTS.put("minecraft:cave_vines", "minecraft:glow_berries");
+		COSTS.put("minecraft:kelp_plant", "minecraft:kelp");
+		COSTS.put("minecraft:twisting_vines_plant", "minecraft:twisting_vines");
+		COSTS.put("minecraft:weeping_vines_plant", "minecraft:weeping_vines");
+		COSTS.put("minecraft:big_dripleaf_stem", "minecraft:big_dripleaf");
+		COSTS.put("minecraft:bamboo_sapling", "minecraft:bamboo");
+		COSTS.put("minecraft:tall_seagrass", "minecraft:seagrass");
+		COSTS.put("minecraft:water_cauldron", "minecraft:cauldron");
+		COSTS.put("minecraft:lava_cauldron", "minecraft:cauldron");
+		COSTS.put("minecraft:powder_snow_cauldron", "minecraft:cauldron");
+		COSTS.put("minecraft:redstone_wire", "minecraft:redstone");
+		COSTS.put("minecraft:tripwire", "minecraft:string");
+		COSTS.put("minecraft:fire", null);
+		COSTS.put("minecraft:soul_fire", null);
+		COSTS.put("minecraft:water", null);
+		COSTS.put("minecraft:lava", null);
+		COSTS.put("minecraft:bubble_column", null);
+		COSTS.put("minecraft:moving_piston", null);
+		COSTS.put("minecraft:piston_head", null);
+		COSTS.put("minecraft:frosted_ice", null);
+	}
+
+	/**
+	 * The item a block is billed as in survival: Architect's special case, else the block's own item ({@code asItem}: Minecraft's in game). Null:
+	 * it costs nothing or has no item, so a role on it can't be re-expressed (its measured item is kept).
+	 */
+	public static @Nullable String itemOf(String block, java.util.function.UnaryOperator<@Nullable String> asItem) {
 		String b = qualify(block);
-		return switch (b) {
-			case "minecraft:dirt_path", "minecraft:farmland" -> "minecraft:dirt";
-			default -> b;
-		};
+		if (COSTS.containsKey(b)) return COSTS.get(b);
+		return asItem.apply(b);
 	}
 
 	static String qualify(String block) {
@@ -89,6 +127,16 @@ public final class StyleBound {
 		return out;
 	}
 
+	/** The item the town is billed for each role key ({@link #townBlocks} through {@link #itemOf}); a role whose block has no item is left out. */
+	public static Map<String, String> townItems(Map<String, String> roles, @Nullable String lamp, java.util.function.UnaryOperator<@Nullable String> asItem) {
+		Map<String, String> out = new LinkedHashMap<>();
+		townBlocks(roles, lamp).forEach((role, block) -> {
+			String it = itemOf(block, asItem);
+			if (it != null) out.put(role, it);
+		});
+		return out;
+	}
+
 	/** A measured bound entry's role parts, or null when it has none or they are unreadable (then the entry is used as measured). */
 	public static @Nullable List<RolePart> parts(JsonObject entry) {
 		if (!entry.has("roleParts") || !entry.get("roleParts").isJsonArray()) return null;
@@ -105,14 +153,15 @@ public final class StyleBound {
 	}
 
 	/**
-	 * One Style's bill in the town's blocks: each role part's count moves from its measured item to the town's item for that role. Null when the
+	 * One Style's bill in the town's items ({@code town}: role key -> item, {@link #townItems}): each role part's count moves from its measured
+	 * item to the town's item for that role. Null when the
 	 * bill can't take a part out (it holds fewer of the item than the parts say): the measurement is then not one this can re-express.
 	 */
 	public static @Nullable Map<String, Integer> mapped(Map<String, Integer> bom, List<RolePart> parts, @Nullable Map<String, String> town) {
 		Map<String, Integer> out = new TreeMap<>(bom);
 		for (RolePart p : parts) {
 			String to = town == null ? null : town.get(p.role());
-			String item = to == null ? p.item() : itemOf(to);
+			String item = to == null ? p.item() : to;
 			if (item.equals(p.item())) continue;
 			int have = out.getOrDefault(p.item(), 0);
 			if (have < p.count()) return null;

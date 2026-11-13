@@ -10,17 +10,20 @@
 // The street, its lane and IRR's shells are left as measured: none of their blocks is a role's (gravel, an oak fence post and a lantern on
 // every measured Style).
 //
-// The counts are evidence, not inference: an item only roles give must be quoted in the lot exactly as often as the template writes it, and
-// an item roles share with role-free cells (the path's dirt_path is billed as dirt, the same item as the dirt layer and the farmland) must be
-// quoted at least that often. Anything else is a problem and the record is refused.
+// The counts are evidence, not inference: the template's whole bill (every cell's item: Architect's survival costs, a crop as its seed) must
+// equal the lot's quoted bill item for item, so the quote billed exactly the cells counted, and the role cells among them (the path's
+// dirt_path is billed as dirt, the same item as the dirt layer and the farmland) are a split of a bill that matches. Anything else is a
+// problem and the record is refused.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-/** The item a block is billed as in survival, where it is not the block's own (Architect's quote: a dirt path is dug as dirt). */
-export const SURVIVAL_ITEM = { 'minecraft:dirt_path': 'minecraft:dirt', 'minecraft:farmland': 'minecraft:dirt' };
-export const itemOf = (block) => SURVIVAL_ITEM[block] ?? block;
+/** Architect's survival block-to-item special cases (the pinned kit's vocab/survival.json `costs`): block -> item, null for nothing. */
+export function survivalCosts(kit) {
+  const v = JSON.parse(fs.readFileSync(path.join(kit, 'vocab', 'survival.json'), 'utf8'));
+  return Object.fromEntries(v.costs.map((c) => [c.block, typeof c.item === 'string' ? c.item : null]));
+}
 const SEEDS = { wheat: 'minecraft:wheat_seeds', carrots: 'minecraft:carrot', potatoes: 'minecraft:potato', beetroots: 'minecraft:beetroot_seeds' };
 
 /** The role blocks of a Style for this program: role key -> block. */
@@ -42,6 +45,8 @@ export async function styleBounds({ quotes, kit, source, id = 'crop_farm' }) {
     fs.writeFileSync(path.join(dir, `${id}.mjs`), source.replaceAll("'../lib/", `'${lib}/`));
     const program = await import(pathToFileURL(path.join(dir, `${id}.mjs`)).href);
     const { PALETTES } = await import(`${lib}/kit.mjs`);
+    const costs = survivalCosts(kit);
+    const itemOf = (block) => (block in costs ? costs[block] : block);
     for (const q of quotes) {
       const where = `${q.params.width}x${q.params.depth} ${q.params.crop} ${q.bible}`;
       const p = PALETTES[q.bible];
@@ -55,26 +60,23 @@ export async function styleBounds({ quotes, kit, source, id = 'crop_farm' }) {
       // the template in this Style (no reserved cells: those are field cells, never a role's)
       const bp = program.default({ palette: p, width: q.params.width, depth: q.params.depth, crop: q.params.crop });
       const count = {};
-      const freeItems = new Set();
+      const bill = {};
       for (const c of bp.cells.values()) {
         const name = c.state?.name ?? c.block ?? String(c);
         const role = byBlock.get(name);
         if (role) count[role] = (count[role] ?? 0) + 1;
-        else freeItems.add(/^minecraft:(wheat|carrots|potatoes|beetroots)$/.test(name) ? SEEDS[q.params.crop] : itemOf(name));
+        const item = /^minecraft:(wheat|carrots|potatoes|beetroots)$/.test(name) ? SEEDS[q.params.crop] : itemOf(name);
+        if (item) bill[item] = (bill[item] ?? 0) + 1;
       }
       const lots = Object.entries(q.bomParts ?? {}).filter(([k]) => k.startsWith('lot:'));
       if (lots.length !== 1) { problems.push(`${where}: ${lots.length} lot parts in the quote (1 expected)`); continue; }
       const lot = lots[0][1];
       const roleParts = Object.entries(roles).filter(([r]) => count[r]).map(([role, block]) => ({ role, block, item: itemOf(block), count: count[role] }));
-      const perItem = {};
-      for (const r of roleParts) perItem[r.item] = (perItem[r.item] ?? 0) + r.count;
-      for (const [item, n] of Object.entries(perItem)) {
-        const quoted = lot[item] ?? 0;
-        if (freeItems.has(item) ? quoted < n : quoted !== n) {
-          problems.push(`${where}: the template's roles write ${n} ${item}, the lot was quoted ${quoted}${freeItems.has(item) ? ' (fewer)' : ''}`);
-        }
-        if ((q.bom[item] ?? 0) < n) problems.push(`${where}: the bill has ${q.bom[item] ?? 0} ${item}, under the roles' ${n}`);
-      }
+      for (const r of roleParts) if (!r.item) problems.push(`${where}: role ${r.role}'s ${r.block} is billed as nothing`);
+      const items = new Set([...Object.keys(bill), ...Object.keys(lot)]);
+      const off = [...items].filter((k) => (bill[k] ?? 0) !== (lot[k] ?? 0)).map((k) => `${k} template ${bill[k] ?? 0}, quoted ${lot[k] ?? 0}`);
+      if (off.length) problems.push(`${where}: the lot's quote is not the template's bill: ${off.join('; ')}`);
+      for (const [item, n] of Object.entries(lot)) if ((q.bom[item] ?? 0) < n) problems.push(`${where}: the whole bill has ${q.bom[item] ?? 0} ${item}, under the lot's ${n}`);
       bounds.push({ params: q.params, style: q.bible, bom: Object.fromEntries(Object.entries(q.bom).sort()), roleParts });
     }
   } finally {

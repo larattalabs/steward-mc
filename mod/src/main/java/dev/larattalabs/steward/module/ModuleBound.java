@@ -38,7 +38,7 @@ public final class ModuleBound {
 	 * one of its entries can't be read. Every entry for the params counts: a per-Style one ({@code style} with {@code roleParts}) in the town's
 	 * blocks ({@link StyleBound}; {@code town} null: as measured), any other as it is; the bound is their per-item maximum.
 	 *
-	 * @param town role key -> the town's block ({@link StyleBound#townBlocks}), or null
+	 * @param town role key -> the town's item ({@link StyleBound#townItems}), or null
 	 */
 	public static @Nullable JsonObject of(ModuleCatalog.@Nullable Measured m, JsonObject params, @Nullable Map<String, String> town) {
 		if (m == null || m.raw() == null || !m.raw().has(MEMBER) || !m.raw().get(MEMBER).isJsonArray()) return null;

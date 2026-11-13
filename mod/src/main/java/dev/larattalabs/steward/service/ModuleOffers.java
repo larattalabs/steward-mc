@@ -104,7 +104,7 @@ public final class ModuleOffers {
 	}
 
 	/**
-	 * The bound for these params: the measurement's, in the town's blocks ({@code town}: {@link #townBlocks}; null: as measured), else (dev
+	 * The bound for these params: the measurement's, in the town's items ({@code town}: {@link #townItems}; null: as measured), else (dev
 	 * source only) the dev JSON's.
 	 */
 	public static @Nullable JsonObject bound(ModuleCatalog.Entry e, JsonObject params, @Nullable Map<String, String> town) {
@@ -117,19 +117,31 @@ public final class ModuleOffers {
 		return ModuleBound.of(new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, raw), params, town);
 	}
 
-	/** The town's block for each role a measured bound re-expresses (StyleBound), from the settlement's bible; null when it can't be read. */
-	public static @Nullable Map<String, String> townBlocks(Settlement s, ModuleCatalog.Entry e) {
+	/** The town's item for each role a measured bound re-expresses (StyleBound), from the settlement's bible; null when it can't be read. */
+	public static @Nullable Map<String, String> townItems(Settlement s, ModuleCatalog.Entry e) {
 		var b = s.bible();
 		if (b == null || b.styleVersion() != s.styleVersion()) return null;
 		var bible = ArchitectApi.get().bibles().get(b.id(), b.version());
 		if (bible.isEmpty()) return null;
 		var pc = PaletteCheck.check(e.palette(), bible.get().roles(), McBlockFacts.INSTANCE);
-		return StyleBound.townBlocks(bible.get().roles(), pc.lamp());
+		return StyleBound.townItems(bible.get().roles(), pc.lamp(), ModuleOffers::itemOfBlock);
+	}
+
+	/** A block's own item in this game (a wall torch: the torch), or null when it has none. */
+	static @Nullable String itemOfBlock(@Nullable String block) {
+		if (block == null) return null;
+		var id = net.minecraft.resources.Identifier.tryParse(block);
+		if (id == null) return null;
+		var b = BuiltInRegistries.BLOCK.getOptional(id);
+		if (b.isEmpty()) return null;
+		var item = b.get().asItem();
+		if (item == net.minecraft.world.item.Items.AIR) return null;
+		return BuiltInRegistries.ITEM.getKey(item).toString();
 	}
 
 	/** The bound function for this settlement's offers. */
 	public static java.util.function.BiFunction<ModuleCatalog.Entry, JsonObject, @Nullable JsonObject> bounds(Settlement s) {
-		return (e, p) -> bound(e, p, townBlocks(s, e));
+		return (e, p) -> bound(e, p, townItems(s, e));
 	}
 
 	/** Whether a module of this id stands in the settlement (module identity: a standing site whose lot ext names it). */
