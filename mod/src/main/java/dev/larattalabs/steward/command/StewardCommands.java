@@ -386,6 +386,15 @@ public final class StewardCommands {
 					var v = ArchitectApi.get().sites(ctx.getSource().getServer()).get(site);
 					ctx.getSource().sendSuccess(() -> Component.literal(v.map(x -> "site " + site + " stands (" + x.kind() + ")").orElse("site " + site + " is gone")), false);
 					return 1;
+				}))).then(Commands.literal("site_module").then(Commands.argument("site",
+				StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check, slice M3): a site's module identity (its lot ext steward_mc:module) and the entry it was placed from
+					String site = StringArgumentType.getString(ctx, "site");
+					var v = ArchitectApi.get().sites(ctx.getSource().getServer()).get(site);
+					var ref = v.map(x -> dev.larattalabs.steward.module.ModuleRef.of(x.ext())).orElse(null);
+					ctx.getSource().sendSuccess(() -> Component.literal(v.isEmpty() ? "site " + site + " is gone" : "site " + site + " module "
+						+ (ref == null ? "none" : ref.key() + " " + ref.programSha().substring(0, 12) + " " + ref.params()) + " blueprint " + v.get().blueprintId()), false);
+					return 1;
 				}))).then(Commands.literal("solid").then(Commands.argument("site",
 				StringArgumentType.word()).executes(ctx -> {
 					// dev (the e2e check, docs/LAND.md): up to 4 solid cells of a site's box, the highest in its middle columns: "solid x,y,z x,y,z ..."

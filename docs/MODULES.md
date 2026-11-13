@@ -508,6 +508,63 @@ plans, with Noah's OK on the spend.
   (`/steward dev module`). Architect exposes no kit or checker version at runtime, so those pins are recorded, not gated. Facings and chunk
   borders are placement properties: M2's measurement covers them, not M1's checker run.
 
+### M3 as built (2026-11-13)
+
+Branch `m3-offer-place`, on M1's dry `fixture_plot@1` behind the dev gate (M2's `crop_farm@1` was still being measured). The module id is a
+parameter of every path; the switch to `crop_farm` is one `ModuleKind` (M2's `CropFarmLot.growLot` as its lot) and its `measured.json`
+`bounds` and `rates`.
+- **The offer** (`ModuleKind`, `ModuleOffer`, `service/ModuleOffers`). Rule `module.<id>`; its sign is 8 or more seeds of a crop it grows. It
+  is offered before the decorative `farm`, and only where it can grow the town:
+  - the paths: a region town built at once (A); one built from materials and fully built (A2); a Patron, instant, east-west street town Architect
+    can adopt (B, then A);
+  - never a district, a freezing biome (a warm-only kind), a town in the wrong mode, or a style whose roles break the palette rules;
+  - a watered module never goes to a town it would adopt: Architect's IG can't irrigate an adopted region (ask **S-M5-8**).
+
+  Its params are the crop carried most and the largest size those seeds plant (a town built from materials counts its stockpile too). In
+  survival the measured bound (`measured.json bounds: [{params, bom}]`, the whole growth's bill) is shown and approved; with no bound, it is not
+  offered. The rate comes from `measured.json rates: [{params, perDay, item}]`, when there is one. A module offer is never reworded by
+  ProposalWords, and is priced $0 in the inbox (in survival, "at most <bound>").
+- **Coalescing and declines** (`ProposalRules`): by module identity (a standing site whose lot ext names the module, or an offer of the same id
+  waiting, asked in talk included), never by building type. A standing or waiting module holds the decorative rule back. Declining
+  `module.<id>` also declines `farm`; declining `farm` declines nothing more.
+- **At Accept** (`Actions`, `ModuleOffers.recheck`): checked again. It must still be eligible, the same catalog version and program, the same
+  params, a bound in survival, and no module of the id standing. Else it is said, the offer leaves the inbox (not declined), and the decorative
+  building is offered as its own priced proposal. A `module.*` proposal without its order is refused, never built as a design.
+- **Talk** (`TalkJob`, `Talk`): the schema's `module.id` takes the offerable ids (left out when there are none). The user prompt lists them with
+  their params. An answer's module rides beside the building asked for. Eligible: a module proposal. Not: said, and the building is offered as
+  its own priced design.
+- **Placement** (`SettlementRunner`): `startModule` is an addition with one lot at its exact frame, which only takes growth paths (anything else
+  ends before anything is spent).
+  1. The grow lot carries the kind's lot (type, size, and `irrigate` and FC's `field` where the kind has them) and the `steward_mc:module` ext.
+     NO_ROOM on both preferences tries the next smaller size as a new plan (keys `vgrow.s<W>x<D>`, `vgrow2...`), said, still held to the bound
+     approved.
+  2. The build skips the design pipeline (state READY_TO_PLACE at $0).
+  3. **The binding** is saved before the keyed variant is asked (`steward.<build>.module.<lot>`, `.<n>` when a re-plan moved the lot:
+     `ModulePlacement.holds` compares module, program, params and `geometrySha`). After a restart the key finds the variant (`byKey` first).
+  4. **The quote** (from materials, `Regions.quote` with the final entries) is held to the order's bound. It holds and asks (`HoldBill`, phase
+     AWAITING_PLACEMENT_APPROVAL, nothing consumed) when:
+     - the bill is past the bound;
+     - the steward accepted it on its own and the bill takes over half the stockpile's count of an item (Q4);
+     - Architect can't quote it exactly: only notes known to be harmless pass, and the fluids' upper bound is conservative.
+
+     A quote that leaves a part unbilled is refused. The held bill is saved with the build (`ModuleOrder.held`) and is the decision's own text in
+     the inbox. Approving makes exactly that bill the bound, saved before the phase moves on.
+  5. **The realise** (`ModulePlace`, never asked again) carries the module entries; a module lot without an entry refuses it.
+
+  A stale realise (`parent_moved`) re-plans under `vgrow3`; the lot is bound again when its geometry moved.
+- **Undo and cancel** are growth A/A2's. A cancel while a variant or quote is out ends at once; their late answers change nothing. The offer is
+  given back only when nothing of it stands (never realised, or taken up whole), also by a build restored after a restart (the build's
+  settlement copy holds the proposal as offered).
+- **A module site isn't redesigned**: change requests (talk, start) and updates to a redesigned version are refused.
+- **Saves:** settlements format 7 (a proposal's `module` order, read exactly: integers, bills, a `module.*` key with its order) and builds
+  format 6 (`moduleOrders` lotId -> order, with its approved bound, held bill and proposal key). Older Stewards refuse both files.
+- **Dev:** `/steward dev modules {dir, id, measuring, bounds}` (development environment only) offers a catalog directory's module (the e2e's
+  fixture, measured on Architect 0.62.0, under a measuring gate). `/steward dev site_module <site>` reads a site's module identity.
+- **Asks:** S-M5-8 (irrigated growth of an adopted town), S-M5-9 (a survival realise held to an approved bill: Steward checks the quote but
+  can't cap what Architect then consumes).
+- **Not covered by e2e** (unit-tested, or the decision functions only): a restart between the binding and the realise, a stale re-plan that
+  moves the lot, the smaller-size fallback, Q4, an inexact quote, decline both ways, an adopted (B) town.
+
 ## 9. Noah's answers (2026-11-12)
 
 Noah, in the Steward manager session: "Go with option 1, defaults/recommendations for the rest". Option 1 is phase 5b (section 3.3). The six
