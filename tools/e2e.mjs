@@ -2453,7 +2453,7 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
   while (Date.now() < end) {
     // (an animal or the player in a lot: the run's herder moves them out)
     const since = logSince(at);
-    const built = since.match(/is built(?: in part)?: (\d+) buildings placed/);
+    const built = since.match(/is built(?: in part)?: (\d+) buildings? placed/);
     if (built) return { steps, placed: Number(built[1]) };
     // every lot left a pad (a material rule's pre-check): the village's street and square stand, no building
     if (/No building of [^\n]* was placed/.test(since)) return { steps, placed: 0 };
@@ -2463,13 +2463,14 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
       return null;
     }
     // (a held stage: the land changed under the plan since its check; the player's word builds it as planned)
-    const m = since.match(/Style bible ready|massings are ready|Approve to place|Architect holds the \S+ stage/);
+    const m = since.match(/Style bible ready|massings? (?:are|is) ready|Approve to place|Architect holds the \S+ stage/);
     if (!m) {
       await sleep(1000);
       continue;
     }
-    steps.push(m[0]);
-    if (m[0] === 'massings are ready' && restartAtMassings) {
+    const stepName = stepOf(m[0]);
+    steps.push(stepName);
+    if (stepName === 'massings are ready' && restartAtMassings) {
       if (onStep) await onStep('restart-before');
       await quit();
       launch();
@@ -2479,7 +2480,7 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
       else fail('restart mid-build', `${label}: no re-read`);
       restartAtMassings = false;
     }
-    if (onStep) await onStep(m[0]);
+    if (onStep) await onStep(stepName);
     at = logSize();
     lastApprove = await cmd(`/steward approve ${id}`);
   }
@@ -2822,7 +2823,7 @@ async function discardFlow() {
   let at = from;
   while (Date.now() < end) {
     const since = logSince(at);
-    if (/massings are ready/.test(since)) break;
+    if (/massings? (?:are|is) ready/.test(since)) break;
     if (/Style bible ready/.test(since)) { at = logSize(); await cmd(`/steward approve ${id}`); }
     await sleep(1000);
   }
@@ -3607,11 +3608,11 @@ async function driveUntil(id, from, until, ms, onStep = null) {
     const m = all.match(until);
     if (m) return m;
     if (/The build stopped[^\n]*|The build of [^\n]* stopped[^\n]*|Cancelled [^\n]*/.test(logSince(at)) && !/Cancelled/.test(String(until))) return null;
-    const step = logSince(at).match(/Style bible ready|massings are ready|Approve to place/);
+    const step = logSince(at).match(/Style bible ready|massings? (?:are|is) ready|Approve to place/);
     if (!step) { await sleep(1000); continue; }
     at = logSize();
     // (GE) onStep runs before the approve; 'hold' leaves the step unapproved (a cancel asked there)
-    if (onStep && (await onStep(step[0])) === 'hold') continue;
+    if (onStep && (await onStep(stepOf(step[0]))) === 'hold') continue;
     await cmd(`/steward approve ${id}`);
   }
   return null;
@@ -3697,7 +3698,7 @@ async function growthReplan(id, region, claim) {
     if (r?.refused) { devErr = `the dev revision not realised: ${r.refused}`; return; }
     dev0 = ((await regionView(region)).revisions ?? []).filter((x) => x.state !== 'UNDONE').sort((a, c) => c.rid - a.rid)[0] ?? null;
   };
-  const placed = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings placed/, 900_000, inject);
+  const placed = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings? placed/, 900_000, inject);
   const all = logSince(from);
   const said = /The town changed while the designs were made/.test(all);
   const vgrow3 = /growth \S+ of \S+: plan \S+ under vgrow3/.test(all);
@@ -3735,7 +3736,7 @@ async function growThrough(id, region, role, label, atPlace = null) {
   await clearAnimals();
   const from = logSize();
   await cmd(`/steward proposals ${id} accept ${p.key}`);
-  const placed = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings placed/, 900_000, async (step) => { if (step === 'Approve to place' && atPlace) await atPlace(); });
+  const placed = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings? placed/, 900_000, async (step) => { if (step === 'Approve to place' && atPlace) await atPlace(); });
   const entry = placed ? await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && new RegExp(`^revision:${region}:\\d+$`).test(e.siteGroup ?? ''), 30) : null;
   if (!entry) { fail(label, `the growth not placed and logged: ${chatTail(from)}`); return null; }
   return { tag: entry.siteGroup, rid: Number(entry.siteGroup.split(':').at(-1)), entry };
@@ -3766,7 +3767,7 @@ async function growthRestartRealise(id, region, claim) {
   const resumed = await waitLog(0, new RegExp(`resume ${id}: [^\\n]*`), 60_000);
   // it resumes waiting for the approve it had not had ("awaiting placement approval"): approved again, which asks for the realise under its keys
   if (resumed) await cmd(`/steward approve ${id}`);
-  const placed = resumed ? await driveUntil(id, 0, /is built(?: in part)?: (\d+) buildings placed/, 600_000) : null;
+  const placed = resumed ? await driveUntil(id, 0, /is built(?: in part)?: (\d+) buildings? placed/, 600_000) : null;
   const logged = await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === g.tag, 30);
   const once = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.siteGroup === g.tag && e.kind === 'PROJECT_PLACED').length === 1;
   const revs1 = ((await regionView(region)).revisions ?? []).length;
@@ -3902,7 +3903,7 @@ async function gateMechFlow(form = 'lenient') {
   await clearAnimals();
   from = logSize();
   await cmd(`/steward start ${id} 6 80`);
-  const built = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings placed/, 1_200_000);
+  const built = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings? placed/, 1_200_000);
   const st = settlements().find((x) => x.id === id);
   const region = (st?.log?.filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '').replace(/^region:/, '');
   const view = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
@@ -4190,7 +4191,7 @@ async function wallLotsFlow() {
   launch();
   await connect();
   const resumed = await waitLog(0, new RegExp(`resume ${a.id}: wall repair (\\S+)`), 90_000);
-  const built = await driveUntil(a.id, 0, /is built(?: in part)?: (\d+) buildings placed/, 1_200_000);
+  const built = await driveUntil(a.id, 0, /is built(?: in part)?: (\d+) buildings? placed/, 1_200_000);
   const st = settlements().find((x) => x.id === a.id);
   const placed = st?.log?.filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
   const region = (placed?.siteGroup ?? '').replace(/^region:/, '');
@@ -4967,7 +4968,7 @@ async function moduleSurvivalFlow() {
     const bill = logSince(from).match(/The addition's construction sites stand and are built from the stockpile[^\n]*/);
     const order = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id);
     // from materials: said while its sites wait for the stockpile, or built at once when the stockpile held it all
-    const builtNow = /is built: \d+ buildings placed/.test(logSince(from));
+    const builtNow = /is built: \d+ buildings? placed/.test(logSince(from));
     if (g.m && g.m[1] === region && g.rev && mods.length === 1 && (bill || builtNow)) ok(label, `approved (${whole.slice(0, 100)}); revision ${g.m[2]} realised from materials; lot ${mods[0].sid} = ${mods[0].blueprint}`);
     else return fail(label, `entry ${g.op?.siteGroup}; module sites ${mods.length}; bill said ${!!bill}; build ${order?.state?.phase}`);
     // undo refused while its targets are built, nothing written
@@ -5401,8 +5402,16 @@ async function districtGrowthFlow() {
   else fail(`${label} then the district and the town`, `district ${dg ? dg.text : 'not undone'} (given up ${!!given}); town ${tg ? tg.text : 'not undone'}`);
 }
 
+/** A matched pipeline step under one name: "1 massing is ready" and "3 massings are ready" are both 'massings are ready'. */
+function stepOf(text) {
+  return /^massings? (?:are|is) ready$/.test(text) ? 'massings are ready' : text;
+}
+
 const flows = [];
 let flowsRan = false;
+/** Per flow, for summary.json (Architect GX's first step toward EF): its seconds, the 1-minute load at its start, its checks and failures. */
+const flowTimes = [];
+let flowsAt = 0;
 /**
  * Names a flow; runFlows runs them in this order. `needs`: the earlier flows whose world this one builds on (districts needs the settlement proposals
  * describes), pulled into an --only run that picks this flow.
@@ -5415,12 +5424,21 @@ function flow(name, tags, fn, needs = []) {
 /** Runs the named flows (`flow` lines name each, for a rerun of what failed; a pulled-in one says which flow needs it). */
 async function runFlows() {
   flowsRan = true;
+  flowsAt = Date.now();
   const why = pickFlows(flows, only);
   for (const f of flows.splice(0)) {
     if (!why.has(f.name)) { skipped.push(f.name); continue; }
     console.log(`flow ${f.name}${why.get(f.name) ? ` (needed by ${why.get(f.name)})` : ''}`);
-    await clearAnimals();
-    await f.fn();
+    const t0 = Date.now();
+    const load = Math.round(os.loadavg()[0] * 10) / 10;
+    const before = results.length;
+    try {
+      await clearAnimals();
+      await f.fn();
+    } finally {
+      const mine = results.slice(before);
+      flowTimes.push({ name: f.name, seconds: Math.round((Date.now() - t0) / 1000), load, checks: mine.length, failed: mine.filter((r) => !r.ok).length });
+    }
   }
 }
 try {
@@ -5507,7 +5525,7 @@ try {
   if (client && client.exitCode === null) client.kill();
 }
 const failed = results.filter((r) => !r.ok).length;
-fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, at: new Date().toISOString(), seconds: Math.round((Date.now() - started) / 1000), failed, results }, null, 2));
+fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, at: new Date().toISOString(), seconds: Math.round((Date.now() - started) / 1000), failed, sanitySeconds: flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
 if (only) console.log(`only ${only.join(',')}: ${skipped.length} flows skipped`);
 console.log(failed === 0 ? `PASS ${results.length} checks` : `${failed} FAIL of ${results.length}`);
 process.exit(failed === 0 && results.length > 0 ? 0 : 1);

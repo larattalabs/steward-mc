@@ -389,8 +389,7 @@ public final class Pipeline {
 		// said as it is: no building placed is not built; some skipped, or a part that failed besides the buildings ({@code note}), is built in part
 		String more = (b.skipped() > 0 ? ", " + b.skipped() + " skipped" : "") + (b.note() != null ? " (" + b.note() + ")" : "");
 		if (b.placed() == 0) return Step.of(s.with(Phase.DONE), new Notify("No building of " + label(s) + " was placed" + more + ".", false));
-		return Step.of(s.with(Phase.DONE), new Notify(label(s) + (b.skipped() > 0 || b.note() != null ? " is built in part: " : " is built: ") + b.placed()
-			+ " buildings placed" + more, false));
+		return Step.of(s.with(Phase.DONE), new Notify(label(s) + (b.skipped() > 0 || b.note() != null ? " is built in part: " : " is built: ") + Words.count(b.placed(), "building placed", "buildings placed") + more, false));
 	}
 
 	/** The smallest budget that lets a paused build go on: its spend sits under the soft pause again with $5 of room, rounded up to $5. */
@@ -465,7 +464,7 @@ public final class Pipeline {
 				}
 				// Architect re-sends awaiting_approval while an approval is in flight: tell the player once, on the way in
 				if (s.phase() == Phase.AWAITING_MASSING_APPROVAL) yield Step.of(n.with(Phase.AWAITING_MASSING_APPROVAL));
-				yield Step.of(n.with(Phase.AWAITING_MASSING_APPROVAL), new Notify(g.awaiting().size() + " massings are ready: approve or redirect each.", true));
+				yield Step.of(n.with(Phase.AWAITING_MASSING_APPROVAL), new Notify(Words.count(g.awaiting().size(), "massing is ready: approve or redirect it.", "massings are ready: approve or redirect each."), true));
 			}
 			// Architect re-sends the paused status: ask once, on the way in
 			case "paused_budget" -> s.pausedForBudget() ? Step.of(n.with(Phase.GROUP_RUNNING)) : Step.of(n.with(Phase.GROUP_RUNNING),

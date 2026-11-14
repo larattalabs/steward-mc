@@ -85,6 +85,8 @@ class PipelineTest {
 		Step st = Pipeline.step(s, group("awaiting_approval", Map.of("lot_0", "approval", "lot_1", "approval"), List.of("lot_0", "lot_1"), 0.5), Permission.PROPOSALS);
 		assertEquals(Phase.AWAITING_MASSING_APPROVAL, st.next().phase());
 		assertTrue(only(st, Notify.class).text().contains("2 massings"));
+		Step one = Pipeline.step(s, group("awaiting_approval", Map.of("lot_0", "approval"), List.of("lot_0"), 0.5), Permission.PROPOSALS);
+		assertTrue(only(one, Notify.class).text().contains("1 massing is ready: approve or redirect it."), only(one, Notify.class).text());
 		Step d = Pipeline.step(st.next(), new MassingDecision(List.of("lot_0"), Map.of("lot_1", "make it L-shaped"), List.of()), Permission.PROPOSALS);
 		assertEquals(Phase.GROUP_RUNNING, d.next().phase());
 		ApproveGroup ag = only(d, ApproveGroup.class);
@@ -143,6 +145,7 @@ class PipelineTest {
 		assertEquals(Phase.DONE, done.next().phase());
 		assertTrue(only(done, Notify.class).text().contains("is built in part: 11 buildings placed, 1 skipped"));
 		assertTrue(only(Pipeline.step(placing, new BatchDone(5, 0), Permission.FULL), Notify.class).text().contains("is built: 5 buildings placed"));
+		assertTrue(only(Pipeline.step(placing, new BatchDone(1, 0), Permission.FULL), Notify.class).text().contains("is built: 1 building placed"));
 		// a village whose buildings all stood but whose lanes or props failed is built in part; one with no building placed is not built
 		String partial = only(Pipeline.step(placing, new BatchDone(5, 0, "village is partial: 5 of 5 lots placed"), Permission.FULL), Notify.class).text();
 		assertTrue(partial.contains("is built in part: 5 buildings placed (village is partial"), partial);
