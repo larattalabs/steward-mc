@@ -190,4 +190,25 @@ class SuppliedDistrictGrowthTest {
 		assertEquals(Growths.tag(REGION, 2), head.orElseThrow().siteGroup(), "the head revision's entry first");
 		assertEquals(REGION, Growths.parse(head.get().siteGroup()).orElseThrow().region(), "MaterialRequests reads the district region from the entry");
 	}
+
+	@Test
+	void theDistrictsFoundingBuildIsNeverRemovedWhileAGrowthOfItStands() {
+		// the founding entry names the district's region; a logged growth of that region stands above it
+		Settlement s = ward().withLog(Settlement.LogEntry.of(1L, Settlement.Kind.PROJECT_PLACED, "Placed 1 building in Ward",
+			List.of(new Settlement.SiteChange("s9", "ward hall", 0, 1)), "region:" + REGION, Settlement.Outcome.DONE));
+		Ledger l = new Ledger();
+		String why = Growths.blocksRemoval(REGION, null, List.of(rev(l)), s);
+		assertNotNull(why, "a standing growth of the district holds its founding build");
+		assertTrue(why.contains("grown since") && why.contains(Growths.tag(REGION, 1)), why);
+		// still placing: held too, whatever its sites
+		l.revState = "PLACING";
+		assertTrue(Growths.blocksRemoval(REGION, null, List.of(rev(l)), s).contains("still being made"));
+		assertNotNull(Growths.blocksRemoval(REGION, "revising 1", List.of(), s), "busy");
+		// the growth undone: the founding build may go
+		l.revState = "UNDONE";
+		assertNull(Growths.blocksRemoval(REGION, null, List.of(rev(l)), s));
+		// a revision of the town (another region) never holds the district
+		l.revState = "PLACED";
+		assertNull(Growths.blocksRemoval("rg_town", null, List.of(rev(l)), s), "the growth's entry names the district's region, not the town's");
+	}
 }

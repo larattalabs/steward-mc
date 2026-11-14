@@ -2658,8 +2658,8 @@ public final class SettlementRunner {
 		boolean world = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
 		boolean built = v.build() != null && v.build().built();
 		if (Growths.fromMaterials(v) == world && Growths.fromMaterials(v) && !built)
-			return "the town is being built from the stockpile again (an update or another change); it can grow once it's built. Start it again then.";
-		String no = Growths.modeRefusal(settlement.name(), Growths.fromMaterials(v), world, built, v.build() == null ? 0 : v.build().percent());
+			return growingName() + " is being built from the stockpile again (an update or another change); it can grow once it's built. Start it again then.";
+		String no = Growths.modeRefusal(districtId == null ? settlement.name() : growingName(), Growths.fromMaterials(v), world, built, v.build() == null ? 0 : v.build().percent());
 		if (no != null) return no + " Start it again.";
 		if (Growths.fromMaterials(v) && Stockpiles.of(server, Settlements.store().get(settlement.id()).orElse(settlement)).isEmpty())
 			return "the town's stockpile is gone, and a town built from materials grows from it. Start it again: a new one is made by the founding stone.";
