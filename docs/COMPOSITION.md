@@ -105,7 +105,7 @@ Today's fixed programs (Steward's street layout, Architect's `flat_village`) sta
 ## 6. Measure: the strange asks
 
 `fixtures/strange-asks/` holds 59 asks, the capabilities each needs, and the real card Claude wrote for each. The measure for both mods is how many asks are satisfied by composition: checked, buildable, honest about the rest.
-- **Today:** 4 asks are built, 13 as a nearest version, and 42 wait. 22 of 55 cards are honest, using Steward's word rules.
+- **Today (2026-11-14, `node tools/strange-asks.mjs`):** 12 asks are built, 28 as a nearest version, and 19 wait. 43 of the 47 cards not built are honest (`StrangeAsksTest.HONEST_BASELINE` 43, 2026-11-14), using Steward's word rules.
 - **Each new building block** should move a row of the gap map (`node tools/strange-asks.mjs`).
 - **Focused fixtures:** recorded-plan fixtures prove the compiler covers a block. They run in each slice's CI at $0.
 - **Batch evaluation:** the 59-ask corpus measures composition quality, with Claude composing. It is rerun at milestones, paid, for a few dollars, with Noah's approval.

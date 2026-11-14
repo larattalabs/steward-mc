@@ -29,10 +29,14 @@ export JAVA_HOME=${JAVA_HOME:-/opt/homebrew/opt/openjdk@25}
 # 5 s probe failed once under load (the 2026-11-10 nightly's stub client: "mise/shims/node is not node 22+ (did not run)", no helper, 30 failures).
 NODE_PATH_DIR=${E2E_NODE_DIR:+$E2E_NODE_DIR:}
 export GRADLE_USER_HOME=${GRADLE_USER_HOME:-$R/.gradle-home}
+# lab-ui from the Gradle cache (the GitHub Packages release), never the shared ../lab-ui checkout: every worktree's composite build rewrites that
+# checkout's jar, so another session's build broke this client's load ("ZipFile invalid LOC header", 11-13 and 11-14). LAB_UI_DIR=<path> tests a
+# local lab-ui on purpose (settings.gradle's UNRELEASED warning). mod/DEV.md "lab-ui".
+LAB_UI_ARG=-Plab_ui.dir=${LAB_UI_DIR:-none}
 cd $R/mod
 exec env -i HOME="$HOME" USER="$USER" LOGNAME="$USER" TMPDIR="$TMPDIR" SHELL=/bin/zsh PATH="$NODE_PATH_DIR/opt/homebrew/bin:/usr/bin:/bin" JAVA_HOME="$JAVA_HOME" \
 	GRADLE_USER_HOME="$GRADLE_USER_HOME" STEWARD_PORT="$STEWARD_PORT" STEWARD_DEV_PORT="$STEWARD_DEV_PORT" ARCHITECT_AUTOWORLD_NAME="$ARCHITECT_AUTOWORLD_NAME" \
 	ARCHITECT_AUTOWORLD_MODE="$ARCHITECT_AUTOWORLD_MODE" ARCHITECT_AUTOWORLD_PRESET="$ARCHITECT_AUTOWORLD_PRESET" ARCHITECT_AUTOWORLD_CHEATS="$ARCHITECT_AUTOWORLD_CHEATS" \
 	${ARCHITECT_SIDECAR_DIR:+ARCHITECT_SIDECAR_DIR=$ARCHITECT_SIDECAR_DIR} ${ARCHITECT_SIDECAR_BACKEND:+ARCHITECT_SIDECAR_BACKEND=$ARCHITECT_SIDECAR_BACKEND} \
 	${ARCHITECT_SIM_COSTS:+ARCHITECT_SIM_COSTS=$ARCHITECT_SIM_COSTS} ${ARCHITECT_JAR:+ARCHITECT_JAR=$ARCHITECT_JAR} ${LAB_UI_DIR:+LAB_UI_DIR=$LAB_UI_DIR} \
-	./gradlew --offline :runClient
+	./gradlew --offline "$LAB_UI_ARG" :runClient

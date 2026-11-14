@@ -172,7 +172,7 @@ runs 11 checks:
 - a build restored after a restart (with the player's real UUID put into `tools/e2e/restore-build.json`), then cancelled.
 
 It refuses to start while the claude-login opt-in exists or another Steward client uses `mod/run`. The test entry `e2e_stub` is rewritten each run, so its
-new version always differs from the placed one. Results go to `artifacts/e2e/summary.json`. On a failed update it prints Steward's `update check` log
+new version always differs from the placed one. Results go to `artifacts/e2e/summary.json`, with each named flow's seconds, the 1-minute load at its start, its checks and failures (`flows`), and the seconds before the first flow (`sanitySeconds`; slice ET, 2026-11-14). On a failed update it prints Steward's `update check` log
 line (action, reason, write box).
 
 **A fresh world every run (2026-11-12).** The world used to be kept between runs. The main checkout's had grown to 559 settlements and 9.4 GB, and
@@ -232,6 +232,12 @@ AgentCraft and Architect:
    `GRADLE_USER_HOME=$PWD/../.gradle-home GITHUB_TOKEN=$(gh auth token) ./gradlew build` from `mod/`.
    Never commit or export the token.
 
+**The e2e client and the record tools take the release from the Gradle cache** (`-Plab_ui.dir=none`; `tools/run-e2e-client.sh`, `record-cards.mjs`,
+`record-plans.mjs`; 2026-11-14, slice ET). Every worktree's composite build rewrites the jar in the one shared `../lab-ui` checkout, so another session's
+build broke a running client's load ("ZipFile invalid LOC header", three runs on 11-13 and 11-14). To test a local lab-ui on purpose, set
+`LAB_UI_DIR=<absolute path>` for the run (`LAB_UI_DIR=~/Developer/LarattaLabs/Minecraft/lab-ui node tools/e2e.mjs stub --only ...`); that run then reads that checkout's jar, so keep other
+builds of it away while it runs. A plain `./gradlew build` still uses a released checkout; in a slice worktree, `-Plab_ui.dir=none` keeps it off the shared jar too.
+
 Maven Local never supplies lab-ui, because a local publish may come from a checkout past its tag. Fetched this way on 2026-10-10: the release jar differed
 from the local publish.
 
@@ -249,7 +255,7 @@ from the local publish.
 `node tools/record-cards.mjs 40` recorded the card Claude writes for each of the 59 strange asks (`fixtures/strange-asks/cards/`) on Noah's claude login. The script made the opt-in for the run and removed it after; the client started from a scrubbed environment.
 - **Cost:** $0.96 in all ($0.013-0.032 a card). The first attempt spent nothing: the script looked for the DevBridge token in Architect's run dir, which `ARCHITECT_GAME_DIR` now fixes.
 - **Schema:** every card validates (`npm test`). The recorder now keeps null fields, which the schema requires.
-- **What the cards show:** read through `CardLimits`, 22 of the 55 asks not built today say what waits; the ask's words alone gave 6. Claude spells out the place ("piers reaching out over the water"), which the limits catch. The fishing village's card wanted piers over the water, so that ask now needs `over_water`.
+- **What the cards show:** read through `CardLimits`, 22 of the 55 asks not built then said what waits; the ask's words alone gave 6 (2026-10-12). Now 43 of the 47 not built do (`StrangeAsksTest.HONEST_BASELINE` 43, 2026-11-14). Claude spells out the place ("piers reaching out over the water"), which the limits catch. The fishing village's card wanted piers over the water, so that ask now needs `over_water`.
 - **Still silent (33):** walls, free layouts, hard rules, time, working modules, inhabitants and relations, which `CardLimits` doesn't know about yet.
 
 ## Strange asks: plans re-recorded with the shape rules (2026-10-20, paid, Noah approved; $0.65)
