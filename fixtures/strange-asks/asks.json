@@ -75,7 +75,8 @@
       "ask": "A monastery on a floating island, reached by a long stair.",
       "needs": [
         "sculpted_forms",
-        "aerial_connectors"
+        "aerial_connectors",
+        "raised_climbs"
       ]
     },
     {
