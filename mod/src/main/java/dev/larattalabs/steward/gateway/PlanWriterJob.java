@@ -15,8 +15,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The plan writer (docs/COMPOSITION.md, plan v0): a {@code structured} job that composes one settlement as Architect's plan/0 from its concept card, the
- * land round its stone and the anchors Steward supplies (prompts/plan-writer.md, schema/plan-writer.schema.json; Architect's schema/plan-0.json in the
- * system prompt, so it is cached). Sonnet, medium effort, at most $0.50 a call (Noah: about $1 a plan with repair).
+ * land round its stone and the anchors Steward supplies (prompts/plan-writer.md, schema/plan-writer.schema.json; Architect's plan/0 schema, by reference or
+ * from the loaded jar's {@code Regions.planSchema()}, in the system prompt, so it is cached). Sonnet, medium effort, at most $0.50 a call (Noah: about $1 a plan with repair).
  */
 public final class PlanWriterJob {
 	public static final String MODEL = ConceptCardJob.MODEL;
@@ -173,29 +173,32 @@ public final class PlanWriterJob {
 		return md.substring(i + "## System prompt".length()).strip();
 	}
 
-	/** The prompt's system section, then Architect's plan/0 schema in full (a helper without systemRefs). */
+	/** The prompt's system section, then the loaded Architect's plan/0 schema ({@code Regions.planSchema()}, compact) for a helper without systemRefs. */
 	public static String systemPrompt() {
 		String md = resource("steward/prompts/plan-writer.md");
 		int i = md.indexOf("## System prompt");
 		if (i < 0) throw new IllegalStateException("plan-writer.md has no '## System prompt' section");
-		// the schema compact (Architect's jobs take at most 50,000 characters of system prompt; pretty-printed it is over)
-		JsonObject plan0 = JsonParser.parseString(resource("steward/schema/plan-0.json")).getAsJsonObject();
+		// the schema compact (Architect's jobs take at most 120,000 characters of system prompt; pretty-printed it is over)
+		JsonObject plan0 = JsonParser.parseString(dev.larattalabs.architect.api.Regions.planSchema()).getAsJsonObject();
 		slimCatalogue(plan0);
 		String schema = new com.google.gson.Gson().toJson(plan0);
 		return md.substring(i + "## System prompt".length()).strip() + "\n\n## Architect's plan schema (plan/0)\n\n" + schema;
 	}
 
+	/** The catalogue entry members {@code plan/0#compact} keeps (Architect's sidecar COMPACT.lineKeys): a kind's long note comes by kind on repair. */
+	static final List<String> ENTRY_KEYS = List.of("id", "state", "until", "aliasOf", "replacedBy", "retiredInApi", "limits");
+
 	/**
-	 * The catalogue entries without what only Architect's bookkeeping reads (sinceApi, schemaVersion, and a def that is just {@code #/$defs/<id>}), so the
-	 * prompt stays inside Architect's 50,000-character system limit as the schema grows. The schema itself is unchanged.
+	 * The catalogue as {@code plan/0#compact} has it: each entry only its {@link #ENTRY_KEYS}, without the catalogue's api, kitVersion and schemaVersion,
+	 * so the inline prompt stays inside Architect's system limit as the schema grows. The $defs are unchanged.
 	 */
 	static void slimCatalogue(JsonObject plan0) {
 		if (!plan0.has("x-catalogue") || !plan0.getAsJsonObject("x-catalogue").has("entries")) return;
-		for (var e : plan0.getAsJsonObject("x-catalogue").getAsJsonArray("entries")) {
+		JsonObject cat = plan0.getAsJsonObject("x-catalogue");
+		for (String k : List.of("api", "kitVersion", "schemaVersion")) cat.remove(k);
+		for (var e : cat.getAsJsonArray("entries")) {
 			JsonObject o = e.getAsJsonObject();
-			o.remove("sinceApi");
-			o.remove("schemaVersion");
-			if (o.has("def") && o.has("id") && o.get("def").getAsString().equals("#/$defs/" + o.get("id").getAsString())) o.remove("def");
+			for (String k : List.copyOf(o.keySet())) if (!ENTRY_KEYS.contains(k)) o.remove(k);
 		}
 	}
 

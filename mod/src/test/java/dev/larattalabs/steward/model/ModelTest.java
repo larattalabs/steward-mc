@@ -129,26 +129,14 @@ class ModelTest {
 		assertTrue(ArchitectGateway.REQUIRED_MINOR >= 56, "at least Architect 0.63.0's API 1.56");
 	}
 
-	/** Stand-ins for the loaded Architect API class, whose constant javac can't inline into the check. */
-	public interface OldApi {
-		String VERSION = "1.12.0";
-	}
-
-	public interface NewApi {
-		String VERSION = "1.12.0";
-
-		default String apiVersion() {
-			return "1.99.1";
-		}
-	}
-
 	@Test
-	void gatewayReadsTheLoadedVersionNotTheInlinedOne() {
-		assertEquals("1.12.0", ArchitectGateway.loadedVersion(new OldApi() {}, OldApi.class), "the loaded class's field, by reflection");
-		assertEquals("1.99.1", ArchitectGateway.loadedVersion(new NewApi() {}, NewApi.class), "apiVersion() wins once Architect has it");
-		assertNull(ArchitectGateway.loadedVersion(new Object(), Object.class));
-		assertFalse(ArchitectGateway.Status.evaluate(ArchitectGateway.loadedVersion(new OldApi() {}, OldApi.class), Set.of("designs", "sites", "events")).ok(),
-				"an old loaded Architect fails even though Steward compiled against a newer one");
+	void gatewayFailsAnOlderLoadedApi() {
+		// check() reads the loaded Architect's apiVersion(), never the inlined VERSION; an older or other-major one fails
+		Set<String> features = Set.of("designs", "sites", "events");
+		assertFalse(ArchitectGateway.Status.evaluate("1.12.0", features).ok(), "an old loaded Architect fails even though Steward compiled against a newer one");
+		assertFalse(ArchitectGateway.Status.evaluate("2.0.0", features).ok());
+		assertFalse(ArchitectGateway.Status.evaluate(null, features).ok());
+		assertTrue(ArchitectGateway.Status.evaluate(ArchitectGateway.PINNED_VERSION, features).ok());
 	}
 
 	@Test
