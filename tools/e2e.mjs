@@ -1615,16 +1615,25 @@ async function adoptFlow() {
     const label = 'adopt street extended';
     const fill = [];
     const prog = (await regionView(region)).program ?? 'plan_v0';
-    for (let round = 0, n = 6; round < 12 && n >= 1; round++) {
+    const refusals = [];
+    for (let round = 0, n = 6; round < 14 && n >= 1; round++) {
       const b = `e2efill${Date.now() % 100000}`;
-      const lots = Array.from({ length: n }, (_, k) => ({ id: `${b}_p${k + 1}`, type: 'house', size: [7, 9] }));
+      const lots = Array.from({ length: n }, (_, k) => ({ id: `${b}_p${k + 1}`, type: 'house', size: [5, 7] }));
       const pl = await dev.request('dev.rv.plan', { region, program: prog, params: { grow: { lots, prefer: 'frontage' } }, opKey: `e2e.${b}.plan` }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
-      if (!pl?.planId) { n = Math.floor(n / 2); continue; }
+      if (!pl?.planId) {
+        refusals.push(`${n}: ${String(pl?.refused ?? JSON.stringify(pl)).slice(0, 90)}`);
+        // only no room halves the batch; anything else (the region busy) is waited out once
+        if (/NO_ROOM|REGION_LIMIT/.test(String(pl?.refused ?? ''))) n = Math.floor(n / 2);
+        else await sleep(5000);
+        continue;
+      }
       const r = await dev.request('dev.region.realise', { planId: pl.planId, opKey: `e2e.${b}.realise` }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
       if (r?.refused) { fail(label, `a frontage pad not realised: ${r.refused}`); break; }
       const head = ((await regionView(region)).revisions ?? []).filter((x) => x.state !== 'UNDONE').sort((x, y) => y.rid - x.rid)[0];
-      if (head) fill.push(head);
+      // placed before the next plan (a region still placing refuses one)
+      if (head) fill.push(await revisionUntil(region, head.rid, ['PLACED', 'PARTIAL']) ?? head);
     }
+    console.log(`(${label}: ${fill.length} pad revision(s); refused ${refusals.join(' | ')})`);
     const q = fill.length ? await askBuilding(id, 'reading room') : null;
     let g = null, under = null, f2 = logSize();
     if (q) {
@@ -1639,7 +1648,7 @@ async function adoptFlow() {
     const r2 = ((await regionView(region)).revisions ?? []).find((r) => String(r.rid) === m2?.[2]);
     const grewNow = !!g && m2?.[1] === region && Number(m2[2]) > Number(fill.at(-1)?.rid ?? 0);
     if (grewNow && under === 'vgrow2' && /^(PLACED|PARTIAL)$/.test(r2?.state ?? '')) ok(label, `the frontage filled by ${fill.length} dev pad revision(s); the reading room planned under vgrow2 (prefer extend) as revision ${m2[2]} (${r2.state})`);
-    else fail(label, `fill ${fill.length}; proposal ${!!q}; built ${!!g}; under ${under}; entry ${e2?.siteGroup}; revision ${r2?.state}; ${chatTail(f2)}`);
+    else fail(label, `refused ${refusals.slice(-2).join(' | ')}; fill ${fill.length}; proposal ${!!q}; built ${!!g}; under ${under}; entry ${e2?.siteGroup}; revision ${r2?.state}; ${chatTail(f2)}`);
     if (grewNow) await undoOnce(id, claim);
     if (fill.length) {
       const u = await dev.request('dev.rv.undo', { region, toPosition: Math.min(...fill.map((x) => x.position)) - 1, actor: 'steward' }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
@@ -4877,7 +4886,7 @@ try {
       // stub: the first settlement's whole paid flow; the flows after it build their own
       await flow('stub', 'paid card plan wall revision undo', () => stubFlow(id));
       await flow('village', 'plan realise', () => villageFlow());
-      await flow('growth', 'growth region realise undo', () => growthFlow());
+      await flow('growth', 'growth region realise undo replan orphan', () => growthFlow());
       await flow('adopt', 'adopt growth region undo', () => adoptFlow());
       await flow('follow', 'copies source update revert version', () => followFlow());
       await flow('land', 'land check perception inbox talk', () => landFlow());
