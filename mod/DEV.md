@@ -567,3 +567,16 @@ world per step; `--attach`, `--keep-client`). The bars and results are in docs/M
   - candidate 1's composter and chest outside the fence let mobs climb over it;
   - candidate 2's path under them turned to dirt.
 
+
+## P065: the Architect 0.65.0 pin's follow-ups (2026-11-14, $0)
+- **pin-guard:** `ArchitectGateway.check()` reads the loaded Architect's `apiVersion()` (TJ, API 1.58.0); the reflection fallback is gone (fabric.mod.json keeps `>=0.65.0`).
+- **Plan schema:** `schema/plan-0.json` is now the 0.65.0 jar's `architect_mc/schemas/plan.json` byte for byte (catalogue 9 -> 22), held so by
+  `PlanWriterJobTest` (a pin whose schema moves fails until the copy is refreshed). The mod reads `Regions.planSchema()`; the inline prompt slims the
+  catalogue as `plan/0#compact` does. The prompt drops its frozen-copy provenance and the "reserved layout" rule (every layout is supported).
+- **Re-score ($0, Architect v0.65.0's kit, the asks claim):** Architect's copy of the 59 plans: fits 67, adjusted 18, blocked 20, refused 14,
+  unsupported 9 (as AQ's table). Steward's plans (five re-recorded since Architect copied them): fits 70, adjusted 19, blocked 20, refused 9,
+  unsupported 8, **malformed 1**: hidden_village's `hollow` (form.hidden_room with `where`, no `host`; recorded while the kind was reserved). The
+  other moves are the 11-13 re-records (palette rules into styles; mage_exiles NO_ROOM; old_new_town's stair now a path blocked on its zone).
+- **Checks:** `stub --only street,plan,stock-save` PASS 88. Street towns (village, adopt, adopt-ns, plan build) place as Blueprints (Steward never
+  sets `allowComposite`). The plan build's region ghost of the market hall (`e2e-hidden-room-ghost.png`, 25,090 cells, secret parts
+  `f_secret_cellar`, `f_secret_cellar_door`) shows no room.
