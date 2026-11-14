@@ -101,7 +101,7 @@
       "name": "one giant structure that is the settlement (a castle, an arcology)",
       "status": "nearest",
       "nearest": "a walled town around a keep; one composite structure is built by Architect (7c CM) but not through Steward's placement",
-      "comes": "Steward placing Architect's composites (CM-b refuses a composite in a design-group item NOT_ALLOWED; Architect's Q1)"
+      "comes": "Steward placing Architect's composites: a design returns one only on allowComposite (Architect 0.65.0, SR), which Steward doesn't set yet"
     },
     "moving": {
       "name": "a settlement that moves (a nomad camp, a ship)",
@@ -172,8 +172,8 @@
     "secrets": {
       "name": "secrets (hidden rooms, concealed entrances, puzzles)",
       "status": "nearest",
-      "nearest": "a hidden room (form.hidden_room); concealed tunnels are refused NO_FEATURE, and the placement ghost shows the room",
-      "comes": "Steward's answer on the ghost showing the room (Architect HR's Q2), Architect's tunnel features"
+      "nearest": "a hidden room (form.hidden_room), its placement ghost drawn as if unwritten (Architect 0.65.0, SR); concealed tunnels are refused NO_FEATURE",
+      "comes": "Architect's tunnel features"
     },
     "build_around": {
       "name": "building around the player's own things (their house, a tree)",
