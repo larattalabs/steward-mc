@@ -1438,6 +1438,11 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
     loaded", even with the lot loaded. FullBom's reason labels look swapped: the "not loaded" text is set where `updateShape` throws.
   - **Effect:** Steward puts any inexact quote to the player, so a survival placement always asks once.
   - **Asked:** give the right reason, and make the quote exact when every cell it reads is loaded.
+- **Architect's answer to S-M5-10 and S-M5-11** (coordinator, 2026-11-13): both accepted, in one strict slice, **BC+**.
+  - BC+ also carries S-M5-9's `maxBill` and A11's exact cut of same-state cells.
+  - The re-lay rule covers any case where vanilla reverts one of Architect's own cells.
+  - BC+ starts after SA merges. Its release comes with a Steward RC: `maxBill`, `bill_cap`, exact quotes and the refund fix. Steward's
+    stocked round stays until then.
 - **Architect's answers (coordinator, 2026-11-12):** all as preferred.
   - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
   - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.
