@@ -705,7 +705,18 @@ Noah's example: a settlement at a desert's edge with a jungle. A wall divides th
   - e2e (free): "here" and "auto" checks.
   - **Built (2026-10-19):** the plan writer knows the live catalogue (several zones; districts, boundary districts and outposts; walls, gates, bridges, tunnels, water) and the shapes Architect builds (from its check of the 59 strange-ask plans: 20 parts in 6 patterns); plan v1 builds a districts plan (D1), and lots facing east or west (north-south streets) are designed, previewed and built (the town's own street stays east-west for additions); the card says a plan's bridges and tunnels as Architect resolved them. e2e (stub): a town of two quarters, its jungle side's street north-south, built and undone. GPT review of north-south: two should-fixes, fixed.
   - **Known limit:** additions after a districts build don't find Architect's district streets (`road:<district>_street_*`): they lay a fresh street; to do with Steward's districts on Architect's.
-  - **Still to do:** the preview in survey mode; "no, by the lake" placing it again; the steward's own district proposal using the card's left-out buildings.
+  - **Built (2026-11-13, slice DP):**
+    - **The preview's reason:** a district proposal keeps a place line (`Proposal.place`, nullable, display only, no format change), shown under
+      "Proposed: …" in survey mode ("By the water, for the harbour · Y to decide"), for asks and the steward's own proposals alike.
+    - **"No, by the lake":** while a district waits, a new district ask in talk places it again (never a quarter beside it, unless an outpost). "No" or
+      "somewhere else" rules out the side it waits on (`DistrictMove`). Ground no side has leaves it where it was, and the steward says so. The talk
+      prompt says so too.
+    - **The steward's own proposal:** with no sign-driven proposal to make, a town that stands with none of its districts gets one district for the
+      card's buildings that don't stand yet (`ProposalRules.leftOut`, by role, else type), placed by what they ask of the ground. It is offered once:
+      a declined district stops it. Founding goes through the usual accept path, and the buildings are proposed after.
+    - e2e (free, `districts`): a harbour asked for to the east is previewed, a lake is laid to the south, "no, by the lake" moves it there, and it is
+      accepted and founded.
+  - **Still to do:** the left-out buildings proposed into their district once it stands; a moved left-out district keeps its "for …" title.
 
 ### Composition (Noah 2026-10-12; design in `docs/COMPOSITION.md`, with Architect for review)
 Claude composes a settlement (zones, connectors, forms, rules, stages, schedules, secrets) from general building blocks; Architect checks it as a dry run and answers each part (fits, adjusted, refused, unsupported); Claude repairs; the card is honest in Claude's words. Today's programs stay as cheap shortcuts. v2 (2026-10-12) folds in Architect's answers (`architect-mc/docs/COMPOSITION-ANSWERS.md`): two layers (Architect the geometric schema and compiler, Steward the life layer and the loop), one whole-plan `Regions.checkPlan` with seven answer classes, approval bound to a resolved artifact, locators with explicit tolerances, shipped ops never change. Order: plan v0 (Steward) once the schema freezes, then P0 (Architect, after T2), then the 6c blocks with FL after D2, then 7a to 7c and the contracts. The strange asks are the measure for both mods.

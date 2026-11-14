@@ -12,7 +12,22 @@ import org.jspecify.annotations.Nullable;
  */
 public record Proposal(String key, String title, String why, ConceptCard.@Nullable Building building, long at, String trigger, @Nullable String district,
 	@Nullable String found, @Nullable String changeSite, @Nullable String changeNotes, @Nullable String pendingPart, @Nullable Quarter quarter,
-	dev.larattalabs.steward.module.@Nullable ModuleOrder module) {
+	dev.larattalabs.steward.module.@Nullable ModuleOrder module, @Nullable String place) {
+	/** As before the place line (slice DP): none. */
+	public Proposal(String key, String title, String why, ConceptCard.@Nullable Building building, long at, String trigger, @Nullable String district,
+		@Nullable String found, @Nullable String changeSite, @Nullable String changeNotes, @Nullable String pendingPart, @Nullable Quarter quarter,
+		dev.larattalabs.steward.module.@Nullable ModuleOrder module) {
+		this(key, title, why, building, at, trigger, district, found, changeSite, changeNotes, pendingPart, quarter, module, null);
+	}
+
+	/**
+	 * The same proposal with its place line: one short line saying why a district goes where it would ("by the water, for the harbour"), shown on the
+	 * ground in survey mode before it is founded (docs/PLAN.md "Zones": the player stays in charge). Display only: an older Steward drops it harmlessly.
+	 */
+	public Proposal withPlace(@Nullable String line) {
+		return new Proposal(key, title, why, building, at, trigger, district, found, changeSite, changeNotes, pendingPart, quarter, module, line == null || line.isBlank() ? null : line);
+	}
+
 	/**
 	 * A quarter apart from the town's street (docs/DISTRICTS.md section 6, Noah's Q2): an {@code along} district following a boundary ({@code shore},
 	 * {@code ridge} or {@code biome_edge} between two families) or an {@code outpost} apart from the town, built at once with its buildings (the proposal's
@@ -99,7 +114,7 @@ public record Proposal(String key, String title, String why, ConceptCard.@Nullab
 
 	/** The same building, to be built in district {@code districtId} (null: the town). */
 	public Proposal in(@Nullable String districtId) {
-		return new Proposal(key, title, why, building, at, trigger, districtId, found, changeSite, changeNotes, pendingPart, quarter, module);
+		return new Proposal(key, title, why, building, at, trigger, districtId, found, changeSite, changeNotes, pendingPart, quarter, module, place);
 	}
 
 	/** A new district towards {@code way} (N, E, S, W): founding it lays its road ($0); it always waits for the player. */
