@@ -399,7 +399,9 @@ id through to the addition, so the module lot is a grow lot of the district (`mo
 **Survival.** A district region from materials can't be founded today (`planDistrict` and `besideTown` refuse a survival world; DISTRICTS.md
 §9 calls it a follow-up). So the A2 rules apply to a district region built from materials by construction of the shared path, and are unit-tested,
 but no e2e can make one; a district built at once in a world since turned to materials is refused by the mode gate before anything is spent
-(e2e). (Open with the manager: founding district regions from materials inside DG, which would make the billed survival e2e possible.)
+(e2e). **Decided (the Steward manager, 2026-11-14: option 2):** founding a district region from materials stays out of DG; A2's rules on district
+regions are unit-tested, the bill and its undo refund included (`SuppliedDistrictGrowthTest`: paid == returned, once, over a model of Architect's
+ledger); the billed survival e2e moves to a new slice SD (found a district region from materials, then DG's billed flow).
 
 **Saves.** No format change: the build's `districtId` and slice A's growth fields; the district's land is runs as today.
 
