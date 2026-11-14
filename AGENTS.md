@@ -53,6 +53,12 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
   - **Capacity.** Up to 4 in-game runs at once, with no two starting within 5 minutes of each other. Unit suites run under `nice -n 10`.
     Docs, kit-only and unit-only work take no slot.
   - **Short as-builts.** A slice's as-built and its report are 10-15 lines: what changed, what ran and passed, and the leftovers.
+  - **Scoped unit suites** (Noah, 2026-11-13: "yes, send that to both managers/add to agent/claude docs"):
+    - A slice runs only the Gradle and npm tests for the code it touched, plus their direct dependents.
+    - The full `./gradlew build` and `npm test` run once, at the batch merge.
+    - A slice that touches shared core (persistence, billing, the gateway) runs the full suite.
+  - **Timing benches report only** (same decision): a perf or timing assertion becomes a report step that records the number and the load.
+    Past its bound, it flags the manager instead of failing the slice.
 - **Release-candidate testing is DEV MODE** (Noah, 2026-11-04):
   - An Architect RC runs only the flows its change touches, plus the sanity set: `node tools/e2e.mjs stub --only gate,wall,survival`, aiming for 15-20 min.
   - Full stub and free runs are nightly, or before a pin when a release is broad; what they find is fixed forward.
