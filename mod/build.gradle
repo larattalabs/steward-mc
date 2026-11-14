@@ -107,7 +107,8 @@ test {
 processResources {
 	def version = project.version
 	inputs.property "version", version
-	from('../schema') { into 'steward/schema' }
+	// plan-0.json is only the Node tools' copy of the jar's schema; the mod reads Regions.planSchema()
+	from('../schema') { into 'steward/schema'; exclude 'plan-0.json' }
 	from('../prompts') { into 'steward/prompts' }
 	// the live module catalog (docs/MODULES.md, slice M1): programs are copied byte for byte (no filtering), their sha256 is their identity
 	from('../modules') { into 'steward/modules' }

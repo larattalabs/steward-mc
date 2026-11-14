@@ -1,4 +1,4 @@
-// Checks a plan writer's answer against its own schema and Architect's plan/0 (schema/plan-0.json, from architect-mc main 3df6aef, frozen 2026-10-12). Pure.
+// Checks a plan writer's answer against its own schema and Architect's plan/0 (schema/plan-0.json: the pinned jar's architect_mc/schemas/plan.json byte for byte, held so by PlanWriterJobTest). Pure.
 import fs from 'node:fs';
 import Ajv from 'ajv/dist/2020.js';
 

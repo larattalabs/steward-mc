@@ -30,31 +30,12 @@ public final class ArchitectGateway {
 	public static Status check() {
 		try {
 			ArchitectApi api = ArchitectApi.get();
-			return Status.evaluate(loadedVersion(api, ArchitectApi.class), api.features());
+			// apiVersion() (TJ, API 1.58.0) is the loaded Architect's version; VERSION would be the inlined pin. fabric.mod.json's range
+			// (>=0.65.0) keeps older Architects out, and one that slips in fails as unavailable (NoSuchMethodError).
+			return Status.evaluate(api.apiVersion(), api.features());
 		} catch (Throwable t) {
 			return new Status(false, "unavailable", Set.of(), "Architect API not available: " + t);
 		}
-	}
-
-	/**
-	 * The API version of the Architect that is loaded, not the one Steward compiled against: {@code apiVersion()} on the implementation when
-	 * Architect has it (the AV ask), else the {@code VERSION} field read by reflection from the loaded API class, which a constant inlined at
-	 * compile time can't stand in for. (The architect_mc mod container gives the mod version, 0.x, not the API version.) Null if neither is readable.
-	 */
-	public static String loadedVersion(Object api, Class<?> apiClass) {
-		try {
-			Object v = apiClass.getMethod("apiVersion").invoke(api);
-			if (v instanceof String s && !s.isBlank()) return s;
-		} catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
-			// no apiVersion() yet: Architect's AV ask; fall back to the loaded class's constant
-		}
-		try {
-			Object v = apiClass.getField("VERSION").get(null);
-			if (v instanceof String s && !s.isBlank()) return s;
-		} catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
-			// fall through
-		}
-		return null;
 	}
 
 	static int minorOf(String version) {

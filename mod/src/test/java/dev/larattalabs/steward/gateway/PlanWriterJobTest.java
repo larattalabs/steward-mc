@@ -15,8 +15,16 @@ class PlanWriterJobTest {
 	@Test
 	void theSystemPromptFitsArchitectsLimitWithRoomToGrow() {
 		String system = PlanWriterJob.systemPrompt();
-		assertTrue(system.contains("\"schemaVersion\""), "the schema is in it");
+		assertTrue(system.contains("\"x-catalogue\"") && system.contains("\"layout.spiral\""), "the schema is in it");
 		assertTrue(system.length() < ARCHITECT_SYSTEM_LIMIT - 4_000, system.length() + " characters: near Architect's limit of " + ARCHITECT_SYSTEM_LIMIT);
+	}
+
+	@Test
+	void theNodeToolsCopyOfThePlanSchemaIsTheJars() throws java.io.IOException {
+		// schema/plan-0.json is the pinned jar's architect_mc/schemas/plan.json byte for byte (Regions.planSchema(), TJ SCH-res), for plan-check and the
+		// npm tests, which run without the jar; a pin whose schema changed fails here until the copy is refreshed: unzip -p <jar> architect_mc/schemas/plan.json
+		String copy = java.nio.file.Files.readString(java.nio.file.Path.of("../schema/plan-0.json"));
+		assertEquals(dev.larattalabs.architect.api.Regions.planSchema(), copy, "schema/plan-0.json is stale: copy the pinned jar's architect_mc/schemas/plan.json");
 	}
 
 	@Test

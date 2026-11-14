@@ -2,7 +2,7 @@
 
 Used as the `system` text of a `structured` job (schema = `schema/plan-writer.schema.json`; Sonnet, medium effort; a budget of up to $0.50 a call,
 within the $1 a plan Noah set for composing and repair, docs/COMPOSITION.md section 9). The system prompt is this section with Architect's plan
-schema (`schema/plan-0.json`, plan/0, from architect-mc v0.27.0, frozen 2026-10-12 with PT's additive build features and S3's `terraces`), so it is cached: since Architect 1.25 (C33) by reference, `systemRefs: ["plan/0#compact"]`, expanded by the helper with the live catalogue, and inline (this copy) on an older helper. The user prompt is the settlement's concept card (JSON), the
+schema (plan/0, the one the pinned Architect ships: `Regions.planSchema()`, whose copy for the Node tools is `schema/plan-0.json`), so it is cached: since Architect 1.25 (C33) by reference, `systemRefs: ["plan/0#compact"]`, expanded by the helper with the live catalogue, and inline (the loaded jar's schema, compact) on an older helper. The user prompt is the settlement's concept card (JSON), the
 line about the land round the founding stone, the anchors the caller supplies, and the player's own builds in the claim (Architect PT, C32), when there
 are any.
 
@@ -46,9 +46,8 @@ Writing the plan:
   moat or a narrow channel: a level deck 2 wide of 1 to 7 iron trapdoors, lowered at rest, a lever on each bank raises it. Write it only where the
   card asks for a drawbridge or a lifting bridge, over water at most 7 across on level banks; a wider or sloping crossing is a stone bridge.
 - **What can't be built yet.** When the player asked for something that needs a kind the catalogue lists as reserved, or a kind it doesn't list, still
-  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a railway (`connector.rail`), a glass tube under water (`connector.tube`), an aqueduct
-  (`channel.aqueduct`), a shape rule, a variety rule ("identical houses", "no two alike": `rule.variety`). The catalogue's own states are the truth: a
-  kind it lists as supported (a tunnel under flat ground, raised lots, a hidden room) is written to be built, not to wait. Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
+  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a railway (`connector.rail`), a glass tube under water (`connector.tube`), a shape rule, a variety rule ("identical houses", "no two alike": `rule.variety`). The catalogue's own states are the truth: a
+  kind it lists as supported (a tunnel under flat ground, raised lots, a hidden room, an aqueduct, a ring, spiral or grid layout) is written to be built, not to wait. Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
   drop what the player asked for silently, and never pretend it is supported.
 - **Hidden rooms are secrets.** When the card asks for a hidden room, a secret cellar or a room behind a waterfall, write it as a
   `form.hidden_room` part in its host (a lot of this plan, a hollow mountain or a waterfall), so it is built. Never name it in the `summary`, the
@@ -75,7 +74,7 @@ Writing the plan:
   the ask leaves the streets or the land's shapes free, say so with `exempt: ["ways"]` or `["forms"]`. A loose taste ("mostly stone")
   belongs in the style, not a rule.
 - **Shapes Architect builds.** Parts that answer refused are parts written in a shape Architect can't build here, so keep to these:
-  - every zone has at least one lot: a zone is never a placeholder for something else (a stacked tower is one lot, or a reserved layout part);
+  - every zone has at least one lot: a zone is never a placeholder for something else (a stacked tower is one lot);
   - a town built in steps down a hillside is one zone with `terraces: {}` on it (its lots on levels down the slope, retaining walls and stairs
     between them; `rise`, `retain`, `stairs` when the card says how); a terrace form (`form.terrace`) stands beside zones, never under their
     lots;
@@ -94,7 +93,7 @@ Writing the plan:
     estate across the river) is `near` its own anchor;
   - name a river, the sea or a shore only when the land line says there is one here; else write the place as you would want it and say in `waits`
     that it needs water nearby;
-  - a reserved layout (a spiral, a ring, a grid) is written as its reserved kind so it waits; never as a steep street that tries to draw it.
+  - a spiral, ring, grid or organic town is written as its layout kind (`layout.spiral`, `layout.ring`, ...); never as a steep street that tries to draw it.
 - **Required.** Mark every part `required` true or false. A part is required when the ask is about it ("a walled town": the wall); a flourish is not.
 - **Notes.** Put what no field can hold in the part's `notes` (or the plan's), in a sentence.
 
