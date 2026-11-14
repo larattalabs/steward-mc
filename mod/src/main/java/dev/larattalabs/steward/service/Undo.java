@@ -268,6 +268,8 @@ public final class Undo {
 				// logged once: a replay after a crash between the removal's entry and the build's save finds it retired (Architect reads UNDONE again)
 				var fresh = Settlements.store().get(s.id()).orElse(s);
 				if (!retired(fresh, entry) && !Settlements.log(s.id(), removed(entry, ids, true, now)).ok()) say.accept(UNLOGGED);
+				// (slice DG) a district region's growth taken up: the district's land read again (the growth's land is let go)
+				Districts.refreshLand(s.id(), ref.region());
 				districts(server, s, say);
 				say.accept("Undone: the town's change is taken up, the land restored.");
 			} else if (!Growths.building(server, ref)) say.accept("Run /steward undo " + s.id() + " again once it is clear.");

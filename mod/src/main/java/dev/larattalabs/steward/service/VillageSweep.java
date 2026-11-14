@@ -93,8 +93,29 @@ public final class VillageSweep {
 		}
 		final Settlement s = Settlements.store().get(given.id()).orElse(given);
 		try {
-			var town = TownRegion.of(s).flatMap(regions::get);
-			if (town.isEmpty() || town.get().revisions() == null || Undo.busy(s.id())) return;
+			if (Undo.busy(s.id())) return;
+			// the town's region and (slice DG) every standing district region of the settlement: each one's revisions
+			for (String id : growable(TownRegion.of(s).orElse(null), s.lands().districts())) {
+				var town = regions.get(id);
+				if (town.isEmpty() || town.get().revisions() == null) continue;
+				sweep(server, s, town.get(), sites);
+			}
+		} catch (RuntimeException | LinkageError e) {
+			Steward.LOGGER.warn("{}: could not look for growths without a build", s.id(), e);
+		}
+	}
+
+	/** (slice DG) The regions whose growths the sweep reads: the town's, then each standing district's own region, none twice. Pure. */
+	static List<String> growable(@org.jspecify.annotations.Nullable String town, List<Settlement.District> districts) {
+		java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+		if (town != null) out.add(town);
+		for (Settlement.District d : districts) if (Districts.grows(d)) out.add(d.region());
+		return List.copyOf(out);
+	}
+
+	private static void sweep(MinecraftServer server, Settlement s, dev.larattalabs.architect.api.RegionView region, dev.larattalabs.architect.api.Sites sites) {
+		var town = java.util.Optional.of(region);
+		{
 			for (var r : town.get().revisions()) {
 				String tag = Growths.tag(town.get().id(), r.rid());
 				if (TAKING.contains(tag) || s.log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && tag.equals(e.siteGroup()))) continue;
@@ -134,8 +155,6 @@ public final class VillageSweep {
 				TAKING.add(tag);
 				Undo.growth(server, saved, entry, ref, Map.of(), m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> TAKING.remove(tag));
 			}
-		} catch (RuntimeException | LinkageError e) {
-			Steward.LOGGER.warn("{}: could not look for growths without a build", s.id(), e);
 		}
 	}
 

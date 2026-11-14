@@ -81,11 +81,11 @@ public final class Proposals {
 			return;
 		} else {
 			// a waiting part of the plan is not a building: it takes none of the room new proposals have
-			// the catalog's modules first (docs/MODULES.md 4.1): offered only where they can grow the town, never into a district
-			var modules = ModuleOffers.candidates(server, p, s, where.district() != null, now);
+			// the catalog's modules first (docs/MODULES.md 4.1): offered only where they can grow a region, the town or (slice DG) a growable district
+			var modules = ModuleOffers.candidates(server, p, s, where.district(), now);
 			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open.stream().filter(x -> !x.offersPart()).toList(),
 				s.proposals().lastAt(), now, modules).stream()
-				.map(x -> x.offersModule() ? x : x.in(where.district())).toList();
+				.map(x -> x.in(where.district())).toList();
 		}
 		if (fresh.isEmpty()) {
 			// nothing the signs ask for: the buildings the card left out, in a district of their own (slice DP; offered once)
