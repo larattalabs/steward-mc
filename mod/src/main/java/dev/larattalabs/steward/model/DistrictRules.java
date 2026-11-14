@@ -172,7 +172,15 @@ public final class DistrictRules {
 	}
 
 	/** The town street's centre line (z) and its ends (x); null before the town has a street. */
-	public record Street(int z, int x0, int x1) {}
+	/**
+	 * A street's line and ends. East-west (the default): {@code z} its line, {@code x0..x1} its ends. {@code northSouth}: {@code z} holds its line's x and
+	 * {@code x0..x1} its ends' z (the street's own frame, as {@code VillageLayout.Plan}).
+	 */
+	public record Street(int z, int x0, int x1, boolean northSouth) {
+		public Street(int z, int x0, int x1) {
+			this(z, x0, x1, false);
+		}
+	}
 
 	/**
 	 * Where a district goes, or why it cannot.
