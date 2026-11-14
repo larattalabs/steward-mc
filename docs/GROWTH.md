@@ -448,5 +448,5 @@ ledger); the billed survival e2e moves to a new slice SD (found a district regio
 - e2e: the district's land checked exactly (its reservation and `land.outside`); a row of it cut in the save before a restart and put right by the
   sweep; two standing growths, undone head first after the town was removed and the client restarted.
 - **Not taken:** driving `Undo.growth` against a faked Architect (no Architect test double exists; the decision, logging and retirement it runs are
-  unit-tested, the billed path waits for SD's e2e); a module bound into a district end to end in e2e (no measured module fits the e2e district's
-  catalog bound here; the binding is carried through the offer, the save and Accept, as reviewed).
+  unit-tested, the billed path waits for SD's e2e); a module bound into a district end to end in e2e (left to a module slice; the district id is carried
+  through the offer, the save and Accept, as the review read).
