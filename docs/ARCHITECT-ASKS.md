@@ -1538,3 +1538,15 @@ PASS, 112 checks over 22 flows (PS's ledger saves and JR-b's adopted-crate refun
 through the street-town and plan flows); `free --only place,protect,farm,screens`, PASS, 54 checks. Steward calls none of CO, AQ, US or CX yet;
 pin-guard reads TJ's `apiVersion()` by reflection. PS's component guard covers `dev.crate.insert`, but its `items` stacks are always plain
 (coordinator). The pin merges after M2 and M3 land and crop_farm is re-certified on kit 0.60.0 (module.json pins the kit).
+
+### v0.66.0 (2026-11-14): PASS; the pin waits for crop_farm's re-certification
+Architect v0.66.0 (API 1.59.0, kit 0.61.0, catalogue 23: FK, AU, SA, RU, RL, IG-b, SU, GI) is pinned on pin-066 (runtime minimum 0.66.0), off
+main 2821d6d. The schema-drift test caught 0.66.0's plan schema (`program.authored` supported), and `schema/plan-0.json` is now the jar's copy.
+- Build and unit tests: 511 passed, 0 failed. npm: 44 passed.
+- `stub --only stub,growth,survival,module,stock-save,revision,discard`: 94 of 98 passed (26 flows, with the mechanisms' survival flows and stock-save).
+  - `module offer` and `module survival offer` fail by design: measured.json certifies 0.65.0 only, and kit 0.61.0 changes module.json's pins.
+    Slice crop-farm-066 re-measures it.
+  - `supplied growth restart while building` and its `bills` failed on Steward's side, a race: 0.66.0 built a fed lot 8 s after the join, before
+    the steward re-read its unfinished builds (tick 200). Fixed in d5a9a7f (the seed on the first tick); rerun PASS 18, refund once.
+- Steward calls none of FK, AU or IG-b yet; they come with M4, CA and A2L. RU's undo of a waiting growth is still refused by Steward's own A2 rule,
+  which A2L lifts. Nothing in Architect was found wrong.
