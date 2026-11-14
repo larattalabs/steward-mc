@@ -278,7 +278,7 @@ entry; none (Architect rolled its intent back at its own world start, or never g
 
 **Saves.** Two new `Kind` values (`TOWN_ADOPTED`, `TOWN_RELEASED`). Settlements format 6 (slice A's bump, unreleased) covers them.
 
-**Not in B.** Survival and Supplied street towns (S-AD-5); north-south streets; the plan writer growing an adopted village through its artifact
+**Not in B.** Survival and Supplied street towns (S-AD-5); bent or L-shaped streets (the reader says why and the town keeps its street pieces); the plan writer growing an adopted village through its artifact
 (slice A's `planRevision` grow covers additions).
 
 **Tests** (review 8).
@@ -309,4 +309,21 @@ of every settlement before the sweep; adopted towns skipped), `Undo` (the reconc
   The new `adopt` flow covers the adoption.
 - **Not covered by e2e:** a second addition that needs a street extension; an update or revert of an adopted building; restarts across the
   adoption. The reconcile's decisions and the pairing are unit-tested.
+
+**North-south streets (slice NS, 2026-11-13).** A street town whose street runs north-south is adopted exactly as an east-west one.
+- **The reader:** `Districts.readStreet` reads a town's or a district's street on either axis, laid in either direction, by the east-west rules
+  (the line Steward recorded on a piece, else its box's middle across its longer side; the first line found is the street). Pieces on both axes
+  (a bent or L-shaped street) give no street and say why: the town keeps its street pieces and the player is told.
+- **The street pieces:** a north-south piece records `steward_mc:street_x` (its line) and `street_z0`/`street_z1` (its ends), never `street_z`, so
+  the east-west readers (additions on the legacy path, stockpiles, links, districts) pass it by as before.
+- **The adoption:** `Adoption.readOf` sends Architect AD's north-south geometry `{streetX, zLo, zHi}`.
+- **The layout:** `VillageLayout.plan(..., northSouth)` is the east-west layout over the ground with x and z swapped, then swapped back. It uses the
+  same rules by construction, and a unit test checks it.
+  - `Plan.northSouth` is false for plans saved before it, so old saves read as east-west.
+  - Steward's own layout still lays east-west. It lays north-south only under the dev switch `/steward dev layout <id> legacy_ns`, which the e2e
+    uses.
+- **e2e (stub), `adopt-ns`:** the adopt flow's card and size, laid north-south. It is adopted (the log line names the north-south street) and
+  grown by revision 1. The receipt's lots and roads and the grown sites match the east-west town's. Then it is undone: the growth, the adoption,
+  the town.
+- **Not here:** a north-south town's additions on the legacy path (they read no east-west street; Steward never lays such a town outside dev).
 

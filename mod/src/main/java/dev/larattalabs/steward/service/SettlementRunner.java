@@ -1114,7 +1114,7 @@ public final class SettlementRunner {
 			}
 			// (slice M3) a module is placed only as an addition on growth (A, A2, B): a town that took none of those paths ends here, before anything is spent
 			if (moduleBuild()) {
-				abandon("A working module is placed only by growing the town through Architect, and this town can't grow that way now (a district, a north-south or "
+				abandon("A working module is placed only by growing the town through Architect, and this town can't grow that way now (a district, a bent or "
 					+ "Supplied street town, or an Architect without growth). Nothing was spent.");
 				return;
 			}

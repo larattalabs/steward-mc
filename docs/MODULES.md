@@ -325,7 +325,7 @@ variant is never made twice.
 ### 4.3 Where a module isn't placed (yet)
 
 - **Districts:** district growth (`dgrow`, D-S2) isn't built.
-- **North-south streets, Supplied street towns** (not adopted, S-AD-5) and the **legacy street path**: there is no region to irrigate. Lot
+- **Bent streets, Supplied street towns** (not adopted, S-AD-5) and the **legacy street path**: there is no region to irrigate. Lot
   designs never own fluids (IRR).
 - **Freezing biomes** (the farm), an Architect without the S-M5 features, and an unmeasured Minecraft version.
 

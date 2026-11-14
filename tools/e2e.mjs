@@ -1583,6 +1583,98 @@ async function adoptFlow() {
 }
 
 /**
+ * (slice NS) A street town laid out north-south (Steward's own layout, its street along z, the lots facing east and west) is taken on as one region at its
+ * first addition exactly as the east-west one of {@link adoptFlow} is: the same card and size, so the same lots in the receipt, the same roads, the region
+ * PLACED and grown by revision 1 with as many sites; then undone as it is (the growth, the adoption, the town).
+ */
+async function adoptNorthSouthFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 36000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  // Steward's own street, laid north-south
+  await cmd(`/steward dev layout ${id} legacy_ns`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'North Street Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a north-south street town`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('adopt-ns', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  const claim = settlements().find((x) => x.id === id).claim;
+  from = logSize();
+  await cmd(`/steward start ${id} 4 30`);
+  if (!(await buildThrough(id, from, 'adopt-ns town'))) return;
+  const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  if (!founding || /^region:/.test(founding.siteGroup ?? '')) return fail('adopt-ns', `not a street town: ${founding?.siteGroup}`);
+  await cmd(`/steward dev layout ${id} plan`);
+  await cmd(`/steward dev sim_answer talk ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', 'library.json'), 'utf8')).answer)}`);
+  await cmd(`/steward talk ${id} we need a library for the scholars`);
+  let lib = null;
+  for (let i = 0; i < 60 && !lib; i++) {
+    await sleep(1000);
+    lib = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('asked_')) ?? null;
+  }
+  if (!lib) return fail('adopt-ns', 'no library proposal');
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${lib.key}`);
+  const grew = await buildThrough(id, from, 'adopt-ns growth');
+  // the adoption's own line: the street read north-south, sent as {streetX, zLo, zHi}
+  const asked = logSince(from).match(new RegExp(`adopt ${id}: street (north-south|east-west) [xz] (-?\\d+) (-?\\d+)\\.\\.(-?\\d+), (\\d+) roads, (\\d+) lots`));
+  if (!grew) return fail('adopt-ns', `the growth did not finish; adoption asked: ${asked ? asked[0] : 'no'}`);
+  const log1 = settlements().find((x) => x.id === id)?.log ?? [];
+  const receipt = log1.filter((e) => e.kind === 'TOWN_ADOPTED' && /^region:/.test(e.siteGroup ?? '')).at(-1);
+  const region = receipt?.siteGroup?.slice('region:'.length);
+  const growth = log1.filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const v = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
+  const rv = v?.view ?? v ?? {};
+  const inRegion = (founding.siteIds ?? []).filter((x) => (receipt?.siteIds ?? []).includes(x)).length;
+  const alongZ = asked && asked[1] === 'north-south' && Math.abs(Number(asked[2]) - claim.centerX) <= claim.radius;
+  if (!(alongZ && receipt && region && growth?.siteGroup === `revision:${region}:1` && rv.state === 'PLACED' && inRegion > 0)) {
+    return fail('adopt-ns', `asked ${asked ? asked[0] : 'no'}; receipt ${receipt?.siteGroup}; growth ${growth?.siteGroup}; region ${rv.state}; ${inRegion} of the founding build's sites`);
+  }
+  ok('adopt-ns', `the north-south street town (street x ${asked[2]}, z ${asked[3]}..${asked[4]}) taken on as ${region} (${receipt.siteIds.length} sites), grown by revision 1 (${growth.siteIds.length} sites)`);
+  // as the east-west town of the adopt flow (the same card at the same size): the same lots in the receipt, as many roads, as many grown sites
+  const ew = settlements().filter((x) => x.card?.name === 'Old Street Town' || x.name === 'Old Street Town').at(-1);
+  const ewLog = ew?.log ?? [];
+  const ewReceipt = ewLog.filter((e) => e.kind === 'TOWN_ADOPTED' && /^region:/.test(e.siteGroup ?? '')).at(-1);
+  const ewGrowth = ewLog.filter((e) => e.kind === 'PROJECT_PLACED' && /^revision:/.test(e.siteGroup ?? '')).at(-1);
+  const lotsOf = (e) => (e?.changes ?? []).filter((c) => c.lot).map((c) => c.lot).sort();
+  const roadsOf = (e) => (e?.changes ?? []).filter((c) => !c.lot).length;
+  const same = ewReceipt && JSON.stringify(lotsOf(ewReceipt)) === JSON.stringify(lotsOf(receipt)) && roadsOf(ewReceipt) === roadsOf(receipt)
+    && ewGrowth?.siteIds?.length === growth.siteIds.length;
+  if (same) ok('adopt-ns as east-west', `lots ${lotsOf(receipt).join(', ')}; ${roadsOf(receipt)} road(s); ${growth.siteIds.length} grown site(s), as the east-west town`);
+  else fail('adopt-ns as east-west', `north-south lots ${JSON.stringify(lotsOf(receipt))} roads ${roadsOf(receipt)} grown ${growth.siteIds.length}; east-west ${ewReceipt ? `lots ${JSON.stringify(lotsOf(ewReceipt))} roads ${roadsOf(ewReceipt)} grown ${ewGrowth?.siteIds?.length}` : 'no adoption to compare'}`);
+  await cmd(`/tp @p ${claim.centerX - claim.radius - 40} ~ ${claim.centerZ}`);
+  // undone as the east-west town is: the growth, the adoption (every site stands, in no region), the town
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) { await sleep(1000); last = settlements().find((x) => x.id === id)?.log.at(-1); }
+  await cmd(`/steward undo ${id}`);
+  let rel = null;
+  for (let i = 0; i < 120 && !rel; i++) {
+    await sleep(1000);
+    rel = (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'TOWN_RELEASED' && e.siteGroup === `region:${region}`) ?? null;
+  }
+  const standing = [];
+  for (const sid of founding.siteIds ?? []) if (/stands/.test(await cmd(`/steward dev site ${sid}`))) standing.push(sid);
+  await cmd(`/steward undo ${id}`);
+  let gone = null;
+  for (let i = 0; i < 300 && !gone; i++) {
+    await sleep(1000);
+    const e = settlements().find((x) => x.id === id)?.log.at(-1);
+    if (e?.kind === 'PROJECT_REMOVED' && founding.siteIds.every((x) => e.siteIds.includes(x))) gone = e;
+  }
+  if (last?.kind === 'PROJECT_REMOVED' && rel && standing.length === founding.siteIds.length && gone) ok('adopt-ns undo', `the growth, the adoption (${standing.length} sites standing), then the town`);
+  else fail('adopt-ns undo', `growth ${last?.kind}; released ${!!rel}; ${standing.length} of ${founding.siteIds.length} standing; town removed ${!!gone}`);
+}
+
+/**
  * A settlement built from its composed plan (plan v1, docs/COMPOSITION.md section 10): a walled town whose wall waits for Architect. At Start the plan is
  * checked again without the wall (it stays pending), the buildings are designed for the artifact's lots, the village is realised from the approved artifact
  * as one region, and an undo takes it up whole.
@@ -4611,6 +4703,7 @@ try {
       await flow('village', 'plan realise', () => villageFlow());
       await flow('growth', 'growth region realise undo', () => growthFlow());
       await flow('adopt', 'adopt growth region undo', () => adoptFlow());
+      await flow('adopt-ns', 'adopt growth region undo street north-south', () => adoptNorthSouthFlow(), ['adopt']);
       await flow('follow', 'copies source update revert version', () => followFlow());
       await flow('land', 'land check perception inbox talk', () => landFlow());
       await flow('plan-build', 'plan', () => planBuildFlow());
