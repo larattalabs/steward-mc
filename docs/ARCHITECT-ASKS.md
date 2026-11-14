@@ -1443,6 +1443,10 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
   - The re-lay rule covers any case where vanilla reverts one of Architect's own cells.
   - BC+ starts after SA merges. Its release comes with a Steward RC: `maxBill`, `bill_cap`, exact quotes and the refund fix. Steward's
     stocked round stays until then.
+- **S-M5-8 shipped as IG-b** (Architect main 5ecf6fb3, 2026-11-13; in v0.66.0). An irrigated growth of an adopted street town now adds its
+  own stages (adopted, street, lots, fluids) instead of refusing. It works instantly only: adopted regions are still creative-only, and
+  survival adoption is Architect's slice SAD, next after SA. There's no API change and no RC. At v0.66.0, Steward lifts `ModuleOffer`'s "a
+  street town can't take a watered field yet" for creative adopted towns (slice A2L).
 - **Architect's answers (coordinator, 2026-11-12):** all as preferred.
   - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
   - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.
