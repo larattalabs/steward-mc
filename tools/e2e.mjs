@@ -1608,30 +1608,50 @@ async function adoptFlow() {
   } else return fail('adopt', `intent ${!!intent}; receipt ${receipt?.siteGroup}; growth ${growth?.siteGroup}; region ${rv.state}`);
   // (GE) an update and a revert of one of the adopted (founding) buildings, inside the region: the ground as before the update after the revert
   await adoptedUpdate(id, founding, box);
-  // (GE) an addition that needs the street extended: XL buildings (24 x 20) asked until one has no room on the frontage and is planned under vgrow2
-  // (prefer extend); at most 2. (Pads that fill the frontage first take the extension's room as well: the region is bounded by the town claim.)
+  // (GE) an addition that needs the street extended: the frontage filled first with dev pad lots, each plan read before it is realised (its
+  // ir.json's revision.grow.extension): the first that would extend the street is not realised, so the extension's room is left; the next addition
+  // has no frontage and is planned under vgrow2 (prefer extend). Undone head first, then the dev pads, then the first growth below.
   let growths = 1;
   {
     const label = 'adopt street extended';
-    let under = null, entry = null, tries = 0;
-    for (const role of ['great hall', 'market hall']) {
-      const q = await askBuilding(id, role, 'XL');
-      if (!q) { fail(label, `no ${role} proposal`); break; }
-      tries++;
-      await clearAnimals();
-      const f2 = logSize();
-      await cmd(`/steward proposals ${id} accept ${q.key}`);
-      const g = await buildThrough(id, f2, `${label} growth`);
-      if (!g) break;
-      growths++;
-      under = logSince(f2).match(/growth \S+ of \S+: plan \S+ under (vgrow\d?)/)?.[1];
-      entry = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
-      if (under === 'vgrow2') break;
+    const fill = [], refusals = [];
+    const prog = (await regionView(region)).program ?? 'plan_v0';
+    for (let round = 0, n = 3; round < 24 && n >= 1; round++) {
+      const b = `e2efill${Date.now() % 100000}`;
+      const lots = Array.from({ length: n }, (_, k) => ({ id: `${b}_p${k + 1}`, type: 'house', size: [9, 9] }));
+      const pl = await dev.request('dev.rv.plan', { region, program: prog, params: { grow: { lots, prefer: 'frontage' } }, opKey: `e2e.${b}.plan` }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+      if (!pl?.planId) { refusals.push(`${n}: ${String(pl?.refused ?? JSON.stringify(pl)).slice(0, 90)}`); if (/NO_ROOM|REGION_LIMIT/.test(String(pl?.refused ?? ''))) n = Math.floor(n / 2); else await sleep(5000); continue; }
+      let extends_ = true;
+      try { extends_ = !!planIr(pl.planId).revision?.grow?.extension; } catch (e) { refusals.push(`ir: ${e}`); }
+      // this one would take the street's extension: not realised; fewer lots, or the frontage is full
+      if (extends_) { if (n > 1) { n = 1; continue; } break; }
+      const r = await dev.request('dev.region.realise', { planId: pl.planId, opKey: `e2e.${b}.realise` }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+      if (r?.refused) { refusals.push(`realise: ${String(r.refused).slice(0, 90)}`); break; }
+      const head = ((await regionView(region)).revisions ?? []).filter((x) => x.state !== 'UNDONE').sort((x, y) => y.rid - x.rid)[0];
+      if (head) fill.push(await revisionUntil(region, head.rid, ['PLACED', 'PARTIAL']) ?? head);
     }
-    const m2 = /^revision:(.+):(\d+)$/.exec(entry?.siteGroup ?? '');
+    console.log(`(${label}: ${fill.length} frontage pad revision(s); ${refusals.join(' | ')})`);
+    const q = await askBuilding(id, 'reading room');
+    let g = null, under = null, f2 = logSize();
+    if (q) {
+      await clearAnimals();
+      f2 = logSize();
+      await cmd(`/steward proposals ${id} accept ${q.key}`);
+      g = await buildThrough(id, f2, `${label} growth`);
+      under = logSince(f2).match(/growth \S+ of \S+: plan \S+ under (vgrow\d?)/)?.[1];
+    }
+    const e2 = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+    const m2 = /^revision:(.+):(\d+)$/.exec(e2?.siteGroup ?? '');
     const r2 = ((await regionView(region)).revisions ?? []).find((r) => String(r.rid) === m2?.[2]);
-    if (under === 'vgrow2' && m2?.[1] === region && /^(PLACED|PARTIAL)$/.test(r2?.state ?? '')) ok(label, `an XL addition planned under vgrow2 (the street extended, prefer extend) as revision ${m2[2]} (${r2.state}), try ${tries}`);
-    else if (!results.some((r) => !r.ok && r.check === `${label} growth`)) fail(label, `${tries} XL addition(s), the last under ${under} (${entry?.siteGroup})`);
+    const grewNow = !!g && m2?.[1] === region && (!fill.length || Number(m2[2]) > Number(fill.at(-1).rid));
+    if (grewNow && under === 'vgrow2' && /^(PLACED|PARTIAL)$/.test(r2?.state ?? '')) ok(label, `the frontage filled by ${fill.length} dev pad revision(s); the reading room planned under vgrow2 (prefer extend) as revision ${m2[2]} (${r2.state})`);
+    else if (!results.some((r) => !r.ok && r.check === `${label} growth`)) fail(label, `fill ${fill.length}; proposal ${!!q}; built ${!!g}; under ${under}; entry ${e2?.siteGroup}; revision ${r2?.state}`);
+    if (grewNow) await undoOnce(id, claim);
+    if (fill.length) {
+      await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
+      const u = await dev.request('dev.rv.undo', { region, toPosition: Math.min(...fill.map((x) => x.position)) - 1, actor: 'steward' }, { timeoutMs: 900_000 }).catch((e) => ({ refused: String(e) }));
+      if (u?.refused) fail(`${label} undo`, `the dev pads not undone: ${u.refused}`);
+    }
   }
   await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
   // 1: the growths, head first
@@ -3560,6 +3580,8 @@ async function growthRestartRealise(id, region, claim) {
   launch();
   await connect();
   const resumed = await waitLog(0, new RegExp(`resume ${id}: [^\\n]*`), 60_000);
+  // it resumes waiting for the approve it had not had ("awaiting placement approval"): approved again, which asks for the realise under its keys
+  if (resumed) await cmd(`/steward approve ${id}`);
   const placed = resumed ? await driveUntil(id, 0, /is built(?: in part)?: (\d+) buildings placed/, 600_000) : null;
   const logged = await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === g.tag, 30);
   const once = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.siteGroup === g.tag && e.kind === 'PROJECT_PLACED').length === 1;
