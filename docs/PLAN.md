@@ -27,7 +27,8 @@ settlement UI (after Architect's 8b) and phases 6-7:
    doesn't touch GE's files.
 6. **DG** (L, strict): districts' growth, which unblocks modules on districts. After GE.
 7. **M4** (L, strict): the storage hall, at FK's release. The filler choice may need Noah.
-8. **ET** (S, light): e2e tidy 2, after GE.
+8. **ET** (S, light): e2e tidy 2, after GE, now with per-flow seconds. Then **EF** (M, light), from Architect GX: two e2e clients side by side
+   and a per-flow cache.
 9. **A2L** (S, strict): at Architect v0.66.0 (RU), lift A2's refusals.
 10. **M5** (L, strict): the phase 5 gate, after M3, M4, CA and DG.
 11. Then **PV1** (after DG), **SST** (after Architect S-AD-5), **GA** (after DG and CA), **NS2**. Phase 5b opens with **SITE** (before the
