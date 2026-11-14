@@ -36,7 +36,7 @@ public final class Undo {
 	static final String UNLOGGED = "The settlement's history could not be saved: the undo happened, but its record is missing (see the log).";
 
 	/** The operation an undo logs: each removed site from the version it stood at ({@code now}; the placing entry's when unknown) to 0. */
-	private static Settlement.LogEntry removed(Settlement.LogEntry placed, List<String> gone, boolean whole, java.util.Map<String, Integer> now) {
+	static Settlement.LogEntry removed(Settlement.LogEntry placed, List<String> gone, boolean whole, java.util.Map<String, Integer> now) {
 		java.util.Map<String, Settlement.SiteChange> before = new java.util.HashMap<>();
 		for (Settlement.SiteChange c : placed.changes()) before.put(c.siteId(), c);
 		List<Settlement.SiteChange> changes = gone.stream().map(id -> {
