@@ -1802,7 +1802,8 @@ async function adoptNorthSouthFlow() {
   const ew = settlements().filter((x) => x.card?.name === 'Old Street Town' || x.name === 'Old Street Town').at(-1);
   const ewLog = ew?.log ?? [];
   const ewReceipt = ewLog.filter((e) => e.kind === 'TOWN_ADOPTED' && /^region:/.test(e.siteGroup ?? '')).at(-1);
-  const ewGrowth = ewLog.filter((e) => e.kind === 'PROJECT_PLACED' && /^revision:/.test(e.siteGroup ?? '')).at(-1);
+  // its first growth, the same library (the adopt flow grows it further since slice GE: the street-extension addition is a later revision)
+  const ewGrowth = ewLog.find((e) => e.kind === 'PROJECT_PLACED' && /^revision:[^:]+:1$/.test(e.siteGroup ?? ''));
   const lotsOf = (e) => (e?.changes ?? []).filter((c) => c.lot).map((c) => c.lot).sort();
   const roadsOf = (e) => (e?.changes ?? []).filter((c) => !c.lot).length;
   const same = ewReceipt && JSON.stringify(lotsOf(ewReceipt)) === JSON.stringify(lotsOf(receipt)) && roadsOf(ewReceipt) === roadsOf(receipt)
