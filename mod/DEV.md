@@ -10,6 +10,13 @@ export GRADLE_USER_HOME=$PWD/../.gradle-home   # an APFS clone of Architect's ca
 
 First build without a cache needs network (Minecraft download and decompile). `.gradle-home/` is gitignored.
 
+**In a `_work` worktree** (it has neither `.gradle-home` nor `node_modules`): builds and e2e runs set `GRADLE_USER_HOME` to the main checkout's
+`.gradle-home`, and `npm test` needs the main checkout's `node_modules`, linked once from the worktree's root (`.gitignore` covers the link):
+
+```sh
+ln -s ../../steward-mc/node_modules node_modules
+```
+
 ## Architect dependency
 `build.gradle` depends on `dev.larattalabs:architect_mc:${architect_version}` (gradle.properties) from GitHub Packages, the released artifact.
 Maven Local never supplies it (nor lab-ui): an Architect slice keeps main's `mod_version`, so a local publish would shadow the release under its

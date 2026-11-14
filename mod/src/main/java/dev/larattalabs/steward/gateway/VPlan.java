@@ -39,6 +39,11 @@ public final class VPlan {
 		else LEGACY.remove(settlementId);
 	}
 
+	/** The settlements held to Steward's own layout (for {@link DevLayouts}). */
+	public static Set<String> legacyIds() {
+		return Set.copyOf(LEGACY);
+	}
+
 	public static void clear() {
 		LEGACY.clear();
 		NORTH_SOUTH.clear();
@@ -50,6 +55,11 @@ public final class VPlan {
 	/** Whether a new street of this settlement's own layout runs north-south (dev only; Steward's own layout lays east-west otherwise). */
 	public static boolean northSouthStreet(String settlementId) {
 		return NORTH_SOUTH.contains(settlementId);
+	}
+
+	/** The settlements whose own street runs north-south (for {@link DevLayouts}). */
+	public static Set<String> northSouthIds() {
+		return Set.copyOf(NORTH_SOUTH);
 	}
 
 	public static void northSouthStreet(String settlementId, boolean on) {
