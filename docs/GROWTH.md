@@ -81,7 +81,10 @@ head, reused position with another rid, UNDOING, busy); the founding undo refuse
 recovery order; `lastUndoable` keeping the tag; both save formats. e2e (stub, `growth` flow): a V town accepts a proposal of a type it already has
 → one revision under the build's ext and keys, no `street#` site, the town still found; undo of the town refused while it stands; undo of the
 growth by `undoRevision` leaves the town byte-equal (`dev.region.hash`); a cancel mid-design ends with nothing; then the town undone.
-Not covered by e2e: parent_moved and restarts mid-realise (unit tests and the decision function only).
+Not covered by e2e: parent_moved and restarts mid-realise (unit tests and the decision function only). **Covered since slice GE (2026-11-13):** the
+`growth` flow's `growth replan` (a dev revision realised at the massings: parent_moved, re-planned under vgrow3, the client restarted as that plan
+is made, the realise picked up after it) and `growth orphan` (the build dropped across a restart once its revision stands: the sweep logs it and
+takes it up; in a creative town).
 
 **As built (2026-11-11), after the GPT implementation review** (request changes: 2 blockers, 5 should-fixes, all but one taken):
 - a second cancel waits while a growth is realised or in flight (`cancel()`), so the build's save, and with it the take-up, is never dropped;
@@ -208,6 +211,10 @@ futures complete; recorded as a follow-up.
 - **Not covered by e2e:** a cancel (refused once realised, or waiting from in flight), an orphan and the sweep, a restart while building,
   a mode change between survey and realise, a crash between the removal's entry and the build's save (unit tests and the decision function
   only).
+- **e2e since slice GE (2026-11-13), in `supplied-growth`:** a growth cancelled at its massings (before the realise) and one whose world turned
+  to building at once at its massings (refused at the realise in plain words), each with no revision and 0 cells changed; a restart while the
+  growth's targets wait for items (watched again, the steward says once when it is built). The orphan sweep is `growth orphan` (creative). Still
+  unit-only: a cancel once realised or from in flight, and undo while waiting, which change with Architect's RU (v0.66.0).
 
 ## Slice B: a street town adopted at its first growth
 
@@ -298,7 +305,8 @@ entry; none (Architect rolled its intent back at its own world start, or never g
     extension;
   - undo: the growths, then the adoption (unadopt: the old groups' sites back, no `PROJECT_REMOVED`), then the founding build as before;
   - an update and a revert of an adopted building between.
-- **Not covered by e2e:** a restart between the intent and the answer (the reconcile's pure function is unit-tested).
+- **Not covered by e2e:** a restart between the intent and the answer (the reconcile's pure function is unit-tested). Since slice GE, `adopt restart`
+  covers the not-adopted side (an unanswered intent written into the save, closed at the world start).
 
 **As built (2026-11-11).** `service/Adoption.java` (the inventory as a pure function, the allocator, the history entries, the pairing, the reconcile,
 the release), `SettlementRunner.adoptTown`, the `TOWN_ADOPTED`/`TOWN_RELEASED` kinds, `lastUndoable`, `TownRegion`, `VillageSweep` (the reconcile
@@ -313,4 +321,7 @@ of every settlement before the sweep; adopted towns skipped), `Undo` (the reconc
   The new `adopt` flow covers the adoption.
 - **Not covered by e2e:** a second addition that needs a street extension; an update or revert of an adopted building; restarts across the
   adoption. The reconcile's decisions and the pairing are unit-tested.
+- **e2e since slice GE (2026-11-13), in `adopt`:** `adopt restart` (an unanswered adoption closed at the world start, then adopted under a new key),
+  `adopt update revert` (a founding building updated and reverted inside the region, the ground as before) and `adopt street extended` (more
+  additions until one is planned under vgrow2); the growths undone head first.
 
