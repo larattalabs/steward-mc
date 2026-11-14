@@ -46,6 +46,25 @@ public final class VPlan {
 
 	public static void clear() {
 		LEGACY.clear();
+		NORTH_SOUTH.clear();
+	}
+
+	/** Settlements a host set to lay Steward's own street north-south (dev: the e2e check of a north-south street town). One world's. */
+	private static final Set<String> NORTH_SOUTH = new HashSet<>();
+
+	/** Whether a new street of this settlement's own layout runs north-south (dev only; Steward's own layout lays east-west otherwise). */
+	public static boolean northSouthStreet(String settlementId) {
+		return NORTH_SOUTH.contains(settlementId);
+	}
+
+	/** The settlements whose own street runs north-south (for {@link DevLayouts}). */
+	public static Set<String> northSouthIds() {
+		return Set.copyOf(NORTH_SOUTH);
+	}
+
+	public static void northSouthStreet(String settlementId, boolean on) {
+		if (on) NORTH_SOUTH.add(settlementId);
+		else NORTH_SOUTH.remove(settlementId);
 	}
 
 	/**

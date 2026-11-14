@@ -183,7 +183,7 @@ line (action, reason, write box).
 - **`--keep-world`** reopens the old world instead, to look at a run's leftovers.
 - **The client check** looks only for this checkout's own client (`<checkout>/mod/...KnotClient`). A worktree's run is no longer refused when the main
   checkout's client is up, and its own leftover client is caught.
-- **Load.** The client starts once the 1-minute load is at most `E2E_LOAD_MAX` (default 40), waiting at most `E2E_LOAD_WAIT_MIN` minutes (20), then
+- **Load.** The client starts once the 1-minute load is at most `E2E_LOAD_MAX` (default 72), waiting at most `E2E_LOAD_WAIT_MIN` minutes (15), then
   starts anyway and says so. `E2E_LOAD_MAX=0` turns this off.
 - **Another checkout's ports:** set `STEWARD_PORT` / `STEWARD_DEV_PORT` (e.g. 8598/8599).
 

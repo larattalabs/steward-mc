@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.RegionState;
 import dev.larattalabs.architect.api.RegionView;
@@ -36,12 +37,31 @@ public final class Adoption {
 	public static final String INTENT = "adopt:";
 	public static final String FEATURE = "regionAdopt";
 
-	/** What a town is adopted with: the street's line and ends, its road sites, and lot id -> site id. */
-	public record Inventory(int streetZ, int xLo, int xHi, List<String> roads, Map<String, String> lots, Map<String, Integer> versions) {
+	/**
+	 * What a town is adopted with: the street's line and ends, its road sites, and lot id -> site id. East-west: {@code streetZ} its line's z and
+	 * {@code xLo..xHi} its ends' x. {@code northSouth}: {@code streetZ} holds its line's x and {@code xLo..xHi} its ends' z (sent as {@code streetX, zLo, zHi}).
+	 */
+	public record Inventory(int streetZ, int xLo, int xHi, List<String> roads, Map<String, String> lots, Map<String, Integer> versions, boolean northSouth) {
+		public Inventory(int streetZ, int xLo, int xHi, List<String> roads, Map<String, String> lots, Map<String, Integer> versions) {
+			this(streetZ, xLo, xHi, roads, lots, versions, false);
+		}
+
 		public Inventory(int streetZ, int xLo, int xHi, List<String> roads, Map<String, String> lots) {
 			this(streetZ, xLo, xHi, roads, lots, Map.of());
 		}
+
+		/** Regions.adopt's geometry: {@code {streetZ, xLo, xHi}} east-west, {@code {streetX, zLo, zHi}} north-south (Architect AD §2). */
+		public com.google.gson.JsonObject geometry() {
+			var g = new com.google.gson.JsonObject();
+			g.addProperty(northSouth ? "streetX" : "streetZ", streetZ);
+			g.addProperty(northSouth ? "zLo" : "xLo", xLo);
+			g.addProperty(northSouth ? "zHi" : "xHi", xHi);
+			return g;
+		}
 	}
+
+	/** The inventory, or none and why not when the town has street pieces that can't be taken on ({@code why} null: no street or no lot, nothing to say). */
+	public record Read(Optional<Inventory> inventory, @Nullable String why) {}
 
 	/** A lot site as the inventory reads it (pure input): its id, its lot ext, its box's centre, its version. */
 	public record LotSite(String siteId, @Nullable String lot, int cx, int cz, int version) {
@@ -56,15 +76,20 @@ public final class Adoption {
 
 	// ------------------------------------------------------------------ the inventory
 
-	/** The town's adoptable inventory from the owner's live sites, or empty (no east-west street, or no lot). */
+	/** The town's adoptable inventory from the owner's live sites, or empty (no straight street, or no lot). */
 	public static Optional<Inventory> inventory(MinecraftServer server, Settlement s) {
+		return read(server, s).inventory();
+	}
+
+	/** {@link #inventory}, and why not when its street can't be taken on (a bent street). */
+	public static Read read(MinecraftServer server, Settlement s) {
 		List<Raw> raw = new ArrayList<>();
 		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
 			var b = v.box();
 			raw.add(new Raw(v.id(), v.kind(), v.itemKey(), v.dimension().identifier().toString(), v.region(), b.minX(), b.maxX(), b.minZ(), b.maxZ(), v.ext(),
 				v.version()));
 		}
-		return inventoryOf(raw, s);
+		return readOf(raw, s);
 	}
 
 	/**
@@ -72,15 +97,23 @@ public final class Adoption {
 	 * of this settlement in its dimension, standing in no region, centred in the town claim and in no district's land, not a player's build it took on.
 	 */
 	public static Optional<Inventory> inventoryOf(List<Raw> sites, Settlement s) {
+		return readOf(sites, s).inventory();
+	}
+
+	/**
+	 * {@link #inventoryOf}, and why not: the town's street (as {@link Districts#readStreet} reads it) runs east-west or north-south, by the same rules; a
+	 * street whose pieces run both ways (bent, L-shaped) is not taken on, and the town keeps Steward's street pieces.
+	 */
+	public static Read readOf(List<Raw> sites, Settlement s) {
 		String dim = s.claim().dimension();
 		List<Districts.Piece> pieces = new ArrayList<>();
 		for (Raw v : sites) {
 			if (!dim.equals(v.dimension()) || v.region() != null) continue;
-			pieces.add(new Districts.Piece(v.kind(), v.itemKey(), v.ext() != null && v.ext().has(BatchPlanner.REGION_STREET_EXT), v.minX(), v.maxX(), v.minZ(), v.maxZ(),
-				Districts.intExt(v.ext(), BatchPlanner.STREET_Z), Districts.intExt(v.ext(), BatchPlanner.STREET_X0), Districts.intExt(v.ext(), BatchPlanner.STREET_X1)));
+			pieces.add(Districts.piece(v.kind(), v.itemKey(), v.ext(), v.minX(), v.maxX(), v.minZ(), v.maxZ()));
 		}
-		var street = Districts.streetOfPieces(pieces, s, null);
-		if (street == null) return Optional.empty();
+		var read = Districts.readStreet(pieces, s, null);
+		var street = read.street();
+		if (street == null) return new Read(Optional.empty(), read.why());
 		Set<String> playerBuilds = new HashSet<>();
 		for (var e : s.log()) if (e.kind() == Kind.BUILD_ADOPTED) playerBuilds.addAll(e.siteIds());
 		List<String> roads = new ArrayList<>();
@@ -101,19 +134,18 @@ public final class Adoption {
 			lots.add(new LotSite(v.id(), str(v.ext(), "steward_mc:lot"), cx, cz, v.version()));
 			versions.put(v.id(), v.version());
 		}
-		if (roads.isEmpty() || lots.isEmpty()) return Optional.empty();
+		if (roads.isEmpty() || lots.isEmpty()) return new Read(Optional.empty(), null);
 		roads.sort(Adoption::bySiteId);
-		return Optional.of(new Inventory(street.z(), street.x0(), street.x1(), List.copyOf(roads), allocate(lots), Map.copyOf(versions)));
+		return new Read(Optional.of(new Inventory(street.z(), street.x0(), street.x1(), List.copyOf(roads), allocate(lots), Map.copyOf(versions), street.northSouth())),
+			null);
 	}
 
-	/** A street road on the town's line (as {@link Districts#streetOfPieces} reads it). */
+	/** A street road on the town's line, on the street's axis (as {@link Districts#readStreet} reads it). */
 	private static boolean onStreet(Raw v, DistrictRules.Street street, Settlement s) {
-		Integer z = Districts.intExt(v.ext(), BatchPlanner.STREET_Z);
-		if (z == null && v.maxX() - v.minX() < v.maxZ() - v.minZ()) return false;
-		int cz = z != null ? z : Math.floorDiv(v.minZ() + v.maxZ(), 2);
-		Integer x0 = Districts.intExt(v.ext(), BatchPlanner.STREET_X0), x1 = Districts.intExt(v.ext(), BatchPlanner.STREET_X1);
-		int mid = ((x0 != null ? x0 : v.minX()) + (x1 != null ? x1 : v.maxX())) / 2;
-		return cz == street.z() && s.districtAt(s.claim().dimension(), mid, cz).isEmpty();
+		var l = Districts.lineOf(Districts.piece(v.kind(), v.itemKey(), v.ext(), v.minX(), v.maxX(), v.minZ(), v.maxZ()));
+		if (l.northSouth() != street.northSouth() || l.line() != street.z()) return false;
+		int mid = (l.lo() + l.hi()) / 2;
+		return l.northSouth() ? s.districtAt(s.claim().dimension(), l.line(), mid).isEmpty() : s.districtAt(s.claim().dimension(), mid, l.line()).isEmpty();
 	}
 
 	/**
@@ -284,7 +316,8 @@ public final class Adoption {
 				Set<String> recorded = removedSince(s, adopted.get());
 				List<String> gone = adopted.get().siteIds().stream().filter(id -> sites.get(id).isEmpty() && !recorded.contains(id)).toList();
 				// a tombstone is the region's removal; with none, the region and every building are gone, by whatever means (an un-adopt, then removals)
-				String why = tombstone ? "Removed with the town's region (" + gone.size() + " sites)" : "Gone from the world, with the town's region (" + gone.size() + " sites)";
+				String count = Words.count(gone.size(), "site", "sites");
+				String why = tombstone ? "Removed with the town's region (" + count + ")" : "Gone from the world, with the town's region (" + count + ")";
 				if (!gone.isEmpty() && !Settlements.log(s.id(), new Settlement.LogEntry(now, Kind.PROJECT_REMOVED, why, gone)).ok()) return false;
 				if (!Settlements.log(s.id(), released(adopted.get().siteGroup(), tombstone ? "The town's region was removed"
 					: "The town's region and its buildings are gone", now)).ok()) return false;

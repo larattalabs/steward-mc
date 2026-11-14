@@ -87,7 +87,12 @@ public final class Proposals {
 				s.proposals().lastAt(), now, modules).stream()
 				.map(x -> x.offersModule() ? x : x.in(where.district())).toList();
 		}
-		if (fresh.isEmpty()) return;
+		if (fresh.isEmpty()) {
+			// nothing the signs ask for: the buildings the card left out, in a district of their own (slice DP; offered once)
+			var left = leftOut(server, s);
+			if (!left.isEmpty()) proposeDistrictFromLand(server, p.getUUID(), s, open, now, left);
+			return;
+		}
 		List<Proposal> all = new ArrayList<>(open);
 		all.addAll(fresh);
 		var res = Settlements.proposals(s.id(), new Settlement.Proposals(all, s.proposals().declined(), s.proposals().accepted(), now));
@@ -128,7 +133,8 @@ public final class Proposals {
 		var s = Settlements.store().get(settlementId);
 		if (s.isEmpty()) return "No such settlement: " + settlementId;
 		List<Proposal> all = new ArrayList<>(s.get().proposals().open().stream().filter(x -> !x.key().equals("district_" + way)).toList());
-		all.add(Proposal.district(way, "The town's street is full (dev).", now));
+		all.add(Proposal.district(way, "The town's street is full (dev).", now).withPlace(dev.larattalabs.steward.model.DistrictSite.line("to the "
+			+ dev.larattalabs.steward.model.DistrictRules.directionName(way) + ", as asked", null)));
 		var ps = s.get().proposals();
 		var res = Settlements.proposals(settlementId, new Settlement.Proposals(all, ps.declined().stream().filter(k -> !k.equals("district_" + way)).toList(), ps.accepted(), ps.lastAt()));
 		return res.ok() ? "proposed district_" + way : res.error();
@@ -142,15 +148,29 @@ public final class Proposals {
 	 * the settlement's purpose and buildings best (a fishing town's next district by the water; docs/PLAN.md "Zones", first step), else the first that fits.
 	 */
 	static void proposeDistrictFromLand(MinecraftServer server, java.util.UUID player, Settlement s, List<Proposal> open, long now) {
+		proposeDistrictFromLand(server, player, s, open, now, List.of());
+	}
+
+	/**
+	 * As above; with {@code left} (the card's buildings the town left out, slice DP), the district is for them: its side is chosen by what they ask of the
+	 * ground, and the proposal names them. Always an ordinary district (founding it is free; the buildings are proposed and approved after).
+	 */
+	static void proposeDistrictFromLand(MinecraftServer server, java.util.UUID player, Settlement s, List<Proposal> open, long now,
+		List<dev.larattalabs.steward.model.ConceptCard.Building> left) {
 		// a waiting part of the plan takes none of the room
 		if (!ProposalRules.room(open.stream().filter(x -> !x.offersPart()).toList(), s.proposals().lastAt(), now) || open.stream().anyMatch(Proposal::foundsDistrict)) return;
 		if (s.lands().districts().size() >= dev.larattalabs.steward.model.DistrictRules.DIRECTIONS.size() || !CHOOSING.add(s.id())) return;
 		Set<String> skip = new HashSet<>();
 		for (String d : dev.larattalabs.steward.model.DistrictRules.DIRECTIONS) if (s.proposals().declined().contains("district_" + d)) skip.add(d);
-		Districts.choose(server, s, dev.larattalabs.steward.model.DistrictSite.fromWords(purposeWords(s)), null, skip, c -> {
+		String words = left.isEmpty() ? purposeWords(s) : ProposalRules.leftOutSiteWords(left);
+		Districts.choose(server, s, dev.larattalabs.steward.model.DistrictSite.fromWords(words), null, skip, c -> {
 			CHOOSING.remove(s.id());
 			var now2 = Settlements.store().get(s.id());
 			if (c.way() == null || now2.isEmpty() || now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
+			if (!left.isEmpty()) {
+				offerDistrict(server, player, s, c, now, left);
+				return;
+			}
 			// beside a town Architect laid out, a side by the water is offered as a quarter along its shore (docs/DISTRICTS.md section 4), judged again by the
 			// ground of the quarter's own strip; one the player declined is not offered again; otherwise the ordinary district
 			if (c.why().startsWith("by the water") && now2.get().proposals().open().stream().noneMatch(Proposal::foundsQuarter) && TownRegion.of(now2.get()).isPresent()) {
@@ -182,11 +202,19 @@ public final class Proposals {
 
 	/** The ordinary district {@link #proposeDistrictFromLand} chose, in the inbox. */
 	private static void offerDistrict(MinecraftServer server, java.util.UUID player, Settlement s, dev.larattalabs.steward.model.DistrictSite.Choice c, long now) {
+		offerDistrict(server, player, s, c, now, List.of());
+	}
+
+	/** As above; for {@code left}, the buildings the card left out (they are named, and the place line says the district is for the first). */
+	private static void offerDistrict(MinecraftServer server, java.util.UUID player, Settlement s, dev.larattalabs.steward.model.DistrictSite.Choice c, long now,
+		List<dev.larattalabs.steward.model.ConceptCard.Building> left) {
 		var now2 = Settlements.store().get(s.id());
 		if (now2.isEmpty() || now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
 		String side = dev.larattalabs.steward.model.DistrictRules.directionName(c.way());
-		Proposal d = Proposal.district(c.way(), "The town's street is full: a district to the " + side + (c.why().isEmpty() ? "" : ", " + c.why() + ",")
-			+ " gives the next buildings a street of their own. Founding it lays a road and costs nothing.", now);
+		Proposal d = left.isEmpty()
+			? Proposal.district(c.way(), "The town's street is full: a district to the " + side + (c.why().isEmpty() ? "" : ", " + c.why() + ",")
+				+ " gives the next buildings a street of their own. Founding it lays a road and costs nothing.", now).withPlace(dev.larattalabs.steward.model.DistrictSite.line(c.why(), "the next buildings"))
+			: leftOutDistrict(c, left, now);
 		var ps = now2.get().proposals();
 		List<Proposal> all = new ArrayList<>(ps.open());
 		all.add(d);
@@ -217,6 +245,51 @@ public final class Proposals {
 		if (!Settlements.proposals(s.id(), new Settlement.Proposals(all, ps.declined(), ps.accepted(), System.currentTimeMillis())).ok()) return "Could not save the proposal.";
 		SettlementRunner.sendInbox(server, player);
 		return null;
+	}
+
+	/** The steward's own district for the buildings the card left out ({@code left}), on the side {@code c} chose. */
+	static Proposal leftOutDistrict(dev.larattalabs.steward.model.DistrictSite.Choice c, List<dev.larattalabs.steward.model.ConceptCard.Building> left, long now) {
+		String side = dev.larattalabs.steward.model.DistrictRules.directionName(c.way());
+		String names = ProposalRules.leftOutWords(left);
+		var p = Proposal.district(c.way(), "The card's plan left out " + names + ": a district to the " + side + (c.why().isEmpty() ? "" : ", " + c.why() + ",")
+			+ " would give them a street of their own. Founding it lays a road and costs nothing; each building is proposed after.", now);
+		p = new Proposal(p.key(), "A district for " + names + " (" + side + ")", p.why(), null, now, "left out", null, c.way());
+		return p.withPlace(dev.larattalabs.steward.model.DistrictSite.line(c.why(), left.get(0).role()));
+	}
+
+	/**
+	 * The card's buildings the town left out: the program less what stands (by role, else by type), when the town stands, no district does and none was
+	 * declined (the steward offers it once; slice DP).
+	 */
+	static List<dev.larattalabs.steward.model.ConceptCard.Building> leftOut(MinecraftServer server, Settlement s) {
+		if (s.card() == null || !s.card().hasProgram() || !s.lands().districts().isEmpty()) return List.of();
+		if (s.proposals().declined().stream().anyMatch(k -> k.startsWith("district_")) || s.proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return List.of();
+		java.util.Map<String, Integer> byRole = new java.util.HashMap<>(), byType = new java.util.HashMap<>();
+		for (var v : dev.larattalabs.architect.api.ArchitectApi.get().sites(server).list(s.owner())) {
+			if (!"building".equals(v.kind()) || dev.larattalabs.steward.gateway.BatchPlanner.isStreet(v.itemKey())) continue;
+			String role = v.ext() != null && v.ext().has("steward_mc:role") && v.ext().get("steward_mc:role").isJsonPrimitive() ? v.ext().get("steward_mc:role").getAsString()
+				: Updates.recordedRole(v);
+			if (role != null) byRole.merge(role.toLowerCase(java.util.Locale.ROOT), 1, Integer::sum);
+			String lot = Updates.lotIdOf(v);
+			if (lot != null) byType.merge(lot.replaceAll("_\\d+$", ""), 1, Integer::sum);
+		}
+		// nothing stands yet: nothing is left out (the town is still to be built)
+		if (byRole.isEmpty() && byType.isEmpty()) return List.of();
+		return ProposalRules.leftOut(s.card(), byRole, byType);
+	}
+
+	/** Proposes the district for the left-out buildings now (dev: the e2e check, past the cooldown). Returns what it did. */
+	public static String proposeLeftOut(MinecraftServer server, java.util.UUID player, String settlementId) {
+		var s = Settlements.store().get(settlementId);
+		if (s.isEmpty()) return "No such settlement: " + settlementId;
+		var left = leftOut(server, s.get());
+		if (left.isEmpty()) return "nothing left out";
+		Set<String> skip = new HashSet<>();
+		for (String d : dev.larattalabs.steward.model.DistrictRules.DIRECTIONS) if (s.get().proposals().declined().contains("district_" + d)) skip.add(d);
+		Districts.choose(server, s.get(), dev.larattalabs.steward.model.DistrictSite.fromWords(ProposalRules.leftOutSiteWords(left)), null, skip, c -> {
+			if (c.way() != null) offerDistrict(server, player, s.get(), c, System.currentTimeMillis(), left);
+		});
+		return "choosing a district for " + ProposalRules.leftOutWords(left);
 	}
 
 	/** What the settlement is for, in words: its card's purpose and its buildings' roles (what ground its next district should look for). */

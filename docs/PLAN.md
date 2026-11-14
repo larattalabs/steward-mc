@@ -9,11 +9,31 @@ It is a **sibling mod to Architect** (`larattalabs/architect-mc`). Architect is 
 construction engine. Steward is the director on top: concept, site, layout, a standing NPC, proactive upgrades,
 functional modules, villagers, animals, an inbox. Steward depends on Architect and does not copy it.
 
-Status (2026-11-13): **phases 1-4 are built** (phase 3's perception, proposals, change requests, screens and districts; phase 4's survival stockpile and
-billing), with growth after them: region towns grow through Architect revisions (A, A2 in survival), old street towns are adopted (B), copies follow
-their source, and the land check. **Phase 5 is under way** (`docs/MODULES.md`): M0 (the vanilla probe) and M1 (the catalog) merged; M2 (the crop
-farm) and M3 (offer and place) are being built; M4 (the storage hall) waits on Architect's FK, then M5. Steward pins Architect 0.63.0; 0.64.0 (7c's
-first RC) is held for Steward's secrets slice (S-7c-4). Process: the manager session runs the queue, and each slice is its own session (AGENTS.md).
+Status (2026-11-13, evening): **phases 1-4 are built** (phase 3's perception, proposals, change requests, screens and districts; phase 4's survival
+stockpile and billing), with growth after them: region towns grow through Architect revisions (A, A2 in survival), old street towns are adopted (B, now
+either street axis), copies follow their source, and the land check. **Phase 5 is under way** (`docs/MODULES.md`): M0, M1, M2 (the crop farm) and M3
+(offer and place) are merged. crop_farm's re-certification on Architect 0.65.0 carries the 0.65.0 pin. M4 (the storage hall) waits on Architect's FK,
+then M5. Steward pins Architect 0.64.1. Process: the manager runs the queue, each slice is its own session, and the speed rules apply (AGENTS.md).
+
+**Steward queue (triage 2026-11-13; detail and items in `../LEFTOVERS.md` "Steward").** Ranked against phase 5 (M4 after FK, then M5), 5b, the player
+settlement UI (after Architect's 8b) and phases 6-7:
+1. **crop-farm-065** (in flight): per-Style bounds and the 0.65.0 pin.
+2. **GE** (in flight): growth hardening and the growth e2e gaps.
+3. **P065** (S, light): the 0.65.0 pin's follow-ups. pin-guard reads `apiVersion()`, `planSchema()` replaces `schema/plan-0.json`, and the
+   ghost and composite checks run. Next after the pin.
+4. **CA** (L, strict, spend): the Composer onto Architect's `Regions.compose`. M5's "the plan writer names modules" is built on it, so it
+   comes before M5. It starts once P065 lands. Its paid proof needs Noah.
+5. **DP** (M, light): district placement in survey mode, "no, by the lake", and the steward's own district proposal. Startable now; it
+   doesn't touch GE's files.
+6. **DG** (L, strict): districts' growth, which unblocks modules on districts. After GE.
+7. **M4** (L, strict): the storage hall, at FK's release. The filler choice may need Noah.
+8. **ET** (S, light): e2e tidy 2, after GE, now with per-flow seconds. Then **EF** (M, light), from Architect GX: two e2e clients side by side
+   and a per-flow cache.
+9. **A2L** (S, strict): at Architect v0.66.0 (RU), lift A2's refusals.
+10. **M5** (L, strict): the phase 5 gate, after M3, M4, CA and DG.
+11. Then **PV1** (after DG), **SST** (after Architect S-AD-5), **GA** (after DG and CA), **NS2**. Phase 5b opens with **SITE** (before the
+    spine). **FR** waits for Architect's player-ready pass, and the player settlement UI for Architect's 8b. Phases 6-7 come after 5b.
+
 The rest of this status is the 2026-10-11 snapshot, kept as history.
 
 Status (2026-10-11): written 2026-10-05; **phase 1 is done** (gate passed, Noah). The hardening slice from the GPT reviews is done. **Phase 3 is under way:**
@@ -137,6 +157,12 @@ The free e2e check runs 34 checks, with a screenshot of each in-world piece. The
 | 2026-11-13 | **Steward defaults** (Noah via parent session: "steward: defaults"). (1) M2 drops its in-game soul-lantern farm: all three test styles use the fallback lantern, the substitution is checked offline; the gate-verifier's narrowing flag is resolved by Noah. (2) A lighter re-certify rule for Architect pin bumps is designed at low priority (re-measure only when the module's kit program, catalogue entry or the Architect paths it depends on change), with a GPT second opinion before it is adopted; phase 5 first. (3) hidden_village is re-recorded on 0.64.1 (a few cents, under $0.25) to check its hidden room is written, with the hidden-rooms-out-of-the-summary prompt line folded in. |
 | 2026-11-13 | **hidden_village re-record, cap $0.55** (Noah via parent session: "hidden_village: cap 0.55"): ran on 0.64.1 for $0.25. The hidden room is still not written; the summary says the village sits in a hollow behind the falls, which nothing builds. The never-drop rule needs work (slice PW). |
 | 2026-11-13 | **The crop farm's bound in a town of an unmeasured Style is option (a)** (Noah via parent session: "a"). M3 found the measured bound names only the three measured Styles' blocks, so a town in any other Style is held at placement and asked again. M2's data records the bill bound per measured Style; Steward maps each item through that Style's roles to the town's own block for the same role and quotes the largest. This goes into crop_farm's re-certification on Architect 0.65.0 (kit 0.60.0); then the 0.65.0 pin merges. Nothing is needed from Architect. |
+| 2026-11-13 | **Speed rules** (Noah via parent session, 20:30: "yes, apply all of those"; AGENTS.md "Process"). (1) Risk tiers: strict (saves, billing, refunds and stock, undo/revert, crash recovery, anything that can mint or lose items) keeps the gate-verifier and GPT review; light (UI, wording, tooling, docs, fixtures, $0 prompts) is unit tests plus one targeted flow. (2) After a failure, rerun only the failing flows; one full gate at the end, at most 3 full runs per slice. (3) The manager batch-merges 2-4 slices with one merge suite, bisecting on failure. (4) A measured module is re-certified only when its code or the Architect build, billing or realise paths it uses change; otherwise a smoke check (one field round plus the billing check). This supersedes the lighter-rule design item. (5) 4 concurrent in-game runs, starts 5 min apart, unit suites under `nice -n 10`. (7) As-builts and reports are 10-15 lines. |
+| 2026-11-13 | **Speed rules 8 and 9** (Noah via parent session: "yes, send that to both managers/add to agent/claude docs"; AGENTS.md "Process", CLAUDE.md). (8) A slice runs only the Gradle and npm tests for the code it touched plus direct dependents; the full `./gradlew build` and `npm test` run once, at the batch merge; a slice touching shared core (persistence, billing, the gateway) runs the full suite. (9) Timing benches are report-only: a perf or timing assertion records the number and the load and flags the manager past its bound instead of failing the slice. CLAUDE.md's gate-verifier line now follows the tiers. |
+| 2026-11-13 | **Speed rule 10, the load gate** (Noah via parent session: "lets ensure that is 15 min max from now on, with high at least 72 cap"): a load-aware start waits at most 15 minutes, at a threshold of 72 or more. The e2e client's `E2E_LOAD_MAX` default goes from 40 to 72 and `E2E_LOAD_WAIT_MIN` from 20 to 15 (tools/e2e.mjs, mod/DEV.md). |
+| 2026-11-13 | **Nightly skipped** (Noah via parent session: "we'll skip nightlies tonight again"): the 11-13 23:00 run is skipped (`artifacts/nightly/skip-2026-11-13`); the in-game blackout is lifted for the night. |
+| 2026-11-13 | **The crop farm's dirt leak: (a+b)** (Noah via parent session: "Merge, ask Architect"). While a survival crop_farm site waits for materials, vanilla dries its farmland and Architect re-lays it, billing 1-3 dirt past the quote that undo doesn't refund. (a) module-survival's exact-refund round is stocked fully, and a waiting round reports the over-charge without failing; then crop-farm-065 merges with the 0.65.0 pin. (b) Architect asks S-M5-10 (the re-lay) and S-M5-11 (every crop_farm quote is inexact, so placement always asks once). |
+| 2026-11-13 | **ring_city card re-recorded** (Noah via parent session: "and feel free to rerecord ring city card"; no amount given, held to one card under $1.00): `tools/record-cards.mjs 0.55` on Architect 0.64.1, **$0.05**. The new card ("Ring City of the Crater Lake") has `site.size: "L"` and no nulls; it replaces the old fixture. npm test and the card, CardLimits and StrangeAsks tests pass. |
 
 ## Concept card
 
@@ -680,7 +706,18 @@ Noah's example: a settlement at a desert's edge with a jungle. A wall divides th
   - e2e (free): "here" and "auto" checks.
   - **Built (2026-10-19):** the plan writer knows the live catalogue (several zones; districts, boundary districts and outposts; walls, gates, bridges, tunnels, water) and the shapes Architect builds (from its check of the 59 strange-ask plans: 20 parts in 6 patterns); plan v1 builds a districts plan (D1), and lots facing east or west (north-south streets) are designed, previewed and built (the town's own street stays east-west for additions); the card says a plan's bridges and tunnels as Architect resolved them. e2e (stub): a town of two quarters, its jungle side's street north-south, built and undone. GPT review of north-south: two should-fixes, fixed.
   - **Known limit:** additions after a districts build don't find Architect's district streets (`road:<district>_street_*`): they lay a fresh street; to do with Steward's districts on Architect's.
-  - **Still to do:** the preview in survey mode; "no, by the lake" placing it again; the steward's own district proposal using the card's left-out buildings.
+  - **Built (2026-11-13, slice DP):**
+    - **The preview's reason:** a district proposal keeps a place line (`Proposal.place`, nullable, display only, no format change), shown under
+      "Proposed: …" in survey mode ("By the water, for the harbour · Y to decide"), for asks and the steward's own proposals alike.
+    - **"No, by the lake":** while a district waits, a new district ask in talk places it again (never a quarter beside it, unless an outpost). "No" or
+      "somewhere else" rules out the side it waits on (`DistrictMove`). Ground no side has leaves it where it was, and the steward says so. The talk
+      prompt says so too.
+    - **The steward's own proposal:** with no sign-driven proposal to make, a town that stands with none of its districts gets one district for the
+      card's buildings that don't stand yet (`ProposalRules.leftOut`, by role, else type), placed by what they ask of the ground. It is offered once:
+      a declined district stops it. Founding goes through the usual accept path, and the buildings are proposed after.
+    - e2e (free, `districts`): a harbour asked for to the east is previewed, a lake is laid to the south, "no, by the lake" moves it there, and it is
+      accepted and founded.
+  - **Still to do:** the left-out buildings proposed into their district once it stands; a moved left-out district keeps its "for …" title.
 
 ### Composition (Noah 2026-10-12; design in `docs/COMPOSITION.md`, with Architect for review)
 Claude composes a settlement (zones, connectors, forms, rules, stages, schedules, secrets) from general building blocks; Architect checks it as a dry run and answers each part (fits, adjusted, refused, unsupported); Claude repairs; the card is honest in Claude's words. Today's programs stay as cheap shortcuts. v2 (2026-10-12) folds in Architect's answers (`architect-mc/docs/COMPOSITION-ANSWERS.md`): two layers (Architect the geometric schema and compiler, Steward the life layer and the loop), one whole-plan `Regions.checkPlan` with seven answer classes, approval bound to a resolved artifact, locators with explicit tolerances, shipped ops never change. Order: plan v0 (Steward) once the schema freezes, then P0 (Architect, after T2), then the 6c blocks with FL after D2, then 7a to 7c and the contracts. The strange asks are the measure for both mods.

@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.model.Words;
 import com.google.gson.JsonObject;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.Batch;
@@ -205,7 +206,7 @@ public final class SettlementRunner {
 		String id = settlement.id();
 		return switch (Pipeline.awaiting(state)) {
 			case BIBLE -> "Waiting for you: /steward approve " + id + " to design the buildings with this style.";
-			case MASSINGS -> "Waiting for you: /steward approve " + id + " (all " + lastAwaiting.size() + " massings), or /steward redirect " + id + " <lot> <what to change> (lots: "
+			case MASSINGS -> "Waiting for you: /steward approve " + id + " (all " + Words.count(lastAwaiting.size(), "massing", "massings") + "), or /steward redirect " + id + " <lot> <what to change> (lots: "
 				+ String.join(", ", lastAwaiting) + "). See them on their lots: /steward show " + id + ".";
 			case BUDGET -> String.format("Waiting for you: /steward raise %s <new budget in USD> (now $%.0f).", id, state.budgetUsd());
 			case PLACEMENT -> "Waiting for you: /steward approve " + id + " to place it.";
@@ -851,7 +852,7 @@ public final class SettlementRunner {
 		}).toList();
 		var district = districtId == null ? null : saved.get().lands().district(districtId).orElse(null);
 		String where = district == null ? "" : " in " + district.name();
-		var entry = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + buildings + " buildings"
+		var entry = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "Placed " + Words.count(buildings, "building", "buildings")
 			+ where + (notPlaced > 0 ? " (" + notPlaced + " not placed)" : "") + (note != null ? " (" + note + ")" : ""), changes, siteGroupId,
 			notPlaced > 0 || note != null ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE);
 		// a district's own region: the district names it, owns what it took outside the town and stands, saved with the entry (docs/DISTRICTS.md section 4)
@@ -1030,7 +1031,7 @@ public final class SettlementRunner {
 			int maxLandmarks = dev.larattalabs.steward.model.BudgetPolicy.maxLandmarks(r.card().site().size(), buildings);
 			ProgramPlanner.Result program = ProgramPlanner.lots(r.card(), buildings, maxLandmarks);
 			if (!program.fromCard()) say("This card has no building program (it was described before programs existed), so this is a generic village. Describe it again to get buildings of its own.");
-			if (!program.leftOut().isEmpty()) say("Left out at " + buildings + " buildings: " + String.join(", ", program.leftOut()) + ".");
+			if (!program.leftOut().isEmpty()) say("Left out at " + Words.count(buildings, "building", "buildings") + ": " + String.join(", ", program.leftOut()) + ".");
 			List<VillageLayout.LotSpec> specs = moduleBuild() && pendingModule != null ? moduleSpecs(r.card().program().get(0)) : program.specs();
 			if (moduleBuild() && dev.larattalabs.steward.module.ModuleKind.of(pendingModule == null ? null : pendingModule.moduleId()).isEmpty()) {
 				abandon("Steward doesn't know how to place that module.");
@@ -1046,7 +1047,8 @@ public final class SettlementRunner {
 				|| ArchitectApi.get().regions().list(existing.owner()).stream().anyMatch(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVING));
 			// an addition faces the street and may reach past its ends (the street is extended to it when it is queued)
 			java.util.function.Supplier<VillageLayout.Plan> own = () -> !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ)
-				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line) : VillageLayout.plan(claim, grid, specs, rules);
+				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line)
+				: VillageLayout.plan(claim, grid, specs, rules, district == null && dev.larattalabs.steward.gateway.VPlan.northSouthStreet(settlement.id()));
 			boolean worldSurvival = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false);
 			boolean overworld = level.dimension() == net.minecraft.world.level.Level.OVERWORLD;
 			// a district beside a region town (docs/DISTRICTS.md section 9): its first building plans the district's own region beside the town
@@ -1095,7 +1097,13 @@ public final class SettlementRunner {
 				// a street town, built free: taken on as one region first, then grown (docs/GROWTH.md, slice B); anything that can't be keeps today's path
 				else if (ArchitectApi.get().features().contains(Adoption.FEATURE) && existing.difficulty() == dev.larattalabs.steward.model.Difficulty.PATRON
 					&& !worldSurvival && overworld && !dev.larattalabs.steward.gateway.VPlan.isLegacy(existing.id())) {
-					var inv = Adoption.inventory(server, existing);
+					var read = Adoption.read(server, existing);
+					var inv = read.inventory();
+					// a street that can't be taken on (bent): today's street pieces, and the player is told why
+					if (inv.isEmpty() && read.why() != null) {
+						Steward.LOGGER.info("adopt {}: not taken on: {}", existing.id(), read.why());
+						say("The town isn't taken on as one region: " + read.why() + ". It grows along its street as before.");
+					}
 					if (inv.isPresent()) {
 						java.util.function.Supplier<VillageLayout.Plan> legacyPlan = own;
 						adoptTown(r, budgetUsd, specs, inv.get(), () -> {
@@ -1110,7 +1118,7 @@ public final class SettlementRunner {
 			}
 			// (slice M3) a module is placed only as an addition on growth (A, A2, B): a town that took none of those paths ends here, before anything is spent
 			if (moduleBuild()) {
-				abandon("A working module is placed only by growing the town through Architect, and this town can't grow that way now (a district, a north-south or "
+				abandon("A working module is placed only by growing the town through Architect, and this town can't grow that way now (a district, a bent or "
 					+ "Supplied street town, or an Architect without growth). Nothing was spent.");
 				return;
 			}
@@ -1166,17 +1174,15 @@ public final class SettlementRunner {
 		ServerLevel level = level();
 		var c = saved.claim();
 		var box = new BoundingBox(c.centerX() - c.radius(), level.getMinY(), c.centerZ() - c.radius(), c.centerX() + c.radius(), level.getMaxY(), c.centerZ() + c.radius());
-		JsonObject geometry = new JsonObject();
-		geometry.addProperty("streetZ", inv.streetZ());
-		geometry.addProperty("xLo", inv.xLo());
-		geometry.addProperty("xHi", inv.xHi());
+		JsonObject geometry = inv.geometry();
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", settlement.id());
 		ext.addProperty(Adoption.KEY_EXT, key);
 		say("The town is taken on as one region (Architect), so it can grow...");
 		int session = Session.current();
 		adopting = true;
-		Steward.LOGGER.info("adopt {}: street z {} x {}..{}, {} roads, {} lots, key {}", settlement.id(), inv.streetZ(), inv.xLo(), inv.xHi(), inv.roads().size(),
+		Steward.LOGGER.info("adopt {}: street {} {} {} {}..{}, {} roads, {} lots, key {}", settlement.id(), inv.northSouth() ? "north-south" : "east-west",
+			inv.northSouth() ? "x" : "z", inv.streetZ(), inv.xLo(), inv.xHi(), inv.roads().size(),
 			inv.lots().size(), key);
 		ArchitectApi.get().regions().adopt(new dev.larattalabs.architect.api.AdoptRegionRequest(settlement.owner(), level.dimension(), box,
 			dev.larattalabs.architect.api.AdoptRegionRequest.VILLAGE_LAYOUT, geometry, inv.roads(), inv.lots(), key, ext)).whenComplete((v, err) -> server.execute(() -> {
@@ -1607,7 +1613,7 @@ public final class SettlementRunner {
 	/** With the plan made (Steward's layout or Architect's village): checks it, then starts the designs. */
 	private void continueWithPlan(CardResult r, double budgetUsd, Settlement.@org.jspecify.annotations.Nullable District district) {
 		{
-			say("Layout: " + plan.lots().size() + " lots on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
+			say("Layout: " + Words.count(plan.lots().size(), "lot", "lots") + " on the street" + (plan.unplaced().isEmpty() ? "" : " (" + plan.unplaced().size() + " did not fit)"));
 			if (plan.lots().isEmpty()) {
 				// an addition that found no room: the steward looks to a district (or proposes one) next time
 				if (addition && existing != null) Proposals.full(existing.id(), districtId);
@@ -1698,7 +1704,10 @@ public final class SettlementRunner {
 		@org.jspecify.annotations.Nullable String own) {
 		String dim = s.claim().dimension();
 		for (Settlement.Area a : s.lands().protect()) {
-			for (int[] sp : spans) if (a.overlaps(dim, sp[0], plan.streetZ() - 2, sp[1], plan.streetZ() + 2)) return "the protected area \"" + a.label() + "\"";
+			for (int[] sp : spans) {
+				int[] b = plan.spanBox(sp[0], sp[1], 2);
+				if (a.overlaps(dim, b[0], b[1], b[2], b[3])) return "the protected area \"" + a.label() + "\"";
+			}
 		}
 		for (Settlement.District d : s.lands().districts()) {
 			if (d.id().equals(own)) continue;
@@ -1706,7 +1715,8 @@ public final class SettlementRunner {
 			if (d.region() != null) ArchitectApi.get().regions().get(d.region())
 				.flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.inside(v.ext(), dim)).ifPresent(off::add);
 			for (int[] sp : spans) {
-				var band = dev.larattalabs.steward.model.Land.ofRect(dim, sp[0], plan.streetZ() - 2, sp[1], plan.streetZ() + 2);
+				int[] b = plan.spanBox(sp[0], sp[1], 2);
+				var band = dev.larattalabs.steward.model.Land.ofRect(dim, b[0], b[1], b[2], b[3]);
 				for (var l : off) if (l.overlaps(band)) return d.name() + "'s land";
 			}
 		}
@@ -1818,7 +1828,10 @@ public final class SettlementRunner {
 		return switch (state.phase()) {
 			case AWAITING_MASSING_APPROVAL -> plan.lots().stream().filter(l -> lastAwaiting.contains(l.id())).findFirst()
 				.map(l -> StewardMotion.outside(l.x(), l.groundY(), l.z(), l.x() + l.sizeX() - 1, l.z() + l.sizeZ() - 1, home)).orElse(null);
-			case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING -> new net.minecraft.core.BlockPos(plan.streetX1() + 4, plan.streetY(), plan.streetZ());
+			case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING -> {
+				int[] end = plan.at(plan.streetX1() + 4);
+				yield new net.minecraft.core.BlockPos(end[0], plan.streetY(), end[1]);
+			}
 			default -> null;
 		};
 	}
@@ -1976,10 +1989,10 @@ public final class SettlementRunner {
 		if (p == null) return "Your player is not online.";
 		net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new StewardNet.ShowLayers(massingKey(), List.copyOf(layers)));
 		if (describe) {
-			say(layers.size() + " massings are shown as blue ghosts on their lots (hide them: /steward hide " + settlement.id() + "):");
+			say(Words.count(layers.size(), "massing is", "massings are") + " shown as blue ghosts on their lots (hide them: /steward hide " + settlement.id() + "):");
 			lines.forEach(l -> say("  " + l));
 		}
-		return "Showing " + layers.size() + " massings on their lots.";
+		return "Showing " + Words.count(layers.size(), "massing", "massings") + " on their lots.";
 	}
 
 	public void hideMassings() {
@@ -2027,7 +2040,7 @@ public final class SettlementRunner {
 				GroupPlanner.Options o = new GroupPlanner.Options(g.bibleId(), g.bibleVersion(), g.budgetUsd(), 3, 3, landmarks);
 				GroupPlanner.Built built = GroupPlanner.build(settlement, plan, o, reservedCells(), wallLotExts());
 				landmarkIds = built.request().items().stream().filter(i -> i.role() == GroupRequest.Role.LANDMARK).map(GroupRequest.Item::itemKey).collect(Collectors.toSet());
-				say("Designing " + built.request().items().size() + " buildings (massings first)...");
+				say("Designing " + Words.count(built.request().items().size(), "building", "buildings") + " (massings first)...");
 				groupInFlight = true;
 				paidRequestAcked = true;
 				api.designs().requestGroup(built.request().withOpKey(opKey("group"))).whenComplete((id, err) -> {
@@ -2160,7 +2173,8 @@ public final class SettlementRunner {
 		if (newStreet) spans.add(new int[] {plan.streetX0(), plan.streetX1()});
 		else {
 			var street = Districts.streetOf(sites.list(settlement.owner()), now, district);
-			if (street != null && street.z() == plan.streetZ()) {
+			// an addition's plan runs east-west on the street as it stands (Steward's own layout lays a north-south street only new)
+			if (street != null && !plan.northSouth() && street.z() == plan.streetZ()) {
 				if (plan.streetX0() < street.x0()) spans.add(new int[] {plan.streetX0(), street.x0() - 1});
 				if (plan.streetX1() > street.x1()) spans.add(new int[] {street.x1() + 1, plan.streetX1()});
 			}
@@ -2187,7 +2201,7 @@ public final class SettlementRunner {
 		}
 		else if (res.note() != null) say(res.note());
 		if (!res.skippedLotIds().isEmpty()) say("Skipped lots (no design or no fit): " + res.skippedLotIds());
-		say("Placing " + res.batch().items().size() + " items...");
+		say("Placing " + Words.count(res.batch().items().size(), "item", "items") + "...");
 		queueInFlight = true;
 		sites.queue(res.batch().withOpKey(opKey("batch"))).whenComplete((id, err) -> {
 			queueInFlight = false;
@@ -2333,7 +2347,7 @@ public final class SettlementRunner {
 		// (slice M3) the player approved it at Accept (or approved the bill since): placed now, never asked again
 		if (moduleBuild() && state.phase() == Pipeline.Phase.READY_TO_PLACE) feed(new Pipeline.ModulePlace());
 		say(growth() ? "Placing it in the town (" + lotEntries.size() + (lotEntries.size() == 1 ? " building" : " buildings") + ")..."
-			: "Placing the village (" + lotEntries.size() + " buildings, its street, lanes and square)...");
+			: "Placing the village (" + Words.count(lotEntries.size(), "building", "buildings") + ", its street, lanes and square)...");
 		queueInFlight = true;
 		inFlightSince = System.currentTimeMillis();
 		ServerPlayer actor = server.getPlayerList().getPlayer(playerId);
@@ -3341,7 +3355,7 @@ public final class SettlementRunner {
 		long placed = v.get().lots().stream().filter(l -> "placed".equalsIgnoreCase(String.valueOf(l.state()))).count();
 		long skipped = v.get().lots().size() - placed;
 		boolean whole = st == dev.larattalabs.architect.api.RegionState.PLACED;
-		String note = whole ? null : "the village is " + st.name().toLowerCase() + ": " + placed + " of " + v.get().lots().size() + " lots placed";
+		String note = whole ? null : "the village is " + st.name().toLowerCase() + ": " + placed + " of " + Words.count(v.get().lots().size(), "lot", "lots") + " placed";
 		if (note != null) say("The " + note.substring(4) + ".");
 		// water Architect had to drain (H: it leaked or escaped), said by name
 		for (String line : RegionReports.drained(v.get().ext())) say(line);
@@ -3390,8 +3404,8 @@ public final class SettlementRunner {
 		List<String> added = rv.get().lotsAdded() == null ? List.of() : rv.get().lotsAdded();
 		long placed = v.get().lots().stream().filter(l -> added.contains(l.id()) && "placed".equalsIgnoreCase(String.valueOf(l.state()))).count();
 		long skipped = Math.max(0, added.size() - placed);
-		String note = "PLACED".equalsIgnoreCase(st) ? null : "the town's change is " + st.toLowerCase(java.util.Locale.ROOT) + ": " + placed + " of " + added.size()
-			+ " lots placed";
+		String note = "PLACED".equalsIgnoreCase(st) ? null : "the town's change is " + st.toLowerCase(java.util.Locale.ROOT) + ": " + placed + " of "
+			+ Words.count(added.size(), "lot", "lots") + " placed";
 		if (note != null) say("The " + note.substring(4) + ".");
 		List<String> sites = rv.get().sites() == null ? List.of() : List.copyOf(rv.get().sites());
 		var ref = new Growths.Ref(vRegionId, rv.get().rid());
@@ -3661,7 +3675,7 @@ public final class SettlementRunner {
 		int units = total.values().stream().mapToInt(Integer::intValue).sum();
 		List<Map.Entry<net.minecraft.world.item.Item, Integer>> list = new java.util.ArrayList<>(total.entrySet());
 		list.sort((a, b) -> b.getValue() - a.getValue());
-		return "From materials it needs " + (exact ? "" : "about ") + units + " items of " + total.size() + " kinds: " + Stockpiles.items(list, 6) + ".";
+		return "From materials it needs " + (exact ? "" : "about ") + Words.count(units, "item", "items") + " of " + Words.count(total.size(), "kind", "kinds") + ": " + Stockpiles.items(list, 6) + ".";
 	}
 
 	/**
@@ -3672,7 +3686,8 @@ public final class SettlementRunner {
 		var street = Districts.streetOf(standing, s, null);
 		return (x, z) -> {
 			for (VillageLayout.Lot l : plan.lots()) if (x >= l.x() - 1 && x <= l.maxX() + 1 && z >= l.z() - 1 && z <= l.maxZ() + 1) return false;
-			if (Math.abs(z - plan.streetZ()) <= 3 && x >= plan.streetX0() - 3 && x <= plan.streetX1() + 3) return false;
+			int[] b = plan.spanBox(plan.streetX0() - 3, plan.streetX1() + 3, 3);
+			if (x >= b[0] && x <= b[2] && z >= b[1] && z <= b[3]) return false;
 			return street == null || !(Math.abs(z - street.z()) <= 3 && x >= street.x0() - 3 && x <= street.x1() + 3);
 		};
 	}

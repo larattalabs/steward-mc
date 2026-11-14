@@ -177,12 +177,14 @@ public final class StewardCommands {
 					String id = StringArgumentType.getString(ctx, "id");
 					// "village": the flat village without the settlement's composed plan; "plan" (or anything else): its plan when it has one (plan v1)
 					String which = StringArgumentType.getString(ctx, "which");
-					boolean legacy = "legacy".equals(which);
+					// "legacy_ns": Steward's own layout with its street laid north-south (the e2e check of a north-south street town)
+					boolean legacy = "legacy".equals(which) || "legacy_ns".equals(which);
 					dev.larattalabs.steward.gateway.VPlan.legacy(id, legacy);
+					dev.larattalabs.steward.gateway.VPlan.northSouthStreet(id, "legacy_ns".equals(which));
 					dev.larattalabs.steward.gateway.PPlan.villageOnly(id, "village".equals(which));
 					// kept over a restart (the e2e's restarts mid-build): a street town stays one
 					dev.larattalabs.steward.gateway.DevLayouts.save();
-					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "village".equals(which)
+					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" + ("legacy_ns".equals(which) ? ", its street north-south" : "") : "village".equals(which)
 						? "Architect's flat village when it applies" : "its plan, else Architect's flat village, when it applies")), false);
 					return 1;
 				})))).then(Commands.literal("offer_parts").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
@@ -355,15 +357,21 @@ public final class StewardCommands {
 					if (!host(src)) return 0;
 					String id = StringArgumentType.getString(ctx, "id");
 					if (dev.larattalabs.steward.service.Settlements.store().get(id).isEmpty()) { src.sendFailure(Component.literal("No such settlement: " + id)); return 0; }
-					var a = dev.larattalabs.steward.model.TalkAnswer.parse(com.google.gson.JsonParser.parseString(StringArgumentType.getString(ctx, "json")).getAsJsonObject());
-					dev.larattalabs.steward.service.Talk.act(src.getServer(), src.getPlayerOrException().getUUID(), id, "(dev)", a);
+					// an answer, or a talk fixture ({said, answer}: what was said reaches the land's reading, as Claude's answer would with the player's words)
+					var json = com.google.gson.JsonParser.parseString(StringArgumentType.getString(ctx, "json")).getAsJsonObject();
+					String said = json.has("answer") && json.has("said") ? json.get("said").getAsString() : "(dev)";
+					var a = dev.larattalabs.steward.model.TalkAnswer.parse(json.has("answer") ? json.getAsJsonObject("answer") : json);
+					dev.larattalabs.steward.service.Talk.act(src.getServer(), src.getPlayerOrException().getUUID(), id, said, a);
 					return 1;
 				})))).then(Commands.literal("propose_district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("way",
 				StringArgumentType.word()).executes(ctx -> {
 					// dev (the e2e check): a district proposal now, to accept like any other
 					if (!host(ctx.getSource())) return 0;
-					String r = dev.larattalabs.steward.service.Proposals.proposeDistrict(StringArgumentType.getString(ctx, "id"),
-						StringArgumentType.getString(ctx, "way").toUpperCase(java.util.Locale.ROOT), System.currentTimeMillis());
+					// "leftout": the steward's own district for the buildings the card left out (slice DP), its side chosen from the land
+					String way = StringArgumentType.getString(ctx, "way");
+					String r = "leftout".equalsIgnoreCase(way) ? dev.larattalabs.steward.service.Proposals.proposeLeftOut(ctx.getSource().getServer(),
+						ctx.getSource().getPlayerOrException().getUUID(), StringArgumentType.getString(ctx, "id"))
+						: dev.larattalabs.steward.service.Proposals.proposeDistrict(StringArgumentType.getString(ctx, "id"), way.toUpperCase(java.util.Locale.ROOT), System.currentTimeMillis());
 					ctx.getSource().sendSuccess(() -> Component.literal(r), false);
 					return 1;
 				})))).then(Commands.literal("site").then(Commands.argument("site",

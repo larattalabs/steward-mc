@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.gateway;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.DeltaRequest;
 import dev.larattalabs.architect.api.DeltaVerdict;
 import dev.larattalabs.architect.api.PartDelta;
@@ -76,7 +77,7 @@ public final class UpdatePlanner {
 		// a player's own build the steward looks after (Architect PT2): how much of it as they made it the change touches, and they always decide
 		boolean theirs = v.capturedTotal() > 0;
 		if (theirs) text += v.capturedChanged() == 0 ? ". It keeps every block of the build as you made it."
-			: ". It changes " + v.capturedChanged() + " of the " + v.capturedTotal() + " blocks of the build as you made it.";
+			: ". It changes " + v.capturedChanged() + " of the " + Words.count(v.capturedTotal(), "block", "blocks") + " of the build as you made it.";
 		// survival costs materials, so the player always decides; creative upgrades follow the permission level
 		boolean costs = !v.bom().isEmpty();
 		// a version that takes parts away is a demolition, which Autonomous asks about
@@ -102,8 +103,8 @@ public final class UpdatePlanner {
 			parts.add((d.status() == PartStatus.ADDED ? "+" : d.status() == PartStatus.REMOVED ? "-" : "") + d.name());
 		}
 		parts.sort(String::compareTo);
-		StringBuilder b = new StringBuilder(parts.size() + (parts.size() == 1 ? " part" : " parts") + " changed (" + String.join(", ", parts) + ")");
-		b.append(", ").append(v.added() + v.removed() + v.changed()).append(" blocks");
+		StringBuilder b = new StringBuilder(Words.count(parts.size(), "part", "parts") + " changed (" + String.join(", ", parts) + ")");
+		b.append(", ").append(Words.count(v.added() + v.removed() + v.changed(), "block", "blocks"));
 		if (!v.kept().isEmpty()) b.append(", ").append(v.kept().size()).append(v.kept().size() == 1 ? " edited block kept" : " edited blocks kept");
 		if (!v.bom().isEmpty()) b.append(", needs ").append(items(v.bom()));
 		if (!v.refund().isEmpty()) b.append(", refunds ").append(items(v.refund()));

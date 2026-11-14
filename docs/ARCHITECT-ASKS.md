@@ -1406,6 +1406,47 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
   - S-M5-9 is **BC**: an optional `maxBill` on `RealiseRequest`/`realiseApproved`, refused before any write, and a typed `bill_cap` wait. It
     comes after the safety queue (HF, PS, RL, SA, JR-b). It changes the API, so it reaches Steward as an RC.
   - At their releases, Steward offers watered modules in adopted street towns and passes the approved bound as `maxBill`.
+- **Steward's review of FK's S-M5-3 contract draft** (Architect slice/FK eb76dd59, CONTRACT "### FK contract", 2026-11-13): accepted, with
+  three changes.
+  - **A:** a lock is accepted only on a block whose state vanilla keeps, such as a lever. A hopper's `enabled` and a torch's `lit` are
+    recomputed by vanilla and would undo themselves. M4 locks the hall's input line with a lever on its first hopper (M0's tile locks D
+    through its own torch).
+  - **B:** the pre-fill wait for a declared container that isn't empty is a typed wait in `Sites.view` (`fill_blocked`, with the cells),
+    not only a message to the owner. `Sites.fillPhase` is not needed; SITE_BUILT after the unlock is enough.
+  - **C:** the fill and the custody write-back mark each container changed, so comparators re-read it.
+  - Refusing a crate-fed survival fill site is accepted: Steward's lots are stockpile targets.
+  - The fillers must be plain items. M0's renamed stick is out, since PS's crates refuse component stacks. M4 chooses the filler.
+  - **The coordinator, 2026-11-13:** A-C were passed to FK as given.
+    - The kit call is **`bp.fillContainers({containers, locks})`**: `bp.fill(box, block)` is the kit's box fill. The sidecar member stays
+      `fill`.
+    - Added, and in the RC:
+      - `SiteWait.nextNeeded` lists the fill's items while the target waits for them;
+      - a pending fill keeps its stock reserved in the feed order;
+      - the fill tick re-asserts each lock, with neighbour updates.
+    - An XR overwrite of a fill cell is refused at realise or put-down, not at plan check, because bound entries aren't known there.
+- **S-M5-10. Re-laid farmland is billed and not refunded** (M2's crop_farm re-certification on 0.65.0, 2026-11-13; Noah via parent session:
+  "Merge, ask Architect").
+  - **Seen:** a survival crop_farm site waits for half-fed materials (about 5 minutes), and its irrigation comes after the farmland. Vanilla
+    dries the bare farmland back to dirt, and Architect re-lays farmland on its own cell, charging a new dirt each time. Undo refunds the
+    quoted 210. In 5 of 6 runs the site paid 211-213 dirt and refunded 210: an item loss past the approved quote, never a mint. A site
+    that builds at once refunds exactly.
+  - **Asked:** re-laying farmland on Architect's own cell that dried to dirt bills nothing. If it must bill, count it against the bound and
+    refund it under the same key. Putting water before farmland in IRR's order would also avoid most of it.
+  - **Until then:** Steward's e2e stocks that round fully, and a waiting round reports its over-charge without failing.
+- **S-M5-11. Every crop_farm quote is inexact** (M2, 2026-11-13).
+  - **Seen:** on 0.64.1 and 0.65.0, every quote (108 measured, and every e2e quote) is `exact: false` with "a cell the plan reads is not
+    loaded", even with the lot loaded. FullBom's reason labels look swapped: the "not loaded" text is set where `updateShape` throws.
+  - **Effect:** Steward puts any inexact quote to the player, so a survival placement always asks once.
+  - **Asked:** give the right reason, and make the quote exact when every cell it reads is loaded.
+- **Architect's answer to S-M5-10 and S-M5-11** (coordinator, 2026-11-13): both accepted, in one strict slice, **BC+**.
+  - BC+ also carries S-M5-9's `maxBill` and A11's exact cut of same-state cells.
+  - The re-lay rule covers any case where vanilla reverts one of Architect's own cells.
+  - BC+ starts after SA merges. Its release comes with a Steward RC: `maxBill`, `bill_cap`, exact quotes and the refund fix. Steward's
+    stocked round stays until then.
+- **S-M5-8 shipped as IG-b** (Architect main 5ecf6fb3, 2026-11-13; in v0.66.0). An irrigated growth of an adopted street town now adds its
+  own stages (adopted, street, lots, fluids) instead of refusing. It works instantly only: adopted regions are still creative-only, and
+  survival adoption is Architect's slice SAD, next after SA. There's no API change and no RC. At v0.66.0, Steward lifts `ModuleOffer`'s "a
+  street town can't take a watered field yet" for creative adopted towns (slice A2L).
 - **Architect's answers (coordinator, 2026-11-12):** all as preferred.
   - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
   - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.
@@ -1467,3 +1508,11 @@ stockpile,supplied,adopt`, 127 of 130 checks over 27 flows; the 3 failures were 
 load average 100+, and rerun alone with `plan-build` and the new `stock-save` (a normal save and stop leaves 5 stockpiles and the player's inventory
 unchanged), PASS, 40 checks. `free --only districts,place,protect,farm` PASS, 35 checks. Screenshots of the card, its Interpretation tab and the
 history of the town with its cellar had a design-critic look: no leak in any visible line.
+
+### v0.65.0 RC (2026-11-13): PASS; the pin waits for crop_farm's re-certification
+Architect v0.65.0 (API 1.58.0, kit 0.60.0, catalogue 22; 7c's second RC: CO, SR, AQ, US, CX, TJ, PS, JR-b) is pinned on pin-065 (runtime minimum
+0.65.0), on main 0e12cc4. The build and unit tests pass (423/0). `stub --only survival,stockpile,supplied,adopt,refund,bill,village,plan,street,stock-save`,
+PASS, 112 checks over 22 flows (PS's ledger saves and JR-b's adopted-crate refunds through survival, supplied, adopt, the mechanisms and stock-save; SR
+through the street-town and plan flows); `free --only place,protect,farm,screens`, PASS, 54 checks. Steward calls none of CO, AQ, US or CX yet;
+pin-guard reads TJ's `apiVersion()` by reflection. PS's component guard covers `dev.crate.insert`, but its `items` stacks are always plain
+(coordinator). The pin merges after M2 and M3 land and crop_farm is re-certified on kit 0.60.0 (module.json pins the kit).

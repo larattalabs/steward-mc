@@ -1,6 +1,8 @@
 package dev.larattalabs.steward.model;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import java.util.ArrayList;
@@ -69,9 +71,31 @@ public record ConceptCard(
 		if (c.site.terrain == null || !List.of("find", "sculpt", "flat").contains(c.site.terrain)) {
 			throw new JsonParseException("site.terrain must be find, sculpt or flat");
 		}
-		// structured output usually obeys the schema, but the lists are read without trusting it
-		return new ConceptCard(c.name, c.site, c.style, c.purpose, c.story, c.constraints, orEmpty(c.avoid), c.interpretation == null ? "" : c.interpretation,
+		// structured output usually obeys the schema, but the lists are read without trusting it; a size outside S/M/L/XL (null among them) is dropped
+		Field site = c.site.size == null || FOOTPRINTS.contains(c.site.size) ? c.site : new Field(c.site.text, c.site.template, c.site.terrain, null);
+		return new ConceptCard(c.name, site, c.style, c.purpose, c.story, c.constraints, orEmpty(c.avoid), c.interpretation == null ? "" : c.interpretation,
 			orEmpty(c.contradictions), orEmpty(c.assumptions), sanitize(c.program));
+	}
+
+	/**
+	 * The card as the JSON its schema reads (schema/concept-card.schema.json): a field it leaves out is absent, never null. Only the templates are written
+	 * as null, since the schema requires them. Ring_city's card (2026-11-13) had no size and was written {@code "size": null}, which the schema refuses.
+	 */
+	public static JsonObject toJson(ConceptCard c) {
+		JsonObject o = new GsonBuilder().serializeNulls().create().toJsonTree(c).getAsJsonObject();
+		dropNulls(o);
+		return o;
+	}
+
+	private static void dropNulls(JsonElement e) {
+		if (e.isJsonArray()) for (JsonElement x : e.getAsJsonArray()) dropNulls(x);
+		if (!e.isJsonObject()) return;
+		var o = e.getAsJsonObject();
+		for (String k : List.copyOf(o.keySet())) {
+			if (o.get(k).isJsonNull()) {
+				if (!"template".equals(k)) o.remove(k);
+			} else dropNulls(o.get(k));
+		}
 	}
 
 	/** Whether the card says what to build (cards made before programs existed do not). */

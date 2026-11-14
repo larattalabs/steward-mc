@@ -1,0 +1,161 @@
+{
+ "source": "crop_farm@1 bounds step, Architect 0.64.1 (the 9x9 wheat quotes in its three Styles)",
+ "quotes": [
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 9,
+    "width": 9
+   },
+   "bible": "rustic",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 41,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:wheat_seeds": 74
+   },
+   "bomParts": {
+    "tiles:rv1_bd_9x9_whe_rus_irr_0_0_shell": {
+     "minecraft:dirt": 5
+    },
+    "tiles:rv1_props": {
+     "minecraft:lantern": 1,
+     "minecraft:oak_fence": 1
+    },
+    "tiles:rv1_verges": {
+     "minecraft:gravel": 38
+    },
+    "road:street_e_g1": {
+     "minecraft:gravel": 57,
+     "minecraft:lantern": 1,
+     "minecraft:oak_fence": 1
+    },
+    "lot:bd_9x9_whe_rus": {
+     "minecraft:chest": 1,
+     "minecraft:cobblestone": 41,
+     "minecraft:composter": 1,
+     "minecraft:dirt": 217,
+     "minecraft:lantern": 7,
+     "minecraft:spruce_fence": 43,
+     "minecraft:spruce_fence_gate": 1,
+     "minecraft:wheat_seeds": 74
+    }
+   },
+   "exact": false,
+   "notes": [
+    "lot bd_9x9_whe_rus (crop_farm_3_kv_756) may differ: a cell the plan reads is not loaded",
+    "the region's cells are the kit's bill over the plan survey; lots and roads are measured over the land now (loaded chunks), before the plan's own tiles write"
+   ]
+  },
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 9,
+    "width": 9
+   },
+   "bible": "fortress",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 41,
+    "minecraft:wheat_seeds": 74
+   },
+   "bomParts": {
+    "tiles:rv2_bd_9x9_whe_for_irr_0_0_shell": {
+     "minecraft:dirt": 5
+    },
+    "tiles:rv2_props": {
+     "minecraft:lantern": 1,
+     "minecraft:oak_fence": 1
+    },
+    "tiles:rv2_verges": {
+     "minecraft:gravel": 38
+    },
+    "road:street_e_g2": {
+     "minecraft:gravel": 57,
+     "minecraft:lantern": 1,
+     "minecraft:oak_fence": 1
+    },
+    "lot:bd_9x9_whe_for": {
+     "minecraft:chest": 1,
+     "minecraft:composter": 1,
+     "minecraft:dirt": 217,
+     "minecraft:lantern": 7,
+     "minecraft:spruce_fence": 43,
+     "minecraft:spruce_fence_gate": 1,
+     "minecraft:stone_bricks": 41,
+     "minecraft:wheat_seeds": 74
+    }
+   },
+   "exact": false,
+   "notes": [
+    "lot bd_9x9_whe_for (crop_farm_3_kv_757) may differ: a cell the plan reads is not loaded",
+    "the region's cells are the kit's bill over the plan survey; lots and roads are measured over the land now (loaded chunks), before the plan's own tiles write"
+   ]
+  },
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 9,
+    "width": 9
+   },
+   "bible": "desert",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:jungle_fence": 43,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:sandstone": 41,
+    "minecraft:wheat_seeds": 74
+   },
+   "bomParts": {
+    "tiles:rv3_bd_9x9_whe_des_irr_0_0_shell": {
+     "minecraft:dirt": 5
+    },
+    "tiles:rv3_props": {
+     "minecraft:lantern": 1,
+     "minecraft:oak_fence": 1
+    },
+    "tiles:rv3_verges": {
+     "minecraft:gravel": 38
+    },
+    "road:street_e_g3": {
+     "minecraft:gravel": 57,
+     "minecraft:lantern": 1,
+     "minecraft:oak_fence": 1
+    },
+    "lot:bd_9x9_whe_des": {
+     "minecraft:chest": 1,
+     "minecraft:composter": 1,
+     "minecraft:dirt": 217,
+     "minecraft:jungle_fence": 43,
+     "minecraft:jungle_fence_gate": 1,
+     "minecraft:lantern": 7,
+     "minecraft:sandstone": 41,
+     "minecraft:wheat_seeds": 74
+    }
+   },
+   "exact": false,
+   "notes": [
+    "lot bd_9x9_whe_des (crop_farm_3_kv_758) may differ: a cell the plan reads is not loaded",
+    "the region's cells are the kit's bill over the plan survey; lots and roads are measured over the land now (loaded chunks), before the plan's own tiles write"
+   ]
+  }
+ ]
+}

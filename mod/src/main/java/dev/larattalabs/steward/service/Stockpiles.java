@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.Stockpile;
 import dev.larattalabs.architect.api.StockpileRequest;
@@ -155,7 +156,7 @@ public final class Stockpiles {
 			int dropped = after.dropped().values().stream().mapToInt(Integer::intValue).sum() - droppedBefore;
 			if (dropped > 0 && !after.crates().isEmpty()) {
 				BlockPos c = after.crates().get(0);
-				say.accept(dropped + " items from older builds' crates did not fit in the stockpile and lie beside its crate at " + c.getX() + ", " + c.getY() + ", " + c.getZ()
+				say.accept(Words.count(dropped, "item", "items") + " from older builds' crates did not fit in the stockpile and lie beside its crate at " + c.getX() + ", " + c.getY() + ", " + c.getZ()
 					+ ": pick them up, or add a crate (/steward stockpile " + s.id() + " add) and put them in.");
 			}
 			return after;
@@ -212,7 +213,7 @@ public final class Stockpiles {
 			// a stockpile kept clear of a plan (its protected area): the area grows to take the new crate
 			String held = protectCrates(server, Settlements.store().get(s.id()).orElse(s), sp, false);
 			if (held != null) dropped.append(" Its ground could not be kept clear of plans: ").append(held).append('.');
-			return s.name() + "'s stockpile has " + sp.crates().size() + (sp.crates().size() == 1 ? " crate" : " crates") + " (" + sp.capacityStacks() + " stacks)." + dropped;
+			return s.name() + "'s stockpile has " + Words.count(sp.crates().size(), "crate", "crates") + " (" + Words.count(sp.capacityStacks(), "stack", "stacks")  + ")." + dropped;
 		} catch (UnsupportedOperationException | LinkageError e) {
 			return "This Architect has no stockpiles (it needs 0.20).";
 		} catch (RuntimeException e) {
@@ -223,7 +224,7 @@ public final class Stockpiles {
 	/** What the stockpile holds and what the builds still need, in a few lines (the most needed first). */
 	public static List<String> bill(Stockpile sp, int lines) {
 		List<String> out = new ArrayList<>();
-		out.add("Stockpile: " + sp.crates().size() + (sp.crates().size() == 1 ? " crate" : " crates") + ", " + sp.usedStacks() + " of " + sp.capacityStacks() + " stacks used.");
+		out.add("Stockpile: " + Words.count(sp.crates().size(), "crate", "crates") + ", " + sp.usedStacks() + " of " + Words.count(sp.capacityStacks(), "stack", "stacks") + " used.");
 		var short_ = shortfall(sp);
 		if (short_.isEmpty()) out.add(sp.outstanding().isEmpty() ? "Nothing is being built from it." : "It holds all that the builds still need.");
 		else {

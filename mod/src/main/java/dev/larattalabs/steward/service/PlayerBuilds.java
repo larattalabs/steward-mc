@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.Build;
 import dev.larattalabs.architect.api.BuildState;
@@ -63,7 +64,7 @@ public final class PlayerBuilds {
 			var entry = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.BUILD_ADOPTED, "Took on " + by(server, b) + "'s " + kind(b) + " (" + b.id() + ")",
 				List.of(new Settlement.SiteChange(r.siteId(), null, 0, r.version())), null, Settlement.Outcome.DONE);
 			boolean logged = Settlements.log(s.id(), entry).ok();
-			say.accept("The steward now looks after " + by(server, b) + "'s " + kind(b) + " (" + r.siteId() + ", " + r.cells() + " blocks): ask for changes to it, like a"
+			say.accept("The steward now looks after " + by(server, b) + "'s " + kind(b) + " (" + r.siteId() + ", " + Words.count(r.cells(), "block", "blocks") + "): ask for changes to it, like a"
 				+ " new floor. Undo lets it go, and it stays as it stands." + (logged ? "" : " " + Undo.UNLOGGED));
 		});
 	}

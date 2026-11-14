@@ -22,7 +22,7 @@ public final class ModuleOffer {
 		REGION_MATERIALS,
 		/** A street town Architect can take on as one region at its first growth: slice B, then A. */
 		ADOPT,
-		/** None: a north-south or Supplied street town, the legacy street path, a town in the wrong mode, or an Architect without growth. */
+		/** None: a Supplied or bent street town, the legacy street path, a town in the wrong mode, or an Architect without growth. */
 		NONE
 	}
 
@@ -148,7 +148,7 @@ public final class ModuleOffer {
 		parts.add("You carry " + crop + " seeds. I can lay " + kind.title() + " by the town (" + f[0] + " by " + f[1] + ")" + (o.rate() == null ? "" : ": " + o.rate()) + ".");
 		if (materials) {
 			parts.add("Planting it takes " + d.seedsNeeded() + " " + crop + " seeds from the stockpile" + (d.seedsHeld() < d.seedsNeeded() ? " (put " + (d.seedsNeeded() - d.seedsHeld())
-				+ " more in it)" : "") + ". The whole bill is at most " + ModuleBound.bill(o.bound(), 6) + ".");
+				+ " more in it)" : "") + ". " + dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + ".");
 		} else parts.add("It's free, and planted as it's placed.");
 		if (lampFallback) parts.add("It's lit by plain lanterns: your style's lamp is too dim.");
 		return String.join(" ", parts);

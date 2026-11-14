@@ -1,0 +1,173 @@
+{
+ "rustic": {
+  "roles": {
+   "wall": "minecraft:spruce_planks",
+   "wall_alt": "minecraft:calcite",
+   "trim": "minecraft:mossy_cobblestone",
+   "roof": "minecraft:dark_oak_planks",
+   "floor": "minecraft:spruce_planks",
+   "frame": "minecraft:spruce_log",
+   "accent": "minecraft:dark_oak_planks",
+   "light": "minecraft:lantern",
+   "glass": "minecraft:glass_pane",
+   "foundation": "minecraft:cobblestone",
+   "path": "minecraft:dirt_path"
+  },
+  "fence": "minecraft:spruce_fence",
+  "fenceGate": "minecraft:spruce_fence_gate"
+ },
+ "fortress": {
+  "roles": {
+   "wall": "minecraft:spruce_planks",
+   "wall_alt": "minecraft:calcite",
+   "trim": "minecraft:polished_andesite",
+   "roof": "minecraft:deepslate_tiles",
+   "floor": "minecraft:spruce_planks",
+   "frame": "minecraft:spruce_log",
+   "accent": "minecraft:dark_oak_planks",
+   "light": "minecraft:lantern",
+   "glass": "minecraft:glass_pane",
+   "foundation": "minecraft:stone_bricks",
+   "path": "minecraft:dirt_path"
+  },
+  "fence": "minecraft:spruce_fence",
+  "fenceGate": "minecraft:spruce_fence_gate"
+ },
+ "desert": {
+  "roles": {
+   "wall": "minecraft:jungle_planks",
+   "wall_alt": "minecraft:smooth_sandstone",
+   "trim": "minecraft:cut_sandstone",
+   "roof": "minecraft:smooth_sandstone",
+   "floor": "minecraft:jungle_planks",
+   "frame": "minecraft:jungle_log",
+   "accent": "minecraft:jungle_planks",
+   "light": "minecraft:lantern",
+   "glass": "minecraft:glass_pane",
+   "foundation": "minecraft:sandstone",
+   "path": "minecraft:dirt_path"
+  },
+  "fence": "minecraft:jungle_fence",
+  "fenceGate": "minecraft:jungle_fence_gate"
+ },
+ "nether": {
+  "roles": {
+   "wall": "minecraft:crimson_planks",
+   "wall_alt": "minecraft:calcite",
+   "trim": "minecraft:polished_andesite",
+   "roof": "minecraft:deepslate_tiles",
+   "floor": "minecraft:stone",
+   "frame": "minecraft:crimson_stem",
+   "accent": "minecraft:warped_planks",
+   "light": "minecraft:shroomlight",
+   "glass": "minecraft:glass_pane",
+   "foundation": "minecraft:blackstone",
+   "path": "minecraft:coarse_dirt"
+  },
+  "fence": "minecraft:crimson_fence",
+  "fenceGate": "minecraft:crimson_fence_gate"
+ },
+ "allStone": {
+  "roles": {
+   "wall": "minecraft:stone_bricks",
+   "wall_alt": "minecraft:calcite",
+   "trim": "minecraft:polished_andesite",
+   "roof": "minecraft:deepslate_tiles",
+   "floor": "minecraft:stone",
+   "frame": "minecraft:stone",
+   "accent": "minecraft:stone",
+   "light": "minecraft:lantern",
+   "glass": "minecraft:glass_pane",
+   "foundation": "minecraft:cobblestone",
+   "path": "minecraft:dirt_path"
+  },
+  "fence": "minecraft:oak_fence",
+  "fenceGate": "minecraft:oak_fence_gate"
+ },
+ "roofWood": {
+  "roles": {
+   "wall": "minecraft:stone_bricks",
+   "wall_alt": "minecraft:calcite",
+   "trim": "minecraft:polished_andesite",
+   "roof": "minecraft:cherry_planks",
+   "floor": "minecraft:stone",
+   "frame": "minecraft:stone",
+   "accent": "minecraft:stone",
+   "light": "minecraft:lantern",
+   "glass": "minecraft:glass_pane",
+   "foundation": "minecraft:cobblestone",
+   "path": "minecraft:dirt_path"
+  },
+  "fence": "minecraft:cherry_fence",
+  "fenceGate": "minecraft:cherry_fence_gate"
+ },
+ "woodName": {
+  "roles": {
+   "wall": "minecraft:stone_bricks",
+   "wall_alt": "minecraft:calcite",
+   "trim": "minecraft:polished_andesite",
+   "roof": "minecraft:deepslate_tiles",
+   "floor": "minecraft:stone",
+   "frame": "minecraft:spruce_log",
+   "accent": "minecraft:stone",
+   "light": "minecraft:lantern",
+   "glass": "minecraft:glass_pane",
+   "foundation": "minecraft:cobblestone",
+   "path": "minecraft:dirt_path",
+   "wood": "bamboo"
+  },
+  "fence": "minecraft:bamboo_fence",
+  "fenceGate": "minecraft:bamboo_fence_gate"
+ },
+ "stripped": {
+  "roles": {
+   "wall": "minecraft:stone_bricks",
+   "wall_alt": "minecraft:calcite",
+   "trim": "minecraft:polished_andesite",
+   "roof": "minecraft:deepslate_tiles",
+   "floor": "minecraft:stone",
+   "frame": "minecraft:stripped_dark_oak_log",
+   "accent": "minecraft:stone",
+   "light": "minecraft:lantern",
+   "glass": "minecraft:glass_pane",
+   "foundation": "minecraft:cobblestone",
+   "path": "minecraft:dirt_path"
+  },
+  "fence": "minecraft:dark_oak_fence",
+  "fenceGate": "minecraft:dark_oak_fence_gate"
+ },
+ "paleOak": {
+  "roles": {
+   "wall": "minecraft:stone_bricks",
+   "wall_alt": "minecraft:calcite",
+   "trim": "minecraft:polished_andesite",
+   "roof": "minecraft:deepslate_tiles",
+   "floor": "minecraft:stone",
+   "frame": "minecraft:stone",
+   "accent": "minecraft:pale_oak_planks",
+   "light": "minecraft:lantern",
+   "glass": "minecraft:glass_pane",
+   "foundation": "minecraft:cobblestone",
+   "path": "minecraft:dirt_path"
+  },
+  "fence": "minecraft:pale_oak_fence",
+  "fenceGate": "minecraft:pale_oak_fence_gate"
+ },
+ "mangroveRoots": {
+  "roles": {
+   "wall": "minecraft:stone_bricks",
+   "wall_alt": "minecraft:calcite",
+   "trim": "minecraft:polished_andesite",
+   "roof": "minecraft:deepslate_tiles",
+   "floor": "minecraft:acacia_slab",
+   "frame": "minecraft:mangrove_roots",
+   "accent": "minecraft:stone",
+   "light": "minecraft:lantern",
+   "glass": "minecraft:glass_pane",
+   "foundation": "minecraft:cobblestone",
+   "path": "minecraft:dirt_path"
+  },
+  "fence": "minecraft:acacia_fence",
+  "fenceGate": "minecraft:acacia_fence_gate"
+ }
+}

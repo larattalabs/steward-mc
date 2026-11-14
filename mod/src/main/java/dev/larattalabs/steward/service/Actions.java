@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.SiteEvents;
 import dev.larattalabs.steward.Steward;
@@ -365,7 +366,7 @@ public final class Actions {
 					int r = (int) amount, x = player.getBlockX(), y = player.getBlockY(), z = player.getBlockZ();
 					var b = ArchitectApi.get().sites(server).claimBuild(player.level().dimension(),
 						new net.minecraft.world.level.levelgen.structure.BoundingBox(x - r, y, z - r, x + r, y + Math.min(31, 2 * r), z + r), player);
-					return Result.ok("Claimed " + PlayerBuilds.name(server, b) + " (" + b.id() + ", " + b.cells() + " blocks): the steward builds round it and never over it.");
+					return Result.ok("Claimed " + PlayerBuilds.name(server, b) + " (" + b.id() + ", " + Words.count(b.cells(), "block", "blocks") + "): the steward builds round it and never over it.");
 				}
 				if ("build_release".equals(action)) {
 					var b = ArchitectApi.get().sites(server).releaseBuild(lot, player);
@@ -667,7 +668,7 @@ public final class Actions {
 			var at = dev.larattalabs.steward.model.DistrictRules.place(s.claim(), street, s.lands().districts(), Settlements.others(s.id()), s.lands().protect(), p.found(),
 				dev.larattalabs.steward.model.DistrictRules.RADII[0]);
 			if (at.ok()) proposed.add(new dev.larattalabs.steward.view.SettlementView.DistrictInfo(p.key(), p.title(), p.found(), at.claim().centerX(), at.claim().centerZ(),
-				at.claim().radius(), dev.larattalabs.steward.model.ClaimRules.side(at.claim().radius()), 0, 0));
+				at.claim().radius(), dev.larattalabs.steward.model.ClaimRules.side(at.claim().radius()), 0, 0, null, null, p.place()));
 		}
 		List<String> stock = Stockpiles.of(server, s).map(sp -> Stockpiles.bill(sp, 6)).orElse(List.of());
 		var builds = PlayerBuilds.in(server, s).stream().filter(b -> b.siteId() == null).map(b -> new dev.larattalabs.steward.view.SettlementView.PlayerBuildInfo(b.id(), PlayerBuilds.title(b), PlayerBuilds.by(server, b),
@@ -700,8 +701,8 @@ public final class Actions {
 
 	/** A card as the JSON the screens and the fixtures use. */
 	public static String cardJson(dev.larattalabs.steward.model.ConceptCard c) {
-		// nulls kept: the schema requires the nullable fields (a template of null) to be there
-		return new com.google.gson.GsonBuilder().serializeNulls().create().toJson(c);
+		// templates kept as null (the schema requires them), every other null left out (the schema has no null size, notes or budget)
+		return dev.larattalabs.steward.model.ConceptCard.toJson(c).toString();
 	}
 
 	private static String clip(String t, int n) {

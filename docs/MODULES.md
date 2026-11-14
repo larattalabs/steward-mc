@@ -325,7 +325,7 @@ variant is never made twice.
 ### 4.3 Where a module isn't placed (yet)
 
 - **Districts:** district growth (`dgrow`, D-S2) isn't built.
-- **North-south streets, Supplied street towns** (not adopted, S-AD-5) and the **legacy street path**: there is no region to irrigate. Lot
+- **Bent streets, Supplied street towns** (not adopted, S-AD-5) and the **legacy street path**: there is no region to irrigate. Lot
   designs never own fluids (IRR).
 - **Freezing biomes** (the farm), an Architect without the S-M5 features, and an unmeasured Minecraft version.
 
@@ -512,7 +512,7 @@ plans, with Noah's OK on the spend.
 
 ### M2 as built (2026-11-13)
 
-- **`crop_farm@1`** (`modules/crop_farm/1/`, program sha `c406df05…`, certified on Minecraft 26.3, Architect 0.64.1, kit/checker 0.59.0; fully re-measured from the 0.63.0 certificate, docs/MEASURE-M2.md).
+- **`crop_farm@1`** (`modules/crop_farm/1/`, program sha `c406df05…`, certified on Minecraft 26.3, Architect 0.65.0, kit/checker 0.60.0, with its survival bound per measured Style; fully re-measured from the 0.64.1 certificate, docs/MEASURE-M2.md).
   - **Sizes and crops.** Field sides 9, 18 or 27 (W = F + 2, D = F + 3); wheat, carrots, potatoes or beetroots. Three Styles: rustic,
     fortress, desert.
   - **The field.** Farmland at frame y 0, written `moisture=7`, with crops at age 0 (a ripe crop billed at one seed would be a free
@@ -537,8 +537,8 @@ plans, with Noah's OK on the spend.
   - It ran over the whole envelope (36 branches x 5 runs, all four facings, chunk corners, three Styles) and passed. The verdicts are in
     MEASURE-M2.md.
 - **Recording.** `tools/module-catalog.mjs record` certifies a real module only with its measurement's evidence: every step passed on these
-  exact files and versions, with field steps of 5 runs or more. It writes `bounds` (the whole growth's quoted bill per params, the maximum
-  over the 3 Styles) and `rates` (`{params, perDay, item}`) for M3.
+  exact files and versions, with field steps of 5 runs or more. It writes `bounds` (the whole growth's quoted bill per params and
+  measured Style, with each palette role's share of the lot: `[{params, style, bom, roleParts}]`, MEASURE-M2.md "For M3") and `rates` (`{params, perDay, item}`) for M3.
 - **Dev hooks** (ModuleDev, development environment only): `cells`, `growLot`, `takeItems`, `mobs` and `walk` (a fake player's collision
   walk). Harvest and replant use Architect's PT hooks (`dev.pt.breaks`, `dev.pt.uses`), so a player's crops are PT-recorded.
 - **No billing or undo code changed** in Steward: M2 measures Architect's.
@@ -562,9 +562,13 @@ certification gate, with a dev-only override bound that holds its bill on purpos
   - a watered module never goes to a town it would adopt: Architect's IG can't irrigate an adopted region (ask **S-M5-8**).
 
   Its params are the crop carried most and the largest size those seeds plant (a town built from materials counts its stockpile too). In
-  survival the measured bound (`measured.json bounds: [{params, bom}]`, the whole growth's bill) is shown and approved; with no bound, it is not
-  offered. The rate comes from `measured.json rates: [{params, perDay, item}]`, when there is one. A module offer is never reworded by
-  ProposalWords, and is priced $0 in the inbox (in survival, "at most <bound>").
+  survival the measured bound (`measured.json bounds`, the whole growth's bill) is shown and approved; with no bound, it is not
+  offered. A per-Style bound (`{params, style, bom, roleParts}`) is re-expressed in the town bible's blocks first (`StyleBound`, Noah's "a" of
+  2026-11-13): each Style's role counts move to the town's item for the same role (the lamp after the palette check, the wood by the kit's
+  rule, a dirt path billed as dirt), and the bound is the per-item maximum over the Styles. An entry without `roleParts` (the dev source) is
+  used as it is; with no readable bible, the Styles' bills as measured. The rate comes from `measured.json rates: [{params, perDay, item}]`, when there is one. A module offer is never reworded by
+  ProposalWords, and is priced $0 in the inbox (in survival, "at most <bound>"). The offer's words name every item of the bound, and the
+  inbox shows that bill as its own wrapped line of the proposals entry, so nothing the player approves at "Build it" is cut by its row.
 - **Coalescing and declines** (`ProposalRules`): by module identity (a standing site whose lot ext names the module, or an offer of the same id
   waiting, asked in talk included), never by building type. A standing or waiting module holds the decorative rule back. Declining
   `module.<id>` also declines `farm`; declining `farm` declines nothing more.

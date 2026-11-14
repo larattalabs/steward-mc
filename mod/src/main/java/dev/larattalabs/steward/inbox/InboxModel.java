@@ -1,9 +1,11 @@
 package dev.larattalabs.steward.inbox;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.steward.model.BudgetPolicy;
 import dev.larattalabs.steward.pipeline.Pipeline;
 import java.util.ArrayList;
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * What the inbox shows for one build: the decision it waits for (if any) in words, with what the player needs to decide it (the waiting lots, the budget
@@ -95,7 +97,7 @@ public final class InboxModel {
 		String decision = s.phase().terminal() ? s.phase().name() : d.name();
 		String headline = switch (d) {
 			case BIBLE -> "The style bible is ready. Approve it to design the buildings.";
-			case MASSINGS -> waitingLots.stream().filter(Lot::waiting).count() + " massings wait for you: approve them, or send one back with notes.";
+			case MASSINGS -> Words.count(waitingLots.stream().filter(Lot::waiting).count(), "massing waits", "massings wait") + " for you: approve them, or send one back with notes.";
 			case BUDGET -> String.format("Paused at %d%% of the $%.0f budget. Raise it to at least $%.0f to go on.", (int) (BudgetPolicy.SOFT_FRACTION * 100), s.budgetUsd(),
 				Pipeline.minimumRaise(s));
 			// (slice M3) a module's bill held past its bound: the decision is that bill, whole, as the player approves it
@@ -118,14 +120,32 @@ public final class InboxModel {
 			: (others == 1 ? "The steward has an idea for " + name + ": build it, or not now (it will not ask again)."
 				: "The steward has " + others + " ideas for " + name + ": build one, or decline it (it will not ask again).")
 				+ (parts ? " Waiting parts put off come back next time." : "");
-		return new Entry(settlementId, name, "PROPOSAL", headline, List.of(), ideas, 0, 0, 0);
+		// a survival module offer's bill is what the player approves at "Build it": shown whole, wrapped, never cut by its row (StyleBound)
+		List<String> lines = new ArrayList<>();
+		for (Lot l : ideas) {
+			String b = bill(l.detail());
+			if (b != null) lines.add(l.role() + ": " + b);
+		}
+		return new Entry(settlementId, name, "PROPOSAL", headline, lines, ideas, 0, 0, 0);
 	}
+
+	/** The words of an offer's bill ("The whole bill is at most ..."), to its sentence's end, or null. */
+	static @Nullable String bill(@Nullable String words) {
+		if (words == null) return null;
+		int i = words.indexOf(BILL);
+		if (i < 0) return null;
+		int end = words.indexOf(". ", i);
+		return end < 0 ? words.substring(i) : words.substring(i, end + 1);
+	}
+
+	/** How a module offer says its bound (ModuleOffer.why). */
+	public static final String BILL = "The whole bill is at most ";
 
 	/** A settlement's waiting updates: one lot per building (its id is the site id, {@code waiting} when it can be applied). */
 	public static Entry updates(String settlementId, String name, List<Lot> buildings) {
 		long ready = buildings.stream().filter(Lot::waiting).count();
 		String headline = ready == 0 ? "Updates are available but cannot be applied right now (see each building)."
-			: ready + (ready == 1 ? " building has" : " buildings have") + " a newer version: update, preview the change, or skip. Your own edits are kept.";
+			: Words.count(ready, "building has", "buildings have") + " a newer version: update, preview the change, or skip. Your own edits are kept.";
 		return new Entry(settlementId, name, "UPDATE", headline, List.of(), buildings, 0, 0, 0);
 	}
 

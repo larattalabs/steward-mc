@@ -259,12 +259,12 @@ const settlementsIn = (dir) => {
 
 /**
  * A loaded machine first (2026-11-12): three Architect gate runs, Gradle tests and this e2e together took the load to 75-85, and checks timed out. The
- * client starts once the 1-minute load average is at most E2E_LOAD_MAX (default 40, about twice the cores), waiting at most E2E_LOAD_WAIT_MIN minutes
- * (default 20; then it starts anyway and says so). E2E_LOAD_MAX=0 turns the wait off.
+ * client starts once the 1-minute load average is at most E2E_LOAD_MAX (default 72; Noah, 2026-11-13: "high at least 72 cap"), waiting at most E2E_LOAD_WAIT_MIN minutes
+ * (default 15; then it starts anyway and says so). E2E_LOAD_MAX=0 turns the wait off.
  */
 async function waitForLoad() {
-  const max = Number(process.env.E2E_LOAD_MAX ?? 40);
-  const waitMin = Number(process.env.E2E_LOAD_WAIT_MIN ?? 20);
+  const max = Number(process.env.E2E_LOAD_MAX ?? 72);
+  const waitMin = Number(process.env.E2E_LOAD_WAIT_MIN ?? 15);
   const load = () => Math.round(os.loadavg()[0] * 10) / 10;
   if (!(max > 0) || load() <= max) return;
   const t0 = Date.now();
@@ -1065,33 +1065,78 @@ async function districts(id) {
   const auto = await placedBy('district auto', 'auto e2e lumber camp', [cx, cz]);
   if (auto.made && auto.why) ok('district auto', `${auto.made.name} to the ${auto.made.direction}: ${auto.why}`);
   else fail('district auto', `${auto.said}; made ${JSON.stringify(auto.made)}, said "${auto.why}"`);
-  // the same through a proposal (the steward proposes a district when the town's street is full): accepted, it is founded and the proposal recorded
-  await cmd(`/tp @p ${cx + 90} ${Math.floor(gy)} ${cz + 12}`);
+  // (slice DP) the player stays in charge: a harbour asked for in talk to the east is previewed in survey mode with its place line; "no, by the lake"
+  // (a lake laid to the south first: the flat world has none) places it again by the water; the preview follows; accepted, it is founded there
+  const fixture = (f) => JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', f), 'utf8')));
+  const waitingDistrict = async (way, ms = 30_000) => {
+    for (let t = 0; t < ms; t += 1000) {
+      const p = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.found && !x.quarter);
+      if (p && (!way || p.found === way)) return p;
+      await sleep(1000);
+    }
+    return settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.found && !x.quarter) ?? null;
+  };
+  // where each side's square lies (its middle, roughly: N and S squares sit past the street's east end), and a spot at the town's edge facing it
+  const mid = { N: [cx + 60, cz - rv - 49], S: [cx + 60, cz + rv + 49], E: [cx + rv + 49, cz], W: [cx - rv - 49, cz] };
+  const edge = { N: [cx + 40, cz - rv + 30], S: [cx + 40, cz + rv - 30], E: [cx + rv - 30, cz + 70], W: [cx - rv + 30, cz + 70] };
+  const surveyShot = async (name, way) => {
+    // from above the town's edge on that side, looking out over the district's square
+    const [ex, ez] = edge[way], [lx, lz] = mid[way];
+    await cmd('/gamemode spectator');
+    await cmd(`/tp @p ${ex} ${Math.floor(gy) + 40} ${ez} facing ${lx} ${Math.floor(gy)} ${lz}`);
+    await sleep(1500);
+    await dev.request('dev.key', { key: 'u' });
+    await sleep(2500);
+    const shot = (await dev.request('dev.screenshot', { name, frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+    await dev.request('dev.key', { key: 'u' });
+    await cmd('/gamemode creative');
+    return shot;
+  };
+  await cmd(`/tp @p ${cx} ${Math.floor(gy)} ${cz}`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
-  await cmd(`/steward dev propose_district ${id} E`);
-  // survey mode previews it before it is founded: its square and a "Proposed" label, from above the town's east edge
-  await cmd('/gamemode spectator');
-  await cmd(`/tp @p ${cx + 100} ${Math.floor(gy) + 40} ${cz + 70} facing ${cx + 165} ${Math.floor(gy)} ${cz}`);
+  let tfrom = logSize();
+  await cmd(`/steward dev talk_answer ${id} ${fixture('harbour.json')}`);
+  const eastP = await waitingDistrict('E');
+  if (eastP && /as you asked, for the harbour/.test(eastP.place ?? '')) ok('district preview', `${eastP.title}: "${eastP.place}"; ${await surveyShot('e2e-district-proposed', 'E')}`);
+  else fail('district preview', `proposal ${JSON.stringify(eastP)}; ${logSince(tfrom).slice(-200)}`);
+  // a shallow lake across the town-side half of a side founding can take (the one "auto" took; the top grass layer turned to water), loaded where the
+  // player stands
+  const lakeWay = auto.made && auto.made.direction !== 'E' ? auto.made.direction : 'N';
+  const ly = Math.floor(gy) - 1;
+  const [lx0, lz0, lx1, lz1] = { N: [cx - 130, cz - rv - 44, cx + 230, cz - rv - 8], S: [cx - 130, cz + rv + 8, cx + 230, cz + rv + 44],
+    W: [cx - rv - 44, cz - 60, cx - rv - 8, cz + 60] }[lakeWay];
+  const stand = { N: [cx + 50, cz - rv + 10], S: [cx + 50, cz + rv - 10], W: [cx - rv + 10, cz] }[lakeWay];
+  await cmd(`/tp @p ${stand[0]} ${Math.floor(gy)} ${stand[1]}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  const filled = await cmd(`/fill ${lx0} ${ly} ${lz0} ${lx1} ${ly} ${lz1} minecraft:water replace minecraft:grass_block`);
   await sleep(1500);
-  await dev.request('dev.key', { key: 'u' });
-  await sleep(2500);
-  const pshot = (await dev.request('dev.screenshot', { name: 'e2e-district-proposed', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
-  await dev.request('dev.key', { key: 'u' });
-  await cmd('/gamemode creative');
-  await cmd(`/tp @p ${cx + 90} ${Math.floor(gy)} ${cz + 12}`);
-  ok('district preview', pshot);
-  const accepted = await cmd(`/steward proposals ${id} accept district_E`);
+  tfrom = logSize();
+  await cmd(`/steward dev talk_answer ${id} ${fixture('lake.json')}`);
+  const south = await waitingDistrict(lakeWay);
+  const said = (logSince(tfrom).match(/I would put it to the [^\n]*/) ?? [''])[0];
+  const others = (settlements().find((x) => x.id === id)?.proposals?.open ?? []).filter((x) => x.found && !x.quarter).length;
+  if (south?.found === lakeWay && /by the water, for the harbour/.test(south.place ?? '') && others === 1 && /instead of to the east/.test(said)) {
+    ok('district moved', `"no, by the lake" (${filled.slice(0, 40)}): ${south.title}, "${south.place}"; said "${said}"; ${await surveyShot('e2e-district-moved', lakeWay)}`);
+  } else return fail('district moved', `lake ${lakeWay}: ${filled}; proposal ${JSON.stringify(south)}, ${others} waiting, said "${said}"; ${logSince(tfrom).slice(-300)}`),
+    await cmd(`/steward proposals ${id} decline ${south?.key ?? 'district_E'}`), await cmd(`/fill ${lx0} ${ly} ${lz0} ${lx1} ${ly} ${lz1} minecraft:grass_block replace minecraft:water`);
+  await cmd(`/tp @p ${stand[0]} ${Math.floor(gy)} ${stand[1]}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  const key = south.key;
+  const accepted = await cmd(`/steward proposals ${id} accept ${key}`);
   let viaProposal = null;
   for (let i = 0; i < 20 && !viaProposal; i++) {
     await sleep(1000);
-    viaProposal = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.direction === 'E') ?? null;
+    viaProposal = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.direction === lakeWay) ?? null;
   }
   const ps = settlements().find((x) => x.id === id)?.proposals;
-  if (viaProposal && ps?.accepted?.includes('district_E') && !ps.open.some((p) => p.key === 'district_E')) ok('district proposal', `accepted: ${viaProposal.id} founded, the proposal recorded`);
+  if (viaProposal && ps?.accepted?.includes(key) && !ps.open.some((p) => p.key === key)) ok('district proposal', `accepted by the lake: ${viaProposal.id} "${viaProposal.name}" founded to the ${lakeWay}, the proposal recorded`);
   else fail('district proposal', `${accepted}; district ${JSON.stringify(viaProposal)}, proposals ${JSON.stringify(ps)}`);
-  await cmd(`/steward undo ${id}`);
-  await sleep(4000);
+  if (viaProposal) {
+    await cmd(`/steward undo ${id}`);
+    await sleep(4000);
+  }
   await closeScreens();
+  await cmd(`/fill ${lx0} ${ly} ${lz0} ${lx1} ${ly} ${lz1} minecraft:grass_block replace minecraft:water`);
 }
 
 /**
@@ -1694,6 +1739,98 @@ async function adoptFlow() {
   const off0 = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
   if (gone && off0.length === 0) ok('adopt town undo', `${gone.text}; the ground as before the town (0 cells differ)`);
   else fail('adopt town undo', `removed ${!!gone}; ${off0.length} cell(s) differ ${JSON.stringify(off0.slice(0, 3))}`);
+}
+
+/**
+ * (slice NS) A street town laid out north-south (Steward's own layout, its street along z, the lots facing east and west) is taken on as one region at its
+ * first addition exactly as the east-west one of {@link adoptFlow} is: the same card and size, so the same lots in the receipt, the same roads, the region
+ * PLACED and grown by revision 1 with as many sites; then undone as it is (the growth, the adoption, the town).
+ */
+async function adoptNorthSouthFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 36000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  // Steward's own street, laid north-south
+  await cmd(`/steward dev layout ${id} legacy_ns`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'North Street Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a north-south street town`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('adopt-ns', 'no card');
+  await closeScreens();
+  await clearAnimals();
+  const claim = settlements().find((x) => x.id === id).claim;
+  from = logSize();
+  await cmd(`/steward start ${id} 4 30`);
+  if (!(await buildThrough(id, from, 'adopt-ns town'))) return;
+  const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  if (!founding || /^region:/.test(founding.siteGroup ?? '')) return fail('adopt-ns', `not a street town: ${founding?.siteGroup}`);
+  await cmd(`/steward dev layout ${id} plan`);
+  await cmd(`/steward dev sim_answer talk ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', 'library.json'), 'utf8')).answer)}`);
+  await cmd(`/steward talk ${id} we need a library for the scholars`);
+  let lib = null;
+  for (let i = 0; i < 60 && !lib; i++) {
+    await sleep(1000);
+    lib = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key.startsWith('asked_')) ?? null;
+  }
+  if (!lib) return fail('adopt-ns', 'no library proposal');
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${lib.key}`);
+  const grew = await buildThrough(id, from, 'adopt-ns growth');
+  // the adoption's own line: the street read north-south, sent as {streetX, zLo, zHi}
+  const asked = logSince(from).match(new RegExp(`adopt ${id}: street (north-south|east-west) [xz] (-?\\d+) (-?\\d+)\\.\\.(-?\\d+), (\\d+) roads, (\\d+) lots`));
+  if (!grew) return fail('adopt-ns', `the growth did not finish; adoption asked: ${asked ? asked[0] : 'no'}`);
+  const log1 = settlements().find((x) => x.id === id)?.log ?? [];
+  const receipt = log1.filter((e) => e.kind === 'TOWN_ADOPTED' && /^region:/.test(e.siteGroup ?? '')).at(-1);
+  const region = receipt?.siteGroup?.slice('region:'.length);
+  const growth = log1.filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const v = region ? await dev.request('dev.region.state', { region }).catch(() => null) : null;
+  const rv = v?.view ?? v ?? {};
+  const inRegion = (founding.siteIds ?? []).filter((x) => (receipt?.siteIds ?? []).includes(x)).length;
+  const alongZ = asked && asked[1] === 'north-south' && Math.abs(Number(asked[2]) - claim.centerX) <= claim.radius;
+  if (!(alongZ && receipt && region && growth?.siteGroup === `revision:${region}:1` && rv.state === 'PLACED' && inRegion > 0)) {
+    return fail('adopt-ns', `asked ${asked ? asked[0] : 'no'}; receipt ${receipt?.siteGroup}; growth ${growth?.siteGroup}; region ${rv.state}; ${inRegion} of the founding build's sites`);
+  }
+  ok('adopt-ns', `the north-south street town (street x ${asked[2]}, z ${asked[3]}..${asked[4]}) taken on as ${region} (${receipt.siteIds.length} sites), grown by revision 1 (${growth.siteIds.length} sites)`);
+  // as the east-west town of the adopt flow (the same card at the same size): the same lots in the receipt, as many roads, as many grown sites
+  const ew = settlements().filter((x) => x.card?.name === 'Old Street Town' || x.name === 'Old Street Town').at(-1);
+  const ewLog = ew?.log ?? [];
+  const ewReceipt = ewLog.filter((e) => e.kind === 'TOWN_ADOPTED' && /^region:/.test(e.siteGroup ?? '')).at(-1);
+  const ewGrowth = ewLog.filter((e) => e.kind === 'PROJECT_PLACED' && /^revision:/.test(e.siteGroup ?? '')).at(-1);
+  const lotsOf = (e) => (e?.changes ?? []).filter((c) => c.lot).map((c) => c.lot).sort();
+  const roadsOf = (e) => (e?.changes ?? []).filter((c) => !c.lot).length;
+  const same = ewReceipt && JSON.stringify(lotsOf(ewReceipt)) === JSON.stringify(lotsOf(receipt)) && roadsOf(ewReceipt) === roadsOf(receipt)
+    && ewGrowth?.siteIds?.length === growth.siteIds.length;
+  if (same) ok('adopt-ns as east-west', `lots ${lotsOf(receipt).join(', ')}; ${roadsOf(receipt)} road(s); ${growth.siteIds.length} grown site(s), as the east-west town`);
+  else fail('adopt-ns as east-west', `north-south lots ${JSON.stringify(lotsOf(receipt))} roads ${roadsOf(receipt)} grown ${growth.siteIds.length}; east-west ${ewReceipt ? `lots ${JSON.stringify(lotsOf(ewReceipt))} roads ${roadsOf(ewReceipt)} grown ${ewGrowth?.siteIds?.length}` : 'no adoption to compare'}`);
+  await cmd(`/tp @p ${claim.centerX - claim.radius - 40} ~ ${claim.centerZ}`);
+  // undone as the east-west town is: the growth, the adoption (every site stands, in no region), the town
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) { await sleep(1000); last = settlements().find((x) => x.id === id)?.log.at(-1); }
+  await cmd(`/steward undo ${id}`);
+  let rel = null;
+  for (let i = 0; i < 120 && !rel; i++) {
+    await sleep(1000);
+    rel = (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'TOWN_RELEASED' && e.siteGroup === `region:${region}`) ?? null;
+  }
+  const standing = [];
+  for (const sid of founding.siteIds ?? []) if (/stands/.test(await cmd(`/steward dev site ${sid}`))) standing.push(sid);
+  await cmd(`/steward undo ${id}`);
+  let gone = null;
+  for (let i = 0; i < 300 && !gone; i++) {
+    await sleep(1000);
+    const e = settlements().find((x) => x.id === id)?.log.at(-1);
+    if (e?.kind === 'PROJECT_REMOVED' && founding.siteIds.every((x) => e.siteIds.includes(x))) gone = e;
+  }
+  if (last?.kind === 'PROJECT_REMOVED' && rel && standing.length === founding.siteIds.length && gone) ok('adopt-ns undo', `the growth, the adoption (${standing.length} sites standing), then the town`);
+  else fail('adopt-ns undo', `growth ${last?.kind}; released ${!!rel}; ${standing.length} of ${founding.siteIds.length} standing; town removed ${!!gone}`);
 }
 
 /**
@@ -4653,8 +4790,9 @@ async function moduleFlow() {
 /**
  * The module's survival flow (MODULES.md section 7, on the fixture): a Supplied town built from its stockpile; the module offered with the bound the dev
  * source gives (a tiny one: 1 dirt); accepted with the stockpile fully stocked → the quote is past the bound: the build holds and asks, nothing consumed;
- * approved → the bill becomes the bound and the growth is realised from materials, fed in part while placed; its targets' bills = what the stockpile
- * paid; undo refused while it is built, then (fed) undone with what it consumed refunded exactly once.
+ * stocked with the whole quote and approved → the bill becomes the bound and the growth is realised from materials at once; undo refused while it is
+ * built, then undone with what it consumed refunded exactly once. The mapped round: the measured bound in the town's blocks holds the quote. The
+ * waiting round (report only): a lot left waiting for its crop, fed in halves; paid against refunded per item and the wait (S-M5-10, farmland re-lay).
  */
 async function moduleSurvivalFlow() {
   const label = 'module survival';
@@ -4733,9 +4871,12 @@ async function moduleSurvivalFlow() {
     const tiny = sides.flatMap((width) => sides.flatMap((depth) => ['wheat', 'carrots', 'potatoes', 'beetroots'].map((crop) => ({ params: { crop, depth, width }, bom: { 'minecraft:dirt': 1 } }))));
     ok(`${label} source`, await moduleSource(tiny));
     // fully stocked: plenty of what a fenced plot takes (so nothing waits on the stockpile once approved)
-    // what crop_farm's measured bound for a wheat 9x9 names (its three Styles' maximum), and more of each
-    const measuredBound = (JSON.parse(fs.readFileSync(path.join(MODULE_DIR, 'measured.json'), 'utf8')).bounds ?? [])
-      .find((b) => b.params.crop === 'wheat' && b.params.width === 9 && b.params.depth === 9)?.bom ?? {};
+    // what crop_farm's measured bound for a wheat 9x9 names in the measured Styles' own blocks (the per-item maximum of its three), and more of each
+    const measuredBound = {};
+    for (const b of JSON.parse(fs.readFileSync(path.join(MODULE_DIR, 'measured.json'), 'utf8')).bounds ?? []) {
+      if (b.params.crop !== 'wheat' || b.params.width !== 9 || b.params.depth !== 9) continue;
+      for (const [k, n] of Object.entries(b.bom)) measuredBound[k] = Math.max(measuredBound[k] ?? 0, n);
+    }
     // twice each item, but the seeds exactly the 9x9's (with the 16 carried, too few for a larger field: the offer stays 9x9)
     const stock = Object.fromEntries(Object.entries(measuredBound).map(([k, n]) => [k, k === 'minecraft:wheat_seeds' ? n : n * 2 + 16]));
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: stock });
@@ -4767,12 +4908,17 @@ async function moduleSurvivalFlow() {
     const otherItems = quoted ? Object.keys(quoted).filter((k) => !(k in measuredBound)) : [];
     if (quoted && pastMeasured.length === 0) ok(`${label} measured bound`, `the quote's style-free items are within crop_farm's measured bound (${styleFree.map((k) => `${quoted[k] ?? 0}/${measuredBound[k]}`).join(', ')}); items of this Style the bound doesn't name: ${otherItems.join(', ') || 'none'}`);
     else fail(`${label} measured bound`, `quote ${JSON.stringify(quoted)}; past the measured bound: ${JSON.stringify(pastMeasured)}`);
-    // approved: the bill becomes the bound; realised from materials, fed in part while placed
-    nudge = region;
+    // stocked with the whole quote (this town's own fences, lamps and paths, twice; the seeds as they are) before it is approved, and fed in full while
+    // placed, so the lot builds at once: its undo refund then measures exactly what it should (a lot left waiting lays its farmland twice: the waiting
+    // round below)
+    if (!quoted) return fail(label, 'no quote logged to stock the round with');
+    await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(quoted).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
+    // approved: the bill becomes the bound; realised from materials, fed in full whatever the stockpile still asks for (every 3 s), never left waiting
     from = logSize();
+    feeding = true;
     await cmd(`/steward approve ${id}`);
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
-    nudge = null;
+    feeding = false;
     if (!grew) return;
     const g = await growthOf(id);
     const mods = await moduleSites(g.op);
@@ -4820,6 +4966,154 @@ async function moduleSurvivalFlow() {
     const off = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)) && !/crate|barrel|chest/.test(JSON.stringify(x)));
     if (last?.kind === 'PROJECT_REMOVED' && exact) ok(`${label} undo refund`, `paid ${JSON.stringify(paid)}, returned the same once; ${off.length} cell(s) differ outside the crates`);
     else fail(`${label} undo refund`, `last ${last?.kind}; paid ${JSON.stringify(paid)}; returned ${JSON.stringify(back)}`);
+    // the measured bound in this town's own blocks (Noah's "a", 2026-11-13): this town's Style is none of the three measured ones, and the
+    // live catalog's bound, re-expressed through its bible, is shown at the offer and holds the quote: placed without being asked again
+    const lbl = `${label} mapped`;
+    ok(`${lbl} source`, await moduleSource());
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+    // asked for in talk (a new offer by its sign waits out the 20-minute proposal cooldown; one asked for doesn't): the same offer, the same bound
+    const ask = { reply: 'A working field: I have put it in the inbox.', intent: 'building', building: { role: 'farm', type: 'farm', footprint: 'L', landmark: false },
+      module: { id: MODULE, params: { crop: 'wheat' } } };
+    await cmd(`/steward dev sim_answer talk ${JSON.stringify(ask)}`);
+    await cmd(`/steward talk ${id} we need a farm that grows food`);
+    // an offer asked for in talk is keyed asked_<time>_<lot>: found by its module
+    let offer2 = null;
+    for (let i = 0; i < 90 && !offer2; i++) {
+      await sleep(1000);
+      offer2 = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.module?.moduleId === MODULE) ?? null;
+    }
+    if (!offer2) return fail(`${lbl} offer`, `no module.${MODULE} proposal within 90 s of asking for it after the undo`);
+    const bound2 = offer2.module?.bound ?? {};
+    const own = Object.keys(bound2).filter((k) => !(k in measuredBound));
+    const theirs = Object.keys(measuredBound).filter((k) => !(k in bound2));
+    // every item of the bound is shown at the offer: what the player approves is the whole of it
+    const plain = (k) => k.replace(/^[^:]*:/, '').replaceAll('_', ' ');
+    const unshown = Object.entries(bound2).filter(([k, n]) => !new RegExp(`(^|[ ,])${n} ${plain(k)}(,| and|\\.|$)`).test(offer2.why)).map(([k]) => k);
+    if (offer2.module?.params?.width === 9 && offer2.module?.params?.depth === 9 && Object.keys(bound2).length && own.length && /at most/.test(offer2.why) && !unshown.length)
+      ok(`${lbl} offer`, `the bound in the town's blocks: ${JSON.stringify(bound2)} (its own: ${own.join(', ')}; the measured Styles' it doesn't name: ${theirs.join(', ') || 'none'})`);
+    else return fail(`${lbl} offer`, `${JSON.stringify(offer2).slice(0, 400)}; items of its own ${own.join(', ')}; not shown ${unshown.join(', ')}`);
+    // the inbox shows the whole bill as its own wrapped line (the row cuts the offer's words): a shot for the design check
+    await cmd(`/steward ui inbox ${id}`);
+    await sleep(1500);
+    const inboxShot2 = (await dev.request('dev.screenshot', { name: 'e2e-module-offer-inbox', frames: 5 }, { timeoutMs: 120_000 }).catch(() => ({}))).path ?? '';
+    await dev.request('dev.key', { key: 'escape' }).catch(() => null);
+    await sleep(800);
+    ok(`${lbl} inbox`, `shot ${inboxShot2 || 'none'}`);
+    // stocked with the bound (twice, the seeds as they are: the refund put them back), so nothing waits and nothing is heavy
+    await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound2).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
+    const sq0 = await ledger();
+    // accepted from the town; away once it is quoted
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+    await sleep(3000);
+    from = logSize();
+    nudge = region;
+    await cmd(`/steward proposals ${id} accept ${offer2.key}`);
+    await waitLog(from, new RegExp(`module ${id} quote `), 240_000);
+    await sleep(3000);
+    await away();
+    // the mapped bound holds the quote: never "more than you approved". Architect quotes every crop_farm lot inexactly (on 0.64.1 and 0.65.0, in
+    // every Style, the measured ones too: "a cell the plan reads is not loaded"), and that alone asks first (M3's rule): approved once, then placed
+    // with no second ask
+    const pastSaid = /The bill came to more than you approved[^\n]*/.exec(logSince(from));
+    if (pastSaid) return fail(lbl, `the quote was held past the mapped bound: ${pastSaid[0].slice(0, 300)}`);
+    const inexact = /Architect can't quote the bill exactly \(([^)]*\))[^\n]*/.exec(logSince(from));
+    if (inexact) {
+      ok(`${lbl} within the bound`, `not past the bound; asked only for Architect's inexact quote (${inexact[1].slice(0, 160)}): approved`);
+      await cmd(`/steward approve ${id}`);
+    }
+    const from2 = logSize();
+    const grew2 = await buildThrough(id, from, lbl, false, null, 1_200_000);
+    nudge = null;
+    const said2 = logSince(from);
+    const qline2 = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\}) \\(bound .*?, exact (true|false)`).exec(said2);
+    const quoted2 = qline2 ? JSON.parse(qline2[1]) : null;
+    const exact2 = qline2?.[2] === 'true';
+    const past2 = quoted2 ? Object.entries(quoted2).filter(([k, n]) => n > (bound2[k] ?? 0)) : null;
+    const askedAgain = /The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(logSince(from2));
+    const askedFirst = !inexact && /The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(said2);
+    const g2 = await growthOf(id);
+    const mods2 = await moduleSites(g2.op);
+    if (grew2 && quoted2 && past2.length === 0 && !askedAgain && !askedFirst && g2.m && g2.m[1] === region && mods2.length === 1)
+      ok(lbl, `quoted ${JSON.stringify(quoted2)} (exact ${exact2}), within the bound item by item; placed ${inexact ? 'once approved, without being asked again' : 'without being asked'}; revision ${g2.m[2]}, lot ${mods2[0].sid} = ${mods2[0].blueprint}`);
+    else return fail(lbl, `grew ${!!grew2}; quote ${JSON.stringify(quoted2)}; past ${JSON.stringify(past2)}; asked again ${askedAgain}; asked first ${askedFirst}; entry ${g2.op?.siteGroup}; module sites ${mods2.length}`);
+    // fed until built, then undone: the second growth comes off and what it consumed comes back
+    feeding = true;
+    for (let i = 0; i < 300; i++) {
+      const sp = await ledger();
+      if (Object.keys(sp?.need ?? {}).length === 0 && Object.keys(sp?.outstanding ?? {}).length === 0) break;
+      await sleep(3000);
+    }
+    feeding = false;
+    const sqB = await ledger();
+    await away();
+    await cmd(`/steward undo ${id}`);
+    let last2 = null;
+    for (let i = 0; i < 300 && last2?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(1000);
+      last2 = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    await sleep(20_000);
+    const sqR = await ledger();
+    const paid2 = Object.fromEntries(Object.entries(sqB?.consumed ?? {}).map(([k, c]) => [k, c - (sq0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const back2 = Object.fromEntries(Object.entries(sqR?.returned ?? {}).map(([k, c]) => [k, c - (sqB?.returned?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    // what it paid is what Architect quoted (exactly, for an exact quote; never an item or a count past it), and it all came back, nothing else
+    const eq = (a, b) => Object.keys({ ...a, ...b }).every((k) => (a[k] ?? 0) === (b[k] ?? 0));
+    const asQuoted2 = exact2 ? eq(paid2, quoted2) : Object.entries(paid2).every(([k, c]) => c <= (quoted2[k] ?? 0));
+    const ledgers2 = !!(sq0 && sqB && sqR);
+    if (last2?.kind === 'PROJECT_REMOVED' && ledgers2 && Object.keys(paid2).length && asQuoted2 && eq(paid2, back2))
+      ok(`${lbl} undo`, `paid ${JSON.stringify(paid2)} (as quoted${exact2 ? ', exactly' : ', within it'}), returned the same once`);
+    else fail(`${lbl} undo`, `last ${last2?.kind}; ledgers ${ledgers2}; paid ${JSON.stringify(paid2)}; quote ${JSON.stringify(quoted2)} exact ${exact2}; returned ${JSON.stringify(back2)}`);
+    // the waiting round (report only; Noah's "a+b", 2026-11-13): a carrot field with no carrots in the stockpile, so its lot waits and is fed half of
+    // what it needs every 30 s. Bare farmland waiting for its crop dries back to dirt and is laid again, past the quote, and the undo doesn't refund the
+    // re-laid cells: paid against refunded per item and the wait, never a failure, until Architect answers (S-M5-10, Architect's farmland re-lay)
+    const wl = `${label} waiting (report, S-M5-10, Architect's farmland re-lay)`;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+    await cmd('/give @p minecraft:carrot 16');
+    await cmd(`/steward dev sim_answer talk ${JSON.stringify({ ...ask, module: { id: MODULE, params: { crop: 'carrots' } } })}`);
+    await cmd(`/steward talk ${id} we need a field of carrots`);
+    let offer3 = null;
+    for (let i = 0; i < 90 && !offer3; i++) {
+      await sleep(1000);
+      offer3 = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.module?.moduleId === MODULE && x.key !== offer2.key) ?? null;
+    }
+    if (!offer3) { ok(wl, 'not run: no carrot offer within 90 s of asking for it'); return; }
+    const sw0 = await ledger();
+    await sleep(3000);
+    from = logSize();
+    nudge = region;
+    await cmd(`/steward proposals ${id} accept ${offer3.key}`);
+    await waitLog(from, new RegExp(`module ${id} quote `), 240_000);
+    await sleep(3000);
+    await away();
+    const qline3 = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(from));
+    const quoted3 = qline3 ? JSON.parse(qline3[1]) : null;
+    if (/The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(logSince(from))) await cmd(`/steward approve ${id}`);
+    const t3 = Date.now();
+    const r3 = results.length;
+    const grew3 = await buildThrough(id, from, wl, false, null, 1_200_000);
+    // report only: a stall in this round (often load) is recorded, never failed
+    for (const r of results.slice(r3)) if (r.check === wl && !r.ok) { r.ok = true; r.note = `report: ${r.why}`; console.log(`ok ${wl} (report: ${r.why})`); }
+    let waitedS = null;
+    for (let i = 0; grew3 && i < 300; i++) {
+      const sp = await ledger();
+      if (Object.keys(sp?.need ?? {}).length === 0 && Object.keys(sp?.outstanding ?? {}).length === 0) { waitedS = Math.round((Date.now() - t3) / 1000); break; }
+      await sleep(3000);
+    }
+    nudge = null;
+    const swB = await ledger();
+    await away();
+    await cmd(`/steward undo ${id}`);
+    let last3 = null;
+    for (let i = 0; i < 300 && last3?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(1000);
+      last3 = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    await sleep(20_000);
+    const swR = await ledger();
+    const paid3 = Object.fromEntries(Object.entries(swB?.consumed ?? {}).map(([k, c]) => [k, c - (sw0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const back3 = Object.fromEntries(Object.entries(swR?.returned ?? {}).map(([k, c]) => [k, c - (swB?.returned?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const short3 = Object.entries(paid3).filter(([k, c]) => (back3[k] ?? 0) !== c).map(([k, c]) => `${k.replace(/^minecraft:/, '')} paid ${c}, refunded ${back3[k] ?? 0}, quoted ${quoted3?.[k] ?? '?'}`);
+    ok(wl, `${grew3 ? `waited ${waitedS ?? '>900'} s for materials` : 'not built'}; last ${last3?.kind}; ${short3.length ? `over-charged: ${short3.join('; ')}` : 'refunded what it paid, item for item'}; paid ${JSON.stringify(paid3)}`);
   } finally {
     stop = true;
     if (feeder) await feeder.catch(() => null);
@@ -4884,6 +5178,7 @@ try {
       await flow('village', 'plan realise', () => villageFlow());
       await flow('growth', 'growth region realise undo replan orphan', () => growthFlow());
       await flow('adopt', 'adopt growth region undo', () => adoptFlow());
+      await flow('adopt-ns', 'adopt growth region undo street north-south', () => adoptNorthSouthFlow(), ['adopt']);
       await flow('follow', 'copies source update revert version', () => followFlow());
       await flow('land', 'land check perception inbox talk', () => landFlow());
       await flow('plan-build', 'plan', () => planBuildFlow());

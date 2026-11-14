@@ -222,4 +222,30 @@ class BatchPlannerTest {
 			assertFalse(BatchPlanner.isStreet(k), k);
 		assertEquals(p.streetZ(), streets.get(0).road().ext().get(BatchPlanner.STREET_Z).getAsInt(), "the line is recorded (its box also holds lanterns)");
 	}
+
+	@Test
+	void aNorthSouthStreetIsLaidAlongZAndRecordsItsOwnLine() throws Exception {
+		Settlement s = settlement(Difficulty.PATRON);
+		List<LotSpec> specs = new ArrayList<>();
+		for (int i = 0; i < 4; i++) specs.add(new LotSpec("lot_" + i, "house", 12, 11));
+		VillageLayout.Plan p = VillageLayout.plan(CLAIM, Grid.flat(-96, -96, 193, 193, 70), specs, VillageLayout.Rules.defaults(), true);
+		assertTrue(p.northSouth());
+		Map<String, String> entries = new HashMap<>();
+		Map<String, LotFit> fits = new HashMap<>();
+		for (Lot l : p.lots()) { entries.put(l.id(), "gen_" + l.id()); fits.put(l.id(), okFit(l)); }
+		BatchPlanner.Result r = BatchPlanner.build(s, p, Set.of(), entries, fits, null, false, false, true);
+		var street = r.batch().items().stream().filter(i -> BatchPlanner.isStreet(i.itemKey())).findFirst().orElseThrow().road();
+		assertEquals(List.of(p.streetZ(), p.streetZ()), street.points().stream().map(b -> b.getX()).toList(), "on the line's x");
+		assertEquals(List.of(p.streetX0(), p.streetX1()), street.points().stream().map(b -> b.getZ()).toList(), "from its first lot to its last along z");
+		var ext = street.ext();
+		assertFalse(ext.has(BatchPlanner.STREET_Z), "east-west readers pass it by");
+		assertEquals(p.streetZ(), ext.get(BatchPlanner.STREET_X).getAsInt());
+		assertEquals(p.streetX0(), ext.get(BatchPlanner.STREET_Z0).getAsInt());
+		assertEquals(p.streetX1(), ext.get(BatchPlanner.STREET_Z1).getAsInt());
+		// the stages still go out from the street's middle, along z
+		var stages = BatchPlanner.stages(p, Set.of());
+		int mid = (p.streetX0() + p.streetX1()) / 2;
+		Lot first = p.lots().stream().filter(l -> l.id().equals(stages.get(0).lotIds().get(0))).findFirst().orElseThrow();
+		for (Lot l : p.lots()) assertTrue(Math.abs((first.z() + first.maxZ()) / 2 - mid) <= Math.abs((l.z() + l.maxZ()) / 2 - mid));
+	}
 }

@@ -33,6 +33,7 @@ public final class DevLayouts {
 			if (o == null) return;
 			if (o.has("legacy")) for (var e : o.getAsJsonArray("legacy")) VPlan.legacy(e.getAsString(), true);
 			if (o.has("villageOnly")) for (var e : o.getAsJsonArray("villageOnly")) PPlan.villageOnly(e.getAsString(), true);
+			if (o.has("northSouth")) for (var e : o.getAsJsonArray("northSouth")) VPlan.northSouthStreet(e.getAsString(), true);
 			Steward.LOGGER.info("dev layouts kept over the restart: {}", o);
 		} catch (Exception e) {
 			Steward.LOGGER.warn("could not read {} (no dev layout kept)", file, e);
@@ -48,8 +49,11 @@ public final class DevLayouts {
 		VPlan.legacyIds().stream().sorted().forEach(legacy::add);
 		var village = new JsonArray();
 		PPlan.villageOnlyIds().stream().sorted().forEach(village::add);
+		var ns = new JsonArray();
+		VPlan.northSouthIds().stream().sorted().forEach(ns::add);
 		o.add("legacy", legacy);
 		o.add("villageOnly", village);
+		o.add("northSouth", ns);
 		try {
 			Path tmp = f.resolveSibling(FILE + ".tmp");
 			Files.writeString(tmp, o.toString(), StandardCharsets.UTF_8);
