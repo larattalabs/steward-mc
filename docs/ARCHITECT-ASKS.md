@@ -1538,3 +1538,12 @@ PASS, 112 checks over 22 flows (PS's ledger saves and JR-b's adopted-crate refun
 through the street-town and plan flows); `free --only place,protect,farm,screens`, PASS, 54 checks. Steward calls none of CO, AQ, US or CX yet;
 pin-guard reads TJ's `apiVersion()` by reflection. PS's component guard covers `dev.crate.insert`, but its `items` stacks are always plain
 (coordinator). The pin merges after M2 and M3 land and crop_farm is re-certified on kit 0.60.0 (module.json pins the kit).
+
+### SAD (survival adoption) contract review (2026-11-14): accepted
+
+Architect's draft (slice/SAD off bdc1cad1, no API change). Steward's answers:
+- S-SAD-1: refusing a site fed by a live crate until `adoptCrates` is fine. `Stockpiles.ensure` folds crates at every build from materials, and SST ensures the stockpile before `Regions.adopt`.
+- S-SAD-2: a building adopted lot blocking growth (`survival_unfinished`) is workable. Steward asked Architect to confirm that `RegionView.build()` counts adopted construction sites, since `Growths.modeRefusal` checks it before the designs are paid for.
+- S-SAD-3: the world's mode at adoption decides, and older adopted regions stay creative. Steward doesn't re-adopt on its own.
+- S-SAD-4: Hardcore adopts as Supplied.
+- Steward matches none of the reworded messages. The Steward side is slice SST, after SAD's release.
