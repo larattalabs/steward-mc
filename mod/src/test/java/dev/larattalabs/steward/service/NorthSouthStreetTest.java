@@ -162,4 +162,21 @@ class NorthSouthStreetTest {
 		assertEquals(new DistrictRules.Street(0, 40, 60, true), Districts.readStreet(List.of(inD, town), s, d).street());
 		assertEquals(new DistrictRules.Street(0, -30, 30, true), Districts.readStreet(List.of(inD, town), s, null).street());
 	}
+
+	@Test
+	void anOldUnrecordedTallPieceBesideAnEastWestStreetIsPassedByNotBent() {
+		// a street laid before lines were recorded: a short extension whose box (with its lanterns) is taller than wide stays out, as it always did
+		var main = new Districts.Piece("road", "street", false, -30, 20, -3, 3, 0, -30, 20);
+		var stub = box("street#2", 21, 23, -4, 4);
+		var read = Districts.readStreet(List.of(main, stub), S, null);
+		assertNull(read.why());
+		assertEquals(new DistrictRules.Street(0, -30, 20), read.street());
+		assertEquals(Districts.streetOfPieces(List.of(main, stub), S, null), read.street(), "as the east-west reader has it");
+		// the same town's adoption: taken on, on its east-west street
+		var town = Settlement.founded("set_1", "Here", TOWN, Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		var r = Adoption.readOf(List.of(ew("r1", "street", -30, 20, 0), new Adoption.Raw("r2", "road", "street#2", "minecraft:overworld", null, 21, 23, -4, 4, ext(), 1),
+			lot("s1", "set_1", "house_1", -20, 8)), town);
+		assertEquals(List.of("r1"), r.inventory().orElseThrow().roads());
+		assertFalse(r.inventory().get().northSouth());
+	}
 }

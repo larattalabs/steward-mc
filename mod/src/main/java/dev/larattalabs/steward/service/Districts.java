@@ -755,38 +755,43 @@ public final class Districts {
 	/**
 	 * The street of the town ({@code district} null) or of a district on either axis (pure): the same rule as {@link #streetOfPieces}, for a street that runs
 	 * east-west or north-south, laid in either direction. A piece's line is the one Steward recorded on it, else its box's middle across its longer side.
-	 * The first piece found sets the line; pieces on another line of the same axis are not this street. Pieces on both axes (a bent or L-shaped street):
-	 * none, and {@code why} says so.
+	 * The first piece found sets the line; pieces on another line of the same axis are not this street. An east-west street with a piece recorded
+	 * north-south (a bent or L-shaped street): none, and {@code why} says so. A tall piece with no recorded line beside an east-west street is passed by,
+	 * as {@link #streetOfPieces} does.
 	 */
 	public static StreetRead readStreet(List<Piece> pieces, Settlement s, Settlement.@Nullable District district) {
 		String dim = s.claim().dimension();
-		Integer ew = null, ns = null;
-		int ew0 = Integer.MAX_VALUE, ew1 = Integer.MIN_VALUE, ns0 = Integer.MAX_VALUE, ns1 = Integer.MIN_VALUE;
+		// east-west pieces, north-south pieces Steward recorded as such, and tall pieces with no line recorded (a street laid before lines were recorded,
+		// its box with its lanterns): those are north-south only when there is no east-west street, as the east-west reader passes them by
+		List<Line> ew = new java.util.ArrayList<>(), ns = new java.util.ArrayList<>(), tall = new java.util.ArrayList<>();
 		for (Piece v : pieces) {
 			if (!"road".equals(v.kind()) || !(v.streetFlag() || BatchPlanner.isStreet(v.itemKey()))) continue;
 			Line l = lineOf(v);
-			boolean northSouth = l.northSouth();
-			int line = l.line(), a0 = l.lo(), a1 = l.hi();
-			int cx = northSouth ? line : (a0 + a1) / 2, cz = northSouth ? (a0 + a1) / 2 : line;
+			int cx = l.northSouth() ? l.line() : (l.lo() + l.hi()) / 2, cz = l.northSouth() ? (l.lo() + l.hi()) / 2 : l.line();
 			var in = s.districtAt(dim, cx, cz);
 			boolean ours = district != null ? in.map(d -> d.id().equals(district.id())).orElse(false) : in.isEmpty();
 			if (!ours) continue;
-			if (northSouth) {
-				if (ns == null) ns = line;
-				if (line != ns) continue;
-				ns0 = Math.min(ns0, a0);
-				ns1 = Math.max(ns1, a1);
-			} else {
-				if (ew == null) ew = line;
-				if (line != ew) continue;
-				ew0 = Math.min(ew0, a0);
-				ew1 = Math.max(ew1, a1);
-			}
+			(!l.northSouth() ? ew : v.nsX() != null ? ns : tall).add(l);
 		}
-		if (ew != null && ns != null) return new StreetRead(null, "its street turns (pieces run both east-west and north-south), and only a straight street is taken on");
-		if (ns != null) return new StreetRead(new DistrictRules.Street(ns, ns0, ns1, true), null);
-		if (ew != null) return new StreetRead(new DistrictRules.Street(ew, ew0, ew1), null);
+		if (!ew.isEmpty() && !ns.isEmpty()) return new StreetRead(null, "its street turns (pieces run both east-west and north-south), and only a straight street is taken on");
+		if (!ew.isEmpty()) return new StreetRead(along(ew, false), null);
+		if (!ns.isEmpty() || !tall.isEmpty()) {
+			List<Line> all = new java.util.ArrayList<>(ns);
+			all.addAll(tall);
+			return new StreetRead(along(all, true), null);
+		}
 		return new StreetRead(null, null);
+	}
+
+	/** The street the pieces make: the first piece's line, from the lowest end to the highest of the pieces on it (pieces on another line are not it). */
+	private static DistrictRules.Street along(List<Line> lines, boolean northSouth) {
+		int line = lines.get(0).line(), lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
+		for (Line l : lines) {
+			if (l.line() != line) continue;
+			lo = Math.min(lo, l.lo());
+			hi = Math.max(hi, l.hi());
+		}
+		return new DistrictRules.Street(line, lo, hi, northSouth);
 	}
 
 	/** {@link #streetOf} over pieces (pure). */
