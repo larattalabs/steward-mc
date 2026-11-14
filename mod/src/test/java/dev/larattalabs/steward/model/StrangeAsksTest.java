@@ -18,7 +18,7 @@ import org.junit.jupiter.api.Test;
  */
 class StrangeAsksTest {
 	/** Asks not built today whose words make the card say what waits (raise it as CardLimits learns; never lower it). */
-	static final int HONEST_BASELINE = 22;
+	static final int HONEST_BASELINE = 43;
 
 	private static JsonObject json(String name) throws Exception {
 		try (InputStream in = StrangeAsksTest.class.getClassLoader().getResourceAsStream("strange-asks/" + name)) {

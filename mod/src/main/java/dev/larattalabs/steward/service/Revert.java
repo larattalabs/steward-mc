@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.SiteVersion;
 import dev.larattalabs.architect.api.Sites;
@@ -53,7 +54,7 @@ public final class Revert {
 			boolean ok = err == null && r.applied();
 			String why = err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
 				: r.refusals().stream().map(x -> x.message()).reduce((a, b) -> a + "; " + b).orElse("refused");
-			String msg = ok ? "Reverted " + lot + " to version " + r.toVersion() + " (" + r.written() + " blocks" + (r.kept().isEmpty() ? "" : ", " + r.kept().size()
+			String msg = ok ? "Reverted " + lot + " to version " + r.toVersion() + " (" + Words.count(r.written(), "block", "blocks") + (r.kept().isEmpty() ? "" : ", " + r.kept().size()
 				+ " of your edits kept") + ")." : "Could not revert " + lot + ": " + why;
 			var logged = Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.REVERTED, msg, List.of(new Settlement.SiteChange(siteId, lot,
 				ok ? r.fromVersion() : from, ok ? r.toVersion() : toVersion)), null, ok ? Settlement.Outcome.DONE : Settlement.Outcome.FAILED));

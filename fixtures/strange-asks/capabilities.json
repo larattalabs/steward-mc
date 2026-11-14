@@ -50,9 +50,13 @@
     },
     "sculpted_forms": {
       "name": "big custom forms (a crater, an island, a sky city)",
+      "status": "now"
+    },
+    "raised_climbs": {
+      "name": "a long climb up to a raised form (a stair to a floating island)",
       "status": "nearest",
-      "nearest": "craters, floating islands and hollowed mountains are built (7c BF), with relief, terraces, rock spires, ice spikes, giant trees and mushrooms; a long stair up to a floating island is refused NO_CLIMB and a hold stands beside its mountain, not inside",
-      "comes": "Architect's climbs to a raised form (a long stair answers NO_CLIMB)"
+      "nearest": "the floating island is built (7c BF); no stair or switchback climbs that high, and a long stair is refused NO_CLIMB",
+      "comes": "Architect's climbs to a raised form"
     },
     "over_water": {
       "name": "buildings over or on water (stilts, a lagoon)",
@@ -176,5 +180,5 @@
       "status": "now"
     }
   },
-  "refreshed": "2026-11-12: statuses from Architect's plan catalogue (main bdd1fdc0) and what Steward ships (growth through revisions, plan v1 zones, walls and gatehouses, Supplied builds), for Architect's 7c ordering (S-7c-9)"
+  "refreshed": "2026-11-13: sculpted_forms built (Architect 0.64.1, 7c BF: craters, floating islands, hollowed mountains; CardLimits no longer says they wait); the long stair to a floating island split out as raised_climbs (slice CW)"
 }

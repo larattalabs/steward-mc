@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.RemoveOptions;
 import dev.larattalabs.architect.api.RemoveResult;
@@ -43,7 +44,7 @@ public final class Undo {
 			int from = now.getOrDefault(id, b == null ? -1 : b.to());
 			return new Settlement.SiteChange(id, b == null ? null : b.lot(), from, 0);
 		}).toList();
-		return Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_REMOVED, "Undid " + gone.size() + " sites of \"" + placed.text() + "\"" + (placed.op() == null
+		return Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_REMOVED, "Undid " + Words.count(gone.size(), "site", "sites") + " of \"" + placed.text() + "\"" + (placed.op() == null
 			? "" : " (" + placed.op() + ")"), changes, null, whole ? Settlement.Outcome.DONE : Settlement.Outcome.PARTIAL);
 	}
 
@@ -114,7 +115,7 @@ public final class Undo {
 		boolean adopted = entry.get().kind() == Settlement.Kind.BUILD_ADOPTED;
 		// a growth says its own (it may be refused before anything is asked: still built from the stockpile, slice A2)
 		if (!Growths.isGrowth(entry.get().siteGroup())) say.accept(adopted ? "Letting go of \"" + entry.get().text() + "\": the build stays as it stands..."
-			: "Removing " + ids.size() + " sites of \"" + entry.get().text() + "\" and restoring the land...");
+			: "Removing " + Words.count(ids.size(), "site", "sites") + " of \"" + entry.get().text() + "\" and restoring the land...");
 		var sites = ArchitectApi.get().sites(server);
 		RemoveOptions as = new RemoveOptions(false, s.owner());
 		UNDOING.add(s.id());
@@ -142,9 +143,9 @@ public final class Undo {
 				UNDOING.remove(s.id());
 			districts(server, s, say);
 				if (err != null) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
-				else if (!r.removed()) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: blocked by "
+				else if (!r.removed()) say.accept("Undo stopped after " + gone.size() + " of " + Words.count(standing.size(), "site", "sites") + ": blocked by "
 					+ (r.blockers().isEmpty() ? "something in a box" : String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
-				else say.accept("Undone: removed " + gone.size() + " sites, the land is restored.");
+				else say.accept("Undone: removed " + Words.count(gone.size(), "site", "sites") + ", the land is restored.");
 			});
 			return true;
 		}
@@ -175,13 +176,13 @@ public final class Undo {
 			districts(server, s, say);
 			if (err != null) {
 				Steward.LOGGER.warn("undo of {} failed", s.id(), err);
-				say.accept("Undo stopped after " + removed.size() + " of " + ids.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
+				say.accept("Undo stopped after " + removed.size() + " of " + Words.count(ids.size(), "site", "sites") + ": " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
 			} else if (stop != null) {
-				say.accept("Undo stopped after " + removed.size() + " of " + ids.size() + " sites: " + stop + " Clear it and run /steward undo " + s.id() + " again.");
+				say.accept("Undo stopped after " + removed.size() + " of " + Words.count(ids.size(), "site", "sites") + ": " + stop + " Clear it and run /steward undo " + s.id() + " again.");
 			} else if (adopted) {
 				say.accept("Undone: the steward no longer looks after it, and the build stands as it was.");
 			} else {
-				say.accept("Undone: removed " + removed.size() + " sites, the land is restored.");
+				say.accept("Undone: removed " + Words.count(removed.size(), "site", "sites") + ", the land is restored.");
 			}
 		});
 		return true;

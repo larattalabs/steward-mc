@@ -37,7 +37,8 @@ crater (template null), purpose = mining facility (`mining_outpost`), story = re
 mine head over the crater shaft, worker barracks (count 4) and a brimstone shrine. Keep the player's own words in `text`; do not replace them with a template name.
 
 Terrain: use `sculpt` only when the site clearly needs a form that does not exist naturally (a crater, a rift, a floating island);
-use `find` when existing land could work; `flat` for ordinary settlements. Size: S, M, L or XL, defaulting to M unless they imply otherwise.
+use `find` when existing land could work; `flat` for ordinary settlements. Size: S, M, L or XL, defaulting to M unless they imply otherwise; when you
+cannot tell, leave `size` out. Never write null for it, or for any field the schema does not mark as nullable (only the templates are).
 
 `interpretation` is one short paragraph in plain words addressed to the player, saying what you took each field to mean. List any
 **contradictions** (for example a friendly farm town in a hellish style) with how you resolved them: usually by keeping both and
