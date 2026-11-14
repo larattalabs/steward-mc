@@ -62,7 +62,12 @@ public final class DistrictLand {
 		for (JsonElement e : out.getAsJsonArray("runs")) {
 			if (!e.isJsonArray() || e.getAsJsonArray().size() != 4) return null;
 			JsonArray r = e.getAsJsonArray();
-			for (JsonElement x : r) if (!x.isJsonPrimitive() || !x.getAsJsonPrimitive().isNumber()) return null;
+			// exact integers only (a 1.9 is never read as 1)
+			for (JsonElement x : r) {
+				if (!x.isJsonPrimitive() || !x.getAsJsonPrimitive().isNumber()) return null;
+				double v = x.getAsDouble();
+				if (v != Math.rint(v) || v < Integer.MIN_VALUE || v > Integer.MAX_VALUE) return null;
+			}
 			int x0 = r.get(0).getAsInt(), z = r.get(1).getAsInt(), x1 = r.get(2).getAsInt();
 			if (r.get(3).getAsInt() != z) return null;
 			runs.add(new Land.Run(z, Math.min(x0, x1), Math.max(x0, x1)));

@@ -5182,6 +5182,17 @@ async function dgAsk(id, d, role) {
   return null;
 }
 
+/** (DG) A land's columns as a set of "x,z" (saved runs {z,x0,x1}). */
+const dgCols = (l) => { const o = new Set(); for (const r of l?.runs ?? []) for (let x = r.x0; x <= r.x1; x++) o.add(`${x},${r.z}`); return o; };
+/** (DG) What a beside district owns by Steward's rule: its reservation (its claim's square) and its region's land.outside. */
+async function dgExpected(d, region) {
+  const o = new Set();
+  for (let z = d.claim.centerZ - d.claim.radius; z <= d.claim.centerZ + d.claim.radius; z++) for (let x = d.claim.centerX - d.claim.radius; x <= d.claim.centerX + d.claim.radius; x++) o.add(`${x},${z}`);
+  for (const [x0, z, x1] of (await regionView(region)).ext?.['architect_mc:land']?.outside?.runs ?? []) for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) o.add(`${x},${z}`);
+  return o;
+}
+const dgSame = (a, b) => a.size === b.size && [...a].every((k) => b.has(k));
+
 /** (DG) The district's saved land, in columns. */
 const dgCells = (l) => (l?.runs ?? []).reduce((a, r) => a + (r.x1 - r.x0 + 1), 0);
 const dgDistrict = (id, did) => settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.id === did) ?? null;
@@ -5257,7 +5268,7 @@ async function districtGrowthFlow() {
   const out1 = rv.ext?.['architect_mc:land']?.outside?.cells ?? -1;
   const diff = await dev.call('dev.region.hash', { box: townBox, mode: 'diff', file: snap }, { timeoutMs: 600_000 });
   const off = (diff.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
-  const grewLand = dgCells(d1?.land) >= land0 && out1 >= out0;
+  const grewLand = out1 > out0 && dgSame(dgCols(d1?.land), await dgExpected(d1 ?? d, region));
   if (planned && op && rev && /^(PLACED|PARTIAL)$/.test(rev.state) && (op.siteIds ?? []).every((x) => (rev.sites ?? []).includes(x)) && d1?.state === 'standing'
     && d1?.region === region && grewLand && off.length === 0 && !/waits for Architect's growth/.test(logSince(from))) {
     ok(label, `${grew.placed} placed as revision ${rid} of ${region} (${rev.state}, lots ${(rev.lotsAdded ?? []).join(', ')}); land ${land0} -> ${dgCells(d1.land)} columns, outside ${out0} -> ${out1}; the town's ground unchanged`);
@@ -5291,7 +5302,12 @@ async function districtGrowthFlow() {
     const revs0 = ((await regionView(region)).revisions ?? []).length;
     await quit();
     fs.writeFileSync(bf, JSON.stringify(saved));
-    editSettlement(id, (st) => { st.log = st.log.filter((e) => e.siteGroup !== e1.siteGroup); });
+    // and the district's land as a crash before its save would leave it: a row of its reservation cut away (the sweep reads it again at the start)
+    editSettlement(id, (st) => {
+      st.log = st.log.filter((e) => e.siteGroup !== e1.siteGroup);
+      const dd = st.lands.districts.find((x) => x.id === d.id);
+      dd.land = { ...dd.land, runs: (dd.land?.runs ?? []).filter((r) => r.z !== d.claim.centerZ) };
+    });
     launch();
     await connect();
     const resumed = await waitLog(0, new RegExp(`resume ${id}: [^\\n]*`), 60_000);
@@ -5302,7 +5318,26 @@ async function districtGrowthFlow() {
     const revs1 = ((await regionView(region)).revisions ?? []).length;
     if (resumed && again && logged && once && revs1 === revs0) ok(rl, `${e1.siteGroup} found by its keys after the restart (between its realise and its entry), logged once, no second revision`);
     else fail(rl, `resumed ${!!resumed}; placed ${!!again}; logged ${!!logged} (once ${once}); revisions ${revs0} -> ${revs1}; ${chatTail(0)}`);
+    // the land cut away before the restart is read again from the region by the sweep, exactly
+    let fixed = false;
+    for (let i = 0; i < 60 && !fixed; i++) { fixed = dgSame(dgCols(dgDistrict(id, d.id)?.land), await dgExpected(d, region)); if (!fixed) await sleep(1000); }
+    if (fixed) ok(`${label} land put right`, `the district's land, cut by a row before the restart, read again from ${region}: ${dgCells(dgDistrict(id, d.id).land)} columns, exactly its reservation and land.outside`);
+    else fail(`${label} land put right`, `land ${dgCells(dgDistrict(id, d.id)?.land)} columns, expected ${(await dgExpected(d, region)).size}`);
     standing = e1;
+  }
+  // a second standing growth above it (two growths of the district stand; undone head first later)
+  let second2 = null;
+  {
+    const q = await dgAsk(id, d, 'ward forge');
+    if (!q) return fail(`${label} second standing`, 'no proposal');
+    await clearAnimals();
+    from = logSize();
+    await cmd(`/steward proposals ${id} accept ${q.key}`);
+    const placed = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings placed/, 900_000);
+    second2 = placed ? await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && new RegExp(`^revision:${region}:\\d+$`).test(e.siteGroup ?? '') && e.siteGroup !== standing?.siteGroup, 30) : null;
+    const tags = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED' && new RegExp(`^revision:${region}:`).test(e.siteGroup ?? '')).map((e) => e.siteGroup);
+    if (second2 && standing) ok(`${label} second standing`, `${standing.siteGroup} and ${second2.siteGroup} stand (${tags.length} growth entries in all)`);
+    else fail(`${label} second standing`, `placed ${!!placed}; ${chatTail(from)}`);
   }
   // the world turned to building from materials: a district built at once is refused by the mode gate before anything is spent
   {
@@ -5335,12 +5370,24 @@ async function districtGrowthFlow() {
     if ((rm?.removed === true || (tgone?.view?.state ?? tgone?.state) === 'REMOVED') && dd?.state === 'standing' && dd?.region === region && dv.state === 'PLACED' && srev && srev.state !== 'UNDONE') {
       ok(tl, `${town} removed; ${d.name} stands with ${region} and its growth ${srid}`);
     } else fail(tl, `remove ${JSON.stringify(rm).slice(0, 120)}; district ${JSON.stringify(dd)?.slice(0, 120)}; region ${dv.state}; growth ${srev?.state}`);
-    const g2 = standing ? await undoOnce(id, c) : null;
-    const rr = ((await regionView(region)).revisions ?? []).find((r) => r.rid === srid);
+    // a restart with the town gone: the district, its region and its growths read as before (never taken for the town)
+    await restartClient();
+    const after = dgDistrict(id, d.id);
+    if (after?.state === 'standing' && after?.region === region && (await regionView(region)).state === 'PLACED') ok(`${tl}, restarted`, `${d.name} still stands with ${region} after the restart`);
+    else fail(`${tl}, restarted`, `district ${JSON.stringify(after)?.slice(0, 160)}`);
+    // undone head first: the newer growth, then the older one, each once; the land back to its reservation and outside
+    const n0 = removedCount(id);
+    const ga = await undoOnce(id, c);
+    const gb = await undoOnce(id, c);
+    const revs = (await regionView(region)).revisions ?? [];
+    const rid2 = second2 ? Number(second2.siteGroup.split(':').at(-1)) : null;
+    const undoneBoth = [srid, rid2].every((x) => revs.find((r) => r.rid === x)?.state === 'UNDONE');
     let back = null;
-    for (let i = 0; i < 30 && !back; i++) { const x = dgDistrict(id, d.id); if (x && dgCells(x.land) === land0) back = x; else await sleep(1000); }
-    if (g2 && rr?.state === 'UNDONE' && back) ok(`${tl}, the growth undone`, `${g2.text}; revision ${srid} UNDONE, the district's land back to ${land0} columns`);
-    else fail(`${tl}, the growth undone`, `undo ${g2 ? g2.text : 'not logged'}; revision ${rr?.state}; land ${dgCells(dgDistrict(id, d.id)?.land)} (was ${land0})`);
+    for (let i = 0; i < 30 && !back; i++) { const x = dgDistrict(id, d.id); if (x && dgSame(dgCols(x.land), await dgExpected(d, region))) back = x; else await sleep(1000); }
+    const order = ga && gb && ga.text.includes('op_') && removedCount(id) === n0 + 2;
+    if (ga && gb && undoneBoth && back && order && (await regionView(region)).position === 0) {
+      ok(`${tl}, the growths undone`, `${ga.text}; ${gb.text}; revisions ${rid2} and ${srid} UNDONE (position 0), the land exactly its reservation and outside (${dgCells(back.land)} columns)`);
+    } else fail(`${tl}, the growths undone`, `undo ${ga?.text ?? 'none'} / ${gb?.text ?? 'none'}; revisions ${JSON.stringify(revs.map((r) => [r.rid, r.state]))}; land ok ${!!back}; removals ${removedCount(id) - n0}`);
   }
   // then the district (its founding build) and the town's entry (its region gone already: retired)
   const dg = await undoOnce(id, c);

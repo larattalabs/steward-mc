@@ -892,7 +892,11 @@ public final class SettlementRunner {
 			notPlaced > 0 || note != null ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE);
 		// a district's own region: the district names it, owns what it took outside the town and stands, saved with the entry (docs/DISTRICTS.md section 4)
 		if (district != null && !district.square() && vRegionId != null) {
-			var land = ArchitectApi.get().regions().get(vRegionId).flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.outside(v.ext(), district.claim().dimension()));
+			// (slice DG review round 2) only a whole read of the region's land ever replaces what the district owns; else it keeps its land (the sweep reads it
+			// again once the region has settled)
+			var read = ArchitectApi.get().regions().get(vRegionId).map(v -> dev.larattalabs.steward.gateway.DistrictLand.outsideWhole(v.ext(), district.claim().dimension()))
+				.orElse(null);
+			var land = java.util.Optional.ofNullable(read == null ? null : read.land());
 			var res = Settlements.placeDistrict(settlement.id(), district.id(), vRegionId, land.orElse(null), entry);
 			if (!res.ok()) Steward.LOGGER.warn("placing district {} of {}: {}", district.id(), settlement.id(), res.error());
 			// (slice DG) a growth of a standing district: its land could not be saved with it (another settlement's overlap), so the growth is logged alone,

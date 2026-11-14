@@ -38,6 +38,8 @@ public final class VillageSweep {
 		}
 		growths(server);
 		for (Settlement s : Settlements.store().all()) {
+			// (slice DG review round 2) a settlement whose growth take-up the sweep above started is left to it
+			if (Undo.busy(s.id())) continue;
 			for (var v : regions.list(s.owner())) {
 				if (v.state() == RegionState.REMOVED) continue;
 				// a town Steward took on as a region is never taken up whole (docs/GROWTH.md, slice B)
@@ -95,6 +97,9 @@ public final class VillageSweep {
 		}
 		final Settlement s = Settlements.store().get(given.id()).orElse(given);
 		try {
+			// (slice DG) each standing district's land read again from its settled region first, whatever the take-ups below do (a crash between a growth's
+			// entry or its removal and the land's save is put right here; idempotent; a region being changed is left for a later sweep)
+			for (Settlement.District d : s.lands().districts()) if (Districts.grows(d)) Districts.refreshLand(s.id(), d.region());
 			// one take-up per settlement at a time (slice DG review 5: Undo's busy mark is per settlement); the next sweep goes on with fresh state
 			if (Undo.busy(s.id()) || SWEEPING.contains(s.id())) return;
 			// the town's region and (slice DG) every standing district region of the settlement: each one's revisions
@@ -103,9 +108,6 @@ public final class VillageSweep {
 				if (town.isEmpty() || town.get().revisions() == null) continue;
 				if (sweep(server, s, town.get(), sites)) return;
 			}
-			// (slice DG) nothing taken up now: each standing district's land read again from its settled region (a crash between a growth's entry or its
-			// removal and the land's save is put right here; idempotent)
-			for (Settlement.District d : s.lands().districts()) if (Districts.grows(d)) Districts.refreshLand(s.id(), d.region());
 		} catch (RuntimeException | LinkageError e) {
 			Steward.LOGGER.warn("{}: could not look for growths without a build", s.id(), e);
 		}
@@ -136,11 +138,20 @@ public final class VillageSweep {
 				var ref = new Growths.Ref(town.get().id(), r.rid());
 				if (r.sites().isEmpty()) {
 					if (!noted) continue;
+					// (slice DG review round 2) only a take-up that can go now holds the settlement: one refused (a newer change above it, or busy) leaves the
+					// sweep going on to the newer head, the other regions and the land, and is asked again once that has changed
+					var now0 = Growths.decide(java.util.Optional.of(town.get()), r.rid());
+					if (now0.step() != Growths.Step.UNDO) {
+						if (now0.step() == Growths.Step.UNKNOWN) close(s, tag, "Architect has no such revision");
+						continue;
+					}
 					TAKING.add(tag);
 					SWEEPING.add(s.id());
+					Undo.mark(s.id(), true);
 					Growths.undo(server, s.owner(), ref, m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> {
 						TAKING.remove(tag);
 						SWEEPING.remove(s.id());
+						Undo.mark(s.id(), false);
 						if (ok == null) return;
 						var now = Settlements.store().get(s.id()).orElse(s);
 						if (ok) { close(now, tag, "taken up"); return; }

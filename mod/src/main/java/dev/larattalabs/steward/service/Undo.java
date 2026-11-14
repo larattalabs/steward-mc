@@ -32,6 +32,12 @@ public final class Undo {
 		return UNDOING.contains(settlementId);
 	}
 
+	/** (slice DG) A take-up started outside this class (the growth sweep's empty revision) marks the settlement busy while it runs. */
+	static void mark(String settlementId, boolean on) {
+		if (on) UNDOING.add(settlementId);
+		else UNDOING.remove(settlementId);
+	}
+
 	/** Said when the undo happened but its history could not be saved. */
 	static final String UNLOGGED = "The settlement's history could not be saved: the undo happened, but its record is missing (see the log).";
 
@@ -260,7 +266,8 @@ public final class Undo {
 		}
 		UNDOING.add(s.id());
 		List<String> ids = List.copyOf(entry.siteIds());
-		say.accept("Taking up \"" + entry.text() + "\" (the town's change " + ref.rid() + ") and restoring the land...");
+		String whose = s.lands().districts().stream().filter(d -> ref.region().equals(d.region())).map(Settlement.District::name).findFirst().map(n -> n + "'s").orElse("the town's");
+		say.accept("Taking up \"" + entry.text() + "\" (" + whose + " change " + ref.rid() + ") and restoring the land...");
 		Growths.undo(server, s.owner(), ref, say, ok -> {
 			UNDOING.remove(s.id());
 			if (ok == null) { whenDone.accept(null); return; }
@@ -271,7 +278,7 @@ public final class Undo {
 				// (slice DG) a district region's growth taken up: the district's land read again (the growth's land is let go)
 				Districts.refreshLand(s.id(), ref.region());
 				districts(server, s, say);
-				say.accept("Undone: the town's change is taken up, the land restored.");
+				say.accept("Undone: " + whose + " change is taken up, the land restored.");
 			} else if (!Growths.building(server, ref)) say.accept("Run /steward undo " + s.id() + " again once it is clear.");
 			whenDone.accept(ok);
 		});

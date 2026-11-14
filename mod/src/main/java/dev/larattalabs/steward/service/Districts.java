@@ -315,7 +315,11 @@ public final class Districts {
 				others.add(dev.larattalabs.steward.model.Land.of(o.claim()));
 				for (Settlement.District od : o.lands().districts()) others.add(od.land());
 			}
-			return growthConflict(box, dev.larattalabs.steward.model.Land.of(s.claim()), d.get(), s.lands().districts(), others);
+			// the town's own region claim (Architect's, which an Expand of the settlement's claim never moves), else the settlement's claim
+			var parent = d.get().parent() == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : ArchitectApi.get().regions().get(d.get().parent());
+			var town = parent.map(t -> dev.larattalabs.steward.model.Land.ofRect(d.get().claim().dimension(), t.claim().minX(), t.claim().minZ(), t.claim().maxX(),
+				t.claim().maxZ())).orElse(dev.larattalabs.steward.model.Land.of(s.claim()));
+			return growthConflict(box, town, d.get(), s.lands().districts(), others);
 		} catch (RuntimeException | LinkageError e) {
 			return d.get().name() + "'s region can't be read now: ask again later.";
 		}
@@ -324,13 +328,17 @@ public final class Districts {
 	/** Pure: the columns of {@code regionClaim} past the town's claim and the district's own land, against a sibling's land and other settlements'. */
 	static @Nullable String growthConflict(dev.larattalabs.steward.model.Land regionClaim, dev.larattalabs.steward.model.Land town, Settlement.District d,
 		List<Settlement.District> siblings, List<dev.larattalabs.steward.model.Land> otherSettlements) {
-		var free = regionClaim.minus(town);
-		if (free != null) free = free.minus(d.land());
-		if (free == null) return null;
+		// a sibling's land is checked over the whole claim past the district's own land, never exempted as town land (an Expand can take a district into
+		// the settlement's claim; review round 2)
+		var past = regionClaim.minus(d.land());
+		if (past == null) return null;
 		for (Settlement.District o : siblings) {
 			if (o.id().equals(d.id())) continue;
-			if (free.overlaps(o.land())) return d.name() + " can't grow now: its region's ground reaches " + o.name() + "'s land.";
+			if (past.overlaps(o.land())) return d.name() + " can't grow now: its region's ground reaches " + o.name() + "'s land.";
 		}
+		// another settlement's: past the town's own region claim too
+		var free = past.minus(town);
+		if (free == null) return null;
 		for (var l : otherSettlements) if (free.overlaps(l)) return d.name() + " can't grow now: its region's ground reaches another settlement's land.";
 		return null;
 	}

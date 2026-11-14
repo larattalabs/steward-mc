@@ -435,3 +435,18 @@ ledger); the billed survival e2e moves to a new slice SD (found a district regio
 - **S7:** the e2e's restart is between the realise and its entry (the build saved at "Approve to place" put back after the growth was logged, the
   entry taken out), and it adds the town removed first while a district growth stands (the district, its region and growth stay; the growth undone,
   the land back; then the district; the town's entry retired).
+
+**Implementation review** (GPT, 2026-11-14, round 2, request changes: 3 blockers, 4 should-fixes, 1 nit). Taken:
+- **B1** a new settlement is never founded inside another settlement's district claim (a quarter's strip is its region's ground to grow into, though it
+  owns only what its region took); Expand and district founding read those claims already.
+- **B2** a sibling's land is checked over the whole region claim past the district's own land (never exempted as town land: an Expand can take a
+  district into the settlement's claim); other settlements past the town's own region claim (Architect's, which an Expand never moves).
+- **B3** the sweep's land read runs first, every sweep; an empty orphan whose take-up can't go now (a newer change above it, busy) no longer holds the
+  sweep, which goes on to the other revisions and regions.
+- a sweep take-up marks the settlement busy (`Undo.mark`), and the whole-region sweep skips a settlement being taken up; the placement reads the land
+  whole too (`outsideWhole`, exact integers), so no partial read ever replaces what a district owns; the undo names the district.
+- e2e: the district's land checked exactly (its reservation and `land.outside`); a row of it cut in the save before a restart and put right by the
+  sweep; two standing growths, undone head first after the town was removed and the client restarted.
+- **Not taken:** driving `Undo.growth` against a faked Architect (no Architect test double exists; the decision, logging and retirement it runs are
+  unit-tested, the billed path waits for SD's e2e); a module bound into a district end to end in e2e (no measured module fits the e2e district's
+  catalog bound here; the binding is carried through the offer, the save and Accept, as reviewed).

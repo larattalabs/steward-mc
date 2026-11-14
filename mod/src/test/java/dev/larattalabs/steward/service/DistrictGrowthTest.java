@@ -82,6 +82,8 @@ class DistrictGrowthTest {
 		assertNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[[1,2,3,2],[1,2,3]]}}}").getAsJsonObject(), OW),
 			"one malformed run: the whole read is refused");
 		assertNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[[1,2,3,4]]}}}").getAsJsonObject(), OW));
+		assertNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[[1.9,2.1,3.9,2.9]]}}}").getAsJsonObject(), OW),
+			"a fraction is never read as an integer");
 		var ok = DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[[5,2,1,2]]}}}").getAsJsonObject(), OW);
 		assertTrue(ok.land().contains(OW, 3, 2));
 		assertNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[]}}}").getAsJsonObject(), OW).land(),
@@ -99,6 +101,9 @@ class DistrictGrowthTest {
 		assertTrue(Districts.growthConflict(claim, town, q, List.of(q, sib), List.of()).contains("dst_2's land"));
 		assertTrue(Districts.growthConflict(claim, town, q, List.of(q), List.of(Land.ofRect(OW, 150, 0, 300, 10))).contains("another settlement"));
 		assertNull(Districts.growthConflict(claim, town, q, List.of(q), List.of(Land.ofRect(OW, 200, 0, 300, 10))), "beyond its claim: no matter");
+		// (review round 2) the settlement's claim expanded over the sibling: the sibling's land is still never the growth's
+		Land expanded = Land.of(new Claim(OW, 0, 0, 256, -64, 320));
+		assertTrue(Districts.growthConflict(claim, expanded, q, List.of(q, sib), List.of()).contains("dst_2's land"));
 		// a beside district's claim is its reservation and the seam in the town: nothing past them, never a conflict
 		var b = district("dst_3", EAST, Settlement.District.BESIDE, Settlement.District.STANDING, "rg_b", Land.of(EAST));
 		assertNull(Districts.growthConflict(Land.ofRect(OW, 49, -48, 161, 48), town, b, List.of(b), List.of(Land.ofRect(OW, 162, 0, 300, 10))));

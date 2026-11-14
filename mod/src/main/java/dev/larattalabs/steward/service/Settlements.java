@@ -67,6 +67,12 @@ public final class Settlements {
 		// in a survival world nothing is built free: a new settlement is Supplied until its card says otherwise
 		boolean survival = level.getServer() != null && dev.larattalabs.steward.gateway.WorldMode.survival(level.getServer()).orElse(false);
 		Settlement s = Settlement.founded(store.nextId(), name, claim, Permission.PROPOSALS, Difficulty.forWorld(Difficulty.PATRON, survival), now);
+		// (slice DG) never inside another settlement's district claim either: a quarter's strip is its region's ground to grow into, though it owns only
+		// what its region took (its land); Expand and district founding read these claims already (others)
+		var square = dev.larattalabs.steward.model.Land.of(claim);
+		for (Claim o : others(s.id())) {
+			if (square.overlaps(o)) return Result.fail("This overlaps another settlement's claim or a district's ground.");
+		}
 		try {
 			return commit(Optional.empty(), s, "");
 		} catch (IllegalArgumentException e) {
