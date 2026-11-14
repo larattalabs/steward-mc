@@ -25,7 +25,7 @@ class CardLimitsTest {
 	@Test
 	void theFixturesSayWhatWaits() throws Exception {
 		List<String> stilts = CardLimits.of(card("stilt_village.json"));
-		assertTrue(stilts.stream().anyMatch(l -> l.contains("over the water")), stilts.toString());
+		assertTrue(stilts.stream().anyMatch(l -> l.startsWith("Buildings over water")), stilts.toString());
 		// a crater is built since Architect 0.63.0 (BF): only the mining facility's mines wait
 		List<String> crater = CardLimits.of(card("crater_works.json"));
 		assertEquals(List.of("Working farms come as irrigated fields, farm ponds, channels and ditches; mines and rails aren't built yet."), crater);

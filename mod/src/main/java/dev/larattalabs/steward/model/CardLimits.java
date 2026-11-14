@@ -30,7 +30,7 @@ public final class CardLimits {
 			+ "|climb) (up )?to)\\b"),
 			"A long stair up to a floating island isn't built yet: no stair or switchback climbs that high, so the climb waits."),
 		new Rule("over_water", "stilts?|swamps?|marsh(es|y)?|bogs?|fens?|lagoons?|docks?|piers?|jett(y|ies)|wharf|over (the |a )?(water|lake|sea|river|lagoon|swamp|marsh|bay)"
-			+ "|above the water|on (the |a )?(water|lagoon|swamp|marsh)|on (a |the )?frozen (lake|pond|river)", "Buildings over the water stand on dry ground beside it for now; ponds, quays, waterfalls and water gates are built."),
+			+ "|above the water|on (the |a )?(water|lagoon|swamp|marsh)|on (a |the )?frozen (lake|pond|river)", "Buildings over water stand on dry ground beside it for now; ponds, quays, waterfalls and water gates are built."),
 		new Rule("underwater", "under ?water|under the (waves|sea)|sea ?floor|seabed|ocean floor|sunken|submerged",
 			"Building under water isn't planned: nothing is built below the surface."),
 		new Rule("off_ground", "canopy|tree ?tops?|tree ?houses?|up in the trees|in the treetops|inside (the )?giant mushrooms?|homes? inside (the )?mushrooms?"
