@@ -27,7 +27,7 @@ class DistrictPlacementTest {
 		var c = harbour.choose(SIDES, LAKE_SOUTH, 64, null);
 		assertEquals("S", c.way());
 		assertEquals("by the water, for the harbour", DistrictSite.line(c.why(), "the harbour"));
-		assertEquals("to the east, as you said, for the harbour", DistrictSite.line("to the east, as you said", "harbour"));
+		assertEquals("as you asked, for the harbour", DistrictSite.line("to the east, as you said", "harbour"));
 		assertEquals("where there is room", DistrictSite.line("", null));
 		assertEquals("in the woods, for a lumber camp", DistrictSite.line("in the woods (40% trees)", "a lumber camp"));
 	}

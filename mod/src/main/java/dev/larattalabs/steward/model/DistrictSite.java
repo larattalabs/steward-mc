@@ -200,6 +200,8 @@ public record DistrictSite(@Nullable String way, Pref water, Pref trees, Ground 
 	public static String line(String why, @Nullable String forWhat) {
 		String w = why == null ? "" : why.replaceAll("\\s*\\([^)]*\\)", "").strip();
 		if (w.isEmpty()) w = "where there is room";
+		// the side named is in the proposal's title already ("The harbour (east)")
+		if (w.matches("to the (north|east|south|west), as (you said|asked)")) w = "as you asked";
 		if (forWhat == null || forWhat.isBlank()) return w;
 		String f = forWhat.strip();
 		return w + ", for " + (f.matches("(?i)^(the|a|an|their|our|its) .*") ? f : "the " + f);

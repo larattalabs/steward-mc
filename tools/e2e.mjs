@@ -1097,7 +1097,7 @@ async function districts(id) {
   let tfrom = logSize();
   await cmd(`/steward dev talk_answer ${id} ${fixture('harbour.json')}`);
   const eastP = await waitingDistrict('E');
-  if (eastP && /as you said, for the harbour/.test(eastP.place ?? '')) ok('district preview', `${eastP.title}: "${eastP.place}"; ${await surveyShot('e2e-district-proposed', 'E')}`);
+  if (eastP && /as you asked, for the harbour/.test(eastP.place ?? '')) ok('district preview', `${eastP.title}: "${eastP.place}"; ${await surveyShot('e2e-district-proposed', 'E')}`);
   else fail('district preview', `proposal ${JSON.stringify(eastP)}; ${logSince(tfrom).slice(-200)}`);
   // a shallow lake across the town-side half of a side founding can take (the one "auto" took; the top grass layer turned to water), loaded where the
   // player stands
