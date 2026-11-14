@@ -1458,6 +1458,17 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
     - refunds that include the custody.
   - **Refused (NOT_ALLOWED):** a crate-fed survival fill site, a move, a delta, an overwrite of a fill cell.
   - M4 starts on FK once v0.66.0 is tagged.
+- **AU, 7c program authoring** (Architect main 3e25a4ba, 2026-11-14; in v0.66.0 with FK and SA; the second 7c RC).
+  - **RC areas:**
+    - `Regions.authorProgram`, returning the appended Design.Kind.PROGRAM's id, which is the program id;
+    - `AuthorRequest.EXT_OWNER`, `EXT_STYLE` and `EXT_ROUNDS`;
+    - feature `programAuthoring`;
+    - plan/0 `program.authored` supported: a whole-claim zone `{template: authored, params: {id, sha, params?}}`, with `NO_PROGRAM` and
+      `AUTHORED_STALE`;
+    - `realiseApproved` refusing `AUTHORED_STALE`, with the id as its detail.
+  - **Compose changes:** a repair runs only while a part is refused or malformed, and an oscillation stop is reported as `result.stopped`.
+  - **Still open on Steward's CO-adoption list:** vocab/1#compact, the `{waits, summary}` answer, and the $0 wouldFit street fix.
+  - So slice CA targets v0.66.0's compose.
 - **Architect's answers (coordinator, 2026-11-12):** all as preferred.
   - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
   - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.
