@@ -5292,7 +5292,7 @@ async function districtGrowthFlow() {
     await clearAnimals();
     from = logSize();
     await cmd(`/steward proposals ${id} accept ${q.key}`);
-    const placed = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings placed/, 900_000, async (step) => {
+    const placed = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings? placed/, 900_000, async (step) => {
       if (step !== 'Approve to place') return;
       await sleep(2000);
       const b = JSON.parse(fs.readFileSync(bf, 'utf8'));
@@ -5313,7 +5313,7 @@ async function districtGrowthFlow() {
     await connect();
     const resumed = await waitLog(0, new RegExp(`resume ${id}: [^\\n]*`), 60_000);
     if (resumed) await cmd(`/steward approve ${id}`);
-    const again = resumed ? await driveUntil(id, 0, /is built(?: in part)?: (\d+) buildings placed/, 600_000) : null;
+    const again = resumed ? await driveUntil(id, 0, /is built(?: in part)?: (\d+) buildings? placed/, 600_000) : null;
     const logged = await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === e1.siteGroup, 30);
     const once = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.siteGroup === e1.siteGroup && e.kind === 'PROJECT_PLACED').length === 1;
     const revs1 = ((await regionView(region)).revisions ?? []).length;
@@ -5334,7 +5334,7 @@ async function districtGrowthFlow() {
     await clearAnimals();
     from = logSize();
     await cmd(`/steward proposals ${id} accept ${q.key}`);
-    const placed = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings placed/, 900_000);
+    const placed = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings? placed/, 900_000);
     second2 = placed ? await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && new RegExp(`^revision:${region}:\\d+$`).test(e.siteGroup ?? '') && e.siteGroup !== standing?.siteGroup, 30) : null;
     const tags = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED' && new RegExp(`^revision:${region}:`).test(e.siteGroup ?? '')).map((e) => e.siteGroup);
     if (second2 && standing) ok(`${label} second standing`, `${standing.siteGroup} and ${second2.siteGroup} stand (${tags.length} growth entries in all)`);
