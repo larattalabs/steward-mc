@@ -584,6 +584,9 @@ world per step; `--attach`, `--keep-client`). The bars and results are in docs/M
   unsupported 9 (as AQ's table). Steward's plans (five re-recorded since Architect copied them): fits 70, adjusted 19, blocked 20, refused 9,
   unsupported 8, **malformed 1**: hidden_village's `hollow` (form.hidden_room with `where`, no `host`; recorded while the kind was reserved). The
   other moves are the 11-13 re-records (palette rules into styles; mage_exiles NO_ROOM; old_new_town's stair now a path blocked on its zone).
-- **Checks:** `stub --only street,plan,stock-save` PASS 88. Street towns (village, adopt, adopt-ns, plan build) place as Blueprints (Steward never
-  sets `allowComposite`). The plan build's region ghost of the market hall (`e2e-hidden-room-ghost.png`, 25,090 cells, secret parts
-  `f_secret_cellar`, `f_secret_cellar_door`) shows no room.
+- **Checks:** `stub --only street,plan,stock-save` PASS 102 on main d4a735a merged. Street towns (village, adopt, adopt-ns, plan build) place as
+  Blueprints (Steward never sets `allowComposite`). The plan build's region ghost (`e2e-hidden-room-ghost.png`, 25,090 cells, secret parts
+  `f_secret_cellar`, `f_secret_cellar_door`), the camera on the cellar's trapdoor cell from the IR: plain ground there, no trapdoor or ladder
+  shaft. The cellar itself is underground, out of shot; Architect's `hr-ghost` gate checks the cells.
+- **Leftover:** `plan-check.mjs` passes hidden_village (`[]`) though the kit calls its room malformed: it still follows only the program dispatch,
+  not each kind's def, so the jar schema alone doesn't close that LEFTOVERS item.
