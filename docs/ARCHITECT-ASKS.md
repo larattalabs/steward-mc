@@ -1547,3 +1547,6 @@ Architect's draft (slice/SAD off bdc1cad1, no API change). Steward's answers:
 - S-SAD-3: the world's mode at adoption decides, and older adopted regions stay creative. Steward doesn't re-adopt on its own.
 - S-SAD-4: Hardcore adopts as Supplied.
 - Steward matches none of the reworded messages. The Steward side is slice SST, after SAD's release.
+- Amendments from SAD's gate run 2 (11-14), both acked:
+  - (1) `adoptCrates` also takes a BUILT site whose crate still stands: it gets a capped paid record, its crate reference is cleared, and later refunds come from the stockpile. Steward calls adoptCrates at every build from materials, so this reaches older survival worlds that aren't adopted. Steward asked Architect to confirm the refund is paid once, a second call is a no-op, and there's no mint. The SAD RC adds refund, stock-save and survival.
+  - (2) survival_paid ignores cells held only by the same revision's own entries, scoped so a cell a placed, paid entry holds still refuses (gated negative case).
