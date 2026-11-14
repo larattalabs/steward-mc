@@ -64,14 +64,14 @@ public final class BatchPlanner {
 	 * so a half-built village always reads as a village. Every lot of the plan lands in exactly one stage.
 	 */
 	public static List<StageDef> stages(VillageLayout.Plan plan, Set<String> landmarkIds) {
-		int midX = (plan.streetX0() + plan.streetX1()) / 2;
+		int midX = (plan.streetX0() + plan.streetX1()) / 2; // along the street (x east-west, z north-south)
 		List<Lot> rest = new ArrayList<>();
 		List<String> landmarks = new ArrayList<>();
 		for (Lot l : plan.lots()) {
 			if (landmarkIds.contains(l.id())) landmarks.add(l.id());
 			else rest.add(l);
 		}
-		rest.sort(Comparator.<Lot>comparingInt(l -> Math.abs((l.x() + l.maxX()) / 2 - midX)).thenComparing(Lot::id));
+		rest.sort(Comparator.<Lot>comparingInt(l -> Math.abs(plan.alongOf((l.x() + l.maxX()) / 2, (l.z() + l.maxZ()) / 2) - midX)).thenComparing(Lot::id));
 		List<StageDef> out = new ArrayList<>();
 		if (!landmarks.isEmpty()) out.add(new StageDef("landmarks", landmarks));
 		int n = 1;
@@ -190,6 +190,8 @@ public final class BatchPlanner {
 
 	/** The ext keys a street piece records its centre line and ends under (its written box also holds lanterns, so it is not the line). */
 	public static final String STREET_Z = "steward_mc:street_z", STREET_X0 = "steward_mc:street_x0", STREET_X1 = "steward_mc:street_x1";
+	/** A north-south street's line (its x) and ends (z), recorded instead of {@link #STREET_Z}/{@link #STREET_X0}/{@link #STREET_X1}. */
+	public static final String STREET_X = "steward_mc:street_x", STREET_Z0 = "steward_mc:street_z0", STREET_Z1 = "steward_mc:street_z1";
 
 	/** The village's main street as a road request: two waypoints along the street, a little past the outer lots, kept inside the claim. */
 	static RoadRequest street(Settlement s, VillageLayout.Plan plan, @Nullable ServerLevel level, @Nullable String buildId) {
@@ -200,16 +202,19 @@ public final class BatchPlanner {
 	static RoadRequest street(Settlement s, VillageLayout.Plan plan, int from, int to, Claim land, @Nullable ServerLevel level, @Nullable String buildId, Mode mode) {
 		// no run-out past the outer lots: in the phase 1 gate run the 4-block extension went over a drop (TOO_STEEP) and the whole street was refused
 		int pad = 0;
-		int x0 = Math.max(land.centerX() - land.radius(), from - pad);
-		int x1 = Math.min(land.centerX() + land.radius(), to + pad);
+		// along the street's line: x east-west, z north-south (a north-south street records its own keys, never STREET_Z, so east-west readers pass it by)
+		int centre = plan.northSouth() ? land.centerZ() : land.centerX();
+		int x0 = Math.max(centre - land.radius(), Math.min(from, to) - pad);
+		int x1 = Math.min(centre + land.radius(), Math.max(from, to) + pad);
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
 		ext.addProperty("steward_mc:street", true);
-		ext.addProperty(STREET_Z, plan.streetZ());
-		ext.addProperty(STREET_X0, x0);
-		ext.addProperty(STREET_X1, x1);
+		ext.addProperty(plan.northSouth() ? STREET_X : STREET_Z, plan.streetZ());
+		ext.addProperty(plan.northSouth() ? STREET_Z0 : STREET_X0, x0);
+		ext.addProperty(plan.northSouth() ? STREET_Z1 : STREET_X1, x1);
 		if (buildId != null) ext.addProperty(BUILD_EXT, buildId);
-		return new RoadRequest(level, List.of(new BlockPos(x0, plan.streetY(), plan.streetZ()), new BlockPos(x1, plan.streetY(), plan.streetZ())), 3, null, null,
+		int[] a = plan.at(x0), b = plan.at(x1);
+		return new RoadRequest(level, List.of(new BlockPos(a[0], plan.streetY(), a[1]), new BlockPos(b[0], plan.streetY(), b[1])), 3, null, null,
 			true, false, mode, s.owner(), ext, null, false);
 	}
 

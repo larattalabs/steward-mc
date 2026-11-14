@@ -9,7 +9,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * Phase 1 layout: lots on both sides of one straight east-west main street, inside a claim, on ground that is dry and flat enough.
  * Deterministic and pure (no Minecraft types), so it is unit-tested. Each lot is a separate placement (no covering terrain site until
- * Architect's journal-backed sites exist; docs/PLAN.md phase 1). The street runs along x; lots north of it face south, lots south face north.
+ * Architect's journal-backed sites exist; docs/PLAN.md phase 1). The street runs along x; lots north of it face south, lots south face north. A
+ * north-south street (along z, lots facing east or west) is the same layout with x and z swapped ({@link #plan(Claim, Grid, List, Rules, boolean)}).
  *
  * <p>Larger or stranger layouts (rings, terraces, districts) are region programs (A5b), not this class.
  */
@@ -81,7 +82,32 @@ public final class VillageLayout {
 		public int maxZ() { return z + sizeZ - 1; }
 	}
 
-	public record Plan(List<Lot> lots, int streetZ, int streetX0, int streetX1, int streetY, List<LotSpec> unplaced) {}
+	/**
+	 * The layout. Its street's fields are in the street's own frame: {@code streetZ} is the line it runs on and {@code streetX0..streetX1} its ends along
+	 * that line. East-west (the default): the line is a z and the ends are x. {@code northSouth}: the line is an x and the ends are z (the lots face east
+	 * or west). A plan saved before north-south streets has no {@code northSouth} and reads as east-west.
+	 */
+	public record Plan(List<Lot> lots, int streetZ, int streetX0, int streetX1, int streetY, List<LotSpec> unplaced, boolean northSouth) {
+		public Plan(List<Lot> lots, int streetZ, int streetX0, int streetX1, int streetY, List<LotSpec> unplaced) {
+			this(lots, streetZ, streetX0, streetX1, streetY, unplaced, false);
+		}
+
+		/** The world box {x0, z0, x1, z1} of the street from {@code from} to {@code to} along its line, {@code half} either side of it. */
+		public int[] spanBox(int from, int to, int half) {
+			int lo = Math.min(from, to), hi = Math.max(from, to);
+			return northSouth ? new int[] {streetZ - half, lo, streetZ + half, hi} : new int[] {lo, streetZ - half, hi, streetZ + half};
+		}
+
+		/** The world point {x, z} on the street's line at {@code along}. */
+		public int[] at(int along) {
+			return northSouth ? new int[] {streetZ, along} : new int[] {along, streetZ};
+		}
+
+		/** Where a world column (x, z) falls along the street (x east-west, z north-south). */
+		public int alongOf(int x, int z) {
+			return northSouth ? z : x;
+		}
+	}
 
 	public record Rules(int streetWidth, int lotGap, int maxSlope, int claimMargin) {
 		public static Rules defaults() {
@@ -104,6 +130,58 @@ public final class VillageLayout {
 
 	/** As above, with lots kept between {@code xLo} and {@code xHi}: an addition stays along its street, which it does not extend. */
 	public static Plan plan(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, @Nullable Integer streetZ, int xLo, int xHi) {
+		return planEastWest(claim, grid, specs, rules, streetZ, xLo, xHi);
+	}
+
+	/**
+	 * As {@link #plan(Claim, Grid, List, Rules, Integer, int, int)} on a street that runs north-south when {@code northSouth} ({@code line} its x, the lots
+	 * kept between z {@code lo} and {@code hi}), else east-west as above. The same rules either way: the north-south layout is the east-west one over the
+	 * ground with x and z swapped, swapped back (a lot's size along the street is its {@code sizeX} as a spec either way; its front is east or west).
+	 */
+	public static Plan plan(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, @Nullable Integer line, int lo, int hi, boolean northSouth) {
+		if (!northSouth) return planEastWest(claim, grid, specs, rules, line, lo, hi);
+		Claim t = new Claim(claim.dimension(), claim.centerZ(), claim.centerX(), claim.radius(), claim.minY(), claim.maxY());
+		return transpose(planEastWest(t, transpose(grid), specs, rules, line, lo, hi), true);
+	}
+
+	/** {@link #plan(Claim, Grid, List, Rules)} on a north-south street when {@code northSouth}. */
+	public static Plan plan(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, boolean northSouth) {
+		return plan(claim, grid, specs, rules, null, Integer.MIN_VALUE, Integer.MAX_VALUE, northSouth);
+	}
+
+	/** The grid with x and z swapped (its column (x, z) is the original's (z, x)). */
+	static Grid transpose(Grid g) {
+		int w = g.depth(), d = g.width();
+		int[] h = new int[w * d];
+		boolean[] wet = new boolean[w * d], built = new boolean[w * d];
+		for (int j = 0; j < g.depth(); j++) for (int i = 0; i < g.width(); i++) {
+			int from = j * g.width() + i, to = i * w + j;
+			h[to] = g.height()[from];
+			wet[to] = g.water()[from];
+			built[to] = g.built()[from];
+		}
+		return new Grid(g.z0(), g.x0(), w, d, h, wet, built);
+	}
+
+	/** A plan with x and z swapped: an east-west layout over the swapped ground becomes a north-south one ({@code northSouth} the result's axis). */
+	static Plan transpose(Plan p, boolean northSouth) {
+		List<Lot> lots = new ArrayList<>();
+		for (Lot l : p.lots()) lots.add(new Lot(l.id(), l.type(), l.z(), l.x(), l.sizeZ(), l.sizeX(), swap(l.front()), l.groundY(), l.role(), l.notes(), l.landmark(),
+			l.placement(), l.maxHeight(), l.exact()));
+		return new Plan(List.copyOf(lots), p.streetZ(), p.streetX0(), p.streetX1(), p.streetY(), p.unplaced(), northSouth);
+	}
+
+	/** A front with x and z swapped: the street to the south (larger z) becomes the street to the east (larger x). */
+	private static Front swap(Front f) {
+		return switch (f) {
+			case SOUTH -> Front.EAST;
+			case NORTH -> Front.WEST;
+			case EAST -> Front.SOUTH;
+			case WEST -> Front.NORTH;
+		};
+	}
+
+	private static Plan planEastWest(Claim claim, Grid grid, List<LotSpec> specs, Rules rules, @Nullable Integer streetZ, int xLo, int xHi) {
 		// placement hints order the specs: the street fills from its middle outward, so "central" goes first and "edge" last
 		List<LotSpec> ordered = new ArrayList<>(specs);
 		ordered.sort(Comparator.comparingInt(VillageLayout::orderOf));
@@ -298,8 +376,8 @@ public final class VillageLayout {
 	public static List<int[]> streetCells(Plan p, int width) {
 		List<int[]> cells = new ArrayList<>();
 		int half = width / 2;
-		for (int x = p.streetX0(); x <= p.streetX1(); x++) {
-			for (int dz = -half; dz <= half; dz++) cells.add(new int[] {x, p.streetZ() + dz});
+		for (int a = p.streetX0(); a <= p.streetX1(); a++) {
+			for (int d = -half; d <= half; d++) cells.add(p.northSouth() ? new int[] {p.streetZ() + d, a} : new int[] {a, p.streetZ() + d});
 		}
 		cells.sort(Comparator.<int[]>comparingInt(c -> c[0]).thenComparingInt(c -> c[1]));
 		return cells;

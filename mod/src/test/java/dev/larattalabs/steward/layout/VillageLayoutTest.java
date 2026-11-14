@@ -201,4 +201,80 @@ class VillageLayoutTest {
 		assertEquals(1, p.lots().size());
 		assertTrue(p.lots().get(0).x() >= 10 && p.lots().get(0).maxX() <= 33, p.lots().get(0).toString());
 	}
+
+	// ------------------------------------------------------------------ (slice NS) a north-south street
+
+	/** Rough ground with a pond and something built: enough that a layout's choices depend on where things are. */
+	private static Grid rough() {
+		Grid g = Grid.flat(-64, -64, 129, 129, 70);
+		java.util.Random r = new java.util.Random(7);
+		for (int x = -64; x <= 64; x++) for (int z = -64; z <= 64; z++) g.set(x, z, 70 + (int) (3 * Math.sin(x / 9.0) + 2 * Math.cos(z / 13.0)) + r.nextInt(2), false);
+		for (int x = 20; x <= 34; x++) for (int z = -40; z <= -28; z++) g.set(x, z, 62, true);
+		for (int x = -50; x <= -44; x++) for (int z = 10; z <= 18; z++) g.setBuilt(x, z, true);
+		return g;
+	}
+
+	private static List<LotSpec> mixed() {
+		List<LotSpec> l = new ArrayList<>(specs(9, 13, 11));
+		l.add(new LotSpec("hall", "hall", 17, 15, "hall", null, true, "central"));
+		l.add(new LotSpec("mill", "mill", 11, 11, "mill", null, false, "near_water"));
+		l.add(new LotSpec("watch", "tower", 9, 9, "tower", null, false, "edge"));
+		return l;
+	}
+
+	@Test
+	void aNorthSouthLayoutIsTheEastWestOneWithXAndZSwapped() {
+		Claim off = new Claim("minecraft:overworld", 3, -5, 60, -64, 320);
+		Claim offT = new Claim("minecraft:overworld", -5, 3, 60, -64, 320);
+		for (Grid g : List.of(flat(), rough())) {
+			Plan ns = VillageLayout.plan(off, g, mixed(), Rules.defaults(), true);
+			Plan ew = VillageLayout.plan(offT, VillageLayout.transpose(g), mixed(), Rules.defaults());
+			assertTrue(ns.northSouth());
+			assertFalse(ew.northSouth());
+			assertEquals(VillageLayout.transpose(ew, true), ns, "the same rules on either axis");
+			assertFalse(ns.lots().isEmpty());
+		}
+	}
+
+	@Test
+	void aNorthSouthStreetsLotsFaceItFromTheEastAndWest() {
+		Plan p = VillageLayout.plan(CLAIM, rough(), specs(8, 13, 11), Rules.defaults(), true);
+		assertEquals(8, p.lots().size());
+		for (Lot l : p.lots()) {
+			// a lot west of the street faces east (its street is to the east), one east of it faces west
+			if (l.maxX() < p.streetZ()) assertEquals(Front.EAST, l.front());
+			else assertEquals(Front.WEST, l.front());
+			assertTrue(Math.abs((l.front() == Front.EAST ? l.maxX() : l.x()) - p.streetZ()) <= 3, "the front edge is next to the street's line x: " + l);
+			assertEquals(13, l.along(), "a spec's sizeX is its width along the street");
+			assertEquals(11, l.deep());
+			assertEquals(11, l.sizeX());
+			assertEquals(13, l.sizeZ());
+			assertTrue(l.z() >= p.streetX0() && l.maxZ() <= p.streetX1(), "the street runs past every lot along z");
+			assertTrue(CLAIM.containsBox("minecraft:overworld", l.x(), 0, l.z(), l.maxX(), 0, l.maxZ()));
+		}
+		assertTrue(p.lots().stream().anyMatch(l -> l.front() == Front.EAST) && p.lots().stream().anyMatch(l -> l.front() == Front.WEST));
+		// the street's cells run along z on the line's x
+		var cells = VillageLayout.streetCells(p, 3);
+		assertTrue(cells.stream().allMatch(c -> Math.abs(c[0] - p.streetZ()) <= 1 && c[1] >= p.streetX0() && c[1] <= p.streetX1()));
+		assertArrayEquals(new int[] {p.streetZ() - 2, p.streetX0(), p.streetZ() + 2, p.streetX1()}, p.spanBox(p.streetX1(), p.streetX0(), 2), "either way along it");
+		assertArrayEquals(new int[] {p.streetZ(), 5}, p.at(5));
+	}
+
+	@Test
+	void anAdditionOnANorthSouthStreetKeepsToItsLineAndStretch() {
+		Plan p = VillageLayout.plan(CLAIM, flat(), specs(4, 11, 11), Rules.defaults(), 6, -20, 25, true);
+		assertEquals(6, p.streetZ());
+		for (Lot l : p.lots()) assertTrue(l.z() >= -20 && l.maxZ() <= 25, "kept between z -20 and 25: " + l);
+	}
+
+	@Test
+	void aPlanSavedBeforeNorthSouthStreetsReadsAsEastWest() {
+		// BuildStore keeps a build's plan as Gson JSON: one saved before the field was added has no northSouth
+		var gson = new com.google.gson.Gson();
+		Plan old = gson.fromJson("{\"lots\":[],\"streetZ\":4,\"streetX0\":-10,\"streetX1\":12,\"streetY\":70,\"unplaced\":[]}", Plan.class);
+		assertFalse(old.northSouth());
+		assertEquals(4, old.streetZ());
+		Plan ns = VillageLayout.plan(CLAIM, flat(), specs(3, 11, 11), Rules.defaults(), true);
+		assertEquals(ns, gson.fromJson(gson.toJson(ns), Plan.class), "a north-south plan round-trips");
+	}
 }

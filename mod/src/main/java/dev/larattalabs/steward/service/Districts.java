@@ -711,15 +711,88 @@ public final class Districts {
 		List<Piece> pieces = new java.util.ArrayList<>();
 		for (SiteView v : sites) {
 			var b = v.box();
-			pieces.add(new Piece(v.kind(), v.itemKey(), v.ext() != null && v.ext().has(BatchPlanner.REGION_STREET_EXT), b.minX(), b.maxX(), b.minZ(), b.maxZ(),
-				intExt(v.ext(), BatchPlanner.STREET_Z), intExt(v.ext(), BatchPlanner.STREET_X0), intExt(v.ext(), BatchPlanner.STREET_X1)));
+			pieces.add(piece(v.kind(), v.itemKey(), v.ext(), b.minX(), b.maxX(), b.minZ(), b.maxZ()));
 		}
 		return streetOfPieces(pieces, s, district);
 	}
 
-	/** A placed site as {@link #streetOfPieces} reads it: its kind, key, the FL street flag, its box's columns and the line Steward recorded on its own streets. */
+	/** A site as a {@link Piece}: the line Steward recorded on its own street (east-west or north-south), read from its ext. */
+	public static Piece piece(String kind, @Nullable String itemKey, com.google.gson.@Nullable JsonObject ext, int minX, int maxX, int minZ, int maxZ) {
+		return new Piece(kind, itemKey, ext != null && ext.has(BatchPlanner.REGION_STREET_EXT), minX, maxX, minZ, maxZ, intExt(ext, BatchPlanner.STREET_Z),
+			intExt(ext, BatchPlanner.STREET_X0), intExt(ext, BatchPlanner.STREET_X1), intExt(ext, BatchPlanner.STREET_X), intExt(ext, BatchPlanner.STREET_Z0),
+			intExt(ext, BatchPlanner.STREET_Z1));
+	}
+
+	/**
+	 * A placed site as {@link #streetOfPieces} reads it: its kind, key, the FL street flag, its box's columns and the line Steward recorded on its own streets
+	 * ({@code z}, {@code x0..x1} east-west; {@code nsX}, {@code nsZ0..nsZ1} north-south).
+	 */
 	public record Piece(String kind, @Nullable String itemKey, boolean streetFlag, int minX, int maxX, int minZ, int maxZ, @Nullable Integer z, @Nullable Integer x0,
-		@Nullable Integer x1) {}
+		@Nullable Integer x1, @Nullable Integer nsX, @Nullable Integer nsZ0, @Nullable Integer nsZ1) {
+		public Piece(String kind, @Nullable String itemKey, boolean streetFlag, int minX, int maxX, int minZ, int maxZ, @Nullable Integer z, @Nullable Integer x0,
+			@Nullable Integer x1) {
+			this(kind, itemKey, streetFlag, minX, maxX, minZ, maxZ, z, x0, x1, null, null, null);
+		}
+	}
+
+	/** A street piece's line on its axis and its ends along it (lo <= hi, whichever way it was laid). */
+	public record Line(boolean northSouth, int line, int lo, int hi) {}
+
+	/** A street piece's line: the one Steward recorded on it, else its box's middle across its longer side (east-west when the box is as wide as deep). */
+	public static Line lineOf(Piece v) {
+		boolean northSouth = v.z() == null && (v.nsX() != null || v.maxX() - v.minX() < v.maxZ() - v.minZ());
+		if (northSouth) {
+			int p = v.nsZ0() != null ? v.nsZ0() : v.minZ(), q = v.nsZ1() != null ? v.nsZ1() : v.maxZ();
+			return new Line(true, v.nsX() != null ? v.nsX() : Math.floorDiv(v.minX() + v.maxX(), 2), Math.min(p, q), Math.max(p, q));
+		}
+		int p = v.x0() != null ? v.x0() : v.minX(), q = v.x1() != null ? v.x1() : v.maxX();
+		return new Line(false, v.z() != null ? v.z() : Math.floorDiv(v.minZ() + v.maxZ(), 2), Math.min(p, q), Math.max(p, q));
+	}
+
+	/** What {@link #readStreet} makes of a street: the street (either axis), or none, and why not when its pieces don't make one straight street. */
+	public record StreetRead(DistrictRules.@Nullable Street street, @Nullable String why) {}
+
+	/**
+	 * The street of the town ({@code district} null) or of a district on either axis (pure): the same rule as {@link #streetOfPieces}, for a street that runs
+	 * east-west or north-south, laid in either direction. A piece's line is the one Steward recorded on it, else its box's middle across its longer side.
+	 * The first piece found sets the line; pieces on another line of the same axis are not this street. An east-west street with a piece recorded
+	 * north-south (a bent or L-shaped street): none, and {@code why} says so. A tall piece with no recorded line beside an east-west street is passed by,
+	 * as {@link #streetOfPieces} does.
+	 */
+	public static StreetRead readStreet(List<Piece> pieces, Settlement s, Settlement.@Nullable District district) {
+		String dim = s.claim().dimension();
+		// east-west pieces, north-south pieces Steward recorded as such, and tall pieces with no line recorded (a street laid before lines were recorded,
+		// its box with its lanterns): those are north-south only when there is no east-west street, as the east-west reader passes them by
+		List<Line> ew = new java.util.ArrayList<>(), ns = new java.util.ArrayList<>(), tall = new java.util.ArrayList<>();
+		for (Piece v : pieces) {
+			if (!"road".equals(v.kind()) || !(v.streetFlag() || BatchPlanner.isStreet(v.itemKey()))) continue;
+			Line l = lineOf(v);
+			int cx = l.northSouth() ? l.line() : (l.lo() + l.hi()) / 2, cz = l.northSouth() ? (l.lo() + l.hi()) / 2 : l.line();
+			var in = s.districtAt(dim, cx, cz);
+			boolean ours = district != null ? in.map(d -> d.id().equals(district.id())).orElse(false) : in.isEmpty();
+			if (!ours) continue;
+			(!l.northSouth() ? ew : v.nsX() != null ? ns : tall).add(l);
+		}
+		if (!ew.isEmpty() && !ns.isEmpty()) return new StreetRead(null, "its street turns (pieces run both east-west and north-south), and only a straight street is taken on");
+		if (!ew.isEmpty()) return new StreetRead(along(ew, false), null);
+		if (!ns.isEmpty() || !tall.isEmpty()) {
+			List<Line> all = new java.util.ArrayList<>(ns);
+			all.addAll(tall);
+			return new StreetRead(along(all, true), null);
+		}
+		return new StreetRead(null, null);
+	}
+
+	/** The street the pieces make: the first piece's line, from the lowest end to the highest of the pieces on it (pieces on another line are not it). */
+	private static DistrictRules.Street along(List<Line> lines, boolean northSouth) {
+		int line = lines.get(0).line(), lo = Integer.MAX_VALUE, hi = Integer.MIN_VALUE;
+		for (Line l : lines) {
+			if (l.line() != line) continue;
+			lo = Math.min(lo, l.lo());
+			hi = Math.max(hi, l.hi());
+		}
+		return new DistrictRules.Street(line, lo, hi, northSouth);
+	}
 
 	/** {@link #streetOf} over pieces (pure). */
 	public static DistrictRules.@Nullable Street streetOfPieces(List<Piece> pieces, Settlement s, Settlement.@Nullable District district) {
@@ -730,9 +803,10 @@ public final class Districts {
 			if (!"road".equals(v.kind()) || !(v.streetFlag() || BatchPlanner.isStreet(v.itemKey()))) continue;
 			// the line it was laid on (its box also holds lanterns); streets laid before it was recorded, and a region's: the box's middle, for one
 			// running east-west only (a district's north-south street, a ring, a following street: additions know an east-west line)
-			if (v.z() == null && v.maxX() - v.minX() < v.maxZ() - v.minZ()) continue;
+			if (v.z() == null && (v.nsX() != null || v.maxX() - v.minX() < v.maxZ() - v.minZ())) continue;
 			int cz = v.z() != null ? v.z() : Math.floorDiv(v.minZ() + v.maxZ(), 2);
-			int sx0 = v.x0() != null ? v.x0() : v.minX(), sx1 = v.x1() != null ? v.x1() : v.maxX();
+			int p0 = v.x0() != null ? v.x0() : v.minX(), p1 = v.x1() != null ? v.x1() : v.maxX();
+			int sx0 = Math.min(p0, p1), sx1 = Math.max(p0, p1);
 			var in = s.districtAt(dim, (sx0 + sx1) / 2, cz);
 			boolean ours = district != null ? in.map(d -> d.id().equals(district.id())).orElse(false) : in.isEmpty();
 			if (!ours) continue;

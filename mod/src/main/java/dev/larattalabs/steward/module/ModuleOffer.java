@@ -22,7 +22,7 @@ public final class ModuleOffer {
 		REGION_MATERIALS,
 		/** A street town Architect can take on as one region at its first growth: slice B, then A. */
 		ADOPT,
-		/** None: a north-south or Supplied street town, the legacy street path, a town in the wrong mode, or an Architect without growth. */
+		/** None: a Supplied or bent street town, the legacy street path, a town in the wrong mode, or an Architect without growth. */
 		NONE
 	}
 

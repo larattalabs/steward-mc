@@ -177,10 +177,12 @@ public final class StewardCommands {
 					String id = StringArgumentType.getString(ctx, "id");
 					// "village": the flat village without the settlement's composed plan; "plan" (or anything else): its plan when it has one (plan v1)
 					String which = StringArgumentType.getString(ctx, "which");
-					boolean legacy = "legacy".equals(which);
+					// "legacy_ns": Steward's own layout with its street laid north-south (the e2e check of a north-south street town)
+					boolean legacy = "legacy".equals(which) || "legacy_ns".equals(which);
 					dev.larattalabs.steward.gateway.VPlan.legacy(id, legacy);
+					dev.larattalabs.steward.gateway.VPlan.northSouthStreet(id, "legacy_ns".equals(which));
 					dev.larattalabs.steward.gateway.PPlan.villageOnly(id, "village".equals(which));
-					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "village".equals(which)
+					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" + ("legacy_ns".equals(which) ? ", its street north-south" : "") : "village".equals(which)
 						? "Architect's flat village when it applies" : "its plan, else Architect's flat village, when it applies")), false);
 					return 1;
 				})))).then(Commands.literal("offer_parts").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {

@@ -145,7 +145,7 @@ public final class ModuleOffers {
 				&& !dev.larattalabs.steward.gateway.VPlan.isLegacy(s.id()) && Adoption.inventory(server, s).isPresent()) {
 				path = ModuleOffer.Path.ADOPT;
 			} else {
-				why = "this street town can't be taken on as one region (it is built from materials, Supplied, or its street runs north-south), and a working module is placed only by growing a region";
+				why = "this street town can't be taken on as one region (it is built from materials, Supplied, or its street turns), and a working module is placed only by growing a region";
 			}
 		}
 		boolean freezing = false;
