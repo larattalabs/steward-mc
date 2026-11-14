@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.inbox;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.steward.model.BudgetPolicy;
 import dev.larattalabs.steward.pipeline.Pipeline;
 import java.util.ArrayList;
@@ -95,7 +96,7 @@ public final class InboxModel {
 		String decision = s.phase().terminal() ? s.phase().name() : d.name();
 		String headline = switch (d) {
 			case BIBLE -> "The style bible is ready. Approve it to design the buildings.";
-			case MASSINGS -> waitingLots.stream().filter(Lot::waiting).count() + " massings wait for you: approve them, or send one back with notes.";
+			case MASSINGS -> Words.count(waitingLots.stream().filter(Lot::waiting).count(), "massing waits", "massings wait") + " for you: approve them, or send one back with notes.";
 			case BUDGET -> String.format("Paused at %d%% of the $%.0f budget. Raise it to at least $%.0f to go on.", (int) (BudgetPolicy.SOFT_FRACTION * 100), s.budgetUsd(),
 				Pipeline.minimumRaise(s));
 			// (slice M3) a module's bill held past its bound: the decision is that bill, whole, as the player approves it
@@ -125,7 +126,7 @@ public final class InboxModel {
 	public static Entry updates(String settlementId, String name, List<Lot> buildings) {
 		long ready = buildings.stream().filter(Lot::waiting).count();
 		String headline = ready == 0 ? "Updates are available but cannot be applied right now (see each building)."
-			: ready + (ready == 1 ? " building has" : " buildings have") + " a newer version: update, preview the change, or skip. Your own edits are kept.";
+			: Words.count(ready, "building has", "buildings have") + " a newer version: update, preview the change, or skip. Your own edits are kept.";
 		return new Entry(settlementId, name, "UPDATE", headline, List.of(), buildings, 0, 0, 0);
 	}
 

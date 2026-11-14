@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.gateway;
 
+import dev.larattalabs.steward.model.Words;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
@@ -64,7 +65,7 @@ public final class PPlan {
 		boolean fits = (sizeX <= w && sizeZ <= d) || (sizeZ <= w && sizeX <= d);
 		if (!fits || sizeY > h) return sizeX + "x" + sizeY + "x" + sizeZ + " is past its lot's approved " + w + "x" + h + "x" + d;
 		if (cells >= 0 && artifactLot.has("costRange") && artifactLot.get("costRange").isJsonArray() && cells > artifactLot.getAsJsonArray("costRange").get(1).getAsLong())
-			return cells + " blocks is past its lot's approved " + artifactLot.getAsJsonArray("costRange").get(1).getAsLong();
+			return Words.count(cells, "block", "blocks") + " is past its lot's approved " + artifactLot.getAsJsonArray("costRange").get(1).getAsLong();
 		return null;
 	}
 

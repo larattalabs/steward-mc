@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.inbox;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.steward.pipeline.Pipeline;
 import org.jspecify.annotations.Nullable;
 
@@ -48,7 +49,7 @@ public record Attention(Kind kind, String line, long limitResetsAt) {
 			return new Attention(Kind.WORKING, switch (build.phase()) {
 				case AWAITING_CARD_APPROVAL -> "getting started";
 				case BIBLE_RUNNING -> "drawing up the style";
-				case GROUP_RUNNING -> "designing " + build.items().size() + " buildings";
+				case GROUP_RUNNING -> "designing " + Words.count(build.items().size(), "building", "buildings");
 				case READY_TO_PLACE -> "fitting the buildings";
 				case PLACING -> "building";
 				case REPAIRING -> "redesigning a building on the wall";

@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.gateway;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.LandReport;
 import dev.larattalabs.architect.api.LotLand;
 import dev.larattalabs.architect.api.PartLand;
@@ -102,7 +103,7 @@ public final class LandWords {
 			// two buildings of one role are told apart by their lot
 			Map<String, Long> roles = new java.util.HashMap<>();
 			for (LotLand l : r.lots()) roles.merge(nameOf(l, buildingName), 1L, Long::sum);
-			if (r.unloaded() > 0) gaps.add("I couldn't see " + r.unloaded() + (r.unloaded() == 1 ? " block" : " blocks") + " of " + look.label()
+			if (r.unloaded() > 0) gaps.add("I couldn't see " + Words.count(r.unloaded(), "block", "blocks") + " of " + look.label()
 				+ " from here: come closer and ask again.");
 			for (LotLand l : r.lots().stream().filter(LandWords::real).sorted(Comparator.comparingLong((LotLand l) -> -(l.changed() + l.playerPlaced()))
 				.thenComparing(LotLand::lot)).toList()) {
@@ -195,7 +196,7 @@ public final class LandWords {
 	}
 
 	private static String blocks(long n) {
-		return n + (n == 1 ? " block" : " blocks");
+		return Words.count(n, "block", "blocks");
 	}
 
 	private static String human(String s) {

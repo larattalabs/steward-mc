@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.RegionState;
 import dev.larattalabs.architect.api.RegionView;
@@ -274,8 +275,8 @@ public final class Adoption {
 				// the removal record first, then the release: a failure between leaves the adoption open, so the next reconcile writes what is missing
 				Set<String> recorded = removedSince(s, adopted.get());
 				List<String> gone = adopted.get().siteIds().stream().filter(id -> sites.get(id).isEmpty() && !recorded.contains(id)).toList();
-				if (!gone.isEmpty() && !Settlements.log(s.id(), new Settlement.LogEntry(now, Kind.PROJECT_REMOVED, "Removed with the town's region (" + gone.size()
-					+ " sites)", gone)).ok()) return false;
+				if (!gone.isEmpty() && !Settlements.log(s.id(), new Settlement.LogEntry(now, Kind.PROJECT_REMOVED, "Removed with the town's region ("
+					+ Words.count(gone.size(), "site", "sites") + ")", gone)).ok()) return false;
 				if (!Settlements.log(s.id(), released(adopted.get().siteGroup(), "The town's region was removed", now)).ok()) return false;
 			} else if (close == Close.RELEASED) {
 				if (!Settlements.log(s.id(), released(adopted.get().siteGroup(), "Let the town go as a region (Architect un-adopted it)", now)).ok()) return false;

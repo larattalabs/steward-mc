@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.pipeline;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.steward.model.BudgetPolicy;
 import dev.larattalabs.steward.model.ConceptCard;
 import dev.larattalabs.steward.model.Permission;
@@ -337,7 +338,7 @@ public final class Pipeline {
 			case GroupUpdate g when List.of("done", "failed", "cancelled").contains(g.status()) ->
 				Step.of(s.withProgress(g.items(), Math.max(s.spentUsd(), s.bibleCostUsd() + g.costUsd()), false, null).with(Phase.CANCELLED), new Notify(String.format(
 					"Cancelled %s (spent $%.2f).", label(s), Math.max(s.spentUsd(), s.bibleCostUsd() + g.costUsd())), false));
-			case BatchDone b -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + (b.placed() > 0 ? ": " + b.placed() + " buildings placed before it stopped stay (undo removes them)." : "."), false));
+			case BatchDone b -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + (b.placed() > 0 ? ": " + Words.count(b.placed(), "building placed before it stopped stays", "buildings placed before it stopped stay") + " (undo removes them)." : "."), false));
 			case CancelConfirmed c -> Step.of(s.with(Phase.CANCELLED), new Notify("Cancelled " + label(s) + ".", false));
 			default -> Step.of(s);
 		};

@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.DeltaVerdict;
 import dev.larattalabs.architect.api.OutdatedSite;
@@ -262,7 +263,7 @@ public final class Updates {
 				msg = "Could not update " + p.lot() + " (refused).";
 			} else {
 				FAILED.remove(key);
-				msg = "Updated " + p.lot() + " to version " + r.toVersion() + " (" + r.written() + " blocks" + (r.kept().isEmpty() ? "" : ", " + r.kept().size() + " of your edits kept")
+				msg = "Updated " + p.lot() + " to version " + r.toVersion() + " (" + Words.count(r.written(), "block", "blocks") + (r.kept().isEmpty() ? "" : ", " + r.kept().size() + " of your edits kept")
 					+ ").";
 				change = new Settlement.SiteChange(p.siteId(), p.lot(), r.fromVersion(), r.toVersion());
 				// the steward goes to look at it

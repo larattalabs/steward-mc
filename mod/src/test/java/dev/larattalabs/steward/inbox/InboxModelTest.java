@@ -39,7 +39,7 @@ class InboxModelTest {
 		assertTrue(e.waiting());
 		assertEquals("MASSINGS", e.decision());
 		assertEquals(lots, e.lots());
-		assertTrue(e.headline().startsWith("1 massings wait"), e.headline());
+		assertTrue(e.headline().startsWith("1 massing waits"), e.headline());
 
 		State paused = Pipeline.step(s, new Pipeline.GroupUpdate("g", "paused_budget", Map.of(), List.of(), 24, null), Permission.PROPOSALS).next();
 		InboxModel.Entry b = InboxModel.entry("set_4", "Stilt", paused, lots);

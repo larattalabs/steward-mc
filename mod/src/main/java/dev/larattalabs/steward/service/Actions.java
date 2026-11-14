@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.SiteEvents;
 import dev.larattalabs.steward.Steward;
@@ -365,7 +366,7 @@ public final class Actions {
 					int r = (int) amount, x = player.getBlockX(), y = player.getBlockY(), z = player.getBlockZ();
 					var b = ArchitectApi.get().sites(server).claimBuild(player.level().dimension(),
 						new net.minecraft.world.level.levelgen.structure.BoundingBox(x - r, y, z - r, x + r, y + Math.min(31, 2 * r), z + r), player);
-					return Result.ok("Claimed " + PlayerBuilds.name(server, b) + " (" + b.id() + ", " + b.cells() + " blocks): the steward builds round it and never over it.");
+					return Result.ok("Claimed " + PlayerBuilds.name(server, b) + " (" + b.id() + ", " + Words.count(b.cells(), "block", "blocks") + "): the steward builds round it and never over it.");
 				}
 				if ("build_release".equals(action)) {
 					var b = ArchitectApi.get().sites(server).releaseBuild(lot, player);
