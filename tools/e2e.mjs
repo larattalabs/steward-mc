@@ -4472,8 +4472,9 @@ async function moduleFlow() {
 /**
  * The module's survival flow (MODULES.md section 7, on the fixture): a Supplied town built from its stockpile; the module offered with the bound the dev
  * source gives (a tiny one: 1 dirt); accepted with the stockpile fully stocked → the quote is past the bound: the build holds and asks, nothing consumed;
- * approved → the bill becomes the bound and the growth is realised from materials, fed in part while placed; its targets' bills = what the stockpile
- * paid; undo refused while it is built, then (fed) undone with what it consumed refunded exactly once.
+ * stocked with the whole quote and approved → the bill becomes the bound and the growth is realised from materials at once; undo refused while it is
+ * built, then undone with what it consumed refunded exactly once. The mapped round: the measured bound in the town's blocks holds the quote. The
+ * waiting round (report only): a lot left waiting for its crop, fed in halves; paid against refunded per item and the wait (S-M5-10, farmland re-lay).
  */
 async function moduleSurvivalFlow() {
   const label = 'module survival';
@@ -4552,9 +4553,12 @@ async function moduleSurvivalFlow() {
     const tiny = sides.flatMap((width) => sides.flatMap((depth) => ['wheat', 'carrots', 'potatoes', 'beetroots'].map((crop) => ({ params: { crop, depth, width }, bom: { 'minecraft:dirt': 1 } }))));
     ok(`${label} source`, await moduleSource(tiny));
     // fully stocked: plenty of what a fenced plot takes (so nothing waits on the stockpile once approved)
-    // what crop_farm's measured bound for a wheat 9x9 names (its three Styles' maximum), and more of each
-    const measuredBound = (JSON.parse(fs.readFileSync(path.join(MODULE_DIR, 'measured.json'), 'utf8')).bounds ?? [])
-      .find((b) => b.params.crop === 'wheat' && b.params.width === 9 && b.params.depth === 9)?.bom ?? {};
+    // what crop_farm's measured bound for a wheat 9x9 names in the measured Styles' own blocks (the per-item maximum of its three), and more of each
+    const measuredBound = {};
+    for (const b of JSON.parse(fs.readFileSync(path.join(MODULE_DIR, 'measured.json'), 'utf8')).bounds ?? []) {
+      if (b.params.crop !== 'wheat' || b.params.width !== 9 || b.params.depth !== 9) continue;
+      for (const [k, n] of Object.entries(b.bom)) measuredBound[k] = Math.max(measuredBound[k] ?? 0, n);
+    }
     // twice each item, but the seeds exactly the 9x9's (with the 16 carried, too few for a larger field: the offer stays 9x9)
     const stock = Object.fromEntries(Object.entries(measuredBound).map(([k, n]) => [k, k === 'minecraft:wheat_seeds' ? n : n * 2 + 16]));
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: stock });
@@ -4586,12 +4590,17 @@ async function moduleSurvivalFlow() {
     const otherItems = quoted ? Object.keys(quoted).filter((k) => !(k in measuredBound)) : [];
     if (quoted && pastMeasured.length === 0) ok(`${label} measured bound`, `the quote's style-free items are within crop_farm's measured bound (${styleFree.map((k) => `${quoted[k] ?? 0}/${measuredBound[k]}`).join(', ')}); items of this Style the bound doesn't name: ${otherItems.join(', ') || 'none'}`);
     else fail(`${label} measured bound`, `quote ${JSON.stringify(quoted)}; past the measured bound: ${JSON.stringify(pastMeasured)}`);
-    // approved: the bill becomes the bound; realised from materials, fed in part while placed
-    nudge = region;
+    // stocked with the whole quote (this town's own fences, lamps and paths, twice; the seeds as they are) before it is approved, and fed in full while
+    // placed, so the lot builds at once: its undo refund then measures exactly what it should (a lot left waiting lays its farmland twice: the waiting
+    // round below)
+    if (!quoted) return fail(label, 'no quote logged to stock the round with');
+    await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(quoted).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
+    // approved: the bill becomes the bound; realised from materials, fed in full whatever the stockpile still asks for (every 3 s), never left waiting
     from = logSize();
+    feeding = true;
     await cmd(`/steward approve ${id}`);
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
-    nudge = null;
+    feeding = false;
     if (!grew) return;
     const g = await growthOf(id);
     const mods = await moduleSites(g.op);
@@ -4639,6 +4648,151 @@ async function moduleSurvivalFlow() {
     const off = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)) && !/crate|barrel|chest/.test(JSON.stringify(x)));
     if (last?.kind === 'PROJECT_REMOVED' && exact) ok(`${label} undo refund`, `paid ${JSON.stringify(paid)}, returned the same once; ${off.length} cell(s) differ outside the crates`);
     else fail(`${label} undo refund`, `last ${last?.kind}; paid ${JSON.stringify(paid)}; returned ${JSON.stringify(back)}`);
+    // the measured bound in this town's own blocks (Noah's "a", 2026-11-13): this town's Style is none of the three measured ones, and the
+    // live catalog's bound, re-expressed through its bible, is shown at the offer and holds the quote: placed without being asked again
+    const lbl = `${label} mapped`;
+    ok(`${lbl} source`, await moduleSource());
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+    // asked for in talk (a new offer by its sign waits out the 20-minute proposal cooldown; one asked for doesn't): the same offer, the same bound
+    const ask = { reply: 'A working field: I have put it in the inbox.', intent: 'building', building: { role: 'farm', type: 'farm', footprint: 'L', landmark: false },
+      module: { id: MODULE, params: { crop: 'wheat' } } };
+    await cmd(`/steward dev sim_answer talk ${JSON.stringify(ask)}`);
+    await cmd(`/steward talk ${id} we need a farm that grows food`);
+    // an offer asked for in talk is keyed asked_<time>_<lot>: found by its module
+    let offer2 = null;
+    for (let i = 0; i < 90 && !offer2; i++) {
+      await sleep(1000);
+      offer2 = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.module?.moduleId === MODULE) ?? null;
+    }
+    if (!offer2) return fail(`${lbl} offer`, `no module.${MODULE} proposal within 90 s of asking for it after the undo`);
+    const bound2 = offer2.module?.bound ?? {};
+    const own = Object.keys(bound2).filter((k) => !(k in measuredBound));
+    const theirs = Object.keys(measuredBound).filter((k) => !(k in bound2));
+    // every item of the bound is shown at the offer: what the player approves is the whole of it
+    const plain = (k) => k.replace(/^[^:]*:/, '').replaceAll('_', ' ');
+    const unshown = Object.entries(bound2).filter(([k, n]) => !new RegExp(`(^|[ ,])${n} ${plain(k)}(,| and|\\.|$)`).test(offer2.why)).map(([k]) => k);
+    if (offer2.module?.params?.width === 9 && offer2.module?.params?.depth === 9 && Object.keys(bound2).length && own.length && /at most/.test(offer2.why) && !unshown.length)
+      ok(`${lbl} offer`, `the bound in the town's blocks: ${JSON.stringify(bound2)} (its own: ${own.join(', ')}; the measured Styles' it doesn't name: ${theirs.join(', ') || 'none'})`);
+    else return fail(`${lbl} offer`, `${JSON.stringify(offer2).slice(0, 400)}; items of its own ${own.join(', ')}; not shown ${unshown.join(', ')}`);
+    // the inbox shows the whole bill as its own wrapped line (the row cuts the offer's words): a shot for the design check
+    await cmd(`/steward ui inbox ${id}`);
+    await sleep(1500);
+    const inboxShot2 = (await dev.request('dev.screenshot', { name: 'e2e-module-offer-inbox', frames: 5 }, { timeoutMs: 120_000 }).catch(() => ({}))).path ?? '';
+    await dev.request('dev.key', { key: 'escape' }).catch(() => null);
+    await sleep(800);
+    ok(`${lbl} inbox`, `shot ${inboxShot2 || 'none'}`);
+    // stocked with the bound (twice, the seeds as they are: the refund put them back), so nothing waits and nothing is heavy
+    await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound2).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
+    const sq0 = await ledger();
+    // accepted from the town; away once it is quoted
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+    await sleep(3000);
+    from = logSize();
+    nudge = region;
+    await cmd(`/steward proposals ${id} accept ${offer2.key}`);
+    await waitLog(from, new RegExp(`module ${id} quote `), 240_000);
+    await sleep(3000);
+    await away();
+    // the mapped bound holds the quote: never "more than you approved". Architect quotes every crop_farm lot inexactly (on 0.64.1 and 0.65.0, in
+    // every Style, the measured ones too: "a cell the plan reads is not loaded"), and that alone asks first (M3's rule): approved once, then placed
+    // with no second ask
+    const pastSaid = /The bill came to more than you approved[^\n]*/.exec(logSince(from));
+    if (pastSaid) return fail(lbl, `the quote was held past the mapped bound: ${pastSaid[0].slice(0, 300)}`);
+    const inexact = /Architect can't quote the bill exactly \(([^)]*\))[^\n]*/.exec(logSince(from));
+    if (inexact) {
+      ok(`${lbl} within the bound`, `not past the bound; asked only for Architect's inexact quote (${inexact[1].slice(0, 160)}): approved`);
+      await cmd(`/steward approve ${id}`);
+    }
+    const from2 = logSize();
+    const grew2 = await buildThrough(id, from, lbl, false, null, 1_200_000);
+    nudge = null;
+    const said2 = logSince(from);
+    const qline2 = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\}) \\(bound .*?, exact (true|false)`).exec(said2);
+    const quoted2 = qline2 ? JSON.parse(qline2[1]) : null;
+    const exact2 = qline2?.[2] === 'true';
+    const past2 = quoted2 ? Object.entries(quoted2).filter(([k, n]) => n > (bound2[k] ?? 0)) : null;
+    const askedAgain = /The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(logSince(from2));
+    const askedFirst = !inexact && /The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(said2);
+    const g2 = await growthOf(id);
+    const mods2 = await moduleSites(g2.op);
+    if (grew2 && quoted2 && past2.length === 0 && !askedAgain && !askedFirst && g2.m && g2.m[1] === region && mods2.length === 1)
+      ok(lbl, `quoted ${JSON.stringify(quoted2)} (exact ${exact2}), within the bound item by item; placed ${inexact ? 'once approved, without being asked again' : 'without being asked'}; revision ${g2.m[2]}, lot ${mods2[0].sid} = ${mods2[0].blueprint}`);
+    else return fail(lbl, `grew ${!!grew2}; quote ${JSON.stringify(quoted2)}; past ${JSON.stringify(past2)}; asked again ${askedAgain}; asked first ${askedFirst}; entry ${g2.op?.siteGroup}; module sites ${mods2.length}`);
+    // fed until built, then undone: the second growth comes off and what it consumed comes back
+    feeding = true;
+    for (let i = 0; i < 300; i++) {
+      const sp = await ledger();
+      if (Object.keys(sp?.need ?? {}).length === 0 && Object.keys(sp?.outstanding ?? {}).length === 0) break;
+      await sleep(3000);
+    }
+    feeding = false;
+    const sqB = await ledger();
+    await away();
+    await cmd(`/steward undo ${id}`);
+    let last2 = null;
+    for (let i = 0; i < 300 && last2?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(1000);
+      last2 = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    await sleep(20_000);
+    const sqR = await ledger();
+    const paid2 = Object.fromEntries(Object.entries(sqB?.consumed ?? {}).map(([k, c]) => [k, c - (sq0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const back2 = Object.fromEntries(Object.entries(sqR?.returned ?? {}).map(([k, c]) => [k, c - (sqB?.returned?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    // what it paid is what Architect quoted (exactly, for an exact quote; never an item or a count past it), and it all came back, nothing else
+    const eq = (a, b) => Object.keys({ ...a, ...b }).every((k) => (a[k] ?? 0) === (b[k] ?? 0));
+    const asQuoted2 = exact2 ? eq(paid2, quoted2) : Object.entries(paid2).every(([k, c]) => c <= (quoted2[k] ?? 0));
+    const ledgers2 = !!(sq0 && sqB && sqR);
+    if (last2?.kind === 'PROJECT_REMOVED' && ledgers2 && Object.keys(paid2).length && asQuoted2 && eq(paid2, back2))
+      ok(`${lbl} undo`, `paid ${JSON.stringify(paid2)} (as quoted${exact2 ? ', exactly' : ', within it'}), returned the same once`);
+    else fail(`${lbl} undo`, `last ${last2?.kind}; ledgers ${ledgers2}; paid ${JSON.stringify(paid2)}; quote ${JSON.stringify(quoted2)} exact ${exact2}; returned ${JSON.stringify(back2)}`);
+    // the waiting round (report only; Noah's "a+b", 2026-11-13): a carrot field with no carrots in the stockpile, so its lot waits and is fed half of
+    // what it needs every 30 s. Bare farmland waiting for its crop dries back to dirt and is laid again, past the quote, and the undo doesn't refund the
+    // re-laid cells: paid against refunded per item and the wait, never a failure, until Architect answers (S-M5-10, Architect's farmland re-lay)
+    const wl = `${label} waiting (report, S-M5-10, Architect's farmland re-lay)`;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+    await cmd('/give @p minecraft:carrot 16');
+    await cmd(`/steward dev sim_answer talk ${JSON.stringify({ ...ask, module: { id: MODULE, params: { crop: 'carrots' } } })}`);
+    await cmd(`/steward talk ${id} we need a field of carrots`);
+    let offer3 = null;
+    for (let i = 0; i < 90 && !offer3; i++) {
+      await sleep(1000);
+      offer3 = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.module?.moduleId === MODULE && x.key !== offer2.key) ?? null;
+    }
+    if (!offer3) { ok(wl, 'not run: no carrot offer within 90 s of asking for it'); return; }
+    const sw0 = await ledger();
+    await sleep(3000);
+    from = logSize();
+    nudge = region;
+    await cmd(`/steward proposals ${id} accept ${offer3.key}`);
+    await waitLog(from, new RegExp(`module ${id} quote `), 240_000);
+    await sleep(3000);
+    await away();
+    const qline3 = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(from));
+    const quoted3 = qline3 ? JSON.parse(qline3[1]) : null;
+    if (/The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(logSince(from))) await cmd(`/steward approve ${id}`);
+    const t3 = Date.now();
+    const grew3 = await buildThrough(id, from, wl, false, null, 1_200_000);
+    let waitedS = null;
+    for (let i = 0; grew3 && i < 300; i++) {
+      const sp = await ledger();
+      if (Object.keys(sp?.need ?? {}).length === 0 && Object.keys(sp?.outstanding ?? {}).length === 0) { waitedS = Math.round((Date.now() - t3) / 1000); break; }
+      await sleep(3000);
+    }
+    nudge = null;
+    const swB = await ledger();
+    await away();
+    await cmd(`/steward undo ${id}`);
+    let last3 = null;
+    for (let i = 0; i < 300 && last3?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(1000);
+      last3 = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    await sleep(20_000);
+    const swR = await ledger();
+    const paid3 = Object.fromEntries(Object.entries(swB?.consumed ?? {}).map(([k, c]) => [k, c - (sw0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const back3 = Object.fromEntries(Object.entries(swR?.returned ?? {}).map(([k, c]) => [k, c - (swB?.returned?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const short3 = Object.entries(paid3).filter(([k, c]) => (back3[k] ?? 0) !== c).map(([k, c]) => `${k.replace(/^minecraft:/, '')} paid ${c}, refunded ${back3[k] ?? 0}, quoted ${quoted3?.[k] ?? '?'}`);
+    ok(wl, `${grew3 ? `waited ${waitedS ?? '>900'} s for materials` : 'not built'}; last ${last3?.kind}; ${short3.length ? `over-charged: ${short3.join('; ')}` : 'refunded what it paid, item for item'}; paid ${JSON.stringify(paid3)}`);
   } finally {
     stop = true;
     if (feeder) await feeder.catch(() => null);

@@ -1508,3 +1508,11 @@ stockpile,supplied,adopt`, 127 of 130 checks over 27 flows; the 3 failures were 
 load average 100+, and rerun alone with `plan-build` and the new `stock-save` (a normal save and stop leaves 5 stockpiles and the player's inventory
 unchanged), PASS, 40 checks. `free --only districts,place,protect,farm` PASS, 35 checks. Screenshots of the card, its Interpretation tab and the
 history of the town with its cellar had a design-critic look: no leak in any visible line.
+
+### v0.65.0 RC (2026-11-13): PASS; the pin waits for crop_farm's re-certification
+Architect v0.65.0 (API 1.58.0, kit 0.60.0, catalogue 22; 7c's second RC: CO, SR, AQ, US, CX, TJ, PS, JR-b) is pinned on pin-065 (runtime minimum
+0.65.0), on main 0e12cc4. The build and unit tests pass (423/0). `stub --only survival,stockpile,supplied,adopt,refund,bill,village,plan,street,stock-save`,
+PASS, 112 checks over 22 flows (PS's ledger saves and JR-b's adopted-crate refunds through survival, supplied, adopt, the mechanisms and stock-save; SR
+through the street-town and plan flows); `free --only place,protect,farm,screens`, PASS, 54 checks. Steward calls none of CO, AQ, US or CX yet;
+pin-guard reads TJ's `apiVersion()` by reflection. PS's component guard covers `dev.crate.insert`, but its `items` stacks are always plain
+(coordinator). The pin merges after M2 and M3 land and crop_farm is re-certified on kit 0.60.0 (module.json pins the kit).

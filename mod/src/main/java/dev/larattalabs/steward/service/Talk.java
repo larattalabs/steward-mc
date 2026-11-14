@@ -216,7 +216,7 @@ public final class Talk {
 				var player = server.getPlayerList().getPlayers().stream().filter(x -> Settlements.at(x.level(), x.blockPosition()).map(h -> h.id().equals(s.id())).orElse(false))
 					.findFirst().orElse(null);
 				var town = ModuleOffers.town(server, s, player, district != null);
-				var d = dev.larattalabs.steward.module.ModuleOffer.decide(kind.get(), v, town, a.module().params(), ModuleOffers::bound);
+				var d = dev.larattalabs.steward.module.ModuleOffer.decide(kind.get(), v, town, a.module().params(), ModuleOffers.bounds(s));
 				var lamp = d.ok() ? ModuleOffers.lamp(s, v.entry()) : null;
 				if (d.ok() && lamp.refused() == null) {
 					Proposal m = ModuleOffers.proposal(kind.get(), d, s, town.path() == dev.larattalabs.steward.module.ModuleOffer.Path.REGION_MATERIALS, lamp.fallback(),

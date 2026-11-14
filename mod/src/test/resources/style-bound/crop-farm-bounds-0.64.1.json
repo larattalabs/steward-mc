@@ -1,0 +1,1439 @@
+{
+ "source": "crop_farm@1 bounds step on Architect 0.64.1 (steward-m2 artifacts/m2/bounds.json), per Style via tools/lib/style-bounds.mjs on kit 0.60.0; merged: the 0.64.1 measured.json bounds",
+ "perStyle": [
+  {
+   "params": {
+    "crop": "beetroots",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "desert",
+   "bom": {
+    "minecraft:beetroot_seeds": 454,
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:jungle_fence": 117,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:sandstone": 95
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:sandstone",
+     "item": "minecraft:sandstone",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:jungle_fence",
+     "item": "minecraft:jungle_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:jungle_fence_gate",
+     "item": "minecraft:jungle_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "beetroots",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "fortress",
+   "bom": {
+    "minecraft:beetroot_seeds": 454,
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 95
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:stone_bricks",
+     "item": "minecraft:stone_bricks",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "beetroots",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "rustic",
+   "bom": {
+    "minecraft:beetroot_seeds": 454,
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 95,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:cobblestone",
+     "item": "minecraft:cobblestone",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "beetroots",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "desert",
+   "bom": {
+    "minecraft:beetroot_seeds": 74,
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:jungle_fence": 43,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:sandstone": 41
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:sandstone",
+     "item": "minecraft:sandstone",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:jungle_fence",
+     "item": "minecraft:jungle_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:jungle_fence_gate",
+     "item": "minecraft:jungle_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "beetroots",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "fortress",
+   "bom": {
+    "minecraft:beetroot_seeds": 74,
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 41
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:stone_bricks",
+     "item": "minecraft:stone_bricks",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "beetroots",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "rustic",
+   "bom": {
+    "minecraft:beetroot_seeds": 74,
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 41,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:cobblestone",
+     "item": "minecraft:cobblestone",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "carrots",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "desert",
+   "bom": {
+    "minecraft:carrot": 454,
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:jungle_fence": 117,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:sandstone": 95
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:sandstone",
+     "item": "minecraft:sandstone",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:jungle_fence",
+     "item": "minecraft:jungle_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:jungle_fence_gate",
+     "item": "minecraft:jungle_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "carrots",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "fortress",
+   "bom": {
+    "minecraft:carrot": 454,
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 95
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:stone_bricks",
+     "item": "minecraft:stone_bricks",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "carrots",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "rustic",
+   "bom": {
+    "minecraft:carrot": 454,
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 95,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:cobblestone",
+     "item": "minecraft:cobblestone",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "carrots",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "desert",
+   "bom": {
+    "minecraft:carrot": 74,
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:jungle_fence": 43,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:sandstone": 41
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:sandstone",
+     "item": "minecraft:sandstone",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:jungle_fence",
+     "item": "minecraft:jungle_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:jungle_fence_gate",
+     "item": "minecraft:jungle_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "carrots",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "fortress",
+   "bom": {
+    "minecraft:carrot": 74,
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 41
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:stone_bricks",
+     "item": "minecraft:stone_bricks",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "carrots",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "rustic",
+   "bom": {
+    "minecraft:carrot": 74,
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 41,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:cobblestone",
+     "item": "minecraft:cobblestone",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "potatoes",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "desert",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:jungle_fence": 117,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:potato": 454,
+    "minecraft:sandstone": 95
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:sandstone",
+     "item": "minecraft:sandstone",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:jungle_fence",
+     "item": "minecraft:jungle_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:jungle_fence_gate",
+     "item": "minecraft:jungle_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "potatoes",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "fortress",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:potato": 454,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 95
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:stone_bricks",
+     "item": "minecraft:stone_bricks",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "potatoes",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "rustic",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 95,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:potato": 454,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:cobblestone",
+     "item": "minecraft:cobblestone",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "potatoes",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "desert",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:jungle_fence": 43,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:potato": 74,
+    "minecraft:sandstone": 41
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:sandstone",
+     "item": "minecraft:sandstone",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:jungle_fence",
+     "item": "minecraft:jungle_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:jungle_fence_gate",
+     "item": "minecraft:jungle_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "potatoes",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "fortress",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:potato": 74,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 41
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:stone_bricks",
+     "item": "minecraft:stone_bricks",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "potatoes",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "rustic",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 41,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:potato": 74,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:cobblestone",
+     "item": "minecraft:cobblestone",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "desert",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:jungle_fence": 117,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:sandstone": 95,
+    "minecraft:wheat_seeds": 454
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:sandstone",
+     "item": "minecraft:sandstone",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:jungle_fence",
+     "item": "minecraft:jungle_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:jungle_fence_gate",
+     "item": "minecraft:jungle_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "fortress",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 95,
+    "minecraft:wheat_seeds": 454
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:stone_bricks",
+     "item": "minecraft:stone_bricks",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 18,
+    "width": 27
+   },
+   "style": "rustic",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 95,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:wheat_seeds": 454
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:cobblestone",
+     "item": "minecraft:cobblestone",
+     "count": 95
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 12
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 30
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 117
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "desert",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:jungle_fence": 43,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:sandstone": 41,
+    "minecraft:wheat_seeds": 74
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:sandstone",
+     "item": "minecraft:sandstone",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:jungle_fence",
+     "item": "minecraft:jungle_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:jungle_fence_gate",
+     "item": "minecraft:jungle_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "fortress",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 41,
+    "minecraft:wheat_seeds": 74
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:stone_bricks",
+     "item": "minecraft:stone_bricks",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  },
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 9,
+    "width": 9
+   },
+   "style": "rustic",
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 41,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:wheat_seeds": 74
+   },
+   "roleParts": [
+    {
+     "role": "foundation",
+     "block": "minecraft:cobblestone",
+     "item": "minecraft:cobblestone",
+     "count": 41
+    },
+    {
+     "role": "light",
+     "block": "minecraft:lantern",
+     "item": "minecraft:lantern",
+     "count": 7
+    },
+    {
+     "role": "path",
+     "block": "minecraft:dirt_path",
+     "item": "minecraft:dirt",
+     "count": 12
+    },
+    {
+     "role": "wood.fence",
+     "block": "minecraft:spruce_fence",
+     "item": "minecraft:spruce_fence",
+     "count": 43
+    },
+    {
+     "role": "wood.fence_gate",
+     "block": "minecraft:spruce_fence_gate",
+     "item": "minecraft:spruce_fence_gate",
+     "count": 1
+    }
+   ]
+  }
+ ],
+ "merged": [
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 9,
+    "width": 9
+   },
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 41,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:jungle_fence": 43,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:sandstone": 41,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 41,
+    "minecraft:wheat_seeds": 74
+   }
+  },
+  {
+   "params": {
+    "crop": "carrots",
+    "depth": 9,
+    "width": 9
+   },
+   "bom": {
+    "minecraft:carrot": 74,
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 41,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:jungle_fence": 43,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:sandstone": 41,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 41
+   }
+  },
+  {
+   "params": {
+    "crop": "potatoes",
+    "depth": 9,
+    "width": 9
+   },
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 41,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:jungle_fence": 43,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:potato": 74,
+    "minecraft:sandstone": 41,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 41
+   }
+  },
+  {
+   "params": {
+    "crop": "beetroots",
+    "depth": 9,
+    "width": 9
+   },
+   "bom": {
+    "minecraft:beetroot_seeds": 74,
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 41,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 222,
+    "minecraft:gravel": 95,
+    "minecraft:jungle_fence": 43,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 9,
+    "minecraft:oak_fence": 2,
+    "minecraft:sandstone": 41,
+    "minecraft:spruce_fence": 43,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 41
+   }
+  },
+  {
+   "params": {
+    "crop": "wheat",
+    "depth": 18,
+    "width": 27
+   },
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 95,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:jungle_fence": 117,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:sandstone": 95,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 95,
+    "minecraft:wheat_seeds": 454
+   }
+  },
+  {
+   "params": {
+    "crop": "carrots",
+    "depth": 18,
+    "width": 27
+   },
+   "bom": {
+    "minecraft:carrot": 454,
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 95,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:jungle_fence": 117,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:sandstone": 95,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 95
+   }
+  },
+  {
+   "params": {
+    "crop": "potatoes",
+    "depth": 18,
+    "width": 27
+   },
+   "bom": {
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 95,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:jungle_fence": 117,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:potato": 454,
+    "minecraft:sandstone": 95,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 95
+   }
+  },
+  {
+   "params": {
+    "crop": "beetroots",
+    "depth": 18,
+    "width": 27
+   },
+   "bom": {
+    "minecraft:beetroot_seeds": 454,
+    "minecraft:chest": 1,
+    "minecraft:cobblestone": 95,
+    "minecraft:composter": 1,
+    "minecraft:dirt": 1117,
+    "minecraft:gravel": 185,
+    "minecraft:jungle_fence": 117,
+    "minecraft:jungle_fence_gate": 1,
+    "minecraft:lantern": 16,
+    "minecraft:oak_fence": 4,
+    "minecraft:sandstone": 95,
+    "minecraft:spruce_fence": 117,
+    "minecraft:spruce_fence_gate": 1,
+    "minecraft:stone_bricks": 95
+   }
+  }
+ ]
+}

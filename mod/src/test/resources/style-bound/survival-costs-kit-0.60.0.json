@@ -1,0 +1,33 @@
+{
+ "source": "architect-mc v0.65.0 kit/vocab/survival.json costs",
+ "costs": {
+  "minecraft:dirt_path": "minecraft:dirt",
+  "minecraft:farmland": "minecraft:dirt",
+  "minecraft:grass_block": "minecraft:dirt",
+  "minecraft:attached_melon_stem": "minecraft:melon_seeds",
+  "minecraft:attached_pumpkin_stem": "minecraft:pumpkin_seeds",
+  "minecraft:melon_stem": "minecraft:melon_seeds",
+  "minecraft:pumpkin_stem": "minecraft:pumpkin_seeds",
+  "minecraft:cave_vines_plant": "minecraft:glow_berries",
+  "minecraft:cave_vines": "minecraft:glow_berries",
+  "minecraft:kelp_plant": "minecraft:kelp",
+  "minecraft:twisting_vines_plant": "minecraft:twisting_vines",
+  "minecraft:weeping_vines_plant": "minecraft:weeping_vines",
+  "minecraft:big_dripleaf_stem": "minecraft:big_dripleaf",
+  "minecraft:bamboo_sapling": "minecraft:bamboo",
+  "minecraft:tall_seagrass": "minecraft:seagrass",
+  "minecraft:water_cauldron": "minecraft:cauldron",
+  "minecraft:lava_cauldron": "minecraft:cauldron",
+  "minecraft:powder_snow_cauldron": "minecraft:cauldron",
+  "minecraft:redstone_wire": "minecraft:redstone",
+  "minecraft:tripwire": "minecraft:string",
+  "minecraft:fire": null,
+  "minecraft:soul_fire": null,
+  "minecraft:water": null,
+  "minecraft:lava": null,
+  "minecraft:bubble_column": null,
+  "minecraft:moving_piston": null,
+  "minecraft:piston_head": null,
+  "minecraft:frosted_ice": null
+ }
+}
