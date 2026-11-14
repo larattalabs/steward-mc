@@ -1644,8 +1644,13 @@ async function adoptFlow() {
     const m2 = /^revision:(.+):(\d+)$/.exec(e2?.siteGroup ?? '');
     const r2 = ((await regionView(region)).revisions ?? []).find((r) => String(r.rid) === m2?.[2]);
     const grewNow = !!g && m2?.[1] === region && (!fill.length || Number(m2[2]) > Number(fill.at(-1).rid));
-    if (grewNow && under === 'vgrow2' && /^(PLACED|PARTIAL)$/.test(r2?.state ?? '')) ok(label, `the frontage filled by ${fill.length} dev pad revision(s); the reading room planned under vgrow2 (prefer extend) as revision ${m2[2]} (${r2.state})`);
-    else if (!results.some((r) => !r.ok && r.check === `${label} growth`)) fail(label, `fill ${fill.length}; proposal ${!!q}; built ${!!g}; under ${under}; entry ${e2?.siteGroup}; revision ${r2?.state}`);
+    // the street extended: the revision's own plan names an extension (a new road off the street's end) holding Steward's lot (Architect extends
+    // within the frontage-first plan, vgrow, when the frontage has no room; vgrow2 only after a NO_ROOM)
+    let ext = null;
+    try { ext = r2?.planId ? planIr(r2.planId).revision?.grow?.extension ?? null : null; } catch { /* no plan file */ }
+    const holds = !!ext && (r2?.lotsAdded ?? []).some((l) => (ext.lots ?? []).includes(l));
+    if (grewNow && holds && /^(PLACED|PARTIAL)$/.test(r2?.state ?? '')) ok(label, `the frontage filled by ${fill.length} dev pad revision(s); the reading room's revision ${m2[2]} (${r2.state}, under ${under}) extends ${ext.along} by ${ext.road} for ${ext.lots.join(', ')}`);
+    else if (!results.some((r) => !r.ok && r.check === `${label} growth`)) fail(label, `fill ${fill.length}; proposal ${!!q}; built ${!!g}; under ${under}; entry ${e2?.siteGroup}; revision ${r2?.state}; extension ${JSON.stringify(ext)?.slice(0, 160)}`);
     if (grewNow) await undoOnce(id, claim);
     if (fill.length) {
       await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);

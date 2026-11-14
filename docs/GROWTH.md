@@ -323,5 +323,5 @@ of every settlement before the sweep; adopted towns skipped), `Undo` (the reconc
   adoption. The reconcile's decisions and the pairing are unit-tested.
 - **e2e since slice GE (2026-11-13), in `adopt`:** `adopt restart` (an unanswered adoption closed at the world start, then adopted under a new key),
   `adopt update revert` (a founding building updated and reverted inside the region, the ground as before) and `adopt street extended` (more
-  additions until one is planned under vgrow2); the growths undone head first.
+  the frontage filled with dev pads, then an addition whose plan extends the street); the growths undone head first.
 
