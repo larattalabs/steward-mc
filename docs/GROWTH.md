@@ -273,6 +273,10 @@ entry; none (Architect rolled its intent back at its own world start, or never g
 - **The town removed outside Steward's undo** (Architect's `Regions.remove`, a `REMOVED` tombstone): the open `TOWN_ADOPTED region:<id>` is retired
   by `TOWN_RELEASED region:<id>` ("the town was removed") and a `PROJECT_REMOVED` of its sites that are gone, so the older builds' entries read as
   undone and undo moves on (as a removed region's entry is retired today).
+- **The region and every building gone, no tombstone** (slice GH, 2026-11-13; an un-adopt whose answer was lost, then each building removed, or
+  any other way): retired the same way, `PROJECT_REMOVED` of the gone sites ("gone from the world") then `TOWN_RELEASED region:<id>` ("the town's
+  region and its buildings are gone"), never "let go". Only when Architect lists any site at all: a site file Architect could not read lists none,
+  every site would only look gone, and the adoption is left open (warned) for a later start. Some sites standing, all in no region: a release.
 - `TownRegion.of` and `Districts.regionTownGone` read an unreleased `TOWN_ADOPTED region:` entry as the town's region. After a release, the town is
   a street town again (district founding reads its street as before).
 

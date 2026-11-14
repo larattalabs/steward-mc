@@ -105,19 +105,22 @@ class AdoptionTest {
 		assertEquals(Close.RECEIPT, Adoption.intentClose(true, false));
 		assertEquals(Close.NOT_ADOPTED, Adoption.intentClose(false, false));
 		assertEquals(Close.NOT_ADOPTED, Adoption.intentClose(true, true), "a removed region is not an adoption that stands");
-		assertEquals(Close.NONE, Adoption.standingClose(true, false, 3, 3, false), "it stands");
-		assertEquals(Close.REMOVED, Adoption.standingClose(true, true, 3, 3, true), "a tombstone is a removal, never a release");
-		assertEquals(Close.RELEASED, Adoption.standingClose(false, false, 3, 3, true), "gone with no tombstone, its sites in no region: a lost unadopt answer");
-		assertEquals(Close.RELEASED, Adoption.standingClose(false, false, 3, 1, true), "some sites gone since, the rest in no region: still a release");
-		assertEquals(Close.NONE, Adoption.standingClose(false, false, 3, 3, false), "gone, but its sites still read as a region's: not decided");
-		assertEquals(Close.NONE, Adoption.standingClose(true, false, 3, 0, true), "the region stands: nothing to close");
-		assertEquals(Close.NONE, Adoption.standingClose(false, false, 0, 0, true), "an entry with no sites is never read as let go or removed");
+		assertEquals(Close.NONE, Adoption.standingClose(true, false, 3, 3, false, true), "it stands");
+		assertEquals(Close.REMOVED, Adoption.standingClose(true, true, 3, 3, true, true), "a tombstone is a removal, never a release");
+		assertEquals(Close.RELEASED, Adoption.standingClose(false, false, 3, 3, true, true), "gone with no tombstone, its sites in no region: a lost unadopt answer");
+		assertEquals(Close.RELEASED, Adoption.standingClose(false, false, 3, 1, true, true), "some sites gone since, the rest in no region: still a release");
+		assertEquals(Close.NONE, Adoption.standingClose(false, false, 3, 3, false, true), "gone, but its sites still read as a region's: not decided");
+		assertEquals(Close.NONE, Adoption.standingClose(true, false, 3, 0, true, true), "the region stands: nothing to close");
+		assertEquals(Close.NONE, Adoption.standingClose(false, false, 0, 0, true, true), "an entry with no sites, without a tombstone, is never read as let go or removed");
 	}
 
 	@Test
 	void aTownWhoseRegionAndBuildingsBothVanishedIsRemovedNotLetGo() {
-		assertEquals(Close.REMOVED, Adoption.standingClose(false, false, 3, 0, true), "region gone, no tombstone, no site standing: removed");
-		assertEquals(Close.REMOVED, Adoption.standingClose(false, true, 3, 0, true), "and with a tombstone: removed");
+		assertEquals(Close.REMOVED, Adoption.standingClose(false, false, 3, 0, true, true), "region gone, no tombstone, no site standing: removed");
+		assertEquals(Close.REMOVED, Adoption.standingClose(false, true, 3, 0, true, true), "and with a tombstone: removed");
+		assertEquals(Close.NONE, Adoption.standingClose(false, false, 3, 0, true, false),
+			"Architect lists no site at all (its site file unread): every site only looks gone, so nothing is decided");
+		assertEquals(Close.REMOVED, Adoption.standingClose(true, true, 3, 0, true, false), "a tombstone decides even then");
 	}
 
 	@Test

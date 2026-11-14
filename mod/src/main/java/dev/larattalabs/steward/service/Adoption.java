@@ -230,13 +230,15 @@ public final class Adoption {
 
 	/**
 	 * A standing adoption over {@code sites} recorded sites, {@code standing} of them still standing: its region removed (a tombstone) → retired as
-	 * removed; gone with no tombstone and none of its sites standing → removed too (the region and its buildings both vanished: nothing was let go);
-	 * gone with no tombstone while its standing sites are in no region → released (a lost unadopt answer); else it stands.
+	 * removed; gone with no tombstone and none of its sites standing → removed too (the region and its buildings both vanished: nothing was let go),
+	 * but only when Architect's site inventory is known ({@code inventoryKnown}: Architect lists any site at all; a site file it could not read lists
+	 * none, and every site would only look gone); gone with no tombstone while its standing sites are in no region → released (a lost unadopt answer);
+	 * else it stands.
 	 */
-	public static Close standingClose(boolean present, boolean tombstone, int sites, int standing, boolean standingOutOfRegions) {
+	public static Close standingClose(boolean present, boolean tombstone, int sites, int standing, boolean standingOutOfRegions, boolean inventoryKnown) {
 		if (tombstone) return Close.REMOVED;
 		if (present || sites == 0) return Close.NONE;
-		if (standing == 0) return Close.REMOVED;
+		if (standing == 0) return inventoryKnown ? Close.REMOVED : Close.NONE;
 		return standingOutOfRegions ? Close.RELEASED : Close.NONE;
 	}
 
@@ -273,14 +275,19 @@ public final class Adoption {
 			var ids = adopted.get().siteIds();
 			int standingSites = (int) ids.stream().filter(id -> sites.get(id).isPresent()).count();
 			boolean out = ids.stream().allMatch(id -> sites.get(id).map(x -> x.region() == null).orElse(true));
-			var close = standingClose(v.isPresent(), tombstone, ids.size(), standingSites, out);
+			// Architect lists no site at all when it could not read its site file: then nothing is read as gone
+			boolean known = !sites.list().isEmpty();
+			if (!known && standingSites == 0 && !ids.isEmpty()) Steward.LOGGER.warn("{}: the adoption of {} is left open: Architect lists no site at all (its site file unread?)", s.id(), region);
+			var close = standingClose(v.isPresent(), tombstone, ids.size(), standingSites, out, known);
 			if (close == Close.REMOVED) {
 				// the removal record first, then the release: a failure between leaves the adoption open, so the next reconcile writes what is missing
 				Set<String> recorded = removedSince(s, adopted.get());
 				List<String> gone = adopted.get().siteIds().stream().filter(id -> sites.get(id).isEmpty() && !recorded.contains(id)).toList();
-				if (!gone.isEmpty() && !Settlements.log(s.id(), new Settlement.LogEntry(now, Kind.PROJECT_REMOVED, "Removed with the town's region (" + gone.size()
-					+ " sites)", gone)).ok()) return false;
-				if (!Settlements.log(s.id(), released(adopted.get().siteGroup(), "The town's region was removed", now)).ok()) return false;
+				// a tombstone is the region's removal; with none, the region and every building are gone, by whatever means (an un-adopt, then removals)
+				String why = tombstone ? "Removed with the town's region (" + gone.size() + " sites)" : "Gone from the world, with the town's region (" + gone.size() + " sites)";
+				if (!gone.isEmpty() && !Settlements.log(s.id(), new Settlement.LogEntry(now, Kind.PROJECT_REMOVED, why, gone)).ok()) return false;
+				if (!Settlements.log(s.id(), released(adopted.get().siteGroup(), tombstone ? "The town's region was removed"
+					: "The town's region and its buildings are gone", now)).ok()) return false;
 			} else if (close == Close.RELEASED) {
 				if (!Settlements.log(s.id(), released(adopted.get().siteGroup(), "Let the town go as a region (Architect un-adopted it)", now)).ok()) return false;
 			}
