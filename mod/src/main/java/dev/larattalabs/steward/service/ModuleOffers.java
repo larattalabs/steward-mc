@@ -195,7 +195,9 @@ public final class ModuleOffers {
 		}
 		boolean freezing = false;
 		if (level != null) {
-			BlockPos at = new BlockPos(s.claim().centerX(), level.getSeaLevel(), s.claim().centerZ());
+			// (slice DG) where the module would go: the district's ground, else the town's
+			var where = districtId == null ? s.claim() : s.lands().district(districtId).map(dev.larattalabs.steward.model.Settlement.District::claim).orElse(s.claim());
+			BlockPos at = new BlockPos(where.centerX(), level.getSeaLevel(), where.centerZ());
 			freezing = level.getBiome(at).value().coldEnoughToSnow(at, level.getSeaLevel());
 		}
 		Map<String, Integer> seeds = new HashMap<>();

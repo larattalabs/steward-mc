@@ -1109,6 +1109,9 @@ public final class SettlementRunner {
 						abandon(district.name() + "'s region is gone: undo it, or found it again.");
 						return;
 					}
+					// (slice DG) the land the growth may take: never another settlement's, nor a sibling district's (checked before anything is spent)
+					String conflict = Districts.growthConflict(now, district.id(), district.region());
+					if (conflict != null) { abandon(conflict + " Nothing was spent."); return; }
 					growStanding(r, budgetUsd, now, dv.get(), specs, worldSurvival, district);
 					return;
 				}
@@ -2375,7 +2378,7 @@ public final class SettlementRunner {
 		// a district's: its region may not take another district's land (a build saved before planning checked that, or a district founded since)
 		String conflict = districtConflict();
 		if (conflict != null) {
-			say("Not placed: " + conflict + " The build ends here; undo the reservation and found the district again.");
+			say("Not placed: " + conflict + (growth() ? " The build ends here." : " The build ends here; undo the reservation and found the district again."));
 			feed(new Pipeline.Cancel());
 			return;
 		}
@@ -3323,15 +3326,19 @@ public final class SettlementRunner {
 		return q.ok() ? q.request() : dev.larattalabs.steward.model.DistrictRules.request(region, d.claim(), d.direction());
 	}
 
-	/** Why this build's district region may not be placed now (another district's land in its request's claim), or null; not a district build: null. */
 	/** What a growth grows, in words: the district (slice DG) or the town. */
 	private String growingName() {
 		if (districtId == null || settlement == null) return "the town";
 		return Settlements.store().get(settlement.id()).orElse(settlement).lands().district(districtId).map(Settlement.District::name).orElse("the district");
 	}
 
+	/**
+	 * Why this build's district region may not be placed now (another district's land in its request's claim), or null; not a district build: null. A
+	 * growth of a standing district (slice DG) is checked by {@link Districts#growthConflict} instead: its region stands, so its founding envelope says nothing.
+	 */
 	private @org.jspecify.annotations.Nullable String districtConflict() {
 		if (districtId == null || settlement == null) return null;
+		if (growth()) return Districts.growthConflict(Settlements.store().get(settlement.id()).orElse(settlement), districtId, growRegion);
 		var now = Settlements.store().get(settlement.id()).orElse(settlement);
 		var district = now.lands().district(districtId).orElse(null);
 		if (district == null || district.square() || district.parent() == null) return null;

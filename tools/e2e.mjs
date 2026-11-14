@@ -5270,6 +5270,7 @@ async function districtGrowthFlow() {
   if (gone && r2?.state === 'UNDONE' && d2?.state === 'standing' && out2 === out0 && dgCells(d2.land) === land0) ok(`${label} undo`, `${gone.text}; revision ${rid} UNDONE, land back to ${land0} columns (outside ${out2})`);
   else fail(`${label} undo`, `undo ${gone ? gone.text : 'not logged'}; revision ${r2?.state}; district ${d2?.state}, land ${dgCells(d2?.land)} (was ${land0}), outside ${out2} (was ${out0})`);
   // a restart between the realise and its saved answer (from the save): found by its keys after the restart, logged once, no second revision
+  let standing = null;
   {
     const rl = `${label} restart mid-realise`;
     const bf = path.join(WORLD, 'steward-builds.json');
@@ -5299,12 +5300,9 @@ async function districtGrowthFlow() {
     const logged = await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === e1.siteGroup, 30);
     const once = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.siteGroup === e1.siteGroup && e.kind === 'PROJECT_PLACED').length === 1;
     const revs1 = ((await regionView(region)).revisions ?? []).length;
-    if (resumed && again && logged && once && revs1 === revs0) ok(rl, `${e1.siteGroup} found by its keys after the restart, logged once, no second revision`);
+    if (resumed && again && logged && once && revs1 === revs0) ok(rl, `${e1.siteGroup} found by its keys after the restart (between its realise and its entry), logged once, no second revision`);
     else fail(rl, `resumed ${!!resumed}; placed ${!!again}; logged ${!!logged} (once ${once}); revisions ${revs0} -> ${revs1}; ${chatTail(0)}`);
-    const g2 = await undoOnce(id, c);
-    const rr = ((await regionView(region)).revisions ?? []).find((r) => r.rid === Number(e1.siteGroup.split(':').at(-1)));
-    if (g2 && rr?.state === 'UNDONE') ok(`${rl} undo`, g2.text);
-    else fail(`${rl} undo`, `undo ${g2 ? g2.text : 'not logged'}; revision ${rr?.state}`);
+    standing = e1;
   }
   // the world turned to building from materials: a district built at once is refused by the mode gate before anything is spent
   {
@@ -5323,7 +5321,28 @@ async function districtGrowthFlow() {
     if (said && revs1 === revs0) ok(ml, `${said[0].slice(0, 140)}; no revision planned`);
     else fail(ml, `said ${!!said}; revisions ${revs0} -> ${revs1}; ${chatTail(from)}`);
   }
-  // then the district (its founding build) and the town
+  // the town removed first (outside Steward's undo) while a district growth stands: the district, its region and its growth stay; the growth is
+  // undone by its revision (the district's land back), then the district, then the town's entry is retired (its region gone)
+  {
+    const tl = `${label} town removed first`;
+    await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
+    const rm = await dev.request('dev.region.remove', { region: town, force: true }, { timeoutMs: 600_000 }).catch((e) => ({ refused: String(e) }));
+    const tgone = await regionUntil(town, ['REMOVED'], 120_000);
+    const dv = await regionView(region);
+    const dd = dgDistrict(id, d.id);
+    const srid = standing ? Number(standing.siteGroup.split(':').at(-1)) : null;
+    const srev = (dv.revisions ?? []).find((r) => r.rid === srid);
+    if ((rm?.removed === true || (tgone?.view?.state ?? tgone?.state) === 'REMOVED') && dd?.state === 'standing' && dd?.region === region && dv.state === 'PLACED' && srev && srev.state !== 'UNDONE') {
+      ok(tl, `${town} removed; ${d.name} stands with ${region} and its growth ${srid}`);
+    } else fail(tl, `remove ${JSON.stringify(rm).slice(0, 120)}; district ${JSON.stringify(dd)?.slice(0, 120)}; region ${dv.state}; growth ${srev?.state}`);
+    const g2 = standing ? await undoOnce(id, c) : null;
+    const rr = ((await regionView(region)).revisions ?? []).find((r) => r.rid === srid);
+    let back = null;
+    for (let i = 0; i < 30 && !back; i++) { const x = dgDistrict(id, d.id); if (x && dgCells(x.land) === land0) back = x; else await sleep(1000); }
+    if (g2 && rr?.state === 'UNDONE' && back) ok(`${tl}, the growth undone`, `${g2.text}; revision ${srid} UNDONE, the district's land back to ${land0} columns`);
+    else fail(`${tl}, the growth undone`, `undo ${g2 ? g2.text : 'not logged'}; revision ${rr?.state}; land ${dgCells(dgDistrict(id, d.id)?.land)} (was ${land0})`);
+  }
+  // then the district (its founding build) and the town's entry (its region gone already: retired)
   const dg = await undoOnce(id, c);
   let given = null;
   for (let i = 0; i < 120 && !given; i++) {

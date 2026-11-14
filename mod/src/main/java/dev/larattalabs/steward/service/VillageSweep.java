@@ -58,11 +58,13 @@ public final class VillageSweep {
 	static final String ORPHAN_CLOSED = "An addition realised after its build ended left nothing standing";
 	/** Growths being taken up by the sweep (not asked twice while one is in flight). This world's session only: cleared when it stops. */
 	private static final java.util.Set<String> TAKING = new java.util.HashSet<>();
+	/** (slice DG) Settlements with a sweep take-up in flight: one at a time per settlement. */
+	private static final java.util.Set<String> SWEEPING = new java.util.HashSet<>();
 	/** Orphan notes whose save failed, by settlement: saved again by the sweep until they are (this session; see GROWTH.md for a restart). */
 	private static final Map<String, List<Settlement.LogEntry>> UNSAVED = new java.util.HashMap<>();
 
 	static {
-		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> { TAKING.clear(); UNSAVED.clear(); });
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> { TAKING.clear(); SWEEPING.clear(); UNSAVED.clear(); });
 	}
 
 	/** An orphan note to save again on the sweep's next pass (its save failed). */
@@ -93,13 +95,17 @@ public final class VillageSweep {
 		}
 		final Settlement s = Settlements.store().get(given.id()).orElse(given);
 		try {
-			if (Undo.busy(s.id())) return;
+			// one take-up per settlement at a time (slice DG review 5: Undo's busy mark is per settlement); the next sweep goes on with fresh state
+			if (Undo.busy(s.id()) || SWEEPING.contains(s.id())) return;
 			// the town's region and (slice DG) every standing district region of the settlement: each one's revisions
 			for (String id : growable(TownRegion.of(s).orElse(null), s.lands().districts())) {
 				var town = regions.get(id);
 				if (town.isEmpty() || town.get().revisions() == null) continue;
-				sweep(server, s, town.get(), sites);
+				if (sweep(server, s, town.get(), sites)) return;
 			}
+			// (slice DG) nothing taken up now: each standing district's land read again from its settled region (a crash between a growth's entry or its
+			// removal and the land's save is put right here; idempotent)
+			for (Settlement.District d : s.lands().districts()) if (Districts.grows(d)) Districts.refreshLand(s.id(), d.region());
 		} catch (RuntimeException | LinkageError e) {
 			Steward.LOGGER.warn("{}: could not look for growths without a build", s.id(), e);
 		}
@@ -113,7 +119,8 @@ public final class VillageSweep {
 		return List.copyOf(out);
 	}
 
-	private static void sweep(MinecraftServer server, Settlement s, dev.larattalabs.architect.api.RegionView region, dev.larattalabs.architect.api.Sites sites) {
+	/** One region's growths held by no build and no entry; true when a take-up was started (the settlement is then left until it ends). */
+	private static boolean sweep(MinecraftServer server, Settlement s, dev.larattalabs.architect.api.RegionView region, dev.larattalabs.architect.api.Sites sites) {
 		var town = java.util.Optional.of(region);
 		{
 			for (var r : town.get().revisions()) {
@@ -130,8 +137,10 @@ public final class VillageSweep {
 				if (r.sites().isEmpty()) {
 					if (!noted) continue;
 					TAKING.add(tag);
+					SWEEPING.add(s.id());
 					Growths.undo(server, s.owner(), ref, m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> {
 						TAKING.remove(tag);
+						SWEEPING.remove(s.id());
 						if (ok == null) return;
 						var now = Settlements.store().get(s.id()).orElse(s);
 						if (ok) { close(now, tag, "taken up"); return; }
@@ -140,7 +149,7 @@ public final class VillageSweep {
 						var d = Growths.decide(ArchitectApi.get().regions().get(ref.region()), ref.rid());
 						if (d.step() == Growths.Step.UNKNOWN) close(now, tag, "Architect has no such revision");
 					});
-					continue;
+					return true;
 				}
 				if (!noted && !tagged(s, r, sites)) continue;
 				Steward.LOGGER.warn("growth {} of {} is held by no build and no history entry: logged and taken up", tag, s.id());
@@ -153,9 +162,12 @@ public final class VillageSweep {
 				var entry = saved.log().get(saved.log().size() - 1);
 				if (Growths.fromMaterials(town.get())) MaterialRequests.watchBuild(s.id(), town.get().id());
 				TAKING.add(tag);
-				Undo.growth(server, saved, entry, ref, Map.of(), m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> TAKING.remove(tag));
+				SWEEPING.add(s.id());
+				Undo.growth(server, saved, entry, ref, Map.of(), m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> { TAKING.remove(tag); SWEEPING.remove(s.id()); });
+				return true;
 			}
 		}
+		return false;
 	}
 
 	/** Whether a standing site of the revision carries the settlement's tag and a build id no live build holds (any of its sites: one may be gone). */

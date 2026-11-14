@@ -47,6 +47,29 @@ public final class DistrictLand {
 		return runs.isEmpty() ? Optional.empty() : Optional.of(new Land(dimension, runs));
 	}
 
+	/**
+	 * (slice DG) The region's {@code outside} land read whole, or null when it can't be trusted: no land object, no {@code outside}, its runs missing, or
+	 * any run malformed (a partial read never replaces what a district owns). {@code land} null: read whole, and empty.
+	 */
+	public record Read(@Nullable Land land) {}
+
+	public static @Nullable Read outsideWhole(@Nullable JsonObject ext, String dimension) {
+		JsonObject land = land(ext);
+		if (land == null || !land.has("outside") || !land.get("outside").isJsonObject()) return null;
+		JsonObject out = land.getAsJsonObject("outside");
+		if (!out.has("runs") || !out.get("runs").isJsonArray()) return null;
+		List<Land.Run> runs = new ArrayList<>();
+		for (JsonElement e : out.getAsJsonArray("runs")) {
+			if (!e.isJsonArray() || e.getAsJsonArray().size() != 4) return null;
+			JsonArray r = e.getAsJsonArray();
+			for (JsonElement x : r) if (!x.isJsonPrimitive() || !x.getAsJsonPrimitive().isNumber()) return null;
+			int x0 = r.get(0).getAsInt(), z = r.get(1).getAsInt(), x1 = r.get(2).getAsInt();
+			if (r.get(3).getAsInt() != z) return null;
+			runs.add(new Land.Run(z, Math.min(x0, x1), Math.max(x0, x1)));
+		}
+		return new Read(runs.isEmpty() ? null : new Land(dimension, runs));
+	}
+
 	/** When the town region this district was built beside was removed (epoch ms), or null while it stands. */
 	public static @Nullable Long standingRemoved(@Nullable JsonObject ext) {
 		JsonObject land = land(ext);
