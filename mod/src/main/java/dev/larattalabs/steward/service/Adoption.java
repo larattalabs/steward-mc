@@ -229,13 +229,15 @@ public final class Adoption {
 	}
 
 	/**
-	 * A standing adoption: its region removed (a tombstone) → retired as removed; gone with no tombstone while its sites stand in no region → released
-	 * (a lost unadopt answer); else it stands.
+	 * A standing adoption over {@code sites} recorded sites, {@code standing} of them still standing: its region removed (a tombstone) → retired as
+	 * removed; gone with no tombstone and none of its sites standing → removed too (the region and its buildings both vanished: nothing was let go);
+	 * gone with no tombstone while its standing sites are in no region → released (a lost unadopt answer); else it stands.
 	 */
-	public static Close standingClose(boolean present, boolean tombstone, boolean sitesOutOfRegions) {
+	public static Close standingClose(boolean present, boolean tombstone, int sites, int standing, boolean standingOutOfRegions) {
 		if (tombstone) return Close.REMOVED;
-		if (!present && sitesOutOfRegions) return Close.RELEASED;
-		return Close.NONE;
+		if (present || sites == 0) return Close.NONE;
+		if (standing == 0) return Close.REMOVED;
+		return standingOutOfRegions ? Close.RELEASED : Close.NONE;
 	}
 
 	/**
@@ -268,8 +270,10 @@ public final class Adoption {
 			Optional<RegionView> v = regions.get(region);
 			boolean tombstone = v.map(x -> x.state() == RegionState.REMOVED).orElse(false);
 			var sites = ArchitectApi.get().sites(server);
-			boolean out = !adopted.get().siteIds().isEmpty() && adopted.get().siteIds().stream().allMatch(id -> sites.get(id).map(x -> x.region() == null).orElse(true));
-			var close = standingClose(v.isPresent(), tombstone, out);
+			var ids = adopted.get().siteIds();
+			int standingSites = (int) ids.stream().filter(id -> sites.get(id).isPresent()).count();
+			boolean out = ids.stream().allMatch(id -> sites.get(id).map(x -> x.region() == null).orElse(true));
+			var close = standingClose(v.isPresent(), tombstone, ids.size(), standingSites, out);
 			if (close == Close.REMOVED) {
 				// the removal record first, then the release: a failure between leaves the adoption open, so the next reconcile writes what is missing
 				Set<String> recorded = removedSince(s, adopted.get());
@@ -304,7 +308,7 @@ public final class Adoption {
 		// gone already (a lost unadopt answer, or removed): the reconcile closes it
 		if (v.isEmpty() || v.get().state() == RegionState.REMOVED) {
 			boolean ok = reconcile(server, s, true) && standing(Settlements.store().get(s.id()).orElse(s)).filter(e -> region.equals(regionOf(e))).isEmpty();
-			say.accept(ok ? "The town was let go as a region already." : "Undo stopped: the town's region can't be read as let go or removed yet; try again.");
+			say.accept(ok ? "The town was let go or removed as a region already." : "Undo stopped: the town's region can't be read as let go or removed yet; try again.");
 			done.accept(ok);
 			return ok;
 		}
