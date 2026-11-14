@@ -1447,6 +1447,17 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
   own stages (adopted, street, lots, fluids) instead of refusing. It works instantly only: adopted regions are still creative-only, and
   survival adoption is Architect's slice SAD, next after SA. There's no API change and no RC. At v0.66.0, Steward lifts `ModuleOffer`'s "a
   street town can't take a watered field yet" for creative adopted towns (slice A2L).
+- **S-M5-3 shipped as FK** (Architect main b9de7d23, 2026-11-14; in v0.66.0 with SA; NEXT-versioned until the tag).
+  - **RC areas:**
+    - `bp.fillContainers` and the sidecar `fill`;
+    - ProgramRefused detail `fill`;
+    - SITE_BUILT only after the unlock;
+    - the fill's items in `outstanding` and `nextNeeded`;
+    - the typed wait `fill_blocked`, as `SiteWait.blocked` and `blockedCells`;
+    - the quote piece `fill:<lot>`;
+    - refunds that include the custody.
+  - **Refused (NOT_ALLOWED):** a crate-fed survival fill site, a move, a delta, an overwrite of a fill cell.
+  - M4 starts on FK once v0.66.0 is tagged.
 - **Architect's answers (coordinator, 2026-11-12):** all as preferred.
   - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
   - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.
