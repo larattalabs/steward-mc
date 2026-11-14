@@ -217,6 +217,15 @@ public final class InboxScreen extends KitScreen {
 		return l;
 	}
 
+	static boolean isBill(String line) {
+		return line.contains(InboxModel.BILL);
+	}
+
+	/** A line as drawn: a bill's counts held to their items (a no-break space: the font's splitter breaks at plain spaces only). */
+	static String shown(String line) {
+		return isBill(line) ? line.replaceAll("(\\d) ", "$1\u00a0") : line;
+	}
+
 	/** The list's groups: what is blocked on the player, the steward's ideas, what is being built, what ended in the last minutes. */
 	private static final String[] GROUPS = {"Needs you", "Ideas", "Building", "Noticed", "Ended"};
 
@@ -268,7 +277,7 @@ public final class InboxScreen extends KitScreen {
 	private int detailHeight(InboxModel.Entry e, int w) {
 		int h = 14 + 10; // pill row, progress
 		h += TextUtil.wrapPlain(font, e.headline(), w).size() * 10 + 6;
-		for (String l : shownLines(e)) h += TextUtil.wrapPlain(font, l, w).size() * 10;
+		for (String l : shownLines(e)) h += (isBill(l) ? 4 : 0) + TextUtil.wrapPlain(font, shown(l), w).size() * 10;
 		h += Math.min(e.lots().size(), 8) * ROW_H + 8;
 		if (field != null) h += TextFieldView.BASE_H + 10 + (redirectLot != null ? 12 : 0);
 		return h;
@@ -299,9 +308,12 @@ public final class InboxScreen extends KitScreen {
 		// the further lines: the buildings by stage, a usage limit it waits for
 		for (String line : shownLines(e)) {
 			boolean held = line.startsWith(InboxModel.HELD_LINE);
-			for (String l : TextUtil.wrapPlain(font, line, w)) {
+			// a module offer's whole bill is what "Build it" approves: set apart, in ink, never a count wrapped away from its item
+			boolean bill = isBill(line);
+			if (bill) y += 4;
+			for (String l : TextUtil.wrapPlain(font, shown(line), w)) {
 				// the usage limit is a state, not a request: ink, set apart from the muted lines, never the clay of "needs you"
-				g.text(font, l, x, y, held ? UiBits.ink() : UiBits.muted(), false);
+				g.text(font, l, x, y, held || bill ? UiBits.ink() : UiBits.muted(), false);
 				y += 10;
 			}
 		}
