@@ -39,6 +39,11 @@ public final class VPlan {
 		else LEGACY.remove(settlementId);
 	}
 
+	/** The settlements held to Steward's own layout (for {@link DevLayouts}). */
+	public static Set<String> legacyIds() {
+		return Set.copyOf(LEGACY);
+	}
+
 	public static void clear() {
 		LEGACY.clear();
 	}

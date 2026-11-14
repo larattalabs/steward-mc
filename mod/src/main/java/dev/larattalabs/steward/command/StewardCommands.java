@@ -180,6 +180,8 @@ public final class StewardCommands {
 					boolean legacy = "legacy".equals(which);
 					dev.larattalabs.steward.gateway.VPlan.legacy(id, legacy);
 					dev.larattalabs.steward.gateway.PPlan.villageOnly(id, "village".equals(which));
+					// kept over a restart (the e2e's restarts mid-build): a street town stays one
+					dev.larattalabs.steward.gateway.DevLayouts.save();
 					ctx.getSource().sendSuccess(() -> Component.literal(id + " layout: " + (legacy ? "Steward's own" : "village".equals(which)
 						? "Architect's flat village when it applies" : "its plan, else Architect's flat village, when it applies")), false);
 					return 1;
