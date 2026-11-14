@@ -700,8 +700,8 @@ public final class Actions {
 
 	/** A card as the JSON the screens and the fixtures use. */
 	public static String cardJson(dev.larattalabs.steward.model.ConceptCard c) {
-		// nulls kept: the schema requires the nullable fields (a template of null) to be there
-		return new com.google.gson.GsonBuilder().serializeNulls().create().toJson(c);
+		// templates kept as null (the schema requires them), every other null left out (the schema has no null size, notes or budget)
+		return dev.larattalabs.steward.model.ConceptCard.toJson(c).toString();
 	}
 
 	private static String clip(String t, int n) {
