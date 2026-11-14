@@ -39,6 +39,11 @@ public final class PPlan {
 		return VILLAGE_ONLY.contains(settlementId);
 	}
 
+	/** The settlements held to the flat village (for {@link DevLayouts}). */
+	public static Set<String> villageOnlyIds() {
+		return Set.copyOf(VILLAGE_ONLY);
+	}
+
 	public static void clear() {
 		VILLAGE_ONLY.clear();
 	}

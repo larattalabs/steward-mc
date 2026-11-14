@@ -136,6 +136,7 @@ public final class SettlementRunner {
 			ACTIVE.clear();
 			dev.larattalabs.steward.gateway.VPlan.clear();
 			dev.larattalabs.steward.gateway.PPlan.clear();
+			dev.larattalabs.steward.gateway.DevLayouts.clear();
 			resyncPending = false;
 			builds = new BuildStore();
 			buildsFile = null;
@@ -143,6 +144,8 @@ public final class SettlementRunner {
 	}
 
 	private static void restoreAll(MinecraftServer server) {
+		// (dev) the layouts the e2e set before a restart, before any build resumes
+		dev.larattalabs.steward.gateway.DevLayouts.load(server);
 		buildsFile = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).resolve("steward-builds.json");
 		// a build logs its placement to its settlement for undo: with the settlements unreadable, none resumes (the builds file is left as it is)
 		if (Settlements.disabled()) {
