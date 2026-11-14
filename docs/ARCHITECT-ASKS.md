@@ -1424,6 +1424,20 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
       - a pending fill keeps its stock reserved in the feed order;
       - the fill tick re-asserts each lock, with neighbour updates.
     - An XR overwrite of a fill cell is refused at realise or put-down, not at plan check, because bound entries aren't known there.
+- **S-M5-10. Re-laid farmland is billed and not refunded** (M2's crop_farm re-certification on 0.65.0, 2026-11-13; Noah via parent session:
+  "Merge, ask Architect").
+  - **Seen:** a survival crop_farm site waits for half-fed materials (about 5 minutes), and its irrigation comes after the farmland. Vanilla
+    dries the bare farmland back to dirt, and Architect re-lays farmland on its own cell, charging a new dirt each time. Undo refunds the
+    quoted 210. In 5 of 6 runs the site paid 211-213 dirt and refunded 210: an item loss past the approved quote, never a mint. A site
+    that builds at once refunds exactly.
+  - **Asked:** re-laying farmland on Architect's own cell that dried to dirt bills nothing. If it must bill, count it against the bound and
+    refund it under the same key. Putting water before farmland in IRR's order would also avoid most of it.
+  - **Until then:** Steward's e2e stocks that round fully, and a waiting round reports its over-charge without failing.
+- **S-M5-11. Every crop_farm quote is inexact** (M2, 2026-11-13).
+  - **Seen:** on 0.64.1 and 0.65.0, every quote (108 measured, and every e2e quote) is `exact: false` with "a cell the plan reads is not
+    loaded", even with the lot loaded. FullBom's reason labels look swapped: the "not loaded" text is set where `updateShape` throws.
+  - **Effect:** Steward puts any inexact quote to the player, so a survival placement always asks once.
+  - **Asked:** give the right reason, and make the quote exact when every cell it reads is loaded.
 - **Architect's answers (coordinator, 2026-11-12):** all as preferred.
   - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
   - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.
