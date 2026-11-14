@@ -50,6 +50,7 @@ public final class MaterialRequests {
 			TOLD.clear();
 			BUILDING.clear();
 			seeded = false;
+			seedFailed = false;
 		});
 		try {
 			SiteEvents.SITE_WAITING.register(MaterialRequests::onWaiting);
@@ -58,6 +59,17 @@ public final class MaterialRequests {
 			return;
 		}
 		ServerTickEvents.END_SERVER_TICK.register(s -> {
+			// the world's builds are watched again on its first tick, not its first read: a fed target can finish within one read's interval
+			// (Architect 0.66.0 built a 495-cell lot 8 s after the join), and one built before the seed is never said
+			// (a seed that failed is tried again at each read, as before)
+			if (!seeded && (!seedFailed || s.getTickCount() % EVERY == 0)) {
+				try {
+					seedBuilds();
+				} catch (RuntimeException | LinkageError e) {
+					seedFailed = true;
+					Steward.LOGGER.warn("could not look for the builds from materials", e);
+				}
+			}
 			if (s.getTickCount() % EVERY != 0) return;
 			try {
 				readLongWaits(s);
@@ -71,7 +83,6 @@ public final class MaterialRequests {
 				Steward.LOGGER.warn("could not look for growths without a build", e);
 			}
 			try {
-				if (!seeded) seedBuilds();
 				readBuilds(s);
 			} catch (RuntimeException | LinkageError e) {
 				Steward.LOGGER.warn("could not read the builds from materials", e);
@@ -104,6 +115,7 @@ public final class MaterialRequests {
 	private static final Map<String, String> BUILDING = new java.util.concurrent.ConcurrentHashMap<>();
 
 	private static boolean seeded;
+	private static boolean seedFailed;
 
 	/** At a world's start: every settlement's placed region still being built from the stockpile is watched again (said once when done). */
 	private static void seedBuilds() {
