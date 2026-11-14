@@ -259,12 +259,12 @@ const settlementsIn = (dir) => {
 
 /**
  * A loaded machine first (2026-11-12): three Architect gate runs, Gradle tests and this e2e together took the load to 75-85, and checks timed out. The
- * client starts once the 1-minute load average is at most E2E_LOAD_MAX (default 40, about twice the cores), waiting at most E2E_LOAD_WAIT_MIN minutes
- * (default 20; then it starts anyway and says so). E2E_LOAD_MAX=0 turns the wait off.
+ * client starts once the 1-minute load average is at most E2E_LOAD_MAX (default 72; Noah, 2026-11-13: "high at least 72 cap"), waiting at most E2E_LOAD_WAIT_MIN minutes
+ * (default 15; then it starts anyway and says so). E2E_LOAD_MAX=0 turns the wait off.
  */
 async function waitForLoad() {
-  const max = Number(process.env.E2E_LOAD_MAX ?? 40);
-  const waitMin = Number(process.env.E2E_LOAD_WAIT_MIN ?? 20);
+  const max = Number(process.env.E2E_LOAD_MAX ?? 72);
+  const waitMin = Number(process.env.E2E_LOAD_WAIT_MIN ?? 15);
   const load = () => Math.round(os.loadavg()[0] * 10) / 10;
   if (!(max > 0) || load() <= max) return;
   const t0 = Date.now();

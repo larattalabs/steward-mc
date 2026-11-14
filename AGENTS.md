@@ -59,6 +59,8 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
     - A slice that touches shared core (persistence, billing, the gateway) runs the full suite.
   - **Timing benches report only** (same decision): a perf or timing assertion becomes a report step that records the number and the load.
     Past its bound, it flags the manager instead of failing the slice.
+  - **Load gate** (Noah, 2026-11-13: "lets ensure that is 15 min max from now on, with high at least 72 cap"): a load-aware start waits at most
+    15 minutes, and the load threshold is 72 or more. The e2e client's defaults are `E2E_LOAD_MAX` 72 and `E2E_LOAD_WAIT_MIN` 15.
 - **Release-candidate testing is DEV MODE** (Noah, 2026-11-04):
   - An Architect RC runs only the flows its change touches, plus the sanity set: `node tools/e2e.mjs stub --only gate,wall,survival`, aiming for 15-20 min.
   - Full stub and free runs are nightly, or before a pin when a release is broad; what they find is fixed forward.
