@@ -37,6 +37,22 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
   scratchpad: a reboot wipes those. A worktree has no `.gradle-home`, so its builds and e2e runs set `GRADLE_USER_HOME` to this checkout's.
 - Decisions Noah makes go into the Decisions table as they happen. A review's findings are checked against the code before they are acted on.
 - High-stakes or hard changes (spending, persistence, cancellation, migrations) get an independent GPT review (the second-opinion skill), then a check of the fixes.
+- **Speed rules** (Noah, 2026-11-13: "yes, apply all of those"; they apply to running slices too):
+  - **Risk tiers.**
+    - **Strict:** saves and persistence, billing, refunds and stock, undo and revert, crash recovery and reconcile, and anything that can
+      mint or lose items. These keep the gate-verifier and, where the rules ask for one, the GPT review.
+    - **Light:** everything else (UI, wording, tooling, docs, fixtures, $0 prompts). Unit tests plus one targeted in-game flow, with no
+      verifier and no GPT review. New screens still get a design-critic look.
+    - The manager picks the tier in the brief when it's unclear.
+  - **Failing steps only.** After a failure, fix it and rerun only the failing flows (`--only`). The full gate runs once at the end. Three
+    full runs per slice at most; a fourth is the manager's call.
+  - **Batched merges.** The manager merges 2-4 ready slices together and runs one merge suite on the combined result. If it fails, bisect by
+    slice.
+  - **Module re-certification.** A measured module is re-measured at an Architect pin only when its own code changes, or when the Architect
+    build, billing or realise paths it uses change. A plain version bump gets a smoke check: one field round plus the billing check.
+  - **Capacity.** Up to 4 in-game runs at once, with no two starting within 5 minutes of each other. Unit suites run under `nice -n 10`.
+    Docs, kit-only and unit-only work take no slot.
+  - **Short as-builts.** A slice's as-built and its report are 10-15 lines: what changed, what ran and passed, and the leftovers.
 - **Release-candidate testing is DEV MODE** (Noah, 2026-11-04):
   - An Architect RC runs only the flows its change touches, plus the sanity set: `node tools/e2e.mjs stub --only gate,wall,survival`, aiming for 15-20 min.
   - Full stub and free runs are nightly, or before a pin when a release is broad; what they find is fixed forward.
