@@ -210,13 +210,23 @@ crops, rustic. Fed from the stockpile until PLACED.
 
 ## Results
 
-**Re-certified on Architect 0.64.1 (2026-11-13, the manager's ask after main's c9d3273 pin).** The pins moved to kit/checker 0.59.0
+**Re-certified on Architect 0.65.0 (2026-11-13, Noah's "a": the bound per Style).** The pins moved to kit/checker 0.60.0 (64b53a8), so
+module.json's sha changed (moduleSha `1c5d1c33…`) with the program unchanged (`c406df05…`), and every step was measured again: offline
+115/115, ingame 116/116, survival 63/63, bounds 111/111, skin rustic/fortress/desert 53/53 each, border 23/23, field
+wheat/carrots/potatoes/beetroots 62/62 each (5 runs, amended 3b judge) and cover 11/11, at 64b53a8 on ports 8594/8595, $0. `measured.json`
+now certifies Architect 0.65.0 only. Its `bounds` are per Style (108 entries: 36 params x rustic, fortress and desert, each with its
+`roleParts`; every lot quote equalled the program's template bill item for item), and the per-item maximum over the three Styles is
+identical to 0.64.1's 36 merged bounds. Each quoted rate is within 3.5% of 0.64.1's, the per-crop mean rate per crop-day within 0.003 of
+0.64.1's (wheat 9x9 18 -> 18 a day, 27x27 180 -> 179; carrots 27x27 484 -> 489; potatoes 27x27 492 -> 494; beetroot 27x27 282 -> 279;
+the largest move beetroot 9x9 29 -> 28). `artifacts/m2/` holds the 0.65.0 evidence.
+
+**Before it, re-certified on Architect 0.64.1 (2026-11-13, the manager's ask after main's c9d3273 pin).** The pins moved to kit/checker 0.59.0
 (239e3dd), which changes module.json's sha, so every step was measured again with the program unchanged (`c406df05…`, moduleSha
 `ad0decb0…`). The steps were offline 115/115, ingame 116/116, survival 63/63, bounds 111/111, skin rustic/fortress/desert 53/53 each, border
 23/23, field wheat/carrots/potatoes/beetroots 62/62 each (5 runs, amended 3b judge) and cover 11/11. They ran at 239e3dd, ports 8594/8595, $0.
 `measured.json` now certifies Architect 0.64.1 only. Its 36 bounds are identical to 0.63.0's. Each quoted rate is within 3% of
 0.63.0's (for example wheat 9x9 18 a day, 27x27 180; carrots 27x27 484; potatoes 27x27 492; beetroot 27x27 282). M1's certification rule is
-unchanged. The tables below are the 0.63.0 measurement, kept for its per-run detail; `artifacts/m2/` holds the 0.64.1 evidence.
+unchanged. The tables below are the 0.63.0 measurement, kept for its per-run detail.
 
 Measured on 0.63.0, 2026-11-13, on candidate 3 (program sha `c406df05…`, moduleSha `dc7b1751…`). The steps ran at heads 834480e to e46d693 (the field steps last, under the amended 3b judge); the
 program and module.json were unchanged throughout, since every step stamps their sha256. The runs used Minecraft 26.3, Architect 0.63.0 and

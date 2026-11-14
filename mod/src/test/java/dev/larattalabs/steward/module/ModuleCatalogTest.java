@@ -121,9 +121,10 @@ class ModuleCatalogTest {
 		assertNotNull(ModuleGate.params(v.entry(), p).values());
 		p.addProperty("width", 10);
 		assertNull(ModuleGate.params(v.entry(), p).values(), "a field side outside the measured 9, 18 and 27 is refused");
-		// M3's members: a bound and a quoted rate for every one of the 36 branches
+		// M3's members: a bound per measured Style (rustic, fortress, desert) with its role parts, and a quoted rate, for every one of the 36 branches
 		var raw = v.entry().measured().raw();
-		assertEquals(36, raw.getAsJsonArray("bounds").size());
+		assertEquals(36 * 3, raw.getAsJsonArray("bounds").size());
+		for (var b : raw.getAsJsonArray("bounds")) assertNotNull(StyleBound.parts(b.getAsJsonObject()), b.toString());
 		assertEquals(36, raw.getAsJsonArray("rates").size());
 	}
 
