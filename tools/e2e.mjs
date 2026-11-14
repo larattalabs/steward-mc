@@ -4380,8 +4380,9 @@ async function moduleFlow() {
 /**
  * The module's survival flow (MODULES.md section 7, on the fixture): a Supplied town built from its stockpile; the module offered with the bound the dev
  * source gives (a tiny one: 1 dirt); accepted with the stockpile fully stocked → the quote is past the bound: the build holds and asks, nothing consumed;
- * approved → the bill becomes the bound and the growth is realised from materials, fed in part while placed; its targets' bills = what the stockpile
- * paid; undo refused while it is built, then (fed) undone with what it consumed refunded exactly once.
+ * stocked with the whole quote and approved → the bill becomes the bound and the growth is realised from materials at once; undo refused while it is
+ * built, then undone with what it consumed refunded exactly once. The mapped round: the measured bound in the town's blocks holds the quote. The
+ * waiting round (report only): a lot left waiting for its crop, fed in halves; paid against refunded per item and the wait (S-M5-10, farmland re-lay).
  */
 async function moduleSurvivalFlow() {
   const label = 'module survival';
@@ -4497,12 +4498,17 @@ async function moduleSurvivalFlow() {
     const otherItems = quoted ? Object.keys(quoted).filter((k) => !(k in measuredBound)) : [];
     if (quoted && pastMeasured.length === 0) ok(`${label} measured bound`, `the quote's style-free items are within crop_farm's measured bound (${styleFree.map((k) => `${quoted[k] ?? 0}/${measuredBound[k]}`).join(', ')}); items of this Style the bound doesn't name: ${otherItems.join(', ') || 'none'}`);
     else fail(`${label} measured bound`, `quote ${JSON.stringify(quoted)}; past the measured bound: ${JSON.stringify(pastMeasured)}`);
-    // approved: the bill becomes the bound; realised from materials, fed in part while placed
-    nudge = region;
+    // stocked with the whole quote (this town's own fences, lamps and paths, twice; the seeds as they are) before it is approved, and fed in full while
+    // placed, so the lot builds at once: its undo refund then measures exactly what it should (a lot left waiting lays its farmland twice: the waiting
+    // round below)
+    if (!quoted) return fail(label, 'no quote logged to stock the round with');
+    await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(quoted).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
+    // approved: the bill becomes the bound; realised from materials, fed in full whatever the stockpile still asks for (every 3 s), never left waiting
     from = logSize();
+    feeding = true;
     await cmd(`/steward approve ${id}`);
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
-    nudge = null;
+    feeding = false;
     if (!grew) return;
     const g = await growthOf(id);
     const mods = await moduleSites(g.op);
@@ -4647,6 +4653,54 @@ async function moduleSurvivalFlow() {
     if (last2?.kind === 'PROJECT_REMOVED' && ledgers2 && Object.keys(paid2).length && asQuoted2 && eq(paid2, back2))
       ok(`${lbl} undo`, `paid ${JSON.stringify(paid2)} (as quoted${exact2 ? ', exactly' : ', within it'}), returned the same once`);
     else fail(`${lbl} undo`, `last ${last2?.kind}; ledgers ${ledgers2}; paid ${JSON.stringify(paid2)}; quote ${JSON.stringify(quoted2)} exact ${exact2}; returned ${JSON.stringify(back2)}`);
+    // the waiting round (report only; Noah's "a+b", 2026-11-13): a carrot field with no carrots in the stockpile, so its lot waits and is fed half of
+    // what it needs every 30 s. Bare farmland waiting for its crop dries back to dirt and is laid again, past the quote, and the undo doesn't refund the
+    // re-laid cells: paid against refunded per item and the wait, never a failure, until Architect answers (S-M5-10, Architect's farmland re-lay)
+    const wl = `${label} waiting (report, S-M5-10, Architect's farmland re-lay)`;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+    await cmd('/give @p minecraft:carrot 16');
+    await cmd(`/steward dev sim_answer talk ${JSON.stringify({ ...ask, module: { id: MODULE, params: { crop: 'carrots' } } })}`);
+    await cmd(`/steward talk ${id} we need a field of carrots`);
+    let offer3 = null;
+    for (let i = 0; i < 90 && !offer3; i++) {
+      await sleep(1000);
+      offer3 = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.module?.moduleId === MODULE && x.key !== offer2.key) ?? null;
+    }
+    if (!offer3) { ok(wl, 'not run: no carrot offer within 90 s of asking for it'); return; }
+    const sw0 = await ledger();
+    await sleep(3000);
+    from = logSize();
+    nudge = region;
+    await cmd(`/steward proposals ${id} accept ${offer3.key}`);
+    await waitLog(from, new RegExp(`module ${id} quote `), 240_000);
+    await sleep(3000);
+    await away();
+    const qline3 = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(from));
+    const quoted3 = qline3 ? JSON.parse(qline3[1]) : null;
+    if (/The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(logSince(from))) await cmd(`/steward approve ${id}`);
+    const t3 = Date.now();
+    const grew3 = await buildThrough(id, from, wl, false, null, 1_200_000);
+    let waitedS = null;
+    for (let i = 0; grew3 && i < 300; i++) {
+      const sp = await ledger();
+      if (Object.keys(sp?.need ?? {}).length === 0 && Object.keys(sp?.outstanding ?? {}).length === 0) { waitedS = Math.round((Date.now() - t3) / 1000); break; }
+      await sleep(3000);
+    }
+    nudge = null;
+    const swB = await ledger();
+    await away();
+    await cmd(`/steward undo ${id}`);
+    let last3 = null;
+    for (let i = 0; i < 300 && last3?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(1000);
+      last3 = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    await sleep(20_000);
+    const swR = await ledger();
+    const paid3 = Object.fromEntries(Object.entries(swB?.consumed ?? {}).map(([k, c]) => [k, c - (sw0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const back3 = Object.fromEntries(Object.entries(swR?.returned ?? {}).map(([k, c]) => [k, c - (swB?.returned?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const short3 = Object.entries(paid3).filter(([k, c]) => (back3[k] ?? 0) !== c).map(([k, c]) => `${k.replace(/^minecraft:/, '')} paid ${c}, refunded ${back3[k] ?? 0}, quoted ${quoted3?.[k] ?? '?'}`);
+    ok(wl, `${grew3 ? `waited ${waitedS ?? '>900'} s for materials` : 'not built'}; last ${last3?.kind}; ${short3.length ? `over-charged: ${short3.join('; ')}` : 'refunded what it paid, item for item'}; paid ${JSON.stringify(paid3)}`);
   } finally {
     stop = true;
     if (feeder) await feeder.catch(() => null);
