@@ -154,11 +154,12 @@ public final class ModuleOffers {
 	}
 
 	/** How the town would grow to take a module now (docs/MODULES.md 4.2, 4.3): the same checks the addition's survey makes, before anything is spent. */
-	public static ModuleOffer.Town town(MinecraftServer server, Settlement s, @Nullable ServerPlayer p, boolean district) {
+	public static ModuleOffer.Town town(MinecraftServer server, Settlement s, @Nullable ServerPlayer p, @Nullable String districtId) {
 		var api = ArchitectApi.get();
 		boolean worldSurvival = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false);
 		boolean regionMaterials = worldSurvival && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
 		ModuleOffer.Path path = ModuleOffer.Path.NONE;
+		boolean district = false;
 		String why = null;
 		boolean built = true;
 		int percent = 100;
@@ -167,11 +168,19 @@ public final class ModuleOffers {
 		boolean overworld = level != null && level.dimension() == net.minecraft.world.level.Level.OVERWORLD;
 		if (!api.features().contains(Growths.FEATURE)) why = "this Architect can't grow a town by revisions";
 		else {
-			var town = TownRegion.of(s).flatMap(id -> api.regions().get(id));
-			if (town.isPresent()) {
+			// (slice DG) the next building goes to a district: a standing district region grows as the town does; any other district can't take a module
+			var inDistrict = districtId == null ? java.util.Optional.<dev.larattalabs.steward.model.Settlement.District>empty() : s.lands().district(districtId);
+			if (districtId != null && inDistrict.filter(Districts::grows).isEmpty()) district = true;
+			var town = district ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty()
+				: districtId != null ? api.regions().get(inDistrict.get().region()).filter(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVED
+					&& v.state() != dev.larattalabs.architect.api.RegionState.REMOVING)
+				: TownRegion.of(s).flatMap(id -> api.regions().get(id));
+			if (district) why = "the next building goes to a district that doesn't grow by Architect's revisions";
+			else if (districtId != null && town.isEmpty()) why = "the district's region is gone";
+			else if (town.isPresent()) {
 				var v = town.get();
 				boolean materials = Growths.fromMaterials(v);
-				if (materials != regionMaterials) why = Growths.modeRefusal(s.name(), materials, regionMaterials, true, 100);
+				if (materials != regionMaterials) why = Growths.modeRefusal(inDistrict.map(dev.larattalabs.steward.model.Settlement.District::name).orElse(s.name()), materials, regionMaterials, true, 100);
 				else {
 					path = materials ? ModuleOffer.Path.REGION_MATERIALS : ModuleOffer.Path.REGION;
 					built = !materials || (v.build() != null && v.build().built());
@@ -186,7 +195,9 @@ public final class ModuleOffers {
 		}
 		boolean freezing = false;
 		if (level != null) {
-			BlockPos at = new BlockPos(s.claim().centerX(), level.getSeaLevel(), s.claim().centerZ());
+			// (slice DG) where the module would go: the district's ground, else the town's
+			var where = districtId == null ? s.claim() : s.lands().district(districtId).map(dev.larattalabs.steward.model.Settlement.District::claim).orElse(s.claim());
+			BlockPos at = new BlockPos(where.centerX(), level.getSeaLevel(), where.centerZ());
 			freezing = level.getBiome(at).value().coldEnoughToSnow(at, level.getSeaLevel());
 		}
 		Map<String, Integer> seeds = new HashMap<>();
@@ -220,7 +231,7 @@ public final class ModuleOffers {
 	}
 
 	/** The catalog's modules as the proposal rules see them now: their kind, whether one stands, and their offer when eligible. */
-	public static List<ProposalRules.ModuleCandidate> candidates(MinecraftServer server, ServerPlayer p, Settlement s, boolean district, long now) {
+	public static List<ProposalRules.ModuleCandidate> candidates(MinecraftServer server, ServerPlayer p, Settlement s, @Nullable String district, long now) {
 		List<ProposalRules.ModuleCandidate> out = new ArrayList<>();
 		ModuleOffer.Town town = null;
 		for (ModuleKind k : kinds()) {
@@ -253,7 +264,7 @@ public final class ModuleOffers {
 		if (v.entry().version() != o.version() || !v.entry().programSha().equals(o.programSha()))
 			return "the catalog's " + o.moduleId() + " has changed since it was offered (" + v.entry().key() + " now), so what you'd approve isn't what would be built";
 		if (standing(server, s, o.moduleId())) return "a working " + kind.get().role() + " stands already";
-		var town = town(server, s, p, pr.district() != null);
+		var town = town(server, s, p, pr.district());
 		// the params as offered: checked again against the envelope (the seeds may be gone, but the size was approved)
 		var d = ModuleOffer.decide(kind.get(), v, town, o.params(), bounds(s));
 		if (!d.ok()) return d.why();

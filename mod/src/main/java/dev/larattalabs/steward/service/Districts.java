@@ -219,6 +219,130 @@ public final class Districts {
 			? new dev.larattalabs.steward.model.DistrictSite.Choice(null, "has its strip by the water") : c));
 	}
 
+	/**
+	 * (slice DG) Whether a building can be added to the district now: a square, a reserved beside district (its first building builds its region), or a
+	 * standing district region while Architect grows regions by revision ({@code grows}). Pure.
+	 */
+	static boolean takes(Settlement.District d, boolean grows) {
+		return d.takesBuilding() || (grows && grows(d));
+	}
+
+	/** (slice DG) A standing district with its own region: one that grows by revision. Pure. */
+	static boolean grows(Settlement.District d) {
+		return !d.square() && Settlement.District.STANDING.equals(d.state()) && d.region() != null;
+	}
+
+	/** As {@link #takes(Settlement.District, boolean)}, with whether this Architect grows regions. */
+	static boolean takes(Settlement.District d) {
+		boolean grows;
+		try {
+			grows = ArchitectApi.get().features().contains(Growths.FEATURE);
+		} catch (RuntimeException | LinkageError e) {
+			grows = false;
+		}
+		return takes(d, grows);
+	}
+
+	/**
+	 * (slice DG) The land a standing district region owns, read again from Architect's {@code land.outside} (which a growth adds to and its undo takes
+	 * back): a beside district its reservation (its claim's square, which never changes) and {@code outside}, a quarter exactly {@code outside}; never
+	 * another district's columns. Null (the saved land stays): nothing trustworthy read ({@code read} null), or a quarter whose {@code outside} reads
+	 * empty (it never owns nothing while its region stands). Pure.
+	 */
+	static dev.larattalabs.steward.model.@Nullable Land landAfter(Settlement.District d, dev.larattalabs.steward.gateway.DistrictLand.@Nullable Read read,
+		List<Settlement.District> all) {
+		if (read == null) return null;
+		boolean beside = Settlement.District.BESIDE.equals(d.kind());
+		if (read.land() == null && !beside) return null;
+		var reservation = dev.larattalabs.steward.model.Land.of(d.claim());
+		dev.larattalabs.steward.model.@Nullable Land land = beside ? (read.land() == null ? reservation : reservation.union(read.land())) : read.land();
+		for (Settlement.District o : all) {
+			if (o.id().equals(d.id()) || land == null) continue;
+			land = land.minus(o.land());
+		}
+		return land;
+	}
+
+	/**
+	 * (slice DG) The district whose own region is {@code region}: its land read again and saved when it differs (idempotent; no history entry). Only from a
+	 * settled region (standing, not busy, no revision placing or being taken up), so a half-written growth or undo never moves what the district owns. Run
+	 * after a growth's take-up and by the growth sweep (world start, every 10 s), so a crash between a growth's entry or removal and this save is put right.
+	 */
+	static void refreshLand(String settlementId, String region) {
+		var s = Settlements.store().get(settlementId);
+		if (s.isEmpty()) return;
+		var d = s.get().lands().districts().stream().filter(x -> grows(x) && region.equals(x.region())).findFirst();
+		if (d.isEmpty()) return;
+		try {
+			var v = ArchitectApi.get().regions().get(region);
+			if (v.isEmpty() || !settled(v.get())) return;
+			var read = dev.larattalabs.steward.gateway.DistrictLand.outsideWhole(v.get().ext(), d.get().claim().dimension());
+			var land = landAfter(d.get(), read, s.get().lands().districts());
+			if (land == null || land.equals(d.get().land())) return;
+			var x = d.get();
+			var res = Settlements.updateDistrict(settlementId, new Settlement.District(x.id(), x.name(), x.direction(), x.claim(), x.at(), x.roads(), x.linkUndone(),
+				x.kind(), x.state(), x.parent(), x.region(), land, x.follow(), x.opKey()), null);
+			if (!res.ok()) Steward.LOGGER.warn("{}: the land of district {} could not be saved again (asked again later): {}", settlementId, x.id(), res.error());
+			else Steward.LOGGER.info("{}: district {} owns {} columns again, from its region {}", settlementId, x.id(), land.runs().stream().mapToInt(r -> r.x1() - r.x0() + 1).sum(), region);
+		} catch (RuntimeException | LinkageError e) {
+			Steward.LOGGER.warn("{}: the land of the district of region {} could not be read again", settlementId, region, e);
+		}
+	}
+
+	/** A region whose land can be read as it is: placed (or partly), not busy, no revision placing or being taken up. */
+	static boolean settled(dev.larattalabs.architect.api.RegionView v) {
+		if (v.state() == dev.larattalabs.architect.api.RegionState.REMOVED || v.state() == dev.larattalabs.architect.api.RegionState.REMOVING) return false;
+		if (v.busy() != null && !v.busy().isBlank()) return false;
+		return v.revisions() == null || v.revisions().stream().allMatch(r -> Growths.ended(r.state()) || "UNDONE".equalsIgnoreCase(r.state()) || "STALE".equalsIgnoreCase(r.state()));
+	}
+
+	/**
+	 * (slice DG) Why a growth of district {@code districtId}'s region {@code region} may not go ahead now, or null. Architect grows a region anywhere in its
+	 * claim, around what stands, but Steward's empty land is not Architect's to see: the claim's columns outside the district's own land must hold no
+	 * sibling district's land, and those also outside the town's own region claim no other settlement's. Checked before the plan (nothing spent) and again before the realise.
+	 */
+	static @Nullable String growthConflict(Settlement s, String districtId, @Nullable String region) {
+		var d = s.lands().district(districtId);
+		if (d.isEmpty() || region == null) return null;
+		try {
+			var v = ArchitectApi.get().regions().get(region);
+			if (v.isEmpty()) return null;
+			var b = v.get().claim();
+			var box = dev.larattalabs.steward.model.Land.ofRect(d.get().claim().dimension(), b.minX(), b.minZ(), b.maxX(), b.maxZ());
+			List<dev.larattalabs.steward.model.Land> others = new ArrayList<>();
+			for (Settlement o : Settlements.store().all()) {
+				if (o.id().equals(s.id())) continue;
+				others.add(dev.larattalabs.steward.model.Land.of(o.claim()));
+				for (Settlement.District od : o.lands().districts()) others.add(od.land());
+			}
+			// the town's own region claim (Architect's, which an Expand of the settlement's claim never moves), else the settlement's claim
+			var parent = d.get().parent() == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : ArchitectApi.get().regions().get(d.get().parent());
+			var town = parent.map(t -> dev.larattalabs.steward.model.Land.ofRect(d.get().claim().dimension(), t.claim().minX(), t.claim().minZ(), t.claim().maxX(),
+				t.claim().maxZ())).orElse(dev.larattalabs.steward.model.Land.of(s.claim()));
+			return growthConflict(box, town, d.get(), s.lands().districts(), others);
+		} catch (RuntimeException | LinkageError e) {
+			return d.get().name() + "'s region can't be read now: ask again later.";
+		}
+	}
+
+	/** Pure: the columns of {@code regionClaim} past the town's claim and the district's own land, against a sibling's land and other settlements'. */
+	static @Nullable String growthConflict(dev.larattalabs.steward.model.Land regionClaim, dev.larattalabs.steward.model.Land town, Settlement.District d,
+		List<Settlement.District> siblings, List<dev.larattalabs.steward.model.Land> otherSettlements) {
+		// a sibling's land is checked over the whole claim past the district's own land, never exempted as town land (an Expand can take a district into
+		// the settlement's claim; review round 2)
+		var past = regionClaim.minus(d.land());
+		if (past == null) return null;
+		for (Settlement.District o : siblings) {
+			if (o.id().equals(d.id())) continue;
+			if (past.overlaps(o.land())) return d.name() + " can't grow now: its region's ground reaches " + o.name() + "'s land.";
+		}
+		// another settlement's: past the town's own region claim too
+		var free = past.minus(town);
+		if (free == null) return null;
+		for (var l : otherSettlements) if (free.overlaps(l)) return d.name() + " can't grow now: its region's ground reaches another settlement's land.";
+		return null;
+	}
+
 	/** A district region's build that ended with nothing placed: a beside district is only reserved again; a quarter, founded for it, is given up. */
 	static void release(String settlementId, Settlement.District d) {
 		if (Settlement.District.BESIDE.equals(d.kind())) Settlements.districtState(settlementId, d.id(), Settlement.District.RESERVED);
@@ -577,9 +701,9 @@ public final class Districts {
 
 	public static Counts counts(MinecraftServer server, Settlement s) {
 		java.util.LinkedHashMap<String, Integer> per = new java.util.LinkedHashMap<>();
-		// only districts that take a building: a square, or a reserved beside district (its first building builds it); a standing region district waits for
-		// Architect's growth (6d)
-		for (Settlement.District d : s.lands().districts()) if (d.takesBuilding()) per.put(d.id(), 0);
+		// only districts that take a building: a square, a reserved beside district (its first building builds it), or a standing district region that
+		// grows by revision (slice DG)
+		for (Settlement.District d : s.lands().districts()) if (takes(d)) per.put(d.id(), 0);
 		int town = 0;
 		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
 			if (!"building".equals(v.kind()) || BatchPlanner.isStreet(v.itemKey())) continue;

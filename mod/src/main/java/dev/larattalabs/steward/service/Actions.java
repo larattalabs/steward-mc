@@ -573,7 +573,7 @@ public final class Actions {
 			}
 			var accepted = order.accepted(autonomous, key);
 			new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, null),
-				() -> Proposals.giveBack(s.id(), p.get(), null), () -> Proposals.backOff(s.id(), key)).startModule(s, p.get().building(), accepted);
+				() -> Proposals.giveBack(s.id(), p.get(), null), () -> Proposals.backOff(s.id(), key)).startModule(s, p.get().building(), accepted, p.get().district());
 			return Result.ok(String.format("Laying %s in %s: a working module from the catalog (%s@%d), at no design cost%s.", kind.get().title(), s.name(), order.moduleId(),
 				order.version(), order.bound() == null ? "" : "; its bill from the stockpile is held to at most " + dev.larattalabs.steward.module.ModuleBound.bill(order.bound(), 4)));
 		}

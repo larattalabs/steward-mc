@@ -32,7 +32,7 @@ public final class ModuleOffer {
 	 * @param path how it would grow; {@code pathWhy} says why not when NONE
 	 * @param built a town built from materials is fully built (it grows only then)
 	 * @param percent how far it is built (for the words)
-	 * @param district the next building would go to a district (districts don't grow by revisions yet)
+	 * @param district the next building would go to a district that doesn't grow by revisions (a square, or one being built)
 	 * @param freezing the town's biome freezes water
 	 * @param seeds seed item id -> count the player carries
 	 * @param stock item id -> count the stockpile holds (a town built from materials: construction draws only from it)
@@ -73,7 +73,7 @@ public final class ModuleOffer {
 		java.util.function.BiFunction<ModuleCatalog.Entry, JsonObject, @Nullable JsonObject> bounds) {
 		if (!verdict.ok() || verdict.entry() == null) return Decision.no("a working " + kind.role() + " can't be offered here: " + verdict.message());
 		var e = verdict.entry();
-		if (town.district()) return Decision.no("the next building goes to a district, and districts don't grow by Architect's revisions yet");
+		if (town.district()) return Decision.no("the next building goes to a district that doesn't grow by Architect's revisions");
 		switch (town.path()) {
 			case NONE -> {
 				return Decision.no(town.pathWhy() == null ? "this town can't grow through Architect, and a working " + kind.role() + " is placed only that way" : town.pathWhy());

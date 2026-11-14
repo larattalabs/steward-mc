@@ -565,6 +565,41 @@ public final class SettlementRunner {
 	/** Architect's flat village (slice V) this build is laid out on: its plan, and the region once realised. Null for Steward's own layout. */
 	private @org.jspecify.annotations.Nullable String vPlanId, vRegionId;
 	/**
+	 * A standing region grows (docs/GROWTH.md, slices A, A2 and DG): the town, or {@code district}'s own region. The same checks for both: being changed
+	 * waits; the mode gate (the region's own mode against the world's); a region built from materials only once built, from the settlement's stockpile,
+	 * its crates kept clear; then the plan. Nothing is spent before the plan.
+	 */
+	private void growStanding(CardResult r, double budgetUsd, Settlement now, dev.larattalabs.architect.api.RegionView v, List<VillageLayout.LotSpec> specs,
+		boolean worldSurvival, Settlement.@org.jspecify.annotations.Nullable District district) {
+		String name = district == null ? now.name() : district.name();
+		String what = district == null ? "The town" : district.name();
+		boolean inFlight = v.revisions() != null && v.revisions().stream().anyMatch(x -> !Growths.ended(x.state())
+			&& !"UNDONE".equalsIgnoreCase(x.state()) && !"STALE".equalsIgnoreCase(x.state()));
+		// a region being changed waits, whatever it is built from (never Steward's street pieces beside a change in flight)
+		if ((v.busy() != null && !v.busy().isBlank()) || inFlight) {
+			abandon(what + " is being changed right now; ask again once it has settled.");
+			return;
+		}
+		// (slice A2) a region grows only in the mode it was built in (Architect plans in the world's mode, realises in the region's), and one built from
+		// materials only once all of it is built: else nothing is spent
+		boolean regionMaterials = worldSurvival && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
+		String no = Growths.modeRefusal(name, Growths.fromMaterials(v), regionMaterials, v.build() != null && v.build().built(), v.build() == null ? 0 : v.build().percent());
+		if (no != null) { abandon(no); return; }
+		// built from materials: its targets draw from the settlement's stockpile, made again if it went
+		if (Growths.fromMaterials(v)) {
+			var sp = Stockpiles.ensure(server, now, this::say);
+			if (sp == null) {
+				abandon(what + " is built from materials and grows from the stockpile, and none could be made by the founding stone. Clear a spot beside it and start again.");
+				return;
+			}
+			// the growth keeps off the crates and the ring round them (a protected area, which Architect's growth keeps clear of), as planComposed
+			String held = Stockpiles.protectCrates(server, Settlements.store().get(now.id()).orElse(now), sp, true);
+			if (held != null) { abandon("The stockpile's ground could not be kept clear of the growth (" + held + "). Start again."); return; }
+		}
+		planGrowth(r, budgetUsd, v.id(), specs, null);
+	}
+
+	/**
 	 * A region town's growth (docs/GROWTH.md): the town region, the revision's rid and position as planned, and the key that planned it ({@code vgrow},
 	 * {@code vgrow2}, {@code vgrow3}). Saved with the build; null for any other build.
 	 */
@@ -857,9 +892,17 @@ public final class SettlementRunner {
 			notPlaced > 0 || note != null ? Settlement.Outcome.PARTIAL : Settlement.Outcome.DONE);
 		// a district's own region: the district names it, owns what it took outside the town and stands, saved with the entry (docs/DISTRICTS.md section 4)
 		if (district != null && !district.square() && vRegionId != null) {
-			var land = ArchitectApi.get().regions().get(vRegionId).flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.outside(v.ext(), district.claim().dimension()));
+			// (slice DG review round 2) only a whole read of the region's land ever replaces what the district owns; else it keeps its land (the sweep reads it
+			// again once the region has settled)
+			var read = ArchitectApi.get().regions().get(vRegionId).map(v -> dev.larattalabs.steward.gateway.DistrictLand.outsideWhole(v.ext(), district.claim().dimension()))
+				.orElse(null);
+			var land = java.util.Optional.ofNullable(read == null ? null : read.land());
 			var res = Settlements.placeDistrict(settlement.id(), district.id(), vRegionId, land.orElse(null), entry);
 			if (!res.ok()) Steward.LOGGER.warn("placing district {} of {}: {}", district.id(), settlement.id(), res.error());
+			// (slice DG) a growth of a standing district: its land could not be saved with it (another settlement's overlap), so the growth is logged alone,
+			// never left unlogged; its land is put right at the next growth or undo
+			if (!res.ok() && growth() && Settlement.District.STANDING.equals(district.state()) && vRegionId.equals(district.region()))
+				return Settlements.log(settlement.id(), entry).ok();
 			return res.ok();
 		}
 		boolean ok = Settlements.log(settlement.id(), entry).ok();
@@ -965,8 +1008,14 @@ public final class SettlementRunner {
 	 * or B then A). Never a design, never Steward's street pieces: a town that can't grow that way ends the build before anything is spent.
 	 */
 	public void startModule(Settlement s, dev.larattalabs.steward.model.ConceptCard.Building lot, dev.larattalabs.steward.module.ModuleOrder order) {
+		startModule(s, lot, order, null);
+	}
+
+	/** As above, in {@code districtId} when the offer was bound into a district that grows by revision (slice DG). */
+	public void startModule(Settlement s, dev.larattalabs.steward.model.ConceptCard.Building lot, dev.larattalabs.steward.module.ModuleOrder order,
+		@org.jspecify.annotations.Nullable String districtId) {
 		this.pendingModule = order;
-		startAddition(s, lot, 0, null);
+		startAddition(s, lot, 0, districtId);
 	}
 
 	/** (slice M3) The module lot's spec: its exact frame [W, D] (never a footprint class), the role and the catalog's words. */
@@ -1053,6 +1102,25 @@ public final class SettlementRunner {
 			boolean overworld = level.dimension() == net.minecraft.world.level.Level.OVERWORLD;
 			// a district beside a region town (docs/DISTRICTS.md section 9): its first building plans the district's own region beside the town
 			if (district != null && !district.square()) {
+				// (slice DG) a standing district region grows by revision, as a region town does (docs/GROWTH.md, slice DG)
+				if (Settlement.District.STANDING.equals(district.state()) && district.region() != null && existing != null
+					&& ArchitectApi.get().features().contains(Growths.FEATURE)) {
+					if (!Adoption.reconcile(server, existing, true)) { abandon("The settlement's history could not be saved; try again."); return; }
+					VillageSweep.growths(server, Settlements.store().get(existing.id()).orElse(existing));
+					var now = Settlements.store().get(existing.id()).orElse(existing);
+					var dv = ArchitectApi.get().regions().get(district.region());
+					if (dv.isEmpty() || dv.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED || dv.get().state() == dev.larattalabs.architect.api.RegionState.REMOVING) {
+						abandon(district.name() + "'s region is gone: undo it, or found it again.");
+						return;
+					}
+					// (slice DG) the land the growth may take: never another settlement's, nor a sibling district's (checked before anything is spent)
+					String conflict = Districts.growthConflict(now, district.id(), district.region());
+					if (conflict != null) { abandon(conflict + " Nothing was spent."); return; }
+					growStanding(r, budgetUsd, now, dv.get(), specs, worldSurvival, district);
+					return;
+				}
+				// (slice M3) a module grows a region or nothing: never a district's first building
+				if (moduleBuild()) { abandon("A working module is placed only by growing a region, and " + district.name() + " has none yet. Nothing was spent."); return; }
 				planDistrict(r, budgetUsd, district, specs);
 				return;
 			}
@@ -1066,32 +1134,7 @@ public final class SettlementRunner {
 				if (Adoption.openIntent(now).isPresent()) { abandon("The town is being changed right now; ask again once it has settled."); return; }
 				var town = TownRegion.of(now).flatMap(id -> ArchitectApi.get().regions().get(id));
 				if (town.isPresent()) {
-					var v = town.get();
-					boolean inFlight = v.revisions() != null && v.revisions().stream().anyMatch(x -> !Growths.ended(x.state())
-						&& !"UNDONE".equalsIgnoreCase(x.state()) && !"STALE".equalsIgnoreCase(x.state()));
-					// a town being changed waits, whatever it is built from (never Steward's street pieces beside a change in flight)
-					if ((v.busy() != null && !v.busy().isBlank()) || inFlight) {
-						abandon("The town is being changed right now; ask again once it has settled.");
-						return;
-					}
-					// (slice A2) the town grows only in the mode it was built in (Architect plans in the world's mode, realises in the town's), and a town
-					// built from materials only once all of it is built: else nothing is spent
-					boolean regionMaterials = worldSurvival && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
-					String no = Growths.modeRefusal(now.name(), Growths.fromMaterials(v), regionMaterials, v.build() != null && v.build().built(),
-						v.build() == null ? 0 : v.build().percent());
-					if (no != null) { abandon(no); return; }
-					// built from materials: its targets draw from the settlement's stockpile, made again if it went
-					if (Growths.fromMaterials(v)) {
-						var sp = Stockpiles.ensure(server, now, this::say);
-						if (sp == null) {
-							abandon("A town built from materials grows from its stockpile, and none could be made by the founding stone. Clear a spot beside it and start again.");
-							return;
-						}
-						// the growth keeps off the crates and the ring round them (a protected area, which Architect's growth keeps clear of), as planComposed
-						String held = Stockpiles.protectCrates(server, Settlements.store().get(now.id()).orElse(now), sp, true);
-						if (held != null) { abandon("The stockpile's ground could not be kept clear of the growth (" + held + "). Start again."); return; }
-					}
-					planGrowth(r, budgetUsd, v.id(), specs, null);
+					growStanding(r, budgetUsd, now, town.get(), specs, worldSurvival, null);
 					return;
 				}
 				// a street town, built free: taken on as one region first, then grown (docs/GROWTH.md, slice B); anything that can't be keeps today's path
@@ -1235,7 +1278,7 @@ public final class SettlementRunner {
 			moduleOrders = Map.of(ids.get(0), pendingModule);
 			pendingModule = null;
 		}
-		if (stale == null) say("The town grows: Architect finds room on its streets...");
+		if (stale == null) say(districtId == null ? "The town grows: Architect finds room on its streets..." : growingName() + " grows: Architect finds room on its street...");
 		// asked before (a restart before the answer was saved): the newest of this build's growth plans
 		if (stale == null) {
 			for (String k : List.of("vgrow3", "vgrow2", "vgrow")) {
@@ -1254,11 +1297,14 @@ public final class SettlementRunner {
 		JsonObject grow = new JsonObject();
 		grow.add("lots", moduleGrowLots(params.getAsJsonArray("lots")));
 		grow.addProperty("prefer", prefer);
+		// (slice DG) a district region's growth names the district that grows (Architect GR: required for a districts region)
+		if (districtId != null) grow.addProperty("district", districtId);
 		JsonObject p = new JsonObject();
 		p.add("grow", grow);
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", settlement.id());
 		ext.addProperty(BatchPlanner.BUILD_EXT, buildId);
+		if (districtId != null) ext.addProperty(Districts.DISTRICT_EXT, districtId);
 		ArchitectApi.get().regions().planRevision(region, new dev.larattalabs.architect.api.RevisionRequest(Growths.PROGRAM, p, opKey(key), "steward", ext))
 			.whenComplete((rp, err) -> server.execute(() -> {
 				if (!Session.is(session) || !alive()) return;
@@ -1269,8 +1315,10 @@ public final class SettlementRunner {
 					if (full && i + 1 < tries.size()) { planGrowthTry(r, budgetUsd, region, lots, tries, i + 1, session); return; }
 					// (slice M3) no room for the module at this size: the next smaller size of its discrete set, as a new plan (never another box), said
 					if (full && r != null && smallerModule(r, budgetUsd, region, lots, session)) return;
-					if (full) Proposals.full(settlement.id(), null);
-					growthNotPlanned(r, full ? "No room left in the town for it: its streets are full. A district could take it."
+					if (full) Proposals.full(settlement.id(), districtId);
+					String inD = districtId == null ? null : settlement.lands().district(districtId).map(Settlement.District::name).orElse(districtId);
+					growthNotPlanned(r, full ? (inD != null ? "No room left in " + inD + " for it: its street is full."
+						: "No room left in the town for it: its streets are full. A district could take it.")
 						: "Architect could not find room for it in the town: " + m);
 					return;
 				}
@@ -2334,7 +2382,7 @@ public final class SettlementRunner {
 		// a district's: its region may not take another district's land (a build saved before planning checked that, or a district founded since)
 		String conflict = districtConflict();
 		if (conflict != null) {
-			say("Not placed: " + conflict + " The build ends here; undo the reservation and found the district again.");
+			say("Not placed: " + conflict + (growth() ? " The build ends here." : " The build ends here; undo the reservation and found the district again."));
 			feed(new Pipeline.Cancel());
 			return;
 		}
@@ -2346,7 +2394,7 @@ public final class SettlementRunner {
 		}
 		// (slice M3) the player approved it at Accept (or approved the bill since): placed now, never asked again
 		if (moduleBuild() && state.phase() == Pipeline.Phase.READY_TO_PLACE) feed(new Pipeline.ModulePlace());
-		say(growth() ? "Placing it in the town (" + lotEntries.size() + (lotEntries.size() == 1 ? " building" : " buildings") + ")..."
+		say(growth() ? "Placing it in " + growingName() + " (" + lotEntries.size() + (lotEntries.size() == 1 ? " building" : " buildings") + ")..."
 			: "Placing the village (" + Words.count(lotEntries.size(), "building", "buildings") + ", its street, lanes and square)...");
 		queueInFlight = true;
 		inFlightSince = System.currentTimeMillis();
@@ -2591,7 +2639,7 @@ public final class SettlementRunner {
 			var lot = new dev.larattalabs.steward.model.ConceptCard.Building(kind.get().role(), kind.get().lotType(), 1, "L", false, null, null);
 			var p = dev.larattalabs.steward.model.Proposal.module(o.proposal(), Character.toUpperCase(kind.get().title().charAt(0)) + kind.get().title().substring(1),
 				"Offered again: the last try placed nothing.", lot, System.currentTimeMillis(), "seeds", new dev.larattalabs.steward.module.ModuleOrder(o.moduleId(), o.version(),
-					o.programSha(), o.params(), o.bound(), o.rate(), o.lampFallback(), false));
+					o.programSha(), o.params(), o.bound(), o.rate(), o.lampFallback(), false)).in(districtId);
 			Proposals.giveBack(settlement.id(), p, null);
 		}
 	}
@@ -2610,8 +2658,8 @@ public final class SettlementRunner {
 		boolean world = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
 		boolean built = v.build() != null && v.build().built();
 		if (Growths.fromMaterials(v) == world && Growths.fromMaterials(v) && !built)
-			return "the town is being built from the stockpile again (an update or another change); it can grow once it's built. Start it again then.";
-		String no = Growths.modeRefusal(settlement.name(), Growths.fromMaterials(v), world, built, v.build() == null ? 0 : v.build().percent());
+			return growingName() + " is being built from the stockpile again (an update or another change); it can grow once it's built. Start it again then.";
+		String no = Growths.modeRefusal(districtId == null ? settlement.name() : growingName(), Growths.fromMaterials(v), world, built, v.build() == null ? 0 : v.build().percent());
 		if (no != null) return no + " Start it again.";
 		if (Growths.fromMaterials(v) && Stockpiles.of(server, Settlements.store().get(settlement.id()).orElse(settlement)).isEmpty())
 			return "the town's stockpile is gone, and a town built from materials grows from it. Start it again: a new one is made by the founding stone.";
@@ -3215,7 +3263,7 @@ public final class SettlementRunner {
 	 * {@code vrealise2}. True when the re-plan started (the build goes on); false to end the build as before.
 	 */
 	private boolean replanDistrict(Throwable err) {
-		if (districtId == null || districtReplanned || settlement == null || plan == null) return false;
+		if (districtId == null || districtReplanned || settlement == null || plan == null || growth()) return false;
 		// a cancel, or the build's end, while the first realise was asked: no second region
 		if (state == null || state.phase().terminal() || state.phase() == Pipeline.Phase.CANCELLING || !alive()) return false;
 		// the card's lots: this session's, else (a restored build) read back from its plan's lots and the ones it left out
@@ -3282,9 +3330,19 @@ public final class SettlementRunner {
 		return q.ok() ? q.request() : dev.larattalabs.steward.model.DistrictRules.request(region, d.claim(), d.direction());
 	}
 
-	/** Why this build's district region may not be placed now (another district's land in its request's claim), or null; not a district build: null. */
+	/** What a growth grows, in words: the district (slice DG) or the town. */
+	private String growingName() {
+		if (districtId == null || settlement == null) return "the town";
+		return Settlements.store().get(settlement.id()).orElse(settlement).lands().district(districtId).map(Settlement.District::name).orElse("the district");
+	}
+
+	/**
+	 * Why this build's district region may not be placed now (another district's land in its request's claim), or null; not a district build: null. A
+	 * growth of a standing district (slice DG) is checked by {@link Districts#growthConflict} instead: its region stands, so its founding envelope says nothing.
+	 */
 	private @org.jspecify.annotations.Nullable String districtConflict() {
 		if (districtId == null || settlement == null) return null;
+		if (growth()) return Districts.growthConflict(Settlements.store().get(settlement.id()).orElse(settlement), districtId, growRegion);
 		var now = Settlements.store().get(settlement.id()).orElse(settlement);
 		var district = now.lands().district(districtId).orElse(null);
 		if (district == null || district.square() || district.parent() == null) return null;

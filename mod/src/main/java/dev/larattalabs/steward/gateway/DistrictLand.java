@@ -47,6 +47,39 @@ public final class DistrictLand {
 		return runs.isEmpty() ? Optional.empty() : Optional.of(new Land(dimension, runs));
 	}
 
+	/**
+	 * (slice DG) The region's {@code outside} land read whole, or null when it can't be trusted: no land object, no {@code outside}, its runs missing, or
+	 * any run malformed (a partial read never replaces what a district owns). {@code land} null: read whole, and empty.
+	 */
+	public record Read(@Nullable Land land) {}
+
+	public static @Nullable Read outsideWhole(@Nullable JsonObject ext, String dimension) {
+		JsonObject land = land(ext);
+		if (land == null || !land.has("outside") || !land.get("outside").isJsonObject()) return null;
+		JsonObject out = land.getAsJsonObject("outside");
+		if (!out.has("runs") || !out.get("runs").isJsonArray()) return null;
+		List<Land.Run> runs = new ArrayList<>();
+		for (JsonElement e : out.getAsJsonArray("runs")) {
+			if (!e.isJsonArray() || e.getAsJsonArray().size() != 4) return null;
+			JsonArray r = e.getAsJsonArray();
+			// exact integers only (a 1.9 or a 1e-400 is never read as an integer): converted exactly, never through a double
+			int[] v = new int[4];
+			for (int i = 0; i < 4; i++) {
+				JsonElement x = r.get(i);
+				if (!x.isJsonPrimitive() || !x.getAsJsonPrimitive().isNumber()) return null;
+				try {
+					v[i] = new java.math.BigDecimal(x.getAsString()).intValueExact();
+				} catch (ArithmeticException | NumberFormatException bad) {
+					return null;
+				}
+			}
+			int x0 = v[0], z = v[1], x1 = v[2];
+			if (v[3] != z) return null;
+			runs.add(new Land.Run(z, Math.min(x0, x1), Math.max(x0, x1)));
+		}
+		return new Read(runs.isEmpty() ? null : new Land(dimension, runs));
+	}
+
 	/** When the town region this district was built beside was removed (epoch ms), or null while it stands. */
 	public static @Nullable Long standingRemoved(@Nullable JsonObject ext) {
 		JsonObject land = land(ext);

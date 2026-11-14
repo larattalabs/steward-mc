@@ -230,19 +230,35 @@ public final class Growths {
 
 	/** {@code sites}: Architect's sites, to read a revision's sites' tags; null skips that check. */
 	public static @Nullable String blocksTownRemoval(RegionView v, dev.larattalabs.steward.model.Settlement s, dev.larattalabs.architect.api.@Nullable Sites sites) {
-		if (v.busy() != null && !v.busy().isBlank()) return "the village is busy (" + v.busy() + "); try again once it has settled";
+		String history = blocksRemoval(v.id(), v.busy(), v.revisions(), s);
+		if (history != null) return history;
 		if (v.revisions() == null) return null;
 		for (RevisionView r : v.revisions()) {
 			String st = r.state() == null ? "" : r.state().toUpperCase(Locale.ROOT);
 			if (st.equals("UNDONE") || st.equals("STALE")) continue;
-			if (!ended(st)) return "a change to the village is still being made (" + tag(v.id(), r.rid()) + "); try again once it has settled";
 			String t = tag(v.id(), r.rid());
-			if (s.log().stream().anyMatch(e -> e.kind() == dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED && t.equals(e.siteGroup())))
-				return "the village has grown since (" + t + "); undo its newer changes first";
 			// Steward's own growth that was never logged (its log failed, or it placed nothing): its sites carry the settlement's tag (the realise's ext
 			// goes on every revision item), so it is not taken with the town unasked
 			if (sites != null && r.sites() != null && r.sites().stream().anyMatch(id -> sites.get(id).map(x -> s.id().equals(stringExt(x.ext(), "steward_mc:settlement")))
 				.orElse(false))) return "the village has an addition of this settlement's not in its history (" + t + "); it is noted, not taken with the town";
+		}
+		return null;
+	}
+
+	/**
+	 * Pure core of {@link #blocksTownRemoval}: a region (a town's, or since slice DG a district's own) busy, with a revision in flight, or with one of the
+	 * settlement's logged growths still standing is never removed whole.
+	 */
+	static @Nullable String blocksRemoval(String region, @Nullable String busy, @Nullable List<RevisionView> revisions, dev.larattalabs.steward.model.Settlement s) {
+		if (busy != null && !busy.isBlank()) return "the village is busy (" + busy + "); try again once it has settled";
+		if (revisions == null) return null;
+		for (RevisionView r : revisions) {
+			String st = r.state() == null ? "" : r.state().toUpperCase(Locale.ROOT);
+			if (st.equals("UNDONE") || st.equals("STALE")) continue;
+			if (!ended(st)) return "a change to the village is still being made (" + tag(region, r.rid()) + "); try again once it has settled";
+			String t = tag(region, r.rid());
+			if (s.log().stream().anyMatch(e -> e.kind() == dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED && t.equals(e.siteGroup())))
+				return "the village has grown since (" + t + "); undo its newer changes first";
 		}
 		return null;
 	}

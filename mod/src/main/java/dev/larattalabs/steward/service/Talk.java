@@ -179,7 +179,7 @@ public final class Talk {
 			if (named.isEmpty()) named = s.lands().districts().stream().filter(d -> d.name().toLowerCase().contains(a.district().toLowerCase())).toList();
 			if (named.size() != 1) return named.isEmpty() ? "I do not know a district called " + a.district() + ". Which one did you mean?"
 				: "More than one district goes by " + a.district() + ": which one?";
-			if (!named.get(0).takesBuilding()) return named.get(0).name() + " stands as its own region: adding to it waits for a later Architect release.";
+			if (!Districts.takes(named.get(0))) return named.get(0).name() + " is being built, or stands as its own region and this Architect can't grow it: ask again later.";
 			district = named.get(0).id();
 		}
 		if (district == null) {
@@ -215,12 +215,12 @@ public final class Talk {
 			else {
 				var player = server.getPlayerList().getPlayers().stream().filter(x -> Settlements.at(x.level(), x.blockPosition()).map(h -> h.id().equals(s.id())).orElse(false))
 					.findFirst().orElse(null);
-				var town = ModuleOffers.town(server, s, player, district != null);
+				var town = ModuleOffers.town(server, s, player, district);
 				var d = dev.larattalabs.steward.module.ModuleOffer.decide(kind.get(), v, town, a.module().params(), ModuleOffers.bounds(s));
 				var lamp = d.ok() ? ModuleOffers.lamp(s, v.entry()) : null;
 				if (d.ok() && lamp.refused() == null) {
 					Proposal m = ModuleOffers.proposal(kind.get(), d, s, town.path() == dev.larattalabs.steward.module.ModuleOffer.Path.REGION_MATERIALS, lamp.fallback(),
-						"asked_" + Long.toString(now, 36) + "_" + kind.get().lotType(), "asked", now);
+						"asked_" + Long.toString(now, 36) + "_" + kind.get().lotType(), "asked", now).in(district);
 					String added = addProposal(s, m);
 					return added != null ? added : a.reply() + " (A working " + kind.get().role() + " from the catalog: no design, $0. See the inbox.)";
 				}
