@@ -1751,8 +1751,12 @@ async function planBuildFlow() {
   await cmd('/tp @p ~ ~ ~90');
   // (S-7c-4) the hidden cellar under the market hall is built with the town, unsaid (nothing waits now: no "Built now without")
   const secretLog = await waitLog(from, new RegExp(`plan as built for ${id}: (\\d+) secret part\\(s\\) (\\d+) in the artifact, answered \\[([^\\]]*)\\]`), 60_000);
-  const built = await buildThrough(id, from, 'plan build');
+  // (P065, Architect SR) the region ghost draws the market hall as if its hidden cellar were unwritten: at the build's first step, a shot of it
+  let ghost = null;
+  const built = await buildThrough(id, from, 'plan build', false, async () => { if (!ghost) ghost = await hiddenRoomGhost('market_hall_1'); });
   if (!built) return;
+  if (ghost?.shot && !ghost.refused && ghost.cells > 0 && ghost.secret?.length) ok('plan build ghost', `the market hall's region ghost (plan ${ghost.planId}, ${ghost.cells} cells, ${ghost.tiles} tiles, secret parts ${ghost.secret.join(', ') || 'none'}): ${ghost.shot}`);
+  else fail('plan build ghost', JSON.stringify(ghost).slice(0, 300));
   const st = settlements().find((x) => x.id === id);
   const placedOp = (st?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
   const region = placedOp?.siteGroup;
@@ -2744,6 +2748,37 @@ async function besideAsk(id, townRegion, { check = true, key = null, lots = 2, o
 }
 
 /** A plan's files in the sidecar's data (Architect's own store: GJ's reach.gate and join are read from here, as its gate driver does). */
+/**
+ * (P065, Architect SR) Architect's region ghost for the newest plan with lot `lotId`, seen from in front of that lot's entrance: the shot and what the
+ * ghost reports (dev.region.ghost {}: tiles and cells shown). A hidden room's host is drawn as before the room, so the shot shows no room.
+ */
+async function hiddenRoomGhost(lotId) {
+  const root = path.join(GAME, 'architect', 'sidecar-data', 'regions', 'plans');
+  let best = null;
+  for (const d of fs.existsSync(root) ? fs.readdirSync(root) : []) {
+    try {
+      const f = path.join(root, d, 'meta.json');
+      const meta = JSON.parse(fs.readFileSync(f, 'utf8'));
+      const t = fs.statSync(f).mtimeMs;
+      if (meta.lots?.[lotId] && (!best || t > best.t)) best = { planId: d, meta, t };
+    } catch { /* not a plan dir */ }
+  }
+  if (!best) return { refused: `no plan with lot ${lotId}` };
+  const secret = Object.entries(best.meta.parts ?? {}).filter(([, v]) => v?.secret).map(([k]) => k);
+  const shown = await dev.request('dev.region.ghost', { planId: best.planId }, { timeoutMs: 120_000 }).catch((e) => ({ refused: String(e) }));
+  if (shown?.refused) return { planId: best.planId, refused: shown.refused, secret };
+  const [x, y, z] = best.meta.lots[lotId].entrance;
+  const back = await cmd('/data get entity @p Pos');
+  await cmd(`/tp @p ${x + 7.5} ${y + 5} ${z + 9.5} facing ${x + 0.5} ${y + 1} ${z + 0.5}`);
+  let state = null;
+  for (let i = 0; i < 30 && !(state?.cellsShown > 0); i++) { await sleep(1000); state = await dev.request('dev.region.ghost', {}).catch(() => null); }
+  const shot = (await dev.request('dev.screenshot', { name: 'e2e-hidden-room-ghost', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.region.ghost', { off: true }).catch(() => null);
+  const pos = back.match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+  if (pos) await cmd(`/tp @p ${pos[1]} ${pos[2]} ${pos[3]}`);
+  return { planId: best.planId, shot, cells: state?.cellsShown ?? 0, tiles: state?.tilesShown ?? 0, shownKeys: Object.keys(state?.shown ?? {}).length, secret };
+}
+
 const planDir = (planId) => path.join(GAME, 'architect', 'sidecar-data', 'regions', 'plans', planId);
 const planIr = (planId) => JSON.parse(fs.readFileSync(path.join(planDir(planId), 'ir.json'), 'utf8'));
 const planJoin = (planId) => { try { return JSON.parse(fs.readFileSync(path.join(planDir(planId), 'meta.json'), 'utf8')).districts?.join ?? null; } catch { return null; } };
