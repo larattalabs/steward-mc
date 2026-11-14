@@ -345,3 +345,73 @@ of every settlement before the sweep; adopted towns skipped), `Undo` (the reconc
   the town.
 - **Not here:** a north-south town's additions on the legacy path (they read no east-west street; Steward never lays such a town outside dev).
 
+
+## Slice DG: a district region grows by revision (D-S2)
+
+Status: design v1, 2026-11-14, for the GPT design review before code. It lifts `planDistrict`'s "stands as its own region already: adding to it
+waits for Architect's growth (6d)": a building added to a **standing district region** (beside, along or outpost) grows that region as slice A
+grows a region town. Everything slice A and A2 say (rid not position, lot ids, keys, the runner's paths, history, undo, the sweep, saves) holds;
+this says only what differs. Architect's side is GR as built (CONTRACT "Phase 6d slice GR"): a growth of a districts region is
+`planRevision(region, RevisionRequest("revise", {grow: {lots, district, prefer}}, ...))`; `district` is required there; a district's growth never
+takes town land beyond its own join's cells; `architect_mc:land` goes to v 2 (grown parts, `outside` recomputed, shrunk again by `undoRevision`).
+
+**When.** `afterSurvey`, a district that is not a square, Architect has `growDistrict`:
+- reserved beside, or a quarter founded for this build (no region yet): `planDistrict`, unchanged (its first building builds its region);
+- **standing with a region** (`state == standing`, `region != null`): the growth below. Its region gone or removing: the build ends ("<district>'s
+  region is gone: undo it, or found it again"), nothing spent;
+- else (building, by another build): ends, "being changed right now".
+
+**One growth path for towns and districts.** The town branch's checks become `growStanding(r, budget, settlement, view, specs, district)` and run for
+both: busy or a revision in flight → ends; the mode gate (`Growths.modeRefusal`, the district's own region's mode against the world's); a region
+built from materials: fully built, then `Stockpiles.ensure` and `protectCrates`; then `planGrowth`. `planGrowth` gains the district: its grow
+request carries `district: <district id>` and the revision ext carries `steward_mc:district`. Keys are slice A's (`vgrow`/`vgrow2`/`vgrow3`,
+`vgrowrealise`/`vgrowrealise3`, each under the build's opKey), so the restart recovery, the stale re-plan, the lost-answer lookups and the orphan
+lookups need no change. (S-GR-3 named `dgrow`/`drealise`; the keys are Steward's own and only need to be unique per build.)
+
+**No room.** `NO_ROOM`/`REGION_LIMIT` on both prefers: `Proposals.full(settlement, <district id>)` (the next building looks past this district),
+"No room left in <district> for it: its street is full." Nothing spent.
+
+**History.** The growth's entry is slice A's (`PROJECT_PLACED`, `revision:<district region>:<rid>`), "Placed 1 building in <district>". The district
+stays standing with its region; its saved **land** is put right from Architect's `land.outside` after the growth's realise and after its undo
+(`Districts.refreshLand`): a beside district the reservation (`Land.of(claim)`) plus `outside`, a quarter exactly `outside`, either minus every
+other district's land (as `placeDistrict`). The entry and the land are one save where they can be; a land save refused (another settlement's
+overlap) logs the entry alone, warned, so the growth is never left unlogged. The seam (`inside`, the join's town cells) is never saved: town
+additions read it live, as today.
+
+**Undo.** `Undo.growth` and `Growths.undo` are per region already: the district region's head first (`headFirst`), BUILDING refused in A2's words.
+The district's founding entry (`region:<district region>`) is refused while a logged growth of it stands (`Growths.blocksTownRemoval`, already per
+region). After a growth undo the district stays standing (its region stands); `Districts.afterUndo` gives a district up only once its region is
+removed, as today.
+
+**The sweep.** `VillageSweep.growths` walks the town region **and every standing district region** of the settlement (each region's revisions,
+its tag `revision:<region>:<rid>`), so an orphaned district growth is logged and taken up as a town's. `MaterialRequests.seedBuilds` reads every
+`revision:` entry's region already.
+
+**Routing a building into a district.** `District.takesBuilding()` stays pure; callers that route a building ask `Districts.takes(server, d)`: a
+square, a reserved beside district, or (Architect has `growDistrict`) a standing region district. `Districts.counts` and Talk's named-district
+check use it, so a standing district takes buildings again and `ProposalRules.where` routes into it until its `full` mark.
+
+**Modules (M3).** A module offer whose next building goes to a growable district binds there: `ModuleOffers.town` reads the district's region
+(path REGION or REGION_MATERIALS by its mode, `built`/`percent` from it) instead of refusing every district, and `startModule` passes the district
+id through to the addition, so the module lot is a grow lot of the district (`moduleGrowLots`, unchanged). A square district still refuses
+("a working module is placed only by growing a region").
+
+**Survival.** A district region from materials can't be founded today (`planDistrict` and `besideTown` refuse a survival world; DISTRICTS.md
+§9 calls it a follow-up). So the A2 rules apply to a district region built from materials by construction of the shared path, and are unit-tested,
+but no e2e can make one; a district built at once in a world since turned to materials is refused by the mode gate before anything is spent
+(e2e). (Open with the manager: founding district regions from materials inside DG, which would make the billed survival e2e possible.)
+
+**Saves.** No format change: the build's `districtId` and slice A's growth fields; the district's land is runs as today.
+
+**Tests.**
+- **Unit:** the grow request with and without `district`; `Districts.takes` (square, reserved, standing with and without the feature, building);
+  `refreshLand` (beside keeps its reservation, a quarter exactly `outside`, other districts' land left out, shrinks after an undo); the sweep's
+  region list (town plus standing district regions, none twice); `ModuleOffer.decide` with a growable district; save round trips unchanged.
+- **e2e (stub), flow `district-growth`** (`districtRegionFlow`'s town and district, through Steward only): a second building asked in talk for
+  the standing district and accepted → one revision of the district region under the build's keys, `grow.district` the district, the entry
+  `revision:`, the district's land grown by what `land.outside` gained, the town's ground byte-equal (`dev.region.hash` over the town's claim);
+  undo of the district refused while the growth stands; `/steward undo` takes the growth up (revision UNDONE, land back as before); a growth
+  restarted mid-realise (the client restarted at its massings) resumes and logs once; the world turned to building from materials → a district
+  growth refused by the mode gate, 0 cells changed; then the district and the town undone.
+- **Not covered by e2e:** a district region from materials (none can be founded), a module bound into a district (unit-tested through
+  `ModuleOffer.decide` and the grow lots).
