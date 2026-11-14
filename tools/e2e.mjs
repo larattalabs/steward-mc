@@ -4555,8 +4555,18 @@ async function moduleSurvivalFlow() {
     const lbl = `${label} mapped`;
     ok(`${lbl} source`, await moduleSource());
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
-    const offer2 = await moduleOffer(id);
-    if (!offer2) return fail(`${lbl} offer`, `no module.${MODULE} proposal within 90 s after the undo`);
+    // asked for in talk (a new offer by its sign waits out the 20-minute proposal cooldown; one asked for doesn't): the same offer, the same bound
+    const ask = { reply: 'A working field: I have put it in the inbox.', intent: 'building', building: { role: 'farm', type: 'farm', footprint: 'L', landmark: false },
+      module: { id: MODULE, params: { crop: 'wheat' } } };
+    await cmd(`/steward dev sim_answer talk ${JSON.stringify(ask)}`);
+    await cmd(`/steward talk ${id} we need a farm that grows food`);
+    // an offer asked for in talk is keyed asked_<time>_<lot>: found by its module
+    let offer2 = null;
+    for (let i = 0; i < 90 && !offer2; i++) {
+      await sleep(1000);
+      offer2 = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.module?.moduleId === MODULE) ?? null;
+    }
+    if (!offer2) return fail(`${lbl} offer`, `no module.${MODULE} proposal within 90 s of asking for it after the undo`);
     const bound2 = offer2.module?.bound ?? {};
     const own = Object.keys(bound2).filter((k) => !(k in measuredBound));
     const theirs = Object.keys(measuredBound).filter((k) => !(k in bound2));
@@ -4576,10 +4586,26 @@ async function moduleSurvivalFlow() {
     // stocked with the bound (twice, the seeds as they are: the refund put them back), so nothing waits and nothing is heavy
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound2).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
     const sq0 = await ledger();
-    await away();
+    // accepted from the town; away once it is quoted
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+    await sleep(3000);
     from = logSize();
     nudge = region;
-    await cmd(`/steward proposals ${id} accept module.${MODULE}`);
+    await cmd(`/steward proposals ${id} accept ${offer2.key}`);
+    await waitLog(from, new RegExp(`module ${id} quote `), 240_000);
+    await sleep(3000);
+    await away();
+    // the mapped bound holds the quote: never "more than you approved". Architect quotes every crop_farm lot inexactly (on 0.64.1 and 0.65.0, in
+    // every Style, the measured ones too: "a cell the plan reads is not loaded"), and that alone asks first (M3's rule): approved once, then placed
+    // with no second ask
+    const pastSaid = /The bill came to more than you approved[^\n]*/.exec(logSince(from));
+    if (pastSaid) return fail(lbl, `the quote was held past the mapped bound: ${pastSaid[0].slice(0, 300)}`);
+    const inexact = /Architect can't quote the bill exactly \(([^)]*\))[^\n]*/.exec(logSince(from));
+    if (inexact) {
+      ok(`${lbl} within the bound`, `not past the bound; asked only for Architect's inexact quote (${inexact[1].slice(0, 160)}): approved`);
+      await cmd(`/steward approve ${id}`);
+    }
+    const from2 = logSize();
     const grew2 = await buildThrough(id, from, lbl, false, null, 1_200_000);
     nudge = null;
     const said2 = logSince(from);
@@ -4587,12 +4613,13 @@ async function moduleSurvivalFlow() {
     const quoted2 = qline2 ? JSON.parse(qline2[1]) : null;
     const exact2 = qline2?.[2] === 'true';
     const past2 = quoted2 ? Object.entries(quoted2).filter(([k, n]) => n > (bound2[k] ?? 0)) : null;
-    const asked2 = /The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(said2);
+    const askedAgain = /The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(logSince(from2));
+    const askedFirst = !inexact && /The bill came to more than you approved|so I ask first|Approve to build it with this bill/.test(said2);
     const g2 = await growthOf(id);
     const mods2 = await moduleSites(g2.op);
-    if (grew2 && quoted2 && past2.length === 0 && !asked2 && g2.m && g2.m[1] === region && mods2.length === 1)
-      ok(lbl, `quoted ${JSON.stringify(quoted2)}, within the bound item by item; placed without being asked again; revision ${g2.m[2]}, lot ${mods2[0].sid} = ${mods2[0].blueprint}`);
-    else return fail(lbl, `grew ${!!grew2}; quote ${JSON.stringify(quoted2)}; past ${JSON.stringify(past2)}; asked again ${asked2}; entry ${g2.op?.siteGroup}; module sites ${mods2.length}`);
+    if (grew2 && quoted2 && past2.length === 0 && !askedAgain && !askedFirst && g2.m && g2.m[1] === region && mods2.length === 1)
+      ok(lbl, `quoted ${JSON.stringify(quoted2)} (exact ${exact2}), within the bound item by item; placed ${inexact ? 'once approved, without being asked again' : 'without being asked'}; revision ${g2.m[2]}, lot ${mods2[0].sid} = ${mods2[0].blueprint}`);
+    else return fail(lbl, `grew ${!!grew2}; quote ${JSON.stringify(quoted2)}; past ${JSON.stringify(past2)}; asked again ${askedAgain}; asked first ${askedFirst}; entry ${g2.op?.siteGroup}; module sites ${mods2.length}`);
     // fed until built, then undone: the second growth comes off and what it consumed comes back
     feeding = true;
     for (let i = 0; i < 300; i++) {
