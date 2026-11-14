@@ -355,15 +355,21 @@ public final class StewardCommands {
 					if (!host(src)) return 0;
 					String id = StringArgumentType.getString(ctx, "id");
 					if (dev.larattalabs.steward.service.Settlements.store().get(id).isEmpty()) { src.sendFailure(Component.literal("No such settlement: " + id)); return 0; }
-					var a = dev.larattalabs.steward.model.TalkAnswer.parse(com.google.gson.JsonParser.parseString(StringArgumentType.getString(ctx, "json")).getAsJsonObject());
-					dev.larattalabs.steward.service.Talk.act(src.getServer(), src.getPlayerOrException().getUUID(), id, "(dev)", a);
+					// an answer, or a talk fixture ({said, answer}: what was said reaches the land's reading, as Claude's answer would with the player's words)
+					var json = com.google.gson.JsonParser.parseString(StringArgumentType.getString(ctx, "json")).getAsJsonObject();
+					String said = json.has("answer") && json.has("said") ? json.get("said").getAsString() : "(dev)";
+					var a = dev.larattalabs.steward.model.TalkAnswer.parse(json.has("answer") ? json.getAsJsonObject("answer") : json);
+					dev.larattalabs.steward.service.Talk.act(src.getServer(), src.getPlayerOrException().getUUID(), id, said, a);
 					return 1;
 				})))).then(Commands.literal("propose_district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("way",
 				StringArgumentType.word()).executes(ctx -> {
 					// dev (the e2e check): a district proposal now, to accept like any other
 					if (!host(ctx.getSource())) return 0;
-					String r = dev.larattalabs.steward.service.Proposals.proposeDistrict(StringArgumentType.getString(ctx, "id"),
-						StringArgumentType.getString(ctx, "way").toUpperCase(java.util.Locale.ROOT), System.currentTimeMillis());
+					// "leftout": the steward's own district for the buildings the card left out (slice DP), its side chosen from the land
+					String way = StringArgumentType.getString(ctx, "way");
+					String r = "leftout".equalsIgnoreCase(way) ? dev.larattalabs.steward.service.Proposals.proposeLeftOut(ctx.getSource().getServer(),
+						ctx.getSource().getPlayerOrException().getUUID(), StringArgumentType.getString(ctx, "id"))
+						: dev.larattalabs.steward.service.Proposals.proposeDistrict(StringArgumentType.getString(ctx, "id"), way.toUpperCase(java.util.Locale.ROOT), System.currentTimeMillis());
 					ctx.getSource().sendSuccess(() -> Component.literal(r), false);
 					return 1;
 				})))).then(Commands.literal("site").then(Commands.argument("site",

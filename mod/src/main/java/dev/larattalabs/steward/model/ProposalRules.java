@@ -193,4 +193,44 @@ public final class ProposalRules {
 		for (var e : districts.entrySet()) if (e.getValue() < STREET_FULL && !full.contains(e.getKey())) return new Where(e.getKey(), false);
 		return new Where(null, true);
 	}
+
+	/**
+	 * The card's buildings the town left out (slice DP: the steward's own district proposal): each program entry with fewer standing than its count, as
+	 * many as are missing. A building stands as its role ({@code byRole}, lower case), else, when no building carries that role, by its type
+	 * ({@code byType}). Landmarks count like any entry. Pure.
+	 */
+	public static List<ConceptCard.Building> leftOut(@org.jspecify.annotations.Nullable ConceptCard card, Map<String, Integer> byRole, Map<String, Integer> byType) {
+		if (card == null || !card.hasProgram()) return List.of();
+		List<ConceptCard.Building> out = new ArrayList<>();
+		for (ConceptCard.Building b : card.program()) {
+			String role = b.role().toLowerCase(java.util.Locale.ROOT);
+			int standing = byRole.containsKey(role) ? byRole.get(role) : byType.getOrDefault(b.type(), 0);
+			int missing = b.count() - standing;
+			if (missing > 0) out.add(new ConceptCard.Building(b.role(), b.type(), missing, b.footprint(), b.landmark(), b.notes(), b.placement()));
+		}
+		return List.copyOf(out);
+	}
+
+	/** The left-out buildings in words, for the steward and the proposal ("the fish market and two net lofts"). */
+	public static String leftOutWords(List<ConceptCard.Building> left) {
+		List<String> parts = new ArrayList<>();
+		for (var b : left) parts.add(b.count() == 1 ? "the " + b.role() : dev.larattalabs.steward.model.Words.count(b.count(), b.role(), plural(b.role())));
+		if (parts.size() <= 1) return parts.isEmpty() ? "" : parts.get(0);
+		return String.join(", ", parts.subList(0, parts.size() - 1)) + " and " + parts.get(parts.size() - 1);
+	}
+
+	/** What the left-out buildings ask of the ground, in words for {@link DistrictSite#fromWords}: their roles, types, notes and placement. */
+	public static String leftOutSiteWords(List<ConceptCard.Building> left) {
+		StringBuilder b = new StringBuilder();
+		for (var x : left) {
+			b.append(' ').append(x.role()).append(' ').append(x.type().replace('_', ' '));
+			if (x.notes() != null) b.append(' ').append(x.notes());
+			if (x.placement() != null) b.append(' ').append(x.placement());
+		}
+		return b.toString().strip();
+	}
+
+	private static String plural(String role) {
+		return role.endsWith("s") || role.endsWith("sh") || role.endsWith("ch") ? role + "es" : role.endsWith("y") && !role.matches(".*[aeiou]y$") ? role.substring(0, role.length() - 1) + "ies" : role + "s";
+	}
 }

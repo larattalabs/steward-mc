@@ -1065,33 +1065,78 @@ async function districts(id) {
   const auto = await placedBy('district auto', 'auto e2e lumber camp', [cx, cz]);
   if (auto.made && auto.why) ok('district auto', `${auto.made.name} to the ${auto.made.direction}: ${auto.why}`);
   else fail('district auto', `${auto.said}; made ${JSON.stringify(auto.made)}, said "${auto.why}"`);
-  // the same through a proposal (the steward proposes a district when the town's street is full): accepted, it is founded and the proposal recorded
-  await cmd(`/tp @p ${cx + 90} ${Math.floor(gy)} ${cz + 12}`);
+  // (slice DP) the player stays in charge: a harbour asked for in talk to the east is previewed in survey mode with its place line; "no, by the lake"
+  // (a lake laid to the south first: the flat world has none) places it again by the water; the preview follows; accepted, it is founded there
+  const fixture = (f) => JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', f), 'utf8')));
+  const waitingDistrict = async (way, ms = 30_000) => {
+    for (let t = 0; t < ms; t += 1000) {
+      const p = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.found && !x.quarter);
+      if (p && (!way || p.found === way)) return p;
+      await sleep(1000);
+    }
+    return settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.found && !x.quarter) ?? null;
+  };
+  // where each side's square lies (its middle, roughly: N and S squares sit past the street's east end), and a spot at the town's edge facing it
+  const mid = { N: [cx + 60, cz - rv - 49], S: [cx + 60, cz + rv + 49], E: [cx + rv + 49, cz], W: [cx - rv - 49, cz] };
+  const edge = { N: [cx + 40, cz - rv + 30], S: [cx + 40, cz + rv - 30], E: [cx + rv - 30, cz + 70], W: [cx - rv + 30, cz + 70] };
+  const surveyShot = async (name, way) => {
+    // from above the town's edge on that side, looking out over the district's square
+    const [ex, ez] = edge[way], [lx, lz] = mid[way];
+    await cmd('/gamemode spectator');
+    await cmd(`/tp @p ${ex} ${Math.floor(gy) + 40} ${ez} facing ${lx} ${Math.floor(gy)} ${lz}`);
+    await sleep(1500);
+    await dev.request('dev.key', { key: 'u' });
+    await sleep(2500);
+    const shot = (await dev.request('dev.screenshot', { name, frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+    await dev.request('dev.key', { key: 'u' });
+    await cmd('/gamemode creative');
+    return shot;
+  };
+  await cmd(`/tp @p ${cx} ${Math.floor(gy)} ${cz}`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
-  await cmd(`/steward dev propose_district ${id} E`);
-  // survey mode previews it before it is founded: its square and a "Proposed" label, from above the town's east edge
-  await cmd('/gamemode spectator');
-  await cmd(`/tp @p ${cx + 100} ${Math.floor(gy) + 40} ${cz + 70} facing ${cx + 165} ${Math.floor(gy)} ${cz}`);
+  let tfrom = logSize();
+  await cmd(`/steward dev talk_answer ${id} ${fixture('harbour.json')}`);
+  const eastP = await waitingDistrict('E');
+  if (eastP && /as you asked, for the harbour/.test(eastP.place ?? '')) ok('district preview', `${eastP.title}: "${eastP.place}"; ${await surveyShot('e2e-district-proposed', 'E')}`);
+  else fail('district preview', `proposal ${JSON.stringify(eastP)}; ${logSince(tfrom).slice(-200)}`);
+  // a shallow lake across the town-side half of a side founding can take (the one "auto" took; the top grass layer turned to water), loaded where the
+  // player stands
+  const lakeWay = auto.made && auto.made.direction !== 'E' ? auto.made.direction : 'N';
+  const ly = Math.floor(gy) - 1;
+  const [lx0, lz0, lx1, lz1] = { N: [cx - 130, cz - rv - 44, cx + 230, cz - rv - 8], S: [cx - 130, cz + rv + 8, cx + 230, cz + rv + 44],
+    W: [cx - rv - 44, cz - 60, cx - rv - 8, cz + 60] }[lakeWay];
+  const stand = { N: [cx + 50, cz - rv + 10], S: [cx + 50, cz + rv - 10], W: [cx - rv + 10, cz] }[lakeWay];
+  await cmd(`/tp @p ${stand[0]} ${Math.floor(gy)} ${stand[1]}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  const filled = await cmd(`/fill ${lx0} ${ly} ${lz0} ${lx1} ${ly} ${lz1} minecraft:water replace minecraft:grass_block`);
   await sleep(1500);
-  await dev.request('dev.key', { key: 'u' });
-  await sleep(2500);
-  const pshot = (await dev.request('dev.screenshot', { name: 'e2e-district-proposed', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
-  await dev.request('dev.key', { key: 'u' });
-  await cmd('/gamemode creative');
-  await cmd(`/tp @p ${cx + 90} ${Math.floor(gy)} ${cz + 12}`);
-  ok('district preview', pshot);
-  const accepted = await cmd(`/steward proposals ${id} accept district_E`);
+  tfrom = logSize();
+  await cmd(`/steward dev talk_answer ${id} ${fixture('lake.json')}`);
+  const south = await waitingDistrict(lakeWay);
+  const said = (logSince(tfrom).match(/I would put it to the [^\n]*/) ?? [''])[0];
+  const others = (settlements().find((x) => x.id === id)?.proposals?.open ?? []).filter((x) => x.found && !x.quarter).length;
+  if (south?.found === lakeWay && /by the water, for the harbour/.test(south.place ?? '') && others === 1 && /instead of to the east/.test(said)) {
+    ok('district moved', `"no, by the lake" (${filled.slice(0, 40)}): ${south.title}, "${south.place}"; said "${said}"; ${await surveyShot('e2e-district-moved', lakeWay)}`);
+  } else return fail('district moved', `lake ${lakeWay}: ${filled}; proposal ${JSON.stringify(south)}, ${others} waiting, said "${said}"; ${logSince(tfrom).slice(-300)}`),
+    await cmd(`/steward proposals ${id} decline ${south?.key ?? 'district_E'}`), await cmd(`/fill ${lx0} ${ly} ${lz0} ${lx1} ${ly} ${lz1} minecraft:grass_block replace minecraft:water`);
+  await cmd(`/tp @p ${stand[0]} ${Math.floor(gy)} ${stand[1]}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  const key = south.key;
+  const accepted = await cmd(`/steward proposals ${id} accept ${key}`);
   let viaProposal = null;
   for (let i = 0; i < 20 && !viaProposal; i++) {
     await sleep(1000);
-    viaProposal = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.direction === 'E') ?? null;
+    viaProposal = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.direction === lakeWay) ?? null;
   }
   const ps = settlements().find((x) => x.id === id)?.proposals;
-  if (viaProposal && ps?.accepted?.includes('district_E') && !ps.open.some((p) => p.key === 'district_E')) ok('district proposal', `accepted: ${viaProposal.id} founded, the proposal recorded`);
+  if (viaProposal && ps?.accepted?.includes(key) && !ps.open.some((p) => p.key === key)) ok('district proposal', `accepted by the lake: ${viaProposal.id} "${viaProposal.name}" founded to the ${lakeWay}, the proposal recorded`);
   else fail('district proposal', `${accepted}; district ${JSON.stringify(viaProposal)}, proposals ${JSON.stringify(ps)}`);
-  await cmd(`/steward undo ${id}`);
-  await sleep(4000);
+  if (viaProposal) {
+    await cmd(`/steward undo ${id}`);
+    await sleep(4000);
+  }
   await closeScreens();
+  await cmd(`/fill ${lx0} ${ly} ${lz0} ${lx1} ${ly} ${lz1} minecraft:grass_block replace minecraft:water`);
 }
 
 /**

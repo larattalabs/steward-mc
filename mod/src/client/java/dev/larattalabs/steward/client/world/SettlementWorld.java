@@ -139,9 +139,15 @@ public final class SettlementWorld {
 				double gy = lvl == null ? cam.y : lvl.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE, d.centerX(), d.centerZ()) + 3;
 				double dist = Math.sqrt(cam.distanceToSqr(d.centerX() + 0.5, gy, d.centerZ() + 0.5));
 				// read from survey height: about twice a building label's size at the same distance
-				pill(c, camera, d.centerX() + 0.5, gy, d.centerZ() + 0.5, "Proposed: " + d.name(), "found it or decline it in the inbox", "waiting", false, dist, 32f, 3.5);
+				// its second line says why it would go there ("by the water, for the harbour"), else what to do with it (a proposal from before place lines)
+				String sub = d.note() != null && !d.note().isBlank() ? capital(d.note()) + " · Y to decide" : "found it or decline it in the inbox";
+				pill(c, camera, d.centerX() + 0.5, gy, d.centerZ() + 0.5, "Proposed: " + d.name(), sub, "waiting", false, dist, 32f, 3.5);
 			}
 		}
+	}
+
+	private static String capital(String s) {
+		return Character.toUpperCase(s.charAt(0)) + s.substring(1);
 	}
 
 	/** The building's box: thin bars along its twelve edges, brass when looked at, cream in survey mode. */

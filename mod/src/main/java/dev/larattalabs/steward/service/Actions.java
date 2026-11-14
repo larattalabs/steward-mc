@@ -668,7 +668,7 @@ public final class Actions {
 			var at = dev.larattalabs.steward.model.DistrictRules.place(s.claim(), street, s.lands().districts(), Settlements.others(s.id()), s.lands().protect(), p.found(),
 				dev.larattalabs.steward.model.DistrictRules.RADII[0]);
 			if (at.ok()) proposed.add(new dev.larattalabs.steward.view.SettlementView.DistrictInfo(p.key(), p.title(), p.found(), at.claim().centerX(), at.claim().centerZ(),
-				at.claim().radius(), dev.larattalabs.steward.model.ClaimRules.side(at.claim().radius()), 0, 0));
+				at.claim().radius(), dev.larattalabs.steward.model.ClaimRules.side(at.claim().radius()), 0, 0, null, null, p.place()));
 		}
 		List<String> stock = Stockpiles.of(server, s).map(sp -> Stockpiles.bill(sp, 6)).orElse(List.of());
 		var builds = PlayerBuilds.in(server, s).stream().filter(b -> b.siteId() == null).map(b -> new dev.larattalabs.steward.view.SettlementView.PlayerBuildInfo(b.id(), PlayerBuilds.title(b), PlayerBuilds.by(server, b),

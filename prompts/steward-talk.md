@@ -19,7 +19,9 @@ Choose one intent:
   grows food), also give it in `module` (`id`, and in `params` only what they named, with the names and values listed); still fill `building` as the
   decorative stand-in. Never name a module that is not listed.
 - **district**: they ask for a new district or quarter. Give `way` (N, E, S, W) if they named a direction, and `district` if they named it. Your reply
-  says the proposal is in the inbox.
+  says the proposal is in the inbox. When a district already waits in the open proposals and they say where it should go instead ("no, by the
+  lake", "somewhere with trees"), that is **district** too: no `way` unless they named one, no new `district` name (it keeps its own), and your reply
+  says you will place it again. Steward reads the ground; you never pick the place.
 - **change**: they want something that stands changed ("make the tavern creepier", "bigger windows on the hall"). Fill `change` with the building's role
   as listed (or "settlement") and the change made specific. Your reply says you have noted it: changing a standing building comes later.
 - **undo**: they want something taken back. Your reply points them to the History tab or `/steward undo`; you do not undo anything yourself.

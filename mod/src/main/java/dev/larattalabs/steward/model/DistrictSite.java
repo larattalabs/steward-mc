@@ -192,6 +192,34 @@ public record DistrictSite(@Nullable String way, Pref water, Pref trees, Ground 
 	/** The side chosen (null: none fits) and why (empty: today's order). */
 	public record Choice(@Nullable String way, String why) {}
 
+	/**
+	 * The one line survey mode shows on the ground for a district before it is founded (docs/PLAN.md "Zones": the player stays in charge): where it goes
+	 * and why, short, then what it is for ("by the water, for the harbour"). {@code why} is {@link Choice#why()} (its figures dropped: the inbox has
+	 * them); "" (today's order) reads "where there is room". {@code forWhat} is what the district is for ("the harbour"), or null.
+	 */
+	public static String line(String why, @Nullable String forWhat) {
+		String w = why == null ? "" : why.replaceAll("\\s*\\([^)]*\\)", "").strip();
+		if (w.isEmpty()) w = "where there is room";
+		// the side named is in the proposal's title already ("The harbour (east)")
+		if (w.matches("to the (north|east|south|west), as (you said|asked)")) w = "as you asked";
+		if (forWhat == null || forWhat.isBlank()) return w;
+		String f = forWhat.strip();
+		return w + ", for " + (f.matches("(?i)^(the|a|an|their|our|its) .*") ? f : "the " + f);
+	}
+
+	/** What ground the words ask for, in words ("water", "the woods", "high ground", "the jungle"), or null when they ask for none. */
+	public @Nullable String wish() {
+		if (water == Pref.WANT) return "water";
+		if (!biomes.isEmpty()) return "the " + biomes.get(0).replace('_', ' ');
+		if (trees == Pref.WANT) return "woods";
+		return switch (ground) {
+			case HIGH -> "high ground";
+			case LOW -> "low ground";
+			case FLAT -> "flat, open ground";
+			default -> null;
+		};
+	}
+
 	private static String pct(double v) {
 		return Math.round(v * 100) + "%";
 	}
