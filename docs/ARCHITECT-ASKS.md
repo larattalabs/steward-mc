@@ -1406,6 +1406,16 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
   - S-M5-9 is **BC**: an optional `maxBill` on `RealiseRequest`/`realiseApproved`, refused before any write, and a typed `bill_cap` wait. It
     comes after the safety queue (HF, PS, RL, SA, JR-b). It changes the API, so it reaches Steward as an RC.
   - At their releases, Steward offers watered modules in adopted street towns and passes the approved bound as `maxBill`.
+- **Steward's review of FK's S-M5-3 contract draft** (Architect slice/FK eb76dd59, CONTRACT "### FK contract", 2026-11-13): accepted, with
+  three changes.
+  - **A:** a lock is accepted only on a block whose state vanilla keeps, such as a lever. A hopper's `enabled` and a torch's `lit` are
+    recomputed by vanilla and would undo themselves. M4 locks the hall's input line with a lever on its first hopper (M0's tile locks D
+    through its own torch).
+  - **B:** the pre-fill wait for a declared container that isn't empty is a typed wait in `Sites.view` (`fill_blocked`, with the cells),
+    not only a message to the owner. `Sites.fillPhase` is not needed; SITE_BUILT after the unlock is enough.
+  - **C:** the fill and the custody write-back mark each container changed, so comparators re-read it.
+  - Refusing a crate-fed survival fill site is accepted: Steward's lots are stockpile targets.
+  - The fillers must be plain items. M0's renamed stick is out, since PS's crates refuse component stacks. M4 chooses the filler.
 - **Architect's answers (coordinator, 2026-11-12):** all as preferred.
   - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
   - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.
