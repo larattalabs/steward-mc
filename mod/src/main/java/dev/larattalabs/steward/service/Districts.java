@@ -298,8 +298,8 @@ public final class Districts {
 
 	/**
 	 * (slice DG) Why a growth of district {@code districtId}'s region {@code region} may not go ahead now, or null. Architect grows a region anywhere in its
-	 * claim, around what stands, but Steward's empty land is not Architect's to see: the claim's columns outside the town's claim and outside the district's
-	 * own land must hold no other settlement's land and no sibling district's. Checked before the plan (nothing spent) and again before the realise.
+	 * claim, around what stands, but Steward's empty land is not Architect's to see: the claim's columns outside the district's own land must hold no
+	 * sibling district's land, and those also outside the town's own region claim no other settlement's. Checked before the plan (nothing spent) and again before the realise.
 	 */
 	static @Nullable String growthConflict(Settlement s, String districtId, @Nullable String region) {
 		var d = s.lands().district(districtId);

@@ -84,6 +84,10 @@ class DistrictGrowthTest {
 		assertNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[[1,2,3,4]]}}}").getAsJsonObject(), OW));
 		assertNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[[1.9,2.1,3.9,2.9]]}}}").getAsJsonObject(), OW),
 			"a fraction is never read as an integer");
+		for (String bad : new String[] {"1e-400", "1.999999999999999999999", "3000000000"})
+			assertNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[[" + bad + ",2,3,2]]}}}").getAsJsonObject(), OW), bad);
+		assertNotNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[[1.0,2,3,2]]}}}").getAsJsonObject(), OW),
+			"an integral number written with a point is still that integer");
 		var ok = DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[[5,2,1,2]]}}}").getAsJsonObject(), OW);
 		assertTrue(ok.land().contains(OW, 3, 2));
 		assertNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[]}}}").getAsJsonObject(), OW).land(),

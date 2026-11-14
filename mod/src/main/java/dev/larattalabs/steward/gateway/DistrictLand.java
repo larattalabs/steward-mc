@@ -62,14 +62,19 @@ public final class DistrictLand {
 		for (JsonElement e : out.getAsJsonArray("runs")) {
 			if (!e.isJsonArray() || e.getAsJsonArray().size() != 4) return null;
 			JsonArray r = e.getAsJsonArray();
-			// exact integers only (a 1.9 is never read as 1)
-			for (JsonElement x : r) {
+			// exact integers only (a 1.9 or a 1e-400 is never read as an integer): converted exactly, never through a double
+			int[] v = new int[4];
+			for (int i = 0; i < 4; i++) {
+				JsonElement x = r.get(i);
 				if (!x.isJsonPrimitive() || !x.getAsJsonPrimitive().isNumber()) return null;
-				double v = x.getAsDouble();
-				if (v != Math.rint(v) || v < Integer.MIN_VALUE || v > Integer.MAX_VALUE) return null;
+				try {
+					v[i] = new java.math.BigDecimal(x.getAsString()).intValueExact();
+				} catch (ArithmeticException | NumberFormatException bad) {
+					return null;
+				}
 			}
-			int x0 = r.get(0).getAsInt(), z = r.get(1).getAsInt(), x1 = r.get(2).getAsInt();
-			if (r.get(3).getAsInt() != z) return null;
+			int x0 = v[0], z = v[1], x1 = v[2];
+			if (v[3] != z) return null;
 			runs.add(new Land.Run(z, Math.min(x0, x1), Math.max(x0, x1)));
 		}
 		return new Read(runs.isEmpty() ? null : new Land(dimension, runs));
