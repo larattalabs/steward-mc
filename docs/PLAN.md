@@ -9,11 +9,30 @@ It is a **sibling mod to Architect** (`larattalabs/architect-mc`). Architect is 
 construction engine. Steward is the director on top: concept, site, layout, a standing NPC, proactive upgrades,
 functional modules, villagers, animals, an inbox. Steward depends on Architect and does not copy it.
 
-Status (2026-11-13): **phases 1-4 are built** (phase 3's perception, proposals, change requests, screens and districts; phase 4's survival stockpile and
-billing), with growth after them: region towns grow through Architect revisions (A, A2 in survival), old street towns are adopted (B), copies follow
-their source, and the land check. **Phase 5 is under way** (`docs/MODULES.md`): M0 (the vanilla probe) and M1 (the catalog) merged; M2 (the crop
-farm) and M3 (offer and place) are being built; M4 (the storage hall) waits on Architect's FK, then M5. Steward pins Architect 0.63.0; 0.64.0 (7c's
-first RC) is held for Steward's secrets slice (S-7c-4). Process: the manager session runs the queue, and each slice is its own session (AGENTS.md).
+Status (2026-11-13, evening): **phases 1-4 are built** (phase 3's perception, proposals, change requests, screens and districts; phase 4's survival
+stockpile and billing), with growth after them: region towns grow through Architect revisions (A, A2 in survival), old street towns are adopted (B, now
+either street axis), copies follow their source, and the land check. **Phase 5 is under way** (`docs/MODULES.md`): M0, M1, M2 (the crop farm) and M3
+(offer and place) are merged. crop_farm's re-certification on Architect 0.65.0 carries the 0.65.0 pin. M4 (the storage hall) waits on Architect's FK,
+then M5. Steward pins Architect 0.64.1. Process: the manager runs the queue, each slice is its own session, and the speed rules apply (AGENTS.md).
+
+**Steward queue (triage 2026-11-13; detail and items in `../LEFTOVERS.md` "Steward").** Ranked against phase 5 (M4 after FK, then M5), 5b, the player
+settlement UI (after Architect's 8b) and phases 6-7:
+1. **crop-farm-065** (in flight): per-Style bounds and the 0.65.0 pin.
+2. **GE** (in flight): growth hardening and the growth e2e gaps.
+3. **P065** (S, light): the 0.65.0 pin's follow-ups. pin-guard reads `apiVersion()`, `planSchema()` replaces `schema/plan-0.json`, and the
+   ghost and composite checks run. Next after the pin.
+4. **CA** (L, strict, spend): the Composer onto Architect's `Regions.compose`. M5's "the plan writer names modules" is built on it, so it
+   comes before M5. It starts once P065 lands. Its paid proof needs Noah.
+5. **DP** (M, light): district placement in survey mode, "no, by the lake", and the steward's own district proposal. Startable now; it
+   doesn't touch GE's files.
+6. **DG** (L, strict): districts' growth, which unblocks modules on districts. After GE.
+7. **M4** (L, strict): the storage hall, at FK's release. The filler choice may need Noah.
+8. **ET** (S, light): e2e tidy 2, after GE.
+9. **A2L** (S, strict): at Architect v0.66.0 (RU), lift A2's refusals.
+10. **M5** (L, strict): the phase 5 gate, after M3, M4, CA and DG.
+11. Then **PV1** (after DG), **SST** (after Architect S-AD-5), **GA** (after DG and CA), **NS2**. Phase 5b opens with **SITE** (before the
+    spine). **FR** waits for Architect's player-ready pass, and the player settlement UI for Architect's 8b. Phases 6-7 come after 5b.
+
 The rest of this status is the 2026-10-11 snapshot, kept as history.
 
 Status (2026-10-11): written 2026-10-05; **phase 1 is done** (gate passed, Noah). The hardening slice from the GPT reviews is done. **Phase 3 is under way:**
