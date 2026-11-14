@@ -1543,7 +1543,7 @@ pin-guard reads TJ's `apiVersion()` by reflection. PS's component guard covers `
 
 Architect's draft (slice/SAD off bdc1cad1, no API change). Steward's answers:
 - S-SAD-1: refusing a site fed by a live crate until `adoptCrates` is fine. `Stockpiles.ensure` folds crates at every build from materials, and SST ensures the stockpile before `Regions.adopt`.
-- S-SAD-2: a building adopted lot blocking growth (`survival_unfinished`) is workable. Steward asked Architect to confirm that `RegionView.build()` counts adopted construction sites, since `Growths.modeRefusal` checks it before the designs are paid for.
+- S-SAD-2: a building adopted lot blocking growth (`survival_unfinished`) is workable. `RegionView.build()` counts adopted construction sites and roads, including any still building. Architect confirmed this on 11-14 and wrote it into the contract as a rule, with a gate assertion at SAD rows 2 and 3. `built()` is a boolean, and Steward reads it as one.
 - S-SAD-3: the world's mode at adoption decides, and older adopted regions stay creative. Steward doesn't re-adopt on its own.
 - S-SAD-4: Hardcore adopts as Supplied.
 - Steward matches none of the reworded messages. The Steward side is slice SST, after SAD's release.
