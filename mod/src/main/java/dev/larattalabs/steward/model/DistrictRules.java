@@ -171,7 +171,6 @@ public final class DistrictRules {
 		return new int[] {x0, d.centerZ() - d.radius(), x1, d.centerZ() + d.radius()};
 	}
 
-	/** The town street's centre line (z) and its ends (x); null before the town has a street. */
 	/**
 	 * A street's line and ends. East-west (the default): {@code z} its line, {@code x0..x1} its ends. {@code northSouth}: {@code z} holds its line's x and
 	 * {@code x0..x1} its ends' z (the street's own frame, as {@code VillageLayout.Plan}).
