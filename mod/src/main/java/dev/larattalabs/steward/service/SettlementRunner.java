@@ -1271,7 +1271,7 @@ public final class SettlementRunner {
 			moduleOrders = Map.of(ids.get(0), pendingModule);
 			pendingModule = null;
 		}
-		if (stale == null) say("The town grows: Architect finds room on its streets...");
+		if (stale == null) say(districtId == null ? "The town grows: Architect finds room on its streets..." : growingName() + " grows: Architect finds room on its street...");
 		// asked before (a restart before the answer was saved): the newest of this build's growth plans
 		if (stale == null) {
 			for (String k : List.of("vgrow3", "vgrow2", "vgrow")) {

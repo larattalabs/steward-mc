@@ -5165,6 +5165,176 @@ async function moduleSurvivalFlow() {
   }
 }
 
+// ------------------------------------------------------------------ (slice DG) a district region grows by revision
+
+/** (DG) A building asked in talk for district {@code d} (the sim's answer names it) and proposed there: its open proposal, or null. */
+async function dgAsk(id, d, role) {
+  const seen = new Set((settlements().find((x) => x.id === id)?.proposals?.open ?? []).map((q) => q.key));
+  const answer = { reply: `A ${role} in ${d.name}: it is in the inbox.`, intent: 'building', district: d.name,
+    building: { role, type: 'library', footprint: 'S', landmark: false, notes: 'A plain hall with tall windows.' } };
+  await cmd(`/steward dev sim_answer talk ${JSON.stringify(answer)}`);
+  await cmd(`/steward talk ${id} put a ${role} in ${d.name}`);
+  for (let i = 0; i < 60; i++) {
+    await sleep(1000);
+    const q = (settlements().find((x) => x.id === id)?.proposals?.open ?? []).find((x) => x.key.startsWith('asked_') && !seen.has(x.key) && x.district === d.id);
+    if (q) return q;
+  }
+  return null;
+}
+
+/** (DG) The district's saved land, in columns. */
+const dgCells = (l) => (l?.runs ?? []).reduce((a, r) => a + (r.x1 - r.x0 + 1), 0);
+const dgDistrict = (id, did) => settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.id === did) ?? null;
+
+/**
+ * (DG) A district grown through Steward only: beside a flat-village town, a district reserved and built at its first building (its own region); a
+ * second building asked for it in talk grows the district's region by a revision under the build's keys (grow.district), logged revision:<region>:<rid>,
+ * the district's land grown with Architect's land.outside, the town's ground unchanged; undone by its revision (the land back); a growth whose realise a
+ * restart cut off (from the save) found by its keys and logged once; the world turned to building from materials: refused by the mode gate before
+ * anything is spent; then the district and the town undone.
+ */
+async function districtGrowthFlow() {
+  const label = 'district growth';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 60000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Ward Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little town`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  if (!(await buildThrough(id, from, 'district growth town'))) return;
+  const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const town = (founding?.siteGroup ?? '').replace(/^region:/, '');
+  if (!/^rg/.test(town)) return fail(label, `the town is not a region: ${founding?.siteGroup}`);
+  const c = settlements().find((x) => x.id === id).claim;
+  await cmd(`/tp @p ${c.centerX + c.radius + 20} 100 ${c.centerZ}`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  from = logSize();
+  await cmd(`/steward district ${id} found E e2e ward`);
+  await waitLog(from, /(Reserved e2e ward\.[^\n]*|Could not reserve[^\n]*)/, 300_000);
+  let d = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.name === 'e2e ward') ?? null;
+  if (d?.state !== 'reserved') return fail(label, `not reserved: ${JSON.stringify(d)?.slice(0, 200)}`);
+  // its first building builds its region (planDistrict, unchanged)
+  const first = await dgAsk(id, d, 'ward hall');
+  if (!first) return fail(label, 'no first proposal in the district');
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${first.key}`);
+  if (!(await buildThrough(id, from, 'district growth first building'))) return;
+  d = dgDistrict(id, d.id);
+  const region = d?.region;
+  if (d?.state !== 'standing' || !region) return fail(label, `the district does not stand: ${JSON.stringify(d)?.slice(0, 200)}`);
+  const townBox = [c.centerX - c.radius, 40, c.centerZ - c.radius, c.centerX + c.radius, 140, c.centerZ + c.radius];
+  const snap = path.join(ROOT, 'artifacts', 'e2e', `dgrow-town-${id}.snap.gz`);
+  fs.mkdirSync(path.dirname(snap), { recursive: true });
+  await dev.call('dev.region.hash', { box: townBox, mode: 'snap', file: snap }, { timeoutMs: 600_000 });
+  const land0 = dgCells(d.land), out0 = (await regionView(region)).ext?.['architect_mc:land']?.outside?.cells ?? -1;
+  // a second building asked for the standing district: it grows the district's region by a revision (once "adding to it waits for Architect's growth")
+  const second = await dgAsk(id, d, 'ward archive');
+  if (!second) return fail(label, 'no second proposal in the standing district (it takes no building)');
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${second.key}`);
+  const planned = await waitLog(from, /e2e ward grows: Architect finds room[^\n]*/, 120_000);
+  const grew = await buildThrough(id, from, label);
+  if (!grew) return;
+  const op = await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && new RegExp(`^revision:${region}:\\d+$`).test(e.siteGroup ?? ''), 30);
+  const rid = op ? Number(op.siteGroup.split(':').at(-1)) : null;
+  const rv = await regionView(region);
+  const rev = (rv.revisions ?? []).find((r) => r.rid === rid);
+  const d1 = dgDistrict(id, d.id);
+  const out1 = rv.ext?.['architect_mc:land']?.outside?.cells ?? -1;
+  const diff = await dev.call('dev.region.hash', { box: townBox, mode: 'diff', file: snap }, { timeoutMs: 600_000 });
+  const off = (diff.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
+  const grewLand = dgCells(d1?.land) >= land0 && out1 >= out0;
+  if (planned && op && rev && /^(PLACED|PARTIAL)$/.test(rev.state) && (op.siteIds ?? []).every((x) => (rev.sites ?? []).includes(x)) && d1?.state === 'standing'
+    && d1?.region === region && grewLand && off.length === 0 && !/waits for Architect's growth/.test(logSince(from))) {
+    ok(label, `${grew.placed} placed as revision ${rid} of ${region} (${rev.state}, lots ${(rev.lotsAdded ?? []).join(', ')}); land ${land0} -> ${dgCells(d1.land)} columns, outside ${out0} -> ${out1}; the town's ground unchanged`);
+  } else return fail(label, `planned ${!!planned}; entry ${op?.siteGroup}; revision ${JSON.stringify(rev)?.slice(0, 160)}; district ${JSON.stringify(d1)?.slice(0, 120)}; land ${land0} -> ${dgCells(d1?.land)}, outside ${out0} -> ${out1}; ${off.length} town cell(s) differ; ${chatTail(from)}`);
+  // undone by its revision: the district's land back with Architect's outside, the district still standing
+  const gone = await undoOnce(id, c);
+  const r2 = ((await regionView(region)).revisions ?? []).find((r) => r.rid === rid);
+  const d2 = dgDistrict(id, d.id);
+  const out2 = (await regionView(region)).ext?.['architect_mc:land']?.outside?.cells ?? -1;
+  if (gone && r2?.state === 'UNDONE' && d2?.state === 'standing' && out2 === out0 && dgCells(d2.land) === land0) ok(`${label} undo`, `${gone.text}; revision ${rid} UNDONE, land back to ${land0} columns (outside ${out2})`);
+  else fail(`${label} undo`, `undo ${gone ? gone.text : 'not logged'}; revision ${r2?.state}; district ${d2?.state}, land ${dgCells(d2?.land)} (was ${land0}), outside ${out2} (was ${out0})`);
+  // a restart between the realise and its saved answer (from the save): found by its keys after the restart, logged once, no second revision
+  {
+    const rl = `${label} restart mid-realise`;
+    const bf = path.join(WORLD, 'steward-builds.json');
+    let saved = null;
+    const q = await dgAsk(id, d, 'ward chapel');
+    if (!q) return fail(rl, 'no proposal');
+    await clearAnimals();
+    from = logSize();
+    await cmd(`/steward proposals ${id} accept ${q.key}`);
+    const placed = await driveUntil(id, from, /is built(?: in part)?: (\d+) buildings placed/, 900_000, async (step) => {
+      if (step !== 'Approve to place') return;
+      await sleep(2000);
+      const b = JSON.parse(fs.readFileSync(bf, 'utf8'));
+      if (b.builds.some((x) => x.settlementId === id)) saved = b;
+    });
+    const e1 = placed ? await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && new RegExp(`^revision:${region}:\\d+$`).test(e.siteGroup ?? ''), 30) : null;
+    if (!e1 || !saved) return fail(rl, `not placed and logged (saved ${!!saved}): ${chatTail(from)}`);
+    const revs0 = ((await regionView(region)).revisions ?? []).length;
+    await quit();
+    fs.writeFileSync(bf, JSON.stringify(saved));
+    editSettlement(id, (st) => { st.log = st.log.filter((e) => e.siteGroup !== e1.siteGroup); });
+    launch();
+    await connect();
+    const resumed = await waitLog(0, new RegExp(`resume ${id}: [^\\n]*`), 60_000);
+    if (resumed) await cmd(`/steward approve ${id}`);
+    const again = resumed ? await driveUntil(id, 0, /is built(?: in part)?: (\d+) buildings placed/, 600_000) : null;
+    const logged = await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === e1.siteGroup, 30);
+    const once = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.siteGroup === e1.siteGroup && e.kind === 'PROJECT_PLACED').length === 1;
+    const revs1 = ((await regionView(region)).revisions ?? []).length;
+    if (resumed && again && logged && once && revs1 === revs0) ok(rl, `${e1.siteGroup} found by its keys after the restart, logged once, no second revision`);
+    else fail(rl, `resumed ${!!resumed}; placed ${!!again}; logged ${!!logged} (once ${once}); revisions ${revs0} -> ${revs1}; ${chatTail(0)}`);
+    const g2 = await undoOnce(id, c);
+    const rr = ((await regionView(region)).revisions ?? []).find((r) => r.rid === Number(e1.siteGroup.split(':').at(-1)));
+    if (g2 && rr?.state === 'UNDONE') ok(`${rl} undo`, g2.text);
+    else fail(`${rl} undo`, `undo ${g2 ? g2.text : 'not logged'}; revision ${rr?.state}`);
+  }
+  // the world turned to building from materials: a district built at once is refused by the mode gate before anything is spent
+  {
+    const ml = `${label} mode gate`;
+    const revs0 = ((await regionView(region)).revisions ?? []).length;
+    const q = await dgAsk(id, d, 'ward school');
+    if (!q) return fail(ml, 'no proposal');
+    await cmd('/architect survival on');
+    await cmd('/defaultgamemode survival');
+    from = logSize();
+    await cmd(`/steward proposals ${id} accept ${q.key}`);
+    const said = await waitLog(from, /e2e ward was built at once and this world builds from materials now[^\n]*/, 120_000);
+    await cmd('/architect survival off');
+    await cmd('/defaultgamemode creative');
+    const revs1 = ((await regionView(region)).revisions ?? []).length;
+    if (said && revs1 === revs0) ok(ml, `${said[0].slice(0, 140)}; no revision planned`);
+    else fail(ml, `said ${!!said}; revisions ${revs0} -> ${revs1}; ${chatTail(from)}`);
+  }
+  // then the district (its founding build) and the town
+  const dg = await undoOnce(id, c);
+  let given = null;
+  for (let i = 0; i < 120 && !given; i++) {
+    await sleep(1000);
+    if (!dgDistrict(id, d.id)) given = true;
+  }
+  const tg = await undoOnce(id, c);
+  if (dg && given && tg) ok(`${label} then the district and the town`, `${dg.text}; ${tg.text}`);
+  else fail(`${label} then the district and the town`, `district ${dg ? dg.text : 'not undone'} (given up ${!!given}); town ${tg ? tg.text : 'not undone'}`);
+}
+
 const flows = [];
 let flowsRan = false;
 /**
@@ -5243,6 +5413,7 @@ try {
       await flow('beside', 'plan', () => besideFlow());
       await flow('revision', 'plan version revert', () => revisionFlow());
       await flow('district-region', 'district region', () => districtRegionFlow());
+      await flow('district-growth', 'district districts growth region undo restart', () => districtGrowthFlow());
       await flow('quarter', 'district wall', () => quarterFlow());
       await flow('wall-lots', 'wall gatehouse gate', () => wallLotsFlow());
       await flow('gate-mech', 'gate wall mechanism portcullis undo', () => gateMechFlow());
