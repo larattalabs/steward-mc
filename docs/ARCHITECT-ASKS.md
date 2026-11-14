@@ -1416,6 +1416,14 @@ phase 5b; S-M5-1 to S-M5-4 and S-M5-7 are needed for phase 5.
   - **C:** the fill and the custody write-back mark each container changed, so comparators re-read it.
   - Refusing a crate-fed survival fill site is accepted: Steward's lots are stockpile targets.
   - The fillers must be plain items. M0's renamed stick is out, since PS's crates refuse component stacks. M4 chooses the filler.
+  - **The coordinator, 2026-11-13:** A-C were passed to FK as given.
+    - The kit call is **`bp.fillContainers({containers, locks})`**: `bp.fill(box, block)` is the kit's box fill. The sidecar member stays
+      `fill`.
+    - Added, and in the RC:
+      - `SiteWait.nextNeeded` lists the fill's items while the target waits for them;
+      - a pending fill keeps its stock reserved in the feed order;
+      - the fill tick re-asserts each lock, with neighbour updates.
+    - An XR overwrite of a fill cell is refused at realise or put-down, not at plan check, because bound entries aren't known there.
 - **Architect's answers (coordinator, 2026-11-12):** all as preferred.
   - S-M5-1 is `Designs.fromProgram` plus a keyed `Designs.variant` and `variantByKey`, with the program sha recorded.
   - S-M5-3 is opt-in, at most 64 declared containers per entry, keyed and journaled lock/fill/unlock, its own strict slice.
