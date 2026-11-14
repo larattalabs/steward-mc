@@ -284,6 +284,9 @@ entry; none (Architect rolled its intent back at its own world start, or never g
   any other way): retired the same way, `PROJECT_REMOVED` of the gone sites ("gone from the world") then `TOWN_RELEASED region:<id>` ("the town's
   region and its buildings are gone"), never "let go". Only when Architect lists any site at all: a site file Architect could not read lists none,
   every site would only look gone, and the adoption is left open (warned) for a later start. Some sites standing, all in no region: a release.
+  Accepted limit (GPT fix check): a world whose only Architect sites were this town's keeps it open too (undo says so, nothing is lost), since
+  Architect's API has no load-health signal to tell an empty inventory from an unread one; asking for one is a follow-up. The reconcile's
+  adapter is unit-tested through its pure decision only.
 - `TownRegion.of` and `Districts.regionTownGone` read an unreleased `TOWN_ADOPTED region:` entry as the town's region. After a release, the town is
   a street town again (district founding reads its street as before).
 
