@@ -142,9 +142,17 @@ public final class ComposedModules {
 
 	/** Every module ask of {@code lots}, failing closed ({@link #asked(JsonObject, Set)} over {@link #LOT_TYPES}). Pure. */
 	public static List<Asked> readAll(List<JsonObject> lots) {
+		return readAll(lots, LOT_TYPES);
+	}
+
+	/**
+	 * Every module ask of {@code lots}: a lot with a module marker (readable or not), or a lot of one of {@code lotTypes} (the modules offered now: a bare
+	 * {@code storage_hall} lot of a town whose catalog offers none is an ordinary lot, as before M5). Pure.
+	 */
+	public static List<Asked> readAll(List<JsonObject> lots, Set<String> lotTypes) {
 		List<Asked> out = new ArrayList<>();
 		for (JsonObject l : lots) {
-			Asked a = asked(l, LOT_TYPES);
+			Asked a = asked(l, lotTypes);
 			if (a != null) out.add(a);
 		}
 		return out;

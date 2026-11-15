@@ -660,7 +660,8 @@ Architect 0.72.0 (CONTRACT, `kit/schemas/plan.json`, the API). The paid compose,
   `road:*`, `mech:*`, `fluids`.
 - `realiseApproved` takes the module entries in `lotEntries`. Its `costRange` test (`cols x 16` non-air cells, `PROVISIONAL_BAND`) is far
   above any measured module: a 27x27 farm writes at most 2,771 cells on a 29x30 lot (13,920 allowed).
-- So no Architect change is needed for M5. Two things are asked to be confirmed (ARCHITECT-ASKS.md, "M5 asks (draft)"): that a lot's box is
+- So no Architect change is needed for M5 on main's exact-bound path. Once QD caps a realise (`maxBill`), one region-wide cap can't hold two
+  module bounds apart: a per-lot cap is drafted as S-M5-15. Two things are asked to be confirmed (ARCHITECT-ASKS.md, "M5 asks (draft)"): that a lot's box is
   its `size` exactly in every lots layout, and that FK's fill runs on a lot of a first realise (`realiseApproved`) as it does on a growth.
 
 **1. The composer names a module (the vocabulary).**
@@ -771,7 +772,10 @@ survival quoted again for the new artifact (the cleared key is the artifact and 
     said and never bound.
   - **S5, the key.** The compose key covers Steward's rules as sent and the whole module vocabulary (`ComposeJob.inputs`), not only the
     catalog ids. A rule or catalog change under the same card is a new compose. No key is kept byte for byte: the rules changed anyway.
-  - **S6, the bible.** The palette check is at `RequestGroup`, and the binding uses the build's own bible pin.
+  - **S6, the bible.** The palette check is at `RequestGroup`, and the binding uses the build's own bible pin. From materials, each module's
+    bound is set there too, in that bible's blocks, so "no bound" stops the build before the designs are paid for.
+  - **B3, narrowed** (after the review): a bare lot of a module's lot type is a module ask only while the catalog offers that module; a marked
+    lot always is.
   - **S9, a town of modules only.** Nothing is designed: the build goes from the plan to the placement approval and the bind. With no bible,
     the program's own palette dresses them.
   - **S10, capabilities.** Each vocabulary entry says what it `does` (the farm is harvested by the player; `storage_hall@1` doesn't sort). The
@@ -784,8 +788,9 @@ survival quoted again for the new artifact (the cleared key is the artifact and 
     and the brief keeps M5 on it until QD (Architect v0.73.0, BC-d). `maxBill` is also one cap over the whole region, so it can't hold two
     modules apart. It comes with QD, for the whole composed realise.
   - **B2, the shells.** Only the module's own pieces (`lot:`, `fill:`) are held to its bound; IRR's shells and the module's share of the
-    streets are billed with the town's ground. On level land that is about 5 items per source. The bound is the steward's, from the
-    measurement, never shown at Start: that is Noah's question in 6 above.
+    streets are billed with the town's ground. On level land that is about 5 items per source. **Question for Noah:** is that weaker hold
+    (the module's own pieces only, its shells with the town's ground) right, or should a composed module wait until its shells can be told
+    apart? (Separate from the question in 6, whether the steward may set the bound.)
   - **S7, filled halls.** `HallCargo` counts every item in a hall, so FK's declared filter contents would refuse an undo. That only matters for
     `storage_hall@2`: M4b's own slice makes `HallCargo` FK-aware. `storage_hall@1` holds no fill.
   - **S11, in game.** The in-game strict scenarios are M5's second half (the brief): a stocked over-bound hold, partial building and undo, a

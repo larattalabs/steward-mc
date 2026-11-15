@@ -333,6 +333,9 @@ class ComposedModulesTest {
 			json("{\"id\": \"c\", \"type\": \"crop_farm\", \"size\": [11, 12]}"), json("{\"id\": \"d\", \"type\": \"storage_hall\"}"), json("{\"id\": \"e\", \"type\": \"cottage\"}")));
 		assertEquals(List.of("a", "b", "c", "d"), all.stream().map(ComposedModules.Asked::lotId).toList());
 		assertEquals(ComposedModules.UNREADABLE, all.get(0).moduleId());
+		// a catalog offering no module: a bare module lot type is an ordinary lot (as before M5); a marker still asks
+		var none = ComposedModules.readAll(List.of(json("{\"id\": \"c\", \"type\": \"crop_farm\"}"), json("{\"id\": \"a\", \"ext\": {\"steward_mc:module\": {}}}")), Set.of());
+		assertEquals(List.of("a"), none.stream().map(ComposedModules.Asked::lotId).toList());
 		assertEquals(ComposedModules.UNREADABLE, all.get(1).moduleId());
 		assertEquals("crop_farm", all.get(2).moduleId());
 		assertEquals("storage_hall", all.get(3).moduleId());
