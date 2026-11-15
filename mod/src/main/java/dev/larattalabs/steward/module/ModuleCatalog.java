@@ -112,11 +112,27 @@ public final class ModuleCatalog {
 	 * bars and results as recorded.
 	 */
 	public record Measured(String programSha, String moduleSha, String result, String minecraft, List<String> architect, @Nullable String kit,
-		@Nullable String checker, boolean fixture, JsonObject raw) {
+		@Nullable String checker, boolean fixture, String basis, @Nullable String from, JsonObject raw) {
 		public Measured {
 			architect = architect == null ? List.of() : List.copyOf(architect);
 		}
+
+		/** Whether this certificate carries a full measurement on a smoke check (speed rule 4) rather than being one. */
+		public boolean smoke() {
+			return BASIS_SMOKE.equals(basis);
+		}
 	}
+
+	/** measured.json {@code basis}: a full measurement (also when absent: every certificate before speed rule 4). */
+	public static final String BASIS_FULL = "full";
+	/**
+	 * measured.json {@code basis: "smoke"} (speed rule 4, Noah 2026-11-13; {@code tools/module-catalog.mjs record --smoke}): a full measurement
+	 * carried to a new Architect pin on a smoke check. {@code from} names the fully measured Architect version and {@code carried} holds that
+	 * full certificate (without its {@code bounds} and {@code rates}, which stay top level, bound by {@code carried.boundsSha} /
+	 * {@code ratesSha}). It certifies only when the carried certificate is a passing full measurement of this exact program, of this module.json
+	 * with only its pins different, on this Minecraft, whose bounds and rates are the ones here, and the smoke checks are recorded.
+	 */
+	public static final String BASIS_SMOKE = "smoke";
 
 	/**
 	 * One catalog version. {@code problems} non-empty: a malformed entry, never offered nor measured. {@code uncertified} non-empty: its
@@ -287,7 +303,8 @@ public final class ModuleCatalog {
 		if (meas != null) try {
 			measured = new Measured(strOr(meas, "programSha", ""), strOr(meas, "moduleSha", ""), strOr(meas, "result", ""), strOr(meas, "minecraft", ""),
 				strings(meas, "architect"), strOr(meas, "kit", null), strOr(meas, "checker", null),
-				meas.has("fixture") && meas.get("fixture").isJsonPrimitive() && meas.get("fixture").getAsBoolean(), meas);
+				meas.has("fixture") && meas.get("fixture").isJsonPrimitive() && meas.get("fixture").getAsBoolean(), strOr(meas, "basis", BASIS_FULL),
+				strOr(meas, "from", null), meas);
 			if (!id.equals(strOr(meas, "id", null)) || version != intOr(meas, "version", -1)) uncertified.add("measured.json names another module than " + id + "@" + version);
 			if (!"pass".equals(measured.result())) uncertified.add("measured.json's result is '" + measured.result() + "', not pass");
 			if (!measured.programSha().equals(sha)) uncertified.add("measured.json measured another program (sha " + shortSha(measured.programSha()) + ")");
@@ -297,12 +314,53 @@ public final class ModuleCatalog {
 			if (measured.fixture() != fixture) uncertified.add("measured.json and module.json disagree on whether it is a fixture");
 			if (kitPin == null || !kitPin.equals(measured.kit())) uncertified.add("measured on kit " + measured.kit() + ", pinned " + kitPin);
 			if (checkerPin == null || !checkerPin.equals(measured.checker())) uncertified.add("measured with checker " + measured.checker() + ", pinned " + checkerPin);
+			if (measured.smoke()) {
+				if (mod != null) carried(measured, meas, mod, sha, uncertified);
+			} else if (!BASIS_FULL.equals(measured.basis())) {
+				uncertified.add("measured.json's basis is '" + measured.basis() + "' (full or smoke)");
+			} else if (meas.has("carried") || meas.has("from")) {
+				uncertified.add("a full measurement names a carried one (from, carried)");
+			}
 		} catch (RuntimeException ex) {
 			uncertified.add("measured.json is malformed: " + ex.getMessage());
 			measured = null;
 		}
 		return new Entry(id, version, title, fixture, source == null ? "" : source, sha, moduleSha, params, env, palette, kitPin, checkerPin, measured, problems,
 			uncertified);
+	}
+
+	/**
+	 * A smoke certificate's carried full measurement ({@link #BASIS_SMOKE}): why it does not certify, into {@code uncertified}. The carried
+	 * certificate must be a passing full one, of the same program, on the same Minecraft, naming {@code from} among its Architect versions, with
+	 * its measurement ({@code checks.measure}); module.json with the carried kit and checker pins put back must hash to the carried moduleSha (the
+	 * only change since: the pins); the top-level bounds and rates must be the carried ones; and the smoke checks must be recorded.
+	 */
+	private static void carried(Measured m, JsonObject meas, JsonObject mod, String sha, List<String> uncertified) {
+		String from = m.from();
+		JsonObject c = meas.has("carried") && meas.get("carried").isJsonObject() ? meas.getAsJsonObject("carried") : null;
+		if (from == null || from.isEmpty()) uncertified.add("a smoke certificate names no fully measured version (from)");
+		if (c == null) {
+			uncertified.add("a smoke certificate without its carried measurement");
+			return;
+		}
+		if (!BASIS_FULL.equals(strOr(c, "basis", "")) || !"pass".equals(strOr(c, "result", ""))) uncertified.add("the carried certificate is not a passing full measurement");
+		if (!sha.equals(strOr(c, "programSha", ""))) uncertified.add("the carried measurement measured another program (sha " + shortSha(strOr(c, "programSha", null)) + ")");
+		if (!m.minecraft().equals(strOr(c, "minecraft", ""))) uncertified.add("the carried measurement ran on Minecraft " + strOr(c, "minecraft", null));
+		if (from != null && !strings(c, "architect").contains(from)) uncertified.add("the carried measurement does not name Architect " + from);
+		JsonObject checks = c.has("checks") && c.get("checks").isJsonObject() ? c.getAsJsonObject("checks") : new JsonObject();
+		if (!checks.has("measure") || !checks.get("measure").isJsonObject()) uncertified.add("the carried certificate has no measurement (checks.measure)");
+		String kit = strOr(c, "kit", null), checker = strOr(c, "checker", null);
+		JsonObject pinned = mod.deepCopy();
+		JsonObject oldPins = new JsonObject();
+		if (kit != null) oldPins.addProperty("kit", kit);
+		if (checker != null) oldPins.addProperty("checker", checker);
+		pinned.add("pins", oldPins);
+		if (kit == null || checker == null || !moduleSha(pinned).equals(strOr(c, "moduleSha", "")))
+			uncertified.add("module.json differs from the fully measured one in more than its pins (carried moduleSha " + shortSha(strOr(c, "moduleSha", null)) + ")");
+		if (!Canon.sha(meas.get("bounds")).equals(strOr(c, "boundsSha", "")) || !Canon.sha(meas.get("rates")).equals(strOr(c, "ratesSha", "")))
+			uncertified.add("the bounds or rates are not the carried measurement's");
+		JsonObject own = meas.has("checks") && meas.get("checks").isJsonObject() ? meas.getAsJsonObject("checks") : new JsonObject();
+		if (!own.has("smoke") || !own.get("smoke").isJsonObject()) uncertified.add("a smoke certificate without its smoke checks (checks.smoke)");
 	}
 
 	/** The fields of module.json a measurement certifies (all but its title): their canonical sha256. */

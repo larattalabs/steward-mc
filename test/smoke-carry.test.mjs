@@ -1,0 +1,132 @@
+// tools/lib/smoke-carry.mjs: speed rule 4's carry (module-catalog.mjs record --smoke), on crop_farm@1's real full certificate.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { canonSha, moduleShaOf, smokeCarry } from '../tools/lib/smoke-carry.mjs';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const DIR = path.join(ROOT, 'modules', 'crop_farm', '1');
+const clone = (o) => JSON.parse(JSON.stringify(o));
+const live = JSON.parse(fs.readFileSync(path.join(DIR, 'measured.json'), 'utf8'));
+const liveMod = JSON.parse(fs.readFileSync(path.join(DIR, 'module.json'), 'utf8'));
+const NOW = { programSha: liveMod.programSha, moduleJsonSha: 'b'.repeat(64) };
+
+/** The full certificate: the live one if it is full, else the one it carries, made whole again. */
+function fullCert() {
+  if (live.basis !== 'smoke') return clone(live);
+  return { ...clone(live.carried), bounds: clone(live.bounds), rates: clone(live.rates) };
+}
+const FULL = fullCert();
+const FROM = FULL.checks.offline.architect;
+const NEXT = '9.0.0';
+
+/** The inputs of a passing carry of `prev` to Architect `arch` with kit pins `kit`. */
+function inputs({ prev = FULL, arch = NEXT, kit = '9.9.0' } = {}) {
+  const mod = { ...clone(liveMod), pins: { kit, checker: kit } };
+  const versions = { architect: arch, minecraft: '26.3' };
+  const ev = (step, extra = {}) => ({ step, ok: true, at: 't', head: 'h', seconds: 1, ...NOW, ...versions, checks: [{ ok: true, what: 'x' }], ...extra });
+  const field = ev('field-potatoes', { runs: 5, data: { crop: 'potatoes', farms: [{ id: 'f1', size: '9x18' }], judged: { f1: { mean: 0.6, n: 160 } } } });
+  return {
+    prev: clone(prev), mod, now: NOW, gameModuleSha: moduleShaOf(mod), versions,
+    offline: { ok: true, data: { architect: arch, kit, checker: kit } }, offEntry: { branches: clone(FULL.checks.offline.branches) },
+    ingame: { ok: true }, inEntry: {}, checks: { offline: {}, ingame: {} }, survival: ev('survival'), fields: [field],
+  };
+}
+
+test('the canonical moduleSha is the game\'s: the fully measured module.json (its pins put back) hashes to the certificate\'s moduleSha', () => {
+  assert.equal(moduleShaOf({ ...liveMod, pins: { kit: FULL.kit, checker: FULL.checker } }), FULL.moduleSha);
+  assert.equal(moduleShaOf(liveMod), live.moduleSha, 'the committed certificate is for the committed module.json');
+});
+
+test('a plain pin bump with every smoke step passing carries the full measurement', () => {
+  const { why, m } = smokeCarry(inputs());
+  assert.deepEqual(why, []);
+  assert.equal(m.basis, 'smoke');
+  assert.equal(m.from, FROM);
+  assert.deepEqual(m.architect, [NEXT]);
+  assert.equal(m.kit, '9.9.0');
+  assert.equal(m.result, 'pass');
+  assert.deepEqual(m.bounds, FULL.bounds, 'the bounds offered are the measured ones');
+  assert.deepEqual(m.rates, FULL.rates);
+  assert.equal(m.carried.boundsSha, canonSha(FULL.bounds));
+  assert.equal(m.carried.ratesSha, canonSha(FULL.rates));
+  assert.equal(m.carried.moduleSha, FULL.moduleSha);
+  assert.deepEqual(m.carried.checks.measure, FULL.checks.measure, 'the full measurement is kept');
+  assert.equal(m.carried.bounds, undefined, 'carried holds no second copy of the bounds');
+  const r = m.checks.smoke.fields[0].rates[0];
+  assert.deepEqual(r.params, { crop: 'potatoes', depth: 18, width: 9 });
+  assert.equal(typeof r.changePct, 'number');
+});
+
+test('a smoke of a smoke keeps the first full measurement and its from', () => {
+  const first = smokeCarry(inputs()).m;
+  const { why, m } = smokeCarry(inputs({ prev: first, arch: '9.1.0', kit: '9.9.1' }));
+  assert.deepEqual(why, []);
+  assert.equal(m.from, FROM);
+  assert.deepEqual(m.carried, first.carried);
+  assert.deepEqual(m.architect, ['9.1.0']);
+});
+
+const refused = (a, re) => {
+  const { why, m } = smokeCarry(a);
+  assert.equal(m, null);
+  assert.ok(why.some((w) => re.test(w)), why.join('; '));
+};
+
+test('refused: the program changed', () => {
+  const a = inputs();
+  a.now = { ...a.now, programSha: 'c'.repeat(64) };
+  refused(a, /program changed/);
+  const b = inputs();
+  b.mod.programSha = 'c'.repeat(64);
+  b.gameModuleSha = moduleShaOf(b.mod);
+  refused(b, /program changed/);
+});
+
+test('refused: module.json changed in more than its pins', () => {
+  const a = inputs();
+  a.mod.envelope.branches.width = [9, 18];
+  a.gameModuleSha = moduleShaOf(a.mod);
+  refused(a, /more than its pins/);
+  const b = inputs();
+  b.mod.palette.lamp.minLight = 13;
+  b.gameModuleSha = moduleShaOf(b.mod);
+  refused(b, /more than its pins/);
+});
+
+test('refused: this tool and the game disagree on the moduleSha', () => {
+  const a = inputs();
+  a.gameModuleSha = 'd'.repeat(64);
+  refused(a, /disagrees with the game/);
+});
+
+test('refused: a smoke step failed or is missing', () => {
+  let a = inputs(); a.survival.ok = false; refused(a, /billing check \(survival\) did not pass/);
+  a = inputs(); a.survival = null; refused(a, /no billing check/);
+  a = inputs(); a.survival.architect = FROM; refused(a, /billing check ran on other files or versions/);
+  a = inputs(); a.fields[0].ok = false; refused(a, /field round field-potatoes did not pass/);
+  a = inputs(); a.fields = []; refused(a, /no field round/);
+  a = inputs(); a.fields[0].programSha = 'e'.repeat(64); refused(a, /no field round/);
+  a = inputs(); a.fields[0].runs = 1; refused(a, /1 runs/);
+  a = inputs(); a.offline.ok = false; refused(a, /offline step did not pass/);
+  a = inputs(); a.ingame.ok = false; refused(a, /ingame step did not pass/);
+});
+
+test('refused: the build moved (a block count differs from the measured one)', () => {
+  const a = inputs();
+  a.offEntry.branches[3].blocks += 1;
+  refused(a, /the build moved: 1 of/);
+});
+
+test('refused: nothing to carry, a failed or tampered certificate, the measured version itself', () => {
+  let a = inputs(); a.prev = null; refused(a, /no measured.json/);
+  a = inputs(); a.prev.result = 'fail'; refused(a, /result 'fail'/);
+  a = inputs(); delete a.prev.checks.measure; refused(a, /no measurement/);
+  a = inputs({ arch: FROM }); refused(a, /fully measured version itself/);
+  const s = smokeCarry(inputs()).m;
+  s.bounds[0].bill = { 'minecraft:dirt': 1 };
+  a = inputs({ prev: s, arch: '9.1.0' }); refused(a, /not the carried measurement's/);
+  a = inputs(); a.prev.basis = 'guess'; refused(a, /unknown basis/);
+});

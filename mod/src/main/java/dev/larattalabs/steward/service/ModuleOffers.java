@@ -114,7 +114,7 @@ public final class ModuleOffers {
 		if (d == null || (b != null && !d.override())) return b;
 		JsonObject raw = new JsonObject();
 		raw.add(ModuleBound.MEMBER, d.bounds());
-		return ModuleBound.of(new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, raw), params, town);
+		return ModuleBound.of(new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, ModuleCatalog.BASIS_FULL, null, raw), params, town);
 	}
 
 	/** The town's item for each role a measured bound re-expresses (StyleBound), from the settlement's bible; null when it can't be read. */
