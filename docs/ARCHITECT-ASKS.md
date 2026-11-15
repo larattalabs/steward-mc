@@ -1564,6 +1564,8 @@ pinned on pin-067, on top of pin-066 (runtime minimum 0.67.0). The plan schema i
   - item 5 (`kitVersion()`, `checkerVersion()`) lets the module gate check the running kit against module.json's pins;
   - `Sites.loadHealthy()` is for GE's REMOVED close.
   These are follow-ups. Steward's fixtures hold no FullBom labels: ModulePlacement matches reasons by pattern.
+  - Slice BCU (2026-11-15, on 0.70.0) calls `kitVersion()`, `checkerVersion()` (the module gate's `KIT` refusal) and `Sites.loadHealthy()`
+    (GE's REMOVED close, `Adoption.reconcile`). `maxBill` still waits for M5.
 
 ### SAD (survival adoption) contract review (2026-11-14): accepted
 
