@@ -386,7 +386,7 @@ async function record() {
       // speed rule 4: carry the full measurement on a smoke check (tools/lib/smoke-carry.mjs), or refuse
       // the module's evidence directory (artifacts/m2: crop_farm, artifacts/m4: storage_hall) and its round: one field round (crop_farm), or
       // one hall round (storage_hall: module-measure-hall.mjs hall, deterministic)
-      const M = MEASURES[e.id] ?? {};
+      const M = measureOf(e) ?? {};
       const m2 = path.join(ROOT, 'artifacts', M.art ?? 'm2');
       const read = (f) => (fs.existsSync(path.join(m2, f)) ? JSON.parse(fs.readFileSync(path.join(m2, f), 'utf8')) : null);
       const fields = !fs.existsSync(m2) ? [] : M.round === 'hall' ? [read('hall.json')].filter(Boolean)
@@ -416,7 +416,7 @@ async function record() {
       minecraft: MC_VERSION, architect, kit: off.data.kit, checker: off.data.checker, result: 'pass' };
     m.checks = freshChecks();
     if (measure) {
-      const M = MEASURES[e.id];
+      const M = measureOf(e);
       m.checks.measure = measure; m.what = M.what; m.bars = M.bars; m.runs = M.runs;
       // M3 reads these: the whole growth's bill per params (the survival bound) and the quoted net rate (the fixed-cycle protocol rate)
       const art = (s) => JSON.parse(fs.readFileSync(path.join(ROOT, 'artifacts', M.art, `${s}.json`), 'utf8')).data;
@@ -430,6 +430,15 @@ async function record() {
       if (sb.problems.length) { refused++; log(`REFUSED ${key}: the per-Style bounds: ${sb.problems.slice(0, 5).join('; ')}`); continue; }
       m.bounds = sb.bounds;
       m.rates = [];
+      // (M4b) storage_hall@2: its bounds are the structure alone; the fill (41 of each item) is added per order (ModuleBound's `fill`); its rates
+      // are items a second per slot count, from the sort step
+      if (M.fill) m.fill = M.fill;
+      if (M.hallRates) {
+        const S = art('sort');
+        const per = {};
+        for (const [id, h] of Object.entries(S.halls ?? {})) if (h.itemsPerSecond && h.bible === 'rustic') (per[h.slots] ??= []).push(h.itemsPerSecond);
+        for (const [slots, xs] of Object.entries(per)) m.rates.push({ params: { slots: Number(slots) }, perSecond: Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 1000) / 1000, item: 'items' });
+      }
       if (M.rates) for (const crop of ['wheat', 'carrots', 'potatoes', 'beetroots']) {
         const F = art(`field-${crop}`);
         for (const f of F.farms) {
@@ -461,10 +470,21 @@ const MEASURES = {
     bars: 'docs/MEASURE-M4.md "4. The bars" (committed before the first measurement)',
     art: 'm4', runs: 1, rates: false, round: 'hall',
   },
+  'storage_hall@2': {
+    steps: ['hall', 'bounds', 'sort', 'sort-survival', 'sort-cargo', 'sort-crash'],
+    what: 'docs/MEASURE-M4.md 12.5 and 12.7: the sorting hall (slots 4, 8, 12 and 16, each with its own items through the 48-item domain) and its plain branch, measured in a dev client by tools/module-measure-hall.mjs --version 2: shape, light, sorting 20 runs a branch in acknowledged batches, throughput, saturation and a full overflow, the filters holding, restart and full and partial unloads mid-sort, ingress before the lock, fill_blocked, the bill (structure + 41 per item) and the refunds after taking, cargo alone in every container class, the fed-slab recovery, and the crash points FK1-FK4, FKC1, FKC2, CS1 and FKC0.',
+    bars: 'docs/MEASURE-M4.md 12.5 and 12.7 (committed before the first measurement)',
+    art: 'm4b', runs: 1, rates: false, hallRates: true, round: 'hall',
+    fill: { params: Array.from({ length: 16 }, (_, i) => `item${i + 1}`), count: 41 },
+  },
 };
+/** A catalog entry's measurement: by `id@version` first (storage_hall@2's differs from @1's), else by id. */
+function measureOf(e) {
+  return MEASURES[`${e.id}@${e.version}`] ?? MEASURES[e.id];
+}
 /** The measurement's evidence for a real module, summarised; reasons it can't certify go into `why`. */
 function measurement(e, now, why) {
-  const M = MEASURES[e.id];
+  const M = measureOf(e);
   if (!M) { why.push(`no measurement is defined for ${e.id}`); return null; }
   const out = {};
   for (const s of M.steps) {
