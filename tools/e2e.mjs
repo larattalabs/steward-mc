@@ -3119,8 +3119,21 @@ async function suppliedGrowthFlow() {
       else fail(lbl, `${said}; overflow ${JSON.stringify(over)}; more ${JSON.stringify(again)}; entries ${placedN}/${removedN}/${noteN}; built said ${sinceLog != null && builtRe.test(logSince(sinceLog))}; left ${left.slice(0, 4).join(', ')}; owing ${owing}; ${off.length} cell(s) differ ${JSON.stringify(off.slice(0, 3))}`);
       return good;
     };
-    /** A growth accepted from talk; 'end': fed half while its revision is placed, until its build ends with targets waiting; 'placing': fed once, left writing. */
-    const grow = async (lbl, mode) => {
+    /** Feeds part of what the stockpile owes until something is drawn (half of each kind, then all but the kind owed least), leaving something owed. */
+    const feedPart = async (spStart) => {
+      const drew = async () => { for (let i = 0; i < 30; i++) { await sleep(2000); if (Object.keys(delta((await ledger())?.consumed, spStart?.consumed)).length) return true; } return false; };
+      if (Object.keys(delta((await ledger())?.consumed, spStart?.consumed)).length) return true;
+      const need = (await ledger())?.need ?? {};
+      if (!Object.keys(need).length) return false;
+      await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(need).map(([k, n]) => [k, Math.max(1, Math.floor(n / 2))])) }).catch(() => null);
+      if (await drew()) return true;
+      const rest = Object.entries((await ledger())?.need ?? {}).sort((a, b) => a[1] - b[1]);
+      if (rest.length < 2) return false;
+      await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(rest.slice(1)) }).catch(() => null);
+      return drew();
+    };
+    /** A growth accepted from talk; 'end': until its build ends with targets waiting (fed in part when {@code part}); 'placing': fed once, left writing. */
+    const grow = async (lbl, mode, part = false) => {
       const q = await askBuilding(id, 'library');
       if (!q) { fail(lbl, 'no library proposal'); return null; }
       await clearAnimals();
@@ -3135,12 +3148,16 @@ async function suppliedGrowthFlow() {
         if (!g) return null;
         const e = (settlements().find((x) => x.id === id)?.log ?? []).filter((x) => x.kind === 'PROJECT_PLACED').at(-1);
         if (!/^revision:/.test(e?.siteGroup ?? '')) { fail(lbl, `entry ${e?.siteGroup}`); return null; }
+        if (part && !(await feedPart(spStart))) { fail(lbl, 'nothing drawn from the stockpile once fed in part'); return null; }
         return { spStart, tag: e.siteGroup, siteIds: e.siteIds, from: f };
       }
       // its revision written (PLACING) and its first targets fed in part: half of what the stockpile needs, once
-      let h = null;
+      let h = null, at = f;
       for (let i = 0; i < 600 && !h; i++) {
         await sleep(2000);
+        // the build's decisions approved as they come (the bible, the massings, the placement), as buildThrough does
+        if (/Style bible ready|massings? (?:are|is) ready|Approve to place/.test(logSince(at))) { at = logSize(); await cmd(`/steward approve ${id}`); }
+        if (/The build stopped[^\n]*|Cancelled [^\n]*/.test(logSince(f))) break;
         h = ((await view()).revisions ?? []).filter((x) => x.state === 'PLACING').sort((a, b) => b.rid - a.rid)[0] ?? null;
         if (!h || !Object.keys((await ledger())?.need ?? {}).length) h = null;
       }
@@ -3186,13 +3203,16 @@ async function suppliedGrowthFlow() {
     {
       const lbl = `${label} undo while waiting`;
       const tag = op.siteGroup;
+      // fed in part first, so it has drawn something and still waits (run 1: nothing had been drawn, so nothing to judge)
+      const fed = await feedPart(sp0);
       const spW0 = await ledger();
       from = logSize();
       await away();
-      const said = await cmd(`/steward undo ${id}`);
-      const done = await until(() => completion(tag), 300);
+      const said = fed ? await cmd(`/steward undo ${id}`) : '';
+      const done = fed ? await until(() => completion(tag), 300) : null;
       const words = logSince(from).match(/(Refunded: [^\n]*|Nothing had been drawn[^\n]*)/);
-      if (!Object.keys(spW0?.need ?? {}).length) fail(lbl, 'nothing was owed when it was undone (not waiting)');
+      if (!fed) fail(lbl, 'nothing drawn from the stockpile once fed in part');
+      else if (!Object.keys(spW0?.need ?? {}).length) fail(lbl, 'nothing was owed when it was undone (not waiting)');
       else if (!done) fail(lbl, `no completion in 5 min: ${String(said).slice(0, 120)}; ${chatTail(from)}`);
       else {
         await judge(lbl, tag, sp0, spW0, op.siteIds, from);
@@ -3233,7 +3253,7 @@ async function suppliedGrowthFlow() {
     // resumes it at the world start and the growth sweep logs its removal once
     {
       const lbl = `${label} restart mid-undo`;
-      const g = await grow(`${lbl} growth`, 'end');
+      const g = await grow(`${lbl} growth`, 'end', true);
       if (g) {
         const spB = await ledger();
         const halted = await killed('RVU2+save', () => cmd(`/steward undo ${id}`));

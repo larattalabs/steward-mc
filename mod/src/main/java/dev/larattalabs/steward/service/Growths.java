@@ -177,6 +177,11 @@ public final class Growths {
 	}
 
 	/** (slice A2L) What a take-up refunded, said: Architect's refund (stockpile items, and any cargo found), or that nothing had been drawn. Pure. */
+	/** (slice A2L, GPT diff review) Architect's answer is reported in a Supplied town even when nothing came back, and anywhere when something did. */
+	public static boolean reportsRefund(dev.larattalabs.steward.model.Settlement s, dev.larattalabs.architect.api.@Nullable RemoveResult r) {
+		return r != null && (s.difficulty() == dev.larattalabs.steward.model.Difficulty.SUPPLIED || !r.refund().isEmpty());
+	}
+
 	public static String refundLine(java.util.Map<net.minecraft.world.item.Item, Integer> refund) {
 		if (refund.isEmpty()) return "Nothing had been drawn from the stockpile for it, so nothing came back.";
 		var list = refund.entrySet().stream().map(e -> java.util.Map.entry(e.getKey(), e.getValue())).toList();

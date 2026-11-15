@@ -3518,11 +3518,14 @@ public final class SettlementRunner {
 			if (!alive() || state == null || state.phase().terminal()) return;
 			if (ok) {
 				boolean refunded = answer.get() != null && !answer.get().refund().isEmpty();
+				// (GPT diff review) the town's build watch dropped here too when only the growth kept it unbuilt
+				MaterialRequests.forgetIfBuilt(ref.region());
 				// the completion, tagged with the growth (Growths.completed), checked on a fresh read; the build ends only once it is saved
 				var now = Settlements.store().get(settlement.id()).orElse(settlement);
 				boolean done = Growths.completed(now, ref.tag()) || Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE,
 					Growths.NOT_PLACED + " (" + why + (refunded ? "; what it drew was refunded" : "") + ")", List.of(), ref.tag())).ok();
-				if (refunded) {
+				// (GPT diff review) a known empty answer is said too, in a Supplied town
+				if (Growths.reportsRefund(now, answer.get())) {
 					said.accept(Growths.refundLine(answer.get().refund()));
 					said.accept("Undone: the town's change is taken up, the land restored.");
 				}

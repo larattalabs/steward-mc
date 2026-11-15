@@ -274,7 +274,7 @@ public final class Undo {
 				districts(server, s, say);
 				// (slice A2L review 6) the town's build watch is dropped when only the growth kept it unbuilt: never "built" for a town that lost its addition
 				MaterialRequests.forgetIfBuilt(ref.region());
-				if (answer.get() != null) say.accept(Growths.refundLine(answer.get().refund()));
+				if (Growths.reportsRefund(s, answer.get())) say.accept(Growths.refundLine(answer.get().refund()));
 				say.accept("Undone: " + whose + " change is taken up, the land restored.");
 			} else say.accept("Run /steward undo " + s.id() + " again once it is clear.");
 			whenDone.accept(ok);
