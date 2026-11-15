@@ -181,6 +181,10 @@ class ComposeJobTest {
 			+ "{\"id\":\"cabin_3\",\"type\":\"cabin\"}],\"layout\":\"street\"}},{\"id\":\"q\",\"program\":{\"districts\":[{\"lots\":[{\"id\":\"cabin_4\",\"type\":\"Cabin\"}]}]}},"
 			+ "{\"id\":\"v\",\"program\":{\"template\":\"flat_village\",\"params\":{\"lots\":[{\"id\":\"tavern_1\",\"type\":\"tavern\"}]}}}]}");
 		assertEquals(List.of("2 cottage homes"), ComposeJob.missing(card, plan));
+		// a card building the plan writes as another part (paid proof 11-14: the stone bridge as connector kind bridge)
+		JsonObject bridge = json("{\"program\":[{\"type\":\"bridge\",\"count\":1,\"role\":\"stone bridge\"}]}");
+		assertEquals(List.of(), ComposeJob.missing(bridge, json("{\"zones\":[],\"connectors\":[{\"id\":\"stone_bridge\",\"kind\":\"bridge\"}]}")));
+		assertEquals(List.of("1 stone bridge"), ComposeJob.missing(bridge, json("{\"zones\":[],\"connectors\":[{\"id\":\"w\",\"kind\":\"wall\"}]}")));
 		// a bundled template's own buildings can't be counted against the card
 		assertEquals(List.of(), ComposeJob.missing(card, ComposeJob.pickedPlan("x", "crater_works", new JsonObject())));
 	}

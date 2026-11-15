@@ -300,6 +300,12 @@ public final class ComposeJob {
 	/** Counts the plan's lots by type into {@code have}; false when a zone's program is a template with no lots (not countable). */
 	private static boolean lots(JsonObject plan, Map<String, Integer> have) {
 		boolean countable = true;
+		// a card "building" the plan writes as another part (a stone bridge as connector kind bridge, a well as a form): counted by its kind
+		// (paid proof 11-14: "Not in the plan: 1 stone bridge" for a bridge the plan held)
+		for (String sec : List.of("connectors", "forms", "rules")) {
+			if (!plan.has(sec) || !plan.get(sec).isJsonArray()) continue;
+			for (JsonElement p : plan.getAsJsonArray(sec)) if (p.isJsonObject() && !str(p.getAsJsonObject(), "kind").isEmpty()) have.merge(slug(str(p.getAsJsonObject(), "kind")), 1, Integer::sum);
+		}
 		if (!plan.has("zones") || !plan.get("zones").isJsonArray()) return true;
 		for (JsonElement z : plan.getAsJsonArray("zones")) {
 			if (!z.isJsonObject() || !z.getAsJsonObject().has("program") || !z.getAsJsonObject().get("program").isJsonObject()) continue;

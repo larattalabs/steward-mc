@@ -661,7 +661,8 @@ public final class Composer {
 			shown += e.getValue();
 		}
 		if (total > shown) named.add((total - shown) + " more");
-		return "A settlement of " + total + " building" + (total == 1 ? "" : "s") + ": " + words(named) + ".";
+		// two sentences: the scrub (S-7c-4) can drop the one naming a secret's host, never the count (paid proof 11-14: an empty summary)
+		return "A settlement of " + total + " building" + (total == 1 ? "" : "s") + ". Among them: " + words(named) + ".";
 	}
 
 	/** The waiting parts the player is told of: all but the secret ones (S-7c-4). */

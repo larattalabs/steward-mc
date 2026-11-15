@@ -76,7 +76,7 @@ class ComposerTest {
 			+ "{\"id\":\"cabin_2\",\"type\":\"cabin\",\"label\":\"hidden dwelling\"},{\"id\":\"tavern_1\",\"type\":\"tavern\"},{\"id\":\"house_1\",\"type\":\"house\"},"
 			+ "{\"id\":\"barn_1\",\"type\":\"barn\"}]}}]}").getAsJsonObject();
 		String s = Composer.summaryOf(plan);
-		assertTrue(s.startsWith("A settlement of 5 buildings: 2 hidden dwelling"), s);
+		assertTrue(s.startsWith("A settlement of 5 buildings. Among them: 2 hidden dwelling"), s);
 		assertTrue(s.endsWith("and 1 more."), s);
 		assertEquals("", Composer.summaryOf(JsonParser.parseString("{\"zones\":[]}").getAsJsonObject()));
 	}
