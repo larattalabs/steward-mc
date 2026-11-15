@@ -7005,9 +7005,10 @@ async function planDistrictFlow() {
   const ward = {
     id: 'mill_ward', label: 'Mill Ward', size: { w: 40, d: 40 }, prefer: ['open', 'flat'],
     lots: [
-      { id: 'mill_hall_1', type: 'hall', role: 'hall', label: 'a mill hall', size: [11, 11] },
-      { id: 'workshop_1', type: 'workshop', role: 'workshop', label: 'a workshop', size: [9, 9] },
-      { id: 'workshop_2', type: 'workshop', role: 'workshop', label: 'a workshop', size: [9, 9] },
+      // cottages at no_wood's 13 by 14 (the sim's kit massing fits those; a smaller lot or another type fails its checker)
+      { id: 'mill_hall_1', type: 'cottage', role: 'mill hall', label: 'a mill hall', size: [13, 14] },
+      { id: 'workshop_1', type: 'cottage', role: 'workshop', label: 'a workshop', size: [13, 14] },
+      { id: 'workshop_2', type: 'cottage', role: 'workshop', label: 'a workshop', size: [13, 14] },
     ],
   };
   const key = `plan_district_${ward.id}`;
@@ -7035,9 +7036,7 @@ async function planDistrictFlow() {
     if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
     if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
     if (settlements().find((x) => x.id === id)?.difficulty !== 'SUPPLIED') return fail(label, 'not Supplied in a survival world');
-    // the kept plan names a district the founding won't build (as one it left out)
-    const added = await cmd(`/steward dev plan_district ${id} wards ${JSON.stringify(ward)}`);
-    if (!/plan district mill_ward added/.test(added)) return fail(label, `the district wasn't added to the plan: ${added}`);
+    // nothing is proposed before the town stands
     const early = await cmd(`/steward dev propose_district ${id} plan`);
     await closeScreens();
     await clearAnimals();
@@ -7061,15 +7060,22 @@ async function planDistrictFlow() {
     from = logSize();
     await cmd(`/steward start ${id} 2 30`);
     if (!(await buildThrough(id, from, `${label} town`, false, null, 1_200_000))) return;
-    if (!(await waitLog(from, new RegExp(`${name} is built: everything its plan laid out stands`), 900_000))) return fail(label, 'the town was not built from the stockpile in 15 min');
-    feeding = false;
     const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
     const town = /^region:(.+)$/.exec(founding?.siteGroup ?? '')?.[1];
     if (!town) return fail(label, `the town is not a region: ${founding?.siteGroup}`);
+    // the kept plan names a district the founding didn't build (added once the town is placed, as one it left out: the entry keeps its time, so it is
+    // still the town's plan); while the town is still being built from materials, nothing is proposed
+    const added = await cmd(`/steward dev plan_district ${id} wards ${JSON.stringify(ward)}`);
+    if (!/plan district mill_ward added/.test(added)) return fail(label, `the district wasn't added to the plan: ${added}`);
+    const building = (await regionView(town)).build;
+    const mid = await cmd(`/steward dev propose_district ${id} plan`);
+    const midNone = /no plan district proposed/.test(mid);
+    if (!(await waitLog(from, new RegExp(`${name} is built: everything its plan laid out stands`), 900_000))) return fail(label, 'the town was not built from the stockpile in 15 min');
+    feeding = false;
     const townLots = ((await regionView(town)).lots ?? []).map((l) => l.id);
-    if (/no plan district proposed/.test(early) && !townLots.some((l) => ward.lots.some((w) => w.id === l))) {
-      ok(`${label} not before the town`, `before the town was built: "${early.trim().slice(0, 100)}"; ${town} built without the ward (${townLots.join(', ')})`);
-    } else return fail(`${label} not before the town`, `early: ${early}; town lots ${townLots.join(', ')}`);
+    if (/no plan district proposed/.test(early) && (building?.built || midNone) && !townLots.some((l) => ward.lots.some((w) => w.id === l))) {
+      ok(`${label} not before the town`, `before it stood: "${early.trim().slice(0, 70)}"; ${building?.built ? 'built at once' : `while ${Math.round(building?.percent ?? 0)}% built: "${mid.trim().slice(0, 70)}"`}; ${town} built (${townLots.join(', ')})`);
+    } else return fail(`${label} not before the town`, `early: ${early}; mid (${JSON.stringify(building)?.slice(0, 80)}): ${mid}; town lots ${townLots.join(', ')}`);
     // (1) proposed once the town is built: in the inbox, in words naming the district and its lots
     await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ}`);
     from = logSize();

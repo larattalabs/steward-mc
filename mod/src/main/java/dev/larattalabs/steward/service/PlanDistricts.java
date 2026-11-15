@@ -78,24 +78,29 @@ public final class PlanDistricts {
 	}
 
 	/**
-	 * The unbuilt districts still to offer: not open, declined or accepted (never twice), and not held by a settlement district of the same name (one
-	 * founded from it whose acceptance was never saved, or one the player named so).
+	 * The unbuilt districts still to offer: not open or declined, and neither accepted nor held by a settlement district of the same name (never twice)
+	 * unless that district is only reserved beside the town with nothing built (an acceptance whose build ended unbuilt after a paid request, which
+	 * isn't given back): it is offered again to build on that reservation.
 	 */
 	public static List<Unbuilt> toOffer(List<Unbuilt> unbuilt, Settlement.Proposals ps, List<Settlement.District> districts) {
 		List<Unbuilt> out = new ArrayList<>();
 		for (Unbuilt u : unbuilt) {
 			String k = u.key();
-			if (ps.declined().contains(k) || ps.accepted().contains(k) || ps.open().stream().anyMatch(p -> p.key().equals(k))) continue;
-			if (districts.stream().anyMatch(d -> d.name().equalsIgnoreCase(u.label()))) continue;
+			if (ps.declined().contains(k) || ps.open().stream().anyMatch(p -> p.key().equals(k))) continue;
+			boolean resumes = districts.stream().anyMatch(d -> reserved(d, u.label()));
+			if (!resumes && (ps.accepted().contains(k) || districts.stream().anyMatch(d -> d.name().equalsIgnoreCase(u.label())))) continue;
 			out.add(u);
 		}
 		return out;
 	}
 
+	private static boolean reserved(Settlement.District d, String label) {
+		return d.name().equalsIgnoreCase(label) && Settlement.District.BESIDE.equals(d.kind()) && Settlement.District.RESERVED.equals(d.state()) && d.region() == null;
+	}
+
 	/** The district reserved beside the town under {@code label} with no region yet: what an earlier acceptance founded and didn't build. */
 	public static java.util.Optional<Settlement.District> reservedFor(Settlement s, String label) {
-		return s.lands().districts().stream().filter(d -> d.name().equalsIgnoreCase(label) && Settlement.District.BESIDE.equals(d.kind())
-			&& Settlement.District.RESERVED.equals(d.state()) && d.region() == null).reduce((a, b) -> b);
+		return s.lands().districts().stream().filter(d -> reserved(d, label)).reduce((a, b) -> b);
 	}
 
 	/** The lots as the build's specs: each its own id, type, size, label, brief (scrubbed), landmark and placement. */

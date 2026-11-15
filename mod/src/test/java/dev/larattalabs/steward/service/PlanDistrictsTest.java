@@ -69,11 +69,18 @@ class PlanDistrictsTest {
 		assertEquals(List.of("harbour", "mine_camp"), ids(PlanDistricts.toOffer(u, new Settlement.Proposals(List.of(open), List.of(), List.of(), 0L), List.of())));
 		assertEquals(List.of("harbour", "mine_camp"), ids(PlanDistricts.toOffer(u, new Settlement.Proposals(List.of(), List.of(jungle.key()), List.of(), 0L), List.of())));
 		assertEquals(List.of("harbour", "mine_camp"), ids(PlanDistricts.toOffer(u, new Settlement.Proposals(List.of(), List.of(), List.of(jungle.key()), 0L), List.of())));
-		// a district of its name stands (founded from it, its acceptance never saved): held
+		// a district of its name stands (built, or a square the player named so): held
 		var c1 = new Claim("minecraft:overworld", 100, 0, 48, -64, 320);
 		var d = new Settlement.District("dst_1", "The Jungle Side", "E", c1, 1L, List.of(), false,
-			Settlement.District.BESIDE, Settlement.District.RESERVED, "rg_1", null, dev.larattalabs.steward.model.Land.of(c1), null, "steward.s.dst_1");
+			Settlement.District.BESIDE, Settlement.District.STANDING, "rg_1", "rg_9", dev.larattalabs.steward.model.Land.of(c1), null, "steward.s.dst_1");
 		assertEquals(List.of("harbour", "mine_camp"), ids(PlanDistricts.toOffer(u, none, List.of(d))));
+		assertEquals(List.of("harbour", "mine_camp"), ids(PlanDistricts.toOffer(u, new Settlement.Proposals(List.of(), List.of(), List.of(jungle.key()), 0L), List.of(d))));
+		// only reserved, nothing built (its build ended unbuilt after a paid request, so the acceptance wasn't given back): offered again, on that reservation
+		var r = new Settlement.District("dst_1", "The Jungle Side", "E", c1, 1L, List.of(), false,
+			Settlement.District.BESIDE, Settlement.District.RESERVED, "rg_1", null, dev.larattalabs.steward.model.Land.of(c1), null, "steward.s.dst_1");
+		assertEquals(List.of("jungle_side", "harbour", "mine_camp"), ids(PlanDistricts.toOffer(u, new Settlement.Proposals(List.of(), List.of(), List.of(jungle.key()), 0L), List.of(r))));
+		assertEquals(List.of("harbour", "mine_camp"), ids(PlanDistricts.toOffer(u, new Settlement.Proposals(List.of(), List.of(jungle.key()), List.of(), 0L), List.of(r))),
+			"declined: never again");
 	}
 
 	@Test
