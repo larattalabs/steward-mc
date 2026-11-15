@@ -19,6 +19,12 @@ export const canonSha = (v) => sha256(JSON.stringify(sortedJson(v ?? null)));
 export const moduleShaOf = (mod) => canonSha(Object.fromEntries(['id', 'version', 'fixture', 'programSha', 'params', 'envelope', 'palette', 'pins']
   .filter((k) => k in mod).map((k) => [k, mod[k]])));
 
+/**
+ * Each real module's smoke round, by catalog id (ModuleCatalog.SMOKE_ROUNDS): crop_farm a field round (`field-<crop>`, 5 runs or more, its farms
+ * judged), storage_hall its deterministic hall step. A module not in it carries nothing by smoke.
+ */
+export const SMOKE_ROUNDS = Object.freeze({ crop_farm: 'field', storage_hall: 'hall', fixture_plot: 'field' }); // fixture_plot: M1's test module
+
 const SMOKE_RULE = 'speed rule 4 (Noah 2026-11-13, AGENTS.md "Module re-certification"): a plain Architect version bump with the program and '
   + 'module.json unchanged but for the pins: fresh offline and ingame, the billing check (survival, and the bounds re-quoted equal to the carried '
   + 'ones item for item) and one field round; the full measurement is carried';
@@ -110,11 +116,14 @@ export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, o
       why.push(`the bill moved: ${differ.length} of ${old.length} carried bounds differ from the re-quote's ${requote.bounds.length}: a full re-measure`);
   }
   // one field round (or more); every one on these files and versions must pass
-  // (M4) a storage hall's round is its deterministic hall step (module-measure-hall.mjs hall: shape, storage, restart, unload, light, undo)
+  // the round is the module's own (SMOKE_ROUNDS), never what the evidence calls itself: storage_hall its hall step (module-measure-hall.mjs hall:
+  // shape, storage, restart, unload, light, undo), crop_farm a field round
+  const round = SMOKE_ROUNDS[mod.id];
+  if (!round) why.push(`no smoke round is defined for ${mod.id}: a smoke certificate carries nothing for it`);
   const mine = (fields ?? []).filter((f) => stamped(f, now, versions));
   if (!mine.length) why.push('no field round on these files and versions (module-measure.mjs field --crop <c>, or module-measure-hall.mjs hall)');
   for (const f of mine) {
-    if (f.step === 'hall') {
+    if (round === 'hall') {
       const u = unpassed(f, 'hall');
       if (u) why.push(`the hall round ${u}`);
       continue;
@@ -126,7 +135,7 @@ export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, o
   }
   if (why.length) return { why, m: null };
   // the field round's rates beside the carried ones (report only: the round's own bars judge it)
-  const fieldRounds = mine.map((f) => f.step === 'hall' ? { ...summary(f), rates: [] } : ({ ...summary(f), crop: f.data?.crop, rates: (f.data?.farms ?? []).map((farm) => {
+  const fieldRounds = mine.map((f) => round === 'hall' ? { ...summary(f), rates: [] } : ({ ...summary(f), crop: f.data?.crop, rates: (f.data?.farms ?? []).map((farm) => {
     const J = f.data.judged?.[farm.id] ?? {};
     const [width, depth] = farm.size.split('x').map(Number);
     const old = (rates ?? []).find((r) => r.params.crop === f.data.crop && r.params.width === width && r.params.depth === depth);

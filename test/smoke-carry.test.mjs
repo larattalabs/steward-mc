@@ -183,3 +183,29 @@ test('storage_hall@1 carries on its hall round, from the version it was fully me
   const c = clone(a); c.fields = [];
   assert.match(smokeCarry(c).why.join('; '), /no field round/);
 });
+
+// (the gate-verifier's finding, 2026-11-15) the round is bound to the module: crop_farm never carries on a hall round, storage_hall never on a
+// field round, and a module with no round carries nothing
+test('a smoke round is the module\'s own: crop_farm on a hall round and storage_hall on a field round are refused', () => {
+  const a = inputs();
+  a.fields = [{ ...a.fields[0], step: 'hall', runs: 1 }];
+  assert.match(smokeCarry(a).why.join('; '), /is step 'hall', not field-/);
+  const HDIR = path.join(ROOT, 'modules', 'storage_hall', '1');
+  const hm = JSON.parse(fs.readFileSync(path.join(HDIR, 'measured.json'), 'utf8'));
+  const hmod = JSON.parse(fs.readFileSync(path.join(HDIR, 'module.json'), 'utf8'));
+  const prev = hm.basis === 'smoke' ? { ...clone(hm.carried), bounds: clone(hm.bounds), rates: clone(hm.rates) } : clone(hm);
+  const now = { programSha: hmod.programSha, moduleJsonSha: 'c'.repeat(64) };
+  const mod = { ...clone(hmod), pins: { kit: '9.9.0', checker: '9.9.0' } };
+  const versions = { architect: NEXT, minecraft: '26.3' };
+  const ev = (step, extra = {}) => ({ step, ok: true, at: 't', head: 'h', seconds: 1, ...now, ...versions, checks: [{ ok: true, what: 'x' }], ...extra });
+  const h = {
+    prev, mod, now, gameModuleSha: moduleShaOf(mod), versions,
+    offline: { ok: true, data: { architect: NEXT, kit: '9.9.0', checker: '9.9.0' } }, offEntry: { branches: clone(prev.checks.offline.branches) },
+    ingame: { ok: true }, inEntry: {}, checks: { offline: {}, ingame: {} }, survival: ev('survival'),
+    fields: [ev('field-potatoes', { runs: 5, data: { crop: 'potatoes', farms: [{ id: 'f1', size: '9x18' }], judged: { f1: { mean: 0.6, n: 160 } } } })],
+    requote: { evidence: ev('bounds'), bounds: clone(prev.bounds), problems: [] },
+  };
+  assert.match(smokeCarry(h).why.join('; '), /the hall round is step 'field-potatoes', not hall/);
+  const u = clone(a); u.prev.id = 'no_such'; u.mod.id = 'no_such';
+  assert.match(smokeCarry(u).why.join('; '), /no smoke round is defined for no_such/);
+});

@@ -99,6 +99,47 @@ class ModuleCatalogTest {
 		return f;
 	}
 
+	/** The live catalog's {@code dir} (modules/) as files, its measured.json edited. */
+	static java.util.Map<String, String> liveFiles() {
+		java.util.Map<String, String> out = new java.util.HashMap<>();
+		var root = FIXTURES.resolve("../../../modules").normalize();
+		try (var w = java.nio.file.Files.walk(root)) {
+			for (var p : w.filter(java.nio.file.Files::isRegularFile).toList()) out.put(root.relativize(p).toString().replace('\\', '/'), java.nio.file.Files.readString(p));
+		} catch (java.io.IOException e) {
+			throw new RuntimeException(e);
+		}
+		return out;
+	}
+
+	@Test
+	void aSmokeRoundIsTheModulesOwn() {
+		// (the gate-verifier's finding, 2026-11-15) the round is bound to the module, never to what the certificate calls it
+		var live = liveFiles();
+		var hall = JsonParser.parseString(live.get("storage_hall/1/measured.json")).getAsJsonObject();
+		var farm = JsonParser.parseString(live.get("crop_farm/1/measured.json")).getAsJsonObject();
+		org.junit.jupiter.api.Assumptions.assumeTrue("smoke".equals(hall.get("basis").getAsString()) && "smoke".equals(farm.get("basis").getAsString()), "both live certificates are smoke carries");
+		assertTrue(ModuleCatalog.load(rel -> Optional.ofNullable(live.get(rel)), false).newest("storage_hall").orElseThrow().uncertified().isEmpty(), "the live hall carries on its hall round");
+		assertTrue(ModuleCatalog.load(rel -> Optional.ofNullable(live.get(rel)), false).newest("crop_farm").orElseThrow().uncertified().isEmpty(), "the live farm carries on its field round");
+		// crop_farm's field round renamed a one-run hall round: refused
+		var f1 = new java.util.HashMap<>(live);
+		var fm = farm.deepCopy();
+		var ff = fm.getAsJsonObject("checks").getAsJsonObject("smoke").getAsJsonArray("fields").get(0).getAsJsonObject();
+		ff.addProperty("step", "hall");
+		ff.addProperty("runs", 1);
+		f1.put("crop_farm/1/measured.json", fm.toString());
+		var u1 = ModuleCatalog.load(rel -> Optional.ofNullable(f1.get(rel)), false).newest("crop_farm").orElseThrow().uncertified();
+		assertTrue(u1.stream().anyMatch(x -> x.contains("hall (field-)")), u1.toString());
+		// storage_hall's hall round renamed a five-run field round: refused
+		var f2 = new java.util.HashMap<>(live);
+		var hm = hall.deepCopy();
+		var hf = hm.getAsJsonObject("checks").getAsJsonObject("smoke").getAsJsonArray("fields").get(0).getAsJsonObject();
+		hf.addProperty("step", "field-wheat");
+		hf.addProperty("runs", 5);
+		f2.put("storage_hall/1/measured.json", hm.toString());
+		var u2 = ModuleCatalog.load(rel -> Optional.ofNullable(f2.get(rel)), false).newest("storage_hall").orElseThrow().uncertified();
+		assertTrue(u2.stream().anyMatch(x -> x.contains("field-wheat (hall)")), u2.toString());
+	}
+
 	static JsonObject smokeOf(JsonObject m) {
 		return m.getAsJsonObject("checks").getAsJsonObject("smoke");
 	}

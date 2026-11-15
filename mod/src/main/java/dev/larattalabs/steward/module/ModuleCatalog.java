@@ -140,6 +140,16 @@ public final class ModuleCatalog {
 	 */
 	public static final String BASIS_SMOKE = "smoke";
 
+	/** A storage hall's smoke round: its deterministic hall step (tools/module-measure-hall.mjs hall), one run. */
+	static final String ROUND_HALL = "hall";
+
+	/**
+	 * Each real module's smoke round (speed rule 4), by catalog id: crop_farm a field round ({@code field-<crop>}, 5 runs or more), storage_hall its
+	 * hall step; M1's fixture_plot (a fenced plot of crops, the catalog tests' module, never offered to a player) a field round. The same table as
+	 * tools/lib/smoke-carry.mjs {@code SMOKE_ROUNDS}. A module not in it carries nothing by smoke.
+	 */
+	static final Map<String, String> SMOKE_ROUNDS = Map.of("crop_farm", "field", "storage_hall", ROUND_HALL, "fixture_plot", "field");
+
 	/**
 	 * One catalog version. {@code problems} non-empty: a malformed entry, never offered nor measured. {@code uncertified} non-empty: its
 	 * measurement does not certify this program, schema, envelope, palette rules and pins (missing, failed or stale), so it is never offered,
@@ -391,20 +401,20 @@ public final class ModuleCatalog {
 			names.add(k);
 		}
 		JsonArray fields = smoke.has("fields") && smoke.get("fields").isJsonArray() ? smoke.getAsJsonArray("fields") : new JsonArray();
+		// the round is the module's own (SMOKE_ROUNDS), never what the certificate says it is: a module with no round carries nothing
+		String round = SMOKE_ROUNDS.get(strOr(mod, "id", ""));
+		if (round == null) uncertified.add("no smoke round is defined for " + strOr(mod, "id", "?") + ": a smoke certificate carries nothing for it");
 		if (fields.isEmpty()) uncertified.add("a smoke certificate without a field round");
 		for (JsonElement f : fields) {
 			steps.add(f);
-			names.add("field-");
+			names.add(ROUND_HALL.equals(round) ? ROUND_HALL : "field-");
 		}
 		for (int i = 0; i < steps.size(); i++) {
 			JsonElement s = steps.get(i);
 			JsonObject o = s != null && s.isJsonObject() ? s.getAsJsonObject() : null;
 			String want = names.get(i), name = o == null ? "?" : strOr(o, "step", "?");
 			boolean field = want.equals("field-");
-			// (M4) a storage hall's round is its deterministic hall step (one run), a crop field round's five runs
-			boolean hall = field && name.equals("hall");
-			if (hall) field = false;
-			boolean named = field ? name.startsWith("field-") && name.length() > want.length() : hall || name.equals(want);
+			boolean named = field ? name.startsWith("field-") && name.length() > want.length() : name.equals(want);
 			int passed = o == null ? -1 : intOr(o, "passed", -1), of = o == null ? 0 : intOr(o, "of", 0);
 			if (o == null || !named || !sha.equals(strOr(o, "programSha", "")) || !on.equals(strOr(o, "architect", "")) || !m.minecraft().equals(strOr(o, "minecraft", ""))
 				|| of <= 0 || passed != of || (field && intOr(o, "runs", 0) < 5))
