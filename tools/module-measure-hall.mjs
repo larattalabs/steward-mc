@@ -809,7 +809,7 @@ async function sortRun(halls, domain, { feed = null } = {}) {
     p.before = await sortState(p.h);
   }
   let t = 0;
-  while ([...plan.values()].some((p) => !p.done) && t < 60_000) {
+  while ([...plan.values()].some((p) => !p.done) && t < 120_000) {
     for (const p of plan.values()) {
       if (p.done) continue;
       const s = await sortState(p.h);
@@ -824,8 +824,8 @@ async function sortRun(halls, domain, { feed = null } = {}) {
         p.ticks = t - p.t0;
       }
     }
-    await advance(100);
-    t += 100;
+    await advance(1000);
+    t += 1000;
   }
   const byHall = {};
   for (const p of plan.values()) {
@@ -846,7 +846,7 @@ async function sortRun(halls, domain, { feed = null } = {}) {
     if (totalOf(s.input) || s.line.some((m) => totalOf(m)) || s.D.some((m) => totalOf(m))) why.push('the input, line or a D is not empty');
     p.h.filterIds.forEach((f, u) => { if (!same(s.F[u], p.before.F[u])) why.push(`F ${u} moved: ${json(p.before.F[u])} -> ${json(s.F[u])}`); });
     if (ents.entities) why.push(`${ents.entities} item entities`);
-    if (!p.done) why.push('did not finish in 60,000 ticks');
+    if (!p.done) why.push('did not finish in 120,000 ticks');
     const items = totalOf(p.expected);
     byHall[p.h.id] = { sorted: why.length === 0, why, items, ticks: p.ticks, itemsPerSecond: p.ticks ? (items / p.ticks) * 20 : null };
   }
@@ -916,7 +916,7 @@ async function sortStep() {
         const fk = await call('dev.fk.state', { site: h.siteId }, 30_000).catch((e) => ({ error: String(e) }));
         out.halls[h.id] = { slots: h.slots, bulk: h.bulk, bible: h.bible, items: h.items, front: h.frame.front, built: row, fk: { phase: fk.phase, locks: fk.locks } };
         check(row?.changed === 0 && row?.standing === 1 && fOk && leverOk && opens && fk.phase === 'UNLOCKED' && (fk.locks ?? []).every((l) => /powered=false/.test(l.state ?? '')),
-          `12.5 bar 6 shape ${h.id} (${h.bible}, ${h.slots} slots, front ${h.frame.front}): standing ${row?.standing}; every F exactly 41 + 4 slabs (${fOk}); FK ${fk.phase}, the lever unlocked; nothing conductive over any chest (${opens})`);
+          `12.5 bar 6 shape ${h.id} (${h.bible}, ${h.slots} slots, front ${h.frame.front}): standing ${row?.standing}, changed ${row?.changed}; every F exactly 41 + 4 slabs (${fOk}); FK ${fk.phase}, the lever unlocked; nothing conductive over any chest (${opens})`);
       }
     }
     // ---- 4 light

@@ -141,9 +141,11 @@ export function layout(slots, bulk) {
     tile.push([x, b + 1, L, 'minecraft:hopper', { facing: 'north' }]);
     tile.push([x, b, L, 'minecraft:hopper', { facing: 'south' }]);
     tile.push([x, b, L + 1, 'minecraft:chest', { facing: 'south', type: 'single' }]);
-    tile.push([x, b + 1, L - 1, 'minecraft:comparator', { facing: 'south' }]);
-    tile.push([x, b + 1, L - 2, 'minecraft:redstone_wire', {}]);
-    tile.push([x, b + 1, L - 3, 'minecraft:redstone_wire', {}]);
+    // the circuit's settled states with F filled (41 + 4: signal 2), so a built hall reads as standing unchanged (the land check compares
+    // states): the comparator powered, its dust at power 2 then 1 (the low dust and the repeater stay off; the torch lit)
+    tile.push([x, b + 1, L - 1, 'minecraft:comparator', { facing: 'south', powered: 'true' }]);
+    tile.push([x, b + 1, L - 2, 'minecraft:redstone_wire', { power: '2' }]);
+    tile.push([x, b + 1, L - 3, 'minecraft:redstone_wire', { power: '1' }]);
     tile.push([x, b, L - 4, 'minecraft:redstone_wire', {}]);
     tile.push([x, b - 1, L - 3, 'minecraft:repeater', { facing: 'north', delay: '1' }]);
     tile.push([x, b - 1, L - 1, 'minecraft:redstone_wall_torch', { facing: 'south' }]);

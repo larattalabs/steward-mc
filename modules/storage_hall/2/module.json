@@ -2,7 +2,7 @@
   "id": "storage_hall",
   "version": 2,
   "title": "Storage hall",
-  "programSha": "0aff43ee4e886a66a96e3a0156ddee9159cba5e31387484dbdd9d26e75e3cb9d",
+  "programSha": "83708b0063101be6c1e2d93cdffb6377fc39380dbd5ac15c04195a31aa6a0abc",
   "params": {
     "slots": {
       "type": "int",
