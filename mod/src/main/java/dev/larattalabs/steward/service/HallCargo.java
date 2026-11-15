@@ -1,6 +1,7 @@
 package dev.larattalabs.steward.service;
 
 import com.google.gson.JsonObject;
+import java.util.List;
 import dev.larattalabs.architect.api.SiteView;
 import dev.larattalabs.steward.module.ModuleKind;
 import dev.larattalabs.steward.module.ModuleRef;
@@ -27,9 +28,13 @@ public final class HallCargo {
 	 * and {@code containers} are the hall's own declared chests (its input chest and bulk pairs, {@link #declared}); {@code otherItems} and
 	 * {@code others} any other container standing in its box (a barrel or a chest a player added): Architect's removal waits on those too.
 	 */
-	public record Count(int items, int containers, int otherItems, int others, boolean complete) {
+	public record Count(int items, int containers, int otherItems, int others, boolean complete, boolean hoppers) {
 		public Count(int items, int containers, boolean complete) {
-			this(items, containers, 0, 0, complete);
+			this(items, containers, 0, 0, complete, false);
+		}
+
+		public Count(int items, int containers, int otherItems, int others, boolean complete) {
+			this(items, containers, otherItems, others, complete, false);
 		}
 	}
 
@@ -40,6 +45,12 @@ public final class HallCargo {
 	 * this version builds or the box is not the template's size (then every container counts as the hall's, as before).
 	 */
 	static java.util.@Nullable Set<BlockPos> declared(@Nullable JsonObject params, BoundingBox box, @Nullable Rotation rotation) {
+		var m = declaredCells(params, box, rotation);
+		return m == null ? null : new java.util.LinkedHashSet<>(m.keySet());
+	}
+
+	/** (M4b) The hall's container cells in the world, each with its kind and slot ({@link StorageHallLot.Cell}); null as {@link #declared}. */
+	static java.util.@Nullable Map<BlockPos, StorageHallLot.Cell> declaredCells(@Nullable JsonObject params, BoundingBox box, @Nullable Rotation rotation) {
 		StorageHallLot.Layout l;
 		try {
 			if (params == null || !params.has("slots") || !params.has("bulk")) return null;
@@ -53,10 +64,11 @@ public final class HallCargo {
 		// the rotated template's minimum corner, from its two extreme corners
 		int[] a = turn(0, 0, r), b = turn(l.w() - 1, l.d() - 1, r);
 		int mx = Math.min(a[0], b[0]), mz = Math.min(a[1], b[1]);
-		java.util.Set<BlockPos> out = new java.util.LinkedHashSet<>();
-		for (int[] c : l.containers()) {
+		java.util.Map<BlockPos, StorageHallLot.Cell> out = new java.util.LinkedHashMap<>();
+		for (StorageHallLot.Cell cell : l.cells()) {
+			int[] c = cell.at();
 			int[] t = turn(c[0], c[2], r);
-			out.add(new BlockPos(box.minX() + t[0] - mx, box.minY() + c[1], box.minZ() + t[1] - mz));
+			out.put(new BlockPos(box.minX() + t[0] - mx, box.minY() + c[1], box.minZ() + t[1] - mz), cell);
 		}
 		return out;
 	}
@@ -92,10 +104,54 @@ public final class HallCargo {
 	/** The cargo in a site's box: its declared chests ({@link #declared}) and any other container (a double chest's two halves are one chest). */
 	public static Count count(ServerLevel level, SiteView v) {
 		var ref = ModuleRef.of(v.ext());
-		return count(level, v.box(), declared(ref == null ? null : ref.params(), v.box(), v.rotation()));
+		JsonObject params = ref == null ? null : ref.params();
+		var cells = declaredCells(params, v.box(), v.rotation());
+		List<String> filters = params == null ? List.of() : StorageHallLot.items(params).items();
+		// (M4b, MEASURE-M4 12.7 S6) a filter hopper is ours only once its fill committed: the site is BUILT only after FK's unlock
+		boolean committed = v.state() == dev.larattalabs.architect.api.State.BUILT;
+		return count(level, v.box(), cells, filters, committed);
 	}
 
 	static Count count(ServerLevel level, BoundingBox b, java.util.@Nullable Set<BlockPos> declared) {
+		java.util.Map<BlockPos, StorageHallLot.Cell> cells = null;
+		if (declared != null) {
+			cells = new java.util.LinkedHashMap<>();
+			for (BlockPos p : declared) cells.put(p, new StorageHallLot.Cell(StorageHallLot.Kind.BULK, new int[] {0, 0, 0}, -1));
+		}
+		return count(level, b, cells, List.of(), false);
+	}
+
+	/**
+	 * Whether a filter hopper's contents are ours (MODULES 6, MEASURE-M4 12.7 S6): plain stacks only, of its filter item and the provided filler, at most
+	 * {@link StorageHallLot#FILTER_COUNT} and {@link StorageHallLot#FILLERS} of them in all. Anything else (more of its own item too) is cargo.
+	 */
+	static boolean filterOurs(Container c, @Nullable String filter) {
+		List<Stack> stacks = new java.util.ArrayList<>();
+		for (int i = 0; i < c.getContainerSize(); i++) {
+			ItemStack st = c.getItem(i);
+			if (st.isEmpty()) continue;
+			stacks.add(new Stack(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), st.getComponentsPatch().isEmpty()));
+		}
+		return filterOurs(stacks, filter);
+	}
+
+	/** A stack as the ownership rule reads it: its item id, count, and whether it is plain (no component patch). */
+	public record Stack(String id, int count, boolean plain) {}
+
+	/** The rule, pure: every stack plain, of the filter item or the filler, at most 41 and 4 of them in all. */
+	public static boolean filterOurs(List<Stack> stacks, @Nullable String filter) {
+		int item = 0, fillers = 0;
+		for (Stack st : stacks) {
+			if (!st.plain()) return false;
+			if (st.id().equals(filter)) item += st.count();
+			else if (st.id().equals(StorageHallLot.FILLER)) fillers += st.count();
+			else return false;
+		}
+		return item <= StorageHallLot.FILTER_COUNT && fillers <= StorageHallLot.FILLERS;
+	}
+
+	static Count count(ServerLevel level, BoundingBox b, java.util.@Nullable Map<BlockPos, StorageHallLot.Cell> cells, List<String> filters, boolean committed) {
+		boolean anyHopper = false;
 		int items = 0, otherItems = 0;
 		boolean complete = true;
 		java.util.Set<BlockPos> holding = new java.util.HashSet<>(), other = new java.util.HashSet<>();
@@ -116,16 +172,24 @@ public final class HallCargo {
 				BlockPos o = pos.relative(net.minecraft.world.level.block.ChestBlock.getConnectedDirection(state));
 				if (o.compareTo(key) < 0) key = o.immutable();
 			}
-			// the hall's own: a chest standing on one of its declared cells (any container, when the declared cells are unknown)
-			if (declared == null || (chest && state.getBlock() == net.minecraft.world.level.block.Blocks.CHEST && declared.contains(pos))) {
+			// the hall's own: its container standing on one of its declared cells (a chest on a chest cell, a hopper on a hopper cell; any container
+			// when the declared cells are unknown); a committed filter hopper holding only its declaration is ours, not cargo
+			StorageHallLot.Cell cell = cells == null ? null : cells.get(pos);
+			boolean hopperCell = cell != null && (cell.kind() == StorageHallLot.Kind.LINE || cell.kind() == StorageHallLot.Kind.FILTER || cell.kind() == StorageHallLot.Kind.OUTPUT);
+			boolean hopper = state.getBlock() == net.minecraft.world.level.block.Blocks.HOPPER;
+			boolean own = cells == null || (cell != null && (hopperCell ? hopper : chest && state.getBlock() == net.minecraft.world.level.block.Blocks.CHEST));
+			if (own && cell != null && cell.kind() == StorageHallLot.Kind.FILTER && committed
+				&& filterOurs(c, cell.slot() >= 0 && cell.slot() < filters.size() ? filters.get(cell.slot()) : null)) continue;
+			if (own) {
 				items += n;
 				holding.add(key);
+				anyHopper |= hopper;
 			} else {
 				otherItems += n;
 				other.add(key);
 			}
 		}
-		return new Count(items, holding.size(), otherItems, other.size(), complete);
+		return new Count(items, holding.size(), otherItems, other.size(), complete, anyHopper);
 	}
 
 	private static final java.util.regex.Pattern CARGO = java.util.regex.Pattern.compile("Move these out of \\S+ first");
@@ -161,7 +225,7 @@ public final class HallCargo {
 	public static @Nullable String before(MinecraftServer server, String owner, java.util.Collection<String> siteIds) {
 		if (siteIds.isEmpty()) return null;
 		int items = 0, containers = 0, otherItems = 0, others = 0;
-		boolean complete = true;
+		boolean complete = true, hoppers = false;
 		for (SiteView v : ArchitectAccess.api().sites(server).list(owner)) {
 			if (!siteIds.contains(v.id())) continue;
 			var ref = ModuleRef.of(v.ext());
@@ -174,8 +238,9 @@ public final class HallCargo {
 			otherItems += c.otherItems();
 			others += c.others();
 			complete &= c.complete();
+			hoppers |= c.hoppers();
 		}
-		return items == 0 && otherItems == 0 ? null : say(items, containers, otherItems, others, complete);
+		return items == 0 && otherItems == 0 ? null : say(items, containers, otherItems, others, complete, hoppers);
 	}
 
 	static String say(int items, int containers, boolean complete) {
@@ -187,11 +252,16 @@ public final class HallCargo {
 	 * its lot (a barrel) is said apart, never counted as the hall's chests, and still refuses the undo (Architect's removal waits on it too).
 	 */
 	static String say(int items, int containers, int otherItems, int others, boolean complete) {
+		return say(items, containers, otherItems, others, complete, false);
+	}
+
+	/** As above; {@code hoppers}: a sorting hall's hoppers hold some of it, so its containers are "chests and hoppers". */
+	static String say(int items, int containers, int otherItems, int others, boolean complete, boolean hoppers) {
 		String least = complete ? "" : "at least ";
 		String rest = otherItems == 0 ? "" : least + n(otherItems) + " item" + (otherItems == 1 ? "" : "s") + " in " + others
 			+ (others == 1 ? " other container" : " other containers") + " that " + (others == 1 ? "is" : "are") + " not the hall's";
 		if (items == 0) return "the storage hall's lot still holds " + rest + "; empty " + (others == 1 ? "it" : "them") + " first";
-		return "the storage hall still holds " + least + n(items) + " item" + (items == 1 ? "" : "s") + " in " + containers + (containers == 1 ? " chest" : " chests")
+		return "the storage hall still holds " + least + n(items) + " item" + (items == 1 ? "" : "s") + " in " + containers + (hoppers ? (containers == 1 ? " chest or hopper" : " chests and hoppers") : containers == 1 ? " chest" : " chests")
 			+ (rest.isEmpty() ? "; empty it first" : ", and " + rest + "; empty them first");
 	}
 
@@ -208,7 +278,7 @@ public final class HallCargo {
 		var cells = namedCells(message);
 		if (cells.isEmpty()) return null;
 		int items = 0, containers = 0, otherItems = 0, others = 0;
-		boolean complete = true;
+		boolean complete = true, hoppers = false;
 		for (SiteView v : ArchitectAccess.api().sites(server).list(owner)) {
 			if (region != null && !region.equals(v.region())) continue;
 			var ref = ModuleRef.of(v.ext());
@@ -223,7 +293,8 @@ public final class HallCargo {
 			otherItems += c.otherItems();
 			others += c.others();
 			complete &= c.complete();
+			hoppers |= c.hoppers();
 		}
-		return items == 0 && otherItems == 0 ? null : say(items, containers, otherItems, others, complete);
+		return items == 0 && otherItems == 0 ? null : say(items, containers, otherItems, others, complete, hoppers);
 	}
 }

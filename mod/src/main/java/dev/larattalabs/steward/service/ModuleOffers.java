@@ -214,7 +214,17 @@ public final class ModuleOffers {
 		if (p != null) for (ItemStack st : p.getInventory()) if (!st.isEmpty()) seeds.merge(BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), Integer::sum);
 		Map<String, Integer> stock = new HashMap<>();
 		Stockpiles.of(server, s).ifPresent(sp -> sp.stock().forEach((item, n) -> stock.put(BuiltInRegistries.ITEM.getKey(item).toString(), n)));
-		return new ModuleOffer.Town(path, why, built, percent, district, freezing, seeds, stock);
+		// (M4b) the player's tier (a sorting hall from the Nether tier on), from their advancements as the proposal signs read it
+		dev.larattalabs.steward.model.Progress.Tier tier = null;
+		if (p != null) {
+			java.util.Set<String> done = new java.util.HashSet<>();
+			for (String id : dev.larattalabs.steward.model.Progress.advancements()) {
+				var adv = server.getAdvancements().get(net.minecraft.resources.Identifier.parse(id));
+				if (adv != null && p.getAdvancements().getOrStartProgress(adv).isDone()) done.add(id);
+			}
+			tier = dev.larattalabs.steward.model.Progress.tier(done);
+		}
+		return new ModuleOffer.Town(path, why, built, percent, district, freezing, seeds, stock, tier);
 	}
 
 	/** The lamp the settlement's bible gives the module, or why the bible is refused (PaletteCheck, before Architect is asked). */

@@ -45,10 +45,21 @@ public final class ModuleOffer {
 	 * @param stock item id -> count the stockpile holds (a town built from materials: construction draws only from it)
 	 */
 	public record Town(Path path, @Nullable String pathWhy, boolean built, int percent, boolean district, boolean freezing, Map<String, Integer> seeds,
-		Map<String, Integer> stock) {
+		Map<String, Integer> stock, dev.larattalabs.steward.model.Progress.@Nullable Tier tier) {
 		public Town {
 			seeds = seeds == null ? Map.of() : Map.copyOf(seeds);
 			stock = stock == null ? Map.of() : Map.copyOf(stock);
+		}
+
+		/** As before the sorting hall (M4b): the player's tier not known (a storage hall is then offered plain). */
+		public Town(Path path, @Nullable String pathWhy, boolean built, int percent, boolean district, boolean freezing, Map<String, Integer> seeds,
+			Map<String, Integer> stock) {
+			this(path, pathWhy, built, percent, district, freezing, seeds, stock, null);
+		}
+
+		/** Whether the player has reached the Nether tier (a sorting hall's comparators need quartz: MODULES 3.2 "Tier"). */
+		public boolean nether() {
+			return tier != null && tier.ordinal() >= dev.larattalabs.steward.model.Progress.Tier.NETHER.ordinal();
 		}
 	}
 
@@ -176,15 +187,68 @@ public final class ModuleOffer {
 			var want = asked.get(kind.cropParam());
 			if (branch != null && branch.contains(want)) bulk = want.getAsInt();
 		}
-		var p = ModuleGate.params(e, kind.params(kind.sizes().get(0), Integer.toString(bulk)));
+		JsonObject want = kind.params(kind.sizes().get(0), Integer.toString(bulk));
+		// (M4b) the sorting branches: from the Nether tier on, when the catalog's version measured them; the slots the settlement's distinct filter
+		// items fill (most held first), at least the fewest measured; items named in talk are kept when they keep the rule
+		List<Integer> sortSlots = new ArrayList<>();
+		var sb = e.envelope().branches().get("slots");
+		if (sb != null) for (var v : sb) if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber() && v.getAsInt() > 0) sortSlots.add(v.getAsInt());
+		java.util.Collections.sort(sortSlots);
+		if (!sortSlots.isEmpty() && town.nether()) {
+			if (asked != null && asked.has("slots") && asked.get("slots").isJsonPrimitive() && sortSlots.contains(asked.get("slots").getAsInt())) {
+				JsonObject a = want.deepCopy();
+				for (var en : asked.entrySet()) if (en.getKey().equals("slots") || en.getKey().matches("item\\d+")) a.add(en.getKey(), en.getValue().deepCopy());
+				if (StorageHallLot.items(a).ok()) want = a;
+			}
+			if (!want.has("slots") || want.get("slots").getAsInt() == 0) {
+				List<String> kinds = filterKinds(held);
+				int slots = 0;
+				for (int n : sortSlots) if (n <= kinds.size()) slots = n;
+				if (slots > 0) {
+					want.addProperty("slots", slots);
+					for (int i = 0; i < slots; i++) want.addProperty("item" + (i + 1), kinds.get(i));
+				}
+			}
+		}
+		var p = ModuleGate.params(e, want);
 		if (!p.ok()) return Decision.no("its size isn't one that was measured: " + p.refused());
 		JsonObject bound = null;
 		if (materials) {
 			bound = bounds.apply(e, p.values());
 			if (bound == null) return Decision.no("its bill from the stockpile wasn't measured for that size, so there is no bound to approve");
 		}
-		return new Decision(new ModuleOrder(e.id(), e.version(), e.programSha(), p.values(), bound, rate(e.measured(), p.values()), false, false), null, null,
+		String rate = p.values().has("slots") && p.values().get("slots").getAsInt() > 0 ? hallRate(e.measured(), p.values().get("slots").getAsInt()) : rate(e.measured(), p.values());
+		return new Decision(new ModuleOrder(e.id(), e.version(), e.programSha(), p.values(), bound, rate, false, false), null, null,
 			stacks, held.size());
+	}
+
+	/** The filter domain's keys among these stores, most held first (ties by key): what a sorting hall's slots sort (MEASURE-M4 12.4). */
+	public static List<String> filterKinds(Map<String, Integer> held) {
+		List<Map.Entry<String, Integer>> es = new ArrayList<>();
+		for (var en : held.entrySet()) {
+			String id = en.getKey();
+			if (!id.startsWith("minecraft:") || en.getValue() == null || en.getValue() <= 0) continue;
+			if (StorageHallLot.FILTERABLE.contains(id.substring("minecraft:".length()))) es.add(en);
+		}
+		es.sort(Map.Entry.<String, Integer>comparingByValue().reversed().thenComparing(Map.Entry.comparingByKey()));
+		List<String> out = new ArrayList<>();
+		for (var en : es) out.add(en.getKey().substring("minecraft:".length()));
+		return out;
+	}
+
+	/** A sorting hall's measured rate (measured.json {@code rates}: {@code [{params: {slots}, perSecond}]}), as the offer says it, or null. */
+	public static @Nullable String hallRate(ModuleCatalog.@Nullable Measured m, int slots) {
+		if (m == null || m.raw() == null || !m.raw().has("rates") || !m.raw().get("rates").isJsonArray()) return null;
+		for (var r : m.raw().getAsJsonArray("rates")) {
+			if (!r.isJsonObject()) continue;
+			JsonObject o = r.getAsJsonObject();
+			if (!o.has("params") || !o.get("params").isJsonObject() || !o.getAsJsonObject("params").has("slots") || o.getAsJsonObject("params").get("slots").getAsInt() != slots) continue;
+			if (!o.has("perSecond") || !o.get("perSecond").isJsonPrimitive()) return null;
+			double v = o.get("perSecond").getAsDouble();
+			if (!(v > 0)) return null;
+			return String.format(java.util.Locale.ROOT, "about %.1f items a second", Math.floor(v * 10) / 10);
+		}
+		return null;
 	}
 
 	/** The measured rate for these params as the offer says it, from measured.json {@code rates} ({@code [{params, perDay, item}]}), or null. */
@@ -206,6 +270,20 @@ public final class ModuleOffer {
 	public static String why(ModuleKind kind, Decision d, boolean materials, boolean lampFallback) {
 		List<String> parts = new ArrayList<>();
 		ModuleOrder o = d.order();
+		if (kind.sign() == ModuleKind.Sign.STORES && o.params().has("slots") && o.params().get("slots").getAsInt() > 0) {
+			int[] f = kind.frame(o.params());
+			int bulk = o.params().get(kind.cropParam()).getAsInt();
+			int slots = o.params().get("slots").getAsInt();
+			List<String> names = new ArrayList<>();
+			for (String it : StorageHallLot.items(o.params()).items()) names.add(ModuleBound.plain(it));
+			parts.add("Your stores are getting mixed: " + d.seedsHeld() + " kinds of items. I can raise a sorting hall by the town (" + f[0] + " by " + f[1] + "): " + slots
+				+ " slots for " + String.join(", ", names) + ", an overflow chest, " + bulk + " double chest" + (bulk == 1 ? "" : "s") + " and an input chest at the line's head"
+				+ (o.rate() == null ? "" : "; " + o.rate()) + ".");
+			parts.add("It won't sort tools, armour, potions, renamed or enchanted items, or anything that stacks to 16: those go to overflow. Never put petrified oak slabs in it.");
+			parts.add(materials ? dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + "." : "It's free.");
+			if (lampFallback) parts.add("It's lit by plain lanterns: your style's lamp is too dim.");
+			return String.join(" ", parts);
+		}
 		if (kind.sign() == ModuleKind.Sign.STORES) {
 			int[] f = kind.frame(o.params());
 			int bulk = o.params().get(kind.cropParam()).getAsInt();
