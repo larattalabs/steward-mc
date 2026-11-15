@@ -1719,3 +1719,10 @@ Architect found it with an in-game repro on a copy of the cf067 world, read only
 - QL-b also stops the shell dirt marking quotes inexact. No API change.
 - RC areas: a module growth's quote equals what it consumes, and its `exact` flag.
 - For QD, the 1-cell re-ask should go away. Its "up to N" allowance still covers real terrain cells, and maxBill caps the bill either way.
+
+### v0.71.0 (2026-11-15): PASS (RC only, not a merged pin: rule 11, pins move every other release)
+Architect v0.71.0 (API 1.63.0, kit 0.66.0: J1, CP) is on pin-071 (3b3b9cd, on batch-070).
+- Build and unit tests: 576 passed, 0 failed.
+- `stub --only refund,undo,restart,road,stub`: 111 of 116 passed over 22 flows. Those covered growth, adoption, supplied growth, district growth, the gate-mechanism, survival and drawbridge flows, and discard. J1's removal refunds, undo after a restart and road restores held.
+- The 5 misses are the module offers (crop_farm x3, storage_hall x2), by design: kit 0.66.0 moves module.json's pins. The modules carry at 0.72.0, Steward's next merged pin.
+- CP isn't called by Steward until CA2. Nothing in Architect was found wrong.

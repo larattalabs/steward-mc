@@ -2189,6 +2189,8 @@ async function planBuildFlow() {
 /**
  * (Architect GH; Noah, 2026-11-04) A grid that doesn't fit is refused NO_ROOM with the street layout as its wouldFit: walled_town as Claude wrote it in
  * the gatehouse round (plans-gc, layout grid) is composed, the fragment applied with no Claude round, and the player told which buildings it leaves out.
+ * (CA2, Architect CP) The fragment is Architect's own $0 street round inside the compose now, and its `leftOut` is what the player is told; the request
+ * carries `skipPick` and `composeVocab`, and no template pick (a REGION design) is made.
  */
 async function streetHintFlow() {
   const n = settlements().length;
@@ -2204,26 +2206,71 @@ async function streetHintFlow() {
   await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
   const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans-gc', 'walled_town.json'), 'utf8')).answer;
   await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+  const kinds = async () => (await dev.request('dev.region.designKinds', {}, { timeoutMs: 30_000 }).catch(() => null))?.kinds ?? null;
+  const before = await kinds();
   const from = logSize();
   await cmd(`/steward describe ${id} a walled town laid out on a grid`);
   if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('street hint', 'no card');
   const kept = await waitLog(from, new RegExp(`plan for ${id}: ([A-Z_]+) after (\\d+) repair`), 240_000);
   await closeScreens();
   if (!kept) return fail('street hint', 'no plan composed');
-  const applied = logSince(from).match(new RegExp(`plan for ${id}: \\[town\\] as street, Architect's wouldFit applied \\(left out: \\[([^\\]]*)\\]\\)`));
+  const after = await kinds();
+  // (CA2) the request: no template pick, the block families
+  const asked = logSince(from).match(/plan writer: compose \(Architect's Regions\.compose, key \S+, cap \$[\d.]+, skipPick (\S+), composeVocab (\S+), level (\S+), owner/);
+  const picks = before && after ? (after.REGION ?? 0) - (before.REGION ?? 0) : null;
+  if (asked?.[1] === 'true' && asked?.[2] === '"families"' && picks === 0) ok('compose request', `skipPick ${asked[1]}, composeVocab ${asked[2]}, level ${asked[3]}; designs ${JSON.stringify(before)} -> ${JSON.stringify(after)} (no template pick)`);
+  else fail('compose request', `${asked ? asked[0] : 'no compose line'}; designs ${JSON.stringify(before)} -> ${JSON.stringify(after)}`);
+  // (CA2) Architect's $0 street round, inside the compose: the lots it left out are the result's leftOut, said to the player
+  const composeLine = logSince(from).match(new RegExp(`plan for ${id}: Architect's compose ([A-Z_]+) \\((\\d+) round\\(s\\)(?:, stopped: \\w+)?(?:, street round left out: \\[([^\\]]*)\\])?\\)`));
   const told = logSince(from).match(/\[Grid Town\] Left out for room[^\n]*/);
   const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
   const town = (() => { try { return JSON.parse(plans[id]?.plan ?? '{}').zones?.find((z) => z.id === 'town'); } catch { return null; } })();
-  const leftOut = applied?.[1] ? applied[1].split(', ') : [];
-  if (!applied) {
+  const leftOut = composeLine?.[3] ? composeLine[3].split(', ') : [];
+  const stewardFix = /as street, Architect's wouldFit applied/.test(logSince(from));
+  if (town?.program?.layout === 'street' && composeLine && Number(composeLine[2]) >= 2 && (leftOut.length ? told && leftOut.every((l) => told[0].includes(l)) : !told) && !stewardFix) {
+    ok('street hint', `the grid refused, Architect's street round applied inside the compose (${composeLine[1]}, ${composeLine[2]} round(s), Steward's own pass gone): kept ${kept[1]}, ${town.program.lots?.length} lots; ${told ? told[0] : 'every lot placed'}`);
+  } else {
     const refused = (logSince(from).match(/Didn't fit here[^\n]*/) ?? ['no refusal said'])[0];
-    return fail('street hint', `no wouldFit applied (kept ${kept[1]} after ${kept[2]} repairs; ${refused})`);
+    fail('street hint', `kept ${kept[1]} after ${kept[2]} repairs; ${composeLine ? composeLine[0] : 'no compose line'}; town layout ${town?.program?.layout}; left out [${leftOut}]; told ${told ? told[0] : 'nothing'}; Steward's pass ${stewardFix}; ${refused}`);
   }
-  // (CA) the repairs are Architect's compose rounds now (the sim's, $0); Steward applies the fragment itself after them, with no round of its own
-  const composeLine = logSince(from).match(new RegExp(`plan for ${id}: Architect's compose ([A-Z_]+) \\((\\d+) round`));
-  if (town?.program?.layout === 'street' && (leftOut.length ? told && leftOut.every((l) => told[0].includes(l)) : !told) && composeLine) {
-    ok('street hint', `the grid refused, its street fragment applied by Steward after Architect's compose (${composeLine[1]}, ${composeLine[2]} round(s)): kept ${kept[1]}, ${town.program.lots?.length} lots; ${told ? told[0] : 'every lot placed'}`);
-  } else fail('street hint', `kept ${kept[1]} after ${kept[2]} repairs; town layout ${town?.program?.layout}; left out [${leftOut}]; told ${told ? told[0] : 'nothing'}`);
+}
+
+/**
+ * (CA2, Architect CP) A compose that ends NO_PLAN is said in Architect's words: the market town with a mine railway the card asks for (connector.rail,
+ * reserved) is written anyway, so the plan's best round waits (REQUIRED_BLOCKED). The kept summary is the round's own (CP's result.summary), not
+ * Steward's plain count of buildings, and the railway's "Not yet" line is CP's waits[].say.
+ */
+async function composeWordsFlow() {
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 19500 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Rail Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'plans', 'market_town.json'), 'utf8')).answer;
+  const said = 'A market town round its square; the railway to the mine waits for Architect.';
+  answer.summary = said;
+  answer.plan.connectors = [...(answer.plan.connectors ?? []), { id: 'mine_rail', kind: 'rail', required: true, label: 'the mine railway', notes: 'A railway to the mine.' }];
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+  const from = logSize();
+  await cmd(`/steward describe ${id} a market town with a railway to the mine`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('compose words', 'no card');
+  const kept = await waitLog(from, new RegExp(`plan for ${id}: ([A-Z_]+) after (\\d+) repair`), 240_000);
+  await closeScreens();
+  if (!kept) return fail('compose words', `no plan kept: ${logSince(from).split('\n').filter((l) => /CHAT|plan for/.test(l)).slice(-3).join(' | ')}`);
+  const outcome = (logSince(from).match(new RegExp(`plan for ${id}: Architect's compose ([A-Z_]+)`)) ?? [0, '?'])[1];
+  const plans = (() => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans ?? {}; } catch { return {}; } })();
+  const summary = plans[id]?.summary ?? '';
+  const rail = (plans[id]?.pending ?? []).find((x) => x.part === 'mine_rail');
+  const notYet = logSince(from).match(/\[Rail Town\] Not yet: ([^\n]*)/);
+  if (outcome === 'NO_PLAN' && summary.startsWith(said) && /^the mine railway waits for /.test(rail?.words ?? '') && notYet && /^the mine railway waits for /.test(notYet[1])) {
+    ok('compose words', `NO_PLAN said in Architect's words: "${summary.slice(0, 90)}"; Not yet: ${notYet[1]}`);
+  } else fail('compose words', `outcome ${outcome}; summary "${summary.slice(0, 120)}"; rail ${JSON.stringify(rail)}; ${notYet ? notYet[0] : 'no Not yet line'}`);
 }
 
 /**
@@ -7188,6 +7235,7 @@ try {
       await flow('land', 'land check perception inbox talk', () => landFlow());
       await flow('plan-build', 'plan', () => planBuildFlow());
       await flow('street-hint', 'plan grid wall nofit', () => streetHintFlow());
+      await flow('compose-words', 'plan card', () => composeWordsFlow());
       await flow('wall-offer', 'wall plan', () => wallOfferFlow());
       await flow('farm-pond', 'water', () => farmPondFlow());
       await flow('ditch', 'water', () => ditchFlow());

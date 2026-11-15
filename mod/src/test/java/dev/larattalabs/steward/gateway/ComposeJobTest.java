@@ -39,7 +39,7 @@ class ComposeJobTest {
 	void theRequestCarriesTheCardAsBriefAndHintsTheRulesTwoRepairsAndTheCap() throws Exception {
 		JsonObject card = fixture("strange-asks/cards/hidden_village.json").getAsJsonObject("card");
 		var claim = new BoundingBox(-40, -64, -40, 40, 320, 40);
-		ComposeRequest r = ComposeJob.request("set_1", card.toString(), "north: plains 100%.", claim, ANCHORS, "00000000-0000-0000-0000-000000000001");
+		ComposeRequest r = ComposeJob.request("set_1", card.toString(), "north: plains 100%.", claim, ANCHORS, "00000000-0000-0000-0000-000000000001", null, "owner-1");
 		assertTrue(r.brief().startsWith("Hidden Falls. A hidden village tucked"), r.brief());
 		assertTrue(r.brief().length() <= ComposeJob.BRIEF_MAX);
 		assertEquals(1.00, r.budgetUsd());
@@ -61,7 +61,80 @@ class ComposeJobTest {
 		assertEquals(6, hints.getAsJsonArray("wanted").size());
 		assertEquals("set_1", ext.get(ComposeJob.EXT_SETTLEMENT).getAsString());
 		assertEquals(ComposeJob.cardSha(card.toString()), ext.get(ComposeJob.EXT_CARD).getAsString());
-		assertFalse(ext.has(ComposeJob.SIM_COMPOSE) || ext.has(ComposeJob.SIM_PICK), "no sim script unless one is set");
+		assertFalse(ext.has(ComposeJob.SIM_COMPOSE) || ext.has("architect:simAnswers"), "no sim script unless one is set");
+		// (CA2, CP) no template pick, the block families, the owner (the level: null is the Overworld)
+		assertTrue(ext.get(ComposeRequest.EXT_SKIP_PICK).getAsBoolean());
+		assertEquals("families", ext.get(ComposeRequest.EXT_VOCAB).getAsString());
+		assertFalse(ext.has(ComposeRequest.EXT_STREET_FIX), "Architect's street round stays on (its default)");
+		assertEquals("owner-1", r.owner());
+		assertNull(r.level());
+	}
+
+	@Test
+	void theRulesFitCPsRoomBesideTheBlockFamilies() {
+		// CP e: with composeVocab families, composeSystem is at most 28,000 characters
+		assertEquals(28_000, ComposeJob.SYSTEM_MAX);
+		assertTrue(ComposeJob.rules().length() < ComposeJob.SYSTEM_MAX, ComposeJob.rules().length() + "");
+		assertTrue(ComposeJob.partRules().length() < ComposeJob.SYSTEM_MAX, ComposeJob.partRules().length() + "");
+	}
+
+	@Test
+	void cpIsAPI1_63OrLaterInMajor1() {
+		assertTrue(ComposeJob.cp("1.63.0"));
+		assertTrue(ComposeJob.cp("1.70.2"));
+		assertFalse(ComposeJob.cp("1.62.9"), "0.70.0's API: CA's compose, no CP");
+		assertFalse(ComposeJob.cp("2.0.0"));
+		assertFalse(ComposeJob.cp(null));
+		assertFalse(ComposeJob.cp("x"));
+	}
+
+	@Test
+	void aWaitingPartIsComposedAloneAgainstTheTownAsItStands() {
+		var claim = new BoundingBox(-40, -64, -40, 40, 320, 40);
+		JsonObject part = json("{\"id\":\"town_wall\",\"kind\":\"wall\",\"required\":true,\"label\":\"the town wall\",\"notes\":\"A stone wall round the town.\"}");
+		String kept = "{\"schemaVersion\":\"plan/0\",\"zones\":[{\"id\":\"town\"}],\"connectors\":[" + part + "]}";
+		ComposeRequest r = ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", "s1@1,s2@1", List.of("- smithy: 9x9, 4 north and 3 east of the stone"),
+			claim, ANCHORS, null, "owner-1");
+		assertTrue(r.brief().startsWith("Add the town wall (connector.wall)") && r.brief().contains("A stone wall round the town."), r.brief());
+		JsonObject ext = r.ext();
+		assertTrue(ext.get(ComposeRequest.EXT_SKIP_PICK).getAsBoolean());
+		assertEquals("families", ext.get(ComposeRequest.EXT_VOCAB).getAsString());
+		assertEquals(2, ext.get(ComposeRequest.EXT_REPAIR_ROUNDS).getAsInt());
+		assertEquals(ComposeJob.partRules(), ext.get(ComposeRequest.EXT_SYSTEM).getAsString());
+		assertTrue(ext.get(ComposeRequest.EXT_SYSTEM).getAsString().contains("Only this part"));
+		JsonObject hints = ext.getAsJsonObject(ComposeRequest.EXT_HINTS);
+		assertEquals("rg7", hints.get("townRegion").getAsString());
+		assertEquals("town_wall", hints.getAsJsonObject("part").get("id").getAsString());
+		assertEquals("connector.wall", hints.get("block").getAsString());
+		assertEquals(1, hints.getAsJsonArray("standingBeside").size());
+		assertEquals("plan/0", hints.getAsJsonObject("keptPlan").get("schemaVersion").getAsString());
+		// never a settlement's compose: Composer's DESIGN_DONE leaves it
+		assertFalse(ext.has(ComposeJob.EXT_SETTLEMENT));
+		assertEquals("set_1", ext.get(ComposeJob.EXT_PART_OF).getAsString());
+		assertEquals("town_wall", ext.get(ComposeJob.EXT_PART).getAsString());
+		assertTrue(r.budgetUsd() <= 1.00);
+		assertEquals("owner-1", r.owner());
+		assertTrue(r.opKey().matches("[A-Za-z0-9_.:-]{1,128}") && r.opKey().startsWith("steward.part.w1.set_1.town_wall."), r.opKey());
+		// the same accept again adopts the same compose; a town that changed (another neighbour) is another
+		assertEquals(r.opKey(), ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", "s1@1,s2@1", List.of("- smithy: 9x9, 4 north and 3 east of the stone"),
+			claim, ANCHORS, null, "owner-1").opKey());
+		assertNotEquals(r.opKey(), ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", "s1@1,s2@1", List.of(), claim, ANCHORS, null, "owner-1").opKey());
+		// a town grown under the same region id (a site's new version) is another compose, never the old answer or a key conflict
+		assertNotEquals(r.opKey(), ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", "s1@2,s2@1",
+			List.of("- smithy: 9x9, 4 north and 3 east of the stone"), claim, ANCHORS, null, "owner-1").opKey());
+		assertTrue(ComposeJob.partKey("w".repeat(200), "p".repeat(80), "abcdefabcdef").matches("[A-Za-z0-9_.:-]{1,128}"));
+	}
+
+	@Test
+	void aScriptedPartAnswerNamesTheTownByItsRegion() {
+		SimAnswers.set(SimAnswers.PART, json("{\"plan\":{\"schemaVersion\":\"plan/0\",\"connectors\":[{\"id\":\"town_wall\",\"kind\":\"wall\",\"where\":{\"around\":"
+			+ "{\"feature\":{\"region\":\"$TOWN\"}}}}]},\"waits\":[],\"summary\":\"A stone wall.\"}"));
+		var claim = new BoundingBox(-40, -64, -40, 40, 320, 40);
+		JsonObject part = json("{\"id\":\"town_wall\",\"kind\":\"wall\"}");
+		var round = ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", "{}", "rg7", "", List.of(), claim, ANCHORS, null, null).ext()
+			.getAsJsonArray(ComposeJob.SIM_COMPOSE).get(0).getAsJsonObject();
+		assertEquals("A stone wall.", round.get("reason").getAsString());
+		assertTrue(round.toString().contains("\"region\":\"rg7\"") && !round.toString().contains("$TOWN"), round.toString());
 	}
 
 	@Test
@@ -95,14 +168,14 @@ class ComposeJobTest {
 	}
 
 	@Test
-	void aScriptedPlanAnswerIsTheSimComposersRoundAndThePickFitsNothing() {
+	void aScriptedPlanAnswerIsTheSimComposersRound() {
 		SimAnswers.set(SimAnswers.PLAN, json("{\"plan\":{\"schemaVersion\":\"plan/0\",\"zones\":[]},\"waits\":[],\"summary\":\"A small town.\"}"));
 		JsonObject ext = ComposeJob.ext("set_1", "abc", null, new JsonObject());
 		var rounds = ext.getAsJsonArray(ComposeJob.SIM_COMPOSE);
 		assertEquals(1, rounds.size());
 		assertEquals("A small town.", rounds.get(0).getAsJsonObject().get("reason").getAsString());
 		assertEquals("plan/0", rounds.get(0).getAsJsonObject().getAsJsonObject("plan").get("schemaVersion").getAsString());
-		assertFalse(ext.getAsJsonArray(ComposeJob.SIM_PICK).get(0).getAsJsonObject().get("fits").getAsBoolean());
+		assertFalse(ext.has("architect:simAnswers"), "no pick to script: the request skips it");
 	}
 
 	private static Design design(Design.Status status, String result, double usd, String error) {
@@ -131,12 +204,36 @@ class ComposeJobTest {
 		assertEquals(0.31, composed.usd(), 1e-9);
 		assertNull(composed.stopped());
 
-		// NO_PLAN: the best round's plan is kept; its reason is Architect's diagnostic, never shown
+		// NO_PLAN: the best round's plan is kept; its reason is Architect's diagnostic, never shown (a design from before CP has no summary)
 		var noPlan = ComposeJob.interpret(design(Design.Status.DONE,
 			"{\"outcome\":\"NO_PLAN\",\"reason\":\"no round's plan checked READY; the best is round 1\",\"plan\":{\"schemaVersion\":\"plan/0\"},\"rounds\":2,\"stopped\":\"oscillation\"}", 0.2, null));
 		assertEquals(ComposeJob.Kind.PLAN, noPlan.kind());
 		assertEquals("", noPlan.reason());
 		assertEquals("oscillation", noPlan.stopped());
+
+		// (CP) NO_PLAN with the player's words: summary (the best round's own), waits[].say, and the lots a $0 street round left out
+		var cp = ComposeJob.interpret(design(Design.Status.DONE,
+			"{\"outcome\":\"NO_PLAN\",\"reason\":\"no round's plan checked READY; the best is round 2\",\"summary\":\"A walled market town; its railway waits.\","
+				+ "\"plan\":{\"schemaVersion\":\"plan/0\"},\"rounds\":3,\"leftOut\":[\"smithy 1\"],\"waits\":[{\"part\":\"rail\",\"class\":\"unsupported\","
+				+ "\"say\":\"rail waits for a later Architect release\"},{\"part\":\"x\",\"class\":\"blocked\"}]}", 0.3, null));
+		assertEquals("A walled market town; its railway waits.", cp.reason(), "CP's summary, not the diagnostic");
+		assertEquals(List.of("smithy 1"), cp.leftOut());
+		assertEquals(Map.of("rail", "rail waits for a later Architect release"), cp.says(), "only a wait with a say");
+		assertEquals(3, cp.rounds());
+		assertEquals(2, cp.repairs(), "no free round: the paid repairs after the first");
+		var street = ComposeJob.interpret(design(Design.Status.DONE, "{\"outcome\":\"COMPOSED\",\"plan\":{\"schemaVersion\":\"plan/0\"},\"rounds\":2,"
+			+ "\"history\":[{\"round\":1,\"overall\":\"NEEDS_REPAIR\"},{\"round\":2,\"free\":\"street\",\"overall\":\"READY\"}]}", 0.1, null));
+		assertEquals(1, street.freeRounds());
+		assertEquals(0, street.repairs(), "Architect's $0 street round is no repair");
+		// COMPOSED: the summary wins over the round's reason
+		assertEquals("The summary.", ComposeJob.interpret(design(Design.Status.DONE,
+			"{\"outcome\":\"COMPOSED\",\"reason\":\"The reason.\",\"summary\":\"The summary.\",\"plan\":{\"schemaVersion\":\"plan/0\"},\"rounds\":1}", 0.1, null)).reason());
+		// (CP) a compose in another level ends at once, $0, with no plan: Architect's own line is the reason
+		var nether = ComposeJob.interpret(design(Design.Status.DONE, "{\"outcome\":\"NO_PLAN\",\"reason\":\"NOT_ALLOWED: regions are Overworld only in this version (minecraft:the_nether)\","
+			+ "\"refused\":\"NOT_ALLOWED: regions are Overworld only in this version\",\"summary\":\"regions can only be built in the Overworld for now\",\"waits\":[],\"leftOut\":[],\"rounds\":0}", 0, null));
+		assertEquals(ComposeJob.Kind.NONE, nether.kind());
+		assertEquals("regions can only be built in the Overworld for now", nether.reason());
+		assertEquals(0.0, nether.usd());
 
 		// stopped by the cap with a best round: still kept, the error said
 		var budget = ComposeJob.interpret(design(Design.Status.FAILED, "{\"outcome\":\"NO_PLAN\",\"plan\":{\"schemaVersion\":\"plan/0\"},\"rounds\":1}", 1.0, "budget"));

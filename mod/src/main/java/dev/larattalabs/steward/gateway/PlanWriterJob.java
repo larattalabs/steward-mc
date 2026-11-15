@@ -3,171 +3,16 @@ package dev.larattalabs.steward.gateway;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParser;
-import dev.larattalabs.architect.api.Job;
-import dev.larattalabs.architect.api.JobSpec;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.List;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * (Since CA, a waiting part only: docs/COMPOSITION.md section 11; until CA2, after CP) The plan writer: a {@code structured} job that writes one part as Architect's plan/0 from its concept card, the
- * land round its stone and the anchors Steward supplies (prompts/plan-writer.md, schema/plan-writer.schema.json; Architect's plan/0 schema, by reference or
- * from the loaded jar's {@code Regions.planSchema()}, in the system prompt, so it is cached). Sonnet, medium effort, at most $0.50 a call (Noah: about $1 a plan with repair).
+ * What is left of Steward's plan writer: the portcullis default Steward adds to a composed plan before its own check. Since slice CA the whole plan,
+ * and since CA2 (Architect CP) a waiting part's plan too, is written by Architect's composer ({@code Regions.compose}, {@link ComposeJob}); the plan
+ * writer's job, its prompt and its repair-round catalogue are gone. Pure.
  */
 public final class PlanWriterJob {
-	public static final String MODEL = ConceptCardJob.MODEL;
-	public static final double BUDGET_USD = 0.50;
-	public static final String TAG = "steward-plan";
-
 	private PlanWriterJob() {
-	}
-
-	/** The name a part plan gives the town as it stands, swapped for the town's region id before the check ({@link #TOWN}). */
-	public static final String TOWN = "$TOWN";
-
-	/**
-	 * A part of the kept plan that waited for Architect's {@code block}, now built (docs/COMPOSITION.md section 11): a plan holding just that part, placed
-	 * against the town as it stands (one region, named {@code {"region": "$TOWN"}}), the player's ask kept. A repair round when {@code previous} and
-	 * {@code answers} are given.
-	 */
-	public static JobSpec part(String card, String keptPlan, String partJson, String block, List<String> others, @Nullable String owner, @Nullable String previous,
-		@Nullable String answers, boolean refs) {
-		return part(card, keptPlan, partJson, block, others, owner, previous, answers, refs, null);
-	}
-
-	/** As above; {@code catalogue}: in a repair round, the long text of the part's kind ({@link #catalogueFor}), or null. */
-	public static JobSpec part(String card, String keptPlan, String partJson, String block, List<String> others, @Nullable String owner, @Nullable String previous,
-		@Nullable String answers, boolean refs, @Nullable String catalogue) {
-		StringBuilder b = new StringBuilder();
-		b.append("The settlement's concept card:\n").append(card.strip()).append("\n\n");
-		b.append("Its plan as it was kept (the parts Architect could not build then waited):\n").append(keptPlan.strip()).append("\n\n");
-		b.append("The town now stands as one region. Name it in a plan as {\"region\": \"").append(TOWN).append("\"}: a wall round it is where: {around: {feature: ")
-			.append("{region: \"").append(TOWN).append("\"}}}, a road or bridge to it ends on {region: \"").append(TOWN).append("\"}.\n");
-		if (!others.isEmpty()) b.append("Also standing outside the town's region (added since): fit the part round them too, or say in notes why not:\n")
-			.append(String.join("\n", others)).append("\n");
-		b.append("Architect can build ").append(block).append(" now. Write a plan (schemaVersion plan/0, no zones) whose only part is this one, as the player asked")
-			.append(" for it, placed against the town as it stands; keep its id, label and required:\n").append(partJson.strip()).append("\n");
-		b.append("Answer with the plan, waits (empty unless it still can't be built) and summary (one sentence for the player: what will be built).\n");
-		String user = b.toString();
-		if (previous != null && answers != null) {
-			user += "\nYour previous plan:\n" + previous + "\n\nArchitect's check of it, part by part:\n" + answers + catalogueSection(catalogue)
-				+ "\nRevise the plan: make the part fit (use wouldFit where it is given), and answer with the whole revised plan.\n";
-		}
-		JobSpec spec = new JobSpec("structured", user, refs ? instructions() : systemPrompt(), MODEL, "medium", schema(), List.of(), BUDGET_USD, 4, owner, TAG, null,
-			SimAnswers.ext(SimAnswers.PART), List.of());
-		return refs ? spec.systemRefs(List.of(SCHEMA_REF, VOCAB_REF)) : spec;
-	}
-
-	/** The kinds a repair round looks up: each refused or malformed part's catalogue id (its answer's {@code block}), sorted, once each. */
-	public static java.util.SortedSet<String> repairKinds(List<JsonObject> parts) {
-		java.util.SortedSet<String> out = new java.util.TreeSet<>();
-		for (JsonObject p : parts) {
-			String cls = p.has("class") && p.get("class").isJsonPrimitive() ? p.get("class").getAsString() : "";
-			if ((cls.equals("refused") || cls.equals("malformed")) && p.has("block") && p.get("block").isJsonPrimitive() && !p.get("block").getAsString().isBlank())
-				out.add(p.get("block").getAsString());
-		}
-		return out;
-	}
-
-	/** At most this much catalogue text in a repair prompt (a full kind's entry is about 1,300 characters; more kinds than fit are named only). */
-	static final int CATALOGUE_CHARS = 20_000;
-
-	/**
-	 * The long text of {@code kinds} from Architect's {@code Regions.planCatalogue(kinds)} ({@code lookup}): each kind's entry (state, note, limits) with
-	 * its plan/0 def and every description, one line a kind. Null when there are no kinds, or the lookup throws (an Architect before 0.62.0) or has no entries:
-	 * the repair round goes without it.
-	 */
-	public static @Nullable String catalogueFor(java.util.Set<String> kinds, java.util.function.Function<java.util.Set<String>, @Nullable JsonObject> lookup) {
-		if (kinds.isEmpty()) return null;
-		JsonObject cat;
-		try {
-			cat = lookup.apply(kinds);
-		} catch (RuntimeException | LinkageError e) {
-			return null;
-		}
-		if (cat == null || !cat.has("entries") || !cat.get("entries").isJsonArray() || cat.getAsJsonArray("entries").isEmpty()) return null;
-		StringBuilder b = new StringBuilder();
-		List<String> over = new java.util.ArrayList<>();
-		for (JsonElement e : cat.getAsJsonArray("entries")) {
-			if (!e.isJsonObject()) continue;
-			String line = e.toString();
-			String id = e.getAsJsonObject().has("id") && e.getAsJsonObject().get("id").isJsonPrimitive() ? e.getAsJsonObject().get("id").getAsString() : "?";
-			if (b.length() + line.length() > CATALOGUE_CHARS) over.add(id);
-			else b.append(line).append('\n');
-		}
-		if (!over.isEmpty()) b.append("(left out for length: ").append(String.join(", ", over)).append(")\n");
-		return b.length() == 0 ? null : b.toString();
-	}
-
-	private static String catalogueSection(@Nullable String catalogue) {
-		return catalogue == null ? "" : "\nArchitect's catalogue for the kinds to repair (each kind's note, limits and its plan/0 def with every description, which the schema"
-			+ " you were given leaves out):\n" + catalogue;
-	}
-
-	/** Architect's plan schema by reference (C33): its compact rendering, without the bookkeeping fields, with the live catalogue. */
-	static final String SCHEMA_REF = "plan/0#compact";
-	/** The block vocabulary (families, groups, tiers, colours; VOC), by reference: what a palette rule's family names. */
-	static final String VOCAB_REF = "vocab/1#compact";
-
-	/** The prompt's system section alone (the schema comes by reference, ahead of it). */
-	static String instructions() {
-		String md = resource("steward/prompts/plan-writer.md");
-		int i = md.indexOf("## System prompt");
-		if (i < 0) throw new IllegalStateException("plan-writer.md has no '## System prompt' section");
-		return md.substring(i + "## System prompt".length()).strip();
-	}
-
-	/** The prompt's system section, then the loaded Architect's plan/0 schema ({@code Regions.planSchema()}, compact) for a helper without systemRefs. */
-	public static String systemPrompt() {
-		String md = resource("steward/prompts/plan-writer.md");
-		int i = md.indexOf("## System prompt");
-		if (i < 0) throw new IllegalStateException("plan-writer.md has no '## System prompt' section");
-		// the schema compact (Architect's jobs take at most 120,000 characters of system prompt; pretty-printed it is over)
-		JsonObject plan0 = JsonParser.parseString(dev.larattalabs.architect.api.Regions.planSchema()).getAsJsonObject();
-		slimCatalogue(plan0);
-		String schema = new com.google.gson.Gson().toJson(plan0);
-		return md.substring(i + "## System prompt".length()).strip() + "\n\n## Architect's plan schema (plan/0)\n\n" + schema;
-	}
-
-	/** The catalogue entry members {@code plan/0#compact} keeps (Architect's sidecar COMPACT.lineKeys): a kind's long note comes by kind on repair. */
-	static final List<String> ENTRY_KEYS = List.of("id", "state", "until", "aliasOf", "replacedBy", "retiredInApi", "limits");
-
-	/**
-	 * The catalogue as {@code plan/0#compact} has it: each entry only its {@link #ENTRY_KEYS}, without the catalogue's api, kitVersion and schemaVersion,
-	 * so the inline prompt stays inside Architect's system limit as the schema grows. The $defs are unchanged.
-	 */
-	static void slimCatalogue(JsonObject plan0) {
-		if (!plan0.has("x-catalogue") || !plan0.getAsJsonObject("x-catalogue").has("entries")) return;
-		JsonObject cat = plan0.getAsJsonObject("x-catalogue");
-		for (String k : List.of("api", "kitVersion", "schemaVersion")) cat.remove(k);
-		for (var e : cat.getAsJsonArray("entries")) {
-			JsonObject o = e.getAsJsonObject();
-			for (String k : List.copyOf(o.keySet())) if (!ENTRY_KEYS.contains(k)) o.remove(k);
-		}
-	}
-
-	public static JsonObject schema() {
-		JsonObject o = JsonParser.parseString(resource("steward/schema/plan-writer.schema.json")).getAsJsonObject();
-		o.remove("$schema");
-		o.remove("$id");
-		return o;
-	}
-
-	/** The answer ({@code plan}, {@code waits}, {@code summary}) as JSON, or why there is none. */
-	public record Result(@Nullable JsonObject answer, @Nullable String error, double usd) {}
-
-	public static Result interpret(Job job) {
-		double usd = job.cost() == null ? 0 : job.cost().usd();
-		if (!"done".equals(job.status())) return new Result(null, "the plan job did not finish: " + job.error().orElse(job.status()), usd);
-		JsonElement r = job.result().orElse(null);
-		if (r == null || !r.isJsonObject() || !r.getAsJsonObject().has("plan")) return new Result(null, "the plan job returned no plan", usd);
-		JsonObject answer = r.getAsJsonObject().deepCopy();
-		if (answer.get("plan").isJsonObject()) withGateMechanisms(answer.getAsJsonObject("plan"));
-		return new Result(answer, null, usd);
 	}
 
 	/** (CA) The portcullis default on a composed plan (Architect's compose answers it unchanged; Steward adds the mechanism before its own check). */
@@ -228,14 +73,5 @@ public final class PlanWriterJob {
 		if (spec == null || !spec.has("size") || !spec.get("size").isJsonArray() || spec.getAsJsonArray("size").size() < 2) return false;
 		JsonArray size = spec.getAsJsonArray("size");
 		return size.get(0).isJsonPrimitive() && size.get(1).isJsonPrimitive() && size.get(0).getAsInt() >= MECH_ALONG && size.get(1).getAsInt() >= MECH_THROUGH;
-	}
-
-	private static String resource(String path) {
-		try (InputStream in = PlanWriterJob.class.getClassLoader().getResourceAsStream(path)) {
-			if (in == null) throw new IllegalStateException("missing resource " + path);
-			return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-		} catch (IOException e) {
-			throw new IllegalStateException("cannot read " + path, e);
-		}
 	}
 }

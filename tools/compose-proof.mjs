@@ -66,7 +66,7 @@ try {
     HOME: process.env.HOME, USER: process.env.USER, LOGNAME: process.env.USER, TMPDIR: process.env.TMPDIR, SHELL: '/bin/zsh', PATH: '/opt/homebrew/bin:/usr/bin:/bin',
     JAVA_HOME: '/opt/homebrew/opt/openjdk@25', GRADLE_USER_HOME: process.env.GRADLE_USER_HOME ?? path.join(ROOT, '.gradle-home'), STEWARD_PORT: SIDECAR_PORT,
     STEWARD_DEV_PORT: String(PORT), STEWARD_COMPOSE_CAP_USD: composeCap.toFixed(2),
-    ARCHITECT_AUTOWORLD_NAME: WORLD_NAME, ARCHITECT_AUTOWORLD_MODE: 'creative', ARCHITECT_AUTOWORLD_PRESET: 'default', ARCHITECT_AUTOWORLD_CHEATS: 'true',
+    ARCHITECT_AUTOWORLD_NAME: WORLD_NAME, ARCHITECT_AUTOWORLD_MODE: 'creative', ARCHITECT_AUTOWORLD_PRESET: process.env.ARCHITECT_AUTOWORLD_PRESET || 'default', ARCHITECT_AUTOWORLD_CHEATS: 'true',
   };
   client = spawn('./gradlew', ['--offline', `-Plab_ui.dir=${process.env.LAB_UI_DIR || 'none'}`, ':runClient'], { cwd: path.join(ROOT, 'mod'), env, stdio: ['ignore', log, log] });
   dev = await DevClient.connect({ port: PORT, timeoutMs: 400_000 });

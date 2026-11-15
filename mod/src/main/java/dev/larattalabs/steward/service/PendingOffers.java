@@ -5,7 +5,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.steward.Steward;
-import dev.larattalabs.steward.gateway.PlanWriterJob;
+import dev.larattalabs.steward.gateway.ComposeJob;
 import dev.larattalabs.steward.gateway.VPlan;
 import dev.larattalabs.steward.model.Proposal;
 import dev.larattalabs.steward.model.Settlement;
@@ -26,17 +26,26 @@ import org.jspecify.annotations.Nullable;
 /**
  * The parts of a settlement's plan that waited for Architect, offered once Architect can build them (docs/COMPOSITION.md section 11; Noah's 9.2: "Walls can
  * be built now: shall I raise the town wall?"). At a world's start the live catalogue ({@code Regions.planCatalogue}, C38) is read, and each waiting part
- * whose block is now supported, in a settlement whose town stands as a region, becomes a proposal. Accepted, Claude writes a plan holding just that part,
- * placed against the town as it stands (the plan writer, at most {@link #ROUNDS} repairs and {@link #CAP_USD}); Architect checks it and realises it as a
- * region of its own, recorded like a placement, so an undo takes the part away and leaves the town.
+ * whose block is now supported, in a settlement whose town stands as a region, becomes a proposal. Accepted, Architect's composer writes a plan holding
+ * just that part, placed against the town as it stands ({@code Regions.compose} with no template pick, Steward's part rules, its two repair rounds, at
+ * most {@link ComposeJob#PART_BUDGET_USD}; slice CA2); Steward checks it again and Architect realises it as a region of its own, recorded like a
+ * placement, so an undo takes the part away and leaves the town.
  *
  * <p>Each part is its own proposal ({@code part_<id>}, saved as before), but the inbox shows a settlement's parts as one row, "Waiting parts (N)"
  * ({@link #GROUP_KEY}): building it fits one part ({@link #pick}), and the row offers the rest once that one stands; "Not now" hides the row for the rest of
  * this session (the parts are offered again when the world next starts). Server thread.
  */
 public final class PendingOffers {
-	static final double CAP_USD = 1.00;
-	static final int ROUNDS = 2;
+	/** A part's compose being waited for, by its design id (this world's session): what to do with its plan when it ends. */
+	private record Fitting(String settlementId, String part, String block, String region, String what, UUID player, Proposal proposal, int session, long since) {}
+	/**
+	 * A compose key that adopted a design this client no longer holds (Architect's reconnect snapshot keeps the last finished ones only) never ends here:
+	 * after this long without the design, continuously (a reconnect's snapshot can hide a running one for a moment), it stops as a failure, so the
+	 * settlement is never left busy (GPT review, CA2). {@code since}: when the design was last seen (or the accept).
+	 */
+	static final long UNSEEN_MS = 30_000;
+	private static final Map<String, Fitting> FITTING = new java.util.concurrent.ConcurrentHashMap<>();
+	private static volatile @Nullable MinecraftServer server;
 	/** A part's region being placed: read once a second until it is placed, then recorded. */
 	private record Watch(String settlementId, String part, String name, UUID player, Proposal proposal) {}
 	private static final Map<String, Watch> WATCHING = new HashMap<>();
@@ -60,6 +69,12 @@ public final class PendingOffers {
 	}
 
 	public static void init() {
+		ServerLifecycleEvents.SERVER_STARTING.register(srv -> server = srv);
+		// a part's compose ended: its plan is checked and built (a compose of the town's own plan is Composer's, never one of these)
+		dev.larattalabs.architect.api.SiteEvents.DESIGN_DONE.register(d -> {
+			MinecraftServer srv = server;
+			if (srv != null && FITTING.containsKey(d.id())) srv.execute(() -> composed(srv, d));
+		});
 		ServerLifecycleEvents.SERVER_STARTED.register(server -> {
 			try {
 				var said = notice(server, null);
@@ -69,6 +84,8 @@ public final class PendingOffers {
 			}
 		});
 		ServerLifecycleEvents.SERVER_STOPPED.register(s -> {
+			server = null;
+			FITTING.clear();
 			WATCHING.clear();
 			BUSY.clear();
 			CHECKED.clear();
@@ -76,7 +93,9 @@ public final class PendingOffers {
 			NOT_NOW.clear();
 		});
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
-			if (server.getTickCount() % 20 != 0 || WATCHING.isEmpty()) return;
+			if (server.getTickCount() % 20 != 0) return;
+			if (!FITTING.isEmpty()) unseen(server);
+			if (WATCHING.isEmpty()) return;
 			for (var e : List.copyOf(WATCHING.entrySet())) {
 				try {
 					watch(server, e.getKey(), e.getValue());
@@ -254,6 +273,8 @@ public final class PendingOffers {
 		if (partJson.isEmpty()) return "That part is not in the kept plan.";
 		if (!offerable(pending.get().block()) || Secrets.of(entry.get()).hides(part)) return "It can't be built on its own: it waits for the part it belongs to.";
 		if (s.proposals().accepted().contains(p.key())) return "It is built already.";
+		// (CA2) a part is composed by Architect's composer with no template pick (CP, 0.71.0): an older Architect fits none, and nothing is spent
+		if (!Composer.cpAvailable()) return "Fitting a part needs Architect 0.71.0 or later.";
 		String no = noInstant(server, s);
 		if (no != null) return "Not yet: " + no + ".";
 		if (SettlementRunner.busy(s.id()) || Updates.applying(server, s)) return s.name() + " is busy (a build, an update, an undo or another part); accept it once that is done.";
@@ -271,8 +292,9 @@ public final class PendingOffers {
 		}
 		if (!BUSY.add(busy)) return "It is being made already.";
 		Composer.tellNow(server, player, s, "Fitting " + what + " round " + s.name() + " as it stands...");
-		round(server, player, s, p, pending.get().block(), partJson.get().toString(), region.get(), others(server, s, region.get()), what, Session.current(), 0, 0, null,
-			null, null);
+		// anything thrown before the compose is asked (a request Architect refuses at once) stops it as a failure: the settlement is never left busy
+		guarded(server, player, s, p, what, () -> compose(server, player, s, p, pending.get().block(), partJson.get(), entry.get().plan(), region.get(),
+			others(server, s, region.get()), what));
 		return null;
 	}
 
@@ -319,37 +341,100 @@ public final class PendingOffers {
 		return n == 1 ? null : "the plan holds no " + part;
 	}
 
-	private static void round(MinecraftServer server, UUID player, Settlement s, Proposal p, String block, String partJson, String region, List<String> others,
-		String what, int session, int round, double spent, @Nullable String previous, @Nullable String answers, @Nullable String last) {
-		var entry = PlanStore.get(s.id()).orElse(null);
-		if (entry == null) { fail(server, player, s, p, what, "the kept plan went"); return; }
-		String card = Actions.cardJson(s.card());
-		PlanWriter.writePart(card, entry.plan(), partJson, block, others, s.owner(), previous, answers).whenComplete((r, err) -> server.execute(() -> guarded(server, player,
-			s, p, what, () -> {
+	/**
+	 * (CA2) The part composed by Architect ({@link ComposeJob#partRequest}): the part as the brief, the kept plan and the town's region as the hints, no
+	 * template pick, Architect's repair rounds. The same accept again (the same part, plan, town and neighbours) adopts the same compose, so it is paid
+	 * once; one that did not fit answers the same again at $0 until the town changes.
+	 */
+	private static void compose(MinecraftServer server, UUID player, Settlement s, Proposal p, String block, JsonObject partJson, String keptPlan, String region,
+		List<String> others, String what) {
+		int session = Session.current();
+		String world = Composer.world(server);
+		var level = Districts.level(server, s.claim().dimension());
+		if (world == null || level == null) {
+			fail(server, player, s, p, what, world == null ? "this world's id could not be saved" : "the settlement's dimension is not loaded");
+			return;
+		}
+		int cx = s.claim().centerX(), cz = s.claim().centerZ(), r = s.claim().radius();
+		var claim = new net.minecraft.world.level.levelgen.structure.BoundingBox(cx - r, level.getMinY(), cz - r, cx + r, level.getMaxY(), cz + r);
+		var req = ComposeJob.partRequest(world, s.id(), p.pendingPart(), partJson, block, keptPlan, region, townState(server, s, region), others, claim,
+			Composer.anchors(server, s, player, level), level, s.owner());
+		Steward.LOGGER.info("part {} of {}: compose (key {}, cap ${}, skipPick {}, composeVocab {})", p.pendingPart(), s.id(), req.opKey(), req.budgetUsd(),
+			req.ext().get(dev.larattalabs.architect.api.ComposeRequest.EXT_SKIP_PICK), req.ext().get(dev.larattalabs.architect.api.ComposeRequest.EXT_VOCAB));
+		ArchitectAccess.api().regions().compose(req).whenComplete((id, err) -> server.execute(() -> guarded(server, player, s, p, what, () -> {
 			if (!Session.is(session)) return;
-			if (err != null || r.answer() == null || !r.answer().has("plan") || !r.answer().get("plan").isJsonObject()) {
-				fail(server, player, s, p, what, err != null ? String.valueOf(err.getMessage()) : r.error() != null ? r.error() : "no plan in the answer");
+			if (err != null) {
+				Throwable c = err instanceof java.util.concurrent.CompletionException && err.getCause() != null ? err.getCause() : err;
+				boolean conflict = c instanceof dev.larattalabs.architect.api.RegionRefused rr && rr.reason() == dev.larattalabs.architect.api.Reason.OP_KEY_CONFLICT;
+				fail(server, player, s, p, what, conflict ? "it was fitted already over the land as it was then (nothing more is spent)"
+					: "Architect could not compose it (" + c.getMessage() + ")");
 				return;
 			}
-			double cost = spent + r.usd();
-			// the town by its region id (Claude names it by a stand-in, so the same answer serves any world)
-			JsonObject written = r.answer().getAsJsonObject("plan");
-			JsonObject checked = JsonParser.parseString(written.toString().replace("\"" + PlanWriterJob.TOWN + "\"", "\"" + region + "\"")).getAsJsonObject();
-			String summary = r.answer().has("summary") && r.answer().get("summary").isJsonPrimitive() ? r.answer().get("summary").getAsString() : what;
-			// only the part asked for is ever built: anything more goes back to Claude
-			String scope = outOfScope(checked, p.pendingPart(), block);
+			Steward.LOGGER.info("part {} of {}: composing as design {}", p.pendingPart(), s.id(), id);
+			FITTING.put(id, new Fitting(s.id(), p.pendingPart(), block, region, what, player, p, session, System.currentTimeMillis()));
+			// a key that adopted a compose already ended answers at once (its DESIGN_DONE fired before)
+			ArchitectAccess.api().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(d -> composed(server, d));
+		})));
+	}
+
+	/** Fittings whose design this client hasn't seen for {@link #UNSEEN_MS}: stopped (the offer stays; the part still waits). */
+	private static void unseen(MinecraftServer server) {
+		long now = System.currentTimeMillis();
+		for (var e : List.copyOf(FITTING.entrySet())) {
+			Fitting f = e.getValue();
+			if (ArchitectAccess.api().designs().get(e.getKey()).isPresent()) {
+				FITTING.replace(e.getKey(), f, new Fitting(f.settlementId(), f.part(), f.block(), f.region(), f.what(), f.player(), f.proposal(), f.session(), now));
+				continue;
+			}
+			if (now - f.since() < UNSEEN_MS) continue;
+			FITTING.remove(e.getKey());
+			var s = Settlements.store().get(f.settlementId());
+			if (s.isEmpty() || !Session.is(f.session())) {
+				BUSY.remove(f.settlementId() + "/" + f.part());
+				continue;
+			}
+			fail(server, f.player(), s.get(), f.proposal(), f.what(), "Architect's answer for it (design " + e.getKey() + ") can't be read here");
+		}
+	}
+
+	/** A part's compose ended (server thread): its plan, checked again by Steward, is built as it fits, shown when Architect adjusted it, else said. */
+	private static void composed(MinecraftServer server, dev.larattalabs.architect.api.Design d) {
+		if (!d.status().isFinal()) return;
+		Fitting f = FITTING.remove(d.id());
+		if (f == null || !Session.is(f.session())) return;
+		var found = Settlements.store().get(f.settlementId());
+		if (found.isEmpty()) {
+			BUSY.remove(f.settlementId() + "/" + f.part());
+			return;
+		}
+		Settlement s = found.get();
+		Proposal p = f.proposal();
+		String what = f.what();
+		UUID player = f.player();
+		guarded(server, player, s, p, what, () -> {
+			var o = ComposeJob.interpret(d);
+			double cost = o.usd();
+			Steward.LOGGER.info("part {} of {}: Architect's compose {} ({} round(s){}), ${}", f.part(), s.id(), o.outcome(), o.rounds(), o.stopped() != null ? ", stopped: " + o.stopped() : "",
+				String.format(java.util.Locale.ROOT, "%.3f", cost));
+			if (o.kind() != ComposeJob.Kind.PLAN || o.plan() == null) {
+				fail(server, player, s, p, what, !o.reason().isBlank() ? o.reason() : "Architect composed no plan for it (" + o.error() + ")");
+				return;
+			}
+			JsonObject plan = o.plan();
+			// the part's own words for the player: Architect's summary, else its name
+			String summary = o.reason().isBlank() ? Character.toUpperCase(what.charAt(0)) + what.substring(1) + "." : o.reason();
+			// only the part asked for is ever built (Architect's rounds can't be asked again here: one that wrote more stops)
+			String scope = outOfScope(plan, f.part(), f.block());
 			if (scope != null) {
-				String lines = "- {\"part\":\"" + p.pendingPart() + "\",\"class\":\"malformed\",\"reasons\":[{\"code\":\"SCOPE\",\"message\":\"" + scope + "\"}]}\n";
-				if (round < ROUNDS && cost < CAP_USD - PlanWriterJob.BUDGET_USD && !lines.equals(last)) {
-					round(server, player, s, p, block, partJson, region, others, what, session, round + 1, cost, written.toString(), lines, lines);
-				} else fail(server, player, s, p, what, scope);
+				fail(server, player, s, p, what, "Architect's plan for it " + scope);
 				return;
 			}
+			int session = f.session();
 			var now = Settlements.store().get(s.id()).orElse(s);
-			Composer.check(server, now, checked, player).whenComplete((c, cerr) -> server.execute(() -> guarded(server, player, s, p, what, () -> {
+			Composer.check(server, now, plan, player).whenComplete((c, cerr) -> server.execute(() -> guarded(server, player, s, p, what, () -> {
 				if (!Session.is(session)) return;
 				if (cerr != null) { fail(server, player, s, p, what, "Architect could not check it (" + cerr.getMessage() + ")"); return; }
-				var answer = c.parts().stream().filter(x -> x.has("part") && p.pendingPart().equals(x.get("part").getAsString())).findFirst();
+				var answer = c.parts().stream().filter(x -> x.has("part") && f.part().equals(x.get("part").getAsString())).findFirst();
 				String cls = answer.map(x -> x.has("class") ? x.get("class").getAsString() : "").orElse("missing");
 				if (c.artifactSha() != null && cls.equals("fits")) {
 					realise(server, player, s, p, what, c.artifactSha(), summary, cost);
@@ -358,25 +443,35 @@ public final class PendingOffers {
 				if (c.artifactSha() != null && cls.equals("adjusted")) {
 					// Architect changed it to fit: shown, and built when the player accepts it once more
 					String how = answer.map(x -> x.has("deviations") ? x.get("deviations").toString() : "").orElse("");
-					CHECKED.put(s.id() + "/" + p.pendingPart(), new Checked(c.artifactSha(), summary, cost));
-					BUSY.remove(s.id() + "/" + p.pendingPart());
+					CHECKED.put(s.id() + "/" + f.part(), new Checked(c.artifactSha(), summary, cost));
+					BUSY.remove(s.id() + "/" + f.part());
 					Composer.tellNow(server, player, s, summary + " Architect changed it to fit" + (how.isEmpty() ? "" : " (" + clip(how, 200) + ")")
 						+ ": accept it once more in the inbox to build it.");
 					return;
 				}
-				String lines = Composer.answerLines(c);
-				boolean repairable = cls.equals("refused") || cls.equals("malformed") || cls.equals("missing");
-				if (repairable && round < ROUNDS && cost < CAP_USD - PlanWriterJob.BUDGET_USD && !lines.equals(last)) {
-					Steward.LOGGER.info("part {} of {}: round {} {} (${})", p.pendingPart(), s.id(), round, cls, String.format("%.3f", cost));
-					round(server, player, s, p, block, partJson, region, others, what, session, round + 1, cost, written.toString(), lines, lines);
-					return;
-				}
-				String why = answer.flatMap(x -> x.has("reasons") && x.get("reasons").isJsonArray() && !x.getAsJsonArray("reasons").isEmpty()
+				// Architect's own line for the part (CP's waits[].say), else the check's first reason
+				String why = o.says().containsKey(f.part()) ? o.says().get(f.part()) : answer.flatMap(x -> x.has("reasons") && x.get("reasons").isJsonArray() && !x.getAsJsonArray("reasons").isEmpty()
 					&& x.getAsJsonArray("reasons").get(0).isJsonObject() && x.getAsJsonArray("reasons").get(0).getAsJsonObject().has("message")
 					? Optional.of(x.getAsJsonArray("reasons").get(0).getAsJsonObject().get("message").getAsString()) : Optional.empty()).orElse(cls + ", " + c.overall());
 				fail(server, player, s, p, what, "it doesn't fit round " + s.name() + " yet: " + why);
 			})));
-		})));
+		});
+	}
+
+	/**
+	 * The town as it stands now, for the part's compose key: its sites and their versions (a grown or revised town keeps its region id, so the id alone
+	 * would meet the old compose). Sorted, so the same town gives the same key.
+	 */
+	static String townState(MinecraftServer server, Settlement s, String region) {
+		try {
+			var sites = ArchitectAccess.api().sites(server);
+			// the region's own state (its IR and revisions: a tile-only revision changes no site), then its sites
+			String head = ArchitectAccess.api().regions().get(region).map(v -> v.irSha() + "#" + v.revisions().size() + "#" + v.state()).orElse("?");
+			return head + ";" + VillageSweep.sitesOf(server, s.owner(), region).stream().sorted().map(id -> id + "@" + sites.get(id).map(dev.larattalabs.architect.api.SiteView::version).orElse(0))
+				.collect(java.util.stream.Collectors.joining(","));
+		} catch (RuntimeException | LinkageError e) {
+			return "";
+		}
 	}
 
 	/** Runs a step of the fitting; anything it throws (an answer of an unexpected shape) stops it as a failure, so the settlement is never left busy. */
