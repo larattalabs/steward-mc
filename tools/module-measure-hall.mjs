@@ -1330,7 +1330,147 @@ async function sortCargo() {
   return out;
 }
 
-const steps = { hall, survival, bounds, sort: sortStep, 'sort-survival': sortSurvival, 'sort-cargo': sortCargo };
+// ------------------------------------------------------------------ sort-crash (storage_hall@2): 12.5 bar 9, 12.7 B3
+
+const savesDir = () => path.join(GAME, 'saves', worldName);
+const savedLedger = () => {
+  const f = path.join(savesDir(), 'architect', 'stockpiles.json');
+  return fs.existsSync(f) ? (JSON.parse(fs.readFileSync(f, 'utf8')).stockpiles ?? []).find((x) => x.owner === OWNER)?.ledger ?? null : null;
+};
+async function haltWait() {
+  for (let i = 0; i < 180; i++) {
+    await sleep(2000);
+    const st = await call('dev.state', {}, 10_000).catch(() => null);
+    if (st && st.inWorld === false) return true;
+  }
+  return false;
+}
+/** The world opened again after a halt (nothing saved since the halt's baseline). */
+async function restartWorld(pos) {
+  await call('dev.world.open', { name: worldName }, 300_000);
+  await dev.waitInWorld({ timeoutMs: 600_000 });
+  await rules();
+  await standAt(...pos);
+  await sleep(4000);
+}
+async function sortCrash() {
+  if (MODULE.version < 2) throw new Error('sort-crash is storage_hall@2\'s step: --version 2');
+  const out = { fill: [], removal: [] };
+  try {
+    const T = await survivalWorld('SortCrash', 80000, 80000);
+    const { region, gy, x0, z0 } = T;
+    const home = [x0 + 96, z0 - 30, gy + 1];
+    const items = ['stone', 'redstone', 'dirt', 'coal'];
+    const FILL = Object.fromEntries(items.map((k) => [`minecraft:${k}`, 41]));
+    const only = (m) => Object.fromEntries(Object.entries(m ?? {}).filter(([k]) => k in FILL));
+    const grown = [];
+    // ---- FK1-FK4: the fill halted at each point; after the restart, it runs once: charged once against the saved state
+    for (const point of ['FK1', 'FK2', 'FK3', 'FK4']) {
+      const sp = { id: `sk_${point.toLowerCase()}`, slots: 4, bulk: 0, bible: 'rustic', items };
+      const g = await growHalls(region, [sp], { survival: true });
+      if (!check(!g.refused, `${point}: the hall grown: ${g.refused ? String(g.refused).slice(0, 200) : `rid ${g.rid}`}`)) continue;
+      let site = null;
+      for (let i = 0; i < 60 && !site; i++) { await sleep(2000); site = (await call('dev.region.state', { region }, 60_000)).view.lots.find((l) => l.id === sp.id)?.siteId ?? null; }
+      // the site paused, everything it owes delivered (a paused target still takes it), the baseline saved, the point armed, then resumed
+      await call('dev.stockpile.pause', { owner: OWNER, site, paused: true }, 60_000).catch(() => null);
+      for (let i = 0; i < 20; i++) {
+        const ps = await pile();
+        const need = {};
+        for (const [it, n] of Object.entries(ps.outstanding ?? {})) { const lack = n - (ps.stock?.[it] ?? 0); if (lack > 0) need[it] = lack; }
+        if (!Object.keys(need).length) break;
+        await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: need, exact: true }, 120_000);
+        await sleep(1500);
+      }
+      await call('dev.stockpile.ps', { noPeriodic: true }, 30_000).catch(() => null);
+      await cmd('/save-all flush');
+      const B = savedLedger();
+      await call('dev.journal.killAt', { point }, 10_000);
+      call('dev.stockpile.pause', { owner: OWNER, site, paused: false }, 60_000).catch(() => null);
+      const down = await haltWait();
+      check(down, `${point}: the kill point halted the server`);
+      if (!down) { await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null); continue; }
+      const S = savedLedger();
+      const marker = (S?.filled ?? []).some((k) => k.startsWith(`site:${site}@`));
+      await restartWorld(home);
+      await feedUntil(region, async () => (await fkState(site)).phase === 'UNLOCKED', { timeoutMs: 900_000 });
+      const f = await fkState(site);
+      const L2 = (await pile()).ledger;
+      const charged = only(minus(L2.consumed, S.consumed));
+      const want = marker ? {} : FILL;
+      const holds = (f.containers ?? []).map((c) => c.holds);
+      const exactly = holds.length === 4 && holds.every((m, u) => m?.[`minecraft:${items[u]}`] === 41 && m?.['minecraft:petrified_oak_slab'] === 4 && Object.keys(m).length === 2);
+      const res = { point, site, marker, before: only(minus(S.consumed, B.consumed)), charged, phase: f.phase, holds };
+      out.fill.push(res);
+      check(f.phase === 'UNLOCKED' && exactly && same(charged, want), `9 ${point}: after the restart the fill ends once (FK ${f.phase}, every F exactly 41 + 4: ${exactly}); charged since the saved state ${json(charged)} (the commit ${marker ? 'on disk: nothing more' : 'not on disk: the fill once'})`, res);
+      grown.push({ g, site, sp });
+    }
+    // ---- FKC1, FKC2, CS1 at removal, newest first: after the restart, what comes back = what the growth consumed, once; no custody or slab left
+    const removalPoints = ['FKC1', 'FKC2', 'CS1'];
+    const cases = [...grown].reverse().slice(0, removalPoints.length).map((x, i) => ({ ...x, point: removalPoints[i] }));
+    for (const c of cases) {
+      const L0 = (await pile()).ledger;
+      await cmd('/kill @e[type=item]');
+      await cmd('/save-all flush');
+      const B = savedLedger();
+      // what this growth consumed: its quote (consumed = quote, bar 8)
+      const consumed = c.g.quote?.bom ?? {};
+      await call('dev.journal.killAt', { point: c.point }, 10_000);
+      call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch(() => null);
+      const down = await haltWait();
+      check(down, `${c.point}: the kill point halted the server at removal`);
+      if (!down) { await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null); continue; }
+      const S = savedLedger();
+      const savedCustody = Object.values(S?.custody ?? {}).reduce((a, m) => plus(a, m), {});
+      await restartWorld(home);
+      let rs = null;
+      for (let i = 0; i < 300; i++) {
+        rs = (await call('dev.rv.state', { region }, 60_000)).revisions.find((x) => x.rid === c.g.rid)?.state;
+        if (rs === 'UNDONE') break;
+        if (i === 15 && rs === 'PLACED') await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch(() => null);
+        await sleep(1000);
+      }
+      await sleep(4000);
+      const F = (await pile()).ledger;
+      const back = minus(plus(F.returned, F.refundOverflow), plus(B.returned, B.refundOverflow));
+      const drops = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
+      const slabs = await call('dev.fk.slabs', { pos: home }, 10_000).catch(() => ({}));
+      const res = { point: c.point, savedCustody, state: rs, back: totalOf(back), consumed: totalOf(consumed), diff: minus(back, consumed), custody: F.custody ?? null, heldProvided: F.heldProvided ?? null, drops, slabs };
+      out.removal.push(res);
+      check(c.point !== 'FKC1' || totalOf(savedCustody) > 0, `9 ${c.point}: the custody (${json(savedCustody)}) was on disk at the halt`, res);
+      check(rs === 'UNDONE' && same(back, consumed) && !Object.keys(F.custody ?? {}).length && !Object.keys(F.heldProvided ?? {}).length && !Object.keys(drops).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
+        `9 ${c.point}: after the restart the removal ends once (${rs}): back = consumed item for item (${totalOf(back)} = ${totalOf(consumed)}; off ${json(res.diff)}); no custody or provided custody left; nothing dropped; no slab loose`, res);
+    }
+    // ---- FKC0 (Architect's LC, S-M5-13): a removal failing after its custody take, a restart, a retry. Runs once the hook exists.
+    const rest = [...grown].reverse().slice(removalPoints.length);
+    const hook = await call('dev.removal.failAfterCustody', { probe: true }, 10_000).then(() => true).catch(() => false);
+    if (!hook) {
+      out.fkc0 = 'the hook dev.removal.failAfterCustody is not in this Architect (S-M5-13, slice LC): not run';
+      check(false, `9 FKC0: ${out.fkc0}`);
+    } else if (rest.length) {
+      const c = rest[0];
+      const L0 = (await pile()).ledger;
+      await call('dev.removal.failAfterCustody', { site: c.site }, 10_000);
+      const u = await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
+      await sleep(4000);
+      const s1 = await sortState(c.g.halls[0]).catch(() => null);
+      await cmd('/save-all flush');
+      await reopen(home);
+      const u2 = await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
+      await sleep(6000);
+      const F = (await pile()).ledger;
+      const back = minus(plus(F.returned, F.refundOverflow), plus(L0.returned, L0.refundOverflow));
+      const res = { first: refusal(u), afterFail: s1 ? totalOf(sumAll(s1)) : null, retry: refusal(u2), back: totalOf(back), consumed: totalOf(c.g.quote?.bom ?? {}) };
+      out.fkc0 = res;
+      check(u2.removed === true && same(back, c.g.quote?.bom ?? {}), `9 FKC0: the removal failed after its custody take (${refusal(u)}), its contents written back (${res.afterFail} items), restarted and retried: removed, back = consumed once (${res.back} = ${res.consumed})`, res);
+    }
+  } finally {
+    await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null);
+    await stopClient().catch((e) => log(`stop: ${e}`));
+  }
+  return out;
+}
+
+const steps = { hall, survival, bounds, sort: sortStep, 'sort-survival': sortSurvival, 'sort-cargo': sortCargo, 'sort-crash': sortCrash };
 if (steps[step]) {
   const t0 = Date.now();
   let data, error;
