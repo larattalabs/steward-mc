@@ -61,6 +61,19 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
     Past its bound, it flags the manager instead of failing the slice.
   - **Load gate** (Noah, 2026-11-13: "lets ensure that is 15 min max from now on, with high at least 72 cap"): a load-aware start waits at most
     15 minutes, and the load threshold is 72 or more. The e2e client's defaults are `E2E_LOAD_MAX` 72 and `E2E_LOAD_WAIT_MIN` 15.
+  - **Deferred verification** (Noah, 2026-11-15: "Yes, apply all"; it overrides the rules above where they conflict, and applies to running
+    slices too):
+    - **Light tier:** no in-game run per slice. Compile, the scoped unit tests and gitleaks, then the slice joins the next batch, whose in-game
+      run covers it.
+    - **Strict tier:** only the in-game scenarios for the risk the slice touches (item loss, billing, refund, undo or crash). No full gate
+      per slice; the batch merge runs it.
+    - **Batches** of 4-6 ready slices, with one full merge suite on the combined result. If it fails, bisect by slice.
+    - **The strict gate-verifier and the GPT review** run once per Architect release or Steward batch merge, over all the strict diffs it
+      holds, not once per slice.
+    - **Architect pins skip versions:** bump the pin every other release. At other releases, run a smoke check only (one field round plus
+      billing), unless a module's own code or Architect's realise or billing paths changed.
+    - Unchanged: the targeted strict scenario on every strict slice, scoped unit tests, gitleaks, at most 3 full runs, $0 without Noah's
+      approval, and slices never merge or push main. Nightlies stay skipped until Noah says otherwise.
 - **Release-candidate testing is DEV MODE** (Noah, 2026-11-04):
   - An Architect RC runs only the flows its change touches, plus the sanity set: `node tools/e2e.mjs stub --only gate,wall,survival`, aiming for 15-20 min.
   - Full stub and free runs are nightly, or before a pin when a release is broad; what they find is fixed forward.
