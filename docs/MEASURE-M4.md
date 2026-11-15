@@ -242,3 +242,11 @@ billing and undo diff (the hall pre-check can only refuse; the dev hooks are dev
 Its notes, recorded as leftovers: survival checks consumed against the quote, the bound against the quote is the bounds step's; the cancel
 is only just partial; the mined chest's drop is the player's by the PT break path, not checked by owner; a crash during refund crediting is
 the sorting hall's bar (4.2).
+
+## 9. Smoke carry to Architect 0.70.0 (2026-11-14, speed rule 4)
+
+`storage_hall@1` is carried from its full measurement on 0.67.0 to 0.70.0 (kit/checker 0.65.0), `basis: smoke`, `from: 0.67.0`, on branch
+`storage-hall-069` (crop-farm-069 + pin-069 + pin-070). Kit 0.62.0 -> 0.65.0 leaves the hall's paths alone (kit.mjs, blocks, check, params,
+survival vocab unchanged; QL only adds `Quote.terrain`). Fresh: offline 151/151, ingame 150/150, survival 26/26, bounds 58/58 (the 27
+re-quoted bounds equal the carried ones), the hall round 218/218; e2e `module-hall` PASS 18. `record --smoke` works per module now: the
+hall's evidence is artifacts/m4 and its round is the deterministic hall step (the catalog's smoke check takes it).
