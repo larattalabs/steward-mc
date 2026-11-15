@@ -94,7 +94,7 @@ class PendingOffersTest {
 	void theOfferSaysWhatAcceptingDoesAndThatAChangeIsAskedFirst() {
 		String why = PendingOffers.offerWords("Mossbank");
 		assertTrue(why.startsWith("Say yes and I fit it round Mossbank as it stands (up to $1)"), why);
-		assertTrue(why.contains("an undo takes it away and leaves the town"), why);
+		assertTrue(why.contains("an undo takes away just this part and leaves the rest of the town standing"), why);
 		assertTrue(why.contains("I show you the change and ask you once more before anything is built"), why);
 		for (String word : List.of("Architect", "Claude", "connector.", "_")) assertFalse(why.contains(word), word + " in " + why);
 		String adjusted = PendingOffers.adjustedWords("The town wall.", "[\"gate moved\"]");

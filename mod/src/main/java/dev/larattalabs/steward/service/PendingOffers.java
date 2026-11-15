@@ -261,8 +261,8 @@ public final class PendingOffers {
 	 * that a part changed to fit is shown and asked about once more before anything is built ({@link #accept}'s second accept).
 	 */
 	static String offerWords(String settlement) {
-		return "Say yes and I fit it round " + settlement + " as it stands (up to $1), then raise it as a part of its own: an undo takes it away and leaves the"
-			+ " town. If it has to change to fit, I show you the change and ask you once more before anything is built.";
+		return "Say yes and I fit it round " + settlement + " as it stands (up to $1), then raise it as a part of its own: an undo takes away just this part and leaves the rest"
+			+ " of the town standing. If it has to change to fit, I show you the change and ask you once more before anything is built.";
 	}
 
 	/**
