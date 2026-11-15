@@ -264,10 +264,37 @@ public final class Composer {
 		return s.claim().dimension() + "@" + s.claim().centerX() + "," + s.claim().centerZ() + "r" + s.claim().radius();
 	}
 
-	/** This world's short name for a compose key (settlement ids repeat across worlds; Architect's keys are the game dir's). */
-	static String world(MinecraftServer server) {
-		return dev.larattalabs.steward.gateway.ComposeJob.cardSha(server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).toAbsolutePath().normalize().toString())
-			.substring(0, 8);
+	/** The world id file: a random id made once a world, so a new world at the same path (a re-made "New World") is another world. */
+	static final String WORLD_ID_FILE = "steward-world-id";
+	private static @Nullable String worldId;
+	private static java.nio.file.@Nullable Path worldIdAt;
+
+	/**
+	 * This world's short name for a compose key (settlement ids and recorded cards repeat across worlds, and Architect's keys are the game dir's):
+	 * a random id kept in the world's folder ({@link #WORLD_ID_FILE}), made the first time. Not the path: a world deleted and made again at the same
+	 * path would meet its predecessor's keys with another body (OP_KEY_CONFLICT; stub e2e 11-14, whose world is re-made each run).
+	 */
+	static synchronized String world(MinecraftServer server) {
+		java.nio.file.Path dir = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).toAbsolutePath().normalize();
+		if (worldId != null && dir.equals(worldIdAt)) return worldId;
+		java.nio.file.Path f = dir.resolve(WORLD_ID_FILE);
+		String id = null;
+		try {
+			if (java.nio.file.Files.exists(f)) id = java.nio.file.Files.readString(f).strip();
+		} catch (java.io.IOException e) {
+			Steward.LOGGER.warn("could not read {}: {}", f, e.toString());
+		}
+		if (id == null || !id.matches("[a-f0-9]{8,32}")) {
+			id = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+			try {
+				java.nio.file.Files.writeString(f, id + "\n");
+			} catch (java.io.IOException e) {
+				Steward.LOGGER.warn("could not write {}: {}", f, e.toString());
+			}
+		}
+		worldId = id;
+		worldIdAt = dir;
+		return id;
 	}
 
 	/**

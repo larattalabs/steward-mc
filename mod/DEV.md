@@ -368,7 +368,7 @@ after it (`ls mod/run/architect/sidecar-data/` showed no `secrets.json` after ea
   never named, the steward only hints. **Two Steward bugs it found, fixed at $0 since (961e48e):** the summary came out empty (the plain summary
   named the tavern, the cellar's host, so the scrub dropped it: now the count goes in its own sentence), and "Not in the plan: 1 stone bridge" for a
   bridge the plan held as a connector (now a card building written as another part counts by its kind).
-- **Total $0.6971 of $3.00.**
+- **Total $0.6975 of $3.00** (0.300551 + 0.029508 + 0.0346 card + 0.332437; gate-verifier PASS on the cap and the opt-in).
 
 ## The repair round's catalogue text, proved in one in-game compose (2026-11-13, paid, Noah approved; $0.16)
 Noah via parent session: "n cap 1.50 + compose". One compose in a flat creative dev world on Architect 0.63.0 (main f66031d's code), the claude
