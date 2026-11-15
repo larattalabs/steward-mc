@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import net.minecraft.core.BlockPos;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.levelgen.structure.BoundingBox;
 import org.jspecify.annotations.Nullable;
 
@@ -23,7 +24,9 @@ import org.jspecify.annotations.Nullable;
  * Architect owns the engine (plan/0, its catalogue, the composer's rules, the checks, the repair rounds, the oscillation stop). Steward sends the
  * concept card as the brief and the hints ({@link ComposeRequest#EXT_HINTS}: the card, its wanted buildings, the land line and the {@code stone} and
  * {@code player} anchors), its own rules ({@link ComposeRequest#EXT_SYSTEM}, prompts/compose-rules.md) and two repair rounds, under a $1.00 cap for the
- * whole compose (the pick's and every round's cost). Pure but for the resource read.
+ * whole compose. Since CA2 (Architect CP, API 1.63.0): no template pick ({@link ComposeRequest#EXT_SKIP_PICK}), the block families in the composer's
+ * system ({@link ComposeRequest#EXT_VOCAB} {@code families}), the settlement's level and owner, and Architect's $0 street round inside the compose
+ * (default on). A waiting part (COMPOSITION section 11) is composed the same way, one part a request ({@link #partRequest}). Pure but for the resource read.
  */
 public final class ComposeJob {
 	/** One compose's cap, the template pick and every round together (Noah: about $1 a plan with repair). Architect enforces it. */
@@ -49,10 +52,28 @@ public final class ComposeJob {
 	public static final int REPAIR_ROUNDS = 2;
 	/** Steward's own ext members on the request, read back from {@code Design.request().ext} when the design ends (after a restart too). */
 	public static final String EXT_SETTLEMENT = "steward:settlement", EXT_CARD = "steward:card", EXT_PLAYER = "steward:player";
-	/** Architect's sim-helper keys ($0 checks only; the real helper never reads them). */
-	static final String SIM_COMPOSE = "architect:simCompose", SIM_PICK = "architect:simAnswers";
-	/** Architect's caps on the hints and the caller's rules (CONTRACT "Slice CO as built"). */
-	static final int HINTS_MAX = 16_000, SYSTEM_MAX = 30_000, BRIEF_MAX = 2_000;
+	/** Architect's sim-helper key ($0 checks only; the real helper never reads it): the composer's rounds, scripted. */
+	static final String SIM_COMPOSE = "architect:simCompose";
+	/**
+	 * Architect's caps on the hints and the caller's rules (CONTRACT "Slice CO as built"; CP e: with {@code composeVocab} families the rules may be at most
+	 * 28,000 characters).
+	 */
+	static final int HINTS_MAX = 16_000, SYSTEM_MAX = 28_000, BRIEF_MAX = 2_000;
+	/** CP's block-families value for {@link ComposeRequest#EXT_VOCAB} (the only one Architect takes). */
+	static final String VOCAB_FAMILIES = "families";
+	/** The Architect API minor that ships CP (v0.71.0, API 1.63.0): skipPick, composeVocab, summary, waits[].say, leftOut, level and owner. */
+	public static final int CP_MINOR = 63;
+
+	/** Whether the loaded Architect's API ({@code apiVersion}) has CP: 1.63.0 or later in major 1. Pure. */
+	public static boolean cp(@Nullable String apiVersion) {
+		if (apiVersion == null) return false;
+		try {
+			String[] v = apiVersion.split("\\.");
+			return Integer.parseInt(v[0]) == 1 && Integer.parseInt(v[1]) >= CP_MINOR;
+		} catch (RuntimeException e) {
+			return false;
+		}
+	}
 
 	private ComposeJob() {
 	}
@@ -164,61 +185,140 @@ public final class ComposeJob {
 	}
 
 	/**
-	 * The ext: the hints, the rules, the repair rounds, Steward's own members, and (on Architect's sim helper, $0 checks) a scripted plan answer
-	 * ({@link SimAnswers#PLAN}, {@code {plan, summary}}) as the composer's rounds with the template pick scripted to fit nothing, so the scripted plan is
-	 * the one composed.
+	 * The ext: the hints, the rules, the repair rounds, CP's no-pick and block families, Steward's own members, and (on Architect's sim helper, $0 checks)
+	 * a scripted plan answer ({@link SimAnswers#PLAN}, {@code {plan, summary}}) as the composer's rounds.
 	 */
 	public static JsonObject ext(String settlementId, String cardSha, @Nullable String player, JsonObject hints) {
-		JsonObject ext = new JsonObject();
-		ext.add(ComposeRequest.EXT_HINTS, hints);
-		ext.addProperty(ComposeRequest.EXT_SYSTEM, rules());
-		ext.addProperty(ComposeRequest.EXT_REPAIR_ROUNDS, REPAIR_ROUNDS);
+		JsonObject ext = common(hints, rules());
 		ext.addProperty(EXT_SETTLEMENT, settlementId);
 		ext.addProperty(EXT_CARD, cardSha);
 		if (player != null) ext.addProperty(EXT_PLAYER, player);
-		JsonObject sim = SimAnswers.ext(SimAnswers.PLAN);
-		if (sim.has("architect:simAnswer") && sim.get("architect:simAnswer").isJsonObject() && sim.getAsJsonObject("architect:simAnswer").has("plan")) {
-			JsonObject a = sim.getAsJsonObject("architect:simAnswer");
-			JsonObject round = new JsonObject();
-			round.add("plan", a.get("plan").deepCopy());
-			round.addProperty("reason", a.has("summary") && a.get("summary").isJsonPrimitive() ? a.get("summary").getAsString() : "");
-			JsonArray rounds = new JsonArray();
-			rounds.add(round);
-			ext.add(SIM_COMPOSE, rounds);
-			JsonObject pick = JsonParser.parseString("{\"fits\":false,\"program\":\"flat_village\",\"params\":{},\"reason\":\"sim: the scripted plan is composed\"}").getAsJsonObject();
-			JsonArray picks = new JsonArray();
-			picks.add(pick);
-			picks.add(pick.deepCopy());
-			ext.add(SIM_PICK, picks); // until CP: the pick is skipped with ext architect_mc:skipPick=true
-		}
+		simRounds(ext, SimAnswers.PLAN, null);
 		return ext;
 	}
 
-	/** The request for {@code claim}: the card as brief and hints, no Style yet (it is made after the plan), no planning images, the cap. */
+	/** The members every Steward compose sends: the hints, the caller's rules, two repair rounds, no template pick (CP), the block families (CP). */
+	private static JsonObject common(JsonObject hints, String rules) {
+		JsonObject ext = new JsonObject();
+		ext.add(ComposeRequest.EXT_HINTS, hints);
+		ext.addProperty(ComposeRequest.EXT_SYSTEM, rules);
+		ext.addProperty(ComposeRequest.EXT_REPAIR_ROUNDS, REPAIR_ROUNDS);
+		ext.addProperty(ComposeRequest.EXT_SKIP_PICK, true);
+		ext.addProperty(ComposeRequest.EXT_VOCAB, VOCAB_FAMILIES);
+		return ext;
+	}
+
+	/**
+	 * (Sim helper only) The scripted answer of {@code kind} ({@code {plan, summary}}), when one is set, as the composer's one scripted round; {@code town}
+	 * (a part's) stands for the {@link #TOWN} name in it.
+	 */
+	private static void simRounds(JsonObject ext, String kind, @Nullable String town) {
+		JsonObject sim = SimAnswers.ext(kind);
+		if (!sim.has("architect:simAnswer") || !sim.get("architect:simAnswer").isJsonObject() || !sim.getAsJsonObject("architect:simAnswer").has("plan")) return;
+		JsonObject a = sim.getAsJsonObject("architect:simAnswer");
+		JsonObject round = new JsonObject();
+		JsonElement plan = a.get("plan").deepCopy();
+		if (town != null) plan = JsonParser.parseString(plan.toString().replace("\"" + TOWN + "\"", "\"" + town + "\""));
+		round.add("plan", plan);
+		round.addProperty("reason", a.has("summary") && a.get("summary").isJsonPrimitive() ? a.get("summary").getAsString() : "");
+		JsonArray rounds = new JsonArray();
+		rounds.add(round);
+		ext.add(SIM_COMPOSE, rounds);
+	}
+
+	/**
+	 * The request for {@code claim} in {@code level} (null: the Overworld), for {@code owner} (the owner Steward's own check uses): the card as brief and
+	 * hints, no Style yet (it is made after the plan), no planning images, the cap.
+	 */
 	public static ComposeRequest request(String settlementId, String cardJson, @Nullable String land, BoundingBox claim, Map<String, BlockPos> anchors,
-		@Nullable String player) {
+		@Nullable String player, @Nullable ServerLevel level, @Nullable String owner) {
 		JsonObject card = JsonParser.parseString(cardJson).getAsJsonObject();
 		String sha = cardSha(cardJson);
-		return new ComposeRequest(brief(card), claim, null, false, cap(), opKey(settlementId, sha), ext(settlementId, sha, player, hints(card, land, anchors)));
+		return new ComposeRequest(brief(card), claim, null, false, cap(), opKey(settlementId, sha), ext(settlementId, sha, player, hints(card, land, anchors)), level, owner);
+	}
+
+	/** A waiting part's compose names the town as it stands by this stand-in only in the sim's scripted answers (the real hints give its region id). */
+	public static final String TOWN = "$TOWN";
+	/** A waiting part's compose: the settlement and the part, on the request's ext (never {@link #EXT_SETTLEMENT}, so it is not taken as the town's plan). */
+	public static final String EXT_PART_OF = "steward:partOf", EXT_PART = "steward:part";
+
+	/** Steward's rules for a waiting part (prompts/compose-part-rules.md's {@code ## Rules} section), sent as the caller's rules. */
+	public static String partRules() {
+		String md = resource("steward/prompts/compose-part-rules.md");
+		int i = md.indexOf("## Rules");
+		if (i < 0) throw new IllegalStateException("compose-part-rules.md has no '## Rules' section");
+		return md.substring(i + "## Rules".length()).strip();
+	}
+
+	/**
+	 * (COMPOSITION section 11, slice CA2) A waiting part's compose: the brief is the part (its label, kind and own notes), the hints are the part as kept,
+	 * its block, the kept plan, the town's region id ({@code town}) and what stands beside it ({@code others}); Steward's part rules; no template pick.
+	 * The key holds a hash of all of it, so the same accept again adopts the same compose (paid once) and a changed town is a new compose.
+	 */
+	public static ComposeRequest partRequest(String world, String settlementId, String part, JsonObject partJson, String block, String keptPlan, String town,
+		List<String> others, BoundingBox claim, Map<String, BlockPos> anchors, @Nullable ServerLevel level, @Nullable String owner) {
+		JsonObject hints = new JsonObject();
+		hints.add("part", partJson.deepCopy());
+		hints.addProperty("block", block);
+		hints.addProperty("townRegion", town);
+		JsonArray o = new JsonArray();
+		for (String x : others) o.add(x);
+		hints.add("standingBeside", o);
+		JsonObject kept;
+		try {
+			kept = JsonParser.parseString(keptPlan).getAsJsonObject();
+		} catch (RuntimeException e) {
+			kept = new JsonObject();
+		}
+		hints.add("keptPlan", kept);
+		// the kept plan goes first when the hints are too long: the part, its block and the town's region always go
+		if (hints.toString().length() > HINTS_MAX) hints.add("keptPlan", new JsonObject());
+		String label = str(partJson, "label").isEmpty() ? part.replace('_', ' ') : str(partJson, "label");
+		String notes = str(partJson, "notes");
+		String brief = ("Add " + label + " (" + block + ") to the settlement as it stands, as its only part." + (notes.isEmpty() ? "" : " " + notes)).strip();
+		if (brief.length() > BRIEF_MAX) brief = brief.substring(0, BRIEF_MAX - 1) + "…";
+		JsonObject ext = common(hints, partRules());
+		ext.addProperty(EXT_PART_OF, settlementId);
+		ext.addProperty(EXT_PART, part);
+		simRounds(ext, SimAnswers.PART, town);
+		String sha = cardSha(brief + "\n" + hints + "\n" + claim + "\n" + owner);
+		return new ComposeRequest(brief, claim, null, false, Math.min(cap(), PART_BUDGET_USD), partKey(world + "." + settlementId, part, sha), ext, level, owner);
+	}
+
+	/** A waiting part's cap (Noah: about $1 a plan with repair): the rounds of one part's compose. */
+	public static final double PART_BUDGET_USD = 1.00;
+
+	/** A waiting part's compose key: {@code steward.part.<world>.<settlement>.<part>.<sha>}, {@code [A-Za-z0-9_.:-]{1,128}}. */
+	public static String partKey(String worldAndSettlement, String part, String sha) {
+		String w = worldAndSettlement.replaceAll("[^A-Za-z0-9_.:-]", "_");
+		String p = part.replaceAll("[^A-Za-z0-9_.:-]", "_");
+		if (p.length() > 32) p = p.substring(0, 32);
+		if (w.length() > 128 - 12 - "steward.part...".length() - p.length()) w = w.substring(0, 128 - 12 - "steward.part...".length() - p.length());
+		return "steward.part." + w + "." + p + "." + sha;
 	}
 
 	/** What a settlement design ended with. */
 	public enum Kind {
 		/** a plan/0 (COMPOSED: the last round READY; NO_PLAN: the best round, which still waits or needs repair) */
 		PLAN,
-		/** a bundled template fitted (no plan/0: {@code program}, {@code params}) */
+		/**
+		 * a bundled template fitted (no plan/0: {@code program}, {@code params}). Steward asks for no pick since CA2, but a compose asked before it (CA,
+		 * no {@code skipPick}) can still end, or be reconciled, after the update: it is still read.
+		 */
 		PICKED,
 		/** nothing to keep ({@code error} says why) */
 		NONE
 	}
 
 	/**
-	 * {@code outcome}: Architect's word (COMPOSED, NO_PLAN, PICKED, or the failure); {@code reason}: the composer's own words for the player on COMPOSED,
-	 * else empty (NO_PLAN's reason is Architect's diagnostic, never shown); {@code rounds}: the composer's rounds; {@code stopped}: why its repairs stopped
-	 * early ({@code oscillation}, {@code nothing_to_repair}) or null.
+	 * {@code outcome}: Architect's word (COMPOSED, NO_PLAN, PICKED, or the failure); {@code reason}: the player's summary, CP's {@code result.summary}
+	 * (the shown round's own words, on COMPOSED and NO_PLAN, and Architect's own line for a compose it refused at once), else COMPOSED's {@code reason}
+	 * (a design from before CP), else empty (NO_PLAN's {@code reason} is Architect's diagnostic, never shown); {@code rounds}: the composer's rounds (a $0
+	 * street round included); {@code stopped}: why its repairs stopped early ({@code oscillation}, {@code nothing_to_repair}) or null; {@code leftOut}: the
+	 * lots Architect's street round dropped, in words; {@code says}: each waiting part's player line ({@code waits[].say}) by part id.
 	 */
 	public record Outcome(Kind kind, String outcome, @Nullable JsonObject plan, String reason, double usd, int rounds, @Nullable String stopped,
-		@Nullable String program, @Nullable JsonObject params, @Nullable String error) {
+		@Nullable String program, @Nullable JsonObject params, @Nullable String error, List<String> leftOut, Map<String, String> says) {
 	}
 
 	/**
@@ -242,21 +342,29 @@ public final class ComposeJob {
 		String stopped = r != null && !str(r, "stopped").isEmpty() ? str(r, "stopped") : null;
 		if (r != null && r.has("cost") && r.get("cost").isJsonPrimitive() && r.get("cost").getAsJsonPrimitive().isNumber()) usd = Math.max(usd, r.get("cost").getAsDouble());
 		JsonObject plan = r != null && r.has("plan") && r.get("plan").isJsonObject() && r.getAsJsonObject("plan").size() > 0 ? r.getAsJsonObject("plan").deepCopy() : null;
+		List<String> leftOut = new ArrayList<>();
+		if (r != null && r.has("leftOut") && r.get("leftOut").isJsonArray()) for (JsonElement e : r.getAsJsonArray("leftOut")) if (e.isJsonPrimitive()) leftOut.add(e.getAsString());
+		Map<String, String> says = new LinkedHashMap<>();
+		if (r != null && r.has("waits") && r.get("waits").isJsonArray()) for (JsonElement e : r.getAsJsonArray("waits")) {
+			if (e.isJsonObject() && !str(e.getAsJsonObject(), "part").isEmpty() && !str(e.getAsJsonObject(), "say").isBlank()) says.put(str(e.getAsJsonObject(), "part"), str(e.getAsJsonObject(), "say").strip());
+		}
+		// CP's player summary; a design from before CP has it only as COMPOSED's reason
+		String summary = !str(r, "summary").isBlank() ? str(r, "summary").strip() : "COMPOSED".equals(outcome) ? str(r, "reason") : "";
 		if (d.status() == Design.Status.DONE && "PICKED".equals(outcome) && !str(r, "program").isEmpty()) {
 			JsonObject params = r.has("params") && r.get("params").isJsonObject() ? r.getAsJsonObject("params").deepCopy() : new JsonObject();
-			return new Outcome(Kind.PICKED, outcome, null, str(r, "reason"), usd, 0, null, str(r, "program"), params, null);
+			return new Outcome(Kind.PICKED, outcome, null, str(r, "reason"), usd, 0, null, str(r, "program"), params, null, List.of(), Map.of());
 		}
 		// a design stopped by its budget keeps its best round's plan in its result: still worth keeping (nothing more is spent)
 		if (plan != null && (d.status() == Design.Status.DONE || d.status() == Design.Status.FAILED)) {
-			String reason = "COMPOSED".equals(outcome) ? str(r, "reason") : "";
-			return new Outcome(Kind.PLAN, outcome.isEmpty() ? "FAILED" : outcome, plan, reason, usd, rounds, stopped, null, null,
-				d.status() == Design.Status.FAILED ? d.error().orElse("failed") : null);
+			return new Outcome(Kind.PLAN, outcome.isEmpty() ? "FAILED" : outcome, plan, summary, usd, rounds, stopped, null, null,
+				d.status() == Design.Status.FAILED ? d.error().orElse("failed") : null, List.copyOf(leftOut), Map.copyOf(says));
 		}
 		String why = d.error().orElse(d.status() == Design.Status.DONE ? "no plan in the answer" : String.valueOf(d.status()).toLowerCase(Locale.ROOT));
-		return new Outcome(Kind.NONE, outcome, null, "", usd, rounds, stopped, null, null, why);
+		// (CP) a compose Architect refused at once (another level than the Overworld) says why in its summary, at $0
+		return new Outcome(Kind.NONE, outcome, null, summary, usd, rounds, stopped, null, null, why, List.copyOf(leftOut), Map.copyOf(says));
 	}
 
-	/** (until CP: skipPick) A PICKED template as a one-zone plan/0 Steward can check and keep: {@code {zones: [{id: town, program: {template, params}}]}}. Pure. */
+	/** (A compose from before CA2, see {@link Kind#PICKED}) A PICKED template as a one-zone plan/0 Steward can check and keep: {@code {zones: [{id: town, program: {template, params}}]}}. Pure. */
 	public static JsonObject pickedPlan(String settlementSlug, String program, JsonObject params) {
 		JsonObject plan = new JsonObject();
 		plan.addProperty("schemaVersion", "plan/0");

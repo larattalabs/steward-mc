@@ -67,7 +67,7 @@ public final class Composer {
 	/** Whether this Architect has the plan check (P0, API 1.23): building from a kept plan needs it. */
 	public static boolean available() {
 		try {
-			return ArchitectApi.get().jobs().available() && ArchitectApi.get().regions().getClass().getMethod("checkPlan", PlanRequest.class) != null;
+			return ArchitectAccess.api().jobs().available() && ArchitectAccess.api().regions().getClass().getMethod("checkPlan", PlanRequest.class) != null;
 		} catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
 			return false;
 		}
@@ -76,11 +76,26 @@ public final class Composer {
 	/** (CA) Whether this Architect composes plans ({@code Regions.compose}, feature {@code compose}, 7c CO/AU) and checks them. */
 	public static boolean composeAvailable() {
 		try {
-			return available() && ArchitectApi.get().features().contains("compose");
+			return available() && ArchitectAccess.api().features().contains("compose");
 		} catch (RuntimeException | LinkageError e) {
 			return false;
 		}
 	}
+
+	/**
+	 * (CA2) Whether the loaded Architect has CP (API 1.63.0, v0.71.0): no template pick, the block families, the player's words, the level and owner on
+	 * the request. Steward composes only with it (fabric.mod.json asks for 0.71.0 already; an older one is refused here, nothing spent).
+	 */
+	public static boolean cpAvailable() {
+		try {
+			return dev.larattalabs.steward.gateway.ComposeJob.cp(ArchitectAccess.api().apiVersion());
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
+	}
+
+	/** What the player is told when the loaded Architect is older than CP: nothing is composed or spent. */
+	static final String NEEDS_CP = "A plan is composed only with Architect 0.71.0 or later: the build takes today's layout.";
 
 	/** Settlement designs already taken (world session + design id): a design ends once, but its answer can come both from DESIGN_DONE and a get. */
 	private static final java.util.Set<String> HANDLED = java.util.concurrent.ConcurrentHashMap.newKeySet();
@@ -112,13 +127,13 @@ public final class Composer {
 	public static void compose(MinecraftServer server, UUID player, Settlement s, String cardJson, @Nullable String land) {
 		int session = Session.current();
 		if (!composeAvailable() || Integer.valueOf(session).equals(COMPOSING.get(s.id()))) return;
-		var level = Districts.level(server, s.claim().dimension());
-		if (level == null) return;
-		if (level.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
-			// until CP: Architect's composer surveys and checks the Overworld only (ComposeRequest has no level; CP adds level and owner): nothing is spent
-			tell(server, player, s, List.of("A plan is composed only in the Overworld for now: the build takes today's layout."));
+		if (!cpAvailable()) {
+			tell(server, player, s, List.of(NEEDS_CP));
 			return;
 		}
+		var level = Districts.level(server, s.claim().dimension());
+		if (level == null) return;
+		// (CP) the level goes with the request: Architect answers another level than the Overworld NO_PLAN at once, at $0, in its own words (onDone)
 		int cx = s.claim().centerX(), cz = s.claim().centerZ(), r = s.claim().radius();
 		var claim = new BoundingBox(cx - r, level.getMinY(), cz - r, cx + r, level.getMaxY(), cz + r);
 		Map<String, BlockPos> anchors = anchors(server, s, player, level);
@@ -128,15 +143,17 @@ public final class Composer {
 			tell(server, player, s, List.of("A plan can't be composed in this world (its id could not be saved): the build takes today's layout."));
 			return;
 		}
-		var req = dev.larattalabs.steward.gateway.ComposeJob.request(s.id(), cardJson, land, claim, anchors, player.toString());
+		var req = dev.larattalabs.steward.gateway.ComposeJob.request(s.id(), cardJson, land, claim, anchors, player.toString(), level, s.owner());
 		// the key carries this settlement's card sha (not the passed JSON's): the staleness check reads the saved card the same way
 		req = new dev.larattalabs.architect.api.ComposeRequest(req.brief(), req.claim(), req.styleId(), req.images(), req.budgetUsd(),
-			dev.larattalabs.steward.gateway.ComposeJob.opKey(world + "." + s.id(), sha), withCard(req.ext(), sha, claimKey(s), world));
+			dev.larattalabs.steward.gateway.ComposeJob.opKey(world + "." + s.id(), sha), withCard(req.ext(), sha, claimKey(s), world), req.level(), req.owner());
 		COMPOSING.put(s.id(), session);
 		// the old card's plan (if any) must not build this card, whatever this compose comes to
 		PlanStore.remove(s.id());
-		Steward.LOGGER.info("plan writer: compose (Architect's Regions.compose, key {}, cap ${})", req.opKey(), req.budgetUsd());
-		ArchitectApi.get().regions().compose(req).whenComplete((id, err) -> server.execute(() -> {
+		Steward.LOGGER.info("plan writer: compose (Architect's Regions.compose, key {}, cap ${}, skipPick {}, composeVocab {}, level {}, owner {})", req.opKey(), req.budgetUsd(),
+			req.ext().get(dev.larattalabs.architect.api.ComposeRequest.EXT_SKIP_PICK), req.ext().get(dev.larattalabs.architect.api.ComposeRequest.EXT_VOCAB),
+			level.dimension().identifier(), req.owner());
+		ArchitectAccess.api().regions().compose(req).whenComplete((id, err) -> server.execute(() -> {
 			if (!Session.is(session)) return;
 			if (err != null) {
 				Throwable c = err instanceof java.util.concurrent.CompletionException && err.getCause() != null ? err.getCause() : err;
@@ -147,7 +164,7 @@ public final class Composer {
 			}
 			Steward.LOGGER.info("plan for {}: composing as design {}", s.id(), id);
 			// a key that adopted a compose already ended answers at once (DESIGN_DONE fired before)
-			ArchitectApi.get().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(d -> {
+			ArchitectAccess.api().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(d -> {
 				// taken again even if this session kept it before (the plan was dropped when this compose started), unless it is being checked now
 				if (d.id().equals(CHECKING.get(s.id()))) return;
 				HANDLED.remove(Session.current() + "#" + d.id());
@@ -169,12 +186,12 @@ public final class Composer {
 		var level = server.overworld();
 		var claim = new BoundingBox(at.getX() - RECORD_RADIUS, level.getMinY(), at.getZ() - RECORD_RADIUS, at.getX() + RECORD_RADIUS, level.getMaxY(), at.getZ() + RECORD_RADIUS);
 		String sha = dev.larattalabs.steward.gateway.ComposeJob.cardSha(cardJson);
-		var base = dev.larattalabs.steward.gateway.ComposeJob.request("record_" + label, cardJson, null, claim, Map.of("stone", at, "player", at), null);
+		var base = dev.larattalabs.steward.gateway.ComposeJob.request("record_" + label, cardJson, null, claim, Map.of("stone", at, "player", at), null, level, null);
 		var ext = base.ext().deepCopy();
 		// not a settlement's: no Steward member, so onDone leaves it
 		ext.remove(dev.larattalabs.steward.gateway.ComposeJob.EXT_SETTLEMENT);
 		var req = new dev.larattalabs.architect.api.ComposeRequest(base.brief(), claim, null, false, Math.min(capUsd, dev.larattalabs.steward.gateway.ComposeJob.BUDGET_USD),
-			dev.larattalabs.steward.gateway.ComposeJob.opKey(world(server) + ".record." + label, sha), ext);
+			dev.larattalabs.steward.gateway.ComposeJob.opKey(world(server) + ".record." + label, sha), ext, level, null);
 		JsonObject card = com.google.gson.JsonParser.parseString(cardJson).getAsJsonObject();
 		java.util.function.Consumer<JsonObject> write = o -> {
 			try {
@@ -186,7 +203,7 @@ public final class Composer {
 			Steward.LOGGER.info("record_plan {}: {}", label, o.has("error") ? o.get("error").getAsString() + String.format(java.util.Locale.ROOT, " ($%.4f)", o.get("usd").getAsDouble())
 				: String.format(java.util.Locale.ROOT, "$%.4f", o.get("usd").getAsDouble()));
 		};
-		ArchitectApi.get().regions().compose(req).whenComplete((id, err) -> server.execute(() -> {
+		ArchitectAccess.api().regions().compose(req).whenComplete((id, err) -> server.execute(() -> {
 			if (err != null) {
 				JsonObject o = new JsonObject();
 				Throwable c = err.getCause() != null ? err.getCause() : err;
@@ -205,7 +222,7 @@ public final class Composer {
 				write.accept(recorded(d, card));
 			};
 			dev.larattalabs.architect.api.SiteEvents.DESIGN_DONE.register(d -> server.execute(() -> finish.accept(d)));
-			ArchitectApi.get().designs().get(id).ifPresent(finish);
+			ArchitectAccess.api().designs().get(id).ifPresent(finish);
 		}));
 	}
 
@@ -234,7 +251,7 @@ public final class Composer {
 			String part = w.getAsJsonObject().get("part").getAsString();
 			JsonObject x = new JsonObject();
 			x.addProperty("part", part);
-			x.addProperty("words", notes.getOrDefault(part, part.replace('_', ' ') + " waits (" + dev.larattalabs.steward.gateway.ComposeJob.str(w.getAsJsonObject(), "class") + ")"));
+			x.addProperty("words", o.says().getOrDefault(part, notes.getOrDefault(part, part.replace('_', ' ') + " waits (" + dev.larattalabs.steward.gateway.ComposeJob.str(w.getAsJsonObject(), "class") + ")")));
 			waits.add(x);
 		}
 		answer.add("waits", waits);
@@ -243,6 +260,9 @@ public final class Composer {
 		com.google.gson.JsonArray missing = new com.google.gson.JsonArray();
 		dev.larattalabs.steward.gateway.ComposeJob.missing(card, plan).forEach(missing::add);
 		out.add("missing", missing);
+		com.google.gson.JsonArray left = new com.google.gson.JsonArray();
+		o.leftOut().forEach(left::add);
+		out.add("leftOut", left);
 		out.addProperty("hiddenMissing", dev.larattalabs.steward.gateway.ComposeJob.asksHidden(card) && !dev.larattalabs.steward.gateway.ComposeJob.hasHiddenRoom(plan));
 		return out;
 	}
@@ -322,7 +342,7 @@ public final class Composer {
 	 */
 	static void reconcile(MinecraftServer server) {
 		try {
-			for (var d : ArchitectApi.get().designs().list(null)) if (d.status().isFinal()) onDone(server, d);
+			for (var d : ArchitectAccess.api().designs().list(null)) if (d.status().isFinal()) onDone(server, d);
 		} catch (RuntimeException | LinkageError e) {
 			Steward.LOGGER.info("plan writer: no designs to reconcile ({})", e.toString());
 		}
@@ -377,17 +397,20 @@ public final class Composer {
 			}
 		}
 		var o = dev.larattalabs.steward.gateway.ComposeJob.interpret(d);
-		Steward.LOGGER.info("plan for {}: Architect's compose {} ({} round(s){}), ${}", s.id(), o.outcome(), o.rounds(), o.stopped() != null ? ", stopped: " + o.stopped() : "",
-			String.format(java.util.Locale.ROOT, "%.3f", o.usd()));
+		Steward.LOGGER.info("plan for {}: Architect's compose {} ({} round(s){}{}), ${}", s.id(), o.outcome(), o.rounds(), o.stopped() != null ? ", stopped: " + o.stopped() : "",
+			o.leftOut().isEmpty() ? "" : ", street round left out: " + o.leftOut(), String.format(java.util.Locale.ROOT, "%.3f", o.usd()));
+		if (!o.reason().isBlank()) Steward.LOGGER.info("plan for {}: Architect's summary: {}", s.id(), o.reason());
 		int session = Session.current();
 		JsonObject plan;
 		String summary;
 		switch (o.kind()) {
 			case NONE -> {
-				done(s, "The plan could not be composed (" + o.error() + "): the build takes today's layout.", server, player);
+				// (CP) a compose refused at once says why in Architect's words ("regions can only be built in the Overworld for now")
+				done(s, o.reason().isBlank() ? "The plan could not be composed (" + o.error() + "): the build takes today's layout."
+					: "No plan was composed: " + o.reason() + ". The build takes today's layout.", server, player);
 				return;
 			}
-			// until CP: a PICKED template (compose's pick can't be skipped; CP's ext architect_mc:skipPick=true) is kept as a one-zone plan
+			// a compose asked before CA2 (with Architect's template pick) that ends after the update: its template is kept as a one-zone plan
 			case PICKED -> {
 				plan = dev.larattalabs.steward.gateway.ComposeJob.pickedPlan(slug(s.name()), o.program(), o.params());
 				summary = "Architect matched its " + o.program().replace('_', ' ') + " layout to the card: the layout places its own buildings, not the card's list.";
@@ -407,7 +430,7 @@ public final class Composer {
 				done(s, "Architect could not check the plan (" + cerr.getMessage() + "): the build takes today's layout.", server, who);
 				return;
 			}
-			checked(server, who, s, session, plan, composed, c, List.of(), false);
+			checked(server, who, s, session, plan, composed, c);
 		}));
 	}
 
@@ -431,25 +454,10 @@ public final class Composer {
 	}
 
 	/**
-	 * After Steward's check: a free layout's street fragment is applied first ({@link #streetFixes}, at most once, $0); then the plan is kept. Architect's
-	 * compose did the paid repairs, so Steward runs none. {@code leftOut}: the lots the applied fragments dropped.
+	 * After Steward's check, the plan is kept. Architect's compose did the paid repairs and (CP) its own $0 street round, so Steward runs neither; the lots
+	 * that street round dropped are the result's {@code leftOut}.
 	 */
-	private static void checked(MinecraftServer server, UUID player, Settlement s, int session, JsonObject plan, Composed composed, PlanCheck c, List<String> leftOut,
-		boolean fixed) {
-		// until CP: the street wouldFit runs inside compose as a $0 round (default on), and this pass goes at the CP pin
-		var fix = fixed ? null : streetFixes(plan, c);
-		if (fix != null) {
-			Steward.LOGGER.info("plan for {}: {} as street, Architect's wouldFit applied (left out: {})", s.id(), fix.parts(), fix.leftOut());
-			check(server, s, fix.plan(), player).whenComplete((c2, cerr) -> server.execute(() -> {
-				if (!Session.is(session)) return;
-				if (cerr != null) {
-					done(s, "Architect could not check the plan (" + cerr.getMessage() + "): the build takes today's layout.", server, player);
-					return;
-				}
-				checked(server, player, s, session, fix.plan(), composed, c2, fix.leftOut(), true);
-			}));
-			return;
-		}
+	private static void checked(MinecraftServer server, UUID player, Settlement s, int session, JsonObject plan, Composed composed, PlanCheck c) {
 		// the card, claim or world may have changed during the checks: kept only while the design still matches
 		var now = Settlements.store().get(s.id()).orElse(null);
 		if (!current(server, composed.ext(), now)) {
@@ -458,56 +466,7 @@ public final class Composer {
 			CHECKING.remove(s.id());
 			return;
 		}
-		keep(server, player, now, plan, composed, c, leftOut);
-	}
-
-	/** A plan with Architect's street fragments applied: the parts changed and the lots left out ("townhouse 4"). */
-	record StreetFix(JsonObject plan, List<String> parts, List<String> leftOut) {
-	}
-
-	/**
-	 * (Architect GH; Noah, 2026-11-04: strict, with a hint) A zone with a free layout refused {@code NO_ROOM} whose evidence names the street layout
-	 * ({@code alt: "street"}) carries one {@code wouldFit}: the zone's program as street, without the lots street cannot place ({@code altDropped}). It is
-	 * one repair, applied as it is (no Claude round): the plan with every such fragment applied, and the lots they drop; null when no part has one.
-	 */
-	static @Nullable StreetFix streetFixes(JsonObject plan, PlanCheck c) {
-		JsonObject out = plan.deepCopy();
-		List<String> parts = new ArrayList<>();
-		List<String> leftOut = new ArrayList<>();
-		for (JsonObject part : c.parts()) {
-			if (!"refused".equals(cls(part)) || !part.has("wouldFit") || !part.get("wouldFit").isJsonArray() || part.getAsJsonArray("wouldFit").size() != 1) continue;
-			JsonObject ev = streetEvidence(part);
-			var w = part.getAsJsonArray("wouldFit").get(0);
-			if (ev == null || !w.isJsonObject() || !w.getAsJsonObject().has("fragment") || !w.getAsJsonObject().get("fragment").isJsonObject()) continue;
-			String id = w.getAsJsonObject().has("part") ? w.getAsJsonObject().get("part").getAsString() : part.has("part") ? part.get("part").getAsString() : null;
-			JsonObject zone = id == null ? null : zone(out, id);
-			if (zone == null) continue;
-			for (var e : w.getAsJsonObject().getAsJsonObject("fragment").entrySet()) zone.add(e.getKey(), e.getValue().deepCopy());
-			parts.add(id);
-			if (ev.has("altDropped") && ev.get("altDropped").isJsonArray()) for (var d : ev.getAsJsonArray("altDropped")) leftOut.add(d.getAsString().replace('_', ' '));
-		}
-		return parts.isEmpty() ? null : new StreetFix(out, List.copyOf(parts), List.copyOf(leftOut));
-	}
-
-	/** A refused part's {@code NO_ROOM} evidence naming the street layout as its alternative; else null. */
-	private static @Nullable JsonObject streetEvidence(JsonObject part) {
-		if (!part.has("reasons") || !part.get("reasons").isJsonArray()) return null;
-		for (var r : part.getAsJsonArray("reasons")) {
-			if (!r.isJsonObject() || !r.getAsJsonObject().has("code") || !"NO_ROOM".equals(r.getAsJsonObject().get("code").getAsString())) continue;
-			if (!r.getAsJsonObject().has("evidence") || !r.getAsJsonObject().get("evidence").isJsonObject()) continue;
-			var ev = r.getAsJsonObject().getAsJsonObject("evidence");
-			if (ev.has("alt") && "street".equals(ev.get("alt").getAsString())) return ev;
-		}
-		return null;
-	}
-
-	/** The plan's zone {@code id}; else null. */
-	private static @Nullable JsonObject zone(JsonObject plan, String id) {
-		if (!plan.has("zones") || !plan.get("zones").isJsonArray()) return null;
-		for (var z : plan.getAsJsonArray("zones")) {
-			if (z.isJsonObject() && z.getAsJsonObject().has("id") && id.equals(z.getAsJsonObject().get("id").getAsString())) return z.getAsJsonObject();
-		}
-		return null;
+		keep(server, player, now, plan, composed, c, composed.outcome().leftOut());
 	}
 
 	/** Architect's check of {@code plan} over {@code s}'s claim, the stone and (when in the claim) the player as anchors. */
@@ -520,7 +479,7 @@ public final class Composer {
 		// a part whose check reads the rock under the land (a tunnel, roots, stalactites: the catalogue's limits.volume, S-F3-3) may load (and generate) the
 		// chunks it needs (T3, S-T3-6): else an unloaded volume answers incomplete VOLUME
 		var load = needsVolume(plan, volumeBlocks()) ? dev.larattalabs.architect.api.LoadPolicy.LOAD_BOUNDED(TUNNEL_CHUNKS) : null;
-		return ArchitectApi.get().regions().checkPlan(new PlanRequest(plan, level, claim, anchors, s.owner(), null, null, null, null, new JsonObject(), load));
+		return ArchitectAccess.api().regions().checkPlan(new PlanRequest(plan, level, claim, anchors, s.owner(), null, null, null, null, new JsonObject(), load));
 	}
 
 	/** At most this many chunks a check of a plan with a tunnel loads for its survey and volume pass (Architect's caps bound the cells as well). */
@@ -530,7 +489,7 @@ public final class Composer {
 	static java.util.Set<String> volumeBlocks() {
 		java.util.Set<String> out = new java.util.HashSet<>();
 		try {
-			JsonObject c = ArchitectApi.get().regions().planCatalogue();
+			JsonObject c = ArchitectAccess.api().regions().planCatalogue();
 			if (c != null && c.has("entries") && c.get("entries").isJsonArray()) {
 				for (var e : c.getAsJsonArray("entries")) {
 					if (!e.isJsonObject() || !e.getAsJsonObject().has("id") || !e.getAsJsonObject().has("limits") || !e.getAsJsonObject().get("limits").isJsonObject()) continue;
@@ -595,8 +554,9 @@ public final class Composer {
 	private static void keep(MinecraftServer server, UUID player, Settlement s, JsonObject plan, Composed composed, PlanCheck c, List<String> leftOut) {
 		double cost = composed.outcome().usd();
 		int rounds = Math.max(0, composed.outcome().rounds() - 1);
-		// a waiting part's words for the player: its own notes (Steward's rules ask for one plain sentence there); until CP: its waits[].say
-		Map<String, String> words = notes(plan);
+		// a waiting part's words for the player: Architect's (CP's waits[].say, $0 from its check), else the part's own notes (a design from before CP)
+		Map<String, String> words = new HashMap<>(notes(plan));
+		words.putAll(composed.outcome().says());
 		List<PlanStore.Pending> pending = new ArrayList<>();
 		List<String> unfit = new ArrayList<>();
 		// (S-7c-4) the plan's hidden rooms are never named to the player: kept (a waiting one stays pending, so the build doesn't require it), never said
@@ -620,7 +580,7 @@ public final class Composer {
 					words.getOrDefault(id, id.replace('_', ' ') + " waits for a later Architect release")));
 				case "blocked" -> pending.add(new PlanStore.Pending(id, part.has("block") ? part.get("block").getAsString() : "", required,
 					unplacedEnd(part) != null ? id.replace('_', ' ') + " waits on " + unplacedEnd(part) + ", which there wasn't room to place"
-						: id.replace('_', ' ') + " waits on another part of the plan that can't be built yet"));
+						: composed.outcome().says().getOrDefault(id, id.replace('_', ' ') + " waits on another part of the plan that can't be built yet")));
 				case "refused", "malformed" -> unfit.add(id.replace('_', ' ') + (code(part) != null ? " (" + code(part) + ")" : ""));
 				default -> {
 				}
@@ -632,7 +592,7 @@ public final class Composer {
 		boolean hiddenMissing = card != null && dev.larattalabs.steward.gateway.ComposeJob.asksHidden(card) && !dev.larattalabs.steward.gateway.ComposeJob.hasHiddenRoom(plan);
 		// Claude's summary and what waits, without a sentence that names a secret. A card asking for something hidden that the plan doesn't write gets the
 		// plan's own plain summary instead of Claude's, which may describe it as built (hidden_village, 11-13); what is missing is said after it.
-		// until CP: NO_PLAN has no summary in the composer's words (CP's result.summary)
+		// (CP) result.summary, COMPOSED's and NO_PLAN's alike; a plain one from the plan only when no round answered
 		String told = composed.summary().isBlank() || hiddenMissing ? summaryOf(plan) : composed.summary();
 		List<String> honest = new ArrayList<>();
 		if (!missing.isEmpty()) honest.add("Not in the plan: " + words(missing.stream().map(m -> secrets.scrub(m).isBlank() || dev.larattalabs.steward.gateway.ComposeJob.secretish(m)
@@ -723,7 +683,7 @@ public final class Composer {
 	static @Nullable JsonObject artifactBody(PlanCheck c) {
 		if (c.artifactSha() == null) return null;
 		try {
-			return ArchitectApi.get().regions().artifact(c.artifactSha()).map(a -> a.body()).orElse(null);
+			return ArchitectAccess.api().regions().artifact(c.artifactSha()).map(a -> a.body()).orElse(null);
 		} catch (RuntimeException | LinkageError e) {
 			return null;
 		}
