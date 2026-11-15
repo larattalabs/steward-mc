@@ -251,10 +251,10 @@ class ModuleCatalogTest {
 
 	@Test
 	void theLiveCropFarmIsCertifiedAndOfferedOnItsMeasuredVersionsOnly() {
-		// crop_farm@1 (slice M2): measured.json certifies these exact files on Minecraft 26.3 and Architect 0.69.0, by a smoke check carrying
+		// crop_farm@1 (slice M2): measured.json certifies these exact files on Minecraft 26.3 and Architect 0.70.0, by a smoke check carrying
 		// the full measurement on 0.67.0 (speed rule 4; docs/MEASURE-M2.md)
 		ModuleCatalog live = ModuleCatalog.live(getClass().getClassLoader());
-		var env = new ModuleGate.Env("26.3", "0.69.0", java.util.Set.of(ModuleGate.FEATURE), false, false);
+		var env = new ModuleGate.Env("26.3", "0.70.0", java.util.Set.of(ModuleGate.FEATURE), false, false);
 		var v = ModuleGate.offer(live, "crop_farm", env);
 		assertTrue(v.ok(), v.message());
 		assertEquals(List.of(), v.entry().uncertified());
