@@ -1506,6 +1506,7 @@ public final class SettlementRunner {
 		var req = Districts.besideRequest(level, settlement, town.get().id(), request, district.id(), lots, opKey("vplan"), buildId, district.kind(), district.follow());
 		say("Laying out " + district.name() + " beside the town (its street and its road to the town's street)...");
 		int session = Session.current();
+		if (regionMaterials()) districtPlannedMaterials = true;
 		regions.plan(req).whenComplete((rp, err) -> server.execute(() -> {
 			if (!Session.is(session) || !alive()) return;
 			if (worldStopped(err)) return;
@@ -2371,13 +2372,17 @@ public final class SettlementRunner {
 	}
 
 	/**
-	 * (slice SD) A district's own region, its first building (never a growth, never a composed plan's artifact): quoted before its realise in either mode,
-	 * since the quote says the mode its plan was made in (Architect builds a survival plan from materials whatever the request asks, and the world's mode
-	 * can change while it is designed); one from materials is said and approved, one built at once goes on unsaid.
+	 * (slice SD) A district's own region from materials, its first building (never a growth, never a composed plan's artifact): quoted and approved before
+	 * its realise. From materials when the world builds so now, or when it did as its plan was made (this session): a world turned off and on while the
+	 * buildings were designed can't skip the bill. A district built at once is never quoted (a quote refusal can't end a creative build).
 	 */
 	private boolean districtFromMaterials() {
-		return districtId != null && !growth() && vPlanId != null && dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId) == null;
+		return districtId != null && !growth() && vPlanId != null && dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId) == null
+			&& (regionMaterials() || districtPlannedMaterials);
 	}
+
+	/** (slice SD) The world built regions from materials when this build planned its district (in memory). */
+	private boolean districtPlannedMaterials;
 
 	/** (slice SD) The quote said and approved for exactly this plan and these entries (in memory: a restart quotes and asks again before placing). */
 	private @org.jspecify.annotations.Nullable String districtCleared, districtShown;
@@ -3486,6 +3491,7 @@ public final class SettlementRunner {
 		for (var x : dev.larattalabs.steward.gateway.VPlan.params(districtSpecs, settlement.id(), buildId).getAsJsonArray("lots")) lots.add(x.getAsJsonObject());
 		say("The land beside " + district.name() + " changed while its buildings were designed (" + message(err) + "): laying it out again.");
 		int session = Session.current();
+		if (regionMaterials()) districtPlannedMaterials = true;
 		regions.plan(Districts.besideRequest(level(), settlement, town.get().id(), request, district.id(), lots, opKey("vplan2"), buildId, district.kind(), district.follow()))
 			.whenComplete((rp, perr) -> server.execute(() -> {
 				if (!Session.is(session) || !alive() || worldStopped(perr)) return;

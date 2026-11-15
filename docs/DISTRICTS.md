@@ -319,7 +319,7 @@ its targets join the owner's feed order after the town's (RS "Ids and order"); t
 
 - **The first building** (`planDistrict`): `Stockpiles.ensure` and `protectCrates` before the plan (none: nothing spent); the realise asks
   `Mode.CONSTRUCTION`.
-- **The bill** (`quoteDistrict`): `Regions.quote` with the final entries, said before the placement approval ("From materials, <district> needs ...",
+- **The bill** (`quoteDistrict`, only for a district from materials: the world builds so now, or did when its plan was made this session; a creative district is never quoted, the manager 2026-11-15): `Regions.quote` with the final entries, said before the placement approval ("From materials, <district> needs ...",
   "about" with Architect's note when not exact). The approval is bound to that plan and those entries: a re-plan, or a restart before the realise,
   quotes and asks again (`HoldBill`); a realise Architect already has under the build's keys is picked up instead. A quote that fails, or leaves a
   part unbilled (`ModulePlacement.quoteCheck`), ends the build before anything is consumed. Placed without an approval (autonomy), an exact bill goes
