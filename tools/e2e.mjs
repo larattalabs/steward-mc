@@ -4929,13 +4929,14 @@ async function moduleHallFlow() {
   // cargo: the undo is refused and said with the count (Q3), nothing changes
   await devModule({ op: 'putItems', at: input.at, stacks: [{ slot: 0, id: 'minecraft:cobblestone', count: 64 }, { slot: 1, id: 'minecraft:iron_ingot', count: 10 }] });
   from = logSize();
-  await cmd(`/steward undo ${id}`);
-  const said = await waitLog(from, /the storage hall still holds 74 items in 1 chest; empty it first[^\n]*/, 120_000);
+  const undoSaid = await cmd(`/steward undo ${id}`);
+  await sleep(5000);
+  const said = `${undoSaid}\n${logSince(from)}`.match(/the storage hall still holds 74 items in 1 chest; empty it first[^\n]*/);
   const still = await devModule({ op: 'containers', box: sb });
   const kept = (still?.totals ?? {})['minecraft:cobblestone'] === 64 && (still?.totals ?? {})['minecraft:iron_ingot'] === 10;
   const last0 = settlements().find((x) => x.id === id)?.log.at(-1);
   if (said && kept && last0?.kind !== 'PROJECT_REMOVED') ok(`${label} undo refused`, said[0].slice(0, 200));
-  else return fail(`${label} undo refused`, `said ${!!said}; kept ${kept}; last ${last0?.kind}; ${logSince(from).slice(-300)}`);
+  else return fail(`${label} undo refused`, `said ${!!said}; kept ${kept}; last ${last0?.kind}; ${undoSaid} ${logSince(from).slice(-300)}`);
   // emptied: undone, the ground as before the growth
   await devModule({ op: 'clearContainers', box: sb });
   from = logSize();
