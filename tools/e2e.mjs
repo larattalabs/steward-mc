@@ -323,7 +323,7 @@ async function preflight() {
     if (cwd == null || realPath(cwd) === realPath(GAME)) throw new Error(`a Steward client already runs on ${GAME}; quit it first`);
   }
   // the sidecar's data on the RAM disk when it's there (the 11-14 machine audit: ~3 GB written per worktree per 30 min); the world, logs and shots stay on disk
-  const sd = ramSidecarData(GAME);
+  const sd = ramSidecarData(GAME, process.env, undefined, { fresh: true });
   ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}`);
 }
 

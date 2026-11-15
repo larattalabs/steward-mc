@@ -28,7 +28,7 @@ export function useRamTmp(env = process.env, root = RAM_TMP) {
  * to `sidecar-data.ssd`, never deleted. When the volume is down, a symlink left dangling by a reboot is replaced by an empty directory, and a
  * real directory is left as it is. Returns {mode: 'ram'|'disk', dir, moved?}.
  */
-export function ramSidecarData(gameDir, env = process.env, root = RAM_TMP) {
+export function ramSidecarData(gameDir, env = process.env, root = RAM_TMP, { fresh = false } = {}) {
   const link = path.join(gameDir, 'architect', 'sidecar-data');
   fs.mkdirSync(path.dirname(link), { recursive: true });
   let st = null;
@@ -41,6 +41,9 @@ export function ramSidecarData(gameDir, env = process.env, root = RAM_TMP) {
   }
   const hash = (s) => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.codePointAt(0), 16777619) >>> 0; return h.toString(16); };
   const target = path.join(root, 'steward', `sidecar-${hash(path.resolve(gameDir))}`);
+  // fresh (an e2e run, whose world is new): start from an empty directory. The sidecar's designs, bibles and jobs pile up run after run
+  // (6 GB in one checkout by 11-15), and a 24 GB RAM disk shared by every worktree filled up (ENOSPC) mid-run
+  if (fresh) fs.rmSync(target, { recursive: true, force: true });
   fs.mkdirSync(target, { recursive: true });
   let moved = null;
   if (st?.isSymbolicLink()) {
