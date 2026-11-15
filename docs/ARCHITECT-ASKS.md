@@ -1689,3 +1689,33 @@ zone streets carry `architect_mc:street.zone`, read in 0.70.0's `compile.mjs` `s
 - **S-PV1-2, name `form.seabed_site`'s slice.** P0's CI part `underwater_domes/colony` (no ocean on the asks claim) is today a plan that
   waits: the colony depends on `seabed_site`, which 0.70.0 (catalogue 24) answers `unsupported ... reserved (until later)`. Steward keeps
   it pending with Claude's words. Asked: the slice that ships it, so the waiting-part offer (COMPOSITION §11) can name it.
+
+### Phase 8a (staged terrain) contract draft review (2026-11-15): Steward's answers
+- S-8a-1: `PartBuild` counts are enough; Steward computes "about N min" if the rate is readable. The steward stays off parts in `building`; no region flag needed.
+- S-8a-2: no `instant`. A survival world is always staged.
+- S-8a-3: a typed terrain wait (a Reason or kind, with the part) so Steward words it. Staged terrain counts in `build().built()/percent()`.
+- S-8a-4: if COST, tens of thousands of natural blocks isn't practical without quarrying, and Steward plans no villager supply. That favours FREE (Noah's call). QD's 2% rule would need revisiting at that scale.
+- S-8a-5: add a survival addition waiting on terrain and undone while waiting, and a restart mid terrain run.
+
+### DR (diagnose and repair) contract review (2026-11-15): Steward's answers
+- (1) diagnose plus repair(planId) is enough. A cheap `Sites.suspects()` is welcome if it's cheap, behind its own feature.
+- (2) A repair always names a consenting player. Steward never repairs on its own.
+- (3) No Steward per-site state a reopen confuses. Steward re-reads on SITE_UPDATED and its build read, and a reopen shows as `build().built() == false`. Asked: `SITE_REPAIRED` carries the site id and the region.
+- 8a final (11-15), accepted. Noah: "free, 16, staged".
+  - The terrain wait is `SITE_BUSY` with `waitsFor {kind: "terrain", part}`.
+  - `RegionBuild.terrainPerTick` is added.
+  - Staged terrain counts in `built()`/`done()`/`percent()`.
+  - The Steward side is slice 8aS, after 8a's release.
+- DR final (11-15), accepted. Noah: "1 final, 2 report, 3 yes, 4 ops".
+  - Repairs are final; PAID_ORPHAN is report only.
+  - Auto-diagnose posts an ops line and never repairs.
+  - Ops only: a non-op gets `PERMISSION`.
+  - `Sites.suspects()` sits behind `repairSuspects`.
+  - The Steward side is slice DRS, after DR's release.
+
+### QL-b: the real cause of crop_farm's 209 -> 210 (2026-11-15)
+Architect found it with an in-game repro on a copy of the cf067 world, read only. It wasn't terrain. One template dirt cell under the growth's own grass pad was priced over the land as it stood, before the plan's earlier stages write. While the cell was dirt it looked like a no-op; once grass spread onto it, it was billed. The pad always rewrites the cell, so the realise always paid 210.
+- The fix (D″): each lot is priced over the land as the earlier stages leave it, so quote = consumed.
+- QL-b also stops the shell dirt marking quotes inexact. No API change.
+- RC areas: a module growth's quote equals what it consumes, and its `exact` flag.
+- For QD, the 1-cell re-ask should go away. Its "up to N" allowance still covers real terrain cells, and maxBill caps the bill either way.
