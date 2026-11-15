@@ -1655,3 +1655,9 @@ After an unclean start, RL's reconcile charges what stands without counting `max
   - `RegionBuild.terrainPerTick` is added.
   - Staged terrain counts in `built()`/`done()`/`percent()`.
   - The Steward side is slice 8aS, after 8a's release.
+- DR final (11-15), accepted. Noah: "1 final, 2 report, 3 yes, 4 ops".
+  - Repairs are final; PAID_ORPHAN is report only.
+  - Auto-diagnose posts an ops line and never repairs.
+  - Ops only: a non-op gets `PERMISSION`.
+  - `Sites.suspects()` sits behind `repairSuspects`.
+  - The Steward side is slice DRS, after DR's release.
