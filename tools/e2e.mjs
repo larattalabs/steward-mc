@@ -3399,16 +3399,18 @@ async function suppliedGrowthFlow(mode = null) {
       const mine = new Set([...(siteIds ?? []), ...(r?.sites ?? [])]);
       const left = (spAfter?.sites ?? []).filter((x) => mine.has(x.id)).map((x) => `${x.id} ${x.state}`);
       const area = crates();
-      // a diff cell names its place as pos "x,y,z" (E2E-CX: this read x.x/x.z before, so the crates' cells were never left out)
-      const inCrates = (c) => { const [x, , z] = String(c.pos ?? '').split(',').map(Number); return area && x >= area.x0 && x <= area.x1 && z >= area.z0 && z <= area.z1; };
-      const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snapPre }, { timeoutMs: 1_800_000 });
-      const off = (d.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)) && !inCrates(x));
+      // the crates left out by Architect's diff (their contents change with the bills and the refund), growing plants aside, and the whole
+      // count judged from d.classes: d.list is capped (2,000), so a leftover block past the cap would be missed (E2E-CX; batch-2 GPT review)
+      const exclude = area ? [[area.x0, box[1], area.z0, area.x1, box[4], area.z1]] : [];
+      const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snapPre, exclude }, { timeoutMs: 1_800_000 });
+      const offCount = d.classes ? Object.entries(d.classes).filter(([k]) => !/^(growth|grazed)$/.test(k)).reduce((a, [, v]) => a + v, 0) : -1;
+      const off = (d.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
       const owing = Object.keys(spAfter?.outstanding ?? {}).length;
       const good = r?.state === 'UNDONE' && (!wantPaid || Object.keys(paid).length > 0) && sameItems(back, paid) && sameItems(gain, expected) && !Object.keys(over).length
-        && !Object.keys(again).length && once && !left.length && !owing && off.length === 0 && !(sinceLog != null && builtRe.test(logSince(sinceLog)));
+        && !Object.keys(again).length && once && !left.length && !owing && offCount === 0 && !(sinceLog != null && builtRe.test(logSince(sinceLog)));
       const said = `${tag} ${r?.state}; paid ${JSON.stringify(paid).slice(0, 120)}; back ${JSON.stringify(back).slice(0, 120)}; stock +${JSON.stringify(gain).slice(0, 100)} (expected ${JSON.stringify(expected).slice(0, 100)})`;
       if (good) ok(lbl, `${said}; once (${placedN} entry, ${removedN + noteN} completion, nothing more 20 s on); no feed left; the ground as before`);
-      else fail(lbl, `${said}; overflow ${JSON.stringify(over)}; more ${JSON.stringify(again)}; entries ${placedN}/${removedN}/${noteN}; built said ${sinceLog != null && builtRe.test(logSince(sinceLog))}; left ${left.slice(0, 4).join(', ')}; owing ${owing}; ${off.length} cell(s) differ ${JSON.stringify(off.slice(0, 3))}`);
+      else fail(lbl, `${said}; overflow ${JSON.stringify(over)}; more ${JSON.stringify(again)}; entries ${placedN}/${removedN}/${noteN}; built said ${sinceLog != null && builtRe.test(logSince(sinceLog))}; left ${left.slice(0, 4).join(', ')}; owing ${owing}; ${offCount} cell(s) differ ${JSON.stringify(off.slice(0, 3))}`);
       return good;
     };
     /** Feeds part of what the stockpile owes until something is drawn (half of each kind, then all but the kind owed least), leaving something owed. */
