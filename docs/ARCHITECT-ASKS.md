@@ -1586,4 +1586,9 @@ Noah picked `minecraft:petrified_oak_slab` as the storage hall's filler (PLAN De
 - (3) The conservation judges count it as the module's own part.
 - (4) Possibly an allow-list of creative-only plain items, so the mark can't mint goods.
 
-Waiting for Architect's answer and version.
+Architect's answer (11-14), accepted:
+- It's slice FK-b: strict, additive, after J1, probably v0.70.0. Its contract comes to Steward for review.
+- (1)-(3) are as asked.
+- (4) a fixed allow-list, `minecraft:petrified_oak_slab` only. Anything else marked module-provided is refused at plan time.
+- The fillers are stripped from a declared fill container before it drops (a player break, explosions if feasible), so they never drop. Paths FK-b can't cover are named in the contract.
+- Steward asked that a repair (the target re-placed) write the fillers again, unbilled.
