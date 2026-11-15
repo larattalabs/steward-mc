@@ -619,21 +619,16 @@ async function survival() {
       const ps0 = await pile();
       const g = await growHalls(region, sp, { survival: true });
       if (check(!g.refused, `cancel growth svc8: ${g.refused ? String(g.refused).slice(0, 300) : `rid ${g.rid}`}`)) {
-        // half of what the growth's targets owe, once they owe it (the stockpile accepts deliveries for what is outstanding)
-        let owed = {};
-        for (let i = 0; i < 60 && !Object.keys(owed).length; i++) {
-          await sleep(5000);
+        // fed as the bill growths are (deliveries of what its targets lack), but half of it a wave, until it has consumed something; then undone
+        // at once, mid-build
+        let half = {};
+        for (let i = 0; i < 90; i++) {
           const ps = await pile();
-          owed = Object.fromEntries(Object.entries(ps.outstanding ?? {}).map(([it, n]) => [it, n - (ps.stock?.[it] ?? 0)]).filter(([, n]) => n > 0));
-        }
-        const half = {};
-        for (const [it, n] of Object.entries(owed)) if (Math.floor(n / 2) > 0) half[it] = Math.floor(n / 2);
-        await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: half, exact: true }, 120_000);
-        // mid-build: wait until the growth has consumed something (its targets place as they are fed), at most 5 minutes, and not built
-        for (let i = 0; i < 60; i++) {
-          await sleep(5000);
-          const c = minus((await pile()).ledger?.consumed, ps0.ledger?.consumed);
-          if (Object.values(c).some((n) => n > 0)) break;
+          if (Object.values(minus(ps.ledger?.consumed, ps0.ledger?.consumed)).some((n) => n > 0)) break;
+          const need = {};
+          for (const [it, n] of Object.entries(ps.outstanding ?? {})) { const lack = Math.ceil((n - (ps.stock?.[it] ?? 0)) / 2); if (lack > 0) need[it] = lack; }
+          if (Object.keys(need).length) { await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: need, exact: true }, 120_000); half = plus(half, need); }
+          await sleep(4000);
         }
         await sleep(3000);
         const mid = await pile();
