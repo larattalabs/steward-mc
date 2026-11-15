@@ -59,6 +59,35 @@ public final class Adoption {
 		}
 	}
 
+	/** (slice SST) How a street town would be taken on now: not at all, as a creative region (slice B), or as a survival one (Architect SAD). */
+	public enum As { NONE, CREATIVE, SURVIVAL }
+
+	/**
+	 * (slice SST) How a street town is adopted at a growth, by the world's mode now, as Architect decides it (S-SAD-3: the world's mode at adoption):
+	 * a world that builds regions from materials ({@code worldSurvival}, the survival toggle, and the default game type not creative) adopts any
+	 * settlement as a survival region (S-SAD-4: Hardcore as Supplied); a world that builds at once adopts a Patron settlement as today's creative region
+	 * (a Supplied one there may hold construction sites, which a creative adoption refuses); the survival toggle with a creative default (Steward builds
+	 * from materials, Architect would adopt as creative) is not adopted. Pure.
+	 */
+	public static As adoptsAs(dev.larattalabs.steward.model.Difficulty difficulty, boolean worldSurvival, boolean defaultCreative) {
+		if (worldSurvival) return defaultCreative ? As.NONE : As.SURVIVAL;
+		return difficulty == dev.larattalabs.steward.model.Difficulty.PATRON ? As.CREATIVE : As.NONE;
+	}
+
+	/**
+	 * (slice SST) How far the inventory's lots are built, in percent (100: none still building), from each lot site's state (null: not read, counted
+	 * built; Architect's {@code build()} is the authority once adopted). Pure.
+	 */
+	public static int builtPercent(Inventory inv, java.util.function.Function<String, dev.larattalabs.architect.api.@Nullable State> state) {
+		if (inv.lots().isEmpty()) return 100;
+		int built = 0;
+		for (String site : inv.lots().values()) {
+			var st = state.apply(site);
+			if (st == null || st == dev.larattalabs.architect.api.State.BUILT) built++;
+		}
+		return built * 100 / inv.lots().size();
+	}
+
 	/** The inventory, or none and why not when the town has street pieces that can't be taken on ({@code why} null: no street or no lot, nothing to say). */
 	public record Read(Optional<Inventory> inventory, @Nullable String why) {}
 
@@ -260,16 +289,17 @@ public final class Adoption {
 	}
 
 	/**
-	 * A standing adoption over {@code sites} recorded sites, {@code standing} of them still standing: its region removed (a tombstone) → retired as
-	 * removed; gone with no tombstone and none of its sites standing → removed too (the region and its buildings both vanished: nothing was let go),
-	 * but only when Architect's site inventory is known ({@code inventoryKnown}: Architect lists any site at all; a site file it could not read lists
-	 * none, and every site would only look gone); gone with no tombstone while its standing sites are in no region → released (a lost unadopt answer);
-	 * else it stands.
+	 * A standing adoption over {@code sites} recorded sites, {@code standing} of them still standing. Nothing is closed unless Architect's sites store
+	 * loaded cleanly ({@code loadHealthy}, Architect's {@code Sites.loadHealthy()}, slice BCU): a sites file it could not read loads no site, and every
+	 * site would only look gone, so it is left for the next read. Then: its region removed (a tombstone) → retired as removed; gone with no tombstone
+	 * and none of its sites standing → removed too (the region and its buildings both vanished: nothing was let go); gone with no tombstone while its
+	 * standing sites are in no region → released (a lost unadopt answer); else it stands.
 	 */
-	public static Close standingClose(boolean present, boolean tombstone, int sites, int standing, boolean standingOutOfRegions, boolean inventoryKnown) {
+	public static Close standingClose(boolean present, boolean tombstone, int sites, int standing, boolean standingOutOfRegions, boolean loadHealthy) {
+		if (!loadHealthy) return Close.NONE;
 		if (tombstone) return Close.REMOVED;
 		if (present || sites == 0) return Close.NONE;
-		if (standing == 0) return inventoryKnown ? Close.REMOVED : Close.NONE;
+		if (standing == 0) return Close.REMOVED;
 		return standingOutOfRegions ? Close.RELEASED : Close.NONE;
 	}
 
@@ -306,10 +336,10 @@ public final class Adoption {
 			var ids = adopted.get().siteIds();
 			int standingSites = (int) ids.stream().filter(id -> sites.get(id).isPresent()).count();
 			boolean out = ids.stream().allMatch(id -> sites.get(id).map(x -> x.region() == null).orElse(true));
-			// Architect lists no site at all when it could not read its site file: then nothing is read as gone
-			boolean known = !sites.list().isEmpty();
-			if (!known && standingSites == 0 && !ids.isEmpty()) Steward.LOGGER.warn("{}: the adoption of {} is left open: Architect lists no site at all (its site file unread?)", s.id(), region);
-			var close = standingClose(v.isPresent(), tombstone, ids.size(), standingSites, out, known);
+			// (slice BCU) a sites file Architect could not read loads no site: then nothing is read as gone, and the next read decides
+			boolean healthy = sites.loadHealthy();
+			if (!healthy && !ids.isEmpty()) Steward.LOGGER.warn("{}: the adoption of {} is left open: Architect's sites store did not load cleanly", s.id(), region);
+			var close = standingClose(v.isPresent(), tombstone, ids.size(), standingSites, out, healthy);
 			if (close == Close.REMOVED) {
 				// the removal record first, then the release: a failure between leaves the adoption open, so the next reconcile writes what is missing
 				Set<String> recorded = removedSince(s, adopted.get());

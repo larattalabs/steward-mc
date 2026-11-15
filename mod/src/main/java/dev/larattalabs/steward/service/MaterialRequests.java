@@ -121,7 +121,8 @@ public final class MaterialRequests {
 	private static void seedBuilds() {
 		for (Settlement s : Settlements.store().all()) {
 			for (var e : s.log()) {
-				if (e.kind() != Settlement.Kind.PROJECT_PLACED) continue;
+				// (slice SST) an adopted survival town's receipt names its region too: a lot it adopted still building is watched again, said once when built
+				if (!seedsWatch(e)) continue;
 				String id = regionOfEntry(e.siteGroup());
 				if (id == null) continue;
 				try {
@@ -137,6 +138,12 @@ public final class MaterialRequests {
 	}
 
 	/** The region a placed entry's tag names: a town's ({@code region:<id>}) or a growth's ({@code revision:<id>:<rid>}, slice A2); else null. Pure. */
+	/** Whether a history entry names a region the world-start seed watches: a placed build's, or (slice SST) an adoption's receipt ({@code region:}). */
+	static boolean seedsWatch(Settlement.LogEntry e) {
+		if (e.kind() == Settlement.Kind.PROJECT_PLACED) return true;
+		return e.kind() == Settlement.Kind.TOWN_ADOPTED && e.siteGroup() != null && e.siteGroup().startsWith(dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX);
+	}
+
 	static @org.jspecify.annotations.Nullable String regionOfEntry(@org.jspecify.annotations.Nullable String siteGroup) {
 		String id = dev.larattalabs.steward.gateway.VPlan.regionOf(siteGroup);
 		return id != null ? id : Growths.parse(siteGroup).map(Growths.Ref::region).orElse(null);
@@ -178,9 +185,14 @@ public final class MaterialRequests {
 			// done: built and the region PLACED; a town that stood PARTIAL before its growth reads PARTIAL again, so built is enough there (slice A2)
 			if (b != null && (b.done() || (b.built() && v.get().state() == dev.larattalabs.architect.api.RegionState.PARTIAL))) {
 				BUILDING.remove(e.getKey());
-				tell(srv, s.get(), s.get().name() + " is built: everything its plan laid out stands, from the stockpile.");
+				tell(srv, s.get(), builtName(s.get(), e.getKey()) + " is built: everything its plan laid out stands, from the stockpile.");
 			}
 		}
+	}
+
+	/** (slice SD) Who a watched region's "is built" names: the district whose region it is, else the settlement (its town). Pure. */
+	static String builtName(Settlement s, String regionId) {
+		return s.lands().districts().stream().filter(d -> regionId.equals(d.region())).map(Settlement.District::name).findFirst().orElse(s.name());
 	}
 
 	/** Reads each settlement's waiting targets: one waiting {@link #LONG_WAIT_TICKS} sends the steward to a player in the settlement, once per wait. */

@@ -70,8 +70,8 @@ class ModuleOfferTest {
 		assertTrue(decide(building, null).why().contains("40%"));
 		var district = new Town(Path.REGION, null, true, 100, true, false, Map.of("minecraft:wheat_seeds", 81), Map.of());
 		assertTrue(decide(district, null).why().contains("district"));
-		var none = new Town(Path.NONE, "its street runs north-south", true, 100, false, false, Map.of("minecraft:wheat_seeds", 81), Map.of());
-		assertEquals("its street runs north-south", decide(none, null).why());
+		var none = new Town(Path.NONE, "its street turns", true, 100, false, false, Map.of("minecraft:wheat_seeds", 81), Map.of());
+		assertEquals("its street turns", decide(none, null).why());
 	}
 
 	@Test
@@ -83,6 +83,28 @@ class ModuleOfferTest {
 		assertTrue(d.ok(), d.why());
 		var frozen = new Town(Path.REGION, null, true, 100, false, true, Map.of("minecraft:wheat_seeds", 81), Map.of());
 		assertTrue(ModuleOffer.decide(wet, ok(), frozen, null, (e, p) -> BOUND).why().contains("freeze"));
+	}
+
+	@Test
+	void aSurvivalStreetTownIsBilledFromTheStockpileWateredIncludedAndWaitsForItsLots() {
+		// (slice SST) Architect SAD: a Supplied street town taken on as a survival region grows from materials, as REGION_MATERIALS
+		assertTrue(Path.ADOPT_MATERIALS.materials());
+		assertTrue(Path.REGION_MATERIALS.materials());
+		assertFalse(Path.ADOPT.materials());
+		assertFalse(Path.REGION.materials());
+		var t = new Town(Path.ADOPT_MATERIALS, null, true, 100, false, false, Map.of("minecraft:wheat_seeds", 20), Map.of("minecraft:wheat_seeds", 70));
+		var d = decide(t, null);
+		assertTrue(d.ok(), d.why());
+		assertEquals(9, d.order().params().get("side").getAsInt(), "the stockpile counts, as construction draws from it");
+		assertEquals(BOUND, d.order().bound(), "a bound to approve");
+		var wet = ModuleOffer.decide(new Wet(), ok(), t, null, (e, p) -> BOUND);
+		assertTrue(wet.ok(), wet.why());
+		assertEquals(BOUND, wet.order().bound());
+		assertFalse(ModuleOffer.decide(K, ok(), t, null, (e, p) -> null).ok(), "no measured bound: nothing to approve");
+		var building = new Town(Path.ADOPT_MATERIALS, null, false, 50, false, false, Map.of("minecraft:wheat_seeds", 81), Map.of());
+		var no = decide(building, null);
+		assertFalse(no.ok());
+		assertTrue(no.why().contains("50%") && no.why().contains("once it's built"), no.why());
 	}
 
 	@Test

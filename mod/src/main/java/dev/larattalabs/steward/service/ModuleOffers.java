@@ -78,10 +78,12 @@ public final class ModuleOffers {
 		return live;
 	}
 
-	/** The gate's environment now (fixtures and measuring only from the dev source). */
+	/** The gate's environment now (fixtures and measuring only from the dev source), with the kit and checker Architect runs now. */
 	public static ModuleGate.Env env() {
 		DevSource d = devSource;
-		return ModuleDev.env(d != null, d != null && d.measuring());
+		var api = ArchitectAccess.api();
+		var r = ModuleDev.running(api);
+		return ModuleDev.env(d != null, d != null && d.measuring(), api.features(), r.kit(), r.checker());
 	}
 
 	/** The module ids that may be offered now, each with a kind Steward knows. */
@@ -186,11 +188,19 @@ public final class ModuleOffers {
 					built = !materials || (v.build() != null && v.build().built());
 					percent = v.build() == null ? 100 : (int) v.build().percent();
 				}
-			} else if (api.features().contains(Adoption.FEATURE) && s.difficulty() == dev.larattalabs.steward.model.Difficulty.PATRON && !worldSurvival && overworld
-				&& !dev.larattalabs.steward.gateway.VPlan.isLegacy(s.id()) && Adoption.inventory(server, s).isPresent()) {
-				path = ModuleOffer.Path.ADOPT;
 			} else {
-				why = "this street town can't be taken on as one region (it is built from materials, Supplied, or its street turns), and a working module is placed only by growing a region";
+				// (slice SST) a street town is taken on in the world's mode: creative (B) for a Patron one in a world that builds at once, survival (SAD) in
+				// one that builds from materials, its lots' build read from their sites (it grows only once they all stand)
+				var as = Adoption.adoptsAs(s.difficulty(), worldSurvival, server.getDefaultGameType() == net.minecraft.world.level.GameType.CREATIVE);
+				var inv = as != Adoption.As.NONE && api.features().contains(Adoption.FEATURE) && overworld && !dev.larattalabs.steward.gateway.VPlan.isLegacy(s.id())
+					? Adoption.inventory(server, s) : java.util.Optional.<Adoption.Inventory>empty();
+				if (inv.isPresent() && as == Adoption.As.SURVIVAL) {
+					path = ModuleOffer.Path.ADOPT_MATERIALS;
+					var sites = ArchitectAccess.api().sites(server);
+					percent = Adoption.builtPercent(inv.get(), id -> sites.get(id).map(dev.larattalabs.architect.api.SiteView::state).orElse(null));
+					built = percent >= 100;
+				} else if (inv.isPresent()) path = ModuleOffer.Path.ADOPT;
+				else why = "this street town can't be taken on as one region (its street turns, or this world's mode doesn't allow it), and a working module is placed only by growing a region";
 			}
 		}
 		boolean freezing = false;
@@ -243,7 +253,7 @@ public final class ModuleOffers {
 			if (d.ok()) {
 				var lamp = lamp(s, v.entry());
 				if (lamp.refused() != null) why = lamp.refused();
-				else offer = proposal(k, d, s, town.path() == ModuleOffer.Path.REGION_MATERIALS, lamp.fallback(), k.rule(), k.sign() == ModuleKind.Sign.STORES ? "stores" : "seeds", now);
+				else offer = proposal(k, d, s, town.path().materials(), lamp.fallback(), k.rule(), k.sign() == ModuleKind.Sign.STORES ? "stores" : "seeds", now);
 			}
 			if (offer == null) Steward.LOGGER.debug("module {} not offered to {}: {}", k.id(), s.id(), why);
 			out.add(new ProposalRules.ModuleCandidate(k, standing(server, s, k.id()), offer, why));
@@ -268,7 +278,7 @@ public final class ModuleOffers {
 		// the params as offered: checked again against the envelope (the seeds may be gone, but the size was approved)
 		var d = ModuleOffer.decide(kind.get(), v, town, o.params(), bounds(s));
 		if (!d.ok()) return d.why();
-		boolean materials = town.path() == ModuleOffer.Path.REGION_MATERIALS;
+		boolean materials = town.path().materials();
 		if (materials && o.bound() == null) return "the town builds from materials now, and the offer had no bill to approve";
 		if (!Canon.sorted(d.order().params()).equals(Canon.sorted(o.params()))) return "its size isn't one that was measured any more";
 		var lamp = lamp(s, v.entry());

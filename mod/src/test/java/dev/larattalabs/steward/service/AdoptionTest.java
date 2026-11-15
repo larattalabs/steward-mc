@@ -31,6 +31,28 @@ class AdoptionTest {
 	}
 
 	@Test
+	void theWorldsModeDecidesHowAStreetTownIsTakenOn() {
+		// (slice SST, S-SAD-3/4) a world that builds from materials adopts every settlement as a survival region, Hardcore as Supplied
+		for (Difficulty d : Difficulty.values()) assertEquals(Adoption.As.SURVIVAL, Adoption.adoptsAs(d, true, false), d.name());
+		// the toggle on with a creative default: Steward builds from materials, Architect would adopt as creative: not taken on
+		for (Difficulty d : Difficulty.values()) assertEquals(Adoption.As.NONE, Adoption.adoptsAs(d, true, true), d.name());
+		// a world that builds at once: a Patron town as slice B; a Supplied one may hold construction sites, which a creative adoption refuses
+		assertEquals(Adoption.As.CREATIVE, Adoption.adoptsAs(Difficulty.PATRON, false, false));
+		assertEquals(Adoption.As.CREATIVE, Adoption.adoptsAs(Difficulty.PATRON, false, true));
+		assertEquals(Adoption.As.NONE, Adoption.adoptsAs(Difficulty.SUPPLIED, false, false));
+		assertEquals(Adoption.As.NONE, Adoption.adoptsAs(Difficulty.HARDCORE, false, true));
+	}
+
+	@Test
+	void aLotStillBuildingKeepsTheTownUnderAHundredPercent() {
+		var i = inv();
+		assertEquals(100, Adoption.builtPercent(i, id -> dev.larattalabs.architect.api.State.BUILT));
+		assertEquals(100, Adoption.builtPercent(i, id -> null), "a site not read is Architect's to count once adopted");
+		assertEquals(66, Adoption.builtPercent(i, id -> "s2".equals(id) ? dev.larattalabs.architect.api.State.BUILDING : dev.larattalabs.architect.api.State.BUILT));
+		assertEquals(100, Adoption.builtPercent(new Adoption.Inventory(0, 0, 1, List.of("r1"), Map.of()), id -> dev.larattalabs.architect.api.State.BUILDING));
+	}
+
+	@Test
 	void lotIdsAreValidUniqueAndStable() {
 		var m = Adoption.allocate(List.of(new LotSite("s10", "house_1", 0, 0), new LotSite("s9", "house_1", 0, 0), new LotSite("s2", "House 1!", 0, 0),
 			new LotSite("s3", "1st_tower", 0, 0), new LotSite("s4", "a".repeat(60), 0, 0), new LotSite("s5", null, 0, 0), new LotSite("s6", "a".repeat(60), 0, 0)));
@@ -119,8 +141,10 @@ class AdoptionTest {
 		assertEquals(Close.REMOVED, Adoption.standingClose(false, false, 3, 0, true, true), "region gone, no tombstone, no site standing: removed");
 		assertEquals(Close.REMOVED, Adoption.standingClose(false, true, 3, 0, true, true), "and with a tombstone: removed");
 		assertEquals(Close.NONE, Adoption.standingClose(false, false, 3, 0, true, false),
-			"Architect lists no site at all (its site file unread): every site only looks gone, so nothing is decided");
-		assertEquals(Close.REMOVED, Adoption.standingClose(true, true, 3, 0, true, false), "a tombstone decides even then");
+			"Architect's sites store did not load cleanly (Sites.loadHealthy): every site only looks gone, so nothing is decided");
+		assertEquals(Close.NONE, Adoption.standingClose(true, true, 3, 0, true, false),
+			"slice BCU: a sites store that did not load cleanly decides nothing, a tombstone's close included (the next read closes it)");
+		assertEquals(Close.NONE, Adoption.standingClose(false, false, 3, 3, true, false), "nor a release");
 	}
 
 	@Test

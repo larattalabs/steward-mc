@@ -152,20 +152,39 @@ class RecoveryAdapterTest {
 	}
 
 	@Test
-	void ge_aRegionAndItsSitesGoneWithNoTombstoneCloseAsRemovedOnlyWhenTheInventoryIsKnown() throws IOException {
+	void bcu_aRegionAndItsSitesGoneWithNoTombstoneCloseAsRemovedOnlyWhenTheSitesStoreLoadedCleanly() throws IOException {
 		String id = nextId();
 		Settlement s = adopted(id, "rg_b");
-		// no record, no tombstone, no site at all: Architect's site file may be unread, so nothing is read as gone
+		// no record, no tombstone, and Architect's sites file could not be read (Sites.loadHealthy false): every site only looks gone
+		a.loadHealthy = false;
 		assertTrue(Adoption.reconcile(null, s));
-		assertEquals(s.log().size(), now(id).log().size(), "left open while Architect lists no site");
+		assertEquals(s.log().size(), now(id).log().size(), "left open while the sites store is unhealthy");
 		assertTrue(Adoption.standing(now(id)).isPresent());
-		// a later start where Architect lists sites again (another's): the region and its buildings are gone
-		a.site("other", "someone", null);
+		// a later start that loads it cleanly, with no site at all (the town's were the world's only ones): the region and its buildings are gone
+		restart();
+		a.loadHealthy = true;
+		assertTrue(a.sites.isEmpty(), "no site anywhere: the old list heuristic would have left it open");
 		assertTrue(Adoption.reconcile(null, now(id)));
 		var after = now(id);
 		assertEquals(1, count(after, Kind.PROJECT_REMOVED));
+		assertEquals(List.of("s1", "s2"), after.log().get(after.log().size() - 2).siteIds());
 		assertTrue(after.log().get(after.log().size() - 2).text().startsWith("Gone from the world"));
 		assertEquals("The town's region and its buildings are gone", last(after).text());
+	}
+
+	@Test
+	void bcu_aTombstoneReadWhileTheSitesStoreIsUnhealthyIsLeftForTheNextRead() throws IOException {
+		String id = nextId();
+		Settlement s = adopted(id, "rg_t");
+		a.region("rg_t", s.owner()).state = RegionState.REMOVED;
+		a.loadHealthy = false;
+		assertTrue(Adoption.reconcile(null, s));
+		assertEquals(s.log().size(), now(id).log().size(), "nothing written: the gone sites can't be told from unread ones");
+		assertTrue(Adoption.standing(now(id)).isPresent());
+		a.loadHealthy = true;
+		assertTrue(Adoption.reconcile(null, now(id)));
+		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED), "closed once, on the healthy read");
+		assertEquals(Kind.TOWN_RELEASED, last(now(id)).kind());
 	}
 
 	@Test

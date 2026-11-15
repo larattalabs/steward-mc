@@ -201,6 +201,14 @@ public final class StewardCommands {
 					String said = dev.larattalabs.steward.service.PlanStore.pend(id, StringArgumentType.getString(ctx, "block"), StringArgumentType.getString(ctx, "part"));
 					ctx.getSource().sendSuccess(() -> Component.literal(said), false);
 					return 1;
+				}))))).then(Commands.literal("plan_lot").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("zone", StringArgumentType.word())
+				.then(Commands.argument("lot", StringArgumentType.greedyString()).executes(ctx -> {
+					// dev (the e2e check, slice PV1): a lot added to a zone of the settlement's kept plan, as one left out of its first build
+					if (!host(ctx.getSource())) return 0;
+					String said = dev.larattalabs.steward.service.PlanStore.addLot(StringArgumentType.getString(ctx, "id"), StringArgumentType.getString(ctx, "zone"),
+						StringArgumentType.getString(ctx, "lot"));
+					ctx.getSource().sendSuccess(() -> Component.literal(said), false);
+					return 1;
 				}))))).then(Commands.literal("module").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("request", StringArgumentType.greedyString())
 				.executes(ctx -> {
 					// dev (tools/module-catalog.mjs): the module catalog's gate and installs on a catalog directory; the answer written to

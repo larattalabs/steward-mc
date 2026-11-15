@@ -13,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.BlockPos;
@@ -58,10 +59,32 @@ public final class ModuleDev {
 		return FabricLoader.getInstance().isDevelopmentEnvironment();
 	}
 
-	/** The gating environment of this game (fixtures and measuring only in a development environment). */
-	public static ModuleGate.Env env(boolean fixtures, boolean measuring) {
+	/**
+	 * The gating environment of this game (fixtures and measuring only in a development environment), with the running kit and checker the
+	 * caller read from Architect ({@code ModuleOffers.env()}).
+	 */
+	public static ModuleGate.Env env(boolean fixtures, boolean measuring, Set<String> features, String kit, String checker) {
 		boolean dev = allowed();
-		return new ModuleGate.Env(modVersion("minecraft"), modVersion("architect_mc"), ArchitectApi.get().features(), fixtures && dev, measuring && dev);
+		return new ModuleGate.Env(modVersion("minecraft"), modVersion("architect_mc"), features, fixtures && dev, measuring && dev, kit, checker);
+	}
+
+	/** {@link #env(boolean, boolean, Set, String, String)} over {@code ArchitectApi.get()} (the dev hook's own gate). */
+	public static ModuleGate.Env env(boolean fixtures, boolean measuring) {
+		var api = ArchitectApi.get();
+		var r = running(api);
+		return env(fixtures, measuring, api.features(), r.kit(), r.checker());
+	}
+
+	/** The running kit and checker versions. */
+	public record Running(String kit, String checker) {}
+
+	/**
+	 * (slice BCU) The kit Architect bundles and the checker its helper runs now: {@code kitVersion()} and {@code checkerVersion()} when Architect has
+	 * feature {@code kitVersion}, else (or with no helper connected) {@link ModuleGate#UNKNOWN_KIT}, which no module pins.
+	 */
+	public static Running running(ArchitectApi api) {
+		if (!api.features().contains("kitVersion")) return new Running(ModuleGate.UNKNOWN_KIT, ModuleGate.UNKNOWN_KIT);
+		return new Running(api.kitVersion(), api.checkerVersion().orElse(ModuleGate.UNKNOWN_KIT));
 	}
 
 	private static String modVersion(String mod) {
@@ -115,6 +138,12 @@ public final class ModuleDev {
 				return CompletableFuture.supplyAsync(() -> {
 					JsonObject a = new JsonObject();
 					a.addProperty("words", dev.larattalabs.steward.service.HallCargo.words(server, req.get("owner").getAsString(), req.has("region") ? req.get("region").getAsString() : null, req.get("message").getAsString()));
+					// (M4-L) a hall site's declared container cells in the world, and the words its undo would be refused with now (HallCargo.before)
+					if (req.has("site")) {
+						String sid = req.get("site").getAsString();
+						a.add("declared", dev.larattalabs.steward.service.HallCargo.declaredJson(server, sid));
+						a.addProperty("before", dev.larattalabs.steward.service.HallCargo.before(server, req.get("owner").getAsString(), java.util.List.of(sid)));
+					}
 					return a;
 				}, server);
 			}

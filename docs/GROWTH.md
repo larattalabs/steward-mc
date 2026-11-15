@@ -263,8 +263,8 @@ A cancel while the realise is in flight, or a creative growth placing, still wai
   only lost its addition is never announced built.
 
 **4. IG-b.** `ModuleOffer.decide`'s ADOPT branch no longer refuses an irrigated module. The ADOPT path is taken only when the world builds at once
-and the settlement is a Patron one (`ModuleOffers`), so it is creative only; a Supplied or survival street town still gets "this street town can't
-be taken on as one region" until Architect's SAD (v0.68.0). The growth is the adopted path's; Architect's IG-b adds `street`, `lots`, `fluids`.
+and the settlement is a Patron one (`ModuleOffers`), so it is creative only; a Supplied or survival street town still got "this street town can't
+be taken on as one region" until Architect's SAD (v0.68.0) and Steward's slice SST (`ADOPT_MATERIALS`, below). The growth is the adopted path's; Architect's IG-b adds `street`, `lots`, `fluids`.
 
 **Tests.**
 - **Unit:** `Growths.decide` (no BUILDING; `writing` before the busy wait; creative, another rid, not the head, removing); `Growths.writing`;
@@ -358,17 +358,17 @@ entry; none (Architect rolled its intent back at its own world start, or never g
   undone and undo moves on (as a removed region's entry is retired today).
 - **The region and every building gone, no tombstone** (slice GH, 2026-11-13; an un-adopt whose answer was lost, then each building removed, or
   any other way): retired the same way, `PROJECT_REMOVED` of the gone sites ("gone from the world") then `TOWN_RELEASED region:<id>` ("the town's
-  region and its buildings are gone"), never "let go". Only when Architect lists any site at all: a site file Architect could not read lists none,
-  every site would only look gone, and the adoption is left open (warned) for a later start. Some sites standing, all in no region: a release.
-  Accepted limit (GPT fix check): a world whose only Architect sites were this town's keeps it open too (undo says so, nothing is lost), since
-  Architect's API has no load-health signal to tell an empty inventory from an unread one; asking for one is a follow-up. The reconcile's
+  region and its buildings are gone"), never "let go". Only when Architect's sites store loaded cleanly (`Sites.loadHealthy()`, slice BCU, 2026-11-15):
+  a site file Architect could not read loads no site, every site would only look gone, and the adoption is left open (warned) for a later start,
+  a tombstone's close included. Some sites standing, all in no region: a release. Until BCU this read "Architect lists any site at all", so a
+  world whose only Architect sites were this town's stayed open; `loadHealthy()` lifts that limit. The reconcile's
   adapter is unit-tested through its pure decision, and since slice GEA over a faked Architect (`RecoveryAdapterTest`).
 - `TownRegion.of` and `Districts.regionTownGone` read an unreleased `TOWN_ADOPTED region:` entry as the town's region. After a release, the town is
   a street town again (district founding reads its street as before).
 
 **Saves.** Two new `Kind` values (`TOWN_ADOPTED`, `TOWN_RELEASED`). Settlements format 6 (slice A's bump, unreleased) covers them.
 
-**Not in B.** Survival and Supplied street towns (S-AD-5); bent or L-shaped streets (the reader says why and the town keeps its street pieces); the plan writer growing an adopted village through its artifact
+**Not in B.** Survival and Supplied street towns (S-AD-5; since slice SST, below, a street town in a world that builds from materials is adopted as a survival region); bent or L-shaped streets (the reader says why and the town keeps its street pieces); the plan writer growing an adopted village through its artifact
 (slice A's `planRevision` grow covers additions).
 
 **Tests** (review 8).
@@ -419,8 +419,67 @@ of every settlement before the sweep; adopted towns skipped), `Undo` (the reconc
 - **e2e (stub), `adopt-ns`:** the adopt flow's card and size, laid north-south. It is adopted (the log line names the north-south street) and
   grown by revision 1. The receipt's lots and roads and the grown sites match the east-west town's. Then it is undone: the growth, the adoption,
   the town.
-- **Not here:** a north-south town's additions on the legacy path (they read no east-west street; Steward never lays such a town outside dev).
+- **Slice NS2 (2026-11-15):**
+  - **The plan's axis.** `PPlan.forBuild` keeps an `orientation` the composed plan names (`ns`, `auto` or `ew`); a street zone that names none
+    is still laid east-west, so plans without one check and build as before. Steward's compose rules ask for `ns` where the room round the stone runs north-south (never `auto`, which picks by lot sizes).
+    `PPlan.toPlan` reads an artifact whose lots all face east or west as one north-south street (its line the entrances' x, its ends z).
+  - **Additions on the legacy path.** `Districts.streetEitherAxis` reads the town's street on either axis (an east-west one first, so a bent
+    street grows as before). An addition to a north-south street town that isn't taken on is laid along it, facing east or west, and its
+    street is extended along z. The stockpile's crate keeps off that street too.
+  - **Modules.** The offer (path ADOPT or REGION) was axis-agnostic already. A module lot facing east or west keeps its front and IRR's
+    `[along, deep]` frame. Unit-tested, and Architect is asked to confirm it (S-NS2-2).
+  - **e2e (not run by the slice; the batch runs them), tags `north-south adopt`:** `plan-ns` (a plan with `orientation: "ns"`, its lots
+    facing east and west, undone), `addition-ns` (`legacy_ns` kept, an addition along the north-south street, not taken on, undone) and
+    `module-ns` (a crop farm on a north-south street town taken on, watered, undone).
+- **Not here:** Architect's flat village laid north-south is still set aside for Steward's own east-west layout (`VPlan.toPlan` turns
+  every front north or south). Districts read east-west streets only.
 
+
+## Slice SST: a Supplied or survival street town adopted at its growth (Architect SAD)
+
+Status: as built, 2026-11-15, on branch `survival-street` (off `batch-070`, Architect 0.70.0). Checks (deferred verification, rule 11): `gradlew
+build` and `npm test` pass; `stub --only adopt-survival` passed 10/10 on run 2 (run 1: a third of the need per feed built both lots before the ask;
+finer feeds since); `module-survival-street` is written but left to the batch gate. One GPT review, on the diff (request changes, no blocker; all
+five should-fixes and the nit taken, see "Review"). Not in game: a restart mid-adopt (B's reconcile, by op key in either mode) and mid-undo (A2L's). Architect's SAD (v0.68.0; CONTRACT "Slice SAD"): an
+adoption in a world that builds from materials makes a survival region; its construction sites keep their run, book and paid records; a site still fed
+by a live crate refuses until `adoptCrates`; `RegionView.build()` counts the adopted construction sites, building ones included; a growth waits
+`survival_unfinished` for them. Steward's answers S-SAD-1 to S-SAD-4 (ARCHITECT-ASKS "SAD"). No save format change, no API change.
+
+**When** (`afterSurvey`, slice B's branch): `Adoption.adoptsAs(difficulty, worldSurvival, defaultCreative)`, pure, as Architect decides the mode
+(`RegionSurvival.on`): the survival toggle on and the default game type not creative adopts any settlement as a **survival** region (S-SAD-4: Hardcore as
+Supplied); a world that builds at once adopts a Patron settlement as slice B's creative region; the toggle on with a creative default (Steward builds
+from materials, Architect would adopt as creative) and a Supplied settlement in a world that builds at once (it may hold construction sites, which a
+creative adoption refuses) are not adopted (today's street pieces). Feature, Overworld and the dev `legacy` layout as B.
+
+**The adoption** (`adoptTown`, `survival`): B's steps, with two changes.
+1. Before the intent: `Stockpiles.ensure`, which folds the older builds' crates into the stockpile (`adoptCrates`, S-SAD-1); none can be made: the build
+   ends, nothing asked. Architect's live-crate refusal stays a backstop (`NOT_ALLOWED`: definitive, today's path, as B).
+2. Answered PLACED: the receipt as B, then the fresh region goes through `growStanding` (A2's checks), not straight to `planGrowth`: the mode gate,
+   **a lot still building** ("<town> is still being built from the stockpile (N%): it can grow once it's built", nothing planned; the town is watched,
+   `MaterialRequests.watchBuild`, so the steward says once when it is built), then the stockpile and its crates kept clear, then A2's growth.
+A town adopted before SAD in a world that builds from materials is a creative region: `growStanding`'s mode line, as today (S-SAD-3; Steward never
+re-adopts on its own).
+
+**Growth, billing, undo, restart.** Once adopted the town is a region built from materials, so A2 and A2L hold unchanged: plan, quote, approve, a
+`CONSTRUCTION` realise, the feed; undo while waiting is RU's; paid == returned once. The adoption's undo is B's `Regions.unadopt` (AD §3), refused while
+a revision stands. A restart mid-adopt is B's reconcile (by the op key, whatever the mode); mid-growth and mid-undo are A2/A2L's.
+
+**Modules** (`ModuleOffers.town`): a street town that would adopt as survival takes the new path `ADOPT_MATERIALS` (`Path.materials()`, as
+`REGION_MATERIALS`): billed from the stockpile with the measured bound to approve, watered branches included (IG-b's stages; the water is free), and
+refused while a lot still builds (its lots' site states, `Adoption.builtPercent`). The Accept re-check reads `REGION_MATERIALS` once adopted.
+
+**Review** (GPT, on the diff, 2026-11-15: request changes, no blocker). Taken: (1) a town adopted while a lot builds is watched again after a restart
+(`MaterialRequests.seedsWatch` reads the adoption's receipt), and the e2e restarts there; (2) after the adoption the region's own mode and the world's
+mode now are read again (`growStanding` for any region from materials); (3) the module flow requires the logged quote, handles the hold, checks no water
+in the quote or the draws, and judges its undo by stock gained, one completion and nothing more 20 s on; (4) the release is judged by each site's
+Architect membership as read before the adoption, and the region gone; (5) the ground's diff excludes the crates through Architect's `exclude` and is
+judged by its whole mismatch count. The nit (MODULES.md's old IG line) fixed. Also from run 2: a town not yet built is never said "100%".
+
+**Tests.** Unit: `adoptsAs` over every difficulty and mode; `seedsWatch`; `builtPercent`; `ModuleOffer.decide` on `ADOPT_MATERIALS` (bound, stockpile seeds, watered,
+waiting). e2e (stub): `adopt-survival` (Steward's own street in a survival world, one lot held building: adopted as a survival region, the wait said,
+fed, built said; grown by one plain lot from materials, billed; a restart while its targets wait, built said once; undone, paid == returned once,
+UNDONE, E-flat outside the crates; the adoption undone, the founding sites standing in no region, the ledger and the land unchanged) and
+`module-survival-street` (the watered crop_farm billed and placed in an adopted survival street town, no water billed, undone paid == returned).
 
 ## Slice DG: a district region grows by revision (D-S2)
 
@@ -477,7 +536,7 @@ id through to the addition, so the module lot is a grow lot of the district (`mo
 but no e2e can make one; a district built at once in a world since turned to materials is refused by the mode gate before anything is spent
 (e2e). **Decided (the Steward manager, 2026-11-14: option 2):** founding a district region from materials stays out of DG; A2's rules on district
 regions are unit-tested, the bill and its undo refund included (`SuppliedDistrictGrowthTest`: paid == returned, once, over a model of Architect's
-ledger); the billed survival e2e moves to a new slice SD (found a district region from materials, then DG's billed flow).
+ledger); the billed survival e2e moves to a new slice SD (found a district region from materials, then DG's billed flow). **Since slice SD (2026-11-14):** a beside district is founded and built from materials (DISTRICTS.md §12), and e2e `survival-district` runs DG's billed growth on it (a restart at its massings, then undone while it waits by RU: paid == returned once).
 
 **Saves.** No format change: the build's `districtId` and slice A's growth fields; the district's land is runs as today.
 
@@ -560,3 +619,44 @@ settlement would be busy that whole time. So no take-up is asked while a player 
 left untried, and the 10 s tick (`VillageSweep.growths(server)`) asks again once the player leaves; a busy settlement keeps its mark for a later tick.
 `takeUp`'s other callers are treated the same way: nothing is logged while the region is held, and the region is kept so that the ended build naming it
 does not hold it. Still open: a player who walks in during the few ticks before Architect's scan.
+
+## Slice PV1: plan v1 growth (an addition from the town's composed plan)
+
+Status: built 2026-11-15 on branch `plan-v1-growth` (strict tier: billing and undo ride A2/A2L unchanged). PLAN.md "Composition", still to do:
+plan v1 for additions and districts. A town built from its composed plan (COMPOSITION §10, §12) grew like any region town: the addition's
+lot was Steward's own (`g<build>_<n>`), placed on any street, whatever the plan said.
+
+**When.** `afterSurvey`'s town branch (an addition with no Steward district, the town region standing, Architect has growth), before
+`growStanding`: `SettlementRunner.fromPlan`. Not for a module, a district's build, more than one building, or a settlement held to the flat
+village. Otherwise slice A, A2 and A2L hold as written: the mode gate, the stockpile, `planGrowth`'s keys and recovery, billing, `Growths.undo`.
+
+**The plan is the town's** (`PlanGrowth.approvedFor`, pure): the kept plan's time is at or before the town's founding entry
+(`region:<town>`), and at least one of the region's first lots (revision 0) is a plan lot. A plan composed after the town stood (the card
+described again) never grows it.
+
+**The lot** (`PlanGrowth.pick`, pure): the first plan lot, in plan order, whose type is the asked building's (else, on a second pass, whose
+role or label is), that the region doesn't list in any state (built, removed or grown before), not in a part or district that waits, not a
+secret (`Secrets`), not a module lot, with an id Architect takes (`[a-z][a-z0-9_]{0,47}`). Its spec: the plan's id, type, size, label (its
+role), brief (scrubbed), landmark and placement. None: today's path.
+
+**Ids, a departure from slice A.** The plan lot is sent under its own id, never renamed `g<build>_<n>`: the region's first lots already have
+their plan ids (unique in the plan), Architect refuses a standing id (`not_additive`), and the region's lot list is then the one test of
+"built". An undo of the growth frees the id again (a lot the region lists as `removed` is not taken again).
+
+**The zone.** `grow.zone` is the lot's zone when some lot of that zone stands (its streets carry `architect_mc:street.zone`); a zone left out
+whole grows on the town's streets. The zone is saved with the build (`growZone`, BuildStore format 7; a format-6 build reads with none), so a
+stale re-plan (`vgrow3`) sends it again. Neither the zone nor the picker reads a street's axis: a north-south zone grows as an east-west one
+(Architect's frontage is four-sided, `DPlan.toPlan` takes four fronts).
+
+**Districts of the plan (D1).** A plan's districts zone is one plan_v0 region; `grow.district` is refused there (Architect reads districts
+from a `districts` program's params only), so a D1 district's lot grows with `grow.zone` on any street of that zone: asked as S-PV1-1.
+Founding a district the plan names but didn't build (beside, outpost, quarter) is not built here (see PLAN.md).
+
+**Words.** "The town grows from its plan: <label> (its lot <id>, not built yet). Architect finds room on that part of the town's streets..."
+
+**Tests.** Unit `PlanGrowthTest`: the pick (id, size, label, brief, zone), a held lot never again, no type match, the role pass, a zone left
+out whole and a north-south zone, a D1 lot's district, waiting parts, a secret, a module lot, a bad id; `approvedFor`; format 7 round trip
+and format 6 read. e2e (stub) `plan-growth` (tag `planlot`): `suppliedGrowthFlow('plan')`, a Supplied plan-v1 town from no_wood's plan,
+built from the stockpile; a library lot added to the kept plan's zone (`/steward dev plan_lot`, as one its first build left out); a library
+asked in talk and accepted: the lot grown as `library_1` in zone `town` at the plan's 11 by 13, said as the plan's, billed; undone while
+waiting (A2L 1's judge: paid == returned once, one entry and one completion, the ground as before); then the town undone with its refund.

@@ -124,6 +124,29 @@ public final class PlanStore {
 		return "pending " + id + " on " + block + " for " + settlementId;
 	}
 
+	/**
+	 * Dev (the e2e check, slice PV1): {@code lotJson} added to zone {@code zone}'s lots in the settlement's kept plan, as a plan whose lot was left out
+	 * of the first build (it didn't fit). The entry's time is kept, so the plan stays the one the town was built from. Returns what was done.
+	 */
+	public static String addLot(String settlementId, String zone, String lotJson) {
+		var e = plans.get(settlementId);
+		if (e == null) return "No plan kept for " + settlementId + ".";
+		JsonObject lot = com.google.gson.JsonParser.parseString(lotJson).getAsJsonObject();
+		JsonObject plan = com.google.gson.JsonParser.parseString(e.plan()).getAsJsonObject();
+		if (!plan.has("zones") || !plan.get("zones").isJsonArray()) return "The plan has no zones.";
+		for (var z : plan.getAsJsonArray("zones")) {
+			if (!z.isJsonObject() || !z.getAsJsonObject().has("id") || !zone.equals(z.getAsJsonObject().get("id").getAsString())) continue;
+			JsonObject program = z.getAsJsonObject().getAsJsonObject("program");
+			com.google.gson.JsonArray lots = program.has("lots") && program.get("lots").isJsonArray() ? program.getAsJsonArray("lots")
+				: program.has("params") && program.getAsJsonObject("params").has("lots") ? program.getAsJsonObject("params").getAsJsonArray("lots") : null;
+			if (lots == null) return "Zone " + zone + " has no lot list.";
+			lots.add(lot);
+			put(new Entry(e.settlementId(), plan.toString(), e.overall(), e.artifact(), e.summary(), e.pending(), e.usd(), e.at(), e.rounds(), e.crossings()));
+			return "plan lot " + lot.get("id").getAsString() + " added to " + zone + " for " + settlementId;
+		}
+		return "No zone " + zone + " in the plan.";
+	}
+
 	/** The plan as JSON, for the screens (unused fields left out). */
 	static JsonObject json(Entry e) {
 		return GSON.toJsonTree(e).getAsJsonObject();

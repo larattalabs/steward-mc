@@ -179,6 +179,12 @@ public final class DistrictRules {
 		public Street(int z, int x0, int x1) {
 			this(z, x0, x1, false);
 		}
+
+		/** Whether the world column (x, z) is within {@code margin} of the street (its line and its ends), on its axis. */
+		public boolean near(int x, int wz, int margin) {
+			int across = northSouth ? x : wz, along = northSouth ? wz : x;
+			return Math.abs(across - z) <= margin && along >= x0 - margin && along <= x1 + margin;
+		}
 	}
 
 	/**

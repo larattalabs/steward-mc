@@ -54,3 +54,14 @@ test('without the RAM disk a dangling link becomes a directory; a real one is le
   ramSidecarData(game, { STEWARD_RAM_TMP: '0' }, tmpRoot());
   assert.ok(fs.existsSync(path.join(link, 'keep')));
 });
+
+test('a fresh e2e run starts the RAM-disk sidecar data empty', () => {
+  const game = fs.mkdtempSync(path.join(os.tmpdir(), 'ramsd-')), root = fs.mkdtempSync(path.join(os.tmpdir(), 'ramsd-'));
+  const r = ramSidecarData(game, {}, root);
+  fs.writeFileSync(path.join(r.dir, 'designs.json'), 'x');
+  ramSidecarData(game, {}, root);
+  assert.ok(fs.existsSync(path.join(r.dir, 'designs.json')), 'kept without fresh');
+  ramSidecarData(game, {}, root, { fresh: true });
+  assert.ok(!fs.existsSync(path.join(r.dir, 'designs.json')), 'emptied when fresh');
+  assert.ok(fs.lstatSync(path.join(game, 'architect', 'sidecar-data')).isSymbolicLink());
+});

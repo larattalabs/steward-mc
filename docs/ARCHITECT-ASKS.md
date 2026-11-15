@@ -1564,6 +1564,8 @@ pinned on pin-067, on top of pin-066 (runtime minimum 0.67.0). The plan schema i
   - item 5 (`kitVersion()`, `checkerVersion()`) lets the module gate check the running kit against module.json's pins;
   - `Sites.loadHealthy()` is for GE's REMOVED close.
   These are follow-ups. Steward's fixtures hold no FullBom labels: ModulePlacement matches reasons by pattern.
+  - Slice BCU (2026-11-15, on 0.70.0) calls `kitVersion()`, `checkerVersion()` (the module gate's `KIT` refusal) and `Sites.loadHealthy()`
+    (GE's REMOVED close, `Adoption.reconcile`). `maxBill` still waits for M5.
 
 ### SAD (survival adoption) contract review (2026-11-14): accepted
 
@@ -1659,6 +1661,34 @@ After an unclean start, RL's reconcile charges what stands without counting `max
 - (1) A wild animal blocks a removal only if the removal changes its cell or the cell it stands on. Steward doesn't rely on the old box-wide rule. The condition: named mobs and players keep blocking anywhere in the box (StewardMotion steps the steward out first).
 - (2) The removal-credit crash window is booked at load from the pending record, after FK-b and SS.
 - (3) UC: J2 fixes the two small reproductions if load-time recovery can tell the cases apart; otherwise it goes to SS.
+
+### NS2: north-south streets beyond adoption (slice NS2, branch north-south-2, 2026-11-15; sent through the manager)
+Steward now keeps a composed plan's street `orientation` (`ns` or `auto`) instead of forcing `ew`, and grows a module on a north-south
+adopted town. Asked, to confirm (no new API is expected):
+- **S-NS2-1, growth along a composed north-south street.** RV's `frontage` and `extend` grow lots along a region's street. Is that covered
+  for a region planned from plan/0 whose street zone ran `ns` (C37), and not only for AD's north-south adoption? If it isn't, Steward keeps
+  `ew` for such zones until it is.
+- **S-NS2-2, an irrigated grow lot facing east or west.** IG-b says `frame` is `[along, deep]` for every front, but `ig.test` covers north
+  and south fronts only. Asked: one east or west case (frame, field, `lotCells`, the sources). Steward's `module-ns` e2e flow covers it in game.
+- **Architect's answer (2026-11-15, through the manager): both covered, no bugs.** Its new kit test `grow-ns` is on slice/NSQ.
+  - S-NS2-1: `grow.mjs` reads each street segment as ew or ns, and frontage, extension, lanes and lamps all work from it. So Steward's
+    compose rules now ask for `ns` where the land runs north-south.
+  - S-NS2-2: an east-front irrigated grow lot has frame `[along, deep]`, with its field, sources and `lotCells` as for north and south.
+
+### PV1: plan v1 growth and P0's unfit parts (slice PV1, branch plan-v1-growth, 2026-11-15; sent through the manager)
+
+Steward's additions to a town built from its composed plan now take the plan's own lot (its id, size, label, brief) when the plan names one
+the region doesn't hold yet, and grow it through `planRevision` with `grow.zone` set to the lot's zone when that zone stands (GR §8: plan/0
+zone streets carry `architect_mc:street.zone`, read in 0.70.0's `compile.mjs` `stampStreets`). Two asks:
+- **S-PV1-1, `grow.district` on a plan_v0 region.** A plan with a D1 districts zone is realised as one plan_v0 region. Its district streets
+  carry `architect_mc:street.district`, but `growPlan` reads a region as a districts region only from `eff.params.spec.districts`, which
+  plan_v0's params (the plan) don't hold, so `grow.district` is refused (`'x' is not a district of the region (none)`). Steward grows a
+  D1 district's lot with `grow.zone` alone today, on any street of that zone. Asked: on a plan_v0 region, `grow.district` names a district
+  of a districts zone (with `grow.zone`, or alone when one zone holds it), and the growth takes only that district's streets and land,
+  as a districts region's growth does.
+- **S-PV1-2, name `form.seabed_site`'s slice.** P0's CI part `underwater_domes/colony` (no ocean on the asks claim) is today a plan that
+  waits: the colony depends on `seabed_site`, which 0.70.0 (catalogue 24) answers `unsupported ... reserved (until later)`. Steward keeps
+  it pending with Claude's words. Asked: the slice that ships it, so the waiting-part offer (COMPOSITION §11) can name it.
 
 ### Phase 8a (staged terrain) contract draft review (2026-11-15): Steward's answers
 - S-8a-1: `PartBuild` counts are enough; Steward computes "about N min" if the rate is readable. The steward stays off parts in `building`; no region flag needed.
