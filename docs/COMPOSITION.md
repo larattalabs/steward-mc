@@ -161,6 +161,10 @@ Plan v0 composes, checks and keeps a plan; building still takes today's layouts.
 
 ## 11. Offering a waiting part once its block ships (drafted 2026-10-14)
 
+**Temporary (slice CA, 2026-11-14):** the part's own plan is still written by Steward's job, on a slim part-only prompt (`prompts/plan-writer.md`),
+not by `Regions.compose`: compose's template pick is wrong for one part and costs a call. It moves to compose in slice CA2, after Architect's CP
+(`architect_mc:skipPick`).
+
 Noah's 9.2 default: the town is built now, the missing part waits, and "when Architect ships that block, the steward proposes adding the part ('Walls can be built now: shall I raise the town wall?'), approved like any proposal." K1 (walls, gates and rope bridges) is the first release that makes this real.
 
 **The flow.**

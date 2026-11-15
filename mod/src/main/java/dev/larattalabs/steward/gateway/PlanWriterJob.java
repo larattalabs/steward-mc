@@ -14,7 +14,7 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The plan writer (docs/COMPOSITION.md, plan v0): a {@code structured} job that composes one settlement as Architect's plan/0 from its concept card, the
+ * (Since CA, a waiting part only: docs/COMPOSITION.md section 11; until CA2, after CP) The plan writer: a {@code structured} job that writes one part as Architect's plan/0 from its concept card, the
  * land round its stone and the anchors Steward supplies (prompts/plan-writer.md, schema/plan-writer.schema.json; Architect's plan/0 schema, by reference or
  * from the loaded jar's {@code Regions.planSchema()}, in the system prompt, so it is cached). Sonnet, medium effort, at most $0.50 a call (Noah: about $1 a plan with repair).
  */

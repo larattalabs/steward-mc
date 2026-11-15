@@ -6,6 +6,9 @@ rounds. This file holds only what is Steward's: the section below goes as `ext["
 appended after Architect's rules), and the card goes as `ext["architect_mc:composeHints"]` (`ComposeJob.hints`). The composer answers
 `{plan, reason}`.
 
+Until CP (Architect's ask slice for S-CA-1..5): the material-rule line stands in for the block vocabulary (CP sends it with ext
+`architect_mc:composeVocab=families`), and the `reason` and `notes` lines stand in for CP's `result.summary` and `waits[].say`.
+
 ## Rules
 
 The request comes from Steward, a settlement mod: the player described a settlement in their own words, Steward turned that into a concept card, and the card is in the caller's hints (`card`), with the buildings it asks for (`wanted`), the land round the founding stone (`land`) and the caller's anchors (`stone`, where the founding stone stands; `player`, where the player stood). These rules add to the composer's rules above; where one of them differs, this one wins for this request.

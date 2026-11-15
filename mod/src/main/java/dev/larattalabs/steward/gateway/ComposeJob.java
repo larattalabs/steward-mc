@@ -172,7 +172,7 @@ public final class ComposeJob {
 			JsonArray picks = new JsonArray();
 			picks.add(pick);
 			picks.add(pick.deepCopy());
-			ext.add(SIM_PICK, picks);
+			ext.add(SIM_PICK, picks); // until CP: the pick is skipped with ext architect_mc:skipPick=true
 		}
 		return ext;
 	}
@@ -227,7 +227,7 @@ public final class ComposeJob {
 		return new Outcome(Kind.NONE, outcome, null, "", usd, rounds, stopped, null, null, why);
 	}
 
-	/** A PICKED template as a one-zone plan/0 Steward can check and keep: {@code {zones: [{id: town, program: {template, params}}]}}. Pure. */
+	/** (until CP: skipPick) A PICKED template as a one-zone plan/0 Steward can check and keep: {@code {zones: [{id: town, program: {template, params}}]}}. Pure. */
 	public static JsonObject pickedPlan(String settlementSlug, String program, JsonObject params) {
 		JsonObject plan = new JsonObject();
 		plan.addProperty("schemaVersion", "plan/0");

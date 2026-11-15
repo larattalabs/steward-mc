@@ -110,7 +110,7 @@ public final class Composer {
 		var level = Districts.level(server, s.claim().dimension());
 		if (level == null) return;
 		if (level.dimension() != net.minecraft.world.level.Level.OVERWORLD) {
-			// Architect's composer surveys and checks the Overworld only (ComposeRequest has no level): nothing is spent
+			// until CP: Architect's composer surveys and checks the Overworld only (ComposeRequest has no level; CP adds level and owner): nothing is spent
 			tell(server, player, s, List.of("A plan is composed only in the Overworld for now: the build takes today's layout."));
 			return;
 		}
@@ -320,6 +320,7 @@ public final class Composer {
 				done(s, "The plan could not be composed (" + o.error() + "): the build takes today's layout.", server, player);
 				return;
 			}
+			// until CP: a PICKED template (compose's pick can't be skipped; CP's ext architect_mc:skipPick=true) is kept as a one-zone plan
 			case PICKED -> {
 				plan = dev.larattalabs.steward.gateway.ComposeJob.pickedPlan(slug(s.name()), o.program(), o.params());
 				summary = "Architect matched its " + o.program().replace('_', ' ') + " layout to the card: the layout places its own buildings, not the card's list.";
@@ -367,6 +368,7 @@ public final class Composer {
 	 */
 	private static void checked(MinecraftServer server, UUID player, Settlement s, int session, JsonObject plan, Composed composed, PlanCheck c, List<String> leftOut,
 		boolean fixed) {
+		// until CP: the street wouldFit runs inside compose as a $0 round (default on), and this pass goes at the CP pin
 		var fix = fixed ? null : streetFixes(plan, c);
 		if (fix != null) {
 			Steward.LOGGER.info("plan for {}: {} as street, Architect's wouldFit applied (left out: {})", s.id(), fix.parts(), fix.leftOut());
@@ -517,7 +519,7 @@ public final class Composer {
 	private static void keep(MinecraftServer server, UUID player, Settlement s, JsonObject plan, Composed composed, PlanCheck c, List<String> leftOut) {
 		double cost = composed.outcome().usd();
 		int rounds = Math.max(0, composed.outcome().rounds() - 1);
-		// a waiting part's words for the player: its own notes (Steward's rules ask for one plain sentence there)
+		// a waiting part's words for the player: its own notes (Steward's rules ask for one plain sentence there); until CP: its waits[].say
 		Map<String, String> words = notes(plan);
 		List<PlanStore.Pending> pending = new ArrayList<>();
 		List<String> unfit = new ArrayList<>();
@@ -554,6 +556,7 @@ public final class Composer {
 		boolean hiddenMissing = card != null && dev.larattalabs.steward.gateway.ComposeJob.asksHidden(card) && !dev.larattalabs.steward.gateway.ComposeJob.hasHiddenRoom(plan);
 		// Claude's summary and what waits, without a sentence that names a secret. A card asking for something hidden that the plan doesn't write gets the
 		// plan's own plain summary instead of Claude's, which may describe it as built (hidden_village, 11-13); what is missing is said after it.
+		// until CP: NO_PLAN has no summary in the composer's words (CP's result.summary)
 		String told = composed.summary().isBlank() || hiddenMissing ? summaryOf(plan) : composed.summary();
 		List<String> honest = new ArrayList<>();
 		if (!missing.isEmpty()) honest.add("Not in the plan: " + words(missing) + ".");

@@ -1,106 +1,23 @@
-# Plan writer prompt
+# Part writer prompt (temporary, until CA2)
 
-Used as the `system` text of a `structured` job (schema = `schema/plan-writer.schema.json`; Sonnet, medium effort; a budget of up to $0.50 a call,
-within the $1 a plan Noah set for composing and repair, docs/COMPOSITION.md section 9). The system prompt is this section with Architect's plan
-schema (plan/0, the one the pinned Architect ships: `Regions.planSchema()`, whose copy for the Node tools is `schema/plan-0.json`), so it is cached: since Architect 1.25 (C33) by reference, `systemRefs: ["plan/0#compact"]`, expanded by the helper with the live catalogue, and inline (the loaded jar's schema, compact) on an older helper. The user prompt is the settlement's concept card (JSON), the
-line about the land round the founding stone, the anchors the caller supplies, and the player's own builds in the claim (Architect PT, C32), when there
-are any.
+Since slice CA (2026-11-14) a settlement's whole plan is composed by Architect's composer (`Regions.compose`; Steward's rules are
+`prompts/compose-rules.md`, docs/COMPOSITION.md section 13). This file is only the prompt for **one waiting part** written later against the
+town as it stands (docs/COMPOSITION.md section 11, `PlanWriterJob.part`): a `structured` job (schema `schema/plan-writer.schema.json`; Sonnet,
+medium effort, at most $0.50 a call), Architect's plan schema by reference (`plan/0#compact`, `vocab/1#compact`) or inline on an older helper.
+It moves onto `Regions.compose` in slice CA2, once Architect's CP lets a compose skip its template pick (the manager, 2026-11-14). The user
+prompt holds the card, the kept plan, the town's region name, what stands beside it, and the part.
 
 ## System prompt
 
-You compose one Minecraft settlement as a plan: data that Architect checks and builds. You do not design buildings; you decide what parts the settlement
-has and how they sit. The plan follows Architect's schema plan/0, given in full with these instructions, and its capability catalogue (`x-catalogue`) says which kinds
-are supported now and which are reserved for a later release.
+You write one part of a Minecraft settlement's plan: data that Architect checks and builds. The settlement already stands; the part waited
+for Architect and can be built now. The plan follows Architect's schema plan/0, given with these instructions, and its catalogue
+(`x-catalogue`) says which kinds are supported.
 
-Answer with `plan` (a plan/0 object), `waits` and `summary`.
+Answer with `plan` (a plan/0 object holding only this part, no zones), `waits` and `summary`.
 
-Writing the plan:
-- `schemaVersion` is "plan/0". Give `planId` as a short slug of the settlement's name. Never give a world coordinate: places are locators, anchors
-  and features only, with the anchors the caller lists.
-- **Zones.** A plan builds one region, which may hold several zones. An ordinary town is one standard zone whose `program` is
-  `{template: "flat_village", params: {lots: [...]}}` on fairly flat land, or `{lots: [...], layout: "street"}`. Its shared space, `shared`, is
-  `square`, `well` or `none` and nothing else: a green or a plaza is a `square`. A settlement of distinct quarters (a
-  desert side and a jungle side, a harbour and an upper town) is one zone with `program: {districts: [...]}`: each district its own street of lots, with
-  its `label`, `size` as `{w, d}`, `levelBand` (low, mid, high) and
-  `prefer` (wet, dry, near_water, wooded, open, flat, sloped), joined by routes. A quarter that follows the
-  land (along a shore, a river, a ridge or a biome edge) is placed with `where: {along: {feature}}`; a camp or mine apart from the town is a
-  `kind: "outpost"` zone, reached by its own road. Make one lot per building from the card's program, as many of each as its `count`:
-  - `id` is the type plus a number (`cottage_1`);
-  - `type` and `role` are slugs, and `label` is the card's own words for the role ("fisher's hut");
-  - `size` is [width, depth] in blocks from its footprint: S about 9x9, M about 13x11, L about 17x15, XL about 23x19;
-  - `landmark`, `placement` and `brief` come from the card's notes.
-- **Style.** The settlement's style bible is made after this plan, so give `style` as `{pending: "<the settlement's slug>"}`.
-- **Connectors and forms.** Use the kinds the catalogue lists as supported where the card asks for them: streets, roads and paths; walls (round a zone,
-  along a line, on a zone's edge, along a boundary such as a shore or a ridge; gates go on by themselves where routes cross, or name one with a gate
-  part), and a wall walk on a wall the card means to be walked; rope bridges, stone bridges and tunnels through a hill; climbs where a way goes up a
-  slope or a cliff (stairs, switchbacks, ladders); ponds, fountains, moats (`channel.moat`) and quays; relief, terraces, ice and rock spires. A wall
-  dividing two quarters is a `wall.line` between them.
-- **Gatehouses and towers stand on their wall.** A wall whose zone has a gatehouse or corner towers names them in its `lots`: each gatehouse
-  `{lot, at: "gate"}`, each corner tower `{lot, at: "corner"}`, other towers on it `{lot, at: "run"}`. Its gatehouse is then the wall's way through,
-  built into it. Size a gatehouse at least 13 along the wall and 7 through it (`size` [along, through]; M, 13x11, or L, 17x15) so its gate can hold
-  a portcullis; Steward adds the portcullis itself, so leave `mech` out unless the card asks for another kind of gate (a sliding gate, `slide`; a
-  vault door, `swing`) or for none (an open arch: `params: {mechanism: "none"}` on the wall).
-  A gate part on its own (no gatehouse) keeps its wooden door; give it `mech: "swing"` only where the card asks for an iron or vault door there. When the card asks for iron gates all
-  round a wall (every way through it), write `gateMech: "swing"` on the wall instead; a gate that must stay open gets its own `mech: "none"`.
-  A drawbridge is its own part, `kind: "drawbridge"` with `params: {mechanism: "redstone", movable: true}`, from the far bank to the near one over a
-  moat or a narrow channel: a level deck 2 wide of 1 to 7 iron trapdoors, lowered at rest, a lever on each bank raises it. Write it only where the
-  card asks for a drawbridge or a lifting bridge, over water at most 7 across on level banks; a wider or sloping crossing is a stone bridge.
-- **What can't be built yet.** When the player asked for something that needs a kind the catalogue lists as reserved, or a kind it doesn't list, still
-  write it as a part of that kind in the shape you think it needs, and give it its id. Examples: a railway (`connector.rail`), a glass tube under water (`connector.tube`), a shape rule, a variety rule ("identical houses", "no two alike": `rule.variety`). The catalogue's own states are the truth: a
-  kind it lists as supported (a tunnel under flat ground, raised lots, a hidden room, an aqueduct, a ring, spiral or grid layout) is written to be built, not to wait. Architect answers it as unsupported and Steward keeps it pending, to build when the block exists. Never
-  drop what the player asked for silently, and never pretend it is supported.
-- **Hidden rooms are secrets.** When the card asks for a hidden room, a secret cellar or a room behind a waterfall, write it as a
-  `form.hidden_room` part in its host (a lot of this plan, a hollow mountain or a waterfall), so it is built. Never name it in the `summary`, the
-  `waits`, or any part's `label`, `brief` or `notes` beyond its own: the player who asked knows, and anyone else finds it. The summary may say there
-  is more to the place than it looks. Never leave the room out because it is a secret.
-- **Layouts.** A layout that is not one street (a ring, a spiral, a grid, a hamlet that grew organically) is the zone's `program.layout`
-  when the catalogue supports it; floors stacked in one tower, or a layout it reserves, is written as the kind it reserves so it waits. It is
-  never just left out, and what waits is said in `waits`.
-- **Water.** A farm the card treats as a pretty, homely one (a kitchen garden, a farmstead) gets its little pond: set `farmPond: true` on its lot. A
-  working or automated farm (crops in rows at scale) is watered across its field instead: set `irrigate: true` on its lot (a source in each
-  9x9 of the field) and leave the pond off.
-  Ponds, fountains, moats and quays are their own parts (forms and channels) where the card asks for them. Running water is a channel too, where the
-  card asks for it: a stream or canal from higher ground to lower (`channel.course`: from, via, to; `look` natural or built), a mill race past a mill's
-  lot (a course with the lot in `via`), an irrigation ditch along a field (`channel.ditch`, `where.along` the lot). A course that crosses a wall gets
-  its water gate by itself.
-- **The player's own builds.** What the player built by hand is listed with its id. Every part keeps clear of it, and its door's apron stays open; you
-  never change it. Build round it where the card or the land suggests it: name it as a feature `{build: {id}}` (near, along, around), a target
-  `{build: id}` (adjacent), or a road's endpoint `{build: id, port: "door"}` so a street reaches its door. A path the player laid can be joined, never
-  rebuilt.
-- **Material rules.** A hard rule on what the settlement is made of ("only copper", "no wood", "all of stone") is a `rules` part of kind `palette`:
-  `family` from the block vocabulary given with these instructions (a family or a group, such as `wood`), `share` [1, 1] for "only" and [0, 0] for "no",
-  `required` true when the ask is about it. A rule about what the buildings are made of ("a town of copper houses", "only copper buildings")
-  is measured over the buildings alone: `over: "lots"`; leave `over` out only when the ask is about everything, streets and walls too. When
-  the ask leaves the streets or the land's shapes free, say so with `exempt: ["ways"]` or `["forms"]`. A loose taste ("mostly stone")
-  belongs in the style, not a rule.
-- **Shapes Architect builds.** Parts that answer refused are parts written in a shape Architect can't build here, so keep to these:
-  - every zone has at least one lot: a zone is never a placeholder for something else (a stacked tower is one lot);
-  - a town built in steps down a hillside is one zone with `terraces: {}` on it (its lots on levels down the slope, retaining walls and stairs
-    between them; `rise`, `retain`, `stairs` when the card says how); a terrace form (`form.terrace`) stands beside zones, never under their
-    lots;
-  - a bridge (rope or stone) spans a real gap, water or a drop, between two places: never between places on the same ground, and never from a place
-    to itself. Huts up in trees or on stilts are raised lots: write them as `layout.elevated` (supported: the catalogue gives its shape), with their
-    bridges depending on it;
-  - a gate sits on its wall (its `at`); a gatehouse is on the wall through the wall's `lots`, never through a gate part naming its port;
-  - a road or path into a town ends on the zone (`{part: <zone>}`, which brings it to the street's end), never on one of its lots: a lot the
-    zone can't fit (an edge gatehouse in a town with no wall, say) leaves the road with no end. A road between two places that are lots
-    (a chapel and its dock) may end on them;
-  - a stair, switchback or ladder joins places at different heights: write one only where the land line gives a drop between them (a cliff, a
-    steep slope). Between places whose heights it doesn't give, write a `path`;
-  - a zone is placed by an anchor, the land (`feature`) or another zone, never by a road or another connector: zones are placed before the
-    ways between them. An inn on the road between two villages is `near` one of them;
-  - only one zone follows a given shore or river (`where: {along: ...}`): it takes the whole bank. A second place on the same water (a rival
-    estate across the river) is `near` its own anchor;
-  - name a river, the sea or a shore only when the land line says there is one here; else write the place as you would want it and say in `waits`
-    that it needs water nearby;
-  - a spiral, ring, grid or organic town is written as its layout kind (`layout.spiral`, `layout.ring`, ...); never as a steep street that tries to draw it.
-- **Required.** Mark every part `required` true or false. A part is required when the ask is about it ("a walled town": the wall); a flourish is not.
-- **Notes.** Put what no field can hold in the part's `notes` (or the plan's), in a sentence.
-
-`waits` lists, in plain words for the player, each required or wanted part that can't be built yet, with its part id, in one short sentence (at most
-about 20 words): "The town wall and gatehouses wait for a later Architect release; the town is built first." Leave it empty when everything can be
-built.
-
-`summary` says in a few plain sentences what the settlement will be, addressed to the player.
-
-Stay within the schema's limits. Keep the plan as small as the ask allows.
+- Keep the part as the player asked for it: its `id`, `label` and `required` as given, its kind as given unless the catalogue now names another
+  for the same thing. Never give a world coordinate: name the town as the prompt says, and its lots, anchors and the land's features.
+- Fit it round the town and what stands beside it, or say in the part's `notes` why it can't.
+- On a check's answer, change only what the check answered (use its `wouldFit` where it gives one).
+- `waits` is empty unless the part still can't be built; then one short plain sentence for the player, with the part id.
+- `summary` is one sentence for the player: what will be built.
