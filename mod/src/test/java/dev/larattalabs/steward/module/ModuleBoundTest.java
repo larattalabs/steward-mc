@@ -107,6 +107,11 @@ class ModuleBoundTest {
 		neg.put("minecraft:dirt", -1);
 		assertNull(ModuleBound.allowed(bom, neg), "an unreadable terrain count refuses rather than guess");
 		assertEquals(Map.of("minecraft:dirt", 214, "minecraft:gravel", 2, "minecraft:oak_planks", 40), ModuleBound.cap(allowed));
+		// asked again after a put-down refusal: never less than what was approved, item by item
+		assertEquals(j("{\"minecraft:dirt\": 220, \"minecraft:gravel\": 2, \"minecraft:oak_planks\": 40}"),
+			ModuleBound.atLeast(j("{\"minecraft:dirt\": 220, \"minecraft:oak_planks\": 38}"), allowed));
+		assertEquals(j("{\"minecraft:dirt\": 1}"), ModuleBound.atLeast(j("{\"minecraft:dirt\": 1}"), null));
+		assertEquals(Map.of(), ModuleBound.cap(j("{}")), "an empty approved bill caps every item at 0");
 	}
 
 	@Test

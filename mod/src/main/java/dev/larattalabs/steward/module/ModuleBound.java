@@ -107,6 +107,16 @@ public final class ModuleBound {
 		return o;
 	}
 
+	/** (QD) {@code bill} with each item raised to at least {@code floor}'s count (a re-ask after a refusal never narrows what was approved). */
+	public static JsonObject atLeast(JsonObject bill, @Nullable JsonObject floor) {
+		Map<String, Integer> out = new TreeMap<>();
+		for (var e : bill.entrySet()) out.put(e.getKey(), count(e.getValue()));
+		if (floor != null) for (var e : floor.entrySet()) out.merge(e.getKey(), count(e.getValue()), Math::max);
+		JsonObject o = new JsonObject();
+		out.forEach(o::addProperty);
+		return o;
+	}
+
 	/** (QD) An approved bill as Architect's {@code maxBill} (item id -> count, sorted), or null when it can't be read. */
 	public static @Nullable Map<String, Integer> cap(@Nullable JsonObject bill) {
 		JsonObject b = clean(bill);

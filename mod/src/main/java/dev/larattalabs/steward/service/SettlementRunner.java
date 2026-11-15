@@ -2429,6 +2429,13 @@ public final class SettlementRunner {
 		// (QD) a module growth from materials is held to the bound the player approved: Architect refuses it at put-down past that bound
 		// (BILL_CAP), and draws nothing past it while it builds (the bill_cap wait)
 		var cap = mode == Mode.CONSTRUCTION ? moduleCap() : null;
+		// never realised from materials uncapped (quoteModules refuses an Architect without maxBill before this)
+		if (cap == null && mode == Mode.CONSTRUCTION && moduleBuild()) {
+			queueInFlight = false;
+			say("Not placed: the module's bill can't be held to what you approved here. Nothing was consumed.");
+			feed(new Pipeline.Cancel());
+			return;
+		}
 		if (cap != null) {
 			Steward.LOGGER.info("module {} realise {} under {}: maxBill {}", settlement.id(), vPlanId, key, cap);
 			request = request.withMaxBill(cap);
@@ -2597,6 +2604,12 @@ public final class SettlementRunner {
 			feed(new Pipeline.Cancel());
 			return;
 		}
+		// (QD, S-M5-9) a module from materials is realised under its approved bound as maxBill, never uncapped
+		if (!ArchitectApi.get().features().contains(MAX_BILL)) {
+			say("Not placed: this Architect can't hold a build to the bill you approved (it has no maxBill). Nothing was consumed.");
+			feed(new Pipeline.Cancel());
+			return;
+		}
 		moduleBusy = true;
 		int session = Session.current();
 		String key = ModulePlacement.cleared(vPlanId, entries);
@@ -2640,10 +2653,12 @@ public final class SettlementRunner {
 					+ " (" + h.bill() + " of " + h.stock() + ")").collect(Collectors.joining(", ")) + ", so I ask first."
 				: check.ask() != null && !now.inexactApproved() ? "Architect can't quote the bill exactly (" + check.ask() + "), so I ask first." : null;
 			if (why != null) {
-				// held, saved with the build: the approval binds to exactly this bill (the quote, a terrain item up to its allowance), also after a restart
-				moduleOrders = Map.of(lot, now.holding(allowed));
+				// held, saved with the build: the approval binds to exactly this bill (the quote, a terrain item up to its allowance), also after a restart.
+				// Asked again after a put-down refusal, it is never less than what was already approved, item by item
+				JsonObject shown = refusedAtPutDown ? dev.larattalabs.steward.module.ModuleBound.atLeast(allowed, now.bound()) : allowed;
+				moduleOrders = Map.of(lot, now.holding(shown));
 				persist();
-				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.upTo(allowed, terrain.keySet(), 1000)
+				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.upTo(shown, terrain.keySet(), 1000)
 					+ ". Approve to build it with this bill (it becomes the bound: nothing past it is taken), or cancel."));
 				return;
 			}

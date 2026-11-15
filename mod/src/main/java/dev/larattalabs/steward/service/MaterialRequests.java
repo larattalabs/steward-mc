@@ -27,7 +27,7 @@ public final class MaterialRequests {
 	/** How often the long waits are read (every 10 s). */
 	private static final int EVERY = 200;
 	/** Targets whose start of waiting was said, by the tick it began (each wait is said once). */
-	private static final Map<String, Long> SAID = new HashMap<>();
+	private static final Map<String, String> SAID = new HashMap<>();
 	/** Settlements with a long wait: the player the steward goes to find, and the wait's start (said once per wait). */
 	private static final Map<String, LongWait> LONG = new HashMap<>();
 	/** When each settlement last told its players about materials (game ticks): at most once a minute (each small delivery can start a new wait). */
@@ -101,15 +101,17 @@ public final class MaterialRequests {
 		if (srv == null || !wait.waiting() || wait.nextNeeded().isEmpty()) return;
 		var s = settlementOf(site.owner());
 		if (s.isEmpty()) return;
-		Long said = SAID.get(wait.targetId());
-		if (said != null && said == wait.waitingSince()) return;
-		SAID.put(wait.targetId(), wait.waitingSince());
+		// once per wait and per reason (QD: a shortage that becomes a bill_cap wait keeps its waitingSince, and is said again)
+		String key = saidKey(wait);
+		if (key.equals(SAID.get(wait.targetId()))) return;
 		long now = srv.overworld().getGameTime();
 		Long last = TOLD.get(s.get().id());
-		if (last != null && now - last < TELL_EVERY_TICKS) return;
+		// (QD) a bill_cap wait is never held back by the settlement's throttle: more stock would not help, and the player must hear why
+		if (!capped(wait) && last != null && now - last < TELL_EVERY_TICKS) return;
+		SAID.put(wait.targetId(), key);
 		TOLD.put(s.get().id(), now);
 		// (QD) held by the approved bound, not by the stockpile: more materials would not help
-		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait));
+		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), wait));
 		else tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
 	}
 
@@ -196,7 +198,7 @@ public final class MaterialRequests {
 			if (had == null || had.since() != longest.waitingSince()) {
 				var target = sites.get(longest.targetId());
 				String what = target.map(v -> nameOf(s, v)).orElse("build");
-				if (capped(longest)) tell(srv, s, overCap(what, s.id(), longest));
+				if (capped(longest)) tell(srv, s, overCap(what, longest));
 				else tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
 			}
 		}
@@ -214,6 +216,11 @@ public final class MaterialRequests {
 		}
 	}
 
+	/** (QD) What makes a wait said once: when it began and why (a bill_cap wait said once per over-count). Pure. */
+	static String saidKey(SiteWait w) {
+		return w.waitingSince() + "|" + (w.blocked() == null ? "" : w.blocked() + (capped(w) ? "|" + w.nextNeeded().stream().mapToInt(n -> n.count()).sum() + w.moreUnits() : ""));
+	}
+
 	/** (QD, S-M5-9) Whether a target waits because its next cell would draw past the bound its realise was approved under ({@code bill_cap}). */
 	static boolean capped(SiteWait w) {
 		return SiteWait.BILL_CAP.equals(w.blocked());
@@ -221,20 +228,20 @@ public final class MaterialRequests {
 
 	/**
 	 * (QD) A {@code bill_cap} wait in words: how far over what the player approved it would go (Architect's {@code nextNeeded} names the capped
-	 * items and the units over), that nothing past it is taken, and what they can do. Architect can't raise a standing build's cap, so the player
-	 * is asked to undo it (what it took comes back) and ask for it again, which quotes and asks afresh. Pure.
+	 * items and the units over), and that nothing past it is taken. Architect 0.70.0 can't raise a standing build's cap, and Steward doesn't undo a
+	 * growth still being built (A2's rule, lifted by A2L), so there is nothing to approve yet: the player is told it stays as it stands.
 	 */
-	static String overCap(String what, String settlementId, SiteWait w) {
+	static String overCap(String what, SiteWait w) {
 		var over = w.nextNeeded().stream()
 			.map(n -> Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(n.item()).toString(), n.count())).toList();
-		return overCapWords(what, settlementId, over, w.moreUnits());
+		return overCapWords(what, over, w.moreUnits());
 	}
 
 	/** {@link #overCap} over plain item ids (testable without the item registry). */
-	static String overCapWords(String what, String settlementId, List<Map.Entry<String, Integer>> over, int moreUnits) {
+	static String overCapWords(String what, List<Map.Entry<String, Integer>> over, int moreUnits) {
 		return "The " + what + " has stopped: going on would take " + dev.larattalabs.steward.module.ModuleBound.overWords(over, moreUnits)
-			+ " more than you approved, and I take nothing past that. Undo it (/steward undo " + settlementId + ") to get back what it used; ask for it again and I'll put"
-			+ " the new bill to you.";
+			+ " more than you approved, and I take nothing past what you approved. Filling the stockpile won't help; I can't raise what you approved on a"
+			+ " build already standing, so it stays as it is for now.";
 	}
 
 	/** "12 oak planks, 4 glass" (and how many more units beyond the first 8 kinds). */
