@@ -610,6 +610,24 @@ certification gate, with a dev-only override bound that holds its bill on purpos
 - **Not covered by e2e** (unit-tested, or the decision functions only): a restart between the binding and the realise, a stale re-plan that
   moves the lot, the smaller-size fallback, Q4, an inexact quote, decline both ways, an adopted (B) town.
 
+### QD as built (2026-11-14): a survival quote approved as a bound, "up to N"
+
+Noah, 2026-11-14: "A: up to N". Architect v0.70.0 (QL's `Quote.terrain()`, BC's `maxBill`).
+- **The allowance** (`ModuleBound.allowed`): a terrain item (one `Quote.terrain()` names, a 0 count included) may go
+  `max(2, ceil(2% of terrain[item]))` over its quoted count; every other item stays exact. Without `quoteTerrain`, every item is exact.
+- **A hold** saves that bill as `held` and shows it: "up to 214 dirt, 40 oak planks". Approving makes it the bound, as before. There is no new
+  save member: an older build's `held` is the exact quote and is approved exactly.
+- **The realise's `maxBill`** (feature `maxBill`, a module growth from materials) is the saved approved bound. That is the bill approved at a hold,
+  or the measured bound approved at Accept when the quote was never held. A re-quote within it isn't asked again; one past it is held with its
+  new "up to N".
+- **`BILL_CAP` at put-down:** "the materials needed went past what you approved". It's quoted again and always held; the approval realises under
+  the same key (Architect records neither the revision nor its key on that refusal).
+- **A `bill_cap` wait:** the steward says how far over it would go (`nextNeeded`) and that nothing past it is taken. Architect can't raise a
+  standing build's cap, so the player is pointed to undo (an exact refund) and asking again.
+- **e2e** (module-survival, round 1): the held bill says "up to N dirt"; kept terrain cells that stand are turned to coarse dirt while it is held.
+  Past the allowance, it is asked again with a new "up to". One cell more, within it, places with no third ask, under a `maxBill` equal to the
+  approved bill.
+
 ## 9. Noah's answers (2026-11-12)
 
 Noah, in the Steward manager session: "Go with option 1, defaults/recommendations for the rest". Option 1 is phase 5b (section 3.3). The six

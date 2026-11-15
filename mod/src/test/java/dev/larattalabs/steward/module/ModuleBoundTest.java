@@ -75,4 +75,46 @@ class ModuleBoundTest {
 		assertFalse(held.inexactApproved());
 		assertFalse(new ModuleOrder("Bad Id", 1, "a".repeat(64), j("{}"), null, null, false, false).valid());
 	}
+
+	@Test
+	void aTerrainItemIsAllowedTwoOrTwoPercentOfItsTerrainPartOverItsQuote() {
+		assertEquals(2, ModuleBound.allowance(0), "a terrain item at 0 still gets its 2");
+		assertEquals(2, ModuleBound.allowance(1));
+		assertEquals(2, ModuleBound.allowance(100));
+		assertEquals(3, ModuleBound.allowance(101), "ceil(2.02)");
+		assertEquals(5, ModuleBound.allowance(209), "ceil(4.18)");
+		assertEquals(2, ModuleBound.allowance(-4), "a negative part counts as 0");
+	}
+
+	@Test
+	void theAllowedBillAddsTheAllowanceToTerrainItemsOnlyOverBomAndTerrainKeys() {
+		// crop-farm-067: 209 dirt, 205 of it from the kept terrain cells; gravel's terrain cells all stand (0, absent from the bom); planks are lot material
+		var bom = j("{\"minecraft:dirt\": 209, \"minecraft:oak_planks\": 40}");
+		var allowed = ModuleBound.allowed(bom, Map.of("minecraft:dirt", 205, "minecraft:gravel", 0));
+		assertEquals(j("{\"minecraft:dirt\": 214, \"minecraft:gravel\": 2, \"minecraft:oak_planks\": 40}"), allowed,
+			"dirt 209 + ceil(4.1); gravel 0 + 2; planks exact");
+		// the one-cell drift that re-asked before: within it, item by item
+		assertTrue(ModuleBound.over(j("{\"minecraft:dirt\": 210, \"minecraft:oak_planks\": 40}"), allowed).isEmpty());
+		assertTrue(ModuleBound.over(j("{\"minecraft:dirt\": 214, \"minecraft:gravel\": 2, \"minecraft:oak_planks\": 40}"), allowed).isEmpty());
+		assertEquals(List.of(new ModuleBound.Over("minecraft:dirt", 215, 214)), ModuleBound.over(j("{\"minecraft:dirt\": 215, \"minecraft:oak_planks\": 40}"), allowed));
+		assertEquals(List.of(new ModuleBound.Over("minecraft:oak_planks", 41, 40)), ModuleBound.over(j("{\"minecraft:dirt\": 209, \"minecraft:oak_planks\": 41}"), allowed),
+			"lot material stays exact: one plank over is past it");
+		// an Architect without quoteTerrain: every item exact
+		assertEquals(bom, ModuleBound.allowed(bom, Map.of()));
+		assertEquals(bom, ModuleBound.allowed(bom, null));
+		assertNull(ModuleBound.allowed(j("{\"minecraft:dirt\": -1}"), Map.of()));
+		var neg = new java.util.HashMap<String, Integer>();
+		neg.put("minecraft:dirt", -1);
+		assertNull(ModuleBound.allowed(bom, neg), "an unreadable terrain count refuses rather than guess");
+		assertEquals(Map.of("minecraft:dirt", 214, "minecraft:gravel", 2, "minecraft:oak_planks", 40), ModuleBound.cap(allowed));
+	}
+
+	@Test
+	void theApprovedBillSaysUpToForTerrainItemsAndTheCountForTheRest() {
+		var allowed = j("{\"minecraft:dirt\": 214, \"minecraft:gravel\": 2, \"minecraft:oak_planks\": 40}");
+		assertEquals("up to 214 dirt, 40 oak planks, up to 2 gravel", ModuleBound.upTo(allowed, java.util.Set.of("minecraft:dirt", "minecraft:gravel"), 10));
+		assertEquals("214 dirt and 2 more", ModuleBound.upTo(allowed, java.util.Set.of(), 1));
+		assertEquals("3 dirt, 1 gravel and 4 units more besides", ModuleBound.overWords(List.of(Map.entry("minecraft:dirt", 3), Map.entry("minecraft:gravel", 1)), 4));
+		assertEquals("1 dirt and 1 unit more besides", ModuleBound.overWords(List.of(Map.entry("minecraft:dirt", 1)), 1));
+	}
 }

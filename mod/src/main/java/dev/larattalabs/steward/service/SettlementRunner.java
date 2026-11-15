@@ -618,6 +618,13 @@ public final class SettlementRunner {
 	private boolean moduleBusy;
 	/** (slice M3) The plan and entries whose quote passed this session ({@code planId|lot=entry,...}): the realise goes on only for exactly them. */
 	private @org.jspecify.annotations.Nullable String quoteCleared;
+	/**
+	 * (QD) Architect refused the realise at put-down ({@code BILL_CAP}: its bill then was past the approved bound): the next quote is put to the
+	 * player whatever it says, never realised on its own. This session only (after a restart the quote is checked against the saved bound again).
+	 */
+	private boolean capRefused;
+	/** (QD) Architect's features for a module's survival bill: the terrain part of a quote, and a realise held to a cap. */
+	static final String QUOTE_TERRAIN = "quoteTerrain", MAX_BILL = "maxBill";
 
 	/** Whether this build places module lots (slice M3): its lots come from the catalog, never a design. */
 	private boolean moduleBuild() {
@@ -1918,6 +1925,12 @@ public final class SettlementRunner {
 		return m.contains("connection lost") || m.contains("not connected") || m.contains("timed out") || m.startsWith("timeout") || m.contains("sidecar link lost");
 	}
 
+	/** (QD) Architect refused a realise held to a cap: its bill at put-down was past it ({@code BILL_CAP}). */
+	static boolean billCapped(@org.jspecify.annotations.Nullable Throwable err) {
+		Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
+		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.BILL_CAP;
+	}
+
 	static boolean keyConflict(@org.jspecify.annotations.Nullable Throwable err) {
 		Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
 		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.OP_KEY_CONFLICT;
@@ -2412,8 +2425,15 @@ public final class SettlementRunner {
 			? opKey("vrealise2") : opKey("vrealise");
 		// (slice A2) a growth of a town built from materials is built from them (Architect realises a revision in its town's own mode; the request says so)
 		Mode mode = growth() && growRegion != null && api.regions().get(growRegion).map(Growths::fromMaterials).orElse(false) ? Mode.CONSTRUCTION : Mode.INSTANT;
-		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, mode, actor, lotEntries, null, true, null, false, ext, 0, key))
-			.whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
+		var request = new dev.larattalabs.architect.api.RealiseRequest(vPlanId, mode, actor, lotEntries, null, true, null, false, ext, 0, key);
+		// (QD) a module growth from materials is held to the bound the player approved: Architect refuses it at put-down past that bound
+		// (BILL_CAP), and draws nothing past it while it builds (the bill_cap wait)
+		var cap = mode == Mode.CONSTRUCTION ? moduleCap() : null;
+		if (cap != null) {
+			Steward.LOGGER.info("module {} realise {} under {}: maxBill {}", settlement.id(), vPlanId, key, cap);
+			request = request.withMaxBill(cap);
+		}
+		api.regions().realise(request).whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
 	}
 
 	// ----------------------------------------------------------------- module lots (slice M3, docs/MODULES.md 4.2)
@@ -2526,6 +2546,16 @@ public final class SettlementRunner {
 		}));
 	}
 
+	/**
+	 * (QD, S-M5-9) The cap a module growth from materials is realised under: its one module lot's approved bound as saved (the measured bound the
+	 * player approved at Accept, or the bill they approved since: the quote plus the terrain allowance), item by item. Null when it isn't a
+	 * module build, Architect has no {@code maxBill}, or there is no bound (quoteModules refuses that before a realise).
+	 */
+	private java.util.@org.jspecify.annotations.Nullable Map<String, Integer> moduleCap() {
+		if (!moduleBuild() || moduleOrders.size() != 1 || !ArchitectApi.get().features().contains(MAX_BILL)) return null;
+		return dev.larattalabs.steward.module.ModuleBound.cap(moduleOrders.values().iterator().next().bound());
+	}
+
 	/** Lost or late variant answers asked again by key, this build (a refusal is never retried). */
 	private int moduleRetries;
 	static final int MODULE_RETRIES = 3;
@@ -2580,8 +2610,13 @@ public final class SettlementRunner {
 			}
 			JsonObject bill = dev.larattalabs.steward.module.ModuleBound.clean(q.bom());
 			if (bill == null) { say("Not placed: Architect's quote is not a bill of items. Nothing was consumed."); feed(new Pipeline.Cancel()); return; }
+			// (QD, Architect QL) the quote's terrain part: those items may go a little over (the allowance), every other item stays exact; an
+			// Architect without it keeps every item exact
+			Map<String, Integer> terrain = ArchitectApi.get().features().contains(QUOTE_TERRAIN) ? q.terrain() : Map.of();
+			JsonObject allowed = dev.larattalabs.steward.module.ModuleBound.allowed(bill, terrain);
+			if (allowed == null) { say("Not placed: Architect's quote has a terrain count that is not a count. Nothing was consumed."); feed(new Pipeline.Cancel()); return; }
 			var now = moduleOrders.get(lot);
-			Steward.LOGGER.info("module {} quote {}: {} (bound {}, exact {}, notes {})", settlement.id(), vPlanId, bill, now.bound(), q.exact(), q.notes());
+			Steward.LOGGER.info("module {} quote {}: {} (bound {}, exact {}, notes {}, terrain {})", settlement.id(), vPlanId, bill, now.bound(), q.exact(), q.notes(), terrain);
 			var check = ModulePlacement.quoteCheck(q.exact(), q.notes());
 			// a quote that leaves a part unbilled can't hold the build to anything: refused, nothing consumed
 			if (check.refused() != null) {
@@ -2597,16 +2632,19 @@ public final class SettlementRunner {
 					.ifPresent(sp -> sp.stock().forEach((it, n) -> stock.put(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(it).toString(), n)));
 				heavy = dev.larattalabs.steward.module.ModuleBound.heavy(bill, stock);
 			}
-			String why = !over.isEmpty() ? "The bill came to more than you approved: " + dev.larattalabs.steward.module.ModuleBound.words(over, 100) + "."
+			boolean refusedAtPutDown = capRefused;
+			capRefused = false;
+			String why = refusedAtPutDown ? "When it was put down, the materials needed went past what you approved."
+				: !over.isEmpty() ? "The bill came to more than you approved: " + dev.larattalabs.steward.module.ModuleBound.words(over, 100) + "."
 				: !heavy.isEmpty() ? "The whole bill takes more than half of the stockpile's " + heavy.stream().map(h -> dev.larattalabs.steward.module.ModuleBound.plain(h.item())
 					+ " (" + h.bill() + " of " + h.stock() + ")").collect(Collectors.joining(", ")) + ", so I ask first."
 				: check.ask() != null && !now.inexactApproved() ? "Architect can't quote the bill exactly (" + check.ask() + "), so I ask first." : null;
 			if (why != null) {
-				// held, saved with the build: the approval binds to exactly this bill, also after a restart
-				moduleOrders = Map.of(lot, now.holding(bill));
+				// held, saved with the build: the approval binds to exactly this bill (the quote, a terrain item up to its allowance), also after a restart
+				moduleOrders = Map.of(lot, now.holding(allowed));
 				persist();
-				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.bill(bill, 1000)
-					+ ". Approve to build it with this bill (it becomes the bound), or cancel."));
+				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.upTo(allowed, terrain.keySet(), 1000)
+					+ ". Approve to build it with this bill (it becomes the bound: nothing past it is taken), or cancel."));
 				return;
 			}
 			if (now.held() != null) { moduleOrders = Map.of(lot, now.holding(null)); persist(); }
@@ -3052,6 +3090,16 @@ public final class SettlementRunner {
 		}
 		if (err != null && growth()) {
 			if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
+			// (QD, S-M5-9) the bill at put-down was past the approved bound: nothing was written or taken (refused before the revision or its key
+			// is recorded), so it is quoted again and put to the player; their approval realises it under the same key
+			if (billCapped(err) && moduleBuild() && state.phase() == Pipeline.Phase.PLACING) {
+				Steward.LOGGER.info("module {} realise {} refused at put-down: {}", settlement.id(), vPlanId, message(err));
+				say("Not placed yet: the materials needed went past what you approved. Nothing was taken from the stockpile; I'll ask you again.");
+				capRefused = true;
+				quoteCleared = null;
+				realiseVillage();
+				return;
+			}
 			// another change of the town was accepted while the lots were designed: planned once more with the same lots, the designs kept by lot id
 			String m = message(err);
 			// cancelled meanwhile: a stale realise wrote nothing, so the cancel ends here

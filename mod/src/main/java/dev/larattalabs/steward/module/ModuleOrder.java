@@ -19,8 +19,10 @@ import org.jspecify.annotations.Nullable;
  * @param autonomous the steward accepted it on its own (Autonomous, Full): in survival it asks first when the whole bill takes more than half of
  *     the stockpile's count of any item (Q4); false on an offer
  * @param proposal the key of the proposal accepted (null on an offer): a build that ends with nothing placed gives it back, also after a restart
- * @param held a quote past the bound the player is asked about now (its whole bill), saved with the build so the approval binds to what was shown,
- *     also across a restart; null when nothing waits
+ * @param held the bill the player is asked about now (a quote past the bound, or one asked about for another reason), saved with the build so
+ *     the approval binds to what was shown, also across a restart; null when nothing waits. (QD, since 2026-11-14) It is the quote with each
+ *     terrain item up to its allowance ({@link ModuleBound#allowed}), as shown ("up to N"); an older save's is the exact quote, approved exactly.
+ *     Approved, it becomes the bound, and the bound is the realise's {@code maxBill}
  * @param inexactApproved the player approved a held bill that Architect could not quote exactly: a later quote with the same uncertainty, within
  *     that bill, is not asked about again
  */

@@ -108,7 +108,9 @@ public final class MaterialRequests {
 		Long last = TOLD.get(s.get().id());
 		if (last != null && now - last < TELL_EVERY_TICKS) return;
 		TOLD.put(s.get().id(), now);
-		tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
+		// (QD) held by the approved bound, not by the stockpile: more materials would not help
+		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait));
+		else tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
 	}
 
 	/** Regions built from materials (Architect RS) whose build isn't done yet, by settlement: said once when done. This world's session only. */
@@ -194,7 +196,8 @@ public final class MaterialRequests {
 			if (had == null || had.since() != longest.waitingSince()) {
 				var target = sites.get(longest.targetId());
 				String what = target.map(v -> nameOf(s, v)).orElse("build");
-				tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
+				if (capped(longest)) tell(srv, s, overCap(what, s.id(), longest));
+				else tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
 			}
 		}
 	}
@@ -209,6 +212,29 @@ public final class MaterialRequests {
 				p.sendSystemMessage(net.minecraft.network.chat.Component.literal("[" + s.name() + "] " + text));
 			}
 		}
+	}
+
+	/** (QD, S-M5-9) Whether a target waits because its next cell would draw past the bound its realise was approved under ({@code bill_cap}). */
+	static boolean capped(SiteWait w) {
+		return SiteWait.BILL_CAP.equals(w.blocked());
+	}
+
+	/**
+	 * (QD) A {@code bill_cap} wait in words: how far over what the player approved it would go (Architect's {@code nextNeeded} names the capped
+	 * items and the units over), that nothing past it is taken, and what they can do. Architect can't raise a standing build's cap, so the player
+	 * is asked to undo it (what it took comes back) and ask for it again, which quotes and asks afresh. Pure.
+	 */
+	static String overCap(String what, String settlementId, SiteWait w) {
+		var over = w.nextNeeded().stream()
+			.map(n -> Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(n.item()).toString(), n.count())).toList();
+		return overCapWords(what, settlementId, over, w.moreUnits());
+	}
+
+	/** {@link #overCap} over plain item ids (testable without the item registry). */
+	static String overCapWords(String what, String settlementId, List<Map.Entry<String, Integer>> over, int moreUnits) {
+		return "The " + what + " has stopped: going on would take " + dev.larattalabs.steward.module.ModuleBound.overWords(over, moreUnits)
+			+ " more than you approved, and I take nothing past that. Undo it (/steward undo " + settlementId + ") to get back what it used; ask for it again and I'll put"
+			+ " the new bill to you.";
 	}
 
 	/** "12 oak planks, 4 glass" (and how many more units beyond the first 8 kinds). */
