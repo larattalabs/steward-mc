@@ -235,6 +235,14 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.70.0 by a smoke check (2026-11-14, crop-farm-070; speed rule 4).** The pins moved to kit/checker 0.65.0, the program
+unchanged (`c406df05…`), moduleSha `1e9960b8…`. The 0.69.0..0.70.0 diff touches no crop_farm path: outside its tests the kit changes only
+version strings, and the Java adds QL's `Quote.terrain()` beside the quote, whose `bom` is computed as before (`Quotes.clamp` reads the `bom`, never writes it);
+ApiRules gains `quoteTerrain`. So `record --smoke`: offline 115/115, ingame 116/116, survival 63/63, bounds 111/111 (the 108 re-quoted bounds
+equal the carried ones item for item) and field-potatoes 62/62 (5 runs), on ports 8594/8595, $0. `measured.json` is `basis: smoke`, `from:
+0.67.0`, certifying 0.70.0 only. Potatoes per crop-day against 0.67.0: within 1.3% on six farms; 9x9 +4.8%, 9x18 +6.7%, 9x27 -3.5%, the third
+round with those signs on those farms, so it is 0.67.0's small-farm baseline; every run is inside its 3a band.
+
 **Carried to Architect 0.69.0 by a smoke check (2026-11-14, crop-farm-069; speed rule 4).** The pins moved to kit/checker 0.64.0, the program
 unchanged (`c406df05…`), moduleSha `c8e8a7b4…`. The 0.68.0..0.69.0 kit diff touches no crop_farm path: it adds `archSpanPart` and the
 `arch_span` resolve (compile.mjs), the aqueduct's `archRise` (course.mjs), and a `terrain` flag on `Region.form()` that defaults to true and
