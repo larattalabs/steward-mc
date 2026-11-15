@@ -1,6 +1,5 @@
 package dev.larattalabs.steward.service;
 
-import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.RegionView;
 import dev.larattalabs.architect.api.RevisionView;
 import dev.larattalabs.steward.Steward;
@@ -162,10 +161,10 @@ public final class Growths {
 
 	/** (slice A2) Whether the revision's own construction targets are not all built (the town builds from materials). */
 	public static boolean building(MinecraftServer server, Ref ref) {
-		var v = ArchitectApi.get().regions().get(ref.region());
+		var v = ArchitectAccess.api().regions().get(ref.region());
 		var r = v.flatMap(x -> revision(x, ref.rid()));
 		if (r.isEmpty() || !fromMaterials(v.get())) return false;
-		var sites = ArchitectApi.get().sites(server);
+		var sites = ArchitectAccess.api().sites(server);
 		return unbuilt(r.get(), id -> sites.get(id).map(dev.larattalabs.architect.api.SiteView::state).orElse(null)) > 0;
 	}
 
@@ -194,9 +193,9 @@ public final class Growths {
 	}
 
 	static String buildingLine(MinecraftServer server, Ref ref) {
-		var r = ArchitectApi.get().regions().get(ref.region()).flatMap(v -> revision(v, ref.rid())).orElse(null);
+		var r = ArchitectAccess.api().regions().get(ref.region()).flatMap(v -> revision(v, ref.rid())).orElse(null);
 		if (r == null) return buildingLine(0, 0);
-		var sites = ArchitectApi.get().sites(server);
+		var sites = ArchitectAccess.api().sites(server);
 		return buildingLine(unbuilt(r, id -> sites.get(id).map(dev.larattalabs.architect.api.SiteView::state).orElse(null)), r.sites().size());
 	}
 
@@ -281,8 +280,8 @@ public final class Growths {
 	 * history entry stays, so it can be asked again), null when the world closed meanwhile. Never removes the region.
 	 */
 	public static void undo(MinecraftServer server, String owner, Ref ref, Consumer<String> say, Consumer<@Nullable Boolean> done) {
-		var regions = ArchitectApi.get().regions();
-		Decision d = decide(regions.get(ref.region()), ref.rid(), ArchitectApi.get().sites(server));
+		var regions = ArchitectAccess.api().regions();
+		Decision d = decide(regions.get(ref.region()), ref.rid(), ArchitectAccess.api().sites(server));
 		switch (d.step()) {
 			case GONE -> { done.accept(true); return; }
 			case UNKNOWN, NEWER, WAIT -> {
@@ -299,7 +298,7 @@ public final class Growths {
 		}
 		int session = Session.current();
 		Steward.LOGGER.info("undo growth {} of {}: undoRevision to {}", ref.tag(), owner, d.toPosition());
-		regions.undoRevision(ref.region(), d.toPosition(), owner).whenComplete((r, err) -> server.execute(() -> {
+		regions.undoRevision(ref.region(), d.toPosition(), owner).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
 			if (err == null && r.removed()) { done.accept(true); return; }
 			// answered not removed, or refused: read again (a lost answer of an undo that went through reads UNDONE)

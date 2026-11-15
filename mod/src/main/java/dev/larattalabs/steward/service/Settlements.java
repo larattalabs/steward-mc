@@ -46,6 +46,21 @@ public final class Settlements {
 		}
 	}
 
+	/**
+	 * (slice GEA) Tests only: {@code s} as the world's store, saved to {@code f} (null: settlements disabled, as when the file could not be read). Production
+	 * never calls it; {@link #resetForTest()} puts back what a stopped server leaves.
+	 */
+	static void useForTest(SettlementStore s, @org.jspecify.annotations.Nullable Path f) {
+		store = s;
+		file = f;
+	}
+
+	/** Tests only: an empty store and no file, as after SERVER_STOPPED. */
+	static void resetForTest() {
+		store = new SettlementStore();
+		file = null;
+	}
+
 	/** Whether settlements are disabled this session (their file could not be read): nothing that needs them may finish. */
 	public static boolean disabled() {
 		return file == null;

@@ -286,7 +286,7 @@ entry; none (Architect rolled its intent back at its own world start, or never g
   every site would only look gone, and the adoption is left open (warned) for a later start. Some sites standing, all in no region: a release.
   Accepted limit (GPT fix check): a world whose only Architect sites were this town's keeps it open too (undo says so, nothing is lost), since
   Architect's API has no load-health signal to tell an empty inventory from an unread one; asking for one is a follow-up. The reconcile's
-  adapter is unit-tested through its pure decision only.
+  adapter is unit-tested through its pure decision, and since slice GEA over a faked Architect (`RecoveryAdapterTest`).
 - `TownRegion.of` and `Districts.regionTownGone` read an unreleased `TOWN_ADOPTED region:` entry as the town's region. After a release, the town is
   a street town again (district founding reads its street as before).
 
@@ -447,8 +447,7 @@ ledger); the billed survival e2e moves to a new slice SD (found a district regio
   whole too (`outsideWhole`, exact integers), so no partial read ever replaces what a district owns; the undo names the district.
 - e2e: the district's land checked exactly (its reservation and `land.outside`); a row of it cut in the save before a restart and put right by the
   sweep; two standing growths, undone head first after the town was removed and the client restarted.
-- **Not taken:** driving `Undo.growth` against a faked Architect (no Architect test double exists; the decision, logging and retirement it runs are
-  unit-tested, the billed path waits for SD's e2e); a module bound into a district end to end in e2e (left to a module slice; the district id is carried
+- **Not taken:** driving `Undo.growth` against a faked Architect (done since slice GEA, below; the billed path still waits for SD's e2e); a module bound into a district end to end in e2e (left to a module slice; the district id is carried
   through the offer, the save and Accept, as the review read).
 
 **As built (2026-11-14).** `SettlementRunner.growStanding` (one growth path for the town and a standing district region; `grow.district` and the
@@ -460,3 +459,14 @@ after round 2): the three round-2 blockers resolved; exact coordinates taken. **
 village loop, older than DG) can start two removals for one settlement; `Undo.growth` has no test against a faked Architect (none exists); a
 quarter's grown land, a crash after an undo and before the land's save, a late orphan's head-first order, and a module bound into a district are
 not in e2e (unit or review only); the billed survival e2e is slice SD's.
+
+**Slice GEA (2026-11-14): the recovery adapters over a faked Architect.** `ArchitectAccess` (service) is Steward's side of `ArchitectApi.get()` and
+`server.execute` on the reconcile, sweep, growth-undo and district-land paths (Undo, Growths, Adoption, VillageSweep, TownRegion, Districts): with
+nothing supplied it is exactly those calls; only tests supply their own. `Settlements.useForTest` gives a test its store and file. `FakeArchitect`
+(test) models regions (state, head, busy, revisions, `architect_mc:land` per position), sites, `undoRevision` (target checked, the standing suffix
+newest first, UNDOING and busy while held, a same-target call joins), `unadopt` (adopted, idle, PLACED, no standing revision), answers applied,
+blocked, refused or lost, and the stockpile ledger (refunds what was drawn, once per key). `RecoveryAdapterTest` drives GE's reconcile (tombstone,
+gone with no tombstone and the unknown inventory, a lost unadopt, a lost adopt across a restart, a failed save; the sweep's unlogged revision, its
+in-flight hold, an orphan note closed, a resumed take-up) and DG's `Undo.growth` (head first, refusals in flight and while building, the land put
+back, a crash between Architect's undo and the entry). **Not covered:** callbacks crossing world sessions, a failure between two saves of one close,
+`Undo.lastProject` (needs a server for the steward's motion and the stockpile), Architect undoing a target still building (Steward refuses first).

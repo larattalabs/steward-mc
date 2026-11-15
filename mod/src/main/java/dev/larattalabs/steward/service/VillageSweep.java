@@ -1,6 +1,5 @@
 package dev.larattalabs.steward.service;
 
-import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.RegionState;
 import dev.larattalabs.architect.api.RemoveOptions;
 import dev.larattalabs.architect.api.SiteView;
@@ -27,7 +26,7 @@ public final class VillageSweep {
 	}
 
 	public static void sweep(MinecraftServer server) {
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		// adoptions a crash or a lost answer left open are closed first (docs/GROWTH.md, slice B)
 		for (Settlement s : Settlements.store().all()) {
 			try {
@@ -87,8 +86,8 @@ public final class VillageSweep {
 	}
 
 	public static void growths(MinecraftServer server, Settlement given) {
-		var regions = ArchitectApi.get().regions();
-		var sites = ArchitectApi.get().sites(server);
+		var regions = ArchitectAccess.api().regions();
+		var sites = ArchitectAccess.api().sites(server);
 		// orphan notes whose save failed: saved first, so the obligation is in the history before anything is decided from it
 		var unsaved = UNSAVED.get(given.id());
 		if (unsaved != null) {
@@ -157,7 +156,7 @@ public final class VillageSweep {
 						if (ok) { close(now, tag, "taken up"); return; }
 						// only Architect having no such revision closes it; a newer change above it (NEWER) keeps the note open, so it is taken up once that
 						// is undone (an empty revision still holds the town's history)
-						var d = Growths.decide(ArchitectApi.get().regions().get(ref.region()), ref.rid());
+						var d = Growths.decide(ArchitectAccess.api().regions().get(ref.region()), ref.rid());
 						if (d.step() == Growths.Step.UNKNOWN) close(now, tag, "Architect has no such revision");
 					});
 					return true;
@@ -227,7 +226,7 @@ public final class VillageSweep {
 		var entry = entryOf(s, regionId);
 		if (entry.isEmpty()) {
 			List<String> ids = sitesOf(server, s.owner(), regionId);
-			var sites = ArchitectApi.get().sites(server);
+			var sites = ArchitectAccess.api().sites(server);
 			if (!ids.isEmpty()) {
 				List<Settlement.SiteChange> changes = ids.stream().map(id -> new Settlement.SiteChange(id, sites.get(id).map(VillageSweep::role).orElse(null), 0,
 					sites.get(id).map(SiteView::version).orElse(1))).toList();
@@ -237,7 +236,7 @@ public final class VillageSweep {
 			}
 		}
 		if (entry.isEmpty()) {
-			ArchitectApi.get().regions().remove(regionId, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> {
+			ArchitectAccess.api().regions().remove(regionId, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> {
 				if (err != null || !r.removed()) Steward.LOGGER.warn("village region {} of {} could not be taken up yet (tried again at the next start): {}", regionId, s.id(),
 					err != null ? err.toString() : r.blockers());
 			});
@@ -259,7 +258,7 @@ public final class VillageSweep {
 
 	/** A region's sites as Steward records them: its streets and buildings, or (when it left nothing else) the ground tiles it wrote. */
 	static List<String> sitesOf(MinecraftServer server, String owner, String regionId) {
-		var sites = ArchitectApi.get().sites(server);
+		var sites = ArchitectAccess.api().sites(server);
 		List<String> shown = sites.list(owner).stream().filter(x -> regionId.equals(x.region())).map(SiteView::id).toList();
 		return !shown.isEmpty() ? shown : sites.list(owner, true).stream().filter(x -> regionId.equals(x.region())).map(SiteView::id).toList();
 	}
