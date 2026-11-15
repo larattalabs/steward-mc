@@ -566,7 +566,7 @@ certification gate, with a dev-only override bound that holds its bill on purpos
     can adopt (B, then A); since slice SST, a street town in a world that builds from materials, adopted as a survival region (`ADOPT_MATERIALS`:
     billed as A2, once its lots are all built);
   - never a district, a freezing biome (a warm-only kind), a town in the wrong mode, or a style whose roles break the palette rules;
-  - a watered module never goes to a town it would adopt: Architect's IG can't irrigate an adopted region (ask **S-M5-8**).
+  - a watered module goes to a town it would adopt since Architect's IG-b (S-M5-8; slice A2L creative, slice SST survival).
 
   Its params are the crop carried most and the largest size those seeds plant (a town built from materials counts its stockpile too). In
   survival the measured bound (`measured.json bounds`, the whole growth's bill) is shown and approved; with no bound, it is not

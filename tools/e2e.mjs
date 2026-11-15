@@ -5819,14 +5819,25 @@ async function survivalStreetTown(label, name, z, st) {
   const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
   const away = async () => cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
   const crates = () => (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
-  // cells off a snapshot, the stockpile's crates (whose contents feeding and refunds change) and growing plants aside
+  // cells off a snapshot: the stockpile's crates (whose contents feeding and refunds change) excluded by Architect's diff, growing plants aside; judged
+  // by the whole mismatch count (the list is a capped sample), with a sample of what differs
   const offFrom = async (snap) => {
     const area = crates();
-    const inCrates = (x) => area && x.x >= area.x0 && x.x <= area.x1 && x.z >= area.z0 && x.z <= area.z1;
-    const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
-    return (d.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)) && !inCrates(x));
+    const exclude = area ? [[area.x0, box[1], area.z0, area.x1, box[4], area.z1]] : [];
+    const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap, exclude }, { timeoutMs: 1_800_000 });
+    const benign = Object.entries(d.classes ?? {}).filter(([c]) => /^(growth|grazed)$/.test(c)).reduce((a, [, n]) => a + n, 0);
+    const n = typeof d.mismatches === 'number' ? d.mismatches - benign : NaN;
+    const sample = (d.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
+    return { length: Number.isNaN(n) ? sample.length || 1 : n, slice: (a, b) => sample.slice(a, b), crates: !!area };
   };
-  return { id, claim, owner, ledger, feed, founding, box, away, offFrom, town };
+  // (GPT review 4) each founding site's or road's Architect record (its membership), by id: undefined when the read failed
+  const members = async (ids) => {
+    const r = await dev.request('dev.sites.state').catch(() => null);
+    if (!r) return undefined;
+    const all = [...(Array.isArray(r.sites) ? r.sites : Object.values(r.sites ?? {})), ...(Array.isArray(r.infra) ? r.infra : Object.values(r.infra ?? {}))];
+    return Object.fromEntries(ids.map((sid) => [sid, (() => { const x = all.find((y) => y.id === sid); return x ? JSON.stringify(x.member ?? null) : undefined; })()]));
+  };
+  return { id, claim, owner, ledger, feed, founding, box, away, offFrom, members, town };
 }
 
 async function survivalStreetDone(st) {
@@ -5855,7 +5866,7 @@ async function adoptSurvivalFlow() {
   try {
     const t = await survivalStreetTown(label, name, 81000, st);
     if (!t) return;
-    const { id, claim, ledger, feed, founding, box, away, offFrom } = t;
+    const { id, claim, ledger, feed, founding, box, away, offFrom, members } = t;
     const builtRe = new RegExp(`${name} is built: everything its plan laid out stands`, 'g');
     // fed a twelfth of what is still needed at a time until a lot stands while another still builds (the feed goes in placement order; run 1: a third
     // a time built both lots between two reads); none standing after 40 rounds: asked with every lot still building (SAD adopts that too)
@@ -5873,6 +5884,7 @@ async function adoptSurvivalFlow() {
     const lotStates = (sp?.sites ?? []).filter((x) => lotIds.has(x.id) && x.kind !== 'road').map((x) => `${x.id} ${x.state}`).join(', ');
     if (!held) fail(`${label} wait`, `no lot held building while another stood: ${lotStates}`);
     await away();
+    const members0 = await members(founding.siteIds ?? []);
     // the addition: the town taken on (survival), then the wait said, nothing planned
     let from = logSize();
     const lib = await askBuilding(id, 'library');
@@ -5892,12 +5904,17 @@ async function adoptSurvivalFlow() {
     else if (held) fail(`${label} wait`, `said ${!!waitSaid}; planned ${planned}; ${chatTail(from)}`);
     // every lot stood by the time it was asked: the growth went ahead, so the wait below has nothing to say
     if (!waitSaid) return fail(`${label} finished`, `no wait said (planned ${planned}): the rest of the flow needs a town still building`);
+    // (GPT review 1) a restart while the adopted lot still builds: the watch seeded from the adoption's receipt, so fed, the town is still said built
+    st.paused = true;
+    await restartClient();
+    st.paused = false;
+    await away();
     // fed: the steward says once that the town is built
     from = logSize();
     st.feeding = true;
     const builtSaid = await waitLog(from, builtRe, 900_000);
     st.feeding = false;
-    if (builtSaid) ok(`${label} finished`, `${builtSaid[0]} (the adopted lot fed to built under the region)`);
+    if (builtSaid) ok(`${label} finished`, `${builtSaid[0]} (the adopted lot fed to built under the region, said after a restart)`);
     else return fail(`${label} finished`, `not said built in 15 min; ${chatTail(from)}`);
     await sleep(5000);
     // the growth: one plain lot from materials, half fed while placed
@@ -5964,16 +5981,18 @@ async function adoptSurvivalFlow() {
     const rel = await entryUntil(id, (e) => e.kind === 'TOWN_RELEASED' && e.siteGroup === `region:${region}`, 120);
     await sleep(5000);
     const spR1 = await ledger();
-    const sites = (await dev.request('dev.sites.state').catch(() => ({})))?.sites ?? [];
-    const list = Array.isArray(sites) ? sites : Object.values(sites);
-    const back2 = (founding.siteIds ?? []).map((sid) => list.find((x) => x.id === sid)).filter(Boolean);
+    const members1 = await members(founding.siteIds ?? []);
+    const moved = members0 && members1 ? (founding.siteIds ?? []).filter((sid) => members0[sid] === undefined || members1[sid] !== members0[sid]) : null;
     const standing = [];
     for (const sid of founding.siteIds ?? []) if (/stands/.test(await cmd(`/steward dev site ${sid}`))) standing.push(sid);
+    // un-adopt deletes the region record (AD §3): its view reads no standing state
+    const regionState = await dev.request('dev.region.state', { region }).then((v) => (v?.view ?? v)?.state ?? null).catch(() => null);
+    const gone = !/^(PLACED|PARTIAL|PLACING|ACCEPTED)$/.test(String(regionState ?? ''));
     const ledgerSame = sameItems(spR1?.consumed, spR0?.consumed) && sameItems(backOfLedger(spR1), backOfLedger(spR0)) && sameItems(spR1?.stock, spR0?.stock);
     const off2 = await offFrom(snapPre);
-    if (rel && standing.length === founding.siteIds.length && back2.every((x) => !x.region) && ledgerSame && off2.length === 0)
-      ok(`${label} release`, `${rel.text}; ${standing.length} sites standing, none in a region; the ledger and the ground unchanged`);
-    else fail(`${label} release`, `released ${!!rel}; ${standing.length} of ${founding.siteIds.length} standing; regions ${JSON.stringify(back2.map((x) => x.region))}; ledger same ${ledgerSame}; ${off2.length} cell(s) differ`);
+    if (rel && standing.length === founding.siteIds.length && moved && moved.length === 0 && gone && ledgerSame && off2.length === 0)
+      ok(`${label} release`, `${rel.text}; ${standing.length} sites standing, each back in its old group (as read before the adoption); the region gone; the ledger and the ground unchanged`);
+    else fail(`${label} release`, `released ${!!rel}; ${standing.length} of ${founding.siteIds.length} standing; memberships changed ${moved ? moved.join(',') : 'not read'}; region gone ${gone}; ledger same ${ledgerSame}; ${off2.length} cell(s) differ ${JSON.stringify(off2.slice(0, 3))}`);
   } finally {
     await survivalStreetDone(st);
   }
@@ -6041,19 +6060,24 @@ async function moduleSurvivalStreetFlow() {
     const irr = region ? [...logSince(from).matchAll(new RegExp(`Region ${region}: fluid body (\\S+_irr_\\d+_\\d+) (settled)`, 'g'))] : [];
     const spG = await ledger();
     const paid = itemDelta(spG?.consumed, sp0?.consumed);
-    const water = quoted ? Object.keys(quoted).filter((k) => /water/.test(k)) : [];
+    const water = [...Object.keys(quoted), ...Object.keys(paid)].filter((k) => /water/.test(k));
     const survival = new RegExp(`adopt ${id}: region \\S+ \\(survival\\)`).test(logSince(from));
     if (survival && g.m && g.m[1] === region && mods.length === 1 && irr.length > 0 && Object.keys(paid).length && !water.length)
       ok(label, `adopted as survival region ${region}; revision ${g.m[2]} holds ${mods[0].sid} (${mods[0].key}); ${irr.length} irrigation source(s); billed ${JSON.stringify(paid).slice(0, 140)}; no water billed`);
     else return fail(label, `survival ${survival}; region ${region}; entry ${g.op?.siteGroup}; module sites ${mods.length}; irrigation ${irr.length}; paid ${JSON.stringify(paid).slice(0, 100)}; water ${water.join(',')}`);
     const last = await undoOnce(id, claim);
-    await sleep(20_000);
     const spU = await ledger();
-    const back = itemDelta(backOfLedger(spU), backOfLedger(spG));
+    await sleep(20_000);
+    const spU2 = await ledger();
+    const back = itemDelta(backOfLedger(spU2), backOfLedger(spG));
+    const gain = itemDelta(spU2?.stock, spG?.stock);
+    const again = plusItems(plusItems(itemDelta(backOfLedger(spU2), backOfLedger(spU)), itemDelta(spU2?.consumed, spU?.consumed)), itemDelta(spU2?.stock, spU?.stock));
+    const removedN = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_REMOVED' && e.siteGroup === g.op?.siteGroup).length;
     const undone = ((await regionView(region)).revisions ?? []).find((r) => String(r.rid) === g.m[2]);
     const off = await offFrom(snap);
-    if (last && undone?.state === 'UNDONE' && sameItems(back, paid) && off.length === 0) ok(`${label} undo`, `${last.text}; paid == returned (${JSON.stringify(back).slice(0, 120)}); the ground as before`);
-    else fail(`${label} undo`, `removed ${!!last}; revision ${undone?.state}; back ${JSON.stringify(back).slice(0, 120)} vs paid ${JSON.stringify(paid).slice(0, 120)}; ${off.length} cell(s) differ`);
+    if (last && undone?.state === 'UNDONE' && sameItems(back, paid) && sameItems(gain, back) && !Object.keys(again).length && removedN === 1 && off.length === 0)
+      ok(`${label} undo`, `${last.text}; paid == returned (${JSON.stringify(back).slice(0, 120)}), into the crates, once; the ground as before`);
+    else fail(`${label} undo`, `removed ${removedN}; revision ${undone?.state}; back ${JSON.stringify(back).slice(0, 120)} vs paid ${JSON.stringify(paid).slice(0, 120)}; stock +${JSON.stringify(gain).slice(0, 80)}; more ${JSON.stringify(again)}; ${off.length} cell(s) differ`);
     await cmd('/steward dev modules {}');
   } finally {
     await survivalStreetDone(st);

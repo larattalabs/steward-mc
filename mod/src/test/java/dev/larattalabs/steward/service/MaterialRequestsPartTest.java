@@ -25,4 +25,17 @@ class MaterialRequestsPartTest {
 		assertNull(MaterialRequests.regionOfEntry(null));
 		assertNull(MaterialRequests.regionOfEntry("revision:r12:x"));
 	}
+
+	@Test
+	void anAdoptedSurvivalTownStillBuildingIsWatchedAfterARestart() {
+		// (slice SST) before its first growth an adopted town's region is named only by its receipt
+		assertTrue(MaterialRequests.seedsWatch(new dev.larattalabs.steward.model.Settlement.LogEntry(1L, dev.larattalabs.steward.model.Settlement.Kind.TOWN_ADOPTED, "Taken on",
+			java.util.List.of("s1"), "region:rg1")));
+		assertFalse(MaterialRequests.seedsWatch(new dev.larattalabs.steward.model.Settlement.LogEntry(1L, dev.larattalabs.steward.model.Settlement.Kind.TOWN_ADOPTED, "Taking on",
+			java.util.List.of("s1"), "adopt:steward.b1.adopt")), "an intent names no region");
+		assertFalse(MaterialRequests.seedsWatch(new dev.larattalabs.steward.model.Settlement.LogEntry(1L, dev.larattalabs.steward.model.Settlement.Kind.TOWN_RELEASED, "Let go",
+			java.util.List.of("s1"), "region:rg1")));
+		assertTrue(MaterialRequests.seedsWatch(new dev.larattalabs.steward.model.Settlement.LogEntry(1L, dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED, "Placed",
+			java.util.List.of("s1"), "revision:rg1:1")));
+	}
 }

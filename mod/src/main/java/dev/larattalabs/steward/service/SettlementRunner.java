@@ -1257,11 +1257,12 @@ public final class SettlementRunner {
 						return;
 					}
 					Steward.LOGGER.info("adopt {}: region {}{}", settlement.id(), v.id(), survival ? " (survival)" : "");
-					// (slice SST) a survival region grows as any region built from materials (A2): the mode gate, a lot still building waits, the stockpile
-					if (survival) {
+					// (slice SST) a survival region grows as any region built from materials (A2): the mode gate (the world's mode read again: it may
+					// have changed while the adoption was asked), a lot still building waits, the stockpile
+					var town = ArchitectAccess.api().regions().get(v.id()).orElse(v);
+					if (survival || Growths.fromMaterials(town)) {
 						var now = Settlements.store().get(settlement.id()).orElse(settlement);
-						var town = ArchitectAccess.api().regions().get(v.id()).orElse(v);
-						growStanding(r, budgetUsd, now, town, specs, true, null);
+						growStanding(r, budgetUsd, now, town, specs, dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), null);
 						return;
 					}
 					planGrowth(r, budgetUsd, v.id(), specs, null);
