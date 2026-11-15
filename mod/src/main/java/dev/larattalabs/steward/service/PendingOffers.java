@@ -292,7 +292,9 @@ public final class PendingOffers {
 		}
 		if (!BUSY.add(busy)) return "It is being made already.";
 		Composer.tellNow(server, player, s, "Fitting " + what + " round " + s.name() + " as it stands...");
-		compose(server, player, s, p, pending.get().block(), partJson.get(), entry.get().plan(), region.get(), others(server, s, region.get()), what);
+		// anything thrown before the compose is asked (a request Architect refuses at once) stops it as a failure: the settlement is never left busy
+		guarded(server, player, s, p, what, () -> compose(server, player, s, p, pending.get().block(), partJson.get(), entry.get().plan(), region.get(),
+			others(server, s, region.get()), what));
 		return null;
 	}
 
