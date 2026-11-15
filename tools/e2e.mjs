@@ -5416,7 +5416,8 @@ async function moduleHallSortFlow() {
   const snap = path.join(ROOT, 'artifacts', 'e2e', `module-hall-sort-town-${id}.snap.gz`);
   await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
   // @2 under its measuring gate until it is certified; then the live catalog
-  const cert = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', HALL, '2', 'measured.json'), 'utf8').replace(/^$/, '{}') || '{}');
+  const certFile = path.join(ROOT, 'modules', HALL, '2', 'measured.json');
+  const cert = fs.existsSync(certFile) ? JSON.parse(fs.readFileSync(certFile, 'utf8')) : {};
   if (cert.result === 'pass') await cmd('/steward dev modules {}');
   else await cmd(`/steward dev modules ${JSON.stringify({ dir: path.join(ROOT, 'modules'), id: HALL, measuring: true })}`);
   await cmd('/advancement grant @p until minecraft:story/enter_the_nether');
