@@ -210,6 +210,24 @@ crops, rustic. Fed from the stockpile until PLACED.
 
 ## Results
 
+**Re-certified on Architect 0.67.0 (2026-11-14, crop-farm-067).** The pins moved to kit/checker 0.62.0 (ad9166a), so moduleSha changed
+(`c85389f8…`) with the program unchanged (`c406df05…`). Every step was measured again, because kit 0.62.0 and BC+ change the realise and
+billing paths crop_farm uses (`realise.mjs`, `region/plan.mjs`, `region/survival.mjs` TERRAIN_BLOCKS, FullBom), and `record` needs every step
+stamped with the pinned Architect. Results: offline 115/115, ingame 116/116, survival 63/63, bounds 111/111, skin rustic/fortress/desert
+53/53 each, border 23/23, field wheat/carrots/potatoes/beetroots 62/62 each (5 runs) and cover 11/11, on ports 8594/8595, $0.
+`measured.json` now certifies 0.67.0 only. All 108 per-Style bounds equal 0.65.0's item for item.
+- **Quotes.** "A cell the plan reads is not loaded" is gone. Each lot's bill equals the template bill. Every quote is still flagged
+  `exact: false`, but only because of BC's region-level terrain note: the IRR shell's 5 dirt and the verges' gravel may already stand, so the
+  region bill is an upper bound ("consumed is at most this quote").
+- **Rates.** Every rate is within 3.5% of 0.65.0's except potatoes 9x18, which moved 101 -> 96 a day (-4.1%). Its 5 runs sit inside the band.
+  Its mirror 18x9 moved -2.5% and 9x27 +3.0%, and the moves across the 36 branches centre on zero. `artifacts/m2/` holds the evidence.
+- **e2e** (`stub --only module`): the module flows offer and place.
+  - The mapped round still takes e2e.mjs's inexact-quote branch, now for the terrain note ("tiles: 5 paid cell(s)"). It is approved once and
+    then placed with no second ask.
+  - The waiting round (report-only) now refunds what it paid item for item, so the dirt leak is gone with the free re-lay.
+  - In 1 of 2 runs, round one's re-quote moved 209 -> 210 dirt 5 s after its approval. Steward rightly asked again, and the flow stalled on
+    that ask. The quote reads the world at terrain cells, so it can drift by a cell. The rerun passed 24/24. Nothing was changed.
+
 **Re-certified on Architect 0.65.0 (2026-11-13, Noah's "a": the bound per Style).** The pins moved to kit/checker 0.60.0 (64b53a8), so
 module.json's sha changed (moduleSha `1c5d1c33…`) with the program unchanged (`c406df05…`), and every step was measured again: offline
 115/115, ingame 116/116, survival 63/63, bounds 111/111, skin rustic/fortress/desert 53/53 each, border 23/23, field
