@@ -275,15 +275,19 @@ be taken on as one region" until Architect's SAD (v0.68.0). The growth is the ad
 - **e2e (stub), `supplied-growth`:** five growths of the Supplied town, each judged by one oracle (review 3): back = what the growth drew
   (`consumed` since its accept), the crates' stock gained exactly that (nothing lost, nothing counted only), no overflow, nothing more 20 s on,
   one entry and one completion under its tag, none of its sites left in the ledger, nothing outstanding, the revision UNDONE, E-flat against the
-  pre-growth snapshot outside the crates, and the town never said built. (1) undo while waiting; (2) cancel while its revision is written, fed in
-  part; (3) the same killed at RVC2+save, restarted (the restored cancel); (4) an undo while waiting killed at RVU2+save, restarted (the sweep's
-  reconcile, no build); (5) today's restart while building (said built once), bills, and refund once; then the town's undo.
+  pre-growth snapshot outside the crates, and the town never said built. (1) undo while waiting, fed in part first (the refund line said);
+  (2) cancel once realised: Architect's answer to the realise held (`dev.region.holdRealise`), so Steward's build still waits on a realised
+  growth whose targets wait, fed in part; (3) the same killed at RVU1+save during the cancel, restarted (the restored cancel); (4) an undo while
+  waiting killed at RVU2+save, restarted (the sweep's reconcile, no build); (5) today's restart while building (said built once), bills, and
+  refund once; then the town's undo. A cancel while Architect still writes the revision (busy `revising`, RVC1/RVC2) is not reached in game:
+  Architect writes a growth's revision in a second or two (runs 1-2); it is covered by the unit replays and RU's own `ru-crash` gate. A step
+  that fails takes its growth up, so the next is not refused while the town waits for it.
 - **e2e (stub), `module-adopt`:** a creative street town (Steward's legacy street, then the plan layout, as `adopt`) offered crop_farm by its
   seeds on the ADOPT path; accepted → adopted and grown; its irrigation sources settled; undone: drained, the revision UNDONE, E-flat.
 
 **Review** (GPT, 2026-11-14, request changes). Taken: blockers 1 (the empty take-up's note tagged, durable, checked on replay; the checkpoint
 kept until saved), 2 (a growth logged once by its tag; the removal names the revision's final sites; late answers checked), 3 (the e2e oracle
-judges the stock itself, per growth, by tag), 4 in part (RVC2 and RVU2 in game, the no-build reconcile among them; RVU1, RVC1, RVU3, UNDONE before
+judges the stock itself, per growth, by tag), 4 in part (RVU1 and RVU2 in game, the no-build reconcile among them; RVC1, RVC2, RVU3, UNDONE before
 Steward logs, logged before the checkpoint went, repeated sweeps as unit replays); should-fixes 5, 6, 7; both nits. **Not taken:** forced overflow
 and a surplus-stock case in game (`reportingOverflow` and Architect's stock conservation are unchanged by A2L; RU's gate covers both), and a
 delayed callback across worlds in one JVM (the e2e restarts the process; the fix is the `ok == null` rule above, by reading).
