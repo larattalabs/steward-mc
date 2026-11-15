@@ -1742,3 +1742,18 @@ hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batc
 - **Architect's answer (2026-11-15): accepted,** folded into slice BCC with BC-c, since both touch the same `BillCaps` and `maxBill` code. The
   cap is scoped per revision (S-BC-d-1), gated on S-BC-d-2. If that proves impractical, the slice takes the fallback, and Architect says so.
   Target v0.73.0 (with RT, CF2, BC-c and CW2), confirmed when the slice merges. QD rejoins on that release.
+
+- **S-M5-12. No item lost to a removal's late cargo** (slice M4b's GPT design review, 2026-11-15; for storage_hall@2, and true of @1 and any
+  building with containers).
+  - **Seen in the v0.72.0 code (the review's reading, not yet reproduced in game):** `Groups.plan` scans every blocker, `Fills.takeCustody`
+    re-checks only the declared fill containers, and `finishGroupDeconstruct` writes the committed restore ticks later with no inventory
+    check. An item put into any other container (the hall's input chest, a line hopper, a slot chest) after the scan and before the restore
+    is erased: not captured, not refunded, not dropped. The same holds for an item put into an emptied declared container after its custody take.
+  - **Asked:** through the restore, either seal a removal's containers (menus and transfers refuse, as FK-b's guards do for provided items) or
+    re-check every container cell in the tick it is written, and, finding cargo, end the removal unwritten (FK's write-back) or hand the cargo
+    to the owner. Whichever you choose, no item is erased.
+  - **Steward's side until then:** its pre-check refuses an undo while any container holds cargo, said with the count. The window between
+    Architect's scan and its restore stays open.
+- **S-M5-13. A deterministic failed removal after its custody take** (TEST): a dev hook (for example `dev.fk.halt` point `FKC0`, or
+  `dev.removal.failAfterCustody {site}`) that makes the next removal of a fill site end unwritten after the custody is saved. M4b's crash bars
+  then cover the write-back, a restart and a retry on the hall's own undoRevision path, beside FKC1, FKC2 and CS1.
