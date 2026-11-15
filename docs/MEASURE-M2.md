@@ -235,6 +235,17 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.69.0 by a smoke check (2026-11-14, crop-farm-069; speed rule 4).** The pins moved to kit/checker 0.64.0, the program
+unchanged (`c406df05…`), moduleSha `c8e8a7b4…`. The 0.68.0..0.69.0 kit diff touches no crop_farm path: it adds `archSpanPart` and the
+`arch_span` resolve (compile.mjs), the aqueduct's `archRise` (course.mjs), and a `terrain` flag on `Region.form()` that defaults to true and
+only `archSpan` sets false; the Java is ArchitectApi 1.61.0, ApiRules and IrStale. crop_farm uses no arch span, `form()` or course. So
+`record --smoke`: offline 115/115 (all 108 block counts as measured), ingame 116/116, survival 63/63, bounds 111/111 (the 108 re-quoted
+bounds equal the carried ones item for item) and field-potatoes 62/62 (5 runs), on ports 8594/8595, $0. A smoke of a smoke keeps the first
+`from`: `measured.json` is `basis: smoke`, `from: 0.67.0`, certifying 0.69.0 only. Potatoes per crop-day against 0.67.0: within 1.6% on
+18x18, 27x27, 27x9, 18x9, 18x27 and 27x18; 9x27 -3.4%, 9x9 +6.3%, 9x18 +7.4%. These are the 0.68.0 round's signs on the same three small
+farms, so 0.67.0's own small-farm rates likely sit low, not a change in 0.69.0; every run is inside
+its 3a band.
+
 **Carried to Architect 0.68.0 by a smoke check (2026-11-14, crop-farm-068; speed rule 4).** The pins moved to kit/checker 0.63.0, the program
 unchanged (`c406df05…`), moduleSha `c1a1a5d8…`. The 0.67.0..0.68.0 diff changes no FullBom, quote or realise path: its Java is IrStale (the
 version), RegionAdopt and Stockpiles (SAD: adopting construction sites and crates), and the kit's revise adds a `props` stage only on an

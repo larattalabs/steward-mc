@@ -117,7 +117,7 @@ class ModuleOfferTest {
 	@Test
 	void theLiveCropFarmIsOfferedToAPlayerOnItsMeasuredVersionsWithItsBound() {
 		var live = ModuleCatalog.dir(ModuleCatalogTest.FIXTURES.resolve("../../../modules").normalize(), false);
-		var player = new ModuleGate.Env("26.3", "0.68.0", Set.of(ModuleGate.FEATURE));
+		var player = new ModuleGate.Env("26.3", "0.69.0", Set.of(ModuleGate.FEATURE));
 		var v = ModuleGate.offer(live, "crop_farm", player);
 		assertTrue(v.ok(), v.message());
 		assertFalse(ModuleGate.offer(live, "crop_farm", new ModuleGate.Env("26.3", "0.67.0", Set.of(ModuleGate.FEATURE))).ok(), "only on its certified Architect");
