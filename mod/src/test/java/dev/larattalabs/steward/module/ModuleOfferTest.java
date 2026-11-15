@@ -109,7 +109,7 @@ class ModuleOfferTest {
 	@Test
 	void theRateComesFromTheMeasurementForThoseParams() {
 		var raw = JsonParser.parseString("{\"rates\": [{\"params\": {\"side\": 9, \"crop\": \"wheat\"}, \"perDay\": 40, \"item\": \"minecraft:wheat\"}]}").getAsJsonObject();
-		var m = new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, raw);
+		var m = new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, ModuleCatalog.BASIS_FULL, null, raw);
 		assertEquals("about 40 wheat a day once it's going", ModuleOffer.rate(m, JsonParser.parseString("{\"crop\": \"wheat\", \"side\": 9}").getAsJsonObject()));
 		assertNull(ModuleOffer.rate(m, JsonParser.parseString("{\"crop\": \"wheat\", \"side\": 5}").getAsJsonObject()));
 	}
@@ -117,10 +117,10 @@ class ModuleOfferTest {
 	@Test
 	void theLiveCropFarmIsOfferedToAPlayerOnItsMeasuredVersionsWithItsBound() {
 		var live = ModuleCatalog.dir(ModuleCatalogTest.FIXTURES.resolve("../../../modules").normalize(), false);
-		var player = new ModuleGate.Env("26.3", "0.67.0", Set.of(ModuleGate.FEATURE));
+		var player = new ModuleGate.Env("26.3", "0.70.0", Set.of(ModuleGate.FEATURE));
 		var v = ModuleGate.offer(live, "crop_farm", player);
 		assertTrue(v.ok(), v.message());
-		assertFalse(ModuleGate.offer(live, "crop_farm", new ModuleGate.Env("26.3", "0.65.0", Set.of(ModuleGate.FEATURE))).ok(), "only on its measured Architect");
+		assertFalse(ModuleGate.offer(live, "crop_farm", new ModuleGate.Env("26.3", "0.67.0", Set.of(ModuleGate.FEATURE))).ok(), "only on its certified Architect");
 		var c = ModuleKind.CropFarm.INSTANCE;
 		var t = new Town(Path.REGION_MATERIALS, null, true, 100, false, false, Map.of("minecraft:carrot", 40), Map.of("minecraft:carrot", 300));
 		var d = ModuleOffer.decide(c, v, t, null);

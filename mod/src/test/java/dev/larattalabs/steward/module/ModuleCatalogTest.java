@@ -62,6 +62,150 @@ class ModuleCatalogTest {
 		return o.toString();
 	}
 
+	/**
+	 * files with {@code dir}'s measured.json made a smoke certificate (speed rule 4) for Architect 0.62.0, carrying a full measurement on
+	 * Architect 0.61.0 with kit and checker 0.56.0 (module.json then pinned them; nothing else differs).
+	 */
+	static Map<String, String> smoke(Map<String, String> f, String dir) {
+		certify(f, dir);
+		JsonObject mod = JsonParser.parseString(f.get(dir + "/module.json")).getAsJsonObject();
+		JsonObject now = JsonParser.parseString(f.get(dir + "/measured.json")).getAsJsonObject();
+		now.add("bounds", JsonParser.parseString("[{\"params\":{\"side\":5},\"style\":\"rustic\",\"bill\":{\"minecraft:dirt\":3}}]"));
+		JsonObject carried = now.deepCopy();
+		carried.remove("bounds");
+		JsonObject old = mod.deepCopy();
+		JsonObject pins = new JsonObject();
+		pins.addProperty("kit", "0.56.0");
+		pins.addProperty("checker", "0.56.0");
+		old.add("pins", pins);
+		carried.addProperty("basis", "full");
+		carried.addProperty("moduleSha", ModuleCatalog.moduleSha(old));
+		carried.addProperty("kit", "0.56.0");
+		carried.addProperty("checker", "0.56.0");
+		carried.add("architect", JsonParser.parseString("[\"0.61.0\"]"));
+		carried.add("checks", JsonParser.parseString("{\"measure\":{\"field-wheat\":{\"passed\":62,\"of\":62}}}"));
+		carried.addProperty("boundsSha", Canon.sha(now.get("bounds")));
+		carried.addProperty("ratesSha", Canon.sha(now.get("rates")));
+		now.addProperty("basis", "smoke");
+		now.addProperty("from", "0.61.0");
+		now.add("carried", carried);
+		String stamp = "\"programSha\":\"" + now.get("programSha").getAsString() + "\",\"architect\":\"" + now.getAsJsonArray("architect").get(0).getAsString()
+			+ "\",\"minecraft\":\"" + now.get("minecraft").getAsString() + "\"";
+		String arch = now.getAsJsonArray("architect").get(0).getAsString();
+		now.add("checks", JsonParser.parseString("{\"offline\":{\"architect\":\"" + arch + "\",\"branches\":[{\"ok\":true,\"blocks\":9}]},\"ingame\":{\"env\":{\"architect\":\""
+			+ arch + "\"},\"install\":{\"ok\":true},\"variants\":[{\"ok\":true}]},\"smoke\":{\"survival\":{\"step\":\"survival\",\"passed\":63,\"of\":63," + stamp
+			+ "},\"bounds\":{\"step\":\"bounds\",\"passed\":111,\"of\":111," + stamp + "},\"fields\":[{\"step\":\"field-wheat\",\"runs\":5,\"passed\":62,\"of\":62," + stamp + "}]}}"));
+		f.put(dir + "/measured.json", now.toString());
+		return f;
+	}
+
+	static JsonObject smokeOf(JsonObject m) {
+		return m.getAsJsonObject("checks").getAsJsonObject("smoke");
+	}
+
+	/** {@code dir}'s measured.json with {@code edit} applied to it. */
+	static Map<String, String> edit(Map<String, String> f, String dir, java.util.function.Consumer<JsonObject> edit) {
+		JsonObject m = JsonParser.parseString(f.get(dir + "/measured.json")).getAsJsonObject();
+		edit.accept(m);
+		f.put(dir + "/measured.json", m.toString());
+		return f;
+	}
+
+	static Entry fixtureOf(Map<String, String> f) {
+		return of(f).get("fixture_plot", 1).orElseThrow();
+	}
+
+	@Test
+	void aSmokeCertificateOffersOnItsVersionAndKeepsTheFullMeasurementItCarries() throws Exception {
+		Entry e = fixtureOf(smoke(files(), "fixture_plot/1"));
+		assertTrue(e.certified(), () -> String.join("; ", e.uncertified()));
+		assertTrue(e.measured().smoke());
+		assertEquals("0.61.0", e.measured().from());
+		var v = ModuleGate.offer(e, HERE);
+		assertTrue(v.ok(), v.message());
+		assertTrue(v.message().contains("smoke check"), v.message());
+		// only on the version it names: not on the fully measured one it carries, nor any other
+		assertEquals(Why.ARCHITECT, ModuleGate.offer(e, new Env("26.3", "0.61.0", Set.of("givenPrograms"), true, false)).why());
+		assertEquals(Why.ARCHITECT, ModuleGate.offer(e, new Env("26.3", "0.63.0", Set.of("givenPrograms"), true, false)).why());
+		// the bound offered is the carried measurement's
+		assertEquals(1, e.measured().raw().getAsJsonArray("bounds").size());
+		assertTrue(e.measured().raw().getAsJsonObject("carried").getAsJsonObject("checks").has("measure"));
+	}
+
+	@Test
+	void aSmokeCarryIsRefusedWhenTheProgramModuleJsonOrBoundsMovedOrAStepIsMissing() throws Exception {
+		String d = "fixture_plot/1";
+		// the program changed since the full measurement
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("carried").addProperty("programSha", "f".repeat(64))), "another program");
+		// module.json changed in more than its pins (the full measurement had another envelope)
+		var f = smoke(files(), d);
+		JsonObject mod = JsonParser.parseString(f.get(d + "/module.json")).getAsJsonObject();
+		mod.getAsJsonObject("envelope").getAsJsonObject("branches").getAsJsonArray("side").remove(0);
+		mod.add("pins", JsonParser.parseString("{\"kit\":\"0.56.0\",\"checker\":\"0.56.0\"}"));
+		String other = ModuleCatalog.moduleSha(mod);
+		assertRefused(edit(f, d, m -> m.getAsJsonObject("carried").addProperty("moduleSha", other)), "more than its pins");
+		// the bounds offered are not the carried ones
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonArray("bounds").get(0).getAsJsonObject().getAsJsonObject("bill").addProperty("minecraft:dirt", 2)),
+			"not the carried measurement's");
+		// a failed or smoke carried certificate, or one without its measurement
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("carried").addProperty("result", "fail")), "not a passing full");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("carried").addProperty("basis", "smoke")), "not a passing full");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("carried").getAsJsonObject("checks").remove("measure")), "checks.measure");
+		// the smoke checks not recorded, the carry with no from or a from the carried one doesn't name, another Minecraft
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("checks").remove("smoke")), "smoke checks");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("checks").remove("ingame")), "smoke checks");
+		// a smoke step missing, failed in part, on another program or version, or a field round short of runs
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).remove("bounds")), "smoke step ? (bounds)");
+		// a step that is another step's evidence, or a field round that names no step
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).add("bounds", smokeOf(m).get("survival").deepCopy())), "smoke step survival (bounds)");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonArray("fields").set(0, smokeOf(m).get("survival").deepCopy())), "field round survival");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonArray("fields").get(0).getAsJsonObject().remove("step")), "field round ?");
+		// the fresh offline or ingame null, failed, or on another version
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("checks").add("offline", com.google.gson.JsonNull.INSTANCE)), "offline run");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("checks").getAsJsonObject("offline").getAsJsonArray("branches").get(0).getAsJsonObject().addProperty("ok", false)), "offline run");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("checks").getAsJsonObject("offline").addProperty("architect", "0.61.0")), "offline run");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("checks").add("ingame", com.google.gson.JsonNull.INSTANCE)), "ingame run");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("checks").getAsJsonObject("ingame").getAsJsonObject("install").addProperty("ok", false)), "ingame run");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("checks").getAsJsonObject("ingame").add("variants", new com.google.gson.JsonArray())), "ingame run");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonObject("survival").addProperty("passed", 62)), "smoke step survival (survival)");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonObject("bounds").addProperty("of", 0)), "smoke step bounds (bounds)");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonObject("survival").addProperty("architect", "0.61.0")), "smoke step survival (survival)");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonObject("bounds").addProperty("programSha", "e".repeat(64))), "smoke step bounds (bounds)");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonArray("fields").get(0).getAsJsonObject().addProperty("runs", 1)), "field round field-wheat");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).add("fields", new com.google.gson.JsonArray())), "without a field round");
+		// the certificate names another Architect version beside the one it ran on, or the fully measured one
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonArray("architect").add("9.0.0")), "exactly one Architect version");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonArray("architect").add("0.61.0")), "exactly one Architect version");
+		assertRefused(edit(smoke(files(), d), d, m -> m.remove("from")), "names no fully measured");
+		assertRefused(edit(smoke(files(), d), d, m -> m.addProperty("from", "0.60.0")), "does not name Architect 0.60.0");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("carried").addProperty("minecraft", "26.2")), "Minecraft 26.2");
+		assertRefused(edit(smoke(files(), d), d, m -> m.remove("carried")), "without its carried");
+		// an unknown basis; a full certificate naming a carried one
+		assertRefused(edit(certify(files(), d), d, m -> m.addProperty("basis", "guess")), "basis is 'guess'");
+		assertRefused(edit(certify(files(), d), d, m -> m.addProperty("from", "0.61.0")), "names a carried one");
+	}
+
+	static void assertRefused(Map<String, String> f, String why) {
+		Entry e = fixtureOf(f);
+		assertTrue(e.valid());
+		assertTrue(e.uncertified().stream().anyMatch(p -> p.contains(why)), () -> why + " in " + e.uncertified());
+		assertEquals(Why.NOT_MEASURED, ModuleGate.offer(e, HERE).why());
+	}
+
+	@Test
+	void theOldFullOnlyFormStillReads() throws Exception {
+		// a certificate with no basis (every one before speed rule 4) is a full one, and offers as before
+		Entry e = fixture();
+		assertFalse(JsonParser.parseString(files().get("fixture_plot/1/measured.json")).getAsJsonObject().has("basis"));
+		assertEquals(ModuleCatalog.BASIS_FULL, e.measured().basis());
+		assertFalse(e.measured().smoke());
+		assertNull(e.measured().from());
+		assertTrue(ModuleGate.offer(e, HERE).ok());
+		// and an explicit basis full the same
+		Entry full = fixtureOf(edit(certify(files(), "fixture_plot/1"), "fixture_plot/1", m -> m.addProperty("basis", "full")));
+		assertTrue(full.certified(), () -> String.join("; ", full.uncertified()));
+	}
+
 	@Test
 	void theFixtureModuleLoadsWithItsProgramSchemaEnvelopeAndMeasurement() throws Exception {
 		Entry e = fixture();
@@ -107,13 +251,17 @@ class ModuleCatalogTest {
 
 	@Test
 	void theLiveCropFarmIsCertifiedAndOfferedOnItsMeasuredVersionsOnly() {
-		// crop_farm@1 (slice M2): measured.json certifies these exact files on Minecraft 26.3 and Architect 0.67.0 (docs/MEASURE-M2.md)
+		// crop_farm@1 (slice M2): measured.json certifies these exact files on Minecraft 26.3 and Architect 0.70.0, by a smoke check carrying
+		// the full measurement on 0.67.0 (speed rule 4; docs/MEASURE-M2.md)
 		ModuleCatalog live = ModuleCatalog.live(getClass().getClassLoader());
-		var env = new ModuleGate.Env("26.3", "0.67.0", java.util.Set.of(ModuleGate.FEATURE), false, false);
+		var env = new ModuleGate.Env("26.3", "0.70.0", java.util.Set.of(ModuleGate.FEATURE), false, false);
 		var v = ModuleGate.offer(live, "crop_farm", env);
 		assertTrue(v.ok(), v.message());
 		assertEquals(List.of(), v.entry().uncertified());
-		assertFalse(ModuleGate.offer(live, "crop_farm", new ModuleGate.Env("26.3", "0.65.0", java.util.Set.of(ModuleGate.FEATURE), false, false)).ok());
+		assertTrue(v.entry().measured().smoke());
+		assertEquals("0.67.0", v.entry().measured().from());
+		for (String other : List.of("0.67.0", "0.65.0"))
+			assertFalse(ModuleGate.offer(live, "crop_farm", new ModuleGate.Env("26.3", other, java.util.Set.of(ModuleGate.FEATURE), false, false)).ok(), other);
 		var p = new com.google.gson.JsonObject();
 		p.addProperty("width", 27);
 		p.addProperty("depth", 9);

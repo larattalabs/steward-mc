@@ -18,7 +18,7 @@ class ModuleBoundTest {
 	void theMeasuredBoundIsTheOneForExactlyTheseParams() {
 		var raw = j("{\"bounds\": [{\"params\": {\"side\": 5, \"crop\": \"wheat\"}, \"bom\": {\"minecraft:dirt\": 40, \"minecraft:wheat_seeds\": 25, \"minecraft:air\": 0}},"
 			+ " {\"params\": {\"side\": 9, \"crop\": \"wheat\"}, \"bom\": {\"minecraft:dirt\": 100}}]}");
-		var m = new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, raw);
+		var m = new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, ModuleCatalog.BASIS_FULL, null, raw);
 		assertEquals(j("{\"minecraft:dirt\": 40, \"minecraft:wheat_seeds\": 25}"), ModuleBound.of(m, j("{\"crop\": \"wheat\", \"side\": 5}")), "keys in any order; zero counts dropped");
 		assertNull(ModuleBound.of(m, j("{\"crop\": \"beetroots\", \"side\": 5}")));
 		assertNull(ModuleBound.of(null, j("{}")));
