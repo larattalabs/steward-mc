@@ -693,7 +693,7 @@ world per step; `--attach`, `--keep-client`). The bars and results are in docs/M
 - **Leftover:** `plan-check.mjs` passes hidden_village (`[]`) though the kit calls its room malformed: it still follows only the program dispatch,
   not each kind's def, so the jar schema alone doesn't close that LEFTOVERS item.
 
-**The part writer was temporary (slice CA, 2026-11-14):** since CA2 (below) a waiting part's own plan is composed by `Regions.compose`.
+**The part writer was temporary (slice CA, 2026-11-14):** since CA2 (above) a waiting part's own plan is composed by `Regions.compose`.
 
 ## P0's seven: the parts that didn't fit in P0's CI, re-scored on Architect 0.70.0 (slice PV1, 2026-11-15, $0)
 `checkPlanLocal` from v0.70.0's kit (catalogue 24) on the asks claim with Steward's anchors, over the first recordings (Architect's
