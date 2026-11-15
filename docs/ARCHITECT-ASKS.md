@@ -1585,3 +1585,10 @@ Architect v0.68.0 (API 1.60.0, kit 0.63.0, catalogue 23: SAD, the adoptCrates cr
 - `stub --only adopt,growth,stockpile,stock-save`: 67 of 69 passed over 10 flows: growth, adopt, adopt-ns, survival, supplied-plan, supplied-growth, module, module-survival, district-growth, stock-save. That covers creative adopted-town growth with SAD's `props` stage, older crate-fed builds through `Stockpiles.ensure`, refunds and saves.
 - `module offer` and `module survival offer` fail by design: measured.json certifies 0.67.0, and kit 0.63.0 changes module.json's pins. Slice crop-farm-068 carries crop_farm to 0.68.0 by Noah's smoke rule.
 - Steward doesn't adopt in survival yet (that's SST), so SAD's survival adoption itself is Architect's gate's. Nothing in Architect was found wrong.
+
+### v0.69.0 (2026-11-14): PASS; the pin merges with crop_farm's smoke carries to 0.68.0 and 0.69.0
+Architect v0.69.0 (API 1.61.0, kit 0.64.0, catalogue 24: PF's `form.arch_span`, BR, the archSpan billing fix) is pinned on pin-069 (8865930, on pin-068, runtime minimum 0.69.0). The schema-drift test caught catalogue 24, and `schema/plan-0.json` is now the jar's.
+- Build and unit tests: 522 passed, 0 failed. npm: 44 passed.
+- `stub --only plan,stub`: PASS, 91 checks over 15 flows: stub, village, growth, plan-build, street-hint, wall-offer, palette, grove, districts-plan, plan-check, supplied-plan, copper-lots, discard, beside, revision. The status line shows API 1.61.0 with 186 features, `shapePromotion` among them.
+- Steward has no plan fixture with `form.arch_span` or an aqueduct, and its plan writer names no arch form yet, so those stay with Architect's gate. crop_farm doesn't call archSpan (crop-farm-069's kit diff check).
+- Nothing in Architect was found wrong.
