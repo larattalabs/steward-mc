@@ -560,3 +560,44 @@ settlement would be busy that whole time. So no take-up is asked while a player 
 left untried, and the 10 s tick (`VillageSweep.growths(server)`) asks again once the player leaves; a busy settlement keeps its mark for a later tick.
 `takeUp`'s other callers are treated the same way: nothing is logged while the region is held, and the region is kept so that the ended build naming it
 does not hold it. Still open: a player who walks in during the few ticks before Architect's scan.
+
+## Slice PV1: plan v1 growth (an addition from the town's composed plan)
+
+Status: built 2026-11-15 on branch `plan-v1-growth` (strict tier: billing and undo ride A2/A2L unchanged). PLAN.md "Composition", still to do:
+plan v1 for additions and districts. A town built from its composed plan (COMPOSITION §10, §12) grew like any region town: the addition's
+lot was Steward's own (`g<build>_<n>`), placed on any street, whatever the plan said.
+
+**When.** `afterSurvey`'s town branch (an addition with no Steward district, the town region standing, Architect has growth), before
+`growStanding`: `SettlementRunner.fromPlan`. Not for a module, a district's build, more than one building, or a settlement held to the flat
+village. Otherwise slice A, A2 and A2L hold as written: the mode gate, the stockpile, `planGrowth`'s keys and recovery, billing, `Growths.undo`.
+
+**The plan is the town's** (`PlanGrowth.approvedFor`, pure): the kept plan's time is at or before the town's founding entry
+(`region:<town>`), and at least one of the region's first lots (revision 0) is a plan lot. A plan composed after the town stood (the card
+described again) never grows it.
+
+**The lot** (`PlanGrowth.pick`, pure): the first plan lot, in plan order, whose type is the asked building's (else, on a second pass, whose
+role or label is), that the region doesn't list in any state (built, removed or grown before), not in a part or district that waits, not a
+secret (`Secrets`), not a module lot, with an id Architect takes (`[a-z][a-z0-9_]{0,47}`). Its spec: the plan's id, type, size, label (its
+role), brief (scrubbed), landmark and placement. None: today's path.
+
+**Ids, a departure from slice A.** The plan lot is sent under its own id, never renamed `g<build>_<n>`: the region's first lots already have
+their plan ids (unique in the plan), Architect refuses a standing id (`not_additive`), and the region's lot list is then the one test of
+"built". An undo of the growth frees the id again (a lot the region lists as `removed` is not taken again).
+
+**The zone.** `grow.zone` is the lot's zone when some lot of that zone stands (its streets carry `architect_mc:street.zone`); a zone left out
+whole grows on the town's streets. The zone is saved with the build (`growZone`, BuildStore format 7; a format-6 build reads with none), so a
+stale re-plan (`vgrow3`) sends it again. Neither the zone nor the picker reads a street's axis: a north-south zone grows as an east-west one
+(Architect's frontage is four-sided, `DPlan.toPlan` takes four fronts).
+
+**Districts of the plan (D1).** A plan's districts zone is one plan_v0 region; `grow.district` is refused there (Architect reads districts
+from a `districts` program's params only), so a D1 district's lot grows with `grow.zone` on any street of that zone: asked as S-PV1-1.
+Founding a district the plan names but didn't build (beside, outpost, quarter) is not built here (see PLAN.md).
+
+**Words.** "The town grows from its plan: <label> (its lot <id>, not built yet). Architect finds room on that part of the town's streets..."
+
+**Tests.** Unit `PlanGrowthTest`: the pick (id, size, label, brief, zone), a held lot never again, no type match, the role pass, a zone left
+out whole and a north-south zone, a D1 lot's district, waiting parts, a secret, a module lot, a bad id; `approvedFor`; format 7 round trip
+and format 6 read. e2e (stub) `plan-growth` (tag `planlot`): `suppliedGrowthFlow('plan')`, a Supplied plan-v1 town from no_wood's plan,
+built from the stockpile; a library lot added to the kept plan's zone (`/steward dev plan_lot`, as one its first build left out); a library
+asked in talk and accepted: the lot grown as `library_1` in zone `town` at the plan's 11 by 13, said as the plan's, billed; undone while
+waiting (A2L 1's judge: paid == returned once, one entry and one completion, the ground as before); then the town undone with its refund.

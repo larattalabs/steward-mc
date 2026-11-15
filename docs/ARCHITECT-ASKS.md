@@ -1654,3 +1654,18 @@ After an unclean start, RL's reconcile charges what stands without counting `max
 - A reconcile that would pass the cap charges what stands; the target then waits `bill_cap`, draws nothing more, and Architect logs a WARN.
 - Gated on every kill case, plus a constructed overshoot.
 - It lands after FK-b and SS. Steward's side needs nothing new: the `bill_cap` wait is said, with `/steward undo` and a fresh ask. No raise-cap API.
+
+### PV1: plan v1 growth and P0's unfit parts (slice PV1, branch plan-v1-growth, 2026-11-15; sent through the manager)
+
+Steward's additions to a town built from its composed plan now take the plan's own lot (its id, size, label, brief) when the plan names one
+the region doesn't hold yet, and grow it through `planRevision` with `grow.zone` set to the lot's zone when that zone stands (GR §8: plan/0
+zone streets carry `architect_mc:street.zone`, read in 0.70.0's `compile.mjs` `stampStreets`). Two asks:
+- **S-PV1-1, `grow.district` on a plan_v0 region.** A plan with a D1 districts zone is realised as one plan_v0 region. Its district streets
+  carry `architect_mc:street.district`, but `growPlan` reads a region as a districts region only from `eff.params.spec.districts`, which
+  plan_v0's params (the plan) don't hold, so `grow.district` is refused (`'x' is not a district of the region (none)`). Steward grows a
+  D1 district's lot with `grow.zone` alone today, on any street of that zone. Asked: on a plan_v0 region, `grow.district` names a district
+  of a districts zone (with `grow.zone`, or alone when one zone holds it), and the growth takes only that district's streets and land,
+  as a districts region's growth does.
+- **S-PV1-2, name `form.seabed_site`'s slice.** P0's CI part `underwater_domes/colony` (no ocean on the asks claim) is today a plan that
+  waits: the colony depends on `seabed_site`, which 0.70.0 (catalogue 24) answers `unsupported ... reserved (until later)`. Steward keeps
+  it pending with Claude's words. Asked: the slice that ships it, so the waiting-part offer (COMPOSITION §11) can name it.
