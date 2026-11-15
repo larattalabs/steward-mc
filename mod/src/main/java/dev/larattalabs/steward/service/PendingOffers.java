@@ -243,9 +243,7 @@ public final class PendingOffers {
 				String key = "part_" + p.part();
 				if (open.stream().anyMatch(x -> x.key().equals(key)) || s.proposals().declined().contains(key) || s.proposals().accepted().contains(key)) continue;
 				String what = name(partOf(plan, p.part()).orElse(null), p.part());
-				open.add(Proposal.part(p.part(), Character.toUpperCase(what.charAt(0)) + what.substring(1) + " can be built now",
-					"It can be built now. Building it fits it round " + s.name() + " as it stands (up to $1); it goes up as a part of its own, which an undo takes"
-						+ " away on its own. If it has to change to fit, you see how and build it once more.", now));
+				open.add(Proposal.part(p.part(), Character.toUpperCase(what.charAt(0)) + what.substring(1) + " can be built now", offerWords(s.name()), now));
 				out.add(s.id() + ": " + what + " (" + p.block() + ")");
 				added = true;
 			}
@@ -256,6 +254,15 @@ public final class PendingOffers {
 			}
 		}
 		return out;
+	}
+
+	/**
+	 * A waiting part's offer, for the player: what accepting it does (fitted round the town, built as a part of its own that an undo takes away alone), and
+	 * that a part changed to fit is shown and asked about once more before anything is built ({@link #accept}'s second accept).
+	 */
+	static String offerWords(String settlement) {
+		return "Say yes and I fit it round " + settlement + " as it stands (up to $1), then raise it as a part of its own: an undo takes it away and leaves the"
+			+ " town. If it has to change to fit, I show you the change and ask you once more before anything is built.";
 	}
 
 	/**
@@ -445,8 +452,7 @@ public final class PendingOffers {
 					String how = answer.map(x -> x.has("deviations") ? x.get("deviations").toString() : "").orElse("");
 					CHECKED.put(s.id() + "/" + f.part(), new Checked(c.artifactSha(), summary, cost));
 					BUSY.remove(s.id() + "/" + f.part());
-					Composer.tellNow(server, player, s, summary + " Architect changed it to fit" + (how.isEmpty() ? "" : " (" + clip(how, 200) + ")")
-						+ ": accept it once more in the inbox to build it.");
+					Composer.tellNow(server, player, s, adjustedWords(summary, how));
 					return;
 				}
 				// Architect's own line for the part (CP's waits[].say), else the check's first reason
@@ -567,6 +573,12 @@ public final class PendingOffers {
 		Steward.LOGGER.info("part {} of {}: {}", p.pendingPart(), s.id(), why);
 		// the offer stays in the inbox (it was never recorded as accepted): accepted again, it is fitted again
 		Composer.tellNow(server, player, s, Character.toUpperCase(what.charAt(0)) + what.substring(1) + " waits: " + why + ".");
+	}
+
+	/** A part changed to fit, for the player: the change, and that nothing is built until it is accepted once more. */
+	static String adjustedWords(String summary, String how) {
+		return summary + " It had to change to fit" + (how.isEmpty() ? "" : " (" + clip(how, 200) + ")") + ", so nothing is built yet. Accept it once more in the"
+			+ " inbox and I'll build it as shown.";
 	}
 
 	private static String clip(String t, int n) {

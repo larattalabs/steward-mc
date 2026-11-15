@@ -89,4 +89,19 @@ class PendingOffersTest {
 		Proposal p = Proposal.part("town_wall", "The town wall can be built now", "", 1L);
 		assertFalse(p.trigger().contains("Architect"));
 	}
+
+	@Test
+	void theOfferSaysWhatAcceptingDoesAndThatAChangeIsAskedFirst() {
+		String why = PendingOffers.offerWords("Mossbank");
+		assertTrue(why.startsWith("Say yes and I fit it round Mossbank as it stands (up to $1)"), why);
+		assertTrue(why.contains("an undo takes it away and leaves the town"), why);
+		assertTrue(why.contains("I show you the change and ask you once more before anything is built"), why);
+		for (String word : List.of("Architect", "Claude", "connector.", "_")) assertFalse(why.contains(word), word + " in " + why);
+		String adjusted = PendingOffers.adjustedWords("The town wall.", "[\"gate moved\"]");
+		assertEquals("The town wall. It had to change to fit ([\"gate moved\"]), so nothing is built yet. Accept it once more in the inbox and I'll build it as shown.",
+			adjusted);
+		assertFalse(adjusted.contains("Architect"), adjusted);
+		assertEquals("The town wall. It had to change to fit, so nothing is built yet. Accept it once more in the inbox and I'll build it as shown.",
+			PendingOffers.adjustedWords("The town wall.", ""));
+	}
 }
