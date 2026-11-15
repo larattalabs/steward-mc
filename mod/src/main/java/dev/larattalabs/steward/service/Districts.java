@@ -133,11 +133,11 @@ public final class Districts {
 
 	/**
 	 * The town region a district towards {@code dir} is reserved beside, or null for a square district: the town is a region (never a district's or a
-	 * part's), the side is east or west (Noah's Q3), and the world isn't survival (a district region from materials is a follow-up).
+	 * part's) and the side is east or west (Noah's Q3). In either mode (slice SD): in a world that builds from materials the district's region is built
+	 * from the settlement's stockpile at its first building ({@link SettlementRunner}'s planDistrict).
 	 */
 	static dev.larattalabs.architect.api.@Nullable RegionView besideTown(MinecraftServer server, Settlement s, String dir) {
 		if (!dir.equals("E") && !dir.equals("W")) return null;
-		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) return null;
 		try {
 			var id = TownRegion.of(s);
 			return id.isEmpty() ? null : ArchitectAccess.api().regions().get(id.get()).orElse(null);
@@ -566,9 +566,40 @@ public final class Districts {
 				if (liveRegionOf(s.get().owner(), d.id()).isEmpty()) release(settlementId, d);
 				continue;
 			}
-			if (!d.square()) continue;
+			if (!d.square()) {
+				giveUpRemoved(server, s.get(), d);
+				continue;
+			}
 			if (!d.linkUndone() && !d.linked() && d.founding().isPresent() && districtStreet(server, s.get(), d) != null) link(server, settlementId, d.id(), say, false);
 		}
+	}
+
+	/**
+	 * (slice SD) A district region removed by an undo whose give-up never saved (a stop, or a failed save, between the removal's entry and it): given up
+	 * now, only on Architect's positive tombstone, with its placing entry retired and nothing of the settlement's standing in its land.
+	 */
+	static void giveUpRemoved(@Nullable MinecraftServer server, Settlement s, Settlement.District d) {
+		if (d.square() || d.region() == null) return;
+		boolean tombstone;
+		try {
+			tombstone = ArchitectAccess.api().regions().get(d.region()).map(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVED).orElse(false);
+		} catch (RuntimeException | LinkageError e) {
+			tombstone = false;
+		}
+		if (leftAfterRemoval(s, d, tombstone) && !standsIn(server, s, d)) {
+			Settlements.removeDistrict(s.id(), d.id(), "Gave up " + d.name() + " (its build was undone)", System.currentTimeMillis());
+		}
+	}
+
+	/**
+	 * (slice SD) Whether a district region's undo finished but its give-up never saved: Architect holds its tombstone ({@code tombstone}: REMOVED, never an
+	 * absent record) and every entry that placed it is retired (a later removal names its sites). Pure over the history.
+	 */
+	static boolean leftAfterRemoval(Settlement s, Settlement.District d, boolean tombstone) {
+		if (!tombstone || d.region() == null) return false;
+		String group = dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + d.region();
+		var placed = s.log().stream().filter(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && group.equals(e.siteGroup())).toList();
+		return !placed.isEmpty() && placed.stream().allMatch(e -> Undo.retired(s, e));
 	}
 
 	private static void takeUpAll(MinecraftServer server, Settlement s, List<String> ids, Consumer<String> say, Runnable done) {
@@ -684,7 +715,7 @@ public final class Districts {
 	}
 
 	/** Whether a site of the settlement other than the district's roads stands in it. */
-	static boolean standsIn(MinecraftServer server, Settlement s, Settlement.District d) {
+	static boolean standsIn(@Nullable MinecraftServer server, Settlement s, Settlement.District d) {
 		Set<String> roads = new HashSet<>();
 		d.roads().forEach(r -> roads.add(r.siteId()));
 		for (SiteView v : ArchitectAccess.api().sites(server).list(s.owner())) {

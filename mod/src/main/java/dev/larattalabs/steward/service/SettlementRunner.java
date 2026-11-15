@@ -239,6 +239,8 @@ public final class SettlementRunner {
 			case PLACEMENT -> {
 				// (slice M3) a held bill: the bill shown becomes the bound, saved before the phase moves on (a crash between leaves it approved, never lost)
 				if (moduleBuild()) approveHeld();
+				// (slice SD) a district's bill held for the player: the bill they were shown is the one approved
+				if (districtShown != null) { districtCleared = districtShown; districtShown = null; }
 				feed(new Pipeline.PlacementApproved());
 				yield "Approved; placing the settlement stage by stage.";
 			}
@@ -1456,8 +1458,10 @@ public final class SettlementRunner {
 			abandon(district.name() + " stands as its own region already: adding to it waits for Architect's growth (6d).");
 			return;
 		}
-		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) {
-			abandon(district.name() + " is a district beside the town, which isn't built from materials yet.");
+		// (slice SD) only a beside district is built from materials: a quarter (along, outpost) founded in a world since turned to survival still waits
+		if (quarter && dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) {
+			Districts.release(settlement.id(), district);
+			abandon(district.name() + " is a quarter, which isn't built from materials yet. Nothing was spent.");
 			return;
 		}
 		var regions = ArchitectApi.get().regions();
@@ -1465,6 +1469,18 @@ public final class SettlementRunner {
 		if (town.isEmpty() || town.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED || town.get().state() == dev.larattalabs.architect.api.RegionState.REMOVING) {
 			abandon("The town " + district.name() + " was reserved beside is gone: undo the reservation and found the district again.");
 			return;
+		}
+		// (slice SD) a world that builds regions from materials: the district's region is built from the settlement's one stockpile (Architect keeps one per
+		// owner and dimension; its targets join the feed after the town's), so it is found or made first, and the plan keeps off its crates
+		if (regionMaterials()) {
+			var sp = Stockpiles.ensure(server, settlement, this::say);
+			if (sp == null) {
+				abandon(district.name() + " is built from materials, from " + settlement.name() + "'s stockpile, and none could be made by the founding stone. "
+					+ "Clear a spot beside it and start again. Nothing was spent.");
+				return;
+			}
+			String held = Stockpiles.protectCrates(server, Settlements.store().get(settlement.id()).orElse(settlement), sp, true);
+			if (held != null) { abandon("The stockpile's ground could not be kept clear of " + district.name() + " (" + held + "). Start again."); return; }
 		}
 		if (!Settlements.districtState(settlement.id(), district.id(), Settlement.District.BUILDING).ok()) {
 			abandon("Could not save " + district.name() + " as building.");
@@ -2343,15 +2359,116 @@ public final class SettlementRunner {
 	 * needs the player's approval, it waits for it first (the approval then realises it).
 	 */
 	private void queueVillage(boolean autoApprove) {
+		// (slice SD) a district's first building from materials: its whole bill is quoted and said before it is approved (or placed)
+		if (districtFromMaterials()) {
+			var entries = villageLotEntries();
+			if (entries != null) { quoteDistrict(entries, autoApprove ? BillAsk.AUTO : BillAsk.BEFORE_APPROVAL); return; }
+		}
 		if (autoApprove) realiseVillage();
 		else feed(new Pipeline.BatchQueued(VPLAN_PENDING));
+	}
+
+	/**
+	 * (slice SD) A district's own region built from materials, its first building (never a growth, never a composed plan's artifact): its bill is quoted
+	 * and approved before its realise.
+	 */
+	private boolean districtFromMaterials() {
+		return districtId != null && !growth() && vPlanId != null && dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId) == null && regionMaterials();
+	}
+
+	/** (slice SD) The quote said and approved for exactly this plan and these entries (in memory: a restart quotes and asks again before placing). */
+	private @org.jspecify.annotations.Nullable String districtCleared, districtShown;
+	/** (slice SD) A district's quote is out: nothing realises meanwhile, and no second quote starts. */
+	private boolean districtQuoting;
+
+	/** (slice SD) When a district's bill is quoted: before the placement approval, for a build placed without one, or at the realise (no approval of it). */
+	private enum BillAsk { BEFORE_APPROVAL, AUTO, AT_REALISE }
+
+	/**
+	 * (slice SD) Quotes a district's first building from materials (Architect's {@code Regions.quote}, read-only) with its final entries, and says it. A quote
+	 * that fails or leaves a part unbilled ends the build before anything is consumed. Before the approval the bill is said and the approval that follows
+	 * is of it; placed without an approval, an exact bill goes on, an inexact one is asked first; at the realise with no approval of this plan and these
+	 * entries (a re-plan, a restart) it is asked. The approval is today's (no bound: slice QD's "up to N" comes later).
+	 */
+	private void quoteDistrict(Map<String, String> entries, BillAsk when) {
+		String name = Settlements.store().get(settlement.id()).flatMap(x -> x.lands().district(districtId)).map(Settlement.District::name).orElse("The district");
+		String plan0 = vPlanId;
+		String key = ModulePlacement.cleared(vPlanId, entries);
+		int session = Session.current();
+		if (districtQuoting) return;
+		districtQuoting = true;
+		java.util.concurrent.CompletableFuture<dev.larattalabs.architect.api.Quote> q;
+		try {
+			q = ArchitectApi.get().regions().quote(vPlanId, entries);
+		} catch (RuntimeException | LinkageError e) {
+			q = java.util.concurrent.CompletableFuture.failedFuture(e);
+		}
+		q.whenComplete((quote, err) -> server.execute(() -> {
+			if (!Session.is(session)) return;
+			districtQuoting = false;
+			if (!alive() || state == null || !java.util.Objects.equals(plan0, vPlanId) || vRegionId != null) return;
+			if (switch (state.phase()) { case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING -> false; default -> true; }) return;
+			if (err != null || quote == null) {
+				say("Not placed: " + name + "'s bill couldn't be quoted (" + message(err) + "), and nothing is taken from the stockpile unchecked. Nothing was consumed.");
+				feed(new Pipeline.Cancel());
+				return;
+			}
+			var check = ModulePlacement.quoteCheck(quote.exact(), quote.notes());
+			if (check.refused() != null) {
+				say("Not placed: Architect couldn't quote all of " + name + "'s bill (" + check.refused() + "), so nothing is consumed unchecked.");
+				feed(new Pipeline.Cancel());
+				return;
+			}
+			String line = districtBillLine(name, quote, null);
+			Steward.LOGGER.info("district bill {} {}: {} (exact {}, notes {}, {})", settlement.id(), vPlanId, quote.bom(), quote.exact(), quote.notes(), when);
+			switch (when) {
+				case BEFORE_APPROVAL -> {
+					say(line);
+					districtCleared = key;
+					feed(new Pipeline.BatchQueued(VPLAN_PENDING));
+				}
+				case AUTO -> {
+					if (check.ask() == null) { say(line); districtCleared = key; realiseVillage(); }
+					else { districtShown = key; feed(new Pipeline.HoldBill(line + " Architect can't quote it exactly (" + check.ask() + "), so I ask first. Approve to build it, or cancel.")); }
+				}
+				case AT_REALISE -> {
+					districtShown = key;
+					feed(new Pipeline.HoldBill(line + " Approve to build it with this bill, or cancel."));
+				}
+			}
+		}));
+	}
+
+	/**
+	 * (slice SD) What a district's first building from materials takes from the stockpile, said before it is approved: Architect's quote of its plan with
+	 * these designs (its street, its join, its lots' buildings), "about" when Architect can't say it exactly, or that it couldn't be quoted. Pure.
+	 */
+	static String districtBillLine(String name, dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable Quote q, @org.jspecify.annotations.Nullable String error) {
+		if (q == null) return "From materials, from the stockpile: " + name + "'s bill couldn't be quoted (" + error + "); it's said as it's built.";
+		JsonObject cost = new JsonObject();
+		cost.add("bom", q.bom() == null ? new JsonObject() : q.bom());
+		String bill = Composer.billLine(cost);
+		if (bill == null) return "From materials, " + name + " takes nothing from the stockpile.";
+		return "From materials, " + name + " needs " + (q.exact() ? "" : "about ") + bill + " from the stockpile"
+			+ (q.exact() || q.notes().isEmpty() ? "" : " (" + String.join("; ", q.notes()) + ")") + ". Fill the stockpile as it's built.";
+	}
+
+	/** The village's lots, each with its design (a lot with none stays a pad): what its realise and quote take. Null when the group is gone. */
+	private @org.jspecify.annotations.Nullable Map<String, String> villageLotEntries() {
+		Group g = groupId == null ? null : ArchitectApi.get().designs().group(groupId).orElse(null);
+		if (g == null || plan == null) return null;
+		Map<String, String> entries = new LinkedHashMap<>();
+		for (Group.Item it : g.items()) it.entryId().ifPresent(e -> entries.put(it.itemKey(), e));
+		Map<String, String> lotEntries = new LinkedHashMap<>();
+		for (VillageLayout.Lot l : plan.lots()) if (entries.containsKey(l.id())) lotEntries.put(l.id(), entries.get(l.id()));
+		return lotEntries;
 	}
 
 	/** What the pipeline holds as the batch of a village waiting for the player's approval to be placed. */
 	static final String VPLAN_PENDING = "village:pending";
 
 	private void realiseVillage() {
-		if (vRegionId != null || queueInFlight) return;
+		if (vRegionId != null || queueInFlight || districtQuoting) return;
 		var api = ArchitectApi.get();
 		Map<String, String> entries = new LinkedHashMap<>();
 		// (slice M3) module lots: their bound variants, made (or found by key) and their bill quoted first; the realise waits until then
@@ -2373,6 +2490,9 @@ public final class SettlementRunner {
 			feed(new Pipeline.Cancel());
 			return;
 		}
+		// (slice SD) a district from materials is realised only with the bill approved for exactly this plan and these entries (a re-plan or a restart
+		// since: quoted and asked again)
+		if (districtFromMaterials() && !ModulePlacement.cleared(vPlanId, lotEntries).equals(districtCleared)) { quoteDistrict(lotEntries, BillAsk.AT_REALISE); return; }
 		if (!missing.isEmpty()) say("Left as pads (no design): " + String.join(", ", missing));
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", settlement.id());
@@ -2411,7 +2531,10 @@ public final class SettlementRunner {
 			: districtId != null && api.regions().planByKey(settlement.owner(), opKey("vplan2")).map(p -> p.planId().equals(vPlanId)).orElse(false)
 			? opKey("vrealise2") : opKey("vrealise");
 		// (slice A2) a growth of a town built from materials is built from them (Architect realises a revision in its town's own mode; the request says so)
-		Mode mode = growth() && growRegion != null && api.regions().get(growRegion).map(Growths::fromMaterials).orElse(false) ? Mode.CONSTRUCTION : Mode.INSTANT;
+		// (slice SD) a district's own region in a world that builds from materials is built from the stockpile: the request says so (Architect builds it
+		// in the mode its plan was made in, and refuses a plan made in another mode than the world's now)
+		Mode mode = growth() ? (growRegion != null && api.regions().get(growRegion).map(Growths::fromMaterials).orElse(false) ? Mode.CONSTRUCTION : Mode.INSTANT)
+			: districtRealiseMode(districtId != null, regionMaterials());
 		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, mode, actor, lotEntries, null, true, null, false, ext, 0, key))
 			.whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
 	}
@@ -2648,6 +2771,28 @@ public final class SettlementRunner {
 		JsonObject o = a.deepCopy();
 		for (var e : b.entrySet()) o.addProperty(e.getKey(), (o.has(e.getKey()) ? o.get(e.getKey()).getAsInt() : 0) + e.getValue().getAsInt());
 		return o;
+	}
+
+	/**
+	 * (slice SD) A region realise's refusal over materials in plain words, or null: the world's mode changed between the plan and the realise (Architect:
+	 * "plan it again in survival/creative", or CONSTRUCTION outside a survival world), or the owner has no stockpile there. Pure.
+	 */
+	static @org.jspecify.annotations.Nullable String materialsRefusal(String m) {
+		if (m.contains("plan it again in survival") || m.contains("plan it again in creative") || m.contains("CONSTRUCTION needs a survival world"))
+			return "the world's mode changed while the buildings were designed (a region is built the way the world builds when it is planned). Start it again.";
+		if (m.contains("has no stockpile") || m.contains("builds from its owner's stockpile"))
+			return "the settlement's stockpile is gone, and a region built from materials is built from it. Start it again: a new one is made by the founding stone.";
+		return null;
+	}
+
+	/** (slice SD) The mode a non-growth region realise asks: a district's region from materials when the world builds them so; else at once. Pure. */
+	static Mode districtRealiseMode(boolean district, boolean regionMaterials) {
+		return district && regionMaterials ? Mode.CONSTRUCTION : Mode.INSTANT;
+	}
+
+	/** Whether this world builds regions from materials (Architect's RegionSurvival.on: the survival toggle on, the default game type not creative). */
+	private boolean regionMaterials() {
+		return dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
 	}
 
 	/** (slice A2) Why a growth may not be realised now, or null: the mode gate again, and a town built from materials keeps its stockpile. */
@@ -3075,6 +3220,9 @@ public final class SettlementRunner {
 			if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
 			// a district's realise re-checks the land under its plan (D3 4.4): planned again once, under a second key, as a stale artifact is
 			if (replanDistrict(err)) return;
+			// (slice SD) a district's region from materials: the world's mode changed since it was planned, or the stockpile is gone, in plain words
+			String plain = districtId == null ? null : materialsRefusal(message(err));
+			if (plain != null) { say("Not placed: " + plain); feed(new Pipeline.Cancel()); return; }
 			say("Architect could not place the village: " + message(err));
 			feed(new Pipeline.Cancel());
 			return;

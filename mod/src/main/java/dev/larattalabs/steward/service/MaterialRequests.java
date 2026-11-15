@@ -161,9 +161,14 @@ public final class MaterialRequests {
 			// done: built and the region PLACED; a town that stood PARTIAL before its growth reads PARTIAL again, so built is enough there (slice A2)
 			if (b != null && (b.done() || (b.built() && v.get().state() == dev.larattalabs.architect.api.RegionState.PARTIAL))) {
 				BUILDING.remove(e.getKey());
-				tell(srv, s.get(), s.get().name() + " is built: everything its plan laid out stands, from the stockpile.");
+				tell(srv, s.get(), builtName(s.get(), e.getKey()) + " is built: everything its plan laid out stands, from the stockpile.");
 			}
 		}
+	}
+
+	/** (slice SD) Who a watched region's "is built" names: the district whose region it is, else the settlement (its town). Pure. */
+	static String builtName(Settlement s, String regionId) {
+		return s.lands().districts().stream().filter(d -> regionId.equals(d.region())).map(Settlement.District::name).findFirst().orElse(s.name());
 	}
 
 	/** Reads each settlement's waiting targets: one waiting {@link #LONG_WAIT_TICKS} sends the steward to a player in the settlement, once per wait. */
