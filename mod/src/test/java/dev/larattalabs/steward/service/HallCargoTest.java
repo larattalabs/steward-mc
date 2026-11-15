@@ -8,6 +8,16 @@ import org.junit.jupiter.api.Test;
 /** The steward's words for a storage hall's refused undo read only the halls whose containers Architect's cargo refusal names (M4, the diff review's findings 1 and 4). */
 class HallCargoTest {
 	@Test
+	void architectsRealRefusalNamesEveryChest() throws Exception {
+		// Architect 0.67.0's refusal of a hall growth's undo, as the measurement saw it (artifacts/m4/hall.json)
+		String m = new String(HallCargoTest.class.getResourceAsStream("/hall-refusal-0.67.0.txt").readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+		assertTrue(HallCargo.cargoRefusal(m));
+		var cells = HallCargo.namedCells(m);
+		assertTrue(cells.size() >= 3, cells.toString());
+		assertEquals(new net.minecraft.core.BlockPos(125, 66, 93), cells.get(0));
+	}
+
+	@Test
 	void theSitesToEmptyComeFromArchitectsRefusal() {
 		String m = "NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back"
 			+ " over them): chest at 105, 66, 578 (595 items). Or confirm again with force: they are lost (blockers); Move these out of s12 first (...): chest at 1, 2, 3 (4 items)";

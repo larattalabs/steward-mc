@@ -507,7 +507,7 @@ async function hall() {
       const u = await call('dev.rv.undo', { region: g.region, toPosition: g.position - 1 }, 3_600_000).catch((e) => ({ error: String(e) }));
       await sleep(3000);
       // the steward's words from Architect's refusal (Steward's HallCargo, as Growths says them): only the sites it names
-      const words = (await mod({ op: 'hallCargo', owner: OWNER, region: g.region, message: `${u.error ?? ''} ${(u.blockers ?? []).join(', ')}` })).words;
+      const words = (await mod({ op: 'hallCargo', owner: OWNER, region: g.region, message: `${u.error ?? ''} ${u.refused ?? ''} ${u.message ?? ''} ${(u.blockers ?? []).join(', ')}` })).words;
       let unchanged = true;
       for (const h of gh) unchanged = unchanged && sameSnap(await snapshot(h), before[h.id]);
       const rep1 = await land(g.region);
