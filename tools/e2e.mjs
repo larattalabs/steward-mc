@@ -1330,7 +1330,7 @@ async function villageFlow() {
 /**
  * (slice VSR) A flat village left by no build and no history entry across a restart: built, the game stopped, its entry taken out (as a history that
  * could not be saved leaves it). At the world start the sweep takes it up once: one "held by no build" line, one entry logged under its region, one
- * removal, and the region removed.
+ * removal, and its street gone with the rest.
  */
 async function villageOrphanFlow() {
   const label = 'village orphan';
@@ -1375,16 +1375,17 @@ async function villageOrphanFlow() {
   const esc = region.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const swept = await waitLog(0, new RegExp(`village region ${esc} of ${id} is held by no build and no history entry`), 120_000);
   const removed = await entryUntil(id, (e) => e.kind === 'PROJECT_REMOVED' && (placedOp.siteIds ?? []).every((x) => (e.siteIds ?? []).includes(x)), 600);
-  const rv = await regionUntil(region, ['REMOVED'], 120_000);
+  // the region taken up whole: its street is gone with its buildings
+  const streetLeft = await cmd(`/steward dev site ${placedOp.siteIds.find((x) => /^r/.test(x)) ?? placedOp.siteIds[0]}`);
   // give a second take-up the time to show, then count
   await sleep(15_000);
   const log = settlements().find((x) => x.id === id)?.log ?? [];
   const placedN = log.filter((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === group).length;
   const removedN = log.filter((e) => e.kind === 'PROJECT_REMOVED' && (e.siteIds ?? []).some((x) => (placedOp.siteIds ?? []).includes(x))).length;
   const lines = (logSince(0).match(new RegExp(`village region ${esc} of ${id} is held by no build`, 'g')) ?? []).length;
-  if (held === 0 && swept && removed && placedN === 1 && removedN === 1 && lines === 1 && rv?.state === 'REMOVED') {
+  if (held === 0 && swept && removed && placedN === 1 && removedN === 1 && lines === 1 && /is gone/.test(streetLeft)) {
     ok(label, `${region}'s entry gone across a restart, no build holding it: taken up once at the world start (1 line, 1 entry, 1 removal of ${removed.siteIds.length} sites): ${removed.text}`);
-  } else fail(label, `builds holding it ${held}; swept ${!!swept} (${lines} lines); placed ${placedN}; removed ${removedN}; region ${rv?.state}; ${chatTail(0)}`);
+  } else fail(label, `builds holding it ${held}; swept ${!!swept} (${lines} lines); placed ${placedN}; removed ${removedN}; street ${streetLeft}; ${chatTail(0)}`);
 }
 
 /**

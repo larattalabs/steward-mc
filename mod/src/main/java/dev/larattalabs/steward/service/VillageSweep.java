@@ -104,8 +104,9 @@ public final class VillageSweep {
 	private static void villages(MinecraftServer server, String settlementId) {
 		chain(settlementId, SWEEPING, () -> {
 			var s = Settlements.store().get(settlementId);
-			// (slice DG review round 2) a settlement whose growth take-up (or an undo) is running is left to it
-			if (s.isEmpty() || Undo.busy(settlementId)) return Optional.empty();
+			// (slice DG review round 2) a settlement whose growth take-up (or an undo) is running is left to it; (slice VSR review 3) so is one with a build
+			// running (a restored build's cancel takes its own region up) or a region being removed: its orphans wait for a start where nothing holds it
+			if (s.isEmpty() || Undo.busy(settlementId) || SettlementRunner.busy(settlementId)) return Optional.empty();
 			try {
 				var api = ArchitectApi.get().regions();
 				List<Village> regions = new java.util.ArrayList<>(api.list(s.get().owner()).stream().map(Village::of).toList());
