@@ -1363,6 +1363,10 @@ async function villageOrphanFlow() {
   const bf = path.join(WORLD, 'steward-builds.json');
   const heldBy = () => (fs.existsSync(bf) ? JSON.parse(fs.readFileSync(bf, 'utf8')).builds.filter((b) => b.settlementId === id).length : 0);
   for (let i = 0; i < 60 && heldBy() > 0; i++) await sleep(1000);
+  // the player waits just outside the claim (Architect's removal waits for a player standing in it), its ground still loaded
+  const claim = settlements().find((x) => x.id === id).claim;
+  await cmd(`/tp @p ${claim.centerX} 80 ${claim.centerZ + 170}`);
+  await sleep(2000);
   await quit();
   const held = heldBy();
   editSettlement(id, (st) => { st.log = st.log.filter((e) => e.siteGroup !== group); });

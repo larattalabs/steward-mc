@@ -215,11 +215,11 @@ public final class Undo {
 		if (regions.get(region).filter(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVED).isPresent()) {
 			// logged once (slice VSR): an entry a replay finds retired already is not logged again
 			var fresh = Settlements.store().get(s.id()).orElse(s);
-			if (!retired(fresh, entry)) {
-				if (!Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
-				districts(server, s, say);
-				say.accept("Undone: the village was taken up already, the land restored.");
-			}
+			boolean again = retired(fresh, entry);
+			if (!again && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
+			// the districts put right whatever the history says (a crash after the entry and before the district's land was let go)
+			districts(server, s, say);
+			if (!again) say.accept("Undone: the village was taken up already, the land restored.");
 			done.accept(true);
 			return true;
 		}
@@ -245,7 +245,8 @@ public final class Undo {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
 			// taken up only when Architect says so (1.14 C22: a retried removal finishes the restorations it left, or answers not removed)
 			boolean ok = err == null && r.removed();
-			if (ok && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
+			// logged once (slice VSR): two asks of one removal (Architect joins them) retire the entry once
+			if (ok && !retired(Settlements.store().get(s.id()).orElse(s), entry) && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
 			districts(server, s, say);
 			if (!ok) say.accept("Undo stopped: " + (err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
 				: "blocked by " + String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");

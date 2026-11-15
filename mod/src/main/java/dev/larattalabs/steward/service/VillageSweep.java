@@ -324,11 +324,13 @@ public final class VillageSweep {
 
 	/**
 	 * As {@link #takeUp(MinecraftServer, Settlement, String, Consumer)}, with its answer on the server thread: true taken up, false stopped or refused (or
-	 * another village of the settlement being taken up), null when the world closed meanwhile. One take-up per settlement at a time, whoever asks (slice VSR).
+	 * the settlement busy with another take-up, an undo or a removal), null when the world closed meanwhile. One take-up per settlement at a time, whoever asks (slice VSR).
 	 */
 	static void takeUp(MinecraftServer server, Settlement s, String regionId, Consumer<String> say, Consumer<Boolean> whenDone) {
-		if (!REMOVING.add(s.id())) {
-			Steward.LOGGER.warn("village region {} of {} waits: another village of it is being taken up (looked at again at the next start)", regionId, s.id());
+		// (slice VSR review 2) nor while an undo or cancel of the settlement runs, or Architect is removing one of its regions: SettlementRunner.busy's
+		// removal half (the sweep's chain checks the same before it chooses)
+		if (Undo.busy(s.id()) || removingAny(s) || !REMOVING.add(s.id())) {
+			Steward.LOGGER.warn("village region {} of {} waits: the settlement is busy taking up or removing another (looked at again at the next start)", regionId, s.id());
 			whenDone.accept(false);
 			return;
 		}
@@ -350,11 +352,10 @@ public final class VillageSweep {
 		}
 		if (entry.isEmpty()) {
 			// the settlement is busy while the region is taken up (Undo.region marks it so too); its answer on the server thread, this world's only
-			boolean marked = !Undo.busy(s.id());
-			if (marked) Undo.mark(s.id(), true);
+			Undo.mark(s.id(), true);
 			int session = Session.current();
 			ArchitectApi.get().regions().remove(regionId, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> server.execute(() -> {
-				if (marked) Undo.mark(s.id(), false);
+				Undo.mark(s.id(), false);
 				if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
 				boolean ok = err == null && r.removed();
 				if (!ok) Steward.LOGGER.warn("village region {} of {} could not be taken up yet (tried again at the next start): {}", regionId, s.id(),
@@ -364,6 +365,15 @@ public final class VillageSweep {
 			return;
 		}
 		Undo.region(server, Settlements.store().get(s.id()).orElse(s), entry.get(), regionId, Map.of(), say, done);
+	}
+
+	/** Whether Architect is removing a region of the settlement (a removal in flight, or one it resumed at the world start). */
+	private static boolean removingAny(Settlement s) {
+		try {
+			return ArchitectApi.get().regions().list(s.owner()).stream().anyMatch(v -> v.state() == RegionState.REMOVING);
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
 	}
 
 	/** The history entry that placed this region (its newest). */
