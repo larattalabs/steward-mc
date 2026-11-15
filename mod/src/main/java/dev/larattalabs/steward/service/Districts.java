@@ -586,7 +586,14 @@ public final class Districts {
 		} catch (RuntimeException | LinkageError e) {
 			tombstone = false;
 		}
-		if (leftAfterRemoval(s, d, tombstone) && !standsIn(server, s, d)) {
+		// a sites file that did not load reads as nothing standing: decide at the next healthy read (as BCU's close does; batch-2 verifier)
+		boolean healthy;
+		try {
+			healthy = ArchitectAccess.api().sites(server).loadHealthy();
+		} catch (RuntimeException | LinkageError e) {
+			healthy = false;
+		}
+		if (healthy && leftAfterRemoval(s, d, tombstone) && !standsIn(server, s, d)) {
 			Settlements.removeDistrict(s.id(), d.id(), "Gave up " + d.name() + " (its build was undone)", System.currentTimeMillis());
 		}
 	}
