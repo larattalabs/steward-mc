@@ -1629,12 +1629,16 @@ public final class SettlementRunner {
 
 	/** The kept plan as this build builds it: the parts that wait not required, each lot tagged with this build ({@link dev.larattalabs.steward.gateway.PPlan#forBuild}). */
 	private JsonObject builtPlan() {
+		// (slice M5) its module lots as this build binds them (the saved orders); a module lot with none is left out, as it was at the Start re-check
+		return withModules(keptPlan(), moduleOrders);
+	}
+
+	/** The kept plan as this build builds it, its module lots as the composer wrote them (what the Start re-check decides them from). */
+	private JsonObject keptPlan() {
 		var entry = PlanStore.get(settlement.id()).orElseThrow();
 		java.util.Set<String> waiting = new java.util.HashSet<>();
 		for (var p : entry.pending()) waiting.add(p.part());
-		JsonObject base = dev.larattalabs.steward.gateway.PPlan.forBuild(com.google.gson.JsonParser.parseString(entry.plan()).getAsJsonObject(), waiting, settlement.id(), buildId);
-		// (slice M5) its module lots as this build binds them (the saved orders); a module lot with none is left out, as it was at the Start re-check
-		return withModules(base, moduleOrders);
+		return dev.larattalabs.steward.gateway.PPlan.forBuild(com.google.gson.JsonParser.parseString(entry.plan()).getAsJsonObject(), waiting, settlement.id(), buildId);
 	}
 
 	/** (slice M5) The plan as built with these module orders: each ordered lot is the catalog's lot, every other module lot is left out. */
@@ -1741,7 +1745,7 @@ public final class SettlementRunner {
 		say("Laying out the village from its plan (Architect checks it against the land as it is now)...");
 		// (slice M5) the plan's working modules, decided before the check: the plan checked and built holds each as the catalog's lot (or leaves it out)
 		moduleOrders = Map.of();
-		JsonObject base = builtPlan();
+		JsonObject base = keptPlan();
 		var orders = decideModules(base);
 		JsonObject built = withModules(base, orders);
 		int session = Session.current();
@@ -1787,7 +1791,12 @@ public final class SettlementRunner {
 				pin(c.artifactSha());
 				vPlanId = dev.larattalabs.steward.gateway.PPlan.ARTIFACT_PREFIX + c.artifactSha();
 				// (slice M5) the module lots' orders, saved with the build beside its artifact (BuildStore format 6), so a restart binds the same
-				moduleOrders = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(orders));
+				// only the lots Architect kept: an optional module lot it left out (it didn't fit) is said above with the others, never bound
+				java.util.Set<String> kept = new java.util.HashSet<>();
+				for (var l : lots.get()) if (l.isJsonObject() && l.getAsJsonObject().has("id")) kept.add(l.getAsJsonObject().get("id").getAsString());
+				var placed = new LinkedHashMap<String, dev.larattalabs.steward.module.ModuleOrder>();
+				orders.forEach((lot, o) -> { if (kept.contains(lot)) placed.put(lot, o); });
+				moduleOrders = java.util.Collections.unmodifiableMap(placed);
 				// (S-7c-4) the designs never hear of a hidden room: a lot's brief without the sentences naming one (Architect builds the room, not the design)
 				var secrets = Secrets.of(built, art.map(a -> a.body()).orElse(null));
 				if (secrets.any()) Steward.LOGGER.info("plan as built for {}: {} secret part(s) {} in the artifact, answered {}", settlement.id(), secrets.parts().size(),
@@ -1852,11 +1861,18 @@ public final class SettlementRunner {
 			// an accepted proposal records itself now (acceptance, spend), or does not start
 			if (onStart != null && !onStart.getAsBoolean()) { abandon("Could not save the settlement, so nothing is built."); return; }
 			// (slice M3) a module lot is never designed: its entry is the catalog's variant, bound before the realise (docs/MODULES.md 4.2)
-			if (moduleBuild()) {
+			// (slice M5) a composed town whose every lot is a working module: nothing to design either; placed as any plan v1 town once approved
+			boolean modulesOnly = composedModules() && designPlan().lots().isEmpty();
+			if (moduleBuild() || modulesOnly) {
 				var bible = existing != null && existing.bible() != null && existing.bible().styleVersion() == existing.styleVersion() ? existing.bible() : null;
 				state = new State(Pipeline.Phase.READY_TO_PLACE, settlement.id(), r.card(), bible == null ? null : bible.id(), bible == null ? null : bible.version(), null,
 					Map.of(), 0, 0, 0, false, null, null);
 				persist();
+				if (modulesOnly) {
+					say("Every building of the plan is a working module from Steward's catalog: nothing to design, $0.");
+					queueVillage(!permission.needsApproval(Permission.Action.NEW_PROJECT));
+					return;
+				}
 				say("A working module from Steward's catalog: no design, $0. Making it for its lot...");
 				realiseVillage();
 				return;
@@ -2665,13 +2681,14 @@ public final class SettlementRunner {
 		// (slice M5) a composed town's module lots: bound to the artifact's lots now, and from materials each held to its bound in one quote of the whole
 		// realise; the realise waits until then
 		if (composedModules()) {
-			if (g == null) { say("The group disappeared."); return; }
+			// a town of module lots only has no design group
+			if (g == null && !designPlan().lots().isEmpty()) { say("The group disappeared."); return; }
 			Map<String, String> designed = new LinkedHashMap<>();
-			for (Group.Item it : g.items()) it.entryId().ifPresent(e -> designed.put(it.itemKey(), e));
+			if (g != null) for (Group.Item it : g.items()) it.entryId().ifPresent(e -> designed.put(it.itemKey(), e));
 			if (!composedReady(designed)) return;
 			moduleBindings.forEach((lot, b) -> { if (b.entryId() != null && moduleOrders.containsKey(lot)) entries.put(lot, b.entryId()); });
 		}
-		if (g == null && !moduleBuild()) { say("The group disappeared."); return; }
+		if (g == null && !moduleBuild() && !composedModules()) { say("The group disappeared."); return; }
 		if (g != null) for (Group.Item it : g.items()) it.entryId().ifPresent(e -> entries.put(it.itemKey(), e));
 		// only the planned lots, each with its design (a copy included); a lot with none stays a pad
 		Map<String, String> lotEntries = new LinkedHashMap<>();
