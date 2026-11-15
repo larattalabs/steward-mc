@@ -224,7 +224,9 @@ public final class Growths {
 	public static @Nullable String modeRefusal(String town, boolean townFromMaterials, boolean worldFromMaterials, boolean built, double percent) {
 		if (townFromMaterials != worldFromMaterials) return town + " was built " + (townFromMaterials ? "from materials" : "at once") + " and this world builds "
 			+ (worldFromMaterials ? "from materials" : "at once") + " now: Architect grows a town only the way it was built.";
-		if (townFromMaterials && !built) return String.format(Locale.ROOT, "%s is still being built from the stockpile (%.0f%%): it can grow once it's built.", town, percent);
+		// (slice SST) never "100%" while it isn't built (run 2: a lot nearly done rounded up)
+		if (townFromMaterials && !built) return String.format(Locale.ROOT, "%s is still being built from the stockpile (%d%%): it can grow once it's built.", town,
+			(int) Math.min(99, Math.floor(percent)));
 		return null;
 	}
 

@@ -424,7 +424,10 @@ of every settlement before the sweep; adopted towns skipped), `Undo` (the reconc
 
 ## Slice SST: a Supplied or survival street town adopted at its growth (Architect SAD)
 
-Status: as built, 2026-11-15, on branch `survival-street` (off `batch-070`, Architect 0.70.0). Architect's SAD (v0.68.0; CONTRACT "Slice SAD"): an
+Status: as built, 2026-11-15, on branch `survival-street` (off `batch-070`, Architect 0.70.0). Checks (deferred verification, rule 11): `gradlew
+build` and `npm test` pass; `stub --only adopt-survival` passed 10/10 on run 2 (run 1: a third of the need per feed built both lots before the ask;
+finer feeds since); `module-survival-street` is written but left to the batch gate. One GPT review, on the diff (request changes, no blocker; all
+five should-fixes and the nit taken, see "Review"). Not in game: a restart mid-adopt (B's reconcile, by op key in either mode) and mid-undo (A2L's). Architect's SAD (v0.68.0; CONTRACT "Slice SAD"): an
 adoption in a world that builds from materials makes a survival region; its construction sites keep their run, book and paid records; a site still fed
 by a live crate refuses until `adoptCrates`; `RegionView.build()` counts the adopted construction sites, building ones included; a growth waits
 `survival_unfinished` for them. Steward's answers S-SAD-1 to S-SAD-4 (ARCHITECT-ASKS "SAD"). No save format change, no API change.
@@ -452,7 +455,14 @@ a revision stands. A restart mid-adopt is B's reconcile (by the op key, whatever
 `REGION_MATERIALS`): billed from the stockpile with the measured bound to approve, watered branches included (IG-b's stages; the water is free), and
 refused while a lot still builds (its lots' site states, `Adoption.builtPercent`). The Accept re-check reads `REGION_MATERIALS` once adopted.
 
-**Tests.** Unit: `adoptsAs` over every difficulty and mode; `builtPercent`; `ModuleOffer.decide` on `ADOPT_MATERIALS` (bound, stockpile seeds, watered,
+**Review** (GPT, on the diff, 2026-11-15: request changes, no blocker). Taken: (1) a town adopted while a lot builds is watched again after a restart
+(`MaterialRequests.seedsWatch` reads the adoption's receipt), and the e2e restarts there; (2) after the adoption the region's own mode and the world's
+mode now are read again (`growStanding` for any region from materials); (3) the module flow requires the logged quote, handles the hold, checks no water
+in the quote or the draws, and judges its undo by stock gained, one completion and nothing more 20 s on; (4) the release is judged by each site's
+Architect membership as read before the adoption, and the region gone; (5) the ground's diff excludes the crates through Architect's `exclude` and is
+judged by its whole mismatch count. The nit (MODULES.md's old IG line) fixed. Also from run 2: a town not yet built is never said "100%".
+
+**Tests.** Unit: `adoptsAs` over every difficulty and mode; `seedsWatch`; `builtPercent`; `ModuleOffer.decide` on `ADOPT_MATERIALS` (bound, stockpile seeds, watered,
 waiting). e2e (stub): `adopt-survival` (Steward's own street in a survival world, one lot held building: adopted as a survival region, the wait said,
 fed, built said; grown by one plain lot from materials, billed; a restart while its targets wait, built said once; undone, paid == returned once,
 UNDONE, E-flat outside the crates; the adoption undone, the founding sites standing in no region, the ledger and the land unchanged) and
