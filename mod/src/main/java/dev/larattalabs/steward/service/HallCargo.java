@@ -28,13 +28,13 @@ public final class HallCargo {
 	 * and {@code containers} are the hall's own declared chests (its input chest and bulk pairs, {@link #declared}); {@code otherItems} and
 	 * {@code others} any other container standing in its box (a barrel or a chest a player added): Architect's removal waits on those too.
 	 */
-	public record Count(int items, int containers, int otherItems, int others, boolean complete, boolean hoppers) {
+	public record Count(int items, int containers, int otherItems, int others, boolean complete, boolean hoppers, boolean waiting) {
 		public Count(int items, int containers, boolean complete) {
-			this(items, containers, 0, 0, complete, false);
+			this(items, containers, 0, 0, complete, false, false);
 		}
 
 		public Count(int items, int containers, int otherItems, int others, boolean complete) {
-			this(items, containers, otherItems, others, complete, false);
+			this(items, containers, otherItems, others, complete, false, false);
 		}
 	}
 
@@ -125,14 +125,32 @@ public final class HallCargo {
 	 * Whether a filter hopper's contents are ours (MODULES 6, MEASURE-M4 12.7 S6): plain stacks only, of its filter item and the provided filler, at most
 	 * {@link StorageHallLot#FILTER_COUNT} and {@link StorageHallLot#FILLERS} of them in all. Anything else (more of its own item too) is cargo.
 	 */
-	static boolean filterOurs(Container c, @Nullable String filter) {
+	static List<Stack> stacks(Container c) {
 		List<Stack> stacks = new java.util.ArrayList<>();
 		for (int i = 0; i < c.getContainerSize(); i++) {
 			ItemStack st = c.getItem(i);
 			if (st.isEmpty()) continue;
 			stacks.add(new Stack(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), st.getComponentsPatch().isEmpty()));
 		}
-		return filterOurs(stacks, filter);
+		return stacks;
+	}
+
+	static boolean filterOurs(Container c, @Nullable String filter) {
+		return filterOurs(stacks(c), filter);
+	}
+
+	/**
+	 * The cargo in a filter hopper: what is past its declaration (more than 41 of its item or 4 fillers, any other item, any non-plain stack), so
+	 * the words never count the fill the player can't take out (FK-b: the fillers are not takeable).
+	 */
+	public static int filterExcess(List<Stack> stacks, @Nullable String filter) {
+		int item = 0, fillers = 0, other = 0;
+		for (Stack st : stacks) {
+			if (st.plain() && st.id().equals(filter)) item += st.count();
+			else if (st.plain() && st.id().equals(StorageHallLot.FILLER)) fillers += st.count();
+			else other += st.count();
+		}
+		return other + Math.max(0, item - StorageHallLot.FILTER_COUNT) + Math.max(0, fillers - StorageHallLot.FILLERS);
 	}
 
 	/** A stack as the ownership rule reads it: its item id, count, and whether it is plain (no component patch). */
@@ -151,7 +169,7 @@ public final class HallCargo {
 	}
 
 	static Count count(ServerLevel level, BoundingBox b, java.util.@Nullable Map<BlockPos, StorageHallLot.Cell> cells, List<String> filters, boolean committed) {
-		boolean anyHopper = false;
+		boolean anyHopper = false, waiting = false;
 		int items = 0, otherItems = 0;
 		boolean complete = true;
 		java.util.Set<BlockPos> holding = new java.util.HashSet<>(), other = new java.util.HashSet<>();
@@ -178,8 +196,11 @@ public final class HallCargo {
 			boolean hopperCell = cell != null && (cell.kind() == StorageHallLot.Kind.LINE || cell.kind() == StorageHallLot.Kind.FILTER || cell.kind() == StorageHallLot.Kind.OUTPUT);
 			boolean hopper = state.getBlock() == net.minecraft.world.level.block.Blocks.HOPPER;
 			boolean own = cells == null || (cell != null && (hopperCell ? hopper : chest && state.getBlock() == net.minecraft.world.level.block.Blocks.CHEST));
-			if (own && cell != null && cell.kind() == StorageHallLot.Kind.FILTER && committed
-				&& filterOurs(c, cell.slot() >= 0 && cell.slot() < filters.size() ? filters.get(cell.slot()) : null)) continue;
+			String filter = cell != null && cell.slot() >= 0 && cell.slot() < filters.size() ? filters.get(cell.slot()) : null;
+			if (own && cell != null && cell.kind() == StorageHallLot.Kind.FILTER && committed && filterOurs(c, filter)) continue;
+			// a committed F past its declaration: only the excess is cargo (its fill is ours, its fillers can't be taken)
+			if (own && cell != null && cell.kind() == StorageHallLot.Kind.FILTER && committed) n = filterExcess(stacks(c), filter);
+			if (own && cell != null && cell.kind() == StorageHallLot.Kind.OUTPUT) waiting = true;
 			if (own) {
 				items += n;
 				holding.add(key);
@@ -189,7 +210,7 @@ public final class HallCargo {
 				other.add(key);
 			}
 		}
-		return new Count(items, holding.size(), otherItems, other.size(), complete, anyHopper);
+		return new Count(items, holding.size(), otherItems, other.size(), complete, anyHopper, waiting);
 	}
 
 	private static final java.util.regex.Pattern CARGO = java.util.regex.Pattern.compile("Move these out of \\S+ first");
@@ -225,7 +246,7 @@ public final class HallCargo {
 	public static @Nullable String before(MinecraftServer server, String owner, java.util.Collection<String> siteIds) {
 		if (siteIds.isEmpty()) return null;
 		int items = 0, containers = 0, otherItems = 0, others = 0;
-		boolean complete = true, hoppers = false;
+		boolean complete = true, hoppers = false, waiting = false;
 		for (SiteView v : ArchitectAccess.api().sites(server).list(owner)) {
 			if (!siteIds.contains(v.id())) continue;
 			var ref = ModuleRef.of(v.ext());
@@ -239,9 +260,13 @@ public final class HallCargo {
 			others += c.others();
 			complete &= c.complete();
 			hoppers |= c.hoppers();
+			waiting |= c.waiting();
 		}
-		return items == 0 && otherItems == 0 ? null : say(items, containers, otherItems, others, complete, hoppers);
+		return items == 0 && otherItems == 0 ? null : say(items, containers, otherItems, others, complete, hoppers) + (waiting ? WAITING : "");
 	}
+
+	/** The hint when a slot's output hopper holds the last item it let through (the tile keeps it there until the next one). */
+	static final String WAITING = " (the last item each slot sorted waits in the hopper behind its chest: take those out too)";
 
 	static String say(int items, int containers, boolean complete) {
 		return say(items, containers, 0, 0, complete);
@@ -278,7 +303,7 @@ public final class HallCargo {
 		var cells = namedCells(message);
 		if (cells.isEmpty()) return null;
 		int items = 0, containers = 0, otherItems = 0, others = 0;
-		boolean complete = true, hoppers = false;
+		boolean complete = true, hoppers = false, waiting = false;
 		for (SiteView v : ArchitectAccess.api().sites(server).list(owner)) {
 			if (region != null && !region.equals(v.region())) continue;
 			var ref = ModuleRef.of(v.ext());
@@ -294,7 +319,8 @@ public final class HallCargo {
 			others += c.others();
 			complete &= c.complete();
 			hoppers |= c.hoppers();
+			waiting |= c.waiting();
 		}
-		return items == 0 && otherItems == 0 ? null : say(items, containers, otherItems, others, complete, hoppers);
+		return items == 0 && otherItems == 0 ? null : say(items, containers, otherItems, others, complete, hoppers) + (waiting ? WAITING : "");
 	}
 }

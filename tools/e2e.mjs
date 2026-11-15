@@ -5479,8 +5479,10 @@ async function moduleHallSortFlow() {
   const words = `${said}\n${logSince(from)}`.match(/the storage hall still holds [^\n]*/);
   if (words) ok(`${label} undo refused`, words[0].slice(0, 200));
   else return fail(`${label} undo refused`, `${said} ${logSince(from).slice(-300)}`);
-  // emptied: every container but the filter hoppers
-  for (const c of cs1?.containers ?? []) if (c.block === 'minecraft:chest') await devModule({ op: 'clearContainers', box: [...c.at, ...c.at] });
+  // emptied: every container but the filter hoppers (the ones holding the provided slabs: their fill is ours); the last item each slot let
+  // through waits in its output hopper, the player's, taken too
+  const cs2 = await devModule({ op: 'containers', box: sb });
+  for (const c of cs2?.containers ?? []) if (!c.slots.some(([, k]) => k === 'minecraft:petrified_oak_slab')) await devModule({ op: 'clearContainers', box: [...c.at, ...c.at] });
   from = logSize();
   await cmd(`/steward undo ${id}`);
   let last = null;

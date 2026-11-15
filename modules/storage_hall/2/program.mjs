@@ -139,7 +139,7 @@ export function layout(slots, bulk) {
     // M0's tile (module-probe.mjs buildHall), the probe's (y, v) at (row b + y, z L + v)
     tile.push([x, b + 2, L, 'minecraft:hopper', { facing: 'east' }]);
     tile.push([x, b + 1, L, 'minecraft:hopper', { facing: 'north' }]);
-    tile.push([x, b, L, 'minecraft:hopper', { facing: 'south' }]);
+    tile.push([x, b, L, 'minecraft:hopper', { facing: 'south', enabled: 'false' }]); // D, settled: locked by the torch's stone
     tile.push([x, b, L + 1, 'minecraft:chest', { facing: 'south', type: 'single' }]);
     // the circuit's settled states with F filled (41 + 4: signal 2), so a built hall reads as standing unchanged (the land check compares
     // states): the comparator powered, its dust at power 2 then 1 (the low dust and the repeater stay off; the torch lit)

@@ -791,9 +791,11 @@ async function sortState(h) {
   const r = await containersIn(h.boxArr);
   const by = new Map(r.containers.map((c) => [c.at.join(','), Object.fromEntries((c.slots ?? []).reduce((acc, [, k, n]) => { acc.set(k, (acc.get(k) ?? 0) + n); return acc; }, new Map()))]));
   const at = (c) => by.get(c.join(',')) ?? {};
-  return { input: at(h.input), overflow: at(h.overflow), line: h.sort.map((c) => at(c.line)), F: h.sort.map((c) => at(c.F)), D: h.sort.map((c) => at(c.D)), chest: h.sort.map((c) => at(c.chest)), unloaded: r.unloaded };
+  return { input: at(h.input), overflow: at(h.overflow), line: h.sort.map((c) => at(c.line)), F: h.sort.map((c) => at(c.F)), D: h.sort.map((c) => at(c.D)), chest: h.sort.map((c) => at(c.chest)), bulk: h.pairs.flat().map(at), unloaded: r.unloaded };
 }
-const sumAll = (s) => [s.input, s.overflow, ...s.line, ...s.F, ...s.D, ...s.chest].reduce((a, m) => plus(a, m), {});
+const sumAll = (s) => [s.input, s.overflow, ...s.line, ...s.F, ...s.D, ...s.chest, ...(s.bulk ?? [])].reduce((a, m) => plus(a, m), {});
+/** Every D settled: empty, or holding one of its own filter item (the last one through, waiting for the next). */
+const dSettled = (h, s) => s.D.every((m, u) => totalOf(m) === 0 || (totalOf(m) === 1 && (m[h.filterIds[u]] ?? 0) === 1));
 const fExact = (f, item) => f[item] === 41 && f['minecraft:petrified_oak_slab'] === 4 && Object.keys(f).length === 2;
 /**
  * One sorting run over halls: each hall's mix fed in acknowledged batches of at most 27 stacks (the next batch only once the input chest is
@@ -819,7 +821,7 @@ async function sortRun(halls, domain, { feed = null } = {}) {
         if (!a.ok) throw new Error(`put into ${p.h.id}: ${a.error}`);
         for (const st of b) p.fed[keyOf(st)] = (p.fed[keyOf(st)] ?? 0) + st.count;
         if (p.t0 === null) p.t0 = t;
-      } else if (!p.batches.length && totalOf(s.input) === 0 && s.line.every((m) => totalOf(m) === 0) && s.D.every((m) => totalOf(m) === 0)) {
+      } else if (!p.batches.length && totalOf(s.input) === 0 && s.line.every((m) => totalOf(m) === 0) && dSettled(p.h, s)) {
         p.done = true;
         p.ticks = t - p.t0;
       }
@@ -834,7 +836,8 @@ async function sortRun(halls, domain, { feed = null } = {}) {
     const why = [];
     // the fed multiset is the mix: never derived from what landed
     if (!same(p.fed, p.expected)) why.push(`fed ${json(minus(p.fed, p.expected))} off the mix`);
-    const gotSlots = s.chest.map((c, u) => minus(c, p.before.chest[u]));
+    // a slot is its chest and its D: the tile leaves the last item it let through waiting in D (M0's judge counted D too)
+    const gotSlots = s.chest.map((c, u) => minus(plus(c, s.D[u]), plus(p.before.chest[u], p.before.D[u])));
     const gotOver = minus(s.overflow, p.before.overflow);
     let want = { ...p.expected };
     p.h.filterIds.forEach((f, u) => {
@@ -843,7 +846,7 @@ async function sortRun(halls, domain, { feed = null } = {}) {
       want = minus(want, w);
     });
     if (!same(gotOver, want)) why.push(`overflow got ${json(gotOver)}, want ${json(want)}`);
-    if (totalOf(s.input) || s.line.some((m) => totalOf(m)) || s.D.some((m) => totalOf(m))) why.push('the input, line or a D is not empty');
+    if (totalOf(s.input) || s.line.some((m) => totalOf(m)) || !dSettled(p.h, s)) why.push('the input or the line is not empty, or a D holds more than one of its own item');
     p.h.filterIds.forEach((f, u) => { if (!same(s.F[u], p.before.F[u])) why.push(`F ${u} moved: ${json(p.before.F[u])} -> ${json(s.F[u])}`); });
     if (ents.entities) why.push(`${ents.entities} item entities`);
     if (!p.done) why.push('did not finish in 120,000 ticks');
@@ -853,7 +856,7 @@ async function sortRun(halls, domain, { feed = null } = {}) {
   return byHall;
 }
 async function clearOutputs(h) {
-  for (const c of h.sort) await mod({ op: 'clearContainers', box: [...c.chest, ...c.chest] });
+  for (const c of h.sort) { await mod({ op: 'clearContainers', box: [...c.chest, ...c.chest] }); await mod({ op: 'clearContainers', box: [...c.D, ...c.D] }); }
   await mod({ op: 'clearContainers', box: [...h.overflow, ...h.overflow] });
 }
 
@@ -1043,7 +1046,7 @@ async function sortRunSat(halls, domain, { overflowFull = false } = {}) {
     });
     if (!overflowFull) {
       // the unsaturated slots got all their items
-      h.filterIds.forEach((f, u) => { if (u !== 1 && u !== 2 && (minus(s.chest[u], b.chest[u])[f] ?? 0) !== (fed.get(h.id)[f] ?? 0)) why.push(`slot ${u} got ${minus(s.chest[u], b.chest[u])[f] ?? 0} of ${fed.get(h.id)[f]}`); });
+      h.filterIds.forEach((f, u) => { const got = minus(plus(s.chest[u], s.D[u]), plus(b.chest[u], b.D[u]))[f] ?? 0; if (u !== 1 && u !== 2 && got !== (fed.get(h.id)[f] ?? 0)) why.push(`slot ${u} got ${got} of ${fed.get(h.id)[f]}`); });
     }
     if (ents.entities) why.push(`${ents.entities} item entities`);
     out[h.id] = { ok: why.length === 0, why };
@@ -1097,12 +1100,12 @@ async function sortMidway(halls, domain, how, t) {
     if (!same(sumAll(s), plus(sumAll(b), f))) why.push(`not conserved: off by ${json(minus(sumAll(s), plus(sumAll(b), f)))}`);
     let rest = { ...f };
     h.filterIds.forEach((it, u) => {
-      const got = minus(s.chest[u], b.chest[u]);
+      const got = minus(plus(s.chest[u], s.D[u]), plus(b.chest[u], b.D[u]));
       if (!same(got, { [it]: f[it] ?? 0 })) why.push(`slot ${u} got ${json(got)}`);
       rest = minus(rest, { [it]: f[it] ?? 0 });
     });
     if (!same(minus(s.overflow, b.overflow), rest)) why.push(`overflow got ${json(minus(s.overflow, b.overflow))}, want ${json(rest)}`);
-    if (totalOf(s.input) || s.line.some((m) => totalOf(m)) || s.D.some((m) => totalOf(m))) why.push('not finished');
+    if (totalOf(s.input) || s.line.some((m) => totalOf(m)) || !dSettled(h, s)) why.push('not finished');
     if (ents.entities) why.push(`${ents.entities} item entities`);
     out[h.id] = { sorted: why.length === 0, why, mid: totalOf(sumAll(mid.get(h.id))) };
   }
@@ -1270,16 +1273,14 @@ async function sortCargo() {
       ['a line hopper', h.sort[1].line, 'minecraft:dirt', true],
       ['a D hopper', h.sort[1].D, 'minecraft:dirt', true],
       ['an F with one more of its own item', h.sort[0].F, 'minecraft:cobblestone', true],
-      ['an F with one item of another kind', h.sort[3].F, 'minecraft:dirt', true],
+      // a full F has no free slot: another kind gets in only once its item is gone (all 41 taken), so that is the case
+      ['an F emptied of its item, then one item of another kind', h.sort[3].F, 'minecraft:dirt', true, 'minecraft:oak_log'],
     ];
-    for (const [what, cell, item, frozen] of cases) {
+    for (const [what, cell, item, frozen, takeFirst] of cases) {
       if (frozen) await freeze();
+      if (takeFirst) await call('dev.fk.container', { pos: cell, take: { [takeFirst]: 41 } }, 30_000).catch(() => null);
       const s0 = await sortState(h);
-      // into a free slot (an F's slots 0-4 are taken by its fill: a hopper has 5, so the extra goes onto its own stack: put as a merge)
-      let put;
-      if (cell === h.sort[0].F) put = await call('dev.fk.container', { pos: cell, add: { [item]: 1 } }, 30_000).catch((e) => ({ error: String(e) }));
-      else if (cell === h.sort[3].F) put = await call('dev.fk.container', { pos: cell, add: { [item]: 1 } }, 30_000).catch((e) => ({ error: String(e) }));
-      else put = await mod({ op: 'putItems', at: cell, stacks: [{ slot: 0, id: item, count: 1 }] });
+      const put = await call('dev.fk.container', { pos: cell, add: { [item]: 1 } }, 30_000).catch((e) => ({ error: String(e) }));
       const words = (await mod({ op: 'hallBefore', owner: OWNER, region: t.region, rid: g.rid })).words;
       const u = await call('dev.rv.undo', { region: t.region, toPosition: g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
       await sleep(1500);
@@ -1287,14 +1288,17 @@ async function sortCargo() {
       const r = await call('dev.region.state', { region: t.region }, 60_000);
       const stands = r.view.lots.find((l) => l.id === sp.id)?.state;
       const kept = totalOf(sumAll(s1)) === totalOf(sumAll(s0)) + 1;
-      out.cases.push({ what, put: put.ok ?? put.holds ?? put.error, words, undo: refusal(u), stands, kept });
-      check(typeof words === 'string' && /1 item/.test(words) && u.removed !== true && kept,
-        `7 one item alone in ${what}${frozen ? ' (frozen)' : ''}: Steward refuses ("${words}"); Architect's undo ${refusedForCargo(u) ? 'refused for cargo' : `answered ${refusal(u)}`}; nothing lost (the hall holds one item more than before)`);
-      // the item taken back; the game runs again
-      if (cell === h.sort[0].F) await call('dev.fk.container', { pos: cell, take: { [item]: 1 } }, 30_000).catch(() => null);
-      else if (cell === h.sort[3].F) await call('dev.fk.container', { pos: cell, take: { [item]: 1 } }, 30_000).catch(() => null);
-      else await mod({ op: 'clearContainers', box: [...cell, ...cell] });
+      out.cases.push({ what, put: put.holds ?? put.error, words, undo: refusal(u), stands, kept });
+      check(!put.error && typeof words === 'string' && /\b1 item\b/.test(words) && u.removed !== true && kept,
+        `7 one item alone in ${what}${frozen ? ' (frozen)' : ''}: Steward refuses ("${words}"); Architect's undo ${refusedForCargo(u) ? 'refused for cargo' : `answered ${refusal(u)}`}; nothing lost (the hall holds one item more than before: ${kept})`);
+      if (u.removed === true) break; // the hall is gone: the cases after it can't run
+      await call('dev.fk.container', { pos: cell, take: { [item]: 1 } }, 30_000).catch(() => null);
+      if (takeFirst) await call('dev.fk.container', { pos: cell, add: { [takeFirst]: 41 } }, 30_000).catch(() => null);
       if (frozen) await cmd('/tick unfreeze');
+      // anything the running line carried on is the test's: cleared from the hall's chests and its Ds, the fill left as it is
+      await clearOutputs(h);
+      for (const c of h.sort) await mod({ op: 'clearContainers', box: [...c.line, ...c.line] });
+      await mod({ op: 'clearContainers', box: [...h.input, ...h.input] });
       const s2 = await sortState(h);
       check(h.filterIds.every((f, u2) => fExact(s2.F[u2], f)), `7 after ${what}: every F back to exactly 41 + 4`);
     }

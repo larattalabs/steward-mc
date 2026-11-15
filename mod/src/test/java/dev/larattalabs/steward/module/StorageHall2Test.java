@@ -155,5 +155,11 @@ class StorageHall2Test {
 		assertFalse(HallCargo.filterOurs(List.of(new HallCargo.Stack(slab, 5, true)), f), "a fifth slab is cargo");
 		assertFalse(HallCargo.filterOurs(List.of(new HallCargo.Stack(f, 41, false)), f), "a renamed stack is cargo");
 		assertFalse(HallCargo.filterOurs(List.of(new HallCargo.Stack("minecraft:dirt", 1, true)), f), "another item is cargo");
+		// the words count only what is past the declaration
+		assertEquals(1, HallCargo.filterExcess(List.of(new HallCargo.Stack(f, 42, true), new HallCargo.Stack(slab, 4, true)), f));
+		assertEquals(1, HallCargo.filterExcess(List.of(new HallCargo.Stack("minecraft:dirt", 1, true), new HallCargo.Stack(slab, 4, true)), f));
+		assertEquals(41, HallCargo.filterExcess(List.of(new HallCargo.Stack(f, 41, false), new HallCargo.Stack(slab, 4, true)), f), "a renamed stack is all cargo");
+		assertEquals(1, HallCargo.filterExcess(List.of(new HallCargo.Stack(f, 41, true), new HallCargo.Stack(slab, 5, true)), f));
+		assertEquals(0, HallCargo.filterExcess(List.of(new HallCargo.Stack(f, 30, true)), f));
 	}
 }
