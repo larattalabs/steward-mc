@@ -1645,3 +1645,8 @@ After an unclean start, RL's reconcile charges what stands without counting `max
 - S-8a-3: a typed terrain wait (a Reason or kind, with the part) so Steward words it. Staged terrain counts in `build().built()/percent()`.
 - S-8a-4: if COST, tens of thousands of natural blocks isn't practical without quarrying, and Steward plans no villager supply. That favours FREE (Noah's call). QD's 2% rule would need revisiting at that scale.
 - S-8a-5: add a survival addition waiting on terrain and undone while waiting, and a restart mid terrain run.
+
+### DR (diagnose and repair) contract review (2026-11-15): Steward's answers
+- (1) diagnose plus repair(planId) is enough. A cheap `Sites.suspects()` is welcome if it's cheap, behind its own feature.
+- (2) A repair always names a consenting player. Steward never repairs on its own.
+- (3) No Steward per-site state a reopen confuses. Steward re-reads on SITE_UPDATED and its build read, and a reopen shows as `build().built() == false`. Asked: `SITE_REPAIRED` carries the site id and the region.
