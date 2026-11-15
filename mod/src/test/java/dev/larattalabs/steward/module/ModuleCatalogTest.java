@@ -89,9 +89,16 @@ class ModuleCatalogTest {
 		now.addProperty("basis", "smoke");
 		now.addProperty("from", "0.61.0");
 		now.add("carried", carried);
-		now.add("checks", JsonParser.parseString("{\"offline\":{},\"ingame\":{},\"smoke\":{\"survival\":{},\"fields\":[{}]}}"));
+		String stamp = "\"programSha\":\"" + now.get("programSha").getAsString() + "\",\"architect\":\"" + now.getAsJsonArray("architect").get(0).getAsString()
+			+ "\",\"minecraft\":\"" + now.get("minecraft").getAsString() + "\"";
+		now.add("checks", JsonParser.parseString("{\"offline\":{},\"ingame\":{},\"smoke\":{\"survival\":{\"step\":\"survival\",\"passed\":63,\"of\":63," + stamp
+			+ "},\"bounds\":{\"step\":\"bounds\",\"passed\":111,\"of\":111," + stamp + "},\"fields\":[{\"step\":\"field-wheat\",\"runs\":5,\"passed\":62,\"of\":62," + stamp + "}]}}"));
 		f.put(dir + "/measured.json", now.toString());
 		return f;
+	}
+
+	static JsonObject smokeOf(JsonObject m) {
+		return m.getAsJsonObject("checks").getAsJsonObject("smoke");
 	}
 
 	/** {@code dir}'s measured.json with {@code edit} applied to it. */
@@ -144,6 +151,18 @@ class ModuleCatalogTest {
 		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("carried").getAsJsonObject("checks").remove("measure")), "checks.measure");
 		// the smoke checks not recorded, the carry with no from or a from the carried one doesn't name, another Minecraft
 		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("checks").remove("smoke")), "smoke checks");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("checks").remove("ingame")), "smoke checks");
+		// a smoke step missing, failed in part, on another program or version, or a field round short of runs
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).remove("bounds")), "smoke step ?");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonObject("survival").addProperty("passed", 62)), "smoke step survival");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonObject("bounds").addProperty("of", 0)), "smoke step bounds");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonObject("survival").addProperty("architect", "0.61.0")), "smoke step survival");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonObject("bounds").addProperty("programSha", "e".repeat(64))), "smoke step bounds");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).getAsJsonArray("fields").get(0).getAsJsonObject().addProperty("runs", 1)), "smoke step field-wheat");
+		assertRefused(edit(smoke(files(), d), d, m -> smokeOf(m).add("fields", new com.google.gson.JsonArray())), "without a field round");
+		// the certificate names another Architect version beside the one it ran on, or the fully measured one
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonArray("architect").add("9.0.0")), "exactly one Architect version");
+		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonArray("architect").add("0.61.0")), "exactly one Architect version");
 		assertRefused(edit(smoke(files(), d), d, m -> m.remove("from")), "names no fully measured");
 		assertRefused(edit(smoke(files(), d), d, m -> m.addProperty("from", "0.60.0")), "does not name Architect 0.60.0");
 		assertRefused(edit(smoke(files(), d), d, m -> m.getAsJsonObject("carried").addProperty("minecraft", "26.2")), "Minecraft 26.2");

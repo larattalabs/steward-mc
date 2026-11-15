@@ -32,6 +32,7 @@ function inputs({ prev = FULL, arch = NEXT, kit = '9.9.0' } = {}) {
     prev: clone(prev), mod, now: NOW, gameModuleSha: moduleShaOf(mod), versions,
     offline: { ok: true, data: { architect: arch, kit, checker: kit } }, offEntry: { branches: clone(FULL.checks.offline.branches) },
     ingame: { ok: true }, inEntry: {}, checks: { offline: {}, ingame: {} }, survival: ev('survival'), fields: [field],
+    requote: { evidence: ev('bounds'), bounds: clone(FULL.bounds).reverse(), problems: [] },
   };
 }
 
@@ -58,6 +59,9 @@ test('a plain pin bump with every smoke step passing carries the full measuremen
   const r = m.checks.smoke.fields[0].rates[0];
   assert.deepEqual(r.params, { crop: 'potatoes', depth: 18, width: 9 });
   assert.equal(typeof r.changePct, 'number');
+  const s = m.checks.smoke;
+  for (const x of [s.survival, s.bounds, s.fields[0]]) assert.deepEqual([x.programSha, x.architect, x.minecraft, x.passed === x.of], [NOW.programSha, NEXT, '26.3', true]);
+  assert.equal(s.bounds.equal, FULL.bounds.length);
 });
 
 test('a smoke of a smoke keeps the first full measurement and its from', () => {
@@ -112,12 +116,34 @@ test('refused: a smoke step failed or is missing', () => {
   a = inputs(); a.fields[0].runs = 1; refused(a, /1 runs/);
   a = inputs(); a.offline.ok = false; refused(a, /offline step did not pass/);
   a = inputs(); a.ingame.ok = false; refused(a, /ingame step did not pass/);
+  // the evidence is the named step, with every check passing
+  a = inputs(); a.survival = { ...a.fields[0] }; refused(a, /is step 'field-potatoes', not survival/);
+  a = inputs(); a.survival.checks.push({ ok: false, what: 'y' }); refused(a, /survival\) has a failed or no check/);
+  a = inputs(); a.fields[0].checks = []; refused(a, /field-potatoes has a failed or no check/);
+  a = inputs(); a.fields[0].data.crop = 'wheat'; refused(a, /not field-wheat/);
+  a = inputs(); a.fields[0].data.farms = []; refused(a, /judged no farm/);
+  a = inputs(); a.requote = null; refused(a, /no bounds re-quote/);
+  a = inputs(); a.requote.evidence.ok = false; refused(a, /bounds re-quote did not pass/);
+  a = inputs(); a.requote.evidence.architect = FROM; refused(a, /bounds re-quote ran on other/);
+  a = inputs(); a.requote.problems = ['x']; refused(a, /bounds re-quote: x/);
+});
+
+test('refused: the bill moved (a re-quoted bound differs from the carried one, or one is missing or repeats)', () => {
+  let a = inputs(); a.requote.bounds[5].bom['minecraft:dirt'] += 1; refused(a, /the bill moved: 1 of 108/);
+  a = inputs(); a.requote.bounds.pop(); refused(a, /the bill moved/);
+  a = inputs(); a.requote.bounds[1] = clone(a.requote.bounds[0]); refused(a, /the bill moved/);
 });
 
 test('refused: the build moved (a block count differs from the measured one)', () => {
   const a = inputs();
   a.offEntry.branches[3].blocks += 1;
   refused(a, /the build moved: 1 of/);
+  const b = inputs();
+  b.offEntry.branches = b.offEntry.branches.map(() => clone(b.offEntry.branches[0]));
+  refused(b, /the build moved/);
+  const c = inputs();
+  c.offEntry.branches[0].ok = false;
+  refused(c, /the build moved/);
 });
 
 test('refused: nothing to carry, a failed or tampered certificate, the measured version itself', () => {

@@ -22,8 +22,9 @@
 //                                           from the fully measured one only in its pins (its moduleSha with the old pins put back is the
 //                                           carried moduleSha); every branch x bible builds the same block count offline as when measured; a
 //                                           fresh offline and ingame pass on these files and the pinned versions; one field round
-//                                           (module-measure.mjs field --crop <c>, 5 runs) and the billing check (module-measure.mjs survival)
-//                                           pass on the pinned Architect. A smoke certificate is never a measurement: a FULL re-measure (plain
+//                                           (module-measure.mjs field --crop <c>, 5 runs) and the billing check (module-measure.mjs survival
+//                                           and bounds: the 108 quotes re-taken must equal the carried bounds item for item) pass on the
+//                                           pinned Architect, every check of each. A smoke certificate is never a measurement: a FULL re-measure (plain
 //                                           `record` after every step) is still needed when the module's own code changes, or when an
 //                                           Architect build, billing or realise path it uses changes (docs/MEASURE-M2.md "Re-certification").
 //   --catalog <dir>     the catalog root (default fixtures/modules/catalog; the live one is modules/)
@@ -361,8 +362,15 @@ async function record() {
       const m2 = path.join(ROOT, 'artifacts', 'm2');
       const read = (f) => (fs.existsSync(path.join(m2, f)) ? JSON.parse(fs.readFileSync(path.join(m2, f), 'utf8')) : null);
       const fields = fs.existsSync(m2) ? fs.readdirSync(m2).filter((f) => /^field-[a-z]+\.json$/.test(f)).map(read) : [];
+      // the bill: the 108 quotes re-taken on this pin, as per-Style bounds the way the full record derives them, to compare with the carried ones
+      const rq = read('bounds.json');
+      const requote = { evidence: rq, bounds: null, problems: [] };
+      if (rq?.data?.quotes) {
+        const sb = await styleBounds({ quotes: rq.data.quotes, kit: path.join(ART, `kit-${ARCH_VERSION}`, 'kit'), source: e.source, id: e.id });
+        requote.bounds = sb.bounds; requote.problems = sb.problems;
+      }
       const c = smokeCarry({ prev: e.measured, mod: e.module, now, gameModuleSha: g.gate.moduleSha, versions: { architect: ARCH_VERSION, minecraft: MC_VERSION },
-        offline: off, offEntry: o, ingame: inn, inEntry: g, checks: freshChecks(), survival: read('survival.json'), fields });
+        offline: off, offEntry: o, ingame: inn, inEntry: g, checks: freshChecks(), survival: read('survival.json'), fields, requote });
       if (c.why.length) { refused++; log(`REFUSED ${key} (smoke): ${c.why.join('; ')}`); continue; }
       fs.writeFileSync(path.join(e.dir, 'measured.json'), `${JSON.stringify(c.m, null, 2)}\n`);
       log(`recorded ${key}: result pass, basis smoke from ${c.m.from}, moduleSha ${c.m.moduleSha.slice(0, 12)}`);

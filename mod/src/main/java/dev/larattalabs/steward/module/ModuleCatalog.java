@@ -359,8 +359,29 @@ public final class ModuleCatalog {
 			uncertified.add("module.json differs from the fully measured one in more than its pins (carried moduleSha " + shortSha(strOr(c, "moduleSha", null)) + ")");
 		if (!Canon.sha(meas.get("bounds")).equals(strOr(c, "boundsSha", "")) || !Canon.sha(meas.get("rates")).equals(strOr(c, "ratesSha", "")))
 			uncertified.add("the bounds or rates are not the carried measurement's");
+		// a smoke certifies the one version it ran on, never the fully measured one
+		if (m.architect().size() != 1 || m.architect().contains(from)) uncertified.add("a smoke certificate certifies exactly one Architect version, not " + from + " (architect " + m.architect() + ")");
 		JsonObject own = meas.has("checks") && meas.get("checks").isJsonObject() ? meas.getAsJsonObject("checks") : new JsonObject();
-		if (!own.has("smoke") || !own.get("smoke").isJsonObject()) uncertified.add("a smoke certificate without its smoke checks (checks.smoke)");
+		JsonObject smoke = own.has("smoke") && own.get("smoke").isJsonObject() ? own.getAsJsonObject("smoke") : null;
+		if (smoke == null || !own.has("offline") || !own.has("ingame")) {
+			uncertified.add("a smoke certificate without its offline, ingame or smoke checks");
+			return;
+		}
+		// each smoke step: on this program, Minecraft and Architect version, and every check passed
+		String on = m.architect().isEmpty() ? "" : m.architect().get(0);
+		List<JsonElement> steps = new ArrayList<>();
+		for (String k : List.of("survival", "bounds")) steps.add(smoke.get(k));
+		JsonArray fields = smoke.has("fields") && smoke.get("fields").isJsonArray() ? smoke.getAsJsonArray("fields") : new JsonArray();
+		if (fields.isEmpty()) uncertified.add("a smoke certificate without a field round");
+		for (JsonElement f : fields) steps.add(f);
+		for (JsonElement s : steps) {
+			JsonObject o = s != null && s.isJsonObject() ? s.getAsJsonObject() : null;
+			String name = o == null ? "?" : strOr(o, "step", "?");
+			int passed = o == null ? -1 : intOr(o, "passed", -1), of = o == null ? 0 : intOr(o, "of", 0);
+			if (o == null || !sha.equals(strOr(o, "programSha", "")) || !on.equals(strOr(o, "architect", "")) || !m.minecraft().equals(strOr(o, "minecraft", ""))
+				|| of <= 0 || passed != of || (name.startsWith("field-") && intOr(o, "runs", 0) < 5))
+				uncertified.add("the smoke step " + name + " did not pass in full on this program and Architect " + on);
+		}
 	}
 
 	/** The fields of module.json a measurement certifies (all but its title): their canonical sha256. */

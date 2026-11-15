@@ -206,15 +206,20 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
   - or an Architect build, billing or realise path it uses changes: the kit's `realise.mjs`, `region/plan.mjs`, `region/survival.mjs` and
     IRR, the grow-lot revise, the Java FullBom, quotes, survival billing and refunds, the stockpile and the lot realise path.
   The pin's diff (`git diff v<old> v<new> -- kit mod/src/main` in ../architect-mc) is read for this before choosing.
-- **Smoke check** for a plain version bump. Run fresh `offline` and `ingame`, `module-measure.mjs survival` (the billing check) and one field
-  round (`module-measure.mjs field --crop <c>`, 5 runs), then `record --smoke`. It writes `basis: "smoke"`, `from` (the fully measured
+- **Smoke check** for a plain version bump. Run fresh `offline` and `ingame`, the billing check (`module-measure.mjs survival`, then
+  `module-measure.mjs bounds`: the 108 quotes re-taken, about 8 min, never realised) and one field round (`module-measure.mjs field --crop <c>`,
+  5 runs), then `record --smoke`. It writes `basis: "smoke"`, `from` (the fully measured
   Architect version) and `carried` (that full certificate; its bounds and rates stay top level, bound by `carried.boundsSha` / `ratesSha`).
   `record --smoke` refuses unless:
   - the program is the measured one;
   - module.json with the measured pins put back hashes to the carried moduleSha;
-  - every branch x bible builds the measured block count;
-  - the four steps passed on these files and the pinned versions.
-  ModuleCatalog re-checks the carry (program, pins-only change, bounds and rates, `checks.smoke`) before ModuleGate offers it. A smoke of a smoke
+  - every branch x bible builds the measured block count, each exactly once;
+  - the re-quoted per-Style bounds equal the carried bounds item for item (survival alone checks a growth consumes its *new* quote, so it
+    can't see a bill that moved);
+  - the five steps passed on these files and the pinned versions, each its named step with every check passing.
+  The certificate is self-attested, as a full one is: the reader checks it is consistent, not that its history is true (git is the record).
+  ModuleCatalog re-checks the carry (program, pins-only change, bounds and rates, one Architect version that is not `from`, and each recorded
+  smoke step stamped with this program and version and passing in full) before ModuleGate offers it. A smoke of a smoke
   keeps the first `from`. A smoke certificate is not a measurement: when a full re-measure is due, nothing is carried.
 
 ## Candidates

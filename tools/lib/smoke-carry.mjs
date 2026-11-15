@@ -20,10 +20,17 @@ export const moduleShaOf = (mod) => canonSha(Object.fromEntries(['id', 'version'
   .filter((k) => k in mod).map((k) => [k, mod[k]])));
 
 const SMOKE_RULE = 'speed rule 4 (Noah 2026-11-13, AGENTS.md "Module re-certification"): a plain Architect version bump with the program and '
-  + 'module.json unchanged but for the pins: fresh offline and ingame, the billing check (survival) and one field round; the full measurement is carried';
+  + 'module.json unchanged but for the pins: fresh offline and ingame, the billing check (survival, and the bounds re-quoted equal to the carried '
+  + 'ones item for item) and one field round; the full measurement is carried';
 const stamped = (r, now, v) => r?.programSha === now.programSha && r?.moduleJsonSha === now.moduleJsonSha && r?.architect === v.architect && r?.minecraft === v.minecraft;
 const summary = (r) => ({ step: r.step, at: r.at, head: r.head, world: r.world ?? null, seconds: r.seconds, runs: r.runs ?? null,
+  programSha: r.programSha, moduleJsonSha: r.moduleJsonSha, architect: r.architect, minecraft: r.minecraft,
   passed: r.checks.filter((c) => c.ok).length, of: r.checks.length });
+/** Why an evidence file is not a passing run of `step` (null: it is): the named step, ok, and every one of its checks passed. */
+const unpassed = (r, step) => (r.step !== step ? `is step '${r.step}', not ${step}` : !r.ok ? 'did not pass'
+  : !Array.isArray(r.checks) || !r.checks.length || r.checks.some((c) => !c?.ok) ? 'has a failed or no check' : null);
+/** A bound's identity: its params and Style. */
+const boundKey = (b) => JSON.stringify([canonSha(b.params), b.style]);
 const pct = (a, b) => (b ? Math.round(((a - b) / b) * 1000) / 10 : null);
 
 /**
@@ -40,8 +47,10 @@ const pct = (a, b) => (b ? Math.round(((a - b) / b) * 1000) / 10 : null);
  * @param {object} a.checks        the offline and ingame summaries record writes ({offline, ingame})
  * @param {object|null} a.survival artifacts/m2/survival.json
  * @param {object[]} a.fields      every artifacts/m2/field-<crop>.json present
+ * @param {{evidence: object|null, bounds: object[]|null, problems: string[]}} a.requote  artifacts/m2/bounds.json (the 108 quotes on the new
+ *                                 pin) and the per-Style bounds the tool derived from it (tools/lib/style-bounds.mjs), or why it could not
  */
-export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, offEntry, ingame, inEntry, checks, survival, fields }) {
+export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, offEntry, ingame, inEntry, checks, survival, fields, requote }) {
   const why = [];
   const no = (m) => { why.push(m); return { why, m: null }; };
   if (!prev) return no('no measured.json to carry');
@@ -78,20 +87,36 @@ export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, o
   if (!ingame?.ok || !inEntry) why.push('the ingame step did not pass');
   if (offline?.data?.architect !== versions.architect || offline?.data?.kit !== mod.pins?.kit || offline?.data?.checker !== mod.pins?.checker) why.push('offline ran on other versions than pinned');
   // the program builds what it built when measured: every branch x bible, the same block count
-  const was = new Map((core.checks?.offline?.branches ?? []).map((b) => [JSON.stringify([b.branch, b.bible]), b.blocks]));
+  const bKey = (b) => JSON.stringify([canonSha(b.branch), b.bible]);
+  const was = new Map((core.checks?.offline?.branches ?? []).map((b) => [bKey(b), b.blocks]));
   const nowB = offEntry?.branches ?? [];
-  const moved = nowB.filter((b) => was.get(JSON.stringify([b.branch, b.bible])) !== b.blocks);
-  if (!nowB.length || nowB.length !== was.size || moved.length) why.push(`the build moved: ${moved.length} of ${nowB.length} branch x bible block counts differ from the measured ${was.size}: a full re-measure`);
-  // the billing check
+  const moved = nowB.filter((b) => was.get(bKey(b)) !== b.blocks);
+  if (!nowB.length || nowB.length !== was.size || new Set(nowB.map(bKey)).size !== nowB.length || moved.length || nowB.some((b) => !b.ok))
+    why.push(`the build moved: ${moved.length} of ${nowB.length} branch x bible block counts differ from the measured ${was.size} (or one repeats or failed): a full re-measure`);
+  // the billing check: survival bills each growth its quote, and the quotes are the carried bounds item for item
   if (!survival) why.push('no billing check (module-measure.mjs survival)');
   else if (!stamped(survival, now, versions)) why.push('the billing check ran on other files or versions');
-  else if (!survival.ok) why.push('the billing check (survival) did not pass');
+  else if (unpassed(survival, 'survival')) why.push(`the billing check (survival) ${unpassed(survival, 'survival')}`);
+  const rq = requote?.evidence;
+  if (!rq) why.push('no bounds re-quote (module-measure.mjs bounds)');
+  else if (!stamped(rq, now, versions)) why.push('the bounds re-quote ran on other files or versions');
+  else if (unpassed(rq, 'bounds')) why.push(`the bounds re-quote ${unpassed(rq, 'bounds')}`);
+  else if (requote.problems?.length || !Array.isArray(requote.bounds)) why.push(`the bounds re-quote: ${(requote.problems ?? []).slice(0, 3).join('; ') || 'no bounds'}`);
+  else {
+    const fresh = new Map(requote.bounds.map((b) => [boundKey(b), canonSha(b)]));
+    const old = bounds ?? [];
+    const differ = old.filter((b) => fresh.get(boundKey(b)) !== canonSha(b));
+    if (!old.length || fresh.size !== requote.bounds.length || fresh.size !== old.length || differ.length)
+      why.push(`the bill moved: ${differ.length} of ${old.length} carried bounds differ from the re-quote's ${requote.bounds.length}: a full re-measure`);
+  }
   // one field round (or more); every one on these files and versions must pass
   const mine = (fields ?? []).filter((f) => stamped(f, now, versions));
   if (!mine.length) why.push('no field round on these files and versions (module-measure.mjs field --crop <c>)');
   for (const f of mine) {
-    if (!f.ok) why.push(`the field round ${f.step} did not pass`);
+    const u = unpassed(f, `field-${f.data?.crop}`);
+    if (u) why.push(`the field round ${f.step} ${u}`);
     if (!(f.runs >= 5)) why.push(`the field round ${f.step} has ${f.runs} runs (5 needed)`);
+    if (!f.data?.farms?.length || f.data.farms.some((x) => typeof f.data.judged?.[x.id]?.mean !== 'number')) why.push(`the field round ${f.step} judged no farm`);
   }
   if (why.length) return { why, m: null };
   // the field round's rates beside the carried ones (report only: the round's own bars judge it)
@@ -106,7 +131,7 @@ export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, o
     id: mod.id, version: mod.version, fixture: false, programSha: now.programSha, moduleSha: gameModuleSha, minecraft: versions.minecraft,
     architect: [versions.architect], kit: offline.data.kit, checker: offline.data.checker, result: 'pass', basis: 'smoke', from,
     what: core.what, bars: core.bars, runs: core.runs,
-    checks: { ...checks, smoke: { rule: SMOKE_RULE, survival: summary(survival), fields: fieldRounds } },
+    checks: { ...checks, smoke: { rule: SMOKE_RULE, survival: summary(survival), bounds: { ...summary(rq), equal: bounds.length }, fields: fieldRounds } },
     carried: core, bounds, rates,
   };
   return { why, m };
