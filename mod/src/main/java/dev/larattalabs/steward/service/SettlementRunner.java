@@ -1260,7 +1260,7 @@ public final class SettlementRunner {
 					// (slice SST) a survival region grows as any region built from materials (A2): the mode gate, a lot still building waits, the stockpile
 					if (survival) {
 						var now = Settlements.store().get(settlement.id()).orElse(settlement);
-						var town = ArchitectApi.get().regions().get(v.id()).orElse(v);
+						var town = ArchitectAccess.api().regions().get(v.id()).orElse(v);
 						growStanding(r, budgetUsd, now, town, specs, true, null);
 						return;
 					}

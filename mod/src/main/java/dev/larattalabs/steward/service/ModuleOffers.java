@@ -194,7 +194,7 @@ public final class ModuleOffers {
 					? Adoption.inventory(server, s) : java.util.Optional.<Adoption.Inventory>empty();
 				if (inv.isPresent() && as == Adoption.As.SURVIVAL) {
 					path = ModuleOffer.Path.ADOPT_MATERIALS;
-					var sites = api.sites(server);
+					var sites = ArchitectAccess.api().sites(server);
 					percent = Adoption.builtPercent(inv.get(), id -> sites.get(id).map(dev.larattalabs.architect.api.SiteView::state).orElse(null));
 					built = percent >= 100;
 				} else if (inv.isPresent()) path = ModuleOffer.Path.ADOPT;

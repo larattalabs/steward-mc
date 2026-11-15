@@ -5857,7 +5857,8 @@ async function adoptSurvivalFlow() {
     if (!t) return;
     const { id, claim, ledger, feed, founding, box, away, offFrom } = t;
     const builtRe = new RegExp(`${name} is built: everything its plan laid out stands`, 'g');
-    // fed a third of what is still needed at a time until a lot stands while another still builds (the feed goes in placement order)
+    // fed a twelfth of what is still needed at a time until a lot stands while another still builds (the feed goes in placement order; run 1: a third
+    // a time built both lots between two reads); none standing after 40 rounds: asked with every lot still building (SAD adopts that too)
     const lotIds = new Set(founding.siteIds ?? []);
     let held = false, sp = null;
     for (let i = 0; i < 150 && !held; i++) {
@@ -5865,8 +5866,9 @@ async function adoptSurvivalFlow() {
       const lots = (sp?.sites ?? []).filter((x) => lotIds.has(x.id) && x.kind !== 'road');
       if (lots.some((x) => x.state === 'BUILT') && lots.some((x) => x.state !== 'BUILT')) { held = true; break; }
       if (lots.length && lots.every((x) => x.state === 'BUILT')) break;
-      await feed(Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, c]) => [k, Math.max(1, Math.ceil(c / 3))])));
-      await sleep(4000);
+      if (i >= 40 && lots.some((x) => x.state !== 'BUILT')) { held = true; break; }
+      await feed(Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, c]) => [k, Math.max(1, Math.ceil(c / 12))])));
+      await sleep(2000);
     }
     const lotStates = (sp?.sites ?? []).filter((x) => lotIds.has(x.id) && x.kind !== 'road').map((x) => `${x.id} ${x.state}`).join(', ');
     if (!held) fail(`${label} wait`, `no lot held building while another stood: ${lotStates}`);
@@ -6014,10 +6016,14 @@ async function moduleSurvivalStreetFlow() {
     st.feeding = true;
     await cmd(`/steward proposals ${id} accept module.${MODULE}`);
     // past the bound (a Style the bound doesn't name): stocked with the quote and approved, as module-survival
-    const heldOver = await waitLog(from, /The bill came to more than you approved[^\n]*|The town grows: Architect finds room/, 240_000);
-    const quoted = (() => { const m = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(from)); return m ? JSON.parse(m[1]) : null; })();
+    // the quote, once logged (before the realise: held over the bound, or within it and realised)
+    const quoteRe = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`);
+    const quotedAt = await waitLog(from, quoteRe, 600_000);
+    const quoted = quotedAt ? JSON.parse(quoteRe.exec(quotedAt[0])[1]) : null;
+    if (!quoted) return fail(label, `no quote logged in 10 min; ${chatTail(from)}`);
+    const heldOver = await waitLog(from, /The bill came to more than you approved[^\n]*|is built(?: in part)?: \d+ buildings? placed|construction sites stand and are built/, 240_000);
     if (heldOver && /more than you approved/.test(heldOver[0])) {
-      if (quoted) await feed(Object.fromEntries(Object.entries(quoted).map(([k, n]) => [k, n * 2 + 16])));
+      await feed(Object.fromEntries(Object.entries(quoted).map(([k, n]) => [k, n * 2 + 16])));
       await cmd(`/steward approve ${id}`);
     }
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
