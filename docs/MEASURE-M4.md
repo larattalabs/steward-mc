@@ -470,3 +470,9 @@ module-provided. Its requirements are §5's list for @2; each is answered below 
 lost." It comes off in one edit at the pin that carries LC. The pre-check still refuses an undo while anything holds cargo. FKC0 (bar 9)
 runs at that pin and is recorded as deferred until then. The slot labels for v1 are `/steward hall` with the offer and inbox (rule 13);
 a HUD label is a follow-up.
+- **Judge clarified after the first run (no bar moved):**
+  - A slot is its chest and its output hopper D. The tile unlocks D only long enough to pull the item that tipped F to 42, so the last item
+    of each kind through a run waits in D for the next one, as M0's tile did: M0's judge counted D in the slot.
+  - A run is done when the input and line are empty and each D holds at most one of its own item.
+  - The steward's words for a refused undo say those hoppers hold the last sorted items, and the player takes them out too.
+  - A filled F's settled D state is `enabled=false` in the template, so the land check reads a built hall as unchanged.
