@@ -61,7 +61,10 @@ export async function styleBounds({ quotes, kit, source, id = 'crop_farm' }) {
       const count = {};
       const bill = {};
       const byName = {};
+      // Architect's survival bill (SurvivalItems): a two-part block's second cell (a `half=upper`, a bed's head) costs nothing
+      const free = (c) => c.state?.props?.half === 'upper' || (/_bed$/.test(c.state?.name ?? '') && c.state?.props?.part === 'head');
       for (const c of bp.cells.values()) {
+        if (free(c)) continue;
         const name = c.state?.name ?? c.block ?? String(c);
         byName[name] = (byName[name] ?? 0) + 1;
         const item = /^minecraft:(wheat|carrots|potatoes|beetroots)$/.test(name) ? SEEDS[q.params.crop] : itemOf(name);
@@ -70,7 +73,13 @@ export async function styleBounds({ quotes, kit, source, id = 'crop_farm' }) {
       if (bp.roleCells instanceof Map) {
         // provenance from the program (storage_hall@1): each cell's role as written, never inferred from a block two roles share; each role's
         // cells are at most the template's cells of its block (summed over the roles on one block)
-        for (const role of bp.roleCells.values()) count[role] = (count[role] ?? 0) + 1;
+        const ox = bp.ox ?? 0, oy = bp.oy ?? 0, oz = bp.oz ?? 0;
+        for (const [k, role] of bp.roleCells) {
+          const [x, y, z] = k.split(',').map(Number);
+          const c = bp.cells.get(`${x + ox},${y + oy},${z + oz}`);
+          if (!c) { problems.push(`${where}: role ${role}'s cell ${k} holds no block`); continue; }
+          if (!free(c)) count[role] = (count[role] ?? 0) + 1;
+        }
         const perBlock = {};
         for (const [role, n] of Object.entries(count)) {
           const b = roles[role];

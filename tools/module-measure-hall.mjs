@@ -370,7 +370,7 @@ async function reopen(pos) {
 
 /** An undo answer refused because a container holds cargo (Architect's removal blockers, or its refusal naming them), never for another reason. */
 const refusal = (u) => `removed ${u.removed}; blockers ${json((u.blockers ?? []).slice(0, 2))}; ${String(u.error ?? u.refused ?? u.message ?? '').slice(0, 160)}`;
-const refusedForCargo = (u) => u.removed !== true && /container|cargo|not ours|holds|filled/i.test(`${json(u.blockers ?? [])} ${u.error ?? ''} ${u.refused ?? ''} ${u.message ?? ''}`);
+const refusedForCargo = (u) => u.removed !== true && /Move these out of \S+ first[^;]*(chest|barrel|hopper) at|container|cargo/i.test(`${json(u.blockers ?? [])} ${u.error ?? ''} ${u.refused ?? ''} ${u.message ?? ''}`);
 
 async function hall() {
   await startClient('Hall');
@@ -607,7 +607,13 @@ async function survival() {
         const half = {};
         for (const [it, n] of Object.entries(g.quote?.bom ?? {})) if (Math.floor(n / 2) > 0) half[it] = Math.floor(n / 2);
         await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: half, exact: true }, 120_000);
-        await sleep(20_000);
+        // mid-build: wait until the growth has consumed something (its targets place as they are fed), at most 5 minutes, and not built
+        for (let i = 0; i < 60; i++) {
+          await sleep(5000);
+          const c = minus((await pile()).ledger?.consumed, ps0.ledger?.consumed);
+          if (Object.values(c).some((n) => n > 0)) break;
+        }
+        await sleep(3000);
         const mid = await pile();
         const consumedMid = minus(mid.ledger?.consumed, ps0.ledger?.consumed);
         const u = await call('dev.rv.undo', { region, toPosition: g.position - 1 }, 3_600_000).catch((e) => ({ error: String(e) }));
@@ -617,8 +623,10 @@ async function survival() {
         const back = plus(minus(after.ledger?.returned, mid.ledger?.returned), minus(after.ledger?.refundOverflow, mid.ledger?.refundOverflow));
         const rv = await call('dev.rv.state', { region }, 60_000);
         out.cancel = { rid: g.rid, half, consumedMid, consumed, back, removed: u.removed ?? null, error: u.error ?? null, state: rv.revisions.find((x) => x.rid === g.rid)?.state };
-        check(Object.keys(consumedMid).length > 0 && u.removed === true && same(back, consumed) && !Object.keys(minus(back, consumed)).some((k) => minus(back, consumed)[k] > 0),
-          `7 cancel mid-build rid ${g.rid}: consumed ${Object.values(consumed).reduce((a, b) => a + b, 0)} items before the undo (removed ${u.removed}, ${out.cancel.state}); refunded exactly that (${same(back, consumed) ? 'equal' : `off by ${json(minus(back, consumed))}`})`, out.cancel);
+        const tot = (m) => Object.values(m ?? {}).reduce((a, b) => a + b, 0);
+        out.cancel.partial = tot(consumedMid) > 0 && tot(consumedMid) < tot(g.quote?.bom);
+        check(out.cancel.partial && u.removed === true && same(back, consumed) && !Object.keys(minus(back, consumed)).some((k) => minus(back, consumed)[k] > 0),
+          `7 cancel mid-build rid ${g.rid}: consumed ${tot(consumed)} of the quote's ${tot(g.quote?.bom)} items before the undo (removed ${u.removed}, ${out.cancel.state}); refunded exactly that (${same(back, consumed) ? 'equal' : `off by ${json(minus(back, consumed))}`})`, out.cancel);
       }
     }
     // ---- a construction block the player mined (finding 3 of the design review): one bulk chest half of the newest growth's largest hall,

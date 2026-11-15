@@ -610,6 +610,28 @@ certification gate, with a dev-only override bound that holds its bill on purpos
 - **Not covered by e2e** (unit-tested, or the decision functions only): a restart between the binding and the realise, a stale re-plan that
   moves the lot, the smaller-size fallback, Q4, an inexact quote, decline both ways, an adopted (B) town.
 
+### M4 as built (2026-11-14, the plain hall)
+
+Branch `storage-hall`. The design, bars and GPT design review are in `docs/MEASURE-M4.md`. **The plain hall (`slots = 0`) ships as
+`storage_hall@1`**; sorting is `storage_hall@2`, after Architect's FK-b carries Noah's filler (`minecraft:petrified_oak_slab`, module-provided).
+- **`storage_hall@1`** (`modules/storage_hall/1/`): an 11 x 7 hall (walls, corner posts, floor, foundation, path, door and a bottom-slab roof
+  from the bible's roles; lamps in the walls, the lantern when the style's lamp is under 14), an input chest just inside the door (`item_in`),
+  and `bulk` 0-8 double chests along the back wall, two rows. No redstone. The program records each cell's role (`bp.roleCells`) so the
+  bound's role parts are counted by provenance. Params `slots` (`[0]` measured) and `bulk` (0-8).
+- **`ModuleKind.StorageHall`** (`StorageHallLot`: the lot `{type: storage_hall, size [11, 7]}`, no water, any biome, one frame so no smaller
+  size): its sign (`ModuleKind.Sign.STORES`, `ProposalRules.moduleFires`) is 12 or more kinds of items in the stockpile and the player's
+  inventory together (`Signs.storeKinds`); "full twice in 20 minutes" and claim chests are not read. `ModuleOffer.stores`: bulk = the stacks
+  held at 54 a double chest, rounded up, 2 to 8; a measured bulk asked for in talk is kept. The words: "Your stores are getting mixed: N kinds
+  of items. I can raise a storage hall by the town (11 by 7): B double chests and an input chest by the door." Placement, binding, the bound
+  and undo are M3's paths, unchanged.
+- **Undo with cargo** (Q3): Architect refuses it (a filled container isn't ours); `HallCargo` gives the steward's words with the count:
+  "the storage hall still holds 1,240 items in 9 chests; empty it first", then Architect's blockers.
+- **`StyleBound`** knows the hall's roles (floor, wall, frame, `wood.door`, `roof.slab` via `slabOf`), pinned to the kit's palettes by a test.
+- **Dev hooks** (`ModuleDev`): `hallLot`, `containers` (every container in a box, slot by slot), `putItems`, `clearContainers`, `hallCargo`.
+- **Measured** by `tools/module-measure-hall.mjs` (`hall`, `survival`, `bounds`), certified by `tools/module-catalog.mjs record` (now per
+  module: artifacts dir, runs, rates). e2e: `module-hall` and `module-hall-survival`.
+- **No save format changes.**
+
 ## 9. Noah's answers (2026-11-12)
 
 Noah, in the Steward manager session: "Go with option 1, defaults/recommendations for the rest". Option 1 is phase 5b (section 3.3). The six
