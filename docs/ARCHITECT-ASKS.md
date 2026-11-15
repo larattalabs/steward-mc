@@ -1633,3 +1633,8 @@ After an unclean start, RL's reconcile charges what stands without counting `max
 - A reconcile that would pass the cap charges what stands; the target then waits `bill_cap`, draws nothing more, and Architect logs a WARN.
 - Gated on every kill case, plus a constructed overshoot.
 - It lands after FK-b and SS. Steward's side needs nothing new: the `bill_cap` wait is said, with `/steward undo` and a fresh ask. No raise-cap API.
+
+### J2 (journal and removal backlog) contract review (2026-11-15): accepted
+- (1) A wild animal blocks a removal only if the removal changes its cell or the cell it stands on. Steward doesn't rely on the old box-wide rule. The condition: named mobs and players keep blocking anywhere in the box (StewardMotion steps the steward out first).
+- (2) The removal-credit crash window is booked at load from the pending record, after FK-b and SS.
+- (3) UC: J2 fixes the two small reproductions if load-time recovery can tell the cases apart; otherwise it goes to SS.
