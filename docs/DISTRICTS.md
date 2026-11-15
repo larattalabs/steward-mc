@@ -337,3 +337,32 @@ its targets join the owner's feed order after the town's (RS "Ids and order"); t
   stands, removed while building with paid == returned once, a lost answer then a restart logged and refunded once, the give-up resumed only on a
   tombstone). e2e (stub) flow `survival-district`: the first building cancelled while it builds (paid == returned), the restart held at Architect's
   answer (saved PLACING, found by its keys, no second approval), consumed within its quote, a growth undone while it waits (RU), the district undone.
+
+## 13. Slice PD: a plan's unbuilt district, proposed in the inbox (2026-11-15)
+
+Noah, 11-15 ("Propose in inbox", option A; PLAN Decisions). A town's approved plan may name a D1 district (a zone's `program.districts`) that its
+founding didn't build. Once the town is built, the steward proposes it.
+
+- **Found** (`PlanDistricts.unbuilt`, pure; `Proposals.unbuiltPlanDistricts`): the town region is PLACED or PARTIAL, not busy, and built (all of it, from
+  materials too). It was realised from the kept plan (`PlanGrowth.approvedFor`). None of the district's lots is in any of the owner's regions, in any
+  state. Waiting parts, secrets, module lots and ids Architect won't take are left out. It is read on the minute's proposal pass, so a restart finds it
+  again, and also on `/steward dev propose_district <id> plan`.
+- **Once** (`PlanDistricts.toOffer`): key `plan_district_<id>`, never offered while that key is open, declined or accepted, nor while a district of its
+  name stands. One district proposal waits at a time.
+- **Words:** "The plan's <label> (<side>)": "The town's plan names <label> (<its lots>), which its founding didn't build. It would go to the <side> of
+  the town..., with a street of its own joined to the town's. Founding it costs nothing; building its N lots costs about $X[, and from materials its bill
+  is said before anything is placed]." It is priced as a quarter's buildings (`Proposals.planDistrictEstimate`), and it always waits for the player.
+- **Side:** east or west only, beside the town region (`besideTown`). It is chosen by `Districts.choose` from the district's label and `prefer` words.
+- **Accept** (`Actions.acceptPlanDistrict`): the district is read again from the plan (gone: the proposal is withdrawn, not declined). It is reserved
+  beside the town under its label ($0, Architect's beside check), then `SettlementRunner.startPlanDistrict` plans its region with the plan's own lots
+  (ids, sizes, labels, briefs) through `planDistrict`. That is SD's path: the stockpile, `quoteDistrict` and the one approval in survival, the inexact
+  quote said as "about". The acceptance is saved as the build starts and given back if it ends with nothing spent. The reservation stays, and the
+  next acceptance builds on it (`PlanDistricts.reservedFor`).
+- **Undo, refund, restart:** as SD's (`Undo.region`, refused while a growth stands, refunds once). The build's `districtSpecs` carry the lots across a
+  restart. No save format change. Once accepted, the district is not offered again, even after an undo.
+- **Checks:** unit `PlanDistrictsTest`. e2e (stub) flow `plan-district`: a Supplied town from no_wood's plan with a D1 district added to its kept plan.
+  It isn't proposed before the town is built. Once it is built it is proposed once, and its words are checked. It is accepted, reserved, and its bill
+  is said before the one approval. It is built from the stockpile with the plan's lot ids, within its quote. It is undone with everything it consumed
+  back once, given up, and not proposed again.
+- **Not here:** along or outpost zones are zones, not D1 districts, so the composer never writes them as districts. North or south of the town
+  (square districts) is not offered.
