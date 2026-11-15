@@ -245,9 +245,9 @@ class VillageSweepOnceTest {
 	void aPositionInTheClaimOrABlockAroundItIsInside() {
 		int[] box = { 0, 60, 0, 9, 70, 9 };
 		assertTrue(VillageSweep.inside(box, List.of(new double[] { 5.5, 64, 5.5 })));
-		assertTrue(VillageSweep.inside(box, List.of(new double[] { -0.5, 64, 10.9 })), "a block around it");
-		assertFalse(VillageSweep.inside(box, List.of(new double[] { -1.5, 64, 5 })));
-		assertFalse(VillageSweep.inside(box, List.of(new double[] { 5, 64, 11.1 })));
+		assertTrue(VillageSweep.inside(box, List.of(new double[] { -1.2, 64, 11.9 })), "close enough that its box touches (Architect grows it a block)");
+		assertFalse(VillageSweep.inside(box, List.of(new double[] { -2.5, 64, 5 })));
+		assertFalse(VillageSweep.inside(box, List.of(new double[] { 5, 64, 12.1 })));
 		assertFalse(VillageSweep.inside(box, List.of()));
 	}
 

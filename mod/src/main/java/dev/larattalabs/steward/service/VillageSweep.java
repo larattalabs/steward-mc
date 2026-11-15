@@ -127,10 +127,13 @@ public final class VillageSweep {
 		}
 	}
 
-	/** Whether any of the positions lies in the box (min and max x, y, z, inclusive) or one block around it. Pure. */
+	/**
+	 * Whether any of the positions (a player's feet) is near enough the box (min and max x, y, z, inclusive) that the player could touch it: Architect's
+	 * check grows the player's own box (0.6 wide, 1.8 tall) by a block, so two blocks around it, and from three below. Pure.
+	 */
 	static boolean inside(int[] box, List<double[]> at) {
 		for (double[] p : at) {
-			if (p[0] >= box[0] - 1 && p[0] < box[3] + 2 && p[1] >= box[1] - 1 && p[1] < box[4] + 2 && p[2] >= box[2] - 1 && p[2] < box[5] + 2) return true;
+			if (p[0] >= box[0] - 2 && p[0] < box[3] + 3 && p[1] >= box[1] - 3 && p[1] < box[4] + 3 && p[2] >= box[2] - 2 && p[2] < box[5] + 3) return true;
 		}
 		return false;
 	}
@@ -228,6 +231,8 @@ public final class VillageSweep {
 		for (Settlement s : Settlements.store().all()) growths(server, s);
 		// (slice VSR, manager) the villages a player stood in are looked at again (one at a time per settlement, each once, as at the world start)
 		for (String id : List.copyOf(HELD)) {
+			// a settlement busy meanwhile keeps its mark for a later tick
+			if (Undo.busy(id) || SettlementRunner.busy(id) || SWEEPING.contains(id)) continue;
 			HELD.remove(id);
 			villages(server, id);
 		}
@@ -381,15 +386,6 @@ public final class VillageSweep {
 	static void takeUp(MinecraftServer server, Settlement s, String regionId, Consumer<String> say, Consumer<Boolean> whenDone) {
 		// (slice VSR review 2) nor while an undo or cancel of the settlement runs, or Architect is removing one of its regions: SettlementRunner.busy's
 		// removal half (the sweep's chain checks the same before it chooses)
-		if (playerIn(server, s, regionId)) {
-			// (slice VSR, manager) Architect would hold the removal while a player stands in it: not asked now; the 10 s tick's sweep takes it up once they
-			// have left (not tried this start, so it is chosen again)
-			Steward.LOGGER.info("village region {} of {} waits: a player stands in it (asked again once they leave)", regionId, s.id());
-			TRIED.remove(regionId);
-			HELD.add(s.id());
-			whenDone.accept(false);
-			return;
-		}
 		if (Undo.busy(s.id()) || removingAny(s) || !REMOVING.add(s.id())) {
 			Steward.LOGGER.warn("village region {} of {} waits: the settlement is busy taking up or removing another (looked at again at the next start)", regionId, s.id());
 			whenDone.accept(false);
@@ -410,6 +406,15 @@ public final class VillageSweep {
 					Settlement.Outcome.PARTIAL);
 				if (Settlements.log(s.id(), placed).ok()) entry = Settlements.store().get(s.id()).flatMap(x -> entryOf(x, regionId));
 			}
+		}
+		if (playerIn(server, s, regionId)) {
+			// (slice VSR, manager) Architect would hold the removal (and the settlement) while a player stands in it: not asked now. Logged first, so the
+			// sweep's own entry has the 10 s tick take it up once they have left, whatever build still names it (not tried this start: chosen again)
+			Steward.LOGGER.info("village region {} of {} waits: a player stands in it (asked again once they leave)", regionId, s.id());
+			TRIED.remove(regionId);
+			HELD.add(s.id());
+			done.accept(false);
+			return;
 		}
 		if (entry.isEmpty()) {
 			// the settlement is busy while the region is taken up (Undo.region marks it so too); its answer on the server thread, this world's only
