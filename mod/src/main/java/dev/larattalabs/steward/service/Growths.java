@@ -297,6 +297,14 @@ public final class Growths {
 			}
 			case UNDO -> { }
 		}
+		// (M4, Q3) a storage hall of this growth holding items: refused at once and said (Architect's removal would wait on the cargo as a blocker)
+		var rv = regions.get(ref.region()).flatMap(v -> v.revisions().stream().filter(x -> x.rid() == ref.rid()).findFirst());
+		String hall = rv.map(x -> HallCargo.before(server, owner, x.sites())).orElse(null);
+		if (hall != null) {
+			say.accept("The town's change could not be taken up: " + hall + ".");
+			done.accept(false);
+			return;
+		}
 		int session = Session.current();
 		Steward.LOGGER.info("undo growth {} of {}: undoRevision to {}", ref.tag(), owner, d.toPosition());
 		regions.undoRevision(ref.region(), d.toPosition(), owner).whenComplete((r, err) -> server.execute(() -> {
@@ -310,8 +318,8 @@ public final class Growths {
 			// (M4, Q3) refused for a storage hall holding items (Architect throws NOT_ALLOWED naming the sites to empty): said as the steward says
 			// it, with the count and the chests, then Architect's own list
 			String why = err != null ? SettlementRunner.message(err) : "blocked by " + String.join(", ", r.blockers());
-			String hall = HallCargo.cargoRefusal(why) ? HallCargo.words(server, owner, ref.region(), why) : null;
-			say.accept("The town's change could not be taken up: " + (hall != null ? hall + " (" + why + ")" : why) + ".");
+			String held = HallCargo.cargoRefusal(why) ? HallCargo.words(server, owner, ref.region(), why) : null;
+			say.accept("The town's change could not be taken up: " + (held != null ? held + " (" + why + ")" : why) + ".");
 			done.accept(false);
 		}));
 	}

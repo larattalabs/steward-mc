@@ -5019,10 +5019,11 @@ async function moduleHallSurvivalFlow() {
     if (!region) return fail(label, 'the town is not a region');
     ok(`${label} town`, `${region} built from the stockpile (${town.placed} buildings)`);
     await cmd('/steward dev modules {}');
-    // the sign from the stockpile: 12 kinds; and the measured bound for bulk 2 (the per-item maximum over its Styles), stocked twice
+    // the sign: 12 kinds; then the offer's bound, stocked twice
     const kinds = ['cobblestone', 'dirt', 'oak_planks', 'oak_log', 'sand', 'gravel', 'andesite', 'granite', 'diorite', 'coal', 'iron_ingot', 'wheat'];
-    await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(kinds.map((k) => [`minecraft:${k}`, 64])) });
+    // (carried: the stockpile takes only what its targets owe, so the 12 kinds go in the player's inventory, which the sign reads too)
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+    for (const k of kinds) await cmd(`/give @p minecraft:${k} 64`);
     let offer = null;
     for (let i = 0; i < 90 && !offer; i++) {
       await sleep(1000);
@@ -5032,6 +5033,7 @@ async function moduleHallSurvivalFlow() {
     const bound = offer.module?.bound ?? null;
     if (offer.module?.params?.slots === 0 && bound && Object.keys(bound).length && /at most/.test(offer.why) && /Your stores are getting mixed/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 220));
     else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 300));
+    await cmd('/clear @p');
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound).map(([k, c]) => [k, c * 2 + 16])) });
     const sp0 = await ledger();
     await away();

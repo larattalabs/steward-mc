@@ -126,6 +126,23 @@ class StorageHallTest {
 	}
 
 	@Test
+	void theCertifiedHallIsOfferedFromMaterialsWithItsBoundInATownsOwnBlocks() {
+		var player = new ModuleGate.Env("26.3", "0.67.0", Set.of(ModuleGate.FEATURE));
+		var v = ModuleGate.offer(LIVE, "storage_hall", player);
+		assertTrue(v.ok(), v.message());
+		// a town in a Style none of the measured ones is: oak walls and floor, a stone-brick foundation, a dark oak roof slab, an oak door
+		java.util.Map<String, String> town = new java.util.HashMap<>(java.util.Map.of("foundation", "minecraft:stone_bricks", "floor", "minecraft:oak_planks",
+			"wall", "minecraft:oak_planks", "frame", "minecraft:oak_log", "light", "minecraft:lantern", "path", "minecraft:dirt", "wood.door", "minecraft:oak_door",
+			"roof.slab", "minecraft:dark_oak_slab"));
+		var t = new Town(Path.REGION_MATERIALS, null, true, 100, false, false, Map.of(), stacks(12, 64));
+		var d = ModuleOffer.decide(K, v, t, null, (e, p) -> ModuleBound.of(e.measured(), p, town));
+		assertTrue(d.ok(), d.why());
+		var b = d.order().bound();
+		assertTrue(b.has("minecraft:oak_planks") && b.has("minecraft:oak_door") && b.has("minecraft:chest"), b.toString());
+		assertEquals(5, b.get("minecraft:chest").getAsInt(), "2 double chests and the input chest");
+	}
+
+	@Test
 	void uncertifiedItIsNeverOfferedToAPlayer() {
 		var player = new ModuleGate.Env("26.3", "0.67.0", Set.of(ModuleGate.FEATURE));
 		assertEquals(LIVE.newest("storage_hall").map(ModuleCatalog.Entry::measured).isPresent() && ModuleGate.offer(LIVE, "storage_hall", player).ok(),

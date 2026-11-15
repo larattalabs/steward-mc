@@ -77,6 +77,34 @@ public final class HallCargo {
 	}
 
 	/**
+	 * (Q3) The words for a storage hall among these sites (a revision's, {@code RevisionView.sites}) that holds items, before its removal is asked:
+	 * Architect's removal waits on cargo as a blocker rather than answering, so the steward refuses at once and says what to empty. Null when none
+	 * of them is a hall holding anything.
+	 */
+	public static @Nullable String before(MinecraftServer server, String owner, java.util.Collection<String> siteIds) {
+		if (siteIds.isEmpty()) return null;
+		int items = 0, containers = 0;
+		boolean complete = true;
+		for (SiteView v : ArchitectApi.get().sites(server).list(owner)) {
+			if (!siteIds.contains(v.id())) continue;
+			var ref = ModuleRef.of(v.ext());
+			if (ref == null || !ModuleKind.StorageHall.ID.equals(ref.id())) continue;
+			ServerLevel level = server.getLevel(v.dimension());
+			if (level == null) { complete = false; continue; }
+			Count c = count(level, v);
+			items += c.items();
+			containers += c.containers();
+			complete &= c.complete();
+		}
+		return items == 0 ? null : say(items, containers, complete);
+	}
+
+	static String say(int items, int containers, boolean complete) {
+		return "the storage hall still holds " + (complete ? "" : "at least ") + String.format(java.util.Locale.ROOT, "%,d", items) + " item" + (items == 1 ? "" : "s")
+			+ " in " + containers + (containers == 1 ? " chest" : " chests") + "; empty it first";
+	}
+
+	/**
 	 * The words for an undo Architect refused for cargo ({@code message}: its refusal, naming each container to empty by its position), when a storage
 	 * hall of the owner's holding one of them holds items: "the storage hall still holds 1,240 items in 9 chests; empty it first" ("at least" when part of a hall is not
 	 * loaded). Null when the refusal names no hall, or none of them holds anything.
@@ -99,8 +127,6 @@ public final class HallCargo {
 			containers += c.containers();
 			complete &= c.complete();
 		}
-		if (items == 0) return null;
-		return "the storage hall still holds " + (complete ? "" : "at least ") + String.format(java.util.Locale.ROOT, "%,d", items) + " item" + (items == 1 ? "" : "s")
-			+ " in " + containers + (containers == 1 ? " chest" : " chests") + "; empty it first";
+		return items == 0 ? null : say(items, containers, complete);
 	}
 }
