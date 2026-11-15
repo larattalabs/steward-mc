@@ -1599,3 +1599,11 @@ Architect's answer (11-14), accepted:
   - The blocks apply only to provided stacks in declared fill containers.
   - The pickup block covers every menu path.
   - Steward added: the transfer skip covers hopper minecarts and Fabric Transfer API views, or names a leak.
+
+### CP (compose follow-ups, CA's five asks) contract review (2026-11-14): accepted
+- ext `architect_mc:skipPick=true` at the request level, which is enough for CA2.
+- `result.summary`, `waits[].say` and `leftOut`; NO_PLAN's `reason` is unchanged.
+- ext `architect_mc:composeVocab=families`. compact doesn't fit beside Steward's compose rules under 120k.
+- The $0 street fix runs inside compose, default ON. Steward's `Composer.streetFixes` is then a no-op, and is dropped at the CP pin.
+- `ComposeRequest` gains `level` and `owner`.
+- RC areas asked: a card compose with skipPick, NO_PLAN wording, the street free round, and an owner/level compose.
