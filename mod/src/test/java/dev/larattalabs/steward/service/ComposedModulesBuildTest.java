@@ -77,4 +77,16 @@ class ComposedModulesBuildTest {
 		assertEquals(json("{\"minecraft:dirt\": 120}"), back.moduleOrders().get("farm_1").held());
 		assertTrue(Files.readString(f).contains("moduleOrders"));
 	}
+
+	/** The e2e's sim compose (fixtures/plans/composed_modules.json): its module lots read, and each is decided by its module and params. */
+	@Test
+	void theSimFixtureNamesAFarmAndAHall() throws Exception {
+		Path f = Path.of(System.getProperty("user.dir")).resolve("../fixtures/plans/composed_modules.json").normalize();
+		JsonObject plan = json(Files.readString(f)).getAsJsonObject("answer").getAsJsonObject("plan");
+		var asked = dev.larattalabs.steward.module.ComposedModules.read(PPlan.lots(plan));
+		assertEquals(java.util.List.of("farm_1", "warehouse_1"), asked.stream().map(dev.larattalabs.steward.module.ComposedModules.Asked::lotId).toList());
+		assertEquals(java.util.List.of("crop_farm", "storage_hall"), asked.stream().map(dev.larattalabs.steward.module.ComposedModules.Asked::moduleId).toList());
+		JsonObject built = SettlementRunner.withModules(PPlan.forBuild(plan, Set.of(), "set_1", "b_1"), Map.of("farm_1", farm(), "warehouse_1", hall()));
+		assertEquals(4, PPlan.lots(built).size());
+	}
 }
