@@ -322,7 +322,13 @@ public final class Undo {
 	 * is busy. Returns whether anything was logged. Server thread.
 	 */
 	static boolean resumeInterrupted(MinecraftServer server, Settlement given) {
-		if (busy(given.id()) || SettlementRunner.busy(given.id())) return false;
+		if (busy(given.id())) return false;
+		try {
+			if (SettlementRunner.busy(given.id())) return false;
+		} catch (RuntimeException | LinkageError e) {
+			// can't tell whether anything runs: a later sweep looks again
+			return false;
+		}
 		return finishInterrupted(server, given);
 	}
 
