@@ -21,10 +21,10 @@ import org.junit.jupiter.api.Test;
 /**
  * (slice DG, the manager's scope 2026-11-14) A Supplied district region's growth, billed and undone, through Steward's own decisions: no e2e can make a
  * district region from materials yet (slice SD), so this drives Steward's path (Growths.decide, Growths.unbuilt, Undo.retired, Undo.removed, the history)
- * over a model of Architect's ledger as built (RS/RV section 8: a target draws its bill from the stockpile as it is built; undoRevision of a built suffix
- * refunds each paid block once per key {@code site:<id>@<placedAt>}, and refuses survival_building, nothing written, while a target is not built).
- * Steward never moves items itself: what it must hold is that it asks for the take-up only once the targets are built, exactly once per growth (a replay
- * after a crash asks nothing again), and logs the removal once.
+ * over a model of Architect's ledger as built (RS/RV section 8: a target draws its bill from the stockpile as it is built; undoRevision refunds each
+ * paid block once per key {@code site:<id>@<placedAt>}; since RU, v0.66.0, a target not built yet is cancelled with it, refunding what of it stands paid,
+ * and items delivered but not drawn stay in the stock). Steward never moves items itself: what it must hold is that it asks for the take-up exactly once
+ * per growth (a replay after a crash asks nothing again), and logs the removal once (slice A2L: by the growth's tag).
  */
 class SuppliedDistrictGrowthTest {
 	private static final String OW = "minecraft:overworld";
@@ -55,11 +55,11 @@ class SuppliedDistrictGrowthTest {
 			return true;
 		}
 
-		/** undoRevision to the position below: refused while a target is not built, else each paid block refunded once per key. */
+		/** undoRevision to the position below (RU): unbuilt targets cancelled (nothing of them paid), each paid block refunded once per key. */
 		boolean undo(int toPosition, long placedAt) {
 			undoCalls++;
-			if (sites.values().stream().anyMatch(s -> s != State.BUILT)) return false;
 			for (var e : bills.entrySet()) {
+				if (sites.get(e.getKey()) != State.BUILT) continue;
 				if (!refunded.add("site:" + e.getKey() + "@" + placedAt)) continue;
 				for (var b : e.getValue().entrySet()) { stock.merge(b.getKey(), b.getValue(), Integer::sum); returned += b.getValue(); }
 			}
@@ -75,8 +75,7 @@ class SuppliedDistrictGrowthTest {
 
 	private static Growths.Decision decide(Ledger l) {
 		var r = rev(l);
-		boolean building = Growths.unbuilt(r, l.sites::get) > 0;
-		return Growths.decide(false, false, null, l.position, r.state(), r.position(), building);
+		return Growths.decide(false, false, null, l.position, r.state(), r.position(), false);
 	}
 
 	/** One /steward undo (or a cancel's or the sweep's take-up) of the growth entry, as Undo.growth runs it. */
@@ -84,8 +83,8 @@ class SuppliedDistrictGrowthTest {
 		var d = decide(l);
 		if (d.step() == Step.BUILDING || d.step() == Step.WAIT || d.step() == Step.NEWER || d.step() == Step.UNKNOWN) return s;
 		if (d.step() == Step.UNDO && !l.undo(d.toPosition(), 0L)) return s;
-		// done (now, or an earlier take-up a crash cut off before its entry): logged once
-		if (!Undo.retired(s, entry)) s = s.withLog(Undo.removed(entry, entry.siteIds(), true, Map.of()));
+		// done (now, or an earlier take-up a crash cut off before its entry): logged once, by the growth's tag (Undo.complete)
+		if (!Growths.completed(s, entry.siteGroup()) && !Undo.retired(s, entry)) s = s.withLog(Undo.removedGrowth(entry, entry.siteIds(), entry.siteGroup(), Map.of()));
 		return s;
 	}
 
@@ -114,26 +113,20 @@ class SuppliedDistrictGrowthTest {
 		var entry = s.log().get(s.log().size() - 1);
 		assertEquals(Growths.tag(REGION, 1), entry.siteGroup(), "a district growth's entry names the district's own region");
 
-		// half fed: one target waits for planks; undo asks nothing (BUILDING), refunds nothing, logs nothing
+		// half fed: one target waits for planks; (slice A2L, RU) undo takes it up now: the built target's bill back, the waiting one cancelled, the
+		// cobblestone delivered for it but never drawn still in the stock
 		assertTrue(l.build("s2"));
 		assertFalse(l.build("s1"), "short of planks: it waits");
-		assertEquals(Step.BUILDING, decide(l).step());
-		s = undoOnce(s, entry, l);
-		assertEquals(0, l.undoCalls, "nothing asked while its targets are building");
-		assertEquals(0, l.returned);
-		assertEquals(0, removals(s));
-
-		// fed until built: undo takes it up, the bill comes back exactly
-		l.add("minecraft:oak_planks", 12);
-		assertTrue(l.build("s1"));
+		assertEquals(Step.UNDO, decide(l).step(), "no longer refused while a target waits");
 		Map<String, Integer> before = new HashMap<>(l.stock);
 		s = undoOnce(s, entry, l);
 		assertEquals(1, l.undoCalls);
+		assertEquals(9, l.paid, "only the lane was drawn");
 		assertEquals(l.paid, l.returned, "paid == returned");
-		assertEquals(61, l.paid);
-		assertEquals(52, l.stock.get("minecraft:cobblestone") + l.stock.get("minecraft:oak_planks") - before.getOrDefault("minecraft:cobblestone", 0)
-			- before.getOrDefault("minecraft:oak_planks", 0), "the cobblestone and planks the targets drew are back");
+		assertEquals(before.get("minecraft:cobblestone"), l.stock.get("minecraft:cobblestone"), "delivered, never drawn: kept, not refunded again");
+		assertEquals(9, l.stock.get("minecraft:dirt_path"), "the lane's bill is back");
 		assertEquals(1, removals(s), "the removal logged once");
+		assertTrue(Growths.completed(s, entry.siteGroup()), "the removal carries the growth's tag");
 
 		// a replay (a crash after the removal was logged, or the cancel and the sweep both reaching it): GONE, nothing asked, nothing logged again
 		assertEquals(Step.GONE, decide(l).step());

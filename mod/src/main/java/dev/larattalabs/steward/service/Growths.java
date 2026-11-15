@@ -89,9 +89,8 @@ public final class Growths {
 		/** The region has no revision with that rid (Architect lost it, or the tag is wrong): nothing is asked. */
 		UNKNOWN,
 		/**
-		 * (slice A2) The town builds from materials and its construction targets are not all built: the revision, the head, is still being built from the
-		 * stockpile (a revision is realised only over a fully built town, and nothing newer stands on it), so Architect would refuse its undo
-		 * ({@code survival_building}). Nothing is asked; it can be undone once built.
+		 * (slice A2) Kept for its words only: since Architect's RU (v0.66.0) {@link #decide} never answers it, as {@code undoRevision} cancels a survival
+		 * revision's unbuilt targets. A {@code survival_building} refusal (a stray answer) is still said in A2's words ({@link #buildingRefusal}).
 		 */
 		BUILDING
 	}
@@ -112,11 +111,12 @@ public final class Growths {
 	}
 
 	/**
-	 * {@code building} (slice A2): the town builds from materials and not every construction target of it is built. Decided after a newer revision (which
-	 * is said first) and before the take-up; its own interrupted take-up (UNDOING) still resumes.
+	 * {@code writing} (slice A2L, Architect RU): the revision is the survival town's head and Architect is still writing it ({@link #writing}): its undo
+	 * cancels its batch first, so it is taken up now, not waited for. A town from materials whose revision has ended with targets unbuilt is taken up
+	 * too (RU removes them with their stages, each refunding what of it stands paid).
 	 */
 	public static Decision decide(boolean regionGone, boolean removing, @Nullable String busy, int head, @Nullable String revState, int revPosition,
-		boolean building) {
+		boolean writing) {
 		if (regionGone) return new Decision(Step.GONE, 0, "the town is gone");
 		if (removing) return new Decision(Step.WAIT, 0, "the town is being taken up");
 		if (revState == null) return new Decision(Step.UNKNOWN, 0, "Architect has no such revision of the town");
@@ -124,10 +124,10 @@ public final class Growths {
 		if (st.equals("UNDONE") || st.equals("STALE")) return new Decision(Step.GONE, 0, "it was taken up already");
 		// its own take-up, cut short by a stop or a restart: the same call resumes it (Architect: a same-target call)
 		if (st.equals("UNDOING")) return new Decision(Step.UNDO, revPosition - 1, "resuming its take-up");
+		if (writing && head == revPosition) return new Decision(Step.UNDO, revPosition - 1, "cancelling what is still being placed from materials");
 		if (busy != null && !busy.isBlank()) return new Decision(Step.WAIT, 0, "the town is busy (" + busy + ")");
 		if (st.equals("PLACING") || st.equals("PLANNED") || st.equals("ACCEPTED")) return new Decision(Step.WAIT, 0, "it is still being placed");
 		if (head != revPosition) return new Decision(Step.NEWER, 0, head > revPosition ? "a newer change to the town stands above it" : "the town's history moved below it");
-		if (building) return new Decision(Step.BUILDING, 0, "it is still being built from the stockpile");
 		return new Decision(Step.UNDO, revPosition - 1, "");
 	}
 
@@ -135,15 +135,52 @@ public final class Growths {
 		return decide(v, rid, null);
 	}
 
-	/** {@code sites}: Architect's sites, to tell whether the revision's own construction targets are all built (slice A2); null reads none as building. */
+	/** {@code sites} is no longer read (slice A2L: a revision still building is taken up); kept for its callers. */
 	public static Decision decide(Optional<RegionView> v, int rid, dev.larattalabs.architect.api.@Nullable Sites sites) {
 		boolean gone = v.isEmpty() || v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED;
 		boolean removing = v.isPresent() && v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVING;
 		RevisionView r = v.flatMap(x -> revision(x, rid)).orElse(null);
-		boolean building = sites != null && r != null && v.map(Growths::fromMaterials).orElse(false) && unbuilt(r, id -> sites.get(id).map(dev.larattalabs.architect.api.SiteView::state)
-			.orElse(null)) > 0;
+		boolean writing = r != null && v.isPresent() && writing(fromMaterials(v.get()), v.get().busy(), v.get().state() == dev.larattalabs.architect.api.RegionState.PLACING,
+			rid, v.get().position(), r.position());
 		return decide(gone, removing, v.map(RegionView::busy).orElse(null), v.map(RegionView::position).orElse(0), r == null ? null : r.state(), r == null ? 0 : r.position(),
-			building);
+			writing);
+	}
+
+	/**
+	 * (slice A2L) Whether Architect's undo would cancel this revision as still writing (its {@code Revisions.writingToCancel}): a town from materials,
+	 * busy {@code revising <rid>} for this rid, the region PLACING, the revision its head. Pure.
+	 */
+	public static boolean writing(boolean fromMaterials, @Nullable String busy, boolean regionPlacing, int rid, int head, int revPosition) {
+		if (!fromMaterials || !regionPlacing || busy == null || !busy.startsWith("revising ")) return false;
+		try {
+			return Integer.parseInt(busy.substring("revising ".length()).trim()) == rid && head == revPosition;
+		} catch (NumberFormatException e) {
+			return false;
+		}
+	}
+
+	/** (slice A2L) The completion a growth's empty take-up logs (a NOTE with the growth's tag): {@link #completed} reads it. */
+	public static final String NOT_PLACED = "The addition was not placed";
+
+	/**
+	 * (slice A2L) Whether the growth with this tag has its completion in the history already: a {@code PROJECT_REMOVED} carrying the tag, or the
+	 * {@link #NOT_PLACED} note with it. Every path that ends a growth's take-up (an undo, a cancel, a late answer, the sweep's reconcile) checks it on a
+	 * fresh read right before it appends, so a replay after a restart never logs twice. Older removals (no tag) are read by {@code Undo.retired}. Pure.
+	 */
+	public static boolean completed(dev.larattalabs.steward.model.Settlement s, String tag) {
+		for (var e : s.log()) {
+			if (!tag.equals(e.siteGroup())) continue;
+			if (e.kind() == dev.larattalabs.steward.model.Settlement.Kind.PROJECT_REMOVED) return true;
+			if (e.kind() == dev.larattalabs.steward.model.Settlement.Kind.NOTE && e.text().startsWith(NOT_PLACED)) return true;
+		}
+		return false;
+	}
+
+	/** (slice A2L) What a take-up refunded, said: Architect's refund (stockpile items, and any cargo found), or that nothing had been drawn. Pure. */
+	public static String refundLine(java.util.Map<net.minecraft.world.item.Item, Integer> refund) {
+		if (refund.isEmpty()) return "Nothing had been drawn from the stockpile for it, so nothing came back.";
+		var list = refund.entrySet().stream().map(e -> java.util.Map.entry(e.getKey(), e.getValue())).toList();
+		return "Refunded: " + Stockpiles.items(list, 8) + ".";
 	}
 
 	/**
@@ -281,6 +318,15 @@ public final class Growths {
 	 * history entry stays, so it can be asked again), null when the world closed meanwhile. Never removes the region.
 	 */
 	public static void undo(MinecraftServer server, String owner, Ref ref, Consumer<String> say, Consumer<@Nullable Boolean> done) {
+		undo(server, owner, ref, say, done, r -> { });
+	}
+
+	/**
+	 * As above; {@code result} (slice A2L) gets Architect's answer to this call's {@code undoRevision} when it took the growth up (its refund), before
+	 * {@code done}; nothing when there was none to read (taken up already, or the world closed).
+	 */
+	public static void undo(MinecraftServer server, String owner, Ref ref, Consumer<String> say, Consumer<@Nullable Boolean> done,
+		Consumer<dev.larattalabs.architect.api.RemoveResult> result) {
 		var regions = ArchitectApi.get().regions();
 		Decision d = decide(regions.get(ref.region()), ref.rid(), ArchitectApi.get().sites(server));
 		switch (d.step()) {
@@ -301,7 +347,7 @@ public final class Growths {
 		Steward.LOGGER.info("undo growth {} of {}: undoRevision to {}", ref.tag(), owner, d.toPosition());
 		regions.undoRevision(ref.region(), d.toPosition(), owner).whenComplete((r, err) -> server.execute(() -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
-			if (err == null && r.removed()) { done.accept(true); return; }
+			if (err == null && r.removed()) { result.accept(r); done.accept(true); return; }
 			// answered not removed, or refused: read again (a lost answer of an undo that went through reads UNDONE)
 			var again = decide(regions.get(ref.region()), ref.rid());
 			if (again.step() == Step.GONE) { done.accept(true); return; }
