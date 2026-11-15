@@ -5458,9 +5458,12 @@ async function survivalDistrictFlow() {
     const c = settlements().find((x) => x.id === id).claim;
     const away = async () => cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
     await away();
+    // (a restart in a flow leaves no client for a moment: a pass that meets it is skipped)
     feeder = (async () => {
       while (!stop) {
         await sleep(3000);
+        try {
+        if (!dev) continue;
         if (nudge && Date.now() - nudgedAt > 30_000) {
           const v = await dev.request('dev.region.state', { region: nudge }).catch(() => null);
           const head = ((v?.view ?? v ?? {}).revisions ?? []).sort((x, y) => y.rid - x.rid)[0];
@@ -5472,7 +5475,10 @@ async function survivalDistrictFlow() {
         }
         if (!feeding) continue;
         const sp = await ledger().catch(() => null);
-        if (sp && Object.keys(sp.need ?? {}).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+        if (sp && Object.keys(sp.need ?? {}).length && dev) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+        } catch {
+          // the client is restarting
+        }
       }
     })();
     // the town, from materials
