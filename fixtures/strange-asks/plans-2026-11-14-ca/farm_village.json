@@ -1,0 +1,31 @@
+{
+  "prompt": "A farming village that feeds my base.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "harvest_hamlet",
+      "zones": [
+        {
+          "id": "town",
+          "required": true,
+          "program": {
+            "template": "flat_village",
+            "params": {
+              "houses": 7,
+              "shared": "square",
+              "squareSize": 13
+            }
+          }
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "The site is perfectly flat, open ground and the 97x97 claim is within flat_village's range. It builds a farming hamlet with a hall, farm, workshops and cottages along a street, and the open land around it leaves room for fields."
+  },
+  "usd": 0.029508,
+  "errors": [],
+  "outcome": "PICKED",
+  "rounds": 0,
+  "missing": [],
+  "hiddenMissing": false
+}

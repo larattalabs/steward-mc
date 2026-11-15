@@ -349,6 +349,27 @@ Kept as `plans-2026-11-13/hidden_village-0.64.1.json`.
 - **Two earlier tries spent $0.00:** the record tools sent their first job while Architect's helper was still running `npm ci` for its Claude Agent
   SDK, which it does at every launch ("Claude link is not available"). Both tools now wait for the launcher's "running" line first.
 
+## Slice CA: composing through Architect's Regions.compose, the paid proof (2026-11-14, paid, Noah approved; $0.70 of a $3.00 cap)
+Noah via parent session: "$3.00 hard stop (Recommended)" (up to 2 composes at no more than $1.00 each, hidden_village at no more than $0.55).
+Branch compose-adopt (Architect 0.67.0), ports 8600/8601, the claude login's opt-in made in the worktree's `mod/run` for each run and removed
+after it (`ls mod/run/architect/sidecar-data/` showed no `secrets.json` after each). Each compose is capped by Architect (`budgetUsd`).
+- **(1) hidden_village re-recorded through compose, $0.3006 (cap $0.55):** `node tools/record-plans.mjs 0.55 --out
+  fixtures/strange-asks/plans-2026-11-14-ca --only hidden_village`. COMPOSED after 2 rounds (round 1 REQUIRED_BLOCKED, round 2 READY).
+  **The hidden room is written:** `hollow`, a `form.hidden_room` hosted by the waterfall (`falls`, sculpted on the flat claim), entrance the
+  waterfall, required; all ten card buildings have their lots (missing none). The composer's `reason` names "a smaller hollow behind it": in game
+  Secrets' scrub drops that sentence (the room's id), as it should.
+- **(2) one plain card, farm_village, $0.0295 (cap $1.00):** PICKED: Architect's template pick fitted `flat_village` and the composer's rounds never
+  ran, so the card's buildings were bypassed. Steward keeps it as a one-zone plan and says the layout is Architect's own (S-CA-1, the skip-pick
+  key, is Architect's CP).
+- **(3) in game, describe -> compose, $0.367 (cap $1.00: card $0.035, compose capped at $0.90 by `STEWARD_COMPOSE_CAP_USD`, spent $0.332):**
+  `node tools/compose-proof.mjs 1.00 a walled market town beside the river where I stand, with a stone bridge over the water and a secret cellar
+  under the tavern`, a default-terrain creative world. NO_PLAN after 3 rounds; Steward's own re-check REQUIRED_BLOCKED (the river channel
+  refused LEAK, the bridge waiting on it), kept with the bridge pending. The cellar is written (`tavern_cellar`, `form.hidden_room` in the tavern),
+  never named, the steward only hints. **Two Steward bugs it found, fixed at $0 since (961e48e):** the summary came out empty (the plain summary
+  named the tavern, the cellar's host, so the scrub dropped it: now the count goes in its own sentence), and "Not in the plan: 1 stone bridge" for a
+  bridge the plan held as a connector (now a card building written as another part counts by its kind).
+- **Total $0.6971 of $3.00.**
+
 ## The repair round's catalogue text, proved in one in-game compose (2026-11-13, paid, Noah approved; $0.16)
 Noah via parent session: "n cap 1.50 + compose". One compose in a flat creative dev world on Architect 0.63.0 (main f66031d's code), the claude
 login's opt-in made for the run and removed after: `/steward claim`, then `/steward describe set_1 A monastery on a floating island, reached by a
@@ -596,3 +617,6 @@ world per step; `--attach`, `--keep-client`). The bars and results are in docs/M
   shaft. The cellar itself is underground, out of shot; Architect's `hr-ghost` gate checks the cells.
 - **Leftover:** `plan-check.mjs` passes hidden_village (`[]`) though the kit calls its room malformed: it still follows only the program dispatch,
   not each kind's def, so the jar schema alone doesn't close that LEFTOVERS item.
+
+**The part writer is temporary (slice CA, 2026-11-14):** a waiting part's own plan (COMPOSITION section 11) is still Steward's job on a slim
+part-only prompt (`prompts/plan-writer.md`); it moves onto `Regions.compose` in slice CA2, after Architect's CP (`architect_mc:skipPick`).
