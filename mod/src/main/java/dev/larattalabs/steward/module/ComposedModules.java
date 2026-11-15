@@ -436,7 +436,7 @@ public final class ComposedModules {
 	 * What a quote holds the module lots to: the orders (each holding its share when asked, cleared otherwise), and either why the quote can't hold
 	 * them ({@code refused}), or the question for the player ({@code ask}), or neither (the realise goes on).
 	 */
-	public record Held(Map<String, ModuleOrder> orders, @Nullable String refused, @Nullable String ask) {}
+	public record Held(Map<String, ModuleOrder> orders, @Nullable String refused, @Nullable String ask, @Nullable String said) {}
 
 	/**
 	 * (docs/MODULES.md "M5 design" 6) Each module lot's share of a quote ({@link #share}) against its bound ({@link ModuleBound#over}, every item exact).
@@ -450,10 +450,10 @@ public final class ComposedModules {
 		boolean unapproved = false;
 		for (var e : orders.entrySet()) {
 			String name = ModuleKind.of(e.getValue().moduleId()).map(ModuleKind::role).orElse(e.getKey().replace('_', ' '));
-			if (!billed(bomParts, e.getKey())) return new Held(orders, "Architect's quote doesn't bill the working " + name + "'s lot", null);
+			if (!billed(bomParts, e.getKey())) return new Held(orders, "Architect's quote doesn't bill the working " + name + "'s lot", null, null);
 			JsonObject share = share(bomParts, e.getKey());
-			if (share == null) return new Held(orders, "Architect's quote of the working " + name + " is not a bill of items", null);
-			if (e.getValue().bound() == null) return new Held(orders, "the working " + name + " has no bound to hold its bill to", null);
+			if (share == null) return new Held(orders, "Architect's quote of the working " + name + " is not a bill of items", null, null);
+			if (e.getValue().bound() == null) return new Held(orders, "the working " + name + " has no bound to hold its bill to", null, null);
 			shares.put(e.getKey(), share);
 			var ov = ModuleBound.over(share, e.getValue().bound());
 			if (!ov.isEmpty()) over.add("the " + name + "'s " + ModuleBound.words(ov, 100));
@@ -463,10 +463,22 @@ public final class ComposedModules {
 		boolean ask = !over.isEmpty() || (inexact != null && unapproved);
 		Map<String, ModuleOrder> next = new LinkedHashMap<>();
 		for (var e : orders.entrySet()) next.put(e.getKey(), e.getValue().holding(ask ? shares.get(e.getKey()) : null));
-		if (!ask) return new Held(next, null, null);
+		if (!ask) return new Held(next, null, null, "From materials, " + String.join("; ", bounded(orders, shares)) + ".");
 		String why = !over.isEmpty() ? "The working modules' bills came to more than their measured bounds: " + String.join("; ", over) + "."
 			: "Architect can't quote the working modules' bills exactly (" + inexact + "), so I ask first.";
-		return new Held(next, null, why + " Their bills: " + String.join("; ", bills) + ".");
+		return new Held(next, null, why + " Their bills: " + String.join("; ", bills) + ".", null);
+	}
+
+	/** Each module's bill with its limit, for the words (Noah, 2026-11-15: the limit is shown with the quote). */
+	private static List<String> bounded(Map<String, ModuleOrder> orders, Map<String, JsonObject> shares) {
+		List<String> out = new ArrayList<>();
+		for (var e : orders.entrySet()) {
+			String name = ModuleKind.of(e.getValue().moduleId()).map(ModuleKind::role).orElse(e.getKey().replace('_', ' '));
+			JsonObject share = shares.get(e.getKey());
+			out.add("the working " + name + " takes " + (share == null || share.isEmpty() ? "nothing" : ModuleBound.bill(share, 1000)) + " (its measured limit: "
+				+ ModuleBound.bill(e.getValue().bound(), 1000) + ")");
+		}
+		return out;
 	}
 
 	/** What the steward says of a module lot left out of the town ({@code name}: the lot's own words; {@code why}: {@link Decision#why}). Pure. */

@@ -730,9 +730,8 @@ cost is spent by then, as for any stopped build. The lamp fallback is said as to
 - **The rest of the town** (designed lots, streets, land, the irrigation shells, which plan/0 bills in its tiles) is billed as a Supplied
   plan v1 town is today: said, not bounded. The measured bound covers a growth's lanes and shells as well, so a module's own lot piece is
   below it on level land; a big foundation on a slope is held and asked.
-- **Question for Noah:** is a module's bound set by the steward from its measurement at the realise, with no separate approval at Start,
-  right for a composed town? Start approves the plan, and in a Supplied town today the whole bill is said, not bounded; the module bound only
-  adds a hold.
+- **Noah (2026-11-15, PLAN Decisions):** the bound comes from the measurement and is shown with the quote, not at Start. The steward says
+  each module's bill and its bound when the quote is in; past it, the build holds and asks.
 
 **7. Never a pad.** `fitting()` and `palette()` leave a lot whose design breaks the approved box or a palette rule a pad. A module lot they
 would drop refuses the realise instead, said, with nothing placed. The designed lots keep today's rule.
@@ -788,9 +787,8 @@ survival quoted again for the new artifact (the cleared key is the artifact and 
     and the brief keeps M5 on it until QD (Architect v0.73.0, BC-d). `maxBill` is also one cap over the whole region, so it can't hold two
     modules apart. It comes with QD, for the whole composed realise.
   - **B2, the shells.** Only the module's own pieces (`lot:`, `fill:`) are held to its bound; IRR's shells and the module's share of the
-    streets are billed with the town's ground. On level land that is about 5 items per source. **Question for Noah:** is that weaker hold
-    (the module's own pieces only, its shells with the town's ground) right, or should a composed module wait until its shells can be told
-    apart? (Separate from the question in 6, whether the steward may set the bound.)
+    streets are billed with the town's ground. On level land that is about 5 items per source. **Noah (2026-11-15):** yes, the shells and the
+    street share are billed with the town's ground.
   - **S7, filled halls.** `HallCargo` counts every item in a hall, so FK's declared filter contents would refuse an undo. That only matters for
     `storage_hall@2`: M4b's own slice makes `HallCargo` FK-aware. `storage_hall@1` holds no fill.
   - **S11, in game.** The in-game strict scenarios are M5's second half (the brief): a stocked over-bound hold, partial building and undo, a

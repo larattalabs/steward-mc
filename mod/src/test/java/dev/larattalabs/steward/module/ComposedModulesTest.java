@@ -291,6 +291,7 @@ class ComposedModulesTest {
 		var within = ComposedModules.held(parts, orders, null);
 		assertNull(within.refused());
 		assertNull(within.ask(), "the town's own tiles are not the modules'");
+		assertTrue(within.said().contains("crop farm takes 120 dirt (its measured limit: 130 dirt)"), within.said());
 		assertNull(within.orders().get("farm_1").held());
 		// one past its bound: every order holds its share for the player's word
 		orders.put("hall_1", order("storage_hall", "{\"minecraft:oak_planks\": 80}"));

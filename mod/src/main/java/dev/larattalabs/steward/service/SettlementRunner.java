@@ -3135,6 +3135,8 @@ public final class SettlementRunner {
 				return;
 			}
 			persist();
+			// (Noah, 2026-11-15) each module's limit is shown with the quote
+			if (verdict.said() != null) say(verdict.said());
 			quoteCleared = key;
 			realiseVillage();
 		}));
