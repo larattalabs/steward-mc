@@ -82,8 +82,8 @@ public final class ModuleOffer {
 				if (!town.built()) return Decision.no("the town is still being built from the stockpile (" + town.percent() + "%): a working " + kind.role() + " can go in once it's built");
 			}
 			case ADOPT -> {
-				// Architect's IG refuses water in an adopted town (its one `adopted` stage has none between the pads and the lots): ARCHITECT-ASKS S-M5-8
-				if (kind.irrigate()) return Decision.no("a street town can't take a watered field yet (Architect irrigates only towns it laid out)");
+				// (slice A2L) Architect's IG-b (v0.66.0, S-M5-8) gives an adopted town's irrigated growth its own street, lots and fluids stages, so a
+				// watered module grows there too. The ADOPT path is creative only (ModuleOffers: the world builds at once, a Patron settlement)
 			}
 			default -> { }
 		}

@@ -84,27 +84,73 @@ class GrowthsTest {
 	}
 
 	@Test
-	void aGrowthStillBuiltFromTheStockpileIsNotTakenUpUntilBuilt() {
-		// (slice A2) the head revision, its town's targets not all built: nothing asked
-		var d = Growths.decide(false, false, null, 2, "PLACED", 2, true);
-		assertEquals(Step.BUILDING, d.step());
-		assertTrue(d.why().contains("stockpile"), d.why());
-		// built: taken up as slice A's
-		assertEquals(Step.UNDO, Growths.decide(false, false, null, 2, "PLACED", 2, false).step());
-		assertEquals(1, Growths.decide(false, false, null, 2, "PLACED", 2, false).toPosition());
-		// a newer change above it is said first (its unbuilt targets are the newer one's)
-		assertEquals(Step.NEWER, Growths.decide(false, false, null, 3, "PLACED", 2, true).step());
-		// its own take-up cut short resumes, built or not (Architect's same-target call joins it)
+	void aGrowthStillBuiltFromTheStockpileIsTakenUpNow() {
+		// (slice A2L, Architect RU) the head revision, ended, its targets not all built: taken up (RU cancels and refunds them); nothing is BUILDING
+		var d = Growths.decide(false, false, null, 2, "PLACED", 2, false);
+		assertEquals(Step.UNDO, d.step());
+		assertEquals(1, d.toPosition());
+		// still writing (Architect's writingToCancel): taken up now, before the busy wait
+		var w = Growths.decide(false, false, "revising 2", 2, "PLACING", 2, true);
+		assertEquals(Step.UNDO, w.step());
+		assertEquals(1, w.toPosition());
+		// not writing (creative, another rid's busy, ...): busy and placing still wait
+		assertEquals(Step.WAIT, Growths.decide(false, false, "revising 2", 2, "PLACING", 2, false).step());
+		assertEquals(Step.WAIT, Growths.decide(false, false, null, 2, "ACCEPTED", 2, false).step());
+		// writing read with the head elsewhere (Growths.writing never says so; the pure form still never takes it): the busy wait
+		assertEquals(Step.WAIT, Growths.decide(false, false, "revising 3", 3, "PLACING", 2, true).step());
+		// a newer change, its own take-up resuming, gone, unknown, removing: as slice A
+		assertEquals(Step.NEWER, Growths.decide(false, false, null, 3, "PLACED", 2, false).step());
 		assertEquals(Step.UNDO, Growths.decide(false, false, "undoing u1", 2, "UNDOING", 2, true).step());
-		// busy, still placing, gone, unknown: as slice A, whatever the build
-		assertEquals(Step.WAIT, Growths.decide(false, false, "revising 2", 2, "PLACING", 2, true).step());
-		assertEquals(Step.WAIT, Growths.decide(false, false, null, 2, "ACCEPTED", 2, true).step());
 		assertEquals(Step.GONE, Growths.decide(false, false, null, 1, "UNDONE", 2, true).step());
 		assertEquals(Step.GONE, Growths.decide(true, false, null, 0, null, 0, true).step());
 		assertEquals(Step.UNKNOWN, Growths.decide(false, false, null, 2, null, 0, true).step());
-		assertEquals(Step.WAIT, Growths.decide(false, true, null, 2, "PLACED", 2, true).step(), "the town being removed: later");
-		// the six-argument form is never building
-		assertEquals(Step.UNDO, Growths.decide(false, false, null, 2, "PLACED", 2).step());
+		assertEquals(Step.WAIT, Growths.decide(false, true, "revising 2", 2, "PLACING", 2, true).step(), "the town being removed: later");
+	}
+
+	@Test
+	void aRevisionIsWritingOnlyAsArchitectsUndoCancelsIt() {
+		// Revisions.writingToCancel: survival, busy "revising <rid>" of this rid, the region PLACING, the rid the head
+		assertTrue(Growths.writing(true, "revising 2", true, 2, 2, 2));
+		assertTrue(Growths.writing(true, "revising  2 ", true, 2, 2, 2), "its rid read trimmed");
+		assertFalse(Growths.writing(false, "revising 2", true, 2, 2, 2), "a creative town: OVERLAP_BUSY");
+		assertFalse(Growths.writing(true, "revising 3", true, 2, 3, 2), "another revision is being written");
+		assertFalse(Growths.writing(true, "revising 2", false, 2, 2, 2), "the region not placing");
+		assertFalse(Growths.writing(true, "revising 2", true, 2, 3, 2), "not the head");
+		assertFalse(Growths.writing(true, "undoing u1", true, 2, 2, 2));
+		assertFalse(Growths.writing(true, null, true, 2, 2, 2));
+		assertFalse(Growths.writing(true, "revising x", true, 2, 2, 2));
+	}
+
+	@Test
+	void aGrowthsCompletionIsReadByItsTag() {
+		String tag = Growths.tag("rg_a", 2);
+		var s = dev.larattalabs.steward.model.Settlement.founded("set_c", "C", new dev.larattalabs.steward.model.Claim("minecraft:overworld", 0, 0, 32, -64, 320),
+			dev.larattalabs.steward.model.Permission.PROPOSALS, dev.larattalabs.steward.model.Difficulty.SUPPLIED, 1L);
+		var placed = dev.larattalabs.steward.model.Settlement.LogEntry.of(2L, dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED, "Placed 1 building",
+			List.of(new dev.larattalabs.steward.model.Settlement.SiteChange("s1", "library", 0, 1)), tag, dev.larattalabs.steward.model.Settlement.Outcome.DONE);
+		s = s.withLog(placed);
+		assertFalse(Growths.completed(s, tag), "placed only");
+		// an orphan note with the tag is not a completion
+		s = s.withLog(new dev.larattalabs.steward.model.Settlement.LogEntry(3L, dev.larattalabs.steward.model.Settlement.Kind.NOTE, VillageSweep.ORPHAN + " (" + tag + ")",
+			List.of(), tag));
+		assertFalse(Growths.completed(s, tag));
+		// another growth's removal is not this one's
+		var other = s.withLog(Undo.removedGrowth(placed, List.of("s1"), Growths.tag("rg_a", 3), java.util.Map.of()));
+		assertFalse(Growths.completed(other, tag));
+		// its tagged removal is, and so is the empty take-up's note
+		assertTrue(Growths.completed(s.withLog(Undo.removedGrowth(placed, List.of("s1", "s9"), tag, java.util.Map.of())), tag));
+		assertTrue(Growths.completed(s.withLog(new dev.larattalabs.steward.model.Settlement.LogEntry(4L, dev.larattalabs.steward.model.Settlement.Kind.NOTE,
+			Growths.NOT_PLACED + " (cancelled)", List.of(), tag)), tag));
+		// an untagged note with those words (before A2L) is not
+		assertFalse(Growths.completed(s.withLog(new dev.larattalabs.steward.model.Settlement.LogEntry(4L, dev.larattalabs.steward.model.Settlement.Kind.NOTE,
+			Growths.NOT_PLACED + " (cancelled)", List.of())), tag));
+	}
+
+	@Test
+	void aGrowthsRemovalNamesTheEntrysSitesAndAnyTheRevisionGained() {
+		assertEquals(List.of("s1", "s2", "s3"), Undo.removalSites(List.of("s1", "s2"), List.of("s2", "s3")));
+		assertEquals(List.of("s1"), Undo.removalSites(List.of("s1"), List.of()));
+		assertEquals(Growths.NOT_PLACED, "The addition was not placed");
 	}
 
 	@Test

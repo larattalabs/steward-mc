@@ -283,7 +283,19 @@ public final class VillageSweep {
 		{
 			for (var r : town.get().revisions()) {
 				String tag = Growths.tag(town.get().id(), r.rid());
-				if (TAKING.contains(tag) || s.log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && tag.equals(e.siteGroup()))) continue;
+				if (TAKING.contains(tag)) continue;
+				var named = Undo.headEntry(s, tag);
+				if (s.log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && tag.equals(e.siteGroup()))) {
+					// (slice A2L) a growth whose undo Architect finished on its own (a restart cut Steward's take-up short, and Architect resumed it at the
+					// world start): its removal logged once, here, when nothing of Steward's still owns it
+					if (named.isPresent() && reconcileDue(s, tag, r.state(), SettlementRunner.busy(s.id()))) {
+						if (Undo.complete(s.id(), named.get(), new Growths.Ref(town.get().id(), r.rid()), Map.of())) {
+							Steward.LOGGER.info("{}: growth {} was taken up by Architect after a restart: its removal logged", s.id(), tag);
+							MaterialRequests.forgetIfBuilt(town.get().id());
+						} else Steward.LOGGER.warn("{}: growth {}'s removal could not be logged; tried again", s.id(), tag);
+					}
+					continue;
+				}
 				boolean noted = orphanOpen(s, tag);
 				String st = r.state() == null ? "" : r.state().toUpperCase(java.util.Locale.ROOT);
 				if (st.equals("UNDONE") || st.equals("STALE")) {
@@ -305,10 +317,11 @@ public final class VillageSweep {
 					SWEEPING.add(s.id());
 					Undo.mark(s.id(), true);
 					Growths.undo(server, s.owner(), ref, m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> {
+						// the world closed meanwhile: these sets were cleared at its stop and may be a new world's now (slice A2L review 5)
+						if (ok == null) return;
 						TAKING.remove(tag);
 						SWEEPING.remove(s.id());
 						Undo.mark(s.id(), false);
-						if (ok == null) return;
 						var now = Settlements.store().get(s.id()).orElse(s);
 						if (ok) { close(now, tag, "taken up"); return; }
 						// only Architect having no such revision closes it; a newer change above it (NEWER) keeps the note open, so it is taken up once that
@@ -330,9 +343,31 @@ public final class VillageSweep {
 				if (Growths.fromMaterials(town.get())) MaterialRequests.watchBuild(s.id(), town.get().id());
 				TAKING.add(tag);
 				SWEEPING.add(s.id());
-				Undo.growth(server, saved, entry, ref, Map.of(), m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> { TAKING.remove(tag); SWEEPING.remove(s.id()); });
+				Undo.growth(server, saved, entry, ref, Map.of(), m -> Steward.LOGGER.info("{}: {}", s.id(), m), ok -> { if (ok == null) return; TAKING.remove(tag); SWEEPING.remove(s.id()); });
 				return true;
 			}
+		}
+		return false;
+	}
+
+	/**
+	 * (slice A2L) Whether the sweep logs a growth's removal now: its revision reads UNDONE, its completion is not in the history, and nothing of
+	 * Steward's owns its take-up ({@code owned}: a build, an undo or a district road running for the settlement, {@code SettlementRunner.busy}). A
+	 * revision still UNDOING is left to Architect, which resumes it. Pure.
+	 */
+	static boolean reconcileDue(Settlement s, String tag, @org.jspecify.annotations.Nullable String revState, boolean owned) {
+		return !owned && "UNDONE".equalsIgnoreCase(revState) && !Growths.completed(s, tag) && Undo.headEntry(s, tag).isPresent();
+	}
+
+	/**
+	 * (slice A2L) Whether a growth of the region waits for this reconcile (its revision UNDONE, its entry standing): the town's build watch says nothing
+	 * meanwhile. Pure over the view.
+	 */
+	static boolean reconcilePending(Settlement s, dev.larattalabs.architect.api.RegionView v) {
+		if (v.revisions() == null) return false;
+		for (var r : v.revisions()) {
+			String tag = Growths.tag(v.id(), r.rid());
+			if ("UNDONE".equalsIgnoreCase(r.state()) && !Growths.completed(s, tag) && Undo.headEntry(s, tag).isPresent()) return true;
 		}
 		return false;
 	}

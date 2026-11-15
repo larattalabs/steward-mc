@@ -75,12 +75,12 @@ class ModuleOfferTest {
 	}
 
 	@Test
-	void anAdoptedStreetTownTakesADryModuleButNotAWateredOne() {
+	void anAdoptedStreetTownTakesADryModuleAndAWateredOne() {
 		assertTrue(decide(town(Path.ADOPT, Map.of("minecraft:wheat_seeds", 81)), null).ok(), "the fixture has no water: slice B grows it");
 		var wet = new Wet();
+		// (slice A2L) Architect's IG-b waters an adopted town's growth (creative only: the ADOPT path is)
 		var d = ModuleOffer.decide(wet, ok(), town(Path.ADOPT, Map.of("minecraft:wheat_seeds", 81)), null, (e, p) -> BOUND);
-		assertFalse(d.ok());
-		assertTrue(d.why().contains("watered"), d.why());
+		assertTrue(d.ok(), d.why());
 		var frozen = new Town(Path.REGION, null, true, 100, false, true, Map.of("minecraft:wheat_seeds", 81), Map.of());
 		assertTrue(ModuleOffer.decide(wet, ok(), frozen, null, (e, p) -> BOUND).why().contains("freeze"));
 	}
@@ -132,8 +132,9 @@ class ModuleOfferTest {
 		assertTrue(d.order().rate().contains("carrot"), d.order().rate());
 		// 340 carrots plant 18x18 at most? the largest size whose field those plant
 		assertTrue(c.cells(d.order().params()) <= 340);
-		// in an adopted street town: never (IRR can't water it, S-M5-8)
-		assertFalse(ModuleOffer.decide(c, v, new Town(Path.ADOPT, null, true, 100, false, false, Map.of("minecraft:wheat_seeds", 80), Map.of()), null).ok());
+		// (slice A2L) in a creative adopted street town too: Architect's IG-b waters it (S-M5-8)
+		var adopted = ModuleOffer.decide(c, v, new Town(Path.ADOPT, null, true, 100, false, false, Map.of("minecraft:wheat_seeds", 80), Map.of()), null);
+		assertTrue(adopted.ok(), adopted.why());
 	}
 
 	/** A watered, warm-only kind like crop_farm, on the fixture's catalog entry. */
