@@ -645,6 +645,125 @@ Branch `storage-hall`. The design, bars and GPT design review are in `docs/MEASU
 - **Certified** on 26.3 / Architect 0.67.0 (docs/MEASURE-M4.md section 6). GPT design review and diff review, both taken (sections 5, 7).
 - **No save format changes.**
 
+### M5 design (2026-11-15, slice M5a: the $0 half)
+
+Branch `m5-composed` off `batch-072b` (main + Architect 0.72.0 + CA2). Section 4.6 says what M5 is. This section says how, checked against
+Architect 0.72.0 (CONTRACT, `kit/schemas/plan.json`, the API). The paid compose, the in-game flows and the gate (a sorting hall, M4b's
+`storage_hall@2`) are M5's second half.
+
+**What Architect already takes (0.72.0, no new member needed).**
+- plan/0's `$defs.lot` holds a module lot whole: `type`, `size [W, D]` (5 to 64), `irrigate` (IRR), `field {cells, crops}` (FC: compiled for a
+  first realise too, `emitFields`), `ext` (C19: copied to the lot's site) and `entry`.
+- The artifact's `$.lots[]` (C36) gives each lot `box`, `front`, `fitBox` and `costRange`, and an irrigated lot its `irrigation {frame,
+  lotCells, ...}` (S-IRR-2), which is what the variant's reserved cells come from (`PPlan.reserved`, as for designed farm lots).
+- `Regions.quoteApproved(artifactSha, lotEntries)` (QT) bills a realise of the artifact, per piece: `lot:<id>`, `fill:<id>` (FK), `tiles:*`,
+  `road:*`, `mech:*`, `fluids`.
+- `realiseApproved` takes the module entries in `lotEntries`. Its `costRange` test (`cols x 16` non-air cells, `PROVISIONAL_BAND`) is far
+  above any measured module: a 27x27 farm writes at most 2,771 cells on a 29x30 lot (13,920 allowed).
+- So no Architect change is needed for M5. Two things are asked to be confirmed (ARCHITECT-ASKS.md, "M5 asks (draft)"): that a lot's box is
+  its `size` exactly in every lots layout, and that FK's fill runs on a lot of a first realise (`realiseApproved`) as it does on a growth.
+
+**1. The composer names a module (the vocabulary).**
+- `ComposeJob.hints` gains `modules`: the catalog modules the gate offers now (`ModuleOffers.kinds()` and their verdicts; a dev source's
+  fixture only in a dev environment). So M4b's `storage_hall@2` joins with no code change. Each entry: `{id, lotType, role, title, irrigate,
+  warmOnly, sizes: [{params, size: [W, D]}], choose: {param, values}}` (the crop farm's crops, the hall's bulk chests).
+- prompts/compose-rules.md gains one rule, "Working modules". When the card asks for a working, automatic or self-feeding farm, or for
+  storage that sorts or keeps the stores in order, write one lot from `modules` as:
+  `{id: <wanted type>_n, type: <lotType>, role, label, size: <one of its sizes>, irrigate: true when it says so, ext: {"steward_mc:module":
+  {id, params, for: <the wanted type it stands for>}}}`.
+  - At most one lot of each module a plan.
+  - Never `field`, never a version or program sha: Steward writes them.
+  - Anything the card asks for that the modules don't cover is an ordinary lot, as today.
+- **The key.** The compose key is the card's sha. With modules in the hints, a catalog change under the same card would be the same key with
+  another body: Architect refuses that `OP_KEY_CONFLICT`. So when `modules` is not empty, the key's sha covers the card and the vocabulary
+  (ids, versions, program shas). A card composed with no modules keeps its key byte for byte (an old world's adopted compose).
+- `ComposeJob.missing` counts a module lot under its `for` as well as its type, so a "farm" the plan makes a crop farm isn't told as not
+  in the plan.
+- A waiting part's compose (`partRequest`) gets no modules in phase 5.
+
+**2. Reading and binding at the Start re-check** (`planComposed`, before `Composer.check`).
+- `ComposedModules.read(plan)` takes every lot of every zone whose ext names `steward_mc:module` with an `id`: its lot id, module id,
+  params as written and `for`.
+- `ComposedModules.decide` gives each one an order, or a refusal in words:
+  - the kind is known, and the gate's verdict now is `ok`;
+  - one lot of each module (a second is refused);
+  - a warm-only module in a biome that freezes is refused;
+  - from materials (Supplied) the measurement has a bound for those params;
+  - the params: those written when they are a measured branch, else the measured size whose frame is the lot's `size` (either way round),
+    else the smallest. The crop or bulk choice as written when it is measured, else the kind's default. A change is said.
+  The order is today's `ModuleOrder` (id, version, program sha, params, bound null for now, rate, not autonomous, no proposal).
+- **The lot as built** is Steward's, written into the plan the build checks (`builtPlan`, deterministic, so a stale re-check checks the
+  same lot):
+  - `type`, `size`, `irrigate` and `field` come from `ModuleKind.growLot` (M2's and M4's own geometry);
+  - `steward_mc:module` is the full `ModuleRef` (id, version, program sha, params);
+  - the plan's id, role, label, landmark and placement are kept.
+- **A refused module lot is left out of the plan as built** (removed from its zone's lots before the check), and said: "A working crop
+  farm can't be built here: the water would freeze in this biome. It is left out of the town." It is never designed as an ordinary
+  building in its place (that would be a paid design the player didn't approve, 4.1) and never left a pad. **Question for Noah:** left out
+  (the default), or designed as an ordinary building at the build's own design cost?
+- **The orders are saved with the build** (`moduleOrders`, BuildStore format 6, lotId -> order) when the checked artifact is kept, beside
+  `vPlanId = artifact:<sha>`. No save format changes.
+
+**3. Designs.** The design group (`GroupPlanner.build`) is given the plan without its module lots: a module lot is never designed.
+`moduleBuild()` (M3's "no design at all, $0") stays for a growth's lone module. A composed build is a design build that also holds
+module lots (`composedModules()`: orders with an artifact plan). Every path that reads `moduleBuild()` keeps M3's meaning.
+
+**4. The palette, as soon as the Style is made.** A plan v1 town's bible is made after the plan. When it is approved (`BibleDone`), before
+the design group is asked for, each module's `PaletteCheck` runs over it. A bible a module can't dress stops the build before anything more
+is spent: "The town's style can't dress the working storage hall: its walls must be full blocks. Nothing more was spent." The bible's
+cost is spent by then, as for any stopped build. The lamp fallback is said as today.
+
+**5. Binding at the realise** (`realiseVillage`, the composed branch), each module lot in turn, as M3 does on a growth:
+- its geometry from the artifact's lot (`ComposedModules.geometry`: box, floor, front, frame, irrigation cells, in M3's canonical shape);
+- the artifact's box must be the module's frame (W x D seen from its front) exactly, else refused before anything is placed;
+- the binding saved before the variant is asked (`steward.<build>.module.<lot>`), found by key first after a restart;
+- the variant made with the bible, the params and the irrigation cells as reserved (`PPlan.reserved` of that lot).
+
+**6. The bill, in survival** (a Supplied town; main's exact-bound path, no QD):
+- **The bound** is set when the lot is bound: the measured bound for the params in the town's blocks (`ModuleOffers.bound` with the bible's
+  items, 4.4 and M3's `StyleBound`), saved in the order before anything is quoted.
+- **The quote** is `quoteApproved(sha, every lot's entry)`. Each module lot's pieces (`lot:<id>` plus `fill:<id>`) are held to its bound
+  (`ModuleBound.over`), with M3's exactness rules (`quoteCheck`: a part unbilled refuses, a "may differ" asks).
+- **Over the bound**, the build holds and asks (`HoldBill`, nothing consumed); approving makes that module's part of the bill its bound, as
+  in M3. Two module lots are held each to its own bound, in one quote.
+- **The rest of the town** (designed lots, streets, land, the irrigation shells, which plan/0 bills in its tiles) is billed as a Supplied
+  plan v1 town is today: said, not bounded. The measured bound covers a growth's lanes and shells as well, so a module's own lot piece is
+  below it on level land; a big foundation on a slope is held and asked.
+- **Question for Noah:** is a module's bound set by the steward from its measurement at the realise, with no separate approval at Start,
+  right for a composed town? Start approves the plan, and in a Supplied town today the whole bill is said, not bounded; the module bound only
+  adds a hold.
+
+**7. Never a pad.** `fitting()` and `palette()` leave a lot whose design breaks the approved box or a palette rule a pad. A module lot they
+would drop refuses the realise instead, said, with nothing placed. The designed lots keep today's rule.
+
+**8. A stale artifact.** `ARTIFACT_STALE` at the realise re-checks the same plan (`frozenPlan`) and realises the new artifact. With module
+lots, the realise goes back through the composed branch: a lot whose geometry moved is bound again under the next key (`.<n>`), and in
+survival quoted again for the new artifact (the cleared key is the artifact and the entries), before the second realise.
+
+**9. Undo and restart.**
+- **Undo** of the town is `Regions.remove` (plan v1), through `Undo.region`. A storage hall holding items refuses it at once, said with its
+  chests, as a growth's undo does (`HallCargo.before` over the region's sites). Architect's own refusal is worded the same way.
+- **Restart:** the orders and bindings are saved with the build (format 6). A build at READY_TO_PLACE resumes through `realiseVillage`, where
+  each binding finds its variant by key and the quote is asked again (the cleared quote is not saved, as in M3).
+
+**10. Sim and tests ($0).**
+- **Unit tests:**
+  - the vocabulary and its key;
+  - reading, deciding and refusing, with their words;
+  - the lot as built (`growLot`, ext, the plan's own fields kept);
+  - geometry from an artifact lot, every front;
+  - the frame check;
+  - the per-lot bill check over `bomParts`, two lots;
+  - `missing` with `for`;
+  - the group plan without module lots;
+  - a format-6 build holding composed orders, saved and read back.
+- **The sim path.** Architect's sim helper scripts a compose's rounds (`architect:simCompose`, from `SimAnswers.PLAN`). The e2e's in-game flow
+  (second half) sets a plan with a crop farm and a storage hall lot (`fixtures/compose/modules-plan.json`). Realises then run on the sim
+  helper at $0: the variants are given programs, and the designs are sim designs.
+
+**Not in M5a:** the in-game flows (a composed farm and hall instant and from materials, a restart between binding and realise, a stale
+artifact, an undo refused for cargo); the paid compose of a few cards; the gate (needs `storage_hall@2`, M4b).
+
 ## 9. Noah's answers (2026-11-12)
 
 Noah, in the Steward manager session: "Go with option 1, defaults/recommendations for the rest". Option 1 is phase 5b (section 3.3). The six
