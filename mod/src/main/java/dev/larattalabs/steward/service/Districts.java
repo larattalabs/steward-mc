@@ -1,7 +1,6 @@
 package dev.larattalabs.steward.service;
 
 import com.google.gson.JsonObject;
-import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.Mode;
 import dev.larattalabs.architect.api.RemoveOptions;
 import dev.larattalabs.architect.api.RoadRequest;
@@ -97,7 +96,7 @@ public final class Districts {
 		if (points == null) return "The road's way is not loaded: stand nearer the " + DistrictRules.directionName(dir) + " edge of " + s.name() + " and try again.";
 		String label = name == null || name.isBlank() ? "the " + DistrictRules.directionName(dir) + " district" : name.strip();
 		RoadRequest req = road(level, points, s, FOUNDING_ROLE, actor);
-		var sites = ArchitectApi.get().sites(server);
+		var sites = ArchitectAccess.api().sites(server);
 		var check = sites.checkRoad(req);
 		if (!check.ok()) return "The road to " + label + " cannot be laid: " + reasons(check.refusals());
 		int session = Session.current();
@@ -141,7 +140,7 @@ public final class Districts {
 		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) return null;
 		try {
 			var id = TownRegion.of(s);
-			return id.isEmpty() ? null : ArchitectApi.get().regions().get(id.get()).orElse(null);
+			return id.isEmpty() ? null : ArchitectAccess.api().regions().get(id.get()).orElse(null);
 		} catch (RuntimeException | LinkageError e) {
 			Steward.LOGGER.info("the town region of {} can't be read ({}): a square district", s.id(), e.toString());
 			return null;
@@ -154,7 +153,7 @@ public final class Districts {
 	/** A region Architect holds (not removed) that was realised for district {@code districtId} of the settlement {@code owner}. */
 	static java.util.Optional<String> liveRegionOf(String owner, String districtId) {
 		try {
-			return ArchitectApi.get().regions().list(owner).stream()
+			return ArchitectAccess.api().regions().list(owner).stream()
 				.filter(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVED && v.ext().has(DISTRICT_EXT) && v.ext().get(DISTRICT_EXT).isJsonPrimitive()
 					&& districtId.equals(v.ext().get(DISTRICT_EXT).getAsString()))
 				.map(dev.larattalabs.architect.api.RegionView::id).findFirst();
@@ -192,7 +191,7 @@ public final class Districts {
 	static java.util.Map<String, dev.larattalabs.steward.model.Land.Rect> quarterStrips(Settlement s, dev.larattalabs.steward.model.Proposal.Quarter q) {
 		java.util.Map<String, dev.larattalabs.steward.model.Land.Rect> out = new java.util.LinkedHashMap<>();
 		try {
-			var town = TownRegion.of(s).flatMap(id -> ArchitectApi.get().regions().get(id));
+			var town = TownRegion.of(s).flatMap(id -> ArchitectAccess.api().regions().get(id));
 			if (town.isEmpty()) return out;
 			var b = town.get().claim();
 			int depth = "outpost".equals(q.kind()) ? DistrictRules.OUTPOST_DEPTH : DistrictRules.ALONG_DEPTH;
@@ -236,7 +235,7 @@ public final class Districts {
 	static boolean takes(Settlement.District d) {
 		boolean grows;
 		try {
-			grows = ArchitectApi.get().features().contains(Growths.FEATURE);
+			grows = ArchitectAccess.api().features().contains(Growths.FEATURE);
 		} catch (RuntimeException | LinkageError e) {
 			grows = false;
 		}
@@ -274,7 +273,7 @@ public final class Districts {
 		var d = s.get().lands().districts().stream().filter(x -> grows(x) && region.equals(x.region())).findFirst();
 		if (d.isEmpty()) return;
 		try {
-			var v = ArchitectApi.get().regions().get(region);
+			var v = ArchitectAccess.api().regions().get(region);
 			if (v.isEmpty() || !settled(v.get())) return;
 			var read = dev.larattalabs.steward.gateway.DistrictLand.outsideWhole(v.get().ext(), d.get().claim().dimension());
 			var land = landAfter(d.get(), read, s.get().lands().districts());
@@ -305,7 +304,7 @@ public final class Districts {
 		var d = s.lands().district(districtId);
 		if (d.isEmpty() || region == null) return null;
 		try {
-			var v = ArchitectApi.get().regions().get(region);
+			var v = ArchitectAccess.api().regions().get(region);
 			if (v.isEmpty()) return null;
 			var b = v.get().claim();
 			var box = dev.larattalabs.steward.model.Land.ofRect(d.get().claim().dimension(), b.minX(), b.minZ(), b.maxX(), b.maxZ());
@@ -316,7 +315,7 @@ public final class Districts {
 				for (Settlement.District od : o.lands().districts()) others.add(od.land());
 			}
 			// the town's own region claim (Architect's, which an Expand of the settlement's claim never moves), else the settlement's claim
-			var parent = d.get().parent() == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : ArchitectApi.get().regions().get(d.get().parent());
+			var parent = d.get().parent() == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : ArchitectAccess.api().regions().get(d.get().parent());
 			var town = parent.map(t -> dev.larattalabs.steward.model.Land.ofRect(d.get().claim().dimension(), t.claim().minX(), t.claim().minZ(), t.claim().maxX(),
 				t.claim().maxZ())).orElse(dev.larattalabs.steward.model.Land.of(s.claim()));
 			return growthConflict(box, town, d.get(), s.lands().districts(), others);
@@ -446,7 +445,7 @@ public final class Districts {
 		say.accept("Asking Architect whether " + label + " can join the town's street...");
 		java.util.concurrent.CompletableFuture<dev.larattalabs.architect.api.BesideVerdict> check;
 		try {
-			check = ArchitectApi.get().regions().checkBeside(req);
+			check = ArchitectAccess.api().regions().checkBeside(req);
 		} catch (RuntimeException | LinkageError e) {
 			LAYING.remove(s.id());
 			return "Architect can't check a district beside the town here (" + e.getMessage() + ").";
@@ -488,7 +487,7 @@ public final class Districts {
 		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) throw new IllegalStateException("A quarter isn't built from materials yet.");
 		var townId = TownRegion.of(s);
 		if (townId.isEmpty()) throw new IllegalStateException("A quarter goes beside a town Architect laid out, and " + s.name() + "'s town isn't one (or was undone).");
-		var town = ArchitectApi.get().regions().get(townId.get()).orElseThrow(() -> new IllegalStateException("The town's region can't be read."));
+		var town = ArchitectAccess.api().regions().get(townId.get()).orElseThrow(() -> new IllegalStateException("The town's region can't be read."));
 		var b = town.claim();
 		int depth = "outpost".equals(q.kind()) ? DistrictRules.OUTPOST_DEPTH : DistrictRules.ALONG_DEPTH;
 		var p = DistrictRules.quarter(s.claim(), new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()}, s.lands().districts(), Settlements.others(s.id()),
@@ -532,7 +531,7 @@ public final class Districts {
 		Set<String> known = new HashSet<>();
 		for (Settlement.District d : s.get().lands().districts()) d.roads().forEach(r -> known.add(r.siteId()));
 		List<String> orphans = new ArrayList<>();
-		for (SiteView v : ArchitectApi.get().sites(server).list(s.get().owner())) {
+		for (SiteView v : ArchitectAccess.api().sites(server).list(s.get().owner())) {
 			// only the steward's own district roads: a road site marked as one (never a building, whatever its role says)
 			String infra = v.ext() != null && v.ext().has(INFRA) && v.ext().get(INFRA).isJsonPrimitive() ? v.ext().get(INFRA).getAsString() : "";
 			if ("road".equals(v.kind()) && (FOUNDING_ROLE.equals(infra) || LINK_ROLE.equals(infra)) && !known.contains(v.id())) orphans.add(v.id());
@@ -546,7 +545,7 @@ public final class Districts {
 		// a district region Architect placed after its build let go (an answer lost, and its realise slower than the build's wait): no district names it,
 		// so it is taken up as the orphan it is (the world-start sweep does the same for one left across a restart)
 		try {
-			for (var v : ArchitectApi.get().regions().list(s.get().owner())) {
+			for (var v : ArchitectAccess.api().regions().list(s.get().owner())) {
 				if (v.state() == dev.larattalabs.architect.api.RegionState.REMOVED || v.state() == dev.larattalabs.architect.api.RegionState.REMOVING) continue;
 				if (!v.ext().has(DISTRICT_EXT) || !v.ext().get(DISTRICT_EXT).isJsonPrimitive()) continue;
 				if (s.get().lands().districts().stream().anyMatch(d -> v.id().equals(d.region()))) continue;
@@ -583,7 +582,7 @@ public final class Districts {
 	/** Removes a road the settlement does not record, says how that went, then runs {@code done}. */
 	private static void takeUp(MinecraftServer server, Settlement s, String siteId, String why, Consumer<String> say, Runnable done) {
 		int session = Session.current();
-		ArchitectApi.get().sites(server).remove(siteId, new RemoveOptions(false, s.owner())).whenComplete((rr, e) -> {
+		ArchitectAccess.api().sites(server).remove(siteId, new RemoveOptions(false, s.owner())).whenComplete((rr, e) -> {
 			if (!Session.is(session)) return;
 			if (e == null && rr.removed()) say.accept(why + ": the road was taken up again.");
 			else say.accept(why + ", and the road " + siteId + " could not be taken up (" + (e != null ? message(e) : String.join(", ", rr.blockers()))
@@ -621,7 +620,7 @@ public final class Districts {
 			say.accept("The road to " + d.get().name() + "'s street was not laid: " + (why != null ? why : "its way is not loaded (tried again later)."));
 			return;
 		}
-		var sites = ArchitectApi.get().sites(server);
+		var sites = ArchitectAccess.api().sites(server);
 		int session = Session.current();
 		LAYING.add(settlementId);
 		sites.placeRoad(road(level, points, s.get(), LINK_ROLE, null)).whenComplete((r, err) -> {
@@ -651,7 +650,7 @@ public final class Districts {
 	public static String afterUndo(MinecraftServer server, String settlementId) {
 		var s = Settlements.store().get(settlementId);
 		if (s.isEmpty()) return "";
-		var sites = ArchitectApi.get().sites(server);
+		var sites = ArchitectAccess.api().sites(server);
 		List<String> said = new ArrayList<>();
 		for (Settlement.District d : s.get().lands().districts()) {
 			// a region district is given up with its region (docs/DISTRICTS.md section 4): once its region is confirmed gone and nothing of the settlement's
@@ -680,7 +679,7 @@ public final class Districts {
 
 	/** Whether a region is removed (its tombstone, or no record at all). */
 	static boolean regionGone(String region) {
-		var v = ArchitectApi.get().regions().get(region);
+		var v = ArchitectAccess.api().regions().get(region);
 		return v.isEmpty() || v.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED;
 	}
 
@@ -688,7 +687,7 @@ public final class Districts {
 	static boolean standsIn(MinecraftServer server, Settlement s, Settlement.District d) {
 		Set<String> roads = new HashSet<>();
 		d.roads().forEach(r -> roads.add(r.siteId()));
-		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
+		for (SiteView v : ArchitectAccess.api().sites(server).list(s.owner())) {
 			if (roads.contains(v.id())) continue;
 			var b = v.box();
 			if (d.land().contains(d.claim().dimension(), (b.minX() + b.maxX()) / 2, (b.minZ() + b.maxZ()) / 2)) return true;
@@ -705,7 +704,7 @@ public final class Districts {
 		// grows by revision (slice DG)
 		for (Settlement.District d : s.lands().districts()) if (takes(d)) per.put(d.id(), 0);
 		int town = 0;
-		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
+		for (SiteView v : ArchitectAccess.api().sites(server).list(s.owner())) {
 			if (!"building".equals(v.kind()) || BatchPlanner.isStreet(v.itemKey())) continue;
 			var b = v.box();
 			var in = s.districtAt(s.claim().dimension(), (b.minX() + b.maxX()) / 2, (b.minZ() + b.maxZ()) / 2);
@@ -781,7 +780,7 @@ public final class Districts {
 				var r = squares.get(k);
 				box = new net.minecraft.world.level.levelgen.structure.BoundingBox(r.x0(), level.getMinY(), r.z0(), r.x1(), level.getMaxY(), r.z1());
 			}
-			samples.add(ArchitectApi.get().survey().sample(level, box, PROFILE_RESOLUTION, dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY));
+			samples.add(ArchitectAccess.api().survey().sample(level, box, PROFILE_RESOLUTION, dev.larattalabs.architect.api.LoadPolicy.LOADED_ONLY));
 		}
 		int session = Session.current();
 		java.util.concurrent.CompletableFuture.allOf(samples.toArray(new java.util.concurrent.CompletableFuture[0])).whenComplete((v, err) -> server.execute(() -> {
@@ -819,12 +818,12 @@ public final class Districts {
 
 	/** The town's street (not a district's): its centre line and ends, or null before there is one. */
 	public static DistrictRules.@Nullable Street townStreet(MinecraftServer server, Settlement s) {
-		return streetOf(ArchitectApi.get().sites(server).list(s.owner()), s, null);
+		return streetOf(ArchitectAccess.api().sites(server).list(s.owner()), s, null);
 	}
 
 	/** A district's own street, or null before its first build. */
 	public static DistrictRules.@Nullable Street districtStreet(MinecraftServer server, Settlement s, Settlement.District d) {
-		return streetOf(ArchitectApi.get().sites(server).list(s.owner()), s, d);
+		return streetOf(ArchitectAccess.api().sites(server).list(s.owner()), s, d);
 	}
 
 	/**
@@ -952,7 +951,7 @@ public final class Districts {
 	/** The building (its role) a road along {@code pts} would run over, or null. */
 	static @Nullable String overBuilding(MinecraftServer server, Settlement s, List<Settlement.Pt> pts) {
 		var cells = DistrictRules.cells(pts, DistrictRules.ROAD_WIDTH);
-		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
+		for (SiteView v : ArchitectAccess.api().sites(server).list(s.owner())) {
 			if (!"building".equals(v.kind())) continue;
 			var b = v.box();
 			for (int[] c : cells) {

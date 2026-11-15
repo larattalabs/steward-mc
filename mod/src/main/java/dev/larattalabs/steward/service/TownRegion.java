@@ -1,6 +1,5 @@
 package dev.larattalabs.steward.service;
 
-import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.RegionState;
 import dev.larattalabs.steward.gateway.BatchPlanner;
 import dev.larattalabs.steward.gateway.VPlan;
@@ -25,7 +24,7 @@ public final class TownRegion {
 	}
 
 	public static Optional<String> of(Settlement s) {
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		return pick(s, id -> regions.get(id).map(v -> new Seen(v.state() != RegionState.REMOVED && v.state() != RegionState.REMOVING, v.beside(),
 			v.ext().has(BatchPlanner.BUILD_EXT) && v.ext().get(BatchPlanner.BUILD_EXT).isJsonPrimitive() ? v.ext().get(BatchPlanner.BUILD_EXT).getAsString() : null)));
 	}

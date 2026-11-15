@@ -286,13 +286,12 @@ public final class SettlementRunner {
 		if (second && batchId != null) return "Still stopping: what the build placed is being recorded first, so it can be undone. It ends on its own.";
 		// a growth realised or in flight: the same, its revision is recorded and taken up first (never dropped with the build's save)
 		if (second && growth() && (vRegionId != null || queueInFlight)) return "Still stopping: the town's change is being recorded and taken up first. It ends on its own.";
-		// (slice A2) a growth placed from materials can't be stopped part way (nothing cancels a revision's construction targets): it goes on, is logged
-		// once put down, and undo takes it up once it is built
-		if (!second && growth() && vRegionId != null && growRegion != null && ArchitectApi.get().regions().get(growRegion).map(Growths::fromMaterials).orElse(false))
-			return "The addition is being placed from materials and can't be stopped part way: it's built as the stockpile feeds it, and /steward undo "
-				+ settlement.id() + " takes it up once it's built.";
+		// (slice A2L, Architect RU) a growth placed from materials is cancelled part way: its revision is taken up, what it drew refunded
+		boolean fromMaterials = !second && growth() && vRegionId != null && growRegion != null
+			&& ArchitectApi.get().regions().get(growRegion).map(Growths::fromMaterials).orElse(false);
 		feed(new Pipeline.Cancel());
 		if (second) return "Stopped waiting for Architect.";
+		if (fromMaterials) return "Cancelling: the addition is taken up where it stands, and what it drew from the stockpile is refunded.";
 		return state.phase() == Pipeline.Phase.CANCELLING ? "Cancelling: stopping what runs first. What is already placed stays (remove it with /steward undo " + settlement.id() + ")."
 			: "Cancelled.";
 	}
@@ -874,6 +873,9 @@ public final class SettlementRunner {
 		// a dev build has no saved settlement; any other build's settlement must be there, or its sites would never reach the undo log
 		var saved = Settlements.store().get(settlement.id());
 		if (saved.isEmpty()) return DEV_ID.equals(settlement.id());
+		// (slice A2L review 2) a growth is logged once by its revision's tag, whatever sites it holds now (a cancel's batch, or a late answer, may bring more)
+		if (siteGroupId != null && Growths.isGrowth(siteGroupId) && saved.get().log().stream()
+			.anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && siteGroupId.equals(e.siteGroup()))) return true;
 		// logged already (a restart came between the log and dropping the checkpoint): not twice
 		java.util.Set<String> ids = new java.util.HashSet<>(siteIds);
 		if (saved.get().log().stream().anyMatch(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && new java.util.HashSet<>(e.siteIds()).equals(ids))) {
@@ -3234,6 +3236,8 @@ public final class SettlementRunner {
 			return;
 		}
 		var ref = new Growths.Ref(regionId, rv.get().rid());
+		// (slice A2L review 2) a late answer for a growth already taken up and logged (a cancel finished first): nothing logged again
+		if (Growths.completed(Settlements.store().get(settlement.id()).orElse(settlement), ref.tag())) return;
 		// (slice A2) still being placed: its sites aren't all known yet; the growth sweep logs it once it has ended and takes it up (VillageSweep.growths)
 		if (!Growths.ended(rv.get().state()) && !"UNDONE".equalsIgnoreCase(rv.get().state()) && !"STALE".equalsIgnoreCase(rv.get().state())
 			&& !"UNDOING".equalsIgnoreCase(rv.get().state())) {
@@ -3564,14 +3568,31 @@ public final class SettlementRunner {
 	 */
 	private void takeUpEmpty(Growths.Ref ref, String why, int skipped, Runnable end) {
 		if (growthTakingUp) return;
+		// (slice A2L review 1) completed already (a restart after its note, before the build's save): ended, the note not written twice
+		if (Growths.completed(Settlements.store().get(settlement.id()).orElse(settlement), ref.tag())) { end.run(); return; }
 		growthTakingUp = true;
-		Growths.undo(server, settlement.owner(), ref, this::say, ok -> {
+		// (slice A2L) a growth cancelled while Architect still wrote it may hold targets its revision does not list yet: what they drew is refunded, said,
+		// with any overflow (review 7)
+		var said = Undo.reportingOverflow(server, Settlements.store().get(settlement.id()).orElse(settlement), this::say);
+		java.util.concurrent.atomic.AtomicReference<dev.larattalabs.architect.api.RemoveResult> answer = new java.util.concurrent.atomic.AtomicReference<>();
+		Growths.undo(server, settlement.owner(), ref, said, ok -> {
+			if (ok == null) return;
 			growthTakingUp = false;
-			if (ok == null || !alive() || state == null || state.phase().terminal()) return;
+			if (!alive() || state == null || state.phase().terminal()) return;
 			if (ok) {
-				Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed (" + why + ")",
-					List.of()));
-				end.run();
+				boolean refunded = answer.get() != null && !answer.get().refund().isEmpty();
+				// (GPT diff review) the town's build watch dropped here too when only the growth kept it unbuilt
+				MaterialRequests.forgetIfBuilt(ref.region());
+				// the completion, tagged with the growth (Growths.completed), checked on a fresh read; the build ends only once it is saved
+				var now = Settlements.store().get(settlement.id()).orElse(settlement);
+				boolean done = Growths.completed(now, ref.tag()) || Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE,
+					Growths.NOT_PLACED + " (" + why + (refunded ? "; what it drew was refunded" : "") + ")", List.of(), ref.tag())).ok();
+				// (GPT diff review) a known empty answer is said too, in a Supplied town
+				if (Growths.reportsRefund(now, answer.get())) {
+					said.accept(Growths.refundLine(answer.get().refund()));
+					said.accept("Undone: the town's change is taken up, the land restored.");
+				}
+				if (done) end.run();
 				return;
 			}
 			var d = Growths.decide(ArchitectApi.get().regions().get(ref.region()), ref.rid());
@@ -3579,7 +3600,7 @@ public final class SettlementRunner {
 			var saved = Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed ("
 				+ why + "); the town's change " + ref.tag() + " stands with nothing of it placed: " + d.why(), List.of()));
 			if (saved.ok()) end.run();
-		});
+		}, answer::set);
 	}
 
 	/**
@@ -3596,13 +3617,19 @@ public final class SettlementRunner {
 		if (rv.isEmpty()) { vRegionId = null; feed(new Pipeline.CancelConfirmed()); return; }
 		var ref = new Growths.Ref(vRegionId, rv.get().rid());
 		siteGroupId = ref.tag();
-		// still being placed: waits (the cancel stays CANCELLING and saved; asked again on the next world start or tick)
-		if (!Growths.ended(rv.get().state()) && !"UNDONE".equalsIgnoreCase(rv.get().state()) && !"STALE".equalsIgnoreCase(rv.get().state())
+		// (slice A2L) taken up and logged already (a restart after its completion, before the build's save): the cancel ends, nothing logged twice
+		var fresh0 = Settlements.store().get(settlement.id()).orElse(settlement);
+		if (Growths.completed(fresh0, ref.tag()) && ("UNDONE".equalsIgnoreCase(rv.get().state()) || "STALE".equalsIgnoreCase(rv.get().state()))) {
+			vRegionId = null;
+			feed(new Pipeline.CancelConfirmed());
+			return;
+		}
+		// still being placed: waits (the cancel stays CANCELLING and saved; asked again on the next world start or tick), unless Architect's undo cancels
+		// it as still writing (slice A2L, RU: a town from materials, its head revision)
+		boolean writing = Growths.decide(v, rv.get().rid(), null).step() == Growths.Step.UNDO;
+		if (!writing && !Growths.ended(rv.get().state()) && !"UNDONE".equalsIgnoreCase(rv.get().state()) && !"STALE".equalsIgnoreCase(rv.get().state())
 			&& !"UNDOING".equalsIgnoreCase(rv.get().state())) {
-			if (saidRegionWaits.add("cancel " + ref.tag())) say(v.map(Growths::fromMaterials).orElse(false)
-				? "The addition is being placed from materials and can't be stopped part way: it's put down as the stockpile feeds it, then left standing; /steward undo "
-					+ settlement.id() + " takes it up once it's built."
-				: "The addition is still being placed: it is taken up once it is in.");
+			if (saidRegionWaits.add("cancel " + ref.tag())) say("The addition is still being placed: it is taken up once it is in.");
 			return;
 		}
 		List<String> sites = rv.get().sites() == null ? List.of() : List.copyOf(rv.get().sites());
@@ -3621,19 +3648,17 @@ public final class SettlementRunner {
 			&& "UNDONE".equalsIgnoreCase(rv.get().state())) { vRegionId = null; feed(new Pipeline.CancelConfirmed()); return; }
 		growthTakingUp = true;
 		java.util.function.Consumer<Boolean> after = ok -> {
+			if (ok == null) return;
 			growthTakingUp = false;
-			if (ok == null || !alive()) return;
+			if (!alive()) return;
 			if (ok) {
+				// (slice A2L review 1) the checkpoint stays until the completion is saved: a failed save leaves the cancel CANCELLING, tried again
+				if (!Growths.completed(Settlements.store().get(settlement.id()).orElse(settlement), ref.tag())) return;
 				vRegionId = null;
 				feed(new Pipeline.CancelConfirmed());
 				return;
 			}
-			if (Growths.building(server, ref)) {
-				// (slice A2) still being built from the stockpile: it can't be taken up until it is built (nothing cancels its targets)
-				say("The addition's construction sites stand and are built as the stockpile feeds them; it can't be taken up until it's built. /steward undo "
-					+ settlement.id() + " takes it up then.");
-				MaterialRequests.watchBuild(settlement.id(), ref.region());
-			} else say("What the addition placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
+			say("What the addition placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
 			feed(new Pipeline.BatchDone(sites.size(), 0));
 		};
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);

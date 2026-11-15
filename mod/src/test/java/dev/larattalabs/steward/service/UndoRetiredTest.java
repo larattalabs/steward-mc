@@ -68,4 +68,38 @@ class UndoRetiredTest {
 		// the note places nothing and is never undoable
 		assertTrue(noted.lastUndoable().isEmpty());
 	}
+
+	/**
+	 * (slice A2L review 4) A restart at each of Architect RU's kill points, replayed through Steward's own reads: the sweep's reconcile, the cancel's
+	 * completion check and the history. RVU1, RVC1, RVC2, RVU2 and RVU3 all leave the revision UNDOING (Architect resumes it at the world start);
+	 * once it reads UNDONE, the removal is logged exactly once, by whichever owner comes first, never again on later sweeps or restarts.
+	 */
+	@Test
+	void aRestartAtEachKillPointLogsTheRemovalOnce() {
+		String tag = "revision:rg1:2";
+		var s = base();
+		for (String point : new String[] {"RVU1", "RVC1", "RVC2", "RVU2", "RVU3"}) {
+			// killed at the point: Architect's revision still UNDOING after the restart, Steward's entry standing; left to Architect, nothing logged
+			assertFalse(VillageSweep.reconcileDue(s, tag, "UNDOING", false), point + ": UNDOING is Architect's to resume");
+			assertFalse(VillageSweep.reconcileDue(s, tag, "UNDOING", true), point);
+		}
+		// Architect finished it: an owner still running (a restored cancel, an undo) logs it itself; the sweep waits
+		assertFalse(VillageSweep.reconcileDue(s, tag, "UNDONE", true), "owned: the cancel or undo logs it");
+		// nothing owns it (a /steward undo cut off by the restart, no build saved): the sweep logs it
+		assertTrue(VillageSweep.reconcileDue(s, tag, "UNDONE", false));
+		var logged = s.withLog(Undo.removedGrowth(GROWTH, Undo.removalSites(GROWTH.siteIds(), List.of("s2", "s3")), tag, java.util.Map.of()));
+		// then never again: later sweeps, another restart, or the cancel replaying (its completion check)
+		for (int sweep = 0; sweep < 3; sweep++) assertFalse(VillageSweep.reconcileDue(logged, tag, "UNDONE", false), "sweep " + sweep);
+		assertTrue(Growths.completed(logged, tag));
+		assertTrue(Undo.retired(logged, GROWTH), "an older reader (retired) agrees");
+		assertEquals(1, logged.log().stream().filter(e -> e.kind() == Settlement.Kind.PROJECT_REMOVED).count());
+		// the growth is no longer undoable: the next undo is the town's
+		assertEquals("region:rg1", logged.lastUndoable().get().siteGroup());
+		// an older untagged removal of all its sites (before A2L) also stops it
+		var old = base().withLog(new Settlement.LogEntry(6L, Settlement.Kind.PROJECT_REMOVED, "undid", List.of("s1", "s2")));
+		assertFalse(VillageSweep.reconcileDue(old, tag, "UNDONE", false));
+		// nothing logged for it (a cancel killed before its entry): not the sweep's; the restored cancel's empty take-up writes the completion note
+		var empty = Settlement.founded("set_1", "Here", TOWN, Permission.PROPOSALS, Difficulty.SUPPLIED, 1L);
+		assertFalse(VillageSweep.reconcileDue(empty, tag, "UNDONE", false));
+	}
 }

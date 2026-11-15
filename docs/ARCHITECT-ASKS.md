@@ -1592,3 +1592,51 @@ Architect v0.69.0 (API 1.61.0, kit 0.64.0, catalogue 24: PF's `form.arch_span`, 
 - `stub --only plan,stub`: PASS, 91 checks over 15 flows: stub, village, growth, plan-build, street-hint, wall-offer, palette, grove, districts-plan, plan-check, supplied-plan, copper-lots, discard, beside, revision. The status line shows API 1.61.0 with 186 features, `shapePromotion` among them.
 - Steward has no plan fixture with `form.arch_span` or an aqueduct, and its plan writer names no arch form yet, so those stay with Architect's gate. crop_farm doesn't call archSpan (crop-farm-069's kit diff check).
 - Nothing in Architect was found wrong.
+
+### FK follow-up: a module-provided fill item (asked 2026-11-14, for M4)
+Noah picked `minecraft:petrified_oak_slab` as the storage hall's filler (PLAN Decisions 11-14). Survival can't supply it, so Steward asked for four things:
+- (1) A `fillContainers` entry can mark an item module-provided: written at the fill, not drawn from the stockpile, not on the quote or bill.
+- (2) Removal and undo take it back with no refund.
+- (3) The conservation judges count it as the module's own part.
+- (4) Possibly an allow-list of creative-only plain items, so the mark can't mint goods.
+
+Architect's answer (11-14), accepted:
+- It's slice FK-b: strict, additive, after J1, probably v0.70.0. Its contract comes to Steward for review.
+- (1)-(3) are as asked.
+- (4) a fixed allow-list, `minecraft:petrified_oak_slab` only. Anything else marked module-provided is refused at plan time.
+- The fillers are stripped from a declared fill container before it drops (a player break, explosions if feasible), so they never drop. Paths FK-b can't cover are named in the contract.
+- Steward asked that a repair (the target re-placed) write the fillers again, unbilled.
+- FK-b contract draft (11-14), accepted:
+  - Shape: `provided: true` per fill item; the allow-list `Limits.FILL_PROVIDED_ITEMS` = {petrified_oak_slab}; feature `fillProvided`.
+  - The break leak is closed through `preRemoveSideEffects`.
+  - Repair is remove and re-place under a new key; Steward has no in-place repair, and none is needed.
+  - The blocks apply only to provided stacks in declared fill containers.
+  - The pickup block covers every menu path.
+  - Steward added: the transfer skip covers hopper minecarts and Fabric Transfer API views, or names a leak.
+
+### CP (compose follow-ups, CA's five asks) contract review (2026-11-14): accepted
+- ext `architect_mc:skipPick=true` at the request level, which is enough for CA2.
+- `result.summary`, `waits[].say` and `leftOut`; NO_PLAN's `reason` is unchanged.
+- ext `architect_mc:composeVocab=families`. compact doesn't fit beside Steward's compose rules under 120k.
+- The $0 street fix runs inside compose, default ON. Steward's `Composer.streetFixes` is then a no-op, and is dropped at the CP pin.
+- `ComposeRequest` gains `level` and `owner`.
+- RC areas asked: a card compose with skipPick, NO_PLAN wording, the street free round, and an owner/level compose.
+
+### CA: Steward composes through `Regions.compose` (slice CA, branch compose-adopt, 2026-11-14; sent through the manager)
+
+Steward's Composer now calls `Regions.compose` (0.67.0) with the card as the brief and `composeHints` (the card, its wanted buildings, the
+land line, `anchors {stone, player}`), its own rules as `composeSystem` (prompts/compose-rules.md) and `repairRounds: 2`, under `budgetUsd`
+1.00. Steward checks the result's plan again at $0 with its dimension, owner, anchors and load policy, applies the street `wouldFit`, and
+keeps it. What CO/AU still lack against Steward's old writer, asked:
+- **S-CA-1, skip the template pick.** Compose always runs a `region.design` pick first. A PICKED result has no plan/0, so the card's
+  buildings are bypassed (Steward keeps the template as a one-zone plan and says so), and the pick costs a call. Asked: an ext key
+  (`architect_mc:composePick: false`) that goes straight to the rounds.
+- **S-CA-2, `{waits, summary}` in player words.** NO_PLAN's `reason` is Architect's diagnostic; the best round's own `reason` isn't in the
+  result. Asked: the best round's `reason` on NO_PLAN, and (preferred) an answer member for per-part player words, so Steward needn't read
+  a waiting part's `notes`.
+- **S-CA-3, `vocab/1#compact`.** Not sent beside a caller's rules (no system room); Steward's rules name only families it is sure of.
+  Asked: room for it, or its family list in the composer's own text.
+- **S-CA-4, the $0 street `wouldFit` inside compose.** Steward applies GH's street fragment after compose; inside compose it would save a
+  paid repair round.
+- **S-CA-5, owner and dimension on `ComposeRequest`.** Compose checks in the Overworld with owner null. Steward composes only in the
+  Overworld (elsewhere: today's layout, nothing spent) and re-checks with the owner before keeping.

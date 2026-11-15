@@ -151,6 +151,20 @@ public final class MaterialRequests {
 		BUILDING.put(regionId, settlementId);
 	}
 
+	/**
+	 * (slice A2L) After a growth of the region is taken up: the watch is dropped, unsaid, when the town reads fully built again (only the growth kept it
+	 * unbuilt); one with other construction still unfinished stays watched.
+	 */
+	public static void forgetIfBuilt(String regionId) {
+		if (!BUILDING.containsKey(regionId)) return;
+		try {
+			var v = ArchitectApi.get().regions().get(regionId);
+			if (v.isEmpty() || v.get().build() == null || v.get().build().built()) BUILDING.remove(regionId);
+		} catch (RuntimeException | LinkageError e) {
+			// read again by the watch itself
+		}
+	}
+
 	/** Says, once, each watched region that is now fully built (its every target built and its bodies settled); drops one that is gone. */
 	private static void readBuilds(MinecraftServer srv) {
 		for (var e : List.copyOf(BUILDING.entrySet())) {
@@ -161,6 +175,9 @@ public final class MaterialRequests {
 				BUILDING.remove(e.getKey());
 				continue;
 			}
+			// (slice A2L review 6) a growth being taken up (Steward's undo or cancel, Architect's busy, or a take-up Architect finished that the sweep has
+			// not logged yet): nothing said, so a town that only lost its addition is never announced built
+			if (Undo.busy(s.get().id()) || (v.get().busy() != null && !v.get().busy().isBlank()) || VillageSweep.reconcilePending(s.get(), v.get())) continue;
 			var b = v.get().build();
 			// done: built and the region PLACED; a town that stood PARTIAL before its growth reads PARTIAL again, so built is enough there (slice A2)
 			if (b != null && (b.done() || (b.built() && v.get().state() == dev.larattalabs.architect.api.RegionState.PARTIAL))) {

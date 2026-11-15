@@ -1,7 +1,6 @@
 package dev.larattalabs.steward.service;
 
 import dev.larattalabs.steward.model.Words;
-import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.RegionState;
 import dev.larattalabs.architect.api.RegionView;
 import dev.larattalabs.architect.api.SiteView;
@@ -84,7 +83,7 @@ public final class Adoption {
 	/** {@link #inventory}, and why not when its street can't be taken on (a bent street). */
 	public static Read read(MinecraftServer server, Settlement s) {
 		List<Raw> raw = new ArrayList<>();
-		for (SiteView v : ArchitectApi.get().sites(server).list(s.owner())) {
+		for (SiteView v : ArchitectAccess.api().sites(server).list(s.owner())) {
 			var b = v.box();
 			raw.add(new Raw(v.id(), v.kind(), v.itemKey(), v.dimension().identifier().toString(), v.region(), b.minX(), b.maxX(), b.minZ(), b.maxZ(), v.ext(),
 				v.version()));
@@ -285,7 +284,7 @@ public final class Adoption {
 	/** {@code inBuild}: asked by the settlement's own build before its adoption is asked (nothing of it is in flight). */
 	public static boolean reconcile(MinecraftServer server, Settlement s, boolean inBuild) {
 		if (!inBuild && SettlementRunner.adoptInFlight(s.id())) return true;
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		long now = System.currentTimeMillis();
 		var intent = openIntent(s);
 		if (intent.isPresent()) {
@@ -303,7 +302,7 @@ public final class Adoption {
 			String region = regionOf(adopted.get());
 			Optional<RegionView> v = regions.get(region);
 			boolean tombstone = v.map(x -> x.state() == RegionState.REMOVED).orElse(false);
-			var sites = ArchitectApi.get().sites(server);
+			var sites = ArchitectAccess.api().sites(server);
 			var ids = adopted.get().siteIds();
 			int standingSites = (int) ids.stream().filter(id -> sites.get(id).isPresent()).count();
 			boolean out = ids.stream().allMatch(id -> sites.get(id).map(x -> x.region() == null).orElse(true));
@@ -343,7 +342,7 @@ public final class Adoption {
 	 */
 	public static boolean release(MinecraftServer server, Settlement s, Settlement.LogEntry entry, Consumer<String> say, Consumer<@Nullable Boolean> done) {
 		String region = regionOf(entry);
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		var v = regions.get(region);
 		// gone already (a lost unadopt answer, or removed): the reconcile closes it
 		if (v.isEmpty() || v.get().state() == RegionState.REMOVED) {
@@ -354,7 +353,7 @@ public final class Adoption {
 		}
 		say.accept("Letting the town go as one region (Architect): every building stays as it stands...");
 		int session = Session.current();
-		regions.unadopt(region).whenComplete((r, err) -> server.execute(() -> {
+		regions.unadopt(region).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
 			if (err != null) {
 				// answered with an error after it went through (Architect deleted the record): the reconcile sees it
