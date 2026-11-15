@@ -89,6 +89,11 @@ public final class PlanStore {
 		save();
 	}
 
+	/** (CA) The settlement's kept plan dropped (a new card is being composed: the old card's plan must not build it). */
+	public static void remove(String settlementId) {
+		if (plans.remove(settlementId) != null) save();
+	}
+
 	private static void save() {
 		if (file == null) return;
 		try {

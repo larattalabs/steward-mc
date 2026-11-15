@@ -22,24 +22,6 @@ public final class PlanWriter {
 	private PlanWriter() {
 	}
 
-	/** Composes a plan for {@code card} (JSON). Fails at once when Architect's Claude link is not up. */
-	public static CompletableFuture<PlanWriterJob.Result> write(String card, @Nullable String land, List<String> anchors, @Nullable String owner) {
-		return write(card, land, anchors, List.of(), owner, null, null);
-	}
-
-	/** A repair round: {@code previous} the last plan, {@code answers} Architect's check of it (see {@link PlanWriterJob#build}). */
-	public static CompletableFuture<PlanWriterJob.Result> write(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner,
-		@Nullable String previous, @Nullable String answers) {
-		return write(card, land, anchors, builds, owner, previous, answers, Set.of());
-	}
-
-	/** As above; {@code kinds}: the failing parts' kinds ({@link PlanWriterJob#repairKinds}), whose catalogue text the repair round carries. */
-	public static CompletableFuture<PlanWriterJob.Result> write(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner,
-		@Nullable String previous, @Nullable String answers, Set<String> kinds) {
-		String catalogue = previous != null && answers != null ? catalogue(kinds) : null;
-		return run(refs -> PlanWriterJob.build(card, land, anchors, builds, owner, previous, answers, refs, catalogue));
-	}
-
 	/** The long text of {@code kinds} from Architect ({@code Regions.planCatalogue(kinds)}, 0.62.0), logged by size; null for none. */
 	private static @Nullable String catalogue(Set<String> kinds) {
 		String text = PlanWriterJob.catalogueFor(kinds, k -> ArchitectApi.get().regions().planCatalogue(k));
