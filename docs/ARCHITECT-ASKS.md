@@ -1654,3 +1654,12 @@ After an unclean start, RL's reconcile charges what stands without counting `max
 - A reconcile that would pass the cap charges what stands; the target then waits `bill_cap`, draws nothing more, and Architect logs a WARN.
 - Gated on every kill case, plus a constructed overshoot.
 - It lands after FK-b and SS. Steward's side needs nothing new: the `bill_cap` wait is said, with `/steward undo` and a fresh ask. No raise-cap API.
+
+### NS2: north-south streets beyond adoption (slice NS2, branch north-south-2, 2026-11-15; sent through the manager)
+Steward now keeps a composed plan's street `orientation` (`ns` or `auto`) instead of forcing `ew`, and grows a module on a north-south
+adopted town. Asked, to confirm (no new API is expected):
+- **S-NS2-1, growth along a composed north-south street.** RV's `frontage` and `extend` grow lots along a region's street. Is that covered
+  for a region planned from plan/0 whose street zone ran `ns` (C37), and not only for AD's north-south adoption? If it isn't, Steward keeps
+  `ew` for such zones until it is.
+- **S-NS2-2, an irrigated grow lot facing east or west.** IG-b says `frame` is `[along, deep]` for every front, but `ig.test` covers north
+  and south fronts only. Asked: one east or west case (frame, field, `lotCells`, the sources). Steward's `module-ns` e2e flow covers it in game.

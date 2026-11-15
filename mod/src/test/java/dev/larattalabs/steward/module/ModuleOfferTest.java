@@ -70,8 +70,8 @@ class ModuleOfferTest {
 		assertTrue(decide(building, null).why().contains("40%"));
 		var district = new Town(Path.REGION, null, true, 100, true, false, Map.of("minecraft:wheat_seeds", 81), Map.of());
 		assertTrue(decide(district, null).why().contains("district"));
-		var none = new Town(Path.NONE, "its street runs north-south", true, 100, false, false, Map.of("minecraft:wheat_seeds", 81), Map.of());
-		assertEquals("its street runs north-south", decide(none, null).why());
+		var none = new Town(Path.NONE, "its street turns", true, 100, false, false, Map.of("minecraft:wheat_seeds", 81), Map.of());
+		assertEquals("its street turns", decide(none, null).why());
 	}
 
 	@Test

@@ -917,6 +917,28 @@ public final class Districts {
 		return new DistrictRules.Street(line, lo, hi, northSouth);
 	}
 
+	/**
+	 * (slice NS2) The town's street on either axis, for the legacy street path (additions, the stockpile's clearance): {@link #streetOf}'s east-west
+	 * street when there is one (a bent street keeps it, as before), else a straight north-south street as {@link #readStreet} reads it. A district's
+	 * street is east-west only, as {@link #streetOf}.
+	 */
+	public static DistrictRules.@Nullable Street streetEitherAxis(List<SiteView> sites, Settlement s, Settlement.@Nullable District district) {
+		List<Piece> pieces = new java.util.ArrayList<>();
+		for (SiteView v : sites) {
+			var b = v.box();
+			pieces.add(piece(v.kind(), v.itemKey(), v.ext(), b.minX(), b.maxX(), b.minZ(), b.maxZ()));
+		}
+		return streetEitherAxisOfPieces(pieces, s, district);
+	}
+
+	/** {@link #streetEitherAxis} over pieces (pure). */
+	public static DistrictRules.@Nullable Street streetEitherAxisOfPieces(List<Piece> pieces, Settlement s, Settlement.@Nullable District district) {
+		var ew = streetOfPieces(pieces, s, district);
+		if (ew != null || district != null) return ew;
+		var read = readStreet(pieces, s, null).street();
+		return read != null && read.northSouth() ? read : null;
+	}
+
 	/** {@link #streetOf} over pieces (pure). */
 	public static DistrictRules.@Nullable Street streetOfPieces(List<Piece> pieces, Settlement s, Settlement.@Nullable District district) {
 		String dim = s.claim().dimension();

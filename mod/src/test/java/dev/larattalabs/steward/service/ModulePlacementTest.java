@@ -61,6 +61,29 @@ class ModulePlacementTest {
 	}
 
 	@Test
+	void aModuleLotFacingANorthSouthStreetKeepsItsFrontAndFrame() {
+		// (slice NS2) a crop farm grown on a north-south region: its lot faces east, its box 12 deep along x and 11 along the street (z)
+		JsonObject ext = new JsonObject();
+		ext.add(ModulePlacement.IRRIGATION_EXT, IRR.deepCopy());
+		var east = new LotSpec("gb1_1", "lots", new BoundingBox(100, 64, 200, 111, 70, 210), 64, Direction.EAST, null, new BlockSize(12, 6, 11), ext);
+		var g = ModulePlacement.geometry(east);
+		assertEquals("east", g.get("front").getAsString());
+		assertEquals("[11,12]", g.get("frame").toString(), "IRR's frame: [along, deep] for every front");
+		var r = ModulePlacement.reserved(east);
+		assertNotNull(r);
+		assertEquals("east", r.front(), "the variant is made facing its street");
+		assertEquals(11, r.width());
+		assertEquals(12, r.depth());
+		assertEquals(new net.minecraft.core.BlockPos(5, -1, 5), r.cells().get(0), "the cells in the lot's frame, whichever way it faces");
+		assertNotEquals(Canon.sha(g), Canon.sha(ModulePlacement.geometry(lot(100, true))), "facing another way is another geometry");
+		// the grow lot asked of Architect names no world axis: its size is the frame [W, D]
+		var grow = dev.larattalabs.steward.module.CropFarmLot.growLot("module_1", 9, 9);
+		assertFalse(grow.has("front"));
+		assertFalse(grow.has("box"));
+		assertEquals(2, grow.getAsJsonArray("size").size());
+	}
+
+	@Test
 	void aBindingHoldsOnlyForTheSameOrderAndGeometry() {
 		var l = lot(100, true);
 		var b = binding(order(5), l, "steward.b1.module.gb1_1");

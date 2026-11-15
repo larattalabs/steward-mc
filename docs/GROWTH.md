@@ -419,7 +419,20 @@ of every settlement before the sweep; adopted towns skipped), `Undo` (the reconc
 - **e2e (stub), `adopt-ns`:** the adopt flow's card and size, laid north-south. It is adopted (the log line names the north-south street) and
   grown by revision 1. The receipt's lots and roads and the grown sites match the east-west town's. Then it is undone: the growth, the adoption,
   the town.
-- **Not here:** a north-south town's additions on the legacy path (they read no east-west street; Steward never lays such a town outside dev).
+- **Slice NS2 (2026-11-15):**
+  - **The plan's axis.** `PPlan.forBuild` keeps an `orientation` the composed plan names (`ns`, `auto` or `ew`); a street zone that names none
+    is still laid east-west, so plans without one check and build as before. Steward's compose rules tell the composer when to write `ns`.
+    `PPlan.toPlan` reads an artifact whose lots all face east or west as one north-south street (its line the entrances' x, its ends z).
+  - **Additions on the legacy path.** `Districts.streetEitherAxis` reads the town's street on either axis (an east-west one first, so a bent
+    street grows as before). An addition to a north-south street town that isn't taken on is laid along it, facing east or west, and its
+    street is extended along z. The stockpile's crate keeps off that street too.
+  - **Modules.** The offer (path ADOPT or REGION) was axis-agnostic already. A module lot facing east or west keeps its front and IRR's
+    `[along, deep]` frame. Unit-tested, and Architect is asked to confirm it (S-NS2-2).
+  - **e2e (not run by the slice; the batch runs them), tags `north-south adopt`:** `plan-ns` (a plan with `orientation: "ns"`, its lots
+    facing east and west, undone), `addition-ns` (`legacy_ns` kept, an addition along the north-south street, not taken on, undone) and
+    `module-ns` (a crop farm on a north-south street town taken on, watered, undone).
+- **Not here:** Architect's flat village laid north-south is still set aside for Steward's own east-west layout (`VPlan.toPlan` turns
+  every front north or south). Districts read east-west streets only.
 
 
 ## Slice DG: a district region grows by revision (D-S2)
