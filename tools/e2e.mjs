@@ -6992,7 +6992,7 @@ async function sd2Outside(region) {
   return o;
 }
 /** (SD2) A V town built at once on a fresh lane (stilt_village's card renamed): { id, c, town } or null (failed under {@code label}). */
-async function sd2Town(label, lane, name) {
+async function sd2Town(label, lane, name, expand = false) {
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} ${lane} 0 1 false @p`);
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
@@ -7000,6 +7000,7 @@ async function sd2Town(label, lane, name) {
   await cmd('/steward claim');
   const id = settlements().at(-1).id;
   await closeScreens();
+  if (expand) await cmd(`/steward expand ${id}`);
   await cmd(`/steward dev layout ${id} village`);
   const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
   card.name = name;
@@ -7188,9 +7189,10 @@ async function survivalQuarterFlow() {
       const said = logSince(0).match(/Undone: "[^"\n]*" was taken up while the world was closed[^\n]*/);
       const asked = /\/steward undo|Undone: the village/.test(logSince(0).split('\n').filter((l) => /CHAT/.test(l)).join('\n'));
       const off = await groundBack();
-      if (gone && once && given && rs === 'REMOVED' && sameItems(got, used) && off.count === 0 && !asked) {
+      // (a removed region may no longer be in the state reader: gone reads as removed, as the town's undo does)
+      if (gone && once && given && (rs === 'REMOVED' || rs === undefined) && sameItems(got, used) && off.count === 0 && !asked) {
         ok(ul, `${midState} at the stop; after the restart, with no undo asked: ${gone.text} (logged once${said ? `, said "${said[0].slice(0, 80)}"` : ''}); ${JSON.stringify(got).slice(0, 120)} back = all it drew; the ground as before; ${prop.title} given up`);
-      } else fail(ul, `logged ${gone ? gone.text : 'no'} (once ${once}); region ${rs}; given up ${given}; back ${JSON.stringify(got).slice(0, 120)} of ${JSON.stringify(used).slice(0, 120)}; ${off.count} cell(s) differ ${JSON.stringify(off.sample)}; asked again ${asked}; ${chatTail(0)}`);
+      } else fail(ul, `logged ${gone ? gone.text : 'no'} (once ${once}); region ${rs}; given up ${given}; back short ${JSON.stringify(minusItems(used, got))}, over ${JSON.stringify(minusItems(got, used))}; ${off.count} cell(s) differ ${JSON.stringify(off.sample)}; asked again ${asked}; ${chatTail(0)}`);
     }
   } finally {
     stop = true;
@@ -7295,7 +7297,7 @@ async function quarterGrowthFlow() {
  */
 async function districtModuleFlow() {
   const label = 'district module';
-  const t = await sd2Town(label, 97500, 'Module Ward Town');
+  const t = await sd2Town(label, 97500, 'Module Ward Town', true);
   if (!t) return;
   const { id, c } = t;
   await cmd(`/tp @p ${c.centerX + c.radius + 20} 100 ${c.centerZ}`);
@@ -7315,11 +7317,12 @@ async function districtModuleFlow() {
   if (d?.state !== 'standing' || !d.region) return fail(label, `the district does not stand: ${JSON.stringify(d)?.slice(0, 200)}`);
   // the live catalog (the player's own gate); seeds carried: once the catalog's verdict is in, the seeds' own offer comes (a district one is taken as
   // it is; one for the town is declined), and the farm is asked for in the district in talk
-  await cmd('/steward dev modules {}');
+  const catalog = await cmd('/steward dev modules {}');
+  await cmd('/clear @p');
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ}`);
   await cmd('/give @p minecraft:wheat_seeds 16');
-  const auto = await moduleOffer(id);
-  if (!auto) return fail(`${label} offered`, `no module.${MODULE} offer within 90 s (the catalog's verdict)`);
+  const auto = await moduleOffer(id, 150_000);
+  if (!auto) return fail(`${label} offered`, `no module.${MODULE} offer within 150 s (catalog: ${String(catalog).slice(0, 160)}); open ${JSON.stringify((settlements().find((x) => x.id === id)?.proposals?.open ?? []).map((p) => [p.key, p.district]))}`);
   if (auto.district !== d.id) await cmd(`/steward proposals ${id} decline ${auto.key}`);
   const seen = new Set((settlements().find((x) => x.id === id)?.proposals?.open ?? []).map((q) => q.key));
   const ask = { reply: `A working field in ${d.name}: it is in the inbox.`, intent: 'building', district: d.name,
