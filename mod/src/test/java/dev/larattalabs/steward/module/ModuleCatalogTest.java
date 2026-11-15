@@ -396,6 +396,27 @@ class ModuleCatalogTest {
 	}
 
 	@Test
+	void bcu_offeredOnlyWhenTheRunningKitAndCheckerAreTheOnesModuleJsonPins() {
+		// slice BCU: crop_farm@1 pins kit 0.65.0 and checker 0.65.0; the gate compares them to what Architect runs, not only measured.json's list
+		ModuleCatalog live = ModuleCatalog.live(getClass().getClassLoader());
+		Set<String> f = Set.of(ModuleGate.FEATURE);
+		var match = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.70.0", f, false, false, "0.65.0", "0.65.0"));
+		assertTrue(match.ok(), match.message());
+		var kit = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.70.0", f, false, false, "0.66.0", "0.66.0"));
+		assertEquals(Why.KIT, kit.why());
+		assertTrue(kit.message().contains("pinned to kit 0.65.0") && kit.message().contains("runs kit 0.66.0"), kit.message());
+		var stale = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.70.0", f, false, false, "0.65.0", "0.64.0"));
+		assertEquals(Why.KIT, stale.why(), "a stale helper's checker is not the measured one");
+		assertTrue(stale.message().contains("checks with 0.64.0") && stale.message().contains("stale"), stale.message());
+		var none = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.70.0", f, false, false, "0.65.0", ModuleGate.UNKNOWN_KIT));
+		assertEquals(Why.KIT, none.why(), "no helper connected: the checker is unknown, so nothing is offered");
+		assertTrue(none.message().contains("no helper connected"), none.message());
+		// the Architect version is judged first; a measurement run installs whatever the pins
+		assertEquals(Why.ARCHITECT, ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.67.0", f, false, false, "0.66.0", "0.66.0")).why());
+		assertTrue(ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.70.0", f, false, true, "0.66.0", "0.66.0")).ok());
+	}
+
+	@Test
 	void offeredOnlyOnTheVersionsItWasMeasuredOnWithGivenProgramsAndFixturesOnlyInDev() throws Exception {
 		Entry e = fixture();
 		assertTrue(ModuleGate.offer(e, HERE).ok());

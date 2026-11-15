@@ -289,16 +289,17 @@ public final class Adoption {
 	}
 
 	/**
-	 * A standing adoption over {@code sites} recorded sites, {@code standing} of them still standing: its region removed (a tombstone) → retired as
-	 * removed; gone with no tombstone and none of its sites standing → removed too (the region and its buildings both vanished: nothing was let go),
-	 * but only when Architect's site inventory is known ({@code inventoryKnown}: Architect lists any site at all; a site file it could not read lists
-	 * none, and every site would only look gone); gone with no tombstone while its standing sites are in no region → released (a lost unadopt answer);
-	 * else it stands.
+	 * A standing adoption over {@code sites} recorded sites, {@code standing} of them still standing. Nothing is closed unless Architect's sites store
+	 * loaded cleanly ({@code loadHealthy}, Architect's {@code Sites.loadHealthy()}, slice BCU): a sites file it could not read loads no site, and every
+	 * site would only look gone, so it is left for the next read. Then: its region removed (a tombstone) → retired as removed; gone with no tombstone
+	 * and none of its sites standing → removed too (the region and its buildings both vanished: nothing was let go); gone with no tombstone while its
+	 * standing sites are in no region → released (a lost unadopt answer); else it stands.
 	 */
-	public static Close standingClose(boolean present, boolean tombstone, int sites, int standing, boolean standingOutOfRegions, boolean inventoryKnown) {
+	public static Close standingClose(boolean present, boolean tombstone, int sites, int standing, boolean standingOutOfRegions, boolean loadHealthy) {
+		if (!loadHealthy) return Close.NONE;
 		if (tombstone) return Close.REMOVED;
 		if (present || sites == 0) return Close.NONE;
-		if (standing == 0) return inventoryKnown ? Close.REMOVED : Close.NONE;
+		if (standing == 0) return Close.REMOVED;
 		return standingOutOfRegions ? Close.RELEASED : Close.NONE;
 	}
 
@@ -335,10 +336,10 @@ public final class Adoption {
 			var ids = adopted.get().siteIds();
 			int standingSites = (int) ids.stream().filter(id -> sites.get(id).isPresent()).count();
 			boolean out = ids.stream().allMatch(id -> sites.get(id).map(x -> x.region() == null).orElse(true));
-			// Architect lists no site at all when it could not read its site file: then nothing is read as gone
-			boolean known = !sites.list().isEmpty();
-			if (!known && standingSites == 0 && !ids.isEmpty()) Steward.LOGGER.warn("{}: the adoption of {} is left open: Architect lists no site at all (its site file unread?)", s.id(), region);
-			var close = standingClose(v.isPresent(), tombstone, ids.size(), standingSites, out, known);
+			// (slice BCU) a sites file Architect could not read loads no site: then nothing is read as gone, and the next read decides
+			boolean healthy = sites.loadHealthy();
+			if (!healthy && !ids.isEmpty()) Steward.LOGGER.warn("{}: the adoption of {} is left open: Architect's sites store did not load cleanly", s.id(), region);
+			var close = standingClose(v.isPresent(), tombstone, ids.size(), standingSites, out, healthy);
 			if (close == Close.REMOVED) {
 				// the removal record first, then the release: a failure between leaves the adoption open, so the next reconcile writes what is missing
 				Set<String> recorded = removedSince(s, adopted.get());

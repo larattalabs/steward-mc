@@ -78,10 +78,12 @@ public final class ModuleOffers {
 		return live;
 	}
 
-	/** The gate's environment now (fixtures and measuring only from the dev source). */
+	/** The gate's environment now (fixtures and measuring only from the dev source), with the kit and checker Architect runs now. */
 	public static ModuleGate.Env env() {
 		DevSource d = devSource;
-		return ModuleDev.env(d != null, d != null && d.measuring());
+		var api = ArchitectAccess.api();
+		var r = ModuleDev.running(api);
+		return ModuleDev.env(d != null, d != null && d.measuring(), api.features(), r.kit(), r.checker());
 	}
 
 	/** The module ids that may be offered now, each with a kind Steward knows. */

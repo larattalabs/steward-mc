@@ -141,8 +141,10 @@ class AdoptionTest {
 		assertEquals(Close.REMOVED, Adoption.standingClose(false, false, 3, 0, true, true), "region gone, no tombstone, no site standing: removed");
 		assertEquals(Close.REMOVED, Adoption.standingClose(false, true, 3, 0, true, true), "and with a tombstone: removed");
 		assertEquals(Close.NONE, Adoption.standingClose(false, false, 3, 0, true, false),
-			"Architect lists no site at all (its site file unread): every site only looks gone, so nothing is decided");
-		assertEquals(Close.REMOVED, Adoption.standingClose(true, true, 3, 0, true, false), "a tombstone decides even then");
+			"Architect's sites store did not load cleanly (Sites.loadHealthy): every site only looks gone, so nothing is decided");
+		assertEquals(Close.NONE, Adoption.standingClose(true, true, 3, 0, true, false),
+			"slice BCU: a sites store that did not load cleanly decides nothing, a tombstone's close included (the next read closes it)");
+		assertEquals(Close.NONE, Adoption.standingClose(false, false, 3, 3, true, false), "nor a release");
 	}
 
 	@Test
