@@ -1592,3 +1592,10 @@ Architect's answer (11-14), accepted:
 - (4) a fixed allow-list, `minecraft:petrified_oak_slab` only. Anything else marked module-provided is refused at plan time.
 - The fillers are stripped from a declared fill container before it drops (a player break, explosions if feasible), so they never drop. Paths FK-b can't cover are named in the contract.
 - Steward asked that a repair (the target re-placed) write the fillers again, unbilled.
+- FK-b contract draft (11-14), accepted:
+  - Shape: `provided: true` per fill item; the allow-list `Limits.FILL_PROVIDED_ITEMS` = {petrified_oak_slab}; feature `fillProvided`.
+  - The break leak is closed through `preRemoveSideEffects`.
+  - Repair is remove and re-place under a new key; Steward has no in-place repair, and none is needed.
+  - The blocks apply only to provided stacks in declared fill containers.
+  - The pickup block covers every menu path.
+  - Steward added: the transfer skip covers hopper minecarts and Fabric Transfer API views, or names a leak.
