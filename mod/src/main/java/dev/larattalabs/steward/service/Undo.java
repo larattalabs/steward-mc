@@ -1,7 +1,6 @@
 package dev.larattalabs.steward.service;
 
 import dev.larattalabs.steward.model.Words;
-import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.RemoveOptions;
 import dev.larattalabs.architect.api.RemoveResult;
 import dev.larattalabs.steward.Steward;
@@ -112,7 +111,7 @@ public final class Undo {
 		}
 		List<String> ids = new ArrayList<>(entry.get().siteIds());
 		// the steward never stands in what is removed (a named mob in a box stops Architect)
-		var all = ArchitectApi.get().sites(server);
+		var all = ArchitectAccess.api().sites(server);
 		for (String id : ids) all.get(id).ifPresent(v -> StewardMotion.clear(server, s, v.box()));
 		// the versions they stand at now (updates may have moved them since they were placed): what the undo log records as "from"
 		java.util.Map<String, Integer> now = new java.util.HashMap<>();
@@ -122,7 +121,7 @@ public final class Undo {
 		// a growth says its own (it may be refused before anything is asked: still built from the stockpile, slice A2)
 		if (!Growths.isGrowth(entry.get().siteGroup())) say.accept(adopted ? "Letting go of \"" + entry.get().text() + "\": the build stays as it stands..."
 			: "Removing " + Words.count(ids.size(), "site", "sites") + " of \"" + entry.get().text() + "\" and restoring the land...");
-		var sites = ArchitectApi.get().sites(server);
+		var sites = ArchitectAccess.api().sites(server);
 		RemoveOptions as = new RemoveOptions(false, s.owner());
 		UNDOING.add(s.id());
 		// a whole project is one site group: removeGroup does the newest-first removal over ticks (stages, survival refunds, the group's bookkeeping), the
@@ -209,7 +208,7 @@ public final class Undo {
 			UNDOING.remove(s.id());
 			whenDone.accept(ok);
 		};
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		List<String> regionSites = List.copyOf(entry.siteIds());
 		// removed already (Architect's tombstone, 1.14 C22): its answer, or the save of it, was lost; the entry is retired now
 		if (regions.get(region).filter(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVED).isPresent()) {
@@ -222,14 +221,14 @@ public final class Undo {
 		// a town that grew (docs/GROWTH.md): never removed whole while a revision of it stands or is in flight, whatever its sites say (a growth may have
 		// written only ground, or not yet its first site); its growths are undone first, newest first
 		var live = regions.get(region);
-		String blocked = live.map(v -> Growths.blocksTownRemoval(v, s, ArchitectApi.get().sites(server))).orElse(null);
+		String blocked = live.map(v -> Growths.blocksTownRemoval(v, s, ArchitectAccess.api().sites(server))).orElse(null);
 		if (blocked != null) {
 			say.accept("Undo stopped: " + blocked + ".");
 			done.accept(false);
 			return false;
 		}
 		// removed whole: only when everything in it is this entry's (a site another build put in it would go too)
-		var others = ArchitectApi.get().sites(server).list(s.owner()).stream().filter(v -> region.equals(v.region())).map(dev.larattalabs.architect.api.SiteView::id)
+		var others = ArchitectAccess.api().sites(server).list(s.owner()).stream().filter(v -> region.equals(v.region())).map(dev.larattalabs.architect.api.SiteView::id)
 			.filter(id -> !regionSites.contains(id)).toList();
 		if (!others.isEmpty()) {
 			say.accept("Undo stopped: the village also holds " + String.join(", ", others) + ", which \"" + entry.text() + "\" did not place.");
@@ -237,7 +236,7 @@ public final class Undo {
 			return false;
 		}
 		int session = Session.current();
-		regions.remove(region, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> server.execute(() -> {
+		regions.remove(region, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
 			// taken up only when Architect says so (1.14 C22: a retried removal finishes the restorations it left, or answers not removed)
 			boolean ok = err == null && r.removed();
@@ -258,8 +257,8 @@ public final class Undo {
 	public static boolean growth(MinecraftServer server, Settlement s, Settlement.LogEntry entry, Growths.Ref ref, java.util.Map<String, Integer> now,
 		Consumer<String> say, Consumer<Boolean> whenDone) {
 		// (slice A2) still being built from the stockpile: nothing is asked (Architect would refuse it, survival_building); the entry stays
-		var town = ArchitectApi.get().regions().get(ref.region());
-		if (Growths.decide(town, ref.rid(), ArchitectApi.get().sites(server)).step() == Growths.Step.BUILDING) {
+		var town = ArchitectAccess.api().regions().get(ref.region());
+		if (Growths.decide(town, ref.rid(), ArchitectAccess.api().sites(server)).step() == Growths.Step.BUILDING) {
 			say.accept(Growths.buildingLine(server, ref));
 			whenDone.accept(false);
 			return true;
@@ -294,7 +293,7 @@ public final class Undo {
 		var g = entry.flatMap(e -> Growths.parse(e.siteGroup()));
 		if (g.isEmpty()) return entry;
 		try {
-			var town = ArchitectApi.get().regions().get(g.get().region());
+			var town = ArchitectAccess.api().regions().get(g.get().region());
 			if (town.isEmpty() || town.get().revisions() == null) return entry;
 			int head = town.get().position();
 			var top = town.get().revisions().stream().filter(r -> r.position() == head && !"UNDONE".equalsIgnoreCase(r.state()) && !"STALE".equalsIgnoreCase(r.state()))
