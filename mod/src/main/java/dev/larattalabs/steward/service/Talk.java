@@ -219,7 +219,7 @@ public final class Talk {
 				var d = dev.larattalabs.steward.module.ModuleOffer.decide(kind.get(), v, town, a.module().params(), ModuleOffers.bounds(s));
 				var lamp = d.ok() ? ModuleOffers.lamp(s, v.entry()) : null;
 				if (d.ok() && lamp.refused() == null) {
-					Proposal m = ModuleOffers.proposal(kind.get(), d, s, town.path() == dev.larattalabs.steward.module.ModuleOffer.Path.REGION_MATERIALS, lamp.fallback(),
+					Proposal m = ModuleOffers.proposal(kind.get(), d, s, town.path().materials(), lamp.fallback(),
 						"asked_" + Long.toString(now, 36) + "_" + kind.get().lotType(), "asked", now).in(district);
 					String added = addProposal(s, m);
 					return added != null ? added : a.reply() + " (A working " + kind.get().role() + " from the catalog: no design, $0. See the inbox.)";

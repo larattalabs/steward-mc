@@ -22,8 +22,15 @@ public final class ModuleOffer {
 		REGION_MATERIALS,
 		/** A street town Architect can take on as one region at its first growth: slice B, then A. */
 		ADOPT,
-		/** None: a Supplied or bent street town, the legacy street path, a town in the wrong mode, or an Architect without growth. */
-		NONE
+		/** (slice SST) A street town in a world that builds from materials, taken on as a survival region (Architect SAD), then grown as A2. */
+		ADOPT_MATERIALS,
+		/** None: a bent street town, the legacy street path, a town in the wrong mode, or an Architect without growth. */
+		NONE;
+
+		/** Whether a module placed this way is built from the stockpile and billed (a bound to approve). */
+		public boolean materials() {
+			return this == REGION_MATERIALS || this == ADOPT_MATERIALS;
+		}
 	}
 
 	/**
@@ -90,17 +97,18 @@ public final class ModuleOffer {
 			case NONE -> {
 				return Decision.no(town.pathWhy() == null ? "this town can't grow through Architect, and a working " + kind.role() + " is placed only that way" : town.pathWhy());
 			}
-			case REGION_MATERIALS -> {
+			case REGION_MATERIALS, ADOPT_MATERIALS -> {
 				if (!town.built()) return Decision.no("the town is still being built from the stockpile (" + town.percent() + "%): a working " + kind.role() + " can go in once it's built");
 			}
 			case ADOPT -> {
 				// (slice A2L) Architect's IG-b (v0.66.0, S-M5-8) gives an adopted town's irrigated growth its own street, lots and fluids stages, so a
-				// watered module grows there too. The ADOPT path is creative only (ModuleOffers: the world builds at once, a Patron settlement)
+				// watered module grows there too. ADOPT is the creative adoption (the world builds at once, a Patron settlement); since SST, Architect SAD's
+				// survival adoption (ADOPT_MATERIALS, above) grows from materials, watered included (the water is free)
 			}
 			default -> { }
 		}
 		if (kind.warmOnly() && town.freezing()) return Decision.no("the water would freeze in this biome");
-		boolean materials = town.path() == Path.REGION_MATERIALS;
+		boolean materials = town.path().materials();
 		if (kind.sign() == ModuleKind.Sign.STORES) return stores(kind, e, town, asked, materials, bounds);
 		// the crop: the one named, else the one the player carries most of (stockpile included where construction draws from it)
 		Map<String, Integer> held = new TreeMap<>();
