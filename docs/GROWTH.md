@@ -456,8 +456,8 @@ ledger); the billed survival e2e moves to a new slice SD (found a district regio
 `VillageSweep` (every standing district region, the land read first, one take-up per settlement), `Settlements.found` (never in another
 settlement's district claim), module offers bound to the district. Checks: units 521/0 (`DistrictGrowthTest`, `SuppliedDistrictGrowthTest`),
 npm 44/0; e2e `stub --only growth,districts,survival` PASS 104 (one full run) and `district-growth` again on the final code. **Fix check** (GPT,
-after round 2): the three round-2 blockers resolved; exact coordinates taken. **Left:** the world-start whole-region take-ups (`VillageSweep`'s
-village loop, older than DG) can start two removals for one settlement; `Undo.growth` has no test against a faked Architect (none exists); a
+after round 2): the three round-2 blockers resolved; exact coordinates taken. **Left:** ~~the world-start whole-region take-ups (`VillageSweep`'s
+village loop, older than DG) can start two removals for one settlement~~ (fixed by VSR, below); `Undo.growth` has no test against a faked Architect (none exists); a
 quarter's grown land, a crash after an undo and before the land's save, a late orphan's head-first order, and a module bound into a district are
 not in e2e (unit or review only); the billed survival e2e is slice SD's.
 
