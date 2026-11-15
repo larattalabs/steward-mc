@@ -238,7 +238,7 @@ public final class SettlementRunner {
 			}
 			case PLACEMENT -> {
 				// (slice M3) a held bill: the bill shown becomes the bound, saved before the phase moves on (a crash between leaves it approved, never lost)
-				if (moduleBuild()) approveHeld();
+				if (moduleBuild() || composedModules()) approveHeld();
 				// (slice SD) a district's bill held for the player: the bill they were shown is the one approved
 				if (districtShown != null) { districtCleared = districtShown; districtSurvival = districtShownSurvival; districtShown = null; }
 				feed(new Pipeline.PlacementApproved());
@@ -669,9 +669,27 @@ public final class SettlementRunner {
 	/** (slice M3) The plan and entries whose quote passed this session ({@code planId|lot=entry,...}): the realise goes on only for exactly them. */
 	private @org.jspecify.annotations.Nullable String quoteCleared;
 
-	/** Whether this build places module lots (slice M3): its lots come from the catalog, never a design. */
+	/**
+	 * Whether this build places module lots alone (slice M3): its lots come from the catalog, never a design, at $0. A composed town that also holds module
+	 * lots is not one ({@link #composedModules}): its other lots are designed.
+	 */
 	private boolean moduleBuild() {
-		return pendingModule != null || !moduleOrders.isEmpty();
+		return (pendingModule != null || !moduleOrders.isEmpty()) && !composedModules();
+	}
+
+	/**
+	 * (slice M5, docs/MODULES.md "M5 design") Whether this build is a town from its composed plan (plan v1, an approved artifact) that holds module lots:
+	 * those are bound to the catalog at the realise and never designed; its other lots are designed as for any plan v1 town.
+	 */
+	private boolean composedModules() {
+		return !moduleOrders.isEmpty() && pendingModule == null && dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId) != null;
+	}
+
+	/** (slice M5) The plan the design group designs: the build's plan without its module lots (a module lot is never designed). */
+	private VillageLayout.Plan designPlan() {
+		if (!composedModules() || plan == null) return plan;
+		return new VillageLayout.Plan(plan.lots().stream().filter(l -> !moduleOrders.containsKey(l.id())).toList(), plan.streetZ(), plan.streetX0(), plan.streetX1(),
+			plan.streetY(), plan.unplaced(), plan.northSouth());
 	}
 
 	private boolean growth() {
@@ -1614,7 +1632,48 @@ public final class SettlementRunner {
 		var entry = PlanStore.get(settlement.id()).orElseThrow();
 		java.util.Set<String> waiting = new java.util.HashSet<>();
 		for (var p : entry.pending()) waiting.add(p.part());
-		return dev.larattalabs.steward.gateway.PPlan.forBuild(com.google.gson.JsonParser.parseString(entry.plan()).getAsJsonObject(), waiting, settlement.id(), buildId);
+		JsonObject base = dev.larattalabs.steward.gateway.PPlan.forBuild(com.google.gson.JsonParser.parseString(entry.plan()).getAsJsonObject(), waiting, settlement.id(), buildId);
+		// (slice M5) its module lots as this build binds them (the saved orders); a module lot with none is left out, as it was at the Start re-check
+		return withModules(base, moduleOrders);
+	}
+
+	/** (slice M5) The plan as built with these module orders: each ordered lot is the catalog's lot, every other module lot is left out. */
+	static JsonObject withModules(JsonObject plan, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders) {
+		java.util.Set<String> leftOut = new java.util.HashSet<>();
+		for (var a : dev.larattalabs.steward.module.ComposedModules.read(dev.larattalabs.steward.gateway.PPlan.lots(plan))) if (!orders.containsKey(a.lotId())) leftOut.add(a.lotId());
+		return dev.larattalabs.steward.module.ComposedModules.apply(plan, orders, leftOut);
+	}
+
+	/**
+	 * (slice M5, docs/MODULES.md "M5 design" 2) The kept plan's module lots, decided now: an order for each one Steward can build here, or why not, said
+	 * (a refused one is left out of the town, never designed in its place or left a pad). Only an Architect that runs given programs is asked.
+	 */
+	private Map<String, dev.larattalabs.steward.module.ModuleOrder> decideModules(JsonObject base) {
+		var asked = dev.larattalabs.steward.module.ComposedModules.read(dev.larattalabs.steward.gateway.PPlan.lots(base));
+		if (asked.isEmpty()) return Map.of();
+		Map<String, JsonObject> lotsById = new HashMap<>();
+		for (JsonObject l : dev.larattalabs.steward.gateway.PPlan.lots(base)) lotsById.put(l.get("id").getAsString(), l);
+		ServerLevel level = level();
+		net.minecraft.core.BlockPos at = new net.minecraft.core.BlockPos(settlement.claim().centerX(), level.getSeaLevel(), settlement.claim().centerZ());
+		var town = new dev.larattalabs.steward.module.ComposedModules.Town(level.getBiome(at).value().coldEnoughToSnow(at, level.getSeaLevel()), supplied);
+		Map<String, dev.larattalabs.steward.module.ModuleOrder> orders = new LinkedHashMap<>();
+		java.util.Set<String> taken = new java.util.HashSet<>();
+		for (var a : asked) {
+			var kind = dev.larattalabs.steward.module.ModuleKind.of(a.moduleId()).filter(k -> ModuleOffers.kinds().contains(k)).orElse(null);
+			var verdict = kind == null ? new dev.larattalabs.steward.module.ModuleGate.Verdict(null, dev.larattalabs.steward.module.ModuleGate.Why.UNKNOWN, "")
+				: ModuleOffers.verdict(kind.id());
+			var d = dev.larattalabs.steward.module.ComposedModules.decide(a, kind, verdict, town, taken,
+				dev.larattalabs.steward.module.ComposedModules.size(lotsById.get(a.lotId())), ModuleOffers::bound);
+			String name = dev.larattalabs.steward.gateway.PPlan.role(lotsById.get(a.lotId()));
+			if (!d.ok()) {
+				say(dev.larattalabs.steward.module.ComposedModules.leftOutWords(name, d.why()));
+				continue;
+			}
+			taken.add(kind.id());
+			orders.put(a.lotId(), d.order());
+			say(dev.larattalabs.steward.module.ComposedModules.boundWords(name, kind, d.order(), d.changed(), supplied));
+		}
+		return orders;
 	}
 
 	/**
@@ -1680,7 +1739,11 @@ public final class SettlementRunner {
 		// with its stockpile area, when one was just made
 		Settlement checked = Settlements.store().get(existing.id()).orElse(existing);
 		say("Laying out the village from its plan (Architect checks it against the land as it is now)...");
-		JsonObject built = builtPlan();
+		// (slice M5) the plan's working modules, decided before the check: the plan checked and built holds each as the catalog's lot (or leaves it out)
+		moduleOrders = Map.of();
+		JsonObject base = builtPlan();
+		var orders = decideModules(base);
+		JsonObject built = withModules(base, orders);
 		int session = Session.current();
 		// a plan Architect can't check, or without lots: the flat village for a Patron town; a Supplied one stops before anything is spent (its survey was taken
 		// before its stockpile and that ground's protection, so Steward's own layout over it could pay for designs that then don't fit), and is started again
@@ -1723,6 +1786,8 @@ public final class SettlementRunner {
 					+ (waits.size() == 1 ? "it waits" : "they wait") + " for Architect.");
 				pin(c.artifactSha());
 				vPlanId = dev.larattalabs.steward.gateway.PPlan.ARTIFACT_PREFIX + c.artifactSha();
+				// (slice M5) the module lots' orders, saved with the build beside its artifact (BuildStore format 6), so a restart binds the same
+				moduleOrders = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(orders));
 				// (S-7c-4) the designs never hear of a hidden room: a lot's brief without the sentences naming one (Architect builds the room, not the design)
 				var secrets = Secrets.of(built, art.map(a -> a.body()).orElse(null));
 				if (secrets.any()) Steward.LOGGER.info("plan as built for {}: {} secret part(s) {} in the artifact, answered {}", settlement.id(), secrets.parts().size(),
@@ -2185,7 +2250,12 @@ public final class SettlementRunner {
 			}
 			case Pipeline.RequestGroup g -> {
 				GroupPlanner.Options o = new GroupPlanner.Options(g.bibleId(), g.bibleVersion(), g.budgetUsd(), 3, 3, landmarks);
-				GroupPlanner.Built built = GroupPlanner.build(settlement, plan, o, reservedCells(), wallLotExts());
+				// (slice M5) a composed town's module lots are never designed: their style is checked now, before anything more is spent
+				if (composedModules()) {
+					String no = modulePalette(g.bibleId(), g.bibleVersion());
+					if (no != null) { say(no); feed(new Pipeline.Cancel()); return; }
+				}
+				GroupPlanner.Built built = GroupPlanner.build(settlement, designPlan(), o, reservedCells(), wallLotExts());
 				landmarkIds = built.request().items().stream().filter(i -> i.role() == GroupRequest.Role.LANDMARK).map(GroupRequest.Item::itemKey).collect(Collectors.toSet());
 				say("Designing " + Words.count(built.request().items().size(), "building", "buildings") + " (massings first)...");
 				groupInFlight = true;
@@ -2592,6 +2662,15 @@ public final class SettlementRunner {
 			moduleBindings.forEach((lot, b) -> { if (b.entryId() != null && moduleOrders.containsKey(lot)) entries.put(lot, b.entryId()); });
 		}
 		Group g = groupId == null ? null : api.designs().group(groupId).orElse(null);
+		// (slice M5) a composed town's module lots: bound to the artifact's lots now, and from materials each held to its bound in one quote of the whole
+		// realise; the realise waits until then
+		if (composedModules()) {
+			if (g == null) { say("The group disappeared."); return; }
+			Map<String, String> designed = new LinkedHashMap<>();
+			for (Group.Item it : g.items()) it.entryId().ifPresent(e -> designed.put(it.itemKey(), e));
+			if (!composedReady(designed)) return;
+			moduleBindings.forEach((lot, b) -> { if (b.entryId() != null && moduleOrders.containsKey(lot)) entries.put(lot, b.entryId()); });
+		}
 		if (g == null && !moduleBuild()) { say("The group disappeared."); return; }
 		if (g != null) for (Group.Item it : g.items()) it.entryId().ifPresent(e -> entries.put(it.itemKey(), e));
 		// only the planned lots, each with its design (a copy included); a lot with none stays a pad
@@ -2698,7 +2777,7 @@ public final class SettlementRunner {
 			}
 			var b = moduleBindings.get(e.getKey());
 			if (!ModulePlacement.holds(b, e.getValue(), ModulePlacement.geometry(spec.get())) || b.entryId() == null) {
-				bindModule(e.getKey(), e.getValue(), spec.get());
+				bindModule(e.getKey(), e.getValue(), ModulePlacement.geometry(spec.get()), ModulePlacement.reserved(spec.get()));
 				return false;
 			}
 		}
@@ -2718,23 +2797,26 @@ public final class SettlementRunner {
 	 * a new binding under the next key is saved <b>before</b> Architect is asked, so a restart finds the variant by that key and never makes a
 	 * second. The variant is looked up by its key first, then made (a keyed request: asked again with the same body, the same entry).
 	 */
-	private void bindModule(String lotId, dev.larattalabs.steward.module.ModuleOrder order, dev.larattalabs.architect.api.LotSpec spec) {
+	private void bindModule(String lotId, dev.larattalabs.steward.module.ModuleOrder order, JsonObject geometry,
+		dev.larattalabs.architect.api.DesignRequest.@org.jspecify.annotations.Nullable Reserved reserved) {
 		var entry = ModuleOffers.catalog().get(order.moduleId(), order.version()).filter(x -> x.programSha().equals(order.programSha()));
 		if (entry.isEmpty()) {
 			say("Not placed: the catalog no longer holds " + order.moduleId() + "@" + order.version() + " as it was offered. Nothing was placed.");
 			feed(new Pipeline.Cancel());
 			return;
 		}
-		JsonObject geometry = ModulePlacement.geometry(spec);
 		var old = moduleBindings.get(lotId);
 		dev.larattalabs.steward.module.ModuleBinding b;
 		if (ModulePlacement.holds(old, order, geometry)) b = old;
 		else {
 			var bible = settlement.bible() != null && settlement.bible().styleVersion() == settlement.styleVersion() ? settlement.bible() : null;
+			// (slice M5) a composed town's module is dressed in this build's own bible (made after the plan), the one its palette was checked against
+			String bibleId = composedModules() && state != null && state.bibleId() != null ? state.bibleId() : bible == null ? null : bible.id();
+			int bibleVersion = composedModules() && state != null && state.bibleId() != null && state.bibleVersion() != null ? state.bibleVersion() : bible == null ? 0 : bible.version();
 			String key = ModulePlacement.nextKey(old, buildId, lotId);
 			if (old != null) say("The town changed under the plan: the module is made again for its new lot.");
 			b = new dev.larattalabs.steward.module.ModuleBinding(order.moduleId(), order.version(), order.programSha(), order.params(), null,
-				bible == null ? null : bible.id(), bible == null ? 0 : bible.version(), dev.larattalabs.steward.module.Canon.sha(geometry), key, settlement.owner());
+				bibleId, bibleId == null ? 0 : bibleVersion, dev.larattalabs.steward.module.Canon.sha(geometry), key, settlement.owner());
 			var next = new LinkedHashMap<>(moduleBindings);
 			next.put(lotId, b);
 			moduleBindings = java.util.Collections.unmodifiableMap(next);
@@ -2748,7 +2830,7 @@ public final class SettlementRunner {
 			if (!placingModules(session)) { moduleBusy = false; return; }
 			if (err == null && found.isPresent()) { moduleBound(lotId, bound, found.get()); return; }
 			var pin = bound.bibleId() == null ? null : new dev.larattalabs.architect.api.BiblePin(bound.bibleId(), bound.bibleVersion());
-			ModuleInstalls.variant(entry.get(), ModuleOffers.env(), bound.params(), pin, ModulePlacement.reserved(spec), bound.opKey(), bound.owner(),
+			ModuleInstalls.variant(entry.get(), ModuleOffers.env(), bound.params(), pin, reserved, bound.opKey(), bound.owner(),
 				dev.larattalabs.steward.module.McBlockFacts.INSTANCE).whenComplete((o, err2) -> server.execute(() -> {
 					if (!placingModules(session)) { moduleBusy = false; return; }
 					if (err2 != null || o == null || !o.ok()) {
@@ -2859,6 +2941,153 @@ public final class SettlementRunner {
 		}));
 	}
 
+	// ----------------------------------------------------------------- module lots of a composed town (slice M5, docs/MODULES.md "M5 design")
+
+	/**
+	 * (slice M5, "M5 design" 4) Why this bible can't dress one of the town's module lots, in the steward's words, or null when it can (or can't be read:
+	 * the variant's own refusal says so at the bind). Checked when the bible is approved, before the design group is asked for; the lamp's fallback is
+	 * kept on the order and said.
+	 */
+	private @org.jspecify.annotations.Nullable String modulePalette(@org.jspecify.annotations.Nullable String bibleId, @org.jspecify.annotations.Nullable Integer bibleVersion) {
+		if (bibleId == null || bibleVersion == null) return null;
+		var bible = ArchitectApi.get().bibles().get(bibleId, bibleVersion);
+		if (bible.isEmpty()) return null;
+		var next = new LinkedHashMap<String, dev.larattalabs.steward.module.ModuleOrder>();
+		for (var e : moduleOrders.entrySet()) {
+			var o = e.getValue();
+			var entry = ModuleOffers.catalog().get(o.moduleId(), o.version()).filter(x -> x.programSha().equals(o.programSha()));
+			var kind = dev.larattalabs.steward.module.ModuleKind.of(o.moduleId());
+			if (entry.isEmpty() || kind.isEmpty()) return "Stopped: the catalog no longer holds the working " + e.getKey().replace('_', ' ') + " as the plan named it. Nothing more was spent.";
+			var pc = dev.larattalabs.steward.module.PaletteCheck.check(entry.get().palette(), bible.get().roles(), dev.larattalabs.steward.module.McBlockFacts.INSTANCE);
+			if (!pc.ok()) return "Stopped: the town's style can't dress the working " + kind.get().role() + " (" + String.join("; ", pc.broken())
+				+ "). Nothing more was spent; describe the settlement again for another style.";
+			if (pc.lampFallback() && !o.lampFallback()) say("The working " + kind.get().role() + " is lit by plain lanterns: the town's lamp is too dim.");
+			next.put(e.getKey(), o.withLamp(pc.lampFallback()));
+		}
+		moduleOrders = java.util.Collections.unmodifiableMap(next);
+		persist();
+		return null;
+	}
+
+	/**
+	 * (slice M5, "M5 design" 5, 6) Whether every module lot of the composed town is bound to a variant made for its lot in the approved artifact now, and
+	 * (from materials) the whole realise quoted with exactly these entries and each module held to its bound. When not, it starts what is missing (one at
+	 * a time) and answers false; that work calls {@link #realiseVillage} again. {@code designed}: the designed lots' entries.
+	 */
+	private boolean composedReady(Map<String, String> designed) {
+		if (moduleBusy || !placingModules(Session.current())) return false;
+		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
+		var body = sha == null ? null : ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		if (body == null || !body.has("lots") || !body.get("lots").isJsonArray()) {
+			say("Not placed: the approved plan can't be read back from Architect, so its working modules can't be bound to their lots. Nothing was placed.");
+			feed(new Pipeline.Cancel());
+			return false;
+		}
+		Map<String, JsonObject> lots = new HashMap<>();
+		for (var l : body.getAsJsonArray("lots")) if (l.isJsonObject() && l.getAsJsonObject().has("id")) lots.put(l.getAsJsonObject().get("id").getAsString(), l.getAsJsonObject());
+		for (var e : moduleOrders.entrySet()) {
+			var kind = dev.larattalabs.steward.module.ModuleKind.of(e.getValue().moduleId());
+			JsonObject a = lots.get(e.getKey());
+			String no = kind.isEmpty() ? "Steward no longer knows how to place " + e.getValue().moduleId()
+				: a == null ? "the approved plan has no lot " + e.getKey().replace('_', ' ') + " for it"
+				: dev.larattalabs.steward.module.ComposedModules.frameProblem(a, kind.get().frame(e.getValue().params()));
+			if (no != null) {
+				say("Not placed: the working " + (kind.map(dev.larattalabs.steward.module.ModuleKind::role).orElse(e.getKey().replace('_', ' '))) + " can't go on its lot: " + no
+					+ ". Nothing was placed.");
+				feed(new Pipeline.Cancel());
+				return false;
+			}
+			JsonObject geometry = dev.larattalabs.steward.module.ComposedModules.geometry(a);
+			var b = moduleBindings.get(e.getKey());
+			if (!ModulePlacement.holds(b, e.getValue(), geometry) || b.entryId() == null) {
+				com.google.gson.JsonArray one = new com.google.gson.JsonArray();
+				one.add(a);
+				bindModule(e.getKey(), e.getValue(), geometry, dev.larattalabs.steward.gateway.PPlan.reserved(one).get(e.getKey()));
+				return false;
+			}
+		}
+		if (artifactSurvival(sha)) {
+			Map<String, String> entries = new TreeMap<>(designed);
+			moduleBindings.forEach((lot, b) -> { if (moduleOrders.containsKey(lot)) entries.put(lot, b.entryId()); });
+			if (!ModulePlacement.cleared(vPlanId, entries).equals(quoteCleared)) {
+				quoteComposed(sha, entries);
+				return false;
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * (slice M5, "M5 design" 6) The composed town's whole realise, quoted read-only ({@code quoteApproved}) with its final entries; each module lot's own
+	 * pieces ({@code lot:<id>}, {@code fill:<id>}) held to its bound, set first from its measurement in the town's blocks and saved. Past a bound, or a
+	 * quote that may differ, the build holds and asks (each module's share saved as the bill the player approves); a module lot the quote doesn't bill,
+	 * or a part left unbilled, refuses; within, the realise goes on for exactly these entries. The rest of the town is billed as a Supplied plan v1
+	 * town's is today.
+	 */
+	private void quoteComposed(String sha, Map<String, String> entries) {
+		// the bounds: the measurement's, in this town's blocks, saved before anything is quoted (an order keeps one it has: approved, or set before)
+		var now = Settlements.store().get(settlement.id()).orElse(settlement);
+		var withBounds = new LinkedHashMap<String, dev.larattalabs.steward.module.ModuleOrder>();
+		for (var e : moduleOrders.entrySet()) {
+			var o = e.getValue();
+			if (o.bound() == null) {
+				final var order = o;
+				var entry = ModuleOffers.catalog().get(order.moduleId(), order.version()).filter(x -> x.programSha().equals(order.programSha()));
+				JsonObject bound = entry.map(x -> ModuleOffers.bound(x, order.params(), ModuleOffers.townItems(now, x))).orElse(null);
+				if (bound == null) {
+					say("Not placed: the working " + e.getKey().replace('_', ' ') + " has no measured bound to hold its bill to. Nothing was consumed.");
+					feed(new Pipeline.Cancel());
+					return;
+				}
+				o = o.resized(o.params(), bound);
+			}
+			withBounds.put(e.getKey(), o);
+		}
+		moduleOrders = java.util.Collections.unmodifiableMap(withBounds);
+		if (!persist()) { say("Not placed: the build could not be saved, so nothing is quoted."); feed(new Pipeline.Cancel()); return; }
+		moduleBusy = true;
+		int session = Session.current();
+		String key = ModulePlacement.cleared(vPlanId, entries);
+		java.util.concurrent.CompletableFuture<dev.larattalabs.architect.api.Quote> fq;
+		try {
+			fq = ArchitectApi.get().regions().quoteApproved(sha, entries);
+		} catch (RuntimeException | LinkageError e) {
+			fq = java.util.concurrent.CompletableFuture.failedFuture(e);
+		}
+		fq.whenComplete((q, err) -> server.execute(() -> {
+			moduleBusy = false;
+			if (!placingModules(session)) return;
+			if (err != null || q == null) {
+				say("Not placed: the bill couldn't be quoted (" + message(err) + "), and nothing is consumed unchecked.");
+				feed(new Pipeline.Cancel());
+				return;
+			}
+			var check = ModulePlacement.quoteCheck(q.exact(), q.notes());
+			Steward.LOGGER.info("composed modules {} quote {}: {} (exact {}, notes {})", settlement.id(), sha, q.bomParts(), q.exact(), q.notes());
+			if (check.refused() != null) {
+				say("Not placed: Architect couldn't quote the whole bill (" + check.refused() + "), so nothing is consumed unchecked.");
+				feed(new Pipeline.Cancel());
+				return;
+			}
+			var verdict = dev.larattalabs.steward.module.ComposedModules.held(q.bomParts(), moduleOrders, check.ask());
+			if (verdict.refused() != null) {
+				say("Not placed: " + verdict.refused() + ", so nothing is consumed unchecked.");
+				feed(new Pipeline.Cancel());
+				return;
+			}
+			moduleOrders = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(verdict.orders()));
+			if (verdict.ask() != null) {
+				// held, saved with the build: the approval binds to exactly these bills, also after a restart
+				persist();
+				feed(new Pipeline.HoldBill(verdict.ask() + " Nothing has been taken from the stockpile. Approve to build it with these bills (they become the bounds), or cancel."));
+				return;
+			}
+			persist();
+			quoteCleared = key;
+			realiseVillage();
+		}));
+	}
+
 	/**
 	 * The player approved a held bill (the approve that ends AWAITING_PLACEMENT_APPROVAL): the bill they were shown becomes the bound, saved before
 	 * anything is quoted again, so the next quote within it goes on, also after a restart. Nothing held (an approve after a hold that cleared): unchanged.
@@ -2942,6 +3171,13 @@ public final class SettlementRunner {
 	private void realiseArtifact(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
 		var regions = ArchitectApi.get().regions();
 		Map<String, String> fitting = palette(sha, fitting(sha, lotEntries));
+		// (slice M5) a module lot is never left a pad: one Architect's box or a palette rule would drop refuses the realise, nothing placed
+		var dropped = moduleOrders.keySet().stream().filter(l -> lotEntries.containsKey(l) && !fitting.containsKey(l)).sorted().toList();
+		if (!dropped.isEmpty()) {
+			realised(null, new IllegalStateException("the working " + String.join(", ", dropped.stream().map(l -> l.replace('_', ' ')).toList())
+				+ " would be left a pad, and a module lot never is"), session);
+			return;
+		}
 		// (Architect K3) a wall lot left without a design (none, or its design filtered out above) would leave the wall open where its tower or gatehouse
 		// stands: Architect binds nothing there, so the build ends here, naming it
 		var open = plan == null ? null : plan.lots().stream().filter(l -> l.exact() && !fitting.containsKey(l.id())).findFirst().orElse(null);
@@ -2991,6 +3227,8 @@ public final class SettlementRunner {
 						return;
 					}
 					if (!next.equals(sha)) regions.unpinArtifact(sha, settlement.owner());
+					// (slice M5) module lots: bound again to the new artifact's lots where they moved, and quoted again, before the second realise
+					if (composedModules()) { queueInFlight = false; quoteCleared = null; realiseVillage(); return; }
 					realiseArtifact(next, lotEntries, actor, ext, false, session);
 				}));
 			}));

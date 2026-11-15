@@ -137,8 +137,16 @@ public final class ComposeJob {
 	 * fields go first (assumptions, interpretation, story), then the program's notes, so the buildings always go.
 	 */
 	public static JsonObject hints(JsonObject card, @Nullable String land, Map<String, BlockPos> anchors) {
+		return hints(card, land, anchors, new JsonArray());
+	}
+
+	/**
+	 * As above, with the working modules the composer may name ({@code modules}, {@link dev.larattalabs.steward.module.ComposedModules#vocabulary}; slice
+	 * M5): sent whole when not empty, like the buildings; an empty list is left out, so a card's hints are as before.
+	 */
+	public static JsonObject hints(JsonObject card, @Nullable String land, Map<String, BlockPos> anchors, JsonArray modules) {
 		JsonObject c = card.deepCopy();
-		JsonObject h = build(c, land, anchors);
+		JsonObject h = build(c, land, anchors, modules);
 		List<Runnable> trims = List.of(() -> c.remove("assumptions"), () -> c.remove("interpretation"), () -> c.remove("story"), () -> c.remove("contradictions"),
 			() -> {
 				if (c.has("program") && c.get("program").isJsonArray()) for (JsonElement e : c.getAsJsonArray("program")) if (e.isJsonObject()) e.getAsJsonObject().remove("notes");
@@ -146,12 +154,12 @@ public final class ComposeJob {
 		for (Runnable t : trims) {
 			if (h.toString().length() <= HINTS_MAX) break;
 			t.run();
-			h = build(c, land, anchors);
+			h = build(c, land, anchors, modules);
 		}
 		return h;
 	}
 
-	private static JsonObject build(JsonObject card, @Nullable String land, Map<String, BlockPos> anchors) {
+	private static JsonObject build(JsonObject card, @Nullable String land, Map<String, BlockPos> anchors, JsonArray modules) {
 		JsonObject h = new JsonObject();
 		h.add("card", card);
 		JsonArray w = new JsonArray();
@@ -173,6 +181,7 @@ public final class ComposeJob {
 			an.add(e.getKey(), p);
 		}
 		h.add("anchors", an);
+		if (!modules.isEmpty()) h.add("modules", modules.deepCopy());
 		return h;
 	}
 
@@ -232,9 +241,28 @@ public final class ComposeJob {
 	 */
 	public static ComposeRequest request(String settlementId, String cardJson, @Nullable String land, BoundingBox claim, Map<String, BlockPos> anchors,
 		@Nullable String player, @Nullable ServerLevel level, @Nullable String owner) {
+		return request(settlementId, cardJson, land, claim, anchors, player, level, owner, new JsonArray(), "");
+	}
+
+	/**
+	 * As above, with the working modules the composer may name ({@code modules}) and what they are ({@code modulesId}, {@link
+	 * dev.larattalabs.steward.module.ComposedModules#identity}), which the key covers ({@link #keySha}).
+	 */
+	public static ComposeRequest request(String settlementId, String cardJson, @Nullable String land, BoundingBox claim, Map<String, BlockPos> anchors,
+		@Nullable String player, @Nullable ServerLevel level, @Nullable String owner, JsonArray modules, String modulesId) {
 		JsonObject card = JsonParser.parseString(cardJson).getAsJsonObject();
 		String sha = cardSha(cardJson);
-		return new ComposeRequest(brief(card), claim, null, false, cap(), opKey(settlementId, sha), ext(settlementId, sha, player, hints(card, land, anchors)), level, owner);
+		return new ComposeRequest(brief(card), claim, null, false, cap(), opKey(settlementId, keySha(sha, modulesId)),
+			ext(settlementId, sha, player, hints(card, land, anchors, modules)), level, owner);
+	}
+
+	/**
+	 * (slice M5) The sha a compose key carries: the card's ({@code cardSha}) when the composer is offered no modules (a key as before, byte for byte), else
+	 * the first 12 hex digits of the sha-256 of the card's sha and the modules' identity, so a catalog change under the same card is a new compose
+	 * (Architect refuses one key with another body). Pure.
+	 */
+	public static String keySha(String cardSha, @Nullable String modulesId) {
+		return modulesId == null || modulesId.isEmpty() ? cardSha : cardSha(cardSha + "|" + modulesId);
 	}
 
 	/** A waiting part's compose names the town as it stands by this stand-in only in the sim's scripted answers (the real hints give its region id). */
@@ -440,7 +468,14 @@ public final class ComposeJob {
 	}
 
 	private static void count(JsonArray lots, Map<String, Integer> have) {
-		for (JsonElement l : lots) if (l.isJsonObject() && !str(l.getAsJsonObject(), "type").isEmpty()) have.merge(slug(str(l.getAsJsonObject(), "type")), 1, Integer::sum);
+		for (JsonElement l : lots) {
+			if (!l.isJsonObject() || str(l.getAsJsonObject(), "type").isEmpty()) continue;
+			String type = slug(str(l.getAsJsonObject(), "type"));
+			have.merge(type, 1, Integer::sum);
+			// (slice M5) a working module's lot also stands for the card's building it was written for (a "farm" the plan made a crop farm)
+			var asked = dev.larattalabs.steward.module.ComposedModules.asked(l.getAsJsonObject());
+			if (asked != null && asked.forType() != null && !asked.forType().equals(type)) have.merge(asked.forType(), 1, Integer::sum);
+		}
 	}
 
 	/**

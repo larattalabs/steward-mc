@@ -239,6 +239,14 @@ public final class Undo {
 			done.accept(false);
 			return false;
 		}
+		// (slice M5, M4's Q3) a storage hall of the town holding items: refused at once and said with its chests (Architect's removal would wait on the cargo
+		// as a blocker)
+		String hall = HallCargo.before(server, s.owner(), regionSites);
+		if (hall != null) {
+			say.accept("Undo stopped: " + hall + ".");
+			done.accept(false);
+			return false;
+		}
 		int session = Session.current();
 		regions.remove(region, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
@@ -247,8 +255,10 @@ public final class Undo {
 			// logged once (slice VSR): two asks of one removal (Architect joins them) retire the entry once
 			if (ok && !retired(Settlements.store().get(s.id()).orElse(s), entry) && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
 			districts(server, s, say);
-			if (!ok) say.accept("Undo stopped: " + (err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
-				: "blocked by " + String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
+			String why = err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()) : "blocked by " + String.join(", ", r.blockers());
+			// (slice M5) refused for a storage hall holding items: said as the steward says it, then Architect's own list
+			String held = !ok && HallCargo.cargoRefusal(why) ? HallCargo.words(server, s.owner(), region, why) : null;
+			if (!ok) say.accept("Undo stopped: " + (held != null ? held + " (" + why + ")" : why) + ". Clear it and run /steward undo " + s.id() + " again.");
 			else say.accept("Undone: the village is taken up, the land restored.");
 			done.accept(ok);
 		}));
