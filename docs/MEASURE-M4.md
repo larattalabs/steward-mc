@@ -427,3 +427,38 @@ module-provided. Its requirements are §5's list for @2; each is answered below 
   refuses until the line is stopped and drains. The steward says "pull the lever by the input chest to stop the hall and wait until it is
   empty", but the lever is behind the line, out of reach. Should the lever be reachable (in the aisle's wall), or should the steward stop it?
 - Anything §5's findings ask that this misses.
+
+### 12.7 Design review (GPT-6.1 Sol, at ae3063c, Architect v0.72.0 de231d14) and what changes
+
+3 blockers, 5 should-fixes, 1 nit. The tile, the item-class certification and the bound are confirmed sound. The review's answers to
+12.6 are taken: item classes certify the domain; D and the line stay cargo; the steward runs the lever.
+- **[B1] Late cargo at removal: an Architect ask, S-M5-12.** Architect's removal scans blockers once and restores ticks later; an item put
+  into an undeclared container in between is erased. Steward's pre-check narrows the window, never closes it. Whether @2 certifies before
+  S-M5-12 is the manager's and Noah's call.
+- **[B2] Ingress before the lock:** bars added (below).
+  - The input preloaded at partial construction and while starving: nothing moves.
+  - An F contaminated before the fill: `fill_blocked`, no charge, the cargo untouched; emptied, exactly one fill.
+- **[B3] Crash:** CS1 is added at removal. A deterministic failed removal after the custody take waits for S-M5-13. Until then the bar is
+  FKC1/FKC2/CS1 plus a restart and an unchanged second retry. Each case is judged on the saved files and the physical refunds, per item,
+  with no custody, `heldProvided` or pending refund left.
+- **[S4] F isolation:** while the extra-in-F case is judged, D is held by a test lock (a dev-placed redstone block beside D, removed
+  after). The bar asserts F itself holds the excess and every other container is empty.
+- **[S5] Slabs in F:** the recovery is break the F (FK-b strips the slabs), take the dropped billed goods, then undo and grow again. The
+  bar: no slab dropped or refunded; the missing hopper and its filter items not refunded; one correct, billed replacement fill.
+- **[S6] Ownership:**
+  - an F is ours only once its fill committed (FILLED/UNLOCKED);
+  - it holds plain stacks only (any component patch is cargo);
+  - in total at most 41 of its item and at most 4 slabs;
+  - the input, the line, every D and every chest have no allowance.
+
+  M4-L's declared cells become typed cells (input, overflow, line, F, D, slot, bulk), unit-tested against the program's rotated layout.
+  HallCargo classifies and says; it never takes or refunds.
+- **[S7] Geometry:** the air mask is explicit (the program's `keepAir`: the cell over the low dust, the low dust's point, the cell over the
+  overflow), and no shell write may reach it (a program check). Partial chunk unloads are added: a hall crossing a border along its line, and
+  one crossing through a tile's control arm, with one side unloaded while the other ticks, then reloaded. Plus the adverse-palette probes.
+- **[S8] Labels:** a question for Noah (a look-at HUD label, or the command and inbox).
+- **[N9]**
+  - Lamps as full triples, in the program: (0, 4, 8), (W-1, 4, 2), (W-1, 4, 8), (gate±2, 4, 11).
+  - A lower bulk chest has a chest above, which still opens.
+  - "Refund 0 of it" means zero fill contribution: the structure's own stone and redstone are still refunded. The bound and refund tests
+    include stone, dirt and redstone as filter items, so structure and fill share an item.
