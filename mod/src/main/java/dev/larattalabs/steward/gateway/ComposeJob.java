@@ -204,6 +204,18 @@ public final class ComposeJob {
 		@Nullable String program, @Nullable JsonObject params, @Nullable String error) {
 	}
 
+	/**
+	 * Whether {@code d} is a compose's own design (kind SETTLEMENT): its template pick is a REGION design that carries the same ext, and ends first.
+	 * Pure.
+	 */
+	public static boolean isCompose(Design d) {
+		try {
+			return d.kind() == Design.Kind.SETTLEMENT;
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
+	}
+
 	/** The settlement design's result read as Steward keeps it. Pure. */
 	public static Outcome interpret(Design d) {
 		double usd = d.cost() == null ? 0 : d.cost().usd();

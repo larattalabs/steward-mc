@@ -286,6 +286,8 @@ public final class Composer {
 	static void onDone(MinecraftServer server, dev.larattalabs.architect.api.Design d) {
 		var ext = d.request().has("ext") && d.request().get("ext").isJsonObject() ? d.request().getAsJsonObject("ext") : null;
 		if (ext == null || !ext.has(dev.larattalabs.steward.gateway.ComposeJob.EXT_SETTLEMENT)) return;
+		// compose's template pick is a REGION design of its own carrying the same ext: only the settlement design's end is the compose's
+		if (!dev.larattalabs.steward.gateway.ComposeJob.isCompose(d)) return;
 		if (!HANDLED.add(Session.current() + "#" + d.id())) return;
 		String sid = ext.get(dev.larattalabs.steward.gateway.ComposeJob.EXT_SETTLEMENT).getAsString();
 		String sha = ext.has(dev.larattalabs.steward.gateway.ComposeJob.EXT_CARD) ? ext.get(dev.larattalabs.steward.gateway.ComposeJob.EXT_CARD).getAsString() : "";

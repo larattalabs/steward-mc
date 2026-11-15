@@ -102,6 +102,17 @@ class ComposeJobTest {
 	}
 
 	@Test
+	void onlyTheSettlementDesignIsTheComposesNotItsTemplatePick() {
+		// stub e2e 11-14: the pick (a region design with the same ext) ended first and was read as a failed compose
+		var settlement = new Design("d1", Design.Status.DONE, "", Optional.empty(), Cost.NONE, Optional.empty(), json("{\"kind\":\"settlement\"}"), Optional.empty(), 0, 0,
+			Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+		var pick = new Design("d2", Design.Status.DONE, "", Optional.empty(), Cost.NONE, Optional.empty(), json("{\"type\":\"region.design\",\"kind\":\"region\"}"),
+			Optional.empty(), 0, 0, Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+		assertTrue(ComposeJob.isCompose(settlement));
+		assertFalse(ComposeJob.isCompose(pick));
+	}
+
+	@Test
 	void theOutcomesAreReadAsSteward_keepsThem() {
 		var composed = ComposeJob.interpret(design(Design.Status.DONE,
 			"{\"outcome\":\"COMPOSED\",\"reason\":\"A village by the falls.\",\"plan\":{\"schemaVersion\":\"plan/0\"},\"rounds\":2,\"cost\":0.31}", 0.31, null));
