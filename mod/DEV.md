@@ -17,6 +17,11 @@ First build without a cache needs network (Minecraft download and decompile). `.
 ln -s ../../steward-mc/node_modules node_modules
 ```
 
+## Temp files on the RAM disk (2026-11-14)
+`tools/e2e.mjs` and `tools/nightly.mjs` point TMPDIR at `/Volumes/MCTmp/tmp/steward` when that RAM disk exists. Their clients and builds inherit it. Noah approved the disk: a 24 GB volume made at login by the LaunchAgent `com.laratta.mctmp-ramdisk`, whose contents go at a reboot (`tools/lib/ram-tmp.mjs`).
+- Without the volume, or with `STEWARD_RAM_TMP=0`, TMPDIR stays as it was.
+- The game's run dirs (`mod/run`) stay on disk: the e2e reads its world, logs and screenshots there, and a failed night's world is kept for diagnosis.
+
 ## Architect dependency
 `build.gradle` depends on `dev.larattalabs:architect_mc:${architect_version}` (gradle.properties) from GitHub Packages, the released artifact.
 Maven Local never supplies it (nor lab-ui): an Architect slice keeps main's `mod_version`, so a local publish would shadow the release under its
