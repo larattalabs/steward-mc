@@ -67,6 +67,24 @@ class StyleBoundTest {
 	}
 
 	@Test
+	void theHallsDoorAndRoofSlabMatchTheKit() {
+		// storage_hall@1's wood.door and roof.slab roles (M4), against the pinned kit's own palette for every built-in Style
+		var kit = res("hall-roles-kit-0.62.0.json");
+		java.util.Set<String> slabs = new java.util.HashSet<>();
+		kit.getAsJsonArray("slabs").forEach(x -> slabs.add(x.getAsString()));
+		java.util.function.UnaryOperator<String> mc = b -> !b.endsWith("_slab") || slabs.contains(b) ? b : null;
+		for (var e : kit.getAsJsonObject("palettes").entrySet()) {
+			var o = e.getValue().getAsJsonObject();
+			var r = roles(o.getAsJsonObject("roles"));
+			assertEquals(o.get("door").getAsString(), StyleBound.townBlocks(r, null).get("wood.door"), e.getKey());
+			assertEquals(o.get("roofSlab").getAsString(), StyleBound.slabOf(r.get("roof"), mc), e.getKey());
+			assertEquals(o.get("roofSlab").getAsString(), StyleBound.townItems(r, null, mc).get("roof.slab"), e.getKey());
+			for (String role : List.of("floor", "wall", "frame")) assertEquals(StyleBound.qualify(r.get(role)), StyleBound.townBlocks(r, null).get(role), e.getKey() + " " + role);
+		}
+		assertNull(StyleBound.slabOf("minecraft:glass", b -> b.endsWith("_slab") ? null : b), "no slab: the measured item is kept");
+	}
+
+	@Test
 	void blocksAreBilledAsArchitectBillsThem() {
 		// Architect's special cases are the kit's own (vocab/survival.json costs at v0.65.0), every one of them
 		var kit = res("survival-costs-kit-0.60.0.json").getAsJsonObject("costs");

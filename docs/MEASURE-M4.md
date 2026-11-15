@@ -8,8 +8,12 @@ Results never move a bar. A bar found wrongly stated is recorded as a FAIL and a
 **Order (the brief).** The plain hall (`slots = 0`) is built, measured and certified first, so the slice ships either way. The sorting
 branches (`slots` 4-16) wait for Noah's choice of the filler item (open: option 1 `minecraft:petrified_oak_slab`, a module-provided item that
 needs an Architect ask first; option 2 a billed plain item survival can make). Until then the envelope's `slots` branch is `[0]` only, and
-the program refuses any other value. Adding the sorting branches changes the program, so the whole envelope (the plain branches included)
-is measured again then.
+the program refuses any other value.
+
+**Versions (amended after the design review, finding 11).** A measured version is frozen (MODULES 2.1). The plain hall is `storage_hall@1`
+(`slots` `[0]`) and stays as certified; the sorting hall is **`storage_hall@2`**, a new program and envelope (its own plain branches
+included, measured again with it). Only the newest version is offered, so @2 replaces @1 once certified. A plain hall does not meet M5's
+gate.
 
 ## 1. The module
 
@@ -30,8 +34,9 @@ first `slots` must name distinct items, the rest `none`.
 Row 0 is a foundation layer under the whole lot (frame y -1), row 1 the floor (ground level), rows 2-5 the walls (4 high), row 6 the roof
 as the roof role's **bottom slab** over the whole hall (no mob spawns on a bottom slab, and none inside: it is lit). Walls on the `wall`
 role, corner posts on `frame`, the floor on `floor`, the foundation on `foundation`, the front row on `path`, a door from the bible's wood
-at the front wall's middle `gate = floor(W / 2)`, lamps from `light` set into the walls at row 4 (they light the inside and the front row),
-glass panes from `glass` at row 3 in the side walls.
+at the front wall's middle `gate = floor(W / 2)`, lamps from `light` set into the walls at row 4 (they light the inside and the front row).
+*Amended before measuring:* no glass panes (one less role for the bound to re-express). The program records each cell's role as it writes
+it (`bp.roleCells`), so the survival bound's role parts are counted by provenance, never by a block two roles share (review finding 7).
 
 **The plain hall (`slots = 0`):** `W = 11`, `D = 7`, `H = 7`.
 - z 0 back wall; z 1 the bulk row; z 2-4 the aisle; z 5 the front wall with the door; z 6 the front row (path).
@@ -40,7 +45,7 @@ glass panes from `glass` at row 3 in the side walls.
   `type` (left/right) so it is a double chest as placed.
 - **The input chest** (`item_in` port): a single chest just inside the door (x = gate + 1, z 4, row 2), `type=single`, with no chest beside
   it, so it never merges. With no line it is a plain chest the player fills.
-- **Lamps:** in the side walls at (0, 4, 2) and (W-1, 4, 2) and in the front wall at (gate ± 2, 4, 5).
+- **Lamps:** in the side walls at (0, 4, 2) and (W-1, 4, 2) and in the front wall at (gate ± 2, 4, 5), each standing on the wall cell below.
 - No redstone, no hopper, nothing that can jam.
 
 **The sorting hall (`slots = s` of 4-16; designed now, built after the filler):** `W = max(s + 3, 11)`, `D = 13`, `H = 7`.
@@ -73,7 +78,8 @@ glass panes from `glass` at row 3 in the side walls.
 ### 1.3 Palette rules (MODULES 2.2, the program and `module.json` `palette`)
 
 - **Lamp:** the `light` role at block light 14 or more, else the plain lantern, said on the offer.
-- **No gravity** on `floor` (chests stand on it), `foundation`, `wall`, `frame` and `roof` (the slab roof spans the hall).
+- **No gravity** on `floor` (chests stand on it), `foundation`, `wall` and `frame`. *Amended:* not on `roof`: the kit refuses a roof
+  block with no slab variant, and no gravity block has one, so the rule could never fire (the offline probe showed it).
 - **Non-conductive:** none: no role block is in the circuit's plane (the air gap at z 1, the partition only sideways).
 
 ### 1.4 The filter domain (sorting branches)
@@ -123,16 +129,21 @@ Conventions as M2's (frozen time where it matters, `random_tick_speed 3`, mob sp
 2. **Storage conserves.** Into the input chest and every bulk chest of every hall: a fixed mix (64-stacks of 8 kinds, 3 unstackables, a
    16-stack, a component stack) is inserted by the dev hook and read back. Bar: every container holds exactly what was put in, slot by slot.
 3. **Restarts and unloads.** With the containers holding the mix: a restart (the client quits and starts), then the hall's chunks unloaded
-   (the player teleported out of range for 600 ticks) and loaded again. Bar: every container exactly as before, no item entity in the
-   hall's box, standing still 100%.
+   (the player teleported 6,000 blocks away; *amended:* the unload is asserted, every hall's input-chest chunk reading as unloaded, review
+   finding 9; then 600 ticks) and loaded again. Bar: every container exactly as before, no item entity in the hall's box, standing still 100%.
 4. **Light.** At midnight, every air cell at row 2 inside the hall and on its front row has block light 1 or more (mob safety, M2's bar 2).
 5. **Undo with cargo** (MODULES 6, Q3). A hall holding items: `undoRevision` is refused, with the containers named; nothing in the world
-   changes (the containers' contents, the standing score). The steward's words name the count and the containers.
+   changes (the containers' contents, the standing score). The steward's words name the count and the containers. *Amended (review
+   finding 4):* then cargo **in isolation**, one container class at a time: a single item alone in the input chest, in either half of a
+   lower bulk pair, and in either half of an upper pair. Each alone refuses the undo and is still there after.
 6. **Undo emptied.** The containers emptied by the dev hook: the undo removes the hall; no item entity appears.
 7. **Survival.** The plain hall placed from a stockpile (growth A2, every `bulk` branch at least once over the run, rustic):
    - the quote held to the measured bound, and **consumed == the quote**, item by item (the chests, planks, the door, the lamps, the roles);
    - a cancel mid-build refunds exactly what was consumed, never more;
+   - *amended (review finding 3):* a construction block the player mined first (one bulk chest half, broken by a fake player through PT):
+     it drops as the player's, and the undo refunds consumed less that chest, never the chest again;
    - an undo of the built, emptied hall refunds exactly what was consumed;
+   - after a restart following the undos, nothing is given twice (the ledger, the stock, nothing on the ground);
    - the bound recorded per params and measured Style (`bounds`, as M2's, with `roleParts`).
 8. **The checker** over every branch x Style (rustic, fortress, desert): `tools/module-catalog.mjs offline` and `ingame` clean.
 
@@ -156,5 +167,36 @@ MODULES 3.2's measurement 1-6, on the real module, every slot branch x 4 facings
 
 - **Branches:** `slots` 0 x `bulk` 0-8 now (9). Later 4, 8, 12, 16 x the bulk values the sorting W holds.
 - **Facings:** all four; a V town laid east-west fronts its lots north and south, north-south fronts them east and west (as M2).
-- **Chunk borders:** at least one hall of each branch crosses a chunk border in x and in z (a W = 11 hall crosses when placed so).
+- **Chunk borders:** *amended before measuring:* at least one hall crosses a chunk border in x and one in z. The plain hall is one fixed
+  frame for every bulk branch, so a crossing tests the containers' chunk handling, not a branch's geometry. (The sorting version places
+  crossings through its circuit, review finding 9.)
 - **Styles:** rustic in full; fortress and desert for 1 (shape) and 4 (light).
+
+## 5. Design review (GPT-6.1 Sol, at 5151078, 2026-11-14)
+
+"Plain-first is sound as an interim release." 5 blockers, 7 should-fixes, 1 nit, checked against the code and the 26.3 jar's rules it cites.
+**For the plain hall (taken now):** finding 3 (a mined construction block's refund: bar 7), 4 (cargo in isolation per container class:
+bar 5), 7 (the bound's role parts by provenance: `bp.roleCells`, `StyleBound`'s hall roles pinned to the kit by a unit test), 9 (the unload
+asserted: bar 3; crossings: 4.3), 11 (versions: @1 frozen, sorting is @2). Findings 3's restart-and-retry after refunds: bar 7's restart.
+**For `storage_hall@2` (accepted as its requirements, built after the filler):**
+- 1: nothing conductive over the overflow chest (the partition leaves the cell above it clear); every chest opened and emptied by a fake player.
+- 2: FK's recorded leftovers (a stalled removal's custody written back and wiped on retry; a single-site Remove credited without a save) are
+  exercised on the hall's own `undoRevision` path with a removal failure after capture, a restart and a retry, and fixed or excluded in
+  Architect (an ask) before @2 certifies.
+- 3: refunds after the player took filter items (part and all of an F), a missing container, and a mined block, each item counted apart
+  (inventory, stock, custody, pending refunds, drops), with a restart and retry.
+- 4: cargo alone in each container class (input, overflow, slot chest, bulk halves, line hopper, F, D), cargo arriving after the preflight,
+  and the extra-in-F case with the line stopped, so F itself is the blocker.
+- 5: the item params: 16 enums of short keys (the kit refuses `minecraft:` in an option) mapped to item ids, with dependent validation
+  (distinct, `none` only after the slots) in `ModuleGate`; the filter items certified as an item class apart from the layout branches; the
+  bound looked up for the accepted items.
+- 6: every role touching a mechanism is a fixed measured core block or held to a support and redstone rule (a redstone block floor under D
+  would lock it); adverse-palette checks; a preloaded input stays put through construction and starvation; the exact F slots before the
+  release; `fill_blocked` recovery charging nothing over cargo.
+- 8: the larger mixes are fed in acknowledged batches against an independent expected multiset; throughput timed around that; a full
+  overflow backs up and recovers.
+- 10: the filler's paths into ordinary inventories (refunds, a broken filter) named, the input restriction on the offer, and the
+  recovery measured; with a survival-obtainable filler, §9's disclosed risk and Remove/repair.
+- 12: placed slot labels the player can read in the hall (from the lot's params, the input and the overflow too), and the offer's real
+  dimensions.
+- 13: "no hopper under F" means no uncontrolled extraction below F (D, the controlled one, is there); the bars named, not numbered.

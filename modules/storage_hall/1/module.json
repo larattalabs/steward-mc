@@ -2,7 +2,7 @@
   "id": "storage_hall",
   "version": 1,
   "title": "Storage hall",
-  "programSha": "951eb03bf8d6967ffc96ea57f604948f52a8cbcfc6b8611312aecd3ed928a69a",
+  "programSha": "9894ed10b88bda8d1a6412b5aa8f66a53f7a721f18ec1ab27bd2b359cde5a740",
   "params": {
     "slots": { "type": "int", "min": 0, "max": 16, "default": 0, "label": "Sorting slots" },
     "bulk": { "type": "int", "min": 0, "max": 8, "default": 2, "label": "Double chests" }

@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.core.BlockPos;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
@@ -104,6 +105,27 @@ public final class ModuleDev {
 			}
 			case "walk" -> {
 				return CompletableFuture.supplyAsync(() -> walk(server, req), server);
+			}
+			case "hallLot" -> {
+				JsonObject a = new JsonObject();
+				a.add("lot", StorageHallLot.growLot(req.get("id").getAsString(), req.get("slots").getAsInt(), req.get("bulk").getAsInt()));
+				return CompletableFuture.completedFuture(a);
+			}
+			case "hallCargo" -> {
+				return CompletableFuture.supplyAsync(() -> {
+					JsonObject a = new JsonObject();
+					a.addProperty("words", dev.larattalabs.steward.service.HallCargo.words(server, req.get("owner").getAsString(), req.get("region").getAsString()));
+					return a;
+				}, server);
+			}
+			case "containers" -> {
+				return CompletableFuture.supplyAsync(() -> containers(server, req.getAsJsonArray("box")), server);
+			}
+			case "putItems" -> {
+				return CompletableFuture.supplyAsync(() -> putItems(server, req), server);
+			}
+			case "clearContainers" -> {
+				return CompletableFuture.supplyAsync(() -> clearContainers(server, req.getAsJsonArray("box")), server);
 			}
 			case "growLot" -> {
 				JsonObject a = new JsonObject();
@@ -215,6 +237,112 @@ public final class ModuleDev {
 		o.add("cells", out);
 		o.addProperty("gameTime", level.getGameTime());
 		return o;
+	}
+
+	private static BlockPos at(JsonArray a) {
+		return new BlockPos(a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt());
+	}
+
+	/** A stack's key: its item id, with {@code #<name>} when it carries a custom name, and {@code +} when it carries any other added component. */
+	static String stackKey(ItemStack st) {
+		String id = BuiltInRegistries.ITEM.getKey(st.getItem()).toString();
+		var name = st.get(net.minecraft.core.component.DataComponents.CUSTOM_NAME);
+		String k = name == null ? id : id + "#" + name.getString();
+		return st.getComponentsPatch().isEmpty() || name != null && st.getComponentsPatch().size() == 1 ? k : k + "+";
+	}
+
+	/**
+	 * (M4) Every container block entity in a box (loaded chunks only): {@code [{at, block, state, size, slots: [[slot, key, count]]}]}, and the
+	 * box's totals per stack key. The measurement reads a hall's containers with it, slot by slot.
+	 */
+	private static JsonObject containers(MinecraftServer server, JsonArray b) {
+		ServerLevel level = server.overworld();
+		JsonArray out = new JsonArray();
+		JsonObject totals = new JsonObject();
+		int unloaded = 0;
+		for (BlockPos pos : BlockPos.betweenClosed(b.get(0).getAsInt(), b.get(1).getAsInt(), b.get(2).getAsInt(), b.get(3).getAsInt(), b.get(4).getAsInt(), b.get(5).getAsInt())) {
+			if (!level.hasChunkAt(pos)) { unloaded++; continue; }
+			if (!(level.getBlockEntity(pos) instanceof net.minecraft.world.Container c)) continue;
+			JsonObject o = new JsonObject();
+			JsonArray p = new JsonArray();
+			p.add(pos.getX());
+			p.add(pos.getY());
+			p.add(pos.getZ());
+			o.add("at", p);
+			BlockState st = level.getBlockState(pos);
+			o.addProperty("block", BuiltInRegistries.BLOCK.getKey(st.getBlock()).toString());
+			o.addProperty("state", st.toString());
+			o.addProperty("size", c.getContainerSize());
+			JsonArray slots = new JsonArray();
+			for (int i = 0; i < c.getContainerSize(); i++) {
+				ItemStack it = c.getItem(i);
+				if (it.isEmpty()) continue;
+				JsonArray r = new JsonArray();
+				r.add(i);
+				String k = stackKey(it);
+				r.add(k);
+				r.add(it.getCount());
+				slots.add(r);
+				totals.addProperty(k, (totals.has(k) ? totals.get(k).getAsInt() : 0) + it.getCount());
+			}
+			o.add("slots", slots);
+			out.add(o);
+		}
+		JsonObject a = new JsonObject();
+		a.add("containers", out);
+		a.add("totals", totals);
+		a.addProperty("unloaded", unloaded);
+		return a;
+	}
+
+	/**
+	 * (M4) Puts stacks into one container: {@code {at, stacks: [{slot, id, count, name?}]}} ({@code name}: a custom name, a component stack). A slot
+	 * that holds anything refuses the whole request, so nothing is overwritten.
+	 */
+	private static JsonObject putItems(MinecraftServer server, JsonObject req) {
+		ServerLevel level = server.overworld();
+		BlockPos pos = at(req.getAsJsonArray("at"));
+		if (!(level.getBlockEntity(pos) instanceof net.minecraft.world.Container c)) return error("no container at " + pos.toShortString());
+		JsonArray stacks = req.getAsJsonArray("stacks");
+		for (JsonElement e : stacks) {
+			int slot = e.getAsJsonObject().get("slot").getAsInt();
+			if (slot < 0 || slot >= c.getContainerSize() || !c.getItem(slot).isEmpty()) return error("slot " + slot + " at " + pos.toShortString() + " is not an empty slot");
+		}
+		int n = 0;
+		for (JsonElement e : stacks) {
+			JsonObject s = e.getAsJsonObject();
+			var item = BuiltInRegistries.ITEM.getOptional(net.minecraft.resources.Identifier.parse(s.get("id").getAsString()));
+			if (item.isEmpty()) return error("unknown item " + s.get("id").getAsString());
+			ItemStack st = new ItemStack(item.get(), s.get("count").getAsInt());
+			if (s.has("name")) st.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal(s.get("name").getAsString()));
+			c.setItem(s.get("slot").getAsInt(), st);
+			n += st.getCount();
+		}
+		c.setChanged();
+		JsonObject a = new JsonObject();
+		a.addProperty("ok", true);
+		a.addProperty("items", n);
+		return a;
+	}
+
+	/** (M4) Empties every container in a box; answers what was taken, per stack key. */
+	private static JsonObject clearContainers(MinecraftServer server, JsonArray b) {
+		ServerLevel level = server.overworld();
+		JsonObject taken = new JsonObject();
+		for (BlockPos pos : BlockPos.betweenClosed(b.get(0).getAsInt(), b.get(1).getAsInt(), b.get(2).getAsInt(), b.get(3).getAsInt(), b.get(4).getAsInt(), b.get(5).getAsInt())) {
+			if (!level.hasChunkAt(pos) || !(level.getBlockEntity(pos) instanceof net.minecraft.world.Container c)) continue;
+			for (int i = 0; i < c.getContainerSize(); i++) {
+				ItemStack it = c.getItem(i);
+				if (it.isEmpty()) continue;
+				String k = stackKey(it);
+				taken.addProperty(k, (taken.has(k) ? taken.get(k).getAsInt() : 0) + it.getCount());
+				c.setItem(i, ItemStack.EMPTY);
+			}
+			c.setChanged();
+		}
+		JsonObject a = new JsonObject();
+		a.add("taken", taken);
+		return a;
 	}
 
 	/** The dropped items in a box, counted per item id, then discarded (the harvest's count). */

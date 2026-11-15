@@ -16,7 +16,11 @@
 //   z = D-2          the front wall, the door at x = gate = floor(W / 2)
 //   z = D-1          the front row: path
 // Lamps (the `light` role, or the plain lantern when it is under light 14) stand in the walls at row 4, on the wall cell below: they light
-// the inside and, in the front wall, the front row. Glass panes in the side walls at row 3.
+// the inside and, in the front wall, the front row.
+//
+// Role provenance: the build records the palette role of every cell it writes from one (`bp.roleCells`, cell key -> role key), so the
+// survival bound's role parts are counted by role, never guessed from a block two roles share (tools/lib/style-bounds.mjs). Role keys:
+// foundation, floor, wall, frame, light (the lamp after the fallback rule), path, roof.slab (the roof's bottom slab), wood.door (the door).
 //
 // Palette constraints (MODULES.md 2.2, module.json `palette`): the lamp as above (the one substitution, said); no gravity on floor (chests
 // stand on it), foundation, wall and frame; the roof can't be one (the kit refuses a roof with no slab, and no gravity block has one). A bible that breaks them is refused (`palette: ...`).
@@ -56,9 +60,14 @@ export function paletteCheck(roles) {
   return { lamp, fallback: lamp !== roles.light, broken };
 }
 
+/** The block each role key writes in this palette (`pc`: paletteCheck's result, for the lamp). Pure; tools/lib/style-bounds.mjs reads it. */
+export function roleBlocks(p, pc = paletteCheck(p.roles ?? {})) {
+  return { foundation: p.foundation, floor: p.floor, wall: p.wall, frame: p.frame, light: pc.lamp, path: p.path, 'roof.slab': p.roofSlab, 'wood.door': p.door };
+}
+
 /**
  * The hall's layout, pure: {W, D, H, gate, input: [x, y, z], bulk: [{lo: [x, y, z], hi: [x, y, z]}] (each double chest's two halves: `lo`
- * the lower-x cell), lamps: [[x, y, z]], panes: [[x, y, z]]}. Steward's lot spec and the measurement read it.
+ * the lower-x cell), lamps: [[x, y, z]]}. Steward's lot spec and the measurement read it.
  */
 export function layout(slots, bulk) {
   if (!SLOTS.includes(slots)) throw new Error(`storage_hall@1: slots must be one of ${SLOTS.join(', ')} (the sorting branches wait for the filler)`);
@@ -71,8 +80,7 @@ export function layout(slots, bulk) {
     chests.push({ lo: [1 + 2 * col, row, 1], hi: [2 + 2 * col, row, 1] });
   }
   const lamps = [[0, 4, 2], [W - 1, 4, 2], [gate - 2, 4, D - 2], [gate + 2, 4, D - 2]];
-  const panes = [[0, 3, 3], [W - 1, 3, 3]];
-  return { W, D, H, gate, input: [gate + 1, 2, D - 3], bulk: chests, lamps, panes };
+  return { W, D, H, gate, input: [gate + 1, 2, D - 3], bulk: chests, lamps };
 }
 
 export default function build({ palette = PALETTES.rustic, slots = 0, bulk = 2 } = {}) {
@@ -97,7 +105,8 @@ export default function build({ palette = PALETTES.rustic, slots = 0, bulk = 2 }
     approach: false,
   });
   const lamps = new Set(L.lamps.map((c) => c.join(',')));
-  const panes = new Set(L.panes.map((c) => c.join(',')));
+  const roleCells = new Map();
+  const put = (role, x, y, z, block, props) => { bp.set(x, y, z, block, props); roleCells.set(`${x},${y},${z}`, role); };
   bp.part('core', () => {
     // the containers: the bulk double chests (each half with its type, so they pair as placed) and the input chest
     for (const { lo, hi } of L.bulk) {
@@ -108,26 +117,30 @@ export default function build({ palette = PALETTES.rustic, slots = 0, bulk = 2 }
     bp.set(...L.input, 'minecraft:chest', { facing: 'west', type: 'single' });
   });
   bp.part('shell', () => {
-    for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) bp.set(x, 0, z, p.foundation);
+    for (let x = 0; x < W; x++) for (let z = 0; z < D; z++) put('foundation', x, 0, z, p.foundation);
     for (let x = 0; x < W; x++) for (let z = 0; z <= D - 2; z++) {
       const edge = x === 0 || x === W - 1 || z === 0 || z === D - 2;
-      bp.set(x, 1, z, edge ? p.foundation : p.floor);
+      if (edge) put('foundation', x, 1, z, p.foundation);
+      else put('floor', x, 1, z, p.floor);
       if (!edge) continue;
       const corner = (x === 0 || x === W - 1) && (z === 0 || z === D - 2);
       for (let y = 2; y <= 5; y++) {
         if (x === gate && z === D - 2 && (y === 2 || y === 3)) continue; // the door
         const k = `${x},${y},${z}`;
-        if (lamps.has(k)) bp.lantern(x, y, z, false, pc.lamp);
-        else if (panes.has(k)) bp.set(x, y, z, p.pane);
-        else bp.set(x, y, z, corner ? p.frame : p.wall);
+        if (lamps.has(k)) { bp.lantern(x, y, z, false, pc.lamp); roleCells.set(k, 'light'); }
+        else if (corner) put('frame', x, y, z, p.frame);
+        else put('wall', x, y, z, p.wall);
       }
     }
     bp.door(gate, 2, D - 2, 'south');
-    for (let x = 0; x < W; x++) bp.set(x, 1, D - 1, p.path);
-    for (let x = 0; x < W; x++) for (let z = 0; z <= D - 2; z++) bp.set(x, 6, z, p.roofSlab, { type: 'bottom' });
+    roleCells.set(`${gate},2,${D - 2}`, 'wood.door');
+    roleCells.set(`${gate},3,${D - 2}`, 'wood.door');
+    for (let x = 0; x < W; x++) put('path', x, 1, D - 1, p.path);
+    for (let x = 0; x < W; x++) for (let z = 0; z <= D - 2; z++) put('roof.slab', x, 6, z, p.roofSlab, { type: 'bottom' });
   });
   bp.port('in', 'item_in', ...L.input, 'south');
   bp.spot('entrance', gate, D - 1, 180, { y: 2 });
   bp.spot('spawn', gate, D - 1, 180, { y: 2 });
+  bp.roleCells = roleCells;
   return bp;
 }
