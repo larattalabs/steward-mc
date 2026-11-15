@@ -209,6 +209,14 @@ public final class StewardCommands {
 						StringArgumentType.getString(ctx, "lot"));
 					ctx.getSource().sendSuccess(() -> Component.literal(said), false);
 					return 1;
+				}))))).then(Commands.literal("plan_district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("zone", StringArgumentType.word())
+				.then(Commands.argument("district", StringArgumentType.greedyString()).executes(ctx -> {
+					// dev (the e2e check, slice PD): a D1 district added to the settlement's kept plan, as one its founding didn't build
+					if (!host(ctx.getSource())) return 0;
+					String said = dev.larattalabs.steward.service.PlanStore.addDistrict(StringArgumentType.getString(ctx, "id"), StringArgumentType.getString(ctx, "zone"),
+						StringArgumentType.getString(ctx, "district"));
+					ctx.getSource().sendSuccess(() -> Component.literal(said), false);
+					return 1;
 				}))))).then(Commands.literal("module").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("request", StringArgumentType.greedyString())
 				.executes(ctx -> {
 					// dev (tools/module-catalog.mjs): the module catalog's gate and installs on a catalog directory; the answer written to
@@ -366,7 +374,10 @@ public final class StewardCommands {
 					if (!host(ctx.getSource())) return 0;
 					// "leftout": the steward's own district for the buildings the card left out (slice DP), its side chosen from the land
 					String way = StringArgumentType.getString(ctx, "way");
-					String r = "leftout".equalsIgnoreCase(way) ? dev.larattalabs.steward.service.Proposals.proposeLeftOut(ctx.getSource().getServer(),
+					// "plan" (slice PD): the town's plan's unbuilt district, now rather than at the next minute's reading
+					String r = "plan".equalsIgnoreCase(way) ? dev.larattalabs.steward.service.Proposals.proposePlan(ctx.getSource().getServer(),
+						ctx.getSource().getPlayerOrException().getUUID(), StringArgumentType.getString(ctx, "id"))
+						: "leftout".equalsIgnoreCase(way) ? dev.larattalabs.steward.service.Proposals.proposeLeftOut(ctx.getSource().getServer(),
 						ctx.getSource().getPlayerOrException().getUUID(), StringArgumentType.getString(ctx, "id"))
 						: dev.larattalabs.steward.service.Proposals.proposeDistrict(StringArgumentType.getString(ctx, "id"), way.toUpperCase(java.util.Locale.ROOT), System.currentTimeMillis());
 					ctx.getSource().sendSuccess(() -> Component.literal(r), false);

@@ -1059,6 +1059,21 @@ public final class SettlementRunner {
 	}
 
 	/**
+	 * (slice PD) The first build of a district the town's approved plan named and its founding didn't build: reserved beside the town ({@code districtId}),
+	 * its region planned with the plan's own lots ({@code specs}) on SD's path (planDistrict: the stockpile, the quote and one approval from materials).
+	 */
+	public void startPlanDistrict(Settlement s, String districtId, List<VillageLayout.LotSpec> specs, double budgetUsd) {
+		if (specs.isEmpty()) throw new IllegalArgumentException("a plan district needs its lots");
+		this.planSpecs = List.copyOf(specs);
+		var first = specs.get(0);
+		startAddition(s, new dev.larattalabs.steward.model.ConceptCard.Building(first.role(), first.type(), specs.size(), "M", false, null, null), budgetUsd, districtId,
+			specs.size());
+	}
+
+	/** (slice PD) The plan district's lots this build lays out instead of the card's program; null for every other build. In memory (a restart keeps districtSpecs). */
+	private @org.jspecify.annotations.Nullable List<VillageLayout.LotSpec> planSpecs;
+
+	/**
 	 * (docs/MODULES.md 4.2, slice M3) Places an accepted module offer: one module lot, the catalog's program run at $0, as an addition on growth (A, A2,
 	 * or B then A). Never a design, never Steward's street pieces: a town that can't grow that way ends the build before anything is spent.
 	 */
@@ -1134,9 +1149,10 @@ public final class SettlementRunner {
 			// landmarks run on the dearer model: the size's typical count, and at most one per four buildings
 			int maxLandmarks = dev.larattalabs.steward.model.BudgetPolicy.maxLandmarks(r.card().site().size(), buildings);
 			ProgramPlanner.Result program = ProgramPlanner.lots(r.card(), buildings, maxLandmarks);
-			if (!program.fromCard()) say("This card has no building program (it was described before programs existed), so this is a generic village. Describe it again to get buildings of its own.");
-			if (!program.leftOut().isEmpty()) say("Left out at " + Words.count(buildings, "building", "buildings") + ": " + String.join(", ", program.leftOut()) + ".");
-			List<VillageLayout.LotSpec> specs = moduleBuild() && pendingModule != null ? moduleSpecs(r.card().program().get(0)) : program.specs();
+			if (planSpecs == null && !program.fromCard()) say("This card has no building program (it was described before programs existed), so this is a generic village. Describe it again to get buildings of its own.");
+			if (planSpecs == null && !program.leftOut().isEmpty()) say("Left out at " + Words.count(buildings, "building", "buildings") + ": " + String.join(", ", program.leftOut()) + ".");
+			// (slice PD) a plan district's first build: the plan's own lots (ids, sizes, labels, briefs), never the card's program
+			List<VillageLayout.LotSpec> specs = planSpecs != null ? planSpecs : moduleBuild() && pendingModule != null ? moduleSpecs(r.card().program().get(0)) : program.specs();
 			if (moduleBuild() && dev.larattalabs.steward.module.ModuleKind.of(pendingModule == null ? null : pendingModule.moduleId()).isEmpty()) {
 				abandon("Steward doesn't know how to place that module.");
 				return;
