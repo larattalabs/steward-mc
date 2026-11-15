@@ -1,0 +1,22 @@
+{
+  "id": "storage_hall",
+  "version": 1,
+  "title": "Storage hall",
+  "programSha": "9e6f1f15926fef6c9cdd77df276ee98aab08f36bdc7bbc06e2bffd73b179ef05",
+  "params": {
+    "slots": { "type": "int", "min": 0, "max": 16, "default": 0, "label": "Sorting slots" },
+    "bulk": { "type": "int", "min": 0, "max": 8, "default": 2, "label": "Double chests" }
+  },
+  "envelope": {
+    "branches": { "slots": [0], "bulk": [0, 1, 2, 3, 4, 5, 6, 7, 8] },
+    "facings": ["north", "east", "south", "west"],
+    "bibles": ["rustic", "fortress", "desert"]
+  },
+  "palette": {
+    "lamp": { "role": "light", "minLight": 14, "fallback": "minecraft:lantern" },
+    "noGravity": ["floor", "foundation", "wall", "frame"],
+    "nonConductive": [],
+    "fullBlock": ["wall", "foundation"]
+  },
+  "pins": { "kit": "0.62.0", "checker": "0.62.0" }
+}

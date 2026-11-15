@@ -71,10 +71,16 @@ public final class ModuleCatalog {
 	public record Lamp(String role, int minLight, String fallback) {}
 
 	/** Palette constraints for the roles that touch the core (section 2.2). */
-	public record PaletteRules(@Nullable Lamp lamp, List<String> noGravity, List<String> nonConductive) {
+	public record PaletteRules(@Nullable Lamp lamp, List<String> noGravity, List<String> nonConductive, List<String> fullBlock) {
 		public PaletteRules {
 			noGravity = noGravity == null ? List.of() : List.copyOf(noGravity);
 			nonConductive = nonConductive == null ? List.of() : List.copyOf(nonConductive);
+			fullBlock = fullBlock == null ? List.of() : List.copyOf(fullBlock);
+		}
+
+		/** (M1's) Without full-block roles. */
+		public PaletteRules(@Nullable Lamp lamp, List<String> noGravity, List<String> nonConductive) {
+			this(lamp, noGravity, nonConductive, List.of());
 		}
 	}
 
@@ -476,7 +482,7 @@ public final class ModuleCatalog {
 			lamp = new Lamp(strOr(l, "role", "light"), intOr(l, "minLight", 14), strOr(l, "fallback", "minecraft:lantern"));
 			if (lamp.minLight() < 0 || lamp.minLight() > 15) problems.add("lamp minLight " + lamp.minLight() + " is not a light level");
 		}
-		return new PaletteRules(lamp, strings(p, "noGravity"), strings(p, "nonConductive"));
+		return new PaletteRules(lamp, strings(p, "noGravity"), strings(p, "nonConductive"), strings(p, "fullBlock"));
 	}
 
 	private static @Nullable JsonObject json(Optional<String> text, String name, List<String> problems) {

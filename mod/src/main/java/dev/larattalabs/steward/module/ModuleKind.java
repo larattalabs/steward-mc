@@ -52,6 +52,19 @@ public interface ModuleKind {
 	/** The param that names the crop. */
 	String cropParam();
 
+	/** What a module's offer is signed by (docs/MODULES.md 4.1): seeds the player carries (a farm), or mixed stores (a storage hall). */
+	enum Sign {
+		/** 8 or more seeds of one crop the module grows. */
+		SEEDS,
+		/** The stockpile and the player's inventory hold {@link ModuleOffer#SIGN_KINDS} or more kinds of items. */
+		STORES
+	}
+
+	/** What signs this module's offer. */
+	default Sign sign() {
+		return Sign.SEEDS;
+	}
+
 	/** The discrete sizes, largest first, each as the size params (the crop is set apart). */
 	List<JsonObject> sizes();
 
@@ -94,6 +107,7 @@ public interface ModuleKind {
 		return switch (id) {
 			case FixturePlot.ID -> Optional.of(FixturePlot.INSTANCE);
 			case CropFarm.ID -> Optional.of(CropFarm.INSTANCE);
+			case StorageHall.ID -> Optional.of(StorageHall.INSTANCE);
 			default -> Optional.empty();
 		};
 	}
@@ -151,6 +165,61 @@ public interface ModuleKind {
 
 		@Override public JsonObject growLot(String lotId, JsonObject params) {
 			return CropFarmLot.growLot(lotId, params.get("width").getAsInt(), params.get("depth").getAsInt());
+		}
+	}
+
+	/**
+	 * {@code storage_hall@1} (docs/MODULES.md 3.2, slice M4; docs/MEASURE-M4.md): a storage hall. This version is the plain hall only ({@code slots
+	 * 0}: an input chest by the door and {@code bulk} double chests, no redstone); the sorting branches wait for the filler item. One frame for every
+	 * branch ({@link StorageHallLot}), so a {@code NO_ROOM} has no smaller size to try. Its sign is mixed stores, not seeds; it needs no water and
+	 * no biome. Declining it retires no decorative rule (there is none for storage).
+	 */
+	final class StorageHall implements ModuleKind {
+		public static final String ID = "storage_hall";
+		public static final StorageHall INSTANCE = new StorageHall();
+
+		private StorageHall() {}
+
+		@Override public String id() { return ID; }
+		@Override public String title() { return "a storage hall"; }
+		@Override public String role() { return "storage hall"; }
+		@Override public String lotType() { return "storage_hall"; }
+		@Override public boolean irrigate() { return false; }
+		@Override public boolean warmOnly() { return false; }
+		@Override public Set<String> decorative() { return Set.of(); }
+		@Override public Map<String, String> seeds() { return Map.of(); }
+		@Override public Sign sign() { return Sign.STORES; }
+
+		/** The param chosen apart from the size: the bulk chests (the frame is the same for every bulk). */
+		@Override public String cropParam() { return "bulk"; }
+
+		@Override
+		public List<JsonObject> sizes() {
+			JsonObject o = new JsonObject();
+			o.addProperty("slots", 0);
+			return List.of(o);
+		}
+
+		/** The bulk param as chosen ({@link ModuleOffer}'s stores decision). */
+		@Override
+		public JsonObject params(JsonObject size, String bulk) {
+			JsonObject o = size.deepCopy();
+			o.addProperty("bulk", Integer.parseInt(bulk));
+			return o;
+		}
+
+		/** One frame for every branch: nothing smaller to try. */
+		@Override public Optional<JsonObject> smaller(JsonObject params) { return Optional.empty(); }
+
+		@Override public int cells(JsonObject params) { return 0; }
+
+		@Override public int[] frame(JsonObject params) {
+			var l = StorageHallLot.layout(params.get("slots").getAsInt(), params.get("bulk").getAsInt());
+			return new int[] {l.w(), l.d()};
+		}
+
+		@Override public JsonObject growLot(String lotId, JsonObject params) {
+			return StorageHallLot.growLot(lotId, params.get("slots").getAsInt(), params.get("bulk").getAsInt());
 		}
 	}
 

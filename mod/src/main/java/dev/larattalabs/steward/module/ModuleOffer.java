@@ -48,7 +48,19 @@ public final class ModuleOffer {
 	/** The seeds a module's sign needs: 8 or more of one crop it grows (today's {@code farm} sign). */
 	public static final int SIGN_SEEDS = 8;
 
-	/** A decision: an order to offer ({@code why} null), or why not, in the steward's words. */
+	/** The kinds of items a storage module's sign needs (docs/MODULES.md 4.1): the stockpile and the player's inventory hold 12 or more. */
+	public static final int SIGN_KINDS = 12;
+
+	/** The stacks a double chest holds. */
+	static final int DOUBLE_CHEST_STACKS = 54;
+	/** The fewest bulk double chests a storage hall is offered with. */
+	static final int BULK_MIN = 2;
+
+	/**
+	 * A decision: an order to offer ({@code why} null), or why not, in the steward's words. For a module signed by seeds, {@code crop} and the seeds
+	 * needed and held; for one signed by stores ({@link ModuleKind.Sign#STORES}), {@code crop} null, {@code seedsNeeded} the stacks held and
+	 * {@code seedsHeld} the kinds of items held (the offer's words).
+	 */
 	public record Decision(@Nullable ModuleOrder order, @Nullable String why, @Nullable String crop, int seedsNeeded, int seedsHeld) {
 		public boolean ok() {
 			return why == null && order != null;
@@ -89,6 +101,7 @@ public final class ModuleOffer {
 		}
 		if (kind.warmOnly() && town.freezing()) return Decision.no("the water would freeze in this biome");
 		boolean materials = town.path() == Path.REGION_MATERIALS;
+		if (kind.sign() == ModuleKind.Sign.STORES) return stores(kind, e, town, asked, materials, bounds);
 		// the crop: the one named, else the one the player carries most of (stockpile included where construction draws from it)
 		Map<String, Integer> held = new TreeMap<>();
 		for (var s : kind.seeds().entrySet()) {
@@ -124,6 +137,48 @@ public final class ModuleOffer {
 			kind.cells(p.values()), have);
 	}
 
+	/** The items the player carries and the stockpile holds, by kind (what a storage module's sign and size read). */
+	public static Map<String, Integer> stores(Town town) {
+		Map<String, Integer> all = new TreeMap<>(town.seeds());
+		town.stock().forEach((k, n) -> all.merge(k, n, Integer::sum));
+		all.values().removeIf(n -> n == null || n <= 0);
+		return all;
+	}
+
+	/** The stacks of 64 these stores fill (an estimate: a 16-stack item counts as a 64 one). */
+	public static int stacks(Map<String, Integer> stores) {
+		long n = 0;
+		for (int c : stores.values()) n += (c + 63) / 64;
+		return (int) Math.min(Integer.MAX_VALUE, n);
+	}
+
+	/**
+	 * A storage hall (docs/MODULES.md 3.2, docs/MEASURE-M4.md 2): this version builds the plain hall ({@code slots 0}). Its bulk is the stacks held at
+	 * 54 a double chest, rounded up, from {@link #BULK_MIN} to the most measured; a bulk asked for in talk is kept when it is a measured branch.
+	 */
+	static Decision stores(ModuleKind kind, ModuleCatalog.Entry e, Town town, @Nullable JsonObject asked, boolean materials,
+		java.util.function.BiFunction<ModuleCatalog.Entry, JsonObject, @Nullable JsonObject> bounds) {
+		Map<String, Integer> held = stores(town);
+		int stacks = stacks(held);
+		var branch = e.envelope().branches().get(kind.cropParam());
+		int most = BULK_MIN;
+		if (branch != null) for (var v : branch) if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber()) most = Math.max(most, v.getAsInt());
+		int bulk = Math.max(BULK_MIN, Math.min(most, (stacks + DOUBLE_CHEST_STACKS - 1) / DOUBLE_CHEST_STACKS));
+		if (asked != null && asked.has(kind.cropParam()) && asked.get(kind.cropParam()).isJsonPrimitive() && asked.get(kind.cropParam()).getAsJsonPrimitive().isNumber()) {
+			var want = asked.get(kind.cropParam());
+			if (branch != null && branch.contains(want)) bulk = want.getAsInt();
+		}
+		var p = ModuleGate.params(e, kind.params(kind.sizes().get(0), Integer.toString(bulk)));
+		if (!p.ok()) return Decision.no("its size isn't one that was measured: " + p.refused());
+		JsonObject bound = null;
+		if (materials) {
+			bound = bounds.apply(e, p.values());
+			if (bound == null) return Decision.no("its bill from the stockpile wasn't measured for that size, so there is no bound to approve");
+		}
+		return new Decision(new ModuleOrder(e.id(), e.version(), e.programSha(), p.values(), bound, rate(e.measured(), p.values()), false, false), null, null,
+			stacks, held.size());
+	}
+
 	/** The measured rate for these params as the offer says it, from measured.json {@code rates} ({@code [{params, perDay, item}]}), or null. */
 	public static @Nullable String rate(ModuleCatalog.@Nullable Measured m, JsonObject params) {
 		if (m == null || m.raw() == null || !m.raw().has("rates") || !m.raw().get("rates").isJsonArray()) return null;
@@ -143,6 +198,15 @@ public final class ModuleOffer {
 	public static String why(ModuleKind kind, Decision d, boolean materials, boolean lampFallback) {
 		List<String> parts = new ArrayList<>();
 		ModuleOrder o = d.order();
+		if (kind.sign() == ModuleKind.Sign.STORES) {
+			int[] f = kind.frame(o.params());
+			int bulk = o.params().get(kind.cropParam()).getAsInt();
+			parts.add("Your stores are getting mixed: " + d.seedsHeld() + " kinds of items. I can raise " + kind.title() + " by the town (" + f[0] + " by " + f[1] + "): "
+				+ bulk + " double chest" + (bulk == 1 ? "" : "s") + " and an input chest by the door.");
+			parts.add(materials ? dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + "." : "It's free.");
+			if (lampFallback) parts.add("It's lit by plain lanterns: your style's lamp is too dim.");
+			return String.join(" ", parts);
+		}
 		String crop = d.crop() == null ? "" : d.crop().replace('_', ' ');
 		int[] f = kind.frame(o.params());
 		parts.add("You carry " + crop + " seeds. I can lay " + kind.title() + " by the town (" + f[0] + " by " + f[1] + ")" + (o.rate() == null ? "" : ": " + o.rate()) + ".");

@@ -157,6 +157,11 @@ async function offline() {
         r.probes[`gravity_${role}`] = { ok: g.ok, threw: g.threw };
         check(!g.ok && /palette: .*gravity/.test(g.threw ?? ''), `${key}: gravel as ${role} (a gravity block on a core role) is refused: ${g.threw ?? 'not refused'}`);
       }
+      for (const role of pal.fullBlock ?? []) {
+        const g = await build(first, { bible: { id: 'm1_full', version: 1, roles: { ...roles, [role]: 'minecraft:oak_slab' } } });
+        r.probes[`full_${role}`] = { ok: g.ok, threw: g.threw };
+        check(!g.ok && /palette: .*not a full block/.test(g.threw ?? ''), `${key}: a slab as ${role} (a role that must be a full block) is refused: ${g.threw ?? 'not refused'}`);
+      }
       // the lot's reserved cells: one field cell (the farmland and the cell above), in the lot's frame, left open
       // (W = field + 2, D = field + 3: a square `side`, or crop_farm's `width` x `depth`)
       const [W, , D] = [(first.width ?? first.side) + 2, 3, (first.depth ?? first.side) + 3];
@@ -387,9 +392,10 @@ async function record() {
       minecraft: MC_VERSION, architect, kit: off.data.kit, checker: off.data.checker, result: 'pass' };
     m.checks = freshChecks();
     if (measure) {
-      m.checks.measure = measure; m.what = MEASURES[e.id]?.what; m.bars = MEASURES[e.id]?.bars; m.runs = 5;
+      const M = MEASURES[e.id];
+      m.checks.measure = measure; m.what = M.what; m.bars = M.bars; m.runs = M.runs;
       // M3 reads these: the whole growth's bill per params (the survival bound) and the quoted net rate (the fixed-cycle protocol rate)
-      const art = (s) => JSON.parse(fs.readFileSync(path.join(ROOT, 'artifacts', 'm2', `${s}.json`), 'utf8')).data;
+      const art = (s) => JSON.parse(fs.readFileSync(path.join(ROOT, 'artifacts', M.art, `${s}.json`), 'utf8')).data;
       // per measured Style, with each palette role's share of the lot (tools/lib/style-bounds.mjs): Steward re-expresses it in the town's blocks
       const sb = await styleBounds({ quotes: art('bounds').quotes, kit: path.join(ART, `kit-${ARCH_VERSION}`, 'kit'), source: e.source, id: e.id });
       const styles = new Set(e.module.envelope.bibles);
@@ -400,7 +406,7 @@ async function record() {
       if (sb.problems.length) { refused++; log(`REFUSED ${key}: the per-Style bounds: ${sb.problems.slice(0, 5).join('; ')}`); continue; }
       m.bounds = sb.bounds;
       m.rates = [];
-      for (const crop of ['wheat', 'carrots', 'potatoes', 'beetroots']) {
+      if (M.rates) for (const crop of ['wheat', 'carrots', 'potatoes', 'beetroots']) {
         const F = art(`field-${crop}`);
         for (const f of F.farms) {
           const J = F.judged[f.id];
@@ -423,6 +429,13 @@ const MEASURES = {
     steps: ['field-wheat', 'field-carrots', 'field-potatoes', 'field-beetroots', 'skin-rustic', 'skin-fortress', 'skin-desert', 'survival', 'bounds', 'border', 'cover'],
     what: 'docs/MEASURE-M2.md: MODULES.md 3.1 items 1-7 as amended by section 9, measured in a dev client over the envelope (36 branches x 5 runs for the output rate; all four facings; chunk borders; rustic in full, fortress and desert for light, hydration and exclusion; survival bill and refunds) by tools/module-measure.mjs.',
     bars: 'docs/MEASURE-M2.md "The bars" (committed before the first measurement)',
+    art: 'm2', runs: 5, rates: true, fieldRuns: 5,
+  },
+  storage_hall: {
+    steps: ['hall', 'survival', 'bounds'],
+    what: 'docs/MEASURE-M4.md 4.1: the plain hall (slots 0), every bulk branch, measured in a dev client by tools/module-measure-hall.mjs: shape, storage, restart and unload, light, undo with cargo and emptied (all four facings, chunk borders, rustic in full, fortress and desert for shape and light), the survival bill, a cancel mid-build and the refunds, and the bound per branch and Style. Deterministic: one run per step.',
+    bars: 'docs/MEASURE-M4.md "4. The bars" (committed before the first measurement)',
+    art: 'm4', runs: 1, rates: false,
   },
 };
 /** The measurement's evidence for a real module, summarised; reasons it can't certify go into `why`. */
@@ -431,13 +444,13 @@ function measurement(e, now, why) {
   if (!M) { why.push(`no measurement is defined for ${e.id}`); return null; }
   const out = {};
   for (const s of M.steps) {
-    const f = path.join(ROOT, 'artifacts', 'm2', `${s}.json`);
+    const f = path.join(ROOT, 'artifacts', M.art, `${s}.json`);
     if (!fs.existsSync(f)) { why.push(`no measurement evidence ${s}`); continue; }
     const r = JSON.parse(fs.readFileSync(f, 'utf8'));
     if (!r.ok) why.push(`measurement ${s} did not pass`);
     if (r.programSha !== now.programSha || r.moduleJsonSha !== now.moduleJsonSha) why.push(`measurement ${s} measured other files`);
     if (r.architect !== ARCH_VERSION || r.minecraft !== MC_VERSION) why.push(`measurement ${s} ran on other versions`);
-    if (s.startsWith('field-') && !(r.runs >= 5)) why.push(`measurement ${s} has ${r.runs} runs (5 needed)`);
+    if (M.fieldRuns && s.startsWith('field-') && !(r.runs >= M.fieldRuns)) why.push(`measurement ${s} has ${r.runs} runs (${M.fieldRuns} needed)`);
     out[s] = { at: r.at, head: r.head, world: r.world, seconds: r.seconds, runs: r.runs ?? null, passed: r.checks.filter((c) => c.ok).length, of: r.checks.length,
       results: r.checks.map((c) => c.what) };
   }

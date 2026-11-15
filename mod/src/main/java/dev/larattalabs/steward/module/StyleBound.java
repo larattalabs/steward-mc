@@ -124,7 +124,30 @@ public final class StyleBound {
 		String w = wood(roles);
 		out.put("wood.fence", "minecraft:" + w + "_fence");
 		out.put("wood.fence_gate", "minecraft:" + w + "_fence_gate");
+		// (M4) storage_hall@1's roles: its walls, floor, corner posts and door (its roof slab: townItems, which can ask the game for the slab)
+		for (String r : List.of("floor", "wall", "frame")) if (roles.get(r) != null) out.put(r, qualify(roles.get(r)));
+		out.put("wood.door", "minecraft:" + w + "_door");
 		return out;
+	}
+
+	/**
+	 * (M4) The slab of the roof role, as the kit's palette makes it ({@code variant(fullBlockOf(roof), 'slab')}): a slab as it is, a stairs block's
+	 * slab, else the full block's slab by Minecraft's names (planks, a plural brick or tile, a {@code _block}), the first that is an item in this
+	 * game ({@code asItem}). Null when none is: that role part keeps its measured item.
+	 */
+	public static @Nullable String slabOf(@Nullable String roof, java.util.function.UnaryOperator<@Nullable String> asItem) {
+		if (roof == null) return null;
+		String b = qualify(roof);
+		List<String> tries = new ArrayList<>();
+		if (b.endsWith("_slab")) tries.add(b);
+		if (b.endsWith("_stairs")) tries.add(b.substring(0, b.length() - "_stairs".length()) + "_slab");
+		if (b.endsWith("_wall")) tries.add(b.substring(0, b.length() - "_wall".length()) + "_slab");
+		if (b.endsWith("_planks")) tries.add(b.substring(0, b.length() - "_planks".length()) + "_slab");
+		if (b.endsWith("_block")) tries.add(b.substring(0, b.length() - "_block".length()) + "_slab");
+		if (b.endsWith("s")) tries.add(b.substring(0, b.length() - 1) + "_slab");
+		tries.add(b + "_slab");
+		for (String t : tries) if (asItem.apply(t) != null) return t;
+		return null;
 	}
 
 	/** The item the town is billed for each role key ({@link #townBlocks} through {@link #itemOf}); a role whose block has no item is left out. */
@@ -134,6 +157,8 @@ public final class StyleBound {
 			String it = itemOf(block, asItem);
 			if (it != null) out.put(role, it);
 		});
+		String slab = slabOf(roles.get("roof"), asItem);
+		if (slab != null) out.put("roof.slab", slab);
 		return out;
 	}
 

@@ -33,6 +33,11 @@ public final class PaletteCheck {
 
 		/** Whether it conducts redstone power. */
 		boolean conducts(String block);
+
+		/** (M4) Whether it is a full block (a full collision cube: a lamp or a door stands on it). */
+		default boolean full(String block) {
+			return true;
+		}
 	}
 
 	/**
@@ -62,6 +67,12 @@ public final class PaletteCheck {
 			if (b == null) continue;
 			if (!facts.known(b)) broken.add(r + " '" + b + "' is not a block");
 			else if (facts.conducts(b)) broken.add(r + " '" + b + "' conducts redstone");
+		}
+		for (String r : rules.fullBlock()) {
+			String b = roles.get(r);
+			if (b == null) continue;
+			if (!facts.known(b)) broken.add(r + " '" + b + "' is not a block");
+			else if (!facts.full(b)) broken.add(r + " '" + b + "' is not a full block");
 		}
 		String lamp = null;
 		boolean fallback = false;
