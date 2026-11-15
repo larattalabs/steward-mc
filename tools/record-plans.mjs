@@ -1,4 +1,4 @@
-// Records the plan Claude composes (docs/COMPOSITION.md, plan v0) for each strange ask's recorded card (fixtures/strange-asks/cards/<id>.json) into
+// Records the plan Architect's composer (Regions.compose, slice CA) composes (docs/COMPOSITION.md, plan v0) for each strange ask's recorded card (fixtures/strange-asks/cards/<id>.json) into
 // fixtures/strange-asks/plans/<id>.json, checks each against Architect's plan/0, and writes the round's report for Architect
 // (artifacts/strange-asks/plans-report.md: what doesn't fit, the kinds asked for, the parts that wait).
 //
@@ -20,7 +20,9 @@ const CARDS = path.join(ROOT, 'fixtures', 'strange-asks', 'cards');
 // --out <dir>: record into another folder (a re-record keeps plans/, which the e2e and unit tests read, as it is)
 const outAt = process.argv.indexOf('--out');
 const PLANS = outAt > 0 ? path.resolve(ROOT, process.argv[outAt + 1]) : path.join(ROOT, 'fixtures', 'strange-asks', 'plans');
-const PORT = 8491;
+// the dev ports by default; a slice passes its own (STEWARD_PORT / STEWARD_DEV_PORT)
+const PORT = Number(process.env.STEWARD_DEV_PORT ?? 8491);
+const SIDECAR_PORT = String(process.env.STEWARD_PORT ?? 8490);
 // the DevBridge token is in this game dir (Architect's client library looks in its own repo's run dir otherwise)
 process.env.ARCHITECT_GAME_DIR = GAME;
 const cap = Number(process.argv[2]);
@@ -42,20 +44,36 @@ try {
 const { checkAnswer, partsOf, catalogue } = await import(pathToFileURL(path.join(ROOT, 'tools', 'lib', 'plan-check.mjs')).href);
 const asks = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'strange-asks', 'asks.json'), 'utf8')).asks;
 fs.mkdirSync(PLANS, { recursive: true });
-const todo = asks.filter((a) => fs.existsSync(path.join(CARDS, `${a.id}.json`)) && !fs.existsSync(path.join(PLANS, `${a.id}.json`)));
+// --only id,id: just these asks (a re-record of one plan into an --out folder)
+const onlyAt = process.argv.indexOf('--only');
+const only = onlyAt > 0 ? new Set(process.argv[onlyAt + 1].split(',')) : null;
+const todo = asks.filter((a) => (!only || only.has(a.id)) && fs.existsSync(path.join(CARDS, `${a.id}.json`)) && !fs.existsSync(path.join(PLANS, `${a.id}.json`)));
 console.log(`${todo.length} of ${asks.length} asks to record, cap $${cap}`);
 if (!todo.length) process.exit(0);
 
 let client = null;
 let dev = null;
 let spent = 0;
+// the opt-in goes on any exit: a signal or a crash skips `finally`
+const dropOptIn = () => {
+  try {
+    if (fs.existsSync(OPT_IN)) fs.unlinkSync(OPT_IN);
+  } catch {
+    // nothing more to do
+  }
+};
+process.on('exit', dropOptIn);
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => {
+  dropOptIn();
+  process.exit(130);
+});
 fs.mkdirSync(path.dirname(OPT_IN), { recursive: true });
 fs.writeFileSync(OPT_IN, JSON.stringify({ useClaudeLogin: true }));
 try {
   const log = fs.openSync(path.join(ROOT, 'artifacts', 'record-cards.log'), 'a');
   const env = {
     HOME: process.env.HOME, USER: process.env.USER, LOGNAME: process.env.USER, TMPDIR: process.env.TMPDIR, SHELL: '/bin/zsh', PATH: '/opt/homebrew/bin:/usr/bin:/bin',
-    JAVA_HOME: '/opt/homebrew/opt/openjdk@25', GRADLE_USER_HOME: path.join(ROOT, '.gradle-home'), STEWARD_PORT: '8490', STEWARD_DEV_PORT: String(PORT),
+    JAVA_HOME: '/opt/homebrew/opt/openjdk@25', GRADLE_USER_HOME: process.env.GRADLE_USER_HOME ?? path.join(ROOT, '.gradle-home'), STEWARD_PORT: SIDECAR_PORT, STEWARD_DEV_PORT: String(PORT),
     ARCHITECT_AUTOWORLD_NAME: 'Steward Cards', ARCHITECT_AUTOWORLD_MODE: 'creative', ARCHITECT_AUTOWORLD_PRESET: 'flat', ARCHITECT_AUTOWORLD_CHEATS: 'true',
   };
   client = spawn('./gradlew', ['--offline', `-Plab_ui.dir=${process.env.LAB_UI_DIR || 'none'}`, ':runClient'], { cwd: path.join(ROOT, 'mod'), env, stdio: ['ignore', log, log] });
@@ -70,31 +88,41 @@ try {
     await sleep(2000);
   }
   for (const a of todo) {
-    if (spent >= cap - 0.5) {
+    // (CA) each compose is capped by Architect at what is left of the run's cap (at most a compose's $1.00), so the run can't pass it
+    const left = Math.min(1, Math.floor((cap - spent) * 100) / 100);
+    if (left < 0.05) {
       console.log(`stopping: $${spent.toFixed(2)} spent, near the cap`);
       break;
     }
     const out = path.join(OUT_DIR, `${a.id}.plan.json`);
     if (fs.existsSync(out)) fs.unlinkSync(out);
     const card = JSON.parse(fs.readFileSync(path.join(CARDS, `${a.id}.json`), 'utf8')).card;
-    await dev.request('dev.command', { cmd: `/steward dev record_plan ${a.id} ${JSON.stringify(card)}` });
+    await dev.request('dev.command', { cmd: `/steward dev record_plan ${a.id} ${left.toFixed(2)} ${JSON.stringify(card)}` });
     let got = null;
-    for (let i = 0; i < 240 && !got; i++) {
+    for (let i = 0; i < 600 && !got; i++) {
       await sleep(1000);
       if (fs.existsSync(out)) got = JSON.parse(fs.readFileSync(out, 'utf8'));
     }
     if (!got) {
-      console.log(`${a.id}: no answer in 240 s`);
-      continue;
+      // the compose may still be spending: stop rather than start another, and count it at its cap
+      console.log(`${a.id}: no answer in 600 s; stopping (its cost is unknown, at most $${left.toFixed(2)})`);
+      spent += left;
+      break;
     }
-    if (got.error) {
-      console.log(`${a.id}: ${got.error}`);
-      continue;
-    }
+    // a failed or stopped compose's cost counts too
     spent += got.usd ?? 0;
+    if (got.ambiguous) {
+      // the request's answer was lost: it may be spending; counted at its cap, and no other compose starts
+      console.log(`${a.id}: ${got.error}; stopping (counted at its cap, $${(got.usd ?? 0).toFixed(2)})`);
+      break;
+    }
+    if (got.error && !got.answer) {
+      console.log(`${a.id}: ${got.error} ($${(got.usd ?? 0).toFixed(4)})`);
+      continue;
+    }
     const errors = checkAnswer(got.answer);
-    fs.writeFileSync(path.join(PLANS, `${a.id}.json`), JSON.stringify({ prompt: a.ask, answer: got.answer, usd: got.usd, errors }, null, 2) + '\n');
-    console.log(`${a.id}: $${(got.usd ?? 0).toFixed(4)} ${errors.length ? errors.length + ' problems' : 'valid'}, ${got.answer.waits?.length ?? 0} waits (total $${spent.toFixed(2)})`);
+    fs.writeFileSync(path.join(PLANS, `${a.id}.json`), JSON.stringify({ prompt: a.ask, answer: got.answer, usd: got.usd, errors, outcome: got.outcome, rounds: got.rounds, stopped: got.stopped, missing: got.missing, hiddenMissing: got.hiddenMissing }, null, 2) + '\n');
+    console.log(`${a.id}: $${(got.usd ?? 0).toFixed(4)} ${got.outcome} after ${got.rounds} round(s)${got.stopped ? ` (${got.stopped})` : ''}, ${errors.length ? errors.length + ' problems' : 'valid'}, ${got.answer.waits?.length ?? 0} waits, missing [${(got.missing ?? []).join(', ')}]${got.hiddenMissing ? ', the hidden room NOT written' : ''} (total $${spent.toFixed(2)})`);
   }
   report();
 } finally {

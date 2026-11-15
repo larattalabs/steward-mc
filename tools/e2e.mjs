@@ -1330,6 +1330,78 @@ async function villageFlow() {
 }
 
 /**
+ * (slice VSR) A flat village left by no build and no history entry across a restart: built, the game stopped, its entry taken out (as a history that
+ * could not be saved leaves it). At the world start the sweep takes it up once: one "held by no build" line, one entry logged under its region, one
+ * removal, and its street gone with the rest.
+ */
+async function villageOrphanFlow() {
+  const label = 'village orphan';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 75000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Orphan Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little hamlet`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  const built = await buildThrough(id, from, label);
+  if (!built) return;
+  const placedOp = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const group = placedOp?.siteGroup ?? '';
+  if (!/^region:/.test(group)) return fail(label, `no village entry: ${JSON.stringify(placedOp)?.slice(0, 160)}`);
+  const region = group.slice('region:'.length);
+  // (the removal can take minutes under load: 4 min in the first run)
+  // the build has ended (no build holds it), then the game stops and the entry is taken out
+  const bf = path.join(WORLD, 'steward-builds.json');
+  const heldBy = () => (fs.existsSync(bf) ? JSON.parse(fs.readFileSync(bf, 'utf8')).builds.filter((b) => b.settlementId === id).length : 0);
+  for (let i = 0; i < 60 && heldBy() > 0; i++) await sleep(1000);
+  // the player stays in the village across the restart (they come back where they left): Architect would hold its removal while they stand in it
+  const claim = settlements().find((x) => x.id === id).claim;
+  // (from above: a creative player falls to the ground unhurt)
+  await cmd(`/tp @p ${claim.centerX + 0.5} 100 ${claim.centerZ + 0.5}`);
+  await sleep(6000);
+  await quit();
+  const heldBuilds = heldBy();
+  editSettlement(id, (st) => { st.log = st.log.filter((e) => e.siteGroup !== group); });
+  launch();
+  await connect();
+  const esc = region.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // while they stand in it: not asked (no take-up line), so Architect holds nothing and the region is not REMOVING (the settlement not busy for it)
+  const waits = await waitLog(0, new RegExp(`village region ${esc} of ${id} waits: a player stands in it`), 120_000);
+  await sleep(15_000);
+  const early = new RegExp(`village region ${esc} of ${id} is held by no build`).test(logSince(0));
+  const held = await dev.request('dev.region.state', { region }).catch(() => null);
+  const heldState = held?.view?.state ?? held?.state;
+  if (waits && !early && heldState && heldState !== 'REMOVING') ok(`${label} player in it`, `${region} ${heldState} while the player stands in it: not asked, nothing held`);
+  else fail(`${label} player in it`, `waits line ${!!waits}; asked early ${early}; region ${heldState}`);
+  // they leave (just outside the claim, its ground still loaded): the 10 s tick takes it up
+  await cmd(`/tp @p ${claim.centerX} 80 ${claim.centerZ + 170}`);
+  const swept = await waitLog(0, new RegExp(`village region ${esc} of ${id} is held by no build and no history entry`), 120_000);
+  const removed = await entryUntil(id, (e) => e.kind === 'PROJECT_REMOVED' && (placedOp.siteIds ?? []).every((x) => (e.siteIds ?? []).includes(x)), 600);
+  // the region taken up whole: its street is gone with its buildings
+  const streetLeft = await cmd(`/steward dev site ${placedOp.siteIds.find((x) => /^r/.test(x)) ?? placedOp.siteIds[0]}`);
+  // give a second take-up the time to show, then count
+  await sleep(15_000);
+  const log = settlements().find((x) => x.id === id)?.log ?? [];
+  const placedN = log.filter((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === group).length;
+  const removedN = log.filter((e) => e.kind === 'PROJECT_REMOVED' && (e.siteIds ?? []).some((x) => (placedOp.siteIds ?? []).includes(x))).length;
+  const lines = (logSince(0).match(new RegExp(`village region ${esc} of ${id} is held by no build`, 'g')) ?? []).length;
+  if (heldBuilds === 0 && swept && removed && placedN === 1 && removedN === 1 && lines === 1 && /is gone/.test(streetLeft)) {
+    ok(label, `${region}'s entry gone across a restart, no build holding it: taken up once at the world start (1 line, 1 entry, 1 removal of ${removed.siteIds.length} sites): ${removed.text}`);
+  } else fail(label, `builds holding it ${heldBuilds}; swept ${!!swept} (${lines} lines); placed ${placedN}; removed ${removedN}; street ${streetLeft}; ${chatTail(0)}`);
+}
+
+/**
  * (docs/LAND.md, Architect LC) The steward sees what changed in its town: a flat village is built and looked over (nothing changed); then a player
  * breaks two cells of one building and refills one with cobblestone (Architect's PT: dev.pt.breaks and dev.pt.uses, so the cobblestone carries a
  * player's record). Looked over again, the steward names that building, 1 block broken or changed and 1 placed by a player, and nothing else; the
@@ -1953,8 +2025,10 @@ async function streetHintFlow() {
     const refused = (logSince(from).match(/Didn't fit here[^\n]*/) ?? ['no refusal said'])[0];
     return fail('street hint', `no wouldFit applied (kept ${kept[1]} after ${kept[2]} repairs; ${refused})`);
   }
-  if (town?.program?.layout === 'street' && (leftOut.length ? told && leftOut.every((l) => told[0].includes(l)) : !told) && kept[2] === '0') {
-    ok('street hint', `the grid refused, its street fragment applied with no Claude round: kept ${kept[1]}, ${town.program.lots?.length} lots; ${told ? told[0] : 'every lot placed'}`);
+  // (CA) the repairs are Architect's compose rounds now (the sim's, $0); Steward applies the fragment itself after them, with no round of its own
+  const composeLine = logSince(from).match(new RegExp(`plan for ${id}: Architect's compose ([A-Z_]+) \\((\\d+) round`));
+  if (town?.program?.layout === 'street' && (leftOut.length ? told && leftOut.every((l) => told[0].includes(l)) : !told) && composeLine) {
+    ok('street hint', `the grid refused, its street fragment applied by Steward after Architect's compose (${composeLine[1]}, ${composeLine[2]} round(s)): kept ${kept[1]}, ${town.program.lots?.length} lots; ${told ? told[0] : 'every lot placed'}`);
   } else fail('street hint', `kept ${kept[1]} after ${kept[2]} repairs; town layout ${town?.program?.layout}; left out [${leftOut}]; told ${told ? told[0] : 'nothing'}`);
 }
 
@@ -2118,7 +2192,7 @@ async function groveFlow() {
   if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('grove', 'no card');
   const composed = await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after[^\n]*`), 240_000);
   if (!composed) return fail('grove', 'no plan composed');
-  const answer = logSince(from).match(new RegExp(`plan for ${id}: [^\n]*`))?.[0] ?? '';
+  const answer = composed[0];
   if (!/ 0 pending, 0 unfit/.test(answer)) return fail('grove', `the giant oak, the pond and its coral didn't all fit: ${answer.slice(0, 160)}`);
   await closeScreens();
   await clearAnimals();
@@ -2462,7 +2536,7 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
     if (built) return { steps, placed: Number(built[1]) };
     // every lot left a pad (a material rule's pre-check): the village's street and square stand, no building
     if (/No building of [^\n]* was placed/.test(since)) return { steps, placed: 0 };
-    const stopped = since.match(/The build stopped[^\n]*|No dry, flat room[^\n]*|No room left[^\n]*|Survey failed[^\n]*|Cancelled [^\n]*|The design group failed[^\n]*/);
+    const stopped = since.match(/The build stopped[^\n]*|[^\n]*is still being built from the stockpile \(\d+%\): it can grow once[^\n]*|No dry, flat room[^\n]*|No room left[^\n]*|Survey failed[^\n]*|Cancelled [^\n]*|The design group failed[^\n]*/);
     if (stopped) {
       fail(label, stopped[0]);
       return null;
@@ -3085,20 +3159,212 @@ async function suppliedGrowthFlow() {
     const bill = logSince(from).match(/The addition's construction sites stand and are built from the stockpile[^\n]*/);
     if (planned && m && m[1] === region && rev && grew.placed >= 1 && bill) ok(label, `planned and realised from materials as revision ${m[2]} of ${region} (${rev.state}); ${bill[0].slice(0, 140)}`);
     else return fail(label, `planned ${!!planned}; entry ${op?.siteGroup}; revision ${JSON.stringify(rev)?.slice(0, 160)}; placed ${grew.placed}; bill ${bill ? 'said' : 'not said'}; keyed ${keyed}`);
-    // its targets wait for items (nothing fed): undo is refused in plain words, nothing written, the entry kept
-    const snap = path.join(ROOT, 'artifacts', 'e2e', `supplied-growth-${id}.snap.gz`);
-    await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
+    // (A2L) every take-up judged the same way (the GPT design review 3): what came back = what the growth drew, and it is in the crates (the stock gained
+    // exactly the refund, nothing overflowed), once (nothing more 20 s on); one entry and one completion under its revision's tag; none of its sites left
+    // in the ledger, nothing outstanding; its revision UNDONE; the ground as before the growths, the crates aside
+    const delta = (a, b) => { const o = {}; for (const k of new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])) { const n = (a?.[k] ?? 0) - (b?.[k] ?? 0); if (n) o[k] = n; } return o; };
+    const backOf = (x) => plusItems(x?.returned, x?.refundOverflow);
+    const crates = () => (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
+    const judge = async (lbl, tag, spStart, spBefore, siteIds, sinceLog = null, wantPaid = true) => {
+      const spAfter = await ledger();
+      await sleep(20_000);
+      const spLater = await ledger();
+      // over [spBefore, spLater]: the crates gained what came back less what was still drawn meanwhile (a cancel stops the draws only once it runs)
+      const paid = delta(spLater?.consumed, spStart?.consumed);
+      const back = delta(backOf(spLater), backOf(spBefore));
+      const gain = delta(spLater?.stock, spBefore?.stock);
+      const expected = delta(delta(back, delta(spLater?.refundOverflow, spBefore?.refundOverflow)), delta(spLater?.consumed, spBefore?.consumed));
+      const over = delta(spLater?.refundOverflow, spBefore?.refundOverflow);
+      // nothing more 20 s on: no refund, no draw, and the crates as they were
+      const again = plusItems(plusItems(delta(backOf(spLater), backOf(spAfter)), delta(spLater?.consumed, spAfter?.consumed)), delta(spLater?.stock, spAfter?.stock));
+      const log = settlements().find((x) => x.id === id)?.log ?? [];
+      const placedN = log.filter((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === tag).length;
+      const removedN = log.filter((e) => e.kind === 'PROJECT_REMOVED' && e.siteGroup === tag).length;
+      const noteN = log.filter((e) => e.kind === 'NOTE' && e.siteGroup === tag && /^The addition was not placed/.test(e.text ?? '')).length;
+      const once = placedN === 1 ? removedN === 1 && noteN === 0 : placedN === 0 && removedN === 0 && noteN === 1;
+      const rid = /:(\d+)$/.exec(tag)?.[1];
+      const r = ((await view()).revisions ?? []).find((x) => String(x.rid) === rid);
+      const mine = new Set([...(siteIds ?? []), ...(r?.sites ?? [])]);
+      const left = (spAfter?.sites ?? []).filter((x) => mine.has(x.id)).map((x) => `${x.id} ${x.state}`);
+      const area = crates();
+      const inCrates = (x) => area && x.x >= area.x0 && x.x <= area.x1 && x.z >= area.z0 && x.z <= area.z1;
+      const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snapPre }, { timeoutMs: 1_800_000 });
+      const off = (d.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)) && !inCrates(x));
+      const owing = Object.keys(spAfter?.outstanding ?? {}).length;
+      const good = r?.state === 'UNDONE' && (!wantPaid || Object.keys(paid).length > 0) && sameItems(back, paid) && sameItems(gain, expected) && !Object.keys(over).length
+        && !Object.keys(again).length && once && !left.length && !owing && off.length === 0 && !(sinceLog != null && builtRe.test(logSince(sinceLog)));
+      const said = `${tag} ${r?.state}; paid ${JSON.stringify(paid).slice(0, 120)}; back ${JSON.stringify(back).slice(0, 120)}; stock +${JSON.stringify(gain).slice(0, 100)} (expected ${JSON.stringify(expected).slice(0, 100)})`;
+      if (good) ok(lbl, `${said}; once (${placedN} entry, ${removedN + noteN} completion, nothing more 20 s on); no feed left; the ground as before`);
+      else fail(lbl, `${said}; overflow ${JSON.stringify(over)}; more ${JSON.stringify(again)}; entries ${placedN}/${removedN}/${noteN}; built said ${sinceLog != null && builtRe.test(logSince(sinceLog))}; left ${left.slice(0, 4).join(', ')}; owing ${owing}; ${off.length} cell(s) differ ${JSON.stringify(off.slice(0, 3))}`);
+      return good;
+    };
+    /** Feeds part of what the stockpile owes until something is drawn (half of each kind, then all but the kind owed least), leaving something owed. */
+    const feedPart = async (spStart) => {
+      const drew = async () => { for (let i = 0; i < 30; i++) { await sleep(2000); if (Object.keys(delta((await ledger())?.consumed, spStart?.consumed)).length) return true; } return false; };
+      if (Object.keys(delta((await ledger())?.consumed, spStart?.consumed)).length) return true;
+      const need = (await ledger())?.need ?? {};
+      if (!Object.keys(need).length) return false;
+      await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(need).map(([k, n]) => [k, Math.max(1, Math.floor(n / 2))])) }).catch(() => null);
+      if (await drew()) return true;
+      const rest = Object.entries((await ledger())?.need ?? {}).sort((a, b) => a[1] - b[1]);
+      if (rest.length < 2) return false;
+      await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(rest.slice(1)) }).catch(() => null);
+      return drew();
+    };
+    /** A growth accepted from talk; 'end': until its build ends with targets waiting (fed in part when {@code part}); 'held': realised, its answer held, fed in part. */
+    const grow = async (lbl, mode, part = false) => {
+      const q = await askBuilding(id, 'library');
+      if (!q) { fail(lbl, 'no library proposal'); return null; }
+      await clearAnimals();
+      await away();
+      const spStart = await ledger();
+      const f = logSize();
+      nudge = mode === 'end' ? region : null;
+      await cmd(`/steward proposals ${id} accept ${q.key}`);
+      if (mode === 'end') {
+        const g = await buildThrough(id, f, lbl, false, null, 1_200_000);
+        nudge = null;
+        if (!g) return null;
+        const e = (settlements().find((x) => x.id === id)?.log ?? []).filter((x) => x.kind === 'PROJECT_PLACED').at(-1);
+        if (!/^revision:/.test(e?.siteGroup ?? '')) { fail(lbl, `entry ${e?.siteGroup}`); return null; }
+        if (part && !(await feedPart(spStart))) { fail(lbl, 'nothing drawn from the stockpile once fed in part'); return null; }
+        return { spStart, tag: e.siteGroup, siteIds: e.siteIds, from: f };
+      }
+      // 'held' (run 2: Architect writes a growth's revision in a second or two, so a cancel never met it still placing): Architect's answer to the
+      // realise is held (dev.region.holdRealise), so Steward's build still waits on a realised growth whose targets wait for items; fed in part
+      await dev.request('dev.region.holdRealise', { on: true });
+      const rid0 = Math.max(0, ...((await view()).revisions ?? []).map((x) => x.rid));
+      let h = null, at = f;
+      for (let i = 0; i < 450 && !h; i++) {
+        await sleep(2000);
+        // the build's decisions approved as they come (the bible, the massings, the placement), as buildThrough does
+        if (/Style bible ready|massings? (?:are|is) ready|Approve to place/.test(logSince(at))) { at = logSize(); await cmd(`/steward approve ${id}`); }
+        if (/The build stopped[^\n]*|Cancelled [^\n]*|still being built from the stockpile[^\n]*|is built(?: in part)?: \d+ building/.test(logSince(f))) break;
+        h = ((await view()).revisions ?? []).filter((x) => x.rid > rid0 && /^(PLACING|PLACED)$/.test(x.state)).sort((a, b) => b.rid - a.rid)[0] ?? null;
+        if (h && !Object.keys((await ledger())?.need ?? {}).length) h = null;
+      }
+      await dev.request('dev.region.holdRealise', { on: false }).catch(() => null);
+      if (!h || /is built(?: in part)?: \d+ building/.test(logSince(f))) { fail(lbl, `no realised growth left waiting on its answer (${h ? `revision ${h.rid} ${h.state}, but the build ended` : 'no revision'}); ${chatTail(f)}`); return null; }
+      if (!(await feedPart(spStart))) { fail(lbl, 'nothing drawn from the stockpile once fed in part'); return { spStart, tag: `revision:${region}:${h.rid}`, siteIds: [], from: f, bad: true }; }
+      return { spStart, tag: `revision:${region}:${h.rid}`, siteIds: [], from: f };
+    };
+    /** A step that failed with its growth still standing: taken up, so the next growth is not refused while the town waits for it (run 2). */
+    const clearUp = async (tag) => {
+      if (!tag || completion(tag)) return;
+      await cmd(`/steward cancel ${id}`).catch(() => null);
+      await sleep(5000);
+      if (!completion(tag)) { await away(); await cmd(`/steward undo ${id}`).catch(() => null); }
+      await until(() => completion(tag), 300);
+      await sleep(5000);
+    };
+    /** Arms Architect's kill point, runs {@code act}, waits for the JVM to halt and starts the client again (the world as the halt left it). */
+    const killed = async (point, act) => {
+      feeding = false;
+      nudge = null;
+      const clientLog = path.join(OUT, 'client.log');
+      const clientAt = fs.existsSync(clientLog) ? fs.statSync(clientLog).size : 0;
+      await dev.request('dev.journal.killAt', { point });
+      // the halt may cut the command's own answer short
+      await act().catch(() => null);
+      for (let i = 0; i < 300 && client.exitCode === null; i++) await sleep(1000);
+      if (client.exitCode === null) {
+        await dev.request('dev.journal.killAt', { point: null }).catch(() => null);
+        return false;
+      }
+      // (GPT diff review) the halt was this kill point's, not any exit: its own log line, read before the next client writes its log
+      const re = new RegExp(`kill point ${point.replace('+', '\\+')} reached`);
+      const marker = re.test(logSince(0)) || (fs.existsSync(clientLog) && re.test(fs.readFileSync(clientLog, 'utf8').slice(clientAt)));
+      dev = null;
+      await sleep(4000);
+      launch();
+      await connect();
+      await cmd('/architect survival on');
+      await cmd('/gamemode creative @p');
+      return marker;
+    };
+    const completion = (tag) => (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.siteGroup === tag && (e.kind === 'PROJECT_REMOVED'
+      || (e.kind === 'NOTE' && /^The addition was not placed/.test(e.text ?? ''))));
+    const until = async (pred, secs) => { for (let i = 0; i < secs; i++) { const v = pred(); if (v) return v; await sleep(1000); } return null; };
+
+    // (A2L 1) undo while waiting: the library growth's targets wait for items; /steward undo takes it up now (Architect's RU), what it drew back once
+    {
+      const lbl = `${label} undo while waiting`;
+      const tag = op.siteGroup;
+      // fed in part first, so it has drawn something and still waits (run 1: nothing had been drawn, so nothing to judge)
+      const fed = await feedPart(sp0);
+      const spW0 = await ledger();
+      from = logSize();
+      await away();
+      const said = fed ? await cmd(`/steward undo ${id}`) : '';
+      const done = fed ? await until(() => completion(tag), 300) : null;
+      const words = logSince(from).match(/(Refunded: [^\n]*|Nothing had been drawn[^\n]*)/);
+      if (!fed) fail(lbl, 'nothing drawn from the stockpile once fed in part');
+      else if (!Object.keys(spW0?.need ?? {}).length) fail(lbl, 'nothing was owed when it was undone (not waiting)');
+      else if (!done) fail(lbl, `no completion in 5 min: ${String(said).slice(0, 120)}; ${chatTail(from)}`);
+      else {
+        await judge(lbl, tag, sp0, spW0, op.siteIds, from);
+        if (words && !/survival_building|can be undone once/.test(logSince(from))) ok(`${lbl} said`, words[0].slice(0, 160));
+        else fail(`${lbl} said`, `${words ? words[0] : 'no refund line'}; ${chatTail(from)}`);
+      }
+    }
+    // (A2L 2) cancel once realised: a growth cancelled while its revision is still placing, fed in part
+    {
+      const lbl = `${label} cancel once realised`;
+      const g = await grow(`${lbl} growth`, 'held');
+      if (g?.bad) await clearUp(g.tag);
+      else if (g) {
+        const spB = await ledger();
+        from = logSize();
+        const said = await cmd(`/steward cancel ${id}`);
+        const done = await until(() => completion(g.tag), 600);
+        if (!done) fail(lbl, `no completion in 10 min: ${String(said).slice(0, 120)}; ${chatTail(from)}`);
+        else if (/can't be stopped part way/.test(`${said}\n${logSince(from)}`)) fail(lbl, `refused: ${String(said).slice(0, 160)}`);
+        else await judge(lbl, g.tag, g.spStart, spB, (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === g.tag)?.siteIds, from);
+        await clearUp(g.tag);
+        await sleep(10_000);
+      }
+    }
+    // (A2L 3) a restart between the cancel and the refund: killed at RU's RVU1 (the undo's manifest saved, nothing drained or refunded), chunks saved
+    // first; the restored cancel and Architect's resumed undo: one entry, one refund
+    {
+      const lbl = `${label} restart mid-cancel`;
+      const g = await grow(`${lbl} growth`, 'held');
+      if (g?.bad) await clearUp(g.tag);
+      else if (g) {
+        const spB = await ledger();
+        const halted = await killed('RVU1+save', () => cmd(`/steward cancel ${id}`));
+        const done = halted && await until(() => completion(g.tag), 600);
+        if (!halted) fail(lbl, 'the kill point RVU1 was never reached');
+        else if (!done) fail(lbl, `no completion 10 min after the restart; ${chatTail(0)}`);
+        else await judge(lbl, g.tag, g.spStart, spB, (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === g.tag)?.siteIds, 0);
+        await clearUp(g.tag);
+      }
+    }
+    // (A2L 3) a restart mid-undo with no build: /steward undo of a waiting growth killed at RVU2 (its suffix drained), chunks saved first; Architect
+    // resumes it at the world start and the growth sweep logs its removal once
+    {
+      const lbl = `${label} restart mid-undo`;
+      const g = await grow(`${lbl} growth`, 'end', true);
+      if (g) {
+        const spB = await ledger();
+        const halted = await killed('RVU2+save', () => cmd(`/steward undo ${id}`));
+        const done = halted && await until(() => completion(g.tag), 600);
+        if (!halted) fail(lbl, 'the kill point RVU2 was never reached');
+        else if (!done) fail(lbl, `no completion 10 min after the restart; ${chatTail(0)}`);
+        else {
+          await judge(lbl, g.tag, g.spStart, spB, g.siteIds, 0);
+          const reconciled = /was taken up by Architect after a restart: its removal logged/.test(logSince(0));
+          if (reconciled) ok(`${lbl} reconcile`, 'the growth sweep logged the removal Architect finished after the restart');
+          else fail(`${lbl} reconcile`, 'no reconcile line (logged by another path?)');
+        }
+        await clearUp(g.tag);
+      }
+    }
+    // a growth fed to the end: a restart while its targets wait (watched again, said built once), its bills = what the stockpile paid, then undone
+    const g5 = await grow(`${label} built`, 'end');
+    if (!g5) return;
     const spW = await ledger();
-    from = logSize();
-    const said = await cmd(`/steward undo ${id}`);
-    await sleep(5000);
-    const refused = `${said}\n${logSince(from)}`.match(/still being built from the stockpile[^\n]*/);
-    const d0 = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
-    const off0 = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
-    const kept = settlements().find((x) => x.id === id)?.log.at(-1);
-    if (Object.keys(spW?.need ?? {}).length && refused && !/survival_building|NOT_ALLOWED/.test(refused[0]) && off0.length === 0 && kept?.siteGroup === op.siteGroup) {
-      ok(`${label} undo while building`, `${refused[0].slice(0, 160)}; nothing written, the entry kept`);
-    } else fail(`${label} undo while building`, `owing ${Object.keys(spW?.need ?? {}).length} kinds; said ${refused ? refused[0].slice(0, 120) : JSON.stringify(said).slice(0, 160)}; ${off0.length} cell(s) differ; last ${kept?.kind} ${kept?.siteGroup}`);
+    const m5 = /^revision:(.+):(\d+)$/.exec(g5.tag);
     // (GE, A2) a restart while the growth's targets wait for items: the town is watched again from its revision: entry (seedBuilds), so the steward
     // still says once when it is built
     await restartClient();
@@ -3109,46 +3375,31 @@ async function suppliedGrowthFlow() {
     feeding = true;
     const built = await waitLog(from, builtRe, 900_000);
     feeding = false;
-    if (built) ok(`${label} restart while building`, 'the client restarted while the growth waited for items; watched again, the steward said the town is built');
-    else fail(`${label} restart while building`, `not said in 15 min after the restart; ${chatTail(0)}`);
+    const builtSaid = built ? (logSince(0).match(new RegExp(builtRe.source, 'g')) ?? []).length : 0;
+    if (built && builtSaid === 1) ok(`${label} restart while building`, 'the client restarted while the growth waited for items; watched again, the steward said the town is built, once');
+    else fail(`${label} restart while building`, `said ${builtSaid} time(s) in 15 min after the restart; ${chatTail(0)}`);
     const sp1 = await ledger();
-    const rs1 = await dev.request('dev.rs.state', { region }, { timeoutMs: 120_000 }).catch(() => null);
-    const paid = minusItems(sp1?.consumed, sp0?.consumed);
+    const paid = minusItems(sp1?.consumed, g5.spStart?.consumed);
     // the growth's bills: what its targets had drawn when it was put down plus what they still owed then (the town was fully built before it, so the
     // stockpile's outstanding bill was the growth's alone); its lots' own bills (dev.site.state) are reported beside
-    const bills = plusItems(minusItems(spW?.consumed, sp0?.consumed), spW?.outstanding);
+    const bills = plusItems(minusItems(spW?.consumed, g5.spStart?.consumed), spW?.outstanding);
     let lotBills = {};
-    for (const sid of op.siteIds ?? []) {
+    for (const sid of g5.siteIds ?? []) {
       const st = await dev.request('dev.site.state', { site: sid }).catch(() => null);
       if (st?.bom) lotBills = plusItems(lotBills, st.bom);
     }
     if (built && Object.keys(paid).length && sameItems(paid, bills)) ok(`${label} bills`, `built and said; its bills ${JSON.stringify(bills).slice(0, 140)} = what the stockpile paid (its lots' own ${JSON.stringify(lotBills).slice(0, 100)})`);
     else return fail(`${label} bills`, `built ${!!built}; paid ${JSON.stringify(paid).slice(0, 160)}; bills ${JSON.stringify(bills).slice(0, 160)}; lots ${JSON.stringify(lotBills).slice(0, 100)}`);
-    // undone through Steward: the revision taken up, what it consumed back once
-    await away();
-    from = logSize();
-    await cmd(`/steward undo ${id}`);
-    let last = null;
-    for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
-      await sleep(2000);
-      last = settlements().find((x) => x.id === id)?.log.at(-1);
+    // undone through Steward once built: the revision taken up, what it consumed back once
+    {
+      await away();
+      const spB = await ledger();
+      await cmd(`/steward undo ${id}`);
+      const done = await until(() => completion(g5.tag), 600);
+      if (!done) fail(`${label} refund once`, `not undone in 10 min; ${chatTail(0)}`);
+      else await judge(`${label} refund once`, g5.tag, g5.spStart, spB, g5.siteIds);
+      void m5;
     }
-    const sp2 = await ledger();
-    const back = minusItems(plusItems(sp2?.returned, sp2?.refundOverflow), plusItems(sp1?.returned, sp1?.refundOverflow));
-    rv = await view();
-    const undoneRev = (rv.revisions ?? []).find((r) => String(r.rid) === m[2]);
-    await sleep(20_000);
-    const sp3 = await ledger();
-    const again = minusItems(plusItems(sp3?.returned, sp3?.refundOverflow), plusItems(sp2?.returned, sp2?.refundOverflow));
-    const removedOnce = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_REMOVED').length === 1;
-    // the ground as before the growth, but the stockpile's crates (their contents changed with the bills and the refund)
-    const area = (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
-    const inCrates = (x) => area && x.x >= area.x0 && x.x <= area.x1 && x.z >= area.z0 && x.z <= area.z1;
-    const dPre = await dev.call('dev.region.hash', { box, mode: 'diff', file: snapPre }, { timeoutMs: 1_800_000 });
-    const offPre = (dPre.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)) && !inCrates(x));
-    if (last?.kind === 'PROJECT_REMOVED' && undoneRev?.state === 'UNDONE' && sameItems(back, paid) && !Object.keys(again).length && removedOnce && offPre.length === 0) {
-      ok(`${label} refund once`, `${last.text}; revision ${m[2]} UNDONE, the ground as before the growth; ${JSON.stringify(back).slice(0, 140)} back in the stockpile, nothing more 20 s on`);
-    } else fail(`${label} refund once`, `last ${last?.kind}; revision ${undoneRev?.state}; back ${JSON.stringify(back).slice(0, 120)} of ${JSON.stringify(paid).slice(0, 120)}; more ${JSON.stringify(again).slice(0, 80)}; removed entries ${removedOnce}; ${offPre.length} cell(s) differ ${JSON.stringify(offPre.slice(0, 3))}`);
     // the next undo is the town's, with the rest of its refund
     await away();
     const before = await ledger();
@@ -4836,6 +5087,77 @@ async function moduleFlow() {
 }
 
 /**
+ * (slice A2L, Architect IG-b) A watered module in a creative street town: a street town (Steward's own street, built at once) is offered crop_farm by
+ * its seeds on the ADOPT path; accepted → the town taken on as one region and grown by a revision whose stages end in fluids; the field's irrigation
+ * sources stand as water; undone by undoRevision (drained first): no irrigation body left and the ground as before the growth.
+ */
+async function moduleAdoptFlow() {
+  const label = 'module adopt';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 72000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/clear @p');
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  // Steward's own street for the first build (a street town), then the plan layout for the next addition, as the adopt flow
+  await cmd(`/steward dev layout ${id} legacy`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Wet Street Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} an old street town that will farm`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 3 30`);
+  const town = await buildThrough(id, from, `${label} town`);
+  if (!town) return;
+  const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  if (!founding || /^region:/.test(founding.siteGroup ?? '')) return fail(label, `not a street town: ${founding?.siteGroup}`);
+  await cmd(`/steward dev layout ${id} plan`);
+  const claim = settlements().find((x) => x.id === id).claim;
+  const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
+  const snap = path.join(ROOT, 'artifacts', 'e2e', `module-adopt-${id}.snap.gz`);
+  await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
+  await cmd('/steward dev modules {}');
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+  await cmd('/give @p minecraft:wheat_seeds 16');
+  const offer = await moduleOffer(id);
+  if (offer?.module?.moduleId === MODULE && !/watered field yet/.test(offer.why ?? '')) ok(`${label} offer`, `${offer.title}: ${String(offer.why).slice(0, 140)}`);
+  else return fail(`${label} offer`, `no module.${MODULE} proposal in the street town: ${JSON.stringify(offer)?.slice(0, 200)}; ${chatTail(0)}`);
+  await clearAnimals();
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept module.${MODULE}`);
+  const grew = await buildThrough(id, from, label);
+  if (!grew) return;
+  const log1 = settlements().find((x) => x.id === id)?.log ?? [];
+  const receipt = log1.filter((e) => e.kind === 'TOWN_ADOPTED' && /^region:/.test(e.siteGroup ?? '')).at(-1);
+  const region = receipt?.siteGroup?.slice('region:'.length);
+  const g = await growthOf(id);
+  const mods = await moduleSites(g.op);
+  // (run 4) a revision's bodies are its own live record's, not the region's (dev.fluid.state reads the base: bodies 0): Architect's settle line instead
+  const irr = region ? [...logSince(from).matchAll(new RegExp(`Region ${region}: fluid body (\\S+_irr_\\d+_\\d+) (settled)`, 'g'))].map((x) => ({ id: x[1], state: x[2] })) : [];
+  const wet = irr.length > 0;
+  if (region && g.m && g.m[1] === region && g.rev && mods.length === 1 && mods[0].key === `${MODULE}@1` && wet) {
+    ok(label, `adopted as ${region}; revision ${g.m[2]} (${g.rev.state}) holds ${mods[0].sid} (${mods[0].key}); ${irr.length} irrigation source(s) ${irr.map((b) => b.state).join('/')}`);
+  } else return fail(label, `region ${region}; entry ${g.op?.siteGroup}; revision ${JSON.stringify(g.rev)?.slice(0, 120)}; module sites ${mods.length}; irrigation ${JSON.stringify(irr).slice(0, 200)}`);
+  // undone: drained first, the revision UNDONE, the ground as before the growth
+  const last = await undoOnce(id, claim);
+  // the water gone with it: the E-flat diff below covers every water cell of the box
+  const left = [];
+  const undone = ((await regionView(region)).revisions ?? []).find((r) => String(r.rid) === g.m[2]);
+  const d0 = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
+  const off = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
+  if (last && undone?.state === 'UNDONE' && left.length === 0 && off.length === 0) ok(`${label} undo`, `${last.text}; revision ${g.m[2]} UNDONE, no irrigation left, the ground as before the growth`);
+  else fail(`${label} undo`, `removed ${!!last}; revision ${undone?.state}; ${left.length} body(ies) left ${JSON.stringify(left).slice(0, 120)}; ${off.length} cell(s) differ ${JSON.stringify(off.slice(0, 3))}`);
+  await cmd('/steward dev modules {}');
+}
+
+/**
  * The module's survival flow (MODULES.md section 7, on the fixture): a Supplied town built from its stockpile; the module offered with the bound the dev
  * source gives (a tiny one: 1 dirt); accepted with the stockpile fully stocked → the quote is past the bound: the build holds and asks, nothing consumed;
  * stocked with the whole quote and approved → the bill becomes the bound and the growth is realised from materials at once; undo refused while it is
@@ -5773,6 +6095,7 @@ try {
       // stub: the first settlement's whole paid flow; the flows after it build their own
       await flow('stub', 'paid card plan wall revision undo', () => stubFlow(id));
       await flow('village', 'plan realise', () => villageFlow());
+      await flow('village-orphan', 'village orphan restart sweep', () => villageOrphanFlow());
       await flow('growth', 'growth region realise undo replan orphan', () => growthFlow());
       await flow('adopt', 'adopt growth region undo', () => adoptFlow());
       await flow('adopt-ns', 'adopt growth region undo street north-south', () => adoptNorthSouthFlow(), ['adopt']);
@@ -5792,6 +6115,7 @@ try {
       await flow('supplied-plan', 'survival stockpile bill', () => suppliedPlanFlow());
       await flow('supplied-growth', 'survival stockpile bill refund growth', () => suppliedGrowthFlow());
       await flow('module', 'module growth farm talk undo', () => moduleFlow());
+      await flow('module-adopt', 'module adopt growth farm water undo', () => moduleAdoptFlow());
       await flow('module-survival', 'module survival stockpile bill refund', () => moduleSurvivalFlow());
       await flow('copper-lots', 'plan material', () => copperLotsFlow());
       await flow('discard', 'plan undo', () => discardFlow());

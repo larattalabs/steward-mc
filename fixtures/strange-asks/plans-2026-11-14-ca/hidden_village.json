@@ -1,0 +1,199 @@
+{
+  "prompt": "A hidden village nobody can find, behind a waterfall.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "hidden_falls",
+      "style": {
+        "pending": "hidden_falls"
+      },
+      "zones": [
+        {
+          "id": "village",
+          "label": "Hidden Falls village",
+          "required": true,
+          "purpose": "home_base",
+          "program": {
+            "layout": "street",
+            "shared": "well",
+            "lots": [
+              {
+                "id": "elder_hall_1",
+                "type": "house",
+                "role": "elders_hall",
+                "label": "elder's hall",
+                "size": [
+                  17,
+                  15
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Largest building, facing the waterfall curtain; lantern-lit, mossy stone and timber."
+              },
+              {
+                "id": "cabin_1",
+                "type": "cabin",
+                "role": "hidden_dwellings",
+                "label": "hidden dwellings",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Small timber homes tucked against the cave walls, ladders and ledges between them."
+              },
+              {
+                "id": "cabin_2",
+                "type": "cabin",
+                "role": "hidden_dwellings",
+                "label": "hidden dwellings",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Small timber homes tucked against the cave walls, ladders and ledges between them."
+              },
+              {
+                "id": "cabin_3",
+                "type": "cabin",
+                "role": "hidden_dwellings",
+                "label": "hidden dwellings",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Small timber homes tucked against the cave walls, ladders and ledges between them."
+              },
+              {
+                "id": "cabin_4",
+                "type": "cabin",
+                "role": "hidden_dwellings",
+                "label": "hidden dwellings",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Small timber homes tucked against the cave walls, ladders and ledges between them."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "cottage_homes",
+                "label": "cottage homes",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Cozy home with a small herb garden and moss."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "cottage_homes",
+                "label": "cottage homes",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Cozy home with a small herb garden and moss."
+              },
+              {
+                "id": "tower_1",
+                "type": "tower",
+                "role": "waterfall_lookout",
+                "label": "waterfall lookout",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "high_ground",
+                "brief": "Watches the water curtain from inside; a quiet sentry post."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "mushroom_herb_garden",
+                "label": "mushroom and herb garden",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Indoor growing hall for food in the dim cave, with glow berries and mushrooms."
+              },
+              {
+                "id": "tavern_1",
+                "type": "tavern",
+                "role": "hearth_tavern",
+                "label": "hearth tavern",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "central",
+                "brief": "Shared gathering place for the villagers."
+              }
+            ]
+          },
+          "where": {
+            "near": {
+              "anchor": "claim_center",
+              "within": 32
+            }
+          },
+          "tolerance": {
+            "move": {
+              "max": 48
+            }
+          }
+        }
+      ],
+      "connectors": [],
+      "forms": [
+        {
+          "id": "falls",
+          "kind": "waterfall",
+          "label": "The falling curtain",
+          "required": true,
+          "where": {
+            "near": {
+              "anchor": "claim_n",
+              "within": 16
+            }
+          },
+          "drop": 16,
+          "width": 5,
+          "lip": "sculpt",
+          "basin": "pond",
+          "notes": "The land is flat with no cliff, so the waterfall is sculpted."
+        },
+        {
+          "id": "hollow",
+          "kind": "hidden_room",
+          "required": true,
+          "host": "falls",
+          "size": {
+            "w": 7,
+            "d": 7
+          },
+          "entrance": "waterfall",
+          "tolerance": {
+            "size": {
+              "max": 60
+            }
+          },
+          "notes": "A hollow in the cliff behind the water curtain."
+        }
+      ],
+      "rules": [],
+      "notes": "The site is flat, so the falls and the cliff hollow are sculpted; the village sits near the centre of the claim."
+    },
+    "waits": [],
+    "summary": "The plan builds a rustic village of all ten buildings, with the elder's hall as its centrepiece. It sits at the claim's centre, with a sculpted waterfall and a smaller hollow behind it at the north edge. The land is flat and has no cliff, so the falls are sculpted. The village no longer sits beside the falls, so the hall may not face the curtain."
+  },
+  "usd": 0.300551,
+  "errors": [],
+  "outcome": "COMPOSED",
+  "rounds": 2,
+  "missing": [],
+  "hiddenMissing": false
+}

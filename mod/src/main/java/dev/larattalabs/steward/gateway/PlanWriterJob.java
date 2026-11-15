@@ -14,7 +14,7 @@ import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The plan writer (docs/COMPOSITION.md, plan v0): a {@code structured} job that composes one settlement as Architect's plan/0 from its concept card, the
+ * (Since CA, a waiting part only: docs/COMPOSITION.md section 11; until CA2, after CP) The plan writer: a {@code structured} job that writes one part as Architect's plan/0 from its concept card, the
  * land round its stone and the anchors Steward supplies (prompts/plan-writer.md, schema/plan-writer.schema.json; Architect's plan/0 schema, by reference or
  * from the loaded jar's {@code Regions.planSchema()}, in the system prompt, so it is cached). Sonnet, medium effort, at most $0.50 a call (Noah: about $1 a plan with repair).
  */
@@ -24,44 +24,6 @@ public final class PlanWriterJob {
 	public static final String TAG = "steward-plan";
 
 	private PlanWriterJob() {
-	}
-
-	/** {@code card}: the concept card as JSON; {@code land}: the land line or null; {@code anchors}: the anchor names the caller will supply. */
-	public static JobSpec build(String card, @Nullable String land, List<String> anchors, @Nullable String owner) {
-		return build(card, land, anchors, List.of(), owner, null, null);
-	}
-
-	/**
-	 * A repair round when {@code previous} (the last plan) and {@code answers} (Architect's check of it, one line a part) are given: the plan is revised so
-	 * the refused and malformed parts fit (their {@code wouldFit} where given), what fits is kept, and unsupported parts stay as they are (they wait).
-	 */
-	public static JobSpec build(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner, @Nullable String previous,
-		@Nullable String answers) {
-		return build(card, land, anchors, builds, owner, previous, answers, false);
-	}
-
-	/** As below, with no catalogue text for the repair. */
-	public static JobSpec build(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner, @Nullable String previous,
-		@Nullable String answers, boolean refs) {
-		return build(card, land, anchors, builds, owner, previous, answers, refs, null);
-	}
-
-	/**
-	 * As above; {@code refs}: the helper has {@code job.systemRefs} (Architect 1.25, C33), so the schema goes as {@link #SCHEMA_REF}, expanded by the helper
-	 * from its own copy with the live catalogue, and the system text is only the instructions. {@code catalogue}: in a repair round, the long text of the
-	 * failing parts' kinds ({@link #catalogueFor}), which {@code plan/0#compact} leaves out since Architect 0.62.0; null for none.
-	 */
-	public static JobSpec build(String card, @Nullable String land, List<String> anchors, List<String> builds, @Nullable String owner, @Nullable String previous,
-		@Nullable String answers, boolean refs, @Nullable String catalogue) {
-		String user = userPrompt(card, land, anchors, builds);
-		if (previous != null && answers != null) {
-			user += "\nYour previous plan:\n" + previous + "\n\nArchitect's check of it, part by part:\n" + answers + catalogueSection(catalogue)
-				+ "\nRevise the plan: make the refused and malformed parts fit (use wouldFit where it is given), keep what fits as it is, and keep the unsupported parts"
-				+ " as they are (they wait for Architect). Answer with the whole revised plan.\n";
-		}
-		JobSpec spec = new JobSpec("structured", user, refs ? instructions() : systemPrompt(), MODEL, "medium", schema(), List.of(), BUDGET_USD, 4, owner, TAG, null,
-			SimAnswers.ext(SimAnswers.PLAN), List.of());
-		return refs ? spec.systemRefs(List.of(SCHEMA_REF, VOCAB_REF)) : spec;
 	}
 
 	/** The name a part plan gives the town as it stands, swapped for the town's region id before the check ({@link #TOWN}). */
@@ -146,20 +108,6 @@ public final class PlanWriterJob {
 			+ " you were given leaves out):\n" + catalogue;
 	}
 
-	static String userPrompt(String card, @Nullable String land, List<String> anchors) {
-		return userPrompt(card, land, anchors, List.of());
-	}
-
-	/** {@code builds}: one line a player's build in the claim ({@code PlayerBuilds.promptLines}), which every plan keeps and may build round. */
-	static String userPrompt(String card, @Nullable String land, List<String> anchors, List<String> builds) {
-		StringBuilder b = new StringBuilder();
-		b.append("The settlement's concept card:\n").append(card.strip()).append("\n\n");
-		b.append("The land round the founding stone: ").append(land == null || land.isBlank() ? "not surveyed" : land).append("\n");
-		b.append("Anchors you may name: ").append(String.join(", ", anchors)).append(" (and Architect's own: claim_center, claim_n, claim_e, claim_s, claim_w).\n");
-		if (!builds.isEmpty()) b.append("The player's own builds in the claim (kept as they are; name them as {build: id}):\n").append(String.join("\n", builds)).append("\n");
-		return b.toString();
-	}
-
 	/** Architect's plan schema by reference (C33): its compact rendering, without the bookkeeping fields, with the live catalogue. */
 	static final String SCHEMA_REF = "plan/0#compact";
 	/** The block vocabulary (families, groups, tiers, colours; VOC), by reference: what a palette rule's family names. */
@@ -220,6 +168,11 @@ public final class PlanWriterJob {
 		JsonObject answer = r.getAsJsonObject().deepCopy();
 		if (answer.get("plan").isJsonObject()) withGateMechanisms(answer.getAsJsonObject("plan"));
 		return new Result(answer, null, usd);
+	}
+
+	/** (CA) The portcullis default on a composed plan (Architect's compose answers it unchanged; Steward adds the mechanism before its own check). */
+	public static void gateMechanisms(JsonObject plan) {
+		withGateMechanisms(plan);
 	}
 
 	/** Architect GM: a gatehouse's mechanism fits a lot at least this wide along its wall and this deep through it (CONTRACT GM §14, 13 x 7 x 10). */

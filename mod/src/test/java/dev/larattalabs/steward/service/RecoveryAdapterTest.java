@@ -453,7 +453,9 @@ class RecoveryAdapterTest {
 	}
 
 	@Test
-	void dg_aSuppliedGrowthStillBuildingIsRefusedThenPaidEqualsReturned() throws IOException {
+	void dg_aSuppliedGrowthStillBuildingIsUndoneAndRefundsWhatWasDrawn() throws IOException {
+		// (A2L) no longer refused while its target waits for materials: Architect's RU cancels it and refunds what was drawn (here nothing: the fake draws a
+		// target's whole bill or none), once
 		String id = nextId();
 		Settlement s = district(id, false);
 		var r = a.regions.get("rg_dist");
@@ -462,18 +464,13 @@ class RecoveryAdapterTest {
 		a.sites.get("d1").state = State.BUILDING;
 		a.ledger.add("minecraft:cobblestone", 40);
 		assertFalse(a.ledger.build(a, "d1"), "short of planks: it waits");
-		assertEquals(Boolean.FALSE, undoGrowth(s, last(s)).get());
-		assertTrue(said.stream().anyMatch(l -> l.startsWith("The addition is still being built from the stockpile")), String.valueOf(said));
-		assertEquals(0, a.count("regions.undoRevision"), "nothing asked while its target is building");
-		a.ledger.add("minecraft:oak_planks", 12);
-		assertTrue(a.ledger.build(a, "d1"));
 		assertEquals(Boolean.TRUE, undoGrowth(s, last(s)).get(), String.valueOf(said));
-		assertEquals(52, a.ledger.paid);
+		assertEquals(1, a.count("regions.undoRevision"), "asked once while its target is building");
 		assertEquals(a.ledger.paid, a.ledger.returned, "paid == returned");
+		assertEquals(40, a.ledger.stock.get("minecraft:cobblestone"), "the stockpile keeps what was never drawn");
 		// a replay: nothing asked, nothing returned again, nothing logged again
 		assertEquals(Boolean.TRUE, undoGrowth(now(id), last(s)).get());
 		assertEquals(1, a.count("regions.undoRevision"));
-		assertEquals(52, a.ledger.returned);
 		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED));
 	}
 

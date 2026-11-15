@@ -118,7 +118,7 @@ public final class Undo {
 		for (String id : ids) all.get(id).ifPresent(v -> now.put(id, v.version()));
 		java.util.Collections.reverse(ids); // newest first
 		boolean adopted = entry.get().kind() == Settlement.Kind.BUILD_ADOPTED;
-		// a growth says its own (it may be refused before anything is asked: still built from the stockpile, slice A2)
+		// a growth says its own
 		if (!Growths.isGrowth(entry.get().siteGroup())) say.accept(adopted ? "Letting go of \"" + entry.get().text() + "\": the build stays as it stands..."
 			: "Removing " + Words.count(ids.size(), "site", "sites") + " of \"" + entry.get().text() + "\" and restoring the land...");
 		var sites = ArchitectAccess.api().sites(server);
@@ -129,7 +129,7 @@ public final class Undo {
 		// a flat village (Architect V) is one region: removed whole, its ground, street, lanes, square and props with its buildings
 		// a growth of a region town (docs/GROWTH.md): taken up by its revision (Architect's undoRevision), never by removing the town
 		var growth = Growths.parse(entry.get().siteGroup());
-		if (growth.isPresent()) return growth(server, s, entry.get(), growth.get(), now, say, ok -> UNDOING.remove(s.id()));
+		if (growth.isPresent()) return growth(server, s, entry.get(), growth.get(), now, say, ok -> { if (ok != null) UNDOING.remove(s.id()); });
 		String region = dev.larattalabs.steward.gateway.VPlan.regionOf(entry.get().siteGroup());
 		if (region != null) {
 			// the world closing mid-undo (null) is not its outcome: the undo can be run again after the restart
@@ -212,10 +212,13 @@ public final class Undo {
 		List<String> regionSites = List.copyOf(entry.siteIds());
 		// removed already (Architect's tombstone, 1.14 C22): its answer, or the save of it, was lost; the entry is retired now
 		if (regions.get(region).filter(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVED).isPresent()) {
-			// (slice SD) logged once: a replay after its removal was logged (a cancel's take-up, the sweep, a restart) finds it retired
-			if (!retired(Settlements.store().get(s.id()).orElse(s), entry) && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
+			// logged once (slice VSR): an entry a replay finds retired already is not logged again
+			var fresh = Settlements.store().get(s.id()).orElse(s);
+			boolean again = retired(fresh, entry);
+			if (!again && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
+			// the districts put right whatever the history says (a crash after the entry and before the district's land was let go)
 			districts(server, s, say);
-			say.accept("Undone: the village was taken up already, the land restored.");
+			if (!again) say.accept("Undone: the village was taken up already, the land restored.");
 			done.accept(true);
 			return true;
 		}
@@ -241,6 +244,7 @@ public final class Undo {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
 			// taken up only when Architect says so (1.14 C22: a retried removal finishes the restorations it left, or answers not removed)
 			boolean ok = err == null && r.removed();
+			// logged once (slice VSR): two asks of one removal (Architect joins them) retire the entry once
 			if (ok && !retired(Settlements.store().get(s.id()).orElse(s), entry) && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
 			districts(server, s, say);
 			if (!ok) say.accept("Undo stopped: " + (err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
@@ -257,32 +261,61 @@ public final class Undo {
 	 */
 	public static boolean growth(MinecraftServer server, Settlement s, Settlement.LogEntry entry, Growths.Ref ref, java.util.Map<String, Integer> now,
 		Consumer<String> say, Consumer<Boolean> whenDone) {
-		// (slice A2) still being built from the stockpile: nothing is asked (Architect would refuse it, survival_building); the entry stays
-		var town = ArchitectAccess.api().regions().get(ref.region());
-		if (Growths.decide(town, ref.rid(), ArchitectAccess.api().sites(server)).step() == Growths.Step.BUILDING) {
-			say.accept(Growths.buildingLine(server, ref));
-			whenDone.accept(false);
-			return true;
-		}
+		// (slice A2L) no longer refused while its targets wait for materials: Architect's RU cancels and refunds them (a stray survival_building answer
+		// is said in A2's words by Growths.undo)
 		UNDOING.add(s.id());
-		List<String> ids = List.copyOf(entry.siteIds());
 		String whose = s.lands().districts().stream().filter(d -> ref.region().equals(d.region())).map(Settlement.District::name).findFirst().map(n -> n + "'s").orElse("the town's");
 		say.accept("Taking up \"" + entry.text() + "\" (" + whose + " change " + ref.rid() + ") and restoring the land...");
+		java.util.concurrent.atomic.AtomicReference<dev.larattalabs.architect.api.RemoveResult> answer = new java.util.concurrent.atomic.AtomicReference<>();
 		Growths.undo(server, s.owner(), ref, say, ok -> {
-			UNDOING.remove(s.id());
+			// the world closed meanwhile: the busy mark was cleared at its stop, and may be a new world's now (slice A2L review 5)
 			if (ok == null) { whenDone.accept(null); return; }
+			UNDOING.remove(s.id());
 			if (ok) {
-				// logged once: a replay after a crash between the removal's entry and the build's save finds it retired (Architect reads UNDONE again)
-				var fresh = Settlements.store().get(s.id()).orElse(s);
-				if (!retired(fresh, entry) && !Settlements.log(s.id(), removed(entry, ids, true, now)).ok()) say.accept(UNLOGGED);
+				if (!complete(s.id(), entry, ref, now)) say.accept(UNLOGGED);
 				// (slice DG) a district region's growth taken up: the district's land read again (the growth's land is let go)
 				Districts.refreshLand(s.id(), ref.region());
 				districts(server, s, say);
+				// (slice A2L review 6) the town's build watch is dropped when only the growth kept it unbuilt: never "built" for a town that lost its addition
+				MaterialRequests.forgetIfBuilt(ref.region());
+				if (Growths.reportsRefund(s, answer.get())) say.accept(Growths.refundLine(answer.get().refund()));
 				say.accept("Undone: " + whose + " change is taken up, the land restored.");
-			} else if (!Growths.building(server, ref)) say.accept("Run /steward undo " + s.id() + " again once it is clear.");
+			} else say.accept("Run /steward undo " + s.id() + " again once it is clear.");
 			whenDone.accept(ok);
-		});
+		}, answer::set);
 		return true;
+	}
+
+	/**
+	 * (slice A2L) A growth's take-up logged as complete, once: on a fresh read, nothing appended when its completion ({@link Growths#completed}) or an
+	 * older untagged removal of every site of the entry ({@link #retired}) is there already. The removal names the entry's sites and every site
+	 * Architect's revision holds (a cancel's batch may have placed more after the entry). False only when the append failed.
+	 */
+	static boolean complete(String settlementId, Settlement.LogEntry entry, Growths.Ref ref, java.util.Map<String, Integer> now) {
+		var fresh = Settlements.store().get(settlementId);
+		if (fresh.isEmpty()) return false;
+		if (Growths.completed(fresh.get(), ref.tag()) || retired(fresh.get(), entry)) return true;
+		List<String> revSites = List.of();
+		try {
+			revSites = ArchitectAccess.api().regions().get(ref.region()).flatMap(v -> Growths.revision(v, ref.rid())).map(r -> r.sites() == null ? List.<String>of() : r.sites())
+				.orElse(List.of());
+		} catch (RuntimeException | LinkageError e) {
+			// the entry's own sites then
+		}
+		return Settlements.log(settlementId, removedGrowth(entry, removalSites(entry.siteIds(), revSites), ref.tag(), now)).ok();
+	}
+
+	/** (slice A2L) The sites a growth's removal names: the entry's, then any other the revision holds, each once, in that order. Pure. */
+	static List<String> removalSites(List<String> entrySites, List<String> revisionSites) {
+		java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>(entrySites);
+		out.addAll(revisionSites);
+		return List.copyOf(out);
+	}
+
+	/** (slice A2L) A growth's removal: as {@link #removed}, whole, carrying the growth's tag (its completion). */
+	static Settlement.LogEntry removedGrowth(Settlement.LogEntry placed, List<String> gone, String tag, java.util.Map<String, Integer> now) {
+		var r = removed(placed, gone, true, now);
+		return Settlement.LogEntry.of(r.at(), r.kind(), r.text(), r.changes(), tag, r.outcome());
 	}
 
 	/**
