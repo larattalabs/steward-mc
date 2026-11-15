@@ -1726,3 +1726,16 @@ Architect v0.71.0 (API 1.63.0, kit 0.66.0: J1, CP) is on pin-071 (3b3b9cd, on ba
 - `stub --only refund,undo,restart,road,stub`: 111 of 116 passed over 22 flows. Those covered growth, adoption, supplied growth, district growth, the gate-mechanism, survival and drawbridge flows, and discard. J1's removal refunds, undo after a restart and road restores held.
 - The 5 misses are the module offers (crop_farm x3, storage_hall x2), by design: kit 0.66.0 moves module.json's pins. The modules carry at 0.72.0, Steward's next merged pin.
 - CP isn't called by Steward until CA2. Nothing in Architect was found wrong.
+
+### BC-d: a revision's maxBill outlives it (found by the batch-072 GPT review, 2026-11-15, checked in v0.72.0's source)
+`Revisions.realise` records `maxBill` on the region (`rec.survival.maxBill`, `billBase` = the group's draws then) only when the request
+carries one, and nothing clears it. `BillCaps.of` caps every target of the region's group. So after QD realises a survival module growth under
+its approved bound, a later plain growth on the same town (sent with `maxBill` null) is still held to the module's cap: an item the module's
+bill doesn't name can't be drawn at all, and capped items only up to what the module left. The new growth waits `bill_cap` with stock in
+hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batch until this is fixed.
+- **S-BC-d-1:** a cap covers only the revision it came with (its rid's targets, its own draws), not the region's whole group. A later
+  revision without `maxBill` is uncapped; one with its own `maxBill` gets its own cap, and an earlier revision still building keeps its own.
+- **S-BC-d-2:** the gate covers a capped module growth, then a plain growth on the same region (uncapped, draws freely); two capped
+  revisions in flight at once; and a restart and an undo between them.
+- If scoping per revision isn't practical, say so: the fallback is that a revision without `maxBill` clears the region's cap, and Steward
+  refuses a plain growth while a capped one still builds.
