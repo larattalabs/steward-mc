@@ -469,4 +469,8 @@ thread and checks the session. The sweep's own standing take-up entries (`A vill
 read by id, since Architect's list leaves out tombstones. Each is asked again at the next start, or, if Architect removed it already (an answer lost at
 a restart), retired through `Undo.region`'s tombstone with nothing asked of Architect. `Undo.region` logs a removal only when its entry isn't already
 retired, and it puts the districts right either way. Checks: units 529/0 (`VillageSweepOnceTest`), npm 46/0, e2e `stub --only village-orphan` PASS
-(new flow); `--only orphan` also passed `growth orphan` on the first cut. GPT review plus three fix checks: the last one found no P1 or P2.
+(new flow); `--only orphan` also passed `growth orphan` on the first cut. GPT review plus three fix checks: the last one found no P1 or P2. **Held removals** (manager, the same day): Architect holds a removal up to 10 minutes while a player stands in the region, and the
+settlement would be busy that whole time. So no take-up is asked while a player stands in the claim, measured with Architect's reach. The region is
+left untried, and the 10 s tick (`VillageSweep.growths(server)`) asks again once the player leaves; a busy settlement keeps its mark for a later tick.
+`takeUp`'s other callers are treated the same way: nothing is logged while the region is held, and the region is kept so that the ended build naming it
+does not hold it. Still open: a player who walks in during the few ticks before Architect's scan.
