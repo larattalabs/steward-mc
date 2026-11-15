@@ -20,9 +20,14 @@ public final class ProposalRules {
 	public static final long COOLDOWN_MS = 20 * 60_000L;
 
 	/** What the steward sees: the player's tier and what they carry; animals gathering in the claim, by kind. */
-	public record Signs(Progress.Tier tier, int seeds, int saplings, Map<String, Integer> animals, Map<String, Integer> seedItems) {
+	public record Signs(Progress.Tier tier, int seeds, int saplings, Map<String, Integer> animals, Map<String, Integer> seedItems, int storeKinds) {
 		public Signs {
 			seedItems = seedItems == null ? Map.of() : Map.copyOf(seedItems);
+		}
+
+		/** As before storage modules: the stores' kinds not counted. */
+		public Signs(Progress.Tier tier, int seeds, int saplings, Map<String, Integer> animals, Map<String, Integer> seedItems) {
+			this(tier, seeds, saplings, animals, seedItems, 0);
 		}
 
 		/** As before module offers: the seeds' kinds not known. */
@@ -39,8 +44,12 @@ public final class ProposalRules {
 	public record ModuleCandidate(dev.larattalabs.steward.module.ModuleKind kind, boolean standing, @org.jspecify.annotations.Nullable Proposal offer,
 		@org.jspecify.annotations.Nullable String why) {}
 
-	/** Whether a module's sign fires: the player carries {@link dev.larattalabs.steward.module.ModuleOffer#SIGN_SEEDS} or more seeds of one crop it grows. */
+	/**
+	 * Whether a module's sign fires: the player carries {@link dev.larattalabs.steward.module.ModuleOffer#SIGN_SEEDS} or more seeds of one crop it grows;
+	 * for a storage module, the stockpile and the player's inventory hold {@link dev.larattalabs.steward.module.ModuleOffer#SIGN_KINDS} or more kinds.
+	 */
 	public static boolean moduleFires(dev.larattalabs.steward.module.ModuleKind k, Signs s) {
+		if (k.sign() == dev.larattalabs.steward.module.ModuleKind.Sign.STORES) return s.storeKinds() >= dev.larattalabs.steward.module.ModuleOffer.SIGN_KINDS;
 		Map<String, Integer> byCrop = new java.util.HashMap<>();
 		for (var e : k.seeds().entrySet()) byCrop.merge(e.getValue(), s.seedItems().getOrDefault(e.getKey(), 0), Integer::sum);
 		return byCrop.values().stream().anyMatch(n -> n >= dev.larattalabs.steward.module.ModuleOffer.SIGN_SEEDS);

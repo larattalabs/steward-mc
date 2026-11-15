@@ -17,7 +17,7 @@ class ModuleKindTest {
 		assertNull(ModuleKind.idOf("module."));
 		assertSame(K, ModuleKind.of("fixture_plot").orElseThrow());
 		assertSame(ModuleKind.CropFarm.INSTANCE, ModuleKind.of("crop_farm").orElseThrow());
-		assertTrue(ModuleKind.of("storage_hall").isEmpty(), "M4's");
+		assertSame(ModuleKind.StorageHall.INSTANCE, ModuleKind.of("storage_hall").orElseThrow());
 	}
 
 	@Test

@@ -197,6 +197,31 @@ crops, rustic. Fed from the stockpile until PLACED.
 - **Spending code.** M2 changes no billing or undo code in Steward; it measures Architect's. If that stops being true, the change gets a GPT
   second opinion.
 
+## Re-certification
+
+Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when an Architect pin needs a full re-measure.
+
+- **Full re-measure** (every step, then plain `tools/module-catalog.mjs record`) when:
+  - crop_farm's own code changes: `program.mjs`, or module.json beyond its pins;
+  - or an Architect build, billing or realise path it uses changes: the kit's `realise.mjs`, `region/plan.mjs`, `region/survival.mjs` and
+    IRR, the grow-lot revise, the Java FullBom, quotes, survival billing and refunds, the stockpile and the lot realise path.
+  The pin's diff (`git diff v<old> v<new> -- kit mod/src/main` in ../architect-mc) is read for this before choosing.
+- **Smoke check** for a plain version bump. Run fresh `offline` and `ingame`, the billing check (`module-measure.mjs survival`, then
+  `module-measure.mjs bounds`: the 108 quotes re-taken, about 8 min, never realised) and one field round (`module-measure.mjs field --crop <c>`,
+  5 runs), then `record --smoke`. It writes `basis: "smoke"`, `from` (the fully measured
+  Architect version) and `carried` (that full certificate; its bounds and rates stay top level, bound by `carried.boundsSha` / `ratesSha`).
+  `record --smoke` refuses unless:
+  - the program is the measured one;
+  - module.json with the measured pins put back hashes to the carried moduleSha;
+  - every branch x bible builds the measured block count, each exactly once;
+  - the re-quoted per-Style bounds equal the carried bounds item for item (survival alone checks a growth consumes its *new* quote, so it
+    can't see a bill that moved);
+  - the five steps passed on these files and the pinned versions, each its named step with every check passing.
+  The certificate is self-attested, as a full one is: the reader checks it is consistent, not that its history is true (git is the record).
+  ModuleCatalog re-checks the carry (program, pins-only change, bounds and rates, one Architect version that is not `from`, and each recorded
+  smoke step stamped with this program and version and passing in full) before ModuleGate offers it. A smoke of a smoke
+  keeps the first `from`. A smoke certificate is not a measurement: when a full re-measure is due, nothing is carried.
+
 ## Candidates
 
 - **Candidate 1** (program sha `b0824ea4…`, d9045b2): the composter and the chest stood in the front row, outside the fence, against it.
@@ -209,6 +234,35 @@ crops, rustic. Fed from the stockpile until PLACED.
 - **Candidate 3:** the port on the foundation role instead of a path. The layout and the crop counts are candidate 2's.
 
 ## Results
+
+**Carried to Architect 0.70.0 by a smoke check (2026-11-14, crop-farm-070; speed rule 4).** The pins moved to kit/checker 0.65.0, the program
+unchanged (`c406df05…`), moduleSha `1e9960b8…`. The 0.69.0..0.70.0 diff touches no crop_farm path: outside its tests the kit changes only
+version strings, and the Java adds QL's `Quote.terrain()` beside the quote, whose `bom` is computed as before (`Quotes.clamp` reads the `bom`, never writes it);
+ApiRules gains `quoteTerrain`. So `record --smoke`: offline 115/115, ingame 116/116, survival 63/63, bounds 111/111 (the 108 re-quoted bounds
+equal the carried ones item for item) and field-potatoes 62/62 (5 runs), on ports 8594/8595, $0. `measured.json` is `basis: smoke`, `from:
+0.67.0`, certifying 0.70.0 only. Potatoes per crop-day against 0.67.0: within 1.3% on six farms; 9x9 +4.8%, 9x18 +6.7%, 9x27 -3.5%, the third
+round with those signs on those farms, so it is 0.67.0's small-farm baseline; every run is inside its 3a band.
+
+**Carried to Architect 0.69.0 by a smoke check (2026-11-14, crop-farm-069; speed rule 4).** The pins moved to kit/checker 0.64.0, the program
+unchanged (`c406df05…`), moduleSha `c8e8a7b4…`. The 0.68.0..0.69.0 kit diff touches no crop_farm path: it adds `archSpanPart` and the
+`arch_span` resolve (compile.mjs), the aqueduct's `archRise` (course.mjs), and a `terrain` flag on `Region.form()` that defaults to true and
+only `archSpan` sets false; the Java is ArchitectApi 1.61.0, ApiRules and IrStale. crop_farm uses no arch span, `form()` or course. So
+`record --smoke`: offline 115/115 (all 108 block counts as measured), ingame 116/116, survival 63/63, bounds 111/111 (the 108 re-quoted
+bounds equal the carried ones item for item) and field-potatoes 62/62 (5 runs), on ports 8594/8595, $0. A smoke of a smoke keeps the first
+`from`: `measured.json` is `basis: smoke`, `from: 0.67.0`, certifying 0.69.0 only. Potatoes per crop-day against 0.67.0: within 1.6% on
+18x18, 27x27, 27x9, 18x9, 18x27 and 27x18; 9x27 -3.4%, 9x9 +6.3%, 9x18 +7.4%. These are the 0.68.0 round's signs on the same three small
+farms, so 0.67.0's own small-farm rates likely sit low, not a change in 0.69.0; every run is inside
+its 3a band.
+
+**Carried to Architect 0.68.0 by a smoke check (2026-11-14, crop-farm-068; speed rule 4).** The pins moved to kit/checker 0.63.0, the program
+unchanged (`c406df05…`), moduleSha `c1a1a5d8…`. The 0.67.0..0.68.0 diff changes no FullBom, quote or realise path: its Java is IrStale (the
+version), RegionAdopt and Stockpiles (SAD: adopting construction sites and crates), and the kit's revise adds a `props` stage only on an
+adopted base. None is on crop_farm's measured path: the measurement uses a V town with a crate-less stockpile, and Steward never calls
+adoptCrates. So `record --smoke`: offline 115/115 (all 108 block counts as measured), ingame 116/116, survival 63/63, bounds 111/111 (the 108
+re-quoted per-Style bounds equal the carried ones item for item) and field-potatoes 62/62 (5 runs), on ports 8594/8595, $0. `measured.json`
+is `basis: smoke`, `from: 0.67.0`, certifying 0.68.0 only, its bounds and rates 0.67.0's. Potatoes per crop-day against 0.67.0: within 1.2% on
+18x18, 27x27, 18x9, 18x27 and 27x18; 27x9 +2.3%, 9x27 -3.7%, 9x9 +4.3%, 9x18 +6.5% (0.67.0 had it -4.1% against 0.65.0). The small farms move
+most, both ways, and every run is inside its 3a band, so these read as run noise, not a change.
 
 **Re-certified on Architect 0.67.0 (2026-11-14, crop-farm-067).** The pins moved to kit/checker 0.62.0 (ad9166a), so moduleSha changed
 (`c85389f8…`) with the program unchanged (`c406df05…`). Every step was measured again, because kit 0.62.0 and BC+ change the realise and

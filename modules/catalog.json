@@ -1,6 +1,7 @@
 {
   "format": 1,
   "modules": [
-    { "id": "crop_farm", "version": 1 }
+    { "id": "crop_farm", "version": 1 },
+    { "id": "storage_hall", "version": 1 }
   ]
 }

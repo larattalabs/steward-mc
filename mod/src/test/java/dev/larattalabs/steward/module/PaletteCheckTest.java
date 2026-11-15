@@ -52,6 +52,24 @@ class PaletteCheckTest {
 	}
 
 	@Test
+	void aRoleThatMustBeAFullBlockRefusesASlab() {
+		// storage_hall@1 (M4): its lamps stand on the wall and its door on the foundation, so both must be full blocks
+		PaletteCheck.BlockFacts facts = new PaletteCheck.BlockFacts() {
+			public boolean known(String b) { return true; }
+			public int light(String b) { return b.contains("lantern") ? 15 : 0; }
+			public boolean gravity(String b) { return false; }
+			public boolean conducts(String b) { return false; }
+			public boolean full(String b) { return !b.endsWith("_slab") && !b.endsWith("_stairs"); }
+		};
+		var rules = new PaletteRules(new Lamp("light", 14, "minecraft:lantern"), List.of(), List.of(), List.of("wall", "foundation"));
+		Map<String, String> ok = Map.of("light", "minecraft:lantern", "wall", "minecraft:spruce_planks", "foundation", "minecraft:cobblestone");
+		assertTrue(PaletteCheck.check(rules, ok, facts).ok());
+		var bad = PaletteCheck.check(rules, Map.of("light", "minecraft:lantern", "wall", "minecraft:oak_slab", "foundation", "minecraft:cobblestone"), facts);
+		assertEquals(List.of("wall 'minecraft:oak_slab' is not a full block"), bad.broken());
+		assertTrue(PaletteCheck.check(RULES, ok, facts).ok(), "a module without the rule takes any wall");
+	}
+
+	@Test
 	void aBibleThatKeepsTheRulesIsTakenWithItsOwnLamp() {
 		var r = PaletteCheck.check(RULES, roles("minecraft:sea_lantern", "minecraft:dirt_path", "minecraft:spruce_log"), FACTS);
 		assertTrue(r.ok());

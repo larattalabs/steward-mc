@@ -229,6 +229,37 @@ Then:
 
 Last run: 2026-10-11: **PASS 34 checks** on Architect 0.15.0 (a building placed into a protected area is refused PROTECTED by Architect). Before: **PASS 33 checks**, twice in a row: the Founding Stone's recipe added, and the board check fixed. The board stood at the edge of reach, about 4.4 blocks away, so its right-click missed about half the time; it is a block closer now. That was not the whole cause: it missed once more from 3.4 blocks, with the steward behind the player. It is still intermittent and under watch. The board itself works by hand and in most runs.
 
+### Faster runs: two clients, skipping unchanged flows (slice EF, 2026-11-15, $0)
+
+Without these flags a run is as before: one client on `mod/run`, every chosen flow run.
+
+- **`--clients 2 --ports 8596,8598`** runs the chosen flows (`--only` as usual) on two clients at once.
+  - Each client has its own port pair (the sidecar port given, the DevBridge port one above), its own run dir (client 1 `mod/run`, client k
+    `mod/run-c<k>`, through `STEWARD_RUN_DIR` in build.gradle) with its own RAM-disk sidecar link, and its own evidence dir
+    (`artifacts/e2e/c<k>/`: its client.log and summary).
+  - Each client is a child `e2e.mjs ... --flows a,b` that runs the sanity set and then exactly its flows, in that order. Its lines come prefixed
+    `[c1]`/`[c2]`. Client k starts `--stagger` seconds (default 60) after the one before, so their Gradle starts don't overlap.
+  - Flows are packed in groups, longest first, each onto the client with the least recorded seconds. A group holds a flow and what it `needs`,
+    plus flows whose code shares a block that writes fixed names under `artifacts/e2e` (the snapshot files: the gate-mech family, for one). A group with
+    a flow that has no recorded time goes after every timed one. The times come from `artifacts/e2e/summary.json`, then
+    `artifacts/e2e/flow-times.json` (every run's, newest kept), then `E2E_TIMES` (another summary).
+  - One `artifacts/e2e/summary.json` merges both: each result and flow carries `client`, `clients[]` has each one's ports, flows, packed and real
+    seconds and exit. The end lines give each client's wall time and `FAIL [c2] <check>: why` for each failure.
+  - The slot rule: with fewer free of the 4 machine-wide Steward clients (`pgrep -f 'steward[^ ]*/mod.*KnotClient'`) than asked, it runs on one
+    client and says so.
+  - The client check in preflight now refuses only a client of this checkout whose working dir is this run's game dir.
+- **`--skip-unchanged`** skips a flow whose inputs haven't changed since its last PASS (`artifacts/e2e/passes.json`, per mode, local only, written
+  after every run that isn't a client of a `--clients` run).
+  - A flow's inputs: its **code block** (the top-level blocks of e2e.mjs its body reaches, comments left out, with a `tools/lib` import standing for
+    its whole module, and the blocks of the flows it needs), the **fixtures** that code names (a name made at run time hashes its whole directory),
+    the **jar** (`mod/build/libs`), the **Architect pin** (`architect_version`, an `ARCHITECT_JAR`'s sha, `lab_ui_version`) and the **mod
+    sources** (`mod/src/main`, `mod/src/client`, the Gradle files).
+  - A strict flow (bill, refund, undo, restart or survival in its name or tags) skips only on an exact match: block, fixtures, jar and pin. A
+    light flow skips on its block, its fixtures and the mod sources.
+  - It prints `skip <flow>: why` and `runs <flow>: what changed`. An unchanged flow that a running flow needs still runs. The sanity set always
+    runs. The summary lists the skipped flows under `unchanged`.
+- **`--plan`** prints the skips and the packing and starts nothing.
+
 ## lab-ui
 
 lab-ui (`dev.larattalabs:lab_ui`), the shared client UI library, is bundled jar-in-jar. `mod/settings.gradle` decides where Gradle gets it, with the same rule as
