@@ -84,6 +84,25 @@ function combinations(branches) {
   for (const [k, vs] of Object.entries(branches)) out = out.flatMap((m) => vs.map((v) => ({ ...m, [k]: v })));
   return out;
 }
+/**
+ * (M4b) Every branch with its domain params filled: a module whose envelope has `domains` (storage_hall@2's item1..item16, kind `filter`)
+ * gets, per sorting branch, its own item set from the enum's options (all but `none`), rotating through the domain so the run covers every
+ * domain item as a filter (MEASURE-M4 12.1); `slots` names how many. Without domains, the branches as they are.
+ */
+export function branchSets(m) {
+  const combos = combinations(m.envelope.branches);
+  const doms = Object.keys(m.envelope.domains ?? {});
+  if (!doms.length) return combos;
+  const domain = (m.params[doms[0]].options ?? []).filter((o) => o !== 'none');
+  let at = 0;
+  return combos.map((c) => {
+    const n = Number(c.slots ?? 0);
+    const out = { ...c };
+    for (let i = 0; i < n; i++) { out[doms[i]] = domain[(at + i) % domain.length]; }
+    at = (at + n) % domain.length;
+    return out;
+  });
+}
 /** Params outside the envelope: the first int param's first value inside its schema's range that no branch lists (fixture_plot: side 6). */
 function outsideParams(m) {
   for (const [k, vs] of Object.entries(m.envelope.branches)) {
@@ -134,7 +153,7 @@ async function offline() {
           fs.rmSync(o, { recursive: true, force: true });
         }
       };
-      for (const c of combinations(e.module.envelope.branches)) {
+      for (const c of branchSets(e.module)) {
         for (const bible of e.module.envelope.bibles) {
           const b = await build(c, { bible });
           r.branches.push({ branch: c, bible, ok: b.ok, errors: b.errors ?? [b.threw], warnings: b.warnings?.length ?? 0, blocks: b.bp?.cells?.size ?? null });
@@ -298,9 +317,10 @@ async function ingame() {
       const again = await mod({ op: 'install', ...base });
       check(again.ok && again.entryId === a.entryId, `${key}: the key replays: the same entry (${again.entryId})`);
       let firstKey = null, firstId = null;
-      for (const c of combinations(e.module.envelope.branches)) {
+      for (const c of branchSets(e.module)) {
         for (const bible of e.module.envelope.bibles) {
-          const vkey = `steward.m1gate${run}.module.${e.id}_${Object.values(c).join('_')}_${bible}`;
+          // (the branch's own values: its domain items left out of the key, which stays short)
+          const vkey = `steward.m1gate${run}.module.${e.id}_v${e.version}_${Object.entries(c).filter(([k]) => !(k in (e.module.envelope.domains ?? {}))).map(([, v]) => v).join('_')}_${bible}`;
           const t1 = Date.now();
           const v = await mod({ op: 'variant', ...base, params: c, bible: { id: bible, version: 0 }, key: vkey });
           const vl = v.ok ? entryFile(v.entryId) ?? {} : {};

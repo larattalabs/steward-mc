@@ -119,6 +119,15 @@ public final class ModuleGate {
 		return v == null ? "(not checked)" : UNKNOWN_KIT.equals(v) ? "(not said)" : v;
 	}
 
+	/** The dependent rule of a module's domain params, or why they break it; a module with domain params but no rule here is refused (fail closed). */
+	static @Nullable String domainRule(String id, JsonObject values) {
+		if (ModuleKind.StorageHall.ID.equals(id)) {
+			var it = StorageHallLot.items(values);
+			return it.ok() ? null : it.refused();
+		}
+		return "no rule judges " + id + "'s domain params";
+	}
+
 	/** Resolved params: the canonical values (every param, sorted keys), or why they are refused. */
 	public record Params(@Nullable JsonObject values, @Nullable String refused) {
 		public boolean ok() {
@@ -141,10 +150,17 @@ public final class ModuleGate {
 			var branch = e.envelope().branches().get(k);
 			if (branch != null) {
 				if (!branch.contains(v)) return new Params(null, k + " " + v + " is not a measured branch (" + branch + ")");
+			} else if (e.envelope().domains().containsKey(k)) {
+				// (M4b) a domain param: any of its options (admitted above); the module's dependent rule is judged below
 			} else if (!v.equals(p.getValue().def())) {
 				return new Params(null, k + " is fixed at " + p.getValue().def() + " (not a measured branch)");
 			}
 			out.add(k, v.deepCopy());
+		}
+		// (M4b) a module with domain params judges them together (storage_hall: distinct filter items for its slots, none after); none known: refused
+		if (!e.envelope().domains().isEmpty()) {
+			String why = domainRule(e.id(), out);
+			if (why != null) return new Params(null, why);
 		}
 		JsonObject sorted = Canon.sorted(out).getAsJsonObject();
 		if (Canon.text(sorted).length() > ModuleCatalog.PROGRAM_PARAMS_MAX) return new Params(null, "params are over " + ModuleCatalog.PROGRAM_PARAMS_MAX + " characters");

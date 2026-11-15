@@ -88,11 +88,17 @@ public final class ModuleCatalog {
 	 * The certification envelope (section 2.2): every discrete branch ({@code branches}: param -> its measured values; the cartesian
 	 * product is the branch set), the facings and the bibles it was checked with.
 	 */
-	public record Envelope(Map<String, List<JsonElement>> branches, List<String> facings, List<String> bibles) {
+	public record Envelope(Map<String, List<JsonElement>> branches, List<String> facings, List<String> bibles, Map<String, String> domains) {
 		public Envelope {
 			branches = branches == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(branches));
 			facings = facings == null ? List.of() : List.copyOf(facings);
 			bibles = bibles == null ? List.of() : List.copyOf(bibles);
+			domains = domains == null ? Map.of() : java.util.Collections.unmodifiableMap(new LinkedHashMap<>(domains));
+		}
+
+		/** (M1's) No domain params. */
+		public Envelope(Map<String, List<JsonElement>> branches, List<String> facings, List<String> bibles) {
+			this(branches, facings, bibles, Map.of());
 		}
 
 		/** Every branch: one param -> value map per combination, in declaration order. */
@@ -139,6 +145,9 @@ public final class ModuleCatalog {
 	 * with only its pins different, on this Minecraft, whose bounds and rates are the ones here, and the smoke checks are recorded.
 	 */
 	public static final String BASIS_SMOKE = "smoke";
+
+	/** The domain kinds a catalog knows (MEASURE-M4 12.1): {@code filter}, storage_hall@2's sorting items. Any other refuses the entry. */
+	static final java.util.Set<String> DOMAIN_KINDS = java.util.Set.of("filter");
 
 	/** A storage hall's smoke round: its deterministic hall step (tools/module-measure-hall.mjs hall), one run. */
 	static final String ROUND_HALL = "hall";
@@ -476,11 +485,23 @@ public final class ModuleCatalog {
 			}
 			branches.put(e.getKey(), vs);
 		}
-		// every param is either a branch (its measured values) or fixed at its default: nothing unmeasured can be asked for
+		// (M4b) domain params: an enum certified as an item class (MEASURE-M4 12.1), any of its options under the module's dependent rule (ModuleGate)
+		Map<String, String> domains = new LinkedHashMap<>();
+		JsonObject dm = env.has("domains") && env.get("domains").isJsonObject() ? env.getAsJsonObject("domains") : new JsonObject();
+		for (var e : dm.entrySet()) {
+			Param p = params.get(e.getKey());
+			String kind = e.getValue().isJsonPrimitive() ? e.getValue().getAsString() : "";
+			if (p == null) problems.add("envelope domain " + e.getKey() + " is not a param");
+			else if (!p.type().equals("enum")) problems.add("envelope domain " + e.getKey() + " is not an enum");
+			else if (branches.containsKey(e.getKey())) problems.add("envelope domain " + e.getKey() + " is also a branch");
+			else if (!DOMAIN_KINDS.contains(kind)) problems.add("envelope domain " + e.getKey() + " has an unknown kind '" + kind + "'");
+			else domains.put(e.getKey(), kind);
+		}
+		// every param is a branch (its measured values), a domain (its certified class), or fixed at its default: nothing unmeasured can be asked for
 		List<String> facings = strings(env, "facings");
 		List<String> bibles = strings(env, "bibles");
 		if (bibles.isEmpty()) problems.add("the envelope names no bibles");
-		return new Envelope(branches, facings, bibles);
+		return new Envelope(branches, facings, bibles, domains);
 	}
 
 	private static PaletteRules palette(JsonObject mod, List<String> problems) {
