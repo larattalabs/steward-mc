@@ -69,4 +69,22 @@ class ComposerTest {
 		assertEquals("smithy 1 and chapel 1", Composer.words(fix.leftOut()));
 		assertEquals("a, b and c", Composer.words(java.util.List.of("a", "b", "c")));
 	}
+
+	@Test
+	void aComposeWithNoSummaryInClaudesWordsGetsThePlansOwnPlainOne() {
+		var plan = JsonParser.parseString("{\"zones\":[{\"id\":\"town\",\"program\":{\"lots\":[{\"id\":\"cabin_1\",\"type\":\"cabin\",\"label\":\"hidden dwelling\"},"
+			+ "{\"id\":\"cabin_2\",\"type\":\"cabin\",\"label\":\"hidden dwelling\"},{\"id\":\"tavern_1\",\"type\":\"tavern\"},{\"id\":\"house_1\",\"type\":\"house\"},"
+			+ "{\"id\":\"barn_1\",\"type\":\"barn\"}]}}]}").getAsJsonObject();
+		String s = Composer.summaryOf(plan);
+		assertTrue(s.startsWith("A settlement of 5 buildings. Among them: 2 hidden dwelling"), s);
+		assertTrue(s.endsWith("and 1 more."), s);
+		assertEquals("", Composer.summaryOf(JsonParser.parseString("{\"zones\":[]}").getAsJsonObject()));
+	}
+
+	@Test
+	void aWaitingPartsWordsAreItsOwnNotes() {
+		var plan = JsonParser.parseString("{\"connectors\":[{\"id\":\"rail_1\",\"kind\":\"rail\",\"notes\":\" A railway to the mine, for when Architect can lay track. \"}],"
+			+ "\"forms\":[{\"id\":\"pond\",\"kind\":\"pond\"}]}").getAsJsonObject();
+		assertEquals(java.util.Map.of("rail_1", "A railway to the mine, for when Architect can lay track."), Composer.notes(plan));
+	}
 }

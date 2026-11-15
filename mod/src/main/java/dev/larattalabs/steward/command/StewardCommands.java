@@ -248,34 +248,23 @@ public final class StewardCommands {
 					dev.larattalabs.steward.service.PlanChecks.unrealise(label).whenComplete((ok, err) -> src.getServer().execute(() ->
 						Steward.LOGGER.info("plan unrealised {} {}", label, err != null ? "error " + err : ok)));
 					return 1;
-				}))).then(Commands.literal("record_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.greedyString())
+				}))).then(Commands.literal("record_plan").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("cap", com.mojang.brigadier.arguments.DoubleArgumentType.doubleArg(0.01, 1.0)).then(Commands.argument("card", StringArgumentType.greedyString())
 				.executes(ctx -> {
-					// dev (tools/record-plans.mjs, a paid run Noah approved): the plan writer on a recorded card (JSON); its answer written to
+					// dev (tools/record-plans.mjs, a paid run Noah approved): Architect's composer on a recorded card (JSON); its answer written to
 					// <gameDir>/steward-cards/<label>.plan.json. No land (the cards were recorded without one); the anchors a town has before its street
 					CommandSourceStack src = ctx.getSource();
 					if (!host(src)) return 0;
 					String label = StringArgumentType.getString(ctx, "label"), card = StringArgumentType.getString(ctx, "card");
 					if (!label.matches("[a-z0-9_]{1,64}")) { src.sendFailure(Component.literal("a label is a-z, 0-9 and _")); return 0; }
 					var out = src.getServer().getServerDirectory().resolve("steward-cards").resolve(label + ".plan.json");
-					dev.larattalabs.steward.service.PlanWriter.write(card, null, java.util.List.of("stone", "player"), null).whenComplete((r, err) -> {
-						var o = new com.google.gson.JsonObject();
-						if (err != null) o.addProperty("error", String.valueOf(err.getMessage()));
-						else {
-							if (r.error() != null) o.addProperty("error", r.error());
-							if (r.answer() != null) o.add("answer", r.answer());
-							o.addProperty("usd", r.usd());
-						}
-						try {
-							java.nio.file.Files.createDirectories(out.getParent());
-							java.nio.file.Files.writeString(out, new com.google.gson.GsonBuilder().setPrettyPrinting().serializeNulls().create().toJson(o));
-						} catch (java.io.IOException e) {
-							Steward.LOGGER.warn("record_plan {}: {}", label, e.toString());
-						}
-						Steward.LOGGER.info("record_plan {}: {}", label, o.has("error") ? o.get("error").getAsString() : String.format("$%.4f", o.get("usd").getAsDouble()));
-					});
+					// (CA) through Architect's composer, as a settlement's plan is: over a claim of RECORD_RADIUS round the player in the Overworld, the
+					// player's cell as both anchors; the answer {plan, waits, summary} as before, with Architect's outcome, rounds and stop
+					var p = src.getPlayer();
+					if (p == null || p.level().dimension() != net.minecraft.world.level.Level.OVERWORLD) { src.sendFailure(Component.literal("record_plan needs a player in the Overworld")); return 0; }
+					dev.larattalabs.steward.service.Composer.record(src.getServer(), label, card, p.blockPosition(), com.mojang.brigadier.arguments.DoubleArgumentType.getDouble(ctx, "cap"), out);
 					src.sendSuccess(() -> Component.literal("composing " + label), false);
 					return 1;
-				})))).then(Commands.literal("record_card").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString())
+				}))))).then(Commands.literal("record_card").then(Commands.argument("label", StringArgumentType.word()).then(Commands.argument("text", StringArgumentType.greedyString())
 				.executes(ctx -> {
 					// dev (tools/record-cards.mjs, a paid run Noah approved): the card job on these words, its card written to <gameDir>/steward-cards/<label>.json
 					CommandSourceStack src = ctx.getSource();

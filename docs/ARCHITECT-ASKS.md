@@ -1607,3 +1607,22 @@ Architect's answer (11-14), accepted:
 - The $0 street fix runs inside compose, default ON. Steward's `Composer.streetFixes` is then a no-op, and is dropped at the CP pin.
 - `ComposeRequest` gains `level` and `owner`.
 - RC areas asked: a card compose with skipPick, NO_PLAN wording, the street free round, and an owner/level compose.
+
+### CA: Steward composes through `Regions.compose` (slice CA, branch compose-adopt, 2026-11-14; sent through the manager)
+
+Steward's Composer now calls `Regions.compose` (0.67.0) with the card as the brief and `composeHints` (the card, its wanted buildings, the
+land line, `anchors {stone, player}`), its own rules as `composeSystem` (prompts/compose-rules.md) and `repairRounds: 2`, under `budgetUsd`
+1.00. Steward checks the result's plan again at $0 with its dimension, owner, anchors and load policy, applies the street `wouldFit`, and
+keeps it. What CO/AU still lack against Steward's old writer, asked:
+- **S-CA-1, skip the template pick.** Compose always runs a `region.design` pick first. A PICKED result has no plan/0, so the card's
+  buildings are bypassed (Steward keeps the template as a one-zone plan and says so), and the pick costs a call. Asked: an ext key
+  (`architect_mc:composePick: false`) that goes straight to the rounds.
+- **S-CA-2, `{waits, summary}` in player words.** NO_PLAN's `reason` is Architect's diagnostic; the best round's own `reason` isn't in the
+  result. Asked: the best round's `reason` on NO_PLAN, and (preferred) an answer member for per-part player words, so Steward needn't read
+  a waiting part's `notes`.
+- **S-CA-3, `vocab/1#compact`.** Not sent beside a caller's rules (no system room); Steward's rules name only families it is sure of.
+  Asked: room for it, or its family list in the composer's own text.
+- **S-CA-4, the $0 street `wouldFit` inside compose.** Steward applies GH's street fragment after compose; inside compose it would save a
+  paid repair round.
+- **S-CA-5, owner and dimension on `ComposeRequest`.** Compose checks in the Overworld with owner null. Steward composes only in the
+  Overworld (elsewhere: today's layout, nothing spent) and re-checks with the owner before keeping.

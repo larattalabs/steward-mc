@@ -28,26 +28,11 @@ class PlanWriterJobTest {
 	}
 
 	@Test
-	void theUserPromptCarriesTheCardTheLandAndTheAnchors() {
-		String u = PlanWriterJob.userPrompt("{\"name\":\"X\"}", "north: plains 100%.", List.of("stone", "player"));
-		assertTrue(u.contains("{\"name\":\"X\"}") && u.contains("north: plains 100%.") && u.contains("stone, player"));
-		assertTrue(PlanWriterJob.userPrompt("{}", null, List.of("stone")).contains("not surveyed"));
-	}
-
-	@Test
-	void theUserPromptListsThePlayersBuildsOnlyWhenThereAreAny() {
-		String line = "- build-3: Noah's house, 9x11 and 7 high, 12 south and 4 east of the stone, a door facing north";
-		String u = PlanWriterJob.userPrompt("{}", null, List.of("stone"), List.of(line));
-		assertTrue(u.contains(line) && u.contains("{build: id}"));
-		assertFalse(PlanWriterJob.userPrompt("{}", null, List.of("stone")).contains("own builds"));
-	}
-
-	@Test
 	void withSystemRefsTheSchemaGoesByReference() {
-		var spec = PlanWriterJob.build("{}", null, List.of("stone"), List.of(), null, null, null, true);
+		var spec = PlanWriterJob.part("{}", "{}", "{\"id\":\"t\"}", "tunnel.under", List.of(), null, null, null, true);
 		assertEquals(List.of("plan/0#compact", "vocab/1#compact"), spec.systemRefs());
 		assertFalse(spec.system().contains("\"schemaVersion\""), "the schema is not sent inline");
-		assertTrue(PlanWriterJob.build("{}", null, List.of("stone"), List.of(), null, null, null, false).system().contains("\"schemaVersion\""));
+		assertTrue(PlanWriterJob.part("{}", "{}", "{\"id\":\"t\"}", "tunnel.under", List.of(), null, null, null, false).system().contains("\"schemaVersion\""));
 	}
 
 	private static com.google.gson.JsonObject json(String s) {
@@ -90,20 +75,6 @@ class PlanWriterJobTest {
 		assertEquals(2, text.strip().split("\n").length, "one line a kind: " + text);
 		assertTrue(text.contains("long text of tunnel.under") && text.contains("note of form.crater"));
 
-		String first = PlanWriterJob.build("{}", null, List.of("stone"), List.of(), null, null, null, true).prompt();
-		assertEquals(first, PlanWriterJob.build("{}", null, List.of("stone"), List.of(), null, null, null, true, text).prompt(),
-			"a first round (no previous plan) carries no catalogue, even if given one");
-		assertFalse(first.contains("catalogue"));
-
-		String repair = PlanWriterJob.build("{}", null, List.of("stone"), List.of(), null, "{\"schemaVersion\":\"plan/0\"}", "- {\"part\":\"crater\"}\n", true, text).prompt();
-		assertTrue(repair.contains("Architect's catalogue for the kinds to repair") && repair.contains("long text of form.crater"), repair);
-		assertTrue(repair.indexOf("long text of form.crater") > repair.indexOf("Architect's check of it") && repair.indexOf("long text") < repair.indexOf("Revise the plan"),
-			"between the check and the instruction");
-		// the old overload (no catalogue) is the repair prompt without the section
-		String plain = PlanWriterJob.build("{}", null, List.of("stone"), List.of(), null, "{\"schemaVersion\":\"plan/0\"}", "- {\"part\":\"crater\"}\n", true).prompt();
-		assertFalse(plain.contains("catalogue"));
-		assertTrue(repair.startsWith(plain.substring(0, plain.indexOf("Revise the plan"))));
-
 		String part = PlanWriterJob.part("{}", "{}", "{\"id\":\"t\"}", "tunnel.under", List.of(), null, "{}", "- {\"part\":\"t\"}\n", true, text).prompt();
 		assertTrue(part.contains("long text of tunnel.under"), "a part's repair round carries it too");
 		assertFalse(PlanWriterJob.part("{}", "{}", "{\"id\":\"t\"}", "tunnel.under", List.of(), null, null, null, true, text).prompt().contains("catalogue"));
@@ -118,7 +89,7 @@ class PlanWriterJobTest {
 		assertNull(PlanWriterJob.catalogueFor(kinds, k -> { throw new NoSuchMethodError("planCatalogue"); }));
 		assertNull(PlanWriterJob.catalogueFor(kinds, k -> null));
 		assertNull(PlanWriterJob.catalogueFor(kinds, k -> json("{\"entries\":[],\"unknown\":[\"tunnel.under\"]}")));
-		String repair = PlanWriterJob.build("{}", null, List.of("stone"), List.of(), null, "{}", "- {\"part\":\"t\"}\n", true, null).prompt();
+		String repair = PlanWriterJob.part("{}", "{}", "{\"id\":\"t\"}", "tunnel.under", List.of(), null, "{}", "- {\"part\":\"t\"}\n", true, null).prompt();
 		assertTrue(repair.contains("Revise the plan") && !repair.contains("catalogue"));
 	}
 
@@ -167,9 +138,11 @@ class PlanWriterJobTest {
 			+ "\"connectors\":[{\"id\":\"w\",\"kind\":\"wall\",\"params\":{\"mechanism\":\"none\"},\"lots\":[{\"lot\":\"g\",\"at\":\"gate\"}]}]}").getAsJsonObject();
 		PlanWriterJob.withGateMechanisms(open);
 		assertFalse(open.getAsJsonArray("connectors").get(0).getAsJsonObject().getAsJsonArray("lots").get(0).getAsJsonObject().has("mech"));
-		// the prompt tells the writer to put gatehouses on their wall, sized for the gate
-		String prompt = PlanWriterJob.systemPrompt();
-		assertTrue(prompt.contains("{lot, at: \"gate\"}") && prompt.contains("at least 13 along the wall and 7 through it"), "the wall-lots rule");
-		assertFalse(prompt.contains("lots aren't placed on a wall line yet"));
+		// (CA) gatehouses on their wall, sized for the gate, are Architect's composer rules now; Steward's own rules say the portcullis default, and the
+		// part prompt holds none of the old whole-plan rules
+		assertTrue(ComposeJob.rules().contains("Steward gives every gatehouse a portcullis itself"), "the portcullis default");
+		String part = PlanWriterJob.systemPrompt();
+		assertFalse(part.contains("One lot per building") || part.contains("{lot, at: \"gate\"}") || part.contains("Shapes Architect builds"), "the part prompt is slim");
+		assertFalse(part.contains("lots aren't placed on a wall line yet"));
 	}
 }

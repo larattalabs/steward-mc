@@ -2025,8 +2025,10 @@ async function streetHintFlow() {
     const refused = (logSince(from).match(/Didn't fit here[^\n]*/) ?? ['no refusal said'])[0];
     return fail('street hint', `no wouldFit applied (kept ${kept[1]} after ${kept[2]} repairs; ${refused})`);
   }
-  if (town?.program?.layout === 'street' && (leftOut.length ? told && leftOut.every((l) => told[0].includes(l)) : !told) && kept[2] === '0') {
-    ok('street hint', `the grid refused, its street fragment applied with no Claude round: kept ${kept[1]}, ${town.program.lots?.length} lots; ${told ? told[0] : 'every lot placed'}`);
+  // (CA) the repairs are Architect's compose rounds now (the sim's, $0); Steward applies the fragment itself after them, with no round of its own
+  const composeLine = logSince(from).match(new RegExp(`plan for ${id}: Architect's compose ([A-Z_]+) \\((\\d+) round`));
+  if (town?.program?.layout === 'street' && (leftOut.length ? told && leftOut.every((l) => told[0].includes(l)) : !told) && composeLine) {
+    ok('street hint', `the grid refused, its street fragment applied by Steward after Architect's compose (${composeLine[1]}, ${composeLine[2]} round(s)): kept ${kept[1]}, ${town.program.lots?.length} lots; ${told ? told[0] : 'every lot placed'}`);
   } else fail('street hint', `kept ${kept[1]} after ${kept[2]} repairs; town layout ${town?.program?.layout}; left out [${leftOut}]; told ${told ? told[0] : 'nothing'}`);
 }
 
@@ -2190,7 +2192,7 @@ async function groveFlow() {
   if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('grove', 'no card');
   const composed = await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after[^\n]*`), 240_000);
   if (!composed) return fail('grove', 'no plan composed');
-  const answer = logSince(from).match(new RegExp(`plan for ${id}: [^\n]*`))?.[0] ?? '';
+  const answer = composed[0];
   if (!/ 0 pending, 0 unfit/.test(answer)) return fail('grove', `the giant oak, the pond and its coral didn't all fit: ${answer.slice(0, 160)}`);
   await closeScreens();
   await clearAnimals();
