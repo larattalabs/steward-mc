@@ -1650,3 +1650,8 @@ After an unclean start, RL's reconcile charges what stands without counting `max
 - (1) diagnose plus repair(planId) is enough. A cheap `Sites.suspects()` is welcome if it's cheap, behind its own feature.
 - (2) A repair always names a consenting player. Steward never repairs on its own.
 - (3) No Steward per-site state a reopen confuses. Steward re-reads on SITE_UPDATED and its build read, and a reopen shows as `build().built() == false`. Asked: `SITE_REPAIRED` carries the site id and the region.
+- 8a final (11-15), accepted. Noah: "free, 16, staged".
+  - The terrain wait is `SITE_BUSY` with `waitsFor {kind: "terrain", part}`.
+  - `RegionBuild.terrainPerTick` is added.
+  - Staged terrain counts in `built()`/`done()`/`percent()`.
+  - The Steward side is slice 8aS, after 8a's release.
