@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class StorageHallTest {
 	static final ModuleCatalog LIVE = ModuleCatalog.dir(ModuleCatalogTest.FIXTURES.resolve("../../../modules").normalize(), false);
 	/** Uncertified until its measurement: judged as a measuring run judges it. */
-	static final ModuleGate.Env MEASURING = new ModuleGate.Env("26.3", "0.70.0", Set.of(ModuleGate.FEATURE), false, true);
+	static final ModuleGate.Env MEASURING = new ModuleGate.Env("26.3", "0.72.0", Set.of(ModuleGate.FEATURE), false, true);
 	static final ModuleKind K = ModuleKind.StorageHall.INSTANCE;
 	static final JsonObject BOUND = JsonParser.parseString("{\"minecraft:chest\": 5, \"minecraft:spruce_planks\": 60}").getAsJsonObject();
 
@@ -127,7 +127,7 @@ class StorageHallTest {
 
 	@Test
 	void theCertifiedHallIsOfferedFromMaterialsWithItsBoundInATownsOwnBlocks() {
-		var player = new ModuleGate.Env("26.3", "0.70.0", Set.of(ModuleGate.FEATURE));
+		var player = new ModuleGate.Env("26.3", "0.72.0", Set.of(ModuleGate.FEATURE));
 		var v = ModuleGate.offer(LIVE, "storage_hall", player);
 		assertTrue(v.ok(), v.message());
 		assertFalse(ModuleGate.offer(LIVE, "storage_hall", new ModuleGate.Env("26.3", "0.67.0", Set.of(ModuleGate.FEATURE))).ok(), "only on its certified Architect");
@@ -145,7 +145,7 @@ class StorageHallTest {
 
 	@Test
 	void uncertifiedItIsNeverOfferedToAPlayer() {
-		var player = new ModuleGate.Env("26.3", "0.70.0", Set.of(ModuleGate.FEATURE));
+		var player = new ModuleGate.Env("26.3", "0.72.0", Set.of(ModuleGate.FEATURE));
 		assertEquals(LIVE.newest("storage_hall").map(ModuleCatalog.Entry::measured).isPresent() && ModuleGate.offer(LIVE, "storage_hall", player).ok(),
 			LIVE.newest("storage_hall").get().uncertified().isEmpty(), "offered to a player exactly when measured.json certifies it");
 	}
