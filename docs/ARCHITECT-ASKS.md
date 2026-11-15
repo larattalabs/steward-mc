@@ -1760,3 +1760,12 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
   quote's `lot:<id>` and `fill:<id>` pieces. `ApprovedRealise.maxBill` is one cap over the whole region, so once QD caps realises it can't hold
   two modules apart when they use the same items. Asked for then: a per-lot (or per-piece) cap on `realiseApproved`, refusing or waiting
   when one lot's consumption passes its own cap.
+- **Architect's answers (2026-11-15, checked against v0.72.0):**
+  - S-M5-14, **yes**. Every layout cuts a lot's rect from its own `size`, turned by its `front` (village.mjs, frontage.mjs `lotAt`,
+    terraces.mjs; districts reuse them), and `fitBox` = box. Nothing resizes a lot: tolerances shrink zones or drop and move lots, and street
+    rounds and CF2's LOTS_SHORT only drop or mark. A $0 probe over 6 lot sizes in every layout, flat and sloped, matched exactly.
+    Steward's exact-box refusal stays as a guard.
+  - S-M5-15, **yes, by code trace**. `realiseApproved` calls the same `RegionsImpl.realise` as a growth: locked, filled once, unlocked,
+    drawn through the purse; `Fills.creative`; `fill:<lot>` in `quoteApproved`; the cargo refusal and custody at removal for any region.
+    No gate ran it on a provisional lot, so Architect adds the test-only step FKR ($0), targeted at v0.73.0.
+  - S-M5-16 is logged for later. BCC keys its per-revision cap scope so a per-lot scope can be added without rework.
