@@ -6019,6 +6019,311 @@ async function districtGrowthFlow() {
   else fail(`${label} then the district and the town`, `district ${dg ? dg.text : 'not undone'} (given up ${!!given}); town ${tg ? tg.text : 'not undone'}`);
 }
 
+// ------------------------------------------------------------------ (slice SD) a survival district founded from materials
+
+/**
+ * (slice SD) A district founded in a survival world and built from the settlement's one stockpile, through Steward only: a Supplied town (a composed
+ * plan) fed until built; a district reserved east of it; its first building's bill said before it is approved; left partly fed and cancelled while it
+ * builds (what its targets drew comes back exactly, the ground as before); built from the stockpile across a restart between its realise and its answer
+ * (found by its keys, no second approval, logged once, one region), what it consumed = its exact quote; grown by an addition (DG over A2) with a
+ * restart at its massings, undone while it waits (Architect's RU, slice A2L: what it drew back once); then the district undone (every unit it still
+ * had consumed back, the ground as before, given up).
+ */
+async function survivalDistrictFlow() {
+  const label = 'survival district';
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  let feeding = false, stop = false, nudge = null, nudgedAt = 0, feeder = null, owner = null, ledgerId = null;
+  const ledger = async () => {
+    const r = await cmd(`/steward dev stockpile ${ledgerId}`);
+    const m = r.match(/stockpile \S+ (\{.*\})/);
+    return m ? unweathered(JSON.parse(m[1])) : null;
+  };
+  const back = (a, b) => minusItems(plusItems(b?.returned, b?.refundOverflow), plusItems(a?.returned, a?.refundOverflow));
+  try {
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 78000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    ledgerId = id;
+    owner = `steward_mc:settlement/${id}`;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const name = 'Supply Ward';
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = name;
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'no_wood.json'), 'utf8')).answer;
+    delete answer.plan.rules;
+    answer.summary = 'A small town of stone cottages.';
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a little stone town with a ward beside it`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+    if (settlements().find((x) => x.id === id)?.difficulty !== 'SUPPLIED') return fail(label, 'not Supplied in a survival world');
+    await closeScreens();
+    await clearAnimals();
+    const c = settlements().find((x) => x.id === id).claim;
+    const away = async () => cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
+    await away();
+    // (a restart in a flow leaves no client for a moment: a pass that meets it is skipped)
+    feeder = (async () => {
+      while (!stop) {
+        await sleep(3000);
+        try {
+        if (!dev) continue;
+        if (nudge && Date.now() - nudgedAt > 30_000) {
+          const v = await dev.request('dev.region.state', { region: nudge }).catch(() => null);
+          const head = ((v?.view ?? v ?? {}).revisions ?? []).sort((x, y) => y.rid - x.rid)[0];
+          if (head && /^(ACCEPTED|PLACING)$/.test(head.state)) {
+            const sp = await ledger().catch(() => null);
+            const half = Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, q]) => [k, Math.max(1, Math.floor(q / 2))]));
+            if (Object.keys(half).length) { await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half }).catch(() => null); nudgedAt = Date.now(); }
+          }
+        }
+        if (!feeding) continue;
+        const sp = await ledger().catch(() => null);
+        if (sp && Object.keys(sp.need ?? {}).length && dev) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+        } catch {
+          // the client is restarting
+        }
+      }
+    })();
+    // the town, from materials
+    feeding = true;
+    from = logSize();
+    await cmd(`/steward start ${id} 2 30`);
+    if (!(await buildThrough(id, from, `${label} town`, false, null, 1_200_000))) return;
+    if (!(await waitLog(from, new RegExp(`${name} is built: everything its plan laid out stands`), 900_000))) return fail(label, 'the town was not built from the stockpile in 15 min');
+    feeding = false;
+    const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+    const town = /^region:(.+)$/.exec(founding?.siteGroup ?? '')?.[1];
+    if (!town) return fail(label, `the town is not a region: ${founding?.siteGroup}`);
+    ok(`${label} town`, `${town} built from the stockpile`);
+    // the district's side: its ground snapshotted before anything of it is built (the crates and the town's own ground aside, it must come back so)
+    const box = [c.centerX + c.radius - 24, 40, c.centerZ - 90, c.centerX + c.radius + 150, 170, c.centerZ + 90];
+    const snap = path.join(ROOT, 'artifacts', 'e2e', `sd-ward-${id}.snap.gz`);
+    fs.mkdirSync(path.dirname(snap), { recursive: true });
+    await cmd(`/tp @p ${c.centerX + c.radius + 20} 100 ${c.centerZ}`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
+    // every changed cell counted (the diff lists at most 2000; its class counts are whole), the stockpile's crates (their contents change) left out
+    const groundBack = async () => {
+      const area = (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
+      const exclude = area ? [[area.x0, box[1], area.z0, area.x1, box[4], area.z1]] : [];
+      const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap, exclude }, { timeoutMs: 1_800_000 });
+      const counted = Object.entries(d.classes ?? {}).filter(([k]) => !/^(growth|grazed)$/.test(k)).reduce((a, [, v]) => a + v, 0);
+      return { count: d.classes ? counted : -1, sample: (d.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class))).slice(0, 3) };
+    };
+    const reserve = async () => {
+      const f = logSize();
+      await cmd(`/steward district ${id} found E sd ward`);
+      const said = await waitLog(f, /(Reserved sd ward\.[^\n]*|Could not reserve[^\n]*|[^\n]*district[^\n]*refused[^\n]*)/, 300_000);
+      const d = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.name === 'sd ward') ?? null;
+      return d?.state === 'reserved' && d?.kind === 'beside' ? d : (fail(`${label} reserved`, `${said ? said[0] : 'nothing said'}; ${JSON.stringify(d)?.slice(0, 160)}`), null);
+    };
+    const billRe = /From materials, sd ward needs [^\n]*/;
+    // (1) its first building, left partly fed while it builds, then cancelled: what its targets drew comes back exactly, the ground as before
+    // (a region from materials is placed only once its targets stand, so a build left unfed is still placing: a cancel, not an undo, takes it up)
+    {
+      const ul = `${label} cancelled while building`;
+      let d = await reserve();
+      if (!d) return;
+      ok(`${label} reserved`, `${d.id} reserved east of ${town} in a survival world (a beside district, not a square)`);
+      const sp0 = await ledger();
+      const q = await dgAsk(id, d, 'ward hall');
+      if (!q) return fail(ul, 'no first proposal in the district');
+      await clearAnimals();
+      from = logSize();
+      await cmd(`/steward proposals ${id} accept ${q.key}`);
+      let billBefore = null;
+      const placing = await driveUntil(id, from, /Placing (?:the village|sd ward)[^\n]*/, 900_000, async (step) => {
+        if (step === 'Approve to place' && !billBefore) billBefore = logSince(from).match(billRe);
+      });
+      let mine = null;
+      for (let i = 0; i < 60 && placing && !(mine?.length); i++) {
+        await sleep(1000);
+        mine = (await dev.request('dev.region.list', {}).catch(() => null))?.regions?.filter((v) => v.owner === owner && v.state !== 'REMOVED' && v.ext?.['steward_mc:district'] === d.id) ?? null;
+      }
+      const region = mine?.[0]?.id;
+      if (placing && billBefore && region) ok(`${label} first building`, `${billBefore[0].slice(0, 160)} (said before the approval); ${region} realised from materials`);
+      else return fail(`${label} first building`, `placing ${!!placing}; bill before approval ${!!billBefore}; region ${JSON.stringify(mine)?.slice(0, 120)}; ${chatTail(from)}`);
+      // half of what it needs, every 30 s until something is drawn (at most 4 min): some of its targets draw, the rest wait
+      let sp1 = null;
+      for (let i = 0; i < 120; i++) {
+        if (i % 15 === 0) {
+          const need = (await ledger())?.need ?? {};
+          const half = Object.fromEntries(Object.entries(need).map(([k, v]) => [k, Math.max(1, Math.floor(v / 2))]));
+          if (Object.keys(half).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half }).catch(() => null);
+        }
+        await sleep(2000);
+        sp1 = await ledger();
+        if (Object.keys(minusItems(sp1?.consumed, sp0?.consumed)).length) break;
+      }
+      await sleep(10_000);
+      const still = (await regionView(region)).build;
+      sp1 = await ledger();
+      const drew = minusItems(sp1?.consumed, sp0?.consumed);
+      await away();
+      const n0 = removedCount(id);
+      from = logSize();
+      await cmd(`/steward cancel ${id}`);
+      const cancelled = await waitLog(from, /Cancelled [^\n]*/, 600_000);
+      let gone = null;
+      for (let i = 0; i < 120 && !gone; i++) { if (removedCount(id) > n0) gone = settlements().find((x) => x.id === id).log.filter((e) => e.kind === 'PROJECT_REMOVED').at(-1); else await sleep(1000); }
+      await sleep(20_000);
+      const sp2 = await ledger();
+      const got = back(sp1, sp2);
+      const off = await groundBack();
+      const dd = dgDistrict(id, d.id);
+      const regionNow = (await regionView(region)).state;
+      if (cancelled && gone && Object.keys(drew).length && still && !still.built && sameItems(got, drew) && (!dd || dd.state === 'reserved') && off.count === 0) {
+        ok(ul, `${cancelled[0].slice(0, 80)}; ${gone.text}; ${Math.round(still.percent ?? 0)}% built; ${JSON.stringify(drew).slice(0, 120)} drawn and returned exactly; the ground as before; the district ${dd ? 'reserved again' : 'given up'}`);
+      } else fail(ul, `cancelled ${!!cancelled}; removal ${gone ? gone.text : 'not logged'}; region ${regionNow}; built ${JSON.stringify(still)?.slice(0, 60)}; drew ${JSON.stringify(drew).slice(0, 120)}, back ${JSON.stringify(got).slice(0, 120)}; district ${JSON.stringify(dd)?.slice(0, 100)}; ${off.count} cell(s) differ ${JSON.stringify(off.sample)}; ${chatTail(from)}`);
+    }
+    // (2) founded again and built from the stockpile, across a restart between its realise and its answer: Architect holds the realise's answer once its
+    // region record is saved (dev.region.holdRealise), the client stops (the answer fails WORLD_STOPPED), and the build, saved PLACING, finds it by its keys
+    let d = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.name === 'sd ward' && x.state === 'reserved') ?? await reserve();
+    if (!d) return;
+    let region = null, quoted = null, exact = null;
+    const spA = await ledger();
+    {
+      const rl = `${label} restart mid-realise`;
+      const q = await dgAsk(id, d, 'ward hall');
+      if (!q) return fail(rl, 'no first proposal in the district');
+      await clearAnimals();
+      feeding = true;
+      from = logSize();
+      await cmd(`/steward proposals ${id} accept ${q.key}`);
+      let held = false;
+      const approved = await driveUntil(id, from, /Placing (?:the village|sd ward)[^\n]*/, 900_000, async (step) => {
+        if (step === 'Approve to place' && !held) held = !!(await dev.request('dev.region.holdRealise', { on: true }).catch(() => null))?.holding;
+      });
+      const qm = logSince(from).match(new RegExp(`district bill ${id} \\S+: (\\{[^\\n]*?\\}) \\(exact (true|false)`));
+      quoted = qm ? JSON.parse(qm[1]) : null;
+      exact = qm ? qm[2] === 'true' : null;
+      const listed = async () => (await dev.request('dev.region.list', {}).catch(() => null))?.regions?.filter((v) => v.owner === owner && v.state !== 'REMOVED'
+        && v.ext?.['steward_mc:district'] === d.id) ?? null;
+      let mine = null;
+      for (let i = 0; i < 120 && approved && held && !(mine?.length); i++) { await sleep(1000); mine = await listed(); }
+      if (!approved || !held || !mine?.length) return fail(rl, `approved ${!!approved}; held ${held}; region ${JSON.stringify(mine)?.slice(0, 120)}; ${chatTail(from)}`);
+      region = mine[0].id;
+      const savedPhase = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id)?.state?.phase;
+      feeding = false;
+      await restartClient();
+      await cmd('/architect survival on');
+      await cmd('/gamemode creative @p');
+      const resumed = await waitLog(0, new RegExp(`resume ${id}: [^\\n]*`), 60_000);
+      feeding = true;
+      // no second approval: nothing is approved here, so a placement or a bill asked again stalls it (and is named)
+      const again = resumed ? await waitLog(0, /is built(?: in part)?: (\d+) buildings? placed/, 600_000) : null;
+      const asked = /Approve to place|Approve to build it/.test(logSince(0));
+      const e1 = await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === `region:${region}`, 30);
+      const once = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.siteGroup === `region:${region}` && e.kind === 'PROJECT_PLACED').length === 1;
+      mine = await listed();
+      d = dgDistrict(id, d.id);
+      if (savedPhase === 'PLACING' && resumed && again && !asked && e1 && once && d?.state === 'standing' && d?.region === region && mine?.length === 1) {
+        ok(rl, `saved ${savedPhase}; ${region} found by its keys after the restart (its answer held until the stop), no second approval, logged once, one region`);
+      } else return fail(rl, `saved ${savedPhase}; resumed ${!!resumed}; placed ${!!again}; asked again ${asked}; logged ${!!e1} (once ${once}); district ${JSON.stringify(d)?.slice(0, 120)}; regions ${JSON.stringify(mine)?.slice(0, 120)}; ${chatTail(0)}`);
+      const built = await waitLog(0, /sd ward is built: everything its plan laid out stands[^\n]*/, 900_000);
+      feeding = false;
+      const spB = await ledger();
+      const paid = minusItems(spB?.consumed, spA?.consumed);
+      if (!built || !quoted || !Object.keys(paid).length) return fail(`${label} built`, `said ${!!built}; consumed ${JSON.stringify(paid).slice(0, 120)}; quote ${quoted ? JSON.stringify(quoted).slice(0, 120) : 'not read'}`);
+      // exact: consumed == the quote; inexact (natural terrain the quote counted may already stand): every item consumed is in the quote, at most its count
+      const over = Object.entries(paid).filter(([k, v]) => v > (quoted[k] ?? 0)).map(([k, v]) => `${k} ${v}/${quoted[k] ?? 0}`);
+      const under = Object.entries(quoted).filter(([k, v]) => v > (paid[k] ?? 0)).map(([k, v]) => `${k} ${paid[k] ?? 0}/${v}`);
+      if (sameItems(paid, quoted)) ok(`${label} built`, `sd ward built from the stockpile and said so; consumed ${JSON.stringify(paid).slice(0, 140)} = its ${exact ? 'exact' : 'inexact'} quote`);
+      else if (!exact && over.length === 0) ok(`${label} built`, `sd ward built; consumed within its inexact quote, nothing past it (under it: ${under.slice(0, 4).join(', ')})`);
+      else return fail(`${label} built`, `consumed past its ${exact ? 'exact' : 'inexact'} quote: ${over.slice(0, 6).join(', ') || 'none'}; under: ${under.slice(0, 6).join(', ')}`);
+    }
+    // (3) grown by an addition (DG over A2, A2L): a restart at its massings; placed from materials, fed in part, it waits; /steward undo takes it up while it
+    // waits (Architect's RU): what it drew back exactly once, nothing more 20 s on, its revision UNDONE, the ground and the district's land as before it
+    const landBefore = dgCols(dgDistrict(id, d.id)?.land);
+    {
+      const gl = `${label} growth`;
+      const q = await dgAsk(id, d, 'ward archive');
+      if (!q) return fail(gl, 'no proposal in the standing district');
+      await clearAnimals();
+      const snapG = path.join(ROOT, 'artifacts', 'e2e', `sd-ward-grow-${id}.snap.gz`);
+      await dev.call('dev.region.hash', { box, mode: 'snap', file: snapG }, { timeoutMs: 1_800_000 });
+      const sp0 = await ledger();
+      from = logSize();
+      nudge = region;
+      await cmd(`/steward proposals ${id} accept ${q.key}`);
+      const planned = await waitLog(from, /sd ward grows: Architect finds room[^\n]*/, 120_000);
+      const grew = await buildThrough(id, from, gl, true, async (step) => {
+        if (step === 'restart-after') { await cmd('/architect survival on'); await cmd('/gamemode creative @p'); }
+      }, 1_200_000);
+      nudge = null;
+      if (!grew) return;
+      const op = await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && new RegExp(`^revision:${region}:\\d+$`).test(e.siteGroup ?? ''), 30);
+      const rid = op ? Number(op.siteGroup.split(':').at(-1)) : null;
+      // (the restart at its massings began a new log: what came after it is read from its start)
+      const stand = logSince(0).match(/The addition's construction sites stand and are built from the stockpile[^\n]*/);
+      if (planned && op && stand) ok(gl, `planned and realised from materials as revision ${rid} of ${region} across a restart at its massings; ${stand[0].slice(0, 120)}`);
+      else return fail(gl, `planned ${!!planned}; entry ${op?.siteGroup}; said ${!!stand}; ${chatTail(from)}`);
+      // fed in part, so it has drawn something and still waits
+      let spW = await ledger();
+      if (!Object.keys(minusItems(spW?.consumed, sp0?.consumed)).length) {
+        const half = Object.fromEntries(Object.entries(spW?.need ?? {}).map(([k, v]) => [k, Math.max(1, Math.floor(v / 2))]));
+        if (Object.keys(half).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half }).catch(() => null);
+        for (let i = 0; i < 30 && !Object.keys(minusItems(spW?.consumed, sp0?.consumed)).length; i++) { await sleep(2000); spW = await ledger(); }
+      }
+      await sleep(5000);
+      spW = await ledger();
+      const drew = minusItems(spW?.consumed, sp0?.consumed);
+      const waiting = Object.keys(spW?.need ?? {}).length > 0;
+      await away();
+      const n0 = removedCount(id);
+      const f = logSize();
+      await cmd(`/steward undo ${id}`);
+      let gone = null;
+      for (let i = 0; i < 300 && !gone; i++) { if (removedCount(id) > n0) gone = settlements().find((x) => x.id === id).log.filter((e) => e.kind === 'PROJECT_REMOVED').at(-1); else await sleep(1000); }
+      const sp1 = await ledger();
+      await sleep(20_000);
+      const sp2 = await ledger();
+      const got = back(spW, sp1), more = back(sp1, sp2);
+      const rev = ((await regionView(region)).revisions ?? []).find((r) => r.rid === rid);
+      let land = null;
+      for (let i = 0; i < 30 && !land; i++) { const x = dgDistrict(id, d.id); if (x && dgSame(dgCols(x.land), landBefore)) land = x; else await sleep(1000); }
+      const area = (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
+      const dG = await dev.call('dev.region.hash', { box, mode: 'diff', file: snapG, exclude: area ? [[area.x0, box[1], area.z0, area.x1, box[4], area.z1]] : [] }, { timeoutMs: 1_800_000 });
+      const offG = dG.classes ? Object.entries(dG.classes).filter(([k]) => !/^(growth|grazed)$/.test(k)).reduce((a, [, v]) => a + v, 0) : -1;
+      const refused = /can be undone once it's built|survival_building/.test(logSince(f));
+      if (waiting && Object.keys(drew).length && gone && !refused && rev?.state === 'UNDONE' && sameItems(got, drew) && !Object.keys(more).length && land && offG === 0) {
+        ok(`${gl} undone while waiting`, `${gone.text}; revision ${rid} UNDONE while it waited; drew ${JSON.stringify(drew).slice(0, 120)}, the same back once, nothing more 20 s on; the ground and the district's land as before`);
+      } else fail(`${gl} undone while waiting`, `waiting ${waiting}; drew ${JSON.stringify(drew).slice(0, 100)}; undo ${gone ? gone.text : 'not logged'}${refused ? ' (refused)' : ''}; revision ${rev?.state}; back ${JSON.stringify(got).slice(0, 100)}, more ${JSON.stringify(more).slice(0, 60)}; land back ${!!land}; ${offG} cell(s) differ; ${chatTail(f)}`);
+    }
+    // (4) the district undone: every unit its targets still had consumed back, the ground as before, the district given up
+    {
+      const dl = `${label} undone`;
+      await away();
+      const before = await ledger();
+      const gone = await undoOnce(id, c);
+      await sleep(20_000);
+      const after = await ledger();
+      const used = minusItems(minusItems(before?.consumed, spA?.consumed), minusItems(plusItems(before?.returned, before?.refundOverflow), plusItems(spA?.returned, spA?.refundOverflow)));
+      const got = back(before, after);
+      let given = false;
+      for (let i = 0; i < 60 && !given; i++) { given = !dgDistrict(id, d.id); if (!given) await sleep(1000); }
+      const off = await groundBack();
+      const removed = (await regionView(region)).state;
+      if (gone && sameItems(got, used) && given && off.count === 0) ok(dl, `${gone.text}; ${JSON.stringify(got).slice(0, 140)} back (all it still had consumed); the ground as before; given up (${region} ${removed ?? 'gone'})`);
+      else fail(dl, `undo ${gone ? gone.text : 'not logged'}; back ${JSON.stringify(got).slice(0, 120)} of ${JSON.stringify(used).slice(0, 120)}; given up ${given}; ${off.count} cell(s) differ ${JSON.stringify(off.sample)}`);
+    }
+  } finally {
+    stop = true;
+    if (feeder) await feeder;
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
+}
+
 /** A matched pipeline step under one name: "1 massing is ready" and "3 massings are ready" are both 'massings are ready'. */
 function stepOf(text) {
   return /^massings? (?:are|is) ready$/.test(text) ? 'massings are ready' : text;
@@ -6292,6 +6597,7 @@ try {
       await flow('revision', 'plan version revert', () => revisionFlow());
       await flow('district-region', 'district region', () => districtRegionFlow());
       await flow('district-growth', 'district districts growth region undo restart', () => districtGrowthFlow());
+      await flow('survival-district', 'survival districts district growth stockpile bill refund undo restart', () => survivalDistrictFlow());
       await flow('quarter', 'district wall', () => quarterFlow());
       await flow('wall-lots', 'wall gatehouse gate', () => wallLotsFlow());
       await flow('gate-mech', 'gate wall mechanism portcullis undo', () => gateMechFlow());

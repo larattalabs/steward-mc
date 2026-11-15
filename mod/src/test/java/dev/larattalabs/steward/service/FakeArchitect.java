@@ -83,6 +83,8 @@ final class FakeArchitect {
 		final List<Rev> revisions = new ArrayList<>();
 		/** Built from materials (Architect RS): {@code RegionView.build()} non-null. */
 		boolean fromMaterials;
+		/** (slice SD) Whether all of a region from materials is built ({@code RegionView.build().built()}). */
+		boolean built = true;
 		/** The {@code architect_mc:land} each position leaves (what {@code undoRevision} to it writes back), when a test gives one. */
 		final Map<Integer, String> landAt = new HashMap<>();
 		/** Whether a get() of it answers at all (false: Architect has no record, no tombstone). */
@@ -111,7 +113,7 @@ final class FakeArchitect {
 		}
 
 		RegionView view() {
-			RegionBuild build = fromMaterials ? new RegionBuild(true, true, 100, Map.of(), List.of()) : null;
+			RegionBuild build = fromMaterials ? new RegionBuild(built, built, built ? 100 : 40, Map.of(), List.of()) : null;
 			return new RegionView(id, "plan_" + id, "sha", owner, ext.deepCopy(), "grp_" + id, new BoundingBox(0, -64, 0, 300, 320, 300), state, List.of(), List.of(), 0L,
 				Map.of(), null, null, List.of(), state == RegionState.REMOVED ? 1L : 0L, null, List.of(), null, build, position, busy,
 				revisions.stream().map(Rev::view).toList());
@@ -174,6 +176,18 @@ final class FakeArchitect {
 
 		static String key(Site s) {
 			return "site:" + s.id + "@" + s.placedAt;
+		}
+
+		/** (slice SD) A target still building draws part of its bill (what it has put down so far), recorded under its key. */
+		void drawPart(FakeArchitect a, String site, Map<String, Integer> part) {
+			Site s = a.sites.get(site);
+			var d = new HashMap<>(drawn.getOrDefault(key(s), Map.of()));
+			for (var e : part.entrySet()) {
+				stock.merge(e.getKey(), -e.getValue(), Integer::sum);
+				paid += e.getValue();
+				d.merge(e.getKey(), e.getValue(), Integer::sum);
+			}
+			drawn.put(key(s), Map.copyOf(d));
 		}
 
 		/** An undo's refund of one target: what it drew, once per key. */
@@ -321,6 +335,9 @@ final class FakeArchitect {
 		Region r = regions.get(id);
 		return answer(removeAnswer, () -> {
 			r.state = RegionState.REMOVED;
+			// (slice SD) a region built from materials: each target's paid blocks back once per key (RS C29: a target still building leaves the feed and
+			// refunds what it drew; one never fed refunds nothing)
+			if (r.fromMaterials) sites.values().stream().filter(s -> id.equals(s.region)).forEach(ledger::refund);
 			sites.values().removeIf(s -> id.equals(s.region));
 		});
 	}
