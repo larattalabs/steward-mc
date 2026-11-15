@@ -155,7 +155,7 @@ public final class PPlan {
 	}
 
 	/** A lot's role for the screens and the history: its label (the card's own words), else its role slug, else its type. */
-	static String role(JsonObject lot) {
+	public static String role(JsonObject lot) {
 		for (String k : List.of("label", "role", "type")) if (lot.has(k) && lot.get(k).isJsonPrimitive() && !lot.get(k).getAsString().isBlank()) return lot.get(k).getAsString().replace('_', ' ');
 		return lot.get("id").getAsString().replace('_', ' ');
 	}

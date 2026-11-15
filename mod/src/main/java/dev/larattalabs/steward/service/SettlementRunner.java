@@ -390,6 +390,7 @@ public final class SettlementRunner {
 		this.growRid = b.growRid() == null ? 0 : b.growRid();
 		this.growPosition = b.growPosition() == null ? 0 : b.growPosition();
 		this.growKey = b.growKey();
+		this.growZone = b.growZone();
 		this.moduleBindings = b.moduleBindings();
 		this.moduleOrders = b.moduleOrders();
 		this.restored = true;
@@ -412,7 +413,7 @@ public final class SettlementRunner {
 		if (ended) builds.remove(settlement.id());
 		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
 			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, growRegion,
-			growth() ? growRid : null, growth() ? growPosition : null, growKey, moduleBindings, moduleOrders));
+			growth() ? growRid : null, growth() ? growPosition : null, growKey, moduleBindings, moduleOrders, growZone));
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -566,6 +567,43 @@ public final class SettlementRunner {
 	/** Architect's flat village (slice V) this build is laid out on: its plan, and the region once realised. Null for Steward's own layout. */
 	private @org.jspecify.annotations.Nullable String vPlanId, vRegionId;
 	/**
+	 * (slice PV1, docs/GROWTH.md "Plan v1 growth") The addition's lot from the town's composed plan: when the kept plan is the one the town region was built
+	 * from ({@link PlanGrowth#approvedFor}) and names a lot of the asked type the region doesn't hold yet, that lot (its id, size, role and brief) on its zone's
+	 * streets; otherwise {@code specs} as they are. A module, a district's build, a growth restored or re-planned never take this.
+	 */
+	private List<VillageLayout.LotSpec> fromPlan(Settlement now, dev.larattalabs.architect.api.RegionView town, CardResult r, List<VillageLayout.LotSpec> specs) {
+		if (moduleBuild() || districtId != null || specs.size() != 1 || r.card().program().size() != 1) return specs;
+		if (dev.larattalabs.steward.gateway.PPlan.villageOnly(now.id())) return specs;
+		var entry = PlanStore.get(now.id());
+		if (entry.isEmpty()) return specs;
+		JsonObject plan;
+		try {
+			plan = com.google.gson.JsonParser.parseString(entry.get().plan()).getAsJsonObject();
+		} catch (RuntimeException e) {
+			return specs;
+		}
+		long founded = now.log().stream().filter(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && ("region:" + town.id()).equals(e.siteGroup()))
+			.mapToLong(Settlement.LogEntry::at).min().orElse(-1);
+		java.util.Set<String> all = new java.util.HashSet<>(), first = new java.util.HashSet<>();
+		for (var l : town.lots()) {
+			all.add(l.id());
+			if (l.revision() == 0) first.add(l.id());
+		}
+		if (founded < 0 || !PlanGrowth.approvedFor(entry.get().at(), founded, first, plan)) return specs;
+		java.util.Set<String> waiting = new java.util.HashSet<>();
+		for (var p : entry.get().pending()) waiting.add(p.part());
+		var b = r.card().program().get(0);
+		var pick = PlanGrowth.pick(plan, waiting, Secrets.of(entry.get()), all, b.type(), b.role());
+		if (pick.isEmpty()) return specs;
+		planLot = true;
+		growZone = pick.get().growZone();
+		Steward.LOGGER.info("growth {} of {}: from its plan, lot {} ({} {}x{}) in zone {}{}{}", buildId, town.id(), pick.get().spec().id(), pick.get().spec().type(),
+			pick.get().spec().sizeX(), pick.get().spec().sizeZ(), pick.get().zone(), pick.get().district() == null ? "" : " district " + pick.get().district(),
+			growZone == null ? " (its zone doesn't stand: the town's streets)" : "");
+		return List.of(pick.get().spec());
+	}
+
+	/**
 	 * A standing region grows (docs/GROWTH.md, slices A, A2 and DG): the town, or {@code district}'s own region. The same checks for both: being changed
 	 * waits; the mode gate (the region's own mode against the world's); a region built from materials only once built, from the settlement's stockpile,
 	 * its crates kept clear; then the plan. Nothing is spent before the plan.
@@ -611,6 +649,12 @@ public final class SettlementRunner {
 	 */
 	private @org.jspecify.annotations.Nullable String growRegion, growKey;
 	private int growRid, growPosition;
+	/**
+	 * (slice PV1) A town growth from its composed plan: the plan zone it grows on ({@code grow.zone}; null for the town's streets; BuildStore format 7), and
+	 * whether this build's lot is the plan's own (sent under the plan's lot id, never renamed; not saved: the saved lots are sent as they are).
+	 */
+	private @org.jspecify.annotations.Nullable String growZone;
+	private boolean planLot;
 	/** Module lots' bindings (docs/MODULES.md 4.2 step 4; BuildStore format 5): carried through every save. Made by growth placement (slice M3). */
 	private java.util.Map<String, dev.larattalabs.steward.module.ModuleBinding> moduleBindings = java.util.Map.of();
 	/**
@@ -1147,7 +1191,8 @@ public final class SettlementRunner {
 				if (Adoption.openIntent(now).isPresent()) { abandon("The town is being changed right now; ask again once it has settled."); return; }
 				var town = TownRegion.of(now).flatMap(id -> ArchitectApi.get().regions().get(id));
 				if (town.isPresent()) {
-					growStanding(r, budgetUsd, now, town.get(), specs, worldSurvival, null);
+					// (slice PV1) a town built from its composed plan grows the plan's own lot of the asked type when the plan has one not built yet
+					growStanding(r, budgetUsd, now, town.get(), fromPlan(now, town.get(), r, specs), worldSurvival, null);
 					return;
 				}
 				// a street town: taken on as one region first, then grown (docs/GROWTH.md, slice B); in a world that builds from materials, as a survival
@@ -1302,7 +1347,8 @@ public final class SettlementRunner {
 	 */
 	private void planGrowth(CardResult r, double budgetUsd, String region, List<VillageLayout.LotSpec> specs, @org.jspecify.annotations.Nullable String stale) {
 		var regions = ArchitectApi.get().regions();
-		List<VillageLayout.LotSpec> lots = stale != null && districtSpecs != null ? districtSpecs : Growths.rename(specs, buildId);
+		// (slice PV1) a plan lot keeps the plan's own id (the region's first lots have their plan ids; Architect refuses a standing one)
+		List<VillageLayout.LotSpec> lots = stale != null && districtSpecs != null ? districtSpecs : planLot ? List.copyOf(specs) : Growths.rename(specs, buildId);
 		districtSpecs = lots;
 		growRegion = region;
 		// (slice M3) the module lot's order under its region lot id, saved with the build from its plan on
@@ -1311,7 +1357,9 @@ public final class SettlementRunner {
 			moduleOrders = Map.of(ids.get(0), pendingModule);
 			pendingModule = null;
 		}
-		if (stale == null) say(districtId == null ? "The town grows: Architect finds room on its streets..." : growingName() + " grows: Architect finds room on its street...");
+		if (stale == null) say(planLot && !lots.isEmpty() ? "The town grows from its plan: " + lots.get(0).role() + " (its lot " + lots.get(0).id().replace('_', ' ')
+			+ ", not built yet). Architect finds room on " + (growZone != null ? "that part of the town's streets..." : "its streets...")
+			: districtId == null ? "The town grows: Architect finds room on its streets..." : growingName() + " grows: Architect finds room on its street...");
 		// asked before (a restart before the answer was saved): the newest of this build's growth plans
 		if (stale == null) {
 			for (String k : List.of("vgrow3", "vgrow2", "vgrow")) {
@@ -1332,6 +1380,8 @@ public final class SettlementRunner {
 		grow.addProperty("prefer", prefer);
 		// (slice DG) a district region's growth names the district that grows (Architect GR: required for a districts region)
 		if (districtId != null) grow.addProperty("district", districtId);
+		// (slice PV1) a plan lot grows on its own zone's streets (Architect GR §8: a plan/0 zone's streets carry architect_mc:street.zone)
+		else if (growZone != null) grow.addProperty("zone", growZone);
 		JsonObject p = new JsonObject();
 		p.add("grow", grow);
 		JsonObject ext = new JsonObject();

@@ -3236,8 +3236,11 @@ async function suppliedEndsEarly(id, region, box, how) {
  * keys; while its targets wait for items, undo is refused in plain words with nothing written; fed again, the steward says the town is built, and the
  * revision's bills are what the stockpile paid; undone, what it consumed comes back exactly once, and the next undo takes the town with its refund.
  */
-async function suppliedGrowthFlow() {
-  const label = 'supplied growth';
+async function suppliedGrowthFlow(mode = null) {
+  // (slice PV1) 'plan': a plan-v1 town from materials whose plan names a library its first build left out: the addition takes that lot from the plan
+  // (its id, size and zone), is billed from the stockpile, undone while waiting with paid == returned once, then the town undone
+  const fromPlan = mode === 'plan';
+  const label = fromPlan ? 'plan growth' : 'supplied growth';
   await cmd('/architect survival on');
   await cmd('/defaultgamemode survival');
   await cmd('/gamemode creative @p');
@@ -3254,7 +3257,7 @@ async function suppliedGrowthFlow() {
     const id = settlements().at(-1).id;
     await closeScreens();
     await cmd(`/steward expand ${id}`);
-    const name = 'Supply Growth';
+    const name = fromPlan ? 'Plan Growth' : 'Supply Growth';
     const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
     card.name = name;
     await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
@@ -3316,8 +3319,16 @@ async function suppliedGrowthFlow() {
     ok(`${label} town`, `${region} built from the stockpile (${town.placed} buildings)`);
     const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
     // (GE, A2) two growths that end before their realise: the world's mode changed while one was designed; another cancelled while designed
-    await suppliedEndsEarly(id, region, box, 'mode');
-    await suppliedEndsEarly(id, region, box, 'cancel');
+    if (!fromPlan) {
+      await suppliedEndsEarly(id, region, box, 'mode');
+      await suppliedEndsEarly(id, region, box, 'cancel');
+    }
+    // (PV1) the kept plan names a library the first build left out (as a lot that didn't fit): added to its zone, the plan's time kept
+    const planLot = { id: 'library_1', type: 'library', role: 'library', label: 'the town library', size: [11, 13], brief: 'A tall hall of shelves with reading alcoves.' };
+    if (fromPlan) {
+      const said = await cmd(`/steward dev plan_lot ${id} town ${JSON.stringify(planLot)}`);
+      if (!/plan lot library_1 added to town/.test(said)) return fail(label, `the plan lot was not added: ${said}`);
+    }
     // the ground before the growth: the growth's undo must leave it so (the stockpile's crates, whose contents the refund changes, aside)
     const snapPre = path.join(ROOT, 'artifacts', 'e2e', `supplied-growth-pre-${id}.snap.gz`);
     await dev.call('dev.region.hash', { box, mode: 'snap', file: snapPre }, { timeoutMs: 1_800_000 });
@@ -3337,7 +3348,7 @@ async function suppliedGrowthFlow() {
     from = logSize();
     nudge = region;
     await cmd(`/steward proposals ${id} accept ${lib.key}`);
-    const planned = await waitLog(from, /The town grows: Architect finds room[^\n]*/, 120_000);
+    const planned = await waitLog(from, /The town grows(?: from its plan)?: [^\n]*/, 120_000);
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
     nudge = null;
     if (!grew) return;
@@ -3351,6 +3362,15 @@ async function suppliedGrowthFlow() {
     const bill = logSince(from).match(/The addition's construction sites stand and are built from the stockpile[^\n]*/);
     if (planned && m && m[1] === region && rev && grew.placed >= 1 && bill) ok(label, `planned and realised from materials as revision ${m[2]} of ${region} (${rev.state}); ${bill[0].slice(0, 140)}`);
     else return fail(label, `planned ${!!planned}; entry ${op?.siteGroup}; revision ${JSON.stringify(rev)?.slice(0, 160)}; placed ${grew.placed}; bill ${bill ? 'said' : 'not said'}; keyed ${keyed}`);
+    // (PV1) the lot is the plan's: its own id in the region under this revision, its size and zone as the plan's, said as the plan's
+    if (fromPlan) {
+      const said = logSince(from).match(/The town grows from its plan: [^\n]*/);
+      const lot = (rv.lots ?? []).find((l) => l.id === planLot.id);
+      const line = logSince(from).match(/from its plan, lot library_1 \(library (\d+)x(\d+)\) in zone (\S+)/);
+      const sized = line && Number(line[1]) === planLot.size[0] && Number(line[2]) === planLot.size[1] && line[3] === 'town';
+      if (said && lot && String(lot.revision) === m[2] && sized) ok(`${label} from the plan`, `${said[0].slice(0, 140)}; region lot ${lot.id} (revision ${lot.revision}, ${lot.state}); ${line[0]}`);
+      else return fail(`${label} from the plan`, `said ${said ? said[0] : 'nothing'}; lot ${JSON.stringify(lot)}; line ${line ? line[0] : 'none'}; lots ${(rv.lots ?? []).map((l) => l.id).join(', ')}`);
+    }
     // (A2L) every take-up judged the same way (the GPT design review 3): what came back = what the growth drew, and it is in the crates (the stock gained
     // exactly the refund, nothing overflowed), once (nothing more 20 s on); one entry and one completion under its revision's tag; none of its sites left
     // in the ledger, nothing outstanding; its revision UNDONE; the ground as before the growths, the crates aside
@@ -3499,6 +3519,8 @@ async function suppliedGrowthFlow() {
         else fail(`${lbl} said`, `${words ? words[0] : 'no refund line'}; ${chatTail(from)}`);
       }
     }
+    // (PV1) the plan growth judged undone while waiting above; A2L's other take-ups are supplied-growth's
+    if (!fromPlan) {
     // (A2L 2) cancel once realised: a growth cancelled while its revision is still placing, fed in part
     {
       const lbl = `${label} cancel once realised`;
@@ -3591,6 +3613,7 @@ async function suppliedGrowthFlow() {
       if (!done) fail(`${label} refund once`, `not undone in 10 min; ${chatTail(0)}`);
       else await judge(`${label} refund once`, g5.tag, g5.spStart, spB, g5.siteIds);
       void m5;
+    }
     }
     // the next undo is the town's, with the rest of its refund
     await away();
@@ -7080,6 +7103,7 @@ try {
       await flow('survival', 'stockpile bill refund growth wall', () => survivalFlow());
       await flow('supplied-plan', 'survival stockpile bill', () => suppliedPlanFlow());
       await flow('supplied-growth', 'survival stockpile bill refund growth', () => suppliedGrowthFlow());
+      await flow('plan-growth', 'planlot', () => suppliedGrowthFlow('plan'));
       await flow('module', 'module growth farm talk undo', () => moduleFlow());
       await flow('module-adopt', 'module adopt growth farm water undo', () => moduleAdoptFlow());
       await flow('module-survival', 'module survival stockpile bill refund', () => moduleSurvivalFlow());

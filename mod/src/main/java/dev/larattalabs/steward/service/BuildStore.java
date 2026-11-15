@@ -32,7 +32,10 @@ public final class BuildStore {
 	 * 2 (2026-10-24): moves with the settlements file's format 4 (a build's settlement copy has districts with kinds and land), so an older Steward refuses
 	 * the file rather than dropping their new members. A format-1 file reads as it is (its districts as standing squares).
 	 */
-	static final int FORMAT = 6;
+	static final int FORMAT = 7;
+	// 7 (2026-11-15, slice PV1; docs/GROWTH.md "Plan v1 growth"): a town growth from its composed plan keeps the plan zone it grows on (growZone, sent as
+	// grow.zone again by a stale re-plan). A format-6 build has none and reads with none; an older Steward refuses the file rather than re-planning a
+	// plan lot on any street.
 	// 6 (2026-11-13, phase 5 slice M3; docs/MODULES.md 4.1, 4.4): moves with the settlements file's format 7 (a build's settlement copy may hold a
 	// module offer); a build may hold module orders (moduleOrders: lotId -> ModuleOrder: the catalog version, program, params and in survival the
 	// approved bound), saved before the growth is planned. A format-5 build has none and reads with none; an older Steward refuses the file rather
@@ -55,7 +58,19 @@ public final class BuildStore {
 		List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street, @Nullable Boolean keyed,
 		@Nullable String vPlan, @Nullable String vRegion, @Nullable List<VillageLayout.LotSpec> districtSpecs, @Nullable String growRegion, @Nullable Integer growRid,
 		@Nullable Integer growPosition, @Nullable String growKey, Map<String, ModuleBinding> moduleBindings,
-		Map<String, dev.larattalabs.steward.module.ModuleOrder> moduleOrders) {
+		Map<String, dev.larattalabs.steward.module.ModuleOrder> moduleOrders, @Nullable String growZone) {
+		/** As saved before plan zones (format 6): a growth on the town's streets. */
+		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
+			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,
+			List<String> landmarkIds, List<String> decided, List<String> lastAwaiting, boolean addition, @Nullable String districtId, @Nullable Boolean street,
+			@Nullable Boolean keyed, @Nullable String vPlan, @Nullable String vRegion, @Nullable List<VillageLayout.LotSpec> districtSpecs, @Nullable String growRegion,
+			@Nullable Integer growRid, @Nullable Integer growPosition, @Nullable String growKey, Map<String, ModuleBinding> moduleBindings,
+			Map<String, dev.larattalabs.steward.module.ModuleOrder> moduleOrders) {
+			this(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId, landmarkIds,
+				decided, lastAwaiting, addition, districtId, street, keyed, vPlan, vRegion, districtSpecs, growRegion, growRid, growPosition, growKey, moduleBindings,
+				moduleOrders, null);
+		}
+
 		/** As saved before module orders (format 5): bindings, no orders. */
 		public Saved(String settlementId, String buildId, UUID playerId, String dimension, Permission permission, int landmarks, Settlement settlement,
 			Pipeline.State state, VillageLayout.Plan plan, @Nullable String bibleJobId, @Nullable String groupId, @Nullable String batchId, @Nullable String siteGroupId,
@@ -80,7 +95,7 @@ public final class BuildStore {
 		public Saved withModuleBindings(Map<String, ModuleBinding> bindings) {
 			return new Saved(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
 				landmarkIds, decided, lastAwaiting, addition, districtId, street, keyed, vPlan, vRegion, districtSpecs, growRegion, growRid, growPosition, growKey, bindings,
-				moduleOrders);
+				moduleOrders, growZone);
 		}
 
 		/** As saved before a build could be a region town's growth (format 3). */
@@ -159,7 +174,7 @@ public final class BuildStore {
 		public Saved withModuleOrders(Map<String, dev.larattalabs.steward.module.ModuleOrder> orders) {
 			return new Saved(settlementId, buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
 				landmarkIds, decided, lastAwaiting, addition, districtId, street, keyed, vPlan, vRegion, districtSpecs, growRegion, growRid, growPosition, growKey,
-				moduleBindings, orders);
+				moduleBindings, orders, growZone);
 		}
 	}
 

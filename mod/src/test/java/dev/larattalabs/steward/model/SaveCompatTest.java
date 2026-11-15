@@ -94,11 +94,12 @@ class SaveCompatTest {
 		assertTrue(Files.exists(dir.resolve("steward-builds.json.v4.bak")), "the format-4 file is kept as it was");
 		assertEquals(fixture("v6/steward-builds.json"), Files.readString(dir.resolve("steward-builds.json.v4.bak")));
 		b.save(f);
-		// the current builds format (6 since phase 5 M3: module orders)
-		assertTrue(Files.readString(f).contains("\"format\": 6"));
+		// the current builds format (7 since slice PV1: a plan growth's zone)
+		assertTrue(Files.readString(f).contains("\"format\": 7"));
 		BuildStore again = BuildStore.load(f);
-		assertEquals(6, again.readFormat());
+		assertEquals(7, again.readFormat());
 		assertEquals(g, again.all().get(0), "every field survives the move");
+		assertNull(again.all().get(0).growZone(), "a growth saved before plan zones grows on the town's streets");
 		assertEquals(fixture("v6/steward-builds.json"), Files.readString(dir.resolve("steward-builds.json.v4.bak")), "backed up once, never over");
 	}
 
