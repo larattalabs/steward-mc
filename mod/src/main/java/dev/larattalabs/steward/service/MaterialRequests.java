@@ -218,7 +218,9 @@ public final class MaterialRequests {
 
 	/** (QD) What makes a wait said once: when it began and why (a bill_cap wait said once per over-count). Pure. */
 	static String saidKey(SiteWait w) {
-		return w.waitingSince() + "|" + (w.blocked() == null ? "" : w.blocked() + (capped(w) ? "|" + w.nextNeeded().stream().mapToInt(n -> n.count()).sum() + w.moreUnits() : ""));
+		if (!capped(w)) return w.waitingSince() + "|" + (w.blocked() == null ? "" : w.blocked());
+		return w.waitingSince() + "|" + w.blocked() + "|" + w.nextNeeded().stream().map(n -> n.item() + "=" + n.count()).collect(java.util.stream.Collectors.joining(","))
+			+ "|" + w.moreUnits();
 	}
 
 	/** (QD, S-M5-9) Whether a target waits because its next cell would draw past the bound its realise was approved under ({@code bill_cap}). */
