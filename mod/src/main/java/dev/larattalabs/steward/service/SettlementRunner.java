@@ -1463,7 +1463,7 @@ public final class SettlementRunner {
 		// (slice SD) only a beside district is built from materials: a quarter (along, outpost) founded in a world since turned to survival still waits
 		if (quarter && dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) {
 			Districts.release(settlement.id(), district);
-			abandon(district.name() + " is a quarter, which isn't built from materials yet. Nothing was spent.");
+			abandon(district.name() + " is a quarter: quarters built from materials are coming, but not in this version. A district beside the town can be built from materials now. Nothing was spent.");
 			return;
 		}
 		var regions = ArchitectApi.get().regions();

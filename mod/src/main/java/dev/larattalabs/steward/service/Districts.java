@@ -484,7 +484,7 @@ public final class Districts {
 	 * id, or throws with why not. Not in survival; the town must be a region. Server thread.
 	 */
 	public static String foundQuarter(MinecraftServer server, Settlement s, String dir, dev.larattalabs.steward.model.Proposal.Quarter q, String name) {
-		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) throw new IllegalStateException("A quarter isn't built from materials yet.");
+		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) throw new IllegalStateException("Quarters built from materials are coming, but not in this version: for now a district beside the town is built from materials.");
 		var townId = TownRegion.of(s);
 		if (townId.isEmpty()) throw new IllegalStateException("A quarter goes beside a town Architect laid out, and " + s.name() + "'s town isn't one (or was undone).");
 		var town = ArchitectAccess.api().regions().get(townId.get()).orElseThrow(() -> new IllegalStateException("The town's region can't be read."));
