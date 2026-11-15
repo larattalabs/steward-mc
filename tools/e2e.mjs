@@ -4993,13 +4993,14 @@ async function moduleSurvivalFlow() {
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
     feeding = false;
     if (!grew) return;
+    let capSent = null;
     {
       const said = logSince(from);
       const third = /The bill came to more than you approved|so I ask first/.test(said);
       const qWithin = quoteAt(from);
       const d3 = qWithin ? delta(qPast, qWithin) : null;
       const capLine = new RegExp(`module ${id} realise \\S+ under \\S+: maxBill \\{([^}]*)\\}`).exec(said);
-      const capSent = capLine ? Object.fromEntries(capLine[1].split(', ').map((kv) => kv.split('=')).map(([k, n]) => [k, Number(n)])) : null;
+      capSent = capLine ? Object.fromEntries(capLine[1].split(', ').map((kv) => kv.split('=')).map(([k, n]) => [k, Number(n)])) : null;
       // the maxBill sent is exactly the bill shown at the second hold (saved as held, approved as the bound), item by item
       const same = !!(capSent && heldShown) && Object.keys({ ...capSent, ...heldShown }).every((k) => capSent[k] === heldShown[k]);
       if (!third && same && capSent['minecraft:dirt'] === upDirt2 && JSON.stringify(d3) === JSON.stringify({ 'minecraft:dirt': 1 }))
@@ -5039,6 +5040,10 @@ async function moduleSurvivalFlow() {
       await cmd(`/steward undo ${id}`);
     }
     const paid = Object.fromEntries(Object.entries(spB?.consumed ?? {}).map(([k, c]) => [k, c - (sp0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    // (QD) nothing drawn past the maxBill sent: every item paid within it (an item it doesn't name: 0)
+    const pastCap = capSent ? Object.entries(paid).filter(([k, c]) => c > (capSent[k] ?? 0)) : null;
+    if (pastCap && pastCap.length === 0) ok(`${label} drawn within the cap`, `paid ${JSON.stringify(paid).slice(0, 200)}, each item within the maxBill sent`);
+    else fail(`${label} drawn within the cap`, `maxBill ${JSON.stringify(capSent)}; past it ${JSON.stringify(pastCap)}`);
     let last = null;
     for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
       await sleep(1000);
