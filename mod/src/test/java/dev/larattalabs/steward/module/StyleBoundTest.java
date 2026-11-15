@@ -47,7 +47,7 @@ class StyleBoundTest {
 	static ModuleCatalog.Measured measured(JsonArray bounds) {
 		JsonObject raw = new JsonObject();
 		raw.add(ModuleBound.MEMBER, bounds);
-		return new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, raw);
+		return new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, ModuleCatalog.BASIS_FULL, null, raw);
 	}
 
 	static Map<String, String> town(String style) {

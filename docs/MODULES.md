@@ -491,6 +491,9 @@ plans, with Noah's OK on the spend.
   fields (program sha, params schema, envelope, palette rules, pins; not the title), measured on the pinned kit and checker. A missing, failed or
   stale certificate offers nothing. `tools/module-catalog.mjs record` writes one only from passing offline and in-game runs over these exact
   files and versions. A dev measurement run (`measuring`, development environment only) may install an uncertified entry, to measure it.
+  (2026-11-14, crop-farm-068) A certificate is `basis: "full"`, the default when absent, or `"smoke"`. A smoke certificate carries a full
+  measurement to a new Architect pin on a smoke check (`record --smoke`, speed rule 4; docs/MEASURE-M2.md "Re-certification"). It
+  certifies only while its `carried` full certificate binds to this program and to this module.json except the pins.
 - **Gating** (`ModuleGate`): a certified entry, measured.json's Minecraft version and Architect (mod) versions, Architect's `givenPrograms`, and
   fixtures only for a dev caller. A module with a catalog row the loader could not keep (a fixture in the live catalog, a duplicate) is blocked
   whole. Only a module's newest version is judged; a refused newest version is never replaced by an older one. Params must be

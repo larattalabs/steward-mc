@@ -20,6 +20,9 @@ import org.jspecify.annotations.Nullable;
  * <li>A fixture module is test data: only a dev caller ({@link Env#fixtures()}) may install one.</li>
  * <li>A measurement certifies the exact program, schema, envelope, palette rules and pins ({@code result: pass}, {@code moduleSha}); a missing,
  * failed or stale one offers nothing. Only a dev measurement run ({@link Env#measuring()}) installs an uncertified entry, to measure it.</li>
+ * <li>A smoke certificate ({@code basis: "smoke"}, speed rule 4) offers like a full one, on the Architect versions it names, only when
+ * {@link ModuleCatalog} finds its carried full measurement binds to this program and to this module.json but for its pins; else it is
+ * uncertified like any stale one.</li>
  * <li><b>Params within the envelope.</b> A branch param must be one of its measured values; any other param stays at its default.</li>
  * </ul>
  */
@@ -79,7 +82,7 @@ public final class ModuleGate {
 			return Verdict.no(e, Why.MINECRAFT, e.key() + " was measured on Minecraft " + m.minecraft() + ", not " + env.minecraft() + ".");
 		if (!m.architect().contains(env.architect()))
 			return Verdict.no(e, Why.ARCHITECT, e.key() + " was measured with Architect " + String.join(", ", m.architect()) + ", not " + env.architect() + ".");
-		return new Verdict(e, null, e.key() + " may be offered.");
+		return new Verdict(e, null, e.key() + " may be offered" + (m.smoke() ? " (its measurement on Architect " + m.from() + ", carried on a smoke check)." : "."));
 	}
 
 	/** Resolved params: the canonical values (every param, sorted keys), or why they are refused. */

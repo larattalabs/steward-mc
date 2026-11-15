@@ -197,6 +197,31 @@ crops, rustic. Fed from the stockpile until PLACED.
 - **Spending code.** M2 changes no billing or undo code in Steward; it measures Architect's. If that stops being true, the change gets a GPT
   second opinion.
 
+## Re-certification
+
+Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when an Architect pin needs a full re-measure.
+
+- **Full re-measure** (every step, then plain `tools/module-catalog.mjs record`) when:
+  - crop_farm's own code changes: `program.mjs`, or module.json beyond its pins;
+  - or an Architect build, billing or realise path it uses changes: the kit's `realise.mjs`, `region/plan.mjs`, `region/survival.mjs` and
+    IRR, the grow-lot revise, the Java FullBom, quotes, survival billing and refunds, the stockpile and the lot realise path.
+  The pin's diff (`git diff v<old> v<new> -- kit mod/src/main` in ../architect-mc) is read for this before choosing.
+- **Smoke check** for a plain version bump. Run fresh `offline` and `ingame`, the billing check (`module-measure.mjs survival`, then
+  `module-measure.mjs bounds`: the 108 quotes re-taken, about 8 min, never realised) and one field round (`module-measure.mjs field --crop <c>`,
+  5 runs), then `record --smoke`. It writes `basis: "smoke"`, `from` (the fully measured
+  Architect version) and `carried` (that full certificate; its bounds and rates stay top level, bound by `carried.boundsSha` / `ratesSha`).
+  `record --smoke` refuses unless:
+  - the program is the measured one;
+  - module.json with the measured pins put back hashes to the carried moduleSha;
+  - every branch x bible builds the measured block count, each exactly once;
+  - the re-quoted per-Style bounds equal the carried bounds item for item (survival alone checks a growth consumes its *new* quote, so it
+    can't see a bill that moved);
+  - the five steps passed on these files and the pinned versions, each its named step with every check passing.
+  The certificate is self-attested, as a full one is: the reader checks it is consistent, not that its history is true (git is the record).
+  ModuleCatalog re-checks the carry (program, pins-only change, bounds and rates, one Architect version that is not `from`, and each recorded
+  smoke step stamped with this program and version and passing in full) before ModuleGate offers it. A smoke of a smoke
+  keeps the first `from`. A smoke certificate is not a measurement: when a full re-measure is due, nothing is carried.
+
 ## Candidates
 
 - **Candidate 1** (program sha `b0824ea4…`, d9045b2): the composter and the chest stood in the front row, outside the fence, against it.
