@@ -235,6 +235,16 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.68.0 by a smoke check (2026-11-14, crop-farm-068; speed rule 4).** The pins moved to kit/checker 0.63.0, the program
+unchanged (`c406df05…`), moduleSha `c1a1a5d8…`. The 0.67.0..0.68.0 diff changes no FullBom, quote or realise path: its Java is IrStale (the
+version), RegionAdopt and Stockpiles (SAD: adopting construction sites and crates), and the kit's revise adds a `props` stage only on an
+adopted base. None is on crop_farm's measured path: the measurement uses a V town with a crate-less stockpile, and Steward never calls
+adoptCrates. So `record --smoke`: offline 115/115 (all 108 block counts as measured), ingame 116/116, survival 63/63, bounds 111/111 (the 108
+re-quoted per-Style bounds equal the carried ones item for item) and field-potatoes 62/62 (5 runs), on ports 8594/8595, $0. `measured.json`
+is `basis: smoke`, `from: 0.67.0`, certifying 0.68.0 only, its bounds and rates 0.67.0's. Potatoes per crop-day against 0.67.0: within 1.2% on
+18x18, 27x27, 18x9, 18x27 and 27x18; 27x9 +2.3%, 9x27 -3.7%, 9x9 +4.3%, 9x18 +6.5% (0.67.0 had it -4.1% against 0.65.0). The small farms move
+most, both ways, and every run is inside its 3a band, so these read as run noise, not a change.
+
 **Re-certified on Architect 0.67.0 (2026-11-14, crop-farm-067).** The pins moved to kit/checker 0.62.0 (ad9166a), so moduleSha changed
 (`c85389f8…`) with the program unchanged (`c406df05…`). Every step was measured again, because kit 0.62.0 and BC+ change the realise and
 billing paths crop_farm uses (`realise.mjs`, `region/plan.mjs`, `region/survival.mjs` TERRAIN_BLOCKS, FullBom), and `record` needs every step

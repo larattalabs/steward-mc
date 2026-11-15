@@ -367,21 +367,47 @@ public final class ModuleCatalog {
 			uncertified.add("a smoke certificate without its offline, ingame or smoke checks");
 			return;
 		}
-		// each smoke step: on this program, Minecraft and Architect version, and every check passed
 		String on = m.architect().isEmpty() ? "" : m.architect().get(0);
+		// the fresh offline and ingame on this version: every branch x bible built and every variant installed
+		JsonObject off = own.get("offline").isJsonObject() ? own.getAsJsonObject("offline") : null;
+		JsonObject in = own.get("ingame").isJsonObject() ? own.getAsJsonObject("ingame") : null;
+		JsonObject env = in != null && in.has("env") && in.get("env").isJsonObject() ? in.getAsJsonObject("env") : new JsonObject();
+		JsonObject install = in != null && in.has("install") && in.get("install").isJsonObject() ? in.getAsJsonObject("install") : new JsonObject();
+		if (off == null || !on.equals(strOr(off, "architect", "")) || !allOk(off, "branches"))
+			uncertified.add("the smoke's offline run did not build every branch on Architect " + on);
+		if (in == null || !on.equals(strOr(env, "architect", "")) || !"true".equals(strOr(install, "ok", "")) || !allOk(in, "variants"))
+			uncertified.add("the smoke's ingame run did not install every variant on Architect " + on);
+		// each smoke step: the step it names, on this program, Minecraft and Architect version, and every check passed
 		List<JsonElement> steps = new ArrayList<>();
-		for (String k : List.of("survival", "bounds")) steps.add(smoke.get(k));
+		List<String> names = new ArrayList<>();
+		for (String k : List.of("survival", "bounds")) {
+			steps.add(smoke.get(k));
+			names.add(k);
+		}
 		JsonArray fields = smoke.has("fields") && smoke.get("fields").isJsonArray() ? smoke.getAsJsonArray("fields") : new JsonArray();
 		if (fields.isEmpty()) uncertified.add("a smoke certificate without a field round");
-		for (JsonElement f : fields) steps.add(f);
-		for (JsonElement s : steps) {
-			JsonObject o = s != null && s.isJsonObject() ? s.getAsJsonObject() : null;
-			String name = o == null ? "?" : strOr(o, "step", "?");
-			int passed = o == null ? -1 : intOr(o, "passed", -1), of = o == null ? 0 : intOr(o, "of", 0);
-			if (o == null || !sha.equals(strOr(o, "programSha", "")) || !on.equals(strOr(o, "architect", "")) || !m.minecraft().equals(strOr(o, "minecraft", ""))
-				|| of <= 0 || passed != of || (name.startsWith("field-") && intOr(o, "runs", 0) < 5))
-				uncertified.add("the smoke step " + name + " did not pass in full on this program and Architect " + on);
+		for (JsonElement f : fields) {
+			steps.add(f);
+			names.add("field-");
 		}
+		for (int i = 0; i < steps.size(); i++) {
+			JsonElement s = steps.get(i);
+			JsonObject o = s != null && s.isJsonObject() ? s.getAsJsonObject() : null;
+			String want = names.get(i), name = o == null ? "?" : strOr(o, "step", "?");
+			boolean field = want.equals("field-");
+			boolean named = field ? name.startsWith("field-") && name.length() > want.length() : name.equals(want);
+			int passed = o == null ? -1 : intOr(o, "passed", -1), of = o == null ? 0 : intOr(o, "of", 0);
+			if (o == null || !named || !sha.equals(strOr(o, "programSha", "")) || !on.equals(strOr(o, "architect", "")) || !m.minecraft().equals(strOr(o, "minecraft", ""))
+				|| of <= 0 || passed != of || (field && intOr(o, "runs", 0) < 5))
+				uncertified.add("the smoke step " + (field ? "field round " : "") + name + " (" + want + ") did not pass in full on this program and Architect " + on);
+		}
+	}
+
+	/** Whether {@code o.k} is a non-empty array of objects each with {@code ok: true}. */
+	private static boolean allOk(JsonObject o, String k) {
+		if (!o.has(k) || !o.get(k).isJsonArray() || o.getAsJsonArray(k).isEmpty()) return false;
+		for (JsonElement e : o.getAsJsonArray(k)) if (!e.isJsonObject() || !"true".equals(strOr(e.getAsJsonObject(), "ok", ""))) return false;
+		return true;
 	}
 
 	/** The fields of module.json a measurement certifies (all but its title): their canonical sha256. */
