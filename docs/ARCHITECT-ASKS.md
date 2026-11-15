@@ -1661,3 +1661,10 @@ After an unclean start, RL's reconcile charges what stands without counting `max
   - Ops only: a non-op gets `PERMISSION`.
   - `Sites.suspects()` sits behind `repairSuspects`.
   - The Steward side is slice DRS, after DR's release.
+
+### QL-b: the real cause of crop_farm's 209 -> 210 (2026-11-15)
+Architect found it with an in-game repro on a copy of the cf067 world, read only. It wasn't terrain. One template dirt cell under the growth's own grass pad was priced over the land as it stood, before the plan's earlier stages write. While the cell was dirt it looked like a no-op; once grass spread onto it, it was billed. The pad always rewrites the cell, so the realise always paid 210.
+- The fix (D″): each lot is priced over the land as the earlier stages leave it, so quote = consumed.
+- QL-b also stops the shell dirt marking quotes inexact. No API change.
+- RC areas: a module growth's quote equals what it consumes, and its `exact` flag.
+- For QD, the 1-cell re-ask should go away. Its "up to N" allowance still covers real terrain cells, and maxBill caps the bill either way.
