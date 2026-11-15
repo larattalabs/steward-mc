@@ -216,6 +216,69 @@ futures complete; recorded as a follow-up.
   growth's targets wait for items (watched again, the steward says once when it is built). The orphan sweep is `growth orphan` (creative). Still
   unit-only: a cancel once realised or from in flight, and undo while waiting, which change with Architect's RU (v0.66.0).
 
+## Slice A2L: A2's refusals lifted (Architect RU), watered modules in adopted towns (IG-b)
+
+Status: design v1, 2026-11-14, for the GPT design review. Architect v0.66.0's RU (CONTRACT "Slice RU as built"): `undoRevision` of a survival
+region no longer refuses `survival_building`. A head revision still writing (busy `revising <rid>`, the region PLACING, that rid the head) has
+its batch cancelled first (phase `cancel`, kill points RVC1, RVC2), then the suffix's building targets, roads and lots are removed with their
+stages, each refunding what of it stands paid (at most its paid record, once per key); items delivered but not consumed stay in the stock.
+Kill points RVU1-RVU3 as before; a world start resumes an UNDOING region by itself. No API change. Steward's runtime minimum is 0.67.0, so
+every Architect it loads has RU; a `survival_building` refusal is still read and said in A2's plain words (a stray answer, never Architect's text).
+
+**1. Undo while waiting** (`/steward undo`, the History tab's Undo; the build has ended, the growth's `revision:` entry stands, its targets wait).
+- `Growths.decide`: the BUILDING step goes (it stays in the enum for `buildingRefusal`'s words only). A town from materials whose revision is
+  PLACED with targets unbuilt decides UNDO. New input **`writing`**: the town builds from materials, its busy is `revising <rid>` for this
+  rid, the region is PLACING and the revision is the head, i.e. Architect's `writingToCancel`. Then UNDO (`toPosition = position - 1`), before
+  the busy WAIT. Any other busy still waits; a creative town still waits (Architect refuses OVERLAP_BUSY there).
+- `Undo.growth` no longer pre-refuses. The take-up's result (`RemoveResult.refund`, which RU fills for a revision) is said: "Returned to the
+  stockpile: <items>" (`Stockpiles.items`), then `reportingOverflow`'s line as today. An empty refund (never fed) says "nothing had been drawn
+  for it". `PROJECT_REMOVED` logged once (`Undo.retired`), as today.
+- The town's build watch (`MaterialRequests.watchBuild`) is dropped for the region when a growth of it is taken up and the town reads built
+  again (otherwise the steward would say "<town> is built" for a town that only lost its addition). A region still unbuilt stays watched.
+
+**2. Cancel once realised** (`cancel()` while the growth's revision is placing from materials).
+- `cancel()`'s refusal ("can't be stopped part way") goes: the cancel is fed (`Pipeline.Cancel`, CANCELLING, saved with the build) and
+  `cancelGrowth` runs as slice A's.
+- `cancelGrowth`'s "still being placed: waits" no longer holds for a town from materials whose revision is the writing head (`writing` above):
+  it goes on to the take-up now. Its existing order is kept: no sites yet and nothing logged → `takeUpEmpty` (a NOTE "The addition was not
+  placed (cancelled)" once taken up); sites and no entry → logged first (`logPlaced`, "being cancelled", the sites placed so far), then
+  `Undo.growth` by rid (Architect takes the batch's placed sites into the revision, so the undo takes every one, logged or not).
+- A cancel while the realise is in flight is unchanged (waits in CANCELLING for the answer, then the above). A creative growth placing still
+  waits as slice A. Refused (a beside dependency, `OCCUPIED`): said, the entry stays, the build ends as today's refused take-up.
+- The `after` branch's "can't be taken up until it's built" goes with BUILDING.
+
+**3. Restart mid-undo** (a crash or stop between RU's kill points).
+- **A cancel:** the build is saved CANCELLING with its region and rid, so the restored runner runs `cancelGrowth` again: revision UNDOING →
+  `Growths.decide` UNDO → `undoRevision` again, the same target (Architect returns its running operation or resumes it); UNDONE → GONE →
+  logged once. The cases: (a) killed before Steward logged anything (RVC1 with no sites) → `takeUpEmpty` again, the NOTE once; (b) killed
+  after the entry (RVC2, RVU1-RVU3) → `Undo.growth` with the entry: resumed, `PROJECT_REMOVED` once (`retired`); (c) killed after Architect's
+  UNDONE and before Steward's log: the entry (or none) is read with UNDONE → logged once, no second `undoRevision` (GONE).
+- **An undo (no build):** nothing of Steward's is in flight after the restart, and Architect resumes the undo at world start. New in the growth
+  sweep (`VillageSweep.growths`, at world start and every 10 s): a standing (not retired) `revision:` entry of the settlement whose revision
+  reads UNDONE, with no take-up and no build running for the settlement, is logged `PROJECT_REMOVED` once (the text says it was finished after
+  a restart). UNDOING is left to Architect. The refund is Architect's (once per key) and is never asked of Steward again.
+- No save format change: CANCELLING and the build's region and rid are slice A's fields; the reconcile reads the history and Architect.
+
+**4. IG-b, watered modules in creative adopted street towns.** `ModuleOffer.decide`'s ADOPT branch no longer refuses an irrigated module
+(crop_farm). The ADOPT path is only taken when the world builds at once and the settlement is PATRON (`ModuleOffers`), so it is creative only;
+a Supplied or survival street town still gets "this street town can't be taken on as one region", until Architect's SAD (v0.68.0). The growth
+is the adopted path's (adopt, then `planRevision` with the module's grow lot, `irrigate` and `field` as M3 sends them); Architect's IG-b adds
+`street`, `lots`, `fluids` after the base's `adopted`. Undo is `undoRevision` (drain first), unchanged for Steward.
+
+**Tests.**
+- **Unit:** `Growths.decide` with `writing` (UNDO only when from materials, busy `revising <rid>` for this rid, PLACING, head; another rid's
+  busy, a creative town, a non-head waits); PLACED with unbuilt targets → UNDO (no BUILDING); the refund line; the sweep's UNDONE reconcile
+  (logged once, never with a take-up or build running, never for UNDOING, never twice); `ModuleOffer.decide` ADOPT with crop_farm offered.
+- **e2e (stub), `supplied-growth` extended:** (a) **undo while waiting**: the library growth, fed in part, undone through `/steward undo`:
+  refund = what the stockpile paid for it (`consumed` since before the growth = `returned`+`refundOverflow` delta), once (nothing more 20 s
+  on), `PROJECT_REMOVED` once, revision UNDONE, E-flat against the pre-growth snapshot outside the crates. (b) **cancel once realised**: a
+  second growth, cancelled (`/steward cancel`) while its revision is still placing and fed in part: judged the same. (c) **restart mid-cancel**:
+  a third growth, `dev.journal.killAt RVC2+save` armed before the cancel, the client halts, relaunched: the cancel resumes, one entry, one
+  refund, E-flat. Then today's restart-while-building, bills, refund-once and town-undo steps on a fourth growth fed to the end.
+- **e2e (stub), new `module-adopt`** (tags `module adopt growth farm`): a creative street town (legacy layout) built; 16 wheat seeds carried
+  → crop_farm offered on the ADOPT path; accepted → adopted and grown; its revision's stages include `fluids` and its lot's sources stand
+  (water); undone (`undoRevision`), E-flat against the pre-growth snapshot, no water left.
+
 ## Slice B: a street town adopted at its first growth
 
 Status: design v2, 2026-11-11, revised after the GPT design review (request changes: 3 blockers, 5 should-fixes, 1 nit; all taken). Architect's
