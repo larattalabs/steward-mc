@@ -7041,7 +7041,8 @@ async function sd2Outpost(label, id, c, build) {
 /**
  * (slice SD2) An outpost built from materials in a survival world, through Steward only: a Supplied town (a composed plan) fed until built; an outpost
  * offered and accepted, its bill said before its placement is approved; fed and built, what it consumed within its quote; it owns exactly the land its
- * region took. Then undone with the client stopped mid-removal (dev.placement.slow): after the restart no undo is asked, and the removal Architect
+ * region took. Then undone with the client stopped mid-removal (the player standing in one of its buildings holds it): after the restart no undo is asked,
+ * the player steps out, and the removal Architect
  * resumes is logged once by itself, every unit its targets drew back, the ground as before, the outpost given up.
  */
 async function survivalQuarterFlow() {
@@ -7154,22 +7155,28 @@ async function survivalQuarterFlow() {
       const before = await ledger();
       const used = minusItems(minusItems(before?.consumed, spA?.consumed), minusItems(plusItems(before?.returned, before?.refundOverflow), plusItems(spA?.returned, spA?.refundOverflow)));
       const n0 = removedCount(id);
-      await dev.request('dev.placement.slow', { on: true }).catch(() => null);
+      // the player stands in one of its buildings: Architect's removal waits for them (up to 10 min), so the client is stopped mid-removal
+      const placedEntry = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === `region:${region}`).at(-1);
+      let inBox = null;
+      for (const sid of placedEntry?.siteIds ?? []) {
+        const m = /stands \(building\) box (-?\d+) (-?\d+) (-?\d+) (-?\d+) (-?\d+) (-?\d+)/.exec(await cmd(`/steward dev site ${sid}`));
+        if (m) { inBox = m.slice(1).map(Number); break; }
+      }
+      if (!inBox) return fail(ul, `no building of ${region} to stand in: ${JSON.stringify(placedEntry?.siteIds)?.slice(0, 120)}`);
+      await cmd(`/tp @p ${Math.floor((inBox[0] + inBox[3]) / 2)} ${inBox[1] + 1} ${Math.floor((inBox[2] + inBox[5]) / 2)}`);
       from = logSize();
       await cmd(`/steward undo ${id}`);
       let mid = null;
       for (let i = 0; i < 120 && mid !== 'REMOVING'; i++) { mid = (await regionView(region)).state; if (mid === 'REMOVED') break; await sleep(500); }
-      await sleep(3000);
+      await sleep(5000);
       const midState = (await regionView(region)).state;
       const logged0 = removedCount(id) > n0;
-      if (midState !== 'REMOVING' || logged0) {
-        await dev.request('dev.placement.slow', { on: false }).catch(() => null);
-        return fail(ul, `not caught mid-removal: ${midState}, logged ${logged0}; ${chatTail(from)}`);
-      }
+      if (midState !== 'REMOVING' || logged0) { await away(); return fail(ul, `not caught mid-removal: ${midState}, logged ${logged0}; ${chatTail(from)}`); }
       await restartClient();
       await cmd('/architect survival on');
       await cmd('/gamemode creative @p');
-      await dev.request('dev.placement.slow', { on: false }).catch(() => null);
+      // the player steps out after the restart: Architect's resumed removal goes on; nothing is asked of Steward
+      await away();
       let gone = null;
       for (let i = 0; i < 600 && !gone; i++) { if (removedCount(id) > n0) gone = settlements().find((x) => x.id === id).log.filter((e) => e.kind === 'PROJECT_REMOVED').at(-1); else await sleep(1000); }
       await sleep(20_000);
@@ -7188,7 +7195,6 @@ async function survivalQuarterFlow() {
   } finally {
     stop = true;
     if (feeder) await feeder;
-    await dev?.request('dev.placement.slow', { on: false }).catch(() => null);
     await cmd('/defaultgamemode creative');
     await cmd('/architect survival off');
   }
@@ -7307,17 +7313,21 @@ async function districtModuleFlow() {
   if (!(await buildThrough(id, from, `${label} first building`))) return;
   d = dgDistrict(id, d.id);
   if (d?.state !== 'standing' || !d.region) return fail(label, `the district does not stand: ${JSON.stringify(d)?.slice(0, 200)}`);
-  // the live catalog (the player's own gate); seeds carried, the farm asked for in the district in talk
+  // the live catalog (the player's own gate); seeds carried: once the catalog's verdict is in, the seeds' own offer comes (a district one is taken as
+  // it is; one for the town is declined), and the farm is asked for in the district in talk
   await cmd('/steward dev modules {}');
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ}`);
   await cmd('/give @p minecraft:wheat_seeds 16');
+  const auto = await moduleOffer(id);
+  if (!auto) return fail(`${label} offered`, `no module.${MODULE} offer within 90 s (the catalog's verdict)`);
+  if (auto.district !== d.id) await cmd(`/steward proposals ${id} decline ${auto.key}`);
   const seen = new Set((settlements().find((x) => x.id === id)?.proposals?.open ?? []).map((q) => q.key));
   const ask = { reply: `A working field in ${d.name}: it is in the inbox.`, intent: 'building', district: d.name,
     building: { role: 'farm', type: 'farm', footprint: 'L', landmark: false }, module: { id: MODULE, params: { crop: 'wheat' } } };
   await cmd(`/steward dev sim_answer talk ${JSON.stringify(ask)}`);
   from = logSize();
   await cmd(`/steward talk ${id} put a working farm in ${d.name}`);
-  let q = null;
+  let q = auto.district === d.id ? auto : null;
   for (let i = 0; i < 60 && !q; i++) {
     await sleep(1000);
     q = (settlements().find((x) => x.id === id)?.proposals?.open ?? []).find((x) => !seen.has(x.key) && x.module?.moduleId === MODULE) ?? null;
