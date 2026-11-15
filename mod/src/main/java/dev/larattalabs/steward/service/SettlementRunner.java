@@ -2492,7 +2492,11 @@ public final class SettlementRunner {
 		}
 		// (slice SD) a district from materials is realised only with the bill approved for exactly this plan and these entries (a re-plan or a restart
 		// since: quoted and asked again)
-		if (districtFromMaterials() && !ModulePlacement.cleared(vPlanId, lotEntries).equals(districtCleared)) { quoteDistrict(lotEntries, BillAsk.AT_REALISE); return; }
+		// a realise Architect has already under this build's keys (a restart between it and its saved answer) is picked up, never quoted or asked again
+		if (districtFromMaterials() && !ModulePlacement.cleared(vPlanId, lotEntries).equals(districtCleared)) {
+			if (!findVillage()) quoteDistrict(lotEntries, BillAsk.AT_REALISE);
+			return;
+		}
 		if (!missing.isEmpty()) say("Left as pads (no design): " + String.join(", ", missing));
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", settlement.id());
