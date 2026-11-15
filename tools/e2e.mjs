@@ -5862,13 +5862,18 @@ async function survivalDistrictFlow() {
       const region = mine?.[0]?.id;
       if (placing && billBefore && region) ok(`${label} first building`, `${billBefore[0].slice(0, 160)} (said before the approval); ${region} realised from materials`);
       else return fail(`${label} first building`, `placing ${!!placing}; bill before approval ${!!billBefore}; region ${JSON.stringify(mine)?.slice(0, 120)}; ${chatTail(from)}`);
-      // half of what it needs, once: some of its targets draw, the rest wait
-      await sleep(10_000);
-      const need = (await ledger())?.need ?? {};
-      const half = Object.fromEntries(Object.entries(need).map(([k, v]) => [k, Math.max(1, Math.floor(v / 2))]));
-      if (Object.keys(half).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half }).catch(() => null);
+      // half of what it needs, every 30 s until something is drawn (at most 4 min): some of its targets draw, the rest wait
       let sp1 = null;
-      for (let i = 0; i < 30; i++) { await sleep(2000); sp1 = await ledger(); if (Object.keys(minusItems(sp1?.consumed, sp0?.consumed)).length) break; }
+      for (let i = 0; i < 120; i++) {
+        if (i % 15 === 0) {
+          const need = (await ledger())?.need ?? {};
+          const half = Object.fromEntries(Object.entries(need).map(([k, v]) => [k, Math.max(1, Math.floor(v / 2))]));
+          if (Object.keys(half).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half }).catch(() => null);
+        }
+        await sleep(2000);
+        sp1 = await ledger();
+        if (Object.keys(minusItems(sp1?.consumed, sp0?.consumed)).length) break;
+      }
       await sleep(10_000);
       const still = (await regionView(region)).build;
       sp1 = await ledger();
