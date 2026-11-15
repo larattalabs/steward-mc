@@ -213,7 +213,9 @@ public final class Undo {
 		List<String> regionSites = List.copyOf(entry.siteIds());
 		// removed already (Architect's tombstone, 1.14 C22): its answer, or the save of it, was lost; the entry is retired now
 		if (regions.get(region).filter(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVED).isPresent()) {
-			if (!Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
+			// logged once (slice VSR): an entry a replay finds retired already is not logged again
+			var fresh = Settlements.store().get(s.id()).orElse(s);
+			if (!retired(fresh, entry) && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
 			districts(server, s, say);
 			say.accept("Undone: the village was taken up already, the land restored.");
 			done.accept(true);
