@@ -5061,7 +5061,7 @@ async function moduleAdoptFlow() {
   const g = await growthOf(id);
   const mods = await moduleSites(g.op);
   const fl = region ? await dev.request('dev.fluid.state', { region }).catch(() => ({})) : {};
-  const irr = (fl?.bodies ?? []).filter((b) => /_irr_\d+_\d+$/.test(String(b.id)));
+  const irr = (Array.isArray(fl?.bodies) ? fl.bodies : []).filter((b) => /_irr_\d+_\d+$/.test(String(b.id)));
   const wet = irr.length > 0 && irr.every((b) => /SETTLED|STANDING|FULL/i.test(String(b.state)));
   if (region && g.m && g.m[1] === region && g.rev && mods.length === 1 && mods[0].key === `${MODULE}@1` && wet) {
     ok(label, `adopted as ${region}; revision ${g.m[2]} (${g.rev.state}) holds ${mods[0].sid} (${mods[0].key}); ${irr.length} irrigation source(s) ${irr.map((b) => b.state).join('/')}`);
@@ -5069,7 +5069,7 @@ async function moduleAdoptFlow() {
   // undone: drained first, the revision UNDONE, the ground as before the growth
   const last = await undoOnce(id, claim);
   const fl2 = await dev.request('dev.fluid.state', { region }).catch(() => ({}));
-  const left = (fl2?.bodies ?? []).filter((b) => /_irr_\d+_\d+$/.test(String(b.id)) && !/DRAINED|REMOVED/i.test(String(b.state)));
+  const left = (Array.isArray(fl2?.bodies) ? fl2.bodies : []).filter((b) => /_irr_\d+_\d+$/.test(String(b.id)) && !/DRAINED|REMOVED/i.test(String(b.state)));
   const undone = ((await regionView(region)).revisions ?? []).find((r) => String(r.rid) === g.m[2]);
   const d0 = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
   const off = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
