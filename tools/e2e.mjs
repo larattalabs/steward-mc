@@ -2457,7 +2457,7 @@ async function buildThrough(id, from, label, restartAtMassings = false, onStep =
     if (built) return { steps, placed: Number(built[1]) };
     // every lot left a pad (a material rule's pre-check): the village's street and square stand, no building
     if (/No building of [^\n]* was placed/.test(since)) return { steps, placed: 0 };
-    const stopped = since.match(/The build stopped[^\n]*|No dry, flat room[^\n]*|No room left[^\n]*|Survey failed[^\n]*|Cancelled [^\n]*|The design group failed[^\n]*/);
+    const stopped = since.match(/The build stopped[^\n]*|[^\n]*is still being built from the stockpile \(\d+%\): it can grow once[^\n]*|No dry, flat room[^\n]*|No room left[^\n]*|Survey failed[^\n]*|Cancelled [^\n]*|The design group failed[^\n]*/);
     if (stopped) {
       fail(label, stopped[0]);
       return null;
@@ -3132,7 +3132,7 @@ async function suppliedGrowthFlow() {
       await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(rest.slice(1)) }).catch(() => null);
       return drew();
     };
-    /** A growth accepted from talk; 'end': until its build ends with targets waiting (fed in part when {@code part}); 'placing': fed once, left writing. */
+    /** A growth accepted from talk; 'end': until its build ends with targets waiting (fed in part when {@code part}); 'held': realised, its answer held, fed in part. */
     const grow = async (lbl, mode, part = false) => {
       const q = await askBuilding(id, 'library');
       if (!q) { fail(lbl, 'no library proposal'); return null; }
@@ -3151,24 +3151,32 @@ async function suppliedGrowthFlow() {
         if (part && !(await feedPart(spStart))) { fail(lbl, 'nothing drawn from the stockpile once fed in part'); return null; }
         return { spStart, tag: e.siteGroup, siteIds: e.siteIds, from: f };
       }
-      // its revision written (PLACING) and its first targets fed in part: half of what the stockpile needs, once
+      // 'held' (run 2: Architect writes a growth's revision in a second or two, so a cancel never met it still placing): Architect's answer to the
+      // realise is held (dev.region.holdRealise), so Steward's build still waits on a realised growth whose targets wait for items; fed in part
+      await dev.request('dev.region.holdRealise', { on: true });
+      const rid0 = Math.max(0, ...((await view()).revisions ?? []).map((x) => x.rid));
       let h = null, at = f;
-      for (let i = 0; i < 600 && !h; i++) {
+      for (let i = 0; i < 450 && !h; i++) {
         await sleep(2000);
         // the build's decisions approved as they come (the bible, the massings, the placement), as buildThrough does
         if (/Style bible ready|massings? (?:are|is) ready|Approve to place/.test(logSince(at))) { at = logSize(); await cmd(`/steward approve ${id}`); }
-        if (/The build stopped[^\n]*|Cancelled [^\n]*/.test(logSince(f))) break;
-        h = ((await view()).revisions ?? []).filter((x) => x.state === 'PLACING').sort((a, b) => b.rid - a.rid)[0] ?? null;
-        if (!h || !Object.keys((await ledger())?.need ?? {}).length) h = null;
+        if (/The build stopped[^\n]*|Cancelled [^\n]*|still being built from the stockpile[^\n]*|is built(?: in part)?: \d+ building/.test(logSince(f))) break;
+        h = ((await view()).revisions ?? []).filter((x) => x.rid > rid0 && /^(PLACING|PLACED)$/.test(x.state)).sort((a, b) => b.rid - a.rid)[0] ?? null;
+        if (h && !Object.keys((await ledger())?.need ?? {}).length) h = null;
       }
-      if (!h) { fail(lbl, `its revision never stood placing and owing; ${chatTail(f)}`); return null; }
-      const need = (await ledger())?.need ?? {};
-      await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(need).map(([k, n]) => [k, Math.max(1, Math.floor(n / 2))])) }).catch(() => null);
-      for (let i = 0; i < 45; i++) {
-        await sleep(2000);
-        if (Object.keys(delta((await ledger())?.consumed, spStart?.consumed)).length) break;
-      }
+      await dev.request('dev.region.holdRealise', { on: false }).catch(() => null);
+      if (!h || /is built(?: in part)?: \d+ building/.test(logSince(f))) { fail(lbl, `no realised growth left waiting on its answer (${h ? `revision ${h.rid} ${h.state}, but the build ended` : 'no revision'}); ${chatTail(f)}`); return null; }
+      if (!(await feedPart(spStart))) { fail(lbl, 'nothing drawn from the stockpile once fed in part'); return { spStart, tag: `revision:${region}:${h.rid}`, siteIds: [], from: f, bad: true }; }
       return { spStart, tag: `revision:${region}:${h.rid}`, siteIds: [], from: f };
+    };
+    /** A step that failed with its growth still standing: taken up, so the next growth is not refused while the town waits for it (run 2). */
+    const clearUp = async (tag) => {
+      if (!tag || completion(tag)) return;
+      await cmd(`/steward cancel ${id}`).catch(() => null);
+      await sleep(5000);
+      if (!completion(tag)) { await away(); await cmd(`/steward undo ${id}`).catch(() => null); }
+      await until(() => completion(tag), 300);
+      await sleep(5000);
     };
     /** Arms Architect's kill point, runs {@code act}, waits for the JVM to halt and starts the client again (the world as the halt left it). */
     const killed = async (point, act) => {
@@ -3223,8 +3231,9 @@ async function suppliedGrowthFlow() {
     // (A2L 2) cancel once realised: a growth cancelled while its revision is still placing, fed in part
     {
       const lbl = `${label} cancel once realised`;
-      const g = await grow(`${lbl} growth`, 'placing');
-      if (g) {
+      const g = await grow(`${lbl} growth`, 'held');
+      if (g?.bad) await clearUp(g.tag);
+      else if (g) {
         const spB = await ledger();
         from = logSize();
         const said = await cmd(`/steward cancel ${id}`);
@@ -3232,21 +3241,24 @@ async function suppliedGrowthFlow() {
         if (!done) fail(lbl, `no completion in 10 min: ${String(said).slice(0, 120)}; ${chatTail(from)}`);
         else if (/can't be stopped part way/.test(`${said}\n${logSince(from)}`)) fail(lbl, `refused: ${String(said).slice(0, 160)}`);
         else await judge(lbl, g.tag, g.spStart, spB, (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === g.tag)?.siteIds, from);
+        await clearUp(g.tag);
         await sleep(10_000);
       }
     }
-    // (A2L 3) a restart between the cancel and the refund: killed at RU's RVC2 (the batch cancelled, phase drain saved, nothing refunded), chunks saved
-    // first; the restored cancel resumes Architect's undo: one entry, one refund
+    // (A2L 3) a restart between the cancel and the refund: killed at RU's RVU1 (the undo's manifest saved, nothing drained or refunded), chunks saved
+    // first; the restored cancel and Architect's resumed undo: one entry, one refund
     {
       const lbl = `${label} restart mid-cancel`;
-      const g = await grow(`${lbl} growth`, 'placing');
-      if (g) {
+      const g = await grow(`${lbl} growth`, 'held');
+      if (g?.bad) await clearUp(g.tag);
+      else if (g) {
         const spB = await ledger();
-        const halted = await killed('RVC2+save', () => cmd(`/steward cancel ${id}`));
+        const halted = await killed('RVU1+save', () => cmd(`/steward cancel ${id}`));
         const done = halted && await until(() => completion(g.tag), 600);
-        if (!halted) fail(lbl, 'the kill point RVC2 was never reached');
+        if (!halted) fail(lbl, 'the kill point RVU1 was never reached');
         else if (!done) fail(lbl, `no completion 10 min after the restart; ${chatTail(0)}`);
         else await judge(lbl, g.tag, g.spStart, spB, (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === g.tag)?.siteIds, 0);
+        await clearUp(g.tag);
       }
     }
     // (A2L 3) a restart mid-undo with no build: /steward undo of a waiting growth killed at RVU2 (its suffix drained), chunks saved first; Architect
@@ -3266,6 +3278,7 @@ async function suppliedGrowthFlow() {
           if (reconciled) ok(`${lbl} reconcile`, 'the growth sweep logged the removal Architect finished after the restart');
           else fail(`${lbl} reconcile`, 'no reconcile line (logged by another path?)');
         }
+        await clearUp(g.tag);
       }
     }
     // a growth fed to the end: a restart while its targets wait (watched again, said built once), its bills = what the stockpile paid, then undone

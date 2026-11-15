@@ -524,7 +524,12 @@ public final class StewardCommands {
 			.then(Commands.literal("undo").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
 				// the History tab's Undo takes the same path (Actions.decide "undo")
 				CommandSourceStack src = ctx.getSource();
-				return answer(src, Actions.undo(src.getPlayerOrException(), StringArgumentType.getString(ctx, "id"), line -> src.sendSuccess(() -> Component.literal(line), false)));
+				String uid = StringArgumentType.getString(ctx, "id");
+				// (slice A2L) a growth's take-up answers after the command returns (its refund line): logged as the runner's lines are, as well as said
+				return answer(src, Actions.undo(src.getPlayerOrException(), uid, line -> {
+					Steward.LOGGER.info("{}: {}", uid, line);
+					src.sendSuccess(() -> Component.literal(line), false);
+				}));
 			})))
 			.then(Commands.literal("resume").requires(Commands.hasPermission(Commands.LEVEL_GAMEMASTERS)).then(Commands.argument("group", StringArgumentType.word()).then(Commands.argument("card", StringArgumentType.word())
 				.then(Commands.argument("buildings", IntegerArgumentType.integer(1, 12)).then(Commands.argument("budget", DoubleArgumentType.doubleArg(1, 200)).executes(ctx -> {
