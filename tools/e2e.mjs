@@ -17,18 +17,21 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { pickFlows } from './lib/e2e-flows.mjs';
+import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData } from './lib/ram-tmp.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARCH = process.env.ARCHITECT_CHECKOUT ?? path.resolve(ROOT, '..', 'architect-mc');
-const GAME = path.join(ROOT, 'mod', 'run');
+// E2E_GAME_DIR / E2E_OUT / E2E_CLIENT: set by a --clients run for each client it starts (its own run dir, evidence dir and label); unset, mod/run as before
+const GAME = path.resolve(process.env.E2E_GAME_DIR ?? path.join(ROOT, 'mod', 'run'));
 process.env.ARCHITECT_GAME_DIR = GAME;
 const PORT = Number(process.env.STEWARD_DEV_PORT ?? 8591);
 const WORLD = path.join(GAME, 'saves', process.env.ARCHITECT_AUTOWORLD_NAME ?? 'Steward E2E');
-const OUT = path.join(ROOT, 'artifacts', 'e2e');
+const BASE = path.join(ROOT, 'artifacts', 'e2e');
+const OUT = path.resolve(process.env.E2E_OUT ?? BASE);
+const CLIENT = process.env.E2E_CLIENT ?? null;
 const LOG = path.join(GAME, 'logs', 'latest.log');
 const mode = process.argv[2] ?? 'free';
 // --only a,b: run only the flows whose name or tags hold one of the words (and the flows they need), plus the sanity set (status, claim, expand, restart); an RC's run
@@ -36,10 +39,37 @@ const mode = process.argv[2] ?? 'free';
 const keepWorld = process.argv.includes('--keep-world');
 const onlyAt = process.argv.indexOf('--only');
 const only = onlyAt > 0 ? (process.argv[onlyAt + 1] ?? '').toLowerCase().split(',').map((w) => w.trim()).filter(Boolean) : null;
-if (!['free', 'stub'].includes(mode) || (only && !only.length)) {
-  console.error('usage: node tools/e2e.mjs free|stub [--only word,word] [--keep-world]');
+// slice EF (mod/DEV.md "Faster runs"): --clients N runs the flows on N clients at once (--ports a,b: client k's sidecar port, its DevBridge port is
+// one above; --stagger s between their starts), --skip-unchanged skips a flow whose inputs are unchanged since its last PASS. --flows a,b is what a
+// --clients run gives each client: exactly these flows, in this order.
+const argOf = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] ?? '' : null; };
+let clients = Number(argOf('--clients') ?? 1);
+const portsArg = argOf('--ports');
+const stagger = Number(argOf('--stagger') ?? 60);
+const skipUnchanged = process.argv.includes('--skip-unchanged');
+const flowsArg = argOf('--flows');
+const exact = flowsArg == null ? null : flowsArg.split(',').map((w) => w.trim()).filter(Boolean);
+const ports = portsArg ? portsArg.split(',').map(Number) : null;
+if (!['free', 'stub'].includes(mode) || (only && !only.length) || !(Number.isInteger(clients) && clients >= 1) || !(stagger >= 0)
+  || (ports && (ports.length < clients || ports.some((p) => !(Number.isInteger(p) && p > 0)))) || (exact && (only || clients > 1))) {
+  console.error('usage: node tools/e2e.mjs free|stub [--only word,word] [--keep-world] [--clients N [--ports p1,p2] [--stagger s]] [--skip-unchanged] [--plan]');
   process.exit(2);
 }
+// the slot rule (AGENTS.md "Capacity"): at most 4 Steward clients machine-wide; with too few free, one client as before, and it says so
+const MAX_CLIENTS = Number(process.env.E2E_MAX_CLIENTS ?? 4);
+if (clients > 1) {
+  let running = 0;
+  try { running = execFileSync('pgrep', ['-f', 'steward[^ ]*/mod.*KnotClient'], { encoding: 'utf8' }).split('\n').filter(Boolean).length; } catch {}
+  const free = MAX_CLIENTS - running;
+  if (free < clients) {
+    console.log(`clients: ${running} Steward client(s) already run, ${Math.max(0, free)} of ${MAX_CLIENTS} slots free: falling back from ${clients} clients to 1`);
+    clients = 1;
+  }
+}
+// a --clients run with 2 or more leads: it starts the clients (each a child e2e.mjs), merges their summaries and starts no game itself
+// --plan: print what would run where (the packing, the skips) and start nothing
+const PLAN = process.argv.includes('--plan');
+const LEAD = clients > 1 || PLAN;
 const { DevClient } = await import(pathToFileURL(path.join(ARCH, 'tools', 'lib', 'devclient.mjs')).href);
 const { Blueprint, PALETTES } = await import(pathToFileURL(path.join(ARCH, 'kit', 'lib', 'kit.mjs')).href);
 const { writeBlueprint } = await import(pathToFileURL(path.join(ARCH, 'kit', 'lib', 'write.mjs')).href);
@@ -279,14 +309,18 @@ async function waitForLoad() {
 
 // ------------------------------------------------------------------ steps
 
+const realPath = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
+
 async function preflight() {
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists (mod/run/architect/sidecar-data/secrets.json): remove it');
-  try {
-    // this checkout's client only (a worktree's path is not steward-mc/...): another checkout's client has its own mod/run and ports
-    execFileSync('pgrep', ['-f', `${ROOT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/mod/.*KnotClient`]);
-    throw new Error(`a Steward client already runs on ${path.join(ROOT, 'mod', 'run')}; quit it first`);
-  } catch (e) {
-    if (e.message.startsWith('a Steward client')) throw e;
+  // this checkout's clients only (a worktree's path is not steward-mc/...), and of those only one on this run dir (a --clients run's other clients
+  // have their own, slice EF): its working directory is its game dir
+  let pids = [];
+  try { pids = execFileSync('pgrep', ['-f', `${ROOT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/mod/.*KnotClient`], { encoding: 'utf8' }).split('\n').filter(Boolean); } catch {}
+  for (const pid of pids) {
+    let cwd = null;
+    try { cwd = /^n(.+)$/m.exec(execFileSync('lsof', ['-a', '-p', pid, '-d', 'cwd', '-Fn'], { encoding: 'utf8' }))?.[1] ?? null; } catch {}
+    if (cwd == null || realPath(cwd) === realPath(GAME)) throw new Error(`a Steward client already runs on ${GAME}; quit it first`);
   }
   // the sidecar's data on the RAM disk when it's there (the 11-14 machine audit: ~3 GB written per worktree per 30 min); the world, logs and shots stay on disk
   const sd = ramSidecarData(GAME);
@@ -5752,9 +5786,12 @@ function flow(name, tags, fn, needs = []) {
 async function runFlows() {
   flowsRan = true;
   flowsAt = Date.now();
-  const why = pickFlows(flows, only);
-  for (const f of flows.splice(0)) {
-    if (!why.has(f.name)) { skipped.push(f.name); continue; }
+  const { why } = planFlows();
+  const order = exact ? exact.map((n) => flows.find((f) => f.name === n)).filter(Boolean) : [...flows];
+  for (const f of flows) if (!why.has(f.name)) skipped.push(f.name);
+  flows.splice(0);
+  for (const f of order) {
+    if (!why.has(f.name)) continue;
     console.log(`flow ${f.name}${why.get(f.name) ? ` (needed by ${why.get(f.name)})` : ''}`);
     const t0 = Date.now();
     const load = Math.round(os.loadavg()[0] * 10) / 10;
@@ -5768,20 +5805,190 @@ async function runFlows() {
     }
   }
 }
+
+// ------------------------------------------------------------------ slice EF: faster runs (mod/DEV.md "Faster runs")
+
+const PASSES = path.join(BASE, 'passes.json');
+const TIMES = path.join(BASE, 'flow-times.json');
+const readJson = (f, dflt) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return dflt; } };
+/** Flows skipped as unchanged (--skip-unchanged): [{ name, why }]. */
+const unchanged = [];
+let blocksMemo = null;
+
+/** e2e.mjs's top-level code blocks, with each identifier imported from tools/lib standing for its whole module. */
+function e2eBlocks() {
+  if (blocksMemo) return blocksMemo;
+  const src = fs.readFileSync(fileURLToPath(import.meta.url), 'utf8');
+  blocksMemo = codeBlocks(src);
+  for (const m of src.matchAll(/^import\s*\{([^}]*)\}\s*from\s*'(\.\/lib\/[^']+)'/gm)) {
+    const text = fs.readFileSync(path.join(ROOT, 'tools', m[2]), 'utf8');
+    for (const id of m[1].split(',').map((x) => x.trim().split(/\s+as\s+/).pop()).filter(Boolean)) blocksMemo[id] = text;
+  }
+  return blocksMemo;
+}
+
+/** A flow's code: the blocks its body reaches, and those of the flows it needs. */
+function flowCode(f) {
+  const blocks = e2eBlocks();
+  const roots = [f, ...(f.needs ?? []).map((n) => flows.find((x) => x.name === n)).filter(Boolean)];
+  const text = roots.map((r) => r.fn.toString()).join('\n');
+  const names = closureOf(blocks, text);
+  return { names, text: text + '\n' + names.map((n) => `// ${n}\n${blocks[n]}`).join('\n') };
+}
+
+/** The run's inputs that are not one flow's: the jar's sha, the Architect pin, the mod's sources. */
+let commonMemo = null;
+function commonInputs() {
+  if (commonMemo) return commonMemo;
+  const libs = path.join(ROOT, 'mod', 'build', 'libs');
+  let jar = null;
+  try {
+    const jars = fs.readdirSync(libs).filter((n) => n.endsWith('.jar') && !/-(sources|dev)\.jar$/.test(n)).map((n) => path.join(libs, n));
+    jars.sort((a, b) => fs.statSync(b).mtimeMs - fs.statSync(a).mtimeMs);
+    if (jars.length) jar = hashText(fs.readFileSync(jars[0]));
+  } catch {}
+  const props = fs.readFileSync(path.join(ROOT, 'mod', 'gradle.properties'), 'utf8');
+  const pinOf = (k) => new RegExp(`^${k}=(.*)$`, 'm').exec(props)?.[1]?.trim() ?? '';
+  let rcJar = '';
+  try { if (process.env.ARCHITECT_JAR) rcJar = hashText(fs.readFileSync(process.env.ARCHITECT_JAR)); } catch { rcJar = 'unreadable'; }
+  const pin = `architect ${pinOf('architect_version')}${rcJar ? ` jar ${rcJar}` : ''}; lab-ui ${pinOf('lab_ui_version')}`;
+  const src = hashPaths(ROOT, ['mod/src/main', 'mod/src/client', 'mod/build.gradle', 'mod/settings.gradle', 'mod/gradle.properties']);
+  return (commonMemo = { jar, pin, src });
+}
+
+/** A flow's key parts for passes.json: its code block, its fixtures, the mod sources, the jar, the pin. */
+function flowKey(f) {
+  const code = flowCode(f);
+  const c = commonInputs();
+  return { block: hashText(code.text), fixtures: hashPaths(ROOT, fixtureRefs(code.text)), src: c.src, jar: c.jar, pin: c.pin };
+}
+
+/**
+ * What runs: pickFlows' choice (--only) or a --clients run's exact list, less the unchanged flows with --skip-unchanged (printed with why; a
+ * flow a running one needs still runs). The sanity set is not a flow: it always runs.
+ */
+let planMemo = null;
+function planFlows() {
+  if (planMemo) return planMemo;
+  let why = exact ? new Map(exact.map((n) => [n, ''])) : pickFlows(flows, only);
+  if (skipUnchanged && !exact) {
+    const last = readJson(PASSES, {})[mode] ?? {};
+    const skips = {};
+    const reasons = {};
+    for (const f of flows) {
+      if (!why.has(f.name)) continue;
+      const d = skipDecision(f, flowKey(f), last[f.name]);
+      reasons[f.name] = d.why;
+      if (d.skip) skips[f.name] = true;
+      else console.log(`runs ${f.name}: ${d.why}`);
+    }
+    const r = applySkips(flows, why, skips);
+    for (const n of Object.keys(skips)) if (r.run.has(n)) console.log(`runs ${n}: unchanged, but ${r.run.get(n)} needs it`);
+    for (const n of r.skipped) { unchanged.push({ name: n, why: reasons[n] }); console.log(`skip ${n}: ${reasons[n]}`); }
+    console.log(`--skip-unchanged: ${r.skipped.length} flow(s) skipped, ${r.run.size} run (the sanity set always runs)`);
+    why = r.run;
+  }
+  return (planMemo = { why });
+}
+
+/** The last seconds of each flow: ET's last summary, then flow-times.json (every run's, newest kept); E2E_TIMES names another summary or times file. */
+function flowSeconds() {
+  const out = {};
+  for (const f of [path.join(BASE, 'summary.json'), TIMES, process.env.E2E_TIMES].filter(Boolean)) {
+    const j = readJson(f, null);
+    if (!j) continue;
+    if (Array.isArray(j.flows)) for (const x of j.flows) out[x.name] = x.seconds;
+    else for (const [k, v] of Object.entries(j)) if (Number.isFinite(v?.seconds)) out[k] = v.seconds;
+  }
+  return out;
+}
+
+/** After a run (not a client of a --clients run): each flow's seconds into flow-times.json, each passed flow's key into passes.json. */
+function recordRun(flowRows) {
+  const times = readJson(TIMES, {});
+  const passes = readJson(PASSES, {});
+  passes[mode] ??= {};
+  const at = new Date().toISOString();
+  const byName = new Map(flowKeys.map((k) => [k.name, k.key]));
+  for (const r of flowRows) {
+    times[r.name] = { seconds: r.seconds, at, mode, ...(r.client ? { client: r.client } : {}) };
+    if (r.failed === 0 && r.checks > 0 && byName.has(r.name)) passes[mode][r.name] = { at, ...byName.get(r.name) };
+    else if (r.failed > 0) delete passes[mode][r.name];
+  }
+  fs.mkdirSync(BASE, { recursive: true });
+  fs.writeFileSync(TIMES, JSON.stringify(times, null, 2));
+  fs.writeFileSync(PASSES, JSON.stringify(passes, null, 2));
+}
+/** The keys of the flows this run ran, worked out before they ran (the jar, the sources and the fixtures as they were at the start). */
+const flowKeys = [];
+const keyFlows = (names) => { for (const n of names) { const f = flows.find((x) => x.name === n); if (f) flowKeys.push({ name: n, key: flowKey(f) }); } };
+
+/**
+ * A --clients run: the flows in groups (a flow with what it needs, and flows sharing a block that writes fixed names under artifacts/e2e), packed
+ * longest first onto the clients, each a child e2e.mjs with its own run dir (client 1: mod/run, client k: mod/run-c<k>), ports and evidence dir
+ * (artifacts/e2e/c<k>). Their lines come prefixed [c<k>]; their summaries merge into artifacts/e2e/summary.json, each result naming its client.
+ */
+async function lead() {
+  flowsRan = true;
+  const { why } = planFlows();
+  const blocks = e2eBlocks();
+  const writers = Object.keys(blocks).filter((n) => n !== 'OUT' && n !== 'BASE' && /'artifacts',\s*'e2e'/.test(blocks[n]));
+  const touch = new Map(flows.filter((f) => why.has(f.name)).map((f) => [f.name, new Set(flowCode(f).names.filter((n) => writers.includes(n)))]));
+  const together = [];
+  const names = [...touch.keys()];
+  for (let i = 0; i < names.length; i++) for (let j = i + 1; j < names.length; j++) if ([...touch.get(names[i])].some((w) => touch.get(names[j]).has(w))) together.push([names[i], names[j]]);
+  const groups = groupFlows(flows, new Set(why.keys()), together);
+  const secs = flowSeconds();
+  let lanes = packFlows(groups, secs, clients).filter((l, i) => i === 0 || l.flows.length);
+  if (lanes.length < clients) console.log(`clients: only ${lanes.length} group(s) of flows to share: ${lanes.length} client(s)`);
+  for (const f of flows) if (!why.has(f.name) && !unchanged.some((u) => u.name === f.name)) skipped.push(f.name);
+  keyFlows([...why.keys()]);
+  const base = ports ?? null;
+  const plan = lanes.map((l, i) => {
+    const k = i + 1;
+    const sp = base ? base[i] : Number(process.env.STEWARD_PORT ?? 8590) + 2 * i;
+    return { k, flows: l.flows, packed: l.seconds, untimed: l.untimed, sidecarPort: sp, devPort: sp + 1, gameDir: k === 1 ? path.join(ROOT, 'mod', 'run') : path.join(ROOT, 'mod', `run-c${k}`), out: path.join(BASE, `c${k}`) };
+  });
+  for (const c of plan) console.log(`client c${c.k} (${c.sidecarPort}/${c.devPort}, ${path.relative(ROOT, c.gameDir)}): ~${c.packed}s recorded${c.untimed ? `, ${c.untimed} untimed` : ''}: ${c.flows.join(', ') || 'the sanity set only'}`);
+  if (PLAN) process.exit(0);
+  const runs = plan.map(async (c, i) => {
+    if (i) await sleep(stagger * 1000 * i);
+    fs.mkdirSync(c.out, { recursive: true });
+    const args = [fileURLToPath(import.meta.url), mode, '--flows', c.flows.join(','), ...(keepWorld ? ['--keep-world'] : [])];
+    const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_GAME_DIR: c.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(c.sidecarPort), STEWARD_DEV_PORT: String(c.devPort) };
+    const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const prefix = (stream, to) => {
+      let buf = '';
+      stream.on('data', (d) => { buf += d; let n; while ((n = buf.indexOf('\n')) >= 0) { to.write(`[c${c.k}] ${buf.slice(0, n)}\n`); buf = buf.slice(n + 1); } });
+      stream.on('end', () => { if (buf) to.write(`[c${c.k}] ${buf}\n`); });
+    };
+    prefix(child.stdout, process.stdout);
+    prefix(child.stderr, process.stderr);
+    const t0 = Date.now();
+    const code = await new Promise((r) => child.on('close', (x) => r(x ?? 1)));
+    return { ...c, code, seconds: Math.round((Date.now() - t0) / 1000), summary: readJson(path.join(c.out, 'summary.json'), null) };
+  });
+  // a Ctrl-C or kill of the lead stops its clients' runs (each quits its own client)
+  return Promise.all(runs);
+}
+let laneRuns = null;
 try {
-  await preflight();
-  freshWorld();
-  ensureStubEntry();
-  await waitForLoad();
-  launch();
-  await connect();
-  const r = await cmd('/steward status');
-  if (/ok/.test(r)) ok('status', r.split(' | ')[0]);
-  else fail('status', r);
+  // a --clients lead only names the flows (no game of its own): its clients run the sanity set and the flows
+  if (!LEAD) {
+    await preflight();
+    freshWorld();
+    ensureStubEntry();
+    await waitForLoad();
+    launch();
+    await connect();
+    const r = await cmd('/steward status');
+    if (/ok/.test(r)) ok('status', r.split(' | ')[0]);
+    else fail('status', r);
+  }
   // the sanity set, always run: status (above), the claim and its steward, Expand, the restart
-  const id = await claimAndSteward();
+  const id = LEAD ? 'lead' : await claimAndSteward();
   if (id) {
-    await expand(id);
+    if (!LEAD) await expand(id);
     await flow('stone-recipe', 'screens', () => stoneRecipe());
     await flow('inbox', 'screens', () => inboxScreen());
     await flow('shared-hud', 'screens inbox hud jobs', () => sharedHud());
@@ -5841,8 +6048,12 @@ try {
     }
   }
   await flow('migrated-steward', 'save migration', () => migratedSteward());
-  await runFlows();
-  await restartRestore();
+  if (LEAD) laneRuns = await lead();
+  else {
+    if (!CLIENT) keyFlows([...planFlows().why.keys()]);
+    await runFlows();
+    await restartRestore();
+  }
 } catch (e) {
   fail('run', e.message);
 } finally {
@@ -5853,8 +6064,27 @@ try {
   }
   if (client && client.exitCode === null) client.kill();
 }
+const clientRows = [];
+if (laneRuns) {
+  // the clients' summaries merged: every result and flow names its client; a client that wrote none failed as a whole
+  for (const c of laneRuns) {
+    const s = c.summary;
+    for (const r of s?.results ?? []) results.push({ ...r, client: `c${c.k}` });
+    for (const f of s?.flows ?? []) flowTimes.push({ ...f, client: `c${c.k}` });
+    if (!s) results.push({ check: 'run', ok: false, why: `client c${c.k} wrote no summary (exit ${c.code})`, client: `c${c.k}` });
+    else if (c.code !== 0 && !(s.failed > 0)) results.push({ check: 'run', ok: false, why: `client c${c.k} exited ${c.code}`, client: `c${c.k}` });
+    clientRows.push({ client: `c${c.k}`, ports: [c.sidecarPort, c.devPort], gameDir: c.gameDir, flows: c.flows, packedSeconds: c.packed, seconds: c.seconds, sanitySeconds: s?.sanitySeconds ?? null, exit: c.code, failed: s?.failed ?? null });
+  }
+}
 const failed = results.filter((r) => !r.ok).length;
-fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, at: new Date().toISOString(), seconds: Math.round((Date.now() - started) / 1000), failed, sanitySeconds: flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
+const seconds = Math.round((Date.now() - started) / 1000);
+fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), at: new Date().toISOString(), seconds, failed, sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
+if (!CLIENT) recordRun(flowTimes);
+if (laneRuns) {
+  const sum = flowTimes.reduce((a, f) => a + f.seconds, 0);
+  console.log(`clients: ${clientRows.map((c) => `${c.client} ${c.seconds}s (${c.flows.length} flows)`).join(', ')}; wall ${seconds}s for ${sum}s of flows`);
+  for (const r of results.filter((x) => !x.ok)) console.log(`FAIL [${r.client}] ${r.check}: ${r.why}`);
+}
 if (only) console.log(`only ${only.join(',')}: ${skipped.length} flows skipped`);
 console.log(failed === 0 ? `PASS ${results.length} checks` : `${failed} FAIL of ${results.length}`);
 process.exit(failed === 0 && results.length > 0 ? 0 : 1);
