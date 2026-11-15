@@ -121,7 +121,7 @@ public final class Composer {
 		var req = dev.larattalabs.steward.gateway.ComposeJob.request(s.id(), cardJson, land, claim, anchors, player.toString());
 		// the key carries this settlement's card sha (not the passed JSON's): the staleness check reads the saved card the same way
 		req = new dev.larattalabs.architect.api.ComposeRequest(req.brief(), req.claim(), req.styleId(), req.images(), req.budgetUsd(),
-			dev.larattalabs.steward.gateway.ComposeJob.opKey(world(server) + "." + s.id(), sha), withCard(req.ext(), sha, claimKey(s)));
+			dev.larattalabs.steward.gateway.ComposeJob.opKey(world(server) + "." + s.id(), sha), withCard(req.ext(), sha, claimKey(s), world(server)));
 		COMPOSING.put(s.id(), session);
 		// the old card's plan (if any) must not build this card, whatever this compose comes to
 		PlanStore.remove(s.id());
@@ -137,7 +137,11 @@ public final class Composer {
 			}
 			Steward.LOGGER.info("plan for {}: composing as design {}", s.id(), id);
 			// a key that adopted a compose already ended answers at once (DESIGN_DONE fired before)
-			ArchitectApi.get().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(d -> onDone(server, d));
+			ArchitectApi.get().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(d -> {
+				// taken again even if this session kept it before: the plan was dropped when this compose started
+				HANDLED.remove(Session.current() + "#" + d.id());
+				onDone(server, d);
+			});
 		}));
 	}
 
@@ -174,8 +178,12 @@ public final class Composer {
 		ArchitectApi.get().regions().compose(req).whenComplete((id, err) -> server.execute(() -> {
 			if (err != null) {
 				JsonObject o = new JsonObject();
-				o.addProperty("error", String.valueOf((err.getCause() != null ? err.getCause() : err).getMessage()));
-				o.addProperty("usd", 0.0);
+				Throwable c = err.getCause() != null ? err.getCause() : err;
+				o.addProperty("error", String.valueOf(c.getMessage()));
+				// a typed refusal spent nothing; anything else (a lost acknowledgement) may have started spending: counted at its cap, and the run stops
+				boolean refused = c instanceof dev.larattalabs.architect.api.RegionRefused || c instanceof IllegalArgumentException;
+				o.addProperty("usd", refused ? 0.0 : req.budgetUsd());
+				if (!refused) o.addProperty("ambiguous", true);
 				write.accept(o);
 				return;
 			}
@@ -229,11 +237,24 @@ public final class Composer {
 	}
 
 	/** The ext with Steward's card sha and claim. */
-	private static com.google.gson.JsonObject withCard(com.google.gson.JsonObject ext, String sha, String claim) {
+	private static com.google.gson.JsonObject withCard(com.google.gson.JsonObject ext, String sha, String claim, String world) {
 		var e = ext.deepCopy();
 		e.addProperty(dev.larattalabs.steward.gateway.ComposeJob.EXT_CARD, sha);
 		e.addProperty(EXT_CLAIM, claim);
+		e.addProperty(EXT_WORLD, world);
 		return e;
+	}
+
+	/** The world a compose was asked from ({@link #world}): the helper's designs are the game dir's, shared by every world in it. */
+	static final String EXT_WORLD = "steward:world";
+
+	/** Whether the design's request still matches the settlement as it is now: this world, the same card and the same claim. */
+	static boolean current(MinecraftServer server, JsonObject ext, @Nullable Settlement now) {
+		if (now == null || now.card() == null) return false;
+		String sha = ext.has(dev.larattalabs.steward.gateway.ComposeJob.EXT_CARD) ? ext.get(dev.larattalabs.steward.gateway.ComposeJob.EXT_CARD).getAsString() : "";
+		String claim = ext.has(EXT_CLAIM) ? ext.get(EXT_CLAIM).getAsString() : "";
+		String world = ext.has(EXT_WORLD) ? ext.get(EXT_WORLD).getAsString() : "";
+		return world.equals(world(server)) && cardSha(now, "").equals(sha) && claimKey(now).equals(claim);
 	}
 
 	/** The claim a compose was over, as Steward names it (dimension, centre, radius): a design over another claim is not kept. */
@@ -290,11 +311,9 @@ public final class Composer {
 		if (!dev.larattalabs.steward.gateway.ComposeJob.isCompose(d)) return;
 		if (!HANDLED.add(Session.current() + "#" + d.id())) return;
 		String sid = ext.get(dev.larattalabs.steward.gateway.ComposeJob.EXT_SETTLEMENT).getAsString();
-		String sha = ext.has(dev.larattalabs.steward.gateway.ComposeJob.EXT_CARD) ? ext.get(dev.larattalabs.steward.gateway.ComposeJob.EXT_CARD).getAsString() : "";
 		var found = Settlements.store().get(sid);
-		String claim = ext.has(EXT_CLAIM) ? ext.get(EXT_CLAIM).getAsString() : "";
-		if (found.isEmpty() || found.get().card() == null || !cardSha(found.get(), "").equals(sha) || !claimKey(found.get()).equals(claim)) {
-			Steward.LOGGER.info("plan for {}: design {} was for another card (or the settlement is gone): not kept", sid, d.id());
+		if (!current(server, ext, found.orElse(null))) {
+			Steward.LOGGER.info("plan for {}: design {} was for another world, card or claim (or the settlement is gone): not kept", sid, d.id());
 			if (found.isPresent()) COMPOSING.remove(sid, Session.current());
 			return;
 		}
@@ -384,7 +403,14 @@ public final class Composer {
 			}));
 			return;
 		}
-		keep(server, player, s, plan, composed, c, leftOut);
+		// the card, claim or world may have changed during the checks: kept only while the design still matches
+		var now = Settlements.store().get(s.id()).orElse(null);
+		if (!current(server, composed.ext(), now)) {
+			Steward.LOGGER.info("plan for {}: the settlement changed during the check: not kept", s.id());
+			COMPOSING.remove(s.id(), Session.current());
+			return;
+		}
+		keep(server, player, now, plan, composed, c, leftOut);
 	}
 
 	/** A plan with Architect's street fragments applied: the parts changed and the lots left out ("townhouse 4"). */
@@ -561,7 +587,8 @@ public final class Composer {
 		// until CP: NO_PLAN has no summary in the composer's words (CP's result.summary)
 		String told = composed.summary().isBlank() || hiddenMissing ? summaryOf(plan) : composed.summary();
 		List<String> honest = new ArrayList<>();
-		if (!missing.isEmpty()) honest.add("Not in the plan: " + words(missing) + ".");
+		if (!missing.isEmpty()) honest.add("Not in the plan: " + words(missing.stream().map(m -> secrets.scrub(m).isBlank() || dev.larattalabs.steward.gateway.ComposeJob.tells(m)
+			? "one part of the ask" : m).distinct().toList()) + ".");
 		if (hiddenMissing) honest.add("One part of the ask isn't in the plan yet.");
 		if ("oscillation".equals(composed.outcome().stopped())) honest.add("Architect stopped repairing the plan: the same parts kept coming back unfit.");
 		if ("budget".equals(composed.outcome().error())) honest.add("Architect stopped at the plan's spending cap.");

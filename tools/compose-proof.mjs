@@ -44,6 +44,19 @@ const logText = () => (fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8') : '');
 let client = null;
 let dev = null;
 const result = { words, cap, composeCap };
+// the opt-in goes on any exit: a signal or a crash skips `finally`
+const dropOptIn = () => {
+  try {
+    if (fs.existsSync(OPT_IN)) fs.unlinkSync(OPT_IN);
+  } catch {
+    // nothing more to do
+  }
+};
+process.on('exit', dropOptIn);
+for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => {
+  dropOptIn();
+  process.exit(130);
+});
 fs.mkdirSync(path.dirname(OPT_IN), { recursive: true });
 fs.writeFileSync(OPT_IN, JSON.stringify({ useClaudeLogin: true }));
 try {

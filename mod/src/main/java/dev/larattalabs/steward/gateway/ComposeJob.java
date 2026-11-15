@@ -326,7 +326,13 @@ public final class ComposeJob {
 	 */
 	public static boolean asksHidden(JsonObject card) {
 		String t = card.toString().toLowerCase(Locale.ROOT);
-		return t.matches("(?s).*\\b(hidden|secret|concealed)\\b.*") || t.matches("(?s).*behind (a|the) (waterfall|falls)\\b.*");
+		return tells(t) || t.matches("(?s).*\\b(hideouts?|hideaways?)\\b.*") || t.matches("(?s).*behind (a|the) (waterfall|falls)\\b.*")
+			|| t.matches("(?s).*inside (a|the) (hill|mountain|cliff)\\b.*");
+	}
+
+	/** Whether {@code text} says hidden, secret or concealed (a word that gives a secret away, as Secrets' tells). Pure. */
+	public static boolean tells(String text) {
+		return text.toLowerCase(Locale.ROOT).matches("(?s).*\\b(hidden|secret|secretly|concealed)\\b.*");
 	}
 
 	/** Whether the plan writes a hidden room ({@code form.hidden_room}, a form of kind {@code hidden_room}). Pure. */

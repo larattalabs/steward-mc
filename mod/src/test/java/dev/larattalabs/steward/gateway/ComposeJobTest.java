@@ -168,6 +168,9 @@ class ComposeJobTest {
 		withRoom.getAsJsonArray("forms").add(json("{\"id\":\"hollow\",\"kind\":\"hidden_room\",\"host\":{\"part\":\"falls\"},\"required\":true}"));
 		assertTrue(ComposeJob.hasHiddenRoom(withRoom));
 		assertFalse(ComposeJob.asksHidden(json("{\"name\":\"Plain\",\"site\":{\"text\":\"a farming village on a plain\"}}")));
+		assertTrue(ComposeJob.asksHidden(json("{\"site\":{\"text\":\"a bandit hideout\"}}")));
+		assertTrue(ComposeJob.asksHidden(json("{\"site\":{\"text\":\"a forge inside the mountain\"}}")));
+		assertTrue(ComposeJob.tells("2 secret cellars") && !ComposeJob.tells("2 cottage homes"));
 	}
 
 	@Test
