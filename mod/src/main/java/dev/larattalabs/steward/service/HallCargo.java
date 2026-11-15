@@ -1,6 +1,5 @@
 package dev.larattalabs.steward.service;
 
-import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.SiteView;
 import dev.larattalabs.steward.module.ModuleKind;
 import dev.larattalabs.steward.module.ModuleRef;
@@ -85,7 +84,7 @@ public final class HallCargo {
 		if (siteIds.isEmpty()) return null;
 		int items = 0, containers = 0;
 		boolean complete = true;
-		for (SiteView v : ArchitectApi.get().sites(server).list(owner)) {
+		for (SiteView v : ArchitectAccess.api().sites(server).list(owner)) {
 			if (!siteIds.contains(v.id())) continue;
 			var ref = ModuleRef.of(v.ext());
 			if (ref == null || !ModuleKind.StorageHall.ID.equals(ref.id())) continue;
@@ -114,7 +113,7 @@ public final class HallCargo {
 		if (cells.isEmpty()) return null;
 		int items = 0, containers = 0;
 		boolean complete = true;
-		for (SiteView v : ArchitectApi.get().sites(server).list(owner)) {
+		for (SiteView v : ArchitectAccess.api().sites(server).list(owner)) {
 			if (region != null && !region.equals(v.region())) continue;
 			var ref = ModuleRef.of(v.ext());
 			if (ref == null || !ModuleKind.StorageHall.ID.equals(ref.id())) continue;
