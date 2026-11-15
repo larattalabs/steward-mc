@@ -1328,6 +1328,61 @@ async function villageFlow() {
 }
 
 /**
+ * (slice VSR) A flat village left by no build and no history entry across a restart: built, the game stopped, its entry taken out (as a history that
+ * could not be saved leaves it). At the world start the sweep takes it up once: one "held by no build" line, one entry logged under its region, one
+ * removal, and the region removed.
+ */
+async function villageOrphanFlow() {
+  const label = 'village orphan';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 75000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Orphan Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little hamlet`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  const built = await buildThrough(id, from, label);
+  if (!built) return;
+  const placedOp = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const group = placedOp?.siteGroup ?? '';
+  if (!/^region:/.test(group)) return fail(label, `no village entry: ${JSON.stringify(placedOp)?.slice(0, 160)}`);
+  const region = group.slice('region:'.length);
+  // the build has ended (no build holds it), then the game stops and the entry is taken out
+  const bf = path.join(WORLD, 'steward-builds.json');
+  const heldBy = () => (fs.existsSync(bf) ? JSON.parse(fs.readFileSync(bf, 'utf8')).builds.filter((b) => b.settlementId === id).length : 0);
+  for (let i = 0; i < 60 && heldBy() > 0; i++) await sleep(1000);
+  await quit();
+  const held = heldBy();
+  editSettlement(id, (st) => { st.log = st.log.filter((e) => e.siteGroup !== group); });
+  launch();
+  await connect();
+  const esc = region.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const swept = await waitLog(0, new RegExp(`village region ${esc} of ${id} is held by no build and no history entry`), 120_000);
+  const removed = await entryUntil(id, (e) => e.kind === 'PROJECT_REMOVED' && (placedOp.siteIds ?? []).every((x) => (e.siteIds ?? []).includes(x)), 120);
+  const rv = await regionUntil(region, ['REMOVED'], 120_000);
+  // give a second take-up the time to show, then count
+  await sleep(15_000);
+  const log = settlements().find((x) => x.id === id)?.log ?? [];
+  const placedN = log.filter((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === group).length;
+  const removedN = log.filter((e) => e.kind === 'PROJECT_REMOVED' && (e.siteIds ?? []).some((x) => (placedOp.siteIds ?? []).includes(x))).length;
+  const lines = (logSince(0).match(new RegExp(`village region ${esc} of ${id} is held by no build`, 'g')) ?? []).length;
+  if (held === 0 && swept && removed && placedN === 1 && removedN === 1 && lines === 1 && rv?.state === 'REMOVED') {
+    ok(label, `${region}'s entry gone across a restart, no build holding it: taken up once at the world start (1 line, 1 entry, 1 removal of ${removed.siteIds.length} sites): ${removed.text}`);
+  } else fail(label, `builds holding it ${held}; swept ${!!swept} (${lines} lines); placed ${placedN}; removed ${removedN}; region ${rv?.state}; ${chatTail(0)}`);
+}
+
+/**
  * (docs/LAND.md, Architect LC) The steward sees what changed in its town: a flat village is built and looked over (nothing changed); then a player
  * breaks two cells of one building and refills one with cobblestone (Architect's PT: dev.pt.breaks and dev.pt.uses, so the cobblestone carries a
  * player's record). Looked over again, the steward names that building, 1 block broken or changed and 1 placed by a player, and nothing else; the
@@ -5475,6 +5530,7 @@ try {
       // stub: the first settlement's whole paid flow; the flows after it build their own
       await flow('stub', 'paid card plan wall revision undo', () => stubFlow(id));
       await flow('village', 'plan realise', () => villageFlow());
+      await flow('village-orphan', 'village orphan restart sweep', () => villageOrphanFlow());
       await flow('growth', 'growth region realise undo replan orphan', () => growthFlow());
       await flow('adopt', 'adopt growth region undo', () => adoptFlow());
       await flow('adopt-ns', 'adopt growth region undo street north-south', () => adoptNorthSouthFlow(), ['adopt']);
