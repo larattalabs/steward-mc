@@ -619,8 +619,15 @@ async function survival() {
       const ps0 = await pile();
       const g = await growHalls(region, sp, { survival: true });
       if (check(!g.refused, `cancel growth svc8: ${g.refused ? String(g.refused).slice(0, 300) : `rid ${g.rid}`}`)) {
+        // half of what the growth's targets owe, once they owe it (the stockpile accepts deliveries for what is outstanding)
+        let owed = {};
+        for (let i = 0; i < 60 && !Object.keys(owed).length; i++) {
+          await sleep(5000);
+          const ps = await pile();
+          owed = Object.fromEntries(Object.entries(ps.outstanding ?? {}).map(([it, n]) => [it, n - (ps.stock?.[it] ?? 0)]).filter(([, n]) => n > 0));
+        }
         const half = {};
-        for (const [it, n] of Object.entries(g.quote?.bom ?? {})) if (Math.floor(n / 2) > 0) half[it] = Math.floor(n / 2);
+        for (const [it, n] of Object.entries(owed)) if (Math.floor(n / 2) > 0) half[it] = Math.floor(n / 2);
         await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: half, exact: true }, 120_000);
         // mid-build: wait until the growth has consumed something (its targets place as they are fed), at most 5 minutes, and not built
         for (let i = 0; i < 60; i++) {
