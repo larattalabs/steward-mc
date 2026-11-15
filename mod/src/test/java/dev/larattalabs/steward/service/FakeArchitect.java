@@ -125,6 +125,7 @@ final class FakeArchitect {
 		String region;
 		JsonObject ext = new JsonObject();
 		int version = 1;
+		long placedAt = 1L;
 		BoundingBox box = new BoundingBox(0, 64, 0, 4, 70, 4);
 
 		Site(String id, String owner) {
@@ -143,11 +144,16 @@ final class FakeArchitect {
 		}
 	}
 
-	/** Architect's stockpile ledger for a region built from materials, as built (RS/RV section 8): a target draws its bill as it is built; an undo of a built
-	 * suffix refunds each paid block once per key {@code site:<id>@<placedAt>}; a target not built refuses the undo (survival_building, nothing written). */
+	/**
+	 * Architect's stockpile ledger for a region built from materials (RS/RV section 8, RU at the pinned 0.67.0): a target draws its bill as it is built and
+	 * the draw is recorded per target; an undo refunds what was actually drawn, once per key {@code site:<id>@<placedAt>} (a target never built refunds
+	 * nothing). Architect would also undo a target still building (RU); Steward refuses that itself before asking, so the fake never sees it in these tests.
+	 */
 	static final class Ledger {
 		final Map<String, Integer> stock = new HashMap<>();
 		final Map<String, Map<String, Integer>> bills = new HashMap<>();
+		/** What each target drew, by its refund key. */
+		final Map<String, Map<String, Integer>> drawn = new HashMap<>();
 		final Set<String> refunded = new HashSet<>();
 		int paid, returned;
 
@@ -160,14 +166,22 @@ final class FakeArchitect {
 			var bill = bills.get(site);
 			for (var e : bill.entrySet()) if (stock.getOrDefault(e.getKey(), 0) < e.getValue()) return false;
 			for (var e : bill.entrySet()) { stock.merge(e.getKey(), -e.getValue(), Integer::sum); paid += e.getValue(); }
-			a.sites.get(site).state = State.BUILT;
+			Site s = a.sites.get(site);
+			s.state = State.BUILT;
+			drawn.put(key(s), Map.copyOf(bill));
 			return true;
 		}
 
-		void refund(String site, long placedAt) {
-			var bill = bills.get(site);
-			if (bill == null || !refunded.add("site:" + site + "@" + placedAt)) return;
-			for (var b : bill.entrySet()) { stock.merge(b.getKey(), b.getValue(), Integer::sum); returned += b.getValue(); }
+		static String key(Site s) {
+			return "site:" + s.id + "@" + s.placedAt;
+		}
+
+		/** An undo's refund of one target: what it drew, once per key. */
+		void refund(Site s) {
+			String k = key(s);
+			var d = drawn.get(k);
+			if (d == null || !refunded.add(k)) return;
+			for (var b : d.entrySet()) { stock.merge(b.getKey(), b.getValue(), Integer::sum); returned += b.getValue(); }
 		}
 	}
 
@@ -256,33 +270,51 @@ final class FakeArchitect {
 		});
 	}
 
+	private static boolean standing(Rev v) {
+		return !"UNDONE".equals(v.state) && !"STALE".equals(v.state);
+	}
+
+	/**
+	 * Architect's {@code undoRevision(region, toPosition)}: refused for a region gone, busy (another operation), or a target outside {@code [0, head)}; else
+	 * the standing (not UNDONE, not STALE) suffix above {@code toPosition}, newest first: its sites removed (a paid target refunded once), the head moved,
+	 * the land put back. While it runs (HOLD) the region is busy and the suffix UNDOING; a same-target call then joins it, as Architect's does.
+	 */
 	private CompletableFuture<RemoveResult> undoRevision(String id, int toPosition, String actor) {
 		calls.add("regions.undoRevision " + id + " " + toPosition);
 		Region r = regions.get(id);
 		if (r == null || !r.present || r.state == RegionState.REMOVED) return CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "no such region " + id));
-		// Architect's own preflight (RS): a revision of the suffix whose target is not built refuses, nothing written
-		if (r.fromMaterials) {
-			for (Rev v : r.revisions) {
-				if (v.position <= toPosition || "UNDONE".equals(v.state)) continue;
-				for (String sid : v.sites) {
-					Site s = sites.get(sid);
-					if (s != null && s.state != State.BUILT) return CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "survival_building: " + sid + " is not built"));
-				}
-			}
-		}
-		return answer(undoAnswer, () -> {
-			for (Rev v : r.revisions) {
-				if (v.position <= toPosition || "UNDONE".equals(v.state)) continue;
+		List<Rev> suffix = r.revisions.stream().filter(v -> v.position > toPosition && standing(v)).sorted((x, y) -> Integer.compare(y.position, x.position)).toList();
+		boolean joining = r.busy != null && r.busy.equals("undoing to " + toPosition);
+		if (joining && joinedHold != null) return joinedHold;
+		if (r.busy != null && !r.busy.isBlank()) return CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "busy: " + r.busy));
+		boolean resuming = suffix.stream().anyMatch(v -> "UNDOING".equals(v.state));
+		if (toPosition < 0 || (toPosition >= r.position && !resuming) || suffix.isEmpty())
+			return CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "bad target " + toPosition + " (head " + r.position + ")"));
+		Runnable apply = () -> {
+			for (Rev v : suffix) {
 				v.state = "UNDONE";
 				for (String sid : v.sites) {
-					sites.remove(sid);
-					if (r.fromMaterials) ledger.refund(sid, 0L);
+					Site s = sites.remove(sid);
+					if (s != null && r.fromMaterials) ledger.refund(s);
 				}
 			}
 			r.position = toPosition;
+			r.busy = null;
 			if (r.landAt.containsKey(toPosition)) r.setLand(r.landAt.get(toPosition));
-		});
+		};
+		if (undoAnswer == Answer.HOLD) {
+			r.busy = "undoing to " + toPosition;
+			suffix.forEach(v -> v.state = "UNDOING");
+			var f = new CompletableFuture<RemoveResult>();
+			held.add(() -> { apply.run(); joinedHold = null; f.complete(new RemoveResult(true, List.of(), Map.of())); });
+			joinedHold = f;
+			return f;
+		}
+		return answer(undoAnswer, apply);
 	}
+
+	/** The future of an undo in flight (HOLD), which a same-target call joins. */
+	private CompletableFuture<RemoveResult> joinedHold;
 
 	private CompletableFuture<RemoveResult> removeRegion(String id) {
 		calls.add("regions.remove " + id);
@@ -296,6 +328,10 @@ final class FakeArchitect {
 	private CompletableFuture<UnadoptResult> unadopt(String id) {
 		calls.add("regions.unadopt " + id);
 		Region r = regions.get(id);
+		// Architect's AD: only an adopted region, idle, PLACED, with no standing revision
+		if (r == null || !r.present || !r.ext.has(Adoption.KEY_EXT) || r.state != RegionState.PLACED || (r.busy != null && !r.busy.isBlank())
+			|| r.revisions.stream().anyMatch(FakeArchitect::standing))
+			return CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "not an idle adopted region: " + id));
 		Runnable apply = () -> {
 			// Architect deletes the record on success (no tombstone); every site goes back to its own group, in no region
 			r.present = false;

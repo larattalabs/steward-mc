@@ -173,6 +173,7 @@ class RecoveryAdapterTest {
 		String id = nextId();
 		Settlement s = adopted(id, "rg_c");
 		var r = a.region("rg_c", s.owner());
+		r.ext.addProperty(Adoption.KEY_EXT, "steward.b1.adopt");
 		a.site("s1", s.owner(), "rg_c");
 		a.site("s2", s.owner(), "rg_c");
 		// the unadopt went through; its answer was lost
@@ -198,6 +199,8 @@ class RecoveryAdapterTest {
 		var intent = Settlement.LogEntry.of(2L, Kind.TOWN_ADOPTED, "Taking the town on", List.of(new Settlement.SiteChange("s1", "house_1", 0, 1)),
 			Adoption.INTENT + "steward.b7.adopt", Settlement.Outcome.PARTIAL);
 		put(s.withLog(intent));
+		// another adoption of the owner's, listed first: only the region carrying this intent's key closes it
+		a.region("rg_other", s.owner()).ext.addProperty(Adoption.KEY_EXT, "steward.b6.adopt");
 		var r = a.region("rg_d", s.owner());
 		r.ext.addProperty(Adoption.KEY_EXT, "steward.b7.adopt");
 		restart();
@@ -262,15 +265,40 @@ class RecoveryAdapterTest {
 		String id = nextId();
 		town(id, "rg_t2", false);
 		a.sites.get("g1").ext("steward_mc:settlement", id).ext(BatchPlanner.BUILD_EXT, "b1790000000001");
+		// a second orphan, in a standing district region of the same settlement: eligible on its own, so only the in-flight hold keeps it from a second call
+		put(now(id).withLands(now(id).lands().next().withDistrict(new Settlement.District("dst_1", "Ward", "E", EAST, 2L, List.of(), false,
+			Settlement.District.ALONG, Settlement.District.STANDING, null, "rg_t2d", Land.ofRect(OW, 113, 0, 120, 1), null, "steward." + id + ".dst_1"))));
+		a.region("rg_t2d", now(id).owner()).rev(1, 1, "PLACED", "q1");
+		a.site("q1", now(id).owner(), "rg_t2d").ext("steward_mc:settlement", id).ext(BatchPlanner.BUILD_EXT, "b1790000000002");
 		a.undoAnswer = Answer.HOLD;
 		VillageSweep.growths(null, now(id));
 		assertTrue(Undo.busy(id), "the settlement is busy while its take-up runs");
+		assertEquals("UNDOING", a.regions.get("rg_t2").revisions.get(0).state);
 		VillageSweep.growths(null, now(id));
 		VillageSweep.growths(null, now(id));
 		assertEquals(1, a.count("regions.undoRevision"), "one take-up in flight");
 		assertEquals(1, now(id).log().stream().filter(e -> Growths.tag("rg_t2", 1).equals(e.siteGroup()) && e.kind() == Kind.PROJECT_PLACED).count());
+		assertEquals(0, a.count("regions.undoRevision rg_t2d"), "the district's orphan waits");
 		a.complete();
 		assertFalse(Undo.busy(id));
+		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED));
+		// the next sweep goes on to the district's orphan: logged and taken up once
+		a.undoAnswer = Answer.APPLY;
+		VillageSweep.growths(null, now(id));
+		assertEquals(1, a.count("regions.undoRevision rg_t2d 0"));
+		assertEquals(2, count(now(id), Kind.PROJECT_REMOVED));
+	}
+
+	@Test
+	void ge_aTakeUpARestartCutShortResumesWithTheSameCallAndLogsOnce() throws IOException {
+		String id = nextId();
+		Settlement s = town(id, "rg_t9", true);
+		// the world stopped mid take-up: Architect reads the revision UNDOING (no longer busy after its own restart)
+		a.regions.get("rg_t9").revisions.get(0).state = "UNDOING";
+		restart();
+		assertEquals(Boolean.TRUE, undoGrowth(now(id), last(s)).get(), String.valueOf(said));
+		assertEquals(1, a.count("regions.undoRevision rg_t9 0"), "the same target, which resumes it");
+		assertEquals("UNDONE", a.regions.get("rg_t9").revisions.get(0).state);
 		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED));
 	}
 
@@ -395,8 +423,14 @@ class RecoveryAdapterTest {
 		// the head taken up, then rid 1 is the head
 		assertEquals(Boolean.TRUE, undoGrowth(now(id), head.get()).get(), String.valueOf(said));
 		assertEquals(1, a.count("regions.undoRevision rg_dist 1"));
-		assertEquals(Growths.tag("rg_dist", 1), Undo.headFirst(now(id), Optional.of(late)).orElseThrow().siteGroup());
-		assertNotNull(older);
+		var r = a.regions.get("rg_dist");
+		assertEquals(1, r.position, "the head moved to rid 1's position");
+		assertEquals("PLACED", r.revisions.get(0).state, "rid 1 stands");
+		assertEquals("UNDONE", r.revisions.get(1).state);
+		assertTrue(a.sites.containsKey("d0") && a.sites.containsKey("d1") && !a.sites.containsKey("d2"));
+		assertEquals(Land.ofRect(OW, 113, 0, 130, 1), now(id).lands().district("dst_1").orElseThrow().land(), "the land of rid 1 again");
+		// now rid 1 is the head: the older (non-late) entry is handed out, standing
+		assertEquals(older, Undo.headFirst(now(id), Optional.of(older)).orElseThrow());
 	}
 
 	@Test
