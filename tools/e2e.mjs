@@ -4976,9 +4976,15 @@ async function moduleSurvivalFlow() {
     const again = await waitLog(from, /The bill came to more than you approved[^\n]*/, 240_000);
     const upDirt2 = Number(/up to (\d+) dirt/.exec(again?.[0] ?? '')?.[1] ?? NaN);
     const bAgain = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id);
-    if (again && upDirt2 > upDirt && bAgain?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && !bAgain.vRegion)
-      ok(`${label} past the cap`, `${allowance + 1} dirt cells drifted while held: asked again, now up to ${upDirt2} dirt (was ${upDirt}); not realised`);
-    else return fail(`${label} past the cap`, `asked again ${!!again}; up to ${upDirt2} (was ${upDirt}); phase ${bAgain?.state?.phase}; region ${bAgain?.vRegion}`);
+    // the re-quote moved by exactly the drifted cells, in dirt only
+    const quoteAt = (since) => { const m = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(since)); return m ? JSON.parse(m[1]) : null; };
+    const delta = (a, b) => Object.fromEntries(Object.keys({ ...a, ...b }).map((k) => [k, (b?.[k] ?? 0) - (a?.[k] ?? 0)]).filter(([, d]) => d !== 0));
+    const qPast = quoteAt(from);
+    const d2 = qPast ? delta(quoted, qPast) : null;
+    if (again && upDirt2 > upDirt && JSON.stringify(d2) === JSON.stringify({ 'minecraft:dirt': allowance + 1 }) && bAgain?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && !bAgain.vRegion)
+      ok(`${label} past the cap`, `${allowance + 1} dirt cells drifted while held (re-quote ${JSON.stringify(d2)}): asked again, now up to ${upDirt2} dirt (was ${upDirt}); not realised`);
+    else return fail(`${label} past the cap`, `asked again ${!!again}; re-quote moved ${JSON.stringify(d2)} (want ${allowance + 1} dirt only); up to ${upDirt2} (was ${upDirt}); phase ${bAgain?.state?.phase}; region ${bAgain?.vRegion}`);
+    const heldShown = Object.values(bAgain.moduleOrders ?? {})[0]?.held ?? null;
     await drift(standing.slice(allowance + 1, allowance + 2));
     // approved: the bill becomes the bound and the realise's maxBill; realised from materials, fed in full whatever the stockpile still asks for
     // (every 3 s), never left waiting
@@ -4990,13 +4996,15 @@ async function moduleSurvivalFlow() {
     {
       const said = logSince(from);
       const third = /The bill came to more than you approved|so I ask first/.test(said);
+      const qWithin = quoteAt(from);
+      const d3 = qWithin ? delta(qPast, qWithin) : null;
       const capLine = new RegExp(`module ${id} realise \\S+ under \\S+: maxBill \\{([^}]*)\\}`).exec(said);
       const capSent = capLine ? Object.fromEntries(capLine[1].split(', ').map((kv) => kv.split('=')).map(([k, n]) => [k, Number(n)])) : null;
-      const bound = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id)?.moduleOrders?.[Object.keys(bAgain.moduleOrders ?? {})[0]]?.bound ?? null;
-      const same = capSent && bound && Object.keys({ ...capSent, ...bound }).every((k) => capSent[k] === bound[k]);
-      if (!third && capSent && capSent['minecraft:dirt'] === upDirt2 && (same || bound == null))
-        ok(`${label} within the cap`, `one more dirt cell drifted: placed with no third ask; the realise's maxBill is the approved bill (${JSON.stringify(capSent).slice(0, 200)})`);
-      else fail(`${label} within the cap`, `asked a third time ${third}; maxBill ${JSON.stringify(capSent)}; saved bound ${JSON.stringify(bound)}; up to ${upDirt2}`);
+      // the maxBill sent is exactly the bill shown at the second hold (saved as held, approved as the bound), item by item
+      const same = !!(capSent && heldShown) && Object.keys({ ...capSent, ...heldShown }).every((k) => capSent[k] === heldShown[k]);
+      if (!third && same && capSent['minecraft:dirt'] === upDirt2 && JSON.stringify(d3) === JSON.stringify({ 'minecraft:dirt': 1 }))
+        ok(`${label} within the cap`, `one more dirt cell drifted (re-quote ${JSON.stringify(d3)}): placed with no third ask; the realise's maxBill is the approved bill (${JSON.stringify(capSent).slice(0, 200)})`);
+      else fail(`${label} within the cap`, `asked a third time ${third}; re-quote moved ${JSON.stringify(d3)} (want 1 dirt); maxBill ${JSON.stringify(capSent)}; shown ${JSON.stringify(heldShown)}; up to ${upDirt2}`);
     }
     const g = await growthOf(id);
     const mods = await moduleSites(g.op);

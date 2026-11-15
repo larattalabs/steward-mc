@@ -622,8 +622,12 @@ Noah, 2026-11-14: "A: up to N". Architect v0.70.0 (QL's `Quote.terrain()`, BC's 
   new "up to N".
 - **`BILL_CAP` at put-down:** "the materials needed went past what you approved". It's quoted again and always held; the approval realises under
   the same key (Architect records neither the revision nor its key on that refusal).
-- **A `bill_cap` wait:** the steward says how far over it would go (`nextNeeded`) and that nothing past it is taken. Architect can't raise a
-  standing build's cap, so the player is pointed to undo (an exact refund) and asking again.
+- **A `bill_cap` wait:** the steward says how far over it would go (`nextNeeded`) and that nothing past it is taken, once per reason and
+  over-count, past the settlement's throttle. Architect 0.70.0 can't raise a standing build's cap, and A2 doesn't undo a growth still building
+  (A2L lifts that), so the player is told it stays as it stands. Leftovers: an Architect ask to raise a standing cap; Architect's unclean-start
+  reconcile isn't cap-aware (BC's own exclusion).
+- **Not covered:** a crash between a put-down refusal and its hold being saved re-quotes against the saved bound (cap-safe, but it may place
+  without the re-ask). No e2e engineers a put-down `BILL_CAP` or a `bill_cap` wait (unit-tested words and keys only).
 - **e2e** (module-survival, round 1): the held bill says "up to N dirt"; kept terrain cells that stand are turned to coarse dirt while it is held.
   Past the allowance, it is asked again with a new "up to". One cell more, within it, places with no third ask, under a `maxBill` equal to the
   approved bill.
