@@ -206,3 +206,30 @@ asserted: bar 3; crossings: 4.3), 11 (versions: @1 frozen, sorting is @2). Findi
 - 12: placed slot labels the player can read in the hall (from the lot's params, the input and the overflow too), and the offer's real
   dimensions.
 - 13: "no hopper under F" means no uncontrolled extraction below F (D, the controlled one, is there); the bars named, not numbered.
+
+## 6. Results (2026-11-14, Minecraft 26.3, Architect 0.67.0, kit/checker 0.62.0)
+
+`storage_hall@1` is certified (`measured.json`, `result: pass`, program `9e6f1f15…`). Evidence in `artifacts/m4/` (local).
+- **hall** 218/218: 17 halls in 4 V towns (every bulk 0-8 in rustic, bulk 0 and 8 in fortress and desert, extras for borders), all four
+  facings, 11 halls crossing a chunk border in x and more in z; shape (standing 1, double chests paired, the input single); storage slot by
+  slot; light at midnight (darkest 7); a restart; an asserted unload (34/34 chunks, 610 game ticks); every growth's undo refused for cargo,
+  and again with one item alone in each container class; the words; every emptied undo removed with no drops.
+- **survival** 26/26: three growths (bulk 0-8) billed exactly their quote (1,201, 1,150, 1,237 items); a cancel mid-build refunded exactly
+  what it had consumed; a chest the player mined dropped as theirs and was not refunded; every undo refunded consumed exactly; a restart gave
+  nothing twice.
+- **bounds** 58/58: the quote per bulk and Style, 27 per-Style bounds with role parts by provenance.
+- **offline** 151/151 (every branch x Style clean; the dim lamp, gravity and full-block probes), **ingame** 150/150.
+- **Run notes:** runs 1-3 and the first final runs failed only on the harness (the helper not yet up, the lots without Steward's ext, a player
+  standing in a site, the refusal's text in `refused`, the cancel fed before its targets owed anything); no bar moved.
+
+## 7. Diff review (GPT-6.1 Sol, of the slice's diff from 1f90b31 before the fixes, then a fix check)
+
+2 blockers, 5 should-fixes, 1 nit; the fix check found no new blocker and two should-fixes, both taken.
+- **Taken:** the cargo words on Architect's thrown refusal (then, from e2e: Architect's removal *waits* on cargo, so a growth undo whose hall
+  holds items is refused by Steward at once, `HallCargo.before`); `fullBlock` for wall and foundation (the lamps, the door); wall-form roof
+  slabs; the words scoped to the halls of the refused region whose containers the refusal names, a double chest once, "at least" when
+  unloaded, coordinates parsed safely; the unload over every chunk and 600 game ticks.
+- **Left over (recorded):** finding 5, a cold client restart with a replay of the original operations (the restart here is a world leave and
+  reopen in one client, as M2's); finding 7, a live bound-against-quote check for every branch in an unmeasured Style (each branch's quote
+  is measured equal to consumption, and the re-expression is unit-tested against the kit; the e2e checks one offered branch in another
+  Style); "chests" also counts a barrel or furnace a player adds.

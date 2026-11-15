@@ -1,5 +1,6 @@
 # Functional modules (phase 5)
 
+Status (2026-11-14): M4's plain hall (`storage_hall@1`) is certified on branch `storage-hall`; sorting is `storage_hall@2`, after Architect's FK-b.
 Status (2026-11-13): design v2.2 (2026-11-12, with Noah's decisions), being built at $0. **M0** (the probe, `docs/PROBE-M0.md`) and **M1** (the
 catalog) are merged; **M2** (the crop farm) and **M3** (offer and place) are being built, M3 ahead of M2 on M1's fixture module by design, and M2
 merges first (Noah, 2026-11-13). M4 waits on Architect's FK (S-M5-3), then M5. Section 9 holds the decisions that override the earlier sections.
@@ -624,12 +625,16 @@ Branch `storage-hall`. The design, bars and GPT design review are in `docs/MEASU
   held at 54 a double chest, rounded up, 2 to 8; a measured bulk asked for in talk is kept. The words: "Your stores are getting mixed: N kinds
   of items. I can raise a storage hall by the town (11 by 7): B double chests and an input chest by the door." Placement, binding, the bound
   and undo are M3's paths, unchanged.
-- **Undo with cargo** (Q3): Architect refuses it (a filled container isn't ours); `HallCargo` gives the steward's words with the count:
-  "the storage hall still holds 1,240 items in 9 chests; empty it first", then Architect's blockers.
+- **Undo with cargo** (Q3): Architect's removal waits on a filled container as a blocker, so Steward refuses a growth undo whose hall
+  holds items at once (`HallCargo.before`, over the revision's sites): "the storage hall still holds 1,240 items in 9 chests; empty it
+  first" (a double chest once; "at least" when part is unloaded). A refusal Architect does give is said the same way, for the halls whose
+  containers it names.
+- **Palette:** the wall and foundation must be full blocks (`fullBlock`: the lamps stand on the wall, the door on the foundation).
 - **`StyleBound`** knows the hall's roles (floor, wall, frame, `wood.door`, `roof.slab` via `slabOf`), pinned to the kit's palettes by a test.
 - **Dev hooks** (`ModuleDev`): `hallLot`, `containers` (every container in a box, slot by slot), `putItems`, `clearContainers`, `hallCargo`.
 - **Measured** by `tools/module-measure-hall.mjs` (`hall`, `survival`, `bounds`), certified by `tools/module-catalog.mjs record` (now per
   module: artifacts dir, runs, rates). e2e: `module-hall` and `module-hall-survival`.
+- **Certified** on 26.3 / Architect 0.67.0 (docs/MEASURE-M4.md section 6). GPT design review and diff review, both taken (sections 5, 7).
 - **No save format changes.**
 
 ## 9. Noah's answers (2026-11-12)
