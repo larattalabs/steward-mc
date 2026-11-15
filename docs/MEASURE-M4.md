@@ -10,6 +10,12 @@ branches (`slots` 4-16) wait for Noah's choice of the filler item (open: option 
 needs an Architect ask first; option 2 a billed plain item survival can make). Until then the envelope's `slots` branch is `[0]` only, and
 the program refuses any other value.
 
+**The filler is decided** (Noah, PLAN Decisions 2026-11-14, relayed by the Steward manager): `minecraft:petrified_oak_slab`, **module-provided**
+(option 1). It exists in 26.3 (block, item and loot table in the jar; no recipe). Architect's support is slice FK-b (strict, after J1, likely
+v0.70.0): the fill writes the slabs unbilled (not on the quote, the bill, `outstanding` or `nextNeeded`), removal and undo take them back with
+no refund, conservation counts them apart, an allow-list holds only this item, and a fill container is stripped of them before it drops (a
+repair re-filling them is asked). `storage_hall@2` (sorting) certifies only on an Architect with FK-b; the plain hall certifies on 0.67.0 now.
+
 **Versions (amended after the design review, finding 11).** A measured version is frozen (MODULES 2.1). The plain hall is `storage_hall@1`
 (`slots` `[0]`) and stays as certified; the sorting hall is **`storage_hall@2`**, a new program and envelope (its own plain branches
 included, measured again with it). Only the newest version is offered, so @2 replaces @1 once certified. A plain hall does not meet M5's
