@@ -5736,8 +5736,8 @@ async function districtGrowthFlow() {
  * plan) fed until built; a district reserved east of it; its first building's bill said before it is approved; left partly fed and cancelled while it
  * builds (what its targets drew comes back exactly, the ground as before); built from the stockpile across a restart between its realise and its answer
  * (found by its keys, no second approval, logged once, one region), what it consumed = its exact quote; grown by an addition (DG over A2) with a
- * restart at its massings, undo refused while it waits, fed, then undone (paid == returned, once); then the district undone (every unit it still had
- * consumed back, the ground as before, given up).
+ * restart at its massings, undone while it waits (Architect's RU, slice A2L: what it drew back once); then the district undone (every unit it still
+ * had consumed back, the ground as before, given up).
  */
 async function survivalDistrictFlow() {
   const label = 'survival district';
@@ -5946,13 +5946,16 @@ async function survivalDistrictFlow() {
       else if (!exact && over.length === 0) ok(`${label} built`, `sd ward built; consumed within its inexact quote, nothing past it (under it: ${under.slice(0, 4).join(', ')})`);
       else return fail(`${label} built`, `consumed past its ${exact ? 'exact' : 'inexact'} quote: ${over.slice(0, 6).join(', ') || 'none'}; under: ${under.slice(0, 6).join(', ')}`);
     }
-    // (3) grown by an addition (DG over A2): a restart at its massings, undo refused while it waits, fed, undone: paid == returned, once
+    // (3) grown by an addition (DG over A2, A2L): a restart at its massings; placed from materials, fed in part, it waits; /steward undo takes it up while it
+    // waits (Architect's RU): what it drew back exactly once, nothing more 20 s on, its revision UNDONE, the ground and the district's land as before it
     const landBefore = dgCols(dgDistrict(id, d.id)?.land);
     {
       const gl = `${label} growth`;
       const q = await dgAsk(id, d, 'ward archive');
       if (!q) return fail(gl, 'no proposal in the standing district');
       await clearAnimals();
+      const snapG = path.join(ROOT, 'artifacts', 'e2e', `sd-ward-grow-${id}.snap.gz`);
+      await dev.call('dev.region.hash', { box, mode: 'snap', file: snapG }, { timeoutMs: 1_800_000 });
       const sp0 = await ledger();
       from = logSize();
       nudge = region;
@@ -5969,36 +5972,37 @@ async function survivalDistrictFlow() {
       const stand = logSince(0).match(/The addition's construction sites stand and are built from the stockpile[^\n]*/);
       if (planned && op && stand) ok(gl, `planned and realised from materials as revision ${rid} of ${region} across a restart at its massings; ${stand[0].slice(0, 120)}`);
       else return fail(gl, `planned ${!!planned}; entry ${op?.siteGroup}; said ${!!stand}; ${chatTail(from)}`);
-      const spW = await ledger();
-      const hasNeed = Object.keys(spW?.need ?? {}).length > 0;
-      const snapW = path.join(ROOT, 'artifacts', 'e2e', `sd-ward-grown-${id}.snap.gz`);
-      await dev.call('dev.region.hash', { box, mode: 'snap', file: snapW }, { timeoutMs: 1_800_000 });
-      const f = logSize();
-      const r0 = removedCount(id);
-      const said = await cmd(`/steward undo ${id}`);
+      // fed in part, so it has drawn something and still waits
+      let spW = await ledger();
+      if (!Object.keys(minusItems(spW?.consumed, sp0?.consumed)).length) {
+        const half = Object.fromEntries(Object.entries(spW?.need ?? {}).map(([k, v]) => [k, Math.max(1, Math.floor(v / 2))]));
+        if (Object.keys(half).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: half }).catch(() => null);
+        for (let i = 0; i < 30 && !Object.keys(minusItems(spW?.consumed, sp0?.consumed)).length; i++) { await sleep(2000); spW = await ledger(); }
+      }
       await sleep(5000);
-      const refused = `${said}\n${logSince(f)}`.match(/still being built from the stockpile[^\n]*/);
-      const dW = await dev.call('dev.region.hash', { box, mode: 'diff', file: snapW }, { timeoutMs: 1_800_000 });
-      const offW = { length: dW.classes ? Object.entries(dW.classes).filter(([k]) => !/^(growth|grazed)$/.test(k)).reduce((a, [, v]) => a + v, 0) : -1 };
-      if (!hasNeed) ok(`${gl} undo while building`, 'fed in full before the undo could be asked: nothing waited (reported)');
-      else if (refused && !/survival_building|NOT_ALLOWED/.test(refused[0]) && offW.length === 0 && removedCount(id) === r0) ok(`${gl} undo while building`, `${refused[0].slice(0, 140)}; nothing written`);
-      else fail(`${gl} undo while building`, `said ${refused ? refused[0].slice(0, 120) : JSON.stringify(said).slice(0, 140)}; ${offW.length} cell(s) differ`);
-      feeding = true;
-      const builtAgain = await waitLog(f, /sd ward is built: everything its plan laid out stands[^\n]*/, 900_000);
-      feeding = false;
+      spW = await ledger();
+      const drew = minusItems(spW?.consumed, sp0?.consumed);
+      const waiting = Object.keys(spW?.need ?? {}).length > 0;
+      await away();
+      const n0 = removedCount(id);
+      const f = logSize();
+      await cmd(`/steward undo ${id}`);
+      let gone = null;
+      for (let i = 0; i < 300 && !gone; i++) { if (removedCount(id) > n0) gone = settlements().find((x) => x.id === id).log.filter((e) => e.kind === 'PROJECT_REMOVED').at(-1); else await sleep(1000); }
       const sp1 = await ledger();
-      const paid = minusItems(sp1?.consumed, sp0?.consumed);
-      const gone = await undoOnce(id, c);
-      const sp2 = await ledger();
       await sleep(20_000);
-      const sp3 = await ledger();
-      const got = back(sp1, sp2), more = back(sp2, sp3);
+      const sp2 = await ledger();
+      const got = back(spW, sp1), more = back(sp1, sp2);
       const rev = ((await regionView(region)).revisions ?? []).find((r) => r.rid === rid);
       let land = null;
       for (let i = 0; i < 30 && !land; i++) { const x = dgDistrict(id, d.id); if (x && dgSame(dgCols(x.land), landBefore)) land = x; else await sleep(1000); }
-      if (builtAgain && gone && rev?.state === 'UNDONE' && Object.keys(paid).length && sameItems(got, paid) && !Object.keys(more).length && land) {
-        ok(`${gl} refund once`, `${gone.text}; revision ${rid} UNDONE; paid ${JSON.stringify(paid).slice(0, 120)} == returned, nothing more 20 s on; the district's land as before`);
-      } else fail(`${gl} refund once`, `built ${!!builtAgain}; undo ${gone ? gone.text : 'not logged'}; revision ${rev?.state}; paid ${JSON.stringify(paid).slice(0, 100)}, back ${JSON.stringify(got).slice(0, 100)}, more ${JSON.stringify(more).slice(0, 60)}; land back ${!!land}`);
+      const area = (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
+      const dG = await dev.call('dev.region.hash', { box, mode: 'diff', file: snapG, exclude: area ? [[area.x0, box[1], area.z0, area.x1, box[4], area.z1]] : [] }, { timeoutMs: 1_800_000 });
+      const offG = dG.classes ? Object.entries(dG.classes).filter(([k]) => !/^(growth|grazed)$/.test(k)).reduce((a, [, v]) => a + v, 0) : -1;
+      const refused = /can be undone once it's built|survival_building/.test(logSince(f));
+      if (waiting && Object.keys(drew).length && gone && !refused && rev?.state === 'UNDONE' && sameItems(got, drew) && !Object.keys(more).length && land && offG === 0) {
+        ok(`${gl} undone while waiting`, `${gone.text}; revision ${rid} UNDONE while it waited; drew ${JSON.stringify(drew).slice(0, 120)}, the same back once, nothing more 20 s on; the ground and the district's land as before`);
+      } else fail(`${gl} undone while waiting`, `waiting ${waiting}; drew ${JSON.stringify(drew).slice(0, 100)}; undo ${gone ? gone.text : 'not logged'}${refused ? ' (refused)' : ''}; revision ${rev?.state}; back ${JSON.stringify(got).slice(0, 100)}, more ${JSON.stringify(more).slice(0, 60)}; land back ${!!land}; ${offG} cell(s) differ; ${chatTail(f)}`);
     }
     // (4) the district undone: every unit its targets still had consumed back, the ground as before, the district given up
     {

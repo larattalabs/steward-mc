@@ -328,10 +328,11 @@ its targets join the owner's feed order after the town's (RS "Ids and order"); t
 - **Undo:** `Undo.region` (refused while a growth of it stands; else `Regions.remove`, which cancels unbuilt targets and refunds what they drew once per
   key, also while it is still building, as a Supplied town's undo). The removal is logged once (`Undo.retired`), and a district whose removal was
   logged but whose give-up never saved is given up at the next start on Architect's tombstone (`Districts.giveUpRemoved`). A growth of it still building
-  keeps A2's refusal until slice A2L lifts it on RU.
+  is undone by Architect's RU (slice A2L, merged): what it drew comes back once.
 - **Not decided here (for Noah):** whether a district must wait until its town is fully built from materials (Architect doesn't require it: the feed
   order puts the town's targets first, but nothing holds the district back); a district from materials beside a town built at once (the world turned
   survival since; Architect allows it, a separate region in the world's mode); survival quarters.
 - **Checks:** unit `SurvivalDistrictTest` (the mode, the plain refusals, the bill line, the built line; over `FakeArchitect`: refused while a growth
   stands, removed while building with paid == returned once, a lost answer then a restart logged and refunded once, the give-up resumed only on a
-  tombstone). e2e (stub) flow `survival-district`.
+  tombstone). e2e (stub) flow `survival-district`: the first building cancelled while it builds (paid == returned), the restart held at Architect's
+  answer (saved PLACING, found by its keys, no second approval), consumed within its quote, a growth undone while it waits (RU), the district undone.
