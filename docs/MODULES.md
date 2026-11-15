@@ -661,7 +661,7 @@ Architect 0.72.0 (CONTRACT, `kit/schemas/plan.json`, the API). The paid compose,
 - `realiseApproved` takes the module entries in `lotEntries`. Its `costRange` test (`cols x 16` non-air cells, `PROVISIONAL_BAND`) is far
   above any measured module: a 27x27 farm writes at most 2,771 cells on a 29x30 lot (13,920 allowed).
 - So no Architect change is needed for M5 on main's exact-bound path. Once QD caps a realise (`maxBill`), one region-wide cap can't hold two
-  module bounds apart: a per-lot cap is drafted as S-M5-15. Two things are asked to be confirmed (ARCHITECT-ASKS.md, "M5 asks (draft)"): that a lot's box is
+  module bounds apart: a per-lot cap is drafted as S-M5-16. Two things are asked to be confirmed (ARCHITECT-ASKS.md, "M5 asks (draft)"): that a lot's box is
   its `size` exactly in every lots layout, and that FK's fill runs on a lot of a first realise (`realiseApproved`) as it does on a growth.
 
 **1. The composer names a module (the vocabulary).**

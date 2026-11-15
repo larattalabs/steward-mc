@@ -1748,15 +1748,15 @@ hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batc
 Steward's M5 builds module lots (a crop farm, a storage hall) inside a composed plan v1 town (docs/MODULES.md "M5 design"). 0.72.0 already
 takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ext`; the artifact's `lots[].irrigation`; `quoteApproved`'s
 `lot:<id>` and `fill:<id>`; `realiseApproved`'s `lotEntries`), so these are confirmations, not new members:
-- **S-M5-13, a lot's box is its size.** A module's variant is made for its lot's exact frame (the well layout and FC's field cells assume it).
+- **S-M5-14, a lot's box is its size.** A module's variant is made for its lot's exact frame (the well layout and FC's field cells assume it).
   Please confirm that a plan/0 lot's artifact `box` (and `fitBox`) is exactly its `size`, turned by its `front`, in every lots layout
   (street, ring, spiral, grid, organic, districts), and that neither an `adjusted` zone nor a street round resizes a lot. Steward refuses a
   module lot whose box differs, so a "no" is safe but should be named. If lots can be resized, asked: a lot member that keeps its size exact
   (refused `NO_ROOM` rather than resized).
-- **S-M5-14, FK on a first realise.** Please confirm that a given-program entry with `fillContainers` (M4b's `storage_hall@2`) bound to a
+- **S-M5-15, FK on a first realise.** Please confirm that a given-program entry with `fillContainers` (M4b's `storage_hall@2`) bound to a
   provisional lot of an approved artifact is filled by `realiseApproved` (instant and from materials) as on a growth: built locked, filled once,
   unlocked; `fill:<lot>` in `quoteApproved`; the cargo refusal and the capture at `Regions.remove` of the whole region.
-- **S-M5-15 (for QD, not needed now), a cap per lot.** Steward holds each module lot of a composed town to its own measured bound by the
+- **S-M5-16 (for QD, not needed now), a cap per lot.** Steward holds each module lot of a composed town to its own measured bound by the
   quote's `lot:<id>` and `fill:<id>` pieces. `ApprovedRealise.maxBill` is one cap over the whole region, so once QD caps realises it can't hold
   two modules apart when they use the same items. Asked for then: a per-lot (or per-piece) cap on `realiseApproved`, refusing or waiting
   when one lot's consumption passes its own cap.

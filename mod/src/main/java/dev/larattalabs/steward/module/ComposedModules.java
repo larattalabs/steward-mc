@@ -347,7 +347,7 @@ public final class ComposedModules {
 
 	/**
 	 * Why the artifact lot can't hold this module's frame, or null: a box that isn't exactly the frame (W x D from its front), or an irrigation
-	 * frame that differs from it (the variant is made for that frame; Architect's S-M5-13). Pure.
+	 * frame that differs from it (the variant is made for that frame; Architect's S-M5-14). Pure.
 	 */
 	public static @Nullable String frameProblem(JsonObject artifactLot, int[] moduleFrame) {
 		int[] f = frame(artifactLot);
