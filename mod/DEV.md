@@ -629,3 +629,19 @@ world per step; `--attach`, `--keep-client`). The bars and results are in docs/M
 
 **The part writer is temporary (slice CA, 2026-11-14):** a waiting part's own plan (COMPOSITION section 11) is still Steward's job on a slim
 part-only prompt (`prompts/plan-writer.md`); it moves onto `Regions.compose` in slice CA2, after Architect's CP (`architect_mc:skipPick`).
+
+## P0's seven: the parts that didn't fit in P0's CI, re-scored on Architect 0.70.0 (slice PV1, 2026-11-15, $0)
+`checkPlanLocal` from v0.70.0's kit (catalogue 24) on the asks claim with Steward's anchors, over the first recordings (Architect's
+`asks-8703dbd` copies), `fixtures/strange-asks/plans/` (the tests' input) and `plans-2026-11-10/`. No paid re-record.
+- **arcology/unused_placeholder** (a zone with no lots, NO_ROOM): still refused on the first recording; today's writer writes no lotless zone (plans/
+  `tower_site` fits). Fits now. (11-10's `tower_floors` rule names a lot, not a part: MALFORMED UNKNOWN_REF, a writer fault for the leftovers.)
+- **one_block/gentle_terraces** (a terrace inside its zone, OVERLAP): the writer puts terraces beside the zone; plans/ `terraces` fits, 11-10 READY. Fits now.
+- **terraced_hill/terraces** (the same OVERLAP): plans/ `terraces` fits; 11-10 READY. Fits now. (plans/ `switchback_street` is blocked on an unwalled
+  gatehouse, the 11-10 writer fault fixed forward.)
+- **rival_families/estates** (no river on the asks claim, NO_FEATURE): written as two bank zones; plans/ READY (11-10's `west_estate` OVERLAP is the
+  shore band fault already listed). Fits now.
+- **underwater_domes/colony** (no ocean, NO_FEATURE): a named wait. The colony depends on `form.seabed_site`, reserved "until later" in 0.70.0, and
+  the plan keeps it pending with Claude's words. Asked: S-PV1-2 (ARCHITECT-ASKS).
+- **spiral_town/spiral_road** (a 3-wide street between one village's lots, UNREACHABLE): the writer writes `layout: "spiral"` (FL) instead; plans/ and
+  11-10 READY. Fits now.
+- **spiral_town/hill_relief** (blocked by the road): gone with it. Fits now.

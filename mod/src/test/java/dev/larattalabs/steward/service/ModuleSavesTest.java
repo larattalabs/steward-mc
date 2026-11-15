@@ -100,7 +100,7 @@ class ModuleSavesTest {
 		st.put(b);
 		Path f = dir.resolve("steward-builds.json");
 		st.save(f);
-		assertTrue(Files.readString(f).contains("\"format\": 6"));
+		assertTrue(Files.readString(f).contains("\"format\": 7"));
 		var back = BuildStore.load(f).all().get(0);
 		assertEquals(b, back);
 		assertEquals(order(), back.moduleOrders().get("lot_3"));
@@ -111,7 +111,7 @@ class ModuleSavesTest {
 	void aFormat5BuildReadsWithNoOrders() {
 		BuildStore st = new BuildStore();
 		st.put(BuildStoreTestAccess.saved().withModuleBindings(BuildStoreFormat5Test.bindings()));
-		String v5 = st.toJson().replaceFirst("\"format\": 6", "\"format\": 5");
+		String v5 = st.toJson().replaceFirst("\"format\": 7", "\"format\": 5");
 		var back = BuildStore.fromJson(v5);
 		assertEquals(5, back.readFormat());
 		assertEquals(Map.of(), back.all().get(0).moduleOrders());
@@ -129,7 +129,7 @@ class ModuleSavesTest {
 			String j = good.replace(bad[0], bad[1]);
 			assertThrows(JsonParseException.class, () -> BuildStore.fromJson(j), bad[1]);
 		}
-		String newer = good.replaceFirst("\"format\": 6", "\"format\": 7");
-		assertThrows(JsonParseException.class, () -> BuildStore.fromJson(newer), "an older Steward refuses format 6, this one 7");
+		String newer = good.replaceFirst("\"format\": 7", "\"format\": 8");
+		assertThrows(JsonParseException.class, () -> BuildStore.fromJson(newer), "an older Steward refuses format 7, this one 8");
 	}
 }
