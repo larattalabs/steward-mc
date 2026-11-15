@@ -16,5 +16,9 @@ class HallCargoTest {
 		assertFalse(HallCargo.cargoRefusal("OCCUPIED: undo of region rg1 to position 0 refused, nothing written: noahlaratta is in site c12 of revision 1"),
 			"a player standing in a site is not cargo");
 		assertFalse(HallCargo.cargoRefusal(null));
+		// negative coordinates; an entity whose custom name looks like a container entry, overflowing: skipped, never thrown
+		String odd = "NOT_ALLOWED: ...: Move these out of s3 first (...): chest at -120, -40, -3000 (2 items), a wolf named \"chest at 999999999999, 1, 2\" at 5, 6, 7";
+		assertEquals(List.of(new net.minecraft.core.BlockPos(-120, -40, -3000)), HallCargo.namedCells(odd));
+		assertTrue(HallCargo.namedCells("Move these out of s3 first: a cow at 1, 2, 3").isEmpty(), "an entity is not a container");
 	}
 }

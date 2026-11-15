@@ -52,14 +52,22 @@ public final class HallCargo {
 	}
 
 	private static final java.util.regex.Pattern CARGO = java.util.regex.Pattern.compile("Move these out of \\S+ first");
-	private static final java.util.regex.Pattern AT = java.util.regex.Pattern.compile("\\b[a-z_]+ at (-?\\d+), (-?\\d+), (-?\\d+)");
+	private static final java.util.regex.Pattern AT = java.util.regex.Pattern.compile("\\b(chest|trapped_chest|trapped chest|barrel|hopper|dropper|dispenser|shulker box|[a-z_]*shulker_box|furnace|smoker|blast furnace|blast_furnace) at (-?\\d{1,9}), (-?\\d{1,4}), (-?\\d{1,9})\\b");
 
 	/** The positions an Architect cargo refusal names ("Move these out of s17 first (...): chest at 105, 66, 578 (595 items), ..."). */
 	static java.util.List<BlockPos> namedCells(@Nullable String message) {
 		java.util.List<BlockPos> out = new java.util.ArrayList<>();
 		if (!cargoRefusal(message)) return out;
+		// only container entries ("chest at ...", "barrel at ..."), each coordinate parsed safely: a refusal also names entities, whose custom names
+		// are the player's text
 		var m = AT.matcher(message);
-		while (m.find()) out.add(new BlockPos(Integer.parseInt(m.group(1)), Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3))));
+		while (m.find()) {
+			try {
+				out.add(new BlockPos(Integer.parseInt(m.group(2)), Integer.parseInt(m.group(3)), Integer.parseInt(m.group(4))));
+			} catch (NumberFormatException e) {
+				// not a position: skipped
+			}
+		}
 		return out;
 	}
 
@@ -73,12 +81,13 @@ public final class HallCargo {
 	 * hall of the owner's holding one of them holds items: "the storage hall still holds 1,240 items in 9 chests; empty it first" ("at least" when part of a hall is not
 	 * loaded). Null when the refusal names no hall, or none of them holds anything.
 	 */
-	public static @Nullable String words(MinecraftServer server, String owner, @Nullable String message) {
+	public static @Nullable String words(MinecraftServer server, String owner, @Nullable String region, @Nullable String message) {
 		var cells = namedCells(message);
 		if (cells.isEmpty()) return null;
 		int items = 0, containers = 0;
 		boolean complete = true;
 		for (SiteView v : ArchitectApi.get().sites(server).list(owner)) {
+			if (region != null && !region.equals(v.region())) continue;
 			var ref = ModuleRef.of(v.ext());
 			if (ref == null || !ModuleKind.StorageHall.ID.equals(ref.id())) continue;
 			// a hall the refusal names: one of its cells is a container to empty

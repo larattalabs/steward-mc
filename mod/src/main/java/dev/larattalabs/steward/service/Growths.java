@@ -310,7 +310,7 @@ public final class Growths {
 			// (M4, Q3) refused for a storage hall holding items (Architect throws NOT_ALLOWED naming the sites to empty): said as the steward says
 			// it, with the count and the chests, then Architect's own list
 			String why = err != null ? SettlementRunner.message(err) : "blocked by " + String.join(", ", r.blockers());
-			String hall = HallCargo.cargoRefusal(why) ? HallCargo.words(server, owner, why) : null;
+			String hall = HallCargo.cargoRefusal(why) ? HallCargo.words(server, owner, ref.region(), why) : null;
 			say.accept("The town's change could not be taken up: " + (hall != null ? hall + " (" + why + ")" : why) + ".");
 			done.accept(false);
 		}));
