@@ -230,6 +230,12 @@ async function town(cx, cz, { w = 224, d = 176, lots = 4, orientation = 'ew' } =
 let installed = null;
 async function install() {
   if (installed) return installed;
+  // the helper reports its features (givenPrograms) once it is up: wait for it, at most 5 minutes
+  for (let i = 0; i < 60; i++) {
+    const env = await mod({ op: 'env' });
+    if (env.givenPrograms === true) break;
+    await sleep(5000);
+  }
   const a = await mod({ op: 'install', dir: CATALOG, id: MODULE.id, version: MODULE.version, measuring: true });
   check(a.ok && a.entryId, `${MODULE.id}@${MODULE.version} installed at $0 by its key ${a.key} as ${a.entryId}${a.ok ? '' : `: ${a.detail} ${a.message}`}`);
   if (!a.ok) throw new Error('install failed');
@@ -248,6 +254,8 @@ async function growHalls(region, specs, { survival = false, realise = true } = {
     const lot = (await mod({ op: 'hallLot', id: s.id, slots: 0, bulk: s.bulk })).lot;
     const L = P.layout(0, s.bulk);
     check(lot.size[0] === L.W && lot.size[1] === L.D && lot.type === 'storage_hall', `${s.id}: StorageHallLot's lot = the program's frame (${lot.size.join('x')})`);
+    // the lot ext Steward's placement adds (SettlementRunner, ModuleRef): the module's identity on the placed site, which the steward's words read
+    lot.ext = { ...(lot.ext ?? {}), 'steward_mc:module': { id: MODULE.id, version: MODULE.version, programSha: stamp().programSha, params: { bulk: s.bulk, slots: 0 } } };
     lots.push(lot);
   }
   let p = null;
@@ -360,6 +368,10 @@ async function reopen(pos) {
 
 // ------------------------------------------------------------------ hall: bars 1-6
 
+/** An undo answer refused because a container holds cargo (Architect's removal blockers, or its refusal naming them), never for another reason. */
+const refusal = (u) => `removed ${u.removed}; blockers ${json((u.blockers ?? []).slice(0, 2))}; ${String(u.error ?? u.refused ?? u.message ?? '').slice(0, 160)}`;
+const refusedForCargo = (u) => u.removed !== true && /container|cargo|not ours|holds|filled/i.test(`${json(u.blockers ?? [])} ${u.error ?? ''} ${u.refused ?? ''} ${u.message ?? ''}`);
+
 async function hall() {
   await startClient('Hall');
   const out = { towns: [], halls: {}, growths: [] };
@@ -466,7 +478,9 @@ async function hall() {
         check(sameSnap(s, fed[h.id]) && ents.entities === 0, `3 unload ${h.id}: every container as before after its chunks unloaded and loaded (${sameSnap(s, fed[h.id])}), ${ents.entities} item entities`);
       }
     }
-    // ---- 5 and 6: undo each growth, newest first: refused while its halls hold items, then emptied and undone
+    // ---- 5 and 6: undo each growth, newest first: refused while its halls hold items, then emptied and undone. The player watches as a spectator
+    // (it still loads the chunks, but stands in no site: a player in a site's box refuses the undo as OCCUPIED, run 2's first finding)
+    await cmd('/gamemode spectator @p');
     const gone = new Set();
     for (const g of [...out.growths].reverse()) {
       const t = towns.find((x) => x.region === g.region);
@@ -487,7 +501,7 @@ async function hall() {
       let items = 0, cont = 0;
       for (const h of standing) { const sn = await snapshot(h); items += Object.values(sn.totals).reduce((x, y) => x + y, 0); cont += Object.values(sn.by).filter((sl) => sl.length).length; }
       g.cargo = { removed: u.removed ?? null, blockers: u.blockers ?? [], error: u.error ?? u.refused ?? null, words };
-      check(u.removed !== true && unchanged && standingSame, `5 undo with cargo rid ${g.rid} (${gh.map((h) => h.id).join(', ')}): refused (removed ${u.removed}, ${(u.blockers ?? []).length} blockers${u.error ? `, ${String(u.error).slice(0, 120)}` : ''}); the containers and standing unchanged`);
+      check(refusedForCargo(u) && unchanged && standingSame, `5 undo with cargo rid ${g.rid} (${gh.map((h) => h.id).join(', ')}): refused for cargo (${refusal(u)}); the containers and standing unchanged`);
       check(typeof words === 'string' && words.includes(`${items.toLocaleString('en-US')} items in ${cont} chests`), `5 the steward's words: "${words}" (the region's standing halls hold ${items} in ${cont} containers)`);
       for (const h of gh) await mod({ op: 'clearContainers', box: h.boxArr });
       // cargo in isolation, one container class at a time (the input chest; a bulk pair's either half, lower and upper row): each alone refuses
@@ -503,7 +517,7 @@ async function hall() {
         const ui = await call('dev.rv.undo', { region: g.region, toPosition: g.position - 1 }, 3_600_000).catch((e) => ({ error: String(e) }));
         await sleep(2000);
         const still = (await snapshot(h)).by[cell.join(',')];
-        check(ui.removed !== true && json(still) === json([[26, 'minecraft:cobblestone', 1]]), `5 one item alone in ${h.id}'s ${what} ${cell}: the undo refused (removed ${ui.removed}, ${(ui.blockers ?? []).length} blockers), the item still there`);
+        check(refusedForCargo(ui) && json(still) === json([[26, 'minecraft:cobblestone', 1]]), `5 one item alone in ${h.id}'s ${what} ${cell}: the undo refused for cargo (${refusal(ui)}), the item still there`);
         await mod({ op: 'clearContainers', box: h.boxArr });
       }
       const u2 = await call('dev.rv.undo', { region: g.region, toPosition: g.position - 1 }, 3_600_000).catch((e) => ({ error: String(e) }));
