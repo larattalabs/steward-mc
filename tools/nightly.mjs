@@ -24,6 +24,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { useRamTmp } from './lib/ram-tmp.mjs';
+// temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
+useRamTmp();
 
 const MAIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const WT = path.resolve(MAIN, '..', '_work', 'steward-nightly');

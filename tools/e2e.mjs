@@ -18,6 +18,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { pickFlows } from './lib/e2e-flows.mjs';
+import { useRamTmp } from './lib/ram-tmp.mjs';
+// temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
+useRamTmp();
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARCH = process.env.ARCHITECT_CHECKOUT ?? path.resolve(ROOT, '..', 'architect-mc');
