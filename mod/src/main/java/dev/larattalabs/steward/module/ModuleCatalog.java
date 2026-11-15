@@ -401,7 +401,10 @@ public final class ModuleCatalog {
 			JsonObject o = s != null && s.isJsonObject() ? s.getAsJsonObject() : null;
 			String want = names.get(i), name = o == null ? "?" : strOr(o, "step", "?");
 			boolean field = want.equals("field-");
-			boolean named = field ? name.startsWith("field-") && name.length() > want.length() : name.equals(want);
+			// (M4) a storage hall's round is its deterministic hall step (one run), a crop field round's five runs
+			boolean hall = field && name.equals("hall");
+			if (hall) field = false;
+			boolean named = field ? name.startsWith("field-") && name.length() > want.length() : hall || name.equals(want);
 			int passed = o == null ? -1 : intOr(o, "passed", -1), of = o == null ? 0 : intOr(o, "of", 0);
 			if (o == null || !named || !sha.equals(strOr(o, "programSha", "")) || !on.equals(strOr(o, "architect", "")) || !m.minecraft().equals(strOr(o, "minecraft", ""))
 				|| of <= 0 || passed != of || (field && intOr(o, "runs", 0) < 5))

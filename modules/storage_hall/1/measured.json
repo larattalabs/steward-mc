@@ -3,20 +3,25 @@
   "version": 1,
   "fixture": false,
   "programSha": "9e6f1f15926fef6c9cdd77df276ee98aab08f36bdc7bbc06e2bffd73b179ef05",
-  "moduleSha": "746f5bcb56d8954a1acf4b417eb6d6b89b0fa5913c1309e48be1dd120685c0e5",
+  "moduleSha": "d26baa51e63887895d94e6a8af35ca7a9af07073fe04c99f68724782cc65632e",
   "minecraft": "26.3",
   "architect": [
-    "0.67.0"
+    "0.70.0"
   ],
-  "kit": "0.62.0",
-  "checker": "0.62.0",
+  "kit": "0.65.0",
+  "checker": "0.65.0",
   "result": "pass",
+  "basis": "smoke",
+  "from": "0.67.0",
+  "what": "docs/MEASURE-M4.md 4.1: the plain hall (slots 0), every bulk branch, measured in a dev client by tools/module-measure-hall.mjs: shape, storage, restart and unload, light, undo with cargo and emptied (all four facings, chunk borders, rustic in full, fortress and desert for shape and light), the survival bill, a cancel mid-build and the refunds, and the bound per branch and Style. Deterministic: one run per step.",
+  "bars": "docs/MEASURE-M4.md \"4. The bars\" (committed before the first measurement)",
+  "runs": 1,
   "checks": {
     "offline": {
-      "at": "2026-11-15T03:12:15.088Z",
-      "head": "538ccc7cbcc8d6f6665cefd45d99d2cfb73fc1e0",
-      "architect": "0.67.0",
-      "kit": "0.62.0",
+      "at": "2026-11-15T05:29:16.175Z",
+      "head": "50d4bfed5500bcd563c1495095359a68e1ea846b",
+      "architect": "0.70.0",
+      "kit": "0.65.0",
       "branches": [
         {
           "branch": {
@@ -324,14 +329,14 @@
       }
     },
     "ingame": {
-      "at": "2026-11-15T03:27:33.773Z",
-      "head": "d16365269d4dda630a8098a2023851c9155afd3b",
+      "at": "2026-11-15T05:35:39.257Z",
+      "head": "45da996179384d91a7907956c0a1396eff9c7984",
       "env": {
         "minecraft": "26.3",
-        "architect": "0.67.0",
+        "architect": "0.70.0",
         "givenPrograms": true,
         "measuring": false,
-        "label": "m1_1910_1",
+        "label": "m1_76493_1",
         "request": {
           "op": "env"
         }
@@ -621,347 +626,1024 @@
         "unknownFound": false
       }
     },
-    "measure": {
-      "hall": {
-        "at": "2026-11-15T04:40:07.408Z",
-        "head": "d76a7eb3928ccb7162d652278f81c7119803152a",
-        "world": "Steward M4 Hall 202611150432",
-        "seconds": 478.519,
-        "runs": null,
-        "passed": 218,
-        "of": 218,
-        "results": [
-          "storage_hall@1 installed at $0 by its key steward.catalog.storage_hall.v1.9e6f1f15926f as storage_hall_2",
-          "a V town rg1 (flat_village ew, 4 pads) at 0,0,223,175: PLACED",
-          "a V town rg2 (flat_village ns, 4 pads) at 256,0,431,223: PLACED",
-          "a V town rg3 (flat_village ew, 4 pads) at 8,504,231,679: PLACED",
-          "a V town rg4 (flat_village ns, 4 pads) at 264,509,439,732: PLACED",
-          "h0_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "h1_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "h2_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "growth h0_rus, h1_rus, h2_rus in rg1: rid 1",
-          "growth rid 1: PLACED",
-          "h3_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "h4_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "growth h3_rus, h4_rus in rg1: rid 2",
-          "growth rid 2: PLACED",
-          "h5_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "h6_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "h7_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "growth h5_rus, h6_rus, h7_rus in rg2: rid 1",
-          "growth rid 1: PLACED",
-          "h8_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "h0_for: StorageHallLot's lot = the program's frame (11x7)",
-          "growth h8_rus, h0_for in rg2: rid 2",
-          "growth rid 2: PLACED",
-          "h0_des: StorageHallLot's lot = the program's frame (11x7)",
-          "h8_for: StorageHallLot's lot = the program's frame (11x7)",
-          "growth h0_des, h8_for in rg1: rid 3",
-          "growth rid 3: PLACED",
-          "h8_des: StorageHallLot's lot = the program's frame (11x7)",
-          "h2_rus_b0: StorageHallLot's lot = the program's frame (11x7)",
-          "growth h8_des, h2_rus_b0 in rg2: rid 3",
-          "growth rid 3: PLACED",
-          "h5_rus_b1: StorageHallLot's lot = the program's frame (11x7)",
-          "growth h5_rus_b1 in rg3: rid 1",
-          "growth rid 1: PLACED",
-          "h3_rus_c0: StorageHallLot's lot = the program's frame (11x7)",
-          "growth h3_rus_c0 in rg4: rid 1",
-          "growth rid 1: PLACED",
-          "h6_rus_c1: StorageHallLot's lot = the program's frame (11x7)",
-          "growth h6_rus_c1 in rg3: rid 2",
-          "growth rid 2: PLACED",
-          "1 shape h0_rus (rustic, bulk 0, front north): standing 1, changed 0; 0 double chests paired, the input chest single",
-          "1 shape h1_rus (rustic, bulk 1, front south): standing 1, changed 0; 1 double chests paired, the input chest single",
-          "1 shape h2_rus (rustic, bulk 2, front south): standing 1, changed 0; 2 double chests paired, the input chest single",
-          "1 shape h3_rus (rustic, bulk 3, front north): standing 1, changed 0; 3 double chests paired, the input chest single",
-          "1 shape h4_rus (rustic, bulk 4, front south): standing 1, changed 0; 4 double chests paired, the input chest single",
-          "1 shape h0_des (desert, bulk 0, front north): standing 1, changed 0; 0 double chests paired, the input chest single",
-          "1 shape h8_for (fortress, bulk 8, front south): standing 1, changed 0; 8 double chests paired, the input chest single",
-          "1 shape h5_rus (rustic, bulk 5, front west): standing 1, changed 0; 5 double chests paired, the input chest single",
-          "1 shape h6_rus (rustic, bulk 6, front east): standing 1, changed 0; 6 double chests paired, the input chest single",
-          "1 shape h7_rus (rustic, bulk 7, front east): standing 1, changed 0; 7 double chests paired, the input chest single",
-          "1 shape h8_rus (rustic, bulk 8, front west): standing 1, changed 0; 8 double chests paired, the input chest single",
-          "1 shape h0_for (fortress, bulk 0, front east): standing 1, changed 0; 0 double chests paired, the input chest single",
-          "1 shape h8_des (desert, bulk 8, front west): standing 1, changed 0; 8 double chests paired, the input chest single",
-          "1 shape h2_rus_b0 (rustic, bulk 2, front east): standing 1, changed 0; 2 double chests paired, the input chest single",
-          "1 shape h5_rus_b1 (rustic, bulk 5, front north): standing 1, changed 0; 5 double chests paired, the input chest single",
-          "1 shape h6_rus_c1 (rustic, bulk 6, front south): standing 1, changed 0; 6 double chests paired, the input chest single",
-          "1 shape h3_rus_c0 (rustic, bulk 3, front west): standing 1, changed 0; 3 double chests paired, the input chest single",
-          "4.3 facings: every one covered (north, south, west, east)",
-          "4.3 chunk borders: halls crossing in x [\"h0_rus\",\"h1_rus\",\"h2_rus\",\"h3_rus\",\"h5_rus\",\"h7_rus\",\"h8_rus\",\"h0_for\",\"h8_for\",\"h8_des\",\"h2_rus_b0\"], in z [\"h0_rus\",\"h2_rus\",\"h3_rus\",\"h4_rus\",\"h5_rus\",\"h6_rus\",\"h7_rus\",\"h8_rus\",\"h0_des\",\"h8_for\",\"h2_rus_b0\",\"h3_rus_c0\"], in both [\"h0_rus\",\"h2_rus\",\"h3_rus\",\"h5_rus\",\"h7_rus\",\"h8_rus\",\"h8_for\",\"h2_rus_b0\"]",
-          "4.3 branches: every bulk [0,1,2,3,4,5,6,7,8] placed in rustic",
-          "2 storage h0_rus: the mix in each of its 1 containers reads back slot by slot",
-          "2 storage h1_rus: the mix in each of its 3 containers reads back slot by slot",
-          "2 storage h2_rus: the mix in each of its 5 containers reads back slot by slot",
-          "2 storage h3_rus: the mix in each of its 7 containers reads back slot by slot",
-          "2 storage h4_rus: the mix in each of its 9 containers reads back slot by slot",
-          "2 storage h0_des: the mix in each of its 1 containers reads back slot by slot",
-          "2 storage h8_for: the mix in each of its 17 containers reads back slot by slot",
-          "2 storage h5_rus: the mix in each of its 11 containers reads back slot by slot",
-          "2 storage h6_rus: the mix in each of its 13 containers reads back slot by slot",
-          "2 storage h7_rus: the mix in each of its 15 containers reads back slot by slot",
-          "2 storage h8_rus: the mix in each of its 17 containers reads back slot by slot",
-          "2 storage h0_for: the mix in each of its 1 containers reads back slot by slot",
-          "2 storage h8_des: the mix in each of its 17 containers reads back slot by slot",
-          "2 storage h2_rus_b0: the mix in each of its 5 containers reads back slot by slot",
-          "2 storage h5_rus_b1: the mix in each of its 11 containers reads back slot by slot",
-          "2 storage h6_rus_c1: the mix in each of its 13 containers reads back slot by slot",
-          "2 storage h3_rus_c0: the mix in each of its 7 containers reads back slot by slot",
-          "4 light h0_rus (rustic): 46 air cells inside and on the front row, the darkest 7",
-          "4 light h1_rus (rustic): 44 air cells inside and on the front row, the darkest 7",
-          "4 light h2_rus (rustic): 42 air cells inside and on the front row, the darkest 8",
-          "4 light h3_rus (rustic): 40 air cells inside and on the front row, the darkest 8",
-          "4 light h4_rus (rustic): 38 air cells inside and on the front row, the darkest 9",
-          "4 light h0_des (desert): 46 air cells inside and on the front row, the darkest 7",
-          "4 light h8_for (fortress): 38 air cells inside and on the front row, the darkest 9",
-          "4 light h5_rus (rustic): 38 air cells inside and on the front row, the darkest 8",
-          "4 light h6_rus (rustic): 38 air cells inside and on the front row, the darkest 8",
-          "4 light h7_rus (rustic): 38 air cells inside and on the front row, the darkest 9",
-          "4 light h8_rus (rustic): 38 air cells inside and on the front row, the darkest 8",
-          "4 light h0_for (fortress): 46 air cells inside and on the front row, the darkest 8",
-          "4 light h8_des (desert): 38 air cells inside and on the front row, the darkest 8",
-          "4 light h2_rus_b0 (rustic): 42 air cells inside and on the front row, the darkest 8",
-          "4 light h5_rus_b1 (rustic): 38 air cells inside and on the front row, the darkest 8",
-          "4 light h6_rus_c1 (rustic): 38 air cells inside and on the front row, the darkest 8",
-          "4 light h3_rus_c0 (rustic): 40 air cells inside and on the front row, the darkest 8",
-          "3 restart h0_rus: every container as before (true), 0 item entities, standing 1",
-          "3 restart h1_rus: every container as before (true), 0 item entities, standing 1",
-          "3 restart h2_rus: every container as before (true), 0 item entities, standing 1",
-          "3 restart h3_rus: every container as before (true), 0 item entities, standing 1",
-          "3 restart h4_rus: every container as before (true), 0 item entities, standing 1",
-          "3 restart h0_des: every container as before (true), 0 item entities, standing 1",
-          "3 restart h8_for: every container as before (true), 0 item entities, standing 1",
-          "3 restart h5_rus: every container as before (true), 0 item entities, standing 1",
-          "3 restart h6_rus: every container as before (true), 0 item entities, standing 1",
-          "3 restart h7_rus: every container as before (true), 0 item entities, standing 1",
-          "3 restart h8_rus: every container as before (true), 0 item entities, standing 1",
-          "3 restart h0_for: every container as before (true), 0 item entities, standing 1",
-          "3 restart h8_des: every container as before (true), 0 item entities, standing 1",
-          "3 restart h2_rus_b0: every container as before (true), 0 item entities, standing 1",
-          "3 restart h5_rus_b1: every container as before (true), 0 item entities, standing 1",
-          "3 restart h6_rus_c1: every container as before (true), 0 item entities, standing 1",
-          "3 restart h3_rus_c0: every container as before (true), 0 item entities, standing 1",
-          "3 unload: every chunk the halls' boxes touch unloaded once the player is 6,000 blocks away (34/34 chunks)",
-          "3 unload: 609 game ticks passed with the halls unloaded",
-          "3 unload h0_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h1_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h2_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h3_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h4_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h0_des: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h8_for: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h5_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h6_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h7_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h8_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h0_for: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h8_des: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h2_rus_b0: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h5_rus_b1: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h6_rus_c1: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "3 unload h3_rus_c0: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
-          "5 undo with cargo rid 2 (h6_rus_c1): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ); the containers and standing unchanged",
-          "5 the steward's words: \"the storage hall still holds 7,735 items in 7 chests; empty it first\" (this growth's halls hold 7735 in 7 chests)",
-          "5 one item alone in h6_rus_c1's input 104,66,581: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h6_rus_c1's bulk lower, west half 99,66,578: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h6_rus_c1's bulk lower, east half 100,66,578: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h6_rus_c1's bulk upper, west half 99,67,578: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h6_rus_c1's bulk upper, east half 100,67,578: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "6 undo emptied rid 2: removed true (UNDONE), blockers [], 0 item entities",
-          "5 undo with cargo rid 1 (h3_rus_c0): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg4 to position 0 refused, nothing written: Move these out of s16 first (removing it puts the old terrain back over them): chest at ); the containers and standing unchanged",
-          "5 the steward's words: \"the storage hall still holds 4,165 items in 4 chests; empty it first\" (this growth's halls hold 4165 in 4 chests)",
-          "5 one item alone in h3_rus_c0's input 357,66,636: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg4 to position 0 refused, nothing written: Move these out of s16 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h3_rus_c0's bulk lower, west half 360,66,631: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg4 to position 0 refused, nothing written: Move these out of s16 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h3_rus_c0's bulk lower, east half 360,66,632: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg4 to position 0 refused, nothing written: Move these out of s16 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "6 undo emptied rid 1: removed true (UNDONE), blockers [], 0 item entities",
-          "5 undo with cargo rid 1 (h5_rus_b1): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ); the containers and standing unchanged",
-          "5 the steward's words: \"the storage hall still holds 6,545 items in 6 chests; empty it first\" (this growth's halls hold 6545 in 6 chests)",
-          "5 one item alone in h5_rus_b1's input 133,66,597: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h5_rus_b1's bulk lower, west half 138,66,600: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h5_rus_b1's bulk lower, east half 137,66,600: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h5_rus_b1's bulk upper, west half 138,67,600: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h5_rus_b1's bulk upper, east half 137,67,600: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "6 undo emptied rid 1: removed true (UNDONE), blockers [], 0 item entities",
-          "5 undo with cargo rid 3 (h8_des, h2_rus_b0): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ); the containers and standing unchanged",
-          "5 the steward's words: \"the storage hall still holds 13,090 items in 12 chests; empty it first\" (this growth's halls hold 13090 in 12 chests)",
-          "5 one item alone in h8_des's input 349,66,75: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h8_des's bulk lower, west half 352,66,70: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h8_des's bulk lower, east half 352,66,71: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h8_des's bulk upper, west half 352,67,70: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h8_des's bulk upper, east half 352,67,71: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h2_rus_b0's input 336,66,158: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s14 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h2_rus_b0's bulk lower, west half 333,66,163: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s14 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h2_rus_b0's bulk lower, east half 333,66,162: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s14 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "6 undo emptied rid 3: removed true (UNDONE), blockers [], 0 item entities",
-          "5 undo with cargo rid 3 (h0_des, h8_for): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s11 first (removing it puts the old terrain back over them): chest at ); the containers and standing unchanged",
-          "5 the steward's words: \"the storage hall still holds 10,710 items in 10 chests; empty it first\" (this growth's halls hold 10710 in 10 chests)",
-          "5 one item alone in h0_des's input 73,66,93: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s11 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h8_for's input 160,66,80: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s12 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h8_for's bulk lower, west half 155,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s12 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h8_for's bulk lower, east half 156,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s12 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h8_for's bulk upper, west half 155,67,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s12 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "5 one item alone in h8_for's bulk upper, east half 156,67,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s12 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "6 undo emptied rid 3: removed true (UNDONE), blockers [], 0 item entities",
-          "5 undo with cargo rid 2 (h8_rus, h0_for): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3); the containers and standing unchanged",
-          "5 the steward's words: \"the storage hall still holds 10,710 items in 10 chests; empty it first\" (this growth's halls hold 10710 in 10 chests)",
-          "5 one item alone in h8_rus's input 349,66,143: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h8_rus's bulk lower, west half 352,66,138: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h8_rus's bulk lower, east half 352,66,139: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h8_rus's bulk upper, west half 352,67,138: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h8_rus's bulk upper, east half 352,67,139: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h0_for's input 336,66,73: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s10 first (removing it puts the old terrain back over them): chest at ), the item still there",
-          "6 undo emptied rid 2: removed true (UNDONE), blockers [], 0 item entities",
-          "5 undo with cargo rid 1 (h5_rus, h6_rus, h7_rus): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3); the containers and standing unchanged",
-          "5 the steward's words: \"the storage hall still holds 23,205 items in 21 chests; empty it first\" (this growth's halls hold 23205 in 21 chests)",
-          "5 one item alone in h5_rus's input 349,66,127: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h5_rus's bulk lower, west half 352,66,122: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h5_rus's bulk lower, east half 352,66,123: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h5_rus's bulk upper, west half 352,67,122: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h5_rus's bulk upper, east half 352,67,123: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h6_rus's input 333,66,94: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s7 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h6_rus's bulk lower, west half 330,66,99: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s7 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h6_rus's bulk lower, east half 330,66,98: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s7 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h6_rus's bulk upper, west half 330,67,99: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s7 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h6_rus's bulk upper, east half 330,67,98: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s7 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h7_rus's input 336,66,139: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s8 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h7_rus's bulk lower, west half 333,66,144: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s8 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h7_rus's bulk lower, east half 333,66,143: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s8 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h7_rus's bulk upper, west half 333,67,144: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s8 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "5 one item alone in h7_rus's bulk upper, east half 333,67,143: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s8 first (removing it puts the old terrain back over them): chest at 3), the item still there",
-          "6 undo emptied rid 1: removed true (UNDONE), blockers [], 0 item entities",
-          "5 undo with cargo rid 2 (h3_rus, h4_rus): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s4 first (removing it puts the old terrain back over them): chest at 1); the containers and standing unchanged",
-          "5 the steward's words: \"the storage hall still holds 9,520 items in 9 chests; empty it first\" (this growth's halls hold 9520 in 9 chests)",
-          "5 one item alone in h3_rus's input 141,66,93: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s4 first (removing it puts the old terrain back over them): chest at 1), the item still there",
-          "5 one item alone in h3_rus's bulk lower, west half 146,66,96: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s4 first (removing it puts the old terrain back over them): chest at 1), the item still there",
-          "5 one item alone in h3_rus's bulk lower, east half 145,66,96: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s4 first (removing it puts the old terrain back over them): chest at 1), the item still there",
-          "5 one item alone in h4_rus's input 75,66,80: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s5 first (removing it puts the old terrain back over them): chest at 7), the item still there",
-          "5 one item alone in h4_rus's bulk lower, west half 70,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s5 first (removing it puts the old terrain back over them): chest at 7), the item still there",
-          "5 one item alone in h4_rus's bulk lower, east half 71,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s5 first (removing it puts the old terrain back over them): chest at 7), the item still there",
-          "6 undo emptied rid 2: removed true (UNDONE), blockers [], 0 item entities",
-          "5 undo with cargo rid 1 (h0_rus, h1_rus, h2_rus): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s1 first (removing it puts the old terrain back over them): chest at 1); the containers and standing unchanged",
-          "5 the steward's words: \"the storage hall still holds 5,355 items in 6 chests; empty it first\" (this growth's halls hold 5355 in 6 chests)",
-          "5 one item alone in h0_rus's input 125,66,93: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s1 first (removing it puts the old terrain back over them): chest at 1), the item still there",
-          "5 one item alone in h1_rus's input 96,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s2 first (removing it puts the old terrain back over them): chest at 9), the item still there",
-          "5 one item alone in h1_rus's bulk lower, west half 91,66,74: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s2 first (removing it puts the old terrain back over them): chest at 9), the item still there",
-          "5 one item alone in h1_rus's bulk lower, east half 92,66,74: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s2 first (removing it puts the old terrain back over them): chest at 9), the item still there",
-          "5 one item alone in h2_rus's input 141,66,80: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s3 first (removing it puts the old terrain back over them): chest at 1), the item still there",
-          "5 one item alone in h2_rus's bulk lower, west half 136,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s3 first (removing it puts the old terrain back over them): chest at 1), the item still there",
-          "5 one item alone in h2_rus's bulk lower, east half 137,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s3 first (removing it puts the old terrain back over them): chest at 1), the item still there",
-          "6 undo emptied rid 1: removed true (UNDONE), blockers [], 0 item entities"
-        ]
-      },
+    "smoke": {
+      "rule": "speed rule 4 (Noah 2026-11-13, AGENTS.md \"Module re-certification\"): a plain Architect version bump with the program and module.json unchanged but for the pins: fresh offline and ingame, the billing check (survival, and the bounds re-quoted equal to the carried ones item for item) and one field round; the full measurement is carried",
       "survival": {
-        "at": "2026-11-15T04:08:15.550Z",
-        "head": "3df4e750fcb13adc4c1914e074b64aeb55d9c7f2",
-        "world": "Steward M4 Survival 202611150405",
-        "seconds": 156.717,
+        "step": "survival",
+        "at": "2026-11-15T05:43:36.831Z",
+        "head": "45da996179384d91a7907956c0a1396eff9c7984",
+        "world": "Steward M4 Survival 202611150540",
+        "seconds": 177.488,
         "runs": null,
+        "programSha": "9e6f1f15926fef6c9cdd77df276ee98aab08f36bdc7bbc06e2bffd73b179ef05",
+        "moduleJsonSha": "dbbd14640db4c3b290eb305ed6564c4d4328e0ea282192ab009eb138bc85644f",
+        "architect": "0.70.0",
+        "minecraft": "26.3",
         "passed": 26,
-        "of": 26,
-        "results": [
-          "a stockpile of 8 crates for steward_mc:measure: \"made\"",
-          "the town rg1 built in survival from the stockpile: PLACED (3 waves)",
-          "storage_hall@1 installed at $0 by its key steward.catalog.storage_hall.v1.9e6f1f15926f as storage_hall_2",
-          "sv0: StorageHallLot's lot = the program's frame (11x7)",
-          "sv1: StorageHallLot's lot = the program's frame (11x7)",
-          "sv2: StorageHallLot's lot = the program's frame (11x7)",
-          "survival growth sv0, sv1, sv2: rid 1",
-          "7 bill rid 1 (sv0, sv1, sv2): PLACED; consumed = the quote item for item (equal; 1201 items; exact false)",
-          "sv3: StorageHallLot's lot = the program's frame (11x7)",
-          "sv4: StorageHallLot's lot = the program's frame (11x7)",
-          "sv5: StorageHallLot's lot = the program's frame (11x7)",
-          "survival growth sv3, sv4, sv5: rid 2",
-          "7 bill rid 2 (sv3, sv4, sv5): PLACED; consumed = the quote item for item (equal; 1150 items; exact false)",
-          "sv6: StorageHallLot's lot = the program's frame (11x7)",
-          "sv7: StorageHallLot's lot = the program's frame (11x7)",
-          "sv8: StorageHallLot's lot = the program's frame (11x7)",
-          "survival growth sv6, sv7, sv8: rid 3",
-          "7 bill rid 3 (sv6, sv7, sv8): PLACED; consumed = the quote item for item (equal; 1237 items; exact false)",
-          "svc8: StorageHallLot's lot = the program's frame (11x7)",
-          "cancel growth svc8: rid 4",
-          "7 cancel mid-build rid 4: consumed 6 of the quote's 362 items before the undo (removed true, UNDONE); refunded exactly that (equal)",
-          "7 mined: the player broke one bulk chest half of sv8 at 50033,66,50069; it dropped {\"minecraft:chest\":1} (the player's)",
-          "7 refund rid 3: removed true; credited (with overflow) = consumed less the chest the player mined (equal); dropped {}",
-          "7 refund rid 2: removed true; credited (with overflow) = consumed (equal); dropped {}",
-          "7 refund rid 1: removed true; credited (with overflow) = consumed (equal); dropped {}",
-          "7 after a restart: nothing given twice (the ledger and stock unchanged; items on the ground {})"
-        ]
+        "of": 26
       },
       "bounds": {
-        "at": "2026-11-15T04:00:30.919Z",
-        "head": "9c07eda0416592d849f9823263c67f8cfbfedb06",
-        "world": "Steward M4 Bounds 202611150357",
-        "seconds": 155.851,
+        "step": "bounds",
+        "at": "2026-11-15T05:51:10.581Z",
+        "head": "45da996179384d91a7907956c0a1396eff9c7984",
+        "world": "Steward M4 Bounds 202611150548",
+        "seconds": 153.653,
         "runs": null,
+        "programSha": "9e6f1f15926fef6c9cdd77df276ee98aab08f36bdc7bbc06e2bffd73b179ef05",
+        "moduleJsonSha": "dbbd14640db4c3b290eb305ed6564c4d4328e0ea282192ab009eb138bc85644f",
+        "architect": "0.70.0",
+        "minecraft": "26.3",
         "passed": 58,
         "of": 58,
-        "results": [
-          "a stockpile of 8 crates for steward_mc:measure: \"made\"",
-          "the town rg1 built in survival from the stockpile: PLACED (3 waves)",
-          "storage_hall@1 installed at $0 by its key steward.catalog.storage_hall.v1.9e6f1f15926f as storage_hall_2",
-          "bd0_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 0 rustic: quoted (survival true, exact false, 439 items)",
-          "bd0_for: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 0 fortress: quoted (survival true, exact false, 439 items)",
-          "bd0_des: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 0 desert: quoted (survival true, exact false, 439 items)",
-          "bd1_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 1 rustic: quoted (survival true, exact false, 441 items)",
-          "bd1_for: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 1 fortress: quoted (survival true, exact false, 441 items)",
-          "bd1_des: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 1 desert: quoted (survival true, exact false, 441 items)",
-          "bd2_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 2 rustic: quoted (survival true, exact false, 443 items)",
-          "bd2_for: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 2 fortress: quoted (survival true, exact false, 443 items)",
-          "bd2_des: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 2 desert: quoted (survival true, exact false, 443 items)",
-          "bd3_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 3 rustic: quoted (survival true, exact false, 445 items)",
-          "bd3_for: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 3 fortress: quoted (survival true, exact false, 445 items)",
-          "bd3_des: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 3 desert: quoted (survival true, exact false, 445 items)",
-          "bd4_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 4 rustic: quoted (survival true, exact false, 447 items)",
-          "bd4_for: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 4 fortress: quoted (survival true, exact false, 447 items)",
-          "bd4_des: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 4 desert: quoted (survival true, exact false, 447 items)",
-          "bd5_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 5 rustic: quoted (survival true, exact false, 449 items)",
-          "bd5_for: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 5 fortress: quoted (survival true, exact false, 449 items)",
-          "bd5_des: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 5 desert: quoted (survival true, exact false, 449 items)",
-          "bd6_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 6 rustic: quoted (survival true, exact false, 451 items)",
-          "bd6_for: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 6 fortress: quoted (survival true, exact false, 451 items)",
-          "bd6_des: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 6 desert: quoted (survival true, exact false, 451 items)",
-          "bd7_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 7 rustic: quoted (survival true, exact false, 453 items)",
-          "bd7_for: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 7 fortress: quoted (survival true, exact false, 453 items)",
-          "bd7_des: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 7 desert: quoted (survival true, exact false, 453 items)",
-          "bd8_rus: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 8 rustic: quoted (survival true, exact false, 455 items)",
-          "bd8_for: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 8 fortress: quoted (survival true, exact false, 455 items)",
-          "bd8_des: StorageHallLot's lot = the program's frame (11x7)",
-          "bounds bulk 8 desert: quoted (survival true, exact false, 455 items)",
-          "bounds: every one of the 9 branches has a bound over its 3 Styles (9)"
-        ]
-      }
+        "equal": 27
+      },
+      "fields": [
+        {
+          "step": "hall",
+          "at": "2026-11-15T06:04:06.684Z",
+          "head": "45da996179384d91a7907956c0a1396eff9c7984",
+          "world": "Steward M4 Hall 202611150556",
+          "seconds": 476.045,
+          "runs": null,
+          "programSha": "9e6f1f15926fef6c9cdd77df276ee98aab08f36bdc7bbc06e2bffd73b179ef05",
+          "moduleJsonSha": "dbbd14640db4c3b290eb305ed6564c4d4328e0ea282192ab009eb138bc85644f",
+          "architect": "0.70.0",
+          "minecraft": "26.3",
+          "passed": 218,
+          "of": 218,
+          "rates": []
+        }
+      ]
     }
   },
-  "what": "docs/MEASURE-M4.md 4.1: the plain hall (slots 0), every bulk branch, measured in a dev client by tools/module-measure-hall.mjs: shape, storage, restart and unload, light, undo with cargo and emptied (all four facings, chunk borders, rustic in full, fortress and desert for shape and light), the survival bill, a cancel mid-build and the refunds, and the bound per branch and Style. Deterministic: one run per step.",
-  "bars": "docs/MEASURE-M4.md \"4. The bars\" (committed before the first measurement)",
-  "runs": 1,
+  "carried": {
+    "id": "storage_hall",
+    "version": 1,
+    "fixture": false,
+    "programSha": "9e6f1f15926fef6c9cdd77df276ee98aab08f36bdc7bbc06e2bffd73b179ef05",
+    "moduleSha": "746f5bcb56d8954a1acf4b417eb6d6b89b0fa5913c1309e48be1dd120685c0e5",
+    "minecraft": "26.3",
+    "architect": [
+      "0.67.0"
+    ],
+    "kit": "0.62.0",
+    "checker": "0.62.0",
+    "result": "pass",
+    "checks": {
+      "offline": {
+        "at": "2026-11-15T03:12:15.088Z",
+        "head": "538ccc7cbcc8d6f6665cefd45d99d2cfb73fc1e0",
+        "architect": "0.67.0",
+        "kit": "0.62.0",
+        "branches": [
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 0
+            },
+            "bible": "rustic",
+            "ok": true,
+            "blocks": 341,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 0
+            },
+            "bible": "fortress",
+            "ok": true,
+            "blocks": 341,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 0
+            },
+            "bible": "desert",
+            "ok": true,
+            "blocks": 341,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 1
+            },
+            "bible": "rustic",
+            "ok": true,
+            "blocks": 343,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 1
+            },
+            "bible": "fortress",
+            "ok": true,
+            "blocks": 343,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 1
+            },
+            "bible": "desert",
+            "ok": true,
+            "blocks": 343,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 2
+            },
+            "bible": "rustic",
+            "ok": true,
+            "blocks": 345,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 2
+            },
+            "bible": "fortress",
+            "ok": true,
+            "blocks": 345,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 2
+            },
+            "bible": "desert",
+            "ok": true,
+            "blocks": 345,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 3
+            },
+            "bible": "rustic",
+            "ok": true,
+            "blocks": 347,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 3
+            },
+            "bible": "fortress",
+            "ok": true,
+            "blocks": 347,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 3
+            },
+            "bible": "desert",
+            "ok": true,
+            "blocks": 347,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 4
+            },
+            "bible": "rustic",
+            "ok": true,
+            "blocks": 349,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 4
+            },
+            "bible": "fortress",
+            "ok": true,
+            "blocks": 349,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 4
+            },
+            "bible": "desert",
+            "ok": true,
+            "blocks": 349,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 5
+            },
+            "bible": "rustic",
+            "ok": true,
+            "blocks": 351,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 5
+            },
+            "bible": "fortress",
+            "ok": true,
+            "blocks": 351,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 5
+            },
+            "bible": "desert",
+            "ok": true,
+            "blocks": 351,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 6
+            },
+            "bible": "rustic",
+            "ok": true,
+            "blocks": 353,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 6
+            },
+            "bible": "fortress",
+            "ok": true,
+            "blocks": 353,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 6
+            },
+            "bible": "desert",
+            "ok": true,
+            "blocks": 353,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 7
+            },
+            "bible": "rustic",
+            "ok": true,
+            "blocks": 355,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 7
+            },
+            "bible": "fortress",
+            "ok": true,
+            "blocks": 355,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 7
+            },
+            "bible": "desert",
+            "ok": true,
+            "blocks": 355,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 8
+            },
+            "bible": "rustic",
+            "ok": true,
+            "blocks": 357,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 8
+            },
+            "bible": "fortress",
+            "ok": true,
+            "blocks": 357,
+            "warnings": 0
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 8
+            },
+            "bible": "desert",
+            "ok": true,
+            "blocks": 357,
+            "warnings": 0
+          }
+        ],
+        "probes": {
+          "dimLamp": {
+            "ok": true,
+            "lamps": [
+              "minecraft:lantern"
+            ],
+            "said": true
+          },
+          "gravity_floor": {
+            "ok": false,
+            "threw": "palette: storage_hall@1 refuses this bible: floor 'minecraft:gravel' is a gravity block"
+          },
+          "gravity_foundation": {
+            "ok": false,
+            "threw": "palette: storage_hall@1 refuses this bible: foundation 'minecraft:gravel' is a gravity block"
+          },
+          "gravity_wall": {
+            "ok": false,
+            "threw": "palette: storage_hall@1 refuses this bible: wall 'minecraft:gravel' is a gravity block"
+          },
+          "gravity_frame": {
+            "ok": false,
+            "threw": "palette: storage_hall@1 refuses this bible: frame 'minecraft:gravel' is a gravity block"
+          },
+          "full_wall": {
+            "ok": false,
+            "threw": "palette: storage_hall@1 refuses this bible: wall 'minecraft:oak_slab' is not a full block"
+          },
+          "full_foundation": {
+            "ok": false,
+            "threw": "palette: storage_hall@1 refuses this bible: foundation 'minecraft:oak_slab' is not a full block"
+          }
+        }
+      },
+      "ingame": {
+        "at": "2026-11-15T03:27:33.773Z",
+        "head": "d16365269d4dda630a8098a2023851c9155afd3b",
+        "env": {
+          "minecraft": "26.3",
+          "architect": "0.67.0",
+          "givenPrograms": true,
+          "measuring": false,
+          "label": "m1_1910_1",
+          "request": {
+            "op": "env"
+          }
+        },
+        "install": {
+          "key": "steward.catalog.storage_hall.v1.9e6f1f15926f",
+          "ok": true
+        },
+        "variants": [
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 0
+            },
+            "bible": "rustic",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 0
+            },
+            "bible": "fortress",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 0
+            },
+            "bible": "desert",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 1
+            },
+            "bible": "rustic",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 1
+            },
+            "bible": "fortress",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 1
+            },
+            "bible": "desert",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 2
+            },
+            "bible": "rustic",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 2
+            },
+            "bible": "fortress",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 2
+            },
+            "bible": "desert",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 3
+            },
+            "bible": "rustic",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 3
+            },
+            "bible": "fortress",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 3
+            },
+            "bible": "desert",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 4
+            },
+            "bible": "rustic",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 4
+            },
+            "bible": "fortress",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 4
+            },
+            "bible": "desert",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 5
+            },
+            "bible": "rustic",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 5
+            },
+            "bible": "fortress",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 5
+            },
+            "bible": "desert",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 6
+            },
+            "bible": "rustic",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 6
+            },
+            "bible": "fortress",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 6
+            },
+            "bible": "desert",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 7
+            },
+            "bible": "rustic",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 7
+            },
+            "bible": "fortress",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 7
+            },
+            "bible": "desert",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 8
+            },
+            "bible": "rustic",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 8
+            },
+            "bible": "fortress",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          },
+          {
+            "branch": {
+              "slots": 0,
+              "bulk": 8
+            },
+            "bible": "desert",
+            "version": 1,
+            "ok": true,
+            "sha": true
+          }
+        ],
+        "outside": {
+          "refused": true,
+          "detail": "params"
+        },
+        "byKey": {
+          "found": true,
+          "unknownFound": false
+        }
+      },
+      "measure": {
+        "hall": {
+          "at": "2026-11-15T04:40:07.408Z",
+          "head": "d76a7eb3928ccb7162d652278f81c7119803152a",
+          "world": "Steward M4 Hall 202611150432",
+          "seconds": 478.519,
+          "runs": null,
+          "passed": 218,
+          "of": 218,
+          "results": [
+            "storage_hall@1 installed at $0 by its key steward.catalog.storage_hall.v1.9e6f1f15926f as storage_hall_2",
+            "a V town rg1 (flat_village ew, 4 pads) at 0,0,223,175: PLACED",
+            "a V town rg2 (flat_village ns, 4 pads) at 256,0,431,223: PLACED",
+            "a V town rg3 (flat_village ew, 4 pads) at 8,504,231,679: PLACED",
+            "a V town rg4 (flat_village ns, 4 pads) at 264,509,439,732: PLACED",
+            "h0_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "h1_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "h2_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "growth h0_rus, h1_rus, h2_rus in rg1: rid 1",
+            "growth rid 1: PLACED",
+            "h3_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "h4_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "growth h3_rus, h4_rus in rg1: rid 2",
+            "growth rid 2: PLACED",
+            "h5_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "h6_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "h7_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "growth h5_rus, h6_rus, h7_rus in rg2: rid 1",
+            "growth rid 1: PLACED",
+            "h8_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "h0_for: StorageHallLot's lot = the program's frame (11x7)",
+            "growth h8_rus, h0_for in rg2: rid 2",
+            "growth rid 2: PLACED",
+            "h0_des: StorageHallLot's lot = the program's frame (11x7)",
+            "h8_for: StorageHallLot's lot = the program's frame (11x7)",
+            "growth h0_des, h8_for in rg1: rid 3",
+            "growth rid 3: PLACED",
+            "h8_des: StorageHallLot's lot = the program's frame (11x7)",
+            "h2_rus_b0: StorageHallLot's lot = the program's frame (11x7)",
+            "growth h8_des, h2_rus_b0 in rg2: rid 3",
+            "growth rid 3: PLACED",
+            "h5_rus_b1: StorageHallLot's lot = the program's frame (11x7)",
+            "growth h5_rus_b1 in rg3: rid 1",
+            "growth rid 1: PLACED",
+            "h3_rus_c0: StorageHallLot's lot = the program's frame (11x7)",
+            "growth h3_rus_c0 in rg4: rid 1",
+            "growth rid 1: PLACED",
+            "h6_rus_c1: StorageHallLot's lot = the program's frame (11x7)",
+            "growth h6_rus_c1 in rg3: rid 2",
+            "growth rid 2: PLACED",
+            "1 shape h0_rus (rustic, bulk 0, front north): standing 1, changed 0; 0 double chests paired, the input chest single",
+            "1 shape h1_rus (rustic, bulk 1, front south): standing 1, changed 0; 1 double chests paired, the input chest single",
+            "1 shape h2_rus (rustic, bulk 2, front south): standing 1, changed 0; 2 double chests paired, the input chest single",
+            "1 shape h3_rus (rustic, bulk 3, front north): standing 1, changed 0; 3 double chests paired, the input chest single",
+            "1 shape h4_rus (rustic, bulk 4, front south): standing 1, changed 0; 4 double chests paired, the input chest single",
+            "1 shape h0_des (desert, bulk 0, front north): standing 1, changed 0; 0 double chests paired, the input chest single",
+            "1 shape h8_for (fortress, bulk 8, front south): standing 1, changed 0; 8 double chests paired, the input chest single",
+            "1 shape h5_rus (rustic, bulk 5, front west): standing 1, changed 0; 5 double chests paired, the input chest single",
+            "1 shape h6_rus (rustic, bulk 6, front east): standing 1, changed 0; 6 double chests paired, the input chest single",
+            "1 shape h7_rus (rustic, bulk 7, front east): standing 1, changed 0; 7 double chests paired, the input chest single",
+            "1 shape h8_rus (rustic, bulk 8, front west): standing 1, changed 0; 8 double chests paired, the input chest single",
+            "1 shape h0_for (fortress, bulk 0, front east): standing 1, changed 0; 0 double chests paired, the input chest single",
+            "1 shape h8_des (desert, bulk 8, front west): standing 1, changed 0; 8 double chests paired, the input chest single",
+            "1 shape h2_rus_b0 (rustic, bulk 2, front east): standing 1, changed 0; 2 double chests paired, the input chest single",
+            "1 shape h5_rus_b1 (rustic, bulk 5, front north): standing 1, changed 0; 5 double chests paired, the input chest single",
+            "1 shape h6_rus_c1 (rustic, bulk 6, front south): standing 1, changed 0; 6 double chests paired, the input chest single",
+            "1 shape h3_rus_c0 (rustic, bulk 3, front west): standing 1, changed 0; 3 double chests paired, the input chest single",
+            "4.3 facings: every one covered (north, south, west, east)",
+            "4.3 chunk borders: halls crossing in x [\"h0_rus\",\"h1_rus\",\"h2_rus\",\"h3_rus\",\"h5_rus\",\"h7_rus\",\"h8_rus\",\"h0_for\",\"h8_for\",\"h8_des\",\"h2_rus_b0\"], in z [\"h0_rus\",\"h2_rus\",\"h3_rus\",\"h4_rus\",\"h5_rus\",\"h6_rus\",\"h7_rus\",\"h8_rus\",\"h0_des\",\"h8_for\",\"h2_rus_b0\",\"h3_rus_c0\"], in both [\"h0_rus\",\"h2_rus\",\"h3_rus\",\"h5_rus\",\"h7_rus\",\"h8_rus\",\"h8_for\",\"h2_rus_b0\"]",
+            "4.3 branches: every bulk [0,1,2,3,4,5,6,7,8] placed in rustic",
+            "2 storage h0_rus: the mix in each of its 1 containers reads back slot by slot",
+            "2 storage h1_rus: the mix in each of its 3 containers reads back slot by slot",
+            "2 storage h2_rus: the mix in each of its 5 containers reads back slot by slot",
+            "2 storage h3_rus: the mix in each of its 7 containers reads back slot by slot",
+            "2 storage h4_rus: the mix in each of its 9 containers reads back slot by slot",
+            "2 storage h0_des: the mix in each of its 1 containers reads back slot by slot",
+            "2 storage h8_for: the mix in each of its 17 containers reads back slot by slot",
+            "2 storage h5_rus: the mix in each of its 11 containers reads back slot by slot",
+            "2 storage h6_rus: the mix in each of its 13 containers reads back slot by slot",
+            "2 storage h7_rus: the mix in each of its 15 containers reads back slot by slot",
+            "2 storage h8_rus: the mix in each of its 17 containers reads back slot by slot",
+            "2 storage h0_for: the mix in each of its 1 containers reads back slot by slot",
+            "2 storage h8_des: the mix in each of its 17 containers reads back slot by slot",
+            "2 storage h2_rus_b0: the mix in each of its 5 containers reads back slot by slot",
+            "2 storage h5_rus_b1: the mix in each of its 11 containers reads back slot by slot",
+            "2 storage h6_rus_c1: the mix in each of its 13 containers reads back slot by slot",
+            "2 storage h3_rus_c0: the mix in each of its 7 containers reads back slot by slot",
+            "4 light h0_rus (rustic): 46 air cells inside and on the front row, the darkest 7",
+            "4 light h1_rus (rustic): 44 air cells inside and on the front row, the darkest 7",
+            "4 light h2_rus (rustic): 42 air cells inside and on the front row, the darkest 8",
+            "4 light h3_rus (rustic): 40 air cells inside and on the front row, the darkest 8",
+            "4 light h4_rus (rustic): 38 air cells inside and on the front row, the darkest 9",
+            "4 light h0_des (desert): 46 air cells inside and on the front row, the darkest 7",
+            "4 light h8_for (fortress): 38 air cells inside and on the front row, the darkest 9",
+            "4 light h5_rus (rustic): 38 air cells inside and on the front row, the darkest 8",
+            "4 light h6_rus (rustic): 38 air cells inside and on the front row, the darkest 8",
+            "4 light h7_rus (rustic): 38 air cells inside and on the front row, the darkest 9",
+            "4 light h8_rus (rustic): 38 air cells inside and on the front row, the darkest 8",
+            "4 light h0_for (fortress): 46 air cells inside and on the front row, the darkest 8",
+            "4 light h8_des (desert): 38 air cells inside and on the front row, the darkest 8",
+            "4 light h2_rus_b0 (rustic): 42 air cells inside and on the front row, the darkest 8",
+            "4 light h5_rus_b1 (rustic): 38 air cells inside and on the front row, the darkest 8",
+            "4 light h6_rus_c1 (rustic): 38 air cells inside and on the front row, the darkest 8",
+            "4 light h3_rus_c0 (rustic): 40 air cells inside and on the front row, the darkest 8",
+            "3 restart h0_rus: every container as before (true), 0 item entities, standing 1",
+            "3 restart h1_rus: every container as before (true), 0 item entities, standing 1",
+            "3 restart h2_rus: every container as before (true), 0 item entities, standing 1",
+            "3 restart h3_rus: every container as before (true), 0 item entities, standing 1",
+            "3 restart h4_rus: every container as before (true), 0 item entities, standing 1",
+            "3 restart h0_des: every container as before (true), 0 item entities, standing 1",
+            "3 restart h8_for: every container as before (true), 0 item entities, standing 1",
+            "3 restart h5_rus: every container as before (true), 0 item entities, standing 1",
+            "3 restart h6_rus: every container as before (true), 0 item entities, standing 1",
+            "3 restart h7_rus: every container as before (true), 0 item entities, standing 1",
+            "3 restart h8_rus: every container as before (true), 0 item entities, standing 1",
+            "3 restart h0_for: every container as before (true), 0 item entities, standing 1",
+            "3 restart h8_des: every container as before (true), 0 item entities, standing 1",
+            "3 restart h2_rus_b0: every container as before (true), 0 item entities, standing 1",
+            "3 restart h5_rus_b1: every container as before (true), 0 item entities, standing 1",
+            "3 restart h6_rus_c1: every container as before (true), 0 item entities, standing 1",
+            "3 restart h3_rus_c0: every container as before (true), 0 item entities, standing 1",
+            "3 unload: every chunk the halls' boxes touch unloaded once the player is 6,000 blocks away (34/34 chunks)",
+            "3 unload: 609 game ticks passed with the halls unloaded",
+            "3 unload h0_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h1_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h2_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h3_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h4_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h0_des: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h8_for: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h5_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h6_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h7_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h8_rus: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h0_for: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h8_des: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h2_rus_b0: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h5_rus_b1: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h6_rus_c1: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "3 unload h3_rus_c0: every container as before after its chunks unloaded and loaded (true), 0 item entities, standing 1",
+            "5 undo with cargo rid 2 (h6_rus_c1): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ); the containers and standing unchanged",
+            "5 the steward's words: \"the storage hall still holds 7,735 items in 7 chests; empty it first\" (this growth's halls hold 7735 in 7 chests)",
+            "5 one item alone in h6_rus_c1's input 104,66,581: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h6_rus_c1's bulk lower, west half 99,66,578: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h6_rus_c1's bulk lower, east half 100,66,578: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h6_rus_c1's bulk upper, west half 99,67,578: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h6_rus_c1's bulk upper, east half 100,67,578: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 1 refused, nothing written: Move these out of s17 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "6 undo emptied rid 2: removed true (UNDONE), blockers [], 0 item entities",
+            "5 undo with cargo rid 1 (h3_rus_c0): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg4 to position 0 refused, nothing written: Move these out of s16 first (removing it puts the old terrain back over them): chest at ); the containers and standing unchanged",
+            "5 the steward's words: \"the storage hall still holds 4,165 items in 4 chests; empty it first\" (this growth's halls hold 4165 in 4 chests)",
+            "5 one item alone in h3_rus_c0's input 357,66,636: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg4 to position 0 refused, nothing written: Move these out of s16 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h3_rus_c0's bulk lower, west half 360,66,631: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg4 to position 0 refused, nothing written: Move these out of s16 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h3_rus_c0's bulk lower, east half 360,66,632: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg4 to position 0 refused, nothing written: Move these out of s16 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "6 undo emptied rid 1: removed true (UNDONE), blockers [], 0 item entities",
+            "5 undo with cargo rid 1 (h5_rus_b1): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ); the containers and standing unchanged",
+            "5 the steward's words: \"the storage hall still holds 6,545 items in 6 chests; empty it first\" (this growth's halls hold 6545 in 6 chests)",
+            "5 one item alone in h5_rus_b1's input 133,66,597: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h5_rus_b1's bulk lower, west half 138,66,600: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h5_rus_b1's bulk lower, east half 137,66,600: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h5_rus_b1's bulk upper, west half 138,67,600: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h5_rus_b1's bulk upper, east half 137,67,600: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg3 to position 0 refused, nothing written: Move these out of s15 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "6 undo emptied rid 1: removed true (UNDONE), blockers [], 0 item entities",
+            "5 undo with cargo rid 3 (h8_des, h2_rus_b0): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ); the containers and standing unchanged",
+            "5 the steward's words: \"the storage hall still holds 13,090 items in 12 chests; empty it first\" (this growth's halls hold 13090 in 12 chests)",
+            "5 one item alone in h8_des's input 349,66,75: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h8_des's bulk lower, west half 352,66,70: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h8_des's bulk lower, east half 352,66,71: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h8_des's bulk upper, west half 352,67,70: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h8_des's bulk upper, east half 352,67,71: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s13 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h2_rus_b0's input 336,66,158: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s14 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h2_rus_b0's bulk lower, west half 333,66,163: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s14 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h2_rus_b0's bulk lower, east half 333,66,162: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 2 refused, nothing written: Move these out of s14 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "6 undo emptied rid 3: removed true (UNDONE), blockers [], 0 item entities",
+            "5 undo with cargo rid 3 (h0_des, h8_for): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s11 first (removing it puts the old terrain back over them): chest at ); the containers and standing unchanged",
+            "5 the steward's words: \"the storage hall still holds 10,710 items in 10 chests; empty it first\" (this growth's halls hold 10710 in 10 chests)",
+            "5 one item alone in h0_des's input 73,66,93: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s11 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h8_for's input 160,66,80: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s12 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h8_for's bulk lower, west half 155,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s12 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h8_for's bulk lower, east half 156,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s12 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h8_for's bulk upper, west half 155,67,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s12 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "5 one item alone in h8_for's bulk upper, east half 156,67,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 2 refused, nothing written: Move these out of s12 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "6 undo emptied rid 3: removed true (UNDONE), blockers [], 0 item entities",
+            "5 undo with cargo rid 2 (h8_rus, h0_for): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3); the containers and standing unchanged",
+            "5 the steward's words: \"the storage hall still holds 10,710 items in 10 chests; empty it first\" (this growth's halls hold 10710 in 10 chests)",
+            "5 one item alone in h8_rus's input 349,66,143: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h8_rus's bulk lower, west half 352,66,138: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h8_rus's bulk lower, east half 352,66,139: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h8_rus's bulk upper, west half 352,67,138: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h8_rus's bulk upper, east half 352,67,139: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s9 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h0_for's input 336,66,73: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 1 refused, nothing written: Move these out of s10 first (removing it puts the old terrain back over them): chest at ), the item still there",
+            "6 undo emptied rid 2: removed true (UNDONE), blockers [], 0 item entities",
+            "5 undo with cargo rid 1 (h5_rus, h6_rus, h7_rus): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3); the containers and standing unchanged",
+            "5 the steward's words: \"the storage hall still holds 23,205 items in 21 chests; empty it first\" (this growth's halls hold 23205 in 21 chests)",
+            "5 one item alone in h5_rus's input 349,66,127: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h5_rus's bulk lower, west half 352,66,122: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h5_rus's bulk lower, east half 352,66,123: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h5_rus's bulk upper, west half 352,67,122: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h5_rus's bulk upper, east half 352,67,123: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s6 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h6_rus's input 333,66,94: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s7 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h6_rus's bulk lower, west half 330,66,99: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s7 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h6_rus's bulk lower, east half 330,66,98: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s7 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h6_rus's bulk upper, west half 330,67,99: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s7 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h6_rus's bulk upper, east half 330,67,98: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s7 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h7_rus's input 336,66,139: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s8 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h7_rus's bulk lower, west half 333,66,144: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s8 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h7_rus's bulk lower, east half 333,66,143: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s8 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h7_rus's bulk upper, west half 333,67,144: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s8 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "5 one item alone in h7_rus's bulk upper, east half 333,67,143: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg2 to position 0 refused, nothing written: Move these out of s8 first (removing it puts the old terrain back over them): chest at 3), the item still there",
+            "6 undo emptied rid 1: removed true (UNDONE), blockers [], 0 item entities",
+            "5 undo with cargo rid 2 (h3_rus, h4_rus): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s4 first (removing it puts the old terrain back over them): chest at 1); the containers and standing unchanged",
+            "5 the steward's words: \"the storage hall still holds 9,520 items in 9 chests; empty it first\" (this growth's halls hold 9520 in 9 chests)",
+            "5 one item alone in h3_rus's input 141,66,93: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s4 first (removing it puts the old terrain back over them): chest at 1), the item still there",
+            "5 one item alone in h3_rus's bulk lower, west half 146,66,96: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s4 first (removing it puts the old terrain back over them): chest at 1), the item still there",
+            "5 one item alone in h3_rus's bulk lower, east half 145,66,96: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s4 first (removing it puts the old terrain back over them): chest at 1), the item still there",
+            "5 one item alone in h4_rus's input 75,66,80: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s5 first (removing it puts the old terrain back over them): chest at 7), the item still there",
+            "5 one item alone in h4_rus's bulk lower, west half 70,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s5 first (removing it puts the old terrain back over them): chest at 7), the item still there",
+            "5 one item alone in h4_rus's bulk lower, east half 71,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 1 refused, nothing written: Move these out of s5 first (removing it puts the old terrain back over them): chest at 7), the item still there",
+            "6 undo emptied rid 2: removed true (UNDONE), blockers [], 0 item entities",
+            "5 undo with cargo rid 1 (h0_rus, h1_rus, h2_rus): refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s1 first (removing it puts the old terrain back over them): chest at 1); the containers and standing unchanged",
+            "5 the steward's words: \"the storage hall still holds 5,355 items in 6 chests; empty it first\" (this growth's halls hold 5355 in 6 chests)",
+            "5 one item alone in h0_rus's input 125,66,93: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s1 first (removing it puts the old terrain back over them): chest at 1), the item still there",
+            "5 one item alone in h1_rus's input 96,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s2 first (removing it puts the old terrain back over them): chest at 9), the item still there",
+            "5 one item alone in h1_rus's bulk lower, west half 91,66,74: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s2 first (removing it puts the old terrain back over them): chest at 9), the item still there",
+            "5 one item alone in h1_rus's bulk lower, east half 92,66,74: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s2 first (removing it puts the old terrain back over them): chest at 9), the item still there",
+            "5 one item alone in h2_rus's input 141,66,80: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s3 first (removing it puts the old terrain back over them): chest at 1), the item still there",
+            "5 one item alone in h2_rus's bulk lower, west half 136,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s3 first (removing it puts the old terrain back over them): chest at 1), the item still there",
+            "5 one item alone in h2_rus's bulk lower, east half 137,66,77: the undo refused for cargo (removed undefined; blockers []; NOT_ALLOWED: undo of region rg1 to position 0 refused, nothing written: Move these out of s3 first (removing it puts the old terrain back over them): chest at 1), the item still there",
+            "6 undo emptied rid 1: removed true (UNDONE), blockers [], 0 item entities"
+          ]
+        },
+        "survival": {
+          "at": "2026-11-15T04:08:15.550Z",
+          "head": "3df4e750fcb13adc4c1914e074b64aeb55d9c7f2",
+          "world": "Steward M4 Survival 202611150405",
+          "seconds": 156.717,
+          "runs": null,
+          "passed": 26,
+          "of": 26,
+          "results": [
+            "a stockpile of 8 crates for steward_mc:measure: \"made\"",
+            "the town rg1 built in survival from the stockpile: PLACED (3 waves)",
+            "storage_hall@1 installed at $0 by its key steward.catalog.storage_hall.v1.9e6f1f15926f as storage_hall_2",
+            "sv0: StorageHallLot's lot = the program's frame (11x7)",
+            "sv1: StorageHallLot's lot = the program's frame (11x7)",
+            "sv2: StorageHallLot's lot = the program's frame (11x7)",
+            "survival growth sv0, sv1, sv2: rid 1",
+            "7 bill rid 1 (sv0, sv1, sv2): PLACED; consumed = the quote item for item (equal; 1201 items; exact false)",
+            "sv3: StorageHallLot's lot = the program's frame (11x7)",
+            "sv4: StorageHallLot's lot = the program's frame (11x7)",
+            "sv5: StorageHallLot's lot = the program's frame (11x7)",
+            "survival growth sv3, sv4, sv5: rid 2",
+            "7 bill rid 2 (sv3, sv4, sv5): PLACED; consumed = the quote item for item (equal; 1150 items; exact false)",
+            "sv6: StorageHallLot's lot = the program's frame (11x7)",
+            "sv7: StorageHallLot's lot = the program's frame (11x7)",
+            "sv8: StorageHallLot's lot = the program's frame (11x7)",
+            "survival growth sv6, sv7, sv8: rid 3",
+            "7 bill rid 3 (sv6, sv7, sv8): PLACED; consumed = the quote item for item (equal; 1237 items; exact false)",
+            "svc8: StorageHallLot's lot = the program's frame (11x7)",
+            "cancel growth svc8: rid 4",
+            "7 cancel mid-build rid 4: consumed 6 of the quote's 362 items before the undo (removed true, UNDONE); refunded exactly that (equal)",
+            "7 mined: the player broke one bulk chest half of sv8 at 50033,66,50069; it dropped {\"minecraft:chest\":1} (the player's)",
+            "7 refund rid 3: removed true; credited (with overflow) = consumed less the chest the player mined (equal); dropped {}",
+            "7 refund rid 2: removed true; credited (with overflow) = consumed (equal); dropped {}",
+            "7 refund rid 1: removed true; credited (with overflow) = consumed (equal); dropped {}",
+            "7 after a restart: nothing given twice (the ledger and stock unchanged; items on the ground {})"
+          ]
+        },
+        "bounds": {
+          "at": "2026-11-15T04:00:30.919Z",
+          "head": "9c07eda0416592d849f9823263c67f8cfbfedb06",
+          "world": "Steward M4 Bounds 202611150357",
+          "seconds": 155.851,
+          "runs": null,
+          "passed": 58,
+          "of": 58,
+          "results": [
+            "a stockpile of 8 crates for steward_mc:measure: \"made\"",
+            "the town rg1 built in survival from the stockpile: PLACED (3 waves)",
+            "storage_hall@1 installed at $0 by its key steward.catalog.storage_hall.v1.9e6f1f15926f as storage_hall_2",
+            "bd0_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 0 rustic: quoted (survival true, exact false, 439 items)",
+            "bd0_for: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 0 fortress: quoted (survival true, exact false, 439 items)",
+            "bd0_des: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 0 desert: quoted (survival true, exact false, 439 items)",
+            "bd1_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 1 rustic: quoted (survival true, exact false, 441 items)",
+            "bd1_for: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 1 fortress: quoted (survival true, exact false, 441 items)",
+            "bd1_des: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 1 desert: quoted (survival true, exact false, 441 items)",
+            "bd2_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 2 rustic: quoted (survival true, exact false, 443 items)",
+            "bd2_for: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 2 fortress: quoted (survival true, exact false, 443 items)",
+            "bd2_des: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 2 desert: quoted (survival true, exact false, 443 items)",
+            "bd3_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 3 rustic: quoted (survival true, exact false, 445 items)",
+            "bd3_for: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 3 fortress: quoted (survival true, exact false, 445 items)",
+            "bd3_des: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 3 desert: quoted (survival true, exact false, 445 items)",
+            "bd4_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 4 rustic: quoted (survival true, exact false, 447 items)",
+            "bd4_for: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 4 fortress: quoted (survival true, exact false, 447 items)",
+            "bd4_des: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 4 desert: quoted (survival true, exact false, 447 items)",
+            "bd5_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 5 rustic: quoted (survival true, exact false, 449 items)",
+            "bd5_for: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 5 fortress: quoted (survival true, exact false, 449 items)",
+            "bd5_des: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 5 desert: quoted (survival true, exact false, 449 items)",
+            "bd6_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 6 rustic: quoted (survival true, exact false, 451 items)",
+            "bd6_for: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 6 fortress: quoted (survival true, exact false, 451 items)",
+            "bd6_des: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 6 desert: quoted (survival true, exact false, 451 items)",
+            "bd7_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 7 rustic: quoted (survival true, exact false, 453 items)",
+            "bd7_for: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 7 fortress: quoted (survival true, exact false, 453 items)",
+            "bd7_des: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 7 desert: quoted (survival true, exact false, 453 items)",
+            "bd8_rus: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 8 rustic: quoted (survival true, exact false, 455 items)",
+            "bd8_for: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 8 fortress: quoted (survival true, exact false, 455 items)",
+            "bd8_des: StorageHallLot's lot = the program's frame (11x7)",
+            "bounds bulk 8 desert: quoted (survival true, exact false, 455 items)",
+            "bounds: every one of the 9 branches has a bound over its 3 Styles (9)"
+          ]
+        }
+      }
+    },
+    "what": "docs/MEASURE-M4.md 4.1: the plain hall (slots 0), every bulk branch, measured in a dev client by tools/module-measure-hall.mjs: shape, storage, restart and unload, light, undo with cargo and emptied (all four facings, chunk borders, rustic in full, fortress and desert for shape and light), the survival bill, a cancel mid-build and the refunds, and the bound per branch and Style. Deterministic: one run per step.",
+    "bars": "docs/MEASURE-M4.md \"4. The bars\" (committed before the first measurement)",
+    "runs": 1,
+    "basis": "full",
+    "boundsSha": "ee0e6b7d0a888fce7b72468e8ca9adb5ccae939831528b0a20b16342622dbff0",
+    "ratesSha": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  },
   "bounds": [
     {
       "params": {
