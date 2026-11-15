@@ -243,7 +243,7 @@ public final class ModuleOffers {
 			if (d.ok()) {
 				var lamp = lamp(s, v.entry());
 				if (lamp.refused() != null) why = lamp.refused();
-				else offer = proposal(k, d, s, town.path() == ModuleOffer.Path.REGION_MATERIALS, lamp.fallback(), k.rule(), "seeds", now);
+				else offer = proposal(k, d, s, town.path() == ModuleOffer.Path.REGION_MATERIALS, lamp.fallback(), k.rule(), k.sign() == ModuleKind.Sign.STORES ? "stores" : "seeds", now);
 			}
 			if (offer == null) Steward.LOGGER.debug("module {} not offered to {}: {}", k.id(), s.id(), why);
 			out.add(new ProposalRules.ModuleCandidate(k, standing(server, s, k.id()), offer, why));

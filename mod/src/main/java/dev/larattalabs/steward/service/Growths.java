@@ -307,7 +307,10 @@ public final class Growths {
 			if (again.step() == Step.GONE) { done.accept(true); return; }
 			// (slice A2) a target still building (a race past the check above): said plainly, never Architect's text
 			if (err != null && buildingRefusal(SettlementRunner.message(err))) { say.accept(buildingLine(server, ref)); done.accept(false); return; }
-			say.accept("The town's change could not be taken up: " + (err != null ? SettlementRunner.message(err) : "blocked by " + String.join(", ", r.blockers())) + ".");
+			// (M4, Q3) a storage hall holding items: said as the steward says it, with the count and the containers
+			String hall = err == null && !r.blockers().isEmpty() ? HallCargo.words(server, owner, ref.region()) : null;
+			say.accept("The town's change could not be taken up: " + (hall != null ? hall + " (" + String.join(", ", r.blockers()) + ")"
+				: err != null ? SettlementRunner.message(err) : "blocked by " + String.join(", ", r.blockers())) + ".");
 			done.accept(false);
 		}));
 	}
