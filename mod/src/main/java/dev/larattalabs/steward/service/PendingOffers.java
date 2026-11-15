@@ -40,7 +40,8 @@ public final class PendingOffers {
 	private record Fitting(String settlementId, String part, String block, String region, String what, UUID player, Proposal proposal, int session, long since) {}
 	/**
 	 * A compose key that adopted a design this client no longer holds (Architect's reconnect snapshot keeps the last finished ones only) never ends here:
-	 * after this long without the design it stops as a failure, so the settlement is never left busy (GPT review, CA2).
+	 * after this long without the design, continuously (a reconnect's snapshot can hide a running one for a moment), it stops as a failure, so the
+	 * settlement is never left busy (GPT review, CA2). {@code since}: when the design was last seen (or the accept).
 	 */
 	static final long UNSEEN_MS = 30_000;
 	private static final Map<String, Fitting> FITTING = new java.util.concurrent.ConcurrentHashMap<>();
@@ -379,7 +380,11 @@ public final class PendingOffers {
 		long now = System.currentTimeMillis();
 		for (var e : List.copyOf(FITTING.entrySet())) {
 			Fitting f = e.getValue();
-			if (now - f.since() < UNSEEN_MS || ArchitectAccess.api().designs().get(e.getKey()).isPresent()) continue;
+			if (ArchitectAccess.api().designs().get(e.getKey()).isPresent()) {
+				FITTING.replace(e.getKey(), f, new Fitting(f.settlementId(), f.part(), f.block(), f.region(), f.what(), f.player(), f.proposal(), f.session(), now));
+				continue;
+			}
+			if (now - f.since() < UNSEEN_MS) continue;
 			FITTING.remove(e.getKey());
 			var s = Settlements.store().get(f.settlementId());
 			if (s.isEmpty() || !Session.is(f.session())) {
@@ -458,7 +463,9 @@ public final class PendingOffers {
 	static String townState(MinecraftServer server, Settlement s, String region) {
 		try {
 			var sites = ArchitectAccess.api().sites(server);
-			return VillageSweep.sitesOf(server, s.owner(), region).stream().sorted().map(id -> id + "@" + sites.get(id).map(dev.larattalabs.architect.api.SiteView::version).orElse(0))
+			// the region's own state (its IR and revisions: a tile-only revision changes no site), then its sites
+			String head = ArchitectAccess.api().regions().get(region).map(v -> v.irSha() + "#" + v.revisions().size() + "#" + v.state()).orElse("?");
+			return head + ";" + VillageSweep.sitesOf(server, s.owner(), region).stream().sorted().map(id -> id + "@" + sites.get(id).map(dev.larattalabs.architect.api.SiteView::version).orElse(0))
 				.collect(java.util.stream.Collectors.joining(","));
 		} catch (RuntimeException | LinkageError e) {
 			return "";

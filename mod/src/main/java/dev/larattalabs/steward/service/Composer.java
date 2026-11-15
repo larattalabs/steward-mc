@@ -582,9 +582,12 @@ public final class Composer {
 				case "blocked" -> pending.add(new PlanStore.Pending(id, part.has("block") ? part.get("block").getAsString() : "", required,
 					unplacedEnd(part) != null ? id.replace('_', ' ') + " waits on " + unplacedEnd(part) + ", which there wasn't room to place"
 						: composed.outcome().says().getOrDefault(id, id.replace('_', ' ') + " waits on another part of the plan that can't be built yet")));
-				case "refused", "malformed" -> unfit.add(id.replace('_', ' ') + (code(part) != null ? " (" + code(part) + ")" : ""));
+				// the part by Architect's name for it (CP's waits[].say, "<label> didn't fit here", under "Didn't fit here:"), else its id; with its reason code
+				case "refused", "malformed" -> unfit.add(composed.outcome().says().containsKey(id)
+					? composed.outcome().says().get(id).replaceFirst(" didn't fit here$", "") + (code(part) != null ? " (" + code(part) + ")" : "")
+					: id.replace('_', ' ') + (code(part) != null ? " (" + code(part) + ")" : ""));
 				// (CP's "couldn't be checked yet") a part the check stopped on is said, never silently left out
-				case "incomplete" -> unfit.add(id.replace('_', ' ') + " (not checked yet)");
+				case "incomplete" -> unfit.add(composed.outcome().says().getOrDefault(id, id.replace('_', ' ') + " (not checked yet)"));
 				default -> {
 				}
 			}
