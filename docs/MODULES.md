@@ -67,7 +67,9 @@ $0) with **bars fixed before the first candidate is measured**.
 
 - **No measurement, no offer.** A module is offered only:
   - on the Minecraft version it was measured on;
-  - on an Architect version whose RC ran its `module` e2e flow (section 7).
+  - on an Architect version whose RC ran its `module` e2e flow (section 7);
+  - (slice BCU) when the kit Architect bundles (`ArchitectApi.kitVersion()`) and the checker its helper runs (`checkerVersion()`) are the ones
+    module.json pins. A stale helper, no helper yet, or an Architect that does not say refuses with `KIT`, in words.
 
   A version that fails its measurement leaves the catalog. Nothing falls back silently to an unmeasured version.
 - **The probe comes first** (slice M0, as Architect's `gm-probe`).

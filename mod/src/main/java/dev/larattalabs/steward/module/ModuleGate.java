@@ -17,6 +17,9 @@ import org.jspecify.annotations.Nullable;
  * <li><b>Never a silent fallback.</b> {@link #offer(ModuleCatalog, String, Env)} judges the newest version only. If that one is refused,
  * nothing is offered: an older version is never put in its place.</li>
  * <li>Architect's helper must run given programs (feature {@code givenPrograms}).</li>
+ * <li><b>The running kit.</b> (slice BCU) module.json's pins must be the kit this Architect bundles ({@code ArchitectApi.kitVersion()}) and the
+ * checker its helper runs now ({@code checkerVersion()}): measured.json's Architect list alone does not say which kit runs. An unknown kit or
+ * checker (an Architect without feature {@code kitVersion}, or no helper connected yet) is a mismatch, said in words.</li>
  * <li>A fixture module is test data: only a dev caller ({@link Env#fixtures()}) may install one.</li>
  * <li>A measurement certifies the exact program, schema, envelope, palette rules and pins ({@code result: pass}, {@code moduleSha}); a missing,
  * failed or stale one offers nothing. Only a dev measurement run ({@link Env#measuring()}) installs an uncertified entry, to measure it.</li>
@@ -33,23 +36,34 @@ public final class ModuleGate {
 
 	/** Why a module is not offered. */
 	public enum Why {
-		UNKNOWN, INVALID, NOT_MEASURED, MINECRAFT, ARCHITECT, FEATURE, FIXTURE, PARAMS
+		UNKNOWN, INVALID, NOT_MEASURED, MINECRAFT, ARCHITECT, KIT, FEATURE, FIXTURE, PARAMS
 	}
 
 	/**
-	 * Where we are: the running Minecraft and Architect (mod) versions, Architect's features, whether fixtures are allowed, and whether this is
-	 * a measurement run (both dev only: {@code measuring} installs an entry whose measurement is missing or stale, to measure it).
+	 * Where we are: the running Minecraft and Architect (mod) versions, Architect's features, whether fixtures are allowed, whether this is
+	 * a measurement run (both dev only: {@code measuring} installs an entry whose measurement is missing or stale, to measure it), and the kit
+	 * Architect bundles and the checker its helper runs ({@link #UNKNOWN_KIT} when Architect has not said). A null {@code kit} or {@code checker}
+	 * is never passed by the game: it is a unit test's "not under test", and that pin is not compared.
 	 */
-	public record Env(String minecraft, String architect, Set<String> features, boolean fixtures, boolean measuring) {
+	public record Env(String minecraft, String architect, Set<String> features, boolean fixtures, boolean measuring, @Nullable String kit,
+		@Nullable String checker) {
 		public Env {
 			features = features == null ? Set.of() : Set.copyOf(features);
 		}
 
-		/** A player's game: no fixtures, no measuring. */
+		/** Tests: the kit and checker not compared. */
+		public Env(String minecraft, String architect, Set<String> features, boolean fixtures, boolean measuring) {
+			this(minecraft, architect, features, fixtures, measuring, null, null);
+		}
+
+		/** A player's game: no fixtures, no measuring (tests: the kit and checker not compared). */
 		public Env(String minecraft, String architect, Set<String> features) {
 			this(minecraft, architect, features, false, false);
 		}
 	}
+
+	/** The kit or checker version of an Architect that has not said it (no feature {@code kitVersion}, or no helper connected). */
+	public static final String UNKNOWN_KIT = "none";
 
 	/** A verdict: offered ({@code entry} set, {@code why} null), or refused with why and in words. */
 	public record Verdict(@Nullable Entry entry, @Nullable Why why, String message) {
@@ -82,7 +96,27 @@ public final class ModuleGate {
 			return Verdict.no(e, Why.MINECRAFT, e.key() + " was measured on Minecraft " + m.minecraft() + ", not " + env.minecraft() + ".");
 		if (!m.architect().contains(env.architect()))
 			return Verdict.no(e, Why.ARCHITECT, e.key() + " was measured with Architect " + String.join(", ", m.architect()) + ", not " + env.architect() + ".");
+		var kit = kitMismatch(e, env);
+		if (kit != null) return Verdict.no(e, Why.KIT, kit);
 		return new Verdict(e, null, e.key() + " may be offered" + (m.smoke() ? " (its measurement on Architect " + m.from() + ", carried on a smoke check)." : "."));
+	}
+
+	/**
+	 * (slice BCU) Why the running kit or checker is not the one module.json pins, or null when both match (a null in {@code env} is not compared).
+	 * Measurement certifies the program run by that kit and checked by that checker, so any other kit is unmeasured.
+	 */
+	static @Nullable String kitMismatch(Entry e, Env env) {
+		boolean kitOff = env.kit() != null && !env.kit().equals(e.kitPin());
+		boolean checkerOff = env.checker() != null && !env.checker().equals(e.checkerPin());
+		if (!kitOff && !checkerOff) return null;
+		String running = "Architect runs kit " + said(env.kit()) + " and its helper checks with " + said(env.checker());
+		String hint = !kitOff && UNKNOWN_KIT.equals(env.checker()) ? " (no helper connected yet?)"
+			: !kitOff ? " (the helper is stale: it restarts to the bundled kit)" : "";
+		return e.key() + " is pinned to kit " + e.kitPin() + " and checker " + e.checkerPin() + "; " + running + hint + ".";
+	}
+
+	private static String said(@Nullable String v) {
+		return v == null ? "(not checked)" : UNKNOWN_KIT.equals(v) ? "(not said)" : v;
 	}
 
 	/** Resolved params: the canonical values (every param, sorted keys), or why they are refused. */

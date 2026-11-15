@@ -35,7 +35,7 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  * (slice GEA) A faked Architect for unit tests of Steward's recovery adapters (the reconcile, the growth sweep, {@code Undo.growth}), installed through
  * {@link ArchitectAccess#useForTest}. It models what those paths read and ask, as Architect's contract says it behaves: regions with their state, position,
  * busy note, revisions and {@code architect_mc:land}; sites with their state and region; {@code undoRevision}, {@code Regions.remove}, {@code unadopt} and
- * {@code Sites.remove} answers, refusals and lost answers included; and the stockpile ledger of a region built from materials (paid == returned).
+ * {@code Sites.remove} answers, refusals and lost answers included; {@code Sites.loadHealthy} and the kit and checker versions (slice BCU); and the stockpile ledger of a region built from materials (paid == returned).
  * Anything it does not model throws, so a path that reaches past the model fails loudly; every call is recorded ({@link #calls}).
  */
 final class FakeArchitect {
@@ -197,6 +197,13 @@ final class FakeArchitect {
 	/** What {@code server.execute} was handed and has not run yet (run by {@link #runServer}); when {@link #inline}, run at once. */
 	final List<Runnable> serverQueue = new ArrayList<>();
 	boolean inline = true;
+	/** (slice BCU) {@code Sites.loadHealthy()}: false models a sites file Architect could not read (it then lists no site). */
+	boolean loadHealthy = true;
+	/** (slice BCU) {@code ArchitectApi.kitVersion()} and {@code checkerVersion()} (null: no helper connected, empty). */
+	String kitVersion = "0.65.0";
+	String checkerVersion = "0.65.0";
+	/** Architect's features (BC+'s {@code kitVersion} and {@code sitesLoadHealthy} among them). */
+	Set<String> features = Set.of("regions", "growDistrict", "regionAdopt", "kitVersion", "sitesLoadHealthy");
 
 	Region region(String id, String owner) {
 		Region r = new Region(id, owner);
@@ -251,21 +258,24 @@ final class FakeArchitect {
 		Sites sitesApi = proxy(Sites.class, (m, a) -> switch (m) {
 			case "get" -> {
 				calls.add("sites.get " + a[0]);
-				Site s = sites.get((String) a[0]);
+				Site s = loadHealthy ? sites.get((String) a[0]) : null;
 				yield s == null ? Optional.empty() : Optional.of(s.view());
 			}
 			case "list" -> {
 				calls.add("sites.list");
 				String owner = a == null || a.length == 0 ? null : (String) a[0];
-				yield sites.values().stream().filter(s -> owner == null || owner.equals(s.owner)).map(Site::view).toList();
+				yield loadHealthy ? sites.values().stream().filter(s -> owner == null || owner.equals(s.owner)).map(Site::view).toList() : List.of();
 			}
 			case "remove" -> removeSite((String) a[0], (RemoveOptions) a[1]);
+			case "loadHealthy" -> loadHealthy;
 			default -> throw new UnsupportedOperationException("FakeArchitect: Sites." + m + " is not modelled");
 		});
 		return proxy(ArchitectApi.class, (m, a) -> switch (m) {
 			case "regions" -> regionsApi;
 			case "sites" -> sitesApi;
-			case "features" -> Set.of("regions", "growDistrict", "regionAdopt");
+			case "features" -> features;
+			case "kitVersion" -> kitVersion;
+			case "checkerVersion" -> Optional.ofNullable(checkerVersion);
 			default -> throw new UnsupportedOperationException("FakeArchitect: ArchitectApi." + m + " is not modelled");
 		});
 	}
