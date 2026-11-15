@@ -5602,14 +5602,14 @@ async function survivalDistrictFlow() {
       await cmd('/gamemode creative @p');
       const resumed = await waitLog(0, new RegExp(`resume ${id}: [^\\n]*`), 60_000);
       feeding = true;
-      // no second approval: driveUntil approves only "Approve to place", and a bill asked again would stall it
-      const again = resumed ? await driveUntil(id, 0, /is built(?: in part)?: (\d+) buildings? placed/, 600_000) : null;
-      const asked = /Approve to build it/.test(logSince(0));
+      // no second approval: nothing is approved here, so a placement or a bill asked again stalls it (and is named)
+      const again = resumed ? await waitLog(0, /is built(?: in part)?: (\d+) buildings? placed/, 600_000) : null;
+      const asked = /Approve to place|Approve to build it/.test(logSince(0));
       const e1 = await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === `region:${region}`, 30);
       const once = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.siteGroup === `region:${region}` && e.kind === 'PROJECT_PLACED').length === 1;
       mine = await listed();
       d = dgDistrict(id, d.id);
-      if (resumed && again && !asked && e1 && once && d?.state === 'standing' && d?.region === region && mine?.length === 1) {
+      if (savedPhase === 'PLACING' && resumed && again && !asked && e1 && once && d?.state === 'standing' && d?.region === region && mine?.length === 1) {
         ok(rl, `saved ${savedPhase}; ${region} found by its keys after the restart (its answer held until the stop), no second approval, logged once, one region`);
       } else return fail(rl, `saved ${savedPhase}; resumed ${!!resumed}; placed ${!!again}; asked again ${asked}; logged ${!!e1} (once ${once}); district ${JSON.stringify(d)?.slice(0, 120)}; regions ${JSON.stringify(mine)?.slice(0, 120)}; ${chatTail(0)}`);
       const built = await waitLog(0, /sd ward is built: everything its plan laid out stands[^\n]*/, 900_000);
@@ -5617,9 +5617,12 @@ async function survivalDistrictFlow() {
       const spB = await ledger();
       const paid = minusItems(spB?.consumed, spA?.consumed);
       if (!built || !quoted || !Object.keys(paid).length) return fail(`${label} built`, `said ${!!built}; consumed ${JSON.stringify(paid).slice(0, 120)}; quote ${quoted ? JSON.stringify(quoted).slice(0, 120) : 'not read'}`);
+      // exact: consumed == the quote; inexact (natural terrain the quote counted may already stand): every item consumed is in the quote, at most its count
+      const over = Object.entries(paid).filter(([k, v]) => v > (quoted[k] ?? 0)).map(([k, v]) => `${k} ${v}/${quoted[k] ?? 0}`);
+      const under = Object.entries(quoted).filter(([k, v]) => v > (paid[k] ?? 0)).map(([k, v]) => `${k} ${paid[k] ?? 0}/${v}`);
       if (sameItems(paid, quoted)) ok(`${label} built`, `sd ward built from the stockpile and said so; consumed ${JSON.stringify(paid).slice(0, 140)} = its ${exact ? 'exact' : 'inexact'} quote`);
-      else if (!exact) ok(`${label} built`, `sd ward built; consumed ${JSON.stringify(paid).slice(0, 120)} against an inexact quote ${JSON.stringify(quoted).slice(0, 120)} (reported)`);
-      else return fail(`${label} built`, `consumed ${JSON.stringify(paid).slice(0, 140)} but its exact quote was ${JSON.stringify(quoted).slice(0, 140)}`);
+      else if (!exact && over.length === 0) ok(`${label} built`, `sd ward built; consumed within its inexact quote, nothing past it (under it: ${under.slice(0, 4).join(', ')})`);
+      else return fail(`${label} built`, `consumed past its ${exact ? 'exact' : 'inexact'} quote: ${over.slice(0, 6).join(', ') || 'none'}; under: ${under.slice(0, 6).join(', ')}`);
     }
     // (3) grown by an addition (DG over A2): a restart at its massings, undo refused while it waits, fed, undone: paid == returned, once
     const landBefore = dgCols(dgDistrict(id, d.id)?.land);
@@ -5640,7 +5643,8 @@ async function survivalDistrictFlow() {
       if (!grew) return;
       const op = await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && new RegExp(`^revision:${region}:\\d+$`).test(e.siteGroup ?? ''), 30);
       const rid = op ? Number(op.siteGroup.split(':').at(-1)) : null;
-      const stand = logSince(from).match(/The addition's construction sites stand and are built from the stockpile[^\n]*/);
+      // (the restart at its massings began a new log: what came after it is read from its start)
+      const stand = logSince(0).match(/The addition's construction sites stand and are built from the stockpile[^\n]*/);
       if (planned && op && stand) ok(gl, `planned and realised from materials as revision ${rid} of ${region} across a restart at its massings; ${stand[0].slice(0, 120)}`);
       else return fail(gl, `planned ${!!planned}; entry ${op?.siteGroup}; said ${!!stand}; ${chatTail(from)}`);
       const spW = await ledger();

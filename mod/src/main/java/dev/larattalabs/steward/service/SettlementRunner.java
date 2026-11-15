@@ -2419,7 +2419,7 @@ public final class SettlementRunner {
 			String line = quote == null ? null : districtBillLine(name, quote, null);
 			switch (next) {
 				case CANCEL_UNQUOTED -> {
-					say("Not placed: " + name + "'s bill couldn't be quoted (" + message(err) + "), and nothing is taken from the stockpile unchecked. Nothing was consumed.");
+					say("Not placed: " + name + "'s bill couldn't be quoted (" + message(err) + "), so nothing is placed unchecked. Start it again.");
 					feed(new Pipeline.Cancel());
 				}
 				case CANCEL_UNBILLED -> {
@@ -2455,13 +2455,13 @@ public final class SettlementRunner {
 
 	/**
 	 * (slice SD) What follows a district's quote: {@code quoted} whether Architect answered, {@code survival} whether its plan builds from materials (the
-	 * quote's own word, never the world's now), {@code worldMaterials} the world's mode now (only when there is no quote), {@code check} the quote's
-	 * exactness. No quote: in a world that builds from materials, ended unquoted; else on (Architect refuses a plan from materials in a world that builds at
-	 * once, so nothing is consumed). A plan built at once: on, unsaid. From materials: a part unbilled ends it; before the approval, said and approved; placed
+	 * quote's own word, never the world's now; {@code worldMaterials} is not read), {@code check} the quote's exactness. No quote: ended before anything
+	 * is placed, in either mode (a plan's mode is known only from its quote). A plan built at once: on, unsaid. From materials: a part unbilled ends it; before the approval, said and approved; placed
 	 * without one, an exact bill goes on and an inexact one is asked; at the realise with no approval of it, asked. Pure.
 	 */
 	static BillNext billNext(BillAsk when, boolean quoted, boolean survival, boolean worldMaterials, ModulePlacement.@org.jspecify.annotations.Nullable QuoteCheck check) {
-		if (!quoted) return worldMaterials ? BillNext.CANCEL_UNQUOTED : when == BillAsk.BEFORE_APPROVAL ? BillNext.QUEUE : BillNext.REALISE;
+		// no quote: the plan's mode isn't known (the world's now is no proof of it), so nothing is placed unchecked
+		if (!quoted) return BillNext.CANCEL_UNQUOTED;
 		if (!survival) return when == BillAsk.BEFORE_APPROVAL ? BillNext.QUEUE : BillNext.REALISE;
 		if (check != null && check.refused() != null) return BillNext.CANCEL_UNBILLED;
 		return switch (when) {

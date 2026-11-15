@@ -85,10 +85,9 @@ class SurvivalDistrictTest {
 		// a plan made at once: on, unsaid, never held
 		assertEquals(SettlementRunner.BillNext.QUEUE, SettlementRunner.billNext(B, true, false, true, exact));
 		assertEquals(SettlementRunner.BillNext.REALISE, SettlementRunner.billNext(R, true, false, true, exact));
-		// no quote: in a world that builds from materials, ended unquoted; else on (Architect refuses a plan from materials in a world that builds at once)
-		for (var w : SettlementRunner.BillAsk.values()) assertEquals(SettlementRunner.BillNext.CANCEL_UNQUOTED, SettlementRunner.billNext(w, false, false, true, null));
-		assertEquals(SettlementRunner.BillNext.QUEUE, SettlementRunner.billNext(B, false, false, false, null));
-		assertEquals(SettlementRunner.BillNext.REALISE, SettlementRunner.billNext(R, false, false, false, null));
+		// no quote: ended in either mode (the world's now is no proof of the plan's: it may have been turned off while a plan from materials was designed)
+		for (var w : SettlementRunner.BillAsk.values()) for (boolean world : new boolean[] {true, false})
+			assertEquals(SettlementRunner.BillNext.CANCEL_UNQUOTED, SettlementRunner.billNext(w, false, false, world, null));
 	}
 
 	@Test
