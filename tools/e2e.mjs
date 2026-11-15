@@ -4956,13 +4956,48 @@ async function moduleSurvivalFlow() {
     // round below)
     if (!quoted) return fail(label, 'no quote logged to stock the round with');
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(quoted).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
-    // approved: the bill becomes the bound; realised from materials, fed in full whatever the stockpile still asks for (every 3 s), never left waiting
+    // (QD, Noah's "A: up to N") the held bill shows each terrain item as "up to N" (the quote plus its allowance), every other item exact
+    const planOf = new RegExp(`module ${id} quote (\\S+): `).exec(logSince(from))?.[1];
+    const upDirt = Number(/up to (\d+) dirt/.exec(whole)?.[1] ?? NaN);
+    const allowance = upDirt - (quoted['minecraft:dirt'] ?? 0);
+    if (planOf && allowance >= 2) ok(`${label} up to`, `the held bill shows dirt as up to ${upDirt} (quoted ${quoted['minecraft:dirt'] ?? 0}, allowed ${allowance} over): ${whole.slice(0, 160)}`);
+    else return fail(`${label} up to`, `plan ${planOf}; whole bill ${whole.slice(0, 300)}`);
+    // the terrain under it drifts while it is held, by kept cells that stand turned to coarse dirt (a realise writes them again, billing a dirt each):
+    // past the allowance it is asked again with the new "up to"; then one cell more stays within it and is placed with no further ask
+    const tc = await dev.call('dev.ql.terrainCells', { planId: planOf, max: 4096 }, { timeoutMs: 120_000 }).catch((e) => ({ refused: String(e) }));
+    const oneDirt = (c) => c.standing && c.loaded && JSON.stringify(c.items ?? {}) === JSON.stringify({ 'minecraft:dirt': 1 });
+    const standing = (tc.cells ?? []).filter(oneDirt);
+    if (standing.length < allowance + 2) return fail(`${label} drift`, `${standing.length} standing kept cells billing one dirt (need ${allowance + 2}); ${JSON.stringify(tc).slice(0, 200)}`);
+    const drift = async (cells) => { for (const c of cells) await cmd(`/setblock ${c.x} ${c.y} ${c.z} minecraft:coarse_dirt`); await sleep(1500); };
+    await drift(standing.slice(0, allowance + 1));
     from = logSize();
     feeding = true;
+    await cmd(`/steward approve ${id}`);
+    const again = await waitLog(from, /The bill came to more than you approved[^\n]*/, 240_000);
+    const upDirt2 = Number(/up to (\d+) dirt/.exec(again?.[0] ?? '')?.[1] ?? NaN);
+    const bAgain = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id);
+    if (again && upDirt2 > upDirt && bAgain?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && !bAgain.vRegion)
+      ok(`${label} past the cap`, `${allowance + 1} dirt cells drifted while held: asked again, now up to ${upDirt2} dirt (was ${upDirt}); not realised`);
+    else return fail(`${label} past the cap`, `asked again ${!!again}; up to ${upDirt2} (was ${upDirt}); phase ${bAgain?.state?.phase}; region ${bAgain?.vRegion}`);
+    await drift(standing.slice(allowance + 1, allowance + 2));
+    // approved: the bill becomes the bound and the realise's maxBill; realised from materials, fed in full whatever the stockpile still asks for
+    // (every 3 s), never left waiting
+    from = logSize();
     await cmd(`/steward approve ${id}`);
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
     feeding = false;
     if (!grew) return;
+    {
+      const said = logSince(from);
+      const third = /The bill came to more than you approved|so I ask first/.test(said);
+      const capLine = new RegExp(`module ${id} realise \\S+ under \\S+: maxBill \\{([^}]*)\\}`).exec(said);
+      const capSent = capLine ? Object.fromEntries(capLine[1].split(', ').map((kv) => kv.split('=')).map(([k, n]) => [k, Number(n)])) : null;
+      const bound = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id)?.moduleOrders?.[Object.keys(bAgain.moduleOrders ?? {})[0]]?.bound ?? null;
+      const same = capSent && bound && Object.keys({ ...capSent, ...bound }).every((k) => capSent[k] === bound[k]);
+      if (!third && capSent && capSent['minecraft:dirt'] === upDirt2 && (same || bound == null))
+        ok(`${label} within the cap`, `one more dirt cell drifted: placed with no third ask; the realise's maxBill is the approved bill (${JSON.stringify(capSent).slice(0, 200)})`);
+      else fail(`${label} within the cap`, `asked a third time ${third}; maxBill ${JSON.stringify(capSent)}; saved bound ${JSON.stringify(bound)}; up to ${upDirt2}`);
+    }
     const g = await growthOf(id);
     const mods = await moduleSites(g.op);
     const bill = logSince(from).match(/The addition's construction sites stand and are built from the stockpile[^\n]*/);
