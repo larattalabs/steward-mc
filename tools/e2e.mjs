@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { pickFlows } from './lib/e2e-flows.mjs';
-import { useRamTmp } from './lib/ram-tmp.mjs';
+import { useRamTmp, ramSidecarData } from './lib/ram-tmp.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -288,7 +288,9 @@ async function preflight() {
   } catch (e) {
     if (e.message.startsWith('a Steward client')) throw e;
   }
-  ok('preflight', 'no credentials, no other client');
+  // the sidecar's data on the RAM disk when it's there (the 11-14 machine audit: ~3 GB written per worktree per 30 min); the world, logs and shots stay on disk
+  const sd = ramSidecarData(GAME);
+  ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}`);
 }
 
 /**

@@ -21,6 +21,10 @@ ln -s ../../steward-mc/node_modules node_modules
 `tools/e2e.mjs` and `tools/nightly.mjs` point TMPDIR at `/Volumes/MCTmp/tmp/steward` when that RAM disk exists. Their clients and builds inherit it. Noah approved the disk: a 24 GB volume made at login by the LaunchAgent `com.laratta.mctmp-ramdisk`, whose contents go at a reboot (`tools/lib/ram-tmp.mjs`).
 - Without the volume, or with `STEWARD_RAM_TMP=0`, TMPDIR stays as it was.
 - The game's run dirs (`mod/run`) stay on disk: the e2e reads its world, logs and screenshots there, and a failed night's world is kept for diagnosis.
+- **The sidecar's data** (`mod/run/architect/sidecar-data`) is on the RAM disk too (11-14). The machine audit measured about 3 GB written per worktree per 30 min there. e2e's preflight makes it a symlink to `/Volumes/MCTmp/tmp/steward/sidecar-<hash>`, one per checkout, kept between runs until a reboot.
+  - An on-disk directory found there is renamed to `sidecar-data.ssd`, never deleted.
+  - Without the volume, a link left dangling by a reboot becomes an empty directory again (`ramSidecarData`).
+  - A dev client in the same checkout follows the link. The opt-in `secrets.json` check reads through it.
 
 ## Architect dependency
 `build.gradle` depends on `dev.larattalabs:architect_mc:${architect_version}` (gradle.properties) from GitHub Packages, the released artifact.
