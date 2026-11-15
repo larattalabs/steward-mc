@@ -1593,6 +1593,13 @@ Architect v0.69.0 (API 1.61.0, kit 0.64.0, catalogue 24: PF's `form.arch_span`, 
 - Steward has no plan fixture with `form.arch_span` or an aqueduct, and its plan writer names no arch form yet, so those stay with Architect's gate. crop_farm doesn't call archSpan (crop-farm-069's kit diff check).
 - Nothing in Architect was found wrong.
 
+### v0.70.0 (2026-11-14): PASS; the pin merges with crop_farm's and storage_hall's smoke carries to 0.70.0
+Architect v0.70.0 (API 1.62.0, kit 0.65.0, catalogue 24: QL's `Quote.terrain()` and `quoteTerrain`, TS) is pinned on pin-070 (35ce8ed, on pin-069, runtime minimum 0.70.0). The plan schema is unchanged.
+- Build and unit tests: 522 passed, 0 failed.
+- `stub --only stockpile,bill,refund`: 53 of 54 passed over 9 flows: survival, supplied-plan, supplied-growth, module-survival, the four mechanism survival flows, stock-save. Quotes, bills, refunds and saves held with the new `Quote` record.
+- The one miss is `module survival offer`, by design: kit 0.65.0 moves module.json's pins. The crop-farm and M4 sessions carry crop_farm and storage_hall to 0.70.0 by `--smoke`.
+- Steward reads `Quote.terrain()` only from slice QD, which is building now on pin-070. Nothing in Architect was found wrong.
+
 ### FK follow-up: a module-provided fill item (asked 2026-11-14, for M4)
 Noah picked `minecraft:petrified_oak_slab` as the storage hall's filler (PLAN Decisions 11-14). Survival can't supply it, so Steward asked for four things:
 - (1) A `fillContainers` entry can mark an item module-provided: written at the fill, not drawn from the stockpile, not on the quote or bill.
