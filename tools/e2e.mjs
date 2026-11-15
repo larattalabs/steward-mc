@@ -3090,11 +3090,14 @@ async function suppliedGrowthFlow() {
       const spAfter = await ledger();
       await sleep(20_000);
       const spLater = await ledger();
-      const paid = delta(spAfter?.consumed, spStart?.consumed);
-      const back = delta(backOf(spAfter), backOf(spBefore));
-      const gain = delta(spAfter?.stock, spBefore?.stock);
-      const over = delta(spAfter?.refundOverflow, spBefore?.refundOverflow);
-      const again = delta(backOf(spLater), backOf(spAfter));
+      // over [spBefore, spLater]: the crates gained what came back less what was still drawn meanwhile (a cancel stops the draws only once it runs)
+      const paid = delta(spLater?.consumed, spStart?.consumed);
+      const back = delta(backOf(spLater), backOf(spBefore));
+      const gain = delta(spLater?.stock, spBefore?.stock);
+      const expected = delta(delta(back, delta(spLater?.refundOverflow, spBefore?.refundOverflow)), delta(spLater?.consumed, spBefore?.consumed));
+      const over = delta(spLater?.refundOverflow, spBefore?.refundOverflow);
+      // nothing more 20 s on: no refund, no draw, and the crates as they were
+      const again = plusItems(plusItems(delta(backOf(spLater), backOf(spAfter)), delta(spLater?.consumed, spAfter?.consumed)), delta(spLater?.stock, spAfter?.stock));
       const log = settlements().find((x) => x.id === id)?.log ?? [];
       const placedN = log.filter((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === tag).length;
       const removedN = log.filter((e) => e.kind === 'PROJECT_REMOVED' && e.siteGroup === tag).length;
@@ -3109,9 +3112,9 @@ async function suppliedGrowthFlow() {
       const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snapPre }, { timeoutMs: 1_800_000 });
       const off = (d.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)) && !inCrates(x));
       const owing = Object.keys(spAfter?.outstanding ?? {}).length;
-      const good = r?.state === 'UNDONE' && (!wantPaid || Object.keys(paid).length > 0) && sameItems(back, paid) && sameItems(gain, back) && !Object.keys(over).length
+      const good = r?.state === 'UNDONE' && (!wantPaid || Object.keys(paid).length > 0) && sameItems(back, paid) && sameItems(gain, expected) && !Object.keys(over).length
         && !Object.keys(again).length && once && !left.length && !owing && off.length === 0 && !(sinceLog != null && builtRe.test(logSince(sinceLog)));
-      const said = `${tag} ${r?.state}; paid ${JSON.stringify(paid).slice(0, 120)}; back ${JSON.stringify(back).slice(0, 120)}; stock +${JSON.stringify(gain).slice(0, 100)}`;
+      const said = `${tag} ${r?.state}; paid ${JSON.stringify(paid).slice(0, 120)}; back ${JSON.stringify(back).slice(0, 120)}; stock +${JSON.stringify(gain).slice(0, 100)} (expected ${JSON.stringify(expected).slice(0, 100)})`;
       if (good) ok(lbl, `${said}; once (${placedN} entry, ${removedN + noteN} completion, nothing more 20 s on); no feed left; the ground as before`);
       else fail(lbl, `${said}; overflow ${JSON.stringify(over)}; more ${JSON.stringify(again)}; entries ${placedN}/${removedN}/${noteN}; built said ${sinceLog != null && builtRe.test(logSince(sinceLog))}; left ${left.slice(0, 4).join(', ')}; owing ${owing}; ${off.length} cell(s) differ ${JSON.stringify(off.slice(0, 3))}`);
       return good;
@@ -3154,6 +3157,8 @@ async function suppliedGrowthFlow() {
     const killed = async (point, act) => {
       feeding = false;
       nudge = null;
+      const clientLog = path.join(OUT, 'client.log');
+      const clientAt = fs.existsSync(clientLog) ? fs.statSync(clientLog).size : 0;
       await dev.request('dev.journal.killAt', { point });
       // the halt may cut the command's own answer short
       await act().catch(() => null);
@@ -3162,13 +3167,16 @@ async function suppliedGrowthFlow() {
         await dev.request('dev.journal.killAt', { point: null }).catch(() => null);
         return false;
       }
+      // (GPT diff review) the halt was this kill point's, not any exit: its own log line, read before the next client writes its log
+      const re = new RegExp(`kill point ${point.replace('+', '\\+')} reached`);
+      const marker = re.test(logSince(0)) || (fs.existsSync(clientLog) && re.test(fs.readFileSync(clientLog, 'utf8').slice(clientAt)));
       dev = null;
       await sleep(4000);
       launch();
       await connect();
       await cmd('/architect survival on');
       await cmd('/gamemode creative @p');
-      return true;
+      return marker;
     };
     const completion = (tag) => (settlements().find((x) => x.id === id)?.log ?? []).find((e) => e.siteGroup === tag && (e.kind === 'PROJECT_REMOVED'
       || (e.kind === 'NOTE' && /^The addition was not placed/.test(e.text ?? ''))));
