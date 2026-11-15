@@ -20,3 +20,37 @@ export function useRamTmp(env = process.env, root = RAM_TMP) {
     return null;
   }
 }
+
+/**
+ * The bundled Architect sidecar's data (`<gameDir>/architect/sidecar-data`: jobs, designs, plans, its npm install) on the RAM disk. The machine
+ * audit of 2026-11-14 measured about 3 GB written per worktree per 30 minutes there. When the volume is up, the directory becomes a symlink to
+ * <root>/steward/sidecar-<hash of gameDir>, one per checkout, which persists between runs until a reboot. An existing on-disk directory is renamed
+ * to `sidecar-data.ssd`, never deleted. When the volume is down, a symlink left dangling by a reboot is replaced by an empty directory, and a
+ * real directory is left as it is. Returns {mode: 'ram'|'disk', dir, moved?}.
+ */
+export function ramSidecarData(gameDir, env = process.env, root = RAM_TMP) {
+  const link = path.join(gameDir, 'architect', 'sidecar-data');
+  fs.mkdirSync(path.dirname(link), { recursive: true });
+  let st = null;
+  try { st = fs.lstatSync(link); } catch {}
+  const up = env.STEWARD_RAM_TMP !== '0' && (() => { try { fs.accessSync(root, fs.constants.W_OK); return fs.statSync(root).isDirectory(); } catch { return false; } })();
+  if (!up) {
+    if (st?.isSymbolicLink() && !fs.existsSync(link)) { fs.unlinkSync(link); fs.mkdirSync(link); }
+    else if (!st) fs.mkdirSync(link);
+    return { mode: 'disk', dir: link };
+  }
+  const hash = (s) => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.codePointAt(0), 16777619) >>> 0; return h.toString(16); };
+  const target = path.join(root, 'steward', `sidecar-${hash(path.resolve(gameDir))}`);
+  fs.mkdirSync(target, { recursive: true });
+  let moved = null;
+  if (st?.isSymbolicLink()) {
+    if (fs.readlinkSync(link) === target) return { mode: 'ram', dir: target };
+    fs.unlinkSync(link);
+  } else if (st) {
+    moved = link + '.ssd';
+    if (fs.existsSync(moved)) moved = `${link}.ssd-${Date.now()}`;
+    fs.renameSync(link, moved);
+  }
+  fs.symlinkSync(target, link);
+  return { mode: 'ram', dir: target, moved };
+}
