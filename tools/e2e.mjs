@@ -5042,8 +5042,8 @@ async function moduleSurvivalFlow() {
     const paid = Object.fromEntries(Object.entries(spB?.consumed ?? {}).map(([k, c]) => [k, c - (sp0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
     // (QD) nothing drawn past the maxBill sent: every item paid within it (an item it doesn't name: 0)
     const pastCap = capSent ? Object.entries(paid).filter(([k, c]) => c > (capSent[k] ?? 0)) : null;
-    if (pastCap && pastCap.length === 0) ok(`${label} drawn within the cap`, `paid ${JSON.stringify(paid).slice(0, 200)}, each item within the maxBill sent`);
-    else fail(`${label} drawn within the cap`, `maxBill ${JSON.stringify(capSent)}; past it ${JSON.stringify(pastCap)}`);
+    if (sp0 && spB && Object.keys(paid).length && pastCap && pastCap.length === 0) ok(`${label} drawn within the cap`, `paid ${JSON.stringify(paid).slice(0, 200)}, each item within the maxBill sent`);
+    else fail(`${label} drawn within the cap`, `ledgers ${!!(sp0 && spB)}; paid ${JSON.stringify(paid)}; maxBill ${JSON.stringify(capSent)}; past it ${JSON.stringify(pastCap)}`);
     let last = null;
     for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
       await sleep(1000);
