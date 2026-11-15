@@ -76,7 +76,8 @@ public final class PPlan {
 
 	/**
 	 * The plan as this build builds it: a copy of {@code plan} with the parts that wait for Architect ({@code waiting}, by part id) no longer required (Noah's
-	 * 9.2 default: the town is built now, the part stays pending), each village street laid east-west and not turned (C37), and each lot of each zone tagged as Steward tags a batch lot (settlement, lot, role, build;
+	 * 9.2 default: the town is built now, the part stays pending), each village street on the plan's axis (east-west when it names none) and not
+	 * turned (C37), and each lot of each zone tagged as Steward tags a batch lot (settlement, lot, role, build;
 	 * Architect C19 puts them on the lot's site). Deterministic: the same inputs make the same plan, so a re-check after a restart or a stale artifact checks
 	 * the same plan.
 	 */
@@ -90,7 +91,8 @@ public final class PPlan {
 				if (part.has("id") && waiting.contains(part.get("id").getAsString())) part.addProperty("required", false);
 			}
 		}
-		// the street runs east-west, and the zone isn't turned (Architect C37): Steward's designs, walks and growth know an east-west street only
+		// (slice NS2) the street's axis is the plan's: an orientation the plan names (ns, ew or auto) is kept; one it leaves out is laid east-west, as
+		// before (Architect C37's default is auto, which picks the axis by the lots' sizes). The zone isn't turned either way
 		if (out.has("zones") && out.get("zones").isJsonArray()) {
 			for (JsonElement z : out.getAsJsonArray("zones")) {
 				if (!z.isJsonObject() || !z.getAsJsonObject().has("program") || !z.getAsJsonObject().get("program").isJsonObject()) continue;
@@ -100,9 +102,9 @@ public final class PPlan {
 				if (!template && !street) continue;
 				if (template) {
 					JsonObject params = program.has("params") && program.get("params").isJsonObject() ? program.getAsJsonObject("params") : new JsonObject();
-					params.addProperty("orientation", "ew");
+					if (!named(params, "orientation")) params.addProperty("orientation", "ew");
 					program.add("params", params);
-				} else program.addProperty("orientation", "ew");
+				} else if (!named(program, "orientation")) program.addProperty("orientation", "ew");
 				JsonObject tol = zone.has("tolerance") && zone.get("tolerance").isJsonObject() ? zone.getAsJsonObject("tolerance") : new JsonObject();
 				JsonObject rotate = new JsonObject();
 				rotate.addProperty("allowed", false);
@@ -119,6 +121,11 @@ public final class PPlan {
 			lot.add("ext", ext);
 		}
 		return out;
+	}
+
+	/** Whether {@code o} names {@code key} as a string (an orientation the plan chose). */
+	private static boolean named(JsonObject o, String key) {
+		return o.has(key) && o.get(key).isJsonPrimitive() && o.get(key).getAsJsonPrimitive().isString();
 	}
 
 	/**
@@ -289,7 +296,7 @@ public final class PPlan {
 		}
 	}
 
-	/** Whether any of the artifact's lots faces east or west (Steward's designs and growth know an east-west street only, as {@link VPlan#northSouth}). */
+	/** Whether any of the artifact's lots faces east or west. */
 	public static boolean northSouth(JsonArray artifactLots) {
 		for (JsonElement e : artifactLots) {
 			String f = e.isJsonObject() && e.getAsJsonObject().has("front") && e.getAsJsonObject().get("front").isJsonPrimitive()
@@ -309,6 +316,7 @@ public final class PPlan {
 		for (JsonObject l : lots(plan)) byId.put(l.get("id").getAsString(), l);
 		List<VillageLayout.Lot> out = new ArrayList<>();
 		List<Integer> zs = new ArrayList<>(), ys = new ArrayList<>();
+		List<@Nullable Integer> entranceX = new ArrayList<>();
 		Set<String> seen = new HashSet<>();
 		int x0 = Integer.MAX_VALUE, x1 = Integer.MIN_VALUE;
 		for (JsonElement e : artifactLots) {
@@ -351,6 +359,7 @@ public final class PPlan {
 			JsonArray en = a.has("entrance") && a.get("entrance").isJsonArray() && a.getAsJsonArray("entrance").size() == 3 ? a.getAsJsonArray("entrance") : null;
 			zs.add(en != null ? en.get(2).getAsInt() : front == VillageLayout.Front.SOUTH ? bz1 + 1 : front == VillageLayout.Front.NORTH ? bz0 - 1 : (bz0 + bz1) / 2);
 			ys.add(en != null ? en.get(1).getAsInt() : by0);
+			entranceX.add(en != null ? Integer.valueOf(en.get(0).getAsInt()) : null);
 			x0 = Math.min(x0, bx0);
 			x1 = Math.max(x1, bx1);
 		}
@@ -364,6 +373,19 @@ public final class PPlan {
 		}
 		zs.sort(Integer::compare);
 		ys.sort(Integer::compare);
+		// (slice NS2) every lot faces east or west: one north-south street, its line an x (the entrances' median, else beside each lot's front) and its ends z
+		if (!out.isEmpty() && out.stream().noneMatch(l -> l.front().eastWest())) {
+			List<Integer> xs = new ArrayList<>();
+			int z0 = Integer.MAX_VALUE, z1 = Integer.MIN_VALUE;
+			for (int i = 0; i < out.size(); i++) {
+				var l = out.get(i);
+				xs.add(entranceX.get(i) != null ? entranceX.get(i) : l.front() == VillageLayout.Front.EAST ? l.maxX() + 1 : l.x() - 1);
+				z0 = Math.min(z0, l.z());
+				z1 = Math.max(z1, l.maxZ());
+			}
+			xs.sort(Integer::compare);
+			return new VillageLayout.Plan(List.copyOf(out), xs.get(xs.size() / 2), z0, z1, ys.get(ys.size() / 2), List.copyOf(unplaced), true);
+		}
 		return new VillageLayout.Plan(List.copyOf(out), zs.isEmpty() ? 0 : zs.get(zs.size() / 2), out.isEmpty() ? 0 : x0, out.isEmpty() ? 0 : x1,
 			ys.isEmpty() ? 64 : ys.get(ys.size() / 2), List.copyOf(unplaced));
 	}

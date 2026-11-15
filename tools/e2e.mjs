@@ -1946,6 +1946,164 @@ async function adoptNorthSouthFlow() {
 }
 
 /**
+ * (slice NS2) A composed plan whose street zone names `orientation: "ns"` is built north-south: Steward keeps the plan's axis (PPlan.forBuild), its
+ * lots face east and west (the plan's fronts line), the region is placed, and it is undone. Not run by the slice (rule 11): the batch runs it.
+ */
+async function planNorthSouthFlow() {
+  const label = 'plan-ns';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 81000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Valley Row';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'no_wood.json'), 'utf8')).answer;
+  delete answer.plan.rules;
+  answer.plan.zones[0].program.params.orientation = 'ns';
+  answer.summary = 'Two stone cottages along a north-south street.';
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} two stone cottages along a valley running north to south`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+  await closeScreens();
+  await clearAnimals();
+  const claim = settlements().find((x) => x.id === id).claim;
+  await cmd(`/tp @p ${claim.centerX - claim.radius - 40} ~ ${claim.centerZ}`);
+  from = logSize();
+  await cmd(`/steward start ${id} 2 30`);
+  const built = await buildThrough(id, from, label);
+  if (!built) return;
+  const fronts = logSince(from).match(new RegExp(`plan of ${id}: artifact \\S+, (\\d+) lots \\((\\d+) unplaced\\), fronts \\{([^}]*)\\}`));
+  const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const across = fronts && /\b(east|west)=/.test(fronts[3]) && !/\b(north|south)=/.test(fronts[3]);
+  if (across && /^region:/.test(placed?.siteGroup ?? '') && built.placed > 0) ok(label, `${fronts[1]} lot(s) facing ${fronts[3]} on the plan's north-south street, ${placed.siteGroup}`);
+  else return fail(label, `fronts ${fronts ? fronts[0] : 'not logged'}; entry ${placed?.siteGroup}; placed ${built.placed}`);
+  const last = await undoOnce(id, claim);
+  if (last) ok(`${label} undo`, last.text);
+  else fail(`${label} undo`, 'not removed');
+}
+
+/**
+ * (slice NS2) An addition on the legacy path to a north-south street town (Steward's own layout, never taken on: `legacy_ns` stays on): it is laid
+ * along the town's north-south street (the runner's log line names its x), facing east or west, outside any region; then undone, the addition first.
+ * Not run by the slice (rule 11): the batch runs it.
+ */
+async function additionNorthSouthFlow() {
+  const label = 'addition-ns';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 84000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} legacy_ns`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Long Lane';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a lane town running north to south`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  await closeScreens();
+  await clearAnimals();
+  const claim = settlements().find((x) => x.id === id).claim;
+  from = logSize();
+  await cmd(`/steward start ${id} 3 30`);
+  if (!(await buildThrough(id, from, `${label} town`))) return;
+  const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  if (!founding || /^region:/.test(founding.siteGroup ?? '')) return fail(label, `not a street town: ${founding?.siteGroup}`);
+  const lib = await askBuilding(id, 'reading room');
+  if (!lib) return fail(label, 'no proposal');
+  await clearAnimals();
+  await cmd(`/tp @p ${claim.centerX - claim.radius - 40} ~ ${claim.centerZ}`);
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept ${lib.key}`);
+  const grew = await buildThrough(id, from, label);
+  const along = logSince(from).match(new RegExp(`addition to ${id}: along its north-south street x (-?\\d+)`));
+  if (!grew) return fail(label, `the addition did not finish; ${along ? along[0] : 'not laid along the north-south street'}`);
+  const log1 = settlements().find((x) => x.id === id)?.log ?? [];
+  const added = log1.filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const adopted = log1.some((e) => e.kind === 'TOWN_ADOPTED');
+  const near = along && Math.abs(Number(along[1]) - claim.centerX) <= claim.radius;
+  if (near && !adopted && added && added !== founding && !/^(region|revision):/.test(added.siteGroup ?? '') && grew.placed > 0) {
+    ok(label, `laid along the north-south street x ${along[1]} (${added.siteIds.length} site(s), ${added.siteGroup}), not taken on`);
+  } else return fail(label, `${along ? along[0] : 'no north-south line'}; adopted ${adopted}; entry ${added?.siteGroup}; placed ${grew.placed}`);
+  const a = await undoOnce(id, claim);
+  const b = a ? await undoOnce(id, claim) : null;
+  if (a && b) ok(`${label} undo`, `${a.text}; ${b.text}`);
+  else fail(`${label} undo`, `addition ${!!a}; town ${!!b}`);
+}
+
+/**
+ * (slice NS2) A crop farm on a north-south street town taken on as one region (slice B, then A with IG-b's irrigation): the town laid north-south
+ * (`legacy_ns`), then the plan layout; the module offered (path ADOPT), accepted, the town adopted on its north-south street, the module lot grown
+ * and watered; undone. Not run by the slice (rule 11): the batch runs it.
+ */
+async function moduleNorthSouthFlow() {
+  const label = 'module-ns';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 87000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/clear @p');
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} legacy_ns`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'North Field Town';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a north-south street town that will farm`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 3 30`);
+  if (!(await buildThrough(id, from, `${label} town`))) return;
+  const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  if (!founding || /^region:/.test(founding.siteGroup ?? '')) return fail(label, `not a street town: ${founding?.siteGroup}`);
+  await cmd(`/steward dev layout ${id} plan`);
+  const claim = settlements().find((x) => x.id === id).claim;
+  await cmd('/steward dev modules {}');
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+  await cmd('/give @p minecraft:wheat_seeds 16');
+  const offer = await moduleOffer(id);
+  if (offer?.module?.moduleId === MODULE) ok(`${label} offer`, `${offer.title}: ${String(offer.why).slice(0, 140)}`);
+  else return fail(`${label} offer`, `no module.${MODULE} proposal in the north-south street town: ${JSON.stringify(offer)?.slice(0, 200)}; ${chatTail(0)}`);
+  await clearAnimals();
+  await cmd(`/tp @p ${claim.centerX - claim.radius - 40} ~ ${claim.centerZ}`);
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept module.${MODULE}`);
+  const grew = await buildThrough(id, from, label);
+  const asked = logSince(from).match(new RegExp(`adopt ${id}: street (north-south|east-west) [xz] (-?\\d+)`));
+  if (!grew) return fail(label, `the growth did not finish; adoption asked: ${asked ? asked[0] : 'no'}`);
+  const log1 = settlements().find((x) => x.id === id)?.log ?? [];
+  const receipt = log1.filter((e) => e.kind === 'TOWN_ADOPTED' && /^region:/.test(e.siteGroup ?? '')).at(-1);
+  const region = receipt?.siteGroup?.slice('region:'.length);
+  const g = await growthOf(id);
+  const mods = await moduleSites(g.op);
+  const irr = region ? [...logSince(from).matchAll(new RegExp(`Region ${region}: fluid body (\\S+_irr_\\d+_\\d+) (settled)`, 'g'))].length : 0;
+  if (asked?.[1] === 'north-south' && region && g.m?.[1] === region && g.rev && mods.length === 1 && mods[0].key === `${MODULE}@1` && irr > 0) {
+    ok(label, `adopted on its north-south street (x ${asked[2]}) as ${region}; revision ${g.m[2]} holds ${mods[0].sid} (${mods[0].key}); ${irr} irrigation source(s) settled`);
+  } else {
+    await cmd('/steward dev modules {}');
+    return fail(label, `${asked ? asked[0] : 'no adoption line'}; region ${region}; entry ${g.op?.siteGroup}; module sites ${mods.length}; irrigation ${irr}`);
+  }
+  const last = await undoOnce(id, claim);
+  const undone = ((await regionView(region)).revisions ?? []).find((r) => String(r.rid) === g.m[2]);
+  if (last && undone?.state === 'UNDONE') ok(`${label} undo`, `${last.text}; revision ${g.m[2]} UNDONE`);
+  else fail(`${label} undo`, `removed ${!!last}; revision ${undone?.state}`);
+  await cmd('/steward dev modules {}');
+}
+
+/**
  * A settlement built from its composed plan (plan v1, docs/COMPOSITION.md section 10): a walled town whose wall waits for Architect. At Start the plan is
  * checked again without the wall (it stays pending), the buildings are designed for the artifact's lots, the village is realised from the approved artifact
  * as one region, and an undo takes it up whole.
@@ -6904,6 +7062,9 @@ try {
       await flow('growth', 'growth region realise undo replan orphan', () => growthFlow());
       await flow('adopt', 'adopt growth region undo', () => adoptFlow());
       await flow('adopt-ns', 'adopt growth region undo street north-south', () => adoptNorthSouthFlow(), ['adopt']);
+      await flow('plan-ns', 'north-south adopt plan region undo', () => planNorthSouthFlow());
+      await flow('addition-ns', 'north-south adopt street legacy undo', () => additionNorthSouthFlow());
+      await flow('module-ns', 'north-south adopt module growth farm water undo', () => moduleNorthSouthFlow());
       await flow('follow', 'copies source update revert version', () => followFlow());
       await flow('land', 'land check perception inbox talk', () => landFlow());
       await flow('plan-build', 'plan', () => planBuildFlow());

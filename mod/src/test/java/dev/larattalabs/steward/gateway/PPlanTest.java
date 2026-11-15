@@ -33,7 +33,7 @@ class PPlanTest {
 			assertEquals("b1", ext.get(BatchPlanner.BUILD_EXT).getAsString());
 			assertFalse(ext.get("steward_mc:role").getAsString().isBlank());
 		}
-		// the town's street runs east-west and the zone is not turned (C37): Steward's designs know an east-west street
+		// a plan that names no orientation: its street runs east-west, and the zone is not turned (C37)
 		var town = built.getAsJsonArray("zones").get(0).getAsJsonObject();
 		assertEquals("ew", town.getAsJsonObject("program").getAsJsonObject("params").get("orientation").getAsString());
 		assertFalse(town.getAsJsonObject("tolerance").getAsJsonObject("rotate").get("allowed").getAsBoolean());
@@ -66,7 +66,49 @@ class PPlanTest {
 		assertEquals(40, p.streetX1());
 		assertFalse(PPlan.northSouth(art));
 		art.add(lot("x", new int[] {0, 64, 0, 8, 70, 8}, "east", null));
-		assertTrue(PPlan.northSouth(art), "a lot facing east: Steward's designs know an east-west street");
+		assertTrue(PPlan.northSouth(art), "a lot facing east");
+	}
+
+	// ------------------------------------------------------------------ (slice NS2) the plan chooses its street's axis
+
+	@Test
+	void anOrientationThePlanNamesIsKeptAndNoneIsEastWest() throws Exception {
+		JsonObject plan = walledTown();
+		var params = plan.getAsJsonArray("zones").get(0).getAsJsonObject().getAsJsonObject("program").getAsJsonObject("params");
+		for (String axis : new String[] {"ns", "auto", "ew"}) {
+			params.addProperty("orientation", axis);
+			var built = PPlan.forBuild(plan, Set.of(), "set_7", "b1").getAsJsonArray("zones").get(0).getAsJsonObject();
+			assertEquals(axis, built.getAsJsonObject("program").getAsJsonObject("params").get("orientation").getAsString(), "the plan's own axis");
+			assertFalse(built.getAsJsonObject("tolerance").getAsJsonObject("rotate").get("allowed").getAsBoolean(), "never turned");
+		}
+		// a lots program (layout street) names its orientation on the program
+		JsonObject lots = JsonParser.parseString("{\"zones\": [{\"id\": \"z\", \"program\": {\"layout\": \"street\", \"orientation\": \"ns\", \"lots\": "
+			+ "[{\"id\": \"cottage_1\", \"type\": \"cottage\", \"size\": [9, 9]}]}}, {\"id\": \"y\", \"program\": {\"layout\": \"street\", \"lots\": []}}]}").getAsJsonObject();
+		var zones = PPlan.forBuild(lots, Set.of(), "set_7", "b1").getAsJsonArray("zones");
+		assertEquals("ns", zones.get(0).getAsJsonObject().getAsJsonObject("program").get("orientation").getAsString());
+		assertEquals("ew", zones.get(1).getAsJsonObject().getAsJsonObject("program").get("orientation").getAsString(), "none named: east-west, as before");
+	}
+
+	@Test
+	void anArtifactWhoseLotsAllFaceEastOrWestIsANorthSouthStreet() throws Exception {
+		JsonObject built = PPlan.forBuild(walledTown(), Set.of(), "set_7", "b1");
+		var ids = PPlan.lots(built).stream().map(l -> l.get("id").getAsString()).toList();
+		JsonArray art = new JsonArray();
+		// west of the street at x 30 (facing east), and east of it (facing west); one with no entrance stands just off its front
+		art.add(lot(ids.get(0), new int[] {14, 64, 10, 28, 80, 26}, "east", new int[] {30, 64, 18}));
+		art.add(lot(ids.get(1), new int[] {32, 65, 0, 45, 80, 12}, "west", new int[] {30, 65, 6}));
+		art.add(lot(ids.get(2), new int[] {32, 64, 20, 45, 80, 32}, "west", null));
+		VillageLayout.Plan p = PPlan.toPlan(art, built);
+		assertTrue(p.northSouth());
+		assertEquals(30, p.streetZ(), "the street's line is an x: the entrances' (31 off the third lot's front)");
+		assertEquals(0, p.streetX0(), "its ends are z");
+		assertEquals(32, p.streetX1());
+		assertEquals(64, p.streetY());
+		assertArrayEquals(new int[] {30, 40}, p.at(40));
+		assertEquals(VillageLayout.Front.EAST, p.lots().get(0).front());
+		// one lot facing south among them (a districts plan): lot by lot, as before
+		art.set(2, lot(ids.get(2), new int[] {32, 64, 20, 45, 80, 32}, "south", null));
+		assertFalse(PPlan.toPlan(art, built).northSouth());
 	}
 
 	@Test

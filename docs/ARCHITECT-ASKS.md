@@ -1659,3 +1659,16 @@ After an unclean start, RL's reconcile charges what stands without counting `max
 - (1) A wild animal blocks a removal only if the removal changes its cell or the cell it stands on. Steward doesn't rely on the old box-wide rule. The condition: named mobs and players keep blocking anywhere in the box (StewardMotion steps the steward out first).
 - (2) The removal-credit crash window is booked at load from the pending record, after FK-b and SS.
 - (3) UC: J2 fixes the two small reproductions if load-time recovery can tell the cases apart; otherwise it goes to SS.
+
+### NS2: north-south streets beyond adoption (slice NS2, branch north-south-2, 2026-11-15; sent through the manager)
+Steward now keeps a composed plan's street `orientation` (`ns` or `auto`) instead of forcing `ew`, and grows a module on a north-south
+adopted town. Asked, to confirm (no new API is expected):
+- **S-NS2-1, growth along a composed north-south street.** RV's `frontage` and `extend` grow lots along a region's street. Is that covered
+  for a region planned from plan/0 whose street zone ran `ns` (C37), and not only for AD's north-south adoption? If it isn't, Steward keeps
+  `ew` for such zones until it is.
+- **S-NS2-2, an irrigated grow lot facing east or west.** IG-b says `frame` is `[along, deep]` for every front, but `ig.test` covers north
+  and south fronts only. Asked: one east or west case (frame, field, `lotCells`, the sources). Steward's `module-ns` e2e flow covers it in game.
+- **Architect's answer (2026-11-15, through the manager): both covered, no bugs.** Its new kit test `grow-ns` is on slice/NSQ.
+  - S-NS2-1: `grow.mjs` reads each street segment as ew or ns, and frontage, extension, lanes and lamps all work from it. So Steward's
+    compose rules now ask for `ns` where the land runs north-south.
+  - S-NS2-2: an east-front irrigated grow lot has frame `[along, deep]`, with its field, sources and `lotCells` as for north and south.

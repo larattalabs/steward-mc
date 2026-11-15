@@ -173,9 +173,9 @@ public final class Stockpiles {
 	public static boolean forConstruction(MinecraftServer server, Settlement s, Consumer<String> say,
 		net.minecraft.world.level.levelgen.structure.@Nullable BoundingBox changing) {
 		if (!dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) return true;
-		var street = Districts.streetOf(ArchitectApi.get().sites(server).list(s.owner()), s, null);
-		// off the town's street, and well clear of the building that changes (a new version may be larger than the one that stands)
-		return ensure(server, s, say, (x, z) -> (street == null || !(Math.abs(z - street.z()) <= 3 && x >= street.x0() - 3 && x <= street.x1() + 3))
+		var street = Districts.streetEitherAxis(ArchitectApi.get().sites(server).list(s.owner()), s, null);
+		// off the town's street (either axis), and well clear of the building that changes (a new version may be larger than the one that stands)
+		return ensure(server, s, say, (x, z) -> (street == null || !street.near(x, z, 3))
 			&& (changing == null || x < changing.minX() - CHANGE_MARGIN || x > changing.maxX() + CHANGE_MARGIN || z < changing.minZ() - CHANGE_MARGIN
 				|| z > changing.maxZ() + CHANGE_MARGIN)) != null;
 	}

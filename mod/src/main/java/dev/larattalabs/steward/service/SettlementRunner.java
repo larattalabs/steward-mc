@@ -964,6 +964,8 @@ public final class SettlementRunner {
 	private boolean newStreet = true;
 	/** The settlement's street (its centre line), found by {@link #markSites}: an addition is laid out on it. */
 	private @org.jspecify.annotations.Nullable Integer streetZ;
+	/** (slice NS2) Whether that street runs north-south ({@link #streetZ} then its x): the town's street on the legacy path, read by {@link #markSites}. */
+	private boolean streetNorthSouth;
 	/**
 	 * For an accepted proposal: run when the pipeline is about to start (it records the acceptance and the spend; false = it could not, and nothing starts),
 	 * and when the build ends having spent nothing (it gives the proposal and the spend back). Not kept across a restart.
@@ -1104,7 +1106,9 @@ public final class SettlementRunner {
 			boolean stands = existing != null && (!ArchitectApi.get().sites(server).list(existing.owner()).isEmpty()
 				|| ArchitectApi.get().regions().list(existing.owner()).stream().anyMatch(v -> v.state() != dev.larattalabs.architect.api.RegionState.REMOVING));
 			// an addition faces the street and may reach past its ends (the street is extended to it when it is queued)
-			java.util.function.Supplier<VillageLayout.Plan> own = () -> !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ)
+			// (slice NS2) an addition to a north-south street town (the legacy path) is laid along that street, its lots facing east or west
+			if (!newStreet && streetNorthSouth) Steward.LOGGER.info("addition to {}: along its north-south street x {}", settlement.id(), streetZ);
+			java.util.function.Supplier<VillageLayout.Plan> own = () -> !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ, Integer.MIN_VALUE, Integer.MAX_VALUE, streetNorthSouth)
 				: line != null ? VillageLayout.plan(claim, grid, specs, rules, line)
 				: VillageLayout.plan(claim, grid, specs, rules, district == null && dev.larattalabs.steward.gateway.VPlan.northSouthStreet(settlement.id()));
 			boolean worldSurvival = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false);
@@ -1606,8 +1610,8 @@ public final class SettlementRunner {
 	/**
 	 * Lays the village out from the settlement's composed plan (plan v1): the plan as built is checked again now (the land may have changed since it was
 	 * described), its approved artifact pinned, and its lots become this build's plan; the designs then run as for any build, and the village is realised from
-	 * the artifact ({@link #realiseVillage}). A plan that can't be built here stops the build before anything is spent; one Architect can't check, or whose
-	 * street runs north-south, falls back to the flat village.
+	 * the artifact ({@link #realiseVillage}). A plan that can't be built here stops the build before anything is spent; one Architect can't check falls
+	 * back to the flat village. Its streets run the way the plan laid them (slice NS2: a north-south street too).
 	 */
 	private void planComposed(Settlement existing, CardResult r, int buildings, double budgetUsd, Settlement.@org.jspecify.annotations.Nullable District district,
 		Claim claim, List<VillageLayout.LotSpec> specs, java.util.function.Supplier<VillageLayout.Plan> own) {
@@ -1782,8 +1786,9 @@ public final class SettlementRunner {
 			var b = v.box();
 			for (int x = b.minX() - 1; x <= b.maxX() + 1; x++) for (int z = b.minZ() - 1; z <= b.maxZ() + 1; z++) if (grid.has(x, z)) grid.setBuilt(x, z, true);
 		}
-		// the street of where the build goes: the district's own, or the town's (the rule founding and links use too)
-		var street = Districts.streetOf(all, s, district);
+		// the street of where the build goes: the district's own, or the town's (the rule founding and links use too); (slice NS2) the town's on either axis
+		var street = Districts.streetEitherAxis(all, s, district);
+		streetNorthSouth = street != null && street.northSouth();
 		if (street != null) streetZ = street.z();
 	}
 
@@ -2264,12 +2269,8 @@ public final class SettlementRunner {
 		List<int[]> spans = new java.util.ArrayList<>();
 		if (newStreet) spans.add(new int[] {plan.streetX0(), plan.streetX1()});
 		else {
-			var street = Districts.streetOf(sites.list(settlement.owner()), now, district);
-			// an addition's plan runs east-west on the street as it stands (Steward's own layout lays a north-south street only new)
-			if (street != null && !plan.northSouth() && street.z() == plan.streetZ()) {
-				if (plan.streetX0() < street.x0()) spans.add(new int[] {plan.streetX0(), street.x0() - 1});
-				if (plan.streetX1() > street.x1()) spans.add(new int[] {street.x1() + 1, plan.streetX1()});
-			}
+			var street = Districts.streetEitherAxis(sites.list(settlement.owner()), now, district);
+			spans.addAll(extensions(street, plan));
 		}
 		// ground protected since the survey: its lots are skipped, a street piece across it is left out
 		for (VillageLayout.Lot lot : plan.lots()) {
@@ -3979,16 +3980,28 @@ public final class SettlementRunner {
 	}
 
 	/**
+	 * The pieces an addition's street needs past the ends of the street as it stands ({@code street}), along the plan's line: none when the plan is on another
+	 * line or axis. (slice NS2) Either axis: a north-south plan's spans run along z. Pure.
+	 */
+	static List<int[]> extensions(dev.larattalabs.steward.model.DistrictRules.@org.jspecify.annotations.Nullable Street street, VillageLayout.Plan plan) {
+		List<int[]> spans = new java.util.ArrayList<>();
+		if (street == null || street.northSouth() != plan.northSouth() || street.z() != plan.streetZ()) return spans;
+		if (plan.streetX0() < street.x0()) spans.add(new int[] {plan.streetX0(), street.x0() - 1});
+		if (plan.streetX1() > street.x1()) spans.add(new int[] {street.x1() + 1, plan.streetX1()});
+		return spans;
+	}
+
+	/**
 	 * The cells a stockpile crate may take: off this build's lots and street (a margin of 1 round a lot, 3 round the street's line), and off the town's
 	 * street as it stands (a crate there would block what is built, and nobody but its owner can move it).
 	 */
 	static java.util.function.BiPredicate<Integer, Integer> clearOf(VillageLayout.Plan plan, List<dev.larattalabs.architect.api.SiteView> standing, Settlement s) {
-		var street = Districts.streetOf(standing, s, null);
+		var street = Districts.streetEitherAxis(standing, s, null);
 		return (x, z) -> {
 			for (VillageLayout.Lot l : plan.lots()) if (x >= l.x() - 1 && x <= l.maxX() + 1 && z >= l.z() - 1 && z <= l.maxZ() + 1) return false;
 			int[] b = plan.spanBox(plan.streetX0() - 3, plan.streetX1() + 3, 3);
 			if (x >= b[0] && x <= b[2] && z >= b[1] && z <= b[3]) return false;
-			return street == null || !(Math.abs(z - street.z()) <= 3 && x >= street.x0() - 3 && x <= street.x1() + 3);
+			return street == null || !street.near(x, z, 3);
 		};
 	}
 
