@@ -140,6 +140,8 @@ public final class VillageSweep {
 
 	/** (slice VSR, manager) Settlements with a village passed over because a player stood in it: the 10 s tick asks again. This world's session only. */
 	private static final java.util.Set<String> HELD = new java.util.HashSet<>();
+	/** Regions {@link #takeUp} passed over for a player standing in them: their take-up was asked (an ended build's), so a build naming them is no hold. */
+	private static final java.util.Set<String> HELD_REGIONS = new java.util.HashSet<>();
 
 	/** Village regions asked of the sweep this world start (each once). This world's session only. */
 	private static final java.util.Set<String> TRIED = new java.util.HashSet<>();
@@ -160,7 +162,10 @@ public final class VillageSweep {
 				for (String id : standingTakeUps(s.get())) {
 					if (regions.stream().noneMatch(v -> v.id().equals(id))) api.get(id).map(Village::of).ifPresent(regions::add);
 				}
-				return nextFree(s.get(), regions, SettlementRunner::running, TRIED, id -> playerIn(server, s.get(), id), id -> {
+				// a region whose take-up was asked and passed over (a player stood in it): the ended build that still names it holds it no longer
+				java.util.Set<String> asked = regions.stream().filter(v -> HELD_REGIONS.contains(v.id()) && v.build() != null).map(Village::build)
+					.collect(java.util.stream.Collectors.toSet());
+				return nextFree(s.get(), regions, b -> SettlementRunner.running(b) && !asked.contains(b), TRIED, id -> playerIn(server, s.get(), id), id -> {
 					// (slice VSR, manager) never asked while a player stands in it: Architect would hold the removal (and the settlement) up to 10 minutes
 					if (HELD.add(settlementId)) Steward.LOGGER.info("village region {} of {} waits: a player stands in it (asked again once they leave)", id, settlementId);
 				}).map(id -> {
@@ -211,7 +216,7 @@ public final class VillageSweep {
 	private static final Map<String, List<Settlement.LogEntry>> UNSAVED = new java.util.HashMap<>();
 
 	static {
-		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> { TAKING.clear(); SWEEPING.clear(); UNSAVED.clear(); TRIED.clear(); REMOVING.clear(); HELD.clear(); });
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> { TAKING.clear(); SWEEPING.clear(); UNSAVED.clear(); TRIED.clear(); REMOVING.clear(); HELD.clear(); HELD_REGIONS.clear(); });
 	}
 
 	/** An orphan note to save again on the sweep's next pass (its save failed). */
@@ -395,6 +400,18 @@ public final class VillageSweep {
 			REMOVING.remove(s.id());
 			whenDone.accept(ok);
 		};
+		if (playerIn(server, s, regionId)) {
+			// (slice VSR, manager) Architect would hold the removal (and the settlement) while a player stands in it: not asked, nothing logged (more of it may
+			// be placed meanwhile). The region is kept, so the 10 s tick's sweep takes it up once they have left, even while an ended build still names it
+			// (not tried this start: chosen again)
+			Steward.LOGGER.info("village region {} of {} waits: a player stands in it (asked again once they leave)", regionId, s.id());
+			TRIED.remove(regionId);
+			HELD_REGIONS.add(regionId);
+			HELD.add(s.id());
+			done.accept(false);
+			return;
+		}
+		HELD_REGIONS.remove(regionId);
 		var entry = entryOf(s, regionId);
 		if (entry.isEmpty()) {
 			List<String> ids = sitesOf(server, s.owner(), regionId);
@@ -406,15 +423,6 @@ public final class VillageSweep {
 					Settlement.Outcome.PARTIAL);
 				if (Settlements.log(s.id(), placed).ok()) entry = Settlements.store().get(s.id()).flatMap(x -> entryOf(x, regionId));
 			}
-		}
-		if (playerIn(server, s, regionId)) {
-			// (slice VSR, manager) Architect would hold the removal (and the settlement) while a player stands in it: not asked now. Logged first, so the
-			// sweep's own entry has the 10 s tick take it up once they have left, whatever build still names it (not tried this start: chosen again)
-			Steward.LOGGER.info("village region {} of {} waits: a player stands in it (asked again once they leave)", regionId, s.id());
-			TRIED.remove(regionId);
-			HELD.add(s.id());
-			done.accept(false);
-			return;
 		}
 		if (entry.isEmpty()) {
 			// the settlement is busy while the region is taken up (Undo.region marks it so too); its answer on the server thread, this world's only
