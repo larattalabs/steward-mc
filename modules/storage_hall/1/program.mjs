@@ -23,7 +23,7 @@
 // foundation, floor, wall, frame, light (the lamp after the fallback rule), path, roof.slab (the roof's bottom slab), wood.door (the door).
 //
 // Palette constraints (MODULES.md 2.2, module.json `palette`): the lamp as above (the one substitution, said); no gravity on floor (chests
-// stand on it), foundation, wall and frame; the roof can't be one (the kit refuses a roof with no slab, and no gravity block has one). A bible that breaks them is refused (`palette: ...`).
+// stand on it), foundation, wall and frame; the wall and foundation full blocks (the lamps stand on the wall, the door on the foundation); the roof can't be one (the kit refuses a roof with no slab, and no gravity block has one). A bible that breaks them is refused (`palette: ...`).
 import { Blueprint, PALETTES } from '../lib/kit.mjs';
 import { BLOCKS } from '../lib/blocks.mjs';
 
@@ -41,6 +41,8 @@ const LAMP_FALLBACK = 'minecraft:lantern';
 // the roof needs no rule: the kit refuses a roof block with no slab variant, and no gravity block has one
 const NO_GRAVITY = ['floor', 'foundation', 'wall', 'frame'];
 const NON_CONDUCTIVE = [];
+// (the diff review's blocker 2) roles that carry a block needing a sturdy top: the wall (the standing lamps) and the foundation (the door)
+const FULL_BLOCK = ['wall', 'foundation'];
 
 /** The block light a block gives in its default state (kit/lib/blocks.mjs `L`). */
 function lightOf(block) {
@@ -56,6 +58,7 @@ export function paletteCheck(roles) {
   const broken = [];
   for (const r of NO_GRAVITY) if (roles[r] && BLOCKS[roles[r]]?.g) broken.push(`${r} '${roles[r]}' is a gravity block`);
   for (const r of NON_CONDUCTIVE) if (roles[r] && BLOCKS[roles[r]]?.R) broken.push(`${r} '${roles[r]}' conducts redstone`);
+  for (const r of FULL_BLOCK) if (roles[r] && BLOCKS[roles[r]] && BLOCKS[roles[r]].collision !== 'full') broken.push(`${r} '${roles[r]}' is not a full block`);
   const lamp = roles.light && lightOf(roles.light) >= LAMP_MIN ? roles.light : LAMP_FALLBACK;
   return { lamp, fallback: lamp !== roles.light, broken };
 }

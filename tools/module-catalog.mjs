@@ -143,6 +143,11 @@ async function offline() {
         r.probes[`gravity_${role}`] = { ok: g.ok, threw: g.threw };
         check(!g.ok && /palette: .*gravity/.test(g.threw ?? ''), `${key}: gravel as ${role} (a gravity block on a core role) is refused: ${g.threw ?? 'not refused'}`);
       }
+      for (const role of pal.fullBlock ?? []) {
+        const g = await build(first, { bible: { id: 'm1_full', version: 1, roles: { ...roles, [role]: 'minecraft:oak_slab' } } });
+        r.probes[`full_${role}`] = { ok: g.ok, threw: g.threw };
+        check(!g.ok && /palette: .*not a full block/.test(g.threw ?? ''), `${key}: a slab as ${role} (a role that must be a full block) is refused: ${g.threw ?? 'not refused'}`);
+      }
       // the lot's reserved cells: one field cell (the farmland and the cell above), in the lot's frame, left open
       // (W = field + 2, D = field + 3: a square `side`, or crop_farm's `width` x `depth`)
       const [W, , D] = [(first.width ?? first.side) + 2, 3, (first.depth ?? first.side) + 3];

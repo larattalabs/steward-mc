@@ -114,7 +114,7 @@ public final class ModuleDev {
 			case "hallCargo" -> {
 				return CompletableFuture.supplyAsync(() -> {
 					JsonObject a = new JsonObject();
-					a.addProperty("words", dev.larattalabs.steward.service.HallCargo.words(server, req.get("owner").getAsString(), req.get("region").getAsString()));
+					a.addProperty("words", dev.larattalabs.steward.service.HallCargo.words(server, req.get("owner").getAsString(), req.get("message").getAsString()));
 					return a;
 				}, server);
 			}

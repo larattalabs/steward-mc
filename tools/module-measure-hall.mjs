@@ -464,18 +464,33 @@ async function hall() {
     }
     await standAt(home[0] + 6000, home[1] + 6000, 120);
     await cmd('/tick unfreeze');
-    // the halls' chunks really unload (a cell of an unloaded chunk reads null), then 600+ ticks pass with them unloaded
-    const probes = halls.map((h) => h.input);
+    // the halls' chunks really unload: one probe per chunk any hall's box touches (a cell of an unloaded chunk reads null), then 600 game ticks
+    // pass with them unloaded (the game time read from the world, not the wall clock)
+    const probes = [];
+    const seen = new Set();
+    for (const h of halls) {
+      const [x0, y0, z0, x1, , z1] = h.boxArr;
+      for (let cx = Math.floor(x0 / 16); cx <= Math.floor(x1 / 16); cx++) for (let cz = Math.floor(z0 / 16); cz <= Math.floor(z1 / 16); cz++) {
+        if (seen.has(`${cx},${cz}`)) continue;
+        seen.add(`${cx},${cz}`);
+        probes.push([Math.max(x0, Math.min(x1, cx * 16 + 8)), y0 + 2, Math.max(z0, Math.min(z1, cz * 16 + 8))]);
+      }
+    }
     let loaded = probes.length;
-    for (let i = 0; i < 120 && loaded > 0; i++) { await sleep(1000); loaded = (await readCells(probes)).filter((c) => c !== null).length; }
-    check(loaded === 0, `3 unload: every hall's input chest chunk unloaded once the player is 6,000 blocks away (${probes.length - loaded}/${probes.length})`);
-    await sleep(31_000);
+    for (let i = 0; i < 180 && loaded > 0; i++) { await sleep(1000); loaded = (await readCells(probes)).filter((c) => c !== null).length; }
+    check(loaded === 0, `3 unload: every chunk the halls' boxes touch unloaded once the player is 6,000 blocks away (${probes.length - loaded}/${probes.length} chunks)`);
+    const t0 = (await mod({ op: 'cells', cells: [] })).gameTime;
+    let t1 = t0;
+    for (let i = 0; i < 600 && t1 - t0 < 600; i++) { await sleep(1000); t1 = (await mod({ op: 'cells', cells: [] })).gameTime; }
+    check(t1 - t0 >= 600, `3 unload: ${t1 - t0} game ticks passed with the halls unloaded`);
     for (const t of towns) {
       await standAt(t.cx, t.cz, t.gy + 30);
+      const rep = await land(t.region);
       for (const h of halls.filter((x) => x.region === t.region)) {
         const s = await snapshot(h);
         const ents = await mod({ op: 'takeItems', box: h.boxArr });
-        check(sameSnap(s, fed[h.id]) && ents.entities === 0, `3 unload ${h.id}: every container as before after its chunks unloaded and loaded (${sameSnap(s, fed[h.id])}), ${ents.entities} item entities`);
+        const row = lotRow(rep, h.id);
+        check(sameSnap(s, fed[h.id]) && ents.entities === 0 && row?.standing === 1, `3 unload ${h.id}: every container as before after its chunks unloaded and loaded (${sameSnap(s, fed[h.id])}), ${ents.entities} item entities, standing ${row?.standing}`);
       }
     }
     // ---- 5 and 6: undo each growth, newest first: refused while its halls hold items, then emptied and undone. The player watches as a spectator
@@ -489,20 +504,20 @@ async function hall() {
       const before = {};
       for (const h of gh) before[h.id] = await snapshot(h);
       const rep0 = await land(g.region);
-      const words = (await mod({ op: 'hallCargo', owner: OWNER, region: g.region })).words;
       const u = await call('dev.rv.undo', { region: g.region, toPosition: g.position - 1 }, 3_600_000).catch((e) => ({ error: String(e) }));
       await sleep(3000);
+      // the steward's words from Architect's refusal (Steward's HallCargo, as Growths says them): only the sites it names
+      const words = (await mod({ op: 'hallCargo', owner: OWNER, message: `${u.error ?? ''} ${(u.blockers ?? []).join(', ')}` })).words;
       let unchanged = true;
       for (const h of gh) unchanged = unchanged && sameSnap(await snapshot(h), before[h.id]);
       const rep1 = await land(g.region);
       const standingSame = gh.every((h) => lotRow(rep0, h.id)?.standing === lotRow(rep1, h.id)?.standing);
-      // the words count every hall of the region still standing with items (this growth's and the older ones')
-      const standing = halls.filter((h) => h.region === g.region && !gone.has(h.id));
+      // the words count this growth's halls only (the sites the refusal names), a double chest once: the input chest and each pair
       let items = 0, cont = 0;
-      for (const h of standing) { const sn = await snapshot(h); items += Object.values(sn.totals).reduce((x, y) => x + y, 0); cont += Object.values(sn.by).filter((sl) => sl.length).length; }
+      for (const h of gh) { items += Object.values(before[h.id].totals).reduce((x, y) => x + y, 0); cont += 1 + h.pairs.length; }
       g.cargo = { removed: u.removed ?? null, blockers: u.blockers ?? [], error: u.error ?? u.refused ?? null, words };
       check(refusedForCargo(u) && unchanged && standingSame, `5 undo with cargo rid ${g.rid} (${gh.map((h) => h.id).join(', ')}): refused for cargo (${refusal(u)}); the containers and standing unchanged`);
-      check(typeof words === 'string' && words.includes(`${items.toLocaleString('en-US')} items in ${cont} chests`), `5 the steward's words: "${words}" (the region's standing halls hold ${items} in ${cont} containers)`);
+      check(typeof words === 'string' && words.includes(`${items.toLocaleString('en-US')} items in ${cont} chests`), `5 the steward's words: "${words}" (this growth's halls hold ${items} in ${cont} chests)`);
       for (const h of gh) await mod({ op: 'clearContainers', box: h.boxArr });
       // cargo in isolation, one container class at a time (the input chest; a bulk pair's either half, lower and upper row): each alone refuses
       // the undo, and is still there after

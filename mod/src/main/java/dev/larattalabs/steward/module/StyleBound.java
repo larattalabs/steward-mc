@@ -141,6 +141,7 @@ public final class StyleBound {
 		List<String> tries = new ArrayList<>();
 		if (b.endsWith("_slab")) tries.add(b);
 		if (b.endsWith("_stairs")) tries.add(b.substring(0, b.length() - "_stairs".length()) + "_slab");
+		if (b.endsWith("_wall")) tries.add(b.substring(0, b.length() - "_wall".length()) + "_slab");
 		if (b.endsWith("_planks")) tries.add(b.substring(0, b.length() - "_planks".length()) + "_slab");
 		if (b.endsWith("_block")) tries.add(b.substring(0, b.length() - "_block".length()) + "_slab");
 		if (b.endsWith("s")) tries.add(b.substring(0, b.length() - 1) + "_slab");

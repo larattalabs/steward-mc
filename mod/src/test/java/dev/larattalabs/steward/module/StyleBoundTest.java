@@ -82,6 +82,9 @@ class StyleBoundTest {
 			for (String role : List.of("floor", "wall", "frame")) assertEquals(StyleBound.qualify(r.get(role)), StyleBound.townBlocks(r, null).get(role), e.getKey() + " " + role);
 		}
 		assertNull(StyleBound.slabOf("minecraft:glass", b -> b.endsWith("_slab") ? null : b), "no slab: the measured item is kept");
+		// a wall-form roof (the kit's fullBlockOf strips _wall, then takes the slab): the diff review's finding 3
+		assertEquals("minecraft:cobblestone_slab", StyleBound.slabOf("minecraft:cobblestone_wall", mc));
+		assertEquals("minecraft:stone_brick_slab", StyleBound.slabOf("minecraft:stone_brick_wall", mc));
 	}
 
 	@Test

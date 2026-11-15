@@ -307,10 +307,11 @@ public final class Growths {
 			if (again.step() == Step.GONE) { done.accept(true); return; }
 			// (slice A2) a target still building (a race past the check above): said plainly, never Architect's text
 			if (err != null && buildingRefusal(SettlementRunner.message(err))) { say.accept(buildingLine(server, ref)); done.accept(false); return; }
-			// (M4, Q3) a storage hall holding items: said as the steward says it, with the count and the containers
-			String hall = err == null && !r.blockers().isEmpty() ? HallCargo.words(server, owner, ref.region()) : null;
-			say.accept("The town's change could not be taken up: " + (hall != null ? hall + " (" + String.join(", ", r.blockers()) + ")"
-				: err != null ? SettlementRunner.message(err) : "blocked by " + String.join(", ", r.blockers())) + ".");
+			// (M4, Q3) refused for a storage hall holding items (Architect throws NOT_ALLOWED naming the sites to empty): said as the steward says
+			// it, with the count and the chests, then Architect's own list
+			String why = err != null ? SettlementRunner.message(err) : "blocked by " + String.join(", ", r.blockers());
+			String hall = HallCargo.cargoRefusal(why) ? HallCargo.words(server, owner, why) : null;
+			say.accept("The town's change could not be taken up: " + (hall != null ? hall + " (" + why + ")" : why) + ".");
 			done.accept(false);
 		}));
 	}
