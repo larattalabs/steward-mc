@@ -237,7 +237,7 @@ Noah, 2026-11-13: Architect owns the composer engine. `Composer.compose` sends `
   wait, hidden rooms as secrets and "behind a waterfall" as the waterfall's `form.hidden_room`, the portcullis default, `reason` for the player)
   as `composeSystem`; `repairRounds: 2`; `budgetUsd` 1.00 for the pick and every round. The old plan-writer prompt's general rules are
   Architect's `kit/prompts/composer.md` now; the whole-plan writer job is gone (a waiting part's own plan, section 11, still uses it).
-- **Key:** `steward.compose.<world>.<settlement>.<card sha>`: the same card again adopts the first compose (no second spend). A key conflict
+- **Key:** `steward.compose.<world id>.<settlement>.<card sha>` (the world id a random one kept in `steward-world-id`): the same card again adopts the first compose (no second spend). A key conflict
   (the same card over changed land) is said, never re-keyed. The settlement's old plan is dropped when a new compose starts.
 - **Out:** the design's end (DESIGN_DONE, or a reconcile when the world opens; the kept plan newer than the design is the receipt) is kept only
   while the settlement holds the same card and claim. COMPOSED and NO_PLAN (its best round; also a budget stop with one) are checked again by
