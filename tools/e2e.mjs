@@ -88,11 +88,13 @@ let dev = null;
 
 /**
  * The client's options before it starts: no vanilla tutorial toasts ("Move with WASD", the recipe book) over the HUD shots, no first-launch
- * accessibility screen. Only these keys are set; the rest of options.txt is the game's (a missing file starts as just these, the game fills the rest).
+ * accessibility screen, and vsync off. Only these keys are set; the rest of options.txt is the game's (a missing file starts as just these, the game fills the rest).
  */
 function quietOptions() {
   const file = path.join(GAME, 'options.txt');
-  const want = { tutorialStep: 'none', onboardAccessibility: 'false', joinedFirstServer: 'true', skipMultiplayerWarning: 'true' };
+  // vsync off: with it on, a window opened while the display sleeps blocks in SDL_GL_SwapWindow on its first frame (11-15: every client
+  // started after the screen slept hung at the resource reload, before the DevBridge; Architect's gate clients already run without it)
+  const want = { tutorialStep: 'none', onboardAccessibility: 'false', joinedFirstServer: 'true', skipMultiplayerWarning: 'true', enableVsync: 'false' };
   const lines = fs.existsSync(file) ? fs.readFileSync(file, 'utf8').split('\n').filter((l) => l.length) : [];
   for (const [k, v] of Object.entries(want)) {
     const i = lines.findIndex((l) => l.startsWith(`${k}:`));
