@@ -84,6 +84,8 @@ public final class Composer {
 
 	/** Settlement designs already taken (world session + design id): a design ends once, but its answer can come both from DESIGN_DONE and a get. */
 	private static final java.util.Set<String> HANDLED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+	/** Settlement id to the design whose plan Steward is checking now (between onDone and keep or done). */
+	private static final Map<String, String> CHECKING = new java.util.concurrent.ConcurrentHashMap<>();
 	private static boolean registered;
 	private static volatile @Nullable MinecraftServer server;
 
@@ -93,7 +95,10 @@ public final class Composer {
 		registered = true;
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTING.register(srv -> server = srv);
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STARTED.register(srv -> srv.execute(() -> reconcile(srv)));
-		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> server = null);
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> {
+			server = null;
+			forgetWorld();
+		});
 		dev.larattalabs.architect.api.SiteEvents.DESIGN_DONE.register(d -> {
 			MinecraftServer srv = server;
 			if (srv != null) srv.execute(() -> onDone(srv, d));
@@ -118,10 +123,15 @@ public final class Composer {
 		var claim = new BoundingBox(cx - r, level.getMinY(), cz - r, cx + r, level.getMaxY(), cz + r);
 		Map<String, BlockPos> anchors = anchors(server, s, player, level);
 		String sha = cardSha(s, cardJson);
+		String world = world(server);
+		if (world == null) {
+			tell(server, player, s, List.of("A plan can't be composed in this world (its id could not be saved): the build takes today's layout."));
+			return;
+		}
 		var req = dev.larattalabs.steward.gateway.ComposeJob.request(s.id(), cardJson, land, claim, anchors, player.toString());
 		// the key carries this settlement's card sha (not the passed JSON's): the staleness check reads the saved card the same way
 		req = new dev.larattalabs.architect.api.ComposeRequest(req.brief(), req.claim(), req.styleId(), req.images(), req.budgetUsd(),
-			dev.larattalabs.steward.gateway.ComposeJob.opKey(world(server) + "." + s.id(), sha), withCard(req.ext(), sha, claimKey(s), world(server)));
+			dev.larattalabs.steward.gateway.ComposeJob.opKey(world + "." + s.id(), sha), withCard(req.ext(), sha, claimKey(s), world));
 		COMPOSING.put(s.id(), session);
 		// the old card's plan (if any) must not build this card, whatever this compose comes to
 		PlanStore.remove(s.id());
@@ -138,7 +148,8 @@ public final class Composer {
 			Steward.LOGGER.info("plan for {}: composing as design {}", s.id(), id);
 			// a key that adopted a compose already ended answers at once (DESIGN_DONE fired before)
 			ArchitectApi.get().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(d -> {
-				// taken again even if this session kept it before: the plan was dropped when this compose started
+				// taken again even if this session kept it before (the plan was dropped when this compose started), unless it is being checked now
+				if (d.id().equals(CHECKING.get(s.id()))) return;
 				HANDLED.remove(Session.current() + "#" + d.id());
 				onDone(server, d);
 			});
@@ -274,7 +285,7 @@ public final class Composer {
 	 * a random id kept in the world's folder ({@link #WORLD_ID_FILE}), made the first time. Not the path: a world deleted and made again at the same
 	 * path would meet its predecessor's keys with another body (OP_KEY_CONFLICT; stub e2e 11-14, whose world is re-made each run).
 	 */
-	static synchronized String world(MinecraftServer server) {
+	static synchronized @Nullable String world(MinecraftServer server) {
 		java.nio.file.Path dir = server.getWorldPath(net.minecraft.world.level.storage.LevelResource.ROOT).toAbsolutePath().normalize();
 		if (worldId != null && dir.equals(worldIdAt)) return worldId;
 		java.nio.file.Path f = dir.resolve(WORLD_ID_FILE);
@@ -289,12 +300,20 @@ public final class Composer {
 			try {
 				java.nio.file.Files.writeString(f, id + "\n");
 			} catch (java.io.IOException e) {
-				Steward.LOGGER.warn("could not write {}: {}", f, e.toString());
+				// an id that isn't kept would change at the next start: the compose's key with it, so a retry could pay again. None: nothing is composed
+				Steward.LOGGER.warn("could not write {}: {}; no plan is composed in this world", f, e.toString());
+				return null;
 			}
 		}
 		worldId = id;
 		worldIdAt = dir;
 		return id;
+	}
+
+	/** The world closed: its id is read again from the next world's folder (a world re-made at the same path has a new one). */
+	static synchronized void forgetWorld() {
+		worldId = null;
+		worldIdAt = null;
 	}
 
 	/**
@@ -381,6 +400,7 @@ public final class Composer {
 		withGateMechanisms(plan);
 		final UUID who = player;
 		Composed composed = new Composed(o, summary, d.request().has("ext") ? ext : new JsonObject());
+		CHECKING.put(s.id(), d.id());
 		check(server, s, plan, who).whenComplete((c, cerr) -> server.execute(() -> {
 			if (!Session.is(session)) return;
 			if (cerr != null) {
@@ -435,6 +455,7 @@ public final class Composer {
 		if (!current(server, composed.ext(), now)) {
 			Steward.LOGGER.info("plan for {}: the settlement changed during the check: not kept", s.id());
 			COMPOSING.remove(s.id(), Session.current());
+			CHECKING.remove(s.id());
 			return;
 		}
 		keep(server, player, now, plan, composed, c, leftOut);
@@ -614,7 +635,7 @@ public final class Composer {
 		// until CP: NO_PLAN has no summary in the composer's words (CP's result.summary)
 		String told = composed.summary().isBlank() || hiddenMissing ? summaryOf(plan) : composed.summary();
 		List<String> honest = new ArrayList<>();
-		if (!missing.isEmpty()) honest.add("Not in the plan: " + words(missing.stream().map(m -> secrets.scrub(m).isBlank() || dev.larattalabs.steward.gateway.ComposeJob.tells(m)
+		if (!missing.isEmpty()) honest.add("Not in the plan: " + words(missing.stream().map(m -> secrets.scrub(m).isBlank() || dev.larattalabs.steward.gateway.ComposeJob.secretish(m)
 			? "one part of the ask" : m).distinct().toList()) + ".");
 		if (hiddenMissing) honest.add("One part of the ask isn't in the plan yet.");
 		if ("oscillation".equals(composed.outcome().stopped())) honest.add("Architect stopped repairing the plan: the same parts kept coming back unfit.");
@@ -634,6 +655,7 @@ public final class Composer {
 		for (var p : shown(pending, secrets)) out.add("Not yet: " + p.words());
 		if (!unfit.isEmpty()) out.add("Didn't fit here: " + String.join(", ", unfit) + ".");
 		if (secretBuilt) out.add(Secrets.HINT);
+		CHECKING.remove(s.id());
 		COMPOSING.remove(s.id(), Session.current());
 		tell(server, player, s, out);
 		// a card screen open on it shows the plan now
@@ -709,6 +731,7 @@ public final class Composer {
 
 	private static void done(Settlement s, String why, MinecraftServer server, UUID player) {
 		COMPOSING.remove(s.id(), Session.current());
+		CHECKING.remove(s.id());
 		Steward.LOGGER.info("plan for {}: {}", s.id(), why);
 		tell(server, player, s, List.of(why));
 	}

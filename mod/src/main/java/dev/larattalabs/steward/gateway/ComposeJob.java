@@ -341,6 +341,13 @@ public final class ComposeJob {
 		return text.toLowerCase(Locale.ROOT).matches("(?s).*\\b(hidden|secret|secretly|concealed)\\b.*");
 	}
 
+	/** Whether {@code text} asks for something hidden in words {@link #asksHidden} reads (a tell, a hideout, behind a waterfall, inside a hill). Pure. */
+	public static boolean secretish(String text) {
+		JsonObject o = new JsonObject();
+		o.addProperty("t", text);
+		return asksHidden(o);
+	}
+
 	/** Whether the plan writes a hidden room ({@code form.hidden_room}, a form of kind {@code hidden_room}). Pure. */
 	public static boolean hasHiddenRoom(JsonObject plan) {
 		if (!plan.has("forms") || !plan.get("forms").isJsonArray()) return false;

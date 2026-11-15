@@ -171,6 +171,7 @@ class ComposeJobTest {
 		assertTrue(ComposeJob.asksHidden(json("{\"site\":{\"text\":\"a bandit hideout\"}}")));
 		assertTrue(ComposeJob.asksHidden(json("{\"site\":{\"text\":\"a forge inside the mountain\"}}")));
 		assertTrue(ComposeJob.tells("2 secret cellars") && !ComposeJob.tells("2 cottage homes"));
+		assertTrue(ComposeJob.secretish("1 hideout") && ComposeJob.secretish("1 room inside the hill") && !ComposeJob.secretish("1 stone bridge"));
 	}
 
 	@Test
