@@ -1358,6 +1358,7 @@ async function villageOrphanFlow() {
   const group = placedOp?.siteGroup ?? '';
   if (!/^region:/.test(group)) return fail(label, `no village entry: ${JSON.stringify(placedOp)?.slice(0, 160)}`);
   const region = group.slice('region:'.length);
+  // (the removal can take minutes under load: 4 min in the first run)
   // the build has ended (no build holds it), then the game stops and the entry is taken out
   const bf = path.join(WORLD, 'steward-builds.json');
   const heldBy = () => (fs.existsSync(bf) ? JSON.parse(fs.readFileSync(bf, 'utf8')).builds.filter((b) => b.settlementId === id).length : 0);
@@ -1369,7 +1370,7 @@ async function villageOrphanFlow() {
   await connect();
   const esc = region.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const swept = await waitLog(0, new RegExp(`village region ${esc} of ${id} is held by no build and no history entry`), 120_000);
-  const removed = await entryUntil(id, (e) => e.kind === 'PROJECT_REMOVED' && (placedOp.siteIds ?? []).every((x) => (e.siteIds ?? []).includes(x)), 120);
+  const removed = await entryUntil(id, (e) => e.kind === 'PROJECT_REMOVED' && (placedOp.siteIds ?? []).every((x) => (e.siteIds ?? []).includes(x)), 600);
   const rv = await regionUntil(region, ['REMOVED'], 120_000);
   // give a second take-up the time to show, then count
   await sleep(15_000);

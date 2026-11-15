@@ -215,9 +215,11 @@ public final class Undo {
 		if (regions.get(region).filter(v -> v.state() == dev.larattalabs.architect.api.RegionState.REMOVED).isPresent()) {
 			// logged once (slice VSR): an entry a replay finds retired already is not logged again
 			var fresh = Settlements.store().get(s.id()).orElse(s);
-			if (!retired(fresh, entry) && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
-			districts(server, s, say);
-			say.accept("Undone: the village was taken up already, the land restored.");
+			if (!retired(fresh, entry)) {
+				if (!Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
+				districts(server, s, say);
+				say.accept("Undone: the village was taken up already, the land restored.");
+			}
 			done.accept(true);
 			return true;
 		}

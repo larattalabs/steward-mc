@@ -38,7 +38,7 @@ class VillageSweepOnceTest {
 		long t = 10;
 
 		void region(String id, String build) {
-			regions.put(id, new VillageSweep.Village(id, false, false, build));
+			regions.put(id, new VillageSweep.Village(id, false, false, false, build));
 		}
 
 		List<VillageSweep.Village> list() {
@@ -68,7 +68,7 @@ class VillageSweepOnceTest {
 			removals.add(id);
 			inFlight.put(id, ok -> {
 				if (Boolean.TRUE.equals(ok)) {
-					regions.put(id, new VillageSweep.Village(id, true, false, regions.get(id).build()));
+					regions.put(id, new VillageSweep.Village(id, true, false, false, regions.get(id).build()));
 					s = s.withLog(new Settlement.LogEntry(t++, Settlement.Kind.PROJECT_REMOVED, "Undid", placed.siteIds()));
 				}
 				done.accept(ok);
@@ -140,10 +140,15 @@ class VillageSweepOnceTest {
 		r.answer("rgB", true);
 		assertEquals(2, r.removals.size());
 		r.restart();
-		// its entry stands now (logged before it was refused): undo reaches it, as before; the sweep leaves it
+		// its entry stands (logged before it was refused): the sweep's own take-up, asked again at the next start under the same entry
 		r.start();
-		assertEquals(2, r.removals.size());
-		assertEquals(1, r.entries(Settlement.Kind.PROJECT_PLACED, "rgA"));
+		assertEquals(List.of("rgA", "rgB", "rgA"), r.removals);
+		r.answer("rgA", true);
+		assertEquals(1, r.entries(Settlement.Kind.PROJECT_PLACED, "rgA"), "logged once");
+		assertEquals(1, r.removedEntries("rgA"));
+		r.restart();
+		r.start();
+		assertEquals(3, r.removals.size(), "nothing left");
 	}
 
 	@Test
@@ -153,7 +158,7 @@ class VillageSweepOnceTest {
 		w.start();
 		assertEquals(List.of("rgA"), w.removals);
 		// Architect removed it (its refund paid), but the game stopped before the answer: the entry stands, the region is a tombstone
-		w.regions.put("rgA", new VillageSweep.Village("rgA", true, false, "b100"));
+		w.regions.put("rgA", new VillageSweep.Village("rgA", true, false, false, "b100"));
 		w.restart();
 		w.start();
 		assertEquals(List.of("rgA"), w.removals, "no second removal (no second refund)");
@@ -171,20 +176,44 @@ class VillageSweepOnceTest {
 			.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "Hamlet", List.of("x1"), "region:held"))
 			.withLog(new Settlement.LogEntry(3L, Settlement.Kind.PROJECT_PLACED, "Hamlet", List.of("x2"), "region:gone"));
 		List<VillageSweep.Village> rows = List.of(
-			new VillageSweep.Village("theirs", false, false, null),
-			new VillageSweep.Village("spike", false, false, "spike"),
-			new VillageSweep.Village("adopted", false, true, "b1"),
-			new VillageSweep.Village("running", false, false, "b2"),
-			new VillageSweep.Village("held", false, false, "b3"),
+			new VillageSweep.Village("theirs", false, false, false, null),
+			new VillageSweep.Village("spike", false, false, false, "spike"),
+			new VillageSweep.Village("adopted", false, false, true, "b1"),
+			new VillageSweep.Village("running", false, false, false, "b2"),
+			new VillageSweep.Village("held", false, false, false, "b3"),
 			// removed with a build's own entry standing (not the sweep's): undo's to retire, never the sweep's
-			new VillageSweep.Village("gone", true, false, "b4"),
-			new VillageSweep.Village("removed", true, false, "b5"));
+			new VillageSweep.Village("gone", true, false, false, "b4"),
+			new VillageSweep.Village("removed", true, false, false, "b5"));
 		assertEquals(Optional.empty(), VillageSweep.nextVillage(s, rows, "b2"::equals, Set.of()));
-		var orphan = new VillageSweep.Village("orphan", false, false, "b6");
+		var orphan = new VillageSweep.Village("orphan", false, false, false, "b6");
 		var more = new ArrayList<>(rows);
 		more.add(orphan);
 		assertEquals(Optional.of("orphan"), VillageSweep.nextVillage(s, more, "b2"::equals, Set.of()));
 		assertEquals(Optional.empty(), VillageSweep.nextVillage(s, more, "b2"::equals, Set.of("orphan")), "tried this start");
+	}
+
+	@Test
+	void nothingStartsWhileARemovalArchitectResumedIsInFlight() {
+		var w = new World();
+		w.region("rgA", "b100");
+		w.region("rgB", "b200");
+		w.regions.put("rgA", new VillageSweep.Village("rgA", false, true, false, "b100"));
+		w.start();
+		assertTrue(w.removals.isEmpty(), "rgA is being removed (resumed at this start): rgB waits");
+		w.regions.put("rgA", new VillageSweep.Village("rgA", true, false, false, "b100"));
+		w.restart();
+		w.start();
+		assertEquals(List.of("rgB"), w.removals, "the next start takes rgB up");
+	}
+
+	@Test
+	void theSweepsOwnStandingTakeUpsAreFoundByTheirEntries() {
+		var s = Settlement.founded("set_1", "Here", TOWN, Permission.PROPOSALS, Difficulty.SUPPLIED, 1L)
+			.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "Hamlet", List.of("x1"), "region:built"))
+			.withLog(new Settlement.LogEntry(3L, Settlement.Kind.PROJECT_PLACED, VillageSweep.TAKING_UP, List.of("y1"), "region:lost"))
+			.withLog(new Settlement.LogEntry(4L, Settlement.Kind.PROJECT_PLACED, VillageSweep.TAKING_UP, List.of("z1"), "region:done"))
+			.withLog(new Settlement.LogEntry(5L, Settlement.Kind.PROJECT_REMOVED, "Undid", List.of("z1")));
+		assertEquals(List.of("lost"), VillageSweep.standingTakeUps(s));
 	}
 
 	@Test
