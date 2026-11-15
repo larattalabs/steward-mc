@@ -3399,7 +3399,8 @@ async function suppliedGrowthFlow(mode = null) {
       const mine = new Set([...(siteIds ?? []), ...(r?.sites ?? [])]);
       const left = (spAfter?.sites ?? []).filter((x) => mine.has(x.id)).map((x) => `${x.id} ${x.state}`);
       const area = crates();
-      const inCrates = (x) => area && x.x >= area.x0 && x.x <= area.x1 && x.z >= area.z0 && x.z <= area.z1;
+      // a diff cell names its place as pos "x,y,z" (E2E-CX: this read x.x/x.z before, so the crates' cells were never left out)
+      const inCrates = (c) => { const [x, , z] = String(c.pos ?? '').split(',').map(Number); return area && x >= area.x0 && x <= area.x1 && z >= area.z0 && z <= area.z1; };
       const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snapPre }, { timeoutMs: 1_800_000 });
       const off = (d.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)) && !inCrates(x));
       const owing = Object.keys(spAfter?.outstanding ?? {}).length;
