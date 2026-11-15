@@ -585,7 +585,12 @@ public final class SettlementRunner {
 		// materials only once all of it is built: else nothing is spent
 		boolean regionMaterials = worldSurvival && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
 		String no = Growths.modeRefusal(name, Growths.fromMaterials(v), regionMaterials, v.build() != null && v.build().built(), v.build() == null ? 0 : v.build().percent());
-		if (no != null) { abandon(no); return; }
+		if (no != null) {
+			// (slice SST) a town from materials still being built: watched, so the steward says once when it is built and can grow
+			if (Growths.fromMaterials(v) && regionMaterials && v.build() != null && !v.build().built()) MaterialRequests.watchBuild(now.id(), v.id());
+			abandon(no);
+			return;
+		}
 		// built from materials: its targets draw from the settlement's stockpile, made again if it went
 		if (Growths.fromMaterials(v)) {
 			var sp = Stockpiles.ensure(server, now, this::say);
@@ -1141,9 +1146,11 @@ public final class SettlementRunner {
 					growStanding(r, budgetUsd, now, town.get(), specs, worldSurvival, null);
 					return;
 				}
-				// a street town, built free: taken on as one region first, then grown (docs/GROWTH.md, slice B); anything that can't be keeps today's path
-				else if (ArchitectApi.get().features().contains(Adoption.FEATURE) && existing.difficulty() == dev.larattalabs.steward.model.Difficulty.PATRON
-					&& !worldSurvival && overworld && !dev.larattalabs.steward.gateway.VPlan.isLegacy(existing.id())) {
+				// a street town: taken on as one region first, then grown (docs/GROWTH.md, slice B); in a world that builds from materials, as a survival
+				// region grown from materials (slice SST, Architect SAD); anything that can't be keeps today's path
+				var as = Adoption.adoptsAs(existing.difficulty(), worldSurvival, server.getDefaultGameType() == net.minecraft.world.level.GameType.CREATIVE);
+				if (as != Adoption.As.NONE && ArchitectApi.get().features().contains(Adoption.FEATURE)
+					&& overworld && !dev.larattalabs.steward.gateway.VPlan.isLegacy(existing.id())) {
 					var read = Adoption.read(server, existing);
 					var inv = read.inventory();
 					// a street that can't be taken on (bent): today's street pieces, and the player is told why
@@ -1153,7 +1160,7 @@ public final class SettlementRunner {
 					}
 					if (inv.isPresent()) {
 						java.util.function.Supplier<VillageLayout.Plan> legacyPlan = own;
-						adoptTown(r, budgetUsd, specs, inv.get(), () -> {
+						adoptTown(r, budgetUsd, specs, inv.get(), as == Adoption.As.SURVIVAL, () -> {
 							// (slice M3) a module grows a region or nothing: never Steward's own street pieces
 							if (moduleBuild()) { abandon("The town couldn't be taken on as one region, and a working module is placed only by growing one. Nothing was spent."); return; }
 							plan = legacyPlan.get();
@@ -1165,8 +1172,8 @@ public final class SettlementRunner {
 			}
 			// (slice M3) a module is placed only as an addition on growth (A, A2, B): a town that took none of those paths ends here, before anything is spent
 			if (moduleBuild()) {
-				abandon("A working module is placed only by growing the town through Architect, and this town can't grow that way now (a district, a bent or "
-					+ "Supplied street town, or an Architect without growth). Nothing was spent.");
+				abandon("A working module is placed only by growing the town through Architect, and this town can't grow that way now (a district, a bent "
+					+ "street town, a world whose mode can't take it on, or an Architect without growth). Nothing was spent.");
 				return;
 			}
 			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(), worldSurvival, overworld, addition, districtId,
@@ -1204,7 +1211,7 @@ public final class SettlementRunner {
 		return r != null && r.adopting;
 	}
 
-	private void adoptTown(CardResult r, double budgetUsd, List<VillageLayout.LotSpec> specs, Adoption.Inventory inv, Runnable legacy) {
+	private void adoptTown(CardResult r, double budgetUsd, List<VillageLayout.LotSpec> specs, Adoption.Inventory inv, boolean survival, Runnable legacy) {
 		var saved = Settlements.store().get(settlement.id()).orElse(null);
 		if (saved == null) { legacy.run(); return; }
 		if (!Adoption.reconcile(server, saved, true)) { abandon("The settlement's history could not be saved; try again."); return; }
@@ -1213,6 +1220,16 @@ public final class SettlementRunner {
 		if (Adoption.standing(saved).isPresent() || Adoption.openIntent(saved).isPresent()) {
 			abandon("The town is being changed right now; ask again once it has settled.");
 			return;
+		}
+		// (slice SST, S-SAD-1) a survival adoption: the stockpile first, which folds the older builds' crates into it (adoptCrates), so no site is still
+		// fed by a live crate (Architect refuses that) and the town's construction draws from the stockpile once adopted
+		if (survival) {
+			var sp = Stockpiles.ensure(server, saved, this::say);
+			if (sp == null) {
+				abandon("The town is built from materials and grows from the stockpile, and none could be made by the founding stone. Clear a spot beside it and start again.");
+				return;
+			}
+			saved = Settlements.store().get(settlement.id()).orElse(saved);
 		}
 		String key = opKey("adopt");
 		var intent = Adoption.intent(key, inv, System.currentTimeMillis());
@@ -1241,7 +1258,15 @@ public final class SettlementRunner {
 						abandon("The town was taken on as a region, but the history could not be saved; it is put right at the next start.");
 						return;
 					}
-					Steward.LOGGER.info("adopt {}: region {}", settlement.id(), v.id());
+					Steward.LOGGER.info("adopt {}: region {}{}", settlement.id(), v.id(), survival ? " (survival)" : "");
+					// (slice SST) a survival region grows as any region built from materials (A2): the mode gate (the world's mode read again: it may
+					// have changed while the adoption was asked), a lot still building waits, the stockpile
+					var town = ArchitectAccess.api().regions().get(v.id()).orElse(v);
+					if (survival || Growths.fromMaterials(town)) {
+						var now = Settlements.store().get(settlement.id()).orElse(settlement);
+						growStanding(r, budgetUsd, now, town, specs, dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false), null);
+						return;
+					}
 					planGrowth(r, budgetUsd, v.id(), specs, null);
 					return;
 				}

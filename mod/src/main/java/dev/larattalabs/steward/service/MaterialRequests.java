@@ -121,7 +121,8 @@ public final class MaterialRequests {
 	private static void seedBuilds() {
 		for (Settlement s : Settlements.store().all()) {
 			for (var e : s.log()) {
-				if (e.kind() != Settlement.Kind.PROJECT_PLACED) continue;
+				// (slice SST) an adopted survival town's receipt names its region too: a lot it adopted still building is watched again, said once when built
+				if (!seedsWatch(e)) continue;
 				String id = regionOfEntry(e.siteGroup());
 				if (id == null) continue;
 				try {
@@ -137,6 +138,12 @@ public final class MaterialRequests {
 	}
 
 	/** The region a placed entry's tag names: a town's ({@code region:<id>}) or a growth's ({@code revision:<id>:<rid>}, slice A2); else null. Pure. */
+	/** Whether a history entry names a region the world-start seed watches: a placed build's, or (slice SST) an adoption's receipt ({@code region:}). */
+	static boolean seedsWatch(Settlement.LogEntry e) {
+		if (e.kind() == Settlement.Kind.PROJECT_PLACED) return true;
+		return e.kind() == Settlement.Kind.TOWN_ADOPTED && e.siteGroup() != null && e.siteGroup().startsWith(dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX);
+	}
+
 	static @org.jspecify.annotations.Nullable String regionOfEntry(@org.jspecify.annotations.Nullable String siteGroup) {
 		String id = dev.larattalabs.steward.gateway.VPlan.regionOf(siteGroup);
 		return id != null ? id : Growths.parse(siteGroup).map(Growths.Ref::region).orElse(null);

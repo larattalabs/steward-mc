@@ -296,6 +296,7 @@ asks first when the **whole growth's bill** takes more than half of the stockpil
 | a region town (V, plan v1), instant | growth A: a `planRevision` grow | grow lot `{id, type, size [W, D], ext, irrigate (farm)}` |
 | a region town built from materials | growth A2 | the same lot, billed from the stockpile |
 | a street town (east-west street), instant, not Supplied | growth B: adopted at its first growth, then A | the same lot |
+| a street town in a world that builds from materials (slice SST) | adopted as a survival region (Architect SAD), then A2 | the same lot, billed from the stockpile, watered included |
 
 **The order inside the build:**
 1. `planRevision` with the module lot at its exact size.
@@ -326,7 +327,8 @@ variant is never made twice.
 ### 4.3 Where a module isn't placed (yet)
 
 - **Districts:** district growth (`dgrow`, D-S2) isn't built.
-- **Bent streets, Supplied street towns** (not adopted, S-AD-5) and the **legacy street path**: there is no region to irrigate. Lot
+- **Bent streets** and the **legacy street path** (a Supplied or survival street town is adopted as a survival region since slice SST, Architect SAD,
+  and takes a module, watered included, on the `ADOPT_MATERIALS` path): there is no region to irrigate. Lot
   designs never own fluids (IRR).
 - **Freezing biomes** (the farm), an Architect without the S-M5 features, and an unmeasured Minecraft version.
 
@@ -561,9 +563,10 @@ certification gate, with a dev-only override bound that holds its bill on purpos
 - **The offer** (`ModuleKind`, `ModuleOffer`, `service/ModuleOffers`). Rule `module.<id>`; its sign is 8 or more seeds of a crop it grows. It
   is offered before the decorative `farm`, and only where it can grow the town:
   - the paths: a region town built at once (A); one built from materials and fully built (A2); a Patron, instant, east-west street town Architect
-    can adopt (B, then A);
+    can adopt (B, then A); since slice SST, a street town in a world that builds from materials, adopted as a survival region (`ADOPT_MATERIALS`:
+    billed as A2, once its lots are all built);
   - never a district, a freezing biome (a warm-only kind), a town in the wrong mode, or a style whose roles break the palette rules;
-  - a watered module never goes to a town it would adopt: Architect's IG can't irrigate an adopted region (ask **S-M5-8**).
+  - a watered module goes to a town it would adopt since Architect's IG-b (S-M5-8; slice A2L creative, slice SST survival).
 
   Its params are the crop carried most and the largest size those seeds plant (a town built from materials counts its stockpile too). In
   survival the measured bound (`measured.json bounds`, the whole growth's bill) is shown and approved; with no bound, it is not

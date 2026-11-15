@@ -164,6 +164,7 @@ class GrowthsTest {
 		m = Growths.modeRefusal("Oakby", true, false, true, 100);
 		assertTrue(m.contains("built from materials") && m.contains("builds at once now"), m);
 		// from materials, still being built: survival_unfinished at the realise, so nothing is planned
+		assertTrue(Growths.modeRefusal("Oakby", true, true, false, 99.7).contains("(99%)"), "not built is never 100%");
 		m = Growths.modeRefusal("Oakby", true, true, false, 42.4);
 		assertTrue(m.contains("still being built from the stockpile (42%)"), m);
 		// the mode is said before the build (a town still building in a world turned creative can't grow either way)

@@ -263,8 +263,8 @@ A cancel while the realise is in flight, or a creative growth placing, still wai
   only lost its addition is never announced built.
 
 **4. IG-b.** `ModuleOffer.decide`'s ADOPT branch no longer refuses an irrigated module. The ADOPT path is taken only when the world builds at once
-and the settlement is a Patron one (`ModuleOffers`), so it is creative only; a Supplied or survival street town still gets "this street town can't
-be taken on as one region" until Architect's SAD (v0.68.0). The growth is the adopted path's; Architect's IG-b adds `street`, `lots`, `fluids`.
+and the settlement is a Patron one (`ModuleOffers`), so it is creative only; a Supplied or survival street town still got "this street town can't
+be taken on as one region" until Architect's SAD (v0.68.0) and Steward's slice SST (`ADOPT_MATERIALS`, below). The growth is the adopted path's; Architect's IG-b adds `street`, `lots`, `fluids`.
 
 **Tests.**
 - **Unit:** `Growths.decide` (no BUILDING; `writing` before the busy wait; creative, another rid, not the head, removing); `Growths.writing`;
@@ -368,7 +368,7 @@ entry; none (Architect rolled its intent back at its own world start, or never g
 
 **Saves.** Two new `Kind` values (`TOWN_ADOPTED`, `TOWN_RELEASED`). Settlements format 6 (slice A's bump, unreleased) covers them.
 
-**Not in B.** Survival and Supplied street towns (S-AD-5); bent or L-shaped streets (the reader says why and the town keeps its street pieces); the plan writer growing an adopted village through its artifact
+**Not in B.** Survival and Supplied street towns (S-AD-5; since slice SST, below, a street town in a world that builds from materials is adopted as a survival region); bent or L-shaped streets (the reader says why and the town keeps its street pieces); the plan writer growing an adopted village through its artifact
 (slice A's `planRevision` grow covers additions).
 
 **Tests** (review 8).
@@ -421,6 +421,52 @@ of every settlement before the sweep; adopted towns skipped), `Undo` (the reconc
   the town.
 - **Not here:** a north-south town's additions on the legacy path (they read no east-west street; Steward never lays such a town outside dev).
 
+
+## Slice SST: a Supplied or survival street town adopted at its growth (Architect SAD)
+
+Status: as built, 2026-11-15, on branch `survival-street` (off `batch-070`, Architect 0.70.0). Checks (deferred verification, rule 11): `gradlew
+build` and `npm test` pass; `stub --only adopt-survival` passed 10/10 on run 2 (run 1: a third of the need per feed built both lots before the ask;
+finer feeds since); `module-survival-street` is written but left to the batch gate. One GPT review, on the diff (request changes, no blocker; all
+five should-fixes and the nit taken, see "Review"). Not in game: a restart mid-adopt (B's reconcile, by op key in either mode) and mid-undo (A2L's). Architect's SAD (v0.68.0; CONTRACT "Slice SAD"): an
+adoption in a world that builds from materials makes a survival region; its construction sites keep their run, book and paid records; a site still fed
+by a live crate refuses until `adoptCrates`; `RegionView.build()` counts the adopted construction sites, building ones included; a growth waits
+`survival_unfinished` for them. Steward's answers S-SAD-1 to S-SAD-4 (ARCHITECT-ASKS "SAD"). No save format change, no API change.
+
+**When** (`afterSurvey`, slice B's branch): `Adoption.adoptsAs(difficulty, worldSurvival, defaultCreative)`, pure, as Architect decides the mode
+(`RegionSurvival.on`): the survival toggle on and the default game type not creative adopts any settlement as a **survival** region (S-SAD-4: Hardcore as
+Supplied); a world that builds at once adopts a Patron settlement as slice B's creative region; the toggle on with a creative default (Steward builds
+from materials, Architect would adopt as creative) and a Supplied settlement in a world that builds at once (it may hold construction sites, which a
+creative adoption refuses) are not adopted (today's street pieces). Feature, Overworld and the dev `legacy` layout as B.
+
+**The adoption** (`adoptTown`, `survival`): B's steps, with two changes.
+1. Before the intent: `Stockpiles.ensure`, which folds the older builds' crates into the stockpile (`adoptCrates`, S-SAD-1); none can be made: the build
+   ends, nothing asked. Architect's live-crate refusal stays a backstop (`NOT_ALLOWED`: definitive, today's path, as B).
+2. Answered PLACED: the receipt as B, then the fresh region goes through `growStanding` (A2's checks), not straight to `planGrowth`: the mode gate,
+   **a lot still building** ("<town> is still being built from the stockpile (N%): it can grow once it's built", nothing planned; the town is watched,
+   `MaterialRequests.watchBuild`, so the steward says once when it is built), then the stockpile and its crates kept clear, then A2's growth.
+A town adopted before SAD in a world that builds from materials is a creative region: `growStanding`'s mode line, as today (S-SAD-3; Steward never
+re-adopts on its own).
+
+**Growth, billing, undo, restart.** Once adopted the town is a region built from materials, so A2 and A2L hold unchanged: plan, quote, approve, a
+`CONSTRUCTION` realise, the feed; undo while waiting is RU's; paid == returned once. The adoption's undo is B's `Regions.unadopt` (AD §3), refused while
+a revision stands. A restart mid-adopt is B's reconcile (by the op key, whatever the mode); mid-growth and mid-undo are A2/A2L's.
+
+**Modules** (`ModuleOffers.town`): a street town that would adopt as survival takes the new path `ADOPT_MATERIALS` (`Path.materials()`, as
+`REGION_MATERIALS`): billed from the stockpile with the measured bound to approve, watered branches included (IG-b's stages; the water is free), and
+refused while a lot still builds (its lots' site states, `Adoption.builtPercent`). The Accept re-check reads `REGION_MATERIALS` once adopted.
+
+**Review** (GPT, on the diff, 2026-11-15: request changes, no blocker). Taken: (1) a town adopted while a lot builds is watched again after a restart
+(`MaterialRequests.seedsWatch` reads the adoption's receipt), and the e2e restarts there; (2) after the adoption the region's own mode and the world's
+mode now are read again (`growStanding` for any region from materials); (3) the module flow requires the logged quote, handles the hold, checks no water
+in the quote or the draws, and judges its undo by stock gained, one completion and nothing more 20 s on; (4) the release is judged by each site's
+Architect membership as read before the adoption, and the region gone; (5) the ground's diff excludes the crates through Architect's `exclude` and is
+judged by its whole mismatch count. The nit (MODULES.md's old IG line) fixed. Also from run 2: a town not yet built is never said "100%".
+
+**Tests.** Unit: `adoptsAs` over every difficulty and mode; `seedsWatch`; `builtPercent`; `ModuleOffer.decide` on `ADOPT_MATERIALS` (bound, stockpile seeds, watered,
+waiting). e2e (stub): `adopt-survival` (Steward's own street in a survival world, one lot held building: adopted as a survival region, the wait said,
+fed, built said; grown by one plain lot from materials, billed; a restart while its targets wait, built said once; undone, paid == returned once,
+UNDONE, E-flat outside the crates; the adoption undone, the founding sites standing in no region, the ledger and the land unchanged) and
+`module-survival-street` (the watered crop_farm billed and placed in an adopted survival street town, no water billed, undone paid == returned).
 
 ## Slice DG: a district region grows by revision (D-S2)
 

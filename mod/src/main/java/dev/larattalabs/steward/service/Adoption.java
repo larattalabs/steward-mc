@@ -59,6 +59,35 @@ public final class Adoption {
 		}
 	}
 
+	/** (slice SST) How a street town would be taken on now: not at all, as a creative region (slice B), or as a survival one (Architect SAD). */
+	public enum As { NONE, CREATIVE, SURVIVAL }
+
+	/**
+	 * (slice SST) How a street town is adopted at a growth, by the world's mode now, as Architect decides it (S-SAD-3: the world's mode at adoption):
+	 * a world that builds regions from materials ({@code worldSurvival}, the survival toggle, and the default game type not creative) adopts any
+	 * settlement as a survival region (S-SAD-4: Hardcore as Supplied); a world that builds at once adopts a Patron settlement as today's creative region
+	 * (a Supplied one there may hold construction sites, which a creative adoption refuses); the survival toggle with a creative default (Steward builds
+	 * from materials, Architect would adopt as creative) is not adopted. Pure.
+	 */
+	public static As adoptsAs(dev.larattalabs.steward.model.Difficulty difficulty, boolean worldSurvival, boolean defaultCreative) {
+		if (worldSurvival) return defaultCreative ? As.NONE : As.SURVIVAL;
+		return difficulty == dev.larattalabs.steward.model.Difficulty.PATRON ? As.CREATIVE : As.NONE;
+	}
+
+	/**
+	 * (slice SST) How far the inventory's lots are built, in percent (100: none still building), from each lot site's state (null: not read, counted
+	 * built; Architect's {@code build()} is the authority once adopted). Pure.
+	 */
+	public static int builtPercent(Inventory inv, java.util.function.Function<String, dev.larattalabs.architect.api.@Nullable State> state) {
+		if (inv.lots().isEmpty()) return 100;
+		int built = 0;
+		for (String site : inv.lots().values()) {
+			var st = state.apply(site);
+			if (st == null || st == dev.larattalabs.architect.api.State.BUILT) built++;
+		}
+		return built * 100 / inv.lots().size();
+	}
+
 	/** The inventory, or none and why not when the town has street pieces that can't be taken on ({@code why} null: no street or no lot, nothing to say). */
 	public record Read(Optional<Inventory> inventory, @Nullable String why) {}
 
