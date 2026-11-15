@@ -37,7 +37,12 @@ import org.jspecify.annotations.Nullable;
  */
 public final class PendingOffers {
 	/** A part's compose being waited for, by its design id (this world's session): what to do with its plan when it ends. */
-	private record Fitting(String settlementId, String part, String block, String region, String what, UUID player, Proposal proposal, int session) {}
+	private record Fitting(String settlementId, String part, String block, String region, String what, UUID player, Proposal proposal, int session, long since) {}
+	/**
+	 * A compose key that adopted a design this client no longer holds (Architect's reconnect snapshot keeps the last finished ones only) never ends here:
+	 * after this long without the design it stops as a failure, so the settlement is never left busy (GPT review, CA2).
+	 */
+	static final long UNSEEN_MS = 30_000;
 	private static final Map<String, Fitting> FITTING = new java.util.concurrent.ConcurrentHashMap<>();
 	private static volatile @Nullable MinecraftServer server;
 	/** A part's region being placed: read once a second until it is placed, then recorded. */
@@ -87,7 +92,9 @@ public final class PendingOffers {
 			NOT_NOW.clear();
 		});
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
-			if (server.getTickCount() % 20 != 0 || WATCHING.isEmpty()) return;
+			if (server.getTickCount() % 20 != 0) return;
+			if (!FITTING.isEmpty()) unseen(server);
+			if (WATCHING.isEmpty()) return;
 			for (var e : List.copyOf(WATCHING.entrySet())) {
 				try {
 					watch(server, e.getKey(), e.getValue());
@@ -347,22 +354,40 @@ public final class PendingOffers {
 		}
 		int cx = s.claim().centerX(), cz = s.claim().centerZ(), r = s.claim().radius();
 		var claim = new net.minecraft.world.level.levelgen.structure.BoundingBox(cx - r, level.getMinY(), cz - r, cx + r, level.getMaxY(), cz + r);
-		var req = ComposeJob.partRequest(world, s.id(), p.pendingPart(), partJson, block, keptPlan, region, others, claim, Composer.anchors(server, s, player, level), level,
-			s.owner());
+		var req = ComposeJob.partRequest(world, s.id(), p.pendingPart(), partJson, block, keptPlan, region, townState(server, s, region), others, claim,
+			Composer.anchors(server, s, player, level), level, s.owner());
 		Steward.LOGGER.info("part {} of {}: compose (key {}, cap ${}, skipPick {}, composeVocab {})", p.pendingPart(), s.id(), req.opKey(), req.budgetUsd(),
 			req.ext().get(dev.larattalabs.architect.api.ComposeRequest.EXT_SKIP_PICK), req.ext().get(dev.larattalabs.architect.api.ComposeRequest.EXT_VOCAB));
 		ArchitectAccess.api().regions().compose(req).whenComplete((id, err) -> server.execute(() -> guarded(server, player, s, p, what, () -> {
 			if (!Session.is(session)) return;
 			if (err != null) {
 				Throwable c = err instanceof java.util.concurrent.CompletionException && err.getCause() != null ? err.getCause() : err;
-				fail(server, player, s, p, what, "Architect could not compose it (" + c.getMessage() + ")");
+				boolean conflict = c instanceof dev.larattalabs.architect.api.RegionRefused rr && rr.reason() == dev.larattalabs.architect.api.Reason.OP_KEY_CONFLICT;
+				fail(server, player, s, p, what, conflict ? "it was fitted already over the land as it was then (nothing more is spent)"
+					: "Architect could not compose it (" + c.getMessage() + ")");
 				return;
 			}
 			Steward.LOGGER.info("part {} of {}: composing as design {}", p.pendingPart(), s.id(), id);
-			FITTING.put(id, new Fitting(s.id(), p.pendingPart(), block, region, what, player, p, session));
+			FITTING.put(id, new Fitting(s.id(), p.pendingPart(), block, region, what, player, p, session, System.currentTimeMillis()));
 			// a key that adopted a compose already ended answers at once (its DESIGN_DONE fired before)
 			ArchitectAccess.api().designs().get(id).filter(d -> d.status().isFinal()).ifPresent(d -> composed(server, d));
 		})));
+	}
+
+	/** Fittings whose design this client hasn't seen for {@link #UNSEEN_MS}: stopped (the offer stays; the part still waits). */
+	private static void unseen(MinecraftServer server) {
+		long now = System.currentTimeMillis();
+		for (var e : List.copyOf(FITTING.entrySet())) {
+			Fitting f = e.getValue();
+			if (now - f.since() < UNSEEN_MS || ArchitectAccess.api().designs().get(e.getKey()).isPresent()) continue;
+			FITTING.remove(e.getKey());
+			var s = Settlements.store().get(f.settlementId());
+			if (s.isEmpty() || !Session.is(f.session())) {
+				BUSY.remove(f.settlementId() + "/" + f.part());
+				continue;
+			}
+			fail(server, f.player(), s.get(), f.proposal(), f.what(), "Architect's answer for it (design " + e.getKey() + ") can't be read here");
+		}
 	}
 
 	/** A part's compose ended (server thread): its plan, checked again by Steward, is built as it fits, shown when Architect adjusted it, else said. */
@@ -424,6 +449,20 @@ public final class PendingOffers {
 				fail(server, player, s, p, what, "it doesn't fit round " + s.name() + " yet: " + why);
 			})));
 		});
+	}
+
+	/**
+	 * The town as it stands now, for the part's compose key: its sites and their versions (a grown or revised town keeps its region id, so the id alone
+	 * would meet the old compose). Sorted, so the same town gives the same key.
+	 */
+	static String townState(MinecraftServer server, Settlement s, String region) {
+		try {
+			var sites = ArchitectAccess.api().sites(server);
+			return VillageSweep.sitesOf(server, s.owner(), region).stream().sorted().map(id -> id + "@" + sites.get(id).map(dev.larattalabs.architect.api.SiteView::version).orElse(0))
+				.collect(java.util.stream.Collectors.joining(","));
+		} catch (RuntimeException | LinkageError e) {
+			return "";
+		}
 	}
 
 	/** Runs a step of the fitting; anything it throws (an answer of an unexpected shape) stops it as a failure, so the settlement is never left busy. */

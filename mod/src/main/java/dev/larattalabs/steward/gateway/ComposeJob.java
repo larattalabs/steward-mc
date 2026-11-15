@@ -253,10 +253,11 @@ public final class ComposeJob {
 	/**
 	 * (COMPOSITION section 11, slice CA2) A waiting part's compose: the brief is the part (its label, kind and own notes), the hints are the part as kept,
 	 * its block, the kept plan, the town's region id ({@code town}) and what stands beside it ({@code others}); Steward's part rules; no template pick.
-	 * The key holds a hash of all of it, so the same accept again adopts the same compose (paid once) and a changed town is a new compose.
+	 * The key holds a hash of all of it and of {@code townState} (the town's sites and versions), so the same accept again adopts the same compose (paid
+	 * once) and a changed town is a new compose.
 	 */
 	public static ComposeRequest partRequest(String world, String settlementId, String part, JsonObject partJson, String block, String keptPlan, String town,
-		List<String> others, BoundingBox claim, Map<String, BlockPos> anchors, @Nullable ServerLevel level, @Nullable String owner) {
+		String townState, List<String> others, BoundingBox claim, Map<String, BlockPos> anchors, @Nullable ServerLevel level, @Nullable String owner) {
 		JsonObject hints = new JsonObject();
 		hints.add("part", partJson.deepCopy());
 		hints.addProperty("block", block);
@@ -281,7 +282,8 @@ public final class ComposeJob {
 		ext.addProperty(EXT_PART_OF, settlementId);
 		ext.addProperty(EXT_PART, part);
 		simRounds(ext, SimAnswers.PART, town);
-		String sha = cardSha(brief + "\n" + hints + "\n" + claim + "\n" + owner);
+		// the town's sites and versions too: a grown town keeps its region id (GPT review, CA2)
+		String sha = cardSha(brief + "\n" + hints + "\n" + townState + "\n" + claim + "\n" + owner);
 		return new ComposeRequest(brief, claim, null, false, Math.min(cap(), PART_BUDGET_USD), partKey(world + "." + settlementId, part, sha), ext, level, owner);
 	}
 
@@ -315,10 +317,15 @@ public final class ComposeJob {
 	 * (the shown round's own words, on COMPOSED and NO_PLAN, and Architect's own line for a compose it refused at once), else COMPOSED's {@code reason}
 	 * (a design from before CP), else empty (NO_PLAN's {@code reason} is Architect's diagnostic, never shown); {@code rounds}: the composer's rounds (a $0
 	 * street round included); {@code stopped}: why its repairs stopped early ({@code oscillation}, {@code nothing_to_repair}) or null; {@code leftOut}: the
-	 * lots Architect's street round dropped, in words; {@code says}: each waiting part's player line ({@code waits[].say}) by part id.
+	 * lots Architect's street round dropped, in words; {@code says}: each waiting part's player line ({@code waits[].say}) by part id; {@code freeRounds}:
+	 * of the rounds, Architect's $0 street rounds (history rows with {@code free}).
 	 */
 	public record Outcome(Kind kind, String outcome, @Nullable JsonObject plan, String reason, double usd, int rounds, @Nullable String stopped,
-		@Nullable String program, @Nullable JsonObject params, @Nullable String error, List<String> leftOut, Map<String, String> says) {
+		@Nullable String program, @Nullable JsonObject params, @Nullable String error, List<String> leftOut, Map<String, String> says, int freeRounds) {
+		/** The paid repair rounds (after the first paid round). */
+		public int repairs() {
+			return Math.max(0, rounds - freeRounds - 1);
+		}
 	}
 
 	/**
@@ -348,20 +355,22 @@ public final class ComposeJob {
 		if (r != null && r.has("waits") && r.get("waits").isJsonArray()) for (JsonElement e : r.getAsJsonArray("waits")) {
 			if (e.isJsonObject() && !str(e.getAsJsonObject(), "part").isEmpty() && !str(e.getAsJsonObject(), "say").isBlank()) says.put(str(e.getAsJsonObject(), "part"), str(e.getAsJsonObject(), "say").strip());
 		}
+		int free = 0;
+		if (r != null && r.has("history") && r.get("history").isJsonArray()) for (JsonElement e : r.getAsJsonArray("history")) if (e.isJsonObject() && e.getAsJsonObject().has("free")) free++;
 		// CP's player summary; a design from before CP has it only as COMPOSED's reason
 		String summary = !str(r, "summary").isBlank() ? str(r, "summary").strip() : "COMPOSED".equals(outcome) ? str(r, "reason") : "";
 		if (d.status() == Design.Status.DONE && "PICKED".equals(outcome) && !str(r, "program").isEmpty()) {
 			JsonObject params = r.has("params") && r.get("params").isJsonObject() ? r.getAsJsonObject("params").deepCopy() : new JsonObject();
-			return new Outcome(Kind.PICKED, outcome, null, str(r, "reason"), usd, 0, null, str(r, "program"), params, null, List.of(), Map.of());
+			return new Outcome(Kind.PICKED, outcome, null, str(r, "reason"), usd, 0, null, str(r, "program"), params, null, List.of(), Map.of(), 0);
 		}
 		// a design stopped by its budget keeps its best round's plan in its result: still worth keeping (nothing more is spent)
 		if (plan != null && (d.status() == Design.Status.DONE || d.status() == Design.Status.FAILED)) {
 			return new Outcome(Kind.PLAN, outcome.isEmpty() ? "FAILED" : outcome, plan, summary, usd, rounds, stopped, null, null,
-				d.status() == Design.Status.FAILED ? d.error().orElse("failed") : null, List.copyOf(leftOut), Map.copyOf(says));
+				d.status() == Design.Status.FAILED ? d.error().orElse("failed") : null, List.copyOf(leftOut), Map.copyOf(says), free);
 		}
 		String why = d.error().orElse(d.status() == Design.Status.DONE ? "no plan in the answer" : String.valueOf(d.status()).toLowerCase(Locale.ROOT));
 		// (CP) a compose Architect refused at once (another level than the Overworld) says why in its summary, at $0
-		return new Outcome(Kind.NONE, outcome, null, summary, usd, rounds, stopped, null, null, why, List.copyOf(leftOut), Map.copyOf(says));
+		return new Outcome(Kind.NONE, outcome, null, summary, usd, rounds, stopped, null, null, why, List.copyOf(leftOut), Map.copyOf(says), free);
 	}
 
 	/** (A compose from before CA2, see {@link Kind#PICKED}) A PICKED template as a one-zone plan/0 Steward can check and keep: {@code {zones: [{id: town, program: {template, params}}]}}. Pure. */

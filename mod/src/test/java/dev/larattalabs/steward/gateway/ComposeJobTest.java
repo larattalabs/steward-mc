@@ -93,7 +93,7 @@ class ComposeJobTest {
 		var claim = new BoundingBox(-40, -64, -40, 40, 320, 40);
 		JsonObject part = json("{\"id\":\"town_wall\",\"kind\":\"wall\",\"required\":true,\"label\":\"the town wall\",\"notes\":\"A stone wall round the town.\"}");
 		String kept = "{\"schemaVersion\":\"plan/0\",\"zones\":[{\"id\":\"town\"}],\"connectors\":[" + part + "]}";
-		ComposeRequest r = ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", List.of("- smithy: 9x9, 4 north and 3 east of the stone"),
+		ComposeRequest r = ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", "s1@1,s2@1", List.of("- smithy: 9x9, 4 north and 3 east of the stone"),
 			claim, ANCHORS, null, "owner-1");
 		assertTrue(r.brief().startsWith("Add the town wall (connector.wall)") && r.brief().contains("A stone wall round the town."), r.brief());
 		JsonObject ext = r.ext();
@@ -116,9 +116,12 @@ class ComposeJobTest {
 		assertEquals("owner-1", r.owner());
 		assertTrue(r.opKey().matches("[A-Za-z0-9_.:-]{1,128}") && r.opKey().startsWith("steward.part.w1.set_1.town_wall."), r.opKey());
 		// the same accept again adopts the same compose; a town that changed (another neighbour) is another
-		assertEquals(r.opKey(), ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", List.of("- smithy: 9x9, 4 north and 3 east of the stone"),
+		assertEquals(r.opKey(), ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", "s1@1,s2@1", List.of("- smithy: 9x9, 4 north and 3 east of the stone"),
 			claim, ANCHORS, null, "owner-1").opKey());
-		assertNotEquals(r.opKey(), ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", List.of(), claim, ANCHORS, null, "owner-1").opKey());
+		assertNotEquals(r.opKey(), ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", "s1@1,s2@1", List.of(), claim, ANCHORS, null, "owner-1").opKey());
+		// a town grown under the same region id (a site's new version) is another compose, never the old answer or a key conflict
+		assertNotEquals(r.opKey(), ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", kept, "rg7", "s1@2,s2@1",
+			List.of("- smithy: 9x9, 4 north and 3 east of the stone"), claim, ANCHORS, null, "owner-1").opKey());
 		assertTrue(ComposeJob.partKey("w".repeat(200), "p".repeat(80), "abcdefabcdef").matches("[A-Za-z0-9_.:-]{1,128}"));
 	}
 
@@ -128,7 +131,7 @@ class ComposeJobTest {
 			+ "{\"feature\":{\"region\":\"$TOWN\"}}}}]},\"waits\":[],\"summary\":\"A stone wall.\"}"));
 		var claim = new BoundingBox(-40, -64, -40, 40, 320, 40);
 		JsonObject part = json("{\"id\":\"town_wall\",\"kind\":\"wall\"}");
-		var round = ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", "{}", "rg7", List.of(), claim, ANCHORS, null, null).ext()
+		var round = ComposeJob.partRequest("w1", "set_1", "town_wall", part, "connector.wall", "{}", "rg7", "", List.of(), claim, ANCHORS, null, null).ext()
 			.getAsJsonArray(ComposeJob.SIM_COMPOSE).get(0).getAsJsonObject();
 		assertEquals("A stone wall.", round.get("reason").getAsString());
 		assertTrue(round.toString().contains("\"region\":\"rg7\"") && !round.toString().contains("$TOWN"), round.toString());
@@ -217,6 +220,11 @@ class ComposeJobTest {
 		assertEquals(List.of("smithy 1"), cp.leftOut());
 		assertEquals(Map.of("rail", "rail waits for a later Architect release"), cp.says(), "only a wait with a say");
 		assertEquals(3, cp.rounds());
+		assertEquals(2, cp.repairs(), "no free round: the paid repairs after the first");
+		var street = ComposeJob.interpret(design(Design.Status.DONE, "{\"outcome\":\"COMPOSED\",\"plan\":{\"schemaVersion\":\"plan/0\"},\"rounds\":2,"
+			+ "\"history\":[{\"round\":1,\"overall\":\"NEEDS_REPAIR\"},{\"round\":2,\"free\":\"street\",\"overall\":\"READY\"}]}", 0.1, null));
+		assertEquals(1, street.freeRounds());
+		assertEquals(0, street.repairs(), "Architect's $0 street round is no repair");
 		// COMPOSED: the summary wins over the round's reason
 		assertEquals("The summary.", ComposeJob.interpret(design(Design.Status.DONE,
 			"{\"outcome\":\"COMPOSED\",\"reason\":\"The reason.\",\"summary\":\"The summary.\",\"plan\":{\"schemaVersion\":\"plan/0\"},\"rounds\":1}", 0.1, null)).reason());

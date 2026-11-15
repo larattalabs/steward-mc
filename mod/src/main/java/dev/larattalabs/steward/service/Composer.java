@@ -553,7 +553,8 @@ public final class Composer {
 	 */
 	private static void keep(MinecraftServer server, UUID player, Settlement s, JsonObject plan, Composed composed, PlanCheck c, List<String> leftOut) {
 		double cost = composed.outcome().usd();
-		int rounds = Math.max(0, composed.outcome().rounds() - 1);
+		// the paid repairs (Architect's $0 street rounds aren't repairs)
+		int rounds = composed.outcome().repairs();
 		// a waiting part's words for the player: Architect's (CP's waits[].say, $0 from its check), else the part's own notes (a design from before CP)
 		Map<String, String> words = new HashMap<>(notes(plan));
 		words.putAll(composed.outcome().says());
@@ -582,6 +583,8 @@ public final class Composer {
 					unplacedEnd(part) != null ? id.replace('_', ' ') + " waits on " + unplacedEnd(part) + ", which there wasn't room to place"
 						: composed.outcome().says().getOrDefault(id, id.replace('_', ' ') + " waits on another part of the plan that can't be built yet")));
 				case "refused", "malformed" -> unfit.add(id.replace('_', ' ') + (code(part) != null ? " (" + code(part) + ")" : ""));
+				// (CP's "couldn't be checked yet") a part the check stopped on is said, never silently left out
+				case "incomplete" -> unfit.add(id.replace('_', ' ') + " (not checked yet)");
 				default -> {
 				}
 			}
