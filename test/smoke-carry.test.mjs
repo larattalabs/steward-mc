@@ -156,3 +156,30 @@ test('refused: nothing to carry, a failed or tampered certificate, the measured 
   a = inputs({ prev: s, arch: '9.1.0' }); refused(a, /not the carried measurement's/);
   a = inputs(); a.prev.basis = 'guess'; refused(a, /unknown basis/);
 });
+
+// (M4) storage_hall@1: its round is the deterministic hall step (module-measure-hall.mjs hall), not a crop field round; it has no rates
+test('storage_hall@1 carries on its hall round, from the version it was fully measured on', () => {
+  const HDIR = path.join(ROOT, 'modules', 'storage_hall', '1');
+  const hm = JSON.parse(fs.readFileSync(path.join(HDIR, 'measured.json'), 'utf8'));
+  const hmod = JSON.parse(fs.readFileSync(path.join(HDIR, 'module.json'), 'utf8'));
+  const prev = hm.basis === 'smoke' ? { ...clone(hm.carried), bounds: clone(hm.bounds), rates: clone(hm.rates) } : clone(hm);
+  const now = { programSha: hmod.programSha, moduleJsonSha: 'c'.repeat(64) };
+  const mod = { ...clone(hmod), pins: { kit: '9.9.0', checker: '9.9.0' } };
+  const versions = { architect: NEXT, minecraft: '26.3' };
+  const ev = (step) => ({ step, ok: true, at: 't', head: 'h', seconds: 1, ...now, ...versions, checks: [{ ok: true, what: 'x' }] });
+  const a = {
+    prev, mod, now, gameModuleSha: moduleShaOf(mod), versions,
+    offline: { ok: true, data: { architect: NEXT, kit: '9.9.0', checker: '9.9.0' } }, offEntry: { branches: clone(prev.checks.offline.branches) },
+    ingame: { ok: true }, inEntry: {}, checks: { offline: {}, ingame: {} }, survival: ev('survival'), fields: [ev('hall')],
+    requote: { evidence: ev('bounds'), bounds: clone(prev.bounds), problems: [] },
+  };
+  const { why, m } = smokeCarry(a);
+  assert.deepEqual(why, []);
+  assert.equal(m.from, '0.67.0');
+  assert.deepEqual(m.rates, []);
+  assert.equal(m.checks.smoke.fields[0].step, 'hall');
+  const b = clone(a); b.fields[0].ok = false;
+  assert.match(smokeCarry(b).why.join('; '), /the hall round did not pass/);
+  const c = clone(a); c.fields = [];
+  assert.match(smokeCarry(c).why.join('; '), /no field round/);
+});

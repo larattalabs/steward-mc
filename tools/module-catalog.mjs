@@ -364,9 +364,13 @@ async function record() {
     });
     if (SMOKE) {
       // speed rule 4: carry the full measurement on a smoke check (tools/lib/smoke-carry.mjs), or refuse
-      const m2 = path.join(ROOT, 'artifacts', 'm2');
+      // the module's evidence directory (artifacts/m2: crop_farm, artifacts/m4: storage_hall) and its round: one field round (crop_farm), or
+      // one hall round (storage_hall: module-measure-hall.mjs hall, deterministic)
+      const M = MEASURES[e.id] ?? {};
+      const m2 = path.join(ROOT, 'artifacts', M.art ?? 'm2');
       const read = (f) => (fs.existsSync(path.join(m2, f)) ? JSON.parse(fs.readFileSync(path.join(m2, f), 'utf8')) : null);
-      const fields = fs.existsSync(m2) ? fs.readdirSync(m2).filter((f) => /^field-[a-z]+\.json$/.test(f)).map(read) : [];
+      const fields = !fs.existsSync(m2) ? [] : M.round === 'hall' ? [read('hall.json')].filter(Boolean)
+        : fs.readdirSync(m2).filter((f) => /^field-[a-z]+\.json$/.test(f)).map(read);
       // the bill: the 108 quotes re-taken on this pin, as per-Style bounds the way the full record derives them, to compare with the carried ones
       const rq = read('bounds.json');
       const requote = { evidence: rq, bounds: null, problems: [] };
@@ -435,7 +439,7 @@ const MEASURES = {
     steps: ['hall', 'survival', 'bounds'],
     what: 'docs/MEASURE-M4.md 4.1: the plain hall (slots 0), every bulk branch, measured in a dev client by tools/module-measure-hall.mjs: shape, storage, restart and unload, light, undo with cargo and emptied (all four facings, chunk borders, rustic in full, fortress and desert for shape and light), the survival bill, a cancel mid-build and the refunds, and the bound per branch and Style. Deterministic: one run per step.',
     bars: 'docs/MEASURE-M4.md "4. The bars" (committed before the first measurement)',
-    art: 'm4', runs: 1, rates: false,
+    art: 'm4', runs: 1, rates: false, round: 'hall',
   },
 };
 /** The measurement's evidence for a real module, summarised; reasons it can't certify go into `why`. */

@@ -110,9 +110,15 @@ export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, o
       why.push(`the bill moved: ${differ.length} of ${old.length} carried bounds differ from the re-quote's ${requote.bounds.length}: a full re-measure`);
   }
   // one field round (or more); every one on these files and versions must pass
+  // (M4) a storage hall's round is its deterministic hall step (module-measure-hall.mjs hall: shape, storage, restart, unload, light, undo)
   const mine = (fields ?? []).filter((f) => stamped(f, now, versions));
-  if (!mine.length) why.push('no field round on these files and versions (module-measure.mjs field --crop <c>)');
+  if (!mine.length) why.push('no field round on these files and versions (module-measure.mjs field --crop <c>, or module-measure-hall.mjs hall)');
   for (const f of mine) {
+    if (f.step === 'hall') {
+      const u = unpassed(f, 'hall');
+      if (u) why.push(`the hall round ${u}`);
+      continue;
+    }
     const u = unpassed(f, `field-${f.data?.crop}`);
     if (u) why.push(`the field round ${f.step} ${u}`);
     if (!(f.runs >= 5)) why.push(`the field round ${f.step} has ${f.runs} runs (5 needed)`);
@@ -120,7 +126,7 @@ export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, o
   }
   if (why.length) return { why, m: null };
   // the field round's rates beside the carried ones (report only: the round's own bars judge it)
-  const fieldRounds = mine.map((f) => ({ ...summary(f), crop: f.data?.crop, rates: (f.data?.farms ?? []).map((farm) => {
+  const fieldRounds = mine.map((f) => f.step === 'hall' ? { ...summary(f), rates: [] } : ({ ...summary(f), crop: f.data?.crop, rates: (f.data?.farms ?? []).map((farm) => {
     const J = f.data.judged?.[farm.id] ?? {};
     const [width, depth] = farm.size.split('x').map(Number);
     const old = (rates ?? []).find((r) => r.params.crop === f.data.crop && r.params.width === width && r.params.depth === depth);
