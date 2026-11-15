@@ -5397,6 +5397,11 @@ async function moduleHallFlow() {
   const input = chests.find((c) => /type=single/.test(c.state));
   if (chests.length === 5 && input && chests.every((c) => c.slots.length === 0)) ok(`${label} chests`, `5 chests in ${mods[0].sid} (the input ${input.at.join(',')} single), empty`);
   else return fail(`${label} chests`, `box ${JSON.stringify(sb)}; ${JSON.stringify(cs)?.slice(0, 300)}`);
+  // (M4-L) the hall's declared containers, turned into its box by HallCargo, are exactly the 5 chests standing
+  const dc = await devModule({ op: 'hallCargo', owner: `steward_mc:settlement/${id}`, message: '', site: mods[0].sid });
+  const key = (a) => a.map((c) => c.join(',')).sort().join(' ');
+  if (Array.isArray(dc?.declared) && key(dc.declared) === key(chests.map((c) => c.at))) ok(`${label} declared`, `HallCargo's 5 declared cells are the chests (${dc.declared[0].join(',')} the input)`);
+  else return fail(`${label} declared`, `declared ${JSON.stringify(dc?.declared)}; chests ${JSON.stringify(chests.map((c) => c.at))}`);
   // cargo: the undo is refused and said with the count (Q3), nothing changes
   await devModule({ op: 'putItems', at: input.at, stacks: [{ slot: 0, id: 'minecraft:cobblestone', count: 64 }, { slot: 1, id: 'minecraft:iron_ingot', count: 10 }] });
   from = logSize();
@@ -5408,6 +5413,26 @@ async function moduleHallFlow() {
   const last0 = settlements().find((x) => x.id === id)?.log.at(-1);
   if (said && kept && last0?.kind !== 'PROJECT_REMOVED') ok(`${label} undo refused`, said[0].slice(0, 200));
   else return fail(`${label} undo refused`, `said ${!!said}; kept ${kept}; last ${last0?.kind}; ${undoSaid} ${logSince(from).slice(-300)}`);
+  // (M4-L) a barrel a player stands in the lot (on the input chest) is not one of the hall's chests: said apart; alone, it still refuses the undo
+  const bar = [input.at[0], input.at[1] + 1, input.at[2]];
+  await cmd(`/setblock ${bar.join(' ')} minecraft:barrel`);
+  await devModule({ op: 'putItems', at: bar, stacks: [{ slot: 0, id: 'minecraft:dirt', count: 12 }] });
+  for (const [lbl, re] of [
+    ['with a barrel', /the storage hall still holds 74 items in 1 chest, and 12 items in 1 other container that is not the hall's; empty them first[^\n]*/],
+    ['a barrel alone', /the storage hall's lot still holds 12 items in 1 other container that is not the hall's; empty it first[^\n]*/],
+  ]) {
+    // the hall's chests emptied, the barrel left holding
+    if (lbl === 'a barrel alone') await devModule({ op: 'clearContainers', box: [...input.at, ...input.at] });
+    from = logSize();
+    const u = await cmd(`/steward undo ${id}`);
+    await sleep(5000);
+    const m = `${u}\n${logSince(from)}`.match(re);
+    const lastB = settlements().find((x) => x.id === id)?.log.at(-1);
+    if (m && lastB?.kind !== 'PROJECT_REMOVED') ok(`${label} undo refused ${lbl}`, m[0].slice(0, 200));
+    else return fail(`${label} undo refused ${lbl}`, `last ${lastB?.kind}; ${u} ${logSince(from).slice(-300)}`);
+  }
+  await devModule({ op: 'clearContainers', box: sb });
+  await cmd(`/setblock ${bar.join(' ')} minecraft:air`);
   // emptied: undone, the ground as before the growth
   await devModule({ op: 'clearContainers', box: sb });
   from = logSize();
@@ -5505,13 +5530,79 @@ async function moduleHallSurvivalFlow() {
     const bound = offer.module?.bound ?? null;
     if (offer.module?.params?.slots === 0 && bound && Object.keys(bound).length && /at most/.test(offer.why) && /Your stores are getting mixed/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 220));
     else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 300));
+    let hallKey = `module.${HALL}`;
+    // (M4-L) a cancel at a real partial point: accepted with half the bound stocked and no feeder, so the build draws what it can and waits; undone
+    // there (Architect's RU through Steward's undo), it gives back exactly what it drew, once. Then asked again in talk for the full round below.
+    {
+      const lbl = `${label} cancel part way`;
+      const tot = (m) => Object.values(m ?? {}).reduce((a, b) => a + b, 0);
+      const diff = (a, b) => Object.fromEntries(Object.entries(plusItems(a, Object.fromEntries(Object.entries(b ?? {}).map(([k, v]) => [k, -v])))).filter(([, v]) => v));
+      await cmd('/clear @p');
+      const spC0 = await ledger();
+      await away();
+      from = logSize();
+      await cmd(`/steward proposals ${id} accept module.${HALL}`);
+      await waitLog(from, new RegExp(`module ${id} quote `), 240_000);
+      await sleep(3000);
+      if (/Architect can't quote the bill exactly/.test(logSince(from))) await cmd(`/steward approve ${id}`);
+      const quotedC = (() => { const m = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(from)); return m ? JSON.parse(m[1]) : null; })();
+      // fed half of what its sites owe, once (run 1: crates stocked before the accept were not booked to it, so nothing was drawn); drawn as far as
+      // the half goes: the draws stop (unchanged 30 s) while it still owes
+      let owed = {};
+      for (let i = 0; i < 60 && !Object.keys(owed).length; i++) { await sleep(2000); owed = (await ledger())?.need ?? {}; }
+      await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(owed).map(([k, n]) => [k, Math.max(1, Math.floor(n / 2))])) }).catch(() => null);
+      let drawn = 0, still = 0, spW = null;
+      for (let i = 0; i < 160 && still < 6; i++) {
+        await sleep(5000);
+        spW = await ledger();
+        const n = tot(diff(spW?.consumed, spC0?.consumed));
+        still = n > 0 && n === drawn && Object.keys(spW?.need ?? {}).length ? still + 1 : 0;
+        drawn = n;
+      }
+      const g = await growthOf(id);
+      const tag = g.op?.siteGroup;
+      const n0 = removedCount(id);
+      from = logSize();
+      const said = await cmd(`/steward undo ${id}`);
+      let removed = false;
+      for (let i = 0; i < 300 && !removed; i++) { await sleep(1000); removed = removedCount(id) > n0; }
+      const spU = await ledger();
+      await sleep(20_000);
+      const spL = await ledger();
+      const paidC = diff(spL?.consumed, spC0?.consumed);
+      const backC = diff(spL?.returned, spW?.returned);
+      const overC = diff(spL?.refundOverflow, spW?.refundOverflow);
+      const againC = plusItems(plusItems(diff(spL?.returned, spU?.returned), diff(spL?.consumed, spU?.consumed)), diff(spL?.refundOverflow, spU?.refundOverflow));
+      const removedN = removedCount(id) - n0;
+      const q = tot(quotedC);
+      const part = q > 0 && tot(paidC) >= Math.ceil(q / 4) && tot(paidC) < q;
+      const words = `drew ${tot(paidC)} of the quote's ${q} items; back ${tot(backC)}; overflow ${JSON.stringify(overC)}; more ${JSON.stringify(againC)}; ${removedN} removal of ${tag}`;
+      if (removed && part && still >= 6 && sameItems(backC, paidC) && !Object.keys(overC).length && !Object.keys(againC).length && removedN === 1)
+        ok(lbl, `${words}: the same back, once`);
+      else return fail(lbl, `${words}; waiting ${still >= 6}; removed ${removed}; paid ${JSON.stringify(paidC).slice(0, 160)}; back ${JSON.stringify(backC).slice(0, 160)}; ${String(said).slice(0, 120)} ${chatTail(from)}`);
+      // asked again in talk (the rules' 20 min cooldown holds a second offer back): the same plain hall
+      await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+      for (const k of kinds) await cmd(`/give @p minecraft:${k} 64`);
+      const ask = { reply: 'A storage hall: I have put it in the inbox.', intent: 'building', building: { role: 'storage hall', type: 'storage_hall', footprint: 'M', landmark: false },
+        module: { id: HALL, params: offer.module.params } };
+      await cmd(`/steward dev sim_answer talk ${JSON.stringify(ask)}`);
+      await cmd(`/steward talk ${id} we need a storage hall for our stores`);
+      let again = null;
+      for (let i = 0; i < 60 && !again; i++) {
+        await sleep(1000);
+        // asked in talk: keyed asked_<time>_storage_hall, a module offer all the same
+        again = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.module?.moduleId === HALL) ?? null;
+      }
+      if (!again || JSON.stringify(again.module?.params) !== JSON.stringify(offer.module.params) || again.module?.bound == null) return fail(`${lbl} asked again`, `${JSON.stringify(again)?.slice(0, 200)}; ${chatTail(0)}`);
+      hallKey = again.key;
+    }
     await cmd('/clear @p');
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound).map(([k, c]) => [k, c * 2 + 16])) });
     const sp0 = await ledger();
     await away();
     from = logSize();
     feeding = true;
-    await cmd(`/steward proposals ${id} accept module.${HALL}`);
+    await cmd(`/steward proposals ${id} accept ${hallKey}`);
     await waitLog(from, new RegExp(`module ${id} quote `), 240_000);
     await sleep(3000);
     const past = /The bill came to more than you approved[^\n]*/.exec(logSince(from));
