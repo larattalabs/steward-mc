@@ -1539,6 +1539,32 @@ through the street-town and plan flows); `free --only place,protect,farm,screens
 pin-guard reads TJ's `apiVersion()` by reflection. PS's component guard covers `dev.crate.insert`, but its `items` stacks are always plain
 (coordinator). The pin merges after M2 and M3 land and crop_farm is re-certified on kit 0.60.0 (module.json pins the kit).
 
+### v0.66.0 (2026-11-14): PASS; the pin waits for crop_farm's re-certification
+Architect v0.66.0 (API 1.59.0, kit 0.61.0, catalogue 23: FK, AU, SA, RU, RL, IG-b, SU, GI) is pinned on pin-066 (runtime minimum 0.66.0), off
+main 2821d6d. The schema-drift test caught 0.66.0's plan schema (`program.authored` supported), and `schema/plan-0.json` is now the jar's copy.
+- Build and unit tests: 511 passed, 0 failed. npm: 44 passed.
+- `stub --only stub,growth,survival,module,stock-save,revision,discard`: 94 of 98 passed (26 flows, with the mechanisms' survival flows and stock-save).
+  - `module offer` and `module survival offer` fail by design: measured.json certifies 0.65.0 only, and kit 0.61.0 changes module.json's pins.
+    Slice crop-farm-066 re-measures it.
+  - `supplied growth restart while building` and its `bills` failed on Steward's side, a race: 0.66.0 built a fed lot 8 s after the join, before
+    the steward re-read its unfinished builds (tick 200). Fixed in d5a9a7f (the seed on the first tick); rerun PASS 18, refund once.
+- Steward calls none of FK, AU or IG-b yet; they come with M4, CA and A2L. RU's undo of a waiting growth is still refused by Steward's own A2 rule,
+  which A2L lifts. Nothing in Architect was found wrong.
+
+### v0.67.0 (2026-11-14): PASS; the pin waits for crop_farm's re-certification
+Architect v0.67.0 (API 1.60.0, kit 0.62.0, catalogue 23: BC+, i.e. maxBill, exact quotes, the free re-lay, kitVersion, Sites.loadHealthy) is
+pinned on pin-067, on top of pin-066 (runtime minimum 0.67.0). The plan schema is unchanged.
+- Build and unit tests: 511 passed, 0 failed. npm: 44 passed.
+- `stub --only stub,survival,stock-save,bill,refund,module`: 72 of 74 passed (13 flows: survival, supplied, the mechanisms' survival flows,
+  stock-save). The two FAILs are `module offer` and `module survival offer`: crop_farm is not yet certified on kit 0.62.0.
+- crop-farm-067 (which replaces 066) re-measures it on 0.67.0. That re-measure is where BC+'s crop_farm changes are checked: the exact quote,
+  the free re-lay, and module-survival's waiting round, which is report-only because of the dirt leak.
+- Steward calls none of `maxBill`, `kitVersion()`, `checkerVersion()` or `Sites.loadHealthy()` yet:
+  - S-M5-9's bill cap goes with M5;
+  - item 5 (`kitVersion()`, `checkerVersion()`) lets the module gate check the running kit against module.json's pins;
+  - `Sites.loadHealthy()` is for GE's REMOVED close.
+  These are follow-ups. Steward's fixtures hold no FullBom labels: ModulePlacement matches reasons by pattern.
+
 ### SAD (survival adoption) contract review (2026-11-14): accepted
 
 Architect's draft (slice/SAD off bdc1cad1, no API change). Steward's answers:
