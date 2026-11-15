@@ -138,9 +138,11 @@ class PlanWriterJobTest {
 			+ "\"connectors\":[{\"id\":\"w\",\"kind\":\"wall\",\"params\":{\"mechanism\":\"none\"},\"lots\":[{\"lot\":\"g\",\"at\":\"gate\"}]}]}").getAsJsonObject();
 		PlanWriterJob.withGateMechanisms(open);
 		assertFalse(open.getAsJsonArray("connectors").get(0).getAsJsonObject().getAsJsonArray("lots").get(0).getAsJsonObject().has("mech"));
-		// the prompt tells the writer to put gatehouses on their wall, sized for the gate
-		String prompt = PlanWriterJob.systemPrompt();
-		assertTrue(prompt.contains("{lot, at: \"gate\"}") && prompt.contains("at least 13 along the wall and 7 through it"), "the wall-lots rule");
-		assertFalse(prompt.contains("lots aren't placed on a wall line yet"));
+		// (CA) gatehouses on their wall, sized for the gate, are Architect's composer rules now; Steward's own rules say the portcullis default, and the
+		// part prompt holds none of the old whole-plan rules
+		assertTrue(ComposeJob.rules().contains("Steward gives every gatehouse a portcullis itself"), "the portcullis default");
+		String part = PlanWriterJob.systemPrompt();
+		assertFalse(part.contains("One lot per building") || part.contains("{lot, at: \"gate\"}") || part.contains("Shapes Architect builds"), "the part prompt is slim");
+		assertFalse(part.contains("lots aren't placed on a wall line yet"));
 	}
 }
