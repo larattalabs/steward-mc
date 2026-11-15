@@ -337,7 +337,11 @@ public final class Proposals {
 			if (!s.contains(dim, a.getBlockX(), a.getBlockY(), a.getBlockZ())) continue;
 			animals.merge(BuiltInRegistries.ENTITY_TYPE.getKey(a.getType()).toString(), 1, Integer::sum);
 		}
-		return new ProposalRules.Signs(Progress.tier(done), seeds, saplings, animals, seedItems);
+		// (M4) the kinds of items held: the player's inventory and the settlement's stockpile together (a storage module's sign)
+		Set<String> kinds = new HashSet<>();
+		for (ItemStack st : p.getInventory()) if (!st.isEmpty()) kinds.add(BuiltInRegistries.ITEM.getKey(st.getItem()).toString());
+		Stockpiles.of(server, s).ifPresent(sp -> sp.stock().forEach((item, n) -> { if (n != null && n > 0) kinds.add(BuiltInRegistries.ITEM.getKey(item).toString()); }));
+		return new ProposalRules.Signs(Progress.tier(done), seeds, saplings, animals, seedItems, kinds.size());
 	}
 
 	/** Starts a proposal on the steward's own authority; the spend is recorded as the build starts ({@link #recordAccepted}). */

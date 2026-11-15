@@ -114,7 +114,7 @@ public final class ModuleOffers {
 		if (d == null || (b != null && !d.override())) return b;
 		JsonObject raw = new JsonObject();
 		raw.add(ModuleBound.MEMBER, d.bounds());
-		return ModuleBound.of(new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, raw), params, town);
+		return ModuleBound.of(new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, ModuleCatalog.BASIS_FULL, null, raw), params, town);
 	}
 
 	/** The town's item for each role a measured bound re-expresses (StyleBound), from the settlement's bible; null when it can't be read. */
@@ -243,7 +243,7 @@ public final class ModuleOffers {
 			if (d.ok()) {
 				var lamp = lamp(s, v.entry());
 				if (lamp.refused() != null) why = lamp.refused();
-				else offer = proposal(k, d, s, town.path() == ModuleOffer.Path.REGION_MATERIALS, lamp.fallback(), k.rule(), "seeds", now);
+				else offer = proposal(k, d, s, town.path() == ModuleOffer.Path.REGION_MATERIALS, lamp.fallback(), k.rule(), k.sign() == ModuleKind.Sign.STORES ? "stores" : "seeds", now);
 			}
 			if (offer == null) Steward.LOGGER.debug("module {} not offered to {}: {}", k.id(), s.id(), why);
 			out.add(new ProposalRules.ModuleCandidate(k, standing(server, s, k.id()), offer, why));

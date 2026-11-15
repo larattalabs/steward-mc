@@ -36,6 +36,11 @@ public final class McBlockFacts implements PaletteCheck.BlockFacts {
 	}
 
 	@Override
+	public boolean full(String id) {
+		return block(id).map(b -> b.defaultBlockState().isCollisionShapeFullBlock(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)).orElse(false);
+	}
+
+	@Override
 	public boolean conducts(String id) {
 		return block(id).map(b -> b.defaultBlockState().isRedstoneConductor(EmptyBlockGetter.INSTANCE, BlockPos.ZERO)).orElse(false);
 	}

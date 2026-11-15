@@ -47,7 +47,7 @@ class StyleBoundTest {
 	static ModuleCatalog.Measured measured(JsonArray bounds) {
 		JsonObject raw = new JsonObject();
 		raw.add(ModuleBound.MEMBER, bounds);
-		return new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, raw);
+		return new ModuleCatalog.Measured("", "", "", "", List.of(), null, null, false, ModuleCatalog.BASIS_FULL, null, raw);
 	}
 
 	static Map<String, String> town(String style) {
@@ -64,6 +64,27 @@ class StyleBoundTest {
 			assertEquals(o.get("fence").getAsString(), b.get("wood.fence"), e.getKey());
 			assertEquals(o.get("fenceGate").getAsString(), b.get("wood.fence_gate"), e.getKey());
 		}
+	}
+
+	@Test
+	void theHallsDoorAndRoofSlabMatchTheKit() {
+		// storage_hall@1's wood.door and roof.slab roles (M4), against the pinned kit's own palette for every built-in Style
+		var kit = res("hall-roles-kit-0.62.0.json");
+		java.util.Set<String> slabs = new java.util.HashSet<>();
+		kit.getAsJsonArray("slabs").forEach(x -> slabs.add(x.getAsString()));
+		java.util.function.UnaryOperator<String> mc = b -> !b.endsWith("_slab") || slabs.contains(b) ? b : null;
+		for (var e : kit.getAsJsonObject("palettes").entrySet()) {
+			var o = e.getValue().getAsJsonObject();
+			var r = roles(o.getAsJsonObject("roles"));
+			assertEquals(o.get("door").getAsString(), StyleBound.townBlocks(r, null).get("wood.door"), e.getKey());
+			assertEquals(o.get("roofSlab").getAsString(), StyleBound.slabOf(r.get("roof"), mc), e.getKey());
+			assertEquals(o.get("roofSlab").getAsString(), StyleBound.townItems(r, null, mc).get("roof.slab"), e.getKey());
+			for (String role : List.of("floor", "wall", "frame")) assertEquals(StyleBound.qualify(r.get(role)), StyleBound.townBlocks(r, null).get(role), e.getKey() + " " + role);
+		}
+		assertNull(StyleBound.slabOf("minecraft:glass", b -> b.endsWith("_slab") ? null : b), "no slab: the measured item is kept");
+		// a wall-form roof (the kit's fullBlockOf strips _wall, then takes the slab): the diff review's finding 3
+		assertEquals("minecraft:cobblestone_slab", StyleBound.slabOf("minecraft:cobblestone_wall", mc));
+		assertEquals("minecraft:stone_brick_slab", StyleBound.slabOf("minecraft:stone_brick_wall", mc));
 	}
 
 	@Test
