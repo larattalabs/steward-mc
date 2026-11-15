@@ -115,6 +115,12 @@ public final class ModuleDev {
 				return CompletableFuture.supplyAsync(() -> {
 					JsonObject a = new JsonObject();
 					a.addProperty("words", dev.larattalabs.steward.service.HallCargo.words(server, req.get("owner").getAsString(), req.has("region") ? req.get("region").getAsString() : null, req.get("message").getAsString()));
+					// (M4-L) a hall site's declared container cells in the world, and the words its undo would be refused with now (HallCargo.before)
+					if (req.has("site")) {
+						String sid = req.get("site").getAsString();
+						a.add("declared", dev.larattalabs.steward.service.HallCargo.declaredJson(server, sid));
+						a.addProperty("before", dev.larattalabs.steward.service.HallCargo.before(server, req.get("owner").getAsString(), java.util.List.of(sid)));
+					}
 					return a;
 				}, server);
 			}
