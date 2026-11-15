@@ -1659,3 +1659,10 @@ After an unclean start, RL's reconcile charges what stands without counting `max
 - (1) A wild animal blocks a removal only if the removal changes its cell or the cell it stands on. Steward doesn't rely on the old box-wide rule. The condition: named mobs and players keep blocking anywhere in the box (StewardMotion steps the steward out first).
 - (2) The removal-credit crash window is booked at load from the pending record, after FK-b and SS.
 - (3) UC: J2 fixes the two small reproductions if load-time recovery can tell the cases apart; otherwise it goes to SS.
+
+### v0.71.0 (2026-11-15): PASS (RC only, not a merged pin: rule 11, pins move every other release)
+Architect v0.71.0 (API 1.63.0, kit 0.66.0: J1, CP) is on pin-071 (3b3b9cd, on batch-070).
+- Build and unit tests: 576 passed, 0 failed.
+- `stub --only refund,undo,restart,road,stub`: 111 of 116 passed over 22 flows. Those covered growth, adoption, supplied growth, district growth, the gate-mechanism, survival and drawbridge flows, and discard. J1's removal refunds, undo after a restart and road restores held.
+- The 5 misses are the module offers (crop_farm x3, storage_hall x2), by design: kit 0.66.0 moves module.json's pins. The modules carry at 0.72.0, Steward's next merged pin.
+- CP isn't called by Steward until CA2. Nothing in Architect was found wrong.
