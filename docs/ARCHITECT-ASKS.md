@@ -1578,3 +1578,10 @@ Architect's draft (slice/SAD off bdc1cad1, no API change). Steward's answers:
   - (2) withdrawn (11-14): TileCheck is unchanged. Instead, a growth on an adopted base gets its own `props` stage (dry: `adopted, props`; irrigated: `adopted, street, lots, props, fluids`). Steward matches no revision stage names, so nothing changes. It's in the SAD RC areas.
   - Architect gates the ensure-path cases for (1) in a world that never adopted.
   - The `props` stage also applies to creative towns adopted before SAD. Their growths' props get their own stage, where before a verge silently overwrote a lamp. The SAD RC covers adopted-town growth in creative as well as survival.
+
+### v0.68.0 (2026-11-14): PASS; the pin waits for crop_farm's carry to 0.68.0
+Architect v0.68.0 (API 1.60.0, kit 0.63.0, catalogue 23: SAD, the adoptCrates crash repair, archSpan in the kit) is pinned on pin-068 (d766180, runtime minimum 0.68.0). The plan schema is unchanged.
+- Build and unit tests: 522 passed, 0 failed.
+- `stub --only adopt,growth,stockpile,stock-save`: 67 of 69 passed over 10 flows: growth, adopt, adopt-ns, survival, supplied-plan, supplied-growth, module, module-survival, district-growth, stock-save. That covers creative adopted-town growth with SAD's `props` stage, older crate-fed builds through `Stockpiles.ensure`, refunds and saves.
+- `module offer` and `module survival offer` fail by design: measured.json certifies 0.67.0, and kit 0.63.0 changes module.json's pins. Slice crop-farm-068 carries crop_farm to 0.68.0 by Noah's smoke rule.
+- Steward doesn't adopt in survival yet (that's SST), so SAD's survival adoption itself is Architect's gate's. Nothing in Architect was found wrong.
