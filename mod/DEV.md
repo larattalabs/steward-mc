@@ -658,5 +658,4 @@ world per step; `--attach`, `--keep-client`). The bars and results are in docs/M
 - **Leftover:** `plan-check.mjs` passes hidden_village (`[]`) though the kit calls its room malformed: it still follows only the program dispatch,
   not each kind's def, so the jar schema alone doesn't close that LEFTOVERS item.
 
-**The part writer is temporary (slice CA, 2026-11-14):** a waiting part's own plan (COMPOSITION section 11) is still Steward's job on a slim
-part-only prompt (`prompts/plan-writer.md`); it moves onto `Regions.compose` in slice CA2, after Architect's CP (`architect_mc:skipPick`).
+**The part writer was temporary (slice CA, 2026-11-14):** since CA2 (below) a waiting part's own plan is composed by `Regions.compose`.

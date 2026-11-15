@@ -161,9 +161,14 @@ Plan v0 composes, checks and keeps a plan; building still takes today's layouts.
 
 ## 11. Offering a waiting part once its block ships (drafted 2026-10-14)
 
-**Temporary (slice CA, 2026-11-14):** the part's own plan is still written by Steward's job, on a slim part-only prompt (`prompts/plan-writer.md`),
-not by `Regions.compose`: compose's template pick is wrong for one part and costs a call. It moves to compose in slice CA2, after Architect's CP
-(`architect_mc:skipPick`).
+**Since slice CA2 (2026-11-15, Architect CP, v0.71.0):** the part's own plan is composed by Architect's composer (`Regions.compose`,
+`ComposeJob.partRequest`), not by a Steward job: the brief is the part (its label, block and notes); the hints are `{part, block, townRegion,
+standingBeside, keptPlan}`, the town named by its real region id; Steward's part rules (`prompts/compose-part-rules.md`) are `composeSystem`; no
+template pick (`skipPick`), the block families (`composeVocab`), two repair rounds inside the compose, at most $1.00. The key
+(`steward.part.<world>.<settlement>.<part>.<sha of the request>`) makes the same accept adopt the same compose (paid once); an accept after a
+part that did not fit answers the same at $0 until the town or its neighbours change. Steward checks the result again, keeps only a plan that is
+just the part (else it stops, since there is no Steward repair round), then builds, shows the adjustment, or says why in Architect's
+`waits[].say`. The part job (`prompts/plan-writer.md`, `PlanWriter`) is gone. An Architect before CP fits no part (said; nothing spent).
 
 Noah's 9.2 default: the town is built now, the missing part waits, and "when Architect ships that block, the steward proposes adding the part ('Walls can be built now: shall I raise the town wall?'), approved like any proposal." K1 (walls, gates and rope bridges) is the first release that makes this real.
 
@@ -248,3 +253,17 @@ Noah, 2026-11-13: Architect owns the composer engine. `Composer.compose` sends `
   yet." (never named), Architect's oscillation stop and the budget stop. A waiting part's words are its own `notes`.
 - **Not yet:** the Overworld only (S-CA-5); the template pick can't be skipped (S-CA-1); NO_PLAN has no player summary (S-CA-2); the
   card's other asks (walls, water, material rules) are not counted against the plan, only its buildings and a hidden room.
+
+**CA2 (2026-11-15, Architect CP in v0.71.0, API 1.63.0): the "until CP" workarounds are gone.**
+- **In:** ext `architect_mc:skipPick=true` (no template pick, no pick cost, never PICKED), `architect_mc:composeVocab=families` (the block
+  families in the composer's system; `composeSystem` is then at most 28,000 characters), and the settlement's `level` and `owner` (the owner
+  Steward's own check uses). Steward's Overworld pre-check is gone: Architect answers another level `NO_PLAN` at once, $0, and its `summary`
+  ("regions can only be built in the Overworld for now") is said.
+- **Out:** the player's summary is CP's `result.summary` on COMPOSED and NO_PLAN alike (a plain one from the plan only when no round answered,
+  or when the card's hidden ask isn't written); a waiting part's line is CP's `waits[].say` (the part's notes only for a design from before CP;
+  close-out A's "there wasn't room" line stays, since it says more); the lots Architect's $0 street round dropped are its `leftOut`, said as
+  "Left out for room". Steward's own `streetFixes` pass is dropped: compose runs it.
+- **Kept on purpose:** reading a PICKED design. Steward no longer asks for a pick, but a compose asked before CA2 can end, or be reconciled at
+  a world's start, after the update.
+- **Guard:** `Composer.cpAvailable()` (the loaded API 1.63.0 or later, through `ArchitectAccess`). fabric.mod.json already asks for 0.71.0;
+  an older Architect composes nothing and fits no part, and says so ($0), rather than falling back to CA's workarounds.
