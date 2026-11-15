@@ -389,6 +389,23 @@ Kept as `plans-2026-11-13/hidden_village-0.64.1.json`.
 - **Two earlier tries spent $0.00:** the record tools sent their first job while Architect's helper was still running `npm ci` for its Claude Agent
   SDK, which it does at every launch ("Claude link is not available"). Both tools now wait for the launcher's "running" line first.
 
+## Slice CA2: compose on Architect CP (2026-11-15, $0, branch compose-cp off pin-071, Architect 0.71.0)
+- **What:** the Composer sends `skipPick`, `composeVocab=families`, the level and the owner, and says CP's `summary`, `waits[].say` and
+  `leftOut`; Steward's street pass and Overworld pre-check are gone. A waiting part is composed through `Regions.compose`
+  (`ComposeJob.partRequest`, `prompts/compose-part-rules.md`); `PlanWriter` and `prompts/plan-writer.md` are gone. API before 1.63.0: nothing
+  is composed, said ($0). COMPOSITION sections 11 and 13.
+- **Ran:** Gradle full suite 574/574, npm test 73/73. `stub --only stub,plan,card,village` PASS 95 (new checks: `compose request` skipPick
+  true, composeVocab families, REGION designs unchanged (no pick); `street hint` Architect's street round inside compose, 2 rounds, "Left out
+  for room: townhouse 4, smithy 1 and chapel 1"; `compose words` NO_PLAN kept with the round's own summary and "Not yet: the mine railway
+  waits for CR"; `wall offer`/`wall built` through the part compose). After the review fixes and the fix check, `--only wall-offer,street-hint,compose-words` PASS 21, twice (at 71a8060 and ea7cb42).
+- **GPT review** (max): 2 blockers, 2 should-fixes, 1 nit, then a fix check. Fixed: a part's compose not seen by this client for 30 s in a row
+  stops (never left busy); the part key holds the town region's IR, revisions and site versions; incomplete parts said; CP's names for unfit
+  parts; free street rounds not counted as repairs. Accepted (leftover): the owner now scopes the settlement compose's key, so an identical card
+  re-described across the upgrade composes once more (with no owner it would only have been OP_KEY_CONFLICT, never an adoption).
+- **Leftovers:** Composer's adoption of a finished design outside the client's snapshot is still CA's (nothing more is spent, but the plan
+  isn't kept until a restart's reconcile); the Nether refusal is read from a constructed answer in units, not run in game; CP's `until` is a
+  slice name ("waits for CR"), Architect's wording.
+
 ## Slice CA: composing through Architect's Regions.compose, the paid proof (2026-11-14, paid, Noah approved; $0.70 of a $3.00 cap)
 Noah via parent session: "$3.00 hard stop (Recommended)" (up to 2 composes at no more than $1.00 each, hidden_village at no more than $0.55).
 Branch compose-adopt (Architect 0.67.0), ports 8600/8601, the claude login's opt-in made in the worktree's `mod/run` for each run and removed
