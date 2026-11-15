@@ -449,7 +449,7 @@ public final class PendingOffers {
 				}
 				if (c.artifactSha() != null && cls.equals("adjusted")) {
 					// Architect changed it to fit: shown, and built when the player accepts it once more
-					String how = answer.map(x -> x.has("deviations") ? x.get("deviations").toString() : "").orElse("");
+					String how = ChangeWords.of(answer.map(x -> x.get("deviations")).orElse(null));
 					CHECKED.put(s.id() + "/" + f.part(), new Checked(c.artifactSha(), summary, cost));
 					BUSY.remove(s.id() + "/" + f.part());
 					Composer.tellNow(server, player, s, adjustedWords(summary, how));
@@ -459,7 +459,7 @@ public final class PendingOffers {
 				String why = o.says().containsKey(f.part()) ? o.says().get(f.part()) : answer.flatMap(x -> x.has("reasons") && x.get("reasons").isJsonArray() && !x.getAsJsonArray("reasons").isEmpty()
 					&& x.getAsJsonArray("reasons").get(0).isJsonObject() && x.getAsJsonArray("reasons").get(0).getAsJsonObject().has("message")
 					? Optional.of(x.getAsJsonArray("reasons").get(0).getAsJsonObject().get("message").getAsString()) : Optional.empty()).orElse(cls + ", " + c.overall());
-				fail(server, player, s, p, what, "it doesn't fit round " + s.name() + " yet: " + why);
+				fail(server, player, s, p, what, notYetWords(s.name(), why));
 			})));
 		});
 	}
@@ -575,10 +575,23 @@ public final class PendingOffers {
 		Composer.tellNow(server, player, s, Character.toUpperCase(what.charAt(0)) + what.substring(1) + " waits: " + why + ".");
 	}
 
-	/** A part changed to fit, for the player: the change, and that nothing is built until it is accepted once more. */
+	/**
+	 * A part changed to fit, for the player: the change in plain words ({@link ChangeWords#of}, never Architect's JSON), and that nothing is built
+	 * until it is accepted once more.
+	 */
 	static String adjustedWords(String summary, String how) {
 		return summary + " It had to change to fit" + (how.isEmpty() ? "" : " (" + clip(how, 200) + ")") + ", so nothing is built yet. Accept it once more in the"
 			+ " inbox and I'll build it as shown.";
+	}
+
+	/**
+	 * Why a part doesn't fit yet, after "X waits: ": Architect's own words kept as they are, in brackets (one colon in the line, not two); a full stop
+	 * that ends them is left to the sentence's own.
+	 */
+	static String notYetWords(String settlement, String say) {
+		String why = say.strip();
+		if (why.endsWith(".")) why = why.substring(0, why.length() - 1).strip();
+		return "it doesn't fit round " + settlement + " yet" + (why.isEmpty() ? "" : " (" + why + ")");
 	}
 
 	private static String clip(String t, int n) {
