@@ -1578,3 +1578,12 @@ Architect's draft (slice/SAD off bdc1cad1, no API change). Steward's answers:
   - (2) withdrawn (11-14): TileCheck is unchanged. Instead, a growth on an adopted base gets its own `props` stage (dry: `adopted, props`; irrigated: `adopted, street, lots, props, fluids`). Steward matches no revision stage names, so nothing changes. It's in the SAD RC areas.
   - Architect gates the ensure-path cases for (1) in a world that never adopted.
   - The `props` stage also applies to creative towns adopted before SAD. Their growths' props get their own stage, where before a verge silently overwrote a lamp. The SAD RC covers adopted-town growth in creative as well as survival.
+
+### FK follow-up: a module-provided fill item (asked 2026-11-14, for M4)
+Noah picked `minecraft:petrified_oak_slab` as the storage hall's filler (PLAN Decisions 11-14). Survival can't supply it, so Steward asked for four things:
+- (1) A `fillContainers` entry can mark an item module-provided: written at the fill, not drawn from the stockpile, not on the quote or bill.
+- (2) Removal and undo take it back with no refund.
+- (3) The conservation judges count it as the module's own part.
+- (4) Possibly an allow-list of creative-only plain items, so the mark can't mint goods.
+
+Waiting for Architect's answer and version.
