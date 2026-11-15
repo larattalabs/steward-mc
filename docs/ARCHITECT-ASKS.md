@@ -1638,3 +1638,10 @@ After an unclean start, RL's reconcile charges what stands without counting `max
 - (1) A wild animal blocks a removal only if the removal changes its cell or the cell it stands on. Steward doesn't rely on the old box-wide rule. The condition: named mobs and players keep blocking anywhere in the box (StewardMotion steps the steward out first).
 - (2) The removal-credit crash window is booked at load from the pending record, after FK-b and SS.
 - (3) UC: J2 fixes the two small reproductions if load-time recovery can tell the cases apart; otherwise it goes to SS.
+
+### Phase 8a (staged terrain) contract draft review (2026-11-15): Steward's answers
+- S-8a-1: `PartBuild` counts are enough; Steward computes "about N min" if the rate is readable. The steward stays off parts in `building`; no region flag needed.
+- S-8a-2: no `instant`. A survival world is always staged.
+- S-8a-3: a typed terrain wait (a Reason or kind, with the part) so Steward words it. Staged terrain counts in `build().built()/percent()`.
+- S-8a-4: if COST, tens of thousands of natural blocks isn't practical without quarrying, and Steward plans no villager supply. That favours FREE (Noah's call). QD's 2% rule would need revisiting at that scale.
+- S-8a-5: add a survival addition waiting on terrain and undone while waiting, and a restart mid terrain run.
