@@ -7,8 +7,14 @@
 set -e
 R=${0:A:h:h}
 ARCH=${ARCHITECT_CHECKOUT:-${R:h}/architect-mc}
-if [[ -f $R/mod/run/architect/sidecar-data/secrets.json ]]; then
-	echo "refusing: $R/mod/run/architect/sidecar-data/secrets.json (the claude-login opt-in) exists; the e2e check never spends. Remove it first." >&2
+# E2E_GAME_DIR: the client's run dir (mod/run unless a `e2e.mjs --clients` run gives each client its own, mod/run-c<k>; build.gradle STEWARD_RUN_DIR)
+GAME_DIR=${E2E_GAME_DIR:-$R/mod/run}
+GAME_DIR=${GAME_DIR:A}
+# Loom takes the run dir relative to mod/: it must sit under it
+if [[ $GAME_DIR != $R/mod/* ]]; then echo "refusing: E2E_GAME_DIR $GAME_DIR is not under $R/mod" >&2; exit 2; fi
+RUN_DIR=${GAME_DIR#$R/mod/}
+if [[ -f $GAME_DIR/architect/sidecar-data/secrets.json ]]; then
+	echo "refusing: $GAME_DIR/architect/sidecar-data/secrets.json (the claude-login opt-in) exists; the e2e check never spends. Remove it first." >&2
 	exit 3
 fi
 unset ANTHROPIC_API_KEY ANTHROPIC_BASE_URL CLAUDE_CODE_OAUTH_TOKEN CLAUDE_CODE_OAUTH_SCOPES CLAUDE_CODE_USE_BEDROCK CLAUDE_CODE_USE_VERTEX
@@ -35,7 +41,7 @@ export GRADLE_USER_HOME=${GRADLE_USER_HOME:-$R/.gradle-home}
 LAB_UI_ARG=-Plab_ui.dir=${LAB_UI_DIR:-none}
 cd $R/mod
 exec env -i HOME="$HOME" USER="$USER" LOGNAME="$USER" TMPDIR="$TMPDIR" SHELL=/bin/zsh PATH="$NODE_PATH_DIR/opt/homebrew/bin:/usr/bin:/bin" JAVA_HOME="$JAVA_HOME" \
-	GRADLE_USER_HOME="$GRADLE_USER_HOME" STEWARD_PORT="$STEWARD_PORT" STEWARD_DEV_PORT="$STEWARD_DEV_PORT" ARCHITECT_AUTOWORLD_NAME="$ARCHITECT_AUTOWORLD_NAME" \
+	GRADLE_USER_HOME="$GRADLE_USER_HOME" STEWARD_RUN_DIR="$RUN_DIR" STEWARD_PORT="$STEWARD_PORT" STEWARD_DEV_PORT="$STEWARD_DEV_PORT" ARCHITECT_AUTOWORLD_NAME="$ARCHITECT_AUTOWORLD_NAME" \
 	ARCHITECT_AUTOWORLD_MODE="$ARCHITECT_AUTOWORLD_MODE" ARCHITECT_AUTOWORLD_PRESET="$ARCHITECT_AUTOWORLD_PRESET" ARCHITECT_AUTOWORLD_CHEATS="$ARCHITECT_AUTOWORLD_CHEATS" \
 	${ARCHITECT_SIDECAR_DIR:+ARCHITECT_SIDECAR_DIR=$ARCHITECT_SIDECAR_DIR} ${ARCHITECT_SIDECAR_BACKEND:+ARCHITECT_SIDECAR_BACKEND=$ARCHITECT_SIDECAR_BACKEND} \
 	${ARCHITECT_SIM_COSTS:+ARCHITECT_SIM_COSTS=$ARCHITECT_SIM_COSTS} ${ARCHITECT_JAR:+ARCHITECT_JAR=$ARCHITECT_JAR} ${LAB_UI_DIR:+LAB_UI_DIR=$LAB_UI_DIR} \
