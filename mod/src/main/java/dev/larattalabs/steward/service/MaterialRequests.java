@@ -111,7 +111,7 @@ public final class MaterialRequests {
 		SAID.put(wait.targetId(), key);
 		TOLD.put(s.get().id(), now);
 		// (QD) held by the approved bound, not by the stockpile: more materials would not help
-		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), wait));
+		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait));
 		else tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
 	}
 
@@ -215,7 +215,7 @@ public final class MaterialRequests {
 			if (had == null || had.since() != longest.waitingSince()) {
 				var target = sites.get(longest.targetId());
 				String what = target.map(v -> nameOf(s, v)).orElse("build");
-				if (capped(longest)) tell(srv, s, overCap(what, longest));
+				if (capped(longest)) tell(srv, s, overCap(what, s.id(), longest));
 				else tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
 			}
 		}
@@ -247,20 +247,21 @@ public final class MaterialRequests {
 
 	/**
 	 * (QD) A {@code bill_cap} wait in words: how far over what the player approved it would go (Architect's {@code nextNeeded} names the capped
-	 * items and the units over), and that nothing past it is taken. Architect 0.70.0 can't raise a standing build's cap, and Steward doesn't undo a
-	 * growth still being built (A2's rule, lifted by A2L), so there is nothing to approve yet: the player is told it stays as it stands.
+	 * items and the units over), and that nothing past it is taken. Architect 0.70.0 can't raise a standing build's cap, so the way on is an undo
+	 * (since A2L a growth still building is undone by Architect's RU, what it drew refunded once: RecoveryAdapterTest's
+	 * dg_aSuppliedGrowthStillBuildingIsUndoneAndRefundsWhatWasDrawn) and asking for it again, which quotes and asks afresh. Never automatic.
 	 */
-	static String overCap(String what, SiteWait w) {
+	static String overCap(String what, String settlementId, SiteWait w) {
 		var over = w.nextNeeded().stream()
 			.map(n -> Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(n.item()).toString(), n.count())).toList();
-		return overCapWords(what, over, w.moreUnits());
+		return overCapWords(what, settlementId, over, w.moreUnits());
 	}
 
 	/** {@link #overCap} over plain item ids (testable without the item registry). */
-	static String overCapWords(String what, List<Map.Entry<String, Integer>> over, int moreUnits) {
+	static String overCapWords(String what, String settlementId, List<Map.Entry<String, Integer>> over, int moreUnits) {
 		return "The " + what + " has stopped: going on would take " + dev.larattalabs.steward.module.ModuleBound.overWords(over, moreUnits)
-			+ " more than you approved, and I take nothing past what you approved. Filling the stockpile won't help; I can't raise what you approved on a"
-			+ " build already standing, so it stays as it is for now.";
+			+ " more than you approved, and I take nothing past that; filling the stockpile won't help. /steward undo " + settlementId
+			+ " takes it up and gives back what it drew; then ask for it again and I'll put the new bill to you.";
 	}
 
 	/** "12 oak planks, 4 glass" (and how many more units beyond the first 8 kinds). */

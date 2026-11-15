@@ -35,9 +35,9 @@ class MaterialRequestsPartTest {
 		assertFalse(MaterialRequests.capped(starved));
 		assertFalse(MaterialRequests.capped(new dev.larattalabs.architect.api.SiteWait("s1", true, 10, java.util.List.of(), 0,
 			dev.larattalabs.architect.api.SiteWait.FILL_BLOCKED, java.util.List.of())));
-		String said = MaterialRequests.overCapWords("farm", java.util.List.of(java.util.Map.entry("minecraft:dirt", 3)), 0);
-		assertEquals("The farm has stopped: going on would take 3 dirt more than you approved, and I take nothing past what you approved. Filling the"
-			+ " stockpile won't help; I can't raise what you approved on a build already standing, so it stays as it is for now.", said);
+		String said = MaterialRequests.overCapWords("farm", "set_1", java.util.List.of(java.util.Map.entry("minecraft:dirt", 3)), 0);
+		assertEquals("The farm has stopped: going on would take 3 dirt more than you approved, and I take nothing past that; filling the stockpile"
+			+ " won't help. /steward undo set_1 takes it up and gives back what it drew; then ask for it again and I'll put the new bill to you.", said);
 		// said once per wait and reason: a shortage that turns into a bill_cap wait keeps its waitingSince and is said again
 		assertNotEquals(MaterialRequests.saidKey(starved), MaterialRequests.saidKey(capped));
 		var more = new dev.larattalabs.architect.api.SiteWait("s1", true, 10, java.util.List.of(), 2, dev.larattalabs.architect.api.SiteWait.BILL_CAP, java.util.List.of());
