@@ -1626,3 +1626,10 @@ keeps it. What CO/AU still lack against Steward's old writer, asked:
   paid repair round.
 - **S-CA-5, owner and dimension on `ComposeRequest`.** Compose checks in the Overworld with owner null. Steward composes only in the
   Overworld (elsewhere: today's layout, nothing spent) and re-checks with the owner before keeping.
+
+### QD follow-up: the cap after an unclean start (asked 2026-11-14), planned as Architect BC-c
+After an unclean start, RL's reconcile charges what stands without counting `maxBill`, and the running cap doesn't count region charges (fluids, gate mechanisms). Architect's answer, accepted: a clamp would mint, since placed blocks would have no paid record, so conservation wins.
+- BC-c counts reconcile and region charges in the running cap.
+- A reconcile that would pass the cap charges what stands; the target then waits `bill_cap`, draws nothing more, and Architect logs a WARN.
+- Gated on every kill case, plus a constructed overshoot.
+- It lands after FK-b and SS. Steward's side needs nothing new: the `bill_cap` wait is said, with `/steward undo` and a fresh ask. No raise-cap API.
