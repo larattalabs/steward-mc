@@ -95,6 +95,49 @@ public final class VillageSweep {
 		return Optional.empty();
 	}
 
+	/**
+	 * (slice VSR, manager) As {@link #nextVillage}, passing over a region a player stands in ({@code occupied}; {@code held} told of each): it is not
+	 * marked tried, so it is chosen again once they have left (the 10 s tick asks again). Pure.
+	 */
+	static Optional<String> nextFree(Settlement s, List<Village> regions, java.util.function.Predicate<String> running, java.util.Set<String> tried,
+		java.util.function.Predicate<String> occupied, Consumer<String> held) {
+		java.util.Set<String> skip = new java.util.HashSet<>(tried);
+		while (true) {
+			var id = nextVillage(s, regions, running, skip);
+			if (id.isEmpty() || !occupied.test(id.get())) return id;
+			skip.add(id.get());
+			held.accept(id.get());
+		}
+	}
+
+	/** Whether a player stands in the region's claim (one block around it): Architect holds a removal while one does. */
+	static boolean playerIn(MinecraftServer server, Settlement s, String regionId) {
+		try {
+			// a removed one (its tombstone retired with nothing asked of Architect) holds nothing
+			var box = ArchitectApi.get().regions().get(regionId).filter(v -> v.state() != RegionState.REMOVED).map(dev.larattalabs.architect.api.RegionView::claim)
+				.orElse(null);
+			if (box == null) return false;
+			List<double[]> at = new java.util.ArrayList<>();
+			for (var p : server.getPlayerList().getPlayers()) {
+				if (p.level().dimension().identifier().toString().equals(s.claim().dimension())) at.add(new double[] { p.getX(), p.getY(), p.getZ() });
+			}
+			return inside(new int[] { box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ() }, at);
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
+	}
+
+	/** Whether any of the positions lies in the box (min and max x, y, z, inclusive) or one block around it. Pure. */
+	static boolean inside(int[] box, List<double[]> at) {
+		for (double[] p : at) {
+			if (p[0] >= box[0] - 1 && p[0] < box[3] + 2 && p[1] >= box[1] - 1 && p[1] < box[4] + 2 && p[2] >= box[2] - 1 && p[2] < box[5] + 2) return true;
+		}
+		return false;
+	}
+
+	/** (slice VSR, manager) Settlements with a village passed over because a player stood in it: the 10 s tick asks again. This world's session only. */
+	private static final java.util.Set<String> HELD = new java.util.HashSet<>();
+
 	/** Village regions asked of the sweep this world start (each once). This world's session only. */
 	private static final java.util.Set<String> TRIED = new java.util.HashSet<>();
 	/** Settlements with a village take-up by {@link #takeUp} in flight, whoever asked: one at a time per settlement. This world's session only. */
@@ -114,7 +157,10 @@ public final class VillageSweep {
 				for (String id : standingTakeUps(s.get())) {
 					if (regions.stream().noneMatch(v -> v.id().equals(id))) api.get(id).map(Village::of).ifPresent(regions::add);
 				}
-				return nextVillage(s.get(), regions, SettlementRunner::running, TRIED).map(id -> {
+				return nextFree(s.get(), regions, SettlementRunner::running, TRIED, id -> playerIn(server, s.get(), id), id -> {
+					// (slice VSR, manager) never asked while a player stands in it: Architect would hold the removal (and the settlement) up to 10 minutes
+					if (HELD.add(settlementId)) Steward.LOGGER.info("village region {} of {} waits: a player stands in it (asked again once they leave)", id, settlementId);
+				}).map(id -> {
 					Steward.LOGGER.warn("village region {} of {} is held by no build and no history entry: taking it up", id, settlementId);
 					return id;
 				});
@@ -162,7 +208,7 @@ public final class VillageSweep {
 	private static final Map<String, List<Settlement.LogEntry>> UNSAVED = new java.util.HashMap<>();
 
 	static {
-		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> { TAKING.clear(); SWEEPING.clear(); UNSAVED.clear(); TRIED.clear(); REMOVING.clear(); });
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> { TAKING.clear(); SWEEPING.clear(); UNSAVED.clear(); TRIED.clear(); REMOVING.clear(); HELD.clear(); });
 	}
 
 	/** An orphan note to save again on the sweep's next pass (its save failed). */
@@ -180,6 +226,11 @@ public final class VillageSweep {
 	 */
 	public static void growths(MinecraftServer server) {
 		for (Settlement s : Settlements.store().all()) growths(server, s);
+		// (slice VSR, manager) the villages a player stood in are looked at again (one at a time per settlement, each once, as at the world start)
+		for (String id : List.copyOf(HELD)) {
+			HELD.remove(id);
+			villages(server, id);
+		}
 	}
 
 	public static void growths(MinecraftServer server, Settlement given) {
@@ -330,6 +381,15 @@ public final class VillageSweep {
 	static void takeUp(MinecraftServer server, Settlement s, String regionId, Consumer<String> say, Consumer<Boolean> whenDone) {
 		// (slice VSR review 2) nor while an undo or cancel of the settlement runs, or Architect is removing one of its regions: SettlementRunner.busy's
 		// removal half (the sweep's chain checks the same before it chooses)
+		if (playerIn(server, s, regionId)) {
+			// (slice VSR, manager) Architect would hold the removal while a player stands in it: not asked now; the 10 s tick's sweep takes it up once they
+			// have left (not tried this start, so it is chosen again)
+			Steward.LOGGER.info("village region {} of {} waits: a player stands in it (asked again once they leave)", regionId, s.id());
+			TRIED.remove(regionId);
+			HELD.add(s.id());
+			whenDone.accept(false);
+			return;
+		}
 		if (Undo.busy(s.id()) || removingAny(s) || !REMOVING.add(s.id())) {
 			Steward.LOGGER.warn("village region {} of {} waits: the settlement is busy taking up or removing another (looked at again at the next start)", regionId, s.id());
 			whenDone.accept(false);

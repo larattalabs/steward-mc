@@ -1363,16 +1363,27 @@ async function villageOrphanFlow() {
   const bf = path.join(WORLD, 'steward-builds.json');
   const heldBy = () => (fs.existsSync(bf) ? JSON.parse(fs.readFileSync(bf, 'utf8')).builds.filter((b) => b.settlementId === id).length : 0);
   for (let i = 0; i < 60 && heldBy() > 0; i++) await sleep(1000);
-  // the player waits just outside the claim (Architect's removal waits for a player standing in it), its ground still loaded
+  // the player stays in the village across the restart (they come back where they left): Architect would hold its removal while they stand in it
   const claim = settlements().find((x) => x.id === id).claim;
-  await cmd(`/tp @p ${claim.centerX} 80 ${claim.centerZ + 170}`);
-  await sleep(2000);
+  // (from above: a creative player falls to the ground unhurt)
+  await cmd(`/tp @p ${claim.centerX + 0.5} 100 ${claim.centerZ + 0.5}`);
+  await sleep(6000);
   await quit();
-  const held = heldBy();
+  const heldBuilds = heldBy();
   editSettlement(id, (st) => { st.log = st.log.filter((e) => e.siteGroup !== group); });
   launch();
   await connect();
   const esc = region.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // while they stand in it: not asked (no take-up line), so Architect holds nothing and the region is not REMOVING (the settlement not busy for it)
+  const waits = await waitLog(0, new RegExp(`village region ${esc} of ${id} waits: a player stands in it`), 120_000);
+  await sleep(15_000);
+  const early = new RegExp(`village region ${esc} of ${id} is held by no build`).test(logSince(0));
+  const held = await dev.request('dev.region.state', { region }).catch(() => null);
+  const heldState = held?.view?.state ?? held?.state;
+  if (waits && !early && heldState && heldState !== 'REMOVING') ok(`${label} player in it`, `${region} ${heldState} while the player stands in it: not asked, nothing held`);
+  else fail(`${label} player in it`, `waits line ${!!waits}; asked early ${early}; region ${heldState}`);
+  // they leave (just outside the claim, its ground still loaded): the 10 s tick takes it up
+  await cmd(`/tp @p ${claim.centerX} 80 ${claim.centerZ + 170}`);
   const swept = await waitLog(0, new RegExp(`village region ${esc} of ${id} is held by no build and no history entry`), 120_000);
   const removed = await entryUntil(id, (e) => e.kind === 'PROJECT_REMOVED' && (placedOp.siteIds ?? []).every((x) => (e.siteIds ?? []).includes(x)), 600);
   // the region taken up whole: its street is gone with its buildings
@@ -1383,9 +1394,9 @@ async function villageOrphanFlow() {
   const placedN = log.filter((e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === group).length;
   const removedN = log.filter((e) => e.kind === 'PROJECT_REMOVED' && (e.siteIds ?? []).some((x) => (placedOp.siteIds ?? []).includes(x))).length;
   const lines = (logSince(0).match(new RegExp(`village region ${esc} of ${id} is held by no build`, 'g')) ?? []).length;
-  if (held === 0 && swept && removed && placedN === 1 && removedN === 1 && lines === 1 && /is gone/.test(streetLeft)) {
+  if (heldBuilds === 0 && swept && removed && placedN === 1 && removedN === 1 && lines === 1 && /is gone/.test(streetLeft)) {
     ok(label, `${region}'s entry gone across a restart, no build holding it: taken up once at the world start (1 line, 1 entry, 1 removal of ${removed.siteIds.length} sites): ${removed.text}`);
-  } else fail(label, `builds holding it ${held}; swept ${!!swept} (${lines} lines); placed ${placedN}; removed ${removedN}; street ${streetLeft}; ${chatTail(0)}`);
+  } else fail(label, `builds holding it ${heldBuilds}; swept ${!!swept} (${lines} lines); placed ${placedN}; removed ${removedN}; street ${streetLeft}; ${chatTail(0)}`);
 }
 
 /**

@@ -35,6 +35,9 @@ class VillageSweepOnceTest {
 		final List<String> extraRows = new ArrayList<>();
 		Set<String> tried = new HashSet<>();
 		Set<String> holding = new HashSet<>();
+		/** Regions a player stands in (Architect would hold their removal), and the settlement passed over for one (the 10 s tick asks again). */
+		final Set<String> occupied = new HashSet<>();
+		boolean held;
 		long t = 10;
 
 		void region(String id, String build) {
@@ -49,7 +52,7 @@ class VillageSweepOnceTest {
 
 		/** One world start's sweep of the settlement, as VillageSweep.villages runs it. */
 		void start() {
-			VillageSweep.chain(s.id(), holding, () -> VillageSweep.nextVillage(s, list(), b -> false, tried), tried, this::takeUp);
+			VillageSweep.chain(s.id(), holding, () -> VillageSweep.nextFree(s, list(), b -> false, tried, occupied::contains, id -> held = true), tried, this::takeUp);
 		}
 
 		/** VillageSweep.takeUp and Undo.region as the sweep sees them: logged first, a removal asked (none for a tombstone), retired on its answer. */
@@ -204,6 +207,48 @@ class VillageSweepOnceTest {
 		w.restart();
 		w.start();
 		assertEquals(List.of("rgB"), w.removals, "the next start takes rgB up");
+	}
+
+	@Test
+	void aRegionAPlayerStandsInIsNotAskedNorBusyAndIsTakenUpOnceTheyLeave() {
+		var w = new World();
+		w.region("rgA", "b100");
+		w.region("rgB", "b200");
+		w.occupied.add("rgA");
+		w.start();
+		// rgA is passed over (nothing asked: Architect holds nothing, the settlement is not busy for it); rgB goes on
+		assertEquals(List.of("rgB"), w.removals);
+		assertTrue(w.held, "the tick is to ask again");
+		assertFalse(w.tried.contains("rgA"), "not tried: chosen again later");
+		w.answer("rgB", true);
+		assertTrue(w.holding.isEmpty() && w.inFlight.isEmpty(), "nothing in flight, nothing held");
+		assertEquals(0, w.entries(Settlement.Kind.PROJECT_PLACED, "rgA"), "nothing logged for it yet");
+		// the 10 s tick while the player is still there: still nothing
+		w.held = false;
+		w.start();
+		assertEquals(List.of("rgB"), w.removals);
+		assertTrue(w.held);
+		// they leave: the next tick takes it up, once
+		w.occupied.clear();
+		w.start();
+		assertEquals(List.of("rgB", "rgA"), w.removals);
+		w.start();
+		assertEquals(2, w.removals.size(), "no second removal while the first is in flight");
+		w.answer("rgA", true);
+		w.start();
+		assertEquals(2, w.removals.size(), "nor after");
+		assertEquals(1, w.entries(Settlement.Kind.PROJECT_PLACED, "rgA"));
+		assertEquals(1, w.removedEntries("rgA"));
+	}
+
+	@Test
+	void aPositionInTheClaimOrABlockAroundItIsInside() {
+		int[] box = { 0, 60, 0, 9, 70, 9 };
+		assertTrue(VillageSweep.inside(box, List.of(new double[] { 5.5, 64, 5.5 })));
+		assertTrue(VillageSweep.inside(box, List.of(new double[] { -0.5, 64, 10.9 })), "a block around it");
+		assertFalse(VillageSweep.inside(box, List.of(new double[] { -1.5, 64, 5 })));
+		assertFalse(VillageSweep.inside(box, List.of(new double[] { 5, 64, 11.1 })));
+		assertFalse(VillageSweep.inside(box, List.of()));
 	}
 
 	@Test
