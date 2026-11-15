@@ -1240,7 +1240,97 @@ async function sortSurvival() {
   return out;
 }
 
-const steps = { hall, survival, bounds, sort: sortStep, 'sort-survival': sortSurvival };
+// ------------------------------------------------------------------ sort-cargo (storage_hall@2): 12.5 bars 7 and 11 (creative)
+
+async function sortCargo() {
+  if (MODULE.version < 2) throw new Error('sort-cargo is storage_hall@2\'s step: --version 2');
+  await startClient('SortCargo');
+  const out = { cases: [] };
+  try {
+    await rules();
+    await install();
+    const t = await town(0, 0, { orientation: 'ew' });
+    await standAt(t.cx, t.cz, t.gy + 30);
+    const sp = { id: 'sc4', slots: 4, bulk: 8, bible: 'rustic', items: ['cobblestone', 'iron_ingot', 'wheat', 'oak_log'] };
+    const g = await growHalls(t.region, [sp]);
+    if (!check(!g.refused, `growth sc4: ${g.refused ? String(g.refused).slice(0, 300) : `rid ${g.rid}`}`)) return out;
+    await rvWait(t.region, g.rid);
+    const h = g.halls[0];
+    await hallCells(t.region, [h]);
+    h.region = t.region;
+    const before = (await mod({ op: 'hallBefore', owner: OWNER, region: t.region, rid: g.rid })).words;
+    check(before === null || before === undefined, `7 the built, empty hall: Steward's pre-check finds no cargo (${before})`);
+    // one item alone in each class; F's cases with the game frozen (one more of its own item would otherwise go on to D and the slot chest)
+    const cases = [
+      ['the input chest', h.input, 'minecraft:dirt', false],
+      ['the overflow chest', h.overflow, 'minecraft:dirt', false],
+      ['a slot chest', h.sort[2].chest, 'minecraft:wheat', false],
+      ['a bulk lower half', h.pairs[0][0], 'minecraft:dirt', false],
+      ['a bulk upper half', h.pairs[4]?.[1] ?? h.pairs[0][1], 'minecraft:dirt', false],
+      ['a line hopper', h.sort[1].line, 'minecraft:dirt', true],
+      ['a D hopper', h.sort[1].D, 'minecraft:dirt', true],
+      ['an F with one more of its own item', h.sort[0].F, 'minecraft:cobblestone', true],
+      ['an F with one item of another kind', h.sort[3].F, 'minecraft:dirt', true],
+    ];
+    for (const [what, cell, item, frozen] of cases) {
+      if (frozen) await freeze();
+      const s0 = await sortState(h);
+      // into a free slot (an F's slots 0-4 are taken by its fill: a hopper has 5, so the extra goes onto its own stack: put as a merge)
+      let put;
+      if (cell === h.sort[0].F) put = await call('dev.fk.container', { pos: cell, add: { [item]: 1 } }, 30_000).catch((e) => ({ error: String(e) }));
+      else if (cell === h.sort[3].F) put = await call('dev.fk.container', { pos: cell, add: { [item]: 1 } }, 30_000).catch((e) => ({ error: String(e) }));
+      else put = await mod({ op: 'putItems', at: cell, stacks: [{ slot: 0, id: item, count: 1 }] });
+      const words = (await mod({ op: 'hallBefore', owner: OWNER, region: t.region, rid: g.rid })).words;
+      const u = await call('dev.rv.undo', { region: t.region, toPosition: g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
+      await sleep(1500);
+      const s1 = await sortState(h);
+      const r = await call('dev.region.state', { region: t.region }, 60_000);
+      const stands = r.view.lots.find((l) => l.id === sp.id)?.state;
+      const kept = totalOf(sumAll(s1)) === totalOf(sumAll(s0)) + 1;
+      out.cases.push({ what, put: put.ok ?? put.holds ?? put.error, words, undo: refusal(u), stands, kept });
+      check(typeof words === 'string' && /1 item/.test(words) && u.removed !== true && kept,
+        `7 one item alone in ${what}${frozen ? ' (frozen)' : ''}: Steward refuses ("${words}"); Architect's undo ${refusedForCargo(u) ? 'refused for cargo' : `answered ${refusal(u)}`}; nothing lost (the hall holds one item more than before)`);
+      // the item taken back; the game runs again
+      if (cell === h.sort[0].F) await call('dev.fk.container', { pos: cell, take: { [item]: 1 } }, 30_000).catch(() => null);
+      else if (cell === h.sort[3].F) await call('dev.fk.container', { pos: cell, take: { [item]: 1 } }, 30_000).catch(() => null);
+      else await mod({ op: 'clearContainers', box: [...cell, ...cell] });
+      if (frozen) await cmd('/tick unfreeze');
+      const s2 = await sortState(h);
+      check(h.filterIds.every((f, u2) => fExact(s2.F[u2], f)), `7 after ${what}: every F back to exactly 41 + 4`);
+    }
+    // ---- 11: a petrified slab in the input chest lands in F 0 (M0 ST5); the undo refuses it as cargo; the recovery is a break of that F, the
+    // undo, and a new growth (FK-b section 6)
+    await mod({ op: 'putItems', at: h.input, stacks: [{ slot: 0, id: 'minecraft:petrified_oak_slab', count: 1 }] });
+    await sleep(8000);
+    const s3 = await sortState(h);
+    const words = (await mod({ op: 'hallBefore', owner: OWNER, region: t.region, rid: g.rid })).words;
+    out.filler = { F0: s3.F[0], words };
+    check(typeof words === 'string', `11 a petrified slab fed into the hall: it went to ${json(s3.F[0]['minecraft:petrified_oak_slab'] > 4 ? 'F 0' : s3)}, and the undo is refused as cargo ("${words}")`, out.filler);
+    const brk = await call('dev.fk.break', { pos: h.sort[0].F }, 30_000).catch((e) => ({ error: String(e) }));
+    await sleep(1500);
+    const dropped = (await mod({ op: 'takeItems', box: [h.boxArr[0] - 2, h.boxArr[1] - 2, h.boxArr[2] - 2, h.boxArr[3] + 2, h.boxArr[4] + 2, h.boxArr[5] + 2] })).items;
+    const slabs = await call('dev.fk.slabs', { pos: h.input }, 10_000).catch(() => ({}));
+    const u = await call('dev.rv.undo', { region: t.region, toPosition: g.position - 1 }, 3_600_000).catch((e) => ({ error: String(e) }));
+    await sleep(4000);
+    const g2 = await growHalls(t.region, [{ ...sp, id: 'sc4b' }]);
+    let refilled = null;
+    if (!g2.refused) {
+      await rvWait(t.region, g2.rid);
+      await hallCells(t.region, g2.halls);
+      const s5 = await sortState(g2.halls[0]);
+      refilled = g2.halls[0].filterIds.every((f, u3) => fExact(s5.F[u3], f));
+    }
+    out.recovery = { break: brk, dropped, slabs, undo: refusal(u), regrown: g2.refused ?? g2.rid, refilled };
+    check(!dropped['minecraft:petrified_oak_slab'] && (slabs.entities ?? 0) === 0 && (slabs.player ?? 0) === 0 && u.removed === true && refilled === true,
+      `11 recovery: F 0 broken (dropped ${json(dropped)}: its filter items, no slab), the undo removed the hall (${refusal(u)}), grown again: every F filled exactly once more (${refilled})`, out.recovery);
+  } finally {
+    await cmd('/tick unfreeze').catch(() => null);
+    await stopClient().catch((e) => log(`stop: ${e}`));
+  }
+  return out;
+}
+
+const steps = { hall, survival, bounds, sort: sortStep, 'sort-survival': sortSurvival, 'sort-cargo': sortCargo };
 if (steps[step]) {
   const t0 = Date.now();
   let data, error;

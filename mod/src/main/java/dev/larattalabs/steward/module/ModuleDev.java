@@ -134,6 +134,18 @@ public final class ModuleDev {
 				a.add("lot", StorageHallLot.growLot(req.get("id").getAsString(), req.get("slots").getAsInt(), req.get("bulk").getAsInt()));
 				return CompletableFuture.completedFuture(a);
 			}
+			case "hallBefore" -> {
+				// (M4b) Steward's own pre-check of a growth's undo (Growths.undo): the words for its halls' cargo, or null when they hold none of it
+				return CompletableFuture.supplyAsync(() -> {
+					JsonObject a = new JsonObject();
+					String region = req.get("region").getAsString();
+					int rid = req.get("rid").getAsInt();
+					var rv = ArchitectApi.get().regions().get(region)
+						.flatMap(v -> v.revisions().stream().filter(x -> x.rid() == rid).findFirst());
+					a.addProperty("words", rv.map(x -> dev.larattalabs.steward.service.HallCargo.before(server, req.get("owner").getAsString(), x.sites())).orElse(null));
+					return a;
+				}, server);
+			}
 			case "hallCargo" -> {
 				return CompletableFuture.supplyAsync(() -> {
 					JsonObject a = new JsonObject();
