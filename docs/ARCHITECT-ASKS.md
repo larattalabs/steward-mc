@@ -1739,3 +1739,6 @@ hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batc
   revisions in flight at once; and a restart and an undo between them.
 - If scoping per revision isn't practical, say so: the fallback is that a revision without `maxBill` clears the region's cap, and Steward
   refuses a plain growth while a capped one still builds.
+- **Architect's answer (2026-11-15): accepted,** folded into slice BCC with BC-c, since both touch the same `BillCaps` and `maxBill` code. The
+  cap is scoped per revision (S-BC-d-1), gated on S-BC-d-2. If that proves impractical, the slice takes the fallback, and Architect says so.
+  Target v0.73.0 (with RT, CF2, BC-c and CW2), confirmed when the slice merges. QD rejoins on that release.
