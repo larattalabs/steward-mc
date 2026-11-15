@@ -5315,6 +5315,7 @@ async function moduleHallSurvivalFlow() {
     const bound = offer.module?.bound ?? null;
     if (offer.module?.params?.slots === 0 && bound && Object.keys(bound).length && /at most/.test(offer.why) && /Your stores are getting mixed/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 220));
     else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 300));
+    let hallKey = `module.${HALL}`;
     // (M4-L) a cancel at a real partial point: accepted with half the bound stocked and no feeder, so the build draws what it can and waits; undone
     // there (Architect's RU through Steward's undo), it gives back exactly what it drew, once. Then asked again in talk for the full round below.
     {
@@ -5323,7 +5324,6 @@ async function moduleHallSurvivalFlow() {
       const diff = (a, b) => Object.fromEntries(Object.entries(plusItems(a, Object.fromEntries(Object.entries(b ?? {}).map(([k, v]) => [k, -v])))).filter(([, v]) => v));
       await cmd('/clear @p');
       const spC0 = await ledger();
-      await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound).map(([k, c]) => [k, Math.max(1, Math.floor(c / 2))])) });
       await away();
       from = logSize();
       await cmd(`/steward proposals ${id} accept module.${HALL}`);
@@ -5331,7 +5331,11 @@ async function moduleHallSurvivalFlow() {
       await sleep(3000);
       if (/Architect can't quote the bill exactly/.test(logSince(from))) await cmd(`/steward approve ${id}`);
       const quotedC = (() => { const m = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(from)); return m ? JSON.parse(m[1]) : null; })();
-      // drawn as far as the half goes: the draws stop (unchanged 30 s) while it still owes
+      // fed half of what its sites owe, once (run 1: crates stocked before the accept were not booked to it, so nothing was drawn); drawn as far as
+      // the half goes: the draws stop (unchanged 30 s) while it still owes
+      let owed = {};
+      for (let i = 0; i < 60 && !Object.keys(owed).length; i++) { await sleep(2000); owed = (await ledger())?.need ?? {}; }
+      await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(owed).map(([k, n]) => [k, Math.max(1, Math.floor(n / 2))])) }).catch(() => null);
       let drawn = 0, still = 0, spW = null;
       for (let i = 0; i < 160 && still < 6; i++) {
         await sleep(5000);
@@ -5371,9 +5375,11 @@ async function moduleHallSurvivalFlow() {
       let again = null;
       for (let i = 0; i < 60 && !again; i++) {
         await sleep(1000);
-        again = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.key === `module.${HALL}`) ?? null;
+        // asked in talk: keyed asked_<time>_storage_hall, a module offer all the same
+        again = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.module?.moduleId === HALL) ?? null;
       }
-      if (!again || JSON.stringify(again.module?.params) !== JSON.stringify(offer.module.params)) return fail(`${lbl} asked again`, `${JSON.stringify(again)?.slice(0, 200)}; ${chatTail(0)}`);
+      if (!again || JSON.stringify(again.module?.params) !== JSON.stringify(offer.module.params) || again.module?.bound == null) return fail(`${lbl} asked again`, `${JSON.stringify(again)?.slice(0, 200)}; ${chatTail(0)}`);
+      hallKey = again.key;
     }
     await cmd('/clear @p');
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound).map(([k, c]) => [k, c * 2 + 16])) });
@@ -5381,7 +5387,7 @@ async function moduleHallSurvivalFlow() {
     await away();
     from = logSize();
     feeding = true;
-    await cmd(`/steward proposals ${id} accept module.${HALL}`);
+    await cmd(`/steward proposals ${id} accept ${hallKey}`);
     await waitLog(from, new RegExp(`module ${id} quote `), 240_000);
     await sleep(3000);
     const past = /The bill came to more than you approved[^\n]*/.exec(logSince(from));

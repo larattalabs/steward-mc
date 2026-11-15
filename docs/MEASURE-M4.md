@@ -260,13 +260,16 @@ The hall's program and its certificate are unchanged (no re-measure). Each of §
   hall's") and still refuses the undo at once, alone too ("the storage hall's lot still holds ..."): Architect's removal would wait on it.
   Unknown params or a box not the template's size count every container as before. e2e `module-hall`: the declared cells equal the 5 chests
   standing; a barrel with the chest, and a barrel alone, each refused and said.
-- **The cancel was barely partial: now at a real partial point, in the e2e.** `module-hall-survival` accepts the hall with half its bound
-  stocked and no feeder, waits until the draws stop (30 s) while it still owes, undoes through Steward (Architect's RU), and checks at least a
+- **The cancel was barely partial: now at a real partial point, in the e2e.** `module-hall-survival` accepts the hall, feeds half of what
+  its sites owe once (crates stocked before the accept are not booked to it) with no feeder, waits until the draws stop (30 s) while it still owes, undoes through Steward (Architect's RU), and checks at least a
   quarter of the quote drawn, the same back, no overflow, nothing more 20 s on, one removal. The hall is then asked for again in talk (the
-  rules' 20 min cooldown) for the full round. The measurement's bar 7 is left as measured (changing it would need a re-measure).
+  rules' 20 min cooldown; its key is `asked_<time>_storage_hall`) for the full round. Run 3: drew 171 of the quote's 344, 171 back, once. The measurement's bar 7 is left as measured (changing it would need a re-measure).
 - **The mined drop's owner: not checked, recorded.** A vanilla block drop carries no owner; the measurement checks the refund leaves out what
   the other player mined and that it dropped in the world. Attributing the drop to the breaker is Architect PT's, an ask if it is wanted.
 - **The full-inventory and claim-chest signs: deferred.** "Full twice in 20 minutes" needs per-player tracking state, and "chests in the
   claim" a claim-wide container scan on the server thread; both change when the offer fires (§2's v1 deviation stands).
 - **A cold client restart with a replay, and a live bound-against-quote check per branch in an unmeasured Style: out of scope.** Both are
   measurement bars, run only with a re-measure, which this slice doesn't do (the program is unchanged).
+- **Ran** (stub, ports 8598/8599): run 1 `--only module-hall`, `module-hall` all pass (declared cells, barrel with the chest, barrel alone,
+  undo), the cancel round failed (nothing drawn: fed before the accept); run 2 the cancel passed, the talk re-ask looked for the wrong key;
+  run 3 `--only module-hall-survival` PASS 14.
