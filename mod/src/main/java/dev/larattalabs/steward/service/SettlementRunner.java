@@ -1644,7 +1644,7 @@ public final class SettlementRunner {
 	/** (slice M5) The plan as built with these module orders: each ordered lot is the catalog's lot, every other module lot is left out. */
 	static JsonObject withModules(JsonObject plan, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders) {
 		java.util.Set<String> leftOut = new java.util.HashSet<>();
-		for (var a : dev.larattalabs.steward.module.ComposedModules.read(dev.larattalabs.steward.gateway.PPlan.lots(plan))) if (!orders.containsKey(a.lotId())) leftOut.add(a.lotId());
+		for (var a : dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(plan))) if (!orders.containsKey(a.lotId())) leftOut.add(a.lotId());
 		return dev.larattalabs.steward.module.ComposedModules.apply(plan, orders, leftOut);
 	}
 
@@ -1653,7 +1653,7 @@ public final class SettlementRunner {
 	 * (a refused one is left out of the town, never designed in its place or left a pad). Only an Architect that runs given programs is asked.
 	 */
 	private Map<String, dev.larattalabs.steward.module.ModuleOrder> decideModules(JsonObject base) {
-		var asked = dev.larattalabs.steward.module.ComposedModules.read(dev.larattalabs.steward.gateway.PPlan.lots(base));
+		var asked = dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(base));
 		if (asked.isEmpty()) return Map.of();
 		Map<String, JsonObject> lotsById = new HashMap<>();
 		for (JsonObject l : dev.larattalabs.steward.gateway.PPlan.lots(base)) lotsById.put(l.get("id").getAsString(), l);
@@ -1751,8 +1751,11 @@ public final class SettlementRunner {
 		int session = Session.current();
 		// a plan Architect can't check, or without lots: the flat village for a Patron town; a Supplied one stops before anything is spent (its survey was taken
 		// before its stockpile and that ground's protection, so Steward's own layout over it could pay for designs that then don't fit), and is started again
+		// (slice M5, GPT review 3) a plan that names working modules never falls back to designing the card's buildings: nothing is spent, start again
+		boolean namesModules = !dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(base)).isEmpty();
 		Runnable otherwise = () -> {
 			if (supplied) abandon("The plan couldn't be used from materials this time: start the build again.");
+			else if (namesModules) abandon("The plan with its working modules couldn't be used this time, and its buildings aren't designed without it. Nothing was spent: start the build again.");
 			else planVillage(r, buildings, budgetUsd, district, claim, specs, own);
 		};
 		Composer.check(server, checked, built, playerId).whenComplete((c, err) -> server.execute(() -> {
@@ -1788,6 +1791,18 @@ public final class SettlementRunner {
 				var waits = Composer.shown(PlanStore.get(settlement.id()).map(PlanStore.Entry::pending).orElse(List.of()), Secrets.ofSettlement(settlement.id()));
 				if (!waits.isEmpty()) say("Built now without " + String.join(", ", waits.stream().map(w -> w.part().replace('_', ' ')).toList()) + ": "
 					+ (waits.size() == 1 ? "it waits" : "they wait") + " for Architect.");
+				// (GPT review 4) each module's lot as Architect laid it, checked before anything is designed: its exact frame, its water, a plain lot
+				for (var l : lots.get()) {
+					if (!l.isJsonObject() || !l.getAsJsonObject().has("id")) continue;
+					var o = orders.get(l.getAsJsonObject().get("id").getAsString());
+					var kind = o == null ? java.util.Optional.<dev.larattalabs.steward.module.ModuleKind>empty() : dev.larattalabs.steward.module.ModuleKind.of(o.moduleId());
+					if (o == null || kind.isEmpty()) continue;
+					String bad = dev.larattalabs.steward.module.ComposedModules.lotProblem(l.getAsJsonObject(), kind.get(), o);
+					if (bad != null) {
+						abandon("The plan's working " + kind.get().role() + " can't be built here: " + bad + ". Nothing was spent; describe the settlement again for a new plan.");
+						return;
+					}
+				}
 				pin(c.artifactSha());
 				vPlanId = dev.larattalabs.steward.gateway.PPlan.ARTIFACT_PREFIX + c.artifactSha();
 				// (slice M5) the module lots' orders, saved with the build beside its artifact (BuildStore format 6), so a restart binds the same
@@ -3007,7 +3022,7 @@ public final class SettlementRunner {
 			JsonObject a = lots.get(e.getKey());
 			String no = kind.isEmpty() ? "Steward no longer knows how to place " + e.getValue().moduleId()
 				: a == null ? "the approved plan has no lot " + e.getKey().replace('_', ' ') + " for it"
-				: dev.larattalabs.steward.module.ComposedModules.frameProblem(a, kind.get().frame(e.getValue().params()));
+				: dev.larattalabs.steward.module.ComposedModules.lotProblem(a, kind.get(), e.getValue());
 			if (no != null) {
 				say("Not placed: the working " + (kind.map(dev.larattalabs.steward.module.ModuleKind::role).orElse(e.getKey().replace('_', ' '))) + " can't go on its lot: " + no
 					+ ". Nothing was placed.");

@@ -146,12 +146,12 @@ public final class Composer {
 		// (slice M5) the working modules the composer may name: the catalog's, as the gate offers them now
 		var offered = ModuleOffers.composable();
 		var req = dev.larattalabs.steward.gateway.ComposeJob.request(s.id(), cardJson, land, claim, anchors, player.toString(), level, s.owner(),
-			dev.larattalabs.steward.module.ComposedModules.vocabulary(offered), dev.larattalabs.steward.module.ComposedModules.identity(offered));
+			dev.larattalabs.steward.module.ComposedModules.vocabulary(offered), dev.larattalabs.steward.gateway.ComposeJob.inputs(dev.larattalabs.steward.module.ComposedModules.vocabulary(offered)));
 		// the key carries this settlement's card sha (not the passed JSON's): the staleness check reads the saved card the same way; with modules, their
 		// identity too (a catalog change is a new compose, never the same key with another body)
 		req = new dev.larattalabs.architect.api.ComposeRequest(req.brief(), req.claim(), req.styleId(), req.images(), req.budgetUsd(),
 			dev.larattalabs.steward.gateway.ComposeJob.opKey(world + "." + s.id(), dev.larattalabs.steward.gateway.ComposeJob.keySha(sha,
-				dev.larattalabs.steward.module.ComposedModules.identity(offered))), withCard(req.ext(), sha, claimKey(s), world), req.level(), req.owner());
+				dev.larattalabs.steward.gateway.ComposeJob.inputs(dev.larattalabs.steward.module.ComposedModules.vocabulary(offered)))), withCard(req.ext(), sha, claimKey(s), world), req.level(), req.owner());
 		COMPOSING.put(s.id(), session);
 		// the old card's plan (if any) must not build this card, whatever this compose comes to
 		PlanStore.remove(s.id());
@@ -192,7 +192,7 @@ public final class Composer {
 		var claim = new BoundingBox(at.getX() - RECORD_RADIUS, level.getMinY(), at.getZ() - RECORD_RADIUS, at.getX() + RECORD_RADIUS, level.getMaxY(), at.getZ() + RECORD_RADIUS);
 		String sha = dev.larattalabs.steward.gateway.ComposeJob.cardSha(cardJson);
 		var offered = ModuleOffers.composable();
-		String modulesId = dev.larattalabs.steward.module.ComposedModules.identity(offered);
+		String modulesId = dev.larattalabs.steward.gateway.ComposeJob.inputs(dev.larattalabs.steward.module.ComposedModules.vocabulary(offered));
 		var base = dev.larattalabs.steward.gateway.ComposeJob.request("record_" + label, cardJson, null, claim, Map.of("stone", at, "player", at), null, level, null,
 			dev.larattalabs.steward.module.ComposedModules.vocabulary(offered), modulesId);
 		var ext = base.ext().deepCopy();

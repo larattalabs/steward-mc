@@ -293,8 +293,11 @@ class ComposeJobTest {
 		JsonObject card = fixture("strange-asks/cards/hidden_village.json").getAsJsonObject("card");
 		var claim = new BoundingBox(-40, -64, -40, 40, 320, 40);
 		ComposeRequest plain = ComposeJob.request("set_1", card.toString(), "north: plains 100%.", claim, ANCHORS, null, null, "owner-1");
-		ComposeRequest none = ComposeJob.request("set_1", card.toString(), "north: plains 100%.", claim, ANCHORS, null, null, "owner-1", new com.google.gson.JsonArray(), "");
+		ComposeRequest none = ComposeJob.request("set_1", card.toString(), "north: plains 100%.", claim, ANCHORS, null, null, "owner-1", new com.google.gson.JsonArray(), ComposeJob.inputs(new com.google.gson.JsonArray()));
 		assertEquals(plain.opKey(), none.opKey());
+		// (GPT review 5) the key covers the rules and the modules: a changed rule or catalog is a new compose, never the same key with another body
+		assertNotEquals(ComposeJob.opKey("set_1", ComposeJob.cardSha(card.toString())), plain.opKey());
+		assertNotEquals(ComposeJob.inputs(new com.google.gson.JsonArray()), ComposeJob.inputs(com.google.gson.JsonParser.parseString("[{\"id\": \"crop_farm\"}]").getAsJsonArray()));
 		assertEquals(plain.ext(), none.ext());
 		assertFalse(plain.ext().getAsJsonObject(ComposeRequest.EXT_HINTS).has("modules"), "no modules member when none is offered");
 		var modules = com.google.gson.JsonParser.parseString("[{\"id\": \"crop_farm\", \"lotType\": \"crop_farm\", \"sizes\": []}]").getAsJsonArray();

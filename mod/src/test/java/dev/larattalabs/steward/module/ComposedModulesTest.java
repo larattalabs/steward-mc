@@ -325,4 +325,60 @@ class ComposedModulesTest {
 		assertTrue(w.contains("held to its measured bound"), w);
 		assertFalse(ComposedModules.boundWords("f", FARM, farm, null, false).contains("bound"));
 	}
+
+	/** GPT review 3: a module's marker that can't be read, or a module lot type with no marker, is a module ask (refused or bound), never designed. */
+	@Test
+	void readingFailsClosed() {
+		var all = ComposedModules.readAll(List.of(json("{\"id\": \"a\", \"ext\": {\"steward_mc:module\": {}}}"), json("{\"id\": \"b\", \"ext\": {\"steward_mc:module\": \"x\"}}"),
+			json("{\"id\": \"c\", \"type\": \"crop_farm\", \"size\": [11, 12]}"), json("{\"id\": \"d\", \"type\": \"storage_hall\"}"), json("{\"id\": \"e\", \"type\": \"cottage\"}")));
+		assertEquals(List.of("a", "b", "c", "d"), all.stream().map(ComposedModules.Asked::lotId).toList());
+		assertEquals(ComposedModules.UNREADABLE, all.get(0).moduleId());
+		assertEquals(ComposedModules.UNREADABLE, all.get(1).moduleId());
+		assertEquals("crop_farm", all.get(2).moduleId());
+		assertEquals("storage_hall", all.get(3).moduleId());
+		var no = ComposedModules.decide(all.get(0), null, new ModuleGate.Verdict(null, ModuleGate.Why.UNKNOWN, ""), WARM, Set.of(), null, (e, p) -> null);
+		assertFalse(no.ok());
+		assertTrue(no.why().contains("couldn't read"), no.why());
+		// a bare crop_farm lot of the 9x9 frame is the 9x9 farm, its crop the default
+		var c = decide(all.get(2), FARM, WARM, Set.of(), new int[] {11, 12});
+		assertTrue(c.ok(), c.why());
+		assertEquals(9, c.order().params().get("width").getAsInt());
+		// a plan with an unreadable marker leaves that lot out of the plan as built
+		JsonObject p = json("{\"zones\": [{\"id\": \"t\", \"program\": {\"lots\": [{\"id\": \"a\", \"type\": \"barn\", \"ext\": {\"steward_mc:module\": {}}}, {\"id\": \"e\", \"type\": \"cottage\"}]}}]}");
+		java.util.Set<String> out = new HashSet<>();
+		for (var a : ComposedModules.readAll(lots(p))) out.add(a.lotId());
+		assertEquals(1, lots(ComposedModules.apply(p, Map.of(), out)).size());
+	}
+
+	/** GPT review 10: each module says what it does; the plain hall says it doesn't sort, the farm that the player harvests it. */
+	@Test
+	void eachModuleSaysWhatItDoes() {
+		var v = ComposedModules.vocabulary(offered());
+		assertTrue(v.get(0).getAsJsonObject().get("does").getAsString().contains("player harvests"));
+		assertTrue(v.get(1).getAsJsonObject().get("does").getAsString().contains("does not sort"));
+		assertTrue(ComposeJob_rules().contains("`does`"));
+	}
+
+	static String ComposeJob_rules() {
+		return dev.larattalabs.steward.gateway.ComposeJob.rules();
+	}
+
+	/** GPT review 4: the lot Architect laid must be the module's frame, watered for a watered module, and a plain lot. */
+	@Test
+	void theLotMustBeExactWateredAndPlain() {
+		var farm = decide(ComposedModules.read(lots(plan())).get(0), FARM, WARM, Set.of(), null).order();
+		int[] f = FARM.frame(farm.params());
+		JsonObject a = artifactLot("north", 0, 0, f[0], f[1]);
+		assertTrue(ComposedModules.lotProblem(a, FARM, farm).contains("water"), "no irrigation");
+		a.add("irrigation", json("{\"frame\": [" + f[0] + ", " + f[1] + "], \"lotCells\": [[5, 6, 0, 0]]}"));
+		assertNull(ComposedModules.lotProblem(a, FARM, farm));
+		JsonObject sited = a.deepCopy();
+		sited.addProperty("site", "x");
+		assertNotNull(ComposedModules.lotProblem(sited, FARM, farm));
+		JsonObject walled = a.deepCopy();
+		walled.add("onWall", new JsonObject());
+		assertNotNull(ComposedModules.lotProblem(walled, FARM, farm));
+		var hall = decide(ComposedModules.read(lots(plan())).get(1), HALL, WARM, Set.of(), null).order();
+		assertNull(ComposedModules.lotProblem(artifactLot("west", 0, 0, 11, 7), HALL, hall), "the hall needs no water");
+	}
 }

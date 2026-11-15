@@ -42,6 +42,7 @@ public final class ComposedModules {
 			m.addProperty("title", k.title());
 			m.addProperty("irrigate", k.irrigate());
 			m.addProperty("warmOnly", k.warmOnly());
+			m.addProperty("does", does(k, o.entry()));
 			List<JsonElement> choices = o.entry().envelope().branches().getOrDefault(k.cropParam(), List.of());
 			String first = choices.isEmpty() ? null : choices.get(0).getAsString();
 			JsonArray sizes = new JsonArray();
@@ -73,6 +74,21 @@ public final class ComposedModules {
 	}
 
 	/**
+	 * What a module does, in the composer's words, so it is written only for what it does (GPT review 10): the crop farm is harvested by the player;
+	 * a hall sorts only when a measured branch has sorting slots. Pure.
+	 */
+	public static String does(ModuleKind k, ModuleCatalog.Entry e) {
+		if (k.sign() == ModuleKind.Sign.STORES) {
+			boolean sorts = false;
+			for (JsonElement v : e.envelope().branches().getOrDefault("slots", List.of())) if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber() && v.getAsInt() > 0) sorts = true;
+			return sorts ? "a storage hall with an input chest by the door that sorts the items it is given into their own chests"
+				: "a storage hall with an input chest by the door and double chests along its back wall; it does not sort";
+		}
+		if (k.irrigate()) return "a watered, lit field of one crop; the player harvests and replants it (no automatic harvest)";
+		return k.title();
+	}
+
+	/**
 	 * What the vocabulary names, for the compose key: each offered module's id, version and program sha, sorted by id. A catalog change under the same
 	 * card is another compose (Architect refuses a key with another body). Empty string when nothing is offered. Pure.
 	 */
@@ -96,7 +112,45 @@ public final class ComposedModules {
 		return out;
 	}
 
-	/** The module a plan lot names, or null (no ext, no id, or not a string id). */
+	/** The module id an ask names when its marker can't be read: such a lot is refused, never built as an ordinary (designed) lot. */
+	public static final String UNREADABLE = "";
+
+	/**
+	 * The module a plan lot names, or null when it names none. Fails closed (GPT review 3): a lot whose ext has {@code steward_mc:module} at all, or
+	 * whose type is a module's lot type ({@code lotTypes}), is a module ask; one whose id can't be read asks for {@link #UNREADABLE}, which
+	 * {@link #decide} refuses, so it is left out rather than designed.
+	 */
+	public static @Nullable Asked asked(JsonObject lot, Set<String> lotTypes) {
+		if (!lot.has("id") || !lot.get("id").isJsonPrimitive()) return null;
+		JsonObject ext = lot.has("ext") && lot.get("ext").isJsonObject() ? lot.getAsJsonObject("ext") : null;
+		boolean marked = ext != null && ext.has(EXT);
+		String type = lot.has("type") && lot.get("type").isJsonPrimitive() ? lot.get("type").getAsString() : "";
+		if (!marked) return lotTypes.contains(type) ? new Asked(lot.get("id").getAsString(), moduleOfType(type), new JsonObject(), null) : null;
+		if (!ext.get(EXT).isJsonObject()) return new Asked(lot.get("id").getAsString(), UNREADABLE, new JsonObject(), null);
+		Asked a = asked(lot);
+		return a != null ? a : new Asked(lot.get("id").getAsString(), UNREADABLE, new JsonObject(), null);
+	}
+
+	/** The module id of a module lot type (the kinds Steward knows), or {@link #UNREADABLE}. */
+	static String moduleOfType(String type) {
+		for (String id : List.of(ModuleKind.CropFarm.ID, ModuleKind.StorageHall.ID)) if (ModuleKind.of(id).map(ModuleKind::lotType).filter(type::equals).isPresent()) return id;
+		return UNREADABLE;
+	}
+
+	/** The lot types of the modules Steward knows ({@code crop_farm}, {@code storage_hall}): a lot of one of these types is read as a module ask. */
+	public static final Set<String> LOT_TYPES = Set.of(ModuleKind.CropFarm.INSTANCE.lotType(), ModuleKind.StorageHall.INSTANCE.lotType());
+
+	/** Every module ask of {@code lots}, failing closed ({@link #asked(JsonObject, Set)} over {@link #LOT_TYPES}). Pure. */
+	public static List<Asked> readAll(List<JsonObject> lots) {
+		List<Asked> out = new ArrayList<>();
+		for (JsonObject l : lots) {
+			Asked a = asked(l, LOT_TYPES);
+			if (a != null) out.add(a);
+		}
+		return out;
+	}
+
+	/** The module a plan lot's marker names when it is readable, or null (no ext, no id, or not a string id). */
 	public static @Nullable Asked asked(JsonObject lot) {
 		if (!lot.has("id") || !lot.get("id").isJsonPrimitive()) return null;
 		JsonObject ext = lot.has("ext") && lot.get("ext").isJsonObject() ? lot.getAsJsonObject("ext") : null;
@@ -138,6 +192,7 @@ public final class ComposedModules {
 	public static Decision decide(Asked a, @Nullable ModuleKind kind, ModuleGate.Verdict verdict, Town town, Set<String> taken, int @Nullable [] lotSize,
 		BiFunction<ModuleCatalog.Entry, JsonObject, @Nullable JsonObject> bounds) {
 		String name = kind == null ? a.moduleId().replace('_', ' ') : kind.role();
+		if (a.moduleId().equals(UNREADABLE)) return Decision.no("the plan wrote it as a working module Steward couldn't read");
 		if (kind == null) return Decision.no("Steward has no working " + name + " in its catalog");
 		if (!verdict.ok() || verdict.entry() == null) return Decision.no("a working " + name + " can't be built here: " + verdict.message());
 		if (taken.contains(kind.id())) return Decision.no("the plan has a working " + name + " already, and a town gets one of each for now");
@@ -296,6 +351,21 @@ public final class ComposedModules {
 			Integer w = ModuleRef.exactInt(irr.getAsJsonArray("frame").get(0)), d = ModuleRef.exactInt(irr.getAsJsonArray("frame").get(1));
 			if (w == null || d == null || w != moduleFrame[0] || d != moduleFrame[1]) return "its water was laid for another frame than the module's";
 		}
+		return null;
+	}
+
+	/**
+	 * Why the artifact lot can't hold this module, or null (GPT review 4): its frame ({@link #frameProblem}); a watered module's lot without IRR's
+	 * water; a lot Architect sites on the land or on a wall's line (a module lot is a plain lot). Checked before any design is paid for, and again at the
+	 * bind. Pure.
+	 */
+	public static @Nullable String lotProblem(JsonObject artifactLot, ModuleKind kind, ModuleOrder order) {
+		if (artifactLot.has("site") || artifactLot.has("onWall")) return "Architect placed its lot on the land's own features or a wall, and a module lot is a plain lot";
+		String f = frameProblem(artifactLot, kind.frame(order.params()));
+		if (f != null) return f;
+		JsonObject irr = irrigation(artifactLot);
+		if (kind.irrigate() && (irr == null || !irr.has("lotCells") || !irr.get("lotCells").isJsonArray() || irr.getAsJsonArray("lotCells").isEmpty()))
+			return "Architect couldn't water its field there";
 		return null;
 	}
 

@@ -241,12 +241,13 @@ public final class ComposeJob {
 	 */
 	public static ComposeRequest request(String settlementId, String cardJson, @Nullable String land, BoundingBox claim, Map<String, BlockPos> anchors,
 		@Nullable String player, @Nullable ServerLevel level, @Nullable String owner) {
-		return request(settlementId, cardJson, land, claim, anchors, player, level, owner, new JsonArray(), "");
+		JsonArray none = new JsonArray();
+		return request(settlementId, cardJson, land, claim, anchors, player, level, owner, none, inputs(none));
 	}
 
 	/**
-	 * As above, with the working modules the composer may name ({@code modules}) and what they are ({@code modulesId}, {@link
-	 * dev.larattalabs.steward.module.ComposedModules#identity}), which the key covers ({@link #keySha}).
+	 * As above, with the working modules the composer may name ({@code modules}) and the fingerprint of what composes it besides the card
+	 * ({@code modulesId}: {@link #inputs}), which the key covers ({@link #keySha}).
 	 */
 	public static ComposeRequest request(String settlementId, String cardJson, @Nullable String land, BoundingBox claim, Map<String, BlockPos> anchors,
 		@Nullable String player, @Nullable ServerLevel level, @Nullable String owner, JsonArray modules, String modulesId) {
@@ -257,11 +258,21 @@ public final class ComposeJob {
 	}
 
 	/**
+	 * (slice M5, GPT review 5) What composes a plan besides the card: Steward's rules as sent and the modules offered (their whole vocabulary), as one
+	 * fingerprint. Architect refuses one key with another body, so the key covers them: a rule or catalog change under the same card is a new compose.
+	 * Pure but for the rules' resource read.
+	 */
+	public static String inputs(JsonArray modules) {
+		return cardSha(rules() + "\n" + modules);
+	}
+
+	/**
 	 * (slice M5) The sha a compose key carries: the card's ({@code cardSha}) when the composer is offered no modules (a key as before, byte for byte), else
 	 * the first 12 hex digits of the sha-256 of the card's sha and the modules' identity, so a catalog change under the same card is a new compose
 	 * (Architect refuses one key with another body). Pure.
 	 */
 	public static String keySha(String cardSha, @Nullable String modulesId) {
+		// (GPT review 5) the caller passes inputs(): the rules and the modules, so a changed rule or catalog is a new compose, never a key conflict
 		return modulesId == null || modulesId.isEmpty() ? cardSha : cardSha(cardSha + "|" + modulesId);
 	}
 

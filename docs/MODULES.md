@@ -708,8 +708,8 @@ Architect 0.72.0 (CONTRACT, `kit/schemas/plan.json`, the API). The paid compose,
 `moduleBuild()` (M3's "no design at all, $0") stays for a growth's lone module. A composed build is a design build that also holds
 module lots (`composedModules()`: orders with an artifact plan). Every path that reads `moduleBuild()` keeps M3's meaning.
 
-**4. The palette, as soon as the Style is made.** A plan v1 town's bible is made after the plan. When it is approved (`BibleDone`), before
-the design group is asked for, each module's `PaletteCheck` runs over it. A bible a module can't dress stops the build before anything more
+**4. The palette, as soon as the Style is made.** A plan v1 town's bible is made after the plan. Right before the design group is asked
+for (`RequestGroup`, which a reused bible reaches too), each module's `PaletteCheck` runs over the build's own bible pin. A bible a module can't dress stops the build before anything more
 is spent: "The town's style can't dress the working storage hall: its walls must be full blocks. Nothing more was spent." The bible's
 cost is spent by then, as for any stopped build. The lamp fallback is said as today.
 
@@ -760,6 +760,37 @@ survival quoted again for the new artifact (the cleared key is the artifact and 
 - **The sim path.** Architect's sim helper scripts a compose's rounds (`architect:simCompose`, from `SimAnswers.PLAN`). The e2e's in-game flow
   (second half) sets a plan with a crop farm and a storage hall lot (`fixtures/compose/modules-plan.json`). Realises then run on the sim
   helper at $0: the variants are given programs, and the designs are sim designs.
+
+**GPT design review** (gpt-6.1-sol, at 2ebbe67): request changes, 3 blockers and 8 should-fixes, each checked against the code.
+- **Taken:**
+  - **B3, fail closed.** A lot whose ext names `steward_mc:module` at all, or whose type is a module's lot type, is a module ask
+    (`ComposedModules.readAll`). An unreadable one is refused and left out, never designed. A plan that names modules never falls back to the
+    flat village of the card's buildings: the build stops with nothing spent.
+  - **S4, the lot.** Checked at the Start re-check, before any design is paid for, and again at the bind (`ComposedModules.lotProblem`): the
+    exact frame, IRR's water on a watered module's lot, and a plain lot (not sited, not on a wall). An optional module lot Architect left out is
+    said and never bound.
+  - **S5, the key.** The compose key covers Steward's rules as sent and the whole module vocabulary (`ComposeJob.inputs`), not only the
+    catalog ids. A rule or catalog change under the same card is a new compose. No key is kept byte for byte: the rules changed anyway.
+  - **S6, the bible.** The palette check is at `RequestGroup`, and the binding uses the build's own bible pin.
+  - **S9, a town of modules only.** Nothing is designed: the build goes from the plan to the placement approval and the bind. With no bible,
+    the program's own palette dresses them.
+  - **S10, capabilities.** Each vocabulary entry says what it `does` (the farm is harvested by the player; `storage_hall@1` doesn't sort). The
+    rule writes a module only for what it does, and the composer's `reason` says what isn't built.
+  - **S8, a stale artifact.** The retry clears its in-flight latch and goes back through the composed branch, which binds again and quotes
+    again. Its limit stands: the re-checked artifact is realised once (`artifact2:`). A realise Architect has under its key is found first, as
+    for any plan v1 build.
+- **Not taken, disclosed:**
+  - **B1, the cap.** The realise isn't capped (`maxBill`). Main's exact-bound path (M3) checks the quote and doesn't cap the realise either,
+    and the brief keeps M5 on it until QD (Architect v0.73.0, BC-d). `maxBill` is also one cap over the whole region, so it can't hold two
+    modules apart. It comes with QD, for the whole composed realise.
+  - **B2, the shells.** Only the module's own pieces (`lot:`, `fill:`) are held to its bound; IRR's shells and the module's share of the
+    streets are billed with the town's ground. On level land that is about 5 items per source. The bound is the steward's, from the
+    measurement, never shown at Start: that is Noah's question in 6 above.
+  - **S7, filled halls.** `HallCargo` counts every item in a hall, so FK's declared filter contents would refuse an undo. That only matters for
+    `storage_hall@2`: M4b's own slice makes `HallCargo` FK-aware. `storage_hall@1` holds no fill.
+  - **S11, in game.** The in-game strict scenarios are M5's second half (the brief): a stocked over-bound hold, partial building and undo, a
+    restart around the bind and the realise. On this branch the feature can't fire in a player's world yet: both modules are certified on
+    Architect 0.70.0, and the gate refuses them on 0.72.0 until they are carried.
 
 **Not in M5a:** the in-game flows (a composed farm and hall instant and from materials, a restart between binding and realise, a stale
 artifact, an undo refused for cargo); the paid compose of a few cards; the gate (needs `storage_hall@2`, M4b).
