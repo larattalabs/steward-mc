@@ -34,7 +34,7 @@ export function roleBlocks(p, program) {
 }
 
 /** The template's params for a quote's params (crop_farm's width, depth and crop; any other program's params as they are). */
-const buildParams = (q) => (q.params.crop ? { width: q.params.width, depth: q.params.depth, crop: q.params.crop } : { ...q.params });
+const buildParams = (q) => q.build ?? (q.params.crop ? { width: q.params.width, depth: q.params.depth, crop: q.params.crop } : { ...q.params }); // (M4b) a sorting hall's quote carries its build params (with its items)
 
 /**
  * Per-Style bounds from the bounds step's quotes. `kit` is the pinned kit's directory, `source` the program's text. Returns

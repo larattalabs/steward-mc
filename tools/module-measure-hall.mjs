@@ -576,7 +576,7 @@ async function feedUntil(region, until, { timeoutMs = 3_600_000, every = 2500, s
   while (Date.now() < end) {
     st = await call('dev.region.state', { region }, 60_000);
     rs = await call('dev.rs.state', { region }, 120_000).catch(() => null);
-    if (until(st, rs)) return { waves, st, rs, ok: true };
+    if (await until(st, rs)) return { waves, st, rs, ok: true };
     if (['FAILED', 'PARTIAL'].includes(st.view.state)) break;
     const ps = await pile();
     const need = {};
@@ -706,26 +706,51 @@ async function survival() {
 // ------------------------------------------------------------------ bounds: the quote per branch and Style (the offer's bound)
 
 async function bounds() {
-  const out = { bounds: [], quotes: [] };
+  const out = { bounds: [], quotes: [], fills: [] };
+  const SLOTSB = MODULE_JSON.envelope.branches.slots ?? [0];
+  const domain = MODULE.version >= 2 ? MODULE_JSON.params.item1.options.filter((o) => o !== 'none') : [];
+  // two item sets per sorting branch (12.5 bar 10): A begins with stone, redstone and dirt (the structure's own items share their entries), B elsewhere
+  const setA = (n) => ['stone', 'redstone', 'dirt', ...domain.filter((k) => !['stone', 'redstone', 'dirt'].includes(k))].slice(0, n);
+  const setB = (n) => domain.slice(domain.length - n);
   try {
     const T = await survivalWorld('Bounds', 60000, 60000);
-    for (const bulk of BULKS) {
+    for (const slots of SLOTSB) for (const bulk of BULKS) {
       const styles = {};
       for (const bible of MODULE_JSON.envelope.bibles) {
-        const id = `bd${bulk}_${bible.slice(0, 3)}`;
-        const g = await growHalls(T.region, [{ id, bulk, bible }], { survival: true, realise: false });
-        const q = g.quote ?? {};
-        const ok = !g.refused && q.ok && !q.refused && q.survival === true && q.bom && Object.keys(q.bom).length > 0;
-        check(ok, `bounds bulk ${bulk} ${bible}: quoted (survival ${q.survival}, exact ${q.exact}, ${Object.values(q.bom ?? {}).reduce((a, b) => a + b, 0)} items)${g.refused ? ` ${String(g.refused).slice(0, 200)}` : ''}`);
-        if (ok) { styles[bible] = q.bom; out.quotes.push({ params: { bulk, slots: 0 }, bible, bom: q.bom, bomParts: q.bomParts, exact: q.exact, notes: q.notes }); }
+        const sets = slots > 0 ? (bible === MODULE_JSON.envelope.bibles[0] ? [setA(slots), setB(slots)] : [setA(slots)]) : [[]];
+        for (const [si, items] of sets.entries()) {
+          const id = `bd${slots}_${bulk}_${bible.slice(0, 3)}${si ? 'b' : ''}`;
+          const g = await growHalls(T.region, [{ id, slots, bulk, bible, items }], { survival: true, realise: false });
+          const q = g.quote ?? {};
+          const ok = !g.refused && q.ok && !q.refused && q.survival === true && q.bom && Object.keys(q.bom).length > 0;
+          // the fill's part (fill:<lot>): 41 of each item, never a slab; the structure is the rest
+          const fillKey = Object.keys(q.bomParts ?? {}).find((k) => k.startsWith('fill:'));
+          const fill = fillKey ? q.bomParts[fillKey] : {};
+          const wantFill = Object.fromEntries(items.map((k) => [`minecraft:${k}`, 41]));
+          const slab = Object.keys(q.bom ?? {}).includes('minecraft:petrified_oak_slab');
+          const fillOk = same(fill, wantFill) && !slab;
+          check(ok && fillOk, `bounds ${slots} slots, bulk ${bulk}, ${bible}${si ? ' (set B)' : ''}: quoted (survival ${q.survival}, exact ${q.exact}, ${totalOf(q.bom)} items); the fill part ${json(fill)} = 41 per item${slab ? '; a SLAB was quoted' : ''}${g.refused ? ` ${String(g.refused).slice(0, 200)}` : ''}`);
+          if (!ok) continue;
+          const structure = minus(q.bom, fill);
+          const parts = Object.fromEntries(Object.entries(q.bomParts ?? {}).filter(([k]) => !k.startsWith('fill:')));
+          if (si === 0) {
+            styles[bible] = structure;
+            out.quotes.push({ params: { bulk, slots }, ...(MODULE.version >= 2 ? { build: paramsOf({ slots, bulk, items }) } : {}), bible, bom: structure, bomParts: parts, exact: q.exact, notes: q.notes });
+          } else {
+            // set B: the same structure (the items don't change the building), only the fill differs
+            check(same(structure, styles[bible] ?? {}), `bounds ${slots} slots, bulk ${bulk}: set B's structure equals set A's (${same(structure, styles[bible] ?? {}) ? 'equal' : json(minus(structure, styles[bible] ?? {}))})`);
+          }
+          out.fills.push({ params: { bulk, slots }, bible, items, fill });
+        }
       }
       if (Object.keys(styles).length === MODULE_JSON.envelope.bibles.length) {
         const bom = {};
         for (const b of Object.values(styles)) for (const [k, n] of Object.entries(b)) bom[k] = Math.max(bom[k] ?? 0, n);
-        out.bounds.push({ params: { bulk, slots: 0 }, bom: Object.fromEntries(Object.entries(bom).sort()) });
+        out.bounds.push({ params: { bulk, slots }, bom: Object.fromEntries(Object.entries(bom).sort()) });
       }
     }
-    check(out.bounds.length === BULKS.length, `bounds: every one of the ${BULKS.length} branches has a bound over its ${MODULE_JSON.envelope.bibles.length} Styles (${out.bounds.length})`);
+    const n = SLOTSB.length * BULKS.length;
+    check(out.bounds.length === n, `bounds: every one of the ${n} branches has a structure bound over its ${MODULE_JSON.envelope.bibles.length} Styles (${out.bounds.length})`);
   } finally {
     await stopClient().catch((e) => log(`stop: ${e}`));
   }
@@ -1084,7 +1109,138 @@ async function sortMidway(halls, domain, how, t) {
   return out;
 }
 
-const steps = { hall, survival, bounds, sort: sortStep };
+// ------------------------------------------------------------------ sort-survival (storage_hall@2): 12.5 bar 8, 12.7 B2
+
+const fkState = (site) => call('dev.fk.state', { site }, 30_000).catch((e) => ({ error: String(e) }));
+async function sortSurvival() {
+  if (MODULE.version < 2) throw new Error('sort-survival is storage_hall@2\'s step: --version 2');
+  const out = {};
+  try {
+    const T = await survivalWorld('SortSurvival', 70000, 70000);
+    const { region, gy, x0, z0 } = T;
+    // ---- B2: a hall grown from the stockpile and fed in half waves, its input preloaded while it builds and starves; then an F contaminated
+    // before the fill
+    const sp = { id: 'ss4', slots: 4, bulk: 2, bible: 'rustic', items: ['stone', 'redstone', 'dirt', 'coal'] };
+    const ps0 = await pile();
+    const g = await growHalls(region, [sp], { survival: true });
+    if (!check(!g.refused, `survival growth ss4: ${g.refused ? String(g.refused).slice(0, 300) : `rid ${g.rid}`}`)) return out;
+    const quote = g.quote?.bom ?? {};
+    const fillKey = Object.keys(g.quote?.bomParts ?? {}).find((k) => k.startsWith('fill:'));
+    check(fillKey && same(g.quote.bomParts[fillKey], { 'minecraft:stone': 41, 'minecraft:redstone': 41, 'minecraft:dirt': 41, 'minecraft:coal': 41 }) && !quote['minecraft:petrified_oak_slab'],
+      `8 the quote's fill part is 41 of each filter item, no slab: ${json(g.quote?.bomParts?.[fillKey] ?? null)}`);
+    const h = g.halls[0];
+    h.region = region;
+    // the lot's cells are known once the region names its site
+    let site = null;
+    for (let i = 0; i < 60 && !site; i++) { await sleep(2000); site = (await call('dev.region.state', { region }, 60_000)).view.lots.find((l) => l.id === sp.id)?.siteId ?? null; }
+    await hallCells(region, [h]);
+    // feed half waves until the input chest stands, then preload it with 64 cobblestone; starve (no feeding) 600 ticks: nothing moves
+    let preloaded = false;
+    for (let i = 0; i < 200 && !preloaded; i++) {
+      const c = (await readCells([h.input]))[0];
+      if (c?.[0] === 'minecraft:chest') {
+        const a = await mod({ op: 'putItems', at: h.input, stacks: [{ slot: 0, id: 'minecraft:cobblestone', count: 64 }] });
+        preloaded = !!a.ok;
+        break;
+      }
+      const ps = await pile();
+      const need = {};
+      for (const [it, n] of Object.entries(ps.outstanding ?? {})) { const lack = Math.ceil((n - (ps.stock?.[it] ?? 0)) / 2); if (lack > 0) need[it] = lack; }
+      if (Object.keys(need).length) await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: need, exact: true }, 120_000);
+      await sleep(3000);
+    }
+    check(preloaded, `B2 the input chest stood part way through the build and took the player's 64 cobblestone`);
+    await sleep(30_000);
+    const st1 = await sortState(h);
+    const fk1 = await fkState(site);
+    out.preload = { input: st1.input, line: st1.line, F: st1.F, D: st1.D, phase: fk1.phase };
+    check(st1.input['minecraft:cobblestone'] === 64 && st1.line.every((m) => !totalOf(m)) && st1.F.every((m) => !totalOf(m)) && st1.D.every((m) => !totalOf(m)),
+      `B2 starving part way (FK ${fk1.phase ?? '?'}): the preloaded input stayed put, the line, every F and D empty`, out.preload);
+    // an F contaminated before the fill (a player's dirt in F 0), then the rest fed: the fill waits fill_blocked, charging no filter item
+    const fA = await mod({ op: 'putItems', at: h.sort[0].F, stacks: [{ slot: 0, id: 'minecraft:dirt', count: 1 }] }).catch((e) => ({ error: String(e) }));
+    const fed = await feedUntil(region, async () => {
+      const f = await fkState(site);
+      return f.phase === 'FILLING' || f.phase === 'UNLOCKED';
+    }, { timeoutMs: 900_000 });
+    await sleep(8000);
+    const fk2 = await fkState(site);
+    const ps1 = await pile();
+    const charged = minus(ps1.ledger?.consumed, ps0.ledger?.consumed);
+    const fillCharged = ['stone', 'redstone', 'dirt', 'coal'].map((k) => `minecraft:${k}`).filter((k) => (charged[k] ?? 0) > (minus(quote, g.quote.bomParts[fillKey])[k] ?? 0));
+    out.blocked = { putF: fA.ok ?? null, phase: fk2.phase, wait: fk2.siteWait ?? fk2.wait ?? null, fillCharged };
+    check(fA.ok && fk2.phase !== 'UNLOCKED' && fillCharged.length === 0, `B2 an F contaminated before the fill: the fill waits (FK ${fk2.phase}; ${json(fk2.siteWait ?? fk2.wait ?? null)}), no filter item charged past the structure (${json(fillCharged)})`, out.blocked);
+    // the player takes their dirt back: the fill runs once
+    await mod({ op: 'clearContainers', box: [...h.sort[0].F, ...h.sort[0].F] });
+    const fd = await feedUntil(region, async (st, rs) => st.view.state === 'PLACED' && (rs?.build ? rs.build.done : true));
+    const w = await rvWait(region, g.rid);
+    const fk3 = await fkState(site);
+    const s3 = await sortState(h);
+    const ps2 = await pile();
+    const consumed = minus(ps2.ledger?.consumed, ps0.ledger?.consumed);
+    check(w.r.state === 'PLACED' && fk3.phase === 'UNLOCKED' && h.filterIds.every((f, u) => fExact(s3.F[u], f)) && same(consumed, quote),
+      `8 then filled once: ${w.r.state}, FK ${fk3.phase}, every F exactly 41 + 4; consumed = the quote item for item (${same(consumed, quote) ? 'equal' : json(minus(consumed, quote))}; ${totalOf(consumed)} items)`, { consumed, quote });
+    // the preloaded cobblestone, now let through by the unlock, is the player's: it sorts to overflow; taken back before the undo
+    await sleep(15_000);
+    await mod({ op: 'clearContainers', box: [...h.input, ...h.input] });
+    await mod({ op: 'clearContainers', box: [...h.overflow, ...h.overflow] });
+    for (const c of h.sort) await mod({ op: 'clearContainers', box: [...c.chest, ...c.chest] });
+    // ---- 8: the player takes 8 stone from F 0, empties F 1 of its 41 redstone, and mines a bulk chest half; then the undo refunds the rest
+    const take0 = await call('dev.fk.container', { pos: h.sort[0].F, take: { 'minecraft:stone': 8 } }, 30_000).catch((e) => ({ error: String(e) }));
+    const take1 = await call('dev.fk.container', { pos: h.sort[1].F, take: { 'minecraft:redstone': 41 } }, 30_000).catch((e) => ({ error: String(e) }));
+    let mined = {};
+    if (h.pairs[0]) {
+      await call('dev.pt.breaks', { at: [h.pairs[0][0]], placer: 'M4Player' }, 120_000);
+      await sleep(1500);
+      mined = (await mod({ op: 'takeItems', box: [h.boxArr[0] - 2, h.boxArr[1] - 2, h.boxArr[2] - 2, h.boxArr[3] + 2, h.boxArr[4] + 2, h.boxArr[5] + 2] })).items;
+    }
+    const s4 = await sortState(h);
+    out.taken = { take0: take0.holds ?? take0.error, take1: take1.holds ?? take1.error, mined, F0: s4.F[0], F1: s4.F[1] };
+    check(s4.F[0]['minecraft:stone'] === 33 && !s4.F[1]['minecraft:redstone'] && mined['minecraft:chest'] === 1 && (s4.F[0]['minecraft:petrified_oak_slab'] ?? 0) === 4,
+      `8 taken: 8 stone from F 0 (33 left, its 4 slabs kept), F 1's 41 redstone, and a bulk chest half mined (it dropped ${json(mined)})`, out.taken);
+    const slabs0 = await call('dev.fk.slabs', { pos: h.input }, 10_000).catch(() => ({}));
+    await standAt(x0 - 20, z0 - 20, gy + 2);
+    const before = await pile();
+    const u = await call('dev.rv.undo', { region, toPosition: g.position - 1 }, 3_600_000).catch((e) => ({ error: String(e) }));
+    await sleep(8000);
+    const after = await pile();
+    const back = plus(minus(after.ledger?.returned, before.ledger?.returned), minus(after.ledger?.refundOverflow, before.ledger?.refundOverflow));
+    const want = minus(consumed, { 'minecraft:stone': 8, 'minecraft:redstone': 41, 'minecraft:chest': 1 });
+    await standAt(h.input[0], h.input[2] + 8, h.input[1] + 2);
+    const drops = (await mod({ op: 'takeItems', box: [h.boxArr[0] - 4, h.boxArr[1] - 4, h.boxArr[2] - 4, h.boxArr[3] + 4, h.boxArr[4] + 6, h.boxArr[5] + 4] })).items;
+    const slabs1 = await call('dev.fk.slabs', { pos: h.input }, 10_000).catch(() => ({}));
+    const fk4 = await fkState(site);
+    out.undo = { removed: u.removed ?? null, error: u.error ?? u.refused ?? null, back, want, drops, slabs0, slabs1, fk: { custody: fk4.custody ?? null, heldProvided: fk4.heldProvided ?? null } };
+    check(u.removed === true && same(back, want), `8 refund: removed ${u.removed}; credited (with overflow) = consumed less the 8 stone and 41 redstone taken and the mined chest (${same(back, want) ? 'equal' : `off by ${json(minus(back, want))}`}): the structure's own stone and redstone still refunded`, out.undo);
+    check(Object.keys(drops).length === 0 && (slabs0.player ?? 0) === 0 && (slabs1.player ?? 0) === 0 && (slabs1.entities ?? 0) === 0,
+      `8 no item dropped at the undo (${json(drops)}); no petrified slab in the player's inventory or the world, before or after (${json(slabs0)} / ${json(slabs1)})`, out.undo);
+    // ---- a restart, and the undo retried: nothing twice
+    const L1 = await pile();
+    await reopen([x0 - 20, z0 - 20, gy + 2]);
+    await sleep(6000);
+    const u2 = await call('dev.rv.undo', { region, toPosition: g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
+    await sleep(6000);
+    const L2 = await pile();
+    const stray = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
+    check(json(L2.ledger) === json(L1.ledger) && json(L2.stock) === json(L1.stock) && Object.keys(stray).length === 0,
+      `8 after a restart and the undo retried (${u2.removed ?? u2.error ?? u2.refused ?? 'answered'}): nothing given twice (the ledger and stock unchanged; on the ground ${json(stray)})`);
+    // ---- a second branch, fed in full: consumed = the quote (structure + 41 per item)
+    const sp8 = { id: 'ss8', slots: 8, bulk: 8, bible: 'rustic', items: ['cobblestone', 'iron_ingot', 'wheat', 'oak_log', 'gravel', 'sand', 'bone', 'string'] };
+    const q0 = await pile();
+    const g8 = await growHalls(region, [sp8], { survival: true });
+    if (check(!g8.refused, `survival growth ss8: ${g8.refused ? String(g8.refused).slice(0, 200) : `rid ${g8.rid}`}`)) {
+      await feedUntil(region, (st, rs) => st.view.state === 'PLACED' && (rs?.build ? rs.build.done : true));
+      const w8 = await rvWait(region, g8.rid);
+      const q1 = await pile();
+      const c8 = minus(q1.ledger?.consumed, q0.ledger?.consumed);
+      check(w8.r.state === 'PLACED' && same(c8, g8.quote?.bom ?? {}), `8 bill ss8 (8 slots, bulk 8): consumed = the quote (${same(c8, g8.quote?.bom ?? {}) ? 'equal' : json(minus(c8, g8.quote?.bom ?? {}))}; ${totalOf(c8)} items)`);
+    }
+  } finally {
+    await stopClient().catch((e) => log(`stop: ${e}`));
+  }
+  return out;
+}
+
+const steps = { hall, survival, bounds, sort: sortStep, 'sort-survival': sortSurvival };
 if (steps[step]) {
   const t0 = Date.now();
   let data, error;
