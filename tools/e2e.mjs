@@ -56,7 +56,7 @@ if (!['free', 'stub'].includes(mode) || (only && !only.length) || !(Number.isInt
   process.exit(2);
 }
 // the slot rule (AGENTS.md "Capacity"): at most 4 Steward clients machine-wide; with too few free, one client as before, and it says so
-const MAX_CLIENTS = Number(process.env.E2E_MAX_CLIENTS ?? 4);
+const MAX_CLIENTS = Number(process.env.E2E_MAX_CLIENTS ?? 6); // machine-wide in-game runs (AGENTS.md, Noah 2026-11-15)
 if (clients > 1) {
   let running = 0;
   try { running = execFileSync('pgrep', ['-f', 'steward[^ ]*/mod.*KnotClient'], { encoding: 'utf8' }).split('\n').filter(Boolean).length; } catch {}

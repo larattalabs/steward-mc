@@ -50,8 +50,8 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
     slice.
   - **Module re-certification.** A measured module is re-measured at an Architect pin only when its own code changes, or when the Architect
     build, billing or realise paths it uses change. A plain version bump gets a smoke check: one field round plus the billing check.
-  - **Capacity.** Up to 4 in-game runs at once, with no two starting within 5 minutes of each other. Unit suites run under `nice -n 10`.
-    Docs, kit-only and unit-only work take no slot.
+  - **Capacity.** Up to 6 in-game runs at once machine-wide, with no two starting within 2 minutes of each other (rule 12 below). Unit
+    suites run under `nice -n 10`. Docs, kit-only and unit-only work take no slot.
   - **Short as-builts.** A slice's as-built and its report are 10-15 lines: what changed, what ran and passed, and the leftovers.
   - **Scoped unit suites** (Noah, 2026-11-13: "yes, send that to both managers/add to agent/claude docs"):
     - A slice runs only the Gradle and npm tests for the code it touched, plus their direct dependents.
@@ -74,6 +74,17 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
       billing), unless a module's own code or Architect's realise or billing paths changed.
     - Unchanged: the targeted strict scenario on every strict slice, scoped unit tests, gitleaks, at most 3 full runs, $0 without Noah's
       approval, and slices never merge or push main. Nightlies stay skipped until Noah says otherwise.
+  - **Gate capacity, standing approvals, parallel slices** (Noah, 2026-11-15: picked "More gate slots + ports", "Standing approvals" and
+    "More parallel slices"; not "GPT review early"):
+    - **Gate capacity:** up to 6 in-game runs at once machine-wide, 2 minutes between starts. The load-gate bounds are unchanged. Steward
+      may also use ports 9100-9149 (in pairs), besides its own.
+    - **Standing approvals:** a paid step under $1 inside a budget Noah already approved goes ahead, with a one-line note to the parent
+      giving its cost. A product question with a confident recommendation goes ahead on it, with a one-line note (question, choice, why);
+      Noah can overrule. Still asked first: anything irreversible, anything changing what a player loses or pays, a new public surface,
+      new budgets or raised caps, and any step over $1.
+    - **Parallel slices:** the manager keeps up to 6-8 slices in progress at once, as far as files and ports allow, and pre-briefs the next
+      ones so a free slot never sits empty.
+    - Unchanged: the strict tier, the per-batch GPT review and gate-verifier, $0 unless approved, and slices never merge or push main.
 - **Release-candidate testing is DEV MODE** (Noah, 2026-11-04):
   - An Architect RC runs only the flows its change touches, plus the sanity set: `node tools/e2e.mjs stub --only gate,wall,survival`, aiming for 15-20 min.
   - Full stub and free runs are nightly, or before a pin when a release is broad; what they find is fixed forward.
@@ -99,7 +110,8 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
 
 - Steward dev client: 8490 (Architect sidecar) / 8491 (DevBridge); override with `STEWARD_PORT` / `STEWARD_DEV_PORT`.
 - Steward e2e client: 8590 / 8591 (`tools/run-e2e-client.sh`).
-- Architect's ports: see `../architect-mc/docs/GATES.md`, its port table (gate runners, slice pairs, turbo). Steward uses only 8490-8491 and 8590-8601.
+- Architect's ports: see `../architect-mc/docs/GATES.md`, its port table (gate runners, slice pairs, turbo). Steward uses only 8490-8491, 8590-8601
+  and 9100-9149 (Noah, 2026-11-15).
 
 ## Hard rules
 

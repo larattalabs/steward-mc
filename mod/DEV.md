@@ -245,7 +245,7 @@ Without these flags a run is as before: one client on `mod/run`, every chosen fl
     `artifacts/e2e/flow-times.json` (every run's, newest kept), then `E2E_TIMES` (another summary).
   - One `artifacts/e2e/summary.json` merges both: each result and flow carries `client`, `clients[]` has each one's ports, flows, packed and real
     seconds and exit. The end lines give each client's wall time and `FAIL [c2] <check>: why` for each failure.
-  - The slot rule: with fewer free of the 4 machine-wide Steward clients (`pgrep -f 'steward[^ ]*/mod.*KnotClient'`) than asked, it runs on one
+  - The slot rule: with fewer free of the 6 machine-wide Steward clients (4 before 11-15) (`pgrep -f 'steward[^ ]*/mod.*KnotClient'`) than asked, it runs on one
     client and says so.
   - The client check in preflight now refuses only a client of this checkout whose working dir is this run's game dir.
 - **`--skip-unchanged`** skips a flow whose inputs haven't changed since its last PASS (`artifacts/e2e/passes.json`, per mode, local only, written
