@@ -60,7 +60,7 @@ try {
   const log = fs.openSync(path.join(ROOT, 'artifacts', 'record-cards.log'), 'a');
   const env = {
     HOME: process.env.HOME, USER: process.env.USER, LOGNAME: process.env.USER, TMPDIR: process.env.TMPDIR, SHELL: '/bin/zsh', PATH: '/opt/homebrew/bin:/usr/bin:/bin',
-    JAVA_HOME: '/opt/homebrew/opt/openjdk@25', GRADLE_USER_HOME: path.join(ROOT, '.gradle-home'), STEWARD_PORT: SIDECAR_PORT, STEWARD_DEV_PORT: String(PORT),
+    JAVA_HOME: '/opt/homebrew/opt/openjdk@25', GRADLE_USER_HOME: process.env.GRADLE_USER_HOME ?? path.join(ROOT, '.gradle-home'), STEWARD_PORT: SIDECAR_PORT, STEWARD_DEV_PORT: String(PORT),
     ARCHITECT_AUTOWORLD_NAME: 'Steward Cards', ARCHITECT_AUTOWORLD_MODE: 'creative', ARCHITECT_AUTOWORLD_PRESET: 'flat', ARCHITECT_AUTOWORLD_CHEATS: 'true',
   };
   client = spawn('./gradlew', ['--offline', `-Plab_ui.dir=${process.env.LAB_UI_DIR || 'none'}`, ':runClient'], { cwd: path.join(ROOT, 'mod'), env, stdio: ['ignore', log, log] });

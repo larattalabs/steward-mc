@@ -65,6 +65,15 @@ class ComposeJobTest {
 	}
 
 	@Test
+	void theCapCanOnlyBeLowered() {
+		assertEquals(1.00, ComposeJob.capOf(null));
+		assertEquals(0.85, ComposeJob.capOf(" 0.85 "));
+		assertEquals(1.00, ComposeJob.capOf("5"), "never raised");
+		assertEquals(1.00, ComposeJob.capOf("-1"));
+		assertEquals(1.00, ComposeJob.capOf("x"));
+	}
+
+	@Test
 	void theSameSettlementAndCardGiveTheSameKeyAndAnotherCardAnother() {
 		String a = ComposeJob.opKey("w1.set_1", ComposeJob.cardSha("{\"name\":\"A\"}"));
 		assertEquals(a, ComposeJob.opKey("w1.set_1", ComposeJob.cardSha("{\"name\":\"A\"}")));

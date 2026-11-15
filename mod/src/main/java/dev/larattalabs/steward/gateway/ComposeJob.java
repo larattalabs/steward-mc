@@ -28,6 +28,23 @@ import org.jspecify.annotations.Nullable;
 public final class ComposeJob {
 	/** One compose's cap, the template pick and every round together (Noah: about $1 a plan with repair). Architect enforces it. */
 	public static final double BUDGET_USD = 1.00;
+	/**
+	 * The cap a compose is sent with: {@link #BUDGET_USD}, or lower when {@code STEWARD_COMPOSE_CAP_USD} says so (a paid proof run holding a card job
+	 * and a compose under one approved cap). It never raises the cap.
+	 */
+	public static double cap() {
+		return capOf(System.getenv("STEWARD_COMPOSE_CAP_USD"));
+	}
+
+	static double capOf(@Nullable String env) {
+		try {
+			double v = env == null ? BUDGET_USD : Double.parseDouble(env.strip());
+			return v > 0 && v < BUDGET_USD ? v : BUDGET_USD;
+		} catch (NumberFormatException e) {
+			return BUDGET_USD;
+		}
+	}
+
 	/** Repair rounds after the first (Architect allows 0 to 2; it repairs only while a part is refused or malformed, AU). */
 	public static final int REPAIR_ROUNDS = 2;
 	/** Steward's own ext members on the request, read back from {@code Design.request().ext} when the design ends (after a restart too). */
@@ -182,7 +199,7 @@ public final class ComposeJob {
 		@Nullable String player) {
 		JsonObject card = JsonParser.parseString(cardJson).getAsJsonObject();
 		String sha = cardSha(cardJson);
-		return new ComposeRequest(brief(card), claim, null, false, BUDGET_USD, opKey(settlementId, sha), ext(settlementId, sha, player, hints(card, land, anchors)));
+		return new ComposeRequest(brief(card), claim, null, false, cap(), opKey(settlementId, sha), ext(settlementId, sha, player, hints(card, land, anchors)));
 	}
 
 	/** What a settlement design ended with. */

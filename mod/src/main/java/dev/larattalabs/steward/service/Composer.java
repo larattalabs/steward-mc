@@ -125,7 +125,7 @@ public final class Composer {
 		COMPOSING.put(s.id(), session);
 		// the old card's plan (if any) must not build this card, whatever this compose comes to
 		PlanStore.remove(s.id());
-		Steward.LOGGER.info("plan writer: compose (Architect's Regions.compose, key {}, cap ${})", req.opKey(), dev.larattalabs.steward.gateway.ComposeJob.BUDGET_USD);
+		Steward.LOGGER.info("plan writer: compose (Architect's Regions.compose, key {}, cap ${})", req.opKey(), req.budgetUsd());
 		ArchitectApi.get().regions().compose(req).whenComplete((id, err) -> server.execute(() -> {
 			if (!Session.is(session)) return;
 			if (err != null) {

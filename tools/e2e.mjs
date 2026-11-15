@@ -2115,7 +2115,7 @@ async function groveFlow() {
   if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail('grove', 'no card');
   const composed = await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after[^\n]*`), 240_000);
   if (!composed) return fail('grove', 'no plan composed');
-  const answer = logSince(from).match(new RegExp(`plan for ${id}: [^\n]*`))?.[0] ?? '';
+  const answer = composed[0];
   if (!/ 0 pending, 0 unfit/.test(answer)) return fail('grove', `the giant oak, the pond and its coral didn't all fit: ${answer.slice(0, 160)}`);
   await closeScreens();
   await clearAnimals();
