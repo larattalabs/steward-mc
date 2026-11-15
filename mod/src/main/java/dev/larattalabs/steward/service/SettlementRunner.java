@@ -240,7 +240,7 @@ public final class SettlementRunner {
 				// (slice M3) a held bill: the bill shown becomes the bound, saved before the phase moves on (a crash between leaves it approved, never lost)
 				if (moduleBuild()) approveHeld();
 				// (slice SD) a district's bill held for the player: the bill they were shown is the one approved
-				if (districtShown != null) { districtCleared = districtShown; districtShown = null; }
+				if (districtShown != null) { districtCleared = districtShown; districtSurvival = districtShownSurvival; districtShown = null; }
 				feed(new Pipeline.PlacementApproved());
 				yield "Approved; placing the settlement stage by stage.";
 			}
@@ -2369,20 +2369,23 @@ public final class SettlementRunner {
 	}
 
 	/**
-	 * (slice SD) A district's own region built from materials, its first building (never a growth, never a composed plan's artifact): its bill is quoted
-	 * and approved before its realise.
+	 * (slice SD) A district's own region, its first building (never a growth, never a composed plan's artifact): quoted before its realise in either mode,
+	 * since the quote says the mode its plan was made in (Architect builds a survival plan from materials whatever the request asks, and the world's mode
+	 * can change while it is designed); one from materials is said and approved, one built at once goes on unsaid.
 	 */
 	private boolean districtFromMaterials() {
-		return districtId != null && !growth() && vPlanId != null && dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId) == null && regionMaterials();
+		return districtId != null && !growth() && vPlanId != null && dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId) == null;
 	}
 
 	/** (slice SD) The quote said and approved for exactly this plan and these entries (in memory: a restart quotes and asks again before placing). */
 	private @org.jspecify.annotations.Nullable String districtCleared, districtShown;
+	/** (slice SD) Whether the cleared (or shown) quote's plan builds from materials: the realise then asks CONSTRUCTION. */
+	private boolean districtSurvival, districtShownSurvival;
 	/** (slice SD) A district's quote is out: nothing realises meanwhile, and no second quote starts. */
 	private boolean districtQuoting;
 
 	/** (slice SD) When a district's bill is quoted: before the placement approval, for a build placed without one, or at the realise (no approval of it). */
-	private enum BillAsk { BEFORE_APPROVAL, AUTO, AT_REALISE }
+	enum BillAsk { BEFORE_APPROVAL, AUTO, AT_REALISE }
 
 	/**
 	 * (slice SD) Quotes a district's first building from materials (Architect's {@code Regions.quote}, read-only) with its final entries, and says it. A quote
@@ -2408,35 +2411,64 @@ public final class SettlementRunner {
 			districtQuoting = false;
 			if (!alive() || state == null || !java.util.Objects.equals(plan0, vPlanId) || vRegionId != null) return;
 			if (switch (state.phase()) { case READY_TO_PLACE, AWAITING_PLACEMENT_APPROVAL, PLACING -> false; default -> true; }) return;
-			if (err != null || quote == null) {
-				say("Not placed: " + name + "'s bill couldn't be quoted (" + message(err) + "), and nothing is taken from the stockpile unchecked. Nothing was consumed.");
-				feed(new Pipeline.Cancel());
-				return;
-			}
-			var check = ModulePlacement.quoteCheck(quote.exact(), quote.notes());
-			if (check.refused() != null) {
-				say("Not placed: Architect couldn't quote all of " + name + "'s bill (" + check.refused() + "), so nothing is consumed unchecked.");
-				feed(new Pipeline.Cancel());
-				return;
-			}
-			String line = districtBillLine(name, quote, null);
-			Steward.LOGGER.info("district bill {} {}: {} (exact {}, notes {}, {})", settlement.id(), vPlanId, quote.bom(), quote.exact(), quote.notes(), when);
-			switch (when) {
-				case BEFORE_APPROVAL -> {
-					say(line);
+			var next = billNext(when, err == null && quote != null, quote != null && quote.survival(), regionMaterials(),
+				quote == null ? null : ModulePlacement.quoteCheck(quote.exact(), quote.notes()));
+			if (quote != null) Steward.LOGGER.info("district bill {} {}: {} (exact {}, notes {}, survival {}, {} -> {})", settlement.id(), vPlanId, quote.bom(), quote.exact(), quote.notes(),
+				quote.survival(), when, next);
+			boolean survival = quote != null && quote.survival();
+			String line = quote == null ? null : districtBillLine(name, quote, null);
+			switch (next) {
+				case CANCEL_UNQUOTED -> {
+					say("Not placed: " + name + "'s bill couldn't be quoted (" + message(err) + "), and nothing is taken from the stockpile unchecked. Nothing was consumed.");
+					feed(new Pipeline.Cancel());
+				}
+				case CANCEL_UNBILLED -> {
+					say("Not placed: Architect couldn't quote all of " + name + "'s bill (" + ModulePlacement.quoteCheck(quote.exact(), quote.notes()).refused()
+						+ "), so nothing is consumed unchecked.");
+					feed(new Pipeline.Cancel());
+				}
+				case QUEUE -> {
+					if (survival) say(line);
 					districtCleared = key;
+					districtSurvival = survival;
 					feed(new Pipeline.BatchQueued(VPLAN_PENDING));
 				}
-				case AUTO -> {
-					if (check.ask() == null) { say(line); districtCleared = key; realiseVillage(); }
-					else { districtShown = key; feed(new Pipeline.HoldBill(line + " Architect can't quote it exactly (" + check.ask() + "), so I ask first. Approve to build it, or cancel.")); }
+				case REALISE -> {
+					if (survival) say(line);
+					districtCleared = key;
+					districtSurvival = survival;
+					realiseVillage();
 				}
-				case AT_REALISE -> {
+				case HOLD -> {
 					districtShown = key;
-					feed(new Pipeline.HoldBill(line + " Approve to build it with this bill, or cancel."));
+					districtShownSurvival = true;
+					var ask = ModulePlacement.quoteCheck(quote.exact(), quote.notes()).ask();
+					feed(new Pipeline.HoldBill(line + (when == BillAsk.AUTO ? " Architect can't quote it exactly (" + ask + "), so I ask first. Approve to build it, or cancel."
+						: " Approve to build it with this bill, or cancel.")));
 				}
 			}
 		}));
+	}
+
+	/** (slice SD) What follows a district's quote. */
+	enum BillNext { CANCEL_UNQUOTED, CANCEL_UNBILLED, QUEUE, REALISE, HOLD }
+
+	/**
+	 * (slice SD) What follows a district's quote: {@code quoted} whether Architect answered, {@code survival} whether its plan builds from materials (the
+	 * quote's own word, never the world's now), {@code worldMaterials} the world's mode now (only when there is no quote), {@code check} the quote's
+	 * exactness. No quote: in a world that builds from materials, ended unquoted; else on (Architect refuses a plan from materials in a world that builds at
+	 * once, so nothing is consumed). A plan built at once: on, unsaid. From materials: a part unbilled ends it; before the approval, said and approved; placed
+	 * without one, an exact bill goes on and an inexact one is asked; at the realise with no approval of it, asked. Pure.
+	 */
+	static BillNext billNext(BillAsk when, boolean quoted, boolean survival, boolean worldMaterials, ModulePlacement.@org.jspecify.annotations.Nullable QuoteCheck check) {
+		if (!quoted) return worldMaterials ? BillNext.CANCEL_UNQUOTED : when == BillAsk.BEFORE_APPROVAL ? BillNext.QUEUE : BillNext.REALISE;
+		if (!survival) return when == BillAsk.BEFORE_APPROVAL ? BillNext.QUEUE : BillNext.REALISE;
+		if (check != null && check.refused() != null) return BillNext.CANCEL_UNBILLED;
+		return switch (when) {
+			case BEFORE_APPROVAL -> BillNext.QUEUE;
+			case AUTO -> check == null || check.ask() == null ? BillNext.REALISE : BillNext.HOLD;
+			case AT_REALISE -> BillNext.HOLD;
+		};
 	}
 
 	/**
@@ -2518,7 +2550,9 @@ public final class SettlementRunner {
 		}
 		// (slice M3) the player approved it at Accept (or approved the bill since): placed now, never asked again
 		if (moduleBuild() && state.phase() == Pipeline.Phase.READY_TO_PLACE) feed(new Pipeline.ModulePlace());
+		String districtName = districtId == null ? null : Settlements.store().get(settlement.id()).flatMap(x -> x.lands().district(districtId)).map(Settlement.District::name).orElse(null);
 		say(growth() ? "Placing it in " + growingName() + " (" + lotEntries.size() + (lotEntries.size() == 1 ? " building" : " buildings") + ")..."
+			: districtName != null ? "Placing " + districtName + " (" + Words.count(lotEntries.size(), "building", "buildings") + ", its street and its road to the town)..."
 			: "Placing the village (" + Words.count(lotEntries.size(), "building", "buildings") + ", its street, lanes and square)...");
 		queueInFlight = true;
 		inFlightSince = System.currentTimeMillis();
@@ -2538,7 +2572,7 @@ public final class SettlementRunner {
 		// (slice SD) a district's own region in a world that builds from materials is built from the stockpile: the request says so (Architect builds it
 		// in the mode its plan was made in, and refuses a plan made in another mode than the world's now)
 		Mode mode = growth() ? (growRegion != null && api.regions().get(growRegion).map(Growths::fromMaterials).orElse(false) ? Mode.CONSTRUCTION : Mode.INSTANT)
-			: districtRealiseMode(districtId != null, regionMaterials());
+			: districtRealiseMode(districtId != null, districtSurvival);
 		api.regions().realise(new dev.larattalabs.architect.api.RealiseRequest(vPlanId, mode, actor, lotEntries, null, true, null, false, ext, 0, key))
 			.whenComplete((id, err) -> server.execute(() -> realised(id, err, session)));
 	}
@@ -2789,9 +2823,9 @@ public final class SettlementRunner {
 		return null;
 	}
 
-	/** (slice SD) The mode a non-growth region realise asks: a district's region from materials when the world builds them so; else at once. Pure. */
-	static Mode districtRealiseMode(boolean district, boolean regionMaterials) {
-		return district && regionMaterials ? Mode.CONSTRUCTION : Mode.INSTANT;
+	/** (slice SD) The mode a non-growth region realise asks: a district's region from materials when its approved quote says its plan builds so. Pure. */
+	static Mode districtRealiseMode(boolean district, boolean planFromMaterials) {
+		return district && planFromMaterials ? Mode.CONSTRUCTION : Mode.INSTANT;
 	}
 
 	/** Whether this world builds regions from materials (Architect's RegionSurvival.on: the survival toggle on, the default game type not creative). */

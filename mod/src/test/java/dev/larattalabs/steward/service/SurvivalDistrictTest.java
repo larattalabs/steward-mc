@@ -60,10 +60,35 @@ class SurvivalDistrictTest {
 	// ------------------------------------------------------------------ pure
 
 	@Test
-	void aDistrictsRegionIsRealisedFromMaterialsOnlyInAWorldThatBuildsSo() {
+	void aDistrictsRegionIsRealisedFromMaterialsWhenItsApprovedQuoteSaysItsPlanIs() {
 		assertEquals(Mode.CONSTRUCTION, SettlementRunner.districtRealiseMode(true, true));
-		assertEquals(Mode.INSTANT, SettlementRunner.districtRealiseMode(true, false), "a creative world (or the toggle on with creative the default): at once");
+		assertEquals(Mode.INSTANT, SettlementRunner.districtRealiseMode(true, false), "a plan made at once: at once");
 		assertEquals(Mode.INSTANT, SettlementRunner.districtRealiseMode(false, true), "a town's flat village keeps its own path");
+	}
+
+	@Test
+	void whatFollowsADistrictsQuoteIsDecidedByItsPlansModeNeverTheWorldsNow() {
+		var exact = new ModulePlacement.QuoteCheck(null, null);
+		var ask = new ModulePlacement.QuoteCheck(null, "lot_1 may differ");
+		var unbilled = new ModulePlacement.QuoteCheck("lot_2 not billed", null);
+		var B = SettlementRunner.BillAsk.BEFORE_APPROVAL;
+		var A = SettlementRunner.BillAsk.AUTO;
+		var R = SettlementRunner.BillAsk.AT_REALISE;
+		// a plan from materials: quoted and said whatever the world reads now (it may have been turned off and on while the designs ran)
+		for (boolean world : new boolean[] {true, false}) {
+			assertEquals(SettlementRunner.BillNext.QUEUE, SettlementRunner.billNext(B, true, true, world, ask), "before the approval: said, then approved");
+			assertEquals(SettlementRunner.BillNext.REALISE, SettlementRunner.billNext(A, true, true, world, exact));
+			assertEquals(SettlementRunner.BillNext.HOLD, SettlementRunner.billNext(A, true, true, world, ask), "placed without an approval: an inexact bill asked");
+			assertEquals(SettlementRunner.BillNext.HOLD, SettlementRunner.billNext(R, true, true, world, exact), "at the realise with no approval of this bill: asked");
+			for (var w : SettlementRunner.BillAsk.values()) assertEquals(SettlementRunner.BillNext.CANCEL_UNBILLED, SettlementRunner.billNext(w, true, true, world, unbilled));
+		}
+		// a plan made at once: on, unsaid, never held
+		assertEquals(SettlementRunner.BillNext.QUEUE, SettlementRunner.billNext(B, true, false, true, exact));
+		assertEquals(SettlementRunner.BillNext.REALISE, SettlementRunner.billNext(R, true, false, true, exact));
+		// no quote: in a world that builds from materials, ended unquoted; else on (Architect refuses a plan from materials in a world that builds at once)
+		for (var w : SettlementRunner.BillAsk.values()) assertEquals(SettlementRunner.BillNext.CANCEL_UNQUOTED, SettlementRunner.billNext(w, false, false, true, null));
+		assertEquals(SettlementRunner.BillNext.QUEUE, SettlementRunner.billNext(B, false, false, false, null));
+		assertEquals(SettlementRunner.BillNext.REALISE, SettlementRunner.billNext(R, false, false, false, null));
 	}
 
 	@Test
