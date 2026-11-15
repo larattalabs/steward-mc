@@ -71,7 +71,7 @@ public final class ModuleOffer {
 	 * hall while its undo runs can be lost: the offer says so. Set false (and drop the words) once the pin carries LC.
 	 */
 	public static final boolean LATE_CARGO_GAP = true;
-	public static final String LATE_CARGO_WORDS = "If you take it down later, leave it alone while it goes: anything put into it during the undo can be lost.";
+	public static final String LATE_CARGO_WORDS = "While a building is being taken down, don't put items into its chests: they could be lost.";
 
 	/** The kinds of items a storage module's sign needs (docs/MODULES.md 4.1): the stockpile and the player's inventory hold 12 or more. */
 	public static final int SIGN_KINDS = 12;
