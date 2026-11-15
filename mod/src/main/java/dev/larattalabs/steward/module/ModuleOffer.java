@@ -66,6 +66,13 @@ public final class ModuleOffer {
 	/** The seeds a module's sign needs: 8 or more of one crop it grows (today's {@code farm} sign). */
 	public static final int SIGN_SEEDS = 8;
 
+	/**
+	 * (M4b, ARCHITECT-ASKS S-M5-12) Until Architect's removal re-checks or seals its containers (slice LC, v0.73.0 or v0.74.0), an item put into the
+	 * hall while its undo runs can be lost: the offer says so. Set false (and drop the words) once the pin carries LC.
+	 */
+	public static final boolean LATE_CARGO_GAP = true;
+	public static final String LATE_CARGO_WORDS = "If you take it down later, leave it alone while it goes: anything put into it during the undo can be lost.";
+
 	/** The kinds of items a storage module's sign needs (docs/MODULES.md 4.1): the stockpile and the player's inventory hold 12 or more. */
 	public static final int SIGN_KINDS = 12;
 
@@ -280,6 +287,7 @@ public final class ModuleOffer {
 				+ " slots for " + String.join(", ", names) + ", an overflow chest, " + bulk + " double chest" + (bulk == 1 ? "" : "s") + " and an input chest at the line's head"
 				+ (o.rate() == null ? "" : "; " + o.rate()) + ".");
 			parts.add("It won't sort tools, armour, potions, renamed or enchanted items, or anything that stacks to 16: those go to overflow. Never put petrified oak slabs in it.");
+			if (LATE_CARGO_GAP) parts.add(LATE_CARGO_WORDS);
 			parts.add(materials ? dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + "." : "It's free.");
 			if (lampFallback) parts.add("It's lit by plain lanterns: your style's lamp is too dim.");
 			return String.join(" ", parts);

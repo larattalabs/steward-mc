@@ -518,6 +518,12 @@ public final class StewardCommands {
 					}
 					return 1;
 				}))))
+			// (M4b) a storage hall's slot map, and the items of a waiting sorting-hall offer (MEASURE-M4 12.2, 12.4)
+			.then(Commands.literal("hall").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> answer(ctx.getSource(),
+				dev.larattalabs.steward.service.HallCommand.list(ctx.getSource().getServer(), StringArgumentType.getString(ctx, "id"))))
+				.then(Commands.literal("items").then(Commands.argument("spec", StringArgumentType.greedyString()).executes(ctx -> answer(ctx.getSource(),
+					dev.larattalabs.steward.service.HallCommand.items(ctx.getSource().getServer(), ctx.getSource().getPlayerOrException(), StringArgumentType.getString(ctx, "id"),
+						StringArgumentType.getString(ctx, "spec"))))))))
 			.then(Commands.literal("undo").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
 				// the History tab's Undo takes the same path (Actions.decide "undo")
 				CommandSourceStack src = ctx.getSource();
