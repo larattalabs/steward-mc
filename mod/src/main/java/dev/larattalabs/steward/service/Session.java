@@ -31,4 +31,9 @@ public final class Session {
 	public static boolean is(int session) {
 		return session == generation;
 	}
+
+	/** (tests) A world stopped and another started: callbacks made before it do nothing. */
+	static void nextForTest() {
+		generation++;
+	}
 }
