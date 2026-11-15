@@ -3156,7 +3156,7 @@ async function suppliedGrowthFlow(mode = null) {
     from = logSize();
     nudge = region;
     await cmd(`/steward proposals ${id} accept ${lib.key}`);
-    const planned = await waitLog(from, /The town grows: Architect finds room[^\n]*/, 120_000);
+    const planned = await waitLog(from, /The town grows(?: from its plan)?: [^\n]*/, 120_000);
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
     nudge = null;
     if (!grew) return;
