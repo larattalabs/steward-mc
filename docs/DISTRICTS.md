@@ -306,3 +306,32 @@ Three blockers and six should-fixes, each checked against the code; all fixed.
 - **The Claim tab** gives a district's note ("its road to the town is gone") a line of its own.
 - **Checks.** The outpost's e2e compares its land column for column with Architect's and requires its buildings; tests cover the format boundary,
   the held strip's request and the talk negatives.
+
+## 12. Slice SD: a district from materials (2026-11-14)
+
+§3's survival row and §9's "Survival" follow-up, built. In a world that builds regions from materials (Architect's `RegionSurvival.on`: the toggle on,
+the default game type not creative), a district east or west of a region town is a beside reservation as in creative (`besideTown` no longer refuses
+survival); north and south, and towns that aren't regions, keep square districts with their road from the stockpile. Quarters (along, outposts) still
+wait: `foundQuarter` refuses survival, and `planDistrict` refuses a quarter whose world turned survival since (given up, nothing spent).
+
+Architect's answers, checked against RS and 0.67.0: one stockpile per owner and dimension (S-Y-6, S-Y-7), so a district draws from its town's;
+its targets join the owner's feed order after the town's (RS "Ids and order"); the plan is made in the world's mode and a realise in another is refused.
+
+- **The first building** (`planDistrict`): `Stockpiles.ensure` and `protectCrates` before the plan (none: nothing spent); the realise asks
+  `Mode.CONSTRUCTION`.
+- **The bill** (`quoteDistrict`): `Regions.quote` with the final entries, said before the placement approval ("From materials, <district> needs ...",
+  "about" with Architect's note when not exact). The approval is bound to that plan and those entries: a re-plan, or a restart before the realise,
+  quotes and asks again (`HoldBill`); a realise Architect already has under the build's keys is picked up instead. A quote that fails, or leaves a
+  part unbilled (`ModulePlacement.quoteCheck`), ends the build before anything is consumed. Placed without an approval (autonomy), an exact bill goes
+  on and an inexact one is asked. No `maxBill`: slice QD's "up to N" comes later.
+- **Watch:** as a Supplied town's; "<district> is built" names the district (`MaterialRequests.builtName`).
+- **Undo:** `Undo.region` (refused while a growth of it stands; else `Regions.remove`, which cancels unbuilt targets and refunds what they drew once per
+  key, also while it is still building, as a Supplied town's undo). The removal is logged once (`Undo.retired`), and a district whose removal was
+  logged but whose give-up never saved is given up at the next start on Architect's tombstone (`Districts.giveUpRemoved`). A growth of it still building
+  keeps A2's refusal until slice A2L lifts it on RU.
+- **Not decided here (for Noah):** whether a district must wait until its town is fully built from materials (Architect doesn't require it: the feed
+  order puts the town's targets first, but nothing holds the district back); a district from materials beside a town built at once (the world turned
+  survival since; Architect allows it, a separate region in the world's mode); survival quarters.
+- **Checks:** unit `SurvivalDistrictTest` (the mode, the plain refusals, the bill line, the built line; over `FakeArchitect`: refused while a growth
+  stands, removed while building with paid == returned once, a lost answer then a restart logged and refunded once, the give-up resumed only on a
+  tombstone). e2e (stub) flow `survival-district`.

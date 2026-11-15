@@ -401,7 +401,7 @@ id through to the addition, so the module lot is a grow lot of the district (`mo
 but no e2e can make one; a district built at once in a world since turned to materials is refused by the mode gate before anything is spent
 (e2e). **Decided (the Steward manager, 2026-11-14: option 2):** founding a district region from materials stays out of DG; A2's rules on district
 regions are unit-tested, the bill and its undo refund included (`SuppliedDistrictGrowthTest`: paid == returned, once, over a model of Architect's
-ledger); the billed survival e2e moves to a new slice SD (found a district region from materials, then DG's billed flow).
+ledger); the billed survival e2e moves to a new slice SD (found a district region from materials, then DG's billed flow). **Since slice SD (2026-11-14):** a beside district is founded and built from materials (DISTRICTS.md §12), and e2e `survival-district` runs DG's billed growth on it (a restart at its massings, undo refused while it waits, paid == returned once).
 
 **Saves.** No format change: the build's `districtId` and slice A's growth fields; the district's land is runs as today.
 
