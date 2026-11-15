@@ -421,7 +421,7 @@ of every settlement before the sweep; adopted towns skipped), `Undo` (the reconc
   the town.
 - **Slice NS2 (2026-11-15):**
   - **The plan's axis.** `PPlan.forBuild` keeps an `orientation` the composed plan names (`ns`, `auto` or `ew`); a street zone that names none
-    is still laid east-west, so plans without one check and build as before. A compose rule asking for `ns` waits on S-NS2-1.
+    is still laid east-west, so plans without one check and build as before. Steward's compose rules ask for `ns` where the room round the stone runs north-south (never `auto`, which picks by lot sizes).
     `PPlan.toPlan` reads an artifact whose lots all face east or west as one north-south street (its line the entrances' x, its ends z).
   - **Additions on the legacy path.** `Districts.streetEitherAxis` reads the town's street on either axis (an east-west one first, so a bent
     street grows as before). An addition to a north-south street town that isn't taken on is laid along it, facing east or west, and its

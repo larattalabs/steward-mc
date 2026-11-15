@@ -1663,3 +1663,7 @@ adopted town. Asked, to confirm (no new API is expected):
   `ew` for such zones until it is.
 - **S-NS2-2, an irrigated grow lot facing east or west.** IG-b says `frame` is `[along, deep]` for every front, but `ig.test` covers north
   and south fronts only. Asked: one east or west case (frame, field, `lotCells`, the sources). Steward's `module-ns` e2e flow covers it in game.
+- **Architect's answer (2026-11-15, through the manager): both covered, no bugs.** Its new kit test `grow-ns` is on slice/NSQ.
+  - S-NS2-1: `grow.mjs` reads each street segment as ew or ns, and frontage, extension, lanes and lamps all work from it. So Steward's
+    compose rules now ask for `ns` where the land runs north-south.
+  - S-NS2-2: an east-front irrigated grow lot has frame `[along, deep]`, with its field, sources and `lotCells` as for north and south.
