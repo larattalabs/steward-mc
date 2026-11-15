@@ -1578,3 +1578,22 @@ Architect's draft (slice/SAD off bdc1cad1, no API change). Steward's answers:
   - (2) withdrawn (11-14): TileCheck is unchanged. Instead, a growth on an adopted base gets its own `props` stage (dry: `adopted, props`; irrigated: `adopted, street, lots, props, fluids`). Steward matches no revision stage names, so nothing changes. It's in the SAD RC areas.
   - Architect gates the ensure-path cases for (1) in a world that never adopted.
   - The `props` stage also applies to creative towns adopted before SAD. Their growths' props get their own stage, where before a verge silently overwrote a lamp. The SAD RC covers adopted-town growth in creative as well as survival.
+
+### CA: Steward composes through `Regions.compose` (slice CA, branch compose-adopt, 2026-11-14; sent through the manager)
+
+Steward's Composer now calls `Regions.compose` (0.67.0) with the card as the brief and `composeHints` (the card, its wanted buildings, the
+land line, `anchors {stone, player}`), its own rules as `composeSystem` (prompts/compose-rules.md) and `repairRounds: 2`, under `budgetUsd`
+1.00. Steward checks the result's plan again at $0 with its dimension, owner, anchors and load policy, applies the street `wouldFit`, and
+keeps it. What CO/AU still lack against Steward's old writer, asked:
+- **S-CA-1, skip the template pick.** Compose always runs a `region.design` pick first. A PICKED result has no plan/0, so the card's
+  buildings are bypassed (Steward keeps the template as a one-zone plan and says so), and the pick costs a call. Asked: an ext key
+  (`architect_mc:composePick: false`) that goes straight to the rounds.
+- **S-CA-2, `{waits, summary}` in player words.** NO_PLAN's `reason` is Architect's diagnostic; the best round's own `reason` isn't in the
+  result. Asked: the best round's `reason` on NO_PLAN, and (preferred) an answer member for per-part player words, so Steward needn't read
+  a waiting part's `notes`.
+- **S-CA-3, `vocab/1#compact`.** Not sent beside a caller's rules (no system room); Steward's rules name only families it is sure of.
+  Asked: room for it, or its family list in the composer's own text.
+- **S-CA-4, the $0 street `wouldFit` inside compose.** Steward applies GH's street fragment after compose; inside compose it would save a
+  paid repair round.
+- **S-CA-5, owner and dimension on `ComposeRequest`.** Compose checks in the Overworld with owner null. Steward composes only in the
+  Overworld (elsewhere: today's layout, nothing spent) and re-checks with the owner before keeping.

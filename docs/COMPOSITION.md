@@ -224,3 +224,23 @@ settlements as it serves Patron ones. Square districts, additions and survival w
 
 **Checks.** GPT review (spending and refunds), both e2e checks, and Steward's RC report to Architect as RS follow-ups (the coordinator,
 2026-10-21: the RS-a merge is gated by the narrow check of today's flows; this is feature work).
+
+## 13. Composing through Architect's composer (slice CA, 2026-11-14; Architect 0.67.0, CO + AU)
+
+Noah, 2026-11-13: Architect owns the composer engine. `Composer.compose` sends `Regions.compose` (`gateway/ComposeJob`):
+- **In:** the card as the brief (name, site, purpose, interpretation) and as `composeHints {card, wanted, land, anchors {stone, player}}`;
+  Steward's rules (`prompts/compose-rules.md`: one lot per card building, `style: {pending}`, the anchors, reserved kinds written anyway so they
+  wait, hidden rooms as secrets and "behind a waterfall" as the waterfall's `form.hidden_room`, the portcullis default, `reason` for the player)
+  as `composeSystem`; `repairRounds: 2`; `budgetUsd` 1.00 for the pick and every round. The old plan-writer prompt's general rules are
+  Architect's `kit/prompts/composer.md` now; the whole-plan writer job is gone (a waiting part's own plan, section 11, still uses it).
+- **Key:** `steward.compose.<world>.<settlement>.<card sha>`: the same card again adopts the first compose (no second spend). A key conflict
+  (the same card over changed land) is said, never re-keyed. The settlement's old plan is dropped when a new compose starts.
+- **Out:** the design's end (DESIGN_DONE, or a reconcile when the world opens; the kept plan newer than the design is the receipt) is kept only
+  while the settlement holds the same card and claim. COMPOSED and NO_PLAN (its best round; also a budget stop with one) are checked again by
+  Steward at $0 (dimension, owner, anchors, load policy, the light preview for crossings), the street `wouldFit` applied, and kept as before. A
+  PICKED template is kept as a one-zone plan and said as Architect's own layout.
+- **Honesty:** the summary is the composer's `reason` on COMPOSED; otherwise (and when the card asks for something hidden the plan doesn't
+  write) a plain one from the plan's lots. It gains "Not in the plan: <card buildings with no lot>", "One part of the ask isn't in the plan
+  yet." (never named), Architect's oscillation stop and the budget stop. A waiting part's words are its own `notes`.
+- **Not yet:** the Overworld only (S-CA-5); the template pick can't be skipped (S-CA-1); NO_PLAN has no player summary (S-CA-2); the
+  card's other asks (walls, water, material rules) are not counted against the plan, only its buildings and a hidden room.
