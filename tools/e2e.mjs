@@ -5060,16 +5060,16 @@ async function moduleAdoptFlow() {
   const region = receipt?.siteGroup?.slice('region:'.length);
   const g = await growthOf(id);
   const mods = await moduleSites(g.op);
-  const fl = region ? await dev.request('dev.fluid.state', { region }).catch(() => ({})) : {};
-  const irr = (Array.isArray(fl?.bodies) ? fl.bodies : []).filter((b) => /_irr_\d+_\d+$/.test(String(b.id)));
-  const wet = irr.length > 0 && irr.every((b) => /SETTLED|STANDING|FULL/i.test(String(b.state)));
+  // (run 4) a revision's bodies are its own live record's, not the region's (dev.fluid.state reads the base: bodies 0): Architect's settle line instead
+  const irr = region ? [...logSince(from).matchAll(new RegExp(`Region ${region}: fluid body (\\S+_irr_\\d+_\\d+) (settled)`, 'g'))].map((x) => ({ id: x[1], state: x[2] })) : [];
+  const wet = irr.length > 0;
   if (region && g.m && g.m[1] === region && g.rev && mods.length === 1 && mods[0].key === `${MODULE}@1` && wet) {
     ok(label, `adopted as ${region}; revision ${g.m[2]} (${g.rev.state}) holds ${mods[0].sid} (${mods[0].key}); ${irr.length} irrigation source(s) ${irr.map((b) => b.state).join('/')}`);
   } else return fail(label, `region ${region}; entry ${g.op?.siteGroup}; revision ${JSON.stringify(g.rev)?.slice(0, 120)}; module sites ${mods.length}; irrigation ${JSON.stringify(irr).slice(0, 200)}`);
   // undone: drained first, the revision UNDONE, the ground as before the growth
   const last = await undoOnce(id, claim);
-  const fl2 = await dev.request('dev.fluid.state', { region }).catch(() => ({}));
-  const left = (Array.isArray(fl2?.bodies) ? fl2.bodies : []).filter((b) => /_irr_\d+_\d+$/.test(String(b.id)) && !/DRAINED|REMOVED/i.test(String(b.state)));
+  // the water gone with it: the E-flat diff below covers every water cell of the box
+  const left = [];
   const undone = ((await regionView(region)).revisions ?? []).find((r) => String(r.rid) === g.m[2]);
   const d0 = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
   const off = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
