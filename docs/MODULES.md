@@ -675,8 +675,8 @@ Architect 0.72.0 (CONTRACT, `kit/schemas/plan.json`, the API). The paid compose,
   - Never `field`, never a version or program sha: Steward writes them.
   - Anything the card asks for that the modules don't cover is an ordinary lot, as today.
 - **The key.** The compose key is the card's sha. With modules in the hints, a catalog change under the same card would be the same key with
-  another body: Architect refuses that `OP_KEY_CONFLICT`. So when `modules` is not empty, the key's sha covers the card and the vocabulary
-  (ids, versions, program shas). A card composed with no modules keeps its key byte for byte (an old world's adopted compose).
+  another body, which Architect refuses `OP_KEY_CONFLICT`. So the key's sha covers the card, Steward's rules as sent and the whole module
+  vocabulary (`ComposeJob.inputs`, after the GPT review's S5).
 - `ComposeJob.missing` counts a module lot under its `for` as well as its type, so a "farm" the plan makes a crop farm isn't told as not
   in the plan.
 - A waiting part's compose (`partRequest`) gets no modules in phase 5.
