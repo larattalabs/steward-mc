@@ -233,3 +233,12 @@ asserted: bar 3; crossings: 4.3), 11 (versions: @1 frozen, sorting is @2). Findi
   reopen in one client, as M2's); finding 7, a live bound-against-quote check for every branch in an unmeasured Style (each branch's quote
   is measured equal to consumption, and the re-expression is unit-tested against the kit; the e2e checks one offered branch in another
   Style); "chests" also counts a barrel or furnace a player adds.
+
+## 8. Gate-verifier (strict, 2026-11-14, at 265de7c)
+
+PASS on all four items: the certificate backed by its evidence on these files and versions; its own `survival` re-run 26/26 (bills equal
+the quotes, the cancel partial at 6 of 362 items and refunded exactly, the mined chest not refunded, a restart giving nothing twice); the
+billing and undo diff (the hall pre-check can only refuse; the dev hooks are development-only; no save format changed); e2e PASS 18.
+Its notes, recorded as leftovers: survival checks consumed against the quote, the bound against the quote is the bounds step's; the cancel
+is only just partial; the mined chest's drop is the player's by the PT break path, not checked by owner; a crash during refund crediting is
+the sorting hall's bar (4.2).
