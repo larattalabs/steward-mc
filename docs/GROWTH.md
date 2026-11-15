@@ -455,8 +455,8 @@ ledger); the billed survival e2e moves to a new slice SD (found a district regio
 `VillageSweep` (every standing district region, the land read first, one take-up per settlement), `Settlements.found` (never in another
 settlement's district claim), module offers bound to the district. Checks: units 521/0 (`DistrictGrowthTest`, `SuppliedDistrictGrowthTest`),
 npm 44/0; e2e `stub --only growth,districts,survival` PASS 104 (one full run) and `district-growth` again on the final code. **Fix check** (GPT,
-after round 2): the three round-2 blockers resolved; exact coordinates taken. **Left:** the world-start whole-region take-ups (`VillageSweep`'s
-village loop, older than DG) can start two removals for one settlement; `Undo.growth` has no test against a faked Architect (none exists); a
+after round 2): the three round-2 blockers resolved; exact coordinates taken. **Left:** ~~the world-start whole-region take-ups (`VillageSweep`'s
+village loop, older than DG) can start two removals for one settlement~~ (fixed by VSR, below); `Undo.growth` has no test against a faked Architect (none exists); a
 quarter's grown land, a crash after an undo and before the land's save, a late orphan's head-first order, and a module bound into a district are
 not in e2e (unit or review only); the billed survival e2e is slice SD's.
 
@@ -470,3 +470,17 @@ gone with no tombstone and the unknown inventory, a lost unadopt, a lost adopt a
 in-flight hold, an orphan note closed, a resumed take-up) and DG's `Undo.growth` (head first, refusals in flight and while building, the land put
 back, a crash between Architect's undo and the entry). **Not covered:** callbacks crossing world sessions, a failure between two saves of one close,
 `Undo.lastProject` (needs a server for the steward's motion and the stockpile), Architect undoing a target still building (Steward refuses first).
+
+**VSR (2026-11-14): one world-start village take-up per settlement.** The old loop could start two removals for one settlement. Now
+`VillageSweep.nextVillage` (pure) chooses at most one region, and `chain` takes a settlement's orphans one after the other, each region once per start.
+A settlement is skipped while it is busy (`SettlementRunner.busy`: a build running, an undo, or a region `REMOVING`), and its orphans wait for a later
+start. `takeUp` refuses a second take-up of the settlement from any caller, and while it undoes or removes; its direct removal answers on the server
+thread and checks the session. The sweep's own standing take-up entries (`A village placed after its build ended (being taken up)`, not retired) are
+read by id, since Architect's list leaves out tombstones. Each is asked again at the next start, or, if Architect removed it already (an answer lost at
+a restart), retired through `Undo.region`'s tombstone with nothing asked of Architect. `Undo.region` logs a removal only when its entry isn't already
+retired, and it puts the districts right either way. Checks: units 529/0 (`VillageSweepOnceTest`), npm 46/0, e2e `stub --only village-orphan` PASS
+(new flow); `--only orphan` also passed `growth orphan` on the first cut. GPT review plus three fix checks: the last one found no P1 or P2. **Held removals** (manager, the same day): Architect holds a removal up to 10 minutes while a player stands in the region, and the
+settlement would be busy that whole time. So no take-up is asked while a player stands in the claim, measured with Architect's reach. The region is
+left untried, and the 10 s tick (`VillageSweep.growths(server)`) asks again once the player leaves; a busy settlement keeps its mark for a later tick.
+`takeUp`'s other callers are treated the same way: nothing is logged while the region is held, and the region is kept so that the ended build naming it
+does not hold it. Still open: a player who walks in during the few ticks before Architect's scan.

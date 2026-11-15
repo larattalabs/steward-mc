@@ -36,21 +36,171 @@ public final class VillageSweep {
 			}
 		}
 		growths(server);
-		for (Settlement s : Settlements.store().all()) {
-			// (slice DG review round 2) a settlement whose growth take-up the sweep above started is left to it
-			if (Undo.busy(s.id())) continue;
-			for (var v : regions.list(s.owner())) {
-				if (v.state() == RegionState.REMOVED) continue;
-				// a town Steward took on as a region is never taken up whole (docs/GROWTH.md, slice B)
-				if (v.ext() != null && v.ext().has(Adoption.KEY_EXT)) continue;
-				String build = v.ext() != null && v.ext().has(BatchPlanner.BUILD_EXT) && v.ext().get(BatchPlanner.BUILD_EXT).isJsonPrimitive()
-					? v.ext().get(BatchPlanner.BUILD_EXT).getAsString() : null;
-				// not Steward's build, the dev spike, a build that holds it, or the history (undo takes it up)
-				if (build == null || SPIKE.equals(build) || SettlementRunner.running(build) || entryOf(s, v.id()).isPresent()) continue;
-				Steward.LOGGER.warn("village region {} of {} (build {}) is held by no build and no history entry: taking it up", v.id(), s.id(), build);
-				takeUp(server, s, v.id(), m -> Steward.LOGGER.info("{}: {}", s.id(), m));
-			}
+		// (slice VSR) one village take-up per settlement at a time: the next starts once the first has answered
+		for (Settlement s : Settlements.store().all()) villages(server, s.id());
+	}
+
+	/** (slice VSR) A village region as the world-start sweep reads it: Architect's view cut to what it decides on. */
+	record Village(String id, boolean removed, boolean removing, boolean adopted, @org.jspecify.annotations.Nullable String build) {
+		static Village of(dev.larattalabs.architect.api.RegionView v) {
+			String build = v.ext() != null && v.ext().has(BatchPlanner.BUILD_EXT) && v.ext().get(BatchPlanner.BUILD_EXT).isJsonPrimitive()
+				? v.ext().get(BatchPlanner.BUILD_EXT).getAsString() : null;
+			return new Village(v.id(), v.state() == RegionState.REMOVED, v.state() == RegionState.REMOVING, v.ext() != null && v.ext().has(Adoption.KEY_EXT), build);
 		}
+	}
+
+	/**
+	 * (slice VSR) The regions of the sweep's own take-ups whose entry still stands (not retired): a removal refused, or whose answer a restart lost. Architect's
+	 * list leaves out a removed region (its tombstone is read by id), so these are read one by one. Pure.
+	 */
+	static List<String> standingTakeUps(Settlement s) {
+		java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
+		for (var e : s.log()) {
+			if (e.kind() != Settlement.Kind.PROJECT_PLACED || e.siteGroup() == null || !e.siteGroup().startsWith(VPlan.REGION_PREFIX)) continue;
+			String id = e.siteGroup().substring(VPlan.REGION_PREFIX.length());
+			var newest = entryOf(s, id);
+			if (newest.isPresent() && newest.get().text().startsWith(TAKING_UP) && !Undo.retired(s, newest.get())) out.add(id);
+		}
+		return List.copyOf(out);
+	}
+
+	/** The text of the entry {@link #takeUp} logs for a village no entry held: the sweep's own take-up (a lost answer's is retired at the next start). */
+	static final String TAKING_UP = "A village placed after its build ended (being taken up)";
+
+	/**
+	 * (slice VSR) The next village region of {@code s} the world-start sweep takes up, if any; {@code tried} the regions asked already this world start
+	 * (each once: a refused one is looked at again at the next start). Nothing while a region of the settlement is being removed (a removal Architect resumed
+	 * at this start: one in flight at a time). A standing region of Steward's build (its build tag) that no running build and no history entry holds; or the
+	 * sweep's own take-up whose entry still stands (refused, or its answer lost at a restart): asked again, or, when Architect removed it already, retired
+	 * through its tombstone with nothing asked of Architect. Never a town Steward took on, nor the dev spike. Pure.
+	 */
+	static Optional<String> nextVillage(Settlement s, List<Village> regions, java.util.function.Predicate<String> running, java.util.Set<String> tried) {
+		if (regions.stream().anyMatch(Village::removing)) return Optional.empty();
+		for (Village v : regions) {
+			if (tried.contains(v.id())) continue;
+			var entry = entryOf(s, v.id());
+			boolean ours = entry.isPresent() && entry.get().text().startsWith(TAKING_UP) && !Undo.retired(s, entry.get());
+			if (v.removed()) {
+				if (ours) return Optional.of(v.id());
+				continue;
+			}
+			// a town Steward took on as a region is never taken up whole (docs/GROWTH.md, slice B)
+			if (v.adopted()) continue;
+			if (ours) return Optional.of(v.id());
+			// not Steward's build, the dev spike, a build that holds it, or the history (undo takes it up)
+			if (v.build() == null || SPIKE.equals(v.build()) || running.test(v.build()) || entry.isPresent()) continue;
+			return Optional.of(v.id());
+		}
+		return Optional.empty();
+	}
+
+	/**
+	 * (slice VSR, manager) As {@link #nextVillage}, passing over a region a player stands in ({@code occupied}; {@code held} told of each): it is not
+	 * marked tried, so it is chosen again once they have left (the 10 s tick asks again). Pure.
+	 */
+	static Optional<String> nextFree(Settlement s, List<Village> regions, java.util.function.Predicate<String> running, java.util.Set<String> tried,
+		java.util.function.Predicate<String> occupied, Consumer<String> held) {
+		java.util.Set<String> skip = new java.util.HashSet<>(tried);
+		while (true) {
+			var id = nextVillage(s, regions, running, skip);
+			if (id.isEmpty() || !occupied.test(id.get())) return id;
+			skip.add(id.get());
+			held.accept(id.get());
+		}
+	}
+
+	/** Whether a player stands in the region's claim (one block around it): Architect holds a removal while one does. */
+	static boolean playerIn(MinecraftServer server, Settlement s, String regionId) {
+		try {
+			// a removed one (its tombstone retired with nothing asked of Architect) holds nothing
+			var box = ArchitectAccess.api().regions().get(regionId).filter(v -> v.state() != RegionState.REMOVED).map(dev.larattalabs.architect.api.RegionView::claim)
+				.orElse(null);
+			if (box == null) return false;
+			List<double[]> at = new java.util.ArrayList<>();
+			for (var p : server.getPlayerList().getPlayers()) {
+				if (p.level().dimension().identifier().toString().equals(s.claim().dimension())) at.add(new double[] { p.getX(), p.getY(), p.getZ() });
+			}
+			return inside(new int[] { box.minX(), box.minY(), box.minZ(), box.maxX(), box.maxY(), box.maxZ() }, at);
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
+	}
+
+	/**
+	 * Whether any of the positions (a player's feet) is near enough the box (min and max x, y, z, inclusive) that the player could touch it: Architect's
+	 * check grows the player's own box (0.6 wide, 1.8 tall) by a block, so two blocks around it, and from three below. Pure.
+	 */
+	static boolean inside(int[] box, List<double[]> at) {
+		for (double[] p : at) {
+			if (p[0] >= box[0] - 2 && p[0] < box[3] + 3 && p[1] >= box[1] - 3 && p[1] < box[4] + 3 && p[2] >= box[2] - 2 && p[2] < box[5] + 3) return true;
+		}
+		return false;
+	}
+
+	/** (slice VSR, manager) Settlements with a village passed over because a player stood in it: the 10 s tick asks again. This world's session only. */
+	private static final java.util.Set<String> HELD = new java.util.HashSet<>();
+	/** Regions {@link #takeUp} passed over for a player standing in them: their take-up was asked (an ended build's), so a build naming them is no hold. */
+	private static final java.util.Set<String> HELD_REGIONS = new java.util.HashSet<>();
+
+	/** Village regions asked of the sweep this world start (each once). This world's session only. */
+	private static final java.util.Set<String> TRIED = new java.util.HashSet<>();
+	/** Settlements with a village take-up by {@link #takeUp} in flight, whoever asked: one at a time per settlement. This world's session only. */
+	private static final java.util.Set<String> REMOVING = new java.util.HashSet<>();
+
+	/** The sweep's village take-ups of one settlement, one after the other: the next is chosen from fresh state once the one before has answered. */
+	private static void villages(MinecraftServer server, String settlementId) {
+		chain(settlementId, SWEEPING, () -> {
+			var s = Settlements.store().get(settlementId);
+			// (slice DG review round 2) a settlement whose growth take-up (or an undo) is running is left to it; (slice VSR review 3) so is one with a build
+			// running (a restored build's cancel takes its own region up) or a region being removed: its orphans wait for a start where nothing holds it
+			if (s.isEmpty() || Undo.busy(settlementId) || SettlementRunner.busy(settlementId)) return Optional.empty();
+			try {
+				var api = ArchitectAccess.api().regions();
+				List<Village> regions = new java.util.ArrayList<>(api.list(s.get().owner()).stream().map(Village::of).toList());
+				// the sweep's own take-ups still standing in the history: a removed one is a tombstone the list leaves out
+				for (String id : standingTakeUps(s.get())) {
+					if (regions.stream().noneMatch(v -> v.id().equals(id))) api.get(id).map(Village::of).ifPresent(regions::add);
+				}
+				// a region whose take-up was asked and passed over (a player stood in it): the ended build that still names it holds it no longer
+				java.util.Set<String> asked = regions.stream().filter(v -> HELD_REGIONS.contains(v.id()) && v.build() != null).map(Village::build)
+					.collect(java.util.stream.Collectors.toSet());
+				return nextFree(s.get(), regions, b -> SettlementRunner.running(b) && !asked.contains(b), TRIED, id -> playerIn(server, s.get(), id), id -> {
+					// (slice VSR, manager) never asked while a player stands in it: Architect would hold the removal (and the settlement) up to 10 minutes
+					if (HELD.add(settlementId)) Steward.LOGGER.info("village region {} of {} waits: a player stands in it (asked again once they leave)", id, settlementId);
+				}).map(id -> {
+					Steward.LOGGER.warn("village region {} of {} is held by no build and no history entry: taking it up", id, settlementId);
+					return id;
+				});
+			} catch (RuntimeException | LinkageError e) {
+				Steward.LOGGER.warn("{}: could not look for villages without a build", settlementId, e);
+				return Optional.empty();
+			}
+		}, TRIED, (id, done) -> {
+			var s = Settlements.store().get(settlementId);
+			if (s.isEmpty()) { done.accept(null); return; }
+			takeUp(server, s.get(), id, m -> Steward.LOGGER.info("{}: {}", settlementId, m), done);
+		});
+	}
+
+	/**
+	 * (slice VSR) Runs a settlement's take-ups one at a time: {@code next} chooses one (from fresh state), it is marked tried and the settlement held in
+	 * {@code holding} until its answer; true or false goes on to the next choice, null (the world closed) stops. A take-up that answers before it returns
+	 * (refused at once) goes on the same way. Nothing starts while the settlement is held. Pure but for what it is handed.
+	 */
+	static void chain(String settlementId, java.util.Set<String> holding, java.util.function.Supplier<Optional<String>> next, java.util.Set<String> tried,
+		java.util.function.BiConsumer<String, Consumer<Boolean>> takeUp) {
+		if (holding.contains(settlementId)) return;
+		var id = next.get();
+		if (id.isEmpty()) return;
+		tried.add(id.get());
+		holding.add(settlementId);
+		boolean[] answered = { false };
+		takeUp.accept(id.get(), ok -> {
+			if (answered[0]) return;
+			answered[0] = true;
+			holding.remove(settlementId);
+			if (ok != null) chain(settlementId, holding, next, tried, takeUp);
+		});
 	}
 
 	/** A history note naming a growth whose build ended while it was still being placed: it is logged or taken up once it has ended (its tag on the note). */
@@ -65,7 +215,7 @@ public final class VillageSweep {
 	private static final Map<String, List<Settlement.LogEntry>> UNSAVED = new java.util.HashMap<>();
 
 	static {
-		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> { TAKING.clear(); SWEEPING.clear(); UNSAVED.clear(); });
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(srv -> { TAKING.clear(); SWEEPING.clear(); UNSAVED.clear(); TRIED.clear(); REMOVING.clear(); HELD.clear(); HELD_REGIONS.clear(); });
 	}
 
 	/** An orphan note to save again on the sweep's next pass (its save failed). */
@@ -83,6 +233,13 @@ public final class VillageSweep {
 	 */
 	public static void growths(MinecraftServer server) {
 		for (Settlement s : Settlements.store().all()) growths(server, s);
+		// (slice VSR, manager) the villages a player stood in are looked at again (one at a time per settlement, each once, as at the world start)
+		for (String id : List.copyOf(HELD)) {
+			// a settlement busy meanwhile keeps its mark for a later tick
+			if (Undo.busy(id) || SettlementRunner.busy(id) || SWEEPING.contains(id)) continue;
+			HELD.remove(id);
+			villages(server, id);
+		}
 	}
 
 	public static void growths(MinecraftServer server, Settlement given) {
@@ -223,6 +380,37 @@ public final class VillageSweep {
 	 * Without an entry (nothing of it shows, or the history could not be saved) its removal is asked for as it is; the next world start looks again.
 	 */
 	static void takeUp(MinecraftServer server, Settlement s, String regionId, Consumer<String> say) {
+		takeUp(server, s, regionId, say, ok -> { });
+	}
+
+	/**
+	 * As {@link #takeUp(MinecraftServer, Settlement, String, Consumer)}, with its answer on the server thread: true taken up, false stopped or refused (or
+	 * the settlement busy with another take-up, an undo or a removal), null when the world closed meanwhile. One take-up per settlement at a time, whoever asks (slice VSR).
+	 */
+	static void takeUp(MinecraftServer server, Settlement s, String regionId, Consumer<String> say, Consumer<Boolean> whenDone) {
+		// (slice VSR review 2) nor while an undo or cancel of the settlement runs, or Architect is removing one of its regions: SettlementRunner.busy's
+		// removal half (the sweep's chain checks the same before it chooses)
+		if (Undo.busy(s.id()) || removingAny(s) || !REMOVING.add(s.id())) {
+			Steward.LOGGER.warn("village region {} of {} waits: the settlement is busy taking up or removing another (looked at again at the next start)", regionId, s.id());
+			whenDone.accept(false);
+			return;
+		}
+		Consumer<Boolean> done = ok -> {
+			REMOVING.remove(s.id());
+			whenDone.accept(ok);
+		};
+		if (playerIn(server, s, regionId)) {
+			// (slice VSR, manager) Architect would hold the removal (and the settlement) while a player stands in it: not asked, nothing logged (more of it may
+			// be placed meanwhile). The region is kept, so the 10 s tick's sweep takes it up once they have left, even while an ended build still names it
+			// (not tried this start: chosen again)
+			Steward.LOGGER.info("village region {} of {} waits: a player stands in it (asked again once they leave)", regionId, s.id());
+			TRIED.remove(regionId);
+			HELD_REGIONS.add(regionId);
+			HELD.add(s.id());
+			done.accept(false);
+			return;
+		}
+		HELD_REGIONS.remove(regionId);
 		var entry = entryOf(s, regionId);
 		if (entry.isEmpty()) {
 			List<String> ids = sitesOf(server, s.owner(), regionId);
@@ -230,19 +418,35 @@ public final class VillageSweep {
 			if (!ids.isEmpty()) {
 				List<Settlement.SiteChange> changes = ids.stream().map(id -> new Settlement.SiteChange(id, sites.get(id).map(VillageSweep::role).orElse(null), 0,
 					sites.get(id).map(SiteView::version).orElse(1))).toList();
-				var placed = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, "A village placed after its build ended (being taken up)",
-					changes, VPlan.REGION_PREFIX + regionId, Settlement.Outcome.PARTIAL);
+				var placed = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.PROJECT_PLACED, TAKING_UP, changes, VPlan.REGION_PREFIX + regionId,
+					Settlement.Outcome.PARTIAL);
 				if (Settlements.log(s.id(), placed).ok()) entry = Settlements.store().get(s.id()).flatMap(x -> entryOf(x, regionId));
 			}
 		}
 		if (entry.isEmpty()) {
-			ArchitectAccess.api().regions().remove(regionId, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> {
-				if (err != null || !r.removed()) Steward.LOGGER.warn("village region {} of {} could not be taken up yet (tried again at the next start): {}", regionId, s.id(),
+			// the settlement is busy while the region is taken up (Undo.region marks it so too); its answer on the server thread, this world's only
+			Undo.mark(s.id(), true);
+			int session = Session.current();
+			ArchitectAccess.api().regions().remove(regionId, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
+				Undo.mark(s.id(), false);
+				if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
+				boolean ok = err == null && r.removed();
+				if (!ok) Steward.LOGGER.warn("village region {} of {} could not be taken up yet (tried again at the next start): {}", regionId, s.id(),
 					err != null ? err.toString() : r.blockers());
-			});
+				done.accept(ok);
+			}));
 			return;
 		}
-		Undo.region(server, Settlements.store().get(s.id()).orElse(s), entry.get(), regionId, Map.of(), say, ok -> { });
+		Undo.region(server, Settlements.store().get(s.id()).orElse(s), entry.get(), regionId, Map.of(), say, done);
+	}
+
+	/** Whether Architect is removing a region of the settlement (a removal in flight, or one it resumed at the world start). */
+	private static boolean removingAny(Settlement s) {
+		try {
+			return ArchitectAccess.api().regions().list(s.owner()).stream().anyMatch(v -> v.state() == RegionState.REMOVING);
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
 	}
 
 	/** The history entry that placed this region (its newest). */
