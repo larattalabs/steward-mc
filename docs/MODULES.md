@@ -733,6 +733,17 @@ cost is spent by then, as for any stopped build. The lamp fallback is said as to
 - **Noah (2026-11-15, PLAN Decisions):** the bound comes from the measurement and is shown with the quote, not at Start. The steward says
   each module's bill and its bound when the quote is in; past it, the build holds and asks.
 
+**The guard (2026-11-15, the batch-072 GPT review's blocker; the manager's rule-13 call: it lowers risk and is reversible).** In a town built from
+materials a composed module lot is left out of the town, said: "a working crop farm can't be held to its measured limit in a town built from
+materials yet; it's left out for now" (the left-out path of 2: no design, no pad). A town built at once is unchanged.
+- **Why.** Architect 0.72.0's `realiseApproved` takes no cap scoped to a lot. Steward's quote check holds a module's pieces to its bound before the
+  realise, but once an inexact quote is approved ("may differ"), the realise could consume past that bound while it builds, so the steward's "its
+  measured limit: N" would not be enforced. A region-wide `maxBill` can't hold one lot apart, and until v0.73.0 it outlives its revision (BC-d).
+- **The switch.** One constant, `ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP`. It comes off when a cap scoped to the module lands (QD after BC-d,
+  S-M5-16). Everything behind it (6 above) stays and is unit-tested with the guard off. e2e `composed-modules-restart` (the held bill across a
+  restart and a stale artifact, which passed on 11-15 before the guard) is registered again then.
+- **e2e:** `composed-modules-survival` expects both module lots left out with these words, and the town built from the stockpile without them.
+
 **7. Never a pad.** `fitting()` and `palette()` leave a lot whose design breaks the approved box or a palette rule a pad. A module lot they
 would drop refuses the realise instead, said, with nothing placed. The designed lots keep today's rule.
 

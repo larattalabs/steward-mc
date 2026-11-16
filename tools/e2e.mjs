@@ -2623,10 +2623,10 @@ async function composedModulesFlow() {
 }
 
 /**
- * (slice M5a, docs/MODULES.md "M5 design" 6) A composed town built from materials with a working crop farm: the farm's bound held on purpose (the dev
- * source's 1-dirt bound; its storage hall then isn't in that catalog, so it is left out, said); at the realise the quote holds the build before anything
- * is consumed; approved, the farm's share becomes its bound, the next quote says the limit and the town is built from the stockpile; undone, every
- * consumed unit comes back once.
+ * (slice M5a, docs/MODULES.md "M5 design", "The guard") A composed town built from materials: while no cap scoped to a module lot exists (S-M5-16), each
+ * module lot of the plan is left out of the town, said (never designed in its place, never a pad); the town is built from the stockpile without them
+ * (its two cottages) and, undone, every consumed unit comes back once. The held-bill path behind the guard is composed-modules-restart's (registered
+ * again when the guard comes off) and the units'.
  */
 async function composedModulesSurvivalFlow() {
   const label = 'composed modules survival';
@@ -2635,9 +2635,7 @@ async function composedModulesSurvivalFlow() {
   await cmd('/gamemode creative @p');
   let feeding = false, stop = false, feeder = null;
   try {
-    const sides = [9, 18, 27];
-    const tiny = sides.flatMap((width) => sides.flatMap((depth) => ['wheat', 'carrots', 'potatoes', 'beetroots'].map((crop) => ({ params: { crop, depth, width }, bom: { 'minecraft:dirt': 1 } }))));
-    ok(`${label} source`, await moduleSource(tiny));
+    await cmd('/steward dev modules {}');
     const n = settlements().length;
     await cmd(`/spreadplayers ${(n + 1) * 900} 96000 0 1 false @p`);
     await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
@@ -2676,37 +2674,28 @@ async function composedModulesSurvivalFlow() {
         if (sp && Object.keys(sp.need ?? {}).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
       }
     })();
-    from = logSize();
-    await cmd(`/steward start ${id} 3 30`);
-    const sp0 = await ledger();
-    const building = buildThrough(id, from, label, false, null, 1_800_000);
-    const held = await waitLog(from, /The working modules' bills came to more than their measured bounds[^\n]*/, 1_200_000);
-    if (!held) { stop = true; await feeder; return fail(`${label} over the bound`, `no hold; ${logSince(from).split('\n').filter((l) => /CHAT|Not placed|Stopped/.test(l)).slice(-3).join(' | ').slice(0, 300)}`); }
-    await sleep(5000);
-    const sp1 = await ledger();
-    const same = JSON.stringify(sp1?.consumed ?? {}) === JSON.stringify(sp0?.consumed ?? {});
-    const bnow = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id);
-    const hallOut = logSince(from).match(/The plan's the storage hall is left out of the town: [^\n]*/);
-    if (same && bnow?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && !bnow.vRegion && hallOut)
-      ok(`${label} over the bound`, `${held[0].slice(0, 200)}; nothing consumed, not realised; ${hallOut[0].slice(0, 120)}`);
-    else { stop = true; await feeder; return fail(`${label} over the bound`, `consumed unchanged ${same}; phase ${bnow?.state?.phase}; region ${bnow?.vRegion}; hall left out ${!!hallOut}`); }
-    // approved: each module's share becomes its bound; fed in full while it is built from the stockpile
     feeding = true;
     from = logSize();
-    await cmd(`/steward approve ${id}`);
-    const built = await building;
-    if (!built) { stop = true; await feeder; return; }
-    const limit = logSince(from).match(/From materials, the working crop farm takes [^\n]*\(its measured limit: [^\n]*/);
+    await cmd(`/steward start ${id} 3 30`);
+    const built = await buildThrough(id, from, label, false, null, 1_800_000);
+    if (!built) return;
     const done = await waitLog(from, new RegExp(`${name} is built: everything its plan laid out stands`), 900_000);
     feeding = false;
+    const since = logSince(from);
+    const guard = /can't be held to its measured limit in a town built from materials yet; it's left out for now/;
+    const farmOut = since.match(/The plan's the village field is left out of the town: [^\n]*/);
+    const hallOut = since.match(/The plan's the storage hall is left out of the town: [^\n]*/);
+    const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
+    const bound = /module \S+ lot (farm_1|warehouse_1):/.test(since);
     const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
     const mods = await moduleSites(placed);
-    const farm = mods.find((m) => m.key === 'crop_farm@1');
-    if (limit && done && farm && /^region:/.test(placed?.siteGroup ?? '')) ok(label, `${limit[0].slice(0, 200)}; built from the stockpile (${placed.siteGroup}); ${farm.sid} = ${farm.blueprint}`);
-    else { stop = true; await feeder; return fail(label, `limit said ${!!limit}; built ${!!done}; farm ${JSON.stringify(farm)}; entry ${placed?.siteGroup}`); }
+    if (farmOut && guard.test(farmOut[0]) && hallOut && guard.test(hallOut[0]) && designing === '2' && !bound && mods.length === 0)
+      ok(`${label} left out`, `${farmOut[0].slice(0, 200)}; the hall too; ${designing} designed, no module bound or placed`);
+    else return fail(`${label} left out`, `farm ${farmOut?.[0]?.slice(0, 120)}; hall ${hallOut?.[0]?.slice(0, 120)}; designing ${designing}; bound ${bound}; module sites ${mods.length}`);
+    if (done && /^region:/.test(placed?.siteGroup ?? '') && built.placed === 2) ok(label, `the town built from the stockpile without them (${placed.siteGroup}, ${built.placed} buildings)`);
+    else return fail(label, `built ${!!done}; placed ${built.placed}; entry ${placed?.siteGroup}`);
     // undone: every unit consumed comes back once
     const spB = await ledger();
-    from = logSize();
     await cmd(`/steward undo ${id}`);
     let last = null;
     for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
@@ -2728,7 +2717,6 @@ async function composedModulesSurvivalFlow() {
   } finally {
     stop = true;
     if (feeder) await feeder;
-    await cmd('/steward dev modules {}');
     await cmd('/defaultgamemode creative');
     await cmd('/architect survival off');
   }
@@ -8138,7 +8126,7 @@ try {
       await flow('module-hall-survival', 'module hall survival stockpile bill refund', () => moduleHallSurvivalFlow());
       await flow('composed-modules', 'composed module farm hall plan water undo', () => composedModulesFlow());
       await flow('composed-modules-survival', 'composed module farm survival stockpile bill refund', () => composedModulesSurvivalFlow());
-      await flow('composed-modules-restart', 'composed module farm survival restart stale bill', () => composedModulesRestartFlow());
+      // (slice M5a) composed-modules-restart holds a composed farm's bill from materials: registered again when MODULES.md "The guard" comes off (S-M5-16)
       await flow('copper-lots', 'plan material', () => copperLotsFlow());
       await flow('discard', 'plan undo', () => discardFlow());
       await flow('beside', 'plan', () => besideFlow());

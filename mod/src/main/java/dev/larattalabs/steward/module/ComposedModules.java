@@ -199,10 +199,27 @@ public final class ComposedModules {
 	 */
 	public static Decision decide(Asked a, @Nullable ModuleKind kind, ModuleGate.Verdict verdict, Town town, Set<String> taken, int @Nullable [] lotSize,
 		BiFunction<ModuleCatalog.Entry, JsonObject, @Nullable JsonObject> bounds) {
+		return decide(a, kind, verdict, town, taken, lotSize, bounds, MATERIALS_WAIT_FOR_LOT_CAP);
+	}
+
+	/**
+	 * (batch review blocker, the manager's rule-13 call, 2026-11-15; docs/MODULES.md "M5 design", "The guard") The single guard: while it is on, a composed
+	 * module lot in a town built from materials is left out of the town, said. Architect 0.72.0's {@code realiseApproved} takes no cap scoped to a lot,
+	 * so an inexact quote the player approved could consume past the module's measured bound while it builds, and the steward's "its measured limit"
+	 * would not be enforced; a region-wide {@code maxBill} would outlive its revision (BC-d) until v0.73.0. It comes off when a cap scoped to the module
+	 * lands (QD after BC-d, S-M5-16); the path behind it is kept and unit-tested. A town built at once is unchanged.
+	 */
+	public static final boolean MATERIALS_WAIT_FOR_LOT_CAP = true;
+
+	/** As above, with the guard given (unit tests of the path behind it). */
+	static Decision decide(Asked a, @Nullable ModuleKind kind, ModuleGate.Verdict verdict, Town town, Set<String> taken, int @Nullable [] lotSize,
+		BiFunction<ModuleCatalog.Entry, JsonObject, @Nullable JsonObject> bounds, boolean materialsGuard) {
 		String name = kind == null ? a.moduleId().replace('_', ' ') : kind.role();
 		if (a.moduleId().equals(UNREADABLE)) return Decision.no("the plan wrote it as a working module Steward couldn't read");
 		if (kind == null) return Decision.no("Steward has no working " + name + " in its catalog");
 		if (!verdict.ok() || verdict.entry() == null) return Decision.no("a working " + name + " can't be built here: " + verdict.message());
+		if (town.materials() && materialsGuard)
+			return Decision.no("a working " + name + " can't be held to its measured limit in a town built from materials yet; it's left out for now");
 		if (taken.contains(kind.id())) return Decision.no("the plan has a working " + name + " already, and a town gets one of each for now");
 		if (kind.warmOnly() && town.freezing()) return Decision.no("a working " + name + " can't be built here: the water would freeze in this biome");
 		var e = verdict.entry();
