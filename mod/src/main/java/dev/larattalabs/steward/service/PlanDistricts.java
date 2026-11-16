@@ -64,7 +64,8 @@ public final class PlanDistricts {
 			List<JsonObject> take = new ArrayList<>();
 			for (PlanGrowth.Lot l : lots) {
 				if (secrets.hides(l.id()) || !PlanGrowth.LOT_ID.matcher(l.id()).matches()) continue;
-				if (l.lot().has("ext") && l.lot().get("ext").isJsonObject() && l.lot().getAsJsonObject("ext").has("steward_mc:module")) continue;
+				// a module lot (M5's reading, failing closed: a marker, readable or not, or a module's lot type such as a bare crop_farm) is never designed
+				if (dev.larattalabs.steward.module.ComposedModules.asked(l.lot(), dev.larattalabs.steward.module.ComposedModules.LOT_TYPES) != null) continue;
 				take.add(l.lot());
 			}
 			if (take.isEmpty()) continue;
@@ -96,6 +97,26 @@ public final class PlanDistricts {
 
 	private static boolean reserved(Settlement.District d, String label) {
 		return d.name().equalsIgnoreCase(label) && Settlement.District.BESIDE.equals(d.kind()) && Settlement.District.RESERVED.equals(d.state()) && d.region() == null;
+	}
+
+	/**
+	 * What a plan district's side was chosen from: the town region, the kept plan (its time and words) and the settlement's districts. A district with no
+	 * side to go is skipped while this stays the same ({@link #withoutNoSide}).
+	 */
+	public static String fingerprint(String townRegion, long planAt, String planJson, List<Settlement.District> districts) {
+		StringBuilder b = new StringBuilder(townRegion).append('|').append(planAt).append('|').append(Integer.toHexString(planJson.hashCode()));
+		for (Settlement.District d : districts) b.append('|').append(d.id()).append(':').append(d.state()).append(':').append(d.region());
+		return b.toString();
+	}
+
+	/** The districts to offer less those found with no side to go ({@code noSide}: id -> fingerprint) under the same {@code fingerprint}. */
+	public static List<Unbuilt> withoutNoSide(List<Unbuilt> offer, Map<String, String> noSide, String fingerprint) {
+		return offer.stream().filter(u -> !fingerprint.equals(noSide.get(u.id()))).toList();
+	}
+
+	/** The side of the reservation an offer is made again on (an earlier acceptance's, only reserved), or empty for a first offer. */
+	public static java.util.Optional<String> resumeWay(Unbuilt u, List<Settlement.District> districts) {
+		return districts.stream().filter(d -> reserved(d, u.label())).reduce((a, b) -> b).map(Settlement.District::direction);
 	}
 
 	/** The district reserved beside the town under {@code label} with no region yet: what an earlier acceptance founded and didn't build. */
