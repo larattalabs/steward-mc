@@ -50,7 +50,10 @@ export async function styleBounds({ quotes, kit, source, id = 'crop_farm' }) {
     const program = await import(pathToFileURL(path.join(dir, `${id}.mjs`)).href);
     const { PALETTES } = await import(`${lib}/kit.mjs`);
     const costs = survivalCosts(kit);
-    const itemOf = (block) => (block in costs ? costs[block] : block);
+    // a wall-mounted block not in the costs table is billed as its standing item, as Architect's survival bill (Block.asItem) does
+    // (M4b: storage_hall@2's minecraft:redstone_wall_torch is quoted as minecraft:redstone_torch; wall_torch, *_wall_sign and banner likewise)
+    const wallItem = (block) => (/^minecraft:(.+_)?wall_(torch|sign|hanging_sign|banner|fan|head|skull)$/.test(block) ? block.replace(/(^minecraft:|_)wall_/, '$1') : block);
+    const itemOf = (block) => (block in costs ? costs[block] : wallItem(block));
     for (const q of quotes) {
       const where = `${JSON.stringify(q.params)} ${q.bible}`;
       const p = PALETTES[q.bible];
