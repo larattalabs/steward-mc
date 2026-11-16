@@ -1777,3 +1777,14 @@ hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batc
     between the two causes from Builder's order and `Fills`. Its gate covers items put in mid-build, both into the input chest and straight
     into a line hopper, and none of them reaching a fill container. Steward sends the lever and hopper-0 readings through the manager. Until FL
     ships, @2's mid-build insert is a known gap, named in the as-built beside S-M5-12. It gets no offer line, since nothing is lost.
+- **S-M5-18. The land check reads a filled fill container as changed** (slice M4b's `sort` bar 6, 2026-11-15, Architect v0.72.0; sent
+  through the manager).
+  - **Seen in game:** every storage_hall@2 just built and filled (10 halls, 4 to 16 slots, all four facings) reads `standing 1, changed N`
+    from `dev.region.landCheck`, N its slot count. Each slot's F hopper holds exactly its fill (41 of the filter item and 4 provided slabs),
+    FK reads UNLOCKED, and nothing else in the hall holds items.
+  - **Why:** `StillOurs.holds` treats a cell written as an empty container that now holds items as not ours
+    (`emptyContainer(afterNbt) && !emptyContainer(nowNbt)`). A fill site's containers are written empty and filled by `Fills` afterwards, so
+    each filled container is one changed cell. Landing reports and drift checks would call a correctly built fill site changed.
+  - **Asked:** a fill container holding exactly its fill (or less of it) counts as SAME for the land check.
+  - **Steward's side:** bar 6 judges `changed` equal to the slot count, with every F holding exactly 41 + 4 slabs. Not a gap for players:
+    nothing is charged, lost or offered on it.

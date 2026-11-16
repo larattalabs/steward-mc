@@ -476,3 +476,5 @@ a HUD label is a follow-up.
   - A run is done when the input and line are empty and each D holds at most one of its own item.
   - The steward's words for a refused undo say those hoppers hold the last sorted items, and the player takes them out too.
   - A filled F's settled D state is `enabled=false` in the template, so the land check reads a built hall as unchanged.
+  - Architect's land check counts a container written empty that now holds items as changed, so each filled F is one changed cell: bar 6
+    reads `changed` equal to the slot count, with every F holding exactly 41 + 4 slabs (S-M5-18 asks Architect to count a fill as its own).
