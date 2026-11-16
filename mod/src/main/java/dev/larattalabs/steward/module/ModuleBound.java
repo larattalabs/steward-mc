@@ -123,6 +123,19 @@ public final class ModuleBound {
 	 */
 	public static final String CRASH_EXCEPTION = "I stop before passing it, except to pay for blocks already standing after a crash";
 
+	/**
+	 * {@code words} with {@link #CRASH_EXCEPTION} after its bill sentence ({@code InboxModel.BILL} to its ". " or its final "."), when that
+	 * sentence lacks it (an offer saved before it was said); else unchanged. Pure.
+	 */
+	public static String withCrashException(String words) {
+		int i = words.indexOf(dev.larattalabs.steward.inbox.InboxModel.BILL);
+		if (i < 0) return words;
+		int end = words.indexOf(". ", i);
+		if (end < 0) end = words.endsWith(".") ? words.length() - 1 : -1;
+		if (end < 0 || words.substring(i, end).contains(CRASH_EXCEPTION)) return words;
+		return words.substring(0, end) + "; " + CRASH_EXCEPTION + words.substring(end);
+	}
+
 	/** (QD) An approved bill as Architect's {@code maxBill} (item id -> count, sorted), or null when it can't be read. */
 	public static @Nullable Map<String, Integer> cap(@Nullable JsonObject bill) {
 		JsonObject b = clean(bill);

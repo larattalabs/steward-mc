@@ -57,7 +57,9 @@ class CapTakeUpTest {
 		// refused for now (a build under way, a district's build unsettled): undo once it has ended
 		var later = MaterialRequests.takeUp(false, own, "rg1", 2, true);
 		assertEquals(MaterialRequests.TakeUp.UNDO_LATER, later);
-		assertTrue(words(later).contains("Once the build under way has ended, /steward undo set_1 takes it up"));
+		// never a promise of what undo takes later: a build finishing meanwhile (a district) may be logged after the farm
+		assertTrue(words(later).contains("Undo can't run while the build under way goes on. Once it has ended, see what undo would take up"), words(later));
+		assertTrue(words(later).contains("if it is this one, /steward undo set_1 takes it up"), words(later));
 	}
 
 	@Test

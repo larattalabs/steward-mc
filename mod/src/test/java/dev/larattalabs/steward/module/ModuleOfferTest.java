@@ -61,6 +61,15 @@ class ModuleOfferTest {
 		// (pin-073 batch review, P1) the first approval says the crash exception too: an exact quote within the bound is never asked again
 		assertTrue(words.contains(dev.larattalabs.steward.inbox.InboxModel.BILL), words);
 		assertTrue(words.contains("; I stop before passing it, except to pay for blocks already standing after a crash."), words);
+		// an offer saved before the exception was said gets it on read (the Proposal record), once; the rest of its words unchanged
+		String legacy = "Planting it takes 81 wheat seeds from the stockpile. " + dev.larattalabs.steward.inbox.InboxModel.BILL + "210 dirt, 81 wheat seeds. It's lit by plain lanterns.";
+		var saved = new dev.larattalabs.steward.model.Proposal("module.crop_farm", "A field", legacy, null, 1L, "rule", null, null, null, null, "lot_1", null, d.order());
+		assertEquals("Planting it takes 81 wheat seeds from the stockpile. " + dev.larattalabs.steward.inbox.InboxModel.BILL + "210 dirt, 81 wheat seeds; "
+			+ ModuleBound.CRASH_EXCEPTION + ". It's lit by plain lanterns.", saved.why());
+		assertEquals(saved.why(), saved.withPlace("x").why(), "said once");
+		assertEquals(words, ModuleBound.withCrashException(words), "a new offer's words already say it");
+		assertEquals("At the end: " + dev.larattalabs.steward.inbox.InboxModel.BILL + "3 dirt; " + ModuleBound.CRASH_EXCEPTION + ".",
+			ModuleBound.withCrashException("At the end: " + dev.larattalabs.steward.inbox.InboxModel.BILL + "3 dirt."));
 		// no bound measured for those params: not offered (there is nothing to approve)
 		var none = ModuleOffer.decide(K, ok(), t, null, (e, p) -> null);
 		assertFalse(none.ok());

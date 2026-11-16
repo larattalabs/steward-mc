@@ -278,7 +278,7 @@ public final class MaterialRequests {
 	/**
 	 * (pin-073 batch review, P1) How a capped growth is taken up now. {@code CANCEL}: its build still runs ({@link SettlementRunner#cancelTakesUp}).
 	 * Else {@code /steward undo} is named only when the operation it would take ({@link Undo#headFirst} of {@code lastUndoable}) is this growth's own
-	 * ({@link #ownOp}): {@code UNDO}, or {@code UNDO_LATER} while a build or a district's build refuses it for now. A newer operation standing
+	 * ({@link #ownOp}): {@code UNDO}, or {@code UNDO_LATER} while a build or a district's build refuses it for now (no promise: what finishes meanwhile may be newer). A newer operation standing
 	 * (a district started while the town was still building) is {@code NEWER}: undo would take that one, never this growth, so no command is named
 	 * for it ({@code newer} says what undo would take). {@code NONE}: the growth's own entry isn't in the history.
 	 */
@@ -337,7 +337,9 @@ public final class MaterialRequests {
 		String way = switch (how.way()) {
 			case CANCEL -> "/steward cancel " + settlementId + again;
 			case UNDO -> "/steward undo " + settlementId + again;
-			case UNDO_LATER -> "Once the build under way has ended, /steward undo " + settlementId + again;
+			// (fix-check) never a promise: what finishes meanwhile (a district) may be logged after it and be what undo takes then
+			case UNDO_LATER -> "Undo can't run while the build under way goes on. Once it has ended, see what undo would take up (the settlement's"
+				+ " history): if it is this one, /steward undo " + settlementId + again;
 			// undo takes the newest operation first: naming it here would take up something else
 			case NEWER -> "An undo now would take up \"" + how.newer() + "\" first, which came after it: to take this one up, undo what came after it,"
 				+ " newest first, or leave it as it stands.";

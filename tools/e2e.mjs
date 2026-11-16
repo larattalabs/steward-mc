@@ -6357,7 +6357,7 @@ async function moduleSurvivalFlow() {
     const theirs = Object.keys(measuredBound).filter((k) => !(k in bound2));
     // every item of the bound is shown at the offer: what the player approves is the whole of it
     const plain = (k) => k.replace(/^[^:]*:/, '').replaceAll('_', ' ');
-    const unshown = Object.entries(bound2).filter(([k, n]) => !new RegExp(`(^|[ ,])${n} ${plain(k)}(,| and|\\.|$)`).test(offer2.why)).map(([k]) => k);
+    const unshown = Object.entries(bound2).filter(([k, n]) => !new RegExp(`(^|[ ,])${n} ${plain(k)}(,|;| and|\\.|$)`).test(offer2.why)).map(([k]) => k);
     if (offer2.module?.params?.width === 9 && offer2.module?.params?.depth === 9 && Object.keys(bound2).length && own.length && /at most/.test(offer2.why) && !unshown.length)
       ok(`${lbl} offer`, `the bound in the town's blocks: ${JSON.stringify(bound2)} (its own: ${own.join(', ')}; the measured Styles' it doesn't name: ${theirs.join(', ') || 'none'})`);
     else return fail(`${lbl} offer`, `${JSON.stringify(offer2).slice(0, 400)}; items of its own ${own.join(', ')}; not shown ${unshown.join(', ')}`);
@@ -6733,13 +6733,13 @@ async function moduleCapFlow() {
       const paid = Object.fromEntries(Object.entries(spB?.consumed ?? {}).map(([k, v]) => [k, v - (sp0?.consumed?.[k] ?? 0)]).filter(([, v]) => v > 0));
       const past = Object.entries(c?.drawn ?? {}).filter(([k, v]) => v > (capSent[k] ?? 0));
       // (pin-073 batch review, P2) a charge replayed after the crash shows here: what the stockpile gave up since the offer (its own ledger) is the
-      // revision's draws, and no item past the quote it was realised under (an exact quote with no terrain allowance: equal to it)
+      // revision's draws, and no item past the quote it was realised under (an exact quote: equal to it)
       const pastQuote = quoted ? Object.entries(paid).filter(([k, v]) => v > (quoted[k] ?? 0)).map(([k, v]) => `${k} ${v}/${quoted[k] ?? 0}`) : ['no quote read'];
       const asDrawn = sameItems(paid, c?.drawn);
       const asQuoted = quoted && sameItems(paid, quoted);
-      if (c && !c.refused && Object.keys(c.drawn ?? {}).length && !past.length && !Object.keys(spB?.need ?? {}).length && asDrawn && !pastQuote.length)
+      if (c && !c.refused && Object.keys(c.drawn ?? {}).length && !past.length && !Object.keys(spB?.need ?? {}).length && asDrawn && !pastQuote.length && (asQuoted || !quotedExact))
         ok(`${label} built within the cap`, `revision ${rid} drew ${JSON.stringify(c.drawn).slice(0, 200)}, each item within the maxBill sent; the stockpile gave up the same since the offer (${sum(paid)}), nothing past its ${quotedExact ? 'exact' : 'inexact'} quote${asQuoted ? ' (equal to it)' : ''}`);
-      else fail(`${label} built within the cap`, `drawn ${JSON.stringify(c?.drawn)}; past ${JSON.stringify(past)}; still needs ${JSON.stringify(spB?.need)}; stockpile gave up ${JSON.stringify(paid).slice(0, 200)} (= drawn ${asDrawn}); past the quote ${pastQuote.slice(0, 6).join(', ') || 'none'}`);
+      else fail(`${label} built within the cap`, `drawn ${JSON.stringify(c?.drawn)}; past ${JSON.stringify(past)}; still needs ${JSON.stringify(spB?.need)}; stockpile gave up ${JSON.stringify(paid).slice(0, 200)} (= drawn ${asDrawn}); past the quote ${pastQuote.slice(0, 6).join(', ') || 'none'}; ${quotedExact ? 'exact' : 'inexact'} quote equal ${!!asQuoted}`);
     }
     // (BC-d) then a plain growth: a library asked in talk, sent with no maxBill; its own rid is uncapped and draws freely; the module rid's cap stays
     {
