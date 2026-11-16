@@ -386,4 +386,101 @@ class SurvivalDistrictTest {
 		assertEquals(Undo.Resume.WAIT, Undo.resume(null));
 		assertEquals(Undo.Resume.LEAVE, Undo.resume(RegionState.PLACED));
 	}
+
+	// ------------------------------------------------------------------ (slice SD2, the batch's GPT review)
+
+	/** A second district region of {@code id}'s settlement, {@code rg_sib} for dst_2, standing with a logged placing entry. */
+	private void sibling(String id) throws IOException {
+		Settlement s = now(id);
+		Claim west = new Claim(OW, -113, 0, 48, -64, 320);
+		s = s.withLands(s.lands().withDistrict(new Settlement.District("dst_2", "Lea", "W", west, 5L, List.of(), false, Settlement.District.BESIDE,
+			Settlement.District.STANDING, "rg_town", "rg_sib", Land.of(west), null, "steward." + id + ".dst_2")));
+		s = s.withLog(Settlement.LogEntry.of(6L, Kind.PROJECT_PLACED, "Placed 1 building in Lea", List.of(new Settlement.SiteChange("w0", "hall", 0, 1)),
+			"region:rg_sib", Settlement.Outcome.DONE));
+		a.region("rg_sib", s.owner()).ext.addProperty(Districts.DISTRICT_EXT, "dst_2");
+		a.site("w0", s.owner(), "rg_sib");
+		Settlements.store().put(s);
+		Settlements.store().save(file);
+	}
+
+	private void interruptedUndo(String id) throws IOException {
+		a.removeAnswer = Answer.HOLD;
+		Undo.region(null, now(id), founding(now(id)), "rg_sd", Map.of(), said::add, x -> { }, true);
+		Session.nextForTest();
+		Undo.mark(id, false);
+		restart();
+		a.held.remove(0).run();
+	}
+
+	@Test
+	void sd2_onlyTheUndoneRegionsOwnDistrictIsGivenUpNeverASiblingWhoseRecordIsNotLoaded() throws IOException {
+		String id = nextId();
+		district(id, false);
+		sibling(id);
+		interruptedUndo(id);
+		// at the world's start: the sibling's record not read yet, the sites file not healthy
+		a.regions.get("rg_sib").present = false;
+		a.sites.values().removeIf(x -> "rg_sib".equals(x.region));
+		a.loadHealthy = false;
+		assertTrue(Undo.finishInterrupted(null, now(id)));
+		assertEquals(1, removals(now(id)), "the undone region logged once");
+		assertTrue(now(id).lands().district("dst_2").isPresent(), "a sibling with no record is never taken for removed");
+		assertTrue(now(id).lands().district("dst_1").isPresent(), "its own district waits for a healthy read");
+		a.loadHealthy = true;
+		Undo.finishInterrupted(null, now(id));
+		assertTrue(now(id).lands().district("dst_1").isEmpty(), "given up on its tombstone, the read healthy");
+		assertTrue(now(id).lands().district("dst_2").isPresent(), "the sibling still stays");
+		assertEquals(1, removals(now(id)));
+	}
+
+	@Test
+	void sd2_aSiblingRemovedOutsideAnyUndoIsUntouchedByTheResume() throws IOException {
+		String id = nextId();
+		district(id, false);
+		sibling(id);
+		interruptedUndo(id);
+		// removed by something else, its tombstone readable: no note names it, its entry not retired
+		a.regions.get("rg_sib").state = RegionState.REMOVED;
+		a.sites.values().removeIf(x -> "rg_sib".equals(x.region));
+		assertTrue(Undo.finishInterrupted(null, now(id)));
+		assertTrue(now(id).lands().district("dst_1").isEmpty());
+		assertTrue(now(id).lands().district("dst_2").isPresent(), "no undo of it was asked: kept for the player's undo");
+		assertEquals(1, removals(now(id)), "only the undone region logged");
+		Undo.finishInterrupted(null, now(id));
+		assertTrue(now(id).lands().district("dst_2").isPresent());
+	}
+
+	@Test
+	void sd2_aRefusedUndosNoteIsClosedSoALaterRemovalIsNotTakenForIt() throws IOException {
+		String id = nextId();
+		Settlement s = district(id, false);
+		a.removeAnswer = Answer.BLOCKED;
+		var done = new AtomicReference<Boolean>();
+		Undo.region(null, s, founding(s), "rg_sd", Map.of(), said::add, done::set, true);
+		assertEquals(Boolean.FALSE, done.get());
+		assertEquals(List.of(), Undo.interrupted(now(id)), "the stopped undo's note is closed");
+		// removed later by something else: not this undo's
+		a.regions.get("rg_sd").state = RegionState.REMOVED;
+		a.sites.values().removeIf(x -> "rg_sd".equals(x.region));
+		assertFalse(Undo.finishInterrupted(null, now(id)));
+		assertEquals(0, removals(now(id)));
+		assertTrue(now(id).lands().district("dst_1").isPresent());
+		// a later undo asked again opens a fresh note
+		a.regions.get("rg_sd").state = RegionState.PLACED;
+		var placed = founding(now(id));
+		Settlement again = now(id).withLog(Undo.intentNote(placed, "rg_sd"));
+		assertEquals(List.of("rg_sd"), Undo.interrupted(again));
+	}
+
+	@Test
+	void sd2_anUnsavedNoteIsSaidAndTheUndoGoesOn() throws IOException {
+		String id = nextId();
+		Settlement s = district(id, false);
+		// the settlements file can't be written (its path a directory)
+		Settlements.useForTest(Settlements.store(), dir);
+		var done = new AtomicReference<Boolean>();
+		Undo.region(null, s, founding(s), "rg_sd", Map.of(), said::add, done::set, true);
+		assertTrue(said.stream().anyMatch(l -> l.startsWith("If the world closes before this finishes, use /steward undo " + id + " again.")), String.valueOf(said));
+		assertEquals(1, a.count("regions.remove rg_sd"), "the undo went on");
+	}
 }
