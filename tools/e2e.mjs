@@ -6666,7 +6666,7 @@ async function moduleCapFlow() {
       const n = Number(new RegExp(`(\\d+) ${plain}`).exec(words)?.[1] ?? NaN);
       if (lowered && !lowered.refused && said && t && nn > over && n === nn && before === after && !/maxBill|bill_cap/.test(words) && /\/steward undo /.test(words))
         ok(lbl, `cap of ${plain} set to ${c.drawn[item] - over} (drawn ${c.drawn[item]}): ${t.id} held bill_cap, nextNeeded ${nn} (its need + ${over} over); said "${words.replace(/^.*?The /, 'The ').slice(0, 200)}"; nothing more drawn in 20 s (${before} = ${after})`);
-      else return fail(lbl, `set ${JSON.stringify(lowered).slice(0, 160)}; said ${words.slice(0, 200) || 'nothing'}; held ${JSON.stringify(t).slice(0, 200)}; drawn ${before} -> ${after}`);
+      else return fail(lbl, `set ${String(JSON.stringify(lowered)).slice(0, 160)}; item ${item}, cap sent ${String(JSON.stringify(capSent)).slice(0, 200)}; said ${words.slice(0, 200) || 'nothing'}; held ${String(JSON.stringify(t)).slice(0, 200)} (nextNeeded ${nn}, said ${n}); drawn ${before} -> ${after}`);
       // restored: it builds on, within the cap sent
       await dev.request('dev.bc.cap', { region, rid: Number(rid), set: capSent }, { timeoutMs: 30_000 }).catch(() => null);
     }
