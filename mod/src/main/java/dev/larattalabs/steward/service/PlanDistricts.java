@@ -192,7 +192,8 @@ public final class PlanDistricts {
 		if (offeredWhy != null && !offeredWhy.isBlank()) return null;
 		if (groundWay == null || !(groundWay.equals("N") || groundWay.equals("S")) || groundWhy == null) return null;
 		String ground = groundWhy.replaceAll("\\s*\\([^)]*\\)", "").strip();
-		if (ground.isEmpty()) return null;
+		// a side its words name ("the north ward": "to the north, as you said") is no ground it asks for
+		if (ground.isEmpty() || ground.startsWith("to the ") || ground.contains("as you said")) return null;
 		return "The ground it asks for (" + ground + ") is to the " + dev.larattalabs.steward.model.DistrictRules.directionName(groundWay)
 			+ ", but a district beside the town goes only east or west for now.";
 	}

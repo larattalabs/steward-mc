@@ -191,6 +191,7 @@ class PlanDistrictsTest {
 		assertNull(PlanDistricts.betterSideNote("", "S", ""), "no ground found north or south");
 		assertNull(PlanDistricts.betterSideNote("", null, ""), "neither north nor south fits");
 		assertNull(PlanDistricts.betterSideNote("", "E", "by the water"), "only north or south is said");
+		assertNull(PlanDistricts.betterSideNote("", "N", "to the north, as you said"), "a side the label names is no ground");
 		assertEquals("The ground it asks for (on low ground) is to the south, but a district beside the town goes only east or west for now.",
 			PlanDistricts.betterSideNote(null, "S", "on low ground (6 below the town)"));
 	}

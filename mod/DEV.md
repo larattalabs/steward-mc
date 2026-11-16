@@ -728,3 +728,12 @@ e2e: `STEWARD_PORT=8592 STEWARD_DEV_PORT=8593 node tools/e2e.mjs stub --flows pl
     minute's pass runs on.
   - Module lots are left out as M5 reads them (`ComposedModules.asked` over `LOT_TYPES`, failing closed).
   - Unit tests: `PlanDistrictsTest` 11; the scoped suites with ComposedModules 114, 0 failed. `npm test` 75. Rerun of `--flows plan-district`: PASS 15.
+- **PD-2 (11-16, light, $0; no in-game run per slice, the next batch's run covers it):**
+  - The flow composes no_wood's plan with an optional districts zone `wards` whose one district is 256 by 256. It has no candidate in the claim, so
+    Architect refuses the zone NO_ROOM. The overall is NEEDS_REPAIR, with an artifact. Start leaves the zone out, and the designs come from the
+    artifact's lots. The kept plan still names the ward, and not as pending; a new step, `plan district plan keeps it`, checks that. The dev
+    `plan_district` step is gone (the command stays).
+  - North and south: Q3 is kept (docs/DISTRICTS.md section 13, "Side"). Ground found only to the north or south is said in the proposal, and no
+    side at all is said once.
+  - The restart mid-build is left to SD's flow.
+  - Unit: `PlanDistrictsTest` 13, `SurvivalDistrictTest` 18, `ProposalRulesTest` 8, `DistrictSiteTest` 6, `ModuleProposalRulesTest` 6, 0 failed.
