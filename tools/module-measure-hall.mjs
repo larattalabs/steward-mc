@@ -1460,8 +1460,17 @@ async function sortCrash() {
       const acc = await give(true);
       check(same(only(acc), FILL), `${point}: the fill's items delivered while it is paused (${json(acc)})`);
       await call('dev.stockpile.ps', { noPeriodic: true }, 30_000).catch(() => null);
-      await cmd('/save-all flush');
-      const B = savedLedger();
+      // the baseline on disk before the point is armed: /save-all runs on the server after the command returns, so the saved ledger is read
+      // until it holds the fill's items the live one does (else the halt can come first and the restart has no fill items: run 4)
+      const live = only((await pile()).ledger?.delivered);
+      let B = null;
+      for (let i = 0; i < 30; i++) {
+        await cmd('/save-all flush');
+        await sleep(1000);
+        B = savedLedger();
+        if (same(only(B?.delivered), live)) break;
+      }
+      if (!check(same(only(B?.delivered), live), `${point}: the baseline saved with the fill's items in the stockpile (${json(only(B?.delivered))})`)) continue;
       const from = killFrom();
       await call('dev.journal.killAt', { point }, 10_000);
       call('dev.stockpile.pause', { owner: OWNER, site, paused: false }, 60_000).catch(() => null);
@@ -1491,8 +1500,12 @@ async function sortCrash() {
     for (const c of cases) {
       const L0 = (await pile()).ledger;
       await cmd('/kill @e[type=item]');
-      await cmd('/save-all flush');
-      const B = savedLedger();
+      // the baseline on disk before the point is armed (/save-all runs after the command returns): the saved ledger read until it is the live one
+      const liveL = (await pile()).ledger;
+      const books = (l) => json(['delivered', 'consumed', 'returned', 'withdrawn', 'dropped'].map((k) => Object.entries(l?.[k] ?? {}).sort()));
+      let B = null;
+      for (let i = 0; i < 30; i++) { await cmd('/save-all flush'); await sleep(1000); B = savedLedger(); if (books(B) === books(liveL)) break; }
+      if (!check(books(B) === books(liveL), `${c.point}: the baseline saved before the removal`)) continue;
       // what this growth consumed: its quote (consumed = quote, bar 8)
       const consumed = c.g.quote?.bom ?? {};
       const from = killFrom();
