@@ -21,7 +21,7 @@ ln -s ../../steward-mc/node_modules node_modules
 `tools/e2e.mjs` and `tools/nightly.mjs` point TMPDIR at `/Volumes/MCTmp/tmp/steward` when that RAM disk exists. Their clients and builds inherit it. Noah approved the disk: a 24 GB volume made at login by the LaunchAgent `com.laratta.mctmp-ramdisk`, whose contents go at a reboot (`tools/lib/ram-tmp.mjs`).
 - Without the volume, or with `STEWARD_RAM_TMP=0`, TMPDIR stays as it was.
 - The game's run dirs (`mod/run`) stay on disk: the e2e reads its world, logs and screenshots there, and a failed night's world is kept for diagnosis.
-- **The sidecar's data** (`mod/run/architect/sidecar-data`) is on the RAM disk too (11-14). The machine audit measured about 3 GB written per worktree per 30 min there. e2e's preflight makes it a symlink to `/Volumes/MCTmp/tmp/steward/sidecar-<hash>`, one per checkout, kept between runs until a reboot.
+- **The sidecar's data** (`mod/run/architect/sidecar-data`) is on the RAM disk too (11-14). The machine audit measured about 3 GB written per worktree per 30 min there. e2e's preflight makes it a symlink to `/Volumes/MCTmp/tmp/steward/sidecar-<hash>`, one per checkout (each run dir has its own), emptied at each run's start and removed at its end ("Temp dirs" below).
   - An on-disk directory found there is renamed to `sidecar-data.ssd`, never deleted.
   - Without the volume, a link left dangling by a reboot becomes an empty directory again (`ramSidecarData`).
   - A dev client in the same checkout follows the link. The opt-in `secrets.json` check reads through it.
@@ -260,6 +260,36 @@ machine-wide queue (`../architect-mc/docs/GATES.md`, "Outside callers (Steward)"
   just because another Steward client runs; the queue handles that.
 - **See it:** `node $ARCHITECT_DIR/tools/slot.mjs status --json` lists holders (`who: steward`, the worktree, the label, the pid), the
   queue, the load and turbo.
+
+### Temp dirs: the run's sidecar dir removed, strays swept (slice TMPSWEEP, 2026-11-16, $0)
+
+Each run dir's sidecar dir on the RAM disk (`/Volumes/MCTmp/tmp/steward/sidecar-<hash of the run dir>`, 2-6 GB) used to stay until a reboot.
+Every worktree and `--clients` run dir has its own, so by 11-16 sixteen of them had filled the 24 GB disk and other runs failed with ENOSPC.
+
+- **Owner-marked.** e2e's preflight (`ramSidecarData(..., { fresh, own })`) writes Architect's marker into the dir: `.arch-owner`, a file
+  holding `{pid, startMs, createdAt}` for the e2e driver (startMs is its Node timeOrigin), plus `tool` and `gameDir`. The format and the liveness
+  rule (the pid runs, with the same start time) match Architect's slice TS (`../architect-mc/tools/lib/arch-tmp.mjs`, `tmp-sweep.mjs`).
+  `tools/lib/tmp-owner.mjs` has its own copy: Architect's modules move TMPDIR to its own RAM dir on import.
+- **Removed when the driver is done for good.** That happens at the end of e2e's `finally`, after the client quits, and in an exit hook that
+  covers a throw, an unhandled rejection, `process.exit` (the slot timeout's exit 3), SIGINT, SIGTERM and SIGHUP. Client relaunches
+  (`restartClient`, the restart flows) happen in the same process, so the dir and its data survive them.
+  - Only the exact path this run made is removed, and only while its marker still names this process. A later run on the same run dir
+    takes the marker over.
+  - The `mod/run/architect/sidecar-data` symlink goes with it when it points at exactly that dir, so a dev client started later finds no
+    dangling link.
+  - If something (the sidecar, the client's grandchild) writes into the dir during removal, the dir is marked again for the sweep.
+  - Each outcome is printed: `tmp: removed|kept|not-mine|gone|failed <dir>`.
+- **The sweep.** At the start of each e2e run, `sweepStale` looks at the direct children of `/Volumes/MCTmp/tmp/steward` named
+  `sidecar-*`. It removes those that carry a valid marker whose owner is gone, which are leftovers from a SIGKILL or a crash.
+  - It uses no age floor: a dead owner is decisive here, unlike Architect's 6 h default, which would have kept every dir that filled the disk.
+  - It never touches a live owner's dir, an unmarked dir, a symlink or a plain file.
+  - Architect's `tools/tmp-sweep.mjs` CLI lists only the direct children of `/Volumes/MCTmp/tmp` and takes no root, so it never sees these.
+  - Dirs from before this slice have no marker, and the sweep leaves them. A checkout's next run empties its own. Removing the rest takes a
+    one-time manual cleanup.
+- **On disk** (`STEWARD_RAM_TMP=0`, or no volume): the same cleanup applies to `mod/run/architect/sidecar-data` only when this run made it, or
+  when an earlier run had marked it and that owner is gone (it is emptied first). An existing directory that isn't marked, such as a dev
+  client's data, is never removed.
+- **`STEWARD_KEEP_TMP=1`** keeps the dir, still marked, so you can look at a failure. The next run's sweep removes it.
 
 ### Faster runs: two clients, skipping unchanged flows (slice EF, 2026-11-15, $0)
 

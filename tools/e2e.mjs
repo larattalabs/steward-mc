@@ -18,7 +18,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
-import { useRamTmp, ramSidecarData } from './lib/ram-tmp.mjs';
+import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
+import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
 import { checkCommand } from './lib/save-barrier.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
@@ -338,8 +339,12 @@ async function preflight() {
     if (cwd == null || realPath(cwd) === realPath(GAME)) throw new Error(`a Steward client already runs on ${GAME}; quit it first`);
   }
   // the sidecar's data on the RAM disk when it's there (the 11-14 machine audit: ~3 GB written per worktree per 30 min); the world, logs and shots stay on disk
-  const sd = ramSidecarData(GAME, process.env, undefined, { fresh: true });
-  ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}`);
+  // slice TMPSWEEP (mod/DEV.md "Temp dirs"): earlier runs' sidecar dirs whose owner is gone (a hard kill) go first; this run's own is owner-marked
+  // and removed when this process ends, not when its client relaunches
+  const swept = sweepStale({ root: path.join(RAM_TMP, 'steward') });
+  if (swept.removed.length || swept.failed.length) console.log(`tmp-sweep: removed ${swept.removed.length} stale sidecar dir(s)${swept.removed.length ? ` (${swept.removed.join(', ')})` : ''}${swept.failed.length ? `, ${swept.failed.length} failed` : ''}`);
+  const sd = ramSidecarData(GAME, process.env, undefined, { fresh: true, own: true });
+  ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}${sd.owned ? ', removed at the end' : ''}`);
 }
 
 /**
@@ -8196,6 +8201,8 @@ try {
   if (client && client.exitCode === null) client.kill();
   // the client is done for good: its slot goes back (an owner's slot is the owner's to release)
   if (slot?.ticket && !slot.inherited) releaseSlot(slot.ticket);
+  // the client is gone: this run's sidecar dir goes (slice TMPSWEEP; the exit hook covers the ways out that skip this)
+  for (const [dir, how] of cleanupOwned()) console.log(`tmp: ${how} ${dir}`);
 }
 const clientRows = [];
 if (laneRuns) {
