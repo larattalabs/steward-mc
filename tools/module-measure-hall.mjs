@@ -1412,6 +1412,8 @@ async function haltWait(point, from) {
 /** The client launched again into the same world after a halt (nothing saved since the halt's baseline). */
 async function restartWorld(pos) {
   await sleep(4000);
+  // the halted JVM's sidecar may hold its port a while after the halt: both ports free first (at most 60 s), else startClient refuses
+  for (let i = 0; i < 60 && ((await listening(PORT - 1)) || (await listening(PORT))); i++) await sleep(1000);
   await startClient(null, { mode: clientMode, world: worldName });
   await call('dev.survival.set', { on: true }).catch(() => null);
   await rules();
@@ -1563,7 +1565,8 @@ async function sortCrash() {
       check(u2.removed === true && same(back, c.g.quote?.bom ?? {}), `9 FKC0: the removal failed after its custody take (${refusal(u)}), its contents written back (${res.afterFail} items), restarted and retried: removed, back = consumed once (${res.back} = ${res.consumed})`, res);
     }
   } finally {
-    await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null);
+    // (a relaunch that failed leaves no client: its own error is the step's, not a null one here)
+    if (dev) await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null);
     await stopClient().catch((e) => log(`stop: ${e}`));
   }
   return out;
