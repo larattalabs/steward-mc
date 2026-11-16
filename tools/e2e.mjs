@@ -6582,7 +6582,6 @@ async function moduleCapFlow() {
     const ridBefore = Math.max(0, ...((await regionView(region)).revisions ?? []).map((r) => Number(r.rid)));
     await away();
     from = logSize();
-    const fromModule = from;
     await cmd(`/steward proposals ${id} accept ${offer.key}`);
     // asked first (an inexact quote, or past the bound): approved once, as shown
     for (let i = 0; i < 240; i++) {
@@ -6690,7 +6689,8 @@ async function moduleCapFlow() {
     {
       const lbl = `${label} plain growth after`;
       // the module growth's build is done on the steward's side first (its "is built" notice), so the library is a growth of its own
-      if (!(await waitLog(fromModule, new RegExp(`${name} is built: \\d+ buildings? placed`), 300_000))) return fail(lbl, 'the module growth was never said built');
+      // (its history entry, written once built: the log restarted with the client, so the entry is read, not the log)
+      if (!(await entryUntil(id, (e) => e.kind === 'PROJECT_PLACED' && e.siteGroup === `revision:${region}:${rid}`, 300))) return fail(lbl, `the module growth (revision ${rid}) was never logged built`);
       await sleep(5000);
       await cmd(`/steward dev sim_answer talk ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'talk', 'library.json'), 'utf8')).answer)}`);
       await cmd(`/steward talk ${id} we need a library for the scholars`);
