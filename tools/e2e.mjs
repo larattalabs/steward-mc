@@ -6636,7 +6636,7 @@ async function moduleCapFlow() {
       const c = await capOf(rid);
       const blocked = (c?.targets ?? []).filter((t) => t.blocked === 'bill_cap').map((t) => t.id);
       const total = plusItems(c?.paid ?? {}, c?.regionCharged ?? {});
-      if (a.uncleanStart === true && under.every(([, x]) => !Object.keys(x.capOver ?? {}).length) && c && !c.refused && same(c.maxBill, capSent)
+      if (a.uncleanStart === true && under.length > 0 && under.every(([, x]) => !Object.keys(x.capOver ?? {}).length) && c && !c.refused && same(c.maxBill, capSent)
         && !Object.keys(c.overshoot ?? {}).length && !blocked.length && same(c.drawn, total))
         ok(lbl, `unclean start; ${under.length} target(s) reconciled under the cap, none past it; revision ${rid} keeps its maxBill; drawn ${sum(c.drawn)} = paid ${sum(c.paid)} + region ${sum(c.regionCharged)}; nothing held`);
       else return fail(lbl, `unclean ${a.uncleanStart}; reconciled ${JSON.stringify(under).slice(0, 200)}; cap ${JSON.stringify(c).slice(0, 400)}; held ${blocked.join(',')}`);
@@ -6654,7 +6654,7 @@ async function moduleCapFlow() {
       const lowered = await dev.request('dev.bc.cap', { region, rid: Number(rid), set: { ...capSent, [item]: c.drawn[item] - over } }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
       feeding = true;
       const plain = item.replace(/^[^:]*:/, '').replaceAll('_', ' ');
-      const said = await waitLog(from, new RegExp(`has stopped: going on would take [^\\n]*?(\\d+) ${plain}[^\\n]* more than you approved[^\\n]*`), 240_000);
+      const said = await waitLog(from, new RegExp(`has stopped: finishing it would take [^\\n]*?(\\d+) ${plain}[^\\n]* more than you approved[^\\n]*`), 240_000);
       feeding = false;
       const held = await capOf(rid);
       const t = (held?.targets ?? []).find((x) => x.blocked === 'bill_cap');
@@ -6663,9 +6663,9 @@ async function moduleCapFlow() {
       await sleep(20_000);
       const after = (await capOf(rid))?.drawn?.[item];
       const words = said?.[0] ?? '';
-      const n = Number(/(\d+) /.exec(words.slice(words.indexOf('would take')))?.[1] ?? NaN);
-      if (lowered && !lowered.refused && said && t && nn > over && before === after && !/maxBill|bill_cap/.test(words) && /\/steward undo /.test(words))
-        ok(lbl, `cap of ${plain} set to ${c.drawn[item] - over} (drawn ${c.drawn[item]}): ${t.id} held bill_cap, nextNeeded ${nn} (its need + ${over} over); said "${words.replace(/^.*?The /, 'The ').slice(0, 200)}"; nothing more drawn in 20 s (${before} = ${after})${n === nn ? '' : `; the words name ${n} first`}`);
+      const n = Number(new RegExp(`(\\d+) ${plain}`).exec(words)?.[1] ?? NaN);
+      if (lowered && !lowered.refused && said && t && nn > over && n === nn && before === after && !/maxBill|bill_cap/.test(words) && /\/steward undo /.test(words))
+        ok(lbl, `cap of ${plain} set to ${c.drawn[item] - over} (drawn ${c.drawn[item]}): ${t.id} held bill_cap, nextNeeded ${nn} (its need + ${over} over); said "${words.replace(/^.*?The /, 'The ').slice(0, 200)}"; nothing more drawn in 20 s (${before} = ${after})`);
       else return fail(lbl, `set ${JSON.stringify(lowered).slice(0, 160)}; said ${words.slice(0, 200) || 'nothing'}; held ${JSON.stringify(t).slice(0, 200)}; drawn ${before} -> ${after}`);
       // restored: it builds on, within the cap sent
       await dev.request('dev.bc.cap', { region, rid: Number(rid), set: capSent }, { timeoutMs: 30_000 }).catch(() => null);
@@ -6719,7 +6719,9 @@ async function moduleCapFlow() {
       const c1b = await capOf(rid);
       const drawn2 = c2?.drawn ?? {};
       const uncapped = c2 && !c2.refused && !c2.maxBill && !Object.keys(c2.caps ?? {}).includes(String(rid2));
-      if (rid2 !== rid && !capped && uncapped && same(c1b?.maxBill, capSent) && Object.keys(c1b?.caps ?? {}).includes(String(rid)))
+      const spP = await ledger();
+      const doneP = !Object.keys(spP?.need ?? {}).length && !Object.keys(spP?.outstanding ?? {}).length && sum(drawn2) > 0 && !(c2?.targets ?? []).some((t) => t.blocked === 'bill_cap');
+      if (rid2 !== rid && !capped && uncapped && doneP && same(c1b?.maxBill, capSent) && Object.keys(c1b?.caps ?? {}).includes(String(rid)))
         ok(lbl, `revision ${rid2} sent with no maxBill and uncapped (caps by rid ${Object.keys(c2.caps ?? {}).join(',') || 'none'}); drew ${sum(drawn2)} freely; revision ${rid}'s cap kept`);
       else fail(lbl, `revision ${rid2} (module ${rid}); a cap logged ${capped}; its state ${JSON.stringify(c2).slice(0, 300)}; module rid ${JSON.stringify(c1b?.caps ?? null).slice(0, 200)}`);
     }

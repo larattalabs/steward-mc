@@ -261,7 +261,7 @@ public final class MaterialRequests {
 	 * (QD) A {@code bill_cap} wait in words: how far over what the player approved it would go (Architect's {@code nextNeeded} names the capped
 	 * items and the units over), and that nothing past it is taken. Since Architect v0.73.0 (BC-d) the cap is this growth's own (its revision's,
 	 * {@code survival.caps.<rid>}): a later plain growth is never held to it. (BC-c) After an unclean start the reconcile charges what stands even
-	 * past the cap; the wait's {@code nextNeeded} is then the need plus that overshoot, so "going on would take N more" still holds; the API
+	 * past the cap; the wait's {@code nextNeeded} is then the need plus that overshoot (what the cap must rise by to finish, so the words say "finishing it would take N more", and promise only that no more is taken, never that nothing past the bound was: the GPT review of pin-073); the API
 	 * doesn't say an overshoot apart. Architect can't raise a standing build's cap, so the way on is an undo
 	 * (since A2L a growth still building is undone by Architect's RU, what it drew refunded once: RecoveryAdapterTest's
 	 * dg_aSuppliedGrowthStillBuildingIsUndoneAndRefundsWhatWasDrawn) and asking for it again, which quotes and asks afresh. Never automatic.
@@ -274,8 +274,8 @@ public final class MaterialRequests {
 
 	/** {@link #overCap} over plain item ids (testable without the item registry). */
 	static String overCapWords(String what, String settlementId, List<Map.Entry<String, Integer>> over, int moreUnits) {
-		return "The " + what + " has stopped: going on would take " + dev.larattalabs.steward.module.ModuleBound.overWords(over, moreUnits)
-			+ " more than you approved, and I take nothing past that; filling the stockpile won't help. /steward undo " + settlementId
+		return "The " + what + " has stopped: finishing it would take " + dev.larattalabs.steward.module.ModuleBound.overWords(over, moreUnits)
+			+ " more than you approved, so I take no more for it; filling the stockpile won't help. /steward undo " + settlementId
 			+ " takes it up and gives back what it drew; then ask for it again and I'll put the new bill to you.";
 	}
 

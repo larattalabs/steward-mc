@@ -42,7 +42,7 @@ class BillCapBCdTest {
 		// (BC-c) the reconcile charged 39 planks standing past the cap; the target holds bill_cap with nextNeeded = its need 39 + the 39 over
 		var w = new dev.larattalabs.architect.api.SiteWait("s1", true, 10, List.of(), 0, dev.larattalabs.architect.api.SiteWait.BILL_CAP, List.of());
 		assertTrue(MaterialRequests.capped(w));
-		assertEquals("The farm has stopped: going on would take 78 oak planks more than you approved, and I take nothing past that; filling the"
+		assertEquals("The farm has stopped: finishing it would take 78 oak planks more than you approved, so I take no more for it; filling the"
 			+ " stockpile won't help. /steward undo set_1 takes it up and gives back what it drew; then ask for it again and I'll put the new bill to you.",
 			MaterialRequests.overCapWords("farm", "set_1", List.of(Map.entry("minecraft:oak_planks", 78)), 0));
 	}
@@ -63,7 +63,7 @@ class BillCapBCdTest {
 		var ext = JsonParser.parseString("{\"architect_mc:waitsFor\": {\"target\": \"stockpile:p1\", \"kind\": \"bill_cap\", \"missing\": {\"minecraft:observer\": 3},"
 			+ " \"say\": \"Main gatehouse's portcullis waits bill_cap: its bill is past the region's maxBill by {minecraft:observer=3}\"}}").getAsJsonObject();
 		String said = SettlementRunner.capStageWait(ext, "set_1");
-		assertEquals("The main gatehouse's portcullis has stopped: going on would take 3 observer more than you approved, and I take nothing past that;"
+		assertEquals("The main gatehouse's portcullis has stopped: finishing it would take 3 observer more than you approved, so I take no more for it;"
 			+ " filling the stockpile won't help. /steward undo set_1 takes it up and gives back what it drew; then ask for it again and I'll put the new"
 			+ " bill to you.", said);
 		assertFalse(said.contains("maxBill") || said.contains("bill_cap"), "no Architect words");

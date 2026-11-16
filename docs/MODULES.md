@@ -833,7 +833,7 @@ Noah, 2026-11-14: "A: up to N". Architect v0.70.0 (QL's `Quote.terrain()`, BC's 
   and sends one only with a module growth from materials (`SettlementRunner.realiseCap`, pure); a plain growth, a district or a town built at
   once never sends one. BC-c counts the reconcile and the region's charges (fluids, gate mechanisms) against the cap: an unclean start can
   leave a build past it (a standing cell is charged, never clamped), and the target then waits `bill_cap` with `nextNeeded` = its need plus
-  the overshoot, which the same line says ("going on would take N more than you approved"); the API doesn't tell an overshoot apart. A gate
+  the overshoot, which the same line says ("finishing it would take N more than you approved, so I take no more for it": it never says nothing past the bound was taken, since a reconcile may have); the API doesn't tell an overshoot apart. A gate
   mechanism held by the cap (`waitsFor.kind: bill_cap`) is said in the same words (`capStageWait`), never Architect's "waits bill_cap ...
   maxBill". Architect migrates a 0.72.0 region-wide cap to its owning rid at load; no Steward save held one (QD never shipped). Units:
   `BillCapBCdTest`. `ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP` stays on: BC-d's scope is the revision, not the lot (S-M5-16 isn't in it).
