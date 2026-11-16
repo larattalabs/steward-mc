@@ -6220,10 +6220,27 @@ async function moduleSurvivalFlow() {
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(quoted).filter(([k]) => k !== 'minecraft:wheat_seeds').map(([k, n]) => [k, n * 2 + 16])) });
     // (QD, Noah's "A: up to N") the held bill shows each terrain item as "up to N" (the quote plus its allowance), every other item exact
     const planOf = new RegExp(`module ${id} quote (\\S+): `).exec(logSince(from))?.[1];
-    const upDirt = Number(/up to (\d+) dirt/.exec(whole)?.[1] ?? NaN);
+    // (pin-073) the quote's terrain part as logged ("terrain {minecraft:dirt=205}"): since Architect 0.72.0 (QL-b/QL-c) a module growth's shells
+    // and verges are always paid, so its quote may name no terrain item and be exact; then every item is shown and capped exactly, no "up to"
+    const terrainLogged = new RegExp(`module ${id} quote \\S+: [^\\n]*terrain (\\{[^}]*\\})\\)`).exec(logSince(from))?.[1] ?? null;
+    const noTerrain = terrainLogged === '{}';
+    if (noTerrain) {
+      if (planOf && !/up to /.test(whole)) ok(`${label} up to`, `the quote names no terrain item (terrain {}): every item shown exactly, no "up to": ${whole.slice(0, 160)}`);
+      else return fail(`${label} up to`, `plan ${planOf}; terrain {}; whole bill ${whole.slice(0, 300)}`);
+    }
+    const upDirt = noTerrain ? NaN : Number(/up to (\d+) dirt/.exec(whole)?.[1] ?? NaN);
     const allowance = upDirt - (quoted['minecraft:dirt'] ?? 0);
-    if (planOf && allowance >= 2) ok(`${label} up to`, `the held bill shows dirt as up to ${upDirt} (quoted ${quoted['minecraft:dirt'] ?? 0}, allowed ${allowance} over): ${whole.slice(0, 160)}`);
+    if (noTerrain) { /* said above */ } else if (planOf && allowance >= 2) ok(`${label} up to`, `the held bill shows dirt as up to ${upDirt} (quoted ${quoted['minecraft:dirt'] ?? 0}, allowed ${allowance} over): ${whole.slice(0, 160)}`);
     else return fail(`${label} up to`, `plan ${planOf}; whole bill ${whole.slice(0, 300)}`);
+    let heldShown = null, upDirt2 = NaN, qPast = quoted;
+    const quoteAt = (since) => { const m = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(since)); return m ? JSON.parse(m[1]) : null; };
+    const delta = (a, b) => Object.fromEntries(Object.keys({ ...a, ...b }).map((k) => [k, (b?.[k] ?? 0) - (a?.[k] ?? 0)]).filter(([, d]) => d !== 0));
+    if (noTerrain) {
+      heldShown = Object.values(JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id)?.moduleOrders ?? {})[0]?.held ?? null;
+      from = logSize();
+      feeding = true;
+      ok(`${label} drift`, 'report: no terrain item to drift (terrain {}), the drift rounds are skipped');
+    } else {
     // the terrain under it drifts while it is held, by kept cells that stand turned to coarse dirt (a realise writes them again, billing a dirt each):
     // past the allowance it is asked again with the new "up to"; then one cell more stays within it and is placed with no further ask
     const tc = await dev.call('dev.ql.terrainCells', { planId: planOf, max: 4096 }, { timeoutMs: 120_000 }).catch((e) => ({ refused: String(e) }));
@@ -6236,18 +6253,17 @@ async function moduleSurvivalFlow() {
     feeding = true;
     await cmd(`/steward approve ${id}`);
     const again = await waitLog(from, /The bill came to more than you approved[^\n]*/, 240_000);
-    const upDirt2 = Number(/up to (\d+) dirt/.exec(again?.[0] ?? '')?.[1] ?? NaN);
+    upDirt2 = Number(/up to (\d+) dirt/.exec(again?.[0] ?? '')?.[1] ?? NaN);
     const bAgain = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id);
     // the re-quote moved by exactly the drifted cells, in dirt only
-    const quoteAt = (since) => { const m = new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\})`).exec(logSince(since)); return m ? JSON.parse(m[1]) : null; };
-    const delta = (a, b) => Object.fromEntries(Object.keys({ ...a, ...b }).map((k) => [k, (b?.[k] ?? 0) - (a?.[k] ?? 0)]).filter(([, d]) => d !== 0));
-    const qPast = quoteAt(from);
+    qPast = quoteAt(from);
     const d2 = qPast ? delta(quoted, qPast) : null;
     if (again && upDirt2 > upDirt && JSON.stringify(d2) === JSON.stringify({ 'minecraft:dirt': allowance + 1 }) && bAgain?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && !bAgain.vRegion)
       ok(`${label} past the cap`, `${allowance + 1} dirt cells drifted while held (re-quote ${JSON.stringify(d2)}): asked again, now up to ${upDirt2} dirt (was ${upDirt}); not realised`);
     else return fail(`${label} past the cap`, `asked again ${!!again}; re-quote moved ${JSON.stringify(d2)} (want ${allowance + 1} dirt only); up to ${upDirt2} (was ${upDirt}); phase ${bAgain?.state?.phase}; region ${bAgain?.vRegion}`);
-    const heldShown = Object.values(bAgain.moduleOrders ?? {})[0]?.held ?? null;
+    heldShown = Object.values(bAgain.moduleOrders ?? {})[0]?.held ?? null;
     await drift(standing.slice(allowance + 1, allowance + 2));
+    }
     // approved: the bill becomes the bound and the realise's maxBill; realised from materials, fed in full whatever the stockpile still asks for
     // (every 3 s), never left waiting
     from = logSize();
@@ -6265,8 +6281,8 @@ async function moduleSurvivalFlow() {
       capSent = capLine ? Object.fromEntries(capLine[1].split(', ').map((kv) => kv.split('=')).map(([k, n]) => [k, Number(n)])) : null;
       // the maxBill sent is exactly the bill shown at the second hold (saved as held, approved as the bound), item by item
       const same = !!(capSent && heldShown) && Object.keys({ ...capSent, ...heldShown }).every((k) => capSent[k] === heldShown[k]);
-      if (!third && same && capSent['minecraft:dirt'] === upDirt2 && JSON.stringify(d3) === JSON.stringify({ 'minecraft:dirt': 1 }))
-        ok(`${label} within the cap`, `one more dirt cell drifted (re-quote ${JSON.stringify(d3)}): placed with no third ask; the realise's maxBill is the approved bill (${JSON.stringify(capSent).slice(0, 200)})`);
+      if (noTerrain ? !third && same && (d3 == null || JSON.stringify(d3) === '{}') : !third && same && capSent['minecraft:dirt'] === upDirt2 && JSON.stringify(d3) === JSON.stringify({ 'minecraft:dirt': 1 }))
+        ok(`${label} within the cap`, noTerrain ? `placed as approved with no second ask; the realise's maxBill is the approved bill (${JSON.stringify(capSent).slice(0, 200)})` : `one more dirt cell drifted (re-quote ${JSON.stringify(d3)}): placed with no third ask; the realise's maxBill is the approved bill (${JSON.stringify(capSent).slice(0, 200)})`);
       else fail(`${label} within the cap`, `asked a third time ${third}; re-quote moved ${JSON.stringify(d3)} (want 1 dirt); maxBill ${JSON.stringify(capSent)}; shown ${JSON.stringify(heldShown)}; up to ${upDirt2}`);
     }
     const g = await growthOf(id);
@@ -6563,6 +6579,7 @@ async function moduleCapFlow() {
     const offer = await moduleOffer(id);
     if (!offer) return fail(`${label} offer`, `no module.${MODULE} proposal within 90 s`);
     const sp0 = await ledger();
+    const ridBefore = Math.max(0, ...((await regionView(region)).revisions ?? []).map((r) => Number(r.rid)));
     await away();
     from = logSize();
     await cmd(`/steward proposals ${id} accept ${offer.key}`);
@@ -6576,10 +6593,15 @@ async function moduleCapFlow() {
     const capLine = new RegExp(`module ${id} realise \\S+ under \\S+: maxBill \\{([^}]*)\\}`).exec(logSince(0));
     const capSent = capLine ? Object.fromEntries(capLine[1].split(', ').map((kv) => kv.split('=')).map(([k, c]) => [k, Number(c)])) : null;
     if (!capSent) return fail(`${label} sent`, `no capped realise logged: ${logSince(from).split('\n').filter((l) => /CHAT|module /.test(l)).slice(-4).join(' | ').slice(0, 400)}`);
-    let g = null;
-    for (let i = 0; i < 120 && !g?.m; i++) { await sleep(1000); g = await growthOf(id); }
-    const rid = g?.m?.[2];
-    if (!g?.m || g.m[1] !== region) return fail(`${label} sent`, `no revision of ${region} logged: ${g?.op?.siteGroup}`);
+    // the growth's revision: the region's newest (its history entry is written once it is built, so it is read from the region)
+    let rid = null;
+    for (let i = 0; i < 120 && rid == null; i++) {
+      const revs = (await regionView(region)).revisions ?? [];
+      const head = revs.filter((r) => Number(r.rid) > ridBefore).sort((x, y) => y.rid - x.rid)[0];
+      if (head) rid = String(head.rid);
+      else await sleep(1000);
+    }
+    if (rid == null) return fail(`${label} sent`, `no new revision of ${region} after the capped realise (revisions past ${ridBefore})`);
     // (BC-d) the cap is this revision's own: Architect's record holds it under its rid, item by item as sent
     const c1 = await capOf(rid);
     if (c1 && !c1.refused && Number(c1.rid) === Number(rid) && same(c1.maxBill, capSent)) ok(`${label} per revision`, `revision ${rid}'s maxBill = the approved bound sent (${JSON.stringify(capSent).slice(0, 160)}); caps by rid ${Object.keys(c1.caps ?? {}).join(',')}`);
@@ -6685,13 +6707,13 @@ async function moduleCapFlow() {
       }
       feeding = false;
       const g2 = await growthOf(id);
-      const rid2 = g2?.m?.[2];
+      const rid2 = String(Math.max(...((await regionView(region)).revisions ?? []).map((r) => Number(r.rid))));
       const capped = new RegExp(`realise \\S+ under \\S+: maxBill`).test(logSince(from));
       const c2 = rid2 ? await capOf(rid2) : null;
       const c1b = await capOf(rid);
       const drawn2 = c2?.drawn ?? {};
       const uncapped = c2 && !c2.refused && !c2.maxBill && !Object.keys(c2.caps ?? {}).includes(String(rid2));
-      if (g2?.m && g2.m[1] === region && rid2 !== rid && !capped && uncapped && same(c1b?.maxBill, capSent) && Object.keys(c1b?.caps ?? {}).includes(String(rid)))
+      if (rid2 !== rid && !capped && uncapped && same(c1b?.maxBill, capSent) && Object.keys(c1b?.caps ?? {}).includes(String(rid)))
         ok(lbl, `revision ${rid2} sent with no maxBill and uncapped (caps by rid ${Object.keys(c2.caps ?? {}).join(',') || 'none'}); drew ${sum(drawn2)} freely; revision ${rid}'s cap kept`);
       else fail(lbl, `revision ${rid2} (module ${rid}); a cap logged ${capped}; its state ${JSON.stringify(c2).slice(0, 300)}; module rid ${JSON.stringify(c1b?.caps ?? null).slice(0, 200)}`);
     }
