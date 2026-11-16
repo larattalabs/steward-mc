@@ -17,6 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -115,14 +116,12 @@ async function startClient(label, { mode = 'creative' } = {}) {
   const { DevClient } = await import(pathToFileURL(path.join(ARCH, 'tools', 'lib', 'devclient.mjs')).href);
   if (flag('--attach')) { dev = await DevClient.connect({ port: PORT, timeoutMs: 30_000 }); await dev.waitInWorld({ timeoutMs: 60_000 }); return; }
   claimRun();
-  // the load gate (AGENTS.md speed rules): wait at most E2E_LOAD_WAIT_MIN (15) minutes for the 1-minute load to fall under E2E_LOAD_MAX (72)
-  const loadMax = Number(process.env.E2E_LOAD_MAX ?? 72), waitMin = Math.min(15, Number(process.env.E2E_LOAD_WAIT_MIN ?? 15));
-  for (const end = Date.now() + waitMin * 60_000; os.loadavg()[0] >= loadMax && Date.now() < end;) await sleep(30_000);
-  log(`load ${os.loadavg()[0].toFixed(0)} at the start (gate ${loadMax}, waited at most ${waitMin} min)`);
   for (const p of [PORT - 1, PORT]) if (await listening(p)) throw new Error(`port ${p} is in use (another client?): refusing to launch; use --attach to drive it`);
   if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
   worldName = `Steward M4 ${label} ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
+  // one slot from Architect's machine-wide queue (slice SQ, tools/lib/slot-queue.mjs), held by this driver until the client quits
+  slot = await acquireSlot(`module-measure-hall ${label}`, { root: ROOT });
   const out = fs.openSync(path.join(ART, 'client.log'), 'a');
   child = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], {
     stdio: ['ignore', out, out],
@@ -136,10 +135,19 @@ async function startClient(label, { mode = 'creative' } = {}) {
   dev = await Promise.race([DevClient.connect({ port: PORT, timeoutMs: 900_000 }), died]);
   await dev.waitInWorld({ timeoutMs: 900_000 });
 }
+let slot = null;
 async function stopClient() {
-  if (!dev || !launched || exited || flag('--attach') || flag('--keep-client')) return;
-  const r = await dev.request('dev.quit');
-  if (r.ok) await dev.waitClosed(180_000);
+  // a kept client keeps its slot until this driver ends (the exit handler frees it)
+  if (flag('--attach') || flag('--keep-client')) return;
+  try {
+    if (!dev || !launched || exited) return;
+    const r = await dev.request('dev.quit');
+    if (r.ok) await dev.waitClosed(180_000);
+  } finally {
+    // done for good: the slot goes back, also when the client died before its bridge answered
+    if (slot?.ticket) releaseSlot(slot.ticket);
+    slot = null;
+  }
 }
 const call = (type, payload = {}, timeoutMs = 120_000) => dev.call(type, payload, { timeoutMs });
 const req = (type, payload = {}, timeoutMs = 120_000) => dev.request(type, payload, { timeoutMs });

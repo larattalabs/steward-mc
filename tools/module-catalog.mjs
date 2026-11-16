@@ -38,6 +38,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 import { styleBounds } from './lib/style-bounds.mjs';
 import { moduleShaOf, smokeCarry } from './lib/smoke-carry.mjs';
 
@@ -222,6 +223,8 @@ async function startClient() {
   if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
   const world = `Steward M1 Catalog ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
+  // one slot from Architect's machine-wide queue (slice SQ, tools/lib/slot-queue.mjs), held by this driver until the client quits
+  slot = await acquireSlot(`module-catalog ingame`, { root: ROOT });
   const out = fs.openSync(path.join(ART, 'client.log'), 'a');
   child = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], {
     stdio: ['ignore', out, out],
@@ -237,10 +240,19 @@ async function startClient() {
   if (exited) throw new Error('the launched client exited before its bridge answered');
   await dev.waitInWorld({ timeoutMs: 600_000 });
 }
+let slot = null;
 async function stopClient() {
-  if (!dev || !launched || exited || flag('--attach') || flag('--keep-client')) return;
-  const r = await dev.request('dev.quit');
-  if (r.ok) await dev.waitClosed(120_000);
+  // a kept client keeps its slot until this driver ends (the exit handler frees it)
+  if (flag('--attach') || flag('--keep-client')) return;
+  try {
+    if (!dev || !launched || exited) return;
+    const r = await dev.request('dev.quit');
+    if (r.ok) await dev.waitClosed(120_000);
+  } finally {
+    // done for good: the slot goes back, also when the client died before its bridge answered
+    if (slot?.ticket) releaseSlot(slot.ticket);
+    slot = null;
+  }
 }
 let n = 0;
 /** One `/steward dev module` request; its answer from <gameDir>/steward-modules/<label>.json. */
