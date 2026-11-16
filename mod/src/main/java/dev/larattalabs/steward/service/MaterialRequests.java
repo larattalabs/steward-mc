@@ -259,7 +259,10 @@ public final class MaterialRequests {
 
 	/**
 	 * (QD) A {@code bill_cap} wait in words: how far over what the player approved it would go (Architect's {@code nextNeeded} names the capped
-	 * items and the units over), and that nothing past it is taken. Architect 0.70.0 can't raise a standing build's cap, so the way on is an undo
+	 * items and the units over), and that nothing past it is taken. Since Architect v0.73.0 (BC-d) the cap is this growth's own (its revision's,
+	 * {@code survival.caps.<rid>}): a later plain growth is never held to it. (BC-c) After an unclean start the reconcile charges what stands even
+	 * past the cap; the wait's {@code nextNeeded} is then the need plus that overshoot, so "going on would take N more" still holds; the API
+	 * doesn't say an overshoot apart. Architect can't raise a standing build's cap, so the way on is an undo
 	 * (since A2L a growth still building is undone by Architect's RU, what it drew refunded once: RecoveryAdapterTest's
 	 * dg_aSuppliedGrowthStillBuildingIsUndoneAndRefundsWhatWasDrawn) and asking for it again, which quotes and asks afresh. Never automatic.
 	 */

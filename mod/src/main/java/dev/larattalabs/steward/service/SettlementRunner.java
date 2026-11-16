@@ -2941,8 +2941,19 @@ public final class SettlementRunner {
 	 * module build, Architect has no {@code maxBill}, or there is no bound (quoteModules refuses that before a realise).
 	 */
 	private java.util.@org.jspecify.annotations.Nullable Map<String, Integer> moduleCap() {
-		if (!moduleBuild() || moduleOrders.size() != 1 || !ArchitectApi.get().features().contains(MAX_BILL)) return null;
-		return dev.larattalabs.steward.module.ModuleBound.cap(moduleOrders.values().iterator().next().bound());
+		return realiseCap(true, moduleBuild(), moduleOrders, ArchitectApi.get().features().contains(MAX_BILL));
+	}
+
+	/**
+	 * (QD, BC-d) The {@code maxBill} a realise or revision is sent with, or null for none. Since Architect v0.73.0 (BC-d) a cap covers only the
+	 * realise or revision it comes with ({@code survival.caps.<rid>.maxBill}, kept by Architect): a revision sent without one is uncapped. So
+	 * only a module growth built from materials is capped (its one module lot's approved bound); a plain growth, a district or a town built at
+	 * once never sends one, and is never held to an earlier module growth's bound. Steward keeps no cap of its own beyond the order's bound. Pure.
+	 */
+	static java.util.@org.jspecify.annotations.Nullable Map<String, Integer> realiseCap(boolean fromMaterials, boolean moduleBuild,
+			Map<String, dev.larattalabs.steward.module.ModuleOrder> orders, boolean hasMaxBill) {
+		if (!fromMaterials || !moduleBuild || orders.size() != 1 || !hasMaxBill) return null;
+		return dev.larattalabs.steward.module.ModuleBound.cap(orders.values().iterator().next().bound());
 	}
 
 	/** Lost or late variant answers asked again by key, this build (a refusal is never retried). */
@@ -4297,6 +4308,12 @@ public final class SettlementRunner {
 		boolean ours = batchId != null && batchId.equals(e.batchId()) || buildId != null && buildId.equals(extString(e.ext(), BatchPlanner.BUILD_EXT))
 			|| vRegionId != null && vRegionId.equals(extString(e.ext(), "architect_mc:region"));
 		if (!ours || e.reason().isEmpty()) return;
+		// (QD, BC-c) a part whose whole charge (a gate mechanism) would pass the approved bound: said in the steward's words, not Architect's
+		String capped = capStageWait(e.ext(), settlement.id());
+		if (capped != null) {
+			if (saidWaits.add(capped)) say(capped);
+			return;
+		}
 		// a stage wait (built from materials: a part waits for the parts it stands on): Architect's own sentence, said once
 		String stage = stageWait(e.ext());
 		if (stage != null) {
@@ -4325,6 +4342,28 @@ public final class SettlementRunner {
 		if (!w.has("say") || !w.get("say").isJsonPrimitive()) return null;
 		String t = w.get("say").getAsString().strip();
 		return t.isEmpty() ? null : Character.toUpperCase(t.charAt(0)) + t.substring(1);
+	}
+
+	/**
+	 * (QD, Architect BC-c v0.73.0) A stage wait held by the realise's {@code maxBill} ({@code architect_mc:waitsFor.kind = bill_cap}: a gate
+	 * mechanism's whole charge would pass the approved bound; {@code missing} names the units over) in the steward's words, as a site's
+	 * {@code bill_cap} wait is ({@link MaterialRequests#overCapWords}); else null. Its subject is Architect's ("Main gatehouse's portcullis"),
+	 * else "build". Pure.
+	 */
+	static @org.jspecify.annotations.Nullable String capStageWait(com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext, String settlementId) {
+		if (ext == null || !(ext.get("architect_mc:waitsFor") instanceof JsonObject w)) return null;
+		if (!(w.get("kind") instanceof com.google.gson.JsonPrimitive k) || !dev.larattalabs.architect.api.SiteWait.BILL_CAP.equals(k.getAsString())) return null;
+		List<Map.Entry<String, Integer>> over = new ArrayList<>();
+		if (w.get("missing") instanceof JsonObject m) for (var e : m.entrySet()) {
+			if (e.getValue() instanceof com.google.gson.JsonPrimitive n && n.isNumber() && n.getAsInt() > 0) over.add(Map.entry(e.getKey(), n.getAsInt()));
+		}
+		String what = "build";
+		if (w.get("say") instanceof com.google.gson.JsonPrimitive say) {
+			String t = say.getAsString().strip();
+			int i = t.indexOf(" waits bill_cap");
+			if (i > 0) what = Character.toLowerCase(t.charAt(0)) + t.substring(1, i);
+		}
+		return MaterialRequests.overCapWords(what, settlementId, over, 0);
 	}
 
 	private void onBatchDone(BatchView b) {

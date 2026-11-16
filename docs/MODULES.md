@@ -826,7 +826,17 @@ Noah, 2026-11-14: "A: up to N". Architect v0.70.0 (QL's `Quote.terrain()`, BC's 
   over-count, past the settlement's throttle. Architect 0.70.0 can't raise a standing build's cap, so the line names `/steward undo` (since A2L
   a growth still building is undone, what it drew refunded once) and asking for it again. No automatic undo-and-retry (the manager, 11-14).
   Leftovers: an Architect ask to raise a standing cap; Architect's unclean-start reconcile isn't cap-aware (BC's own exclusion; the manager
-  takes it to Architect).
+  takes it to Architect: BC-c, v0.73.0).
+- **On Architect v0.73.0 (BC-c/BC-d, pin-073, 2026-11-16).** QD was held out of the 0.72.0 batch because 0.72.0's cap was region-wide and
+  outlived its revision (a later plain growth stayed capped). BC-d keeps one cap per revision (`survival.caps.<rid>.maxBill`, Architect's
+  record; no API change): a revision realised without `maxBill` is uncapped. Steward keeps no cap of its own beyond the order's approved bound,
+  and sends one only with a module growth from materials (`SettlementRunner.realiseCap`, pure); a plain growth, a district or a town built at
+  once never sends one. BC-c counts the reconcile and the region's charges (fluids, gate mechanisms) against the cap: an unclean start can
+  leave a build past it (a standing cell is charged, never clamped), and the target then waits `bill_cap` with `nextNeeded` = its need plus
+  the overshoot, which the same line says ("going on would take N more than you approved"); the API doesn't tell an overshoot apart. A gate
+  mechanism held by the cap (`waitsFor.kind: bill_cap`) is said in the same words (`capStageWait`), never Architect's "waits bill_cap ...
+  maxBill". Architect migrates a 0.72.0 region-wide cap to its owning rid at load; no Steward save held one (QD never shipped). Units:
+  `BillCapBCdTest`. `ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP` stays on: BC-d's scope is the revision, not the lot (S-M5-16 isn't in it).
 - **Not covered:** a crash between a put-down refusal and its hold being saved re-quotes against the saved bound (cap-safe, but it may place
   without the re-ask). No e2e engineers a put-down `BILL_CAP` or a `bill_cap` wait (unit-tested words and keys only).
 - **e2e** (module-survival, round 1): the held bill says "up to N dirt"; kept terrain cells that stand are turned to coarse dirt while it is held.
