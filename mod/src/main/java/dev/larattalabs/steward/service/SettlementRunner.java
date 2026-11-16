@@ -3052,7 +3052,7 @@ public final class SettlementRunner {
 				moduleOrders = Map.of(lot, now.holding(shown));
 				persist();
 				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.upTo(shown, terrain.keySet(), 1000)
-					+ ". Approve to build it with this bill (it becomes the bound: nothing past it is taken), or cancel."));
+					+ ". Approve to build it with this bill (it becomes the bound: I stop before passing it, except to pay for blocks already standing after a crash), or cancel."));
 				return;
 			}
 			if (now.held() != null) { moduleOrders = Map.of(lot, now.holding(null)); persist(); }
