@@ -5384,7 +5384,27 @@ async function siteBox(sid) {
  * accepted → a growth whose filter hoppers are filled (41 + 4) at $0; /steward hall lists the slots; a short mix sorts; cargo refuses the undo, said;
  * emptied (the fill stays: it is ours), undone, the ground as before. Until @2 is certified the dev source offers it under a measuring gate.
  */
+/** The newest version of a catalog module whose measured.json certifies it (result pass). */
+function newestCertified(id) {
+  const dir = path.join(ROOT, 'modules', id);
+  const vs = fs.readdirSync(dir).filter((d) => /^\d+$/.test(d)).map(Number).sort((a, b) => b - a);
+  for (const v of vs) {
+    const f = path.join(dir, String(v), 'measured.json');
+    if (fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')).result === 'pass') return v;
+  }
+  return null;
+}
+
+/** The sorting hall's flow, its Nether-tier grant taken back on every way out (the flows after it share the player). */
 async function moduleHallSortFlow() {
+  try {
+    return await moduleHallSortFlowBody();
+  } finally {
+    await cmd('/advancement revoke @p until minecraft:story/enter_the_nether').catch(() => null);
+  }
+}
+
+async function moduleHallSortFlowBody() {
   const label = 'module hall sort';
   const HALL = 'storage_hall';
   const n = settlements().length;
@@ -5559,9 +5579,11 @@ async function moduleHallFlow() {
   if (!grew) return;
   const g = await growthOf(id);
   const mods = await moduleSites(g.op);
-  const sha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', HALL, '1', 'module.json'), 'utf8')).programSha;
+  // the catalog's newest certified hall builds the plain hall (M4b: @2's slots 0 branch, unchanged from @1, MEASURE-M4 12.1)
+  const v = newestCertified(HALL);
+  const sha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', HALL, String(v), 'module.json'), 'utf8')).programSha;
   const noDesign = !/Designing|massings|Style bible/.test(logSince(from));
-  if (g.m && g.m[1] === region && mods.length === 1 && mods[0].key === `${HALL}@1` && sha.startsWith(mods[0].sha) && mods[0].params.bulk === 2 && noDesign)
+  if (g.m && g.m[1] === region && mods.length === 1 && mods[0].key === `${HALL}@${v}` && sha.startsWith(mods[0].sha) && mods[0].params.bulk === 2 && (mods[0].params.slots ?? 0) === 0 && noDesign)
     ok(label, `revision ${g.m[2]} of ${region} (${g.rev?.state}); lot ${mods[0].sid} = ${mods[0].blueprint} (${JSON.stringify(mods[0].params)}); no design`);
   else return fail(label, `entry ${g.op?.siteGroup}; module sites ${JSON.stringify(mods)}; no design ${noDesign}`);
   // its containers: 2 double chests (4 halves) and the input chest, all empty

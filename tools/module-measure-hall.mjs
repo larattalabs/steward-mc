@@ -1211,10 +1211,26 @@ async function sortSurvival() {
     const charged = minus(ps1.ledger?.consumed, ps0.ledger?.consumed);
     const fillCharged = ['stone', 'redstone', 'dirt', 'coal'].map((k) => `minecraft:${k}`).filter((k) => (charged[k] ?? 0) > (minus(quote, g.quote.bomParts[fillKey])[k] ?? 0));
     out.blocked = { putF: fA.ok ?? null, phase: fk2.phase, wait: fk2.siteWait ?? fk2.wait ?? null, fillCharged };
-    check(fA.ok && fk2.phase !== 'UNLOCKED' && fillCharged.length === 0, `B2 an F contaminated before the fill: the fill waits (FK ${fk2.phase}; ${json(fk2.siteWait ?? fk2.wait ?? null)}), no filter item charged past the structure (${json(fillCharged)})`, out.blocked);
+    // (GPT review 5) the wait is the fill's own block (fill_blocked), and the contaminant is all still there: the player's 64 cobblestone in the hall
+    // (the leak), or the 1 dirt in F 0; then taken back whole, and gone from the hall
+    const wt = fk2.siteWait ?? fk2.wait ?? null;
+    const contaminant = out.leak ? { 'minecraft:cobblestone': 64 } : { 'minecraft:dirt': 1 };
+    const sB = sumAll(await sortState(h));
+    const intact = Object.entries(contaminant).every(([k, n]) => (sB[k] ?? 0) === n) && (out.leak ? totalOf(sB) === 64 : true);
+    check(fA.ok && fk2.phase !== 'UNLOCKED' && wt?.blocked === 'fill_blocked' && intact && fillCharged.length === 0,
+      `B2 an F contaminated before the fill: the fill waits fill_blocked (FK ${fk2.phase}; ${json(wt)}), the contaminant all there (${json(contaminant)}: ${intact}), no filter item charged past the structure (${json(fillCharged)})`, { ...out.blocked, before: sB });
     // the player takes their dirt back: the fill runs once
-    await mod({ op: 'clearContainers', box: [...h.sort[0].F, ...h.sort[0].F] });
-    if (out.leak) { await emptyHoppers(h); await clearOutputs(h); await mod({ op: 'clearContainers', box: [...h.input, ...h.input] }); }
+    const t0 = await mod({ op: 'clearContainers', box: [...h.sort[0].F, ...h.sort[0].F] });
+    let taken = t0.taken ?? {};
+    if (out.leak) {
+      for (const c of h.sort) for (const at of [c.line, c.D]) taken = plus(taken, (await mod({ op: 'clearContainers', box: [...at, ...at] })).taken);
+      for (const c of h.sort) taken = plus(taken, (await mod({ op: 'clearContainers', box: [...c.chest, ...c.chest] })).taken);
+      taken = plus(taken, (await mod({ op: 'clearContainers', box: [...h.overflow, ...h.overflow] })).taken);
+      taken = plus(taken, (await mod({ op: 'clearContainers', box: [...h.input, ...h.input] })).taken);
+    }
+    const sA = sumAll(await sortState(h));
+    const backC = Object.fromEntries(Object.keys(contaminant).map((k) => [k, taken[k] ?? 0]));
+    check(same(backC, contaminant) && Object.keys(contaminant).every((k) => !(sA[k] ?? 0)), `B2 the contaminant taken back whole (${json(backC)}), none left in the hall`, { taken, after: sA });
     const fd = await feedUntil(region, async (st, rs) => st.view.state === 'PLACED' && (rs?.build ? rs.build.done : true));
     const w = await rvWait(region, g.rid);
     const fk3 = await fkState(site);
@@ -1487,10 +1503,20 @@ async function sortCrash() {
       await restartWorld(home);
       // the baseline was saved with the site paused, and the halt lost the resume: resumed again
       await call('dev.stockpile.pause', { owner: OWNER, site, paused: false }, 60_000).catch(() => null);
-      await feedUntil(region, async () => (await fkState(site)).phase === 'UNLOCKED', { timeoutMs: 900_000 });
-      const f = await fkState(site);
+      // (GPT review 1) after the restart only the fill's items are fed, never the structure's: a restart that re-owed or re-charged a block shows
+      let f = null, refed = {};
+      for (let i = 0; i < 360; i++) {
+        f = await fkState(site);
+        if (f.phase === 'UNLOCKED') break;
+        refed = plus(refed, await give(true));
+        await sleep(2500);
+      }
       const L2 = (await pile()).ledger;
       const charged = only(minus(L2.consumed, S.consumed));
+      // every item consumed since the pre-crash baseline, structure included: the fill exactly once, nothing else
+      const sinceB = minus(L2.consumed, B.consumed);
+      const owedAfter = Object.fromEntries(Object.entries((await pile()).outstanding ?? {}).filter(([k, n]) => !(k in FILL) && n > 0));
+      check(same(sinceB, FILL) && !Object.keys(owedAfter).length, `9 ${point}: consumed since the pre-crash baseline, every item: the fill once (${json(minus(sinceB, FILL))} off; re-fed ${json(refed)}; structure owed after the restart ${json(owedAfter)})`, { sinceB, refed, owedAfter });
       const want = marker ? {} : FILL;
       const holds = (f.containers ?? []).map((c) => c.holds);
       const exactly = holds.length === 4 && holds.every((m, u) => m?.[`minecraft:${items[u]}`] === 41 && m?.['minecraft:petrified_oak_slab'] === 4 && Object.keys(m).length === 2);
@@ -1537,8 +1563,19 @@ async function sortCrash() {
       const res = { point: c.point, savedCustody, state: rs, back: totalOf(back), consumed: totalOf(consumed), diff: minus(back, consumed), custody: F.custody ?? null, heldProvided: F.heldProvided ?? null, drops, slabs };
       out.removal.push(res);
       check(c.point !== 'FKC1' || totalOf(savedCustody) > 0, `9 ${c.point}: the custody (${json(savedCustody)}) was on disk at the halt`, res);
-      check(rs === 'UNDONE' && same(back, consumed) && !Object.keys(F.custody ?? {}).length && !Object.keys(F.heldProvided ?? {}).length && !Object.keys(drops).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
-        `9 ${c.point}: after the restart the removal ends once (${rs}): back = consumed item for item (${totalOf(back)} = ${totalOf(consumed)}; off ${json(res.diff)}); no custody or provided custody left; nothing dropped; no slab loose`, res);
+      check(rs === 'UNDONE' && same(back, consumed) && !Object.keys(F.custody ?? {}).length && !Object.keys(F.heldProvided ?? {}).length && !Object.keys(F.pendingCredit ?? {}).length && !Object.keys(drops).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
+        `9 ${c.point}: after the restart the removal ends once (${rs}): back = consumed item for item (${totalOf(back)} = ${totalOf(consumed)}; off ${json(res.diff)}); no custody, provided custody or pending refund left; nothing dropped; no slab loose`, res);
+      // (MEASURE-M4 12.7 B3, GPT review 2) the unchanged second retry, then a second restart: nothing more comes back, nothing is left pending
+      const retry = await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
+      await sleep(4000);
+      await reopen(home);
+      await sleep(4000);
+      const F2 = (await pile()).ledger;
+      const again = minus(plus(F2.returned, F2.refundOverflow), plus(F.returned, F.refundOverflow));
+      const drops2 = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
+      res.retry = { answer: refusal(retry), again, drops: drops2 };
+      check(!Object.keys(again).length && !Object.keys(drops2).length && !Object.keys(F2.custody ?? {}).length && !Object.keys(F2.pendingCredit ?? {}).length && json(F2.consumed) === json(F.consumed),
+        `9 ${c.point}: an unchanged second undo and a second restart: nothing more back (${json(again)}), nothing dropped, nothing pending (${refusal(retry)})`, res.retry);
     }
     // ---- FKC0 (Architect's LC, S-M5-13): a removal failing after its custody take, a restart, a retry. Runs once the hook exists.
     const rest = [...grown].reverse().slice(removalPoints.length);

@@ -76,6 +76,9 @@ public final class HallCommand {
 	 * (distinct domain items for its slots), the catalog no longer offers the version, or the town builds from materials and no bound comes out.
 	 */
 	public static Actions.Result items(MinecraftServer server, ServerPlayer player, String id, String spec) {
+		// (M4b GPT review 9) the offer is the host's: a LAN guest or a non-operator can't change its items or its bill
+		String no = Actions.refusal(player);
+		if (no != null) return Actions.Result.fail(no);
 		Optional<Settlement> s = Settlements.store().get(id);
 		if (s.isEmpty()) return Actions.Result.fail("No such settlement: " + id + " (see /steward settlements).");
 		Proposal pr = null;
@@ -103,14 +106,15 @@ public final class HallCommand {
 		var p = ModuleGate.params(v.entry(), want);
 		if (!p.ok()) return Actions.Result.fail("Those items don't work: " + p.refused() + ".");
 		var town = ModuleOffers.town(server, s.get(), player, pr.district());
-		boolean materials = town.path() == ModuleOffer.Path.REGION_MATERIALS;
+		boolean materials = town.path().materials(); // (review 10) an adopted town built from materials is billed too
 		JsonObject bound = materials ? ModuleOffers.bounds(s.get()).apply(v.entry(), p.values()) : null;
 		if (materials && bound == null) return Actions.Result.fail("Its bill for those items wasn't measured, so there is no bound to approve.");
 		var d = ModuleOffer.decide(ModuleKind.StorageHall.INSTANCE, v, town, p.values(), ModuleOffers.bounds(s.get()));
 		if (!d.ok()) return Actions.Result.fail("The hall can't be offered with those items: " + d.why() + ".");
 		if (!d.order().params().equals(p.values())) return Actions.Result.fail("The hall can't be offered with those items here (the steward would offer " + slots(d.order().params()) + ").");
 		var lamp = ModuleOffers.lamp(s.get(), v.entry());
-		Proposal next = ModuleOffers.proposal(ModuleKind.StorageHall.INSTANCE, d, s.get(), materials, lamp.fallback(), pr.key(), pr.trigger(), System.currentTimeMillis());
+		// (review 10) the offer keeps its district: a district's hall is placed in that district
+		Proposal next = ModuleOffers.proposal(ModuleKind.StorageHall.INSTANCE, d, s.get(), materials, lamp.fallback(), pr.key(), pr.trigger(), System.currentTimeMillis()).in(pr.district());
 		var ps = s.get().proposals();
 		List<Proposal> open = new ArrayList<>();
 		for (Proposal x : ps.open()) open.add(x.key().equals(pr.key()) ? next : x);

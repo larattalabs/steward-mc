@@ -399,7 +399,7 @@ async function record() {
         requote.bounds = sb.bounds; requote.problems = sb.problems;
       }
       const c = smokeCarry({ prev: e.measured, mod: e.module, now, gameModuleSha: g.gate.moduleSha, versions: { architect: ARCH_VERSION, minecraft: MC_VERSION },
-        offline: off, offEntry: o, ingame: inn, inEntry: g, checks: freshChecks(), survival: read('survival.json'), fields, requote });
+        offline: off, offEntry: o, ingame: inn, inEntry: g, checks: freshChecks(), survival: read(`${M.billing ?? 'survival'}.json`), billingStep: M.billing ?? 'survival', fields, requote });
       if (c.why.length) { refused++; log(`REFUSED ${key} (smoke): ${c.why.join('; ')}`); continue; }
       fs.writeFileSync(path.join(e.dir, 'measured.json'), `${JSON.stringify(c.m, null, 2)}\n`);
       log(`recorded ${key}: result pass, basis smoke from ${c.m.from}, moduleSha ${c.m.moduleSha.slice(0, 12)}`);
@@ -474,7 +474,7 @@ const MEASURES = {
     steps: ['hall', 'bounds', 'sort', 'sort-survival', 'sort-cargo', 'sort-crash'],
     what: 'docs/MEASURE-M4.md 12.5 and 12.7: the sorting hall (slots 4, 8, 12 and 16, each with its own items through the 48-item domain) and its plain branch, measured in a dev client by tools/module-measure-hall.mjs --version 2: shape, light, sorting 20 runs a branch in acknowledged batches, throughput, saturation and a full overflow, the filters holding, restart and full and partial unloads mid-sort, ingress before the lock (a mid-build insert down the line is the known gap S-M5-17: fill_blocked, nothing charged or lost), fill_blocked, the bill (structure + 41 per item) and the refunds after taking, cargo alone in every container class, the fed-slab recovery, and the crash points FK1-FK4, FKC1, FKC2 and CS1 (FKC0 is deferred to the pin that carries Architect LC2; late cargo is the known gap S-M5-12, named in the offer).',
     bars: 'docs/MEASURE-M4.md 12.5 and 12.7 (committed before the first measurement)',
-    art: 'm4b', runs: 1, rates: false, hallRates: true, round: 'hall',
+    art: 'm4b', runs: 1, rates: false, hallRates: true, round: 'hall', billing: 'sort-survival', // (review 11) @2's billing check is sort-survival
     fill: { params: Array.from({ length: 16 }, (_, i) => `item${i + 1}`), count: 41 },
   },
 };
