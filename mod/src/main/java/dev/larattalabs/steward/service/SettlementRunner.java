@@ -2121,7 +2121,9 @@ public final class SettlementRunner {
 		// Architect's words for a link that went (SidecarLink: "sidecar connection lost: ..."), or an answer that never came; not any message that
 		// happens to hold "link" (a bible named "blinkhaven")
 		String m = String.valueOf(e.getMessage()).toLowerCase();
-		return m.contains("connection lost") || m.contains("not connected") || m.contains("timed out") || m.startsWith("timeout") || m.contains("sidecar link lost");
+		// (slice M5a, seen under load) "the helper disconnected during follow <id>; it resumes when the helper restarts: call again with the same opKey"
+		return m.contains("connection lost") || m.contains("not connected") || m.contains("timed out") || m.startsWith("timeout") || m.contains("sidecar link lost")
+			|| m.contains("helper disconnected");
 	}
 
 	static boolean keyConflict(@org.jspecify.annotations.Nullable Throwable err) {
