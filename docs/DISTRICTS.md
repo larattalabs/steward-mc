@@ -382,5 +382,9 @@ Noah, 11-15 ("Yes, billed"): quarters work in survival and bill materials like t
   tombstone (its resumed removal ended) logs the removal once and gives the district up; anything else (the resumed removal stopped, PARTIAL) is left for
   the player's next undo, never asked again unseen. A region removed outside an undo (no note) is never taken for one (`district-growth`'s town removed
   first). The same sweep gives up a district whose removal was logged but whose give-up never saved, with no player near.
+  After the batch's GPT review: the resume gives up only the undone region's own district (`giveUpRemoved`: its tombstone, its entries retired, a healthy
+  sites read), never the settlement-wide pass that took a sibling whose record wasn't loaded for removed; a refused or stopped undo closes its note
+  (`Undo stopped`), so a later removal by something else is never taken for it; a note that couldn't be saved is said ("If the world closes before
+  this finishes, use /steward undo again"), and the undo goes on.
 - **Checks:** unit `SurvivalDistrictTest` (SD2: finished once after a restart, refund once; a stopped resumed removal left; no note, no retire; the give-up
   by the sweep; the note's order), `StockpilesTest` (the street margin). e2e (stub) flows `survival-quarter`, `quarter-growth`, `district-module`.
