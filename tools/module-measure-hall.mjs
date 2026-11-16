@@ -1162,12 +1162,14 @@ async function sortSurvival() {
     for (let i = 0; i < 60 && !site; i++) { await sleep(2000); site = await siteOf(region, sp.id); }
     await hallCells(region, [h]);
     site = site ?? h.siteId;
-    check(!!site, `B2 the hall's site named while it builds (${site})`);
     // feed half waves until the input chest stands, then preload it with 64 cobblestone; starve (no feeding) 600 ticks: nothing moves
     let preloaded = false;
     for (let i = 0; i < 200 && !preloaded; i++) {
       const c = (await readCells([h.input]))[0];
       if (c?.[0] === 'minecraft:chest') {
+        // what guards the line at that moment: the lever (the lock) and line hopper 0 under the input
+        const g0 = await readCells([h.lever, h.sort[0].line, h.sort[0].F]);
+        out.atPreload = { lever: g0[0], line0: g0[1], F0: g0[2] };
         const a = await mod({ op: 'putItems', at: h.input, stacks: [{ slot: 0, id: 'minecraft:cobblestone', count: 64 }] });
         preloaded = !!a.ok;
         break;
@@ -1182,10 +1184,11 @@ async function sortSurvival() {
     await sleep(30_000);
     const st1 = await sortState(h);
     site = site ?? await siteOf(region, sp.id);
+    check(!!site, `B2 the hall's site named while it builds (${site})`);
     const fk1 = await fkState(site);
     out.preload = { input: st1.input, line: st1.line, F: st1.F, D: st1.D, phase: fk1.phase };
     check(st1.input['minecraft:cobblestone'] === 64 && st1.line.every((m) => !totalOf(m)) && st1.F.every((m) => !totalOf(m)) && st1.D.every((m) => !totalOf(m)),
-      `B2 starving part way (FK ${fk1.phase ?? '?'}): the preloaded input stayed put, the line, every F and D empty`, out.preload);
+      `B2 starving part way (FK ${fk1.phase ?? 'not begun'}, ${fk1.state}; at the preload the lever ${json(out.atPreload?.lever ?? null)}, line hopper 0 ${json(out.atPreload?.line0 ?? null)}): the preloaded input stayed put, the line, every F and D empty`, out.preload);
     // an F contaminated before the fill (a player's dirt in F 0), then the rest fed: the fill waits fill_blocked, charging no filter item
     const fA = await mod({ op: 'putItems', at: h.sort[0].F, stacks: [{ slot: 0, id: 'minecraft:dirt', count: 1 }] }).catch((e) => ({ error: String(e) }));
     const fed = await feedUntil(region, async () => {
