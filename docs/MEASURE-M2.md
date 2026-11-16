@@ -235,6 +235,13 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.73.0 by a smoke check (2026-11-16, pin-073; speed rule 4).** The pins moved to kit/checker 0.68.0, the program
+unchanged (`c406df05…`), moduleSha `05058fa9…`. The kit's diff for crop_farm's paths is version strings only (`realise.mjs`, `region/plan.mjs`);
+the Java changes survival billing (BC-c/BC-d: per-revision caps, region charges counted in the cap, keyed ledger charges), which this
+section's rule lists as a full re-measure trigger. The manager's brief chose the smoke carry, leaning on the billing steps as at 0.72.0: survival
+63/63 and the bounds re-quote 111/111 (all 108 re-quoted bounds equal the carried ones), offline 151/151, ingame 150/150, field-potatoes 62/62
+(5 runs), ports 9106/9107, $0. Potatoes per crop-day against 0.67.0: within 3.6% on eight farms, 9x18 +5%; every run inside its 3a band.
+
 **Carried to Architect 0.72.0 by a smoke check (2026-11-15, crop-farm-072; speed rule 4).** The pins moved to kit/checker 0.67.0, the program
 unchanged (`c406df05…`), moduleSha `21fa8bf1…`. Unlike 0.68.0-0.70.0, this release changes the billing path crop_farm uses (QL-b/QL-c:
 `Quotes`, FullBom and QuoteLand price each lot over the land as the earlier stages leave it, so the quote is what the realise consumes), so
