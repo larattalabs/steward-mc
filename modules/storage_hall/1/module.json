@@ -18,5 +18,5 @@
     "nonConductive": [],
     "fullBlock": ["wall", "foundation"]
   },
-  "pins": { "kit": "0.67.0", "checker": "0.67.0" }
+  "pins": { "kit": "0.68.0", "checker": "0.68.0" }
 }
