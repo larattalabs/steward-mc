@@ -211,7 +211,7 @@ public final class ModuleOffer {
 			int bulk = o.params().get(kind.cropParam()).getAsInt();
 			parts.add("Your stores are getting mixed: " + d.seedsHeld() + " kinds of items. I can raise " + kind.title() + " by the town (" + f[0] + " by " + f[1] + "): "
 				+ bulk + " double chest" + (bulk == 1 ? "" : "s") + " and an input chest by the door.");
-			parts.add(materials ? dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + "." : "It's free.");
+			parts.add(materials ? dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + "; " + ModuleBound.CRASH_EXCEPTION + "." : "It's free.");
 			if (lampFallback) parts.add("It's lit by plain lanterns: your style's lamp is too dim.");
 			return String.join(" ", parts);
 		}
@@ -220,7 +220,7 @@ public final class ModuleOffer {
 		parts.add("You carry " + crop + " seeds. I can lay " + kind.title() + " by the town (" + f[0] + " by " + f[1] + ")" + (o.rate() == null ? "" : ": " + o.rate()) + ".");
 		if (materials) {
 			parts.add("Planting it takes " + d.seedsNeeded() + " " + crop + " seeds from the stockpile" + (d.seedsHeld() < d.seedsNeeded() ? " (put " + (d.seedsNeeded() - d.seedsHeld())
-				+ " more in it)" : "") + ". " + dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + ".");
+				+ " more in it)" : "") + ". " + dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + "; " + ModuleBound.CRASH_EXCEPTION + ".");
 		} else parts.add("It's free, and planted as it's placed.");
 		if (lampFallback) parts.add("It's lit by plain lanterns: your style's lamp is too dim.");
 		return String.join(" ", parts);

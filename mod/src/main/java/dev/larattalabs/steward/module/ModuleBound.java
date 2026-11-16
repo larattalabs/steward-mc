@@ -117,6 +117,12 @@ public final class ModuleBound {
 		return o;
 	}
 
+	/**
+	 * (QD, pin-073 batch review) What every approval of a capped bill says with it: Architect's reconcile after an unclean start (BC-c) charges
+	 * what stands even past the cap, so the bound is never promised without this exception (the overnight decision's words).
+	 */
+	public static final String CRASH_EXCEPTION = "I stop before passing it, except to pay for blocks already standing after a crash";
+
 	/** (QD) An approved bill as Architect's {@code maxBill} (item id -> count, sorted), or null when it can't be read. */
 	public static @Nullable Map<String, Integer> cap(@Nullable JsonObject bill) {
 		JsonObject b = clean(bill);

@@ -58,6 +58,9 @@ class ModuleOfferTest {
 		String words = ModuleOffer.why(K, d, true, false);
 		assertTrue(words.contains("81 wheat seeds from the stockpile"), words);
 		assertTrue(words.contains("at most"), words);
+		// (pin-073 batch review, P1) the first approval says the crash exception too: an exact quote within the bound is never asked again
+		assertTrue(words.contains(dev.larattalabs.steward.inbox.InboxModel.BILL), words);
+		assertTrue(words.contains("; I stop before passing it, except to pay for blocks already standing after a crash."), words);
 		// no bound measured for those params: not offered (there is nothing to approve)
 		var none = ModuleOffer.decide(K, ok(), t, null, (e, p) -> null);
 		assertFalse(none.ok());

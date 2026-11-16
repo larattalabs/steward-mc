@@ -44,21 +44,21 @@ class BillCapBCdTest {
 		assertTrue(MaterialRequests.capped(w));
 		assertEquals("The farm has stopped: finishing it would take 78 oak planks more than you approved, so I take no more for it; filling the"
 			+ " stockpile won't help. /steward undo set_1 takes it up and gives back what it drew; then ask for it again and I'll put the new bill to you.",
-			MaterialRequests.overCapWords("farm", "set_1", List.of(Map.entry("minecraft:oak_planks", 78)), 0, false));
+			MaterialRequests.overCapWords("farm", "set_1", List.of(Map.entry("minecraft:oak_planks", 78)), 0, MaterialRequests.TakeUp.UNDO));
 	}
 
 	@Test
 	void whileTheGrowthsBuildStillRunsTheWordsNameCancelWhichTakesItUp() {
 		// (QD-2, the GPT review of pin-073) while the build is PLACING, /steward undo is refused as busy: the words name /steward cancel, which takes
 		// a growth from materials up where it stands and refunds what it drew (A2L, RU); after the build has ended they name /steward undo
-		String during = MaterialRequests.overCapWords("farm", "set_1", List.of(Map.entry("minecraft:oak_planks", 2)), 0, true);
+		String during = MaterialRequests.overCapWords("farm", "set_1", List.of(Map.entry("minecraft:oak_planks", 2)), 0, MaterialRequests.TakeUp.CANCEL);
 		assertEquals("The farm has stopped: finishing it would take 2 oak planks more than you approved, so I take no more for it; filling the"
 			+ " stockpile won't help. /steward cancel set_1 takes it up and gives back what it drew; then ask for it again and I'll put the new bill to you.", during);
 		assertFalse(during.contains("/steward undo"));
 		var ext = JsonParser.parseString("{\"architect_mc:waitsFor\": {\"kind\": \"bill_cap\", \"missing\": {\"minecraft:observer\": 1},"
 			+ " \"say\": \"Main gatehouse's portcullis waits bill_cap: over\"}}").getAsJsonObject();
-		assertTrue(SettlementRunner.capStageWait(ext, "set_1", true).contains("/steward cancel set_1 takes it up"));
-		assertTrue(SettlementRunner.capStageWait(ext, "set_1", false).contains("/steward undo set_1 takes it up"));
+		assertTrue(SettlementRunner.capStageWait(ext, "set_1", MaterialRequests.TakeUp.CANCEL).contains("/steward cancel set_1 takes it up"));
+		assertTrue(SettlementRunner.capStageWait(ext, "set_1", MaterialRequests.TakeUp.UNDO).contains("/steward undo set_1 takes it up"));
 		// no runner for the settlement, or a target whose region is unknown: undo (refused while busy, with a pointer to cancel), never a cancel
 		// that could stop another region's build
 		assertFalse(SettlementRunner.cancelTakesUp("no_such_settlement", "rg1"));
@@ -80,14 +80,14 @@ class BillCapBCdTest {
 	void aMechanismHeldByTheCapIsSaidInTheStewardsWords() {
 		var ext = JsonParser.parseString("{\"architect_mc:waitsFor\": {\"target\": \"stockpile:p1\", \"kind\": \"bill_cap\", \"missing\": {\"minecraft:observer\": 3},"
 			+ " \"say\": \"Main gatehouse's portcullis waits bill_cap: its bill is past the region's maxBill by {minecraft:observer=3}\"}}").getAsJsonObject();
-		String said = SettlementRunner.capStageWait(ext, "set_1", false);
+		String said = SettlementRunner.capStageWait(ext, "set_1", MaterialRequests.TakeUp.UNDO);
 		assertEquals("The main gatehouse's portcullis has stopped: finishing it would take 3 observer more than you approved, so I take no more for it;"
 			+ " filling the stockpile won't help. /steward undo set_1 takes it up and gives back what it drew; then ask for it again and I'll put the new"
 			+ " bill to you.", said);
 		assertFalse(said.contains("maxBill") || said.contains("bill_cap"), "no Architect words");
 		// a plain bill wait or a stage wait is not a cap wait
-		assertNull(SettlementRunner.capStageWait(JsonParser.parseString("{\"architect_mc:waitsFor\": {\"kind\": \"bill\", \"say\": \"x waits\"}}").getAsJsonObject(), "set_1", false));
-		assertNull(SettlementRunner.capStageWait(JsonParser.parseString("{\"architect_mc:waitsFor\": {\"say\": \"the street waits for the wall\"}}").getAsJsonObject(), "set_1", false));
-		assertNull(SettlementRunner.capStageWait(null, "set_1", false));
+		assertNull(SettlementRunner.capStageWait(JsonParser.parseString("{\"architect_mc:waitsFor\": {\"kind\": \"bill\", \"say\": \"x waits\"}}").getAsJsonObject(), "set_1", MaterialRequests.TakeUp.UNDO));
+		assertNull(SettlementRunner.capStageWait(JsonParser.parseString("{\"architect_mc:waitsFor\": {\"say\": \"the street waits for the wall\"}}").getAsJsonObject(), "set_1", MaterialRequests.TakeUp.UNDO));
+		assertNull(SettlementRunner.capStageWait(null, "set_1", MaterialRequests.TakeUp.UNDO));
 	}
 }

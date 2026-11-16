@@ -73,6 +73,19 @@ public final class Undo {
 		};
 	}
 
+	/**
+	 * A district being built (or one whose build ended unresolved) that refuses an undo of {@code entry} for now: the newest operation can't be told
+	 * yet, unless {@code entry} is that district's own region, recorded by the world-start sweep after its build ended (taking it up is what puts the
+	 * district right). Empty when nothing refuses it.
+	 */
+	static java.util.Optional<Settlement.District> districtBlocking(Settlement s, java.util.Optional<Settlement.LogEntry> entry) {
+		var building = s.lands().districts().stream().filter(d -> Settlement.District.BUILDING.equals(d.state())).findFirst();
+		if (building.isEmpty()) return building;
+		var live = Districts.liveRegionOf(s.owner(), building.get().id());
+		boolean itsRegion = live.isPresent() && entry.isPresent() && live.get().equals(dev.larattalabs.steward.gateway.VPlan.regionOf(entry.get().siteGroup()));
+		return itsRegion ? java.util.Optional.empty() : building;
+	}
+
 	/** Starts the undo; {@code say} gets progress and the result. Returns false (having said why) when there is nothing to undo. */
 	public static boolean lastProject(MinecraftServer server, Settlement given, Consumer<String> sayTo) {
 		// an adoption a lost answer left open is closed first, so the undo reads the history as it is
@@ -85,14 +98,10 @@ public final class Undo {
 		// a district region being built (or one whose build ended unresolved): the newest operation can't be told yet, unless it is that district's own
 		// region, recorded by the world-start sweep after its build ended (taking it up is what puts the district right)
 		var entry = headFirst(s, s.lastUndoable());
-		var building = s.lands().districts().stream().filter(d -> Settlement.District.BUILDING.equals(d.state())).findFirst();
+		var building = districtBlocking(s, entry);
 		if (building.isPresent()) {
-			var live = Districts.liveRegionOf(s.owner(), building.get().id());
-			boolean itsRegion = live.isPresent() && entry.isPresent() && live.get().equals(dev.larattalabs.steward.gateway.VPlan.regionOf(entry.get().siteGroup()));
-			if (!itsRegion) {
-				say.accept(building.get().name() + " is being built, or its build is being put right: undo once that has settled.");
-				return false;
-			}
+			say.accept(building.get().name() + " is being built, or its build is being put right: undo once that has settled.");
+			return false;
 		}
 		if (entry.isEmpty()) {
 			say.accept("Nothing to undo for " + s.name() + ".");

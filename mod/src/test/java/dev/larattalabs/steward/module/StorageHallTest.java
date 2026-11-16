@@ -113,6 +113,7 @@ class StorageHallTest {
 		String why = ModuleOffer.why(K, d, true, false);
 		assertTrue(why.startsWith("Your stores are getting mixed: 12 kinds of items. I can raise a storage hall by the town (11 by 7): 2 double chests and an input chest by the door."), why);
 		assertTrue(why.contains("chest"), why);
+		assertTrue(why.contains(ModuleBound.CRASH_EXCEPTION + "."), why);
 		assertTrue(ModuleOffer.why(K, d, false, true).contains("plain lanterns"));
 		assertTrue(ModuleOffer.why(K, d, false, false).endsWith("It's free."));
 		assertFalse(ModuleOffer.decide(K, ok(), t, null, (e, p) -> null).ok(), "no measured bound: not offered from materials");

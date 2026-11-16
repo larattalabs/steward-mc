@@ -6624,6 +6624,11 @@ async function moduleCapFlow() {
       else return fail(lbl, `refused ${refusedAt != null}; said not placed ${notPlaced}; asked again ${!!reasked}; maxBills ${JSON.stringify(sent).slice(0, 300)}; held save ${JSON.stringify({ phase: heldSaved?.state?.phase, vRegion: heldSaved?.vRegion, order }).slice(0, 400)}`);
     }
     const capSent = maxBills().at(-1) ?? null;
+    // (pin-073 batch review, P2) the quote the capped realise was sent under (the steward's log, read before the client restarts): the stockpile's
+    // own consumption is checked against it once built, a source apart from Architect's cap record (whose drawn is paid + region charges)
+    const quoteLine = [...logSince(startAt).matchAll(new RegExp(`module ${id} quote \\S+: (\\{[^}]*\\}) \\(bound [^\\n]*?exact (true|false)`, 'g'))].at(-1);
+    const quoted = quoteLine ? JSON.parse(quoteLine[1]) : null;
+    const quotedExact = quoteLine?.[2] === 'true';
     if (!capSent) return fail(`${label} sent`, `no capped realise logged: ${logSince(from).split('\n').filter((l) => /CHAT|module /.test(l)).slice(-4).join(' | ').slice(0, 400)}`);
     // the growth's revision: the region's newest (its history entry is written once it is built, so it is read from the region)
     let rid = null;
@@ -6727,8 +6732,14 @@ async function moduleCapFlow() {
       const spB = await ledger();
       const paid = Object.fromEntries(Object.entries(spB?.consumed ?? {}).map(([k, v]) => [k, v - (sp0?.consumed?.[k] ?? 0)]).filter(([, v]) => v > 0));
       const past = Object.entries(c?.drawn ?? {}).filter(([k, v]) => v > (capSent[k] ?? 0));
-      if (c && !c.refused && Object.keys(c.drawn ?? {}).length && !past.length && !Object.keys(spB?.need ?? {}).length) ok(`${label} built within the cap`, `revision ${rid} drew ${JSON.stringify(c.drawn).slice(0, 200)}, each item within the maxBill sent; paid since the offer ${sum(paid)}`);
-      else fail(`${label} built within the cap`, `drawn ${JSON.stringify(c?.drawn)}; past ${JSON.stringify(past)}; still needs ${JSON.stringify(spB?.need)}`);
+      // (pin-073 batch review, P2) a charge replayed after the crash shows here: what the stockpile gave up since the offer (its own ledger) is the
+      // revision's draws, and no item past the quote it was realised under (an exact quote with no terrain allowance: equal to it)
+      const pastQuote = quoted ? Object.entries(paid).filter(([k, v]) => v > (quoted[k] ?? 0)).map(([k, v]) => `${k} ${v}/${quoted[k] ?? 0}`) : ['no quote read'];
+      const asDrawn = sameItems(paid, c?.drawn);
+      const asQuoted = quoted && sameItems(paid, quoted);
+      if (c && !c.refused && Object.keys(c.drawn ?? {}).length && !past.length && !Object.keys(spB?.need ?? {}).length && asDrawn && !pastQuote.length)
+        ok(`${label} built within the cap`, `revision ${rid} drew ${JSON.stringify(c.drawn).slice(0, 200)}, each item within the maxBill sent; the stockpile gave up the same since the offer (${sum(paid)}), nothing past its ${quotedExact ? 'exact' : 'inexact'} quote${asQuoted ? ' (equal to it)' : ''}`);
+      else fail(`${label} built within the cap`, `drawn ${JSON.stringify(c?.drawn)}; past ${JSON.stringify(past)}; still needs ${JSON.stringify(spB?.need)}; stockpile gave up ${JSON.stringify(paid).slice(0, 200)} (= drawn ${asDrawn}); past the quote ${pastQuote.slice(0, 6).join(', ') || 'none'}`);
     }
     // (BC-d) then a plain growth: a library asked in talk, sent with no maxBill; its own rid is uncapped and draws freely; the module rid's cap stays
     {

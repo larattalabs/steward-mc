@@ -3068,7 +3068,7 @@ public final class SettlementRunner {
 				moduleOrders = Map.of(lot, now.holding(shown));
 				persist();
 				feed(new Pipeline.HoldBill(why + " Nothing has been taken from the stockpile. The whole bill: " + dev.larattalabs.steward.module.ModuleBound.upTo(shown, terrain.keySet(), 1000)
-					+ ". Approve to build it with this bill (it becomes the bound: I stop before passing it, except to pay for blocks already standing after a crash), or cancel."));
+					+ ". Approve to build it with this bill (it becomes the bound: " + dev.larattalabs.steward.module.ModuleBound.CRASH_EXCEPTION + "), or cancel."));
 				return;
 			}
 			if (now.held() != null) { moduleOrders = Map.of(lot, now.holding(null)); persist(); }
@@ -3735,8 +3735,14 @@ public final class SettlementRunner {
 				moduleOrders.forEach((lot, o) -> refusedOrders.put(lot, o.refusedAtPutDown(true)));
 				moduleOrders = java.util.Collections.unmodifiableMap(refusedOrders);
 				quoteCleared = null;
-				// (a failed save is logged; this session still asks, as before QD-2)
-				persist();
+				// (pin-073 batch review, P2) the refusal not saved: a restart would find the build placing as approved and could realise it on its own,
+				// so it is neither quoted again nor realised here; the build stops (nothing was written or taken), said
+				if (!persist()) {
+					say("Not placed: the materials needed went past what you approved, and that could not be saved, so I won't ask again or build it."
+						+ " Nothing was taken from the stockpile; ask for it again.");
+					feed(new Pipeline.Cancel());
+					return;
+				}
 				say("Not placed yet: the materials needed went past what you approved. Nothing was taken from the stockpile; I'll ask you again.");
 				realiseVillage();
 				return;
@@ -4353,7 +4359,9 @@ public final class SettlementRunner {
 			|| vRegionId != null && vRegionId.equals(extString(e.ext(), "architect_mc:region"));
 		if (!ours || e.reason().isEmpty()) return;
 		// (QD, BC-c) a part whose whole charge (a gate mechanism) would pass the approved bound: said in the steward's words, not Architect's
-		String capped = capStageWait(e.ext(), settlement.id(), cancelTakesUp());
+		// (pin-073 batch review) cancel while this growth's build runs; else undo only when it would take this growth's own operation
+		String capped = capStageWait(e.ext(), settlement.id(), cancelTakesUp() ? MaterialRequests.TakeUp.CANCEL
+			: MaterialRequests.takeUp(settlement, extString(e.ext(), "architect_mc:region"), MaterialRequests.ridOf(e.ext())));
 		if (capped != null) {
 			if (saidWaits.add(capped)) say(capped);
 			return;
@@ -4394,7 +4402,7 @@ public final class SettlementRunner {
 	 * {@code bill_cap} wait is ({@link MaterialRequests#overCapWords}); else null. Its subject is Architect's ("Main gatehouse's portcullis"),
 	 * else "build". Pure.
 	 */
-	static @org.jspecify.annotations.Nullable String capStageWait(com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext, String settlementId, boolean cancel) {
+	static @org.jspecify.annotations.Nullable String capStageWait(com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext, String settlementId, MaterialRequests.TakeUp how) {
 		if (ext == null || !(ext.get("architect_mc:waitsFor") instanceof JsonObject w)) return null;
 		if (!(w.get("kind") instanceof com.google.gson.JsonPrimitive k) || !dev.larattalabs.architect.api.SiteWait.BILL_CAP.equals(k.getAsString())) return null;
 		List<Map.Entry<String, Integer>> over = new ArrayList<>();
@@ -4407,7 +4415,7 @@ public final class SettlementRunner {
 			int i = t.indexOf(" waits bill_cap");
 			if (i > 0) what = Character.toLowerCase(t.charAt(0)) + t.substring(1, i);
 		}
-		return MaterialRequests.overCapWords(what, settlementId, over, 0, cancel);
+		return MaterialRequests.overCapWords(what, settlementId, over, 0, how);
 	}
 
 	private void onBatchDone(BatchView b) {
