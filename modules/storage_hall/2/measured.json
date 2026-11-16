@@ -1,5 +1,4 @@
 {
-  "basis": "full",
   "id": "storage_hall",
   "version": 2,
   "fixture": false,
@@ -5677,13 +5676,13 @@
         ]
       },
       "sort-survival": {
-        "at": "2026-11-16T04:46:06.837Z",
-        "head": "4ffbdac0cae6ff5fdaa92892f2e43facbdc7bf7b",
-        "world": "Steward M4 SortSurvival 202611160424",
-        "seconds": 1270.004,
+        "at": "2026-11-16T12:13:14.192Z",
+        "head": "173aa1de7e2cc7e44446c9f2e8ffac65b4e3cc03",
+        "world": "Steward M4 SortSurvival 202611161152",
+        "seconds": 1248.781,
         "runs": null,
-        "passed": 18,
-        "of": 18,
+        "passed": 19,
+        "of": 19,
         "results": [
           "a stockpile of 8 crates for steward_mc:measure: \"made\"",
           "the town rg1 built in survival from the stockpile: PLACED (3 waves)",
@@ -5694,11 +5693,12 @@
           "B2 the input chest stood part way through the build and took the player's 64 cobblestone",
           "B2 the hall's site named while it builds (s1)",
           "B2 starving part way (FK not begun, BUILDING; at the preload the lever [\"minecraft:lever\",-1,-1,11], line hopper 0 [\"minecraft:hopper\",-1,-1,12]): KNOWN GAP S-M5-17 (Architect FL): the insert went down the line (F 0 {\"minecraft:cobblestone\":45}, D 0 {\"minecraft:cobblestone\":1}), all 64 still in the hall",
-          "B2 an F contaminated before the fill: the fill waits (FK null; {\"gameTime\":22835,\"waiting\":true,\"waitingSince\":4658,\"nextNeeded\":[],\"moreUnits\":0,\"blocked\":\"fill_blocked\",\"blockedCells\":[\"70110,67,70068\"]}), no filter item charged past the structure ([])",
+          "B2 an F contaminated before the fill: the fill waits fill_blocked (FK null; {\"gameTime\":22635,\"waiting\":true,\"waitingSince\":4445,\"nextNeeded\":[],\"moreUnits\":0,\"blocked\":\"fill_blocked\",\"blockedCells\":[\"70110,67,70068\"]}), the contaminant all there ({\"minecraft:cobblestone\":64}: true), no filter item charged past the structure ([])",
+          "B2 the contaminant taken back whole ({\"minecraft:cobblestone\":64}), none left in the hall",
           "8 then filled once: PLACED, FK UNLOCKED, every F exactly 41 + 4; consumed = the quote item for item (equal; 967 items)",
           "8 taken: 8 stone from F 0 (33 left, its 4 slabs kept), F 1's 41 redstone, and a bulk chest half mined (it dropped {\"minecraft:chest\":1})",
           "8 refund: removed true; credited (with overflow) = consumed less the 8 stone and 41 redstone taken and the mined chest (equal): the structure's own stone and redstone still refunded",
-          "8 no item dropped at the undo ({}); no petrified slab in the player's inventory or the world, before or after ({\"id\":\"1489\",\"type\":\"dev.fk.slabs\",\"ok\":true,\"player\":0,\"entities\":0} / {\"id\":\"1498\",\"type\":\"dev.fk.slabs\",\"ok\":true,\"player\":0,\"entities\":0})",
+          "8 no item dropped at the undo ({}); no petrified slab in the player's inventory or the world, before or after ({\"id\":\"1487\",\"type\":\"dev.fk.slabs\",\"ok\":true,\"player\":0,\"entities\":0} / {\"id\":\"1496\",\"type\":\"dev.fk.slabs\",\"ok\":true,\"player\":0,\"entities\":0})",
           "8 after a restart and the undo retried (NOT_ALLOWED: region rg1's head is at position 0: undo takes it below (toPosition 0)): nothing given twice (the ledger and stock unchanged; on the ground {})",
           "ss8: StorageHallLot's lot = the program's frame (11x13)",
           "survival growth ss8: rid 2",
@@ -5743,13 +5743,13 @@
         ]
       },
       "sort-crash": {
-        "at": "2026-11-16T11:23:15.478Z",
-        "head": "47863f20cd616a732dd609dd8c623465237928f3",
-        "world": "Steward M4 SortCrash 202611161118",
-        "seconds": 292.059,
+        "at": "2026-11-16T11:50:20.355Z",
+        "head": "173aa1de7e2cc7e44446c9f2e8ffac65b4e3cc03",
+        "world": "Steward M4 SortCrash 202611161144",
+        "seconds": 325.925,
         "runs": null,
-        "passed": 52,
-        "of": 52,
+        "passed": 59,
+        "of": 59,
         "results": [
           "a stockpile of 8 crates for steward_mc:measure: \"made\"",
           "the town rg1 built in survival from the stockpile: PLACED (3 waves)",
@@ -5762,6 +5762,7 @@
           "FK1: the fill's items delivered while it is paused ({\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41})",
           "FK1: the baseline saved with the fill's items in the stockpile ({\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41})",
           "FK1: the kill point halted the server",
+          "9 FK1: consumed since the pre-crash baseline, every item: the fill once ({} off; re-fed {}; structure owed after the restart {})",
           "9 FK1: after the restart the fill ends once (FK UNLOCKED, every F exactly 41 + 4: true); charged since the saved state {\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41} (the commit not on disk: the fill once)",
           "sk_fk2: StorageHallLot's lot = the program's frame (11x13)",
           "FK2: the hall grown: rid 2",
@@ -5771,6 +5772,7 @@
           "FK2: the fill's items delivered while it is paused ({\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41})",
           "FK2: the baseline saved with the fill's items in the stockpile ({\"minecraft:bone\":82,\"minecraft:flint\":82,\"minecraft:gunpowder\":82,\"minecraft:string\":82})",
           "FK2: the kill point halted the server",
+          "9 FK2: consumed since the pre-crash baseline, every item: the fill once ({} off; re-fed {}; structure owed after the restart {})",
           "9 FK2: after the restart the fill ends once (FK UNLOCKED, every F exactly 41 + 4: true); charged since the saved state {\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41} (the commit not on disk: the fill once)",
           "sk_fk3: StorageHallLot's lot = the program's frame (11x13)",
           "FK3: the hall grown: rid 3",
@@ -5780,6 +5782,7 @@
           "FK3: the fill's items delivered while it is paused ({\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41})",
           "FK3: the baseline saved with the fill's items in the stockpile ({\"minecraft:bone\":123,\"minecraft:flint\":123,\"minecraft:gunpowder\":123,\"minecraft:string\":123})",
           "FK3: the kill point halted the server",
+          "9 FK3: consumed since the pre-crash baseline, every item: the fill once ({} off; re-fed {}; structure owed after the restart {})",
           "9 FK3: after the restart the fill ends once (FK UNLOCKED, every F exactly 41 + 4: true); charged since the saved state {\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41} (the commit not on disk: the fill once)",
           "sk_fk4: StorageHallLot's lot = the program's frame (11x13)",
           "FK4: the hall grown: rid 4",
@@ -5789,19 +5792,23 @@
           "FK4: the fill's items delivered while it is paused ({\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41})",
           "FK4: the baseline saved with the fill's items in the stockpile ({\"minecraft:bone\":164,\"minecraft:flint\":164,\"minecraft:gunpowder\":164,\"minecraft:string\":164})",
           "FK4: the kill point halted the server",
+          "9 FK4: consumed since the pre-crash baseline, every item: the fill once ({} off; re-fed {}; structure owed after the restart {})",
           "9 FK4: after the restart the fill ends once (FK UNLOCKED, every F exactly 41 + 4: true); charged since the saved state {} (the commit on disk: nothing more)",
           "FKC1: the baseline saved before the removal",
           "FKC1: the kill point halted the server at removal",
           "9 FKC1: the custody ({\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41}) was on disk at the halt",
-          "9 FKC1: after the restart the removal ends once (UNDONE): back = consumed item for item (870 = 870; off {}); no custody or provided custody left; nothing dropped; no slab loose",
+          "9 FKC1: after the restart the removal ends once (UNDONE): back = consumed item for item (870 = 870; off {}); no custody, provided custody or pending refund left; nothing dropped; no slab loose",
+          "9 FKC1: an unchanged second undo and a second restart: nothing more back ({}), nothing dropped, nothing pending (removed undefined; blockers []; NOT_ALLOWED: region rg1's head is at position 3: undo takes it below (toPosition 3))",
           "FKC2: the baseline saved before the removal",
           "FKC2: the kill point halted the server at removal",
           "9 FKC2: the custody ({\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41}) was on disk at the halt",
-          "9 FKC2: after the restart the removal ends once (UNDONE): back = consumed item for item (962 = 962; off {}); no custody or provided custody left; nothing dropped; no slab loose",
+          "9 FKC2: after the restart the removal ends once (UNDONE): back = consumed item for item (962 = 962; off {}); no custody, provided custody or pending refund left; nothing dropped; no slab loose",
+          "9 FKC2: an unchanged second undo and a second restart: nothing more back ({}), nothing dropped, nothing pending (removed undefined; blockers []; NOT_ALLOWED: region rg1's head is at position 2: undo takes it below (toPosition 2))",
           "CS1: the baseline saved before the removal",
           "CS1: the kill point halted the server at removal",
           "9 CS1: the custody ({\"minecraft:bone\":41,\"minecraft:flint\":41,\"minecraft:gunpowder\":41,\"minecraft:string\":41}) was on disk at the halt",
-          "9 CS1: after the restart the removal ends once (UNDONE): back = consumed item for item (870 = 870; off {}); no custody or provided custody left; nothing dropped; no slab loose",
+          "9 CS1: after the restart the removal ends once (UNDONE): back = consumed item for item (870 = 870; off {}); no custody, provided custody or pending refund left; nothing dropped; no slab loose",
+          "9 CS1: an unchanged second undo and a second restart: nothing more back ({}), nothing dropped, nothing pending (removed undefined; blockers []; NOT_ALLOWED: region rg1's head is at position 1: undo takes it below (toPosition 1))",
           "9 FKC0: deferred: the hook dev.removal.failAfterCustody is not in this Architect (S-M5-13, slice LC); the offer names the gap"
         ]
       }
@@ -15933,5 +15940,6 @@
       "item16"
     ],
     "count": 41
-  }
+  },
+  "basis": "full"
 }
