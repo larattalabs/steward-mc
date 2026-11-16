@@ -480,3 +480,41 @@ a HUD label is a follow-up.
     reads `changed` equal to the slot count, with every F holding exactly 41 + 4 slabs (S-M5-18 asks Architect to count a fill as its own).
 - **Follow-up M4b-074 (at the v0.74.0 pin, Architect FL 50f47d9b):** bar 6 goes back to expecting `changed 0` (S-M5-18), and
   sort-survival's mid-build insert expects no item in F (S-M5-17, the hopper refusal); `dev.fk.container` answers `state`, `dev.fk.state` `held`.
+
+### 12.9 Results (2026-11-16, Minecraft 26.3, Architect 0.72.0, kit/checker 0.67.0): certified
+
+`storage_hall@2` is certified (`modules/storage_hall/2/measured.json`, moduleSha 315a60271b22, program aa216ff12306), from the evidence
+in `artifacts/m4b` (hall, bounds, sort, sort-survival, sort-cargo and sort-crash, each at one run; the hall is deterministic). It passed:
+
+| Step | Bars | Checks |
+|---|---|---|
+| hall (`--version 2`) | the plain branch, @1's bars 1-6 | 218/218 |
+| bounds | the structure bound per slot count, bulk and Style, and the fill (41 per item) for two item sets | 382/382 |
+| sort | 12.5 bars 1-6 over 10 halls (4-16 slots, all four facings, three Styles), every domain item a filter, chunk crossings | 100/100 (run 4) |
+| sort-survival | bar 8 and 12.7 B2: the bill, the mid-build insert, fill_blocked, refunds after taking | 18/18 |
+| sort-cargo | bars 7 and 11: cargo alone in each container class, the pre-check and the undo, the fed-slab recovery | 26/26 |
+| sort-crash | bar 9: FK1-FK4 at the fill, FKC1, FKC2 and CS1 at removal; FKC0 deferred | 52/52 |
+
+The rates (items a second, rustic, by slot count): 4 slots 2.342, 8 slots 2.424, 12 slots 2.461, 16 slots 2.397. The catalog's own steps
+passed too: offline 295/295, ingame 292/292.
+
+- **Known gaps (as-built, MODULES.md):** S-M5-12, late cargo during an undo, is named in the offer until LC2. S-M5-17, a mid-build insert
+  down the line, makes the fill wait `fill_blocked` with nothing charged or lost, until Architect FL. It needs no offer line.
+- **S-M5-17's readings at the preload:** the lever and line hopper 0 both stood when the player loaded the input. The harness's `cells` op
+  reads only the block id and light, so their states weren't captured. Architect FL's reproduction gave them: the lever `powered=true`
+  (written with no neighbour update) and line hopper 0 `enabled=true`.
+- **The judge, measured once more:**
+  - Bar 6's `changed` is the slot count (S-M5-18, 12.8).
+  - sort-crash sets each case up as Architect's own FK gate does: the hall's blocks fed with the fill's items held back until every cell
+    stands, the site paused, the fill not begun, the fill's items delivered. Its baseline reaches disk before the point is armed.
+  - The fill items there are flint, bone, string and gunpowder, which the structure never uses. A kill point halts the whole JVM, so the
+    harness waits for the client to exit, names the point from its own log line ("reached", or FK3's and CS1's "kill point P:"), and
+    relaunches into the same world. An exit it can't name fails that case.
+- **A harness finding, not Architect's:** `/save-all` is a dedicated-server command. On the integrated client it answers "Unknown or
+  incomplete command", and `dev.command` still answers `ok: true` with `success: false` (S-M5-19, Architect's answer). Every `/save-all`
+  in `module-measure-hall.mjs` is a no-op. sort-crash's baselines reach disk by Architect's periodic save instead: `dev.stockpile.ps
+  {noPeriodic: false}`, waited for until the saved ledger is the live one, then `noPeriodic` on and the point armed. The other steps pass
+  because `dev.world.leave` saves the world. Working save barriers today: the periodic save waited for (over 10 s), `dev.world.leave`,
+  and `dev.stockpile.halt {mode: "autosave"}` (a save, then a halt). The tooling fix is LEFTOVERS row SAVEB (the manager's).
+- **style-bounds** bills a wall-mounted block as its standing item (`redstone_wall_torch` as `redstone_torch`), as Architect's survival
+  bill does. The kit's `vocab/survival.json` has no entry for the wall form.
