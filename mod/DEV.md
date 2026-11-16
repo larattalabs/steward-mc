@@ -722,3 +722,9 @@ e2e: `STEWARD_PORT=8592 STEWARD_DEV_PORT=8593 node tools/e2e.mjs stub --flows pl
 - **Run 3:** not proposed before the town stood or while it was 8% built; proposed once (E). Accepted: reserved, and "From materials, Mill Ward
   needs about ..." said before the one approval. Built as rg2 with the plan's lot ids, consumed within its inexact quote. Undone with everything it
   consumed back once and nothing more 10 s on; given up and not proposed again.
+- **Batch GPT review fixes (11-15), merged with batch-072b at 9e2f74f:**
+  - A re-offer takes its reservation's side (`PlanDistricts.resumeWay`).
+  - A district with no side to go is skipped until the town region, the plan or the districts change (`fingerprint`, `withoutNoSide`), and the
+    minute's pass runs on.
+  - Module lots are left out as M5 reads them (`ComposedModules.asked` over `LOT_TYPES`, failing closed).
+  - Unit tests: `PlanDistrictsTest` 11; the scoped suites with ComposedModules 114, 0 failed. `npm test` 75. Rerun of `--flows plan-district`: PASS 15.
