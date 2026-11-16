@@ -2543,6 +2543,332 @@ async function irrigationFlow() {
 }
 
 /**
+ * (slice M5a, docs/MODULES.md "M5 design") A composed town with working modules: the plan names a crop farm and a storage hall as module lots
+ * (fixtures/plans/composed_modules.json, the sim compose); at Start each is bound to the live catalog and left out of the design group (2 cottages
+ * designed); placed from the approved artifact with the catalog's variants on the module lots (steward_mc:module on their sites); cargo in the
+ * hall refuses the town's undo, said; emptied, the town is undone.
+ */
+async function composedModulesFlow() {
+  const label = 'composed modules';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 93000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/clear @p');
+  await clearAnimals();
+  await cmd('/steward dev modules {}');
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Field Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'composed_modules.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a farming village that feeds itself and keeps its stores in order`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+  // the compose offered the catalog's modules (the hints' modules; the key covers them)
+  const composeLine = (logSince(from).match(/plan writer: compose \(Architect's Regions\.compose, key [^\n]*/) ?? [''])[0];
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  await cmd('/tp @p ~ ~ ~90');
+  const built = await buildThrough(id, from, label);
+  if (!built) return;
+  const since = logSince(from);
+  const farmSaid = (since.match(/The plan's the village field is a working crop farm from Steward's measured catalog[^\n]*/) ?? [null])[0];
+  const hallSaid = (since.match(/The plan's the storage hall is a working storage hall from Steward's measured catalog[^\n]*/) ?? [null])[0];
+  const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
+  const bound = since.match(/module \S+ lot (farm_1|warehouse_1): \S+ under steward\.\S+\.module\.\1/g) ?? [];
+  if (farmSaid && hallSaid && designing === '2' && bound.length === 2) ok(`${label} bound`, `${designing} designed; ${bound.join(' | ').slice(0, 220)}`);
+  else return fail(`${label} bound`, `farm said ${!!farmSaid}, hall said ${!!hallSaid}, designing ${designing}, bound ${JSON.stringify(bound)}; ${composeLine.slice(0, 120)}`);
+  const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const mods = await moduleSites(placed);
+  const farmSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'crop_farm', '1', 'module.json'), 'utf8')).programSha;
+  const hallSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'storage_hall', '1', 'module.json'), 'utf8')).programSha;
+  const farm = mods.find((m) => m.key === 'crop_farm@1'), hall = mods.find((m) => m.key === 'storage_hall@1');
+  if (/^region:rg/.test(placed?.siteGroup ?? '') && farm && hall && farmSha.startsWith(farm.sha) && hallSha.startsWith(hall.sha) && farm.params.width === 9 && hall.params.bulk === 2)
+    ok(label, `${built.placed} placed (${placed.siteGroup}); ${farm.sid} = ${farm.blueprint} ${JSON.stringify(farm.params)}; ${hall.sid} = ${hall.blueprint} ${JSON.stringify(hall.params)}`);
+  else return fail(label, `entry ${placed?.siteGroup}; module sites ${JSON.stringify(mods).slice(0, 300)}`);
+  // the field is watered: IRR's sources settled (the fluids stage)
+  const fluids = since.match(/stage fluids[^\n]*/g) ?? [];
+  if (fluids.some((l) => /placed/.test(l))) ok(`${label} water`, fluids.at(-1).slice(0, 100));
+  else fail(`${label} water`, `fluids stage ${fluids.join(' | ').slice(0, 200) || 'none'}`);
+  // cargo in the hall: the town's undo is refused and said, nothing removed
+  const sb = await siteBox(hall.sid);
+  const cs = sb ? await devModule({ op: 'containers', box: sb }) : null;
+  const input = (cs?.containers ?? []).find((c) => c.block === 'minecraft:chest' && /type=single/.test(c.state));
+  if (!input) return fail(`${label} undo refused`, `no input chest in ${JSON.stringify(sb)}: ${JSON.stringify(cs)?.slice(0, 200)}`);
+  await devModule({ op: 'putItems', at: input.at, stacks: [{ slot: 0, id: 'minecraft:cobblestone', count: 64 }, { slot: 1, id: 'minecraft:iron_ingot', count: 10 }] });
+  from = logSize();
+  const undoSaid = await cmd(`/steward undo ${id}`);
+  await sleep(5000);
+  const said = `${undoSaid}\n${logSince(from)}`.match(/Undo stopped: the storage hall still holds 74 items in 1 chest; empty it first[^\n]*/);
+  const last0 = settlements().find((x) => x.id === id)?.log.at(-1);
+  if (said && last0?.kind !== 'PROJECT_REMOVED') ok(`${label} undo refused`, said[0].slice(0, 160));
+  else return fail(`${label} undo refused`, `said ${!!said}; last ${last0?.kind}; ${String(undoSaid).slice(0, 200)} ${logSince(from).slice(-300)}`);
+  await devModule({ op: 'clearContainers', box: sb });
+  from = logSize();
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 120 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placed.siteIds.length) ok(`${label} undo`, last.text);
+  else fail(`${label} undo`, `last op ${last?.kind} (${last?.siteIds?.length} of ${placed.siteIds.length}); ${logSince(from).split('\n').filter((l) => /CHAT|Undo/i.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+}
+
+/**
+ * (slice M5a, docs/MODULES.md "M5 design" 6) A composed town built from materials with a working crop farm: the farm's bound held on purpose (the dev
+ * source's 1-dirt bound; its storage hall then isn't in that catalog, so it is left out, said); at the realise the quote holds the build before anything
+ * is consumed; approved, the farm's share becomes its bound, the next quote says the limit and the town is built from the stockpile; undone, every
+ * consumed unit comes back once.
+ */
+async function composedModulesSurvivalFlow() {
+  const label = 'composed modules survival';
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  let feeding = false, stop = false, feeder = null;
+  try {
+    const sides = [9, 18, 27];
+    const tiny = sides.flatMap((width) => sides.flatMap((depth) => ['wheat', 'carrots', 'potatoes', 'beetroots'].map((crop) => ({ params: { crop, depth, width }, bom: { 'minecraft:dirt': 1 } }))));
+    ok(`${label} source`, await moduleSource(tiny));
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 96000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/clear @p');
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const name = 'Field Supply';
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = name;
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'composed_modules.json'), 'utf8')).answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a farming village that feeds itself`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+    const diff = settlements().find((x) => x.id === id)?.difficulty;
+    if (diff !== 'SUPPLIED') return fail(label, `difficulty ${diff} in a survival world`);
+    await closeScreens();
+    await clearAnimals();
+    const claim = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
+    const owner = `steward_mc:settlement/${id}`;
+    const ledger = async () => {
+      const r = await cmd(`/steward dev stockpile ${id}`);
+      const m = r.match(/stockpile \S+ (\{.*\})/);
+      return m ? JSON.parse(m[1]) : null;
+    };
+    feeder = (async () => {
+      while (!stop) {
+        await sleep(3000);
+        if (!feeding) continue;
+        const sp = await ledger().catch(() => null);
+        if (sp && Object.keys(sp.need ?? {}).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+      }
+    })();
+    from = logSize();
+    await cmd(`/steward start ${id} 3 30`);
+    const sp0 = await ledger();
+    const building = buildThrough(id, from, label, false, null, 1_800_000);
+    const held = await waitLog(from, /The working modules' bills came to more than their measured bounds[^\n]*/, 1_200_000);
+    if (!held) { stop = true; await feeder; return fail(`${label} over the bound`, `no hold; ${logSince(from).split('\n').filter((l) => /CHAT|Not placed|Stopped/.test(l)).slice(-3).join(' | ').slice(0, 300)}`); }
+    await sleep(5000);
+    const sp1 = await ledger();
+    const same = JSON.stringify(sp1?.consumed ?? {}) === JSON.stringify(sp0?.consumed ?? {});
+    const bnow = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id);
+    const hallOut = logSince(from).match(/The plan's the storage hall is left out of the town: [^\n]*/);
+    if (same && bnow?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && !bnow.vRegion && hallOut)
+      ok(`${label} over the bound`, `${held[0].slice(0, 200)}; nothing consumed, not realised; ${hallOut[0].slice(0, 120)}`);
+    else { stop = true; await feeder; return fail(`${label} over the bound`, `consumed unchanged ${same}; phase ${bnow?.state?.phase}; region ${bnow?.vRegion}; hall left out ${!!hallOut}`); }
+    // approved: each module's share becomes its bound; fed in full while it is built from the stockpile
+    feeding = true;
+    from = logSize();
+    await cmd(`/steward approve ${id}`);
+    const built = await building;
+    if (!built) { stop = true; await feeder; return; }
+    const limit = logSince(from).match(/From materials, the working crop farm takes [^\n]*\(its measured limit: [^\n]*/);
+    const done = await waitLog(from, new RegExp(`${name} is built: everything its plan laid out stands`), 900_000);
+    feeding = false;
+    const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+    const mods = await moduleSites(placed);
+    const farm = mods.find((m) => m.key === 'crop_farm@1');
+    if (limit && done && farm && /^region:/.test(placed?.siteGroup ?? '')) ok(label, `${limit[0].slice(0, 200)}; built from the stockpile (${placed.siteGroup}); ${farm.sid} = ${farm.blueprint}`);
+    else { stop = true; await feeder; return fail(label, `limit said ${!!limit}; built ${!!done}; farm ${JSON.stringify(farm)}; entry ${placed?.siteGroup}`); }
+    // undone: every unit consumed comes back once
+    const spB = await ledger();
+    from = logSize();
+    await cmd(`/steward undo ${id}`);
+    let last = null;
+    for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(2000);
+      last = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    await sleep(10_000);
+    const spR = await ledger();
+    const off = [];
+    for (const [item, all] of Object.entries(spB?.consumed ?? {})) {
+      const used = all - (spB.returned?.[item] ?? 0) - (spB.refundOverflow?.[item] ?? 0);
+      if (used <= 0) continue;
+      const back = (spR?.returned?.[item] ?? 0) + (spR?.refundOverflow?.[item] ?? 0) - (spB.returned?.[item] ?? 0) - (spB.refundOverflow?.[item] ?? 0);
+      if (back !== used) off.push(`${item} ${back}/${used}`);
+    }
+    const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0) ok(`${label} refund`, `${last.text}; every consumed unit came back (${units(spB?.consumed)})`);
+    else fail(`${label} refund`, `${last?.kind}; refunds off: ${off.slice(0, 8).join(', ')}`);
+  } finally {
+    stop = true;
+    if (feeder) await feeder;
+    await cmd('/steward dev modules {}');
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
+}
+
+/** (slice M5a) The build's saved state (steward-builds.json), or null. */
+function savedBuild(id) {
+  try {
+    return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * (slice M5a) Approves a build's bible, massings and placement as they come, until a bill is held (its saved held note) or {@code ms} pass; never
+ * approves a held bill. Returns the held note, or null.
+ */
+async function approveUntilHeld(id, ms = 1_200_000) {
+  const end = Date.now() + ms;
+  while (Date.now() < end) {
+    await sleep(3000);
+    const st = savedBuild(id)?.state;
+    if (!st) continue;
+    if (st.heldNote) return st.heldNote;
+    if (/^AWAITING_(BIBLE|MASSING|PLACEMENT)_APPROVAL$/.test(st.phase ?? '')) await cmd(`/steward approve ${id}`);
+    if (/^(DONE|FAILED|CANCELLED)$/.test(st.phase ?? '')) return null;
+  }
+  return null;
+}
+
+/**
+ * (slice M5a, docs/MODULES.md "M5 design" 8 and 9) A composed town from materials, its farm bound and its bill held (the dev source's 1-dirt bound): a
+ * restart while it is held keeps the hold and the binding (found by its key after the restart, never made again); then pillars on the plan's land
+ * make its artifact stale at the realise: checked again, the farm is bound to the new artifact's lot (again only where it moved), quoted again within
+ * the bill approved, and realised from the stockpile.
+ */
+async function composedModulesRestartFlow() {
+  const label = 'composed modules restart';
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  let feeding = false, stop = false, feeder = null;
+  try {
+    const sides = [9, 18, 27];
+    const tiny = sides.flatMap((width) => sides.flatMap((depth) => ['wheat', 'carrots', 'potatoes', 'beetroots'].map((crop) => ({ params: { crop, depth, width }, bom: { 'minecraft:dirt': 1 } }))));
+    ok(`${label} source`, await moduleSource(tiny));
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 99000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/clear @p');
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const name = 'Field Restart';
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = name;
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'composed_modules.json'), 'utf8')).answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a farming village that feeds itself`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+    await closeScreens();
+    await clearAnimals();
+    const claim = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
+    const owner = `steward_mc:settlement/${id}`;
+    const ledger = async () => {
+      if (!dev) return null;
+      const r = await cmd(`/steward dev stockpile ${id}`);
+      const m = r.match(/stockpile \S+ (\{.*\})/);
+      return m ? JSON.parse(m[1]) : null;
+    };
+    feeder = (async () => {
+      while (!stop) {
+        await sleep(3000);
+        if (!feeding || !dev) continue;
+        const sp = await ledger().catch(() => null);
+        if (sp && Object.keys(sp.need ?? {}).length && dev) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+      }
+    })();
+    from = logSize();
+    await cmd(`/steward start ${id} 3 30`);
+    const held = await approveUntilHeld(id);
+    const b0 = savedBuild(id);
+    const bind0 = b0?.moduleBindings?.farm_1;
+    if (!held || !bind0?.entryId) return fail(`${label} held`, `held ${held}; binding ${JSON.stringify(bind0)}; phase ${b0?.state?.phase}`);
+    ok(`${label} held`, `${String(held).slice(0, 120)}; farm_1 bound to ${bind0.entryId} under ${bind0.opKey}`);
+    const made0 = (logSince(from).match(/module \S+ lot farm_1: \S+ under \S+/g) ?? []).length;
+    // a restart while held: the hold and the binding are kept
+    await quit();
+    launch();
+    await connect();
+    await waitLog(0, new RegExp(`resume ${id}: village [^\\n]*phase AWAITING_PLACEMENT_APPROVAL`), 120_000);
+    await sleep(5000);
+    const b1 = savedBuild(id);
+    if (b1?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && b1?.state?.heldNote && JSON.stringify(b1.moduleBindings?.farm_1) === JSON.stringify(bind0) && !b1.vRegion)
+      ok(`${label} restart`, `still held after the restart, the binding as saved (${bind0.opKey})`);
+    else return fail(`${label} restart`, `phase ${b1?.state?.phase}; held ${!!b1?.state?.heldNote}; binding ${JSON.stringify(b1?.moduleBindings?.farm_1)}; region ${b1?.vRegion}`);
+    // pillars on the plan's land: its artifact goes stale at the realise
+    for (const [dx, dz] of [[12, 0], [-12, 0], [0, 12], [0, -12], [20, 0], [-20, 0], [0, 20], [0, -20]]) {
+      await cmd(`/fill ${claim.centerX + dx} 65 ${claim.centerZ + dz} ${claim.centerX + dx} 67 ${claim.centerZ + dz} minecraft:cobblestone`);
+    }
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
+    feeding = true;
+    from = logSize();
+    await cmd(`/steward approve ${id}`);
+    const built = await buildThrough(id, from, label, false, null, 1_800_000);
+    if (!built) return;
+    const done = await waitLog(from, new RegExp(`${name} is built: everything its plan laid out stands`), 900_000);
+    feeding = false;
+    const since = logSince(from);
+    const realises = [...since.matchAll(new RegExp(`realise ${id}: artifact ([0-9a-f]{64}) under key (\\S+) \\((first|after a re-check)\\)`, 'g'))];
+    const stale = /land under the plan changed/.test(since);
+    const rebinds = since.match(/module \S+ lot farm_1: \S+ under \S+/g) ?? [];
+    const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+    const farm = (await moduleSites(placed)).find((m) => m.key === 'crop_farm@1');
+    // the binding held across the restart and the re-check (the lot didn't move): no variant made again, the one bound before is placed; a lot the
+    // re-check moved is bound again under the next key (.2), said
+    const moved = /made again for its new lot/.test(since);
+    if (farm && (moved ? rebinds.some((l) => /\.module\.farm_1\.2$/.test(l)) : rebinds.length === 0 && farm.blueprint === bind0.entryId))
+      ok(`${label} binding by key`, moved ? `the re-check moved the lot: ${rebinds.join(' | ').slice(0, 200)}` : `no variant made again after the restart or the re-check: ${farm.blueprint} placed, as bound under ${bind0.opKey} (made ${made0} time(s) before)`);
+    else fail(`${label} binding by key`, `before ${bind0.entryId} under ${bind0.opKey}; after ${JSON.stringify(rebinds)}; moved ${moved}; placed ${farm?.blueprint}`);
+    if (stale && realises.some((r) => r[3] === 'after a re-check')) ok(`${label} stale`, `${realises.length} realises, the last after a re-check`);
+    else fail(`${label} stale`, `stale said ${stale}; realises ${realises.map((r) => `${r[1].slice(0, 8)} ${r[3]}`).join('; ') || 'none'}`);
+    if (done && farm) ok(label, `built from the stockpile (${placed.siteGroup}); ${farm.sid} = ${farm.blueprint}`);
+    else fail(label, `built ${!!done}; farm ${JSON.stringify(farm)}; entry ${placed?.siteGroup}`);
+  } finally {
+    stop = true;
+    if (feeder) await feeder;
+    await cmd('/steward dev modules {}');
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
+}
+
+/**
  * Water courses (Architect HY): a market garden with an irrigation ditch along its field (channel.ditch), built from its plan; placed once the ditch has
  * settled, and undone (the ditch drained first, the reverse of its writing).
  */
@@ -7428,6 +7754,9 @@ try {
       await flow('adopt-survival', 'adopt survival stockpile bill refund growth restart undo', () => adoptSurvivalFlow());
       await flow('module-survival-street', 'module adopt survival stockpile bill refund water farm', () => moduleSurvivalStreetFlow());
       await flow('module-hall-survival', 'module hall survival stockpile bill refund', () => moduleHallSurvivalFlow());
+      await flow('composed-modules', 'composed module farm hall plan water undo', () => composedModulesFlow());
+      await flow('composed-modules-survival', 'composed module farm survival stockpile bill refund', () => composedModulesSurvivalFlow());
+      await flow('composed-modules-restart', 'composed module farm survival restart stale bill', () => composedModulesRestartFlow());
       await flow('copper-lots', 'plan material', () => copperLotsFlow());
       await flow('discard', 'plan undo', () => discardFlow());
       await flow('beside', 'plan', () => besideFlow());

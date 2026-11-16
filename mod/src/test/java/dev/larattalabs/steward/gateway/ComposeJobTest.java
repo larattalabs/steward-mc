@@ -286,4 +286,41 @@ class ComposeJobTest {
 		// a bundled template's own buildings can't be counted against the card
 		assertEquals(List.of(), ComposeJob.missing(card, ComposeJob.pickedPlan("x", "crater_works", new JsonObject())));
 	}
+
+	/** (slice M5) The working modules go in the hints whole, and the key covers what they are; with none, the request is byte for byte as before. */
+	@Test
+	void aComposeOfferedModulesCarriesThemAndAKeyThatCoversThem() throws Exception {
+		JsonObject card = fixture("strange-asks/cards/hidden_village.json").getAsJsonObject("card");
+		var claim = new BoundingBox(-40, -64, -40, 40, 320, 40);
+		ComposeRequest plain = ComposeJob.request("set_1", card.toString(), "north: plains 100%.", claim, ANCHORS, null, null, "owner-1");
+		ComposeRequest none = ComposeJob.request("set_1", card.toString(), "north: plains 100%.", claim, ANCHORS, null, null, "owner-1", new com.google.gson.JsonArray(), ComposeJob.inputs(new com.google.gson.JsonArray()));
+		assertEquals(plain.opKey(), none.opKey());
+		// (GPT review 5) the key covers the rules and the modules: a changed rule or catalog is a new compose, never the same key with another body
+		assertNotEquals(ComposeJob.opKey("set_1", ComposeJob.cardSha(card.toString())), plain.opKey());
+		assertNotEquals(ComposeJob.inputs(new com.google.gson.JsonArray()), ComposeJob.inputs(com.google.gson.JsonParser.parseString("[{\"id\": \"crop_farm\"}]").getAsJsonArray()));
+		assertEquals(plain.ext(), none.ext());
+		assertFalse(plain.ext().getAsJsonObject(ComposeRequest.EXT_HINTS).has("modules"), "no modules member when none is offered");
+		var modules = com.google.gson.JsonParser.parseString("[{\"id\": \"crop_farm\", \"lotType\": \"crop_farm\", \"sizes\": []}]").getAsJsonArray();
+		ComposeRequest with = ComposeJob.request("set_1", card.toString(), "north: plains 100%.", claim, ANCHORS, null, null, "owner-1", modules, "crop_farm@1:abc");
+		assertEquals(modules, with.ext().getAsJsonObject(ComposeRequest.EXT_HINTS).getAsJsonArray("modules"));
+		assertNotEquals(plain.opKey(), with.opKey(), "a catalog under the same card is another compose");
+		assertNotEquals(with.opKey(), ComposeJob.request("set_1", card.toString(), "north: plains 100%.", claim, ANCHORS, null, null, "owner-1", modules, "crop_farm@2:def").opKey());
+		assertEquals(ComposeJob.cardSha(card.toString()), with.ext().get(ComposeJob.EXT_CARD).getAsString(), "the staleness check still reads the card's own sha");
+		assertEquals("abc", ComposeJob.keySha("abc", ""));
+		assertEquals("abc", ComposeJob.keySha("abc", null));
+		assertTrue(ComposeJob.keySha("abc", "x").matches("[0-9a-f]{12}"));
+		// the rules say how a module lot is written
+		assertTrue(ComposeJob.rules().contains("**Working modules.**") && ComposeJob.rules().contains("\"steward_mc:module\""), "the rule");
+	}
+
+	/** (slice M5) A module lot written for a card's building counts for it as well as for its own type. */
+	@Test
+	void aModuleLotCountsForTheBuildingItWasWrittenFor() {
+		JsonObject card = json("{\"program\": [{\"type\": \"farm\", \"count\": 1, \"role\": \"village farm\"}, {\"type\": \"cottage\", \"count\": 2}]}");
+		JsonObject plan = json("{\"zones\": [{\"id\": \"t\", \"program\": {\"lots\": [{\"id\": \"farm_1\", \"type\": \"crop_farm\", \"size\": [11, 12],"
+			+ " \"ext\": {\"steward_mc:module\": {\"id\": \"crop_farm\", \"for\": \"farm\"}}}, {\"id\": \"cottage_1\", \"type\": \"cottage\"}]}}]}");
+		assertEquals(List.of("1 of the cottage"), ComposeJob.missing(card, plan));
+		JsonObject noFor = json("{\"zones\": [{\"id\": \"t\", \"program\": {\"lots\": [{\"id\": \"farm_1\", \"type\": \"crop_farm\"}]}}]}");
+		assertTrue(ComposeJob.missing(card, noFor).contains("1 village farm"), ComposeJob.missing(card, noFor).toString());
+	}
 }

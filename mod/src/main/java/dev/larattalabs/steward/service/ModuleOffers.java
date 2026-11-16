@@ -95,6 +95,24 @@ public final class ModuleOffers {
 		return out;
 	}
 
+	/**
+	 * (slice M5) The modules a composed plan may name now: each kind Steward knows whose newest version the gate offers, with that entry. Empty when the
+	 * catalog can't be read (nothing is offered to the composer, and the compose is as before).
+	 */
+	public static List<dev.larattalabs.steward.module.ComposedModules.Offered> composable() {
+		List<dev.larattalabs.steward.module.ComposedModules.Offered> out = new ArrayList<>();
+		try {
+			for (ModuleKind k : kinds()) {
+				var v = verdict(k.id());
+				if (v.ok() && v.entry() != null) out.add(new dev.larattalabs.steward.module.ComposedModules.Offered(k, v.entry()));
+			}
+		} catch (RuntimeException | LinkageError e) {
+			Steward.LOGGER.warn("modules: the catalog could not be read for a compose", e);
+			return List.of();
+		}
+		return out;
+	}
+
 	/** The gate's verdict on a module's newest version. */
 	public static ModuleGate.Verdict verdict(String id) {
 		return ModuleGate.offer(catalog(), id, env());
