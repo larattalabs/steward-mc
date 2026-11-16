@@ -1757,3 +1757,19 @@ hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batc
 - **S-M5-13. A deterministic failed removal after its custody take** (TEST): a dev hook (for example `dev.fk.halt` point `FKC0`, or
   `dev.removal.failAfterCustody {site}`) that makes the next removal of a fill site end unwritten after the custody is saved. M4b's crash bars
   then cover the write-back, a restart and a retry on the hall's own undoRevision path, beside FKC1, FKC2 and CS1.
+- **S-M5-17. A fill's lock holds through a survival build** (slice M4b's `sort-survival` step B2, 2026-11-15, Architect v0.72.0; sent
+  through the manager, beside M5a's S-M5-14 to 16).
+  - **Seen in game:** a storage_hall@2 (4 slots, rustic) grown from the stockpile in half waves. Once its input chest stood, the player put 64
+    cobblestone into it. Before the fill, line hopper 0 took it down: F0 held 45 cobblestone and D0 held 1. Then the fill waited
+    `fill_blocked` on F0's cell. Nothing was charged or lost: no filter item was charged past the structure, and the player's items stayed in
+    the hall. The fill can run only once the player empties F0, D0 and the line.
+  - **The FK promise broken:** "built with its locks locked and its containers empty". The lever lock (template (1,4,5), beside line hopper 0)
+    didn't hold the line while the site built. There are two possible causes, and Architect checks which in code (Builder's survival placement
+    order and `Fills`):
+    1. The order: a survival build places a cell once its materials arrive, so the lever can stand after the hoppers and the input chest.
+    2. Not powered yet: the lever stands, but not in its locked state until the fill begins.
+  - **Asked:** a fill site's lock cells stand in their locked state before any hopper, dropper or container cell of the site does. Either
+    place the locks first, or hold those cells until every lock stands. The gate covers a survival build fed in half waves with items put
+    into an input that stood part way.
+  - **Steward's side:** the next `sort-survival` run records the lever's and line hopper 0's states at the moment of the preload, as
+    evidence. Until the fix, a player who loads the hall early sees the fill wait on the cell it names, and must empty it.
