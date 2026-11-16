@@ -6614,6 +6614,7 @@ async function moduleCapFlow() {
       const c = await capOf(rid);
       const sp = await ledger();
       // well into the lot (30 units or more drawn), still with more to draw; at worst whatever it drew by the end
+      if (!Object.keys(sp?.need ?? {}).length && mid) break;
       if (Object.keys(sp?.need ?? {}).length && sum(c?.drawn) > 0) { mid = c; if (sum(c.drawn) >= 30) break; }
     }
     if (!mid) return fail(`${label} mid-build`, 'it never drew part of its bill with more still to draw (8 s steps, 320 s)');
