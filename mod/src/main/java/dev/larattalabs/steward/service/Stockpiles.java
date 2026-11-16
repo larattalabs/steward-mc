@@ -175,10 +175,26 @@ public final class Stockpiles {
 		if (!dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) return true;
 		var street = Districts.streetEitherAxis(ArchitectApi.get().sites(server).list(s.owner()), s, null);
 		// off the town's street (either axis), and well clear of the building that changes (a new version may be larger than the one that stands)
-		return ensure(server, s, say, (x, z) -> (street == null || !street.near(x, z, 3))
-			&& (changing == null || x < changing.minX() - CHANGE_MARGIN || x > changing.maxX() + CHANGE_MARGIN || z < changing.minZ() - CHANGE_MARGIN
+		return ensure(server, s, say, offStreet(street).and((x, z) -> changing == null || x < changing.minX() - CHANGE_MARGIN || x > changing.maxX() + CHANGE_MARGIN || z < changing.minZ() - CHANGE_MARGIN
 				|| z > changing.maxZ() + CHANGE_MARGIN)) != null;
 	}
+
+	/**
+	 * (slice CRATE) The settlement's stockpile, made when there is none off the town's street (either axis): a district's first building from materials
+	 * beside a town built at once (whose claim centre is often its street) puts its crates where {@link #forConstruction} would.
+	 */
+	public static @Nullable Stockpile ensureOffStreet(MinecraftServer server, Settlement s, Consumer<String> say) {
+		var street = Districts.streetEitherAxis(ArchitectApi.get().sites(server).list(s.owner()), s, null);
+		return ensure(server, s, say, offStreet(street));
+	}
+
+	/** (slice CRATE) The cells a new crate may take: none within {@link #STREET_MARGIN} of the street, on its axis; any cell without a street. Pure. */
+	static java.util.function.BiPredicate<Integer, Integer> offStreet(dev.larattalabs.steward.model.DistrictRules.@Nullable Street street) {
+		return (x, z) -> street == null || !street.near(x, z, STREET_MARGIN);
+	}
+
+	/** How far off the street a new crate keeps. */
+	static final int STREET_MARGIN = 3;
 
 	/**
 	 * The ground a change of {@code siteId} to {@code version} covers: the building as it stands and the box Architect's check says the change writes

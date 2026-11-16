@@ -1573,12 +1573,6 @@ public final class SettlementRunner {
 			abandon(district.name() + " stands as its own region already: adding to it waits for Architect's growth (6d).");
 			return;
 		}
-		// (slice SD) only a beside district is built from materials: a quarter (along, outpost) founded in a world since turned to survival still waits
-		if (quarter && dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) {
-			Districts.release(settlement.id(), district);
-			abandon(district.name() + " is a quarter: quarters built from materials are coming, but not in this version. A district beside the town can be built from materials now. Nothing was spent.");
-			return;
-		}
 		var regions = ArchitectApi.get().regions();
 		var town = district.parent() == null ? java.util.Optional.<dev.larattalabs.architect.api.RegionView>empty() : regions.get(district.parent());
 		if (town.isEmpty() || town.get().state() == dev.larattalabs.architect.api.RegionState.REMOVED || town.get().state() == dev.larattalabs.architect.api.RegionState.REMOVING) {
@@ -1586,9 +1580,10 @@ public final class SettlementRunner {
 			return;
 		}
 		// (slice SD) a world that builds regions from materials: the district's region is built from the settlement's one stockpile (Architect keeps one per
-		// owner and dimension; its targets join the feed after the town's), so it is found or made first, and the plan keeps off its crates
+		// owner and dimension; its targets join the feed after the town's), so it is found or made first, and the plan keeps off its crates. (slice SD2)
+		// a quarter (along, outpost) the same, quoted and billed as a beside district is. (slice CRATE) a new crate keeps off the town's street.
 		if (regionMaterials()) {
-			var sp = Stockpiles.ensure(server, settlement, this::say);
+			var sp = Stockpiles.ensureOffStreet(server, settlement, this::say);
 			if (sp == null) {
 				abandon(district.name() + " is built from materials, from " + settlement.name() + "'s stockpile, and none could be made by the founding stone. "
 					+ "Clear a spot beside it and start again. Nothing was spent.");

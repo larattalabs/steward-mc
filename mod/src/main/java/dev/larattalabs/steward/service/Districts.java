@@ -481,10 +481,11 @@ public final class Districts {
 	/**
 	 * Founds a quarter (an along district or an outpost, Noah's Q2) towards {@code dir}, as {@code building}: its strip beyond the claim held while it is
 	 * built, its founding logged with it as the target; the build that follows plans it beside the town and builds its buildings. Returns the district's
-	 * id, or throws with why not. Not in survival; the town must be a region. Server thread.
+	 * id, or throws with why not. The town must be a region. (slice SD2) In a world that builds regions from materials, the quarter is built from the
+	 * settlement's stockpile: its build ensures it, quotes the bill before the placement approval and realises it in CONSTRUCTION, as a beside district's
+	 * first building. Server thread.
 	 */
 	public static String foundQuarter(MinecraftServer server, Settlement s, String dir, dev.larattalabs.steward.model.Proposal.Quarter q, String name) {
-		if (dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false)) throw new IllegalStateException("Quarters built from materials are coming, but not in this version: for now a district beside the town is built from materials.");
 		var townId = TownRegion.of(s);
 		if (townId.isEmpty()) throw new IllegalStateException("A quarter goes beside a town Architect laid out, and " + s.name() + "'s town isn't one (or was undone).");
 		var town = ArchitectAccess.api().regions().get(townId.get()).orElseThrow(() -> new IllegalStateException("The town's region can't be read."));

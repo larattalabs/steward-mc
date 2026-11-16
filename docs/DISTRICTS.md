@@ -42,7 +42,7 @@ Limits:
 |---|---|
 | A region (Architect's flat village, or an approved plan), creative | **Region districts** (this design) |
 | Steward's own layout (old saves, a north-south fallback), or no town yet | Square districts, as today |
-| Survival (`Supplied`) | Square districts until RS ships (a region in survival needs RS's construction mode) |
+| Survival (`Supplied`) | Square districts until RS ships (a region in survival needs RS's construction mode). Since SD and SD2 (§12, §13): beside districts and quarters from materials, billed |
 
 Square districts keep working and keep loading. Nothing migrates a square district into a region.
 
@@ -108,7 +108,8 @@ is gone is refused: "there's no town region to build beside".
 - A district proposal persists its payload: kind, side, boundary (`shore`, `ridge`, `biome_edge` with its two families), lot types
   and the estimate. That way it survives the inbox and a restart.
 - A beside reservation is free. An along or outpost quarter is priced like a build (its lots' design estimate), refused while
-  autonomy is on, and rechecks the world's construction mode at acceptance (survival: square districts only).
+  autonomy is on, and rechecks the world's construction mode at acceptance (survival: square districts only; since SD2, §13, a quarter is built
+  from materials there).
 - Talk's district intent gains the kind:
   - "along the river", "by the shore", "on the ridge", "where the desert meets the jungle" → `along`;
   - "a camp apart", "an outpost", "out by the mine" → `outpost`;
@@ -311,8 +312,8 @@ Three blockers and six should-fixes, each checked against the code; all fixed.
 
 §3's survival row and §9's "Survival" follow-up, built. In a world that builds regions from materials (Architect's `RegionSurvival.on`: the toggle on,
 the default game type not creative), a district east or west of a region town is a beside reservation as in creative (`besideTown` no longer refuses
-survival); north and south, and towns that aren't regions, keep square districts with their road from the stockpile. Quarters (along, outposts) still
-wait: `foundQuarter` refuses survival, and `planDistrict` refuses a quarter whose world turned survival since (given up, nothing spent).
+survival); north and south, and towns that aren't regions, keep square districts with their road from the stockpile. Quarters (along, outposts) waited
+for SD2 (§13): `foundQuarter` refused survival, and `planDistrict` gave up a quarter whose world had turned survival since.
 
 Architect's answers, checked against RS and 0.67.0: one stockpile per owner and dimension (S-Y-6, S-Y-7), so a district draws from its town's;
 its targets join the owner's feed order after the town's (RS "Ids and order"); the plan is made in the world's mode and a realise in another is refused.
@@ -366,3 +367,20 @@ founding didn't build. Once the town is built, the steward proposes it.
   back once, given up, and not proposed again.
 - **Not here:** along or outpost zones are zones, not D1 districts, so the composer never writes them as districts. North or south of the town
   (square districts) is not offered.
+
+## 14. Slice SD2: quarters from materials, and SD's leftovers (2026-11-15)
+
+Noah, 11-15 ("Yes, billed"): quarters work in survival and bill materials like the other parts. As built:
+- **Quarters** (along, outposts): `foundQuarter` no longer refuses a survival world, and `planDistrict` no longer gives up a quarter whose world turned
+  survival. A quarter's first build takes the beside district's path: the stockpile ensured, its crates protected, the realise in CONSTRUCTION, the whole
+  bill quoted (`quoteDistrict`) and said before the placement approval, inexact with one confirm, as SD's districts (no product difference found). A quarter
+  is still always the player's call (refused while autonomy is on). Undo: `Undo.region` as SD's (refused while a growth stands; else removed with its
+  refunds once; a growth still building undone by RU).
+- **CRATE:** a district's new crate keeps 3 columns off the town's street (`Stockpiles.ensureOffStreet`, the predicate `forConstruction` uses).
+- **A restart mid-undo, finished by itself:** the player's undo of a region saves a note (`NOTE`, tag `undo:region:<id>`) just before Architect is asked.
+  The 10 s sweep (`VillageSweep.growths`, also at world start) finds a note whose region's placing entry isn't retired: REMOVING waits; Architect's
+  tombstone (its resumed removal ended) logs the removal once and gives the district up; anything else (the resumed removal stopped, PARTIAL) is left for
+  the player's next undo, never asked again unseen. A region removed outside an undo (no note) is never taken for one (`district-growth`'s town removed
+  first). The same sweep gives up a district whose removal was logged but whose give-up never saved, with no player near.
+- **Checks:** unit `SurvivalDistrictTest` (SD2: finished once after a restart, refund once; a stopped resumed removal left; no note, no retire; the give-up
+  by the sweep; the note's order), `StockpilesTest` (the street margin). e2e (stub) flows `survival-quarter`, `quarter-growth`, `district-module`.

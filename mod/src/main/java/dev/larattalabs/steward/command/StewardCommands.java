@@ -384,10 +384,11 @@ public final class StewardCommands {
 					return 1;
 				})))).then(Commands.literal("site").then(Commands.argument("site",
 				StringArgumentType.word()).executes(ctx -> {
-					// dev (the e2e check): whether a site stands, as Architect's API has it (roads included)
+					// dev (the e2e check): whether a site stands, as Architect's API has it (roads included), and (slice SD2) its box
 					String site = StringArgumentType.getString(ctx, "site");
 					var v = ArchitectApi.get().sites(ctx.getSource().getServer()).get(site);
-					ctx.getSource().sendSuccess(() -> Component.literal(v.map(x -> "site " + site + " stands (" + x.kind() + ")").orElse("site " + site + " is gone")), false);
+					ctx.getSource().sendSuccess(() -> Component.literal(v.map(x -> "site " + site + " stands (" + x.kind() + ") box " + x.box().minX() + " " + x.box().minY() + " "
+						+ x.box().minZ() + " " + x.box().maxX() + " " + x.box().maxY() + " " + x.box().maxZ()).orElse("site " + site + " is gone")), false);
 					return 1;
 				}))).then(Commands.literal("site_module").then(Commands.argument("site",
 				StringArgumentType.word()).executes(ctx -> {

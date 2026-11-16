@@ -277,4 +277,113 @@ class SurvivalDistrictTest {
 		assertTrue(now(id).lands().district("dst_1").isEmpty(), "given up at the next start");
 		assertEquals(1, now(id).log().stream().filter(e -> e.text().startsWith("Gave up Ward")).count(), "once");
 	}
+
+	// ------------------------------------------------------------------ (slice SD2) a restart mid-undo, finished by itself
+
+	private static long removals(Settlement s) {
+		return count(s, Kind.PROJECT_REMOVED);
+	}
+
+	@Test
+	void sd2_aRestartMidUndoIsFinishedByItselfOnceArchitectsResumedRemovalEnds() throws IOException {
+		String id = nextId();
+		Settlement s = district(id, false);
+		a.regions.get("rg_sd").built = false;
+		// the player's undo: its note saved, Architect asked; the world stops before the answer (Architect resumes the removal at the next start)
+		a.removeAnswer = Answer.HOLD;
+		var done = new AtomicReference<Boolean>();
+		Undo.region(null, s, founding(s), "rg_sd", Map.of(), said::add, done::set, true);
+		assertEquals(1, a.count("regions.remove rg_sd"));
+		assertEquals(List.of("rg_sd"), Undo.interrupted(now(id)), "the undo's note names it, its entry not retired");
+		a.regions.get("rg_sd").state = RegionState.REMOVING;
+		Session.nextForTest();
+		Undo.mark(id, false);
+		restart();
+		// still removing after the restart: waited for, nothing logged
+		assertFalse(Undo.finishInterrupted(null, now(id)));
+		assertEquals(0, removals(now(id)));
+		assertTrue(now(id).lands().district("dst_1").isPresent());
+		// Architect's resumed removal ends (its old answer goes to a world that closed): logged once, refunded once, the district given up
+		a.held.remove(0).run();
+		assertNull(done.get(), "the closed world's callback is not the outcome");
+		assertEquals(0, removals(now(id)));
+		assertTrue(Undo.finishInterrupted(null, now(id)), String.valueOf(said));
+		assertEquals(1, removals(now(id)));
+		assertTrue(now(id).lands().district("dst_1").isEmpty(), "given up with its region, no undo asked again");
+		assertEquals(a.ledger.paid, a.ledger.returned, "paid == returned");
+		assertEquals(62, a.ledger.returned);
+		assertEquals(List.of(), Undo.interrupted(now(id)));
+		// later sweeps, and an undo asked anyway: nothing more logged, asked or refunded
+		assertFalse(Undo.finishInterrupted(null, now(id)));
+		restart();
+		assertFalse(Undo.finishInterrupted(null, now(id)));
+		assertEquals(1, removals(now(id)), "once");
+		assertEquals(1, a.count("regions.remove rg_sd"), "asked once");
+		assertEquals(62, a.ledger.returned, "refunded once");
+	}
+
+	@Test
+	void sd2_aResumedRemovalThatStoppedIsLeftForThePlayersNextUndo() throws IOException {
+		String id = nextId();
+		Settlement s = district(id, false);
+		a.removeAnswer = Answer.HOLD;
+		Undo.region(null, s, founding(s), "rg_sd", Map.of(), said::add, x -> { }, true);
+		Session.nextForTest();
+		Undo.mark(id, false);
+		restart();
+		a.held.clear();
+		a.regions.get("rg_sd").state = RegionState.PARTIAL;
+		assertEquals(Undo.Resume.LEAVE, Undo.resume(RegionState.PARTIAL));
+		assertFalse(Undo.finishInterrupted(null, now(id)));
+		assertEquals(0, removals(now(id)), "never logged as removed");
+		assertEquals(1, a.count("regions.remove rg_sd"), "never asked again unseen");
+		assertTrue(now(id).lands().district("dst_1").isPresent());
+	}
+
+	@Test
+	void sd2_aRegionRemovedOutsideTheUndoIsNotTakenForOne() throws IOException {
+		String id = nextId();
+		district(id, false);
+		// removed by something else (Architect's own tools): no note of an undo, so the history waits for the player's undo (as the town removed first)
+		a.regions.get("rg_sd").state = RegionState.REMOVED;
+		a.sites.values().removeIf(x -> "rg_sd".equals(x.region));
+		assertEquals(List.of(), Undo.interrupted(now(id)));
+		assertFalse(Undo.finishInterrupted(null, now(id)));
+		assertEquals(0, removals(now(id)));
+		assertTrue(now(id).lands().district("dst_1").isPresent(), "its entry not retired: kept");
+	}
+
+	@Test
+	void sd2_aGiveUpThatNeverSavedIsFinishedByTheSweep() throws IOException {
+		String id = nextId();
+		Settlement s = district(id, false);
+		var entry = founding(s);
+		a.regions.get("rg_sd").state = RegionState.REMOVED;
+		a.sites.values().removeIf(x -> "rg_sd".equals(x.region));
+		assertTrue(Settlements.log(id, Undo.removed(entry, entry.siteIds(), true, Map.of())).ok());
+		restart();
+		Undo.finishInterrupted(null, now(id));
+		assertTrue(now(id).lands().district("dst_1").isEmpty(), "given up at the next sweep, with no player there");
+		Undo.finishInterrupted(null, now(id));
+		assertEquals(1, now(id).log().stream().filter(e -> e.text().startsWith("Gave up Ward")).count(), "once");
+	}
+
+	@Test
+	void sd2_anUndosNoteCountsOnlyAfterItsRegionsNewestPlacingEntry() {
+		Settlement s = Settlement.founded("set_n", "Gea", TOWN, Permission.PROPOSALS, Difficulty.SUPPLIED, 1L);
+		var placed = Settlement.LogEntry.of(3L, Kind.PROJECT_PLACED, "Placed the town", List.of(new Settlement.SiteChange("t0", "hall", 0, 1)), "region:rg_t",
+			Settlement.Outcome.DONE);
+		var note = Undo.intentNote(placed, "rg_t");
+		assertEquals("undo:region:rg_t", note.siteGroup());
+		assertTrue(note.siteIds().isEmpty(), "a note places nothing");
+		assertEquals(List.of(), Undo.interrupted(s.withLog(note).withLog(placed)), "a note older than the entry is not its undo");
+		Settlement asked = s.withLog(placed).withLog(note);
+		assertEquals(List.of("rg_t"), Undo.interrupted(asked));
+		assertEquals(placed.at(), asked.lastUndoable().orElseThrow().at(), "the note leaves the entry undoable");
+		assertEquals(List.of(), Undo.interrupted(asked.withLog(Undo.removed(placed, placed.siteIds(), true, Map.of()))), "logged: done");
+		assertEquals(Undo.Resume.LOG, Undo.resume(RegionState.REMOVED));
+		assertEquals(Undo.Resume.WAIT, Undo.resume(RegionState.REMOVING));
+		assertEquals(Undo.Resume.WAIT, Undo.resume(null));
+		assertEquals(Undo.Resume.LEAVE, Undo.resume(RegionState.PLACED));
+	}
 }
