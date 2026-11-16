@@ -235,6 +235,15 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.72.0 by a smoke check (2026-11-15, crop-farm-072; speed rule 4).** The pins moved to kit/checker 0.67.0, the program
+unchanged (`c406df05…`), moduleSha `21fa8bf1…`. Unlike 0.68.0-0.70.0, this release changes the billing path crop_farm uses (QL-b/QL-c:
+`Quotes`, FullBom and QuoteLand price each lot over the land as the earlier stages leave it, so the quote is what the realise consumes), so
+the carry leaned on its two billing steps: the bounds re-quote ran right after ingame, and the chain would have stopped there on any moved
+item. All 108 re-quoted per-Style bounds equal the carried ones item for item, and the billing check bills within them. So `record --smoke`:
+offline 151/151 and ingame 150/150 (the catalog now holds storage_hall too), bounds 111/111, survival 63/63 and field-potatoes 62/62 (5
+runs), on ports 8594/8595, $0. `measured.json` is `basis: smoke`, `from: 0.67.0`, certifying 0.72.0 only. Potatoes per crop-day against
+0.67.0: within 1.6% on eight farms, 9x18 +4.2% (the fourth round with 9x18 high); every run is inside its 3a band.
+
 **Carried to Architect 0.70.0 by a smoke check (2026-11-14, crop-farm-070; speed rule 4).** The pins moved to kit/checker 0.65.0, the program
 unchanged (`c406df05…`), moduleSha `1e9960b8…`. The 0.69.0..0.70.0 diff touches no crop_farm path: outside its tests the kit changes only
 version strings, and the Java adds QL's `Quote.terrain()` beside the quote, whose `bom` is computed as before (`Quotes.clamp` reads the `bom`, never writes it);

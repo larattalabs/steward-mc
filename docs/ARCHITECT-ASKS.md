@@ -1706,6 +1706,9 @@ zone streets carry `architect_mc:street.zone`, read in 0.70.0's `compile.mjs` `s
   - `RegionBuild.terrainPerTick` is added.
   - Staged terrain counts in `built()`/`done()`/`percent()`.
   - The Steward side is slice 8aS, after 8a's release.
+  - Change (11-15, Noah: "Keep paid"): F3's region-made trees are the exception. In survival they stay billed and are built as today. Every
+    other form and relief cell stays FREE, 16 per tick, staged. Steward's tree quote text is unchanged; 8aS says the terrain wait for the
+    free cells only.
 - DR final (11-15), accepted. Noah: "1 final, 2 report, 3 yes, 4 ops".
   - Repairs are final; PAID_ORPHAN is report only.
   - Auto-diagnose posts an ops line and never repairs.
