@@ -19,6 +19,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData } from './lib/ram-tmp.mjs';
+import { checkCommand } from './lib/save-barrier.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
@@ -169,10 +170,11 @@ async function closeScreens() {
   }
 }
 
-async function cmd(c) {
+async function cmd(c, { allowFail = false } = {}) {
   // an animal in what an undo takes up stops the removal (Architect asks for force), so every undo starts with the land cleared
   if (/^\/steward undo\b/.test(c)) await clearAnimals();
-  const r = await dev.request('dev.command', { cmd: c });
+  // (SAVEB) the bridge's ok only says the call did not throw: an unknown or unparsable command throws here (allowFail for one expected to)
+  const r = checkCommand(await dev.request('dev.command', { cmd: c }), { cmd: c, allowFail });
   return (r.messages ?? []).join(' | ');
 }
 
@@ -1281,7 +1283,7 @@ async function stockSaveFlow() {
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
   const b = await read();
   const invB = await audit(first.owner);
-  await cmd('/save-all flush');
+  // dev.quit saves on stop (/save-all is dedicated-only: Unknown on this integrated server, it saved nothing)
   await quit();
   launch();
   await connect();
@@ -5136,7 +5138,7 @@ async function planCheckFlow() {
 
 /** Farm animals out of the way: a pig standing on a lot holds its placement up for Architect's 10-minute wait (it happened, on the V RC). */
 async function clearAnimals() {
-  await cmd('/gamerule doMobSpawning false');
+  await cmd('/gamerule spawn_mobs false');
   for (const t of ['pig', 'cow', 'sheep', 'chicken', 'rabbit', 'horse', 'donkey', 'mule', 'llama', 'goat', 'trader_llama', 'wandering_trader', 'fox']) await cmd(`/kill @e[type=minecraft:${t}]`);
   // and what they drop: an item on a lot refuses its placement too (raw beef and feathers held up the library)
   await cmd('/kill @e[type=minecraft:item]');

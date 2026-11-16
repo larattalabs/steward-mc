@@ -18,6 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
+import { checkCommand } from './lib/save-barrier.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -151,7 +152,8 @@ async function stopClient() {
 }
 const call = (type, payload = {}, timeoutMs = 120_000) => dev.call(type, payload, { timeoutMs });
 const req = (type, payload = {}, timeoutMs = 120_000) => dev.request(type, payload, { timeoutMs });
-const cmd = async (c) => req('dev.command', { cmd: c });
+// (SAVEB) an unknown or unparsable command throws (the bridge's ok only says the call did not throw); allowFail for one expected to
+const cmd = async (c, { allowFail = false } = {}) => checkCommand(await req('dev.command', { cmd: c }), { cmd: c, allowFail });
 let nmod = 0;
 async function mod(r, timeoutMs = 900_000) {
   const lab = `m4_${process.pid}_${++nmod}`;
@@ -365,7 +367,7 @@ const land = (region) => call('dev.region.landCheck', { region }, 900_000);
 const lotRow = (rep, id) => (rep.lots ?? []).find((l) => l.lot === id) ?? null;
 
 async function reopen(pos) {
-  await cmd('/save-all flush');
+  // dev.world.leave saves on stop (/save-all is dedicated-only: Unknown on this integrated server)
   await call('dev.world.leave', {}, 300_000);
   await sleep(2000);
   await call('dev.world.open', { name: worldName }, 300_000);
