@@ -471,7 +471,10 @@ const MEASURES = {
     art: 'm4', runs: 1, rates: false, round: 'hall',
   },
   'storage_hall@2': {
-    steps: ['hall', 'bounds', 'sort', 'sort-survival', 'sort-cargo', 'sort-crash'],
+    steps: ['hall', 'bounds', 'sort', 'sort-survival', 'sort-cargo', 'sort-crash', 'sort-plain'],
+    // (M4b) the sort step's one coverage check, completed by sort-plain: accepted only when it is sort's only failure and sort-plain carried
+    // every item it names as a non-filter kind through 100% runs
+    completes: { sort: { by: 'sort-plain', check: /^12\.1 coverage: every domain item a non-filter kind/, missing: (r) => r.data?.coverage?.plainMissing ?? [], covered: (r) => r.data?.covered ?? [] } },
     what: 'docs/MEASURE-M4.md 12.5 and 12.7: the sorting hall (slots 4, 8, 12 and 16, each with its own items through the 48-item domain) and its plain branch, measured in a dev client by tools/module-measure-hall.mjs --version 2: shape, light, every chest opened and emptied by a player through its menu, sorting 20 runs a rustic branch over its four facings in acknowledged batches (10,000 items a hall; every domain item a filter and a non-filter kind), throughput, saturation and a full overflow (each drain counted), the filters holding, restart and an asserted full unload and a partial unload mid-sort (the whole mix fed across them), ingress before the lock (a mid-build insert down the line is the known gap S-M5-17: fill_blocked, nothing charged or lost), fill_blocked, the bill (structure + 41 per item) and the refunds after taking, cargo alone in every container class, the fed-slab recovery, the crash points FK1-FK4, FKC1, FKC2 and CS1 (each judged on every item against the saved state, the removals with an unchanged second undo), and a cancel before the fill (FKC0 is deferred to the pin that carries Architect LC3; late cargo is the known gap S-M5-12, named in the offer).',
     bars: 'docs/MEASURE-M4.md 12.5 and 12.7 (committed before the first measurement)',
     art: 'm4b', runs: 1, rates: false, hallRates: true, round: 'hall', billing: 'sort-survival', // (review 11) @2's billing check is sort-survival
@@ -491,12 +494,20 @@ function measurement(e, now, why) {
     const f = path.join(ROOT, 'artifacts', M.art, `${s}.json`);
     if (!fs.existsSync(f)) { why.push(`no measurement evidence ${s}`); continue; }
     const r = JSON.parse(fs.readFileSync(f, 'utf8'));
-    if (!r.ok) why.push(`measurement ${s} did not pass`);
+    const C = M.completes?.[s];
+    let completedBy = null;
+    if (!r.ok && C) {
+      const failed = r.checks.filter((c) => !c.ok);
+      const fb = path.join(ROOT, 'artifacts', M.art, `${C.by}.json`);
+      const by = fs.existsSync(fb) ? JSON.parse(fs.readFileSync(fb, 'utf8')) : null;
+      if (!r.error && failed.length && failed.every((c) => C.check.test(c.what)) && by?.ok && C.missing(r).length && C.missing(r).every((k) => C.covered(by).includes(k))) completedBy = C.by;
+    }
+    if (!r.ok && !completedBy) why.push(`measurement ${s} did not pass`);
     if (r.programSha !== now.programSha || r.moduleJsonSha !== now.moduleJsonSha) why.push(`measurement ${s} measured other files`);
     if (r.architect !== ARCH_VERSION || r.minecraft !== MC_VERSION) why.push(`measurement ${s} ran on other versions`);
     if (M.fieldRuns && s.startsWith('field-') && !(r.runs >= M.fieldRuns)) why.push(`measurement ${s} has ${r.runs} runs (${M.fieldRuns} needed)`);
     out[s] = { at: r.at, head: r.head, world: r.world, seconds: r.seconds, runs: r.runs ?? null, passed: r.checks.filter((c) => c.ok).length, of: r.checks.length,
-      results: r.checks.map((c) => c.what) };
+      results: r.checks.map((c) => c.what), ...(completedBy ? { completedBy, failed: r.checks.filter((c) => !c.ok).map((c) => c.what) } : {}) };
   }
   return out;
 }

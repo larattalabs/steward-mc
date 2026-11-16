@@ -782,6 +782,7 @@ async function advance(n) {
 /** A hall's sorting mix (12.5 bar 1): each slot's item x 3 stacks, 5 plain domain kinds it doesn't filter, 3 unstackables, a 16-stack, a renamed filter stack. */
 /** A hall's five plain kinds: domain items it doesn't filter, from its own offset (mixAt), so the halls together use every domain item. */
 function plainOf(h, domain) {
+  if (Array.isArray(h.plain) && h.plain.length) return h.plain;
   const own = new Set(h.filterIds);
   const rest = domain.map((k) => `minecraft:${k}`).filter((i) => !own.has(i));
   const at = (h.mixAt ?? 0) % rest.length;
@@ -919,7 +920,17 @@ async function sortStep() {
     const specs = [];
     for (const slots of [4, 8, 12, 16]) FRONTS.forEach((f, k) => specs.push({ id: `s${slots}_${f[0]}`, slots, bulk: [2, 8, 0, 4][k], bible: 'rustic', items: pick(slots), front: f }));
     for (const slots of [4, 16]) for (const bible of ['fortress', 'desert']) specs.push({ id: `s${slots}_${bible.slice(0, 3)}`, slots, bulk: 4, bible, items: pick(slots), front: null });
-    specs.forEach((sp, i) => { sp.mixAt = i * 5; });
+    // (12.1) each hall's five plain kinds chosen so the halls together use every domain item as a non-filter kind: the uncovered ones first
+    // (never the hall's own filters), then the domain in order; asserted before any hall is placed, so a gap can't pass silently
+    const uncovered = new Set(domain);
+    for (const sp of specs) {
+      const own = new Set(sp.items);
+      const pl = [...uncovered].filter((k) => !own.has(k)).slice(0, 5);
+      for (const k of domain) if (pl.length < 5 && !own.has(k) && !pl.includes(k)) pl.push(k);
+      pl.forEach((k) => uncovered.delete(k));
+      sp.plain = pl.map((k) => `minecraft:${k}`);
+    }
+    if (process.env.SORT_QUICK !== '1') check(uncovered.size === 0, `12.1 coverage planned: every domain item a non-filter kind in some hall's mix before the run (${uncovered.size ? `uncovered ${[...uncovered].join(', ')}` : 'all 48'})`);
     // SORT_QUICK=1: a probe of the run's machinery (two halls, one run each), never evidence: its coverage checks fail by design
     if (process.env.SORT_QUICK === '1') specs.splice(0, specs.length, ...specs.filter((sp) => sp.id === 's4_n' || sp.id === 's4_e'));
     // the towns: the first four as before (one per street orientation, two at shifted claims for chunk-border crossings); more as the
@@ -944,7 +955,7 @@ async function sortStep() {
         const w = await rvWait(t.region, g.rid);
         check(w.r.state === 'PLACED', `growth ${sp.id} in ${t.region} (front ${g.halls[0].frame.front}): rid ${g.rid} ${w.r.state}`);
         await hallCells(t.region, g.halls);
-        for (const h of g.halls) { h.region = t.region; h.rid = g.rid; h.position = g.position; h.town = t; h.mixAt = sp.mixAt; }
+        for (const h of g.halls) { h.region = t.region; h.rid = g.rid; h.position = g.position; h.town = t; h.plain = sp.plain; }
         out.growths.push({ region: t.region, rid: g.rid, position: g.position, halls: g.halls.map((h) => h.id) });
         halls.push(...g.halls);
         placed = true;
@@ -1841,7 +1852,59 @@ async function saveProbe() {
   return out;
 }
 
-const steps = { hall, survival, bounds, sort: sortStep, 'sort-survival': sortSurvival, 'sort-cargo': sortCargo, 'sort-crash': sortCrash, 'save-probe': saveProbe };
+
+// ------------------------------------------------------------------ sort-plain (storage_hall@2): 12.1's non-filter coverage, completed
+/**
+ * (M4b, the manager's (a)) The domain items the sort step's evidence names as never a non-filter kind (artifacts/m4b/sort.json
+ * coverage.plainMissing), each through a rustic hall as a non-filter kind: one 4-slot hall, its five plain kinds those items first, 3 runs, each
+ * 100%. {covered: the items its 100% runs carried as non-filter kinds}.
+ */
+async function sortPlain() {
+  if (MODULE.version < 2) throw new Error('sort-plain is storage_hall@2\'s step: --version 2');
+  const prev = fs.existsSync(path.join(ART, 'sort.json')) ? JSON.parse(fs.readFileSync(path.join(ART, 'sort.json'), 'utf8')) : null;
+  const missing = prev?.data?.coverage?.plainMissing ?? [];
+  const out = { missing, covered: [], runs: [] };
+  await startClient('SortPlain');
+  try {
+    await rules();
+    await install();
+    const domain = MODULE_JSON.params.item1.options.filter((o) => o !== 'none');
+    check(missing.length > 0 && missing.length <= 5, `sort-plain: the sort step's evidence names ${missing.length} domain item(s) never a non-filter kind (${missing.join(', ')})`);
+    const items = domain.filter((k) => !missing.includes(k)).slice(0, 4);
+    const plain = [...missing, ...domain.filter((k) => !missing.includes(k) && !items.includes(k))].slice(0, 5).map((k) => `minecraft:${k}`);
+    const t = await town(1280, 0, { orientation: 'ew' });
+    await standAt(t.cx, t.cz, t.gy + 30);
+    const sp = { id: 's4_plain', slots: 4, bulk: 0, bible: 'rustic', items, plain };
+    const g = await growHalls(t.region, [sp]);
+    if (!check(!g.refused, `sort-plain: the hall grown: ${g.refused ? String(g.refused).slice(0, 200) : `rid ${g.rid}`}`)) return out;
+    const w = await rvWait(t.region, g.rid);
+    check(w.r.state === 'PLACED', `sort-plain: growth rid ${g.rid} ${w.r.state}`);
+    await hallCells(t.region, g.halls);
+    const h = g.halls[0];
+    h.plain = plain;
+    await freeze();
+    const s0 = await sortState(h);
+    check(h.filterIds.every((f, u) => fExact(s0.F[u], f)), `sort-plain: every F exactly 41 + 4 before the runs`);
+    let all = true;
+    for (let r = 0; r < 3; r++) {
+      const res = await sortRun([h], domain);
+      out.runs.push(res[h.id]);
+      all = all && res[h.id].sorted;
+      check(res[h.id].sorted, `12.1/12.5 bar 1 sort-plain run ${r + 1}: ${missing.join(', ')} as non-filter kinds, 100% (${res[h.id].why.slice(0, 2).join('; ')})`, res[h.id]);
+      await clearOutputs(h);
+    }
+    const s1 = await sortState(h);
+    check(h.filterIds.every((f, u) => fExact(s1.F[u], f)), `sort-plain: every F exactly 41 + 4 after the runs`);
+    out.covered = all ? plain.map((k) => k.replace(/^minecraft:/, '')) : [];
+    check(missing.every((k) => out.covered.includes(k)), `12.1 coverage completed: ${missing.join(', ')} sorted as a non-filter kind in 3 runs of 100%`);
+    await cmd('/tick unfreeze');
+  } finally {
+    await stopClient().catch((e) => log(`stop: ${e}`));
+  }
+  return out;
+}
+
+const steps = { hall, survival, bounds, sort: sortStep, 'sort-survival': sortSurvival, 'sort-cargo': sortCargo, 'sort-crash': sortCrash, 'save-probe': saveProbe, 'sort-plain': sortPlain };
 if (steps[step]) {
   const t0 = Date.now();
   let data, error;
