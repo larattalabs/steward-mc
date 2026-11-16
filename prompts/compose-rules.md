@@ -2,12 +2,13 @@
 
 Steward composes a settlement's plan through Architect's composer (`Regions.compose`, Architect 7c CO/AU; docs/COMPOSITION.md section 13).
 Architect owns the engine: plan/0, its catalogue, the composer's own rules (`kit/prompts/composer.md`), the affordances, the checks and the repair
-rounds. This file holds only what is Steward's: the section below goes as `ext["architect_mc:composeSystem"]` (at most 30,000 characters,
+rounds. This file holds only what is Steward's: the section below goes as `ext["architect_mc:composeSystem"]` (at most 28,000 characters beside the block families,
 appended after Architect's rules), and the card goes as `ext["architect_mc:composeHints"]` (`ComposeJob.hints`). The composer answers
 `{plan, reason}`.
 
-Until CP (Architect's ask slice for S-CA-1..5): the material-rule line stands in for the block vocabulary (CP sends it with ext
-`architect_mc:composeVocab=families`), and the `reason` and `notes` lines stand in for CP's `result.summary` and `waits[].say`.
+Since CA2 (Architect CP): the request skips the template pick (`architect_mc:skipPick`) and sends the block families
+(`architect_mc:composeVocab=families`, ahead of these rules); the composer's `reason` reaches the player as `result.summary`, and a waiting
+part's line is Architect's own `waits[].say` (the `notes` sentence below is still asked for, as the plan's own record).
 
 ## Rules
 
@@ -17,8 +18,9 @@ The request comes from Steward, a settlement mod: the player described a settlem
 - **Style.** The style is made after this plan: give `style` as `{pending: "<the settlement's slug>"}`. Give `planId` as that slug.
 - **Anchors.** Place the town by `stone` (the settlement grows from it) unless the card or the land asks for somewhere else; `player` is where the player stood when they described it.
 - **What can't be built yet is still written** (this overrides "leave a reserved kind out"): when the card asks for something whose kind the catalogue lists as reserved, or doesn't list, write it anyway as a part of that kind in the shape you think it needs, `required` as the card asks, so it waits and is built when Architect can. Its `notes` is one plain sentence for the player saying what it is ("A railway to the mine, for when Architect can lay track."). Never drop what the player asked for silently, and never write it as a kind it is not.
+- **Working modules.** The caller's hints may list `modules`: working buildings Steward builds from its own measured catalog, never designed. Each says what it `does`; write one only for what it does. When the card asks for a working building one of them does (a farm that grows the town's food, storage for the town's stores), write that building as a lot of the module instead of an ordinary lot: `id` its wanted type and a number as any lot, `type` the module's `lotType`, `role` and `label` as for any lot, `size` exactly one of the module's `sizes[].size`, `irrigate: true` when the module's `irrigate` is true (never for any other), and `ext: {"steward_mc:module": {"id": <the module's id>, "params": <that size's params, plus the module's choose.param set to one of choose.values>, "for": <the wanted type it stands for>}}`. At most one lot of each module in a plan; a second building of the same kind is an ordinary lot. Never write `field`, a version or a program for it: Steward writes them. A module with `warmOnly` true is not written where the land freezes. What the card asks for beyond what a module does (an automatic harvest, sorting from a module that doesn't sort) isn't built: say so in `reason`, honestly. Anything no module covers is an ordinary lot, as above, and a lot of a module's `lotType` is always that module. A card that doesn't ask for working buildings gets none.
 - **Hidden rooms are secrets.** When the card asks for a hidden room, a secret cellar, a hideout, or a place behind a waterfall or inside a hill, write it as a `form.hidden_room` in its host: a lot of this plan, a hollow in the land, or the waterfall itself (a place "behind a waterfall" is the waterfall's hollow, `host` the waterfall). A village "hidden behind a waterfall" is a village beside the falls with its hidden room behind them. Never name the room in `reason`, in a label, a brief or another part's notes. Never leave it out because it is a secret.
 - **The street's axis.** When the room round the stone runs north-south (a valley, a coast or a ridge along z), give the town's street zone `orientation: "ns"` (`flat_village`'s `params.orientation`, a lots program's `orientation`). Otherwise leave it out: Steward lays a street with no orientation east-west. Never write `auto`.
 - **Gates.** Steward gives every gatehouse a portcullis itself: leave `mech` out unless the card asks for another gate (a sliding gate `slide`, a vault door `swing`) or none (an open arch: `params: {mechanism: "none"}` on the wall). Iron gates all round a wall: `gateMech: "swing"` on the wall.
-- **Material rules.** Name a palette rule's `family` only with a family or group of Minecraft blocks you are sure of (`wood`, `stone`, `copper`); a wrong name answers malformed.
+- **Material rules.** Name a palette rule's `family` only from the block families above (a family, a group or a dyed family); a block outside them by its id. A wrong name answers malformed.
 - **`reason` is for the player.** Two or three plain sentences addressed to the player: what the settlement will be, and, honestly, what waits or was left out. Never say something is built that no part of the plan builds.

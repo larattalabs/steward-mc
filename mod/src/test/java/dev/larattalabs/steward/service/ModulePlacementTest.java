@@ -131,6 +131,9 @@ class ModulePlacementTest {
 		assertTrue(SettlementRunner.lostAnswer(new java.util.concurrent.CompletionException(new java.util.concurrent.TimeoutException()), null));
 		var helperGone = new ModuleInstalls.Outcome(null, "sidecar_unavailable", "the helper is not connected", java.util.List.of(), null, null, null, false);
 		assertTrue(SettlementRunner.lostAnswer(null, helperGone));
+		// (M5a, under load) the helper went mid-variant: Architect says to call again with the same key
+		var disconnected = new ModuleInstalls.Outcome(null, "error", "java.lang.IllegalStateException: the helper disconnected during follow kv46a13d51a8f141ecb129; it resumes when the helper restarts: call again with the same opKey for its results", java.util.List.of(), null, null, null, false);
+		assertTrue(SettlementRunner.lostAnswer(null, disconnected));
 		var palette = new ModuleInstalls.Outcome(null, "palette", "fixture_plot@1 can't take the style", java.util.List.of(), null, null, null, false);
 		assertFalse(SettlementRunner.lostAnswer(null, palette), "a refusal is definitive");
 		var program = new ModuleInstalls.Outcome(null, "program", "palette: refuses", java.util.List.of("x: y"), null, null, null, false);

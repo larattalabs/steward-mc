@@ -273,3 +273,10 @@ The hall's program and its certificate are unchanged (no re-measure). Each of §
 - **Ran** (stub, ports 8598/8599): run 1 `--only module-hall`, `module-hall` all pass (declared cells, barrel with the chest, barrel alone,
   undo), the cancel round failed (nothing drawn: fed before the accept); run 2 the cancel passed, the talk re-ask looked for the wrong key;
   run 3 `--only module-hall-survival` PASS 14.
+
+## 10. Smoke carry to Architect 0.72.0 (2026-11-15)
+
+Carried from 0.67.0 (`basis: smoke`) to 0.72.0, kit/checker 0.67.0, on branch `storage-hall-072` (batch-072). 0.72.0 changes the billing
+path (QL-b/QL-c: Quotes, FullBom, QuoteLand) and adds FK-b, which @1 doesn't use; the hall's kit paths are unchanged. Fresh: offline 151/151,
+ingame 150/150, survival 26/26 (each growth consumed = its quote, the cancel and the refunds exact), bounds 58/58 with **all 27 re-quoted
+bounds equal to the carried ones** (so the carry recorded), the hall round 218/218.

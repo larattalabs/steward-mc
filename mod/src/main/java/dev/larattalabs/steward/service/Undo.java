@@ -132,8 +132,8 @@ public final class Undo {
 		if (growth.isPresent()) return growth(server, s, entry.get(), growth.get(), now, say, ok -> { if (ok != null) UNDOING.remove(s.id()); });
 		String region = dev.larattalabs.steward.gateway.VPlan.regionOf(entry.get().siteGroup());
 		if (region != null) {
-			// the world closing mid-undo (null) is not its outcome: the undo can be run again after the restart
-			return region(server, s, entry.get(), region, now, say, ok -> UNDOING.remove(s.id()));
+			// the world closing mid-undo (null) is not its outcome: (slice SD2) the note left before the removal lets the sweep finish it after the restart
+			return region(server, s, entry.get(), region, now, say, ok -> UNDOING.remove(s.id()), true);
 		}
 		String group = entry.get().siteGroup();
 		var g = group == null ? java.util.Optional.<dev.larattalabs.architect.api.SiteGroup>empty() : sites.group(group);
@@ -202,6 +202,15 @@ public final class Undo {
 	 */
 	public static boolean region(MinecraftServer server, Settlement s, Settlement.LogEntry entry, String region, java.util.Map<String, Integer> now,
 		Consumer<String> say, Consumer<Boolean> whenDone) {
+		return region(server, s, entry, region, now, say, whenDone, false);
+	}
+
+	/**
+	 * As above; {@code intent} (slice SD2, the player's undo): an {@link #INTENT} note naming the region is saved just before Architect is asked, so a stop
+	 * before the removal's answer is logged is finished by {@link #resumeInterrupted} once Architect's resumed removal ends, with no second undo.
+	 */
+	static boolean region(MinecraftServer server, Settlement s, Settlement.LogEntry entry, String region, java.util.Map<String, Integer> now,
+		Consumer<String> say, Consumer<Boolean> whenDone, boolean intent) {
 		// the settlement is busy while its land is rewritten (no build surveys it half restored), whoever asked: undo, a cancel, the sweep
 		UNDOING.add(s.id());
 		Consumer<Boolean> done = ok -> {
@@ -239,6 +248,20 @@ public final class Undo {
 			done.accept(false);
 			return false;
 		}
+		// (slice M5, M4's Q3) a storage hall of the town holding items: refused at once and said with its chests (Architect's removal would wait on the cargo
+		// as a blocker)
+		String hall = HallCargo.before(server, s.owner(), regionSites);
+		if (hall != null) {
+			say.accept("Undo stopped: " + hall + ".");
+			done.accept(false);
+			return false;
+		}
+		// (slice SD2) the undo's intent first: a note only (the history's own entries decide everything else), so a failed save still undoes
+		if (intent && !Settlements.log(s.id(), intentNote(entry, region)).ok()) {
+			// (batch review 3) said, not only logged; the undo goes on
+			Steward.LOGGER.warn("{}: the undo of {} left no note (a restart mid-removal needs /steward undo again)", s.id(), region);
+			say.accept("If the world closes before this finishes, use /steward undo " + s.id() + " again.");
+		}
 		int session = Session.current();
 		regions.remove(region, new RemoveOptions(false, s.owner())).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
@@ -247,12 +270,134 @@ public final class Undo {
 			// logged once (slice VSR): two asks of one removal (Architect joins them) retire the entry once
 			if (ok && !retired(Settlements.store().get(s.id()).orElse(s), entry) && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
 			districts(server, s, say);
-			if (!ok) say.accept("Undo stopped: " + (err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
-				: "blocked by " + String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
+			String why = err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()) : "blocked by " + String.join(", ", r.blockers());
+			// (slice M5) refused for a storage hall holding items: said as the steward says it, then Architect's own list
+			String held = !ok && HallCargo.cargoRefusal(why) ? HallCargo.words(server, s.owner(), region, why) : null;
+			// (batch review 2) a refused undo's note is closed: a later removal by something else is never taken for this undo
+			if (!ok && intent && !Settlements.log(s.id(), closedNote(region, why)).ok()) Steward.LOGGER.warn("{}: the stopped undo of {} left its note open", s.id(), region);
+			if (!ok) say.accept("Undo stopped: " + (held != null ? held + " (" + why + ")" : why) + ". Clear it and run /steward undo " + s.id() + " again.");
 			else say.accept("Undone: the village is taken up, the land restored.");
 			done.accept(ok);
 		}));
 		return true;
+	}
+
+	// ------------------------------------------------------------------ (slice SD2) a restart mid-undo, finished by itself
+
+	/** The text an undo's intent note starts with. */
+	static final String INTENT = "Undoing";
+
+	/** The tag of the intent note for the undo of {@code region} (never a placing tag: {@code region:} and {@code revision:} readers pass it by). */
+	static String intentTag(String region) {
+		return "undo:" + dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + region;
+	}
+
+	/** The text the note closing a stopped undo starts with. */
+	static final String STOPPED = "Undo stopped";
+
+	/** (batch review 2) The note closing an undo Architect refused or stopped: the intent before it no longer stands. */
+	static Settlement.LogEntry closedNote(String region, String why) {
+		return new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, STOPPED + " (its region " + region + "): " + why, List.of(), intentTag(region));
+	}
+
+	/** The note the player's undo of a region saves just before Architect is asked to remove it. */
+	static Settlement.LogEntry intentNote(Settlement.LogEntry placed, String region) {
+		return new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, INTENT + " \"" + placed.text() + "\": its region " + region
+			+ " is being removed (a stop meanwhile is put right by itself)", List.of(), intentTag(region));
+	}
+
+	/**
+	 * The regions whose undo the player asked (an intent note after the region's newest placing entry) and whose removal is not logged yet (that entry not
+	 * retired): a stop came between the ask and the logged answer. Each once, oldest ask first. Pure over the history.
+	 */
+	static List<String> interrupted(Settlement s) {
+		// each region's newest note: an intent still open (no closing note after it), by where it stands in the history
+		java.util.LinkedHashMap<String, Integer> open = new java.util.LinkedHashMap<>();
+		var log = s.log();
+		String prefix = "undo:" + dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX;
+		for (int i = 0; i < log.size(); i++) {
+			var e = log.get(i);
+			if (e.kind() != Settlement.Kind.NOTE || e.siteGroup() == null || !e.siteGroup().startsWith(prefix)) continue;
+			String region = e.siteGroup().substring(prefix.length());
+			if (e.text().startsWith(INTENT)) open.put(region, i);
+			else if (e.text().startsWith(STOPPED)) open.remove(region);
+		}
+		List<String> out = new ArrayList<>();
+		for (var o : open.entrySet()) {
+			var placed = VillageSweep.entryOf(s, o.getKey());
+			if (placed.isEmpty() || retired(s, placed.get()) || log.indexOf(placed.get()) > o.getValue()) continue;
+			out.add(o.getKey());
+		}
+		return List.copyOf(out);
+	}
+
+	/** (slice SD2) What an interrupted undo's region asks for now. */
+	enum Resume { WAIT, LOG, LEAVE }
+
+	/**
+	 * (slice SD2) What follows an interrupted undo, by its region's state now: removed (Architect's tombstone): its removal is logged, once; still being
+	 * removed, or unknown (no record, or none readable): waited for; anything else (the resumed removal stopped, PARTIAL): left as an ordinary stopped
+	 * undo, for the player's next undo (never asked again unseen: what blocked it may be the player's). Pure.
+	 */
+	static Resume resume(dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable RegionState state) {
+		if (state == dev.larattalabs.architect.api.RegionState.REMOVED) return Resume.LOG;
+		if (state == null || state == dev.larattalabs.architect.api.RegionState.REMOVING) return Resume.WAIT;
+		return Resume.LEAVE;
+	}
+
+	/**
+	 * (slice SD2) Finishes the player's undos a stop cut off: each region whose removal Architect finished after the restart (its tombstone) is logged
+	 * removed once, and that region's own district given up ({@link Districts#giveUpRemoved}); one still removing waits for a later sweep. Also a
+	 * district region whose removal was logged but whose give-up never saved is given up ({@link Districts#giveUpRemoved}). Nothing while the settlement
+	 * is busy. Returns whether anything was logged. Server thread.
+	 */
+	static boolean resumeInterrupted(MinecraftServer server, Settlement given) {
+		if (busy(given.id())) return false;
+		try {
+			if (SettlementRunner.busy(given.id())) return false;
+		} catch (RuntimeException | LinkageError e) {
+			// can't tell whether anything runs: a later sweep looks again
+			return false;
+		}
+		return finishInterrupted(server, given);
+	}
+
+	/** {@link #resumeInterrupted} once the settlement is known not busy. */
+	static boolean finishInterrupted(@org.jspecify.annotations.Nullable MinecraftServer server, Settlement given) {
+		var s = Settlements.store().get(given.id()).orElse(given);
+		boolean logged = false;
+		for (String region : interrupted(s)) {
+			dev.larattalabs.architect.api.RegionState state;
+			try {
+				state = ArchitectAccess.api().regions().get(region).map(dev.larattalabs.architect.api.RegionView::state).orElse(null);
+			} catch (RuntimeException | LinkageError e) {
+				state = null;
+			}
+			if (resume(state) != Resume.LOG) continue;
+			var fresh = Settlements.store().get(s.id()).orElse(s);
+			var placed = VillageSweep.entryOf(fresh, region);
+			if (placed.isEmpty() || retired(fresh, placed.get())) continue;
+			if (!Settlements.log(s.id(), removed(placed.get(), placed.get().siteIds(), true, java.util.Map.of())).ok()) {
+				Steward.LOGGER.warn("{}: the undo of {} finished after a restart, but its record could not be saved (tried again later)", s.id(), region);
+				continue;
+			}
+			logged = true;
+			Steward.LOGGER.info("{}: the undo of {} finished after a restart: logged", s.id(), region);
+			// (batch review 1) only this region's own district, on its tombstone with its entries retired and a healthy sites read (giveUpRemoved);
+			// never the settlement-wide pass, which takes a sibling whose record isn't loaded yet for removed
+			String more = "";
+			var after = Settlements.store().get(s.id()).orElse(s);
+			var own = after.lands().districts().stream().filter(d -> !d.square() && region.equals(d.region())).findFirst();
+			if (own.isPresent()) {
+				Districts.giveUpRemoved(server, after, own.get());
+				if (Settlements.store().get(s.id()).flatMap(x -> x.lands().district(own.get().id())).isEmpty()) more = " " + own.get().name() + " is given up: its land is free again.";
+			}
+			if (server != null) StewardVoice.say(server, s.id(), "Undone: \"" + placed.get().text() + "\" was taken up while the world was closed, the land restored." + more);
+		}
+		// a district region removed and logged, its give-up not saved (a stop between them)
+		var now = Settlements.store().get(s.id()).orElse(s);
+		for (Settlement.District d : now.lands().districts()) if (!d.square() && d.region() != null) Districts.giveUpRemoved(server, now, d);
+		return logged;
 	}
 
 	/**

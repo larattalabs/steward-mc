@@ -1,0 +1,72 @@
+{
+  "prompt": "(slice M5) A farming village that feeds itself and keeps its stores in order: a working crop farm and a storage hall, as module lots of the plan (docs/MODULES.md \"M5 design\"), beside two cottages.",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "composed_modules",
+      "style": {
+        "pending": "composed_modules"
+      },
+      "zones": [
+        {
+          "id": "town",
+          "kind": "standard",
+          "required": true,
+          "label": "the village",
+          "program": {
+            "template": "flat_village",
+            "params": {
+              "lots": [
+                {
+                  "id": "farm_1",
+                  "type": "crop_farm",
+                  "role": "farm",
+                  "label": "the village field",
+                  "size": [11, 12],
+                  "irrigate": true,
+                  "ext": {
+                    "steward_mc:module": {
+                      "id": "crop_farm",
+                      "params": { "width": 9, "depth": 9, "crop": "wheat" },
+                      "for": "farm"
+                    }
+                  }
+                },
+                {
+                  "id": "warehouse_1",
+                  "type": "storage_hall",
+                  "role": "storage",
+                  "label": "the storage hall",
+                  "size": [11, 7],
+                  "ext": {
+                    "steward_mc:module": {
+                      "id": "storage_hall",
+                      "params": { "slots": 0, "bulk": 2 },
+                      "for": "warehouse"
+                    }
+                  }
+                },
+                {
+                  "id": "cottage_1",
+                  "type": "cottage",
+                  "role": "cottage",
+                  "label": "a cottage",
+                  "size": [13, 14]
+                },
+                {
+                  "id": "cottage_2",
+                  "type": "cottage",
+                  "role": "cottage",
+                  "label": "a cottage",
+                  "size": [13, 14]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "waits": [],
+    "summary": "A farming village that feeds itself: a watered, lit field, a storage hall for its stores, and two cottages."
+  }
+}

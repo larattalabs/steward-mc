@@ -258,6 +258,8 @@ public final class VillageSweep {
 			for (Settlement.District d : s.lands().districts()) if (Districts.grows(d)) Districts.refreshLand(s.id(), d.region());
 			// one take-up per settlement at a time (slice DG review 5: Undo's busy mark is per settlement); the next sweep goes on with fresh state
 			if (Undo.busy(s.id()) || SWEEPING.contains(s.id())) return;
+			// (slice SD2) an undo a stop cut off, finished once Architect's resumed removal has ended (no second undo asked of the player)
+			if (Undo.resumeInterrupted(server, s)) return;
 			// the town's region and (slice DG) every standing district region of the settlement: each one's revisions
 			for (String id : growable(TownRegion.of(s).orElse(null), s.lands().districts())) {
 				var town = regions.get(id);

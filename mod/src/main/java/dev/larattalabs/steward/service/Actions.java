@@ -539,6 +539,11 @@ public final class Actions {
 				Math.max(1, p.get().building().count()));
 			return Result.ok(String.format("Laying out %s and its %d buildings, budget $%d.", p.get().title(), Math.max(1, p.get().building().count()), budget));
 		}
+		if (PlanDistricts.isKey(key)) {
+			// (slice PD) a district the town's plan named and its founding didn't build: reserved beside the town, then built from the plan's lots
+			if (autonomous) return Result.fail("A new district waits for the player.");
+			return acceptPlanDistrict(player, s, p.get());
+		}
 		if (p.get().foundsDistrict()) {
 			// a new district always waits for the player, whatever the permission level
 			if (autonomous) return Result.fail("A new district waits for the player.");
@@ -590,6 +595,59 @@ public final class Actions {
 			() -> Proposals.giveBack(s.id(), p.get(), spend), () -> Proposals.backOff(s.id(), key)).startAddition(s, p.get().building(), budget, district);
 		return Result.ok(String.format("Building %s for %s: one building beside what stands%s, budget $%d.", title.toLowerCase(), s.name(),
 			district == null ? "" : " in " + s.lands().district(district).map(Settlement.District::name).orElse("its district"), budget));
+	}
+
+	/**
+	 * (slice PD) Accepts the plan's unbuilt district: read again from the plan (gone, the proposal is withdrawn), reserved beside the town towards the
+	 * proposal's side ($0, Architect's beside check; a reservation an earlier acceptance left is taken as it is), then its first build plans the district's
+	 * region with the plan's lots on SD's path (in survival from the stockpile: its bill said before the one approval). The acceptance is saved as that
+	 * build starts and given back if it ends having spent nothing; the reservation then stays, and a later acceptance builds on it.
+	 */
+	static Result acceptPlanDistrict(ServerPlayer player, Settlement s, dev.larattalabs.steward.model.Proposal p) {
+		MinecraftServer server = player.level().getServer();
+		if (!SettlementRunner.canSave()) return Result.fail("Builds cannot be saved in this world (steward-builds.json could not be read; see the log), so none is started.");
+		String planId = PlanDistricts.idOf(p.key());
+		var u = Proposals.unbuiltPlanDistricts(s).stream().filter(x -> x.id().equals(planId)).findFirst();
+		if (u.isEmpty()) {
+			Proposals.withdraw(s.id(), p.key());
+			return Result.fail("The plan's " + p.title().replaceFirst("^The plan's ", "") + " can't be founded now: the town isn't built from that plan yet, or it holds those lots. The proposal is withdrawn.");
+		}
+		String way = p.found();
+		if (way == null || Districts.besideTown(server, s, way) == null) {
+			return Result.fail(s.name() + "'s town isn't a region to build " + PlanDistricts.named(u.get().label()) + " beside now.");
+		}
+		var level = server.getLevel(net.minecraft.resources.ResourceKey.create(net.minecraft.core.registries.Registries.DIMENSION,
+			net.minecraft.resources.Identifier.parse(s.claim().dimension())));
+		if (level == null) return Result.fail("The dimension of " + s.id() + " is not loaded.");
+		var specs = PlanDistricts.specs(u.get(), Secrets.of(PlanStore.get(s.id()).orElse(null)));
+		int budget = Proposals.estimate(p);
+		String label = u.get().label();
+		String key = p.key();
+		UUID who = player.getUUID();
+		Consumer<String> say = msg -> {
+			var pl = server.getPlayerList().getPlayer(who);
+			if (pl != null) pl.sendSystemMessage(Component.literal(msg));
+			StewardVoice.say(server, s.id(), msg);
+		};
+		Runnable build = () -> {
+			var now = Settlements.store().get(s.id());
+			var d = now.flatMap(x -> PlanDistricts.reservedFor(x, label));
+			var pl = server.getPlayerList().getPlayer(who);
+			if (d.isEmpty() || pl == null) {
+				say.accept(d.isEmpty() ? "Reserved, but " + label + " couldn't be found to build; accept it again." : label + " is reserved; accept it again to build it.");
+				return;
+			}
+			new SettlementRunner(server, level, pl, now.get().permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, null),
+				() -> Proposals.giveBack(s.id(), p, null), () -> Proposals.backOff(s.id(), key)).startPlanDistrict(now.get(), d.get().id(), specs, budget);
+		};
+		String lots = PlanDistricts.lotWords(u.get());
+		if (PlanDistricts.reservedFor(s, label).isPresent()) {
+			build.run();
+			return Result.ok(String.format("Building %s from the plan: %s, budget $%d.", PlanDistricts.named(label), lots, budget));
+		}
+		String no = Districts.found(server, player, s, way, "S", label, say, build);
+		return no == null ? Result.ok(String.format("Reserving %s beside the town, then building %s from the plan (budget $%d)...", PlanDistricts.named(label), lots, budget))
+			: Result.fail(no);
 	}
 
 	// ------------------------------------------------------------------ screens

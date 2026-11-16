@@ -389,6 +389,41 @@ Kept as `plans-2026-11-13/hidden_village-0.64.1.json`.
 - **Two earlier tries spent $0.00:** the record tools sent their first job while Architect's helper was still running `npm ci` for its Claude Agent
   SDK, which it does at every launch ("Claude link is not available"). Both tools now wait for the launcher's "running" line first.
 
+## Slice CA2: compose on Architect CP (2026-11-15, $0, branch compose-cp off pin-071, Architect 0.71.0)
+- **What:** the Composer sends `skipPick`, `composeVocab=families`, the level and the owner, and says CP's `summary`, `waits[].say` and
+  `leftOut`; Steward's street pass and Overworld pre-check are gone. A waiting part is composed through `Regions.compose`
+  (`ComposeJob.partRequest`, `prompts/compose-part-rules.md`); `PlanWriter` and `prompts/plan-writer.md` are gone. API before 1.63.0: nothing
+  is composed, said ($0). COMPOSITION sections 11 and 13.
+- **Ran:** Gradle full suite 574/574, npm test 73/73. `stub --only stub,plan,card,village` PASS 95 (new checks: `compose request` skipPick
+  true, composeVocab families, REGION designs unchanged (no pick); `street hint` Architect's street round inside compose, 2 rounds, "Left out
+  for room: townhouse 4, smithy 1 and chapel 1"; `compose words` NO_PLAN kept with the round's own summary and "Not yet: the mine railway
+  waits for CR"; `wall offer`/`wall built` through the part compose). After the review fixes and the fix check, `--only wall-offer,street-hint,compose-words` PASS 21, twice (at 71a8060 and ea7cb42).
+- **GPT review** (max): 2 blockers, 2 should-fixes, 1 nit, then a fix check. Fixed: a part's compose not seen by this client for 30 s in a row
+  stops (never left busy); the part key holds the town region's IR, revisions and site versions; incomplete parts said; CP's names for unfit
+  parts; free street rounds not counted as repairs. Accepted (leftover): the owner now scopes the settlement compose's key, so an identical card
+  re-described across the upgrade composes once more (with no owner it would only have been OP_KEY_CONFLICT, never an adoption).
+- **Leftovers:** Composer's adoption of a finished design outside the client's snapshot is still CA's (nothing more is spent, but the plan
+  isn't kept until a restart's reconcile); the Nether refusal is read from a constructed answer in units, not run in game; CP's `until` is a
+  slice name ("waits for CR"), Architect's wording.
+- **Paid proof (2026-11-15, Noah approved; $0.4636 of a $1.50 cap).** A waiting part is offered only once the town stands as a region, and a real
+  town build spends dollars on its bible and massings, so Noah chose "3 runs, town at $0": a paid describe, the town built on the sim helper with
+  no opt-in, then the paid part. Ports 8590/8591. The opt-in was made by the script for each paid run and removed after it; `ls -la
+  mod/run/architect/sidecar-data/` showed no `secrets.json` after each. Costs are the sidecar log's `job ... done ($...)` lines.
+  - **Describe, the first try ($0.2376):** `node tools/compose-proof.mjs 0.70 a little market town with a square, a well, a tavern and a smithy`, on
+    default terrain. Card $0.0284, compose COMPOSED in 1 round $0.2092, kept READY. The town was then built at $0 on Steward's own street (`g1`):
+    the plan path needs flat ground, and the claim's ground ran y 57-123. That world was kept as "Steward Compose Proof (CA2 hilly)".
+  - **Describe again on a flat world ($0.0460):** the same words with `ARCHITECT_AUTOWORLD_PRESET=flat` (compose-proof now reads it). Card $0.0132,
+    compose COMPOSED in 1 round $0.0328, READY; summary "You'll get a small market town on the flat plains beside the founding stone ...".
+  - **The town at $0** (`node tools/ca2-part-proof.mjs town`, sim): the plan's 9x9 lots refused the sim's stand-in massings (the kit cabin is
+    11x12x12, past the 9x7 limit), so the proof world's kept plan had its six lots set to 19x19 by hand, a sim-only change (the original is kept beside it as
+    `steward-plans.json.ca2-orig`). Then: built from its plan, 6 buildings, `region:rg1`.
+  - **The part ($0.1800, cap $0.80):** `node tools/ca2-part-proof.mjs part 0.80`: `pend town_wall` on connector.wall, offered ("The town wall can
+    be built now"), accepted, compose COMPOSED in 1 round $0.1800, Steward's check fits, built as `region:rg2` (4 sites), no longer waits.
+    `summary`: "A stone wall will be built all the way round the town. Nothing else is added."; `waits`: none, `leftOut`: []. Chat: "Fitting the
+    town wall round Little Market Town as it stands..." / "A stone wall will be built all the way round the town. Nothing else is added. Raising it now
+    (fitting it cost $0.18)..." / "Built the town wall. An undo takes it away and leaves the town."
+  - **Total $0.4636** (0.0284 + 0.2092 + 0.0132 + 0.0328 + 0.1800).
+
 ## Slice CA: composing through Architect's Regions.compose, the paid proof (2026-11-14, paid, Noah approved; $0.70 of a $3.00 cap)
 Noah via parent session: "$3.00 hard stop (Recommended)" (up to 2 composes at no more than $1.00 each, hidden_village at no more than $0.55).
 Branch compose-adopt (Architect 0.67.0), ports 8600/8601, the claude login's opt-in made in the worktree's `mod/run` for each run and removed
@@ -658,8 +693,7 @@ world per step; `--attach`, `--keep-client`). The bars and results are in docs/M
 - **Leftover:** `plan-check.mjs` passes hidden_village (`[]`) though the kit calls its room malformed: it still follows only the program dispatch,
   not each kind's def, so the jar schema alone doesn't close that LEFTOVERS item.
 
-**The part writer is temporary (slice CA, 2026-11-14):** a waiting part's own plan (COMPOSITION section 11) is still Steward's job on a slim
-part-only prompt (`prompts/plan-writer.md`); it moves onto `Regions.compose` in slice CA2, after Architect's CP (`architect_mc:skipPick`).
+**The part writer was temporary (slice CA, 2026-11-14):** since CA2 (above) a waiting part's own plan is composed by `Regions.compose`.
 
 ## P0's seven: the parts that didn't fit in P0's CI, re-scored on Architect 0.70.0 (slice PV1, 2026-11-15, $0)
 `checkPlanLocal` from v0.70.0's kit (catalogue 24) on the asks claim with Steward's anchors, over the first recordings (Architect's
@@ -676,3 +710,21 @@ part-only prompt (`prompts/plan-writer.md`); it moves onto `Regions.compose` in 
 - **spiral_town/spiral_road** (a 3-wide street between one village's lots, UNREACHABLE): the writer writes `layout: "spiral"` (FL) instead; plans/ and
   11-10 READY. Fits now.
 - **spiral_town/hill_relief** (blocked by the road): gone with it. Fits now.
+
+## Slice PD: a plan's unbuilt district proposed in the inbox (2026-11-15, $0)
+Strict tier (billing). Unit: `PlanDistrictsTest` (8), plus the scoped `PlanGrowthTest`, `SurvivalDistrictTest`, `ProposalRulesTest`, `BesideRefusalTest`,
+`PendingOffersTest`, `SaveCompatTest`, `ModuleSavesTest`, `DistrictGrowthTest`, `InboxModelTest` (86 in all, 0 failed). `npm test` 74 pass.
+e2e: `STEWARD_PORT=8592 STEWARD_DEV_PORT=8593 node tools/e2e.mjs stub --flows plan-district`, PASS 15 on run 3. The flow is in docs/DISTRICTS.md section 13.
+- **Run 1** was a test fault. The district was added to the kept plan before Start, so the town built it. It is now added once the town is placed.
+- **Run 2:** the sim's kit massing failed its checker on 11 by 11 and 9 by 9 lots of other types. The flow now uses no_wood's 13 by 14 cottages. That
+  run also showed that a build which fails after its paid request keeps the acceptance and leaves the reservation unbuilt. Such a reservation is
+  now offered again (`PlanDistricts.toOffer`).
+- **Run 3:** not proposed before the town stood or while it was 8% built; proposed once (E). Accepted: reserved, and "From materials, Mill Ward
+  needs about ..." said before the one approval. Built as rg2 with the plan's lot ids, consumed within its inexact quote. Undone with everything it
+  consumed back once and nothing more 10 s on; given up and not proposed again.
+- **Batch GPT review fixes (11-15), merged with batch-072b at 9e2f74f:**
+  - A re-offer takes its reservation's side (`PlanDistricts.resumeWay`).
+  - A district with no side to go is skipped until the town region, the plan or the districts change (`fingerprint`, `withoutNoSide`), and the
+    minute's pass runs on.
+  - Module lots are left out as M5 reads them (`ComposedModules.asked` over `LOT_TYPES`, failing closed).
+  - Unit tests: `PlanDistrictsTest` 11; the scoped suites with ComposedModules 114, 0 failed. `npm test` 75. Rerun of `--flows plan-district`: PASS 15.

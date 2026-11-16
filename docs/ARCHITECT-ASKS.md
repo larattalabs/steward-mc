@@ -1706,6 +1706,9 @@ zone streets carry `architect_mc:street.zone`, read in 0.70.0's `compile.mjs` `s
   - `RegionBuild.terrainPerTick` is added.
   - Staged terrain counts in `built()`/`done()`/`percent()`.
   - The Steward side is slice 8aS, after 8a's release.
+  - Change (11-15, Noah: "Keep paid"): F3's region-made trees are the exception. In survival they stay billed and are built as today. Every
+    other form and relief cell stays FREE, 16 per tick, staged. Steward's tree quote text is unchanged; 8aS says the terrain wait for the
+    free cells only.
 - DR final (11-15), accepted. Noah: "1 final, 2 report, 3 yes, 4 ops".
   - Repairs are final; PAID_ORPHAN is report only.
   - Auto-diagnose posts an ops line and never repairs.
@@ -1719,3 +1722,53 @@ Architect found it with an in-game repro on a copy of the cf067 world, read only
 - QL-b also stops the shell dirt marking quotes inexact. No API change.
 - RC areas: a module growth's quote equals what it consumes, and its `exact` flag.
 - For QD, the 1-cell re-ask should go away. Its "up to N" allowance still covers real terrain cells, and maxBill caps the bill either way.
+
+### v0.71.0 (2026-11-15): PASS (RC only, not a merged pin: rule 11, pins move every other release)
+Architect v0.71.0 (API 1.63.0, kit 0.66.0: J1, CP) is on pin-071 (3b3b9cd, on batch-070).
+- Build and unit tests: 576 passed, 0 failed.
+- `stub --only refund,undo,restart,road,stub`: 111 of 116 passed over 22 flows. Those covered growth, adoption, supplied growth, district growth, the gate-mechanism, survival and drawbridge flows, and discard. J1's removal refunds, undo after a restart and road restores held.
+- The 5 misses are the module offers (crop_farm x3, storage_hall x2), by design: kit 0.66.0 moves module.json's pins. The modules carry at 0.72.0, Steward's next merged pin.
+- CP isn't called by Steward until CA2. Nothing in Architect was found wrong.
+
+### BC-d: a revision's maxBill outlives it (found by the batch-072 GPT review, 2026-11-15, checked in v0.72.0's source)
+`Revisions.realise` records `maxBill` on the region (`rec.survival.maxBill`, `billBase` = the group's draws then) only when the request
+carries one, and nothing clears it. `BillCaps.of` caps every target of the region's group. So after QD realises a survival module growth under
+its approved bound, a later plain growth on the same town (sent with `maxBill` null) is still held to the module's cap: an item the module's
+bill doesn't name can't be drawn at all, and capped items only up to what the module left. The new growth waits `bill_cap` with stock in
+hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batch until this is fixed.
+- **S-BC-d-1:** a cap covers only the revision it came with (its rid's targets, its own draws), not the region's whole group. A later
+  revision without `maxBill` is uncapped; one with its own `maxBill` gets its own cap, and an earlier revision still building keeps its own.
+- **S-BC-d-2:** the gate covers a capped module growth, then a plain growth on the same region (uncapped, draws freely); two capped
+  revisions in flight at once; and a restart and an undo between them.
+- If scoping per revision isn't practical, say so: the fallback is that a revision without `maxBill` clears the region's cap, and Steward
+  refuses a plain growth while a capped one still builds.
+- **Architect's answer (2026-11-15): accepted,** folded into slice BCC with BC-c, since both touch the same `BillCaps` and `maxBill` code. The
+  cap is scoped per revision (S-BC-d-1), gated on S-BC-d-2. If that proves impractical, the slice takes the fallback, and Architect says so.
+  Target v0.73.0 (with RT, CF2, BC-c and CW2), confirmed when the slice merges. QD rejoins on that release.
+
+### M5 asks (draft, slice M5a, 2026-11-15; for the manager to send)
+
+Steward's M5 builds module lots (a crop farm, a storage hall) inside a composed plan v1 town (docs/MODULES.md "M5 design"). 0.72.0 already
+takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ext`; the artifact's `lots[].irrigation`; `quoteApproved`'s
+`lot:<id>` and `fill:<id>`; `realiseApproved`'s `lotEntries`), so these are confirmations, not new members:
+- **S-M5-14, a lot's box is its size.** A module's variant is made for its lot's exact frame (the well layout and FC's field cells assume it).
+  Please confirm that a plan/0 lot's artifact `box` (and `fitBox`) is exactly its `size`, turned by its `front`, in every lots layout
+  (street, ring, spiral, grid, organic, districts), and that neither an `adjusted` zone nor a street round resizes a lot. Steward refuses a
+  module lot whose box differs, so a "no" is safe but should be named. If lots can be resized, asked: a lot member that keeps its size exact
+  (refused `NO_ROOM` rather than resized).
+- **S-M5-15, FK on a first realise.** Please confirm that a given-program entry with `fillContainers` (M4b's `storage_hall@2`) bound to a
+  provisional lot of an approved artifact is filled by `realiseApproved` (instant and from materials) as on a growth: built locked, filled once,
+  unlocked; `fill:<lot>` in `quoteApproved`; the cargo refusal and the capture at `Regions.remove` of the whole region.
+- **S-M5-16 (for QD, not needed now), a cap per lot.** Steward holds each module lot of a composed town to its own measured bound by the
+  quote's `lot:<id>` and `fill:<id>` pieces. `ApprovedRealise.maxBill` is one cap over the whole region, so once QD caps realises it can't hold
+  two modules apart when they use the same items. Asked for then: a per-lot (or per-piece) cap on `realiseApproved`, refusing or waiting
+  when one lot's consumption passes its own cap.
+- **Architect's answers (2026-11-15, checked against v0.72.0):**
+  - S-M5-14, **yes**. Every layout cuts a lot's rect from its own `size`, turned by its `front` (village.mjs, frontage.mjs `lotAt`,
+    terraces.mjs; districts reuse them), and `fitBox` = box. Nothing resizes a lot: tolerances shrink zones or drop and move lots, and street
+    rounds and CF2's LOTS_SHORT only drop or mark. A $0 probe over 6 lot sizes in every layout, flat and sloped, matched exactly.
+    Steward's exact-box refusal stays as a guard.
+  - S-M5-15, **yes, by code trace**. `realiseApproved` calls the same `RegionsImpl.realise` as a growth: locked, filled once, unlocked,
+    drawn through the purse; `Fills.creative`; `fill:<lot>` in `quoteApproved`; the cargo refusal and custody at removal for any region.
+    No gate ran it on a provisional lot, so Architect adds the test-only step FKR ($0), targeted at v0.73.0.
+  - S-M5-16 is logged for later. BCC keys its per-revision cap scope so a per-lot scope can be added without rework.
