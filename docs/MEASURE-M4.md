@@ -467,7 +467,7 @@ module-provided. Its requirements are §5's list for @2; each is answered below 
 
 `storage_hall@2` certifies before Architect's LC (S-M5-12/13) once its bars pass. The offer names the late-cargo gap in one line,
 `ModuleOffer.LATE_CARGO_WORDS` behind `LATE_CARGO_GAP`: "While a building is being taken down, don't put items into its chests: they could be
-lost." It comes off in one edit at the pin that carries LC2 (LC was reverted at Architect v0.73.0). The pre-check still refuses an undo while anything holds cargo. FKC0 (bar 9)
+lost." It comes off in one edit at the pin that carries LC3 (LC was reverted at Architect v0.73.0; LC2 became LC3, the seal design). The pre-check still refuses an undo while anything holds cargo. FKC0 (bar 9)
 runs at that pin and is recorded as deferred until then. The slot labels for v1 are `/steward hall` with the offer and inbox (rule 13);
 a HUD label is a follow-up.
 - **Judge clarified after the first run (no bar moved):**
@@ -478,7 +478,7 @@ a HUD label is a follow-up.
   - A filled F's settled D state is `enabled=false` in the template, so the land check reads a built hall as unchanged.
   - Architect's land check counts a container written empty that now holds items as changed, so each filled F is one changed cell: bar 6
     reads `changed` equal to the slot count, with every F holding exactly 41 + 4 slabs (S-M5-18 asks Architect to count a fill as its own).
-- **Follow-up M4b-074 (at the v0.74.0 pin, Architect FL 50f47d9b):** bar 6 goes back to expecting `changed 0` (S-M5-18), and
+- **Follow-up M4b-074 (at the pin that carries Architect LC3 with FL 50f47d9b; v0.74.0 carries neither):** bar 6 goes back to expecting `changed 0` (S-M5-18), and
   sort-survival's mid-build insert expects no item in F (S-M5-17, the hopper refusal); `dev.fk.container` answers `state`, `dev.fk.state` `held`.
 
 ### 12.9 Results (2026-11-16, Minecraft 26.3, Architect 0.72.0, kit/checker 0.67.0): certified
@@ -498,7 +498,7 @@ in `artifacts/m4b` (hall, bounds, sort, sort-survival, sort-cargo and sort-crash
 The rates (items a second, rustic, by slot count): 4 slots 2.342, 8 slots 2.424, 12 slots 2.461, 16 slots 2.397. The catalog's own steps
 passed too: offline 295/295, ingame 292/292.
 
-- **Known gaps (as-built, MODULES.md):** S-M5-12, late cargo during an undo, is named in the offer until LC2. S-M5-17, a mid-build insert
+- **Known gaps (as-built, MODULES.md):** S-M5-12, late cargo during an undo, is named in the offer until LC3. S-M5-17, a mid-build insert
   down the line, makes the fill wait `fill_blocked` with nothing charged or lost, until Architect FL. It needs no offer line.
 - **S-M5-17's readings at the preload:** the lever and line hopper 0 both stood when the player loaded the input. The harness's `cells` op
   reads only the block id and light, so their states weren't captured. Architect FL's reproduction gave them: the lever `powered=true`

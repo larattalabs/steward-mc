@@ -660,7 +660,7 @@ Branch `storage-hall-2`. The design, its GPT review, the bars and the results ar
   the last sorted items.
 - **Known gaps:**
   - **S-M5-12** (late cargo during an undo): named in the offer, `ModuleOffer.LATE_CARGO_WORDS` behind `LATE_CARGO_GAP`, until the pin
-    that carries LC2. FKC0 is deferred to that pin too.
+    that carries LC3. FKC0 is deferred to that pin too.
   - **S-M5-17** (a mid-build insert down the line): the fill waits `fill_blocked` and nothing is charged or lost, until Architect FL
     (v0.74.0). It needs no offer line. At the preload the lever and line hopper 0 both stood; FL's reproduction gave their states (lever
     `powered=true`, hopper `enabled=true`).
@@ -673,8 +673,8 @@ Branch `storage-hall-2`. The design, its GPT review, the bars and the results ar
   `ok: true`, `success: false`, so check `success`). sort-crash waits for Architect's periodic save instead. Other working barriers are
   `dev.world.leave` and `dev.stockpile.halt {mode: "autosave"}`. The tooling fix is LEFTOVERS row SAVEB.
 - **Follow-ups:**
-  - **M4b-074** (the v0.74.0 pin): bar 6 back to `changed 0` (S-M5-18), and the mid-build insert expecting no item in F (S-M5-17).
-  - A HUD slot label.
+  - **M4b-074** (the pin that carries LC3 with FL; v0.74.0 carries neither): bar 6 back to `changed 0` (S-M5-18), and the mid-build insert expecting no item in F (S-M5-17).
+  - **M4c-HUD:** a HUD slot label (not this slice).
 - **No save format changes.**
 
 ## 9. Noah's answers (2026-11-12)

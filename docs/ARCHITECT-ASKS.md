@@ -1783,7 +1783,7 @@ hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batc
     From placement until UNLOCKED it refuses every automated insertion into a fill site's declared containers: hopper push and pull, item
     entities and droppers. A refused item stays where it was, so `fill_blocked` then comes only from a player's own hand. Not held: other mods'
     Fabric Transfer API insertions, which become FK cargo (`fill_blocked`, nothing lost). Hook changes: `dev.fk.container` answers `state`, and
-    `dev.fk.state` answers `held`. Steward's runs stay on 0.72.0's behaviour until the pin. At the v0.74.0 pin, the mid-build insert flow
+    `dev.fk.state` answers `held`. Steward's runs stay on 0.72.0's behaviour until the pin. At the pin that carries LC3 with FL (not v0.74.0), the mid-build insert flow
     expects no item in F (follow-up M4b-074).
 - **S-M5-18. The land check reads a filled fill container as changed** (slice M4b's `sort` bar 6, 2026-11-15, Architect v0.72.0; sent
   through the manager).
@@ -1797,4 +1797,4 @@ hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batc
   - **Steward's side:** bar 6 judges `changed` equal to the slot count, with every F holding exactly 41 + 4 slabs. Not a gap for players:
     nothing is charged, lost or offered on it.
   - **Architect's answer (2026-11-15, slice/FL 50f47d9b, for v0.74.0):** a declared container holding its fill or less, as plain stacks,
-    reads SAME, and more reads CHANGED (cargo). At the v0.74.0 pin, bar 6 goes back to expecting `changed 0` (follow-up M4b-074).
+    reads SAME, and more reads CHANGED (cargo). At the pin that carries LC3 with FL (not v0.74.0), bar 6 goes back to expecting `changed 0` (follow-up M4b-074).

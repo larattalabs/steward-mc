@@ -1591,7 +1591,7 @@ async function sortCrash() {
     const rest = [...grown].reverse().slice(removalPoints.length);
     const hook = await call('dev.removal.failAfterCustody', { probe: true }, 10_000).then(() => true).catch(() => false);
     if (!hook) {
-      // Noah, 2026-11-15 ("Certify now, name the gap"): @2 certifies before Architect's LC; FKC0 runs at the pin that carries LC2 (LC was reverted at v0.73.0)
+      // Noah, 2026-11-15 ("Certify now, name the gap"): @2 certifies before Architect's LC; FKC0 runs at the pin that carries LC3 (LC was reverted at v0.73.0; LC2 became LC3, the seal design)
       out.fkc0 = 'deferred: the hook dev.removal.failAfterCustody is not in this Architect (S-M5-13, slice LC); the offer names the gap';
       check(true, `9 FKC0: ${out.fkc0}`);
     } else if (rest.length) {
