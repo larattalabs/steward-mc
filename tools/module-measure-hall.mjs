@@ -1426,10 +1426,14 @@ async function sortCrash() {
       const sp = { id: `sk_${point.toLowerCase()}`, slots: 4, bulk: 0, bible: 'rustic', items };
       const g = await growHalls(region, [sp], { survival: true });
       if (!check(!g.refused, `${point}: the hall grown: ${g.refused ? String(g.refused).slice(0, 200) : `rid ${g.rid}`}`)) continue;
+      // the lot waits for its road first, which is fed from the stockpile: fed until the region names the hall's site (not past it)
       let site = null;
-      for (let i = 0; i < 60 && !site; i++) { await sleep(2000); site = (await call('dev.region.state', { region }, 60_000)).view.lots.find((l) => l.id === sp.id)?.siteId ?? null; }
+      await feedUntil(region, (st) => !!(site = st.view.lots.find((l) => l.id === sp.id)?.siteId ?? null), { timeoutMs: 900_000 });
+      if (!check(!!site, `${point}: the hall's site named while it builds (${site})`)) continue;
       // the site paused, everything it owes delivered (a paused target still takes it), the baseline saved, the point armed, then resumed
-      await call('dev.stockpile.pause', { owner: OWNER, site, paused: true }, 60_000).catch(() => null);
+      const paused = await call('dev.stockpile.pause', { owner: OWNER, site, paused: true }, 60_000).then(() => true, (e) => String(e));
+      const f0 = await fkState(site);
+      if (!check(paused === true && !f0.error && f0.phase == null, `${point}: the site paused before its fill (${paused === true ? 'paused' : paused}; FK ${f0.error ?? f0.phase ?? 'not begun'})`)) continue;
       for (let i = 0; i < 20; i++) {
         const ps = await pile();
         const need = {};
@@ -1450,6 +1454,8 @@ async function sortCrash() {
       const S = savedLedger();
       const marker = (S?.filled ?? []).some((k) => k.startsWith(`site:${site}@`));
       await restartWorld(home);
+      // the baseline was saved with the site paused, and the halt lost the resume: resumed again
+      await call('dev.stockpile.pause', { owner: OWNER, site, paused: false }, 60_000).catch(() => null);
       await feedUntil(region, async () => (await fkState(site)).phase === 'UNLOCKED', { timeoutMs: 900_000 });
       const f = await fkState(site);
       const L2 = (await pile()).ledger;
