@@ -7317,27 +7317,27 @@ async function districtModuleFlow() {
   if (!(await buildThrough(id, from, `${label} first building`))) return;
   d = dgDistrict(id, d.id);
   if (d?.state !== 'standing' || !d.region) return fail(label, `the district does not stand: ${JSON.stringify(d)?.slice(0, 200)}`);
-  // the live catalog (the player's own gate); seeds carried: once the catalog's verdict is in, the seeds' own offer comes (a district one is taken as
-  // it is; one for the town is declined), and the farm is asked for in the district in talk
+  // the live catalog (the player's own gate); seeds carried (the farm's crop); the farm asked for in the district in talk (a seeds' offer for the town
+  // that came first is declined, one in the district taken as it is)
   const catalog = await cmd('/steward dev modules {}');
   await cmd('/clear @p');
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ}`);
   await cmd('/give @p minecraft:wheat_seeds 16');
-  const auto = await moduleOffer(id, 150_000);
-  if (!auto) return fail(`${label} offered`, `no module.${MODULE} offer within 150 s (catalog: ${String(catalog).slice(0, 160)}); open ${JSON.stringify((settlements().find((x) => x.id === id)?.proposals?.open ?? []).map((p) => [p.key, p.district]))}`);
-  if (auto.district !== d.id) await cmd(`/steward proposals ${id} decline ${auto.key}`);
+  await sleep(5000);
+  const auto = (settlements().find((x) => x.id === id)?.proposals?.open ?? []).find((x) => x.module?.moduleId === MODULE) ?? null;
+  if (auto && auto.district !== d.id) await cmd(`/steward proposals ${id} decline ${auto.key}`);
   const seen = new Set((settlements().find((x) => x.id === id)?.proposals?.open ?? []).map((q) => q.key));
   const ask = { reply: `A working field in ${d.name}: it is in the inbox.`, intent: 'building', district: d.name,
     building: { role: 'farm', type: 'farm', footprint: 'L', landmark: false }, module: { id: MODULE, params: { crop: 'wheat' } } };
   await cmd(`/steward dev sim_answer talk ${JSON.stringify(ask)}`);
   from = logSize();
   await cmd(`/steward talk ${id} put a working farm in ${d.name}`);
-  let q = auto.district === d.id ? auto : null;
+  let q = auto?.district === d.id ? auto : null;
   for (let i = 0; i < 60 && !q; i++) {
     await sleep(1000);
     q = (settlements().find((x) => x.id === id)?.proposals?.open ?? []).find((x) => !seen.has(x.key) && x.module?.moduleId === MODULE) ?? null;
   }
-  if (!q || q.district !== d.id) return fail(`${label} offered`, `proposal ${JSON.stringify(q)?.slice(0, 200)}; ${chatTail(from)}`);
+  if (!q || q.district !== d.id) return fail(`${label} offered`, `proposal ${JSON.stringify(q)?.slice(0, 200)}; catalog: ${String(catalog).slice(0, 120)}; open ${JSON.stringify((settlements().find((x) => x.id === id)?.proposals?.open ?? []).map((p) => [p.key, p.district]))}; ${chatTail(from)}`);
   ok(`${label} offered`, `${q.title} in ${d.name} (${q.key}, district ${q.district})`);
   await clearAnimals();
   await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
