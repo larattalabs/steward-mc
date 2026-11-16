@@ -855,6 +855,17 @@ async function sortRun(halls, domain, { feed = null } = {}) {
   }
   return byHall;
 }
+/** Run the halls until every input, line hopper and D has settled (a backed-up line drains into emptied chests), then clear the outputs. */
+async function drain(halls, limit = 60_000) {
+  for (let t = 0; t < limit; t += 1000) {
+    let busy = false;
+    for (const h of halls) { const s = await sortState(h); if (totalOf(s.input) || s.line.some((m) => totalOf(m)) || !dSettled(h, s)) busy = true; }
+    if (!busy) break;
+    for (const h of halls) await clearOutputs(h);
+    await advance(1000);
+  }
+  for (const h of halls) await clearOutputs(h);
+}
 async function clearOutputs(h) {
   for (const c of h.sort) { await mod({ op: 'clearContainers', box: [...c.chest, ...c.chest] }); await mod({ op: 'clearContainers', box: [...c.D, ...c.D] }); }
   await mod({ op: 'clearContainers', box: [...h.overflow, ...h.overflow] });
@@ -962,6 +973,7 @@ async function sortStep() {
     }
     // ---- 4: the filters hold after the runs (> 10,000 items through each rustic hall)
     for (const h of halls) {
+      await standAt(h.town.cx, h.town.cz, h.town.gy + 30);
       const s = await sortState(h);
       const thru = all.filter((x) => x.id === h.id).reduce((a, x) => a + x.items, 0);
       check(h.filterIds.every((f, u) => fExact(s.F[u], f)), `12.5 bar 4 the filters hold ${h.id}: after ${thru} items every F exactly 41 + 4`);
@@ -977,8 +989,7 @@ async function sortStep() {
     }
     for (const h of sat) await clearOutputs(h);
     // the line still holds the saturated slots' backlog: let it drain into the emptied chests, then a fresh mix sorts 100% and every F is 41 + 4
-    await advance(2000);
-    for (const h of sat) await clearOutputs(h);
+    await drain(sat);
     const rec = await sortRun(sat, domain);
     for (const h of sat) {
       const s = await sortState(h);
@@ -990,8 +1001,7 @@ async function sortStep() {
     const ofl = await sortRunSat(sat, domain, { overflowFull: true });
     for (const h of sat) check(ofl[h.id].ok, `12.5 bar 3 overflow full ${h.id}: ${ofl[h.id].ok ? 'the line backs up, nothing lost or misplaced' : ofl[h.id].why.slice(0, 3).join('; ')}`, ofl[h.id]);
     for (const h of sat) await clearOutputs(h);
-    await advance(3000);
-    for (const h of sat) await clearOutputs(h);
+    await drain(sat);
     const rec2 = await sortRun(sat, domain);
     for (const h of sat) check(rec2[h.id].sorted, `12.5 bar 3 overflow recovery ${h.id}: emptied, 100% again (${rec2[h.id].why.slice(0, 2).join('; ')})`);
     for (const h of sat) await clearOutputs(h);
@@ -1090,9 +1100,17 @@ async function sortMidway(halls, domain, how, t) {
     for (let i = 0; i < 600 && (await mod({ op: 'cells', cells: [] })).gameTime - t0 < 600; i++) await sleep(1000);
     for (const c of forced) await cmd(`/forceload remove ${c[0]} ${c[2]}`);
     await standAt(t.cx, t.cz, t.gy + 30);
+    const all = halls.flatMap((h) => h.sort.map((c) => c.F));
+    for (let i = 0; i < 120 && (await readCells(all)).some((c) => c === null); i++) await sleep(1000);
     await freeze();
   }
-  await advance(8000);
+  // run to the end: every input, line hopper and D settled (at most 60,000 ticks; 27 stacks take about 14,000)
+  for (let k = 0; k < 60; k++) {
+    let busy = false;
+    for (const h of halls) { const s = await sortState(h); if ((Array.isArray(s.unloaded) ? s.unloaded.length : s.unloaded) || totalOf(s.input) || s.line.some((m) => totalOf(m)) || !dSettled(h, s)) busy = true; }
+    if (!busy) break;
+    await advance(1000);
+  }
   const out = {};
   for (const h of halls) {
     const s = await sortState(h), b = before.get(h.id), f = fedAll.get(h.id), why = [];
@@ -1115,6 +1133,12 @@ async function sortMidway(halls, domain, how, t) {
 // ------------------------------------------------------------------ sort-survival (storage_hall@2): 12.5 bar 8, 12.7 B2
 
 const fkState = (site) => call('dev.fk.state', { site }, 30_000).catch((e) => ({ error: String(e) }));
+/** A lot's site id from the region's view (null until the region names it). */
+const siteOf = async (region, lot) => (await call('dev.region.state', { region }, 60_000)).view.lots.find((l) => l.id === lot)?.siteId ?? null;
+/** The player takes everything out of a hall's hoppers (each line hopper and D: the last item a slot sorted waits in D) before an undo. */
+async function emptyHoppers(h) {
+  for (const c of h.sort) { await mod({ op: 'clearContainers', box: [...c.line, ...c.line] }); await mod({ op: 'clearContainers', box: [...c.D, ...c.D] }); }
+}
 async function sortSurvival() {
   if (MODULE.version < 2) throw new Error('sort-survival is storage_hall@2\'s step: --version 2');
   const out = {};
@@ -1135,8 +1159,10 @@ async function sortSurvival() {
     h.region = region;
     // the lot's cells are known once the region names its site
     let site = null;
-    for (let i = 0; i < 60 && !site; i++) { await sleep(2000); site = (await call('dev.region.state', { region }, 60_000)).view.lots.find((l) => l.id === sp.id)?.siteId ?? null; }
+    for (let i = 0; i < 60 && !site; i++) { await sleep(2000); site = await siteOf(region, sp.id); }
     await hallCells(region, [h]);
+    site = site ?? h.siteId;
+    check(!!site, `B2 the hall's site named while it builds (${site})`);
     // feed half waves until the input chest stands, then preload it with 64 cobblestone; starve (no feeding) 600 ticks: nothing moves
     let preloaded = false;
     for (let i = 0; i < 200 && !preloaded; i++) {
@@ -1155,6 +1181,7 @@ async function sortSurvival() {
     check(preloaded, `B2 the input chest stood part way through the build and took the player's 64 cobblestone`);
     await sleep(30_000);
     const st1 = await sortState(h);
+    site = site ?? await siteOf(region, sp.id);
     const fk1 = await fkState(site);
     out.preload = { input: st1.input, line: st1.line, F: st1.F, D: st1.D, phase: fk1.phase };
     check(st1.input['minecraft:cobblestone'] === 64 && st1.line.every((m) => !totalOf(m)) && st1.F.every((m) => !totalOf(m)) && st1.D.every((m) => !totalOf(m)),
@@ -1187,6 +1214,7 @@ async function sortSurvival() {
     await mod({ op: 'clearContainers', box: [...h.input, ...h.input] });
     await mod({ op: 'clearContainers', box: [...h.overflow, ...h.overflow] });
     for (const c of h.sort) await mod({ op: 'clearContainers', box: [...c.chest, ...c.chest] });
+    await emptyHoppers(h);
     // ---- 8: the player takes 8 stone from F 0, empties F 1 of its 41 redstone, and mines a bulk chest half; then the undo refunds the rest
     const take0 = await call('dev.fk.container', { pos: h.sort[0].F, take: { 'minecraft:stone': 8 } }, 30_000).catch((e) => ({ error: String(e) }));
     const take1 = await call('dev.fk.container', { pos: h.sort[1].F, take: { 'minecraft:redstone': 41 } }, 30_000).catch((e) => ({ error: String(e) }));
@@ -1314,6 +1342,10 @@ async function sortCargo() {
     await sleep(1500);
     const dropped = (await mod({ op: 'takeItems', box: [h.boxArr[0] - 2, h.boxArr[1] - 2, h.boxArr[2] - 2, h.boxArr[3] + 2, h.boxArr[4] + 2, h.boxArr[5] + 2] })).items;
     const slabs = await call('dev.fk.slabs', { pos: h.input }, 10_000).catch(() => ({}));
+    // the rest of the hall emptied as the words ask (the slot chests, overflow, input, every line hopper and D)
+    await clearOutputs(h);
+    await emptyHoppers(h);
+    await mod({ op: 'clearContainers', box: [...h.input, ...h.input] });
     const u = await call('dev.rv.undo', { region: t.region, toPosition: g.position - 1 }, 3_600_000).catch((e) => ({ error: String(e) }));
     await sleep(4000);
     const g2 = await growHalls(t.region, [{ ...sp, id: 'sc4b' }]);
