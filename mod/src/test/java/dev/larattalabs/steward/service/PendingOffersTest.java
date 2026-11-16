@@ -89,4 +89,33 @@ class PendingOffersTest {
 		Proposal p = Proposal.part("town_wall", "The town wall can be built now", "", 1L);
 		assertFalse(p.trigger().contains("Architect"));
 	}
+
+	@Test
+	void theOfferSaysWhatAcceptingDoesAndThatAChangeIsAskedFirst() {
+		String why = PendingOffers.offerWords("Mossbank");
+		assertTrue(why.startsWith("Say yes and I fit it round Mossbank as it stands (up to $1)"), why);
+		assertTrue(why.contains("an undo takes away just this part and leaves the rest of the town standing"), why);
+		assertTrue(why.contains("I show you the change and ask you once more before anything is built"), why);
+		for (String word : List.of("Architect", "Claude", "connector.", "_")) assertFalse(why.contains(word), word + " in " + why);
+		String adjusted = PendingOffers.adjustedWords("The town wall.", ChangeWords.of(JsonParser.parseString(
+			"[{\"what\":\"move\",\"value\":15,\"max\":16},{\"what\":\"mechanism\",\"kind\":\"swing\",\"gate\":\"east_gate\",\"why\":\"villager\",\"edge\":\"in\"}]")));
+		assertEquals("The town wall. It had to change to fit (moved 15 blocks and a wooden door instead of the iron gate), so nothing is built yet. Accept it once more"
+			+ " in the inbox and I'll build it as shown.", adjusted);
+		for (String raw : List.of("{", "\"what\"", "[")) assertFalse(adjusted.contains(raw), raw + " in " + adjusted);
+		assertFalse(adjusted.contains("Architect"), adjusted);
+		assertEquals("The town wall. It had to change to fit, so nothing is built yet. Accept it once more in the inbox and I'll build it as shown.",
+			PendingOffers.adjustedWords("The town wall.", ""));
+	}
+
+	@Test
+	void theFailLineHasOneColonAndKeepsArchitectsWords() {
+		String say = "no room beside the hall: the market takes the east side";
+		String line = PendingOffers.notYetWords("Mossbank", say);
+		assertEquals("it doesn't fit round Mossbank yet (no room beside the hall: the market takes the east side)", line);
+		assertTrue(line.contains(say), line);
+		assertFalse(line.contains("yet:"), line);
+		// a full stop ending Architect's words is left to the sentence's own ("X waits: ... .")
+		assertEquals("it doesn't fit round Mossbank yet (the wall needs 3 more blocks of room)", PendingOffers.notYetWords("Mossbank", "the wall needs 3 more blocks of room."));
+		assertEquals("it doesn't fit round Mossbank yet", PendingOffers.notYetWords("Mossbank", " "));
+	}
 }

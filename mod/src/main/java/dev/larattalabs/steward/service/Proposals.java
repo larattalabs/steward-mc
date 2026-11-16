@@ -515,7 +515,7 @@ public final class Proposals {
 		List<String> names = new ArrayList<>();
 		for (Proposal p : parts) names.add(PendingOffers.label(s.id(), p.pendingPart()) + (PendingOffers.busy(s.id(), p.pendingPart()) ? " (being built)" : ""));
 		return new InboxModel.Lot(PendingOffers.GROUP_KEY, "Waiting parts (" + parts.size() + ")", "proposal", false, true, "about $1 each · " + String.join(", ", names)
-			+ ". Building fits one round " + s.name() + " as it stands; the rest wait their turn.");
+			+ ". I build one at a time, fitted round " + s.name() + " as it stands; the rest wait their turn.");
 	}
 
 	/** About what building a proposal costs (the high estimate of one building, rounded up to $5): its budget when accepted. A district costs nothing. */
