@@ -258,7 +258,7 @@ function paramsOf(s) {
   if (MODULE.version >= 2) for (let i = 0; i < 16; i++) o[`item${i + 1}`] = s.items?.[i] ?? 'none';
   return o;
 }
-async function growHalls(region, specs, { survival = false, realise = true } = {}) {
+async function growHalls(region, specs, { survival = false, realise = true, want = null } = {}) {
   const P = await program();
   const lots = [];
   for (const s of specs) {
@@ -270,12 +270,16 @@ async function growHalls(region, specs, { survival = false, realise = true } = {
     lots.push(lot);
   }
   let p = null;
+  // (bar 1, 5th run) want: the front each spec's lot must face; a plan facing otherwise is not realised (plans are free until realised)
+  const faces = (pl) => !want || specs.every((sp) => { const l = (pl.lots ?? []).find((x) => x.id === sp.id); return l && lotFrame(l).front === want[sp.id]; });
+  let wrong = null;
   for (const pr of ['frontage', 'extend']) {
-    p = await req('dev.rv.plan', { region, program: 'flat_village', params: { grow: { lots, prefer: pr } }, opKey: `steward.m4${run36}.${specs[0].id}.plan` }, 900_000);
-    if (p.ok && p.planId) break;
+    p = await req('dev.rv.plan', { region, program: 'flat_village', params: { grow: { lots, prefer: pr } }, opKey: `steward.m4${run36}.${specs[0].id}.${pr}.${region}.plan` }, 900_000);
+    if (p.ok && p.planId && faces(p)) break;
+    if (p.ok && p.planId) { wrong = (p.lots ?? []).map((l) => `${l.id} ${lotFrame(l).front}`).join(', '); p = null; continue; }
     log(`  grow (${pr}) refused: ${String(p.refused ?? p.error).slice(0, 300)}`);
   }
-  if (!p?.planId) return { refused: p?.refused ?? p?.error };
+  if (!p?.planId) return { refused: p?.refused ?? p?.error ?? `faces ${wrong}, not ${json(want)}`, wrongFront: !!wrong };
   const halls = [];
   const ents = {};
   for (const s of specs) {
@@ -776,9 +780,15 @@ async function advance(n) {
   throw new Error(`advance ${n} stuck`);
 }
 /** A hall's sorting mix (12.5 bar 1): each slot's item x 3 stacks, 5 plain domain kinds it doesn't filter, 3 unstackables, a 16-stack, a renamed filter stack. */
-function mixOf(h, domain) {
+/** A hall's five plain kinds: domain items it doesn't filter, from its own offset (mixAt), so the halls together use every domain item. */
+function plainOf(h, domain) {
   const own = new Set(h.filterIds);
-  const plain = domain.map((k) => `minecraft:${k}`).filter((i) => !own.has(i)).slice(0, 5);
+  const rest = domain.map((k) => `minecraft:${k}`).filter((i) => !own.has(i));
+  const at = (h.mixAt ?? 0) % rest.length;
+  return Array.from({ length: 5 }, (_, i) => rest[(at + i) % rest.length]);
+}
+function mixOf(h, domain) {
+  const plain = plainOf(h, domain);
   const st = [];
   for (const f of h.filterIds) for (let i = 0; i < 3; i++) st.push({ id: f, count: 64 });
   for (const p of plain) st.push({ id: p, count: 64 });
@@ -859,19 +869,38 @@ async function sortRun(halls, domain, { feed = null } = {}) {
   return byHall;
 }
 /** Run the halls until every input, line hopper and D has settled (a backed-up line drains into emptied chests), then clear the outputs. */
+/**
+ * (GPT review 8) Every drained item counted: per hall, everything in it before = everything taken out of its outputs + everything left, and
+ * the hall settled before the limit. {byHall: {id: {settled, conserved, taken, off}}}.
+ */
 async function drain(halls, limit = 60_000) {
+  const before = new Map(), taken = new Map(halls.map((h) => [h.id, {}]));
+  for (const h of halls) before.set(h.id, sumAll(await sortState(h)));
+  let settled = false;
   for (let t = 0; t < limit; t += 1000) {
     let busy = false;
     for (const h of halls) { const s = await sortState(h); if (totalOf(s.input) || s.line.some((m) => totalOf(m)) || !dSettled(h, s)) busy = true; }
-    if (!busy) break;
-    for (const h of halls) await clearOutputs(h);
+    if (!busy) { settled = true; break; }
+    for (const h of halls) taken.set(h.id, plus(taken.get(h.id), await clearOutputs(h)));
     await advance(1000);
   }
-  for (const h of halls) await clearOutputs(h);
+  for (const h of halls) taken.set(h.id, plus(taken.get(h.id), await clearOutputs(h)));
+  const byHall = {};
+  for (const h of halls) {
+    const left = sumAll(await sortState(h));
+    const off = minus(plus(taken.get(h.id), left), before.get(h.id));
+    byHall[h.id] = { settled, conserved: !Object.keys(off).length, taken: taken.get(h.id), off };
+  }
+  return byHall;
 }
+/** The player empties a hall's outputs (each slot chest, each D, the overflow): what was taken. */
 async function clearOutputs(h) {
-  for (const c of h.sort) { await mod({ op: 'clearContainers', box: [...c.chest, ...c.chest] }); await mod({ op: 'clearContainers', box: [...c.D, ...c.D] }); }
-  await mod({ op: 'clearContainers', box: [...h.overflow, ...h.overflow] });
+  let taken = {};
+  for (const c of h.sort) {
+    taken = plus(taken, (await mod({ op: 'clearContainers', box: [...c.chest, ...c.chest] })).taken);
+    taken = plus(taken, (await mod({ op: 'clearContainers', box: [...c.D, ...c.D] })).taken);
+  }
+  return plus(taken, (await mod({ op: 'clearContainers', box: [...h.overflow, ...h.overflow] })).taken);
 }
 
 async function sortStep() {
@@ -882,44 +911,69 @@ async function sortStep() {
     await rules();
     await install();
     const domain = MODULE_JSON.params.item1.options.filter((o) => o !== 'none');
-    // the towns: one per street orientation, and two at shifted claims for chunk-border crossings (along the line, through a control arm)
-    const towns = [await town(0, 0, { orientation: 'ew' }), await town(256, 0, { w: 176, d: 224, orientation: 'ns' }), await town(9, 505, { orientation: 'ew' }), await town(263, 511, { w: 176, d: 224, orientation: 'ns' })];
-    // each sorting branch in rustic in full, with its own items rotating through the domain; fortress and desert for 4 and 16
+    // (bar 1) each sorting branch in rustic in all four facings, with its own items rotating through the domain; fortress and desert for 4
+    // and 16 (sorting and light). Each hall also its own five plain kinds (mixAt), so every domain item is a non-filter kind somewhere
     let at = 0;
     const pick = (n) => { const it = Array.from({ length: n }, (_, i) => domain[(at + i) % domain.length]); at = (at + n) % domain.length; return it; };
+    const FRONTS = ['north', 'east', 'south', 'west'];
     const specs = [];
-    for (const slots of [4, 8, 12, 16]) specs.push({ id: `s${slots}_rus`, slots, bulk: slots === 4 ? 2 : 8, bible: 'rustic', items: pick(slots) });
-    for (const slots of [4, 16]) for (const bible of ['fortress', 'desert']) specs.push({ id: `s${slots}_${bible.slice(0, 3)}`, slots, bulk: 4, bible, items: pick(slots) });
-    for (const slots of [4, 8]) specs.push({ id: `s${slots}_rus_b`, slots, bulk: 0, bible: 'rustic', items: pick(slots) });
-    const groups = [[0, 1], [2], [3], [4, 5], [6, 7], [8, 9]];
-    const townOf = [0, 1, 0, 1, 2, 3];
+    for (const slots of [4, 8, 12, 16]) FRONTS.forEach((f, k) => specs.push({ id: `s${slots}_${f[0]}`, slots, bulk: [2, 8, 0, 4][k], bible: 'rustic', items: pick(slots), front: f }));
+    for (const slots of [4, 16]) for (const bible of ['fortress', 'desert']) specs.push({ id: `s${slots}_${bible.slice(0, 3)}`, slots, bulk: 4, bible, items: pick(slots), front: null });
+    specs.forEach((sp, i) => { sp.mixAt = i * 5; });
+    // SORT_QUICK=1: a probe of the run's machinery (two halls, one run each), never evidence: its coverage checks fail by design
+    if (process.env.SORT_QUICK === '1') specs.splice(0, specs.length, ...specs.filter((sp) => sp.id === 's4_n' || sp.id === 's4_e'));
+    // the towns: the first four as before (one per street orientation, two at shifted claims for chunk-border crossings); more as the
+    // facings need them. An ew street's lots face north or south, an ns street's east or west
+    const sites = [[0, 0, 'ew'], [256, 0, 'ns'], [9, 505, 'ew'], [263, 511, 'ns'], [0, 1024, 'ew'], [256, 1024, 'ns'], [512, 0, 'ew'], [512, 512, 'ns'], [512, 1024, 'ew'], [768, 0, 'ns'], [768, 512, 'ew'], [768, 1024, 'ns']];
+    const towns = [];
+    const townAt = async (i) => {
+      if (!towns[i]) { const [x, z, o] = sites[i]; towns[i] = await town(x, z, o === 'ns' ? { w: 176, d: 224, orientation: 'ns' } : { orientation: 'ew' }); towns[i].orientation = o; }
+      return towns[i];
+    };
+    for (let i = 0; i < 4; i++) await townAt(i);
     const halls = [];
-    for (const [gi, idx] of groups.entries()) {
-      const t = towns[townOf[gi]];
-      const sp = idx.map((i) => specs[i]);
-      await standAt(t.cx, t.cz, t.gy + 30);
-      const g = await growHalls(t.region, sp);
-      if (!check(!g.refused, `growth ${sp.map((x) => x.id).join(', ')} in ${t.region}: ${g.refused ? String(g.refused).slice(0, 300) : `rid ${g.rid}`}`)) continue;
-      const w = await rvWait(t.region, g.rid);
-      check(w.r.state === 'PLACED', `growth rid ${g.rid}: ${w.r.state}`);
-      await hallCells(t.region, g.halls);
-      for (const h of g.halls) { h.region = t.region; h.rid = g.rid; h.position = g.position; h.town = t; }
-      out.growths.push({ region: t.region, rid: g.rid, position: g.position, halls: g.halls.map((h) => h.id) });
-      halls.push(...g.halls);
+    for (const sp of specs) {
+      const axis = sp.front === null ? null : (sp.front === 'north' || sp.front === 'south' ? 'ew' : 'ns');
+      let placed = false;
+      for (let i = 0; i < sites.length && !placed; i++) {
+        if (axis && sites[i][2] !== axis) continue;
+        const t = await townAt(i);
+        await standAt(t.cx, t.cz, t.gy + 30);
+        const g = await growHalls(t.region, [sp], { want: sp.front ? { [sp.id]: sp.front } : null });
+        if (g.refused) { log(`  ${sp.id} in ${t.region}: ${String(g.refused).slice(0, 200)}`); continue; }
+        const w = await rvWait(t.region, g.rid);
+        check(w.r.state === 'PLACED', `growth ${sp.id} in ${t.region} (front ${g.halls[0].frame.front}): rid ${g.rid} ${w.r.state}`);
+        await hallCells(t.region, g.halls);
+        for (const h of g.halls) { h.region = t.region; h.rid = g.rid; h.position = g.position; h.town = t; h.mixAt = sp.mixAt; }
+        out.growths.push({ region: t.region, rid: g.rid, position: g.position, halls: g.halls.map((h) => h.id) });
+        halls.push(...g.halls);
+        placed = true;
+      }
+      check(placed, `12.5 bar 1 placed ${sp.id} (${sp.bible}, ${sp.slots} slots${sp.front ? `, front ${sp.front}` : ''})`);
     }
+    const towns_ = towns.filter(Boolean);
     // coverage: every domain item a filter at least once
     const used = new Set(halls.flatMap((h) => h.items));
     out.coverage = { filters: [...used].sort(), missing: domain.filter((k) => !used.has(k)) };
     check(out.coverage.missing.length === 0, `12.1 coverage: every one of the ${domain.length} domain items is a filter in some hall (${out.coverage.missing.length ? `missing ${out.coverage.missing.join(', ')}` : 'all'})`);
-    const fronts = new Set(halls.map((h) => h.frame.front));
-    check(['north', 'east', 'south', 'west'].every((f) => fronts.has(f)), `12.5 facings: every one covered (${[...fronts].join(', ')})`);
+    // (bar 1) each sorting branch in all four facings, in rustic
+    for (const slots of [4, 8, 12, 16]) {
+      const fr = new Set(halls.filter((h) => h.slots === slots && h.bible === 'rustic').map((h) => h.frame.front));
+      check(FRONTS.every((f) => fr.has(f)), `12.5 bar 1 facings ${slots} slots (rustic): ${FRONTS.filter((f) => fr.has(f)).join(', ')}${FRONTS.some((f) => !fr.has(f)) ? `; missing ${FRONTS.filter((f) => !fr.has(f)).join(', ')}` : ''}`);
+    }
+    // (12.1, GPT review 4) every domain item a plain (non-filter) kind in some hall's mix
+    const plainUsed = new Set(halls.flatMap((h) => plainOf(h, domain)));
+    const plainMissing = domain.filter((k) => !plainUsed.has(`minecraft:${k}`));
+    out.coverage.plainMissing = plainMissing;
+    check(plainMissing.length === 0, `12.1 coverage: every domain item a non-filter kind in some hall's mix (${plainMissing.length ? `missing ${plainMissing.join(', ')}` : 'all'})`);
     // the line's axis and the control arm's axis per hall: a crossing along the line (x in the template) and one through a control arm (z)
     const along = halls.filter((h) => { const xs = h.sort.map((c) => Math.floor((h.frame.front === 'north' || h.frame.front === 'south' ? c.line[0] : c.line[2]) / 16)); return new Set(xs).size > 1; }).map((h) => h.id);
     const arm = halls.filter((h) => h.sort.some((c) => { const a = h.frame.front === 'north' || h.frame.front === 'south' ? [c.line[2], c.line[2] + (h.frame.front === 'south' ? -4 : 4)] : [c.line[0], c.line[0] + (h.frame.front === 'east' ? 4 : -4)]; return Math.floor(a[0] / 16) !== Math.floor(a[1] / 16); })).map((h) => h.id);
     out.crossings = { along, arm };
     check(along.length > 0 && arm.length > 0, `12.5/12.7 S7 chunk borders: halls crossing along their line ${json(along)}, through a tile's control arm ${json(arm)}`);
     // ---- 6 shape: standing; F exactly 41 + 4 (the fill); the lever unlocked; the slot, input and overflow chests single; every chest opens
-    for (const t of towns) {
+    await freeze(); // (bar 6's access) nothing moves between the test's put and the player's take
+    for (const t of towns_) {
       await standAt(t.cx, t.cz, t.gy + 30);
       const rep = await land(t.region);
       for (const h of halls.filter((x) => x.region === t.region)) {
@@ -936,11 +990,21 @@ async function sortStep() {
         // changed cell (S-M5-18): changed is exactly the slots' F cells, each holding exactly the fill (fOk)
         check(row?.changed === h.slots && row?.standing === 1 && fOk && leverOk && opens && fk.phase === 'UNLOCKED' && (fk.locks ?? []).every((l) => /powered=false/.test(l.state ?? '')),
           `12.5 bar 6 shape ${h.id} (${h.bible}, ${h.slots} slots, front ${h.frame.front}): standing ${row?.standing}, changed ${row?.changed} (the ${h.slots} filled Fs); every F exactly 41 + 4 slabs (${fOk}); FK ${fk.phase}, the lever unlocked; nothing conductive over any chest (${opens})`);
+        // (bar 6, access [1]) a survival player opens and empties every chest through its menu: the input, the overflow, each slot chest, each
+        // bulk half (both rows). One stack put in, the chest opened as a player opens it, everything taken out through the menu
+        const chests = [['input', h.input], ['overflow', h.overflow], ...h.sort.map((c, u) => [`slot ${u + 1}`, c.chest]), ...h.pairs.flatMap((pr, i) => pr.map((c, k) => [`bulk ${i + 1}${k ? 'b' : 'a'}`, c]))];
+        const shut = [];
+        for (const [name, c] of chests) {
+          await mod({ op: 'putItems', at: c, stacks: [{ slot: 0, id: 'minecraft:cobblestone', count: 7 }] });
+          const r = (await mod({ op: 'playerOpen', cells: [c] })).cells?.[0] ?? {};
+          if (!(r.opened && r.took?.['minecraft:cobblestone'] === 7 && Object.keys(r.took).length === 1 && r.left === 0)) shut.push(`${name} ${json({ opened: r.opened, took: r.took, left: r.left, result: r.result })}`);
+        }
+        check(!shut.length, `12.5 bar 6 access ${h.id}: a player opens and empties all ${chests.length} chests through the menu${shut.length ? `; not: ${shut.slice(0, 3).join('; ')}` : ''}`);
       }
     }
     // ---- 4 light
     await cmd('/time set 18000');
-    for (const t of towns) {
+    for (const t of towns_) {
       await standAt(t.cx, t.cz, t.gy + 30);
       for (const h of halls.filter((x) => x.region === t.region)) {
         const r = await readCells(h.light);
@@ -950,13 +1014,15 @@ async function sortStep() {
       }
     }
     await cmd('/time set 6000');
-    // ---- 1, 2: sorting, 20 runs of every rustic hall (3 of the others), by town (its halls run together)
+    // ---- 1, 2: sorting, 20 runs a rustic branch (5 in each facing's hall; 3 of the others), by town (its halls run together)
     await freeze();
-    for (const t of towns) {
+    // a rustic hall runs at least 5 times and enough for bar 4's 10,000 items through it
+    const RUNS = (h) => (process.env.SORT_QUICK === '1' ? 1 : h.bible === 'rustic' ? Math.max(5, Math.ceil(10_000 / mixOf(h, domain).reduce((a, st) => a + st.count, 0))) : 3);
+    for (const t of towns_) {
       await standAt(t.cx, t.cz, t.gy + 30);
       const th = halls.filter((x) => x.region === t.region);
-      for (let r = 0; r < 20; r++) {
-        const runHalls = th.filter((h) => h.bible === 'rustic' || r < 3);
+      for (let r = 0; r < Math.max(0, ...th.map(RUNS)); r++) {
+        const runHalls = th.filter((h) => r < RUNS(h));
         if (!runHalls.length) break;
         const res = await sortRun(runHalls, domain);
         out.runs.push({ town: t.region, run: r, res });
@@ -969,19 +1035,24 @@ async function sortStep() {
     const all = out.runs.flatMap((r) => Object.entries(r.res).map(([id, x]) => ({ id, ...x })));
     for (const h of halls) {
       const mine = all.filter((x) => x.id === h.id);
-      const want = h.bible === 'rustic' ? 20 : 3;
+      const want = RUNS(h);
       check(mine.length >= want && mine.every((x) => x.sorted), `12.5 bar 1 sorting ${h.id}: ${mine.filter((x) => x.sorted).length}/${mine.length} runs 100% (${want} needed)${mine.find((x) => !x.sorted) ? `: ${mine.find((x) => !x.sorted).why.slice(0, 3).join('; ')}` : ''}`);
       const ips = mine.map((x) => x.itemsPerSecond).filter(Boolean);
       const mean = ips.reduce((a, b) => a + b, 0) / (ips.length || 1);
       out.halls[h.id].itemsPerSecond = mean;
       check(true, `12.5 bar 2 throughput ${h.id} (report): ${mean.toFixed(3)} items a second over ${ips.length} runs (bar 2.241-2.739: ${mean >= 2.241 && mean <= 2.739 ? 'within' : 'OUTSIDE: flag'})`);
     }
-    // ---- 4: the filters hold after the runs (> 10,000 items through each rustic hall)
+    // (bar 1) 20 runs a rustic branch, over its four facings, every one 100%
+    for (const slots of [4, 8, 12, 16]) {
+      const mine = all.filter((x) => halls.find((h) => h.id === x.id && h.slots === slots && h.bible === 'rustic'));
+      check(mine.length >= 20 && mine.every((x) => x.sorted), `12.5 bar 1 sorting the ${slots}-slot branch (rustic, four facings): ${mine.filter((x) => x.sorted).length}/${mine.length} runs 100% (20 needed)`);
+    }
+    // ---- 4: the filters hold after the runs (> 10,000 items through each branch)
     for (const h of halls) {
       await standAt(h.town.cx, h.town.cz, h.town.gy + 30);
       const s = await sortState(h);
       const thru = all.filter((x) => x.id === h.id).reduce((a, x) => a + x.items, 0);
-      check(h.filterIds.every((f, u) => fExact(s.F[u], f)), `12.5 bar 4 the filters hold ${h.id}: after ${thru} items every F exactly 41 + 4`);
+      check(h.filterIds.every((f, u) => fExact(s.F[u], f)) && (h.bible !== 'rustic' || thru >= 10_000), `12.5 bar 4 the filters hold ${h.id}: after ${thru} items every F exactly 41 + 4${h.bible === 'rustic' ? ' (10,000 needed)' : ''}`);
     }
     // ---- 3: saturation (two neighbouring slot chests full), then recovery; a full overflow backs up, then recovers
     const sat = halls.filter((h) => h.bible === 'rustic' && h.region === towns[0].region);
@@ -994,7 +1065,8 @@ async function sortStep() {
     }
     for (const h of sat) await clearOutputs(h);
     // the line still holds the saturated slots' backlog: let it drain into the emptied chests, then a fresh mix sorts 100% and every F is 41 + 4
-    await drain(sat);
+    const dr1 = await drain(sat);
+    for (const h of sat) check(dr1[h.id].settled && dr1[h.id].conserved, `12.5 bar 3 saturation drain ${h.id}: the backlog settled, every item counted (${totalOf(dr1[h.id].taken)} taken; off ${json(dr1[h.id].off)})`, dr1[h.id]);
     const rec = await sortRun(sat, domain);
     for (const h of sat) {
       const s = await sortState(h);
@@ -1006,18 +1078,25 @@ async function sortStep() {
     const ofl = await sortRunSat(sat, domain, { overflowFull: true });
     for (const h of sat) check(ofl[h.id].ok, `12.5 bar 3 overflow full ${h.id}: ${ofl[h.id].ok ? 'the line backs up, nothing lost or misplaced' : ofl[h.id].why.slice(0, 3).join('; ')}`, ofl[h.id]);
     for (const h of sat) await clearOutputs(h);
-    await drain(sat);
+    const dr2 = await drain(sat);
+    for (const h of sat) check(dr2[h.id].settled && dr2[h.id].conserved, `12.5 bar 3 overflow drain ${h.id}: the backlog settled, every item counted (${totalOf(dr2[h.id].taken)} taken; off ${json(dr2[h.id].off)})`, dr2[h.id]);
     const rec2 = await sortRun(sat, domain);
     for (const h of sat) check(rec2[h.id].sorted, `12.5 bar 3 overflow recovery ${h.id}: emptied, 100% again (${rec2[h.id].why.slice(0, 2).join('; ')})`);
     for (const h of sat) await clearOutputs(h);
     // ---- 5: restart mid-sort; unload mid-sort (every chunk); a partial unload (one side of a crossing ticking, the other not)
     for (const [label, how] of [['restart', 'restart'], ['unload', 'unload'], ['partial', 'partial']]) {
-      const t = towns[label === 'partial' ? 2 : 1];
+      // restart and unload in towns[1] (or the first town holding halls); the partial in the town of a hall crossing a chunk border
+      const crossing = halls.filter((h) => along.includes(h.id) || arm.includes(h.id));
+      const t = label === 'partial' ? (crossing[0]?.town ?? towns[2]) : (halls.some((x) => x.region === towns[1].region) ? towns[1] : (halls[0]?.town ?? towns[1]));
       await standAt(t.cx, t.cz, t.gy + 30);
       let th = halls.filter((x) => x.region === t.region);
       if (label === 'partial') th = th.filter((h) => along.includes(h.id) || arm.includes(h.id)).slice(0, 2);
       if (!th.length) { check(false, `12.5 bar 5 ${label}: no hall to run it on`); continue; }
       const r = await sortMidway(th, domain, how, t);
+      if (how !== 'restart') {
+        const u = r[th[0].id].unload;
+        check(u.unloadedAll && u.forcedLoaded && u.ticks >= 600, `12.5 bar 5 ${label}: asserted: ${u.unforced}/${u.probes} probes' chunks unloaded${how === 'partial' ? `, the forced side loaded (${u.forcedLoaded})` : ''}, ${u.ticks} game ticks passed so`, u);
+      }
       for (const h of th) check(r[h.id].sorted, `12.5 bar 5 ${label} mid-sort ${h.id}: ${r[h.id].sorted ? 'nothing lost or duplicated, sorting finished 100%, the renamed stack still renamed' : r[h.id].why.slice(0, 3).join('; ')}`, r[h.id]);
       for (const h of th) await clearOutputs(h);
     }
@@ -1071,20 +1150,25 @@ async function sortRunSat(halls, domain, { overflowFull = false } = {}) {
 
 /** A run interrupted midway (restart: the world saved, left and opened; unload: every chunk; partial: one chunk force-loaded, the rest away), then finished. */
 async function sortMidway(halls, domain, how, t) {
-  const exp = new Map(), fedAll = new Map(), before = new Map();
+  const exp = new Map(), fedAll = new Map(), before = new Map(), rest = new Map();
   for (const h of halls) {
     const mix = mixOf(h, domain);
     before.set(h.id, await sortState(h));
-    // the first batch only (27 stacks), so it fits the input at once; the run is judged on that batch
-    const b = mix.slice(0, 27);
+    // (GPT review) the whole mix in acknowledged batches of 27: the first before the interruption, the rest after it, each once the input
+    // is empty; the run is judged on the whole mix (the renamed stack and every filter's stacks included)
+    const batches = [];
+    for (let i = 0; i < mix.length; i += 27) batches.push(mix.slice(i, i + 27));
+    const b = batches.shift();
     await mod({ op: 'putItems', at: h.input, stacks: b.map((st, j) => ({ slot: j, ...st })) });
     const f = {};
     for (const st of b) f[keyOf(st)] = (f[keyOf(st)] ?? 0) + st.count;
     fedAll.set(h.id, f);
+    rest.set(h.id, batches);
   }
   await advance(400);
   const mid = new Map();
   for (const h of halls) mid.set(h.id, await sortState(h));
+  const unload = {};
   if (how === 'restart') {
     await cmd('/tick unfreeze');
     await reopen([t.cx, t.cz, t.gy + 30]);
@@ -1094,20 +1178,45 @@ async function sortMidway(halls, domain, how, t) {
     if (how === 'partial') for (const h of halls) { const c = h.sort[0].line; forced.push(c); await cmd(`/forceload add ${c[0]} ${c[2]}`); }
     await cmd('/tick unfreeze');
     await standAt(t.cx + 6000, t.cz + 6000, 120);
+    // (bar 5, asserted) every F of every hall is a probe; the forced line hopper's chunk must stay loaded (partial), every other probe unload
     const probes = halls.flatMap((h) => h.sort.map((c) => c.F));
+    const forcedChunk = new Set(forced.map((c) => `${c[0] >> 4},${c[2] >> 4}`));
+    const isForced = (c) => forcedChunk.has(`${c[0] >> 4},${c[2] >> 4}`);
+    let r = [];
     for (let i = 0; i < 180; i++) {
       await sleep(1000);
-      const r = await readCells(probes);
-      const loaded = r.filter((c) => c !== null).length;
-      if (how === 'unload' ? loaded === 0 : loaded < probes.length) break;
+      r = await readCells(probes);
+      const away = probes.filter((c, k) => !isForced(c) && r[k] !== null).length;
+      if (away === 0) break;
     }
     const t0 = (await mod({ op: 'cells', cells: [] })).gameTime;
     for (let i = 0; i < 600 && (await mod({ op: 'cells', cells: [] })).gameTime - t0 < 600; i++) await sleep(1000);
+    const t1 = (await mod({ op: 'cells', cells: [] })).gameTime;
+    const r2 = await readCells([...probes, ...forced]);
+    const unforced = probes.filter((c) => !isForced(c));
+    unload.unloadedAll = unforced.length > 0 && unforced.every((c) => r2[probes.indexOf(c)] === null) && probes.filter((c, k) => !isForced(c) && r[k] !== null).length === 0;
+    unload.forcedLoaded = how !== 'partial' || (forced.length > 0 && forced.every((c, k) => r2[probes.length + k] !== null));
+    unload.ticks = t1 - t0;
+    unload.probes = probes.length;
+    unload.unforced = unforced.length;
     for (const c of forced) await cmd(`/forceload remove ${c[0]} ${c[2]}`);
     await standAt(t.cx, t.cz, t.gy + 30);
     const all = halls.flatMap((h) => h.sort.map((c) => c.F));
     for (let i = 0; i < 120 && (await readCells(all)).some((c) => c === null); i++) await sleep(1000);
     await freeze();
+  }
+  // the rest of each mix, a batch whenever the input is empty
+  for (let k = 0; k < 120 && halls.some((h) => rest.get(h.id).length); k++) {
+    for (const h of halls) {
+      if (!rest.get(h.id).length) continue;
+      if (totalOf((await sortState(h)).input)) continue;
+      const b = rest.get(h.id).shift();
+      const a = await mod({ op: 'putItems', at: h.input, stacks: b.map((st, j) => ({ slot: j, ...st })) });
+      if (!a.ok) throw new Error(`put into ${h.id}: ${a.error}`);
+      const f = fedAll.get(h.id);
+      for (const st of b) f[keyOf(st)] = (f[keyOf(st)] ?? 0) + st.count;
+    }
+    await advance(1000);
   }
   // run to the end: every input, line hopper and D settled (at most 60,000 ticks; 27 stacks take about 14,000)
   for (let k = 0; k < 60; k++) {
@@ -1130,7 +1239,8 @@ async function sortMidway(halls, domain, how, t) {
     if (!same(minus(s.overflow, b.overflow), rest)) why.push(`overflow got ${json(minus(s.overflow, b.overflow))}, want ${json(rest)}`);
     if (totalOf(s.input) || s.line.some((m) => totalOf(m)) || !dSettled(h, s)) why.push('not finished');
     if (ents.entities) why.push(`${ents.entities} item entities`);
-    out[h.id] = { sorted: why.length === 0, why, mid: totalOf(sumAll(mid.get(h.id))) };
+    if (!same(f, (() => { const m = {}; for (const st of mixOf(h, domain)) m[keyOf(st)] = (m[keyOf(st)] ?? 0) + st.count; return m; })())) why.push('not the whole mix fed');
+    out[h.id] = { sorted: why.length === 0, why, mid: totalOf(sumAll(mid.get(h.id))), unload };
   }
   return out;
 }
@@ -1610,6 +1720,48 @@ async function sortCrash() {
       const res = { first: refusal(u), afterFail: s1 ? totalOf(sumAll(s1)) : null, retry: refusal(u2), back: totalOf(back), consumed: totalOf(c.g.quote?.bom ?? {}) };
       out.fkc0 = res;
       check(u2.removed === true && same(back, c.g.quote?.bom ?? {}), `9 FKC0: the removal failed after its custody take (${refusal(u)}), its contents written back (${res.afterFail} items), restarted and retried: removed, back = consumed once (${res.back} = ${res.consumed})`, res);
+    }
+    // ---- (bar 9, 5th run) a cancel before the fill: the hall's blocks built, the fill's items held back, paused, then undone. No filter item
+    // written, charged or refunded; the structure back exactly; no slab anywhere
+    {
+      const sp = { id: 'sk_cancel', slots: 4, bulk: 0, bible: 'rustic', items };
+      const feedOnly = async (fill) => {
+        const ps = await pile();
+        const need = {};
+        for (const [it, n] of Object.entries(ps.outstanding ?? {})) { if ((it in FILL) !== fill) continue; const lack = n - (ps.stock?.[it] ?? 0); if (lack > 0) need[it] = lack; }
+        if (Object.keys(need).length) await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: need, exact: true }, 120_000);
+      };
+      const Ls = (await pile()).ledger;
+      const g = await growHalls(region, [sp], { survival: true });
+      if (check(!g.refused, `9 cancel: the hall grown: ${g.refused ? String(g.refused).slice(0, 200) : `rid ${g.rid}`}`)) {
+        let site = null, t = null;
+        for (let i = 0; i < 400; i++) {
+          await feedOnly(false);
+          site = site ?? (await call('dev.region.state', { region }, 60_000)).view.lots.find((l) => l.id === sp.id)?.siteId ?? null;
+          t = site ? (await pile()).targets?.[site] : null;
+          if (t && t.queued > 0 && t.built === t.queued) break;
+          await sleep(2500);
+        }
+        const L0 = (await pile()).ledger;
+        const f0 = site ? await fkState(site) : { error: 'no site' };
+        check(t && t.built === t.queued && !f0.error && f0.phase !== 'FILLING' && f0.phase !== 'FILLED' && f0.phase !== 'UNLOCKED', `9 cancel: every cell of the hall stands (${t?.built}/${t?.queued}), its fill not begun (FK ${f0.error ?? f0.phase ?? 'not begun'})`);
+        const u = await call('dev.rv.undo', { region, toPosition: g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
+        let rs = null;
+        for (let i = 0; i < 300; i++) { rs = (await call('dev.rv.state', { region }, 60_000)).revisions.find((x) => x.rid === g.rid)?.state; if (rs === 'UNDONE') break; await sleep(1000); }
+        await sleep(4000);
+        const L1 = (await pile()).ledger;
+        // what the growth charged (its structure, never the fill) and what came back at the undo
+        const consumed = minus(L1.consumed, Ls.consumed);
+        const back = minus(plus(L1.returned, L1.refundOverflow), plus(L0.returned, L0.refundOverflow));
+        const drops = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
+        const slabs = await call('dev.fk.slabs', { pos: home }, 10_000).catch(() => ({}));
+        const struct = minus(L0.consumed, Ls.consumed);
+        const res = { state: rs, undo: refusal(u), fillCharged: only(consumed), fillBack: only(back), back, struct, drops, slabs, custody: L1.custody ?? null, pending: L1.pendingCredit ?? null };
+        out.cancel = res;
+        check(rs === 'UNDONE' && !Object.keys(only(consumed)).length && !Object.keys(only(back)).length && same(back, struct) && !Object.keys(drops).length
+          && !Object.keys(L1.custody ?? {}).length && !Object.keys(L1.pendingCredit ?? {}).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
+          `9 cancel before the fill: ${rs}; no filter item charged (${json(only(consumed))}) or refunded (${json(only(back))}); the structure back exactly (${totalOf(back)} = ${totalOf(struct)}; off ${json(minus(back, struct))}); nothing dropped, no custody or pending refund, no slab`, res);
+      }
     }
   } finally {
     // (a relaunch that failed leaves no client: its own error is the step's, not a null one here)
