@@ -6368,6 +6368,9 @@ async function moduleSurvivalStreetFlow() {
     const t = await survivalStreetTown(label, 'Watered Street', 84000, st);
     if (!t) return;
     const { id, claim, ledger, feed, owner, away, offFrom, box } = t;
+    // the seeds before the town stands: the first proposal pass once it's built offers the module (modules come first), so a tier proposal
+    // opened then (and its 20 min cooldown) never takes the slot
+    await cmd('/give @p minecraft:wheat_seeds 16');
     // the founding build fed until every site stands
     st.feeding = true;
     for (let i = 0; i < 200; i++) {
@@ -6382,7 +6385,6 @@ async function moduleSurvivalStreetFlow() {
     const measured = JSON.parse(fs.readFileSync(path.join(MODULE_DIR, 'measured.json'), 'utf8')).bounds ?? [];
     ok(`${label} source`, await moduleSource(measured.map((b) => ({ params: b.params, bom: Object.fromEntries(Object.entries(b.bom).map(([k, n]) => [k, n * 4 + 64])) }))));
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
-    await cmd('/give @p minecraft:wheat_seeds 16');
     const offer = await moduleOffer(id);
     if (offer?.module?.moduleId === MODULE && offer.module?.bound && /from the stockpile/.test(offer.why ?? '')) ok(`${label} offer`, offer.why.slice(0, 200));
     else return fail(`${label} offer`, `no billed module.${MODULE} proposal: ${JSON.stringify(offer)?.slice(0, 200)}; ${chatTail(0)}`);
