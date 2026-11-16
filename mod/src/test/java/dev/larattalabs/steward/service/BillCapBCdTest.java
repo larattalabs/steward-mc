@@ -59,8 +59,10 @@ class BillCapBCdTest {
 			+ " \"say\": \"Main gatehouse's portcullis waits bill_cap: over\"}}").getAsJsonObject();
 		assertTrue(SettlementRunner.capStageWait(ext, "set_1", true).contains("/steward cancel set_1 takes it up"));
 		assertTrue(SettlementRunner.capStageWait(ext, "set_1", false).contains("/steward undo set_1 takes it up"));
-		// no runner for the settlement: undo
-		assertFalse(SettlementRunner.cancelTakesUp("no_such_settlement"));
+		// no runner for the settlement, or a target whose region is unknown: undo (refused while busy, with a pointer to cancel), never a cancel
+		// that could stop another region's build
+		assertFalse(SettlementRunner.cancelTakesUp("no_such_settlement", "rg1"));
+		assertFalse(SettlementRunner.cancelTakesUp("no_such_settlement", null));
 	}
 
 	@Test

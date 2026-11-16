@@ -285,9 +285,10 @@ public final class SettlementRunner {
 	 * build still runs, a growth realised from materials, which {@link #cancel} takes up where it stands, refunding what it drew (A2L, RU). Once the
 	 * build has ended, {@code /steward undo} does that ({@link MaterialRequests#overCap}).
 	 */
-	public static boolean cancelTakesUp(String settlementId) {
+	public static boolean cancelTakesUp(String settlementId, @org.jspecify.annotations.Nullable String regionId) {
 		SettlementRunner r = ACTIVE.get(settlementId);
-		return r != null && r.cancelTakesUp();
+		// (QD-2 GPT review) only the runner growing the waiting target's own region: another region's growth (a district's) is never the one cancelled
+		return r != null && regionId != null && regionId.equals(r.growRegion) && r.cancelTakesUp();
 	}
 
 	private boolean cancelTakesUp() {

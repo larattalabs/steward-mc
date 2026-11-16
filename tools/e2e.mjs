@@ -6606,7 +6606,8 @@ async function moduleCapFlow() {
           try { heldSaved = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id) ?? null; } catch { /* mid-write */ }
         }
       }
-      if (ask) { await cmd(`/steward approve ${id}`); from = logSize(); }
+      // the cursor moves before the approve: what it leads to (a refusal, the re-ask) is never skipped (GPT review of QD-2)
+      if (ask) { from = logSize(); await cmd(`/steward approve ${id}`); }
       await sleep(1000);
     }
     await cmd('/steward dev cap_short none').catch(() => null);
@@ -6618,8 +6619,8 @@ async function moduleCapFlow() {
       const order = Object.values(heldSaved?.moduleOrders ?? {})[0];
       const atLeast = second && Object.entries(order?.bound ?? {}).every(([k, c]) => (second[k] ?? 0) >= c);
       if (refusedAt != null && notPlaced && reasked && sent.length >= 2 && first?.[shortItem] === 0 && second?.[shortItem] > 0 && atLeast
-        && heldSaved?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && !heldSaved?.vRegion && order?.held && order?.refused == null)
-        ok(lbl, `sent ${shortItem} 0: refused at put-down (BILL_CAP), said "Not placed yet"; asked again "${reasked.slice(0, 120)}" (held, saved, not refused any more, not realised); approved: realised under ${JSON.stringify(second).slice(0, 160)}, never below the bound`);
+        && heldSaved?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && !heldSaved?.vRegion && order?.held && order?.refused === true)
+        ok(lbl, `sent ${shortItem} 0: refused at put-down (BILL_CAP), said "Not placed yet"; asked again "${reasked.slice(0, 120)}" (held and saved still marked refused until approved, not realised); approved: realised under ${JSON.stringify(second).slice(0, 160)}, never below the bound`);
       else return fail(lbl, `refused ${refusedAt != null}; said not placed ${notPlaced}; asked again ${!!reasked}; maxBills ${JSON.stringify(sent).slice(0, 300)}; held save ${JSON.stringify({ phase: heldSaved?.state?.phase, vRegion: heldSaved?.vRegion, order }).slice(0, 400)}`);
     }
     const capSent = maxBills().at(-1) ?? null;
@@ -6687,8 +6688,14 @@ async function moduleCapFlow() {
       const plain = item.replace(/^[^:]*:/, '').replaceAll('_', ' ');
       const said = await waitLog(from, new RegExp(`has stopped: finishing it would take [^\\n]*?(\\d+) ${plain}[^\\n]* more than you approved[^\\n]*`), 240_000);
       feeding = false;
-      const held = await capOf(rid);
-      const t = (held?.targets ?? []).find((x) => x.blocked === 'bill_cap');
+      // the hold read until it shows: while the stock already fed builds the target's other cells, each cell built lifts the hold until the next
+      // one would pass the cap (Architect's billUncapped, then billCapped again), so one read can fall between them
+      let held = null, t = null;
+      for (let i = 0; i < 30 && !t; i++) {
+        if (i) await sleep(1000);
+        held = await capOf(rid);
+        t = (held?.targets ?? []).find((x) => x.blocked === 'bill_cap') ?? null;
+      }
       const nn = needOf(t)[item];
       const before = held?.drawn?.[item];
       await sleep(20_000);
@@ -6704,7 +6711,7 @@ async function moduleCapFlow() {
       const rightCmd = named === (running ? 'cancel' : 'undo');
       if (lowered && !lowered.refused && said && t && nn > over && n === nn && before === after && !/maxBill|bill_cap/.test(words) && rightCmd)
         ok(lbl, `cap of ${plain} set to ${c.drawn[item] - over} (drawn ${c.drawn[item]}): ${t.id} held bill_cap, nextNeeded ${nn} (its need + ${over} over); said "${words.replace(/^.*?The /, 'The ').slice(0, 200)}" (names ${named}: the build ${running ? `still ${build.state?.phase}` : 'ended'}); nothing more drawn in 20 s (${before} = ${after})`);
-      else return fail(lbl, `set ${JSON.stringify(lowered).slice(0, 160)}; said ${words.slice(0, 200) || 'nothing'}; names ${named} (build ${build?.state?.phase ?? 'none'}); held ${JSON.stringify(t).slice(0, 200)}; drawn ${before} -> ${after}`);
+      else return fail(lbl, `set ${JSON.stringify(lowered).slice(0, 160)}; said ${words.slice(0, 200) || 'nothing'}; names ${named} (build ${build?.state?.phase ?? 'none'}); held ${String(JSON.stringify(t)).slice(0, 200)} (targets ${String(JSON.stringify(held?.targets?.map((x) => [x.id, x.blocked]))).slice(0, 200)}); drawn ${before} -> ${after}`);
       // restored: it builds on, within the cap sent
       await dev.request('dev.bc.cap', { region, rid: Number(rid), set: capSent }, { timeoutMs: 30_000 }).catch(() => null);
     }

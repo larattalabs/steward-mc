@@ -111,7 +111,7 @@ public final class MaterialRequests {
 		SAID.put(wait.targetId(), key);
 		TOLD.put(s.get().id(), now);
 		// (QD) held by the approved bound, not by the stockpile: more materials would not help
-		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait, SettlementRunner.cancelTakesUp(s.get().id())));
+		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait, SettlementRunner.cancelTakesUp(s.get().id(), regionOf(site))));
 		else tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
 	}
 
@@ -227,7 +227,7 @@ public final class MaterialRequests {
 			if (had == null || had.since() != longest.waitingSince()) {
 				var target = sites.get(longest.targetId());
 				String what = target.map(v -> nameOf(s, v)).orElse("build");
-				if (capped(longest)) tell(srv, s, overCap(what, s.id(), longest, SettlementRunner.cancelTakesUp(s.id())));
+				if (capped(longest)) tell(srv, s, overCap(what, s.id(), longest, SettlementRunner.cancelTakesUp(s.id(), target.map(MaterialRequests::regionOf).orElse(null))));
 				else tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
 			}
 		}
@@ -273,6 +273,13 @@ public final class MaterialRequests {
 		var over = w.nextNeeded().stream()
 			.map(n -> Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(n.item()).toString(), n.count())).toList();
 		return overCapWords(what, settlementId, over, w.moreUnits(), cancel);
+	}
+
+	/** (QD-2) The region a target belongs to (Architect's {@code region}, else {@code architect_mc:region} on its ext), or null when it says none. */
+	static @org.jspecify.annotations.Nullable String regionOf(SiteView v) {
+		if (v.region() != null) return v.region();
+		var ext = v.ext();
+		return ext != null && ext.get("architect_mc:region") instanceof com.google.gson.JsonPrimitive r && r.isString() ? r.getAsString() : null;
 	}
 
 	/** {@link #overCap} over plain item ids (testable without the item registry). */

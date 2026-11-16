@@ -27,7 +27,7 @@ import org.jspecify.annotations.Nullable;
  *     that bill, is not asked about again
  * @param refused (QD-2, since 2026-11-16) Architect refused the realise at put-down ({@code BILL_CAP}: its bill then was past this bound): the
  *     next quote is put to the player whatever it says, never realised on its own, also after a restart. Saved with the build before the quote is
- *     asked for, cleared in the same save as the hold it leads to ({@link #holding}). TRUE or null (absent in the file: Gson writes no null), so an
+ *     asked for, kept through the hold it leads to and cleared by the player's approval ({@link #approvedHeld}). TRUE or null (absent in the file: Gson writes no null), so an
  *     order saved before it, or an offer, reads as not refused. No format bump: an older Steward that drops it loses only the re-ask, and the bound
  *     still holds at the realise (Architect's maxBill), so nothing is paid past what was approved
  */
@@ -75,9 +75,12 @@ public record ModuleOrder(String moduleId, int version, String programSha, JsonO
 		return new ModuleOrder(moduleId, version, programSha, params, held, rate, lampFallback, false, proposal, null, true);
 	}
 
-	/** The same order holding this quote for the player's word (a put-down refusal is answered by this ask: no longer refused). */
+	/**
+	 * The same order holding this quote for the player's word. A put-down refusal stays until the player approves ({@link #approvedHeld}): the
+	 * hold's order is saved before its phase is (a crash between them restores PLACING), so a restart there asks again, never realises on its own.
+	 */
 	public ModuleOrder holding(JsonObject bill) {
-		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, bill, inexactApproved);
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, bill, inexactApproved, refused);
 	}
 
 	/** The order as accepted: by the player, or by the steward on its own, from the proposal {@code key}. */
