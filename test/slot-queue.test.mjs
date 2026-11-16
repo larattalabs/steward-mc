@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { acquire, release, heldTickets, runLanes, slotCli, waitLine, waitRecord, SlotWait, inheritedSlot } from '../tools/lib/slot-queue.mjs';
+import { acquire, release, heldTickets, runLanes, slotCli, waitLine, waitRecord, SlotWait, inheritedSlot, reserveAcquireAt, ACQUIRE_GAP_MS } from '../tools/lib/slot-queue.mjs';
 
 const LIB = pathToFileURL(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'tools', 'lib', 'slot-queue.mjs')).href;
 
@@ -26,6 +26,8 @@ if (cmd === 'acquire') {
   const what = plan[Math.min(n, plan.length) - 1];
   if (what === 'timeout') { console.error('slot steward: waiting (slots full)'); console.error('slot: waited 0 min for a slot (load 9.5 / max1 72; turbo queued (pid 1); holders: none)'); process.exit(2); }
   if (what === 'usage') { console.error('slot: acquire needs --label'); process.exit(1); }
+  if (what === 'fixed') { console.log(JSON.stringify({ slot: n, ticket: 't-1-' + opt('--pid'), waitedSeconds: 0 })); process.exit(0); }
+  if (what === 'ms') { console.log(JSON.stringify({ slot: n, ticket: 't-' + Date.now() + '-' + opt('--pid'), waitedSeconds: 0 })); process.exit(0); }
   console.log(JSON.stringify({ slot: n, ticket: 't-' + (1000 + n) + '-' + process.pid, waitedSeconds: 0 }));
 } else if (cmd === 'release') {
   console.log(JSON.stringify({ ticket: opt('--ticket'), released: [1], queued: false }));
@@ -200,4 +202,31 @@ test('runLanes over the CLI: the second acquire times out, one client runs both 
   assert.deepEqual(c.map((x) => x.cmd), ['acquire', 'acquire', 'release']);
   assert.equal(arg(c[2], '--ticket'), rows[0].slot.ticket);
   assert.deepEqual(heldTickets(), []);
+});
+
+test('one process\'s acquires are reserved at least 2 ms apart, even when asked for in the same millisecond', () => {
+  const now = Date.now();
+  const a = reserveAcquireAt(now), b = reserveAcquireAt(now), c = reserveAcquireAt(now);
+  assert.ok(b - a >= ACQUIRE_GAP_MS && c - b >= ACQUIRE_GAP_MS, `${a} ${b} ${c}`);
+  assert.ok(ACQUIRE_GAP_MS >= 2);
+});
+
+test('two acquires by one holder at once (a --clients lead) get different tickets (t-<ms>-<pid>)', async () => {
+  const fake = fakeArchitect();
+  const env = { ...process.env, ARCHITECT_DIR: fake.dir, FAKE_SLOT_PLAN: 'ms,ms' };
+  const [a, b] = await Promise.all([acquire('c1', { env, log: quiet, pid: 777 }), acquire('c2', { env, log: quiet, pid: 777 })]);
+  assert.notEqual(a.ticket, b.ticket);
+  for (const t of [a.ticket, b.ticket]) release(t, { log: quiet });
+});
+
+test('a ticket this process already holds is refused, and the held one is not released', async () => {
+  const fake = fakeArchitect();
+  const env = { ...process.env, ARCHITECT_DIR: fake.dir, FAKE_SLOT_PLAN: 'fixed,fixed' };
+  const a = await acquire('c1', { env, log: quiet, pid: 778 });
+  const err = await acquire('c2', { env, log: quiet, pid: 778 }).then(() => null, (e) => e);
+  assert.equal(err?.code, 'SLOT_DUP_TICKET');
+  assert.match(err.message, /v0\.75\.0/);
+  assert.ok(heldTickets().includes(a.ticket));
+  assert.deepEqual(fake.calls().map((x) => x.cmd), ['acquire', 'acquire']);
+  release(a.ticket, { log: quiet });
 });

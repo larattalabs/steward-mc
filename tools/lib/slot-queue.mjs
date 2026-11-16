@@ -95,6 +95,21 @@ export function releaseAll(opts) {
   for (const t of [...held.keys()]) release(t, opts);
 }
 
+// Architect before v0.75.0 names a ticket t-<ms>-<holder pid>: two acquires by one holder in the same millisecond (a --clients lead) got the same
+// ticket, and `release --ticket` could not tell them apart. So one process's acquires run one at a time (two CLIs spawned 2 ms apart still read
+// the same millisecond: process start jitter), each starting at least ACQUIRE_GAP_MS after the previous one's start and its ticket's arrival, and
+// a ticket this process already holds is refused, not released (releasing it would free the other one). In FIFO order the later acquire could
+// not be served first anyway; its wait starts when the earlier one's ticket comes.
+export const ACQUIRE_GAP_MS = 2;
+let nextAcquireAt = 0;
+
+/** The moment this process's next acquire may start (reserved now): at least ACQUIRE_GAP_MS after the previous one's start and its ticket. */
+export function reserveAcquireAt(now = Date.now()) {
+  const at = Math.max(now, nextAcquireAt);
+  nextAcquireAt = at + ACQUIRE_GAP_MS;
+  return at;
+}
+
 /** The queue now (`status --json`), or null when it can't be read. */
 export function slotStatus(opts = {}) {
   try {
@@ -105,14 +120,22 @@ export function slotStatus(opts = {}) {
   }
 }
 
+let acquiring = Promise.resolve();
+
 /**
- * One slot for `label`, FIFO behind the gate runs; blocks until it comes (the CLI's waiting goes to stderr).
+ * One slot for `label`, FIFO behind the gate runs (one acquire at a time per process: see ACQUIRE_GAP_MS); blocks until it comes (the CLI's waiting goes to stderr).
  *   root      this checkout (--worktree, and where ../architect-mc is looked for)     pid  the holder (default: this process, the driver)
  *   maxWaitMin  E2E_SLOT_WAIT_MIN, default 15 (the CLI caps it at 15)
  * -> { slot, ticket, waitedSeconds, loadWait } (held until release or exit), or { off: true } under E2E_SLOTS=off.
  * Throws SlotWait on a timeout, an Error naming the fix when the CLI is missing, and an Error on any other failure.
  */
-export async function acquire(label, { root = process.cwd(), env = process.env, pid = process.pid, maxWaitMin, log = (m) => console.log(m), cli } = {}) {
+export function acquire(label, opts = {}) {
+  const run = acquiring.then(() => acquireNow(label, opts));
+  acquiring = run.catch(() => {});
+  return run;
+}
+
+async function acquireNow(label, { root = process.cwd(), env = process.env, pid = process.pid, maxWaitMin, log = (m) => console.log(m), cli } = {}) {
   if (slotsOff(env)) {
     log(`slot: E2E_SLOTS=off: ${label} takes NO slot from Architect's queue (nothing gates this client; unit tests and odd cases only)`);
     return { off: true, slot: null, ticket: null };
@@ -121,6 +144,8 @@ export async function acquire(label, { root = process.cwd(), env = process.env, 
   hook();
   const wait = Number(maxWaitMin ?? env.E2E_SLOT_WAIT_MIN ?? 15);
   const args = [c, 'acquire', '--who', 'steward', '--worktree', root, '--label', label, '--pid', String(pid), '--max-wait-min', String(wait)];
+  const at = reserveAcquireAt();
+  while (Date.now() < at) await new Promise((resolve) => setTimeout(resolve, Math.max(1, at - Date.now())));
   const t0 = Date.now();
   const r = await new Promise((resolve) => {
     const child = spawn(process.execPath, args, { stdio: ['ignore', 'pipe', 'pipe'], env });
@@ -140,6 +165,12 @@ export async function acquire(label, { root = process.cwd(), env = process.env, 
       got = JSON.parse(r.out.trim().split('\n').pop());
     } catch {
       throw new Error(`slot: acquire printed no JSON: ${r.out.trim()}`);
+    }
+    // the ticket came: the next acquire is counted from here as well
+    nextAcquireAt = Math.max(nextAcquireAt, Date.now() + ACQUIRE_GAP_MS);
+    if (held.has(got.ticket)) {
+      throw Object.assign(new Error(`slot: acquire for ${label} got ticket ${got.ticket}, which this process already holds: two slots share one ticket id, so `
+        + `neither is released here (the queue's dead-pid pruning frees them when this driver ends). Architect v0.75.0 makes ticket ids unique.`), { code: 'SLOT_DUP_TICKET' });
     }
     held.set(got.ticket, c);
     log(`slot: ${label} holds slot ${got.slot} (${got.ticket}, pid ${pid}) after ${round1(minutes)} min`);

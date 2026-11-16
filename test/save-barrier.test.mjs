@@ -82,6 +82,19 @@ test('with dev.stockpile.save on the bridge, the barrier calls it and nothing el
   assert.deepEqual(dev.sent.map((s) => s.type), ['dev.help', 'dev.stockpile.save']);
 });
 
+test('Architect v0.75.0\'s dev.stockpile.save answer {written, path, bytes, saves} passes through the barrier', async () => {
+  const ans = { ok: true, written: true, path: '/run/saves/Steward E2E/data/architect_stockpile.dat', bytes: 2048, saves: 3 };
+  const dev = fakeDev({ 'dev.help': help('dev.stockpile.save'), 'dev.stockpile.save': () => ans });
+  const r = await saveBarrier(dev);
+  assert.deepEqual(r, { how: 'save', ...ans });
+});
+
+test('from Architect v0.75.0 a command that never ran answers ok:false (a DevError), which is refused unless allowFail', () => {
+  const r = { ok: false, error: 'dev.command /save-all: Unknown or incomplete command' };
+  assert.throws(() => checkCommand(r, { cmd: '/save-all' }), (e) => e instanceof CommandNotRun && /refused by the bridge: .*Unknown/.test(e.message));
+  assert.equal(checkCommand(r, { cmd: '/save-all', allowFail: true }), r);
+});
+
 test('a failed dev.stockpile.save throws', async () => {
   const dev = fakeDev({ 'dev.help': help('dev.stockpile.save'), 'dev.stockpile.save': () => ({ ok: false, error: 'not in a world' }) });
   await assert.rejects(saveBarrier(dev), /dev.stockpile.save failed: not in a world/);

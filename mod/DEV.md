@@ -248,6 +248,10 @@ machine-wide queue (`../architect-mc/docs/GATES.md`, "Outside callers (Steward)"
   - `module-measure.mjs` and `module-measure-hall.mjs` take one per `startClient`, and `module-probe.mjs` and `module-catalog.mjs ingame`
     take one too. Each is released at `stopClient`; with `--keep-client`, when the driver ends. `--attach` takes none.
   - `nightly.mjs`: one per e2e step (free, stub), held by the nightly and handed to the step's e2e.
+- **One acquire at a time per process** (11-16). Before Architect v0.75.0, a ticket is `t-<ms>-<holder pid>`, so two acquires by one holder
+  in the same millisecond (`--clients 2`) got one id, and `release --ticket` was ambiguous. Two CLIs spawned 2 ms apart still read the same
+  millisecond, so a process's acquires run in turn, each at least 2 ms after the previous ticket arrived. A ticket the process already holds
+  is refused (`SLOT_DUP_TICKET`), not released.
 - **The holder** is the driver's node pid. A release runs on every way out: the end, a throw, `process.exit`, SIGINT, SIGTERM and SIGHUP. A
   SIGKILL leaves it to the queue's dead-pid pruning.
 - **Waiting.** `E2E_SLOT_WAIT_MIN` sets the wait (default 15, capped at 15). The CLI's waiting lines are printed. A slot that doesn't come
