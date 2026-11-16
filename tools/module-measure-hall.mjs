@@ -1566,7 +1566,66 @@ async function sortCrash() {
   return out;
 }
 
-const steps = { hall, survival, bounds, sort: sortStep, 'sort-survival': sortSurvival, 'sort-cargo': sortCargo, 'sort-crash': sortCrash };
+
+// ------------------------------------------------------------------ save-probe (M4b, the manager's (a)): does /save-all put a delivery on disk?
+async function saveProbe() {
+  const out = { cases: [] };
+  try {
+    const T = await survivalWorld('SaveProbe', 90000, 90000);
+    const { region } = T;
+    const logAt = () => { const f = path.join(ART, 'client.log'); return fs.existsSync(f) ? fs.statSync(f).size : 0; };
+    const logSince = (from) => { const f = path.join(ART, 'client.log'); return fs.existsSync(f) ? fs.readFileSync(f, 'utf8').slice(from) : ''; };
+    const probe = async (label, item) => {
+      const from = logAt();
+      const acc = (await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: { [item]: 5 }, exact: true }, 120_000)).accepted ?? {};
+      const live = (await pile()).ledger?.delivered?.[item] ?? 0;
+      const answer = await req('dev.command', { cmd: '/save-all flush' }, 120_000);
+      let saved = 0;
+      for (let i = 0; i < 15 && saved !== live; i++) { await sleep(1000); saved = savedLedger()?.delivered?.[item] ?? 0; }
+      const lines = logSince(from).split('\n').filter((l) => /SS save|Stockpiles: saved|Saved the game|Saving the game|world save/.test(l)).map((l) => l.slice(0, 200));
+      const r = { label, item, accepted: acc, live, saved, answer, lines };
+      out.cases.push(r);
+      log(`  ${label}: ${json(r).slice(0, 1200)}`);
+      return r;
+    };
+    await probe('no target paused', 'minecraft:flint');
+    // a hall grown, its blocks fed (flint, bone, string, gunpowder held back) until its cells stand, then paused, as sort-crash does
+    const items = ['flint', 'bone', 'string', 'gunpowder'];
+    const FILL = Object.fromEntries(items.map((k) => [`minecraft:${k}`, 41]));
+    const sp = { id: 'sp_probe', slots: 4, bulk: 0, bible: 'rustic', items };
+    const g = await growHalls(region, [sp], { survival: true });
+    const give = async () => {
+      const ps = await pile();
+      const need = {};
+      for (const [it, n] of Object.entries(ps.outstanding ?? {})) { if (it in FILL) continue; const lack = n - (ps.stock?.[it] ?? 0); if (lack > 0) need[it] = lack; }
+      if (Object.keys(need).length) await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: need, exact: true }, 120_000);
+    };
+    let site = null, t = null;
+    for (let i = 0; i < 400; i++) {
+      await give();
+      site = site ?? (await call('dev.region.state', { region }, 60_000)).view.lots.find((l) => l.id === sp.id)?.siteId ?? null;
+      const ps = await pile();
+      t = site ? ps.targets?.[site] : null;
+      if (t && t.queued > 0 && t.built === t.queued) break;
+      await sleep(2500);
+    }
+    log(`  the hall ${g.refused ? `refused: ${g.refused}` : `grown, site ${site}, ${t?.built}/${t?.queued} cells`}`);
+    const pr = await call('dev.stockpile.pause', { owner: OWNER, site, paused: true }, 60_000).catch((e) => ({ error: String(e) }));
+    log(`  paused: ${json(pr).slice(0, 300)}`);
+    await probe('its site paused', 'minecraft:bone');
+    await call('dev.stockpile.ps', { noPeriodic: true }, 30_000).catch(() => null);
+    await probe('its site paused, noPeriodic on', 'minecraft:string');
+    await call('dev.stockpile.ps', { noPeriodic: false }, 30_000).catch(() => null);
+    await call('dev.stockpile.pause', { owner: OWNER, site, paused: false }, 60_000).catch(() => null);
+    await probe('resumed', 'minecraft:gunpowder');
+    for (const c of out.cases) check(c.saved === c.live, `save-probe ${c.label}: delivered ${c.live} live, ${c.saved} on disk after /save-all flush (${c.lines.length} save lines)`);
+  } finally {
+    await stopClient().catch(() => null);
+  }
+  return out;
+}
+
+const steps = { hall, survival, bounds, sort: sortStep, 'sort-survival': sortSurvival, 'sort-cargo': sortCargo, 'sort-crash': sortCrash, 'save-probe': saveProbe };
 if (steps[step]) {
   const t0 = Date.now();
   let data, error;
