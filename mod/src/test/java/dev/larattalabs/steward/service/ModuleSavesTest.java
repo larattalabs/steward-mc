@@ -83,6 +83,32 @@ class ModuleSavesTest {
 	}
 
 	@Test
+	void anApprovedUpToBillIsTheCapAfterARestartAndAnOlderExactOneStaysExact() {
+		// (QD) held as shown: the quote with its terrain item up to its allowance (209 dirt, 205 from terrain: up to 214), saved in the same member
+		var quote = JsonParser.parseString("{\"minecraft:dirt\": 209, \"minecraft:oak_planks\": 40}").getAsJsonObject();
+		var allowed = dev.larattalabs.steward.module.ModuleBound.allowed(quote, Map.of("minecraft:dirt", 205));
+		var held = order().accepted(false, "module.fixture_plot").holding(allowed);
+		BuildStore st = new BuildStore();
+		st.put(BuildStoreTestAccess.saved().withModuleOrders(Map.of("lot_3", held)));
+		String json = st.toJson();
+		assertTrue(json.contains("\"format\": " + BuildStore.FORMAT), "no new member, no format move of its own (PV1 moved it to 7)");
+		var back = BuildStore.fromJson(json).all().get(0).moduleOrders().get("lot_3");
+		assertEquals(held, back);
+		var approved = back.approvedHeld();
+		assertEquals(Map.of("minecraft:dirt", 214, "minecraft:oak_planks", 40), dev.larattalabs.steward.module.ModuleBound.cap(approved.bound()),
+			"approved after the restart: the bound, and so the maxBill, is what was shown");
+		assertNull(approved.held());
+		// approved and saved, then read again: the cap is unchanged
+		BuildStore st2 = new BuildStore();
+		st2.put(BuildStoreTestAccess.saved().withModuleOrders(Map.of("lot_3", approved)));
+		assertEquals(approved.bound(), BuildStore.fromJson(st2.toJson()).all().get(0).moduleOrders().get("lot_3").bound());
+		// a build held before QD saved the exact quote: approved exactly, as it was shown
+		String older = json.replace("\"minecraft:dirt\": 214", "\"minecraft:dirt\": 209");
+		var old = BuildStore.fromJson(older).all().get(0).moduleOrders().get("lot_3").approvedHeld();
+		assertEquals(Map.of("minecraft:dirt", 209, "minecraft:oak_planks", 40), dev.larattalabs.steward.module.ModuleBound.cap(old.bound()));
+	}
+
+	@Test
 	void aFormat6SettlementsFileReadsWithNoModuleOffers() throws Exception {
 		Settlement s = Settlement.founded("set_1", "Here", new Claim("minecraft:overworld", 0, 0, 64, -64, 320), Permission.PROPOSALS, Difficulty.PATRON, 1L);
 		SettlementStore st = new SettlementStore();
