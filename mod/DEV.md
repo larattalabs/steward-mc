@@ -192,8 +192,9 @@ line (action, reason, write box).
 - **`--keep-world`** reopens the old world instead, to look at a run's leftovers.
 - **The client check** looks only for this checkout's own client (`<checkout>/mod/...KnotClient`). A worktree's run is no longer refused when the main
   checkout's client is up, and its own leftover client is caught.
-- **Load.** The client starts once the 1-minute load is at most `E2E_LOAD_MAX` (default 72), waiting at most `E2E_LOAD_WAIT_MIN` minutes (15), then
-  starts anyway and says so. `E2E_LOAD_MAX=0` turns this off.
+- **Load.** The slot queue's load gate (below) decides when the client starts. Steward's own load wait (`E2E_LOAD_MAX`, default 72;
+  `E2E_LOAD_WAIT_MIN`, 15) runs only with `E2E_SLOTS=off`.
+- **A slot from Architect's queue** (slice SQ, 2026-11-16; Noah, 11-15: "Steward joins the queue"). See "The slot queue" below.
 - **Another checkout's ports:** set `STEWARD_PORT` / `STEWARD_DEV_PORT` (e.g. 8598/8599).
 
 `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's helper in sim mode (v0.12.2: `ARCHITECT_SIDECAR_BACKEND=sim`, notional measured
@@ -229,6 +230,37 @@ Then:
 
 Last run: 2026-10-11: **PASS 34 checks** on Architect 0.15.0 (a building placed into a protected area is refused PROTECTED by Architect). Before: **PASS 33 checks**, twice in a row: the Founding Stone's recipe added, and the board check fixed. The board stood at the edge of reach, about 4.4 blocks away, so its right-click missed about half the time; it is a block closer now. That was not the whole cause: it missed once more from 3.4 blocks, with the steward behind the player. It is still intermittent and under watch. The board itself works by hand and in most runs.
 
+### The slot queue (slice SQ, 2026-11-16, $0)
+
+With 6 in-game runs plus builds, load reached 83-142 and runs stalled. Steward's in-game clients now take their slots from Architect's
+machine-wide queue (`../architect-mc/docs/GATES.md`, "Outside callers (Steward)"). That queue allows 6 runs at once. It has the load gate
+(max1 72, settle 120 s), serves tickets in FIFO order, and keeps a turbo run exclusive. Steward keeps no count or start gap of its own.
+
+- **How.** `tools/lib/slot-queue.mjs` calls Architect's CLI: `node $ARCHITECT_DIR/tools/slot.mjs acquire --who steward --worktree <checkout>
+  --label <flow or step> --pid <driver pid>`, then `release --ticket <t>`. `ARCHITECT_DIR` defaults to `ARCHITECT_CHECKOUT`, else
+  `../architect-mc`. That checkout must be at v0.74.0 or later, the first release with `tools/slot.mjs`.
+  - A missing CLI is an error that names the fix.
+  - `E2E_SLOTS=off` takes no slot (unit tests and odd cases), and says so loudly. It brings back Steward's own load wait and the 60 s stagger.
+- **What takes a slot.**
+  - `e2e.mjs`: one slot per client launch, taken after the preflight. It is held across the run's client restarts and released when the
+    client is done for good.
+  - `--clients` leads: each client's slot is held by the lead and handed to the client's run (`E2E_SLOT_TICKET`).
+  - `module-measure.mjs` and `module-measure-hall.mjs` take one per `startClient`, and `module-probe.mjs` and `module-catalog.mjs ingame`
+    take one too. Each is released at `stopClient`; with `--keep-client`, when the driver ends. `--attach` takes none.
+  - `nightly.mjs`: one per e2e step (free, stub), held by the nightly and handed to the step's e2e.
+- **The holder** is the driver's node pid. A release runs on every way out: the end, a throw, `process.exit`, SIGINT, SIGTERM and SIGHUP. A
+  SIGKILL leaves it to the queue's dead-pid pruning.
+- **Waiting.** `E2E_SLOT_WAIT_MIN` sets the wait (default 15, capped at 15). The CLI's waiting lines are printed. A slot that doesn't come
+  within the wait is not a FAIL:
+  - the e2e prints `NOT RUN: waited N min for a slot (load L, turbo T)`, exits 3, and records `slot: { timedOut, waitedMin, load, turbo,
+    holders, reason }` in summary.json;
+  - a nightly step that waited is listed as not run, and the night is `WAITED`.
+  - Load alone never times it out: the load gate starts anyway at its cap.
+- **Kept:** the claude-login opt-in refusal and the check for a client already on this run dir (`mod/run`). The nightly no longer skips
+  just because another Steward client runs; the queue handles that.
+- **See it:** `node $ARCHITECT_DIR/tools/slot.mjs status --json` lists holders (`who: steward`, the worktree, the label, the pid), the
+  queue, the load and turbo.
+
 ### Faster runs: two clients, skipping unchanged flows (slice EF, 2026-11-15, $0)
 
 Without these flags a run is as before: one client on `mod/run`, every chosen flow run.
@@ -238,15 +270,17 @@ Without these flags a run is as before: one client on `mod/run`, every chosen fl
     `mod/run-c<k>`, through `STEWARD_RUN_DIR` in build.gradle) with its own RAM-disk sidecar link, and its own evidence dir
     (`artifacts/e2e/c<k>/`: its client.log and summary).
   - Each client is a child `e2e.mjs ... --flows a,b` that runs the sanity set and then exactly its flows, in that order. Its lines come prefixed
-    `[c1]`/`[c2]`. Client k starts `--stagger` seconds (default 60) after the one before, so their Gradle starts don't overlap.
+    `[c1]`/`[c2]`. Each client starts once its slot comes, and the queue's settle (120 s) spaces them. `--stagger s` adds a gap of Steward's
+    own (by default only with `E2E_SLOTS=off`: 60 s).
   - Flows are packed in groups, longest first, each onto the client with the least recorded seconds. A group holds a flow and what it `needs`,
     plus flows whose code shares a block that writes fixed names under `artifacts/e2e` (the snapshot files: the gate-mech family, for one). A group with
     a flow that has no recorded time goes after every timed one. The times come from `artifacts/e2e/summary.json`, then
     `artifacts/e2e/flow-times.json` (every run's, newest kept), then `E2E_TIMES` (another summary).
   - One `artifacts/e2e/summary.json` merges both: each result and flow carries `client`, `clients[]` has each one's ports, flows, packed and real
     seconds and exit. The end lines give each client's wall time and `FAIL [c2] <check>: why` for each failure.
-  - The slot rule: with fewer free of the 6 machine-wide Steward clients (4 before 11-15) (`pgrep -f 'steward[^ ]*/mod.*KnotClient'`) than asked, it runs on one
-    client and says so.
+  - The slot rule (slice SQ): one slot per client from Architect's queue. If client k's slot doesn't come within its wait, it runs after c1
+    on c1's slot, run dir and ports, and so does every client after it. The run says so (`clients: waited N min for a slot ...: falling
+    back to one client`), and `clients[]` records `borrowed` and `waited`.
   - The client check in preflight now refuses only a client of this checkout whose working dir is this run's game dir.
 - **`--skip-unchanged`** skips a flow whose inputs haven't changed since its last PASS (`artifacts/e2e/passes.json`, per mode, local only, written
   after every run that isn't a client of a `--clients` run).
