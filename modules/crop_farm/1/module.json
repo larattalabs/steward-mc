@@ -18,5 +18,5 @@
     "noGravity": ["path", "frame", "foundation"],
     "nonConductive": []
   },
-  "pins": { "kit": "0.68.0", "checker": "0.68.0" }
+  "pins": { "kit": "0.69.0", "checker": "0.69.0" }
 }
