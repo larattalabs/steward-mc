@@ -405,9 +405,11 @@ public final class ModuleCatalog {
 		// each smoke step: the step it names, on this program, Minecraft and Architect version, and every check passed
 		List<JsonElement> steps = new ArrayList<>();
 		List<String> names = new ArrayList<>();
+		// (M4b) the billing check is the module's own step: a sorting hall's (storage_hall@2 on) is sort-survival, as tools/module-catalog.mjs MEASURES
+		String billing = billingStep(mod);
 		for (String k : List.of("survival", "bounds")) {
 			steps.add(smoke.get(k));
-			names.add(k);
+			names.add(k.equals("survival") ? billing : k);
 		}
 		JsonArray fields = smoke.has("fields") && smoke.get("fields").isJsonArray() ? smoke.getAsJsonArray("fields") : new JsonArray();
 		// the round is the module's own (SMOKE_ROUNDS), never what the certificate says it is: a module with no round carries nothing
@@ -429,6 +431,11 @@ public final class ModuleCatalog {
 				|| of <= 0 || passed != of || (field && intOr(o, "runs", 0) < 5))
 				uncertified.add("the smoke step " + (field ? "field round " : "") + name + " (" + want + ") did not pass in full on this program and Architect " + on);
 		}
+	}
+
+	/** A smoke certificate's billing step for this module.json: a sorting hall's (storage_hall@2 on) is sort-survival, every other module's survival. */
+	static String billingStep(JsonObject mod) {
+		return "storage_hall".equals(strOr(mod, "id", "")) && intOr(mod, "version", 1) >= 2 ? "sort-survival" : "survival";
 	}
 
 	/** Whether {@code o.k} is a non-empty array of objects each with {@code ok: true}. */

@@ -162,4 +162,12 @@ class StorageHall2Test {
 		assertEquals(1, HallCargo.filterExcess(List.of(new HallCargo.Stack(f, 41, true), new HallCargo.Stack(slab, 5, true)), f));
 		assertEquals(0, HallCargo.filterExcess(List.of(new HallCargo.Stack(f, 30, true)), f));
 	}
+
+	@Test
+	void aSortingHallsSmokeBillingStepIsSortSurvival() {
+		// (M4b GPT review 11) the loader reads the module's own billing step, as tools/module-catalog.mjs MEASURES does
+		assertEquals("sort-survival", ModuleCatalog.billingStep(com.google.gson.JsonParser.parseString("{\"id\": \"storage_hall\", \"version\": 2}").getAsJsonObject()));
+		assertEquals("survival", ModuleCatalog.billingStep(com.google.gson.JsonParser.parseString("{\"id\": \"storage_hall\", \"version\": 1}").getAsJsonObject()));
+		assertEquals("survival", ModuleCatalog.billingStep(com.google.gson.JsonParser.parseString("{\"id\": \"crop_farm\", \"version\": 1}").getAsJsonObject()));
+	}
 }

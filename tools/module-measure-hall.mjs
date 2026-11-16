@@ -1230,7 +1230,10 @@ async function sortSurvival() {
     }
     const sA = sumAll(await sortState(h));
     const backC = Object.fromEntries(Object.keys(contaminant).map((k) => [k, taken[k] ?? 0]));
-    check(same(backC, contaminant) && Object.keys(contaminant).every((k) => !(sA[k] ?? 0)), `B2 the contaminant taken back whole (${json(backC)}), none left in the hall`, { taken, after: sA });
+    // (fix check 5) after the leak the hall holds none of the cobblestone (no slot sorts it); the 1 dirt was in F 0 alone, and the fill that resumes
+    // may legitimately write 41 dirt into dirt's own F, so only F 0 is judged then
+    const left = out.leak ? (sA['minecraft:cobblestone'] ?? 0) : ((await sortState(h)).F[0]['minecraft:dirt'] ?? 0);
+    check(same(backC, contaminant) && left === 0, `B2 the contaminant taken back whole (${json(backC)}), none left (${out.leak ? 'in the hall' : 'in F 0'})`, { taken, after: sA });
     const fd = await feedUntil(region, async (st, rs) => st.view.state === 'PLACED' && (rs?.build ? rs.build.done : true));
     const w = await rvWait(region, g.rid);
     const fk3 = await fkState(site);
@@ -1516,6 +1519,10 @@ async function sortCrash() {
       // every item consumed since the pre-crash baseline, structure included: the fill exactly once, nothing else
       const sinceB = minus(L2.consumed, B.consumed);
       const owedAfter = Object.fromEntries(Object.entries((await pile()).outstanding ?? {}).filter(([k, n]) => !(k in FILL) && n > 0));
+      // (fix check 1) the fill's items in = out: the saved stock + what was fed again = the stock now + what was charged since the saved state
+      const stockS = only(minus(plus(S.delivered, S.returned), plus(S.consumed, plus(S.withdrawn, S.dropped))));
+      const stockNow = only((await pile()).stock);
+      check(same(plus(stockS, refed), plus(stockNow, only(minus(L2.consumed, S.consumed)))), `9 ${point}: the fill's items in = out: saved stock ${json(stockS)} + fed again ${json(refed)} = stock now ${json(stockNow)} + charged`, { stockS, refed, stockNow });
       check(same(sinceB, FILL) && !Object.keys(owedAfter).length, `9 ${point}: consumed since the pre-crash baseline, every item: the fill once (${json(minus(sinceB, FILL))} off; re-fed ${json(refed)}; structure owed after the restart ${json(owedAfter)})`, { sinceB, refed, owedAfter });
       const want = marker ? {} : FILL;
       const holds = (f.containers ?? []).map((c) => c.holds);
@@ -1574,7 +1581,10 @@ async function sortCrash() {
       const again = minus(plus(F2.returned, F2.refundOverflow), plus(F.returned, F.refundOverflow));
       const drops2 = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
       res.retry = { answer: refusal(retry), again, drops: drops2 };
-      check(!Object.keys(again).length && !Object.keys(drops2).length && !Object.keys(F2.custody ?? {}).length && !Object.keys(F2.pendingCredit ?? {}).length && json(F2.consumed) === json(F.consumed),
+      // (fix check 2) the retry ran and was the expected no-op: Architect's own refusal (NOT_ALLOWED: the head is already below it; a refusal comes
+      // back as the call's error), removing nothing; a transport error (a timeout, a closed bridge) carries no NOT_ALLOWED and fails
+      const retried = retry.removed !== true && /NOT_ALLOWED/.test(String(retry.refused ?? retry.message ?? retry.error ?? ''));
+      check(retried && !Object.keys(again).length && !Object.keys(drops2).length && !Object.keys(F2.custody ?? {}).length && !Object.keys(F2.heldProvided ?? {}).length && !Object.keys(F2.pendingCredit ?? {}).length && json(F2.consumed) === json(F.consumed),
         `9 ${c.point}: an unchanged second undo and a second restart: nothing more back (${json(again)}), nothing dropped, nothing pending (${refusal(retry)})`, res.retry);
     }
     // ---- FKC0 (Architect's LC, S-M5-13): a removal failing after its custody take, a restart, a retry. Runs once the hook exists.
