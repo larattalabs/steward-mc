@@ -1478,7 +1478,7 @@ async function sortCrash() {
       await call('dev.journal.killAt', { point }, 10_000);
       call('dev.stockpile.pause', { owner: OWNER, site, paused: false }, 60_000).catch(() => null);
       const down = await haltWait(point, from);
-      check(down, `${point}: the kill point halted the server`);
+      check(down, `${point}: the kill point halted the server${!down && !dev ? ' (FAIL: the client exited, but not at this kill point: unattributed; relaunched for the cases after it)' : ''}`);
       if (!down) { if (!dev) await restartWorld(home); else await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null); continue; }
       const S = savedLedger();
       const marker = (S?.filled ?? []).some((k) => k.startsWith(`site:${site}@`));
@@ -1515,7 +1515,7 @@ async function sortCrash() {
       await call('dev.journal.killAt', { point: c.point }, 10_000);
       call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch(() => null);
       const down = await haltWait(c.point, from);
-      check(down, `${c.point}: the kill point halted the server at removal`);
+      check(down, `${c.point}: the kill point halted the server at removal${!down && !dev ? ' (FAIL: the client exited, but not at this kill point: unattributed; relaunched for the cases after it)' : ''}`);
       if (!down) { if (!dev) await restartWorld(home); else await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null); continue; }
       const S = savedLedger();
       const savedCustody = Object.values(S?.custody ?? {}).reduce((a, m) => plus(a, m), {});
