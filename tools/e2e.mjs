@@ -2847,14 +2847,15 @@ async function composedModulesRestartFlow() {
     const realises = [...since.matchAll(new RegExp(`realise ${id}: artifact ([0-9a-f]{64}) under key (\\S+) \\((first|after a re-check)\\)`, 'g'))];
     const stale = /land under the plan changed/.test(since);
     const rebinds = since.match(/module \S+ lot farm_1: \S+ under \S+/g) ?? [];
-    const b2 = savedBuild(id);
-    const keyNow = b2?.moduleBindings?.farm_1?.opKey ?? null;
     const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
     const farm = (await moduleSites(placed)).find((m) => m.key === 'crop_farm@1');
-    if (!/\.module\.farm_1\.\d+$/.test(bind0.opKey) && rebinds.length >= 1 && rebinds.every((l) => l.endsWith(bind0.opKey) || /\.module\.farm_1\.2$/.test(l)))
-      ok(`${label} binding by key`, `after the restart: ${rebinds.join(' | ').slice(0, 220)} (made ${made0} time(s) before it)`);
-    else fail(`${label} binding by key`, `before ${bind0.opKey}; after ${JSON.stringify(rebinds)}; saved ${keyNow}`);
-    if (stale && realises.some((r) => r[3] === 'after a re-check')) ok(`${label} stale`, `${realises.length} realises, the last after a re-check; farm_1 now under ${keyNow}`);
+    // the binding held across the restart and the re-check (the lot didn't move): no variant made again, the one bound before is placed; a lot the
+    // re-check moved is bound again under the next key (.2), said
+    const moved = /made again for its new lot/.test(since);
+    if (farm && (moved ? rebinds.some((l) => /\.module\.farm_1\.2$/.test(l)) : rebinds.length === 0 && farm.blueprint === bind0.entryId))
+      ok(`${label} binding by key`, moved ? `the re-check moved the lot: ${rebinds.join(' | ').slice(0, 200)}` : `no variant made again after the restart or the re-check: ${farm.blueprint} placed, as bound under ${bind0.opKey} (made ${made0} time(s) before)`);
+    else fail(`${label} binding by key`, `before ${bind0.entryId} under ${bind0.opKey}; after ${JSON.stringify(rebinds)}; moved ${moved}; placed ${farm?.blueprint}`);
+    if (stale && realises.some((r) => r[3] === 'after a re-check')) ok(`${label} stale`, `${realises.length} realises, the last after a re-check`);
     else fail(`${label} stale`, `stale said ${stale}; realises ${realises.map((r) => `${r[1].slice(0, 8)} ${r[3]}`).join('; ') || 'none'}`);
     if (done && farm) ok(label, `built from the stockpile (${placed.siteGroup}); ${farm.sid} = ${farm.blueprint}`);
     else fail(label, `built ${!!done}; farm ${JSON.stringify(farm)}; entry ${placed?.siteGroup}`);
