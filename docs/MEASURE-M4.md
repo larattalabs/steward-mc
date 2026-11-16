@@ -478,3 +478,5 @@ a HUD label is a follow-up.
   - A filled F's settled D state is `enabled=false` in the template, so the land check reads a built hall as unchanged.
   - Architect's land check counts a container written empty that now holds items as changed, so each filled F is one changed cell: bar 6
     reads `changed` equal to the slot count, with every F holding exactly 41 + 4 slabs (S-M5-18 asks Architect to count a fill as its own).
+- **Follow-up M4b-074 (at the v0.74.0 pin, Architect FL 50f47d9b):** bar 6 goes back to expecting `changed 0` (S-M5-18), and
+  sort-survival's mid-build insert expects no item in F (S-M5-17, the hopper refusal); `dev.fk.container` answers `state`, `dev.fk.state` `held`.

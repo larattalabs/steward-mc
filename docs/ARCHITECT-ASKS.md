@@ -1777,6 +1777,14 @@ hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batc
     between the two causes from Builder's order and `Fills`. Its gate covers items put in mid-build, both into the input chest and straight
     into a line hopper, and none of them reaching a fill container. Steward sends the lever and hopper-0 readings through the manager. Until FL
     ships, @2's mid-build insert is a known gap, named in the as-built beside S-M5-12. It gets no offer line, since nothing is lost.
+  - **Architect's fix (2026-11-15, slice/FL 50f47d9b, for v0.74.0):** the cause was both. The lever is an attachable, so it is built after
+    the hoppers in its row, and `Builder.put` writes it powered with no neighbour update, so the hopper never sees the power. FL reproduced it:
+    lever `powered=true`, line hopper 0 `enabled=true`, 64 cobblestone in F0. The fix is a mixin on `HopperBlockEntity.canPlaceItemInContainer`.
+    From placement until UNLOCKED it refuses every automated insertion into a fill site's declared containers: hopper push and pull, item
+    entities and droppers. A refused item stays where it was, so `fill_blocked` then comes only from a player's own hand. Not held: other mods'
+    Fabric Transfer API insertions, which become FK cargo (`fill_blocked`, nothing lost). Hook changes: `dev.fk.container` answers `state`, and
+    `dev.fk.state` answers `held`. Steward's runs stay on 0.72.0's behaviour until the pin. At the v0.74.0 pin, the mid-build insert flow
+    expects no item in F (follow-up M4b-074).
 - **S-M5-18. The land check reads a filled fill container as changed** (slice M4b's `sort` bar 6, 2026-11-15, Architect v0.72.0; sent
   through the manager).
   - **Seen in game:** every storage_hall@2 just built and filled (10 halls, 4 to 16 slots, all four facings) reads `standing 1, changed N`
@@ -1788,3 +1796,5 @@ hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batc
   - **Asked:** a fill container holding exactly its fill (or less of it) counts as SAME for the land check.
   - **Steward's side:** bar 6 judges `changed` equal to the slot count, with every F holding exactly 41 + 4 slabs. Not a gap for players:
     nothing is charged, lost or offered on it.
+  - **Architect's answer (2026-11-15, slice/FL 50f47d9b, for v0.74.0):** a declared container holding its fill or less, as plain stacks,
+    reads SAME, and more reads CHANGED (cargo). At the v0.74.0 pin, bar 6 goes back to expecting `changed 0` (follow-up M4b-074).
