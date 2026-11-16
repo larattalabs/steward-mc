@@ -40,6 +40,7 @@ public final class Proposals {
 			BACKOFF.clear();
 			FULL.clear();
 			CHOOSING.clear();
+			NO_SIDE.clear();
 		});
 		ServerTickEvents.END_SERVER_TICK.register(server -> {
 			if (server.getTickCount() % EVERY != 0) return;
@@ -64,8 +65,9 @@ public final class Proposals {
 		if (!here.get().described() || SettlementRunner.busy(here.get().id()) || here.get().lastUndoable().isEmpty()) return;
 		Settlement s = here.get();
 		var open = s.proposals().open();
-		// (slice PD) a district the town's approved plan names and its founding didn't build: proposed once the town is built (one at a time)
-		if (proposePlanDistrict(server, p.getUUID(), s, now) == null) return;
+		// (slice PD) a district the town's approved plan names and its founding didn't build: proposed once the town is built (one at a time); the side is
+		// chosen in the background, so the rest of the pass runs (a district with no side to go is skipped until the town or the plan changes)
+		proposePlanDistrict(server, p.getUUID(), s, now);
 		// Autonomous and Full: a proposal already waiting is built once the allowance allows (raised, renewed, or the level just changed)
 		if (!s.permission().needsApproval(dev.larattalabs.steward.model.Permission.Action.NEW_PROJECT) && !open.isEmpty()) {
 			// the first one not backing off (one that found no room waits a while, so it does not hold the others up); a new district always waits for the player
@@ -148,16 +150,24 @@ public final class Proposals {
 	 * Every region of the settlement's owner counts as holding its lots (a district founded from the plan holds its own).
 	 */
 	static List<PlanDistricts.Unbuilt> unbuiltPlanDistricts(Settlement s) {
-		if (dev.larattalabs.steward.gateway.PPlan.villageOnly(s.id())) return List.of();
+		return readPlanDistricts(s).unbuilt();
+	}
+
+	/** (slice PD) The plan's unbuilt districts, and what they were read from (the town region, the kept plan, the districts: {@link PlanDistricts#fingerprint}). */
+	record PlanRead(List<PlanDistricts.Unbuilt> unbuilt, String fingerprint) {}
+
+	static PlanRead readPlanDistricts(Settlement s) {
+		var none = new PlanRead(List.of(), "");
+		if (dev.larattalabs.steward.gateway.PPlan.villageOnly(s.id())) return none;
 		var entry = PlanStore.get(s.id());
-		if (entry.isEmpty()) return List.of();
+		if (entry.isEmpty()) return none;
 		try {
 			var regions = ArchitectAccess.api().regions();
 			var town = TownRegion.of(s).flatMap(regions::get);
-			if (town.isEmpty()) return List.of();
+			if (town.isEmpty()) return none;
 			var v = town.get();
-			if ((v.state() != dev.larattalabs.architect.api.RegionState.PLACED && v.state() != dev.larattalabs.architect.api.RegionState.PARTIAL) || (v.busy() != null && !v.busy().isBlank())) return List.of();
-			if (v.build() != null && !v.build().built()) return List.of();
+			if ((v.state() != dev.larattalabs.architect.api.RegionState.PLACED && v.state() != dev.larattalabs.architect.api.RegionState.PARTIAL) || (v.busy() != null && !v.busy().isBlank())) return none;
+			if (v.build() != null && !v.build().built()) return none;
 			com.google.gson.JsonObject plan = com.google.gson.JsonParser.parseString(entry.get().plan()).getAsJsonObject();
 			long founded = s.log().stream().filter(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && ("region:" + v.id()).equals(e.siteGroup()))
 				.mapToLong(Settlement.LogEntry::at).min().orElse(-1);
@@ -166,14 +176,15 @@ public final class Proposals {
 				all.add(l.id());
 				if (l.revision() == 0) first.add(l.id());
 			}
-			if (founded < 0 || !PlanGrowth.approvedFor(entry.get().at(), founded, first, plan)) return List.of();
+			if (founded < 0 || !PlanGrowth.approvedFor(entry.get().at(), founded, first, plan)) return none;
 			for (var o : regions.list(s.owner())) if (!o.id().equals(v.id()) && o.state() != dev.larattalabs.architect.api.RegionState.REMOVED) for (var l : o.lots()) all.add(l.id());
 			Set<String> waiting = new HashSet<>();
 			for (var pd : entry.get().pending()) waiting.add(pd.part());
-			return PlanDistricts.unbuilt(plan, all, waiting, Secrets.of(entry.get()));
+			return new PlanRead(PlanDistricts.unbuilt(plan, all, waiting, Secrets.of(entry.get())),
+				PlanDistricts.fingerprint(v.id(), entry.get().at(), entry.get().plan(), s.lands().districts()));
 		} catch (RuntimeException | LinkageError e) {
 			dev.larattalabs.steward.Steward.LOGGER.info("{}: the plan's districts can't be read now ({})", s.id(), e.toString());
-			return List.of();
+			return none;
 		}
 	}
 
@@ -185,37 +196,57 @@ public final class Proposals {
 	static @org.jspecify.annotations.Nullable String proposePlanDistrict(MinecraftServer server, java.util.UUID player, Settlement s, long now) {
 		if (s.proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return "a district proposal already waits";
 		if (CHOOSING.contains(s.id())) return "a district's side is being chosen";
-		var offer = PlanDistricts.toOffer(unbuiltPlanDistricts(s), s.proposals(), s.lands().districts());
+		var read = readPlanDistricts(s);
+		var offer = PlanDistricts.withoutNoSide(PlanDistricts.toOffer(read.unbuilt(), s.proposals(), s.lands().districts()),
+			NO_SIDE.getOrDefault(s.id(), Map.of()), read.fingerprint());
 		if (offer.isEmpty()) return "no unbuilt plan district to offer";
 		var u = offer.get(0);
+		// offered again on its reservation (an acceptance whose build ended unbuilt): that reservation's side, never another chosen now
+		var resume = PlanDistricts.resumeWay(u, s.lands().districts());
+		if (resume.isPresent()) {
+			offerPlanDistrict(server, player, s.id(), u, resume.get(), "where it is reserved");
+			return null;
+		}
 		// beside the town only: east or west of a region town (Noah's Q3); a side another district waits on is skipped
 		Set<String> skip = new HashSet<>(List.of("N", "S"));
 		for (String d : List.of("E", "W")) if (Districts.besideTown(server, s, d) == null) skip.add(d);
 		if (skip.size() == 4) return "the town isn't a region to build beside";
 		CHOOSING.add(s.id());
+		String fingerprint = read.fingerprint();
 		Districts.choose(server, s, dev.larattalabs.steward.model.DistrictSite.fromWords(PlanDistricts.siteWords(u)), null, skip, c -> {
 			CHOOSING.remove(s.id());
-			var now2 = Settlements.store().get(s.id());
-			if (now2.isEmpty()) return;
 			if (c.way() == null) {
-				dev.larattalabs.steward.Steward.LOGGER.info("{}: the plan's {} has no side beside the town to go ({})", s.id(), u.id(), c.why());
+				// no side fits: skipped quietly until the town, the plan or the districts change (not looked at again every minute)
+				NO_SIDE.computeIfAbsent(s.id(), k -> new HashMap<>()).put(u.id(), fingerprint);
+				dev.larattalabs.steward.Steward.LOGGER.info("{}: the plan's {} has no side beside the town to go ({}); not looked at again until the town or its plan changes",
+					s.id(), u.id(), c.why());
 				return;
 			}
-			// asked meanwhile (a district proposal waiting, this one offered, declined or accepted): no second offer
-			if (now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)
-				|| PlanDistricts.toOffer(List.of(u), now2.get().proposals(), now2.get().lands().districts()).isEmpty()) return;
-			int usd = planDistrictEstimate(u.lots().size());
-			boolean materials = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
-			Proposal d = PlanDistricts.proposal(u, c.way(), c.why(), usd, materials, System.currentTimeMillis());
-			var ps = now2.get().proposals();
-			List<Proposal> all = new ArrayList<>(ps.open());
-			all.add(d);
-			if (!Settlements.proposals(s.id(), new Settlement.Proposals(all, ps.declined(), ps.accepted(), ps.lastAt())).ok()) return;
-			dev.larattalabs.steward.Steward.LOGGER.info("{}: proposed the plan's district {} ({} lots) to the {}", s.id(), u.id(), u.lots().size(), c.way());
-			StewardVoice.say(server, s.id(), "I have an idea: " + d.title().toLowerCase() + ". " + d.why() + " See the inbox (Y).");
-			SettlementRunner.sendInbox(server, player);
+			offerPlanDistrict(server, player, s.id(), u, c.way(), c.why());
 		});
 		return null;
+	}
+
+	/** (slice PD) Plan districts with no side to go, per settlement: district id -> the {@link PlanDistricts#fingerprint} they were read from. This session. */
+	private static final Map<String, Map<String, String>> NO_SIDE = new HashMap<>();
+
+	/** (slice PD) The plan district's proposal towards {@code way}, saved, said and in the inbox, unless one was offered, declined or accepted meanwhile. */
+	private static void offerPlanDistrict(MinecraftServer server, java.util.UUID player, String settlementId, PlanDistricts.Unbuilt u, String way, String why) {
+		var now2 = Settlements.store().get(settlementId);
+		if (now2.isEmpty()) return;
+		// asked meanwhile (a district proposal waiting, this one offered, declined or accepted): no second offer
+		if (now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)
+			|| PlanDistricts.toOffer(List.of(u), now2.get().proposals(), now2.get().lands().districts()).isEmpty()) return;
+		int usd = planDistrictEstimate(u.lots().size());
+		boolean materials = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
+		Proposal d = PlanDistricts.proposal(u, way, why, usd, materials, System.currentTimeMillis());
+		var ps = now2.get().proposals();
+		List<Proposal> all = new ArrayList<>(ps.open());
+		all.add(d);
+		if (!Settlements.proposals(settlementId, new Settlement.Proposals(all, ps.declined(), ps.accepted(), ps.lastAt())).ok()) return;
+		dev.larattalabs.steward.Steward.LOGGER.info("{}: proposed the plan's district {} ({} lots) to the {}", settlementId, u.id(), u.lots().size(), way);
+		StewardVoice.say(server, settlementId, "I have an idea: " + d.title().toLowerCase() + ". " + d.why() + " See the inbox (Y).");
+		SettlementRunner.sendInbox(server, player);
 	}
 
 	/** (slice PD) Dev (the e2e check): {@link #proposePlanDistrict} now. Returns what it did. */

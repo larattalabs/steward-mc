@@ -133,6 +133,51 @@ class PlanDistrictsTest {
 	}
 
 	@Test
+	void aBareModuleTypeIsLeftOutAsM5ReadsIt() {
+		// (batch GPT review 3) a bare crop_farm or storage_hall lot is a module ask to M5 (failing closed), never a paid design; so is an unreadable marker
+		var p = plan("""
+			{"zones":[{"id":"q","program":{"districts":[
+			  {"id":"farm_side","label":"the farm side","lots":[
+			    {"id":"farm_1","type":"crop_farm","size":[13,14]},{"id":"hall_1","type":"storage_hall","size":[13,14]},
+			    {"id":"barn_1","type":"barn","size":[13,14],"ext":{"steward_mc:module":"crop_farm"}},
+			    {"id":"house_1","type":"house","size":[13,14]}]},
+			  {"id":"fields","label":"the fields","lots":[{"id":"farm_2","type":"crop_farm","size":[13,14]}]}]}}]}""");
+		var u = PlanDistricts.unbuilt(p, Set.of(), Set.of(), Secrets.NONE);
+		assertEquals(List.of("farm_side"), ids(u), "a district of module lots alone has nothing to design");
+		assertEquals(List.of("house_1"), u.get(0).lots().stream().map(l -> l.get("id").getAsString()).toList());
+	}
+
+	@Test
+	void aReofferUsesItsReservationsSide() {
+		// (batch GPT review 1) offered again on its reservation: that reservation's direction, never a side chosen again
+		var jungle = PlanDistricts.unbuilt(plan(PLAN), Set.of("trader_1"), Set.of(), Secrets.NONE).get(0);
+		var c1 = new Claim("minecraft:overworld", -100, 0, 48, -64, 320);
+		var west = new Settlement.District("dst_1", "the jungle side", "W", c1, 1L, List.of(), false, Settlement.District.BESIDE, Settlement.District.RESERVED,
+			"rg_1", null, dev.larattalabs.steward.model.Land.of(c1), null, "steward.s.dst_1");
+		assertEquals("W", PlanDistricts.resumeWay(jungle, List.of(west)).orElseThrow());
+		var built = new Settlement.District("dst_1", "the jungle side", "W", c1, 1L, List.of(), false, Settlement.District.BESIDE, Settlement.District.STANDING,
+			"rg_1", "rg_2", dev.larattalabs.steward.model.Land.of(c1), null, "steward.s.dst_1");
+		assertTrue(PlanDistricts.resumeWay(jungle, List.of(built)).isEmpty(), "a first offer chooses its side");
+		assertTrue(PlanDistricts.resumeWay(jungle, List.of()).isEmpty());
+	}
+
+	@Test
+	void aDistrictWithNoSideIsSkippedUntilTheTownOrPlanChanges() {
+		// (batch GPT review 2) no side to go: skipped quietly while what it was read from stays the same, so the rest of the minute's pass runs
+		var u = PlanDistricts.unbuilt(plan(PLAN), Set.of("trader_1"), Set.of(), Secrets.NONE);
+		String f = PlanDistricts.fingerprint("rg_1", 5L, PLAN, List.of());
+		var noSide = java.util.Map.of("jungle_side", f);
+		assertEquals(List.of("harbour", "mine_camp"), ids(PlanDistricts.withoutNoSide(u, noSide, f)));
+		assertEquals(3, PlanDistricts.withoutNoSide(u, noSide, PlanDistricts.fingerprint("rg_1", 6L, PLAN, List.of())).size(), "the plan kept again");
+		assertEquals(3, PlanDistricts.withoutNoSide(u, noSide, PlanDistricts.fingerprint("rg_1", 5L, PLAN + " ", List.of())).size(), "the plan changed");
+		assertEquals(3, PlanDistricts.withoutNoSide(u, noSide, PlanDistricts.fingerprint("rg_3", 5L, PLAN, List.of())).size(), "another town region");
+		var c1 = new Claim("minecraft:overworld", 100, 0, 48, -64, 320);
+		var d = new Settlement.District("dst_1", "East", "E", c1, 1L, List.of(), false, Settlement.District.BESIDE, Settlement.District.RESERVED,
+			"rg_1", null, dev.larattalabs.steward.model.Land.of(c1), null, "steward.s.dst_1");
+		assertEquals(3, PlanDistricts.withoutNoSide(u, noSide, PlanDistricts.fingerprint("rg_1", 5L, PLAN, List.of(d))).size(), "a district founded or given up");
+	}
+
+	@Test
 	void keys() {
 		assertTrue(PlanDistricts.isKey("plan_district_jungle_side"));
 		assertEquals("jungle_side", PlanDistricts.idOf("plan_district_jungle_side"));
