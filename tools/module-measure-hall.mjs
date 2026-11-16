@@ -87,7 +87,7 @@ function lotFrame(lot) {
 
 // ------------------------------------------------------------------ the client (M2's)
 
-let dev = null, child = null, launched = false, exited = false;
+let dev = null, child = null, launched = false, exited = false, clientMode = 'creative';
 const listening = (port) => new Promise((resolve) => {
   const s = net.connect({ host: '127.0.0.1', port });
   s.once('connect', () => { s.destroy(); resolve(true); });
@@ -113,10 +113,11 @@ function claimRun() {
   throw new Error(`could not claim ${f}`);
 }
 let worldName = null;
-async function startClient(label, { mode = 'creative' } = {}) {
+async function startClient(label, { mode = 'creative', world = null } = {}) {
   const { DevClient } = await import(pathToFileURL(path.join(ARCH, 'tools', 'lib', 'devclient.mjs')).href);
   if (flag('--attach')) { dev = await DevClient.connect({ port: PORT, timeoutMs: 30_000 }); await dev.waitInWorld({ timeoutMs: 60_000 }); return; }
-  claimRun();
+  // a relaunch after a kill point's JVM halt (world: the same world, as the halt left it) keeps this run's claim
+  if (!world) claimRun();
   // the load gate (AGENTS.md speed rules): wait at most E2E_LOAD_WAIT_MIN (15) minutes for the 1-minute load to fall under E2E_LOAD_MAX (72)
   const loadMax = Number(process.env.E2E_LOAD_MAX ?? 72), waitMin = Math.min(15, Number(process.env.E2E_LOAD_WAIT_MIN ?? 15));
   for (const end = Date.now() + waitMin * 60_000; os.loadavg()[0] >= loadMax && Date.now() < end;) await sleep(30_000);
@@ -124,7 +125,9 @@ async function startClient(label, { mode = 'creative' } = {}) {
   for (const p of [PORT - 1, PORT]) if (await listening(p)) throw new Error(`port ${p} is in use (another client?): refusing to launch; use --attach to drive it`);
   if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
-  worldName = `Steward M4 ${label} ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
+  worldName = world ?? `Steward M4 ${label} ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
+  exited = false;
+  clientMode = mode;
   const out = fs.openSync(path.join(ART, 'client.log'), 'a');
   child = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], {
     stdio: ['ignore', out, out],
@@ -1384,18 +1387,25 @@ const savedLedger = () => {
   const f = path.join(savesDir(), 'architect', 'stockpiles.json');
   return fs.existsSync(f) ? (JSON.parse(fs.readFileSync(f, 'utf8')).stockpiles ?? []).find((x) => x.owner === OWNER)?.ledger ?? null : null;
 };
-async function haltWait() {
-  for (let i = 0; i < 180; i++) {
-    await sleep(2000);
-    const st = await call('dev.state', {}, 10_000).catch(() => null);
-    if (st && st.inWorld === false) return true;
-  }
-  return false;
+/**
+ * Waits for the armed kill point's JVM halt (Architect's killAt is Runtime.halt: the whole client exits, nothing saved): true when the
+ * launched client exited and its log holds this point's own "kill point <P> reached" line written since {@code from} (any other exit is not
+ * the point's). Call {@link #killFrom} just before arming.
+ */
+const killFrom = () => { const f = path.join(ART, 'client.log'); return fs.existsSync(f) ? fs.statSync(f).size : 0; };
+async function haltWait(point, from) {
+  for (let i = 0; i < 300 && !exited; i++) await sleep(1000);
+  if (!exited) return false;
+  dev = null;
+  const f = path.join(ART, 'client.log');
+  const tail = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').slice(from) : '';
+  return new RegExp(`kill point ${point.replace('+', '\\+')} reached`).test(tail);
 }
-/** The world opened again after a halt (nothing saved since the halt's baseline). */
+/** The client launched again into the same world after a halt (nothing saved since the halt's baseline). */
 async function restartWorld(pos) {
-  await call('dev.world.open', { name: worldName }, 300_000);
-  await dev.waitInWorld({ timeoutMs: 600_000 });
+  await sleep(4000);
+  await startClient(null, { mode: clientMode, world: worldName });
+  await call('dev.survival.set', { on: true }).catch(() => null);
   await rules();
   await standAt(...pos);
   await sleep(4000);
@@ -1431,9 +1441,10 @@ async function sortCrash() {
       await call('dev.stockpile.ps', { noPeriodic: true }, 30_000).catch(() => null);
       await cmd('/save-all flush');
       const B = savedLedger();
+      const from = killFrom();
       await call('dev.journal.killAt', { point }, 10_000);
       call('dev.stockpile.pause', { owner: OWNER, site, paused: false }, 60_000).catch(() => null);
-      const down = await haltWait();
+      const down = await haltWait(point, from);
       check(down, `${point}: the kill point halted the server`);
       if (!down) { await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null); continue; }
       const S = savedLedger();
@@ -1461,9 +1472,10 @@ async function sortCrash() {
       const B = savedLedger();
       // what this growth consumed: its quote (consumed = quote, bar 8)
       const consumed = c.g.quote?.bom ?? {};
+      const from = killFrom();
       await call('dev.journal.killAt', { point: c.point }, 10_000);
       call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch(() => null);
-      const down = await haltWait();
+      const down = await haltWait(c.point, from);
       check(down, `${c.point}: the kill point halted the server at removal`);
       if (!down) { await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null); continue; }
       const S = savedLedger();
