@@ -537,7 +537,18 @@ public final class StewardCommands {
 							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.Inbox(java.util.List.of(a1, a2, a3, a4, a5)));
 							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.OpenInbox(id));
 						}
-						default -> { ctx.getSource().sendFailure(Component.literal("inbox, describe, card, open or sample")); return 0; }
+						case "sample-ideas" -> {
+							// LUI: only ideas, nothing waiting, no screen: lab-ui's idle pill ("2 ideas for you · ...") for its picture
+							var smoke = new dev.larattalabs.steward.inbox.InboxModel.Lot("smokehouse_1", "smokehouse", "proposal", false, true, "9x7 lot by the drying racks");
+							var parts = new dev.larattalabs.steward.inbox.InboxModel.Lot(dev.larattalabs.steward.inbox.InboxModel.PARTS_KEY, "Waiting parts (2)", "proposal", false, true,
+								"about $1 each · the town wall, the rope bridge.");
+							net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.Inbox(java.util.List.of(
+								dev.larattalabs.steward.inbox.InboxModel.proposals(id, "Stilt Swamp Fishing Village", java.util.List.of(smoke)),
+								dev.larattalabs.steward.inbox.InboxModel.proposals(id + "_d", "Copper Ford", java.util.List.of(parts)))));
+						}
+						// LUI: an empty inbox, no screen (the HUD as it is with no Steward rows)
+						case "sample-empty" -> net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking.send(p, new dev.larattalabs.steward.net.StewardNet.Inbox(java.util.List.of()));
+						default -> { ctx.getSource().sendFailure(Component.literal("inbox, describe, card, open, sample, sample-ideas or sample-empty")); return 0; }
 					}
 					return 1;
 				}))))
