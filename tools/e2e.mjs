@@ -7308,7 +7308,8 @@ async function survivalDistrictFlow() {
 
 /**
  * (slice PD, Noah 11-15 "Propose in inbox") A district the town's approved plan names and its founding didn't build: a Supplied town from no_wood's plan
- * in a survival world, with a D1 district added to its kept plan as one the founding left out (`/steward dev plan_district`). Not proposed while the town
+ * in a survival world, composed with an optional districts zone whose one D1 district has no room in the claim (PD-2: its 256 by 256 has no candidate,
+ * so Architect's check refuses the zone NO_ROOM and Start leaves it out; the kept plan still names it, not as a waiting part). Not proposed while the town
  * isn't built; once it is, proposed once in the inbox, its words naming the district and its lots; accepted: reserved beside the town, its bill said
  * before the one approval, built from the stockpile with the plan's own lot ids and consumed within its quote; undone: everything it consumed back once,
  * given up, and not proposed again.
@@ -7326,7 +7327,8 @@ async function planDistrictFlow() {
   };
   const back = (a, b) => minusItems(plusItems(b?.returned, b?.refundOverflow), plusItems(a?.returned, a?.refundOverflow));
   const ward = {
-    id: 'mill_ward', label: 'Mill Ward', size: { w: 40, d: 40 }, prefer: ['open', 'flat'],
+    // (PD-2) bigger than the claim (a side is 24..256): no candidate area, so the founding can't build it; beside the town its lots take their own ground
+    id: 'mill_ward', label: 'Mill Ward', size: { w: 256, d: 256 }, prefer: ['open', 'flat'],
     lots: [
       // cottages at no_wood's 13 by 14 (the sim's kit massing fits those; a smaller lot or another type fails its checker)
       { id: 'mill_hall_1', type: 'cottage', role: 'mill hall', label: 'a mill hall', size: [13, 14] },
@@ -7352,13 +7354,27 @@ async function planDistrictFlow() {
     await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
     const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'no_wood.json'), 'utf8')).answer;
     delete answer.plan.rules;
-    answer.summary = 'A small town of stone cottages.';
+    // (PD-2) a composed plan that really leaves a district out: an optional districts zone the claim has no room for
+    answer.plan.zones.push({ id: 'wards', kind: 'standard', label: 'the wards', program: { districts: [ward] } });
+    answer.summary = 'A small town of stone cottages, and a mill ward beside it.';
     await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
     let from = logSize();
     await cmd(`/steward describe ${id} a little stone town with a mill ward beside it`);
     if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
     if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
     if (settlements().find((x) => x.id === id)?.difficulty !== 'SUPPLIED') return fail(label, 'not Supplied in a survival world');
+    // (PD-2) the kept plan names the ward, and not as a part that waits (a waiting part is never proposed)
+    {
+      const read = () => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans?.[id] ?? null; } catch { return null; } };
+      const wards = (k) => { try { return JSON.parse(k?.plan ?? '{}').zones?.find((z) => z.id === 'wards'); } catch { return null; } };
+      let kept = read();
+      for (let i = 0; i < 10 && !wards(kept); i++) { await sleep(1000); kept = read(); }
+      const zone = wards(kept);
+      const named = zone?.program?.districts?.some((x) => x.id === ward.id);
+      const waits = (kept?.pending ?? []).filter((x) => x.part === 'wards' || x.part === ward.id).map((x) => x.part);
+      if (named && !waits.length) ok(`${label} plan keeps it`, `the kept plan names ${ward.id} in zone wards; pending ${JSON.stringify((kept?.pending ?? []).map((x) => x.part))}`);
+      else return fail(`${label} plan keeps it`, `zone ${JSON.stringify(zone)?.slice(0, 120)}; waits ${waits.join(', ')}; ${chatTail(from)}`);
+    }
     // nothing is proposed before the town stands
     const early = await cmd(`/steward dev propose_district ${id} plan`);
     await closeScreens();
@@ -7386,10 +7402,8 @@ async function planDistrictFlow() {
     const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
     const town = /^region:(.+)$/.exec(founding?.siteGroup ?? '')?.[1];
     if (!town) return fail(label, `the town is not a region: ${founding?.siteGroup}`);
-    // the kept plan names a district the founding didn't build (added once the town is placed, as one it left out: the entry keeps its time, so it is
-    // still the town's plan); while the town is still being built from materials, nothing is proposed
-    const added = await cmd(`/steward dev plan_district ${id} wards ${JSON.stringify(ward)}`);
-    if (!/plan district mill_ward added/.test(added)) return fail(label, `the district wasn't added to the plan: ${added}`);
+    // the kept plan names a district the founding didn't build (PD-2: composed so, the zone left out at Start); while the town is still being built
+    // from materials, nothing is proposed
     const building = (await regionView(town)).build;
     const mid = await cmd(`/steward dev propose_district ${id} plan`);
     const midNone = /no plan district proposed/.test(mid);

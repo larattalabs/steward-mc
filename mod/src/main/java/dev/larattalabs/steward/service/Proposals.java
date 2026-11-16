@@ -190,7 +190,7 @@ public final class Proposals {
 
 	/**
 	 * (slice PD) Proposes the first of the plan's unbuilt districts not yet offered, declined or accepted, beside the town (east or west, the side chosen from
-	 * the ground it prefers), in the plan's words. Returns null when it started choosing a side (the offer follows, said and in the inbox), else why not.
+	 * the ground it prefers; PD-2: ground it prefers north or south is said, and no side at all is said once), in the plan's words. Returns null when it started choosing a side (the offer follows, said and in the inbox), else why not.
 	 * Never while a district proposal waits; never twice for one district (its key is open, declined or accepted, or a district of its name stands).
 	 */
 	static @org.jspecify.annotations.Nullable String proposePlanDistrict(MinecraftServer server, java.util.UUID player, Settlement s, long now) {
@@ -204,7 +204,7 @@ public final class Proposals {
 		// offered again on its reservation (an acceptance whose build ended unbuilt): that reservation's side, never another chosen now
 		var resume = PlanDistricts.resumeWay(u, s.lands().districts());
 		if (resume.isPresent()) {
-			offerPlanDistrict(server, player, s.id(), u, resume.get(), "where it is reserved");
+			offerPlanDistrict(server, player, s.id(), u, resume.get(), "where it is reserved", null);
 			return null;
 		}
 		// beside the town only: east or west of a region town (Noah's Q3); a side another district waits on is skipped
@@ -213,16 +213,28 @@ public final class Proposals {
 		if (skip.size() == 4) return "the town isn't a region to build beside";
 		CHOOSING.add(s.id());
 		String fingerprint = read.fingerprint();
-		Districts.choose(server, s, dev.larattalabs.steward.model.DistrictSite.fromWords(PlanDistricts.siteWords(u)), null, skip, c -> {
-			CHOOSING.remove(s.id());
+		var site = dev.larattalabs.steward.model.DistrictSite.fromWords(PlanDistricts.siteWords(u));
+		Districts.choose(server, s, site, null, skip, c -> {
 			if (c.way() == null) {
-				// no side fits: skipped quietly until the town, the plan or the districts change (not looked at again every minute)
+				CHOOSING.remove(s.id());
+				// no side fits: said once, then skipped until the town, the plan or the districts change (not looked at again every minute)
 				NO_SIDE.computeIfAbsent(s.id(), k -> new HashMap<>()).put(u.id(), fingerprint);
 				dev.larattalabs.steward.Steward.LOGGER.info("{}: the plan's {} has no side beside the town to go ({}); not looked at again until the town or its plan changes",
 					s.id(), u.id(), c.why());
+				StewardVoice.say(server, s.id(), PlanDistricts.noSideWords(u));
 				return;
 			}
-			offerPlanDistrict(server, player, s.id(), u, c.way(), c.why());
+			// (PD-2) a side taken without a reason of its own, for a district that asks for ground: if that ground is north or south (where a district
+			// beside the town doesn't go yet, Noah's Q3), the proposal says so
+			if (!c.why().isBlank() || !site.caresAboutGround()) {
+				CHOOSING.remove(s.id());
+				offerPlanDistrict(server, player, s.id(), u, c.way(), c.why(), null);
+				return;
+			}
+			Districts.choose(server, s, site, null, List.of("E", "W"), g -> {
+				CHOOSING.remove(s.id());
+				offerPlanDistrict(server, player, s.id(), u, c.way(), c.why(), PlanDistricts.betterSideNote(c.why(), g.way(), g.why()));
+			});
 		});
 		return null;
 	}
@@ -231,7 +243,8 @@ public final class Proposals {
 	private static final Map<String, Map<String, String>> NO_SIDE = new HashMap<>();
 
 	/** (slice PD) The plan district's proposal towards {@code way}, saved, said and in the inbox, unless one was offered, declined or accepted meanwhile. */
-	private static void offerPlanDistrict(MinecraftServer server, java.util.UUID player, String settlementId, PlanDistricts.Unbuilt u, String way, String why) {
+	private static void offerPlanDistrict(MinecraftServer server, java.util.UUID player, String settlementId, PlanDistricts.Unbuilt u, String way, String why,
+		@org.jspecify.annotations.Nullable String note) {
 		var now2 = Settlements.store().get(settlementId);
 		if (now2.isEmpty()) return;
 		// asked meanwhile (a district proposal waiting, this one offered, declined or accepted): no second offer
@@ -239,7 +252,7 @@ public final class Proposals {
 			|| PlanDistricts.toOffer(List.of(u), now2.get().proposals(), now2.get().lands().districts()).isEmpty()) return;
 		int usd = planDistrictEstimate(u.lots().size());
 		boolean materials = dev.larattalabs.steward.gateway.WorldMode.survival(server).orElse(false) && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
-		Proposal d = PlanDistricts.proposal(u, way, why, usd, materials, System.currentTimeMillis());
+		Proposal d = PlanDistricts.proposal(u, way, why, note, usd, materials, System.currentTimeMillis());
 		var ps = now2.get().proposals();
 		List<Proposal> all = new ArrayList<>(ps.open());
 		all.add(d);
