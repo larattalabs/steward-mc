@@ -1773,3 +1773,7 @@ hand, and undo and restart keep the cap. Steward holds QD out of the 0.72.0 batc
     into an input that stood part way.
   - **Steward's side:** the next `sort-survival` run records the lever's and line hopper 0's states at the moment of the preload, as
     evidence. Until the fix, a player who loads the hall early sees the fill wait on the cell it names, and must empty it.
+  - **Architect's answer (2026-11-15): accepted** as slice FL (strict), on top of LC, targeted at v0.74.0. FL reproduces it first and decides
+    between the two causes from Builder's order and `Fills`. Its gate covers items put in mid-build, both into the input chest and straight
+    into a line hopper, and none of them reaching a fill container. Steward sends the lever and hopper-0 readings through the manager. Until FL
+    ships, @2's mid-build insert is a known gap, named in the as-built beside S-M5-12. It gets no offer line, since nothing is lost.

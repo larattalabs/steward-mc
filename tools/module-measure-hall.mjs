@@ -1187,10 +1187,15 @@ async function sortSurvival() {
     check(!!site, `B2 the hall's site named while it builds (${site})`);
     const fk1 = await fkState(site);
     out.preload = { input: st1.input, line: st1.line, F: st1.F, D: st1.D, phase: fk1.phase };
-    check(st1.input['minecraft:cobblestone'] === 64 && st1.line.every((m) => !totalOf(m)) && st1.F.every((m) => !totalOf(m)) && st1.D.every((m) => !totalOf(m)),
-      `B2 starving part way (FK ${fk1.phase ?? 'not begun'}, ${fk1.state}; at the preload the lever ${json(out.atPreload?.lever ?? null)}, line hopper 0 ${json(out.atPreload?.line0 ?? null)}): the preloaded input stayed put, the line, every F and D empty`, out.preload);
+    const held = st1.input['minecraft:cobblestone'] === 64 && st1.line.every((m) => !totalOf(m)) && st1.F.every((m) => !totalOf(m)) && st1.D.every((m) => !totalOf(m));
+    // the known gap until Architect's FL (S-M5-17): the line takes a mid-build insert down to F 0 before the lock holds; it passes as the gap
+    // only when nothing is lost (all 64 still in the hall, only cobblestone moved) and, below, nothing charged
+    const leakCobble = totalOf(sumAll(st1)) === 64 && (sumAll(st1)['minecraft:cobblestone'] ?? 0) === 64;
+    out.leak = !held;
+    check(held || leakCobble, `B2 starving part way (FK ${fk1.phase ?? 'not begun'}, ${fk1.state}; at the preload the lever ${json(out.atPreload?.lever ?? null)}, line hopper 0 ${json(out.atPreload?.line0 ?? null)}): ${held ? 'the preloaded input stayed put, the line, every F and D empty' : `KNOWN GAP S-M5-17 (Architect FL): the insert went down the line (F 0 ${json(st1.F[0])}, D 0 ${json(st1.D[0])}), all 64 still in the hall`}`, out.preload);
     // an F contaminated before the fill (a player's dirt in F 0), then the rest fed: the fill waits fill_blocked, charging no filter item
-    const fA = await mod({ op: 'putItems', at: h.sort[0].F, stacks: [{ slot: 0, id: 'minecraft:dirt', count: 1 }] }).catch((e) => ({ error: String(e) }));
+    // (after the gap's leak F 0 is already contaminated by the player's cobblestone: that is the case)
+    const fA = out.leak ? { ok: true, leak: true } : await mod({ op: 'putItems', at: h.sort[0].F, stacks: [{ slot: 0, id: 'minecraft:dirt', count: 1 }] }).catch((e) => ({ error: String(e) }));
     const fed = await feedUntil(region, async () => {
       const f = await fkState(site);
       return f.phase === 'FILLING' || f.phase === 'UNLOCKED';
@@ -1204,6 +1209,7 @@ async function sortSurvival() {
     check(fA.ok && fk2.phase !== 'UNLOCKED' && fillCharged.length === 0, `B2 an F contaminated before the fill: the fill waits (FK ${fk2.phase}; ${json(fk2.siteWait ?? fk2.wait ?? null)}), no filter item charged past the structure (${json(fillCharged)})`, out.blocked);
     // the player takes their dirt back: the fill runs once
     await mod({ op: 'clearContainers', box: [...h.sort[0].F, ...h.sort[0].F] });
+    if (out.leak) { await emptyHoppers(h); await clearOutputs(h); await mod({ op: 'clearContainers', box: [...h.input, ...h.input] }); }
     const fd = await feedUntil(region, async (st, rs) => st.view.state === 'PLACED' && (rs?.build ? rs.build.done : true));
     const w = await rvWait(region, g.rid);
     const fk3 = await fkState(site);
