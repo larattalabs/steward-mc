@@ -490,8 +490,16 @@ function measurement(e, now, why) {
   const M = measureOf(e);
   if (!M) { why.push(`no measurement is defined for ${e.id}`); return null; }
   const out = {};
+  // (fix check 7) a step that only completes another (sort-plain) is required only when the step it completes has that failure
+  const needed = new Set(M.steps.filter((s) => !Object.values(M.completes ?? {}).some((c) => c.by === s)));
+  for (const [s, c] of Object.entries(M.completes ?? {})) {
+    const f = path.join(ROOT, 'artifacts', M.art, `${s}.json`);
+    const r = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
+    if (r && !r.ok) needed.add(c.by);
+  }
   for (const s of M.steps) {
     const f = path.join(ROOT, 'artifacts', M.art, `${s}.json`);
+    if (!needed.has(s) && !fs.existsSync(f)) continue;
     if (!fs.existsSync(f)) { why.push(`no measurement evidence ${s}`); continue; }
     const r = JSON.parse(fs.readFileSync(f, 'utf8'));
     const C = M.completes?.[s];

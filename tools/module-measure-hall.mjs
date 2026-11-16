@@ -1766,7 +1766,11 @@ async function sortCrash() {
         }
         const L0 = (await pile()).ledger;
         const f0 = site ? await fkState(site) : { error: 'no site' };
-        check(t && t.built === t.queued && !f0.error && f0.phase !== 'FILLING' && f0.phase !== 'FILLED' && f0.phase !== 'UNLOCKED', `9 cancel: every cell of the hall stands (${t?.built}/${t?.queued}), its fill not begun (FK ${f0.error ?? f0.phase ?? 'not begun'})`);
+        // (fix check 5) real work stood: queued cells, all built, and the four F hoppers there and empty before the undo
+        await hallCells(region, g.halls);
+        const fs0 = (await sortState(g.halls[0])).F;
+        const fEmpty = fs0.length === 4 && fs0.every((m) => !totalOf(m));
+        check(t && t.queued > 0 && t.built === t.queued && fEmpty && !f0.error && f0.phase !== 'FILLING' && f0.phase !== 'FILLED' && f0.phase !== 'UNLOCKED', `9 cancel: every cell of the hall stands (${t?.built}/${t?.queued}), its four F empty (${fEmpty}), its fill not begun (FK ${f0.error ?? f0.phase ?? 'not begun'})`);
         const u = await call('dev.rv.undo', { region, toPosition: g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
         let rs = null;
         for (let i = 0; i < 300; i++) { rs = (await call('dev.rv.state', { region }, 60_000)).revisions.find((x) => x.rid === g.rid)?.state; if (rs === 'UNDONE') break; await sleep(1000); }
@@ -1780,7 +1784,7 @@ async function sortCrash() {
         const struct = minus(L0.consumed, Ls.consumed);
         const res = { state: rs, undo: refusal(u), fillCharged: only(consumed), fillBack: only(back), back, struct, drops, slabs, custody: L1.custody ?? null, pending: L1.pendingCredit ?? null };
         out.cancel = res;
-        check(rs === 'UNDONE' && !Object.keys(only(consumed)).length && !Object.keys(only(back)).length && same(back, struct) && !Object.keys(drops).length
+        check(rs === 'UNDONE' && totalOf(struct) > 0 && !Object.keys(only(consumed)).length && !Object.keys(only(back)).length && same(back, struct) && !Object.keys(drops).length
           && !Object.keys(L1.custody ?? {}).length && !Object.keys(L1.pendingCredit ?? {}).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
           `9 cancel before the fill: ${rs}; no filter item charged (${json(only(consumed))}) or refunded (${json(only(back))}); the structure back exactly (${totalOf(back)} = ${totalOf(struct)}; off ${json(minus(back, struct))}); nothing dropped, no custody or pending refund, no slab`, res);
       }

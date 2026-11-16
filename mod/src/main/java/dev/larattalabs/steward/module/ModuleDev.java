@@ -404,9 +404,13 @@ public final class ModuleDev {
 			return none;
 		}
 		var p = players.get(0);
+		// (fix check 3, 6) a menu already open is closed first, so no carried stack falls into the counted inventory; the inventory is given back
+		// however the loop ends
+		p.closeContainer();
 		List<ItemStack> kept = new ArrayList<>();
 		for (int j = 0; j < p.getInventory().getContainerSize(); j++) kept.add(p.getInventory().getItem(j).copy());
 		JsonArray out = new JsonArray();
+		try {
 		for (JsonElement e : cells) {
 			var a = e.getAsJsonArray();
 			BlockPos pos = new BlockPos(a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt());
@@ -443,8 +447,11 @@ public final class ModuleDev {
 			r.addProperty("left", left);
 			out.add(r);
 		}
-		p.getInventory().clearContent();
-		for (int j = 0; j < kept.size(); j++) p.getInventory().setItem(j, kept.get(j));
+		} finally {
+			p.closeContainer();
+			p.getInventory().clearContent();
+			for (int j = 0; j < kept.size(); j++) p.getInventory().setItem(j, kept.get(j));
+		}
 		JsonObject o = new JsonObject();
 		o.add("cells", out);
 		return o;

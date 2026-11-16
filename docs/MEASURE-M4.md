@@ -490,10 +490,11 @@ in `artifacts/m4b` (hall, bounds, sort, sort-survival, sort-cargo and sort-crash
 |---|---|---|
 | hall (`--version 2`) | the plain branch, @1's bars 1-6 | 218/218 |
 | bounds | the structure bound per slot count, bulk and Style, and the fill (41 per item) for two item sets | 382/382 |
-| sort | 12.5 bars 1-6 over 10 halls (4-16 slots, all four facings, three Styles), every domain item a filter, chunk crossings | 100/100 (run 4) |
+| sort | 12.5 bars 1-6 over 20 halls: every rustic branch in all four facings (20 runs a branch, 10,000 items a hall), fortress and desert for 4 and 16; every chest opened by a player; the asserted unload; counted drains; chunk crossings | 258/259 (run 5; its one coverage check completed by sort-plain) |
 | sort-survival | bar 8 and 12.7 B2: the bill, the mid-build insert, fill_blocked (the contaminant intact and taken back whole), refunds after taking | 19/19 |
 | sort-cargo | bars 7 and 11: cargo alone in each container class, the pre-check and the undo, the fed-slab recovery | 26/26 |
-| sort-crash | bar 9: FK1-FK4 at the fill (every item since the pre-crash baseline, the fill's items in = out), FKC1, FKC2 and CS1 at removal (no pending refund, an unchanged second undo and a second restart); FKC0 deferred | 63/63 |
+| sort-crash | bar 9: FK1-FK4 at the fill (every item since the pre-crash baseline, the fill's items in = out), FKC1, FKC2 and CS1 at removal (no pending refund, an unchanged second undo and a second restart), a cancel before the fill; FKC0 deferred | 68/68 |
+| sort-plain | 12.1: the item the sort run never used as a non-filter kind (cherry_log), through a rustic hall in 3 runs | 12/12 |
 
 The rates (items a second, rustic, by slot count): 4 slots 2.342, 8 slots 2.424, 12 slots 2.461, 16 slots 2.397. The catalog's own steps
 passed too: offline 295/295, ingame 292/292.
@@ -538,3 +539,34 @@ The review (log `_work/m4b-gpt-review.log`) ranked 8 P1 and 3 P2. A fix check an
   - Hardening: the drain between overflow rounds doesn't count what it removes, the mixes leave 33 domain items never used as a non-filter
     kind, and the restart/unload batches feed only the first 27 stacks.
   - Beyond the bars: survival accounting for the repair path (bar 11 only records it).
+
+### 12.11 The 5th sort run (2026-11-16, the manager's call over the cap) and the open items closed
+
+The review's open items (12.10) were measured as the bars commit them, in one full sort run, through Architect's slot queue (`tools/slot.mjs`):
+- **Bar 1:** each rustic branch (4, 8, 12, 16 slots) placed in all four facings: a growth is planned until its lot faces the wanted way,
+  then realised (plans are free until realised). 20 runs a branch, every run 100%, and at least 10,000 items through each rustic hall
+  for bar 4.
+- **Bar 5:** the full unload is asserted (every probe's chunk unloaded, 600 game ticks). The partial unload asserts the forced side loaded
+  for 600 ticks and records the other side: in vanilla a forced chunk's neighbours stay loaded and block-ticking, so one side of a hall
+  crossing a chunk border never stops ticking under a single forceload. The whole mix is fed across each interruption.
+- **Bar 6:** the dev client's own player opens each chest through the block's own use and empties it through the menu: the input, the overflow,
+  every slot chest and every bulk half (Fabric's FakePlayer opens no menu). Its inventory is set aside and given back.
+- **Bar 9:** a cancel before the fill (sort-crash): the hall's blocks built with the fill's items out of stock, then undone. Nothing of the
+  fill was written, charged or refunded, and the structure came back exactly (706 items).
+- **Hardening:** each drain counts what it takes and settles before its limit. Each hall's five plain kinds are planned so every domain item is a
+  non-filter kind somewhere, asserted before the run.
+- **The one miss and its completion:** the 5th run's own offsets left `cherry_log` never a non-filter kind (258/259). The planned
+  assignment above now prevents that. `sort-plain` carried it through a rustic hall in 3 runs of 100% (12/12), and `record` accepts
+  the sort step's coverage check only when `sort-plain` carried every item it names (`completes` in `tools/module-catalog.mjs`).
+- A short probe (`SORT_QUICK=1`, two halls) ran before the full run. It caught the FakePlayer menu and the partial-unload side; it is
+  not evidence.
+- **The fix-check of these harness changes** (GPT-6.1 Sol, `_work/m4b-gpt-fixcheck3.log`, the manager's scope):
+  - **Fixed in code, not re-measured:** the cancel case now also requires queued work, a non-empty structure refund and four empty F
+    hoppers before the undo. The 5th run's evidence already shows real work (701/701 cells, 706 = 706 back). `playerOpen` closes any menu
+    first and gives the inventory back in a `finally`. `sort-plain` is required only when it completes a coverage failure.
+  - **Open: they need another sort run, the manager's call:**
+    - The full unload probes only the F hoppers' chunks, not every chunk a hall touches.
+    - For 8 to 16 slots, the renamed stack (and some filters) enters only after the interruption.
+    - Chest access doesn't stand the player within reach or check the menu's `stillValid`.
+  - **Scope:** a single forceload can't bring one side of a border-crossing hall below block-ticking, so 12.7 S7's partial boundary
+    isn't measurable this way. The partial run records what it is.
