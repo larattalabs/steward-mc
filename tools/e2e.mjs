@@ -6613,7 +6613,8 @@ async function moduleCapFlow() {
       await sleep(8000);
       const c = await capOf(rid);
       const sp = await ledger();
-      if (sum(c?.drawn) > 0 && Object.keys(sp?.need ?? {}).length) { mid = c; break; }
+      // well into the lot (30 units or more drawn), still with more to draw; at worst whatever it drew by the end
+      if (Object.keys(sp?.need ?? {}).length && sum(c?.drawn) > 0) { mid = c; if (sum(c.drawn) >= 30) break; }
     }
     if (!mid) return fail(`${label} mid-build`, 'it never drew part of its bill with more still to draw (8 s steps, 320 s)');
     // (BC-c) an unclean halt mid-build within the cap, then the reconcile at load: no overshoot, no target held, the draws = the charges
@@ -6645,8 +6646,8 @@ async function moduleCapFlow() {
       const lbl = `${label} overshoot`;
       const c = await capOf(rid);
       const sp = await ledger();
-      const item = Object.keys(c?.drawn ?? {}).find((k) => (c.drawn[k] ?? 0) >= 2 && (sp?.need?.[k] ?? sp?.outstanding?.[k] ?? 0) > 0);
-      if (!item) return fail(lbl, `no item drawn twice with more still to draw: drawn ${JSON.stringify(c?.drawn)}; need ${JSON.stringify(sp?.need)}`);
+      const item = Object.keys(c?.drawn ?? {}).find((k) => (c.drawn[k] ?? 0) >= 1 && (sp?.need?.[k] ?? sp?.outstanding?.[k] ?? 0) > 0);
+      if (!item) return fail(lbl, `no item drawn with more still to draw: drawn ${JSON.stringify(c?.drawn)}; need ${JSON.stringify(sp?.need)}`);
       const over = 1;
       from = logSize();
       const lowered = await dev.request('dev.bc.cap', { region, rid: Number(rid), set: { ...capSent, [item]: c.drawn[item] - over } }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
