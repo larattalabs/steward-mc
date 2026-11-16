@@ -251,6 +251,12 @@ survival vocab unchanged; QL only adds `Quote.terrain`). Fresh: offline 151/151,
 re-quoted bounds equal the carried ones), the hall round 218/218; e2e `module-hall` PASS 18. `record --smoke` works per module now: the
 hall's evidence is artifacts/m4 and its round is the deterministic hall step (the catalog's smoke check takes it).
 
+## 9c. Smoke carry to Architect 0.74.0 (2026-11-16, pin-074)
+
+Carried from 0.67.0 (`basis: smoke`) to 0.74.0, kit/checker 0.69.0, moduleSha `cf66394f…`. The kit's hall paths change only version strings and
+survival billing is unchanged. Fresh: offline 151/151, ingame 150/150, survival 26/26, bounds 58/58 (re-quoted bounds equal to the carried
+ones), the hall round 218/218; ports 9112/9113, $0.
+
 ## 9b. Smoke carry to Architect 0.73.0 (2026-11-16, pin-073)
 
 Carried from 0.67.0 (`basis: smoke`) to 0.73.0, kit/checker 0.68.0, moduleSha `c467ecf6…`. The kit's hall paths change only version strings; 0.73.0
