@@ -68,7 +68,7 @@ public final class ModuleOffer {
 
 	/**
 	 * (M4b, ARCHITECT-ASKS S-M5-12) Until Architect's removal re-checks or seals its containers (slice LC, v0.73.0 or v0.74.0), an item put into the
-	 * hall while its undo runs can be lost: the offer says so. Set false (and drop the words) once the pin carries LC.
+	 * hall while its undo runs can be lost: the offer says so. Set false (and drop the words) once the pin carries LC2 (LC was reverted at Architect v0.73.0).
 	 */
 	public static final boolean LATE_CARGO_GAP = true;
 	public static final String LATE_CARGO_WORDS = "While a building is being taken down, don't put items into its chests: they could be lost.";

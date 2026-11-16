@@ -467,7 +467,7 @@ module-provided. Its requirements are §5's list for @2; each is answered below 
 
 `storage_hall@2` certifies before Architect's LC (S-M5-12/13) once its bars pass. The offer names the late-cargo gap in one line,
 `ModuleOffer.LATE_CARGO_WORDS` behind `LATE_CARGO_GAP`: "While a building is being taken down, don't put items into its chests: they could be
-lost." It comes off in one edit at the pin that carries LC. The pre-check still refuses an undo while anything holds cargo. FKC0 (bar 9)
+lost." It comes off in one edit at the pin that carries LC2 (LC was reverted at Architect v0.73.0). The pre-check still refuses an undo while anything holds cargo. FKC0 (bar 9)
 runs at that pin and is recorded as deferred until then. The slot labels for v1 are `/steward hall` with the offer and inbox (rule 13);
 a HUD label is a follow-up.
 - **Judge clarified after the first run (no bar moved):**
