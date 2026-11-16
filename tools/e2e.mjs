@@ -5537,6 +5537,13 @@ async function moduleSource(bounds) {
 
 /** The module offer of a settlement, waited for up to {@code ms} once the player carries seeds (the proposals are read once a minute). */
 async function moduleOffer(id, ms = 90_000) {
+  // a tier proposal the town's build opened takes the proposal slot for its 20 min cooldown, and the module waits behind it: declined here and the
+  // cooldown cleared, so the next pass offers the module (modules come first in a pass); never a module, part, district or quarter
+  const st = settlements().find((x) => x.id === id);
+  for (const p of st?.proposals?.open ?? []) {
+    if (!p.module && !/^(module\.|district_|quarter_|plan_district_|part)/.test(p.key)) await cmd(`/steward proposals ${id} decline ${p.key}`);
+  }
+  await cmd(`/steward dev proposal_room ${id}`);
   for (let i = 0; i < ms / 1000; i++) {
     await sleep(1000);
     const p = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.key === `module.${MODULE}`);

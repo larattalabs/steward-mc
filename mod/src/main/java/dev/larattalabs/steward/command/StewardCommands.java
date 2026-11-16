@@ -368,7 +368,18 @@ public final class StewardCommands {
 					var a = dev.larattalabs.steward.model.TalkAnswer.parse(json.has("answer") ? json.getAsJsonObject("answer") : json);
 					dev.larattalabs.steward.service.Talk.act(src.getServer(), src.getPlayerOrException().getUUID(), id, said, a);
 					return 1;
-				})))).then(Commands.literal("propose_district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("way",
+				})))).then(Commands.literal("proposal_room").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> {
+					// dev (the e2e check): the proposal cooldown cleared, so the next minute's pass has room (modules come first in it); nothing else changes
+					if (!host(ctx.getSource())) return 0;
+					String id = StringArgumentType.getString(ctx, "id");
+					var st = dev.larattalabs.steward.service.Settlements.store().get(id);
+					if (st.isEmpty()) { ctx.getSource().sendFailure(Component.literal("No such settlement: " + id)); return 0; }
+					var ps = st.get().proposals();
+					boolean ok = dev.larattalabs.steward.service.Settlements.proposals(id,
+						new dev.larattalabs.steward.model.Settlement.Proposals(ps.open(), ps.declined(), ps.accepted(), 0L)).ok();
+					ctx.getSource().sendSuccess(() -> Component.literal(ok ? "proposal room " + id : "proposal room not saved " + id), false);
+					return ok ? 1 : 0;
+				}))).then(Commands.literal("propose_district").then(Commands.argument("id", StringArgumentType.word()).then(Commands.argument("way",
 				StringArgumentType.word()).executes(ctx -> {
 					// dev (the e2e check): a district proposal now, to accept like any other
 					if (!host(ctx.getSource())) return 0;
