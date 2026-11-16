@@ -1406,7 +1406,8 @@ async function haltWait(point, from) {
   dev = null;
   const f = path.join(ART, 'client.log');
   const tail = fs.existsSync(f) ? fs.readFileSync(f, 'utf8').slice(from) : '';
-  return new RegExp(`kill point ${point.replace('+', '\\+')} reached`).test(tail);
+  // WorldJournal.kill says "kill point P reached", the in-save points (FK3, CS1) "Stockpiles: kill point P: ..."
+  return new RegExp(`kill point ${point.replace('+', '\\+')}( reached|:)`).test(tail);
 }
 /** The client launched again into the same world after a halt (nothing saved since the halt's baseline). */
 async function restartWorld(pos) {
@@ -1478,7 +1479,7 @@ async function sortCrash() {
       call('dev.stockpile.pause', { owner: OWNER, site, paused: false }, 60_000).catch(() => null);
       const down = await haltWait(point, from);
       check(down, `${point}: the kill point halted the server`);
-      if (!down) { await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null); continue; }
+      if (!down) { if (!dev) await restartWorld(home); else await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null); continue; }
       const S = savedLedger();
       const marker = (S?.filled ?? []).some((k) => k.startsWith(`site:${site}@`));
       await restartWorld(home);
@@ -1515,7 +1516,7 @@ async function sortCrash() {
       call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch(() => null);
       const down = await haltWait(c.point, from);
       check(down, `${c.point}: the kill point halted the server at removal`);
-      if (!down) { await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null); continue; }
+      if (!down) { if (!dev) await restartWorld(home); else await call('dev.journal.killAt', { point: null }, 10_000).catch(() => null); continue; }
       const S = savedLedger();
       const savedCustody = Object.values(S?.custody ?? {}).reduce((a, m) => plus(a, m), {});
       await restartWorld(home);
