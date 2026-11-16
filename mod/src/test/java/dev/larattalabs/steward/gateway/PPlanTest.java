@@ -294,4 +294,29 @@ class PPlanTest {
 		assertEquals("corner tower", l.role());
 		assertTrue(l.exact());
 	}
+	@Test
+	void anInvertedLotIsReadFromTheArtifactAndToldSoOnlyWithASuspendSiteAndTheFeature() {
+		// the plan read: only a literal true is an inverted lot
+		var lots = JsonParser.parseString("[{\"id\":\"hang_1\",\"inverted\":true,\"affordance\":\"overhang\"},{\"id\":\"hang_2\",\"inverted\":false},"
+			+ "{\"id\":\"cottage_1\"},{\"id\":\"odd_1\",\"inverted\":\"true\"},{\"inverted\":true}]").getAsJsonArray();
+		assertEquals(Set.of("hang_1"), PPlan.invertedLots(lots));
+		var plain = new dev.larattalabs.architect.api.DesignRequest("house", "rustic", null, java.util.List.of(), new dev.larattalabs.architect.api.BlockSize(9, 9, 9),
+			null, null, null, null, new JsonObject(), null, null, null, null);
+		// without the feature, without a site (every Steward request today) or on an upright lot: the request as it is (Architect refuses inverted without a
+		// suspend site, and in a group that sinks every item)
+		assertFalse(PPlan.inverted(plain, false, true).inverted());
+		assertSame(plain, PPlan.inverted(plain, true, true), "no site: upright, as before");
+		var box = new net.minecraft.world.level.levelgen.structure.BoundingBox(0, 60, 0, 12, 76, 12);
+		var frame = new dev.larattalabs.architect.api.SiteFrame(net.minecraft.core.BlockPos.ZERO, net.minecraft.world.level.block.Rotation.NONE);
+		var suspend = plain.withSite(new dev.larattalabs.architect.api.SiteSpec("a".repeat(64), "vol_1", box, dev.larattalabs.architect.api.FitMode.SUSPEND, frame,
+			java.util.List.of(), java.util.List.of(), "hang_1"));
+		var pad = plain.withSite(new dev.larattalabs.architect.api.SiteSpec("a".repeat(64), "vol_1", box, dev.larattalabs.architect.api.FitMode.ON_PAD, frame,
+			java.util.List.of(), java.util.List.of(), "hang_1"));
+		assertFalse(PPlan.inverted(suspend, false, true).inverted(), "an Architect without invertedDesigns: upright");
+		assertFalse(PPlan.inverted(suspend, true, false).inverted(), "an upright lot");
+		assertFalse(PPlan.inverted(pad, true, true).inverted(), "a site that is not a suspend one");
+		var told = PPlan.inverted(suspend, true, true);
+		assertTrue(told.inverted());
+		assertEquals(suspend.site(), told.site());
+	}
 }
