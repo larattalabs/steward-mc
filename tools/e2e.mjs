@@ -6983,6 +6983,177 @@ async function survivalDistrictFlow() {
   }
 }
 
+// ------------------------------------------------------------------ (slice PD) a plan's unbuilt district, proposed in the inbox
+
+/**
+ * (slice PD, Noah 11-15 "Propose in inbox") A district the town's approved plan names and its founding didn't build: a Supplied town from no_wood's plan
+ * in a survival world, with a D1 district added to its kept plan as one the founding left out (`/steward dev plan_district`). Not proposed while the town
+ * isn't built; once it is, proposed once in the inbox, its words naming the district and its lots; accepted: reserved beside the town, its bill said
+ * before the one approval, built from the stockpile with the plan's own lot ids and consumed within its quote; undone: everything it consumed back once,
+ * given up, and not proposed again.
+ */
+async function planDistrictFlow() {
+  const label = 'plan district';
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  let feeding = false, stop = false, feeder = null, owner = null, ledgerId = null;
+  const ledger = async () => {
+    const r = await cmd(`/steward dev stockpile ${ledgerId}`);
+    const m = r.match(/stockpile \S+ (\{.*\})/);
+    return m ? unweathered(JSON.parse(m[1])) : null;
+  };
+  const back = (a, b) => minusItems(plusItems(b?.returned, b?.refundOverflow), plusItems(a?.returned, a?.refundOverflow));
+  const ward = {
+    id: 'mill_ward', label: 'Mill Ward', size: { w: 40, d: 40 }, prefer: ['open', 'flat'],
+    lots: [
+      // cottages at no_wood's 13 by 14 (the sim's kit massing fits those; a smaller lot or another type fails its checker)
+      { id: 'mill_hall_1', type: 'cottage', role: 'mill hall', label: 'a mill hall', size: [13, 14] },
+      { id: 'workshop_1', type: 'cottage', role: 'workshop', label: 'a workshop', size: [13, 14] },
+      { id: 'workshop_2', type: 'cottage', role: 'workshop', label: 'a workshop', size: [13, 14] },
+    ],
+  };
+  const key = `plan_district_${ward.id}`;
+  try {
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 82000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    ledgerId = id;
+    owner = `steward_mc:settlement/${id}`;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const name = 'Mill Town';
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = name;
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'no_wood.json'), 'utf8')).answer;
+    delete answer.plan.rules;
+    answer.summary = 'A small town of stone cottages.';
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a little stone town with a mill ward beside it`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+    if (settlements().find((x) => x.id === id)?.difficulty !== 'SUPPLIED') return fail(label, 'not Supplied in a survival world');
+    // nothing is proposed before the town stands
+    const early = await cmd(`/steward dev propose_district ${id} plan`);
+    await closeScreens();
+    await clearAnimals();
+    const c = settlements().find((x) => x.id === id).claim;
+    const away = async () => cmd(`/tp @p ${c.centerX} ~ ${c.centerZ - c.radius - 40}`);
+    await away();
+    feeder = (async () => {
+      while (!stop) {
+        await sleep(3000);
+        try {
+          if (!dev || !feeding) continue;
+          const sp = await ledger().catch(() => null);
+          if (sp && Object.keys(sp.need ?? {}).length && dev) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+        } catch {
+          // the client is restarting
+        }
+      }
+    })();
+    // the town, from materials
+    feeding = true;
+    from = logSize();
+    await cmd(`/steward start ${id} 2 30`);
+    if (!(await buildThrough(id, from, `${label} town`, false, null, 1_200_000))) return;
+    const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+    const town = /^region:(.+)$/.exec(founding?.siteGroup ?? '')?.[1];
+    if (!town) return fail(label, `the town is not a region: ${founding?.siteGroup}`);
+    // the kept plan names a district the founding didn't build (added once the town is placed, as one it left out: the entry keeps its time, so it is
+    // still the town's plan); while the town is still being built from materials, nothing is proposed
+    const added = await cmd(`/steward dev plan_district ${id} wards ${JSON.stringify(ward)}`);
+    if (!/plan district mill_ward added/.test(added)) return fail(label, `the district wasn't added to the plan: ${added}`);
+    const building = (await regionView(town)).build;
+    const mid = await cmd(`/steward dev propose_district ${id} plan`);
+    const midNone = /no plan district proposed/.test(mid);
+    if (!(await waitLog(from, new RegExp(`${name} is built: everything its plan laid out stands`), 900_000))) return fail(label, 'the town was not built from the stockpile in 15 min');
+    feeding = false;
+    const townLots = ((await regionView(town)).lots ?? []).map((l) => l.id);
+    if (/no plan district proposed/.test(early) && (building?.built || midNone) && !townLots.some((l) => ward.lots.some((w) => w.id === l))) {
+      ok(`${label} not before the town`, `before it stood: "${early.trim().slice(0, 70)}"; ${building?.built ? 'built at once' : `while ${Math.round(building?.percent ?? 0)}% built: "${mid.trim().slice(0, 70)}"`}; ${town} built (${townLots.join(', ')})`);
+    } else return fail(`${label} not before the town`, `early: ${early}; mid (${JSON.stringify(building)?.slice(0, 80)}): ${mid}; town lots ${townLots.join(', ')}`);
+    // (1) proposed once the town is built: in the inbox, in words naming the district and its lots
+    await cmd(`/tp @p ${c.centerX} ~ ${c.centerZ}`);
+    from = logSize();
+    const asked = await cmd(`/steward dev propose_district ${id} plan`);
+    const said = await waitLog(from, new RegExp(`${id}: proposed the plan's district mill_ward \\(3 lots\\) to the ([EW])`), 120_000);
+    const prop = settlements().find((x) => x.id === id)?.proposals?.open?.find((p) => p.key === key);
+    const voiced = logSince(from).match(/I have an idea: the plan's mill ward[^\n]*/i);
+    const words = prop?.why ?? '';
+    if (said && prop && /Mill Ward \(a mill hall and 2 workshops\), which its founding didn't build/.test(words) && /costs about \$\d+, and from materials its bill is said/.test(words)) {
+      ok(`${label} proposed`, `${prop.title}: ${words.slice(0, 200)}${voiced ? ' (said)' : ''}`);
+    } else return fail(`${label} proposed`, `asked "${asked.trim()}"; logged ${!!said}; proposal ${JSON.stringify(prop)?.slice(0, 200)}; ${chatTail(from)}`);
+    const again = await cmd(`/steward dev propose_district ${id} plan`);
+    const twice = (settlements().find((x) => x.id === id)?.proposals?.open ?? []).filter((p) => p.key === key).length;
+    if (/no plan district proposed/.test(again) && twice === 1) ok(`${label} once`, `asked again: "${again.trim().slice(0, 100)}"; one proposal open`);
+    else fail(`${label} once`, `again "${again}"; ${twice} open`);
+    // (2) accepted: reserved beside the town, its bill said before the one approval, built from the stockpile with the plan's lot ids
+    await away();
+    await clearAnimals();
+    const spA = await ledger();
+    feeding = true;
+    from = logSize();
+    const acc = await cmd(`/steward proposals ${id} accept ${key}`);
+    const billRe = /From materials, Mill Ward needs [^\n]*/;
+    let billBefore = null, approvals = 0;
+    const placing = await driveUntil(id, from, /Placing (?:the village|Mill Ward)[^\n]*/, 900_000, async (step) => {
+      if (step === 'Approve to place') { approvals++; if (!billBefore) billBefore = logSince(from).match(billRe); }
+    });
+    const reserved = logSince(from).match(/Reserved Mill Ward\.[^\n]*/);
+    const d = settlements().find((x) => x.id === id)?.lands?.districts?.find((x) => x.name === 'Mill Ward') ?? null;
+    const qm = logSince(from).match(new RegExp(`district bill ${id} \\S+: (\\{[^\\n]*?\\}) \\(exact (true|false)`));
+    const quoted = qm ? JSON.parse(qm[1]) : null;
+    const exact = qm ? qm[2] === 'true' : null;
+    if (!placing || !reserved || !billBefore || !d || d.kind !== 'beside' || !quoted) {
+      return fail(`${label} accepted`, `accept "${acc.trim().slice(0, 100)}"; reserved ${!!reserved}; placing ${!!placing}; bill before approval ${!!billBefore}; district ${JSON.stringify(d)?.slice(0, 160)}; quote ${!!quoted}; ${chatTail(from)}`);
+    }
+    ok(`${label} accepted`, `${reserved[0].slice(0, 80)}; ${billBefore[0].slice(0, 140)} (said before the approval, ${approvals} approval)`);
+    const built = await waitLog(from, /Mill Ward is built: everything its plan laid out stands[^\n]*/, 900_000);
+    feeding = false;
+    await sleep(5000);
+    const spB = await ledger();
+    const paid = minusItems(spB?.consumed, spA?.consumed);
+    const dd = dgDistrict(id, d.id);
+    const region = dd?.region;
+    const rlots = region ? ((await regionView(region)).lots ?? []).map((l) => l.id) : [];
+    const accepted = (settlements().find((x) => x.id === id)?.proposals?.accepted ?? []).includes(key);
+    const over = quoted ? Object.entries(paid).filter(([k, v]) => v > (quoted[k] ?? 0)).map(([k, v]) => `${k} ${v}/${quoted[k] ?? 0}`) : ['no quote'];
+    const lotsOk = ward.lots.every((w) => rlots.includes(w.id));
+    if (built && dd?.state === 'standing' && region && lotsOk && accepted && Object.keys(paid).length && over.length === 0 && (!exact || sameItems(paid, quoted))) {
+      ok(`${label} built`, `${region} built from the stockpile with the plan's lots (${rlots.join(', ')}); consumed ${JSON.stringify(paid).slice(0, 120)} within its ${exact ? 'exact' : 'inexact'} quote; accepted`);
+    } else return fail(`${label} built`, `said ${!!built}; district ${JSON.stringify(dd)?.slice(0, 120)}; lots ${rlots.join(', ')}; accepted ${accepted}; consumed ${JSON.stringify(paid).slice(0, 120)}; past the quote ${over.join(', ')}; ${chatTail(from)}`);
+    // (3) undone: everything it consumed back once, given up, and not proposed again
+    {
+      const before = await ledger();
+      const gone = await undoOnce(id, c);
+      await sleep(20_000);
+      const after = await ledger();
+      const used = minusItems(minusItems(before?.consumed, spA?.consumed), minusItems(plusItems(before?.returned, before?.refundOverflow), plusItems(spA?.returned, spA?.refundOverflow)));
+      const got = back(before, after);
+      let given = false;
+      for (let i = 0; i < 60 && !given; i++) { given = !dgDistrict(id, d.id); if (!given) await sleep(1000); }
+      await sleep(10_000);
+      const more = back(after, await ledger());
+      const after2 = await cmd(`/steward dev propose_district ${id} plan`);
+      const reoffered = (settlements().find((x) => x.id === id)?.proposals?.open ?? []).some((p) => p.key === key);
+      if (gone && Object.keys(used).length && sameItems(got, used) && !Object.keys(more).length && given && !reoffered && /no plan district proposed/.test(after2)) {
+        ok(`${label} undone`, `${gone.text}; ${JSON.stringify(got).slice(0, 140)} back (all it consumed), nothing more 10 s on; given up; not proposed again ("${after2.trim().slice(0, 80)}")`);
+      } else fail(`${label} undone`, `undo ${gone ? gone.text : 'not logged'}; back ${JSON.stringify(got).slice(0, 120)} of ${JSON.stringify(used).slice(0, 120)}; more ${JSON.stringify(more).slice(0, 60)}; given up ${given}; re-offered ${reoffered} (${after2.trim().slice(0, 80)})`);
+    }
+  } finally {
+    stop = true;
+    if (feeder) await feeder;
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
+}
+
 /** A matched pipeline step under one name: "1 massing is ready" and "3 massings are ready" are both 'massings are ready'. */
 function stepOf(text) {
   return /^massings? (?:are|is) ready$/.test(text) ? 'massings are ready' : text;
@@ -7264,6 +7435,7 @@ try {
       await flow('district-region', 'district region', () => districtRegionFlow());
       await flow('district-growth', 'district districts growth region undo restart', () => districtGrowthFlow());
       await flow('survival-district', 'survival districts district growth stockpile bill refund undo restart', () => survivalDistrictFlow());
+      await flow('plan-district', 'plan districts district survival stockpile bill refund undo', () => planDistrictFlow());
       await flow('quarter', 'district wall', () => quarterFlow());
       await flow('wall-lots', 'wall gatehouse gate', () => wallLotsFlow());
       await flow('gate-mech', 'gate wall mechanism portcullis undo', () => gateMechFlow());

@@ -147,6 +147,36 @@ public final class PlanStore {
 		return "No zone " + zone + " in the plan.";
 	}
 
+	/**
+	 * Dev (the e2e check, slice PD): {@code districtJson} added as a D1 district of zone {@code zone}'s districts program in the settlement's kept plan
+	 * (the zone made, with that program, when the plan has none of that id), as a plan whose district the founding didn't build. The entry's time is kept.
+	 */
+	public static String addDistrict(String settlementId, String zone, String districtJson) {
+		var e = plans.get(settlementId);
+		if (e == null) return "No plan kept for " + settlementId + ".";
+		JsonObject d = com.google.gson.JsonParser.parseString(districtJson).getAsJsonObject();
+		JsonObject plan = com.google.gson.JsonParser.parseString(e.plan()).getAsJsonObject();
+		if (!plan.has("zones") || !plan.get("zones").isJsonArray()) return "The plan has no zones.";
+		JsonObject program = null;
+		for (var z : plan.getAsJsonArray("zones")) {
+			if (z.isJsonObject() && z.getAsJsonObject().has("id") && zone.equals(z.getAsJsonObject().get("id").getAsString())) program = z.getAsJsonObject().getAsJsonObject("program");
+		}
+		if (program == null) {
+			JsonObject z = new JsonObject();
+			z.addProperty("id", zone);
+			z.addProperty("kind", "standard");
+			z.addProperty("required", false);
+			program = new JsonObject();
+			program.add("districts", new com.google.gson.JsonArray());
+			z.add("program", program);
+			plan.getAsJsonArray("zones").add(z);
+		}
+		if (!program.has("districts") || !program.get("districts").isJsonArray()) return "Zone " + zone + " is not a districts program.";
+		program.getAsJsonArray("districts").add(d);
+		put(new Entry(e.settlementId(), plan.toString(), e.overall(), e.artifact(), e.summary(), e.pending(), e.usd(), e.at(), e.rounds(), e.crossings()));
+		return "plan district " + d.get("id").getAsString() + " added to " + zone + " for " + settlementId;
+	}
+
 	/** The plan as JSON, for the screens (unused fields left out). */
 	static JsonObject json(Entry e) {
 		return GSON.toJsonTree(e).getAsJsonObject();

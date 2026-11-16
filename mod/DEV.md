@@ -710,3 +710,15 @@ world per step; `--attach`, `--keep-client`). The bars and results are in docs/M
 - **spiral_town/spiral_road** (a 3-wide street between one village's lots, UNREACHABLE): the writer writes `layout: "spiral"` (FL) instead; plans/ and
   11-10 READY. Fits now.
 - **spiral_town/hill_relief** (blocked by the road): gone with it. Fits now.
+
+## Slice PD: a plan's unbuilt district proposed in the inbox (2026-11-15, $0)
+Strict tier (billing). Unit: `PlanDistrictsTest` (8), plus the scoped `PlanGrowthTest`, `SurvivalDistrictTest`, `ProposalRulesTest`, `BesideRefusalTest`,
+`PendingOffersTest`, `SaveCompatTest`, `ModuleSavesTest`, `DistrictGrowthTest`, `InboxModelTest` (86 in all, 0 failed). `npm test` 74 pass.
+e2e: `STEWARD_PORT=8592 STEWARD_DEV_PORT=8593 node tools/e2e.mjs stub --flows plan-district`, PASS 15 on run 3. The flow is in docs/DISTRICTS.md section 13.
+- **Run 1** was a test fault. The district was added to the kept plan before Start, so the town built it. It is now added once the town is placed.
+- **Run 2:** the sim's kit massing failed its checker on 11 by 11 and 9 by 9 lots of other types. The flow now uses no_wood's 13 by 14 cottages. That
+  run also showed that a build which fails after its paid request keeps the acceptance and leaves the reservation unbuilt. Such a reservation is
+  now offered again (`PlanDistricts.toOffer`).
+- **Run 3:** not proposed before the town stood or while it was 8% built; proposed once (E). Accepted: reserved, and "From materials, Mill Ward
+  needs about ..." said before the one approval. Built as rg2 with the plan's lot ids, consumed within its inexact quote. Undone with everything it
+  consumed back once and nothing more 10 s on; given up and not proposed again.
