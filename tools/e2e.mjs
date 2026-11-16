@@ -5819,7 +5819,7 @@ async function moduleHallSurvivalFlow() {
     const mods = await moduleSites(g.op);
     const within = quoted && Object.entries(quoted).every(([k, c]) => c <= (bound[k] ?? 0));
     const sameBill = quoted && Object.keys({ ...paid, ...quoted }).every((k) => (paid[k] ?? 0) === (quoted[k] ?? 0));
-    if (mods.length === 1 && mods[0].key === `${HALL}@1` && within && sameBill) ok(`${label} bill`, `consumed = the quote ${JSON.stringify(quoted).slice(0, 200)}, within the measured bound`);
+    if (mods.length === 1 && mods[0].key === `${HALL}@${newestCertified(HALL)}` && within && sameBill) ok(`${label} bill`, `consumed = the quote ${JSON.stringify(quoted).slice(0, 200)}, within the measured bound`);
     else return fail(`${label} bill`, `module sites ${mods.length}; quote ${JSON.stringify(quoted)}; paid ${JSON.stringify(paid)}; within ${within}`);
     // undone emptied: what it consumed comes back, exactly once
     await away();
