@@ -159,11 +159,18 @@ class ComposedModulesTest {
 		var refused = ComposedModules.decide(asked.get(0), FARM, gate, WARM, Set.of(), null, (e, p) -> null);
 		assertFalse(refused.ok());
 		assertTrue(refused.why().contains("measured with Architect"), refused.why());
-		// from materials with no measured bound for those params: refused (nothing to hold the bill to)
-		var unbounded = ComposedModules.decide(asked.get(0), FARM, ok("crop_farm"), MATERIALS, Set.of(), null, (e, p) -> null);
+		// from materials, while the guard is on (no cap scoped to the lot yet): left out, said, whatever its bound
+		assertTrue(ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP, "the guard is on until S-M5-16");
+		var guarded = decide(asked.get(0), FARM, MATERIALS, Set.of(), null);
+		assertFalse(guarded.ok());
+		assertTrue(guarded.why().contains("can't be held to its measured limit in a town built from materials yet; it's left out for now"), guarded.why());
+		assertTrue(decide(asked.get(1), HALL, MATERIALS, Set.of(), null).why().contains("working storage hall can't be held"));
+		assertTrue(decide(asked.get(0), FARM, WARM, Set.of(), null).ok(), "a town built at once is unchanged");
+		// the path behind the guard: from materials with no measured bound for those params refused (nothing to hold the bill to); with one, ordered
+		var unbounded = ComposedModules.decide(asked.get(0), FARM, ok("crop_farm"), MATERIALS, Set.of(), null, (e, p) -> null, false);
 		assertFalse(unbounded.ok());
 		assertTrue(unbounded.why().contains("no bound"), unbounded.why());
-		var bounded = decide(asked.get(0), FARM, MATERIALS, Set.of(), null);
+		var bounded = ComposedModules.decide(asked.get(0), FARM, ok("crop_farm"), MATERIALS, Set.of(), null, (e, p) -> ModuleBound.of(e.measured(), p), false);
 		assertTrue(bounded.ok(), bounded.why());
 		String words = ComposedModules.leftOutWords("village field", cold.why());
 		assertTrue(words.startsWith("The plan's village field is left out of the town: "), words);
