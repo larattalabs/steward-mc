@@ -997,7 +997,10 @@ async function sortStep() {
         for (const [name, c] of chests) {
           await mod({ op: 'putItems', at: c, stacks: [{ slot: 0, id: 'minecraft:cobblestone', count: 7 }] });
           const r = (await mod({ op: 'playerOpen', cells: [c] })).cells?.[0] ?? {};
-          if (!(r.opened && r.took?.['minecraft:cobblestone'] === 7 && Object.keys(r.took).length === 1 && r.left === 0)) shut.push(`${name} ${json({ opened: r.opened, took: r.took, left: r.left, result: r.result })}`);
+          if (!(r.opened && r.took?.['minecraft:cobblestone'] === 7 && Object.keys(r.took).length === 1 && r.left === 0)) {
+            shut.push(`${name} ${json({ opened: r.opened, took: r.took, left: r.left, result: r.result })}`);
+            await mod({ op: 'clearContainers', box: [...c, ...c] }); // the test's stack never joins a sorting run
+          }
         }
         check(!shut.length, `12.5 bar 6 access ${h.id}: a player opens and empties all ${chests.length} chests through the menu${shut.length ? `; not: ${shut.slice(0, 3).join('; ')}` : ''}`);
       }
@@ -1095,7 +1098,8 @@ async function sortStep() {
       const r = await sortMidway(th, domain, how, t);
       if (how !== 'restart') {
         const u = r[th[0].id].unload;
-        check(u.unloadedAll && u.forcedLoaded && u.ticks >= 600, `12.5 bar 5 ${label}: asserted: ${u.unforced}/${u.probes} probes' chunks unloaded${how === 'partial' ? `, the forced side loaded (${u.forcedLoaded})` : ''}, ${u.ticks} game ticks passed so`, u);
+        if (how === 'unload') check(u.unloadedAll && u.ticks >= 600, `12.5 bar 5 unload: asserted: all ${u.unforced} probes' chunks unloaded, ${u.ticks} game ticks passed so`, u);
+        else check(u.forcedLoaded && u.ticks >= 600, `12.5 bar 5 partial: asserted: the forced side loaded for ${u.ticks} game ticks with the player away; the other side recorded (${json((u.other ?? []).map((x) => x.loaded))} loaded: a forced chunk's neighbours block-tick in vanilla)`, u);
       }
       for (const h of th) check(r[h.id].sorted, `12.5 bar 5 ${label} mid-sort ${h.id}: ${r[h.id].sorted ? 'nothing lost or duplicated, sorting finished 100%, the renamed stack still renamed' : r[h.id].why.slice(0, 3).join('; ')}`, r[h.id]);
       for (const h of th) await clearOutputs(h);
@@ -1195,6 +1199,8 @@ async function sortMidway(halls, domain, how, t) {
     const r2 = await readCells([...probes, ...forced]);
     const unforced = probes.filter((c) => !isForced(c));
     unload.unloadedAll = unforced.length > 0 && unforced.every((c) => r2[probes.indexOf(c)] === null) && probes.filter((c, k) => !isForced(c) && r[k] !== null).length === 0;
+    // (partial) a forced chunk's neighbours stay loaded and block-ticking in vanilla, so the far side's state is recorded, not judged
+    if (how === 'partial') unload.other = await Promise.all(unforced.slice(0, 4).map(async (c) => ({ at: c, loaded: r2[probes.indexOf(c)] !== null, tickets: await call('dev.stockpile.tickets', { pos: c }, 10_000).catch((e) => String(e)) })));
     unload.forcedLoaded = how !== 'partial' || (forced.length > 0 && forced.every((c, k) => r2[probes.length + k] !== null));
     unload.ticks = t1 - t0;
     unload.probes = probes.length;
@@ -1731,6 +1737,11 @@ async function sortCrash() {
         for (const [it, n] of Object.entries(ps.outstanding ?? {})) { if ((it in FILL) !== fill) continue; const lack = n - (ps.stock?.[it] ?? 0); if (lack > 0) need[it] = lack; }
         if (Object.keys(need).length) await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: need, exact: true }, 120_000);
       };
+      // the earlier cases' refunds put the fill's items back in stock: taken out first (to the player, then cleared), so nothing can fill
+      const inStock = only((await pile()).stock);
+      if (Object.keys(inStock).length) await call('dev.stockpile.withdraw', { owner: OWNER, items: inStock }, 60_000).catch(() => null);
+      await cmd('/clear @p');
+      check(!Object.keys(only((await pile()).stock)).length, `9 cancel: the fill's items out of the stock first (${json(inStock)} withdrawn)`);
       const Ls = (await pile()).ledger;
       const g = await growHalls(region, [sp], { survival: true });
       if (check(!g.refused, `9 cancel: the hall grown: ${g.refused ? String(g.refused).slice(0, 200) : `rid ${g.rid}`}`)) {

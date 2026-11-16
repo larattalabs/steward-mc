@@ -390,14 +390,22 @@ public final class ModuleDev {
 	}
 
 	/**
-	 * (MEASURE-M4 12.5 bar 6) A survival fake player opens each container cell as a player does (the block's own use, so a chest blocked from
+	 * (MEASURE-M4 12.5 bar 6) The player opens each container cell as a player does (the block's own use, so a chest blocked from
 	 * above or by a cat stays shut) and empties it through the menu, shift-clicking every container slot: per cell whether a menu opened, what it
 	 * took through the menu, and what is left in the container.
 	 */
 	private static JsonObject playerOpen(MinecraftServer server, JsonArray cells) {
 		ServerLevel level = server.overworld();
-		var p = net.fabricmc.fabric.api.entity.FakePlayer.get(level);
-		p.setGameMode(net.minecraft.world.level.GameType.SURVIVAL);
+		// the dev client's own player (Fabric's FakePlayer never opens a menu: its openMenu is a no-op); its inventory set aside and given back
+		var players = server.getPlayerList().getPlayers();
+		JsonObject none = new JsonObject();
+		if (players.isEmpty()) {
+			none.addProperty("error", "no player");
+			return none;
+		}
+		var p = players.get(0);
+		List<ItemStack> kept = new ArrayList<>();
+		for (int j = 0; j < p.getInventory().getContainerSize(); j++) kept.add(p.getInventory().getItem(j).copy());
 		JsonArray out = new JsonArray();
 		for (JsonElement e : cells) {
 			var a = e.getAsJsonArray();
@@ -405,7 +413,6 @@ public final class ModuleDev {
 			JsonObject r = new JsonObject();
 			r.add("at", a);
 			p.getInventory().clearContent();
-			p.setPos(pos.getX() + 0.5, pos.getY() + 1.0, pos.getZ() + 0.5);
 			var hit = new net.minecraft.world.phys.BlockHitResult(Vec3.atCenterOf(pos).add(0, 0.5, 0), net.minecraft.core.Direction.UP, pos, false);
 			var result = level.getBlockState(pos).useWithoutItem(level, p, hit);
 			var menu = p.containerMenu;
@@ -437,6 +444,7 @@ public final class ModuleDev {
 			out.add(r);
 		}
 		p.getInventory().clearContent();
+		for (int j = 0; j < kept.size(); j++) p.getInventory().setItem(j, kept.get(j));
 		JsonObject o = new JsonObject();
 		o.add("cells", out);
 		return o;
