@@ -85,6 +85,12 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
     - **Parallel slices:** the manager keeps up to 6-8 slices in progress at once, as far as files and ports allow, and pre-briefs the next
       ones so a free slot never sits empty.
     - Unchanged: the strict tier, the per-batch GPT review and gate-verifier, $0 unless approved, and slices never merge or push main.
+  - **GPT review per strict slice** (Noah, 2026-11-16: picked "Review per strict slice"; not "Auto-drop failed slices"):
+    - Once a strict slice is built and its targeted strict scenarios pass, it gets its own GPT review in the background (the
+      second-opinion skill, over its diff only) while other work carries on.
+    - It fixes its P1 findings before it joins a batch.
+    - The per-batch GPT review stays, so this adds a check and removes none. It overrides "not once per slice" above for strict
+      slices. Light slices still get no GPT review.
 - **Release-candidate testing is DEV MODE** (Noah, 2026-11-04):
   - An Architect RC runs only the flows its change touches, plus the sanity set: `node tools/e2e.mjs stub --only gate,wall,survival`, aiming for 15-20 min.
   - Full stub and free runs are nightly, or before a pin when a release is broad; what they find is fixed forward.
