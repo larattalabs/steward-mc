@@ -666,7 +666,9 @@ Branch `storage-hall-2`. The design, its GPT review, the bars and the results ar
     `powered=true`, hopper `enabled=true`).
 - **Measured** by `tools/module-measure-hall.mjs --version 2` (hall, bounds, sort, sort-survival, sort-cargo, sort-crash, and save-probe,
   a diagnostic) and recorded by `module-catalog.mjs record`. Certified on 26.3 / Architect 0.72.0: hall 218, bounds 382, sort 100,
-  sort-survival 18, sort-cargo 26, sort-crash 52 (MEASURE-M4 12.9). e2e: `module-hall-sort`.
+  sort-survival 19, sort-cargo 26, sort-crash 63 (MEASURE-M4 12.9). e2e: `module-hall`, `module-hall-sort` and `module-hall-survival` pass.
+- **Diff review** (GPT-6.1 Sol, rule 15): its findings fixed and measured again, except four committed bars not measured as written (MEASURE-M4
+  12.10: facings per branch, the asserted unload, chest access by a player, a cancel before the fill). Those are the manager's call before merge.
 - **Harness:** every `/save-all` in the tool is a no-op on the integrated client ("Unknown or incomplete command"; `dev.command` answers
   `ok: true`, `success: false`, so check `success`). sort-crash waits for Architect's periodic save instead. Other working barriers are
   `dev.world.leave` and `dev.stockpile.halt {mode: "autosave"}`. The tooling fix is LEFTOVERS row SAVEB.

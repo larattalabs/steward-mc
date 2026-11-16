@@ -491,9 +491,9 @@ in `artifacts/m4b` (hall, bounds, sort, sort-survival, sort-cargo and sort-crash
 | hall (`--version 2`) | the plain branch, @1's bars 1-6 | 218/218 |
 | bounds | the structure bound per slot count, bulk and Style, and the fill (41 per item) for two item sets | 382/382 |
 | sort | 12.5 bars 1-6 over 10 halls (4-16 slots, all four facings, three Styles), every domain item a filter, chunk crossings | 100/100 (run 4) |
-| sort-survival | bar 8 and 12.7 B2: the bill, the mid-build insert, fill_blocked, refunds after taking | 18/18 |
+| sort-survival | bar 8 and 12.7 B2: the bill, the mid-build insert, fill_blocked (the contaminant intact and taken back whole), refunds after taking | 19/19 |
 | sort-cargo | bars 7 and 11: cargo alone in each container class, the pre-check and the undo, the fed-slab recovery | 26/26 |
-| sort-crash | bar 9: FK1-FK4 at the fill, FKC1, FKC2 and CS1 at removal; FKC0 deferred | 52/52 |
+| sort-crash | bar 9: FK1-FK4 at the fill (every item since the pre-crash baseline, the fill's items in = out), FKC1, FKC2 and CS1 at removal (no pending refund, an unchanged second undo and a second restart); FKC0 deferred | 63/63 |
 
 The rates (items a second, rustic, by slot count): 4 slots 2.342, 8 slots 2.424, 12 slots 2.461, 16 slots 2.397. The catalog's own steps
 passed too: offline 295/295, ingame 292/292.
@@ -518,3 +518,23 @@ passed too: offline 295/295, ingame 292/292.
   and `dev.stockpile.halt {mode: "autosave"}` (a save, then a halt). The tooling fix is LEFTOVERS row SAVEB (the manager's).
 - **style-bounds** bills a wall-mounted block as its standing item (`redstone_wall_torch` as `redstone_torch`), as Architect's survival
   bill does. The kit's `vocab/survival.json` has no entry for the wall form.
+
+### 12.10 The diff review (GPT-6.1 Sol, speed rule 15) and what came of it
+
+The review (log `_work/m4b-gpt-review.log`) ranked 8 P1 and 3 P2. A fix check and a second fix check followed (`_work/m4b-gpt-fixcheck*.log`).
+- **Fixed, measured again:**
+  - P2-9: `/steward hall <id> items` is the host's (`Actions.refusal`).
+  - P2-10: the same command keeps the offer's district, and bills an adopted town from materials (`path().materials()`).
+  - P2-11: a smoke carry keeps `fill` and reads sort-survival as @2's billing step, in the tool and the loader (`ModuleCatalog.billingStep`).
+  - P1-1: sort-crash feeds only the fill's items after a restart, and judges every item since the pre-crash baseline and the fill's items
+    in = out.
+  - P1-2: sort-crash checks no pending refund, then an unchanged second undo (Architect's own refusal) and a second restart.
+  - P1-5: sort-survival requires `fill_blocked` and the contaminant taken back whole.
+- **Open, the manager's call (not measured as committed):**
+  - Bar 1, each sorting branch x 4 facings: the facings are a union across halls; 12 slots ran only west and 16 only south.
+  - Bar 5, the mid-sort unload: it waits for the unload but doesn't assert it, and the partial unload doesn't assert the forced side.
+  - Bar 6, a fake player opening and emptying every chest: not done; the check reads the blocks above the chests.
+  - Bar 9, a cancel before the fill: not run.
+  - Hardening: the drain between overflow rounds doesn't count what it removes, the mixes leave 33 domain items never used as a non-filter
+    kind, and the restart/unload batches feed only the first 27 stacks.
+  - Beyond the bars: survival accounting for the repair path (bar 11 only records it).
