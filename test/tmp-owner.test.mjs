@@ -47,21 +47,28 @@ else if (how === 'signal' || how === 'slotlike') setInterval(() => {}, 1000);
   return { child, ready, done, out: () => out, dir: () => /ready (.+)/.exec(out)?.[1] };
 }
 
+/** The run's data is gone: the link still leads to the RAM dir, now empty and unmarked (a later dev client stays on the RAM disk). */
+function assertEmptied(dir, game, how) {
+  const link = path.join(game, 'architect', 'sidecar-data');
+  assert.ok(fs.lstatSync(link).isSymbolicLink(), `${how}: link gone`);
+  assert.equal(fs.realpathSync(link), fs.realpathSync(dir));
+  assert.deepEqual(fs.readdirSync(dir), [], `${how}: data left`);
+}
+
 for (const how of ['end', 'throw', 'reject', 'exit3']) {
-  test(`the run's sidecar dir goes when the driver ends (${how}), its link with it`, async () => {
+  test(`the run's sidecar data goes when the driver ends (${how}); the link stays, to an empty dir`, async () => {
     const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-');
     const d = driver(how, { game, root });
     await d.ready;
     const r = await d.done;
     if (how === 'exit3') assert.equal(r.code, 3);
     assert.ok(d.dir().startsWith(path.join(root, 'steward', 'sidecar-')));
-    assert.equal(fs.existsSync(d.dir()), false, `${how}: dir left`);
-    assert.throws(() => fs.lstatSync(path.join(game, 'architect', 'sidecar-data')), /ENOENT/);
+    assertEmptied(d.dir(), game, how);
   });
 }
 
 for (const [how, sig] of [['signal', 'SIGINT'], ['signal', 'SIGTERM'], ['slotlike', 'SIGINT']]) {
-  test(`the run's sidecar dir goes on ${sig}${how === 'slotlike' ? ' with an exiting listener (slot-queue)' : ''}`, async () => {
+  test(`the run's sidecar data goes on ${sig}${how === 'slotlike' ? ' with an exiting listener (slot-queue)' : ''}`, async () => {
     const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-');
     const d = driver(how, { game, root });
     await d.ready;
@@ -70,7 +77,7 @@ for (const [how, sig] of [['signal', 'SIGINT'], ['signal', 'SIGTERM'], ['slotlik
     const r = await d.done;
     if (how === 'slotlike') assert.equal(r.code, 130);
     else assert.equal(r.signal, sig);
-    assert.equal(fs.existsSync(d.dir()), false);
+    assertEmptied(d.dir(), game, sig);
   });
 }
 
@@ -80,7 +87,7 @@ test('a client relaunch keeps the dir and its data; it goes only when the driver
   await d.ready;
   await d.done;
   assert.match(d.out(), /\bkept\b/);
-  assert.equal(fs.existsSync(d.dir()), false);
+  assertEmptied(d.dir(), game, 'relaunch');
 });
 
 test('STEWARD_KEEP_TMP=1 keeps the dir, still marked for a later sweep', async () => {

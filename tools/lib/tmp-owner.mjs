@@ -88,15 +88,16 @@ let hooked = false;
 const keep = (env = process.env) => env.STEWARD_KEEP_TMP === '1';
 
 /**
- * Removes one owned dir by its exact path, if its marker still names this process; then unlinks `link` (the game dir's sidecar-data) when it is a
- * symlink to exactly that dir, so a later dev client on the same game dir finds no dangling link. Never throws. -> 'removed'|'kept'|'not-mine'|'gone'|'failed'.
+ * Removes one owned dir by its exact path, if its marker still names this process. With `link` (the game dir's sidecar-data symlink to it, RAM mode)
+ * the dir is made again empty and unmarked, and the link left: a dev client on the same game dir then keeps writing to the RAM disk, not to a real
+ * on-disk dir the next run would rename to sidecar-data.ssd and keep. Never throws. -> 'removed'|'kept'|'not-mine'|'gone'|'failed'.
  */
 export function removeOwned(dir, { link = null, env = process.env } = {}) {
   owned.delete(dir);
   try {
     let st = null;
     try { st = fs.lstatSync(dir); } catch {}
-    if (!st) { unlinkIfTo(link, dir); return 'gone'; }
+    if (!st) return 'gone';
     if (!st.isDirectory() || !ownedByMe(dir)) return 'not-mine';
     if (keep(env)) return 'kept';
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
@@ -105,7 +106,7 @@ export function removeOwned(dir, { link = null, env = process.env } = {}) {
       try { markOwner(dir); } catch {}
       return 'failed';
     }
-    unlinkIfTo(link, dir);
+    if (link) relink(link, dir);
     return 'removed';
   } catch {
     try { if (fs.existsSync(dir)) markOwner(dir); } catch {}
@@ -113,12 +114,12 @@ export function removeOwned(dir, { link = null, env = process.env } = {}) {
   }
 }
 
-function unlinkIfTo(link, dir) {
-  if (!link) return;
+/** The link still points at exactly dir: dir is made again, empty (no marker: nothing of this run's is left in it). */
+function relink(link, dir) {
   try {
-    if (fs.lstatSync(link).isSymbolicLink() && fs.readlinkSync(link) === dir) fs.unlinkSync(link);
+    if (fs.lstatSync(link).isSymbolicLink() && fs.readlinkSync(link) === dir) fs.mkdirSync(dir, { recursive: true });
   } catch {
-    // absent
+    // no link (anymore): nothing to keep valid
   }
 }
 
