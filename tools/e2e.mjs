@@ -6581,17 +6581,48 @@ async function moduleCapFlow() {
     const sp0 = await ledger();
     const ridBefore = Math.max(0, ...((await regionView(region)).revisions ?? []).map((r) => Number(r.rid)));
     await away();
-    from = logSize();
+    // (QD-2) the first realise refused at put-down: its maxBill sent with the seeds as 0 (once, /steward dev cap_short), so Architect refuses it
+    // (BILL_CAP); the steward quotes again and puts the bill to the player, never realising it on its own; approved, it is realised under a bill
+    // never below the bound approved, item by item
+    const shortItem = 'minecraft:wheat_seeds';
+    await cmd(`/steward dev cap_short ${shortItem}`);
+    const startAt = logSize();
+    from = startAt;
     await cmd(`/steward proposals ${id} accept ${offer.key}`);
-    // asked first (an inexact quote, or past the bound): approved once, as shown
-    for (let i = 0; i < 240; i++) {
+    // asked first (an inexact quote, or past the bound): approved once, as shown; then refused at put-down and asked again: approved
+    const maxBills = () => [...logSince(startAt).matchAll(new RegExp(`module ${id} realise \\S+ under \\S+: maxBill \\{([^}]*)\\}`, 'g'))]
+      .map((m) => Object.fromEntries(m[1].split(', ').map((kv) => kv.split('=')).map(([k, c]) => [k, Number(c)])));
+    let refusedAt = null, reasked = null, heldSaved = null;
+    for (let i = 0; i < 360; i++) {
       const said = logSince(from);
-      if (/realise \S+ under \S+: maxBill/.test(said)) break;
-      if (/Approve to build it with this bill|so I ask first/.test(said)) { await cmd(`/steward approve ${id}`); from = logSize(); }
+      if (refusedAt != null && reasked && maxBills().length >= 2) break;
+      if (refusedAt == null && new RegExp(`module ${id} realise \\S+ refused at put-down`).test(said)) refusedAt = logSize();
+      const ask = /Approve to build it with this bill|so I ask first/.test(said);
+      if (ask && refusedAt != null && !reasked) {
+        reasked = said.match(/When it was put down, the materials needed went past what you approved\.[^\n]*/)?.[0] ?? null;
+        if (!reasked) return fail(`${label} put-down`, `asked again after the refusal without saying why: ${said.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+        for (let j = 0; j < 10 && heldSaved?.state?.phase !== 'AWAITING_PLACEMENT_APPROVAL'; j++) {
+          if (j) await sleep(500);
+          try { heldSaved = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id) ?? null; } catch { /* mid-write */ }
+        }
+      }
+      if (ask) { await cmd(`/steward approve ${id}`); from = logSize(); }
       await sleep(1000);
     }
-    const capLine = new RegExp(`module ${id} realise \\S+ under \\S+: maxBill \\{([^}]*)\\}`).exec(logSince(0));
-    const capSent = capLine ? Object.fromEntries(capLine[1].split(', ').map((kv) => kv.split('=')).map(([k, c]) => [k, Number(c)])) : null;
+    await cmd('/steward dev cap_short none').catch(() => null);
+    {
+      const lbl = `${label} put-down`;
+      const sent = maxBills();
+      const first = sent[0], second = sent.at(-1);
+      const notPlaced = /Not placed yet: the materials needed went past what you approved\. Nothing was taken from the stockpile; I'll ask you again\./.test(logSince(startAt));
+      const order = Object.values(heldSaved?.moduleOrders ?? {})[0];
+      const atLeast = second && Object.entries(order?.bound ?? {}).every(([k, c]) => (second[k] ?? 0) >= c);
+      if (refusedAt != null && notPlaced && reasked && sent.length >= 2 && first?.[shortItem] === 0 && second?.[shortItem] > 0 && atLeast
+        && heldSaved?.state?.phase === 'AWAITING_PLACEMENT_APPROVAL' && !heldSaved?.vRegion && order?.held && order?.refused == null)
+        ok(lbl, `sent ${shortItem} 0: refused at put-down (BILL_CAP), said "Not placed yet"; asked again "${reasked.slice(0, 120)}" (held, saved, not refused any more, not realised); approved: realised under ${JSON.stringify(second).slice(0, 160)}, never below the bound`);
+      else return fail(lbl, `refused ${refusedAt != null}; said not placed ${notPlaced}; asked again ${!!reasked}; maxBills ${JSON.stringify(sent).slice(0, 300)}; held save ${JSON.stringify({ phase: heldSaved?.state?.phase, vRegion: heldSaved?.vRegion, order }).slice(0, 400)}`);
+    }
+    const capSent = maxBills().at(-1) ?? null;
     if (!capSent) return fail(`${label} sent`, `no capped realise logged: ${logSince(from).split('\n').filter((l) => /CHAT|module /.test(l)).slice(-4).join(' | ').slice(0, 400)}`);
     // the growth's revision: the region's newest (its history entry is written once it is built, so it is read from the region)
     let rid = null;
@@ -6664,9 +6695,16 @@ async function moduleCapFlow() {
       const after = (await capOf(rid))?.drawn?.[item];
       const words = said?.[0] ?? '';
       const n = Number(new RegExp(`(\\d+) ${plain}`).exec(words)?.[1] ?? NaN);
-      if (lowered && !lowered.refused && said && t && nn > over && n === nn && before === after && !/maxBill|bill_cap/.test(words) && /\/steward undo /.test(words))
-        ok(lbl, `cap of ${plain} set to ${c.drawn[item] - over} (drawn ${c.drawn[item]}): ${t.id} held bill_cap, nextNeeded ${nn} (its need + ${over} over); said "${words.replace(/^.*?The /, 'The ').slice(0, 200)}"; nothing more drawn in 20 s (${before} = ${after})`);
-      else return fail(lbl, `set ${JSON.stringify(lowered).slice(0, 160)}; said ${words.slice(0, 200) || 'nothing'}; held ${JSON.stringify(t).slice(0, 200)}; drawn ${before} -> ${after}`);
+      // (QD-2) the words name the command that takes it up now: cancel while the growth's build still runs (undo is refused as busy then), undo
+      // once it has ended
+      let build = null;
+      try { build = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id) ?? null; } catch { /* none, or mid-write */ }
+      const running = !!build && !['DONE', 'FAILED', 'CANCELLED'].includes(build.state?.phase);
+      const named = /\/steward (undo|cancel) /.exec(words)?.[1];
+      const rightCmd = named === (running ? 'cancel' : 'undo');
+      if (lowered && !lowered.refused && said && t && nn > over && n === nn && before === after && !/maxBill|bill_cap/.test(words) && rightCmd)
+        ok(lbl, `cap of ${plain} set to ${c.drawn[item] - over} (drawn ${c.drawn[item]}): ${t.id} held bill_cap, nextNeeded ${nn} (its need + ${over} over); said "${words.replace(/^.*?The /, 'The ').slice(0, 200)}" (names ${named}: the build ${running ? `still ${build.state?.phase}` : 'ended'}); nothing more drawn in 20 s (${before} = ${after})`);
+      else return fail(lbl, `set ${JSON.stringify(lowered).slice(0, 160)}; said ${words.slice(0, 200) || 'nothing'}; names ${named} (build ${build?.state?.phase ?? 'none'}); held ${JSON.stringify(t).slice(0, 200)}; drawn ${before} -> ${after}`);
       // restored: it builds on, within the cap sent
       await dev.request('dev.bc.cap', { region, rid: Number(rid), set: capSent }, { timeoutMs: 30_000 }).catch(() => null);
     }

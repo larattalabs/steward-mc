@@ -79,6 +79,25 @@ class SaveCompatTest {
 	}
 
 	@Test
+	void aFormat7ModuleBuildHoldingItsBillLoadsNotRefusedAtPutDown(@TempDir Path dir) throws Exception {
+		// fixtures/saves/v7/steward-builds.json: a module build holding its bill for the player, written by pin-073's BuildStore (c0c9d80, format 7,
+		// before QD-2's ModuleOrder.refused): it loads as it was, not refused at put-down, and is written back with no member it lacked
+		Path f = dir.resolve("steward-builds.json");
+		Files.writeString(f, fixture("v7/steward-builds.json"));
+		BuildStore b = BuildStore.load(f);
+		assertEquals(7, b.readFormat());
+		var o = b.all().get(0).moduleOrders().get("lot_3");
+		assertNotNull(o);
+		assertFalse(o.refusedAtPutDown(), "an order saved before QD-2 was not refused at put-down");
+		assertNull(o.refused());
+		assertEquals(130, o.held().get("minecraft:dirt").getAsInt());
+		assertEquals(java.util.Map.of("minecraft:dirt", 120, "minecraft:wheat_seeds", 81), dev.larattalabs.steward.module.ModuleBound.cap(o.bound()));
+		b.save(f);
+		assertFalse(Files.readString(f).contains("\"refused\""), "nothing written for an order not refused");
+		assertEquals(o, BuildStore.load(f).all().get(0).moduleOrders().get("lot_3"));
+	}
+
+	@Test
 	void theFormat4GrowthBuildLoadsWithNoModuleBindingsAndMovesToFormat5(@TempDir Path dir) throws Exception {
 		// fixtures/saves/v6/steward-builds.json: a region town's growth checkpoint written by main's format-4 BuildStore (0826c98, with settlements
 		// format 6); BuildStore format 5 (phase 5 M1) adds moduleBindings, which it has none of

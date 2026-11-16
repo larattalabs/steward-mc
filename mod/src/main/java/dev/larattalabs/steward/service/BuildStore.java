@@ -33,6 +33,9 @@ public final class BuildStore {
 	 * the file rather than dropping their new members. A format-1 file reads as it is (its districts as standing squares).
 	 */
 	static final int FORMAT = 7;
+	// (QD-2, 2026-11-16, no move) a module order may say its realise was refused at put-down (moduleOrders.<lot>.refused: true, absent otherwise), so a
+	// restart puts the next quote to the player. A format-7 order without it reads as not refused; an older Steward that drops it loses only that
+	// re-ask, never the bound (Architect's maxBill still holds the realise to it).
 	// 7 (2026-11-15, slice PV1; docs/GROWTH.md "Plan v1 growth"): a town growth from its composed plan keeps the plan zone it grows on (growZone, sent as
 	// grow.zone again by a stale re-plan). A format-6 build has none and reads with none; an older Steward refuses the file rather than re-planning a
 	// plan lot on any street.
@@ -275,6 +278,10 @@ public final class BuildStore {
 			var o = e.getValue().getAsJsonObject();
 			if (!o.has("version") || dev.larattalabs.steward.module.ModuleRef.exactInt(o.get("version")) == null) {
 				throw new JsonParseException("module order " + e.getKey() + ": version " + o.get("version") + " is not an integer");
+			}
+			// (QD-2) refused at put-down: true when present (an older order has none)
+			if (o.has("refused") && !o.get("refused").isJsonNull() && !(o.get("refused").isJsonPrimitive() && o.getAsJsonPrimitive("refused").isBoolean())) {
+				throw new JsonParseException("module order " + e.getKey() + ": refused " + o.get("refused") + " is not true or false");
 			}
 			for (String k : List.of("bound", "held")) {
 				if (o.has(k) && !o.get(k).isJsonNull() && (!o.get(k).isJsonObject() || dev.larattalabs.steward.module.ModuleBound.clean(o.getAsJsonObject(k)) == null)) {

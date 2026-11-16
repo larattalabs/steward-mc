@@ -229,7 +229,15 @@ public final class StewardCommands {
 					dev.larattalabs.steward.module.ModuleDev.run(src.getServer(), label, req);
 					src.sendSuccess(() -> Component.literal("module " + label), false);
 					return 1;
-				})))).then(Commands.literal("modules").then(Commands.argument("request", StringArgumentType.greedyString()).executes(ctx -> {
+				})))).then(Commands.literal("cap_short").then(Commands.argument("item", StringArgumentType.greedyString()).executes(ctx -> {
+					// dev (the e2e check, QD-2): the next module realise from materials sends this item's maxBill as 0 (once), so Architect refuses it at
+					// put-down (BILL_CAP); "none" clears it
+					if (!host(ctx.getSource())) return 0;
+					String item = StringArgumentType.getString(ctx, "item").strip();
+					dev.larattalabs.steward.service.SettlementRunner.devCapShort("none".equals(item) ? null : item);
+					ctx.getSource().sendSuccess(() -> Component.literal("cap_short " + item), false);
+					return 1;
+				}))).then(Commands.literal("modules").then(Commands.argument("request", StringArgumentType.greedyString()).executes(ctx -> {
 					// dev (the e2e check, slice M3): offer modules from a catalog directory ({dir, id, measuring?, bounds?}; {} the live catalog again)
 					if (!host(ctx.getSource())) return 0;
 					var req = com.google.gson.JsonParser.parseString(StringArgumentType.getString(ctx, "request")).getAsJsonObject();

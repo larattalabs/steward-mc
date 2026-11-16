@@ -111,7 +111,7 @@ public final class MaterialRequests {
 		SAID.put(wait.targetId(), key);
 		TOLD.put(s.get().id(), now);
 		// (QD) held by the approved bound, not by the stockpile: more materials would not help
-		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait));
+		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait, SettlementRunner.cancelTakesUp(s.get().id())));
 		else tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
 	}
 
@@ -227,7 +227,7 @@ public final class MaterialRequests {
 			if (had == null || had.since() != longest.waitingSince()) {
 				var target = sites.get(longest.targetId());
 				String what = target.map(v -> nameOf(s, v)).orElse("build");
-				if (capped(longest)) tell(srv, s, overCap(what, s.id(), longest));
+				if (capped(longest)) tell(srv, s, overCap(what, s.id(), longest, SettlementRunner.cancelTakesUp(s.id())));
 				else tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
 			}
 		}
@@ -262,20 +262,23 @@ public final class MaterialRequests {
 	 * items and the units over), and that nothing past it is taken. Since Architect v0.73.0 (BC-d) the cap is this growth's own (its revision's,
 	 * {@code survival.caps.<rid>}): a later plain growth is never held to it. (BC-c) After an unclean start the reconcile charges what stands even
 	 * past the cap; the wait's {@code nextNeeded} is then the need plus that overshoot (what the cap must rise by to finish, so the words say "finishing it would take N more", and promise only that no more is taken, never that nothing past the bound was: the GPT review of pin-073); the API
-	 * doesn't say an overshoot apart. Architect can't raise a standing build's cap, so the way on is an undo
-	 * (since A2L a growth still building is undone by Architect's RU, what it drew refunded once: RecoveryAdapterTest's
-	 * dg_aSuppliedGrowthStillBuildingIsUndoneAndRefundsWhatWasDrawn) and asking for it again, which quotes and asks afresh. Never automatic.
+	 * doesn't say an overshoot apart. Architect can't raise a standing build's cap, so the way on is to take the growth up
+	 * and ask for it again, which quotes and asks afresh. Never automatic. Which command takes it up depends on where its build stands (QD-2, the
+	 * GPT review of pin-073): while the growth's build still runs (PLACING: a later stage waits on the capped one) {@code /steward undo} is refused
+	 * (the settlement is busy) and {@code /steward cancel} is the way (A2L: a growth from materials cancelled part way is taken up by Architect's
+	 * RU, what it drew refunded); once its build has ended (its sites stand, logged), {@code /steward undo} takes it up the same way (RU,
+	 * RecoveryAdapterTest's dg_aSuppliedGrowthStillBuildingIsUndoneAndRefundsWhatWasDrawn). {@code cancel} says which ({@link SettlementRunner#cancelTakesUp}).
 	 */
-	static String overCap(String what, String settlementId, SiteWait w) {
+	static String overCap(String what, String settlementId, SiteWait w, boolean cancel) {
 		var over = w.nextNeeded().stream()
 			.map(n -> Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(n.item()).toString(), n.count())).toList();
-		return overCapWords(what, settlementId, over, w.moreUnits());
+		return overCapWords(what, settlementId, over, w.moreUnits(), cancel);
 	}
 
 	/** {@link #overCap} over plain item ids (testable without the item registry). */
-	static String overCapWords(String what, String settlementId, List<Map.Entry<String, Integer>> over, int moreUnits) {
+	static String overCapWords(String what, String settlementId, List<Map.Entry<String, Integer>> over, int moreUnits, boolean cancel) {
 		return "The " + what + " has stopped: finishing it would take " + dev.larattalabs.steward.module.ModuleBound.overWords(over, moreUnits)
-			+ " more than you approved, so I take no more for it; filling the stockpile won't help. /steward undo " + settlementId
+			+ " more than you approved, so I take no more for it; filling the stockpile won't help. /steward " + (cancel ? "cancel " : "undo ") + settlementId
 			+ " takes it up and gives back what it drew; then ask for it again and I'll put the new bill to you.";
 	}
 

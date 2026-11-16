@@ -25,13 +25,25 @@ import org.jspecify.annotations.Nullable;
  *     Approved, it becomes the bound, and the bound is the realise's {@code maxBill}
  * @param inexactApproved the player approved a held bill that Architect could not quote exactly: a later quote with the same uncertainty, within
  *     that bill, is not asked about again
+ * @param refused (QD-2, since 2026-11-16) Architect refused the realise at put-down ({@code BILL_CAP}: its bill then was past this bound): the
+ *     next quote is put to the player whatever it says, never realised on its own, also after a restart. Saved with the build before the quote is
+ *     asked for, cleared in the same save as the hold it leads to ({@link #holding}). TRUE or null (absent in the file: Gson writes no null), so an
+ *     order saved before it, or an offer, reads as not refused. No format bump: an older Steward that drops it loses only the re-ask, and the bound
+ *     still holds at the realise (Architect's maxBill), so nothing is paid past what was approved
  */
 public record ModuleOrder(String moduleId, int version, String programSha, JsonObject params, @Nullable JsonObject bound, @Nullable String rate,
-	boolean lampFallback, boolean autonomous, @Nullable String proposal, @Nullable JsonObject held, boolean inexactApproved) {
+	boolean lampFallback, boolean autonomous, @Nullable String proposal, @Nullable JsonObject held, boolean inexactApproved, @Nullable Boolean refused) {
 	public ModuleOrder {
 		params = params == null ? null : Canon.sorted(params).getAsJsonObject();
 		bound = ModuleBound.clean(bound);
 		held = ModuleBound.clean(held);
+		refused = Boolean.TRUE.equals(refused) ? Boolean.TRUE : null;
+	}
+
+	/** As saved before QD-2: not refused at put-down. */
+	public ModuleOrder(String moduleId, int version, String programSha, JsonObject params, @Nullable JsonObject bound, @Nullable String rate,
+		boolean lampFallback, boolean autonomous, @Nullable String proposal, @Nullable JsonObject held, boolean inexactApproved) {
+		this(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, held, inexactApproved, null);
 	}
 
 	/** An offer (not accepted, nothing held). */
@@ -40,9 +52,19 @@ public record ModuleOrder(String moduleId, int version, String programSha, JsonO
 		this(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, null, null, false);
 	}
 
+	/** (QD-2) Whether the realise under this bound was refused at put-down and the player has not been asked again yet. */
+	public boolean refusedAtPutDown() {
+		return Boolean.TRUE.equals(refused);
+	}
+
+	/** (QD-2) The same order, its realise refused at put-down ({@code BILL_CAP}): the next quote is put to the player. */
+	public ModuleOrder refusedAtPutDown(boolean r) {
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, held, inexactApproved, r ? Boolean.TRUE : null);
+	}
+
 	/** The same order with other params (a smaller size) and the bound that goes with them. */
 	public ModuleOrder resized(JsonObject p, @Nullable JsonObject b) {
-		return new ModuleOrder(moduleId, version, programSha, p, b, rate, lampFallback, autonomous, proposal, held, inexactApproved);
+		return new ModuleOrder(moduleId, version, programSha, p, b, rate, lampFallback, autonomous, proposal, held, inexactApproved, refused);
 	}
 
 	/**
@@ -53,7 +75,7 @@ public record ModuleOrder(String moduleId, int version, String programSha, JsonO
 		return new ModuleOrder(moduleId, version, programSha, params, held, rate, lampFallback, false, proposal, null, true);
 	}
 
-	/** The same order holding this quote for the player's word. */
+	/** The same order holding this quote for the player's word (a put-down refusal is answered by this ask: no longer refused). */
 	public ModuleOrder holding(JsonObject bill) {
 		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, bill, inexactApproved);
 	}
@@ -65,7 +87,7 @@ public record ModuleOrder(String moduleId, int version, String programSha, JsonO
 
 	/** The same offer, with the lamp the bible gives (the plain lantern when its lamp is too dim). */
 	public ModuleOrder withLamp(boolean fallback) {
-		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, fallback, autonomous, proposal, held, inexactApproved);
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, fallback, autonomous, proposal, held, inexactApproved, refused);
 	}
 
 	/** The lot ext Architect keeps on the placed lot. */
