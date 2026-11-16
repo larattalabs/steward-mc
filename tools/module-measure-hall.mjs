@@ -1417,7 +1417,8 @@ async function sortCrash() {
     const T = await survivalWorld('SortCrash', 80000, 80000);
     const { region, gy, x0, z0 } = T;
     const home = [x0 + 96, z0 - 30, gy + 1];
-    const items = ['stone', 'redstone', 'dirt', 'coal'];
+    // filter items the structure never uses, so the town's blocks can be fed with the fill's items held back (as Architect's FK gate does)
+    const items = ['flint', 'bone', 'string', 'gunpowder'];
     const FILL = Object.fromEntries(items.map((k) => [`minecraft:${k}`, 41]));
     const only = (m) => Object.fromEntries(Object.entries(m ?? {}).filter(([k]) => k in FILL));
     const grown = [];
@@ -1426,22 +1427,38 @@ async function sortCrash() {
       const sp = { id: `sk_${point.toLowerCase()}`, slots: 4, bulk: 0, bible: 'rustic', items };
       const g = await growHalls(region, [sp], { survival: true });
       if (!check(!g.refused, `${point}: the hall grown: ${g.refused ? String(g.refused).slice(0, 200) : `rid ${g.rid}`}`)) continue;
-      // the lot waits for its road first, which is fed from the stockpile: fed until the region names the hall's site (not past it)
-      let site = null;
-      await feedUntil(region, (st) => !!(site = st.view.lots.find((l) => l.id === sp.id)?.siteId ?? null), { timeoutMs: 900_000 });
-      if (!check(!!site, `${point}: the hall's site named while it builds (${site})`)) continue;
-      // the site paused, everything it owes delivered (a paused target still takes it), the baseline saved, the point armed, then resumed
-      const paused = await call('dev.stockpile.pause', { owner: OWNER, site, paused: true }, 60_000).then(() => true, (e) => String(e));
-      const f0 = await fkState(site);
-      if (!check(paused === true && !f0.error && f0.phase == null, `${point}: the site paused before its fill (${paused === true ? 'paused' : paused}; FK ${f0.error ?? f0.phase ?? 'not begun'})`)) continue;
-      for (let i = 0; i < 20; i++) {
+      const give = async (fill) => {
         const ps = await pile();
         const need = {};
-        for (const [it, n] of Object.entries(ps.outstanding ?? {})) { const lack = n - (ps.stock?.[it] ?? 0); if (lack > 0) need[it] = lack; }
-        if (!Object.keys(need).length) break;
-        await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: need, exact: true }, 120_000);
-        await sleep(1500);
+        for (const [it, n] of Object.entries(ps.outstanding ?? {})) { if ((it in FILL) !== fill) continue; const lack = n - (ps.stock?.[it] ?? 0); if (lack > 0) need[it] = lack; }
+        if (!Object.keys(need).length) return {};
+        return (await req('dev.crate.insert', { site: `stockpile:${OWNER}`, items: need, exact: true }, 120_000)).accepted ?? {};
+      };
+      // the lot waits for its road first: the town's blocks fed (never the fill's items) until the region names the hall's site
+      let site = null;
+      for (let i = 0; i < 360 && !site; i++) {
+        await give(false);
+        site = (await call('dev.region.state', { region }, 60_000)).view.lots.find((l) => l.id === sp.id)?.siteId ?? null;
+        if (!site) await sleep(2500);
       }
+      if (!check(!!site, `${point}: the hall's site named while it builds (${site})`)) continue;
+      // (as Architect's FK gate) the town's blocks fed, the fill's items held back, until every cell of the hall stands; then the site paused,
+      // the fill's items delivered (a paused target still takes them), the baseline saved, the point armed, then resumed: its next tick fills
+      let t = null;
+      for (let i = 0; i < 400; i++) {
+        await give(false);
+        const ps = await pile();
+        t = ps.targets?.[site];
+        const others = Object.entries(ps.targets ?? {}).filter(([k]) => k !== site);
+        if (t && t.queued > 0 && t.built === t.queued && others.every(([, x]) => (x.built ?? 0) >= (x.queued ?? 0))) break;
+        await sleep(2500);
+      }
+      if (!check(t && t.built === t.queued, `${point}: the town's blocks fed, the fill's items held back: every cell of the hall stands (${t?.built}/${t?.queued})`)) continue;
+      const paused = await call('dev.stockpile.pause', { owner: OWNER, site, paused: true }, 60_000).then((r) => (r?.refused ? String(r.refused) : true), (e) => String(e));
+      const f0 = await fkState(site);
+      if (!check(paused === true && !f0.error && f0.phase !== 'FILLING' && f0.phase !== 'FILLED' && f0.phase !== 'UNLOCKED', `${point}: the site paused before its fill (${paused === true ? 'paused' : paused}; FK ${f0.error ?? f0.phase ?? 'not begun'})`)) continue;
+      const acc = await give(true);
+      check(same(only(acc), FILL), `${point}: the fill's items delivered while it is paused (${json(acc)})`);
       await call('dev.stockpile.ps', { noPeriodic: true }, 30_000).catch(() => null);
       await cmd('/save-all flush');
       const B = savedLedger();
