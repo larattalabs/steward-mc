@@ -1393,6 +1393,13 @@ const savedLedger = () => {
  * the point's). Call {@link #killFrom} just before arming.
  */
 const killFrom = () => { const f = path.join(ART, 'client.log'); return fs.existsSync(f) ? fs.statSync(f).size : 0; };
+/** The saved ledger once it passes {@code ok}, read every 2 s for at most 3 minutes (Architect's periodic save writes it); the last read if never. */
+async function savedAs(ok) {
+  await call('dev.stockpile.ps', { noPeriodic: false }, 30_000).catch(() => null);
+  let L = null;
+  for (let i = 0; i < 90; i++) { L = savedLedger(); if (ok(L)) return L; await sleep(2000); }
+  return L;
+}
 async function haltWait(point, from) {
   for (let i = 0; i < 300 && !exited; i++) await sleep(1000);
   if (!exited) return false;
@@ -1459,18 +1466,13 @@ async function sortCrash() {
       if (!check(paused === true && !f0.error && f0.phase !== 'FILLING' && f0.phase !== 'FILLED' && f0.phase !== 'UNLOCKED', `${point}: the site paused before its fill (${paused === true ? 'paused' : paused}; FK ${f0.error ?? f0.phase ?? 'not begun'})`)) continue;
       const acc = await give(true);
       check(same(only(acc), FILL), `${point}: the fill's items delivered while it is paused (${json(acc)})`);
-      await call('dev.stockpile.ps', { noPeriodic: true }, 30_000).catch(() => null);
-      // the baseline on disk before the point is armed: /save-all runs on the server after the command returns, so the saved ledger is read
-      // until it holds the fill's items the live one does (else the halt can come first and the restart has no fill items: run 4)
+      // the baseline on disk before the point is armed. /save-all is a dedicated-server command: on this integrated server it is "Unknown"
+      // (save-probe, 2026-11-16), so the ledger reaches disk by Architect's periodic save: waited for until the saved ledger holds the fill's
+      // items the live one does, then the periodic save turned off, so nothing is saved between the baseline and the halt
       const live = only((await pile()).ledger?.delivered);
-      let B = null;
-      for (let i = 0; i < 30; i++) {
-        await cmd('/save-all flush');
-        await sleep(1000);
-        B = savedLedger();
-        if (same(only(B?.delivered), live)) break;
-      }
+      const B = await savedAs((L) => same(only(L?.delivered), live));
       if (!check(same(only(B?.delivered), live), `${point}: the baseline saved with the fill's items in the stockpile (${json(only(B?.delivered))})`)) continue;
+      await call('dev.stockpile.ps', { noPeriodic: true }, 30_000).catch(() => null);
       const from = killFrom();
       await call('dev.journal.killAt', { point }, 10_000);
       call('dev.stockpile.pause', { owner: OWNER, site, paused: false }, 60_000).catch(() => null);
@@ -1500,12 +1502,12 @@ async function sortCrash() {
     for (const c of cases) {
       const L0 = (await pile()).ledger;
       await cmd('/kill @e[type=item]');
-      // the baseline on disk before the point is armed (/save-all runs after the command returns): the saved ledger read until it is the live one
+      // the baseline on disk before the point is armed (Architect's periodic save; /save-all is dedicated-only): the saved ledger read until it is the live one
       const liveL = (await pile()).ledger;
       const books = (l) => json(['delivered', 'consumed', 'returned', 'withdrawn', 'dropped'].map((k) => Object.entries(l?.[k] ?? {}).sort()));
-      let B = null;
-      for (let i = 0; i < 30; i++) { await cmd('/save-all flush'); await sleep(1000); B = savedLedger(); if (books(B) === books(liveL)) break; }
+      const B = await savedAs((L) => books(L) === books(liveL));
       if (!check(books(B) === books(liveL), `${c.point}: the baseline saved before the removal`)) continue;
+      await call('dev.stockpile.ps', { noPeriodic: true }, 30_000).catch(() => null);
       // what this growth consumed: its quote (consumed = quote, bar 8)
       const consumed = c.g.quote?.bom ?? {};
       const from = killFrom();
