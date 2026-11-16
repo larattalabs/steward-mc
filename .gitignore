@@ -2,6 +2,7 @@ node_modules
 mod/build/
 mod/.gradle/
 mod/run/
+mod/run-c*/
 mod/logs/
 .gradle-home/
 .claude/
