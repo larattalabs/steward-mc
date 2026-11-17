@@ -20,11 +20,12 @@ class DurableWriteTest {
 	@AfterEach
 	void reset() {
 		DurableWrite.forcer = DurableWrite.REAL;
+		DurableWrite.FAIL_DIR_FORCE_AFTER_RENAME.set(0);
 		DurableWrite.dirOpenBestEffort = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).startsWith("windows");
 	}
 
 	/** Records every force (and what the file held at each), optionally failing one. */
-	static final class Recorder implements DurableWrite.Forcer {
+	static class Recorder implements DurableWrite.Forcer {
 		final List<String> calls = new ArrayList<>();
 		final Path target;
 		boolean failFile;
@@ -193,5 +194,63 @@ class DurableWriteTest {
 		try (var ls = Files.list(dir)) {
 			assertEquals(List.of("steward-builds.json", "steward-settlements.json"), ls.map(p -> p.getFileName().toString()).sorted().toList());
 		}
+	}
+
+	// review fixes
+
+	@Test
+	void anUnsupportedFolderOpenThrowsOffWindows() {
+		DurableWrite.dirOpenBestEffort = false;
+		// a missing folder stands in: what matters is that only the Windows flag makes a failed open best effort
+		assertThrows(IOException.class, () -> DurableWrite.forceDir(Path.of("/nonexistent-steward-durable-test")));
+	}
+
+	@Test
+	void aFailedNewFolderForceIsOwedAndRetriedByTheNextWrite(@TempDir Path dir) throws Exception {
+		Path f = dir.resolve("a").resolve("b").resolve("store.json");
+		var r = new Recorder(f) {
+			int left = 1;
+
+			@Override
+			public void dir(Path d) throws IOException {
+				calls.add("dir:" + d.getFileName());
+				if (d.equals(dir) && left-- > 0) throw new IOException("EIO (test)");
+				DurableWrite.forceDir(d);
+			}
+		};
+		DurableWrite.forcer = r;
+		assertThrows(IOException.class, () -> DurableWrite.writeString(f, "x"));
+		// b's entry in a forced; a's entry in the temp dir owed
+		assertEquals(java.util.Set.of(dir.resolve("a")), DurableWrite.unforcedDirs());
+		assertFalse(Files.exists(f));
+		r.calls.clear();
+		DurableWrite.writeString(f, "x");
+		assertEquals("x", read(f));
+		assertTrue(DurableWrite.unforcedDirs().isEmpty());
+		assertEquals(List.of("dir:" + dir.getFileName(), "file:-", "dir:b"), r.calls);
+	}
+
+	@Test
+	void confirmForcesTheFileAndItsFolder(@TempDir Path dir) throws Exception {
+		Path f = dir.resolve("steward-world-id");
+		Files.writeString(f, "abcdef012345\n");
+		var r = new Recorder(f);
+		DurableWrite.forcer = r;
+		DurableWrite.confirm(f);
+		assertEquals(List.of("file:abcdef012345\n", "dir:" + dir.getFileName() + ":abcdef012345\n"), r.calls);
+		r.failDir = true;
+		assertThrows(IOException.class, () -> DurableWrite.confirm(f));
+		assertThrows(IOException.class, () -> DurableWrite.confirm(dir.resolve("missing")));
+	}
+
+	@Test
+	void theTestHookFailsTheFolderForceAfterTheRename(@TempDir Path dir) throws Exception {
+		Path f = dir.resolve("s.json");
+		Files.writeString(f, "old");
+		DurableWrite.FAIL_DIR_FORCE_AFTER_RENAME.set(1);
+		assertThrows(IOException.class, () -> DurableWrite.writeString(f, "new"));
+		assertEquals("new", read(f));
+		DurableWrite.writeString(f, "newer");
+		assertEquals("newer", read(f));
 	}
 }

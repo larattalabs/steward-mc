@@ -10,6 +10,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Locale;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * (slice STORE-FSYNC) One durable write for Steward's saves, as Architect's (RegionStore.write, DurableFile: PSV's queue writer):
@@ -25,7 +27,7 @@ import java.util.Locale;
  * Every failure reaches the caller as an {@link IOException}, so a failed save still stops what relied on it (persist-before-mutate). Before the
  * rename, the file on disk is the previous one and the temp file is removed. After it (the folder's force failed) the new file is in place but may
  * not survive a power loss: the caller treats the save as failed, and its next save writes the whole store again. A folder that can't be opened
- * for reading is best effort only on Windows (logged once), as Architect's; elsewhere that open's failure is the force's.
+ * for reading is best effort only on Windows (logged once); elsewhere that open's failure, an unsupported one included, is the force's.
  */
 public final class DurableWrite {
 	private DurableWrite() {
@@ -52,9 +54,13 @@ public final class DurableWrite {
 
 	/** (TEST) The forces every write uses; the units swap it to fail or record one. */
 	static volatile Forcer forcer = REAL;
+	/** (TEST, the store units elsewhere) The next writes whose folder force after the rename fails (an EIO): the new file in place, in doubt. */
+	public static final java.util.concurrent.atomic.AtomicInteger FAIL_DIR_FORCE_AFTER_RENAME = new java.util.concurrent.atomic.AtomicInteger();
 	/** (TEST) Whether a folder that can't be opened is best effort (Windows); the units set it. */
 	static volatile boolean dirOpenBestEffort = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
 	private static volatile boolean dirUnsupportedLogged;
+	/** Folders made by a write whose entry in their parent is not forced yet (a force failed): retried before every write (review P2). */
+	private static final Set<Path> unforcedDirs = ConcurrentHashMap.newKeySet();
 
 	/** {@code text} (UTF-8) as {@code file}, durably. */
 	public static void writeString(Path file, String text) throws IOException {
@@ -84,7 +90,23 @@ public final class DurableWrite {
 			}
 			throw e;
 		}
+		if (FAIL_DIR_FORCE_AFTER_RENAME.getAndUpdate(n -> Math.max(0, n - 1)) > 0) throw new IOException("the folder's force failed (test)");
 		f.dir(dir);
+	}
+
+	/**
+	 * {@code file} as it stands made durable: the file and its folder forced (a file a write renamed into place whose folder's force failed, or
+	 * one an earlier process may have left only in the page cache). Before a value read back is trusted for something a power loss must not
+	 * change (review P1: the world id).
+	 */
+	public static void confirm(Path file) throws IOException {
+		Path abs = file.toAbsolutePath();
+		retryUnforcedDirs();
+		Forcer f = forcer;
+		try (FileChannel ch = FileChannel.open(abs, StandardOpenOption.READ)) {
+			f.file(ch);
+		}
+		f.dir(abs.getParent());
 	}
 
 	/** {@code from}'s bytes copied to {@code to}, durably (a migration's backup, taken before the old file is written over). */
@@ -94,14 +116,36 @@ public final class DurableWrite {
 
 	/** The folder made when it is missing: each one made has its entry forced in its parent before anything is renamed into it. */
 	private static void ensureDir(Path dir) throws IOException {
+		retryUnforcedDirs();
 		if (Files.isDirectory(dir)) return;
 		Path top = dir;
 		while (top.getParent() != null && !Files.isDirectory(top.getParent())) top = top.getParent();
-		Files.createDirectories(dir);
-		// from the deepest new folder up to the one that already stood: each new entry forced in its parent
+		// each folder about to be made is owed its entry's force until that force is done (a failed one is retried by the next write)
 		for (Path d = dir; d != null && !d.equals(top.getParent()); d = d.getParent()) {
-			if (d.getParent() != null) forcer.dir(d.getParent());
+			if (d.getParent() != null) unforcedDirs.add(d);
 		}
+		Files.createDirectories(dir);
+		retryUnforcedDirs();
+	}
+
+	/** Every owed folder entry forced, deepest first; a failure throws and keeps the rest owed. */
+	private static void retryUnforcedDirs() throws IOException {
+		if (unforcedDirs.isEmpty()) return;
+		var owed = new java.util.ArrayList<>(unforcedDirs);
+		owed.sort((a, b) -> Integer.compare(b.getNameCount(), a.getNameCount()));
+		for (Path d : owed) {
+			if (!Files.isDirectory(d)) {
+				unforcedDirs.remove(d); // gone since: nothing to make durable
+				continue;
+			}
+			forcer.dir(d.getParent());
+			unforcedDirs.remove(d);
+		}
+	}
+
+	/** (TEST) The owed folder entries. */
+	static Set<Path> unforcedDirs() {
+		return Set.copyOf(unforcedDirs);
 	}
 
 	/**
@@ -113,7 +157,7 @@ public final class DurableWrite {
 		try {
 			ch = FileChannel.open(dir, StandardOpenOption.READ);
 		} catch (IOException | UnsupportedOperationException e) {
-			if (dirOpenBestEffort || e instanceof UnsupportedOperationException) {
+			if (dirOpenBestEffort) {
 				if (!dirUnsupportedLogged) {
 					dirUnsupportedLogged = true;
 					Steward.LOGGER.warn("Durable writes: the folder {} can't be synced on this platform ({}); renames are best effort", dir, e.toString());
