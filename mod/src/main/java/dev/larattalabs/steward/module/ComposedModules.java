@@ -386,7 +386,7 @@ public final class ComposedModules {
 		// (GPT review P3) the stores' most held kinds first, then the domain's defaults, said apart
 		java.util.Set<String> stored = new java.util.HashSet<>(ModuleOffer.filterKinds(held));
 		boolean fromStores = chose.stream().allMatch(i -> stored.contains(out[i - 1])), noneStored = chose.stream().noneMatch(i -> stored.contains(out[i - 1]));
-		String from = fromStores ? "from your stores, most held first" : noneStored ? "from the hall's defaults (your stores hold none it sorts)" : "from your stores, most held first, then the hall's defaults";
+		String from = fromStores ? "from your stores, most held first" : noneStored ? "from the hall's defaults" : "from your stores, most held first, then the hall's defaults";
 		return new Chosen(items, "Steward chose " + which + " " + from + ": " + String.join(", ", names));
 	}
 

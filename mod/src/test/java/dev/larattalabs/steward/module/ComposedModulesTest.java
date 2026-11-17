@@ -489,7 +489,7 @@ class ComposedModulesTest {
 			HALL, WARM, Set.of(), null);
 		assertTrue(p.ok(), p.why());
 		assertEquals(List.of("minecraft:coal", "minecraft:cobblestone", "minecraft:cobbled_deepslate", "minecraft:wheat"), StorageHallLot.items(p.order().params()).items());
-		assertTrue(p.changed().contains("Steward chose slots 2, 3's items from the hall's defaults (your stores hold none it sorts)"), p.changed());
+		assertTrue(p.changed().contains("Steward chose slots 2, 3's items from the hall's defaults"), p.changed());
 		var stored = ComposedModules.items(json("{}"), 2, Map.of("minecraft:coal", 5, "minecraft:dirt", 9));
 		assertEquals(List.of("dirt", "coal"), stored.items());
 		assertTrue(stored.said().endsWith("from your stores, most held first: dirt, coal"), stored.said());
