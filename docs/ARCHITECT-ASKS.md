@@ -1830,3 +1830,9 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
     nothing is charged, lost or offered on it.
   - **Architect's answer (2026-11-15, slice/FL 50f47d9b, for v0.74.0):** a declared container holding its fill or less, as plain stacks,
     reads SAME, and more reads CHANGED (cargo). At the pin that carries LC3 with FL (not v0.74.0), bar 6 goes back to expecting `changed 0` (follow-up M4b-074).
+
+### S-M5-19: dev.command's verdict and a save barrier (slice M4b found it, 2026-11-16; answered the same day)
+
+- **Ask:** on Steward's integrated client `/save-all` is unknown ("Unknown or incomplete command"), yet `dev.command` answered `ok: true`, so the sort-crash baselines were never saved. Could an unrun command answer `ok: false`, and is there a save barrier that works on the integrated client?
+- **Architect's answer:** `ok` meant only that the call didn't throw (DevBridge.java:393). The command's own result is `success`: false with `result: null` and the error in `messages[]` for an unknown command (DevCommands.java:939-945). Barriers for now: `dev.stockpile.ps {noPeriodic:false}` and wait over 10 s, `dev.world.leave {}`, or `dev.stockpile.halt {mode:"autosave"}`. In v0.75.0 (slice M1), `dev.command` answers `ok: false` (a DevError) to any command that never ran, and `dev.stockpile.save {}` returns `{written, path, bytes, saves}`.
+- **Steward:** SAVEB checks `success` on every command, drops the `/save-all` sends, and prefers `dev.stockpile.save` when the bridge lists it.
