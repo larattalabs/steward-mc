@@ -12,7 +12,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/** docs/MODULES.md "M5 design" (slice M5a): module lots of a composed plan, on the live catalog (crop_farm@1, storage_hall@1). */
+/** docs/MODULES.md "M5 design" (slice M5a): module lots of a composed plan, on the live catalog (crop_farm@1 and the newest certified storage_hall). */
 class ComposedModulesTest {
 	static final ModuleCatalog LIVE = ModuleCatalog.dir(ModuleCatalogTest.FIXTURES.resolve("../../../modules").normalize(), false);
 	static final ModuleGate.Env PLAYER = new ModuleGate.Env("26.3", "0.74.0", Set.of(ModuleGate.FEATURE));
@@ -82,7 +82,8 @@ class ComposedModulesTest {
 	void theIdentityNamesVersionsAndProgramsInOrder() {
 		String id = ComposedModules.identity(offered());
 		assertTrue(id.startsWith("crop_farm@1:"), id);
-		assertTrue(id.contains(",storage_hall@1:"), id);
+		// the hall offered is the live catalog's newest certified one (storage_hall@2, the sorting hall, since its 0.74.0 carry)
+		assertTrue(id.contains(",storage_hall@" + offered().get(1).entry().version() + ":"), id);
 		assertEquals(id, ComposedModules.identity(List.of(offered().get(1), offered().get(0))), "sorted, whatever the order offered");
 		assertEquals("", ComposedModules.identity(List.of()));
 	}
@@ -366,7 +367,9 @@ class ComposedModulesTest {
 	void eachModuleSaysWhatItDoes() {
 		var v = ComposedModules.vocabulary(offered());
 		assertTrue(v.get(0).getAsJsonObject().get("does").getAsString().contains("player harvests"));
-		assertTrue(v.get(1).getAsJsonObject().get("does").getAsString().contains("does not sort"));
+		// a hall says it sorts exactly when the offered version has sorting slots (@2 does, @1 does not)
+		String hall = v.get(1).getAsJsonObject().get("does").getAsString();
+		assertTrue(offered().get(1).entry().version() >= 2 ? hall.contains("sorts the items") : hall.contains("does not sort"), hall);
 		assertTrue(ComposeJob_rules().contains("`does`"));
 	}
 
