@@ -109,14 +109,20 @@ final class StreetModules {
 		return taken;
 	}
 
-	/** The first lot laid out for card entry {@code b} ({@code ProgramPlanner} gives it the entry's role, type, notes and placement), or -1. */
+	/**
+	 * The first lot laid out for card entry {@code b} ({@code ProgramPlanner} gives it the entry's role, type, notes and placement), or -1. An ordinary
+	 * entry never takes a landmark's lot; a landmark entry takes its landmark lot first (batch-076 fix-check P2: two entries alike but for the landmark).
+	 */
 	private static int laidOutFor(List<LotSpec> specs, ConceptCard.Building b) {
+		int ordinary = -1;
 		for (int i = 0; i < specs.size(); i++) {
 			LotSpec s = specs.get(i);
-			if (s.role().equals(b.role()) && s.type().equals(b.type()) && java.util.Objects.equals(s.notes(), b.notes())
-				&& java.util.Objects.equals(s.placement(), b.placement())) return i;
+			if (!(s.role().equals(b.role()) && s.type().equals(b.type()) && java.util.Objects.equals(s.notes(), b.notes())
+				&& java.util.Objects.equals(s.placement(), b.placement()))) continue;
+			if (s.landmark() && b.landmark()) return i;
+			if (!s.landmark() && ordinary < 0) ordinary = i;
 		}
-		return -1;
+		return ordinary;
 	}
 
 	private static Map<String, JsonObject> byId(List<JsonObject> lots) {

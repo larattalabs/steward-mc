@@ -169,6 +169,11 @@ public final class SettlementRunner {
 		return alive();
 	}
 
+	/** (TEST) The builds file this session saves to (null: none, as when it could not be read). */
+	static void useBuildsFileForTest(java.nio.file.@org.jspecify.annotations.Nullable Path f) {
+		buildsFile = f;
+	}
+
 	/** (TEST) No runner, as after SERVER_STOPPED. */
 	static void clearForTest() {
 		ACTIVE.clear();

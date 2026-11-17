@@ -127,6 +127,13 @@ public final class Actions {
 	private static void describeWith(@org.jspecify.annotations.Nullable String land, String words, String id, boolean survival, Settlement settlement, MinecraftServer server,
 		UUID who, long token, int session) {
 		dev.larattalabs.steward.Steward.LOGGER.info("land round {}: {}", id, land == null ? "(not read)" : land);
+		// (batch-076 fix-check P1) disabled while the land was read: the card job (paid) is not submitted
+		if (Settlements.disabled()) {
+			if (Session.is(session) && describing.get(id) != null && describing.get(id).token() == token) describing.remove(id);
+			ServerPlayer p = server.getPlayerList().getPlayer(who);
+			if (p != null) p.sendSystemMessage(Component.literal(Settlements.DISABLED));
+			return;
+		}
 		var s = Optional.of(settlement);
 		cards().submit(words, Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", Settlements.DEFAULT_RADIUS,
 			land), s.get().owner())

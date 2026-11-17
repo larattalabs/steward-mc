@@ -23,6 +23,7 @@ class SettlementsDurableTest {
 		DurableWrite.FAIL_DIR_FORCE_AFTER_RENAME.set(0);
 		DurableWrite.FAIL_NEXT.clear();
 		SettlementRunner.clearForTest();
+		SettlementRunner.useBuildsFileForTest(null);
 		Settlements.resetForTest();
 	}
 
@@ -76,6 +77,8 @@ class SettlementsDurableTest {
 		store.put(s);
 		store.save(file);
 		Settlements.useForTest(store, file);
+		SettlementRunner.useBuildsFileForTest(dir.resolve("steward-builds.json"));
+		assertTrue(SettlementRunner.canSave(), "builds can be saved before the failure");
 		SettlementRunner running = SettlementRunner.restoredForTest(BuildStoreTestAccess.saved());
 		assertTrue(running.aliveForTest(), "a running build acts before the failure");
 		assertFalse(SettlementRunner.running().isEmpty());
@@ -101,5 +104,9 @@ class SettlementsDurableTest {
 		assertFalse(SettlementRunner.canSave());
 		assertFalse(running.aliveForTest());
 		assertTrue(SettlementRunner.running().isEmpty());
+		// (fix-check P1) Architect's ENTRY_VERSIONED path looks for and applies no update (a null server: anything past the fence would throw)
+		Updates.refreshAll(null);
+		Updates.refresh(null, s);
+		assertEquals(Settlements.DISABLED, Updates.approve(null, "set_1", "site_1"));
 	}
 }

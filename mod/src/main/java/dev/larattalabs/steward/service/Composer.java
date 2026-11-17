@@ -126,7 +126,8 @@ public final class Composer {
 	 */
 	public static void compose(MinecraftServer server, UUID player, Settlement s, String cardJson, @Nullable String land) {
 		int session = Session.current();
-		if (!composeAvailable() || Integer.valueOf(session).equals(COMPOSING.get(s.id()))) return;
+		// (batch-076 fix-check P1) nothing paid starts while settlements are disabled
+		if (Settlements.disabled() || !composeAvailable() || Integer.valueOf(session).equals(COMPOSING.get(s.id()))) return;
 		if (!cpAvailable()) {
 			tell(server, player, s, List.of(NEEDS_CP));
 			return;

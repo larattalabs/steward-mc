@@ -243,4 +243,21 @@ class StreetModulesTest {
 		assertEquals("the big ones", offered.get(0).notes());
 		assertEquals(1, offered.get(0).count());
 	}
+
+	@Test
+	void anOrdinaryEntryNeverTakesTheLandmarkLotOfAnEntryAlikeButForIt() throws Exception {
+		// (batch-076 fix-check P2) an ordinary barn first, a landmark barn second, otherwise alike: the module stands for the first (the ordinary one),
+		// and the layout puts the landmark first: the ordinary lot goes, the landmark stays
+		ConceptCard card = cardWith("""
+			[{"role": "barn", "type": "barn", "count": 1, "footprint": "M", "landmark": false},
+			 {"role": "barn", "type": "barn", "count": 1, "footprint": "L", "landmark": true}]""");
+		var specs = ProgramPlanner.lots(card, 2, 1).specs();
+		assertTrue(specs.get(0).landmark());
+		JsonObject plan = json("""
+			{"zones": [{"program": {"lots": [{"id": "barn_1", "type": "storage_hall", "label": "barn",
+			  "ext": {"steward_mc:module": {"id": "storage_hall", "for": "barn"}}}]}}]}""");
+		var r = StreetModules.leaveOut(plan, Set.of(), card, specs, "x", "on Steward's streets");
+		assertEquals(1, r.removed());
+		assertEquals(List.of(specs.get(0)), r.specs(), "the landmark barn stays");
+	}
 }

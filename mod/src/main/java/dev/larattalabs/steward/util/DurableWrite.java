@@ -92,7 +92,8 @@ public final class DurableWrite {
 	 * file's folder; every folder entry from the file's folder up to it, its own included, is forced once a process (null: the file's folder).
 	 */
 	public static void write(Path file, byte[] data, @org.jspecify.annotations.Nullable Path root) throws IOException {
-		Path abs = file.toAbsolutePath();
+		// (batch-076 fix-check P2) normalized: the world folder comes as world/., whose parent is the world itself
+		Path abs = file.toAbsolutePath().normalize();
 		Path dir = abs.getParent();
 		ensureDir(dir);
 		settle(dir, root);
@@ -127,7 +128,8 @@ public final class DurableWrite {
 	 * change (review P1: the world id).
 	 */
 	public static void confirm(Path file) throws IOException {
-		Path abs = file.toAbsolutePath();
+		// (batch-076 fix-check P2) normalized: the world folder comes as world/., whose parent is the world itself
+		Path abs = file.toAbsolutePath().normalize();
 		retryUnforcedDirs();
 		settle(abs.getParent(), null);
 		Forcer f = forcer;
@@ -164,7 +166,7 @@ public final class DurableWrite {
 	 */
 	private static void settle(Path dir, @org.jspecify.annotations.Nullable Path root) throws IOException {
 		if (settledDirs.contains(dir)) return;
-		Path stop = root == null ? dir : root.toAbsolutePath();
+		Path stop = root == null ? dir : root.toAbsolutePath().normalize();
 		if (!dir.startsWith(stop)) stop = dir;
 		for (Path d = dir; d != null; d = d.getParent()) {
 			if (d.getParent() != null) forcer.dir(d.getParent());

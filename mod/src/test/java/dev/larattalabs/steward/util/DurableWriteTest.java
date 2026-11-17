@@ -312,4 +312,15 @@ class DurableWriteTest {
 		DurableWrite.write(f, "w".getBytes(StandardCharsets.UTF_8), dir);
 		assertEquals("w", read(f));
 	}
+
+	@Test
+	void theWorldFolderAsMinecraftGivesItIsSettledUpItsRealParent(@TempDir Path dir) throws Exception {
+		// (batch-076 fix-check P2) LevelResource.ROOT resolves to world/.: the world's own entry is forced in the folder holding it, not in itself
+		Path world = Files.createDirectory(dir.resolve("world"));
+		Path f = world.resolve(".").resolve("steward-settlements.json");
+		var r = new Recorder(world.resolve("steward-settlements.json"));
+		DurableWrite.forcer = r;
+		DurableWrite.writeString(f, "x");
+		assertEquals(List.of("dir:" + dir.getFileName() + ":-", "file:-", "dir:world:x"), r.calls);
+	}
 }
