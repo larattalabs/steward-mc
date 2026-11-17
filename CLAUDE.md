@@ -2,10 +2,10 @@
 
 # Claude Code specifics
 
-- The speed rules in AGENTS.md "Process" (Noah, 2026-11-13) set how much checking a change gets:
+- The speed rules in AGENTS.md "Speed rules" (consolidated 2026-11-16) set how much checking a change gets:
   - **Strict tier:** saves, billing, refunds, undo, and crash recovery. A gate or "is this done" check there is verified by an independent
-    `gate-verifier` agent, never by the builder itself.
-  - **Light tier:** unit tests plus one targeted flow.
+    `gate-verifier` agent at the batch merge, never by the builder itself.
+  - **Light tier:** compile, the scoped unit tests and gitleaks; the batch's in-game run covers it.
   - New screens get a `design-critic` look at real screenshots (`artifacts/shots/`).
   - Unit suites are scoped to the code a slice touched, and run under `nice -n 10`.
   - Timing benches only report.

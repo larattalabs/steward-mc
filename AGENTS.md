@@ -11,15 +11,21 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
   - `entity/`: the steward mob. `view/`: what the screens show.
   - `src/client/`: screens, HUD, renderer.
 - `schema/`, `prompts/`: the concept card's schema and prompt. `fixtures/`: test data, including real save files (`fixtures/saves/`).
-- `tools/e2e.mjs`: the $0 end-to-end check.
+- `modules/`: the functional modules (`crop_farm`, `storage_hall`) and their certificates (`measured.json`).
+- `tools/e2e.mjs`: the $0 end-to-end check (its flow registry is in the file, the flow choice in `tools/lib/e2e-flows.mjs`). `tools/nightly.mjs`: the
+  nightly. `tools/module-*.mjs`: module measurement and the catalog.
 - `assets-src/`: the art pipeline (NPC skins; ported from AgentCraft, see its NOTICE).
 
 ## Where things are decided
 
-- `docs/PLAN.md`: the plan, its Decisions table (newest last), "Review and order", "Reviews (2026-10-09)" and the phases. Read the status line and the order first.
-- `docs/ARCHITECT-ASKS.md`: what Steward asked of Architect, round by round, with Architect's answers. Architect's side is in `../architect-mc/docs/PLAN.md`.
+- `docs/PLAN.md`: the plan, its Decisions table (newest last), "Review and order", "Reviews (2026-10-09)" and the phases. Read the status line first.
+- `../LEFTOVERS.md` (outside the repo), "Steward": the live slice queue and leftovers, kept by the manager and the parent session.
+- `docs/ARCHITECT-ASKS.md`: what Steward asked of Architect, round by round, with Architect's answers. Architect's side is in `../architect-mc/docs/PLAN.md`,
+  and the shared status in `../architect-mc/docs/STEWARD-SYNC.md`.
+- `docs/MODULES.md`, `docs/MEASURE-M2.md`, `docs/MEASURE-M4.md`: phase 5's design and the modules' measurements.
 - `docs/GPT-REVIEWS-2026-10-09.md`, `docs/STEWARD-REVIEW.md`, `docs/A7-SETTLEMENTS-REVIEW.md`: reviews and what came of them.
 - `mod/DEV.md`: how things were run and checked, with results (dev client, paid runs, the e2e check, the UI).
+- `docs/archive/AGENTS-HISTORY.md`: the dated text of earlier rules, replaced by the ones below.
 
 ## Process
 
@@ -30,94 +36,135 @@ lab-ui (`../lab-ui`), the shared screen kit and world UI. It has these parts:
   - The manager sends every question, decision and end point for Noah to the parent session (`local_a69a2186-cbdd-40c1-bdf5-afdbf5a330cc`).
     Slice briefs go there too, to be put up as cards there, not proposed here.
   - Noah's answers relayed from the parent session, quoted as his words, are his decisions.
-- Phase 5 is in slices M0-M5, then 5b's M7-M9 (`docs/MODULES.md` §8); earlier phases are in `docs/PLAN.md`, "Phases". Each step ships on its own with unit tests and an e2e check, committed in coherent pieces.
+- Phase 5 is in slices M0-M5, then 5b's M7-M9 (`docs/MODULES.md` §8); earlier phases are in `docs/PLAN.md`, "Phases". Each step ships on its own with
+  unit tests, checked in game as its tier says (speed rules 2-3), committed in coherent pieces.
 - Architect changes are asked for, never made here: write the ask into `docs/ARCHITECT-ASKS.md` and send it to the Architect session. Steward never edits
   `../architect-mc` or `../lab-ui`.
 - Branch work happens in a worktree under `../_work/` (`git worktree add ../_work/steward-<name> <branch>` from this checkout), never in `/tmp` or the
   scratchpad: a reboot wipes those. A worktree has no `.gradle-home`, so its builds and e2e runs set `GRADLE_USER_HOME` to this checkout's.
 - Decisions Noah makes go into the Decisions table as they happen. A review's findings are checked against the code before they are acted on.
-- High-stakes or hard changes (spending, persistence, cancellation, migrations) get an independent GPT review (the second-opinion skill), then a check of the fixes.
-- **Speed rules** (Noah, 2026-11-13: "yes, apply all of those"; they apply to running slices too):
-  - **Risk tiers.**
-    - **Strict:** saves and persistence, billing, refunds and stock, undo and revert, crash recovery and reconcile, and anything that can
-      mint or lose items. These keep the gate-verifier and, where the rules ask for one, the GPT review.
-    - **Light:** everything else (UI, wording, tooling, docs, fixtures, $0 prompts). Unit tests plus one targeted in-game flow, with no
-      verifier and no GPT review. New screens still get a design-critic look.
-    - The manager picks the tier in the brief when it's unclear.
-  - **Failing steps only.** After a failure, fix it and rerun only the failing flows (`--only`). The full gate runs once at the end. Three
-    full runs per slice at most; a fourth is the manager's call.
-  - **Batched merges.** The manager merges 2-4 ready slices together and runs one merge suite on the combined result. If it fails, bisect by
-    slice.
-  - **Module re-certification.** A measured module is re-measured at an Architect pin only when its own code changes, or when the Architect
-    build, billing or realise paths it uses change. A plain version bump gets a smoke check: one field round plus the billing check.
-  - **Capacity.** Up to 6 in-game runs at once machine-wide, with no two starting within 2 minutes of each other (rule 12 below). Unit
-    suites run under `nice -n 10`. Docs, kit-only and unit-only work take no slot.
-  - **Short as-builts.** A slice's as-built and its report are 10-15 lines: what changed, what ran and passed, and the leftovers.
-  - **Scoped unit suites** (Noah, 2026-11-13: "yes, send that to both managers/add to agent/claude docs"):
-    - A slice runs only the Gradle and npm tests for the code it touched, plus their direct dependents.
-    - The full `./gradlew build` and `npm test` run once, at the batch merge.
-    - A slice that touches shared core (persistence, billing, the gateway) runs the full suite.
-  - **Timing benches report only** (same decision): a perf or timing assertion becomes a report step that records the number and the load.
-    Past its bound, it flags the manager instead of failing the slice.
-  - **Load gate** (Noah, 2026-11-13: "lets ensure that is 15 min max from now on, with high at least 72 cap"): a load-aware start waits at most
-    15 minutes, and the load threshold is 72 or more. The e2e client's defaults are `E2E_LOAD_MAX` 72 and `E2E_LOAD_WAIT_MIN` 15.
-  - **Deferred verification** (Noah, 2026-11-15: "Yes, apply all"; it overrides the rules above where they conflict, and applies to running
-    slices too):
-    - **Light tier:** no in-game run per slice. Compile, the scoped unit tests and gitleaks, then the slice joins the next batch, whose in-game
-      run covers it.
-    - **Strict tier:** only the in-game scenarios for the risk the slice touches (item loss, billing, refund, undo or crash). No full gate
-      per slice; the batch merge runs it.
-    - **Batches** of 4-6 ready slices, with one full merge suite on the combined result. If it fails, bisect by slice.
-    - **The strict gate-verifier and the GPT review** run once per Architect release or Steward batch merge, over all the strict diffs it
-      holds, not once per slice.
-    - **Architect pins skip versions:** bump the pin every other release. At other releases, run a smoke check only (one field round plus
-      billing), unless a module's own code or Architect's realise or billing paths changed.
-    - Unchanged: the targeted strict scenario on every strict slice, scoped unit tests, gitleaks, at most 3 full runs, $0 without Noah's
-      approval, and slices never merge or push main. Nightlies stay skipped until Noah says otherwise.
-  - **Gate capacity, standing approvals, parallel slices** (Noah, 2026-11-15: picked "More gate slots + ports", "Standing approvals" and
-    "More parallel slices"; not "GPT review early"):
-    - **Gate capacity:** up to 6 in-game runs at once machine-wide, 2 minutes between starts. The load-gate bounds are unchanged. Steward
-      may also use ports 9100-9149 (in pairs), besides its own.
-    - **Standing approvals:** a paid step under $1 inside a budget Noah already approved goes ahead, with a one-line note to the parent
-      giving its cost. A product question with a confident recommendation goes ahead on it, with a one-line note (question, choice, why);
-      Noah can overrule. Still asked first: anything irreversible, anything changing what a player loses or pays, a new public surface,
-      new budgets or raised caps, and any step over $1.
-    - **Parallel slices:** the manager keeps up to 6-8 slices in progress at once, as far as files and ports allow, and pre-briefs the next
-      ones so a free slot never sits empty.
-    - Unchanged: the strict tier, the per-batch GPT review and gate-verifier, $0 unless approved, and slices never merge or push main.
-  - **GPT review per strict slice** (Noah, 2026-11-16: picked "Review per strict slice"; not "Auto-drop failed slices"):
-    - Once a strict slice is built and its targeted strict scenarios pass, it gets its own GPT review in the background (the
-      second-opinion skill, over its diff only) while other work carries on.
-    - It fixes its P1 findings before it joins a batch.
-    - The per-batch GPT review stays, so this adds a check and removes none. It overrides "not once per slice" above for strict
-      slices. Light slices still get no GPT review.
-- **Release-candidate testing is DEV MODE** (Noah, 2026-11-04):
-  - An Architect RC runs only the flows its change touches, plus the sanity set: `node tools/e2e.mjs stub --only gate,wall,survival`, aiming for 15-20 min.
-  - Full stub and free runs are nightly, or before a pin when a release is broad; what they find is fixed forward.
-  - After a test-only fix or a chance failure, rerun only the failed flows (each run prints `flow <name>` lines).
-  - Skip the gate-verifier for branches that touch only tests or wording; keep it for survival billing, undo, removal and crash recovery.
-  - No second full e2e pass after a merge to `main`.
-  - A pin bump to a released Architect version whose RC already passed runs only the sanity set: `node tools/e2e.mjs stub --only sanity` (Noah, 2026-11-06).
-    A release that differs from that RC still gets its changed areas run.
+- Besides the strict tier (speed rules 3 and 10), changes to spending or cancellation get an independent GPT review (the second-opinion skill),
+  then a check of the fixes.
+
+## Speed rules
+
+The current set, shared with Architect (consolidated 2026-11-16, Noah via the parent session: "Yes, all three"). Old rule numbers are in
+brackets; older docs, commits and certificates cite those (their "speed rule 4" is module re-certification, rule 11 here). The dated
+origins are in `docs/archive/AGENTS-HISTORY.md`.
+
+**Tiers and gating**
+
+1. **Risk tiers** [1] (11-13: "yes, apply all of those").
+   - **Strict:** saves and persistence, billing, refunds and stock, undo and revert, crash recovery and reconcile, and anything that can
+     mint or lose items.
+   - **Light:** everything else (UI, wording, tooling, docs, fixtures, $0 prompts).
+   - The manager picks the tier in the brief.
+2. **Light slices** [11.1, 8] (11-15: "Yes, apply all"): compile, the scoped unit tests (rule 7) and gitleaks. No in-game run of their own
+   (the batch's covers them), no verifier, no GPT review. A design-critic look only for new screens.
+3. **Strict slices** [11.2, 15, 17, 18] (11-15: "Yes, apply all"; 11-16: "Review per strict slice" and "Add those"):
+   - **Persist before mutate:** no world, stockpile or in-memory change affecting items, billing or refunds before a durable, *confirmed*
+     record. A queued save or an executor completion isn't persistence. Once Architect's TXN lands, use the transaction layer.
+   - **Crash points and conservation:** crash at each save point of the operation, and after every strict scenario assert that stockpile,
+     world and ledger balance (items in == items out). Write the tests failing-first; use TXN's harness once it exists.
+   - Run only the in-game scenarios for the risk touched (`--only`); no full gate per slice.
+   - **Early GPT review** of the slice's own diff in the background once its strict scenarios pass. Fix P1s before it joins a batch.
+4. **The review-round guard** [20] (11-16: "Add those"): after a NOT SAFE GPT review, one fix round, then one final GPT pass. If that still
+   finds a P1, the slice goes to Noah via the parent: no more rounds, and **never drop a slice from a batch or release without Noah's OK**.
+5. **Verify review premises in code** [19] (11-16: "Add those") before designing on a reviewer's framing.
+6. **Failing steps only** [2] (11-13: "yes, apply all of those"): after a failure, rerun only the failing flows (`--only`; each run prints `flow <name>` lines). At
+   most **3 full runs** per slice; a 4th is the manager's call.
+7. **Scoped unit suites** [8] (11-13: "yes, send that to both managers/add to agent/claude docs"): a slice runs the Gradle and npm tests
+   for the code it touched, plus their direct dependents. The full `./gradlew build` and `npm test` run at the batch merge. A slice
+   touching shared core (persistence, billing, the gateway) runs the full suite.
+8. **Timing benches are report-only** [9] (same decision): they record the number and the load, and past their bound they flag the
+   manager instead of failing the slice.
+
+**Batches and merges**
+
+9. **Batches of 4-6 ready slices** [11.3] (11-15: "Yes, apply all"), with one full merge suite on the combined result; bisect by slice on failure.
+10. **The batch merge** [11.4, 11.5, 15] (11-15: "Yes, apply all"; 11-16: "Review per strict slice"): the full merge suite (rule 9),
+    then the strict gate-verifier on fresh runs of the strict flows (never a reused PASS: no `--skip-unchanged`), then the per-batch GPT
+    review over the batch's strict diffs. Merge only after all three.
+11. **Module re-certification** [4, 11.6] (11-13: "yes, apply all of those"): re-certify a measured module at a new Architect pin only when its own code changes, or
+    Architect's build, billing or realise paths it uses change. Otherwise a smoke carry: re-quote the bounds and run one field round plus
+    billing (`tools/module-catalog.mjs record --smoke`; `docs/MEASURE-M2.md` "Re-certification").
+
+**Capacity**
+
+12. **Gate slots** [5, 10, 12] (11-13: "lets ensure that is 15 min max from now on, with high at least 72 cap"; 11-15: "More gate slots +
+    ports"):
+    - Up to **6** in-game runs at once machine-wide, at least **2 min** between starts.
+    - The load gate: a start waits for the 1-minute load to fall to the threshold, which is **72** or more, for **15 min** at most. The
+      e2e's defaults are `E2E_LOAD_MAX` 72 and `E2E_LOAD_WAIT_MIN` 15. Going past these bounds needs Noah.
+    - Unit suites run under `nice -n 10`. Docs-only and unit-only work takes no slot.
+    - The shared slot queue is Architect's `../architect-mc/tools/slot.mjs` (its `docs/GATES.md`, "Outside callers (Steward)"). Steward's
+      e2e on main doesn't take a slot from it yet: it counts running Steward clients itself (`E2E_MAX_CLIENTS`, default 6), and its
+      `--clients` stagger defaults to 60 s, so pass `--stagger 120`.
+13. **Ports** [12]: Steward's are in "Ports" below; Architect's slice, turbo and infra ranges are never Steward's.
+14. **Parallel slices** [14] (11-15: "More parallel slices"): the manager keeps 6-8 slices in progress where files and ports allow, and
+    pre-briefs the next ones.
+15. **Build caches** [24] (11-16: "Add those"): when lab-ui or a pinned dependency changes, refresh every worktree's build before its next run.
+
+**Decisions and spending**
+
+16. **Standing approvals** [13] (11-15: "Standing approvals"): on a product question with a confident recommendation, the manager proceeds
+    and sends the parent a one-line note (question, choice, why); Noah can overrule. Still ask first: anything irreversible, anything
+    changing what a player loses or pays, a new public surface, new budgets or raised caps, any step over $1, or anything not confident.
+17. **Spending** [13, 21]. Noah said on 11-16 that spending can be very loose (subscription usage). **Pending:** rule 21's pre-approval
+    isn't live in either repo's docs. Both managers' safety checks refused writing it on a relayed approval, so Noah has to type it in each
+    manager's own session. **Until then:** a paid step under $1 inside an approved budget goes ahead with a one-line note to the parent,
+    giving its cost; any other paid run goes as a card Noah starts himself. Never route around a session's safety check.
+18. **Everything routes through the parent session** (`local_a69a2186-cbdd-40c1-bdf5-afdbf5a330cc`): Noah's questions, decisions and spend.
+
+**Hygiene**
+
+19. **Short as-builts** [7] (11-13: "yes, apply all of those"): a slice's as-built and report are 10-15 lines (what changed, what ran and passed, leftovers).
+20. **Review sheets** for Noah [22] (11-16: "Add those"): one self-contained HTML file, with images inlined (JPEG if large).
+21. **Run scripts and temp files** [23] (same) stay in the slice's own worktree (or `../_work/steward-<name>-*`), never a shared scratchpad path.
+22. **The parent's stall checks** [6] (11-13: "yes, apply all of those") run every ~25 min. The 01:00-03:30 quiet window applies only when a nightly runs.
+23. **Nightlies** run by default (11-16, the consolidation). Noah skips one night at a time with `artifacts/nightly/skip-<local date>`
+    (`tools/nightly.mjs`; `--dry` says whether tonight would run).
+
+**Always:** slices never merge or push main; gitleaks before any push; kill only your own processes; no Discord pings; never commit secrets.
+
+## Architect RCs and pins (DEV MODE)
+
+Noah, 2026-11-04 and 11-06; the history is in `docs/archive/AGENTS-HISTORY.md`.
+
+- An Architect RC runs only the flows its change touches, plus `node tools/e2e.mjs stub --only gate,wall,survival`, aiming for 15-20 min. The sanity
+  set (status, the claim, Expand, the restart) always runs too. The RC's jar comes in through `ARCHITECT_JAR` (`mod/DEV.md`).
+- A pin bump to a released Architect version whose RC already passed runs only the sanity set: `node tools/e2e.mjs stub --only sanity`. A release
+  that differs from that RC still gets its changed areas run.
+- Full stub and free runs are nightly (rule 23), or before a pin when a release is broad; what they find is fixed forward.
+- After a test-only fix or a chance failure, rerun only the failed flows (rule 6). No second full e2e pass after a merge to `main`.
 
 ## Build and test
 
 - **Java:** from `mod/`, `JAVA_HOME=/opt/homebrew/opt/openjdk@25 GRADLE_USER_HOME=$PWD/../.gradle-home ./gradlew build --offline` (compile, unit tests, jar).
-  Architect comes from GitHub Packages (a token with `read:packages`, cached in `.gradle-home` for offline builds), never Maven Local; a release candidate is checked with `ARCHITECT_JAR`. lab-ui comes from a clean `../lab-ui` checkout at its release tag (settings.gradle), else GitHub Packages.
-- **Tools:** `npm test` (the concept card and talk schemas against the fixtures).
-- **End to end ($0):** `node tools/e2e.mjs free`, after the jar is built (`--only word,word`: only the flows whose name or tags hold a word, plus the sanity set). It runs its own client and checks the claim, the steward (its nameplate, bubble and "!"), Expand,
-  the screens, an update (the steward walks to it), revert, undo, the steward sitting and sleeping, proposals, a protected area and a district with its road, talking to the steward, a migrated old steward and a restored build; results in `artifacts/e2e/summary.json`, screenshots in `artifacts/shots/`. It refuses
-  to start while the claude-login opt-in exists or another Steward client uses `mod/run`. `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's sim helper (`mod/DEV.md`).
+  Architect comes from GitHub Packages (a token with `read:packages`, cached in `.gradle-home` for offline builds), never Maven Local; a release candidate is
+  checked with `ARCHITECT_JAR`. lab-ui comes from a clean `../lab-ui` checkout at its release tag (`mod/settings.gradle`), else GitHub Packages. The pins
+  are in `mod/gradle.properties` (`architect_version`, `lab_ui_version`).
+- **Tools:** `npm test` (`test/*.test.mjs`: the concept card, talk and proposal schemas against the fixtures, and the tools' own tests).
+- **End to end ($0):** `node tools/e2e.mjs free`, after the jar is built.
+  - `--only word,word` runs only the flows whose name or tags hold a word (and the flows they need), plus the sanity set. `--clients N` runs on N
+    clients side by side, and `--skip-unchanged` skips flows unchanged since their last PASS (`mod/DEV.md` "Faster runs").
+  - It checks the claim, the steward, Expand, the screens, updates, revert, undo, proposals, districts, talk, growth, modules, survival billing and
+    refunds, migrated saves and more. Results go in `artifacts/e2e/summary.json`, screenshots in `artifacts/shots/`.
+  - It refuses to start while the claude-login opt-in exists or another Steward client uses `mod/run`.
+  - `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's sim helper (`mod/DEV.md`).
 - **Art:** `uv run --with pillow==11.3.0 python assets-src/build.py --verify`, then `--sync` to copy into the mod.
 - **Dev client:** `./gradlew runClient --offline` from `mod/`; drive it with `node ../architect-mc/tools/devcli.mjs ... --port 8491` and
   `ARCHITECT_GAME_DIR=$PWD/run` (`mod/DEV.md`).
 
 ## Ports (don't collide with other sessions)
 
-- Steward dev client: 8490 (Architect sidecar) / 8491 (DevBridge); override with `STEWARD_PORT` / `STEWARD_DEV_PORT`.
-- Steward e2e client: 8590 / 8591 (`tools/run-e2e-client.sh`).
-- Architect's ports: see `../architect-mc/docs/GATES.md`, its port table (gate runners, slice pairs, turbo). Steward uses only 8490-8491, 8590-8601
-  and 9100-9149 (Noah, 2026-11-15).
+Steward uses only 8490-8491, 8590-8601 and 9100-9149 (Noah, 2026-11-15). Within those:
+
+- Dev client: 8490 (Architect sidecar) / 8491 (DevBridge); override with `STEWARD_PORT` / `STEWARD_DEV_PORT`.
+- E2e client: 8590 / 8591 (`tools/run-e2e-client.sh`).
+- Slices: 8592-8601 in pairs, assigned in the brief. `tools/module-measure.mjs` defaults to 8594/8595, `tools/module-measure-hall.mjs` to 8598/8599.
+- More slice pairs: 9100-9149, assigned the same way.
+- Architect's ranges (gate runners, slice blocks 8896-8939 and 9000-9099, turbo 8940-8999, infra 8912-8915): `../architect-mc/docs/GATES.md`, "Ports".
 
 ## Hard rules
 

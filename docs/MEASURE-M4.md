@@ -6,9 +6,10 @@ bars **before the first candidate is measured**: git history shows it committed 
 Results never move a bar. A bar found wrongly stated is recorded as a FAIL and a design change, never quietly relaxed.
 
 **Order (the brief).** The plain hall (`slots = 0`) is built, measured and certified first, so the slice ships either way. The sorting
-branches (`slots` 4-16) wait for Noah's choice of the filler item (open: option 1 `minecraft:petrified_oak_slab`, a module-provided item that
-needs an Architect ask first; option 2 a billed plain item survival can make). Until then the envelope's `slots` branch is `[0]` only, and
-the program refuses any other value.
+branches (`slots` 4-16) waited for Noah's choice of the filler item (decided 2026-11-14, below: option 1); they are storage_hall@2 (M4b).
+In @1 the envelope's `slots` branch is `[0]` only, and the program refuses any other value.
+
+**Current (2026-11-16):** storage_hall@1 is certified on Architect 0.73.0 by a smoke carry (§9b), the version main pins.
 
 **The filler is decided** (Noah, PLAN Decisions 2026-11-14, relayed by the Steward manager): `minecraft:petrified_oak_slab`, **module-provided**
 (option 1). It exists in 26.3 (block, item and loot table in the jar; no recipe). Architect's support is slice FK-b (strict, after J1, likely

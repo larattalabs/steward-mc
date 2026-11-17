@@ -2,7 +2,9 @@
 
 **Shared status:** `../architect-mc/docs/STEWARD-SYNC.md` (since 2026-10-19) holds what Steward has shipped against Architect, Steward's not-started list, the agreed order and the open asks. Architect updates it at every release and sync; Steward tells Architect when an item moves or is blocked. This file keeps each ask and review in full, round by round.
 
-**Status 2026-10-05: all accepted** (architect-mc commit a040e39, "After phase 3: asks from Steward"). Architect's order: A9 (in progress), A8, A1+A2, A3, A7, A4, A6, A5. A8 contract draft comes to Steward for review before it is built.
+**Current status:** the open asks and the agreed order are in `STEWARD-SYNC.md` (above); the newest rounds are at the end of this file (phase 5's S-M5 asks, 2026-11-12 on). Steward main pins Architect 0.73.0.
+
+**Status 2026-10-05 (the first round, history): all accepted** (architect-mc commit a040e39, "After phase 3: asks from Steward"). Architect's order then: A9, A8, A1+A2, A3, A7, A4, A6, A5.
 
 
 Steward (sibling mod, see PLAN.md) is generative-first and depends on Architect for generation and placement. These

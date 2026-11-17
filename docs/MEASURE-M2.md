@@ -6,6 +6,8 @@ git history shows this file's first commit before any `artifacts/m2/<step>.json`
 result. Results never move a bar. A bar that turns out to be wrongly stated is recorded as a FAIL and a design change, never quietly relaxed.
 If a bar fails because of a vanilla rule, the slice stops and reports it (it goes to Noah).
 
+**Current (2026-11-16):** crop_farm@1 is certified on Architect 0.73.0 by a smoke carry from its full 0.67.0 measurement ("Results", pin-073), the version main pins.
+
 - **How:** `node tools/module-measure.mjs <step>` launches its own client (`tools/run-e2e-client.sh`, ports 8594/8595) in a fresh flat world.
   - It builds V towns (Architect's `flat_village`, pads only, no irrigation).
   - It installs the catalog entry at $0 by its key, through Steward's own `ModuleInstalls` (`/steward dev module`).
