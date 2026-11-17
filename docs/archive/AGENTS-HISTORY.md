@@ -13,8 +13,6 @@ here is current where it differs from AGENTS.md.
 - **"The GPT review runs once per batch, not once per slice"** (11-15). Overridden for strict slices by the per-slice early review (11-16), rule 3.
 - **"Nightlies stay skipped until Noah says otherwise"** (11-15, repeated 11-16 overnight). Nightlies now run by default and are skipped
   night by night with skip files (rule 23).
-- **"Architect pins skip versions: bump the pin every other release"** (11-15). Not in the consolidated set; pins now follow the manager's
-  call, with module re-certification under rule 11.
 - **Capacity said twice** (the 11-13 list and the 11-15 "gate capacity"), with a dangling "rule 12 below". Now one rule, 12.
 - **DEV MODE's "skip the gate-verifier for branches that touch only tests or wording"** (11-04). Covered by the risk tiers (rule 1).
 - **"High-stakes changes get a GPT review"** as a separate line overlapping the strict-tier rules. Kept only for what the tiers don't cover

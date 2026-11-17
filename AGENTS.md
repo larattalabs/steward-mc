@@ -85,7 +85,9 @@ origins are in `docs/archive/AGENTS-HISTORY.md`.
 10. **The batch merge** [11.4, 11.5, 15] (11-15: "Yes, apply all"; 11-16: "Review per strict slice"): the full merge suite (rule 9),
     then the strict gate-verifier on fresh runs of the strict flows (never a reused PASS: no `--skip-unchanged`), then the per-batch GPT
     review over the batch's strict diffs. Merge only after all three.
-11. **Module re-certification** [4, 11.6] (11-13: "yes, apply all of those"): re-certify a measured module at a new Architect pin only when its own code changes, or
+11. **Architect pins skip versions** [11.6] (11-15: "Yes, apply all"): bump the Architect pin every other release, or sooner when a slice needs
+    it (QD on 0.73.0, INV and LUI on 0.74.0). A release in between gets a smoke check only: the sanity set plus one field round and billing.
+11b. **Module re-certification** [4, 11.6] (11-13: "yes, apply all of those"): re-certify a measured module at a new Architect pin only when its own code changes, or
     Architect's build, billing or realise paths it uses change. Otherwise a smoke carry: re-quote the bounds and run one field round plus
     billing (`tools/module-catalog.mjs record --smoke`; `docs/MEASURE-M2.md` "Re-certification").
 
