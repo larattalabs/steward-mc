@@ -79,3 +79,26 @@ export async function saveBarrier(dev, { match = () => true, timeoutMs = 180_000
   throw new Error(`saveBarrier: not saved after ${timeoutMs} ms (unsaved ${saved?.unsaved}, periodic saves ${saved?.periodicSaves}, `
     + `loadFailed ${saved?.loadFailed}${saved?.ok === false ? `, ${saved.error}` : ''})`);
 }
+
+/**
+ * (SAVEB wiring) A saved state read from disk once it passes {@code ok}: the save barrier ({@link saveBarrier}) with {@code readSaved()} as its match,
+ * so the periodic fallback waits until what is on disk passes; after `dev.stockpile.save` (which never consults match) the disk is read again until it
+ * passes, every {@code pollMs} for at most {@code settleMs}. Never throws: a barrier that fails or times out returns the last read, which the caller
+ * checks (a baseline step that fails its own check, not a whole run aborted). {@code readSaved} errors count as null.
+ */
+export async function savedOnDisk(dev, readSaved, ok, { timeoutMs = 180_000, settleMs = 20_000, pollMs = 2000, sleep = nap, now = Date.now } = {}) {
+  const read = () => { try { return readSaved(); } catch { return null; } };
+  const passes = () => { const v = read(); return ok(v) ? v : null; };
+  try {
+    const r = await saveBarrier(dev, { match: () => !!passes(), timeoutMs, pollMs, sleep, now });
+    if (r.how === 'save') {
+      const t0 = now();
+      for (;;) {
+        const v = passes();
+        if (v || now() - t0 >= settleMs) break;
+        await sleep(pollMs);
+      }
+    }
+  } catch { /* the last read below is the answer; the caller's check names it */ }
+  return read();
+}

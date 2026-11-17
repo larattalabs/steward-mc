@@ -18,7 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
-import { checkCommand } from './lib/save-barrier.mjs';
+import { checkCommand, savedOnDisk } from './lib/save-barrier.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -1550,12 +1550,12 @@ const savedLedger = () => {
  * the point's). Call {@link #killFrom} just before arming.
  */
 const killFrom = () => { const f = path.join(ART, 'client.log'); return fs.existsSync(f) ? fs.statSync(f).size : 0; };
-/** The saved ledger once it passes {@code ok}, read every 2 s for at most 3 minutes (Architect's periodic save writes it); the last read if never. */
+/**
+ * The saved ledger once it passes {@code ok}, through the save barrier (SAVEB: `dev.stockpile.save` on Architect 0.75+, else its periodic save turned
+ * on and the file read every 2 s for at most 3 minutes); the last read if never. The periodic save stays on: the callers turn it off before the halt.
+ */
 async function savedAs(ok) {
-  await call('dev.stockpile.ps', { noPeriodic: false }, 30_000).catch(() => null);
-  let L = null;
-  for (let i = 0; i < 90; i++) { L = savedLedger(); if (ok(L)) return L; await sleep(2000); }
-  return L;
+  return savedOnDisk(dev, savedLedger, ok);
 }
 async function haltWait(point, from) {
   for (let i = 0; i < 300 && !exited; i++) await sleep(1000);
