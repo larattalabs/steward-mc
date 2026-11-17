@@ -1,0 +1,183 @@
+{
+  "prompt": "a small walled hamlet with a stone wall round it, a storage store that sorts its goods and keeps the stores in order, a working automatic crop farm, and a few houses",
+  "recorded": "2026-11-17, slice M5 paid half, Noah's claude login (branch m5-paid on m5b-hall 2fdbb06, Architect 0.74.0), flat creative dev world",
+  "cost": {
+    "cardUsd": 0.0172,
+    "composeUsd": 0.0528,
+    "capUsd": 0.7
+  },
+  "compose": "plan for set_1: Architect's compose COMPOSED (1 round(s)), $0.053",
+  "kept": "plan for set_1: READY after 0 repair(s), 0 pending, 0 unfit, $0.053",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "walled_hamlet",
+      "style": {
+        "pending": "walled_hamlet"
+      },
+      "zones": [
+        {
+          "id": "hamlet",
+          "label": "Walled hamlet",
+          "required": true,
+          "purpose": "home",
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 8
+            }
+          },
+          "size": {
+            "w": 64,
+            "d": 64
+          },
+          "program": {
+            "layout": "street",
+            "shared": "square",
+            "lots": [
+              {
+                "id": "storage_store_1",
+                "type": "storage_hall",
+                "role": "sorting_store",
+                "label": "sorting storage store",
+                "size": [
+                  11,
+                  13
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Item-sorting chest system with hoppers and labelled chests; overflow and restock kept in order.",
+                "ext": {
+                  "steward_mc:module": {
+                    "id": "storage_hall",
+                    "params": {
+                      "slots": 8,
+                      "bulk": 2,
+                      "item1": "cobblestone",
+                      "item2": "oak_log",
+                      "item3": "coal",
+                      "item4": "iron_ingot",
+                      "item5": "wheat",
+                      "item6": "wheat_seeds",
+                      "item7": "dirt",
+                      "item8": "stone"
+                    },
+                    "for": "storage_store"
+                  }
+                }
+              },
+              {
+                "id": "auto_farm_1",
+                "type": "crop_farm",
+                "role": "crop_farm",
+                "label": "crop farm",
+                "size": [
+                  20,
+                  21
+                ],
+                "irrigate": true,
+                "brief": "Watered, lit field inside the wall that feeds the store.",
+                "ext": {
+                  "steward_mc:module": {
+                    "id": "crop_farm",
+                    "params": {
+                      "depth": 18,
+                      "width": 18,
+                      "crop": "wheat"
+                    },
+                    "for": "auto_farm"
+                  }
+                }
+              },
+              {
+                "id": "house_1",
+                "type": "house",
+                "role": "house",
+                "label": "house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with beds and chests."
+              },
+              {
+                "id": "house_2",
+                "type": "house",
+                "role": "house",
+                "label": "house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with beds and chests."
+              },
+              {
+                "id": "house_3",
+                "type": "house",
+                "role": "house",
+                "label": "house",
+                "size": [
+                  9,
+                  9
+                ],
+                "villager": "dwelling",
+                "brief": "Small home with beds and chests."
+              },
+              {
+                "id": "gatehouse_1",
+                "type": "gatehouse",
+                "role": "gatehouse",
+                "label": "gatehouse",
+                "size": [
+                  13,
+                  9
+                ],
+                "placement": "edge",
+                "brief": "Gate in the stone wall."
+              }
+            ]
+          }
+        }
+      ],
+      "connectors": [
+        {
+          "id": "hamlet_wall",
+          "kind": "wall",
+          "required": true,
+          "label": "Stone wall",
+          "where": {
+            "around": {
+              "feature": {
+                "part": "hamlet"
+              },
+              "ring": [
+                4,
+                12
+              ]
+            }
+          },
+          "gates": {
+            "min": 1
+          },
+          "lots": [
+            {
+              "lot": "gatehouse_1",
+              "at": "gate",
+              "mech": "portcullis"
+            }
+          ],
+          "notes": "Plain stone wall round the hamlet with a gatehouse."
+        }
+      ],
+      "forms": [],
+      "rules": []
+    },
+    "pending": [],
+    "summary": "You get a small stone-walled hamlet on the plains by the founding stone, with a gatehouse, a sorting storage store at its heart, three houses and a wheat field inside the wall. The field is watered and lit, but you harvest and replant it by hand: no automatic harvest is built yet."
+  },
+  "artifact": "0995eed3a7f7345ae1c5a27452d9fa1741a44cc6c2a77b6453ce4206a93a0ff8",
+  "rounds": 0,
+  "overall": "READY"
+}

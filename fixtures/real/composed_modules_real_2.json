@@ -1,0 +1,178 @@
+{
+  "prompt": "a farming village on the plains that feeds itself, with a working, self-watering crop farm of wheat fields, a mill and some cottages",
+  "recorded": "2026-11-17, slice M5 paid half, Noah's claude login (branch m5-paid on m5b-hall 2fdbb06, Architect 0.74.0), flat creative dev world",
+  "cost": {
+    "cardUsd": 0.0199,
+    "composeUsd": 0.0511,
+    "capUsd": 0.7
+  },
+  "compose": "plan for set_1: Architect's compose COMPOSED (1 round(s)), $0.051",
+  "kept": "plan for set_1: READY after 0 repair(s), 0 pending, 0 unfit, $0.051",
+  "answer": {
+    "plan": {
+      "schemaVersion": "plan/0",
+      "planId": "plainsfield",
+      "style": {
+        "pending": "plainsfield"
+      },
+      "zones": [
+        {
+          "id": "village",
+          "kind": "standard",
+          "required": true,
+          "label": "Plainsfield village",
+          "purpose": "farming",
+          "where": {
+            "near": {
+              "anchor": "stone",
+              "within": 16
+            }
+          },
+          "size": {
+            "preset": "XL"
+          },
+          "program": {
+            "layout": "street",
+            "shared": "square",
+            "lots": [
+              {
+                "id": "mill_1",
+                "type": "mill",
+                "role": "windmill_mill",
+                "label": "windmill and grain mill",
+                "size": [
+                  13,
+                  11
+                ],
+                "landmark": true,
+                "placement": "central",
+                "brief": "Tall windmill with sails; grinds wheat and sits beside the wheat fields. Stores flour and grain."
+              },
+              {
+                "id": "crop_farm_1",
+                "type": "crop_farm",
+                "role": "wheat_farm",
+                "label": "self-watering wheat farm",
+                "size": [
+                  29,
+                  30
+                ],
+                "irrigate": true,
+                "ext": {
+                  "steward_mc:module": {
+                    "id": "crop_farm",
+                    "params": {
+                      "depth": 27,
+                      "width": 27,
+                      "crop": "wheat"
+                    },
+                    "for": "crop_farm"
+                  }
+                }
+              },
+              {
+                "id": "well_1",
+                "type": "well",
+                "role": "well_cistern",
+                "label": "well and cistern",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Water source feeding the irrigation channels."
+              },
+              {
+                "id": "cottage_1",
+                "type": "cottage",
+                "role": "farmer_cottage",
+                "label": "farmer's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Home for a farmer, with a small kitchen garden, bed and chest."
+              },
+              {
+                "id": "cottage_2",
+                "type": "cottage",
+                "role": "farmer_cottage",
+                "label": "farmer's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Home for a farmer, with a small kitchen garden, bed and chest."
+              },
+              {
+                "id": "cottage_3",
+                "type": "cottage",
+                "role": "farmer_cottage",
+                "label": "farmer's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Home for a farmer, with a small kitchen garden, bed and chest."
+              },
+              {
+                "id": "cottage_4",
+                "type": "cottage",
+                "role": "farmer_cottage",
+                "label": "farmer's cottage",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Home for a farmer, with a small kitchen garden, bed and chest."
+              },
+              {
+                "id": "barn_1",
+                "type": "barn",
+                "role": "granary_barn",
+                "label": "granary barn",
+                "size": [
+                  13,
+                  11
+                ],
+                "placement": "edge",
+                "brief": "Stores harvested wheat and hay; livestock pen alongside."
+              },
+              {
+                "id": "shop_1",
+                "type": "shop",
+                "role": "bakery",
+                "label": "bakery",
+                "size": [
+                  9,
+                  9
+                ],
+                "brief": "Bakes bread from mill flour; sells to villagers."
+              },
+              {
+                "id": "shop_2",
+                "type": "shop",
+                "role": "market_stall",
+                "label": "village green market stall",
+                "size": [
+                  9,
+                  9
+                ],
+                "placement": "central",
+                "brief": "Small stall for selling surplus produce."
+              }
+            ]
+          }
+        }
+      ],
+      "connectors": [],
+      "forms": [],
+      "rules": []
+    },
+    "pending": [],
+    "summary": "You get a farming village on the plains by the founding stone. It has a windmill, a large self-watering wheat farm fed by a well, four farmer's cottages, a granary barn, a bakery and a market stall. The farm is watered but you harvest and replant it yourself, because it has no automatic harvest."
+  },
+  "artifact": "203d83be97c91ef38ef65f19fd51c3acc412cc92ccb56c3bf23466804da80005",
+  "rounds": 0,
+  "overall": "READY"
+}

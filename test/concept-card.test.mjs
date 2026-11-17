@@ -35,10 +35,15 @@ test('real Sonnet outputs validate against the schema', () => {
   const real = new URL('../fixtures/real/', import.meta.url);
   const files = fs.readdirSync(real).filter((n) => n.endsWith('.json'));
   assert.ok(files.length >= 2);
+  let cards = 0;
   for (const f of files) {
-    const { card } = JSON.parse(fs.readFileSync(new URL(f, real)));
-    assert.ok(validate(card), f + ' ' + JSON.stringify(validate.errors));
+    const rec = JSON.parse(fs.readFileSync(new URL(f, real)));
+    // (M5 paid half) a composed-plan record (compose, answer, kept) carries no card: its card is checked where it was described
+    if (!('card' in rec) && 'compose' in rec) continue;
+    assert.ok(validate(rec.card), f + ' ' + JSON.stringify(validate.errors));
+    cards++;
   }
+  assert.ok(cards >= 2);
 });
 
 test('the prompt offers exactly the Architect presets LotBrief knows', () => {

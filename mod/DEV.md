@@ -463,6 +463,32 @@ Kept as `plans-2026-11-13/hidden_village-0.64.1.json`.
 - **Two earlier tries spent $0.00:** the record tools sent their first job while Architect's helper was still running `npm ci` for its Claude Agent
   SDK, which it does at every launch ("Claude link is not available"). Both tools now wait for the launcher's "running" line first.
 
+## M5 paid half: composed plans that name modules (2026-11-17, paid, Noah approved; $0.5487 of a $3.00 plan, $6.00 stop)
+Noah in this session: "Yes, $3 plan / $6 stop" (no single describe or compose over $1.00). Branch `m5-paid` on `m5b-hall` 2fdbb06 (batch 075 not
+merged yet; Architect 0.74.0), ports 9130/9131, flat dev worlds "Steward M5 Paid <n>". Each card: `node tools/compose-proof.mjs 0.70 <words>` on
+Noah's claude login (the opt-in made by the script for the run and removed after it; `ls mod/run/architect/sidecar-data/` showed no
+`secrets.json` after each). Then the kept plan was Started at $0 with `tools/ca2-part-proof.mjs town` on Architect's sim helper (no opt-in), which is
+where plan v1 binds the module lots. The two scripts now take `STEWARD_PROOF_WORLD`, `ARCHITECT_AUTOWORLD_MODE` and `ARCHITECT_AUTOWORLD_PRESET`.
+Costs are the sidecar log's `job ... done ($...)` lines. Fixtures: `fixtures/real/composed_modules_real_{1..4}.json`.
+
+| # | card (words) | card $ | compose $ | modules named | plan v1 binds | @2 hall |
+|---|---|---|---|---|---|---|
+| 1 | market town on the river, storage hall that sorts | 0.0339 | 0.3013 (2 rounds) | storage_hall (16 slots, bulk 4, 16 filters) | **no**: card terrain `sculpt` (river carved), so `VPlan.applies` is false and Start took Steward's own street layout | not reached |
+| 2 | farming village, working self-watering crop farm | 0.0199 | 0.0511 | crop_farm 27x27 wheat, irrigate | yes: `crop_farm_1` -> crop_farm@1 | none asked |
+| 3 | walled hamlet, sorting store + automatic farm | 0.0172 | 0.0528 | storage_hall (8 slots) + crop_farm 18x18 | yes, both | yes: storage_hall@2, bulk 2, slots 1-8 = cobblestone, oak_log, coal, iron_ingot, wheat, wheat_seeds, dirt, stone (9-16 none) |
+| 4 | survival homestead, self-feeding farm + sorting hall | 0.0192 | 0.0533 | storage_hall (8 slots) + crop_farm 27x27 | survival: both left out by the materials guard, said | n/a |
+
+- **Total $0.5487** (0.3352 + 0.0710 + 0.0700 + 0.0725).
+- **Every card named its modules** with `ext.steward_mc:module`; the composer's summaries say the farm is harvested by hand (S10's `does`).
+- **The quote's bill limit can't be shown on this base:** `ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP` is on, so in survival (card 4) both
+  module lots are left out before any quote ("...can't be held to its measured limit in a town built from materials yet; it's left out for now"),
+  and creative has no quote. The check waits for the guard to come off (S-M5-16).
+- **Finding (not fixed here): a sculpt card skips the plan.** Card 1's kept plan names a storage hall, but `VPlan.applies` refuses `sculpt`
+  terrain, so Start falls back to Steward's own street layout and designs `storage_hall_1` as an ordinary building (a paid design on a real
+  Start), against MODULES.md 2 / B3 ("never designed as an ordinary building", "never falls back to the flat village"). Nothing says the module
+  was dropped.
+- **Nit:** card 4's hall lot says `for: "barn"` though the card asked for a storage hall.
+
 ## Slice CA2: compose on Architect CP (2026-11-15, $0, branch compose-cp off pin-071, Architect 0.71.0)
 - **What:** the Composer sends `skipPick`, `composeVocab=families`, the level and the owner, and says CP's `summary`, `waits[].say` and
   `leftOut`; Steward's street pass and Overworld pre-check are gone. A waiting part is composed through `Regions.compose`
