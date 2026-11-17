@@ -151,10 +151,10 @@ class ModuleOfferTest {
 	@Test
 	void theLiveCropFarmIsOfferedToAPlayerOnItsMeasuredVersionsWithItsBound() {
 		var live = ModuleCatalog.dir(ModuleCatalogTest.FIXTURES.resolve("../../../modules").normalize(), false);
-		var player = new ModuleGate.Env("26.3", "0.77.0", Set.of(ModuleGate.FEATURE));
+		var player = new ModuleGate.Env("26.3", "0.78.0", Set.of(ModuleGate.FEATURE));
 		var v = ModuleGate.offer(live, "crop_farm", player);
 		assertTrue(v.ok(), v.message());
-		assertFalse(ModuleGate.offer(live, "crop_farm", new ModuleGate.Env("26.3", "0.76.0", Set.of(ModuleGate.FEATURE))).ok(), "only on its certified Architect");
+		assertFalse(ModuleGate.offer(live, "crop_farm", new ModuleGate.Env("26.3", "0.77.0", Set.of(ModuleGate.FEATURE))).ok(), "only on its certified Architect");
 		var c = ModuleKind.CropFarm.INSTANCE;
 		var t = new Town(Path.REGION_MATERIALS, null, true, 100, false, false, Map.of("minecraft:carrot", 40), Map.of("minecraft:carrot", 300));
 		var d = ModuleOffer.decide(c, v, t, null);
