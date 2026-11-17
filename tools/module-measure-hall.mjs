@@ -17,6 +17,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
+import { checkCommand } from './lib/save-barrier.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -118,16 +120,15 @@ async function startClient(label, { mode = 'creative', world = null } = {}) {
   if (flag('--attach')) { dev = await DevClient.connect({ port: PORT, timeoutMs: 30_000 }); await dev.waitInWorld({ timeoutMs: 60_000 }); return; }
   // a relaunch after a kill point's JVM halt (world: the same world, as the halt left it) keeps this run's claim
   if (!world) claimRun();
-  // the load gate (AGENTS.md speed rules): wait at most E2E_LOAD_WAIT_MIN (15) minutes for the 1-minute load to fall under E2E_LOAD_MAX (72)
-  const loadMax = Number(process.env.E2E_LOAD_MAX ?? 72), waitMin = Math.min(15, Number(process.env.E2E_LOAD_WAIT_MIN ?? 15));
-  for (const end = Date.now() + waitMin * 60_000; os.loadavg()[0] >= loadMax && Date.now() < end;) await sleep(30_000);
-  log(`load ${os.loadavg()[0].toFixed(0)} at the start (gate ${loadMax}, waited at most ${waitMin} min)`);
   for (const p of [PORT - 1, PORT]) if (await listening(p)) throw new Error(`port ${p} is in use (another client?): refusing to launch; use --attach to drive it`);
   if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
   worldName = world ?? `Steward M4 ${label} ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
   exited = false;
   clientMode = mode;
+  // one slot from Architect's machine-wide queue (slice SQ, tools/lib/slot-queue.mjs), held by this driver until the client quits;
+  // a relaunch after a kill point's halt keeps the slot it already holds (the halted client never went through stopClient)
+  if (!slot) slot = await acquireSlot(`module-measure-hall ${label ?? 'relaunch'}`, { root: ROOT });
   const out = fs.openSync(path.join(ART, 'client.log'), 'a');
   child = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], {
     stdio: ['ignore', out, out],
@@ -141,14 +142,24 @@ async function startClient(label, { mode = 'creative', world = null } = {}) {
   dev = await Promise.race([DevClient.connect({ port: PORT, timeoutMs: 900_000 }), died]);
   await dev.waitInWorld({ timeoutMs: 900_000 });
 }
+let slot = null;
 async function stopClient() {
-  if (!dev || !launched || exited || flag('--attach') || flag('--keep-client')) return;
-  const r = await dev.request('dev.quit');
-  if (r.ok) await dev.waitClosed(180_000);
+  // a kept client keeps its slot until this driver ends (the exit handler frees it)
+  if (flag('--attach') || flag('--keep-client')) return;
+  try {
+    if (!dev || !launched || exited) return;
+    const r = await dev.request('dev.quit');
+    if (r.ok) await dev.waitClosed(180_000);
+  } finally {
+    // done for good: the slot goes back, also when the client died before its bridge answered
+    if (slot?.ticket) releaseSlot(slot.ticket);
+    slot = null;
+  }
 }
 const call = (type, payload = {}, timeoutMs = 120_000) => dev.call(type, payload, { timeoutMs });
 const req = (type, payload = {}, timeoutMs = 120_000) => dev.request(type, payload, { timeoutMs });
-const cmd = async (c) => req('dev.command', { cmd: c });
+// (SAVEB) an unknown or unparsable command throws (the bridge's ok only says the call did not throw); allowFail for one expected to
+const cmd = async (c, { allowFail = false } = {}) => checkCommand(await req('dev.command', { cmd: c }), { cmd: c, allowFail });
 let nmod = 0;
 async function mod(r, timeoutMs = 900_000) {
   const lab = `m4_${process.pid}_${++nmod}`;
@@ -380,7 +391,7 @@ const land = (region) => call('dev.region.landCheck', { region }, 900_000);
 const lotRow = (rep, id) => (rep.lots ?? []).find((l) => l.lot === id) ?? null;
 
 async function reopen(pos) {
-  await cmd('/save-all flush');
+  // dev.world.leave saves on stop (/save-all is dedicated-only: Unknown on this integrated server)
   await call('dev.world.leave', {}, 300_000);
   await sleep(2000);
   await call('dev.world.open', { name: worldName }, 300_000);
@@ -1728,7 +1739,7 @@ async function sortCrash() {
       const u = await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
       await sleep(4000);
       const s1 = await sortState(c.g.halls[0]).catch(() => null);
-      await cmd('/save-all flush');
+      // reopen's dev.world.leave saves on stop (SAVEB: /save-all is dedicated-only, and cmd now throws on it)
       await reopen(home);
       const u2 = await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
       await sleep(6000);

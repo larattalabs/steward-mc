@@ -18,7 +18,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
-import { useRamTmp, ramSidecarData } from './lib/ram-tmp.mjs';
+import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
+import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
+import { checkCommand } from './lib/save-barrier.mjs';
+import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -45,7 +48,8 @@ const only = onlyAt > 0 ? (process.argv[onlyAt + 1] ?? '').toLowerCase().split('
 const argOf = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] ?? '' : null; };
 let clients = Number(argOf('--clients') ?? 1);
 const portsArg = argOf('--ports');
-const stagger = Number(argOf('--stagger') ?? 60);
+// the queue spaces a run's clients (its settle, 120 s): no stagger of Steward's own unless asked for, or with E2E_SLOTS=off (60 s as before)
+const stagger = Number(argOf('--stagger') ?? (slotsOff() ? 60 : 0));
 const skipUnchanged = process.argv.includes('--skip-unchanged');
 const flowsArg = argOf('--flows');
 const exact = flowsArg == null ? null : flowsArg.split(',').map((w) => w.trim()).filter(Boolean);
@@ -55,17 +59,10 @@ if (!['free', 'stub'].includes(mode) || (only && !only.length) || !(Number.isInt
   console.error('usage: node tools/e2e.mjs free|stub [--only word,word] [--keep-world] [--clients N [--ports p1,p2] [--stagger s]] [--skip-unchanged] [--plan]');
   process.exit(2);
 }
-// the slot rule (AGENTS.md "Capacity"): at most 4 Steward clients machine-wide; with too few free, one client as before, and it says so
-const MAX_CLIENTS = Number(process.env.E2E_MAX_CLIENTS ?? 6); // machine-wide in-game runs (AGENTS.md, Noah 2026-11-15)
-if (clients > 1) {
-  let running = 0;
-  try { running = execFileSync('pgrep', ['-f', 'steward[^ ]*/mod.*KnotClient'], { encoding: 'utf8' }).split('\n').filter(Boolean).length; } catch {}
-  const free = MAX_CLIENTS - running;
-  if (free < clients) {
-    console.log(`clients: ${running} Steward client(s) already run, ${Math.max(0, free)} of ${MAX_CLIENTS} slots free: falling back from ${clients} clients to 1`);
-    clients = 1;
-  }
-}
+// the slot rule (AGENTS.md "Capacity", slice SQ): every client takes one slot from Architect's machine-wide queue (tools/lib/slot-queue.mjs:
+// 6 in-game runs, the load gate, FIFO, turbo exclusive), held across its relaunches and released when it is done for good. The queue is the
+// gate: Steward keeps no count or start gap of its own. A --clients run whose further slots don't come within their wait falls back to one
+// client and says so (runLanes); a slot that never comes is a wait (summary.json "slot", exit 3), not a FAIL.
 // a --clients run with 2 or more leads: it starts the clients (each a child e2e.mjs), merges their summaries and starts no game itself
 // --plan: print what would run where (the packing, the skips) and start nothing
 const PLAN = process.argv.includes('--plan');
@@ -174,10 +171,11 @@ async function closeScreens() {
   }
 }
 
-async function cmd(c) {
+async function cmd(c, { allowFail = false } = {}) {
   // an animal in what an undo takes up stops the removal (Architect asks for force), so every undo starts with the land cleared
   if (/^\/steward undo\b/.test(c)) await clearAnimals();
-  const r = await dev.request('dev.command', { cmd: c });
+  // (SAVEB) the bridge's ok only says the call did not throw: an unknown or unparsable command throws here (allowFail for one expected to)
+  const r = checkCommand(await dev.request('dev.command', { cmd: c }), { cmd: c, allowFail });
   return (r.messages ?? []).join(' | ');
 }
 
@@ -309,6 +307,22 @@ async function waitForLoad() {
   console.log(load() > max ? `load ${load()} still above ${max} after ${mins} min: starting anyway` : `load ${load()} after ${mins} min: starting`);
 }
 
+/** This run's slot (slice SQ): the owner's (a --clients lead's or the nightly's, E2E_SLOT_TICKET) or its own; null before it is taken. */
+let slot = null;
+/** A slot that didn't come within its wait (slot-queue waitRecord): the run didn't start. */
+let slotWait = null;
+async function takeSlot() {
+  const inh = inheritedSlot();
+  if (inh) {
+    slot = inh;
+    console.log(`slot: ${CLIENT ?? 'this run'} runs on its owner's slot ${inh.slot ?? '?'} (${inh.ticket})`);
+    return;
+  }
+  slot = await acquireSlot(`e2e ${mode}${only ? ` --only ${only.join(',')}` : ''}`, { root: ROOT });
+  // E2E_SLOTS=off: nothing gates the start but Steward's own load wait
+  if (slot.off) await waitForLoad();
+}
+
 // ------------------------------------------------------------------ steps
 
 const realPath = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
@@ -325,8 +339,12 @@ async function preflight() {
     if (cwd == null || realPath(cwd) === realPath(GAME)) throw new Error(`a Steward client already runs on ${GAME}; quit it first`);
   }
   // the sidecar's data on the RAM disk when it's there (the 11-14 machine audit: ~3 GB written per worktree per 30 min); the world, logs and shots stay on disk
-  const sd = ramSidecarData(GAME, process.env, undefined, { fresh: true });
-  ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}`);
+  // slice TMPSWEEP (mod/DEV.md "Temp dirs"): earlier runs' sidecar dirs whose owner is gone (a hard kill) go first; this run's own is owner-marked
+  // and removed when this process ends, not when its client relaunches
+  const swept = sweepStale({ root: path.join(RAM_TMP, 'steward') });
+  if (swept.removed.length || swept.failed.length) console.log(`tmp-sweep: removed ${swept.removed.length} stale sidecar dir(s)${swept.removed.length ? ` (${swept.removed.join(', ')})` : ''}${swept.failed.length ? `, ${swept.failed.length} failed` : ''}`);
+  const sd = ramSidecarData(GAME, process.env, undefined, { fresh: true, own: true });
+  ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}${sd.owned ? ', removed at the end' : ''}`);
 }
 
 /**
@@ -1289,7 +1307,7 @@ async function stockSaveFlow() {
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
   const b = await read();
   const invB = await audit(first.owner);
-  await cmd('/save-all flush');
+  // dev.quit saves on stop (/save-all is dedicated-only: Unknown on this integrated server, it saved nothing)
   await quit();
   launch();
   await connect();
@@ -5144,7 +5162,7 @@ async function planCheckFlow() {
 
 /** Farm animals out of the way: a pig standing on a lot holds its placement up for Architect's 10-minute wait (it happened, on the V RC). */
 async function clearAnimals() {
-  await cmd('/gamerule doMobSpawning false');
+  await cmd('/gamerule spawn_mobs false');
   for (const t of ['pig', 'cow', 'sheep', 'chicken', 'rabbit', 'horse', 'donkey', 'mule', 'llama', 'goat', 'trader_llama', 'wandering_trader', 'fox']) await cmd(`/kill @e[type=minecraft:${t}]`);
   // and what they drop: an item on a lot refuses its placement too (raw beef and feathers held up the library)
   await cmd('/kill @e[type=minecraft:item]');
@@ -8577,11 +8595,18 @@ async function lead() {
   });
   for (const c of plan) console.log(`client c${c.k} (${c.sidecarPort}/${c.devPort}, ${path.relative(ROOT, c.gameDir)}): ~${c.packed}s recorded${c.untimed ? `, ${c.untimed} untimed` : ''}: ${c.flows.join(', ') || 'the sanity set only'}`);
   if (PLAN) process.exit(0);
-  const runs = plan.map(async (c, i) => {
-    if (i) await sleep(stagger * 1000 * i);
+  // slice SQ: one slot per client, held by this lead (its pid) and handed to the client's run (E2E_SLOT_TICKET); a lane whose slot doesn't come
+  // runs after c1 on c1's slot, run dir and ports (runLanes)
+  const t00 = Date.now();
+  const startLane = async (c, s, host) => {
+    const i = c.k - 1;
+    if (stagger && i && !host) { const lag = stagger * 1000 * i - (Date.now() - t00); if (lag > 0) await sleep(lag); }
+    const at = host ?? c;
+    if (host) console.log(`client c${c.k}: on c${host.k}'s slot ${s.slot ?? '-'}, run dir and ports, after it`);
     fs.mkdirSync(c.out, { recursive: true });
     const args = [fileURLToPath(import.meta.url), mode, '--flows', c.flows.join(','), ...(keepWorld ? ['--keep-world'] : [])];
-    const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_GAME_DIR: c.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(c.sidecarPort), STEWARD_DEV_PORT: String(c.devPort) };
+    const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_GAME_DIR: at.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(at.sidecarPort), STEWARD_DEV_PORT: String(at.devPort),
+      ...(s.ticket ? { E2E_SLOT_TICKET: s.ticket, E2E_SLOT: String(s.slot ?? '') } : {}) };
     const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
     const prefix = (stream, to) => {
       let buf = '';
@@ -8592,10 +8617,15 @@ async function lead() {
     prefix(child.stderr, process.stderr);
     const t0 = Date.now();
     const code = await new Promise((r) => child.on('close', (x) => r(x ?? 1)));
-    return { ...c, code, seconds: Math.round((Date.now() - t0) / 1000), summary: readJson(path.join(c.out, 'summary.json'), null) };
+    return { ...c, ...(host ? { gameDir: at.gameDir, sidecarPort: at.sidecarPort, devPort: at.devPort, borrowed: `c${host.k}` } : {}), slot: s.slot ?? null, code, seconds: Math.round((Date.now() - t0) / 1000), summary: readJson(path.join(c.out, 'summary.json'), null) };
+  };
+  // a Ctrl-C or kill of the lead stops its clients' runs (each quits its own client); its slots are released on the way out (slot-queue)
+  const rows = await runLanes(plan, {
+    acquire: async (c, i) => (i === 0 && inheritedSlot()) || acquireSlot(`e2e ${mode} c${c.k}`, { root: ROOT }),
+    start: startLane,
+    release: (t) => releaseSlot(t),
   });
-  // a Ctrl-C or kill of the lead stops its clients' runs (each quits its own client)
-  return Promise.all(runs);
+  return rows.map((r) => ({ ...r.result, ...(r.waited ? { waited: r.waited } : {}) }));
 }
 let laneRuns = null;
 try {
@@ -8604,7 +8634,7 @@ try {
     await preflight();
     freshWorld();
     ensureStubEntry();
-    await waitForLoad();
+    await takeSlot();
     launch();
     await connect();
     const r = await cmd('/steward status');
@@ -8700,7 +8730,9 @@ try {
     await restartRestore();
   }
 } catch (e) {
-  fail('run', e.message);
+  // a slot that never came: the run didn't start, which is a wait and not a FAIL
+  if (e.code === 'SLOT_TIMEOUT') slotWait = e.record;
+  else fail('run', e.message);
 } finally {
   try {
     await quit();
@@ -8708,6 +8740,10 @@ try {
     // already gone
   }
   if (client && client.exitCode === null) client.kill();
+  // the client is done for good: its slot goes back (an owner's slot is the owner's to release)
+  if (slot?.ticket && !slot.inherited) releaseSlot(slot.ticket);
+  // the client is gone: this run's sidecar dir goes (slice TMPSWEEP; the exit hook covers the ways out that skip this)
+  for (const [dir, how] of cleanupOwned()) console.log(`tmp: ${how} ${dir}`);
 }
 const clientRows = [];
 if (laneRuns) {
@@ -8718,12 +8754,12 @@ if (laneRuns) {
     for (const f of s?.flows ?? []) flowTimes.push({ ...f, client: `c${c.k}` });
     if (!s) results.push({ check: 'run', ok: false, why: `client c${c.k} wrote no summary (exit ${c.code})`, client: `c${c.k}` });
     else if (c.code !== 0 && !(s.failed > 0)) results.push({ check: 'run', ok: false, why: `client c${c.k} exited ${c.code}`, client: `c${c.k}` });
-    clientRows.push({ client: `c${c.k}`, ports: [c.sidecarPort, c.devPort], gameDir: c.gameDir, flows: c.flows, packedSeconds: c.packed, seconds: c.seconds, sanitySeconds: s?.sanitySeconds ?? null, exit: c.code, failed: s?.failed ?? null });
+    clientRows.push({ client: `c${c.k}`, slot: c.slot ?? null, ...(c.borrowed ? { borrowed: c.borrowed } : {}), ...(c.waited ? { waited: c.waited } : {}), ports: [c.sidecarPort, c.devPort], gameDir: c.gameDir, flows: c.flows, packedSeconds: c.packed, seconds: c.seconds, sanitySeconds: s?.sanitySeconds ?? null, exit: c.code, failed: s?.failed ?? null });
   }
 }
 const failed = results.filter((r) => !r.ok).length;
 const seconds = Math.round((Date.now() - started) / 1000);
-fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), at: new Date().toISOString(), seconds, failed, sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
+fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), ...(slotWait ? { slot: slotWait } : slot ? { slot: { slot: slot.slot ?? null, ticket: slot.ticket ?? null, ...(slot.off ? { off: true } : {}), ...(slot.inherited ? { inherited: true } : {}) } } : {}), at: new Date().toISOString(), seconds, failed, sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
 if (!CLIENT) recordRun(flowTimes);
 if (laneRuns) {
   const sum = flowTimes.reduce((a, f) => a + f.seconds, 0);
@@ -8731,5 +8767,9 @@ if (laneRuns) {
   for (const r of results.filter((x) => !x.ok)) console.log(`FAIL [${r.client}] ${r.check}: ${r.why}`);
 }
 if (only) console.log(`only ${only.join(',')}: ${skipped.length} flows skipped`);
+if (slotWait) {
+  console.log(`NOT RUN: ${waitLine(slotWait)}; a wait, not a FAIL (summary.json "slot")`);
+  process.exit(3);
+}
 console.log(failed === 0 ? `PASS ${results.length} checks` : `${failed} FAIL of ${results.length}`);
 process.exit(failed === 0 && results.length > 0 ? 0 : 1);
