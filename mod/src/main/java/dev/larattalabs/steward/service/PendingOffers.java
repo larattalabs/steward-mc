@@ -419,6 +419,8 @@ public final class PendingOffers {
 		String what = f.what();
 		UUID player = f.player();
 		guarded(server, player, s, p, what, () -> {
+			// (STORE-FSYNC, batch-076 gate-verifier) settlements disabled for the session: a fitting already in flight is not checked or built
+			if (Settlements.disabled()) { fail(server, player, s, p, what, "settlements are disabled for this session (their file could not be saved; see the log)"); return; }
 			var o = ComposeJob.interpret(d);
 			double cost = o.usd();
 			Steward.LOGGER.info("part {} of {}: Architect's compose {} ({} round(s){}), ${}", f.part(), s.id(), o.outcome(), o.rounds(), o.stopped() != null ? ", stopped: " + o.stopped() : "",
@@ -492,6 +494,8 @@ public final class PendingOffers {
 
 	/** The checked part plan realised as a region of its own, then watched until it is placed. */
 	private static void realise(MinecraftServer server, UUID player, Settlement s, Proposal p, String what, String artifactSha, String summary, double cost) {
+		// (STORE-FSYNC, batch-076 gate-verifier) settlements disabled for the session: nothing is realised, from either caller
+		if (Settlements.disabled()) { fail(server, player, s, p, what, "settlements are disabled for this session (their file could not be saved; see the log)"); return; }
 		JsonObject ext = new JsonObject();
 		ext.addProperty("steward_mc:settlement", s.id());
 		ext.addProperty("steward_mc:part", p.pendingPart());

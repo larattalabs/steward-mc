@@ -94,7 +94,8 @@ public final class SettlementRunner {
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.START_SERVER_TICK.register(server -> {
 			if (!resyncPending) return;
 			resyncPending = false;
-			for (SettlementRunner r : List.copyOf(ACTIVE.values())) {
+			// running(): empty while settlements are disabled for the session (STORE-FSYNC), so nothing resumes then
+			for (SettlementRunner r : running()) {
 				try {
 					r.resync();
 				} catch (RuntimeException e) {
