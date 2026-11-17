@@ -31,13 +31,26 @@ class StockpilesTest {
 	}
 
 	@Test
-	void aRefundPastCapacityIsSaidWithHowFarOver() {
-		// (slice OVF-S) Architect 0.77.0's keyed refunds enter the stock past capacity: said with the excess, never as items beside the crate
-		assertEquals("The stockpile now holds more than it fits: 3 stacks over. Until it is back under, only items your running builds still need go in.",
-			Stockpiles.overCapacityWords(3));
-		assertEquals("The stockpile now holds more than it fits: 1 stack over. Until it is back under, only items your running builds still need go in.",
-			Stockpiles.overCapacityWords(1));
-		assertNull(Stockpiles.overCapacityWords(0), "within capacity: nothing said");
-		assertNull(Stockpiles.overCapacityWords(-5));
+	void aRefundPastCapacityIsSaidWithHowFarOverAndTheWaysBackUnder() {
+		// (slice OVF-S, S2) Architect 0.77.0's keyed refunds enter the stock past capacity: said with the excess and the ways back under, never as items
+		// beside the crate; Steward can't read a paused state, so the ways are said, not which case it is
+		String ways = " To bring it under, take out at a crate what no build needs, add a crate (/steward stockpile s1 add), or resume a paused build that needs"
+			+ " what it holds.";
+		assertEquals("The stockpile now holds more than it fits: 3 stacks over. Until it is back under, only items your running builds still need go in." + ways,
+			Stockpiles.overCapacityWords(3, "s1"));
+		assertEquals("The stockpile now holds more than it fits: 1 stack over. Until it is back under, only items your running builds still need go in." + ways,
+			Stockpiles.overCapacityWords(1, "s1"));
+		assertNull(Stockpiles.overCapacityWords(0, "s1"), "within capacity: nothing said");
+		assertNull(Stockpiles.overCapacityWords(-5, "s1"));
+	}
+
+	@Test
+	void theCountLineShowsTheCapacityAndHowFarOverItIs() {
+		// (slice OVF-S2) /steward stockpile's first line
+		assertEquals("Stockpile: 1 crate, 12 of 27 stacks used.", Stockpiles.countLine(1, 12, 27));
+		assertEquals("Stockpile: 2 crates, 54 of 54 stacks used.", Stockpiles.countLine(2, 54, 54), "full is not over");
+		assertEquals("Stockpile: 1 crate, 30 of 27 stacks used, over capacity by 3 stacks.", Stockpiles.countLine(1, 30, 27));
+		assertEquals("Stockpile: 1 crate, 28 of 27 stacks used, over capacity by 1 stack.", Stockpiles.countLine(1, 28, 27));
+		assertEquals("Stockpile: 0 crates, 2 of 0 stacks used, over capacity by 2 stacks.", Stockpiles.countLine(0, 2, 0), "every crate gone");
 	}
 }

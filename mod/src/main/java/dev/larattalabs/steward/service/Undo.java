@@ -66,7 +66,7 @@ public final class Undo {
 			// any end of the undo: done, or stopped part way (what it took up before it stopped refunded too)
 			if (!line.startsWith("Undone") && !line.startsWith("Undo stopped")) return;
 			int over = Stockpiles.of(server, s).map(Undo::over).orElse(0);
-			String said = over > overBefore ? Stockpiles.overCapacityWords(over) : null;
+			String said = over > overBefore ? Stockpiles.overCapacityWords(over, s.id()) : null;
 			if (said != null) sayTo.accept(said);
 		};
 	}
