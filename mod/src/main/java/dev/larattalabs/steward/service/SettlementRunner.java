@@ -3551,6 +3551,14 @@ public final class SettlementRunner {
 			if (!Session.is(session)) return;
 			// this runner replaced meanwhile: the design is stopped, whoever owns the key now finds it by the key
 			if (!alive()) { if (id != null) ArchitectApi.get().designs().cancel(id); return; }
+			// (WALL-RACE) the repair ended meanwhile (the build stopped, or another round or lot's repair is the build's now): its design is stopped, not left running
+			if (state == null || state.repair() == null || !state.repair().key().equals(a.key())) {
+				if (id != null) {
+					Steward.LOGGER.info("repair {} of {}: design {} answered after the repair ended; stopped", a.key(), settlement.id(), id);
+					ArchitectApi.get().designs().cancel(id);
+				}
+				return;
+			}
 			if (err != null) {
 				// refused: nothing designed; lost, or its key bound to a request already made: found by its key on the watch (never a second design)
 				if (ChangeRequests.definite(err) && !keyConflict(err) && !uncertain(err)) feed(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect would not redesign it: " + message(err)));
@@ -3579,7 +3587,7 @@ public final class SettlementRunner {
 			// no answer: sent again on the watch (repairStopSent keeps its time)
 			if (err != null) { Steward.LOGGER.warn("repair {} of {}: the stop got no answer ({}); asked again", x.key(), settlement.id(), message(err)); return; }
 			switch (o.kind()) {
-				case CANCELLED, ALREADY_FINAL -> o.design().ifPresentOrElse(d -> repairFinal(d, true),
+				case CANCELLED, ALREADY_FINAL -> o.design().ifPresentOrElse(d -> repairFinal(d, true, x.key()),
 					() -> feed(new Pipeline.RepairEnded(x.key(), Pipeline.RepairEnd.FAILED, 0, "stopped")));
 				case UNKNOWN -> feed(new Pipeline.RepairEnded(x.key(), Pipeline.RepairEnd.LOST, 0, "Architect does not know its design"));
 			}
@@ -3599,7 +3607,7 @@ public final class SettlementRunner {
 		if (r.designId() != null) {
 			var d = designs.get(r.designId());
 			if (d.isPresent()) {
-				if (d.get().status().isFinal()) repairFinal(d.get(), false);
+				if (d.get().status().isFinal()) repairFinal(d.get(), false, r.key());
 				else if (r.stopping() && repairStopSent > 0 && System.currentTimeMillis() - repairStopSent > 20_000) execute(new Pipeline.StopRepair(r.key(), r.designId()));
 				return;
 			}
@@ -3614,7 +3622,7 @@ public final class SettlementRunner {
 			if (err != null) return;
 			if (found.isPresent()) {
 				if (state.repair().designId() == null) feed(new Pipeline.RepairAsked(r.key(), found.get().id()));
-				if (found.get().status().isFinal()) repairFinal(found.get(), false);
+				if (found.get().status().isFinal()) repairFinal(found.get(), false, r.key());
 				return;
 			}
 			// never received: a waiting cancel ends it (nothing spent); else asked again under its key with its own words, while its key is still kept
@@ -3636,9 +3644,13 @@ public final class SettlementRunner {
 	 * CANCELLED read ({@code confirmed} false: a lookup or DESIGN_DONE) is not the end: Architect marks it so before its work has stopped, so the cancel's
 	 * own answer ({@link #stopRepair}) is asked for and ends it.
 	 */
-	private void repairFinal(dev.larattalabs.architect.api.Design d, boolean confirmed) {
+	private void repairFinal(dev.larattalabs.architect.api.Design d, boolean confirmed, String key) {
 		var r = state == null ? null : state.repair();
-		if (r == null || (r.designId() != null && !r.designId().equals(d.id()))) return;
+		// (WALL-RACE) only the repair it was read for, with that repair's own design: never another lot's or round's, nor one whose design isn't known yet
+		if (!Pipeline.ownsCompletion(r, key, d.id())) {
+			if (r != null) Steward.LOGGER.info("repair {} of {}: design {} (read for {}) is not its own, dropped", r.key(), settlement.id(), d.id(), key);
+			return;
+		}
 		if (d.status() == dev.larattalabs.architect.api.Design.Status.CANCELLED && !confirmed) {
 			if (repairStopSent == 0 || System.currentTimeMillis() - repairStopSent > 20_000) execute(new Pipeline.StopRepair(r.key(), d.id()));
 			return;
@@ -3655,7 +3667,8 @@ public final class SettlementRunner {
 	/** A design finished: this build's repair is looked at. */
 	private void onRepairDone(dev.larattalabs.architect.api.Design d) {
 		var r = state == null ? null : state.repair();
-		if (r != null && d.id().equals(r.designId())) server.execute(() -> repairFinal(d, false));
+		// keyed by the repair it is for when queued: by the time it runs, that repair may have ended and another lot's begun
+		if (r != null && d.id().equals(r.designId())) { String key = r.key(); server.execute(() -> repairFinal(d, false, key)); }
 	}
 
 	/** This session's repair requests and lookups in flight, and when the waiting stop was sent (0: none, or it got no answer). */
