@@ -167,4 +167,27 @@ class StreetModulesTest {
 		assertEquals(List.of("barn"), left.stream().map(ConceptCard.Building::type).toList());
 		assertEquals(left, StreetModules.withoutModules(plan, Set.of(), card, left));
 	}
+
+	@Test
+	void theLabelOutranksTheIdAndEachLeftOutEntryIsTakenOnce() throws Exception {
+		// (GPT fix check) id barn_1 but label "granary barn": the granary is taken, not the earlier plain barn
+		JsonObject plan = json("""
+			{"zones": [{"program": {"lots": [{"id": "barn_1", "type": "storage_hall", "label": "granary barn", "role": "granary_barn",
+			  "ext": {"steward_mc:module": {"id": "storage_hall", "for": "barn"}}}]}}]}""");
+		var r = StreetModules.leaveOut(plan, Set.of(), List.of(new LotSpec("barn_1", "barn", 14, 12, "barn", null, false, null),
+			new LotSpec("barn_2", "barn", 14, 12, "granary barn", null, false, null)), "x", "on Steward's streets");
+		assertEquals(List.of("barn_1"), r.specs().stream().map(LotSpec::id).toList());
+		// two card entries with the same role and type: one module takes one of them, the other is still offered
+		JsonObject c = json(Files.readString(Path.of("..", "fixtures", "stilt_village.json"))).getAsJsonObject("card");
+		c.add("program", JsonParser.parseString("""
+			[{"role": "granary barn", "type": "barn", "count": 1, "footprint": "M", "landmark": false},
+			 {"role": "granary barn", "type": "barn", "count": 1, "footprint": "L", "landmark": false, "notes": "the big one"},
+			 {"role": "house", "type": "house", "count": 1, "footprint": "S", "landmark": false}]""").getAsJsonArray());
+		ConceptCard card = ConceptCard.parse(c);
+		var left = dev.larattalabs.steward.model.ProposalRules.leftOut(card, java.util.Map.of("house", 1), java.util.Map.of());
+		assertEquals(2, left.size());
+		var offered = StreetModules.withoutModules(plan, Set.of(), card, left);
+		assertEquals(1, offered.size());
+		assertEquals("L", offered.get(0).footprint());
+	}
 }

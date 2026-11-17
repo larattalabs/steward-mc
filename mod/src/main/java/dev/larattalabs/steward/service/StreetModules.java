@@ -75,9 +75,15 @@ final class StreetModules {
 			if (at >= 0) taken[at]++;
 		}
 		List<ConceptCard.Building> out = new ArrayList<>();
+		// each left-out entry is one card entry's (ProposalRules.leftOut keeps the card's order): its own count taken once (GPT fix check)
+		boolean[] used = new boolean[program.size()];
 		for (var b : left) {
 			int n = 0;
-			for (int i = 0; i < program.size(); i++) if (program.get(i).role().equals(b.role()) && program.get(i).type().equals(b.type())) n += taken[i];
+			for (int i = 0; i < program.size(); i++) if (!used[i] && program.get(i).role().equals(b.role()) && program.get(i).type().equals(b.type())) {
+				used[i] = true;
+				n = taken[i];
+				break;
+			}
 			int missing = b.count() - n;
 			if (missing > 0) out.add(n == 0 ? b : new ConceptCard.Building(b.role(), b.type(), missing, b.footprint(), b.landmark(), b.notes(), b.placement()));
 		}
@@ -89,27 +95,27 @@ final class StreetModules {
 	 * a type the one whose role is the lot's own (its label, role or id's words, {@code names}), else the first (GPT review: a "granary barn" module never
 	 * takes the "cattle barn"). {@code type} answers null for an index already taken.
 	 */
-	private static int pick(List<String> types, Set<String> names, int size, java.util.function.IntFunction<@Nullable String> type, java.util.function.IntFunction<String> role) {
+	private static int pick(List<String> types, List<Set<String>> names, int size, java.util.function.IntFunction<@Nullable String> type, java.util.function.IntFunction<String> role) {
 		for (String t : types) {
 			int first = -1;
-			for (int i = 0; i < size; i++) {
-				if (!t.equals(type.apply(i))) continue;
-				if (names.contains(slug(role.apply(i)))) return i;
-				if (first < 0) first = i;
-			}
+			// its label or role first, then its id's words (GPT fix check: a generic id never outranks the exact label)
+			for (Set<String> tier : names) for (int i = 0; i < size; i++) if (t.equals(type.apply(i)) && tier.contains(slug(role.apply(i)))) return i;
+			for (int i = 0; i < size && first < 0; i++) if (t.equals(type.apply(i))) first = i;
 			if (first >= 0) return first;
 		}
 		return -1;
 	}
 
-	/** A module lot's own names, as slugs: its label, role and its id without the number. */
-	private static Set<String> names(@Nullable JsonObject lot) {
-		Set<String> out = new java.util.HashSet<>();
-		if (lot == null) return out;
-		for (String k : List.of("label", "role")) if (lot.has(k) && lot.get(k).isJsonPrimitive()) out.add(slug(lot.get(k).getAsString().replaceFirst("(?i)^(the|a|an) ", "")));
-		if (lot.has("id") && lot.get("id").isJsonPrimitive()) out.add(slug(lot.get("id").getAsString().replaceAll("_\\d+$", "")));
-		out.remove("");
-		return out;
+	/** A module lot's own names, as slugs, in tiers: its label and role, then its id without the number. */
+	private static List<Set<String>> names(@Nullable JsonObject lot) {
+		Set<String> own = new java.util.HashSet<>(), id = new java.util.HashSet<>();
+		if (lot != null) {
+			for (String k : List.of("label", "role")) if (lot.has(k) && lot.get(k).isJsonPrimitive()) own.add(slug(lot.get(k).getAsString().replaceFirst("(?i)^(the|a|an) ", "")));
+			if (lot.has("id") && lot.get("id").isJsonPrimitive()) id.add(slug(lot.get("id").getAsString().replaceAll("_\\d+$", "")));
+		}
+		own.remove("");
+		id.remove("");
+		return List.of(own, id);
 	}
 
 	/** The card building types a module lot stands for, in order: its lot type, then the type it was written for. */
