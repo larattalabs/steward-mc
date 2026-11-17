@@ -2620,7 +2620,7 @@ async function composedModulesFlow() {
   const hallSaid = (since.match(/The plan's the storage hall is a working storage hall from Steward's measured catalog[^\n]*/) ?? [null])[0];
   const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
   const bound = since.match(/module \S+ lot (farm_1|warehouse_1): \S+ under steward\.\S+\.module\.\1/g) ?? [];
-  if (farmSaid && hallSaid && designing === '2' && bound.length === 2) ok(`${label} bound`, `${designing} designed; ${bound.join(' | ').slice(0, 220)}`);
+  if (farmSaid && hallSaid && /taken down, don't put items into its chests: they could be lost/.test(hallSaid) && designing === '2' && bound.length === 2) ok(`${label} bound`, `${designing} designed; ${bound.join(' | ').slice(0, 220)}`);
   else return fail(`${label} bound`, `farm said ${!!farmSaid}, hall said ${!!hallSaid}, designing ${designing}, bound ${JSON.stringify(bound)}; ${composeLine.slice(0, 120)}`);
   const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
   const mods = await moduleSites(placed);
@@ -5926,7 +5926,7 @@ async function moduleHallFlow() {
   }
   if (!offer) return fail(`${label} offer`, `no module.${HALL} proposal within 90 s`);
   if (offer.module?.moduleId === HALL && offer.module.params?.slots === 0 && offer.module.params?.bulk === 2 && offer.module.bound == null
-    && /Your stores are getting mixed: 12 kinds of items/.test(offer.why) && /2 double chests and an input chest by the door/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 200));
+    && /Your stores are getting mixed: 12 kinds of items/.test(offer.why) && /2 double chests and an input chest by the door/.test(offer.why) && /they could be lost/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 200));
   else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 300));
   await cmd('/clear @p');
   await clearAnimals();
@@ -6082,7 +6082,7 @@ async function moduleHallSurvivalFlow() {
     }
     if (!offer) return fail(`${label} offer`, `no module.${HALL} proposal within 90 s`);
     const bound = offer.module?.bound ?? null;
-    if (offer.module?.params?.slots === 0 && bound && Object.keys(bound).length && /at most/.test(offer.why) && /Your stores are getting mixed/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 220));
+    if (offer.module?.params?.slots === 0 && bound && Object.keys(bound).length && /at most/.test(offer.why) && /Your stores are getting mixed/.test(offer.why) && /they could be lost/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 220));
     else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 300));
     let hallKey = `module.${HALL}`;
     // (M4-L) a cancel at a real partial point: accepted with half the bound stocked and no feeder, so the build draws what it can and waits; undone

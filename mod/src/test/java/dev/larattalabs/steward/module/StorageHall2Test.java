@@ -115,6 +115,43 @@ class StorageHall2Test {
 		return m;
 	}
 
+	static int count(String s, String of) {
+		return s.split(java.util.regex.Pattern.quote(of), -1).length - 1;
+	}
+
+	/**
+	 * PLAN 2026-11-15, S-M5-12: every hall offer names the late-cargo gap once, the sorting @2, the plain @2 and @1 alike (the gap is Architect's
+	 * removal, not the hall's form: {@link ModuleOffer#LATE_CARGO_GAP} is one flag, not per version), in survival and creative.
+	 */
+	@Test
+	void everyHallOfferNamesTheLateCargoGapOnce() {
+		assertTrue(ModuleOffer.LATE_CARGO_GAP, "drop this test's positive half when LC3 lands");
+		var v = ModuleGate.offer(LIVE, K.id(), MEASURING);
+		assertTrue(v.ok(), v.message());
+		var v1 = ModuleGate.offer(LIVE.get("storage_hall", 1).orElseThrow(), new ModuleGate.Env("26.3", "0.74.0", Set.of(ModuleGate.FEATURE)));
+		assertTrue(v1.ok(), v1.message());
+		var stores = held("cobblestone", 900, "iron_ingot", 300, "wheat", 200, "oak_log", 150, "coal", 140);
+		var bound = JsonParser.parseString("{\"minecraft:stone\":1}").getAsJsonObject();
+		for (boolean materials : new boolean[] {true, false}) {
+			Path path = materials ? Path.REGION_MATERIALS : Path.REGION;
+			var sorting = ModuleOffer.decide(K, v, new Town(path, null, true, 100, false, false, stores, Map.of(), Progress.Tier.NETHER), null, (e, pp) -> bound);
+			var plain = ModuleOffer.decide(K, v, new Town(path, null, true, 100, false, false, stores, Map.of(), Progress.Tier.IRON), null, (e, pp) -> bound);
+			var one = ModuleOffer.decide(K, v1, new Town(path, null, true, 100, false, false, stores, Map.of(), Progress.Tier.NETHER), null, (e, pp) -> bound);
+			for (var d : List.of(sorting, plain, one)) assertTrue(d.ok(), d.why());
+			assertEquals(2, sorting.order().version());
+			assertTrue(sorting.order().params().get("slots").getAsInt() > 0, "the sorting form");
+			assertEquals(2, plain.order().version());
+			assertEquals(0, plain.order().params().get("slots").getAsInt(), "@2's plain form");
+			assertEquals(1, one.order().version());
+			for (var d : List.of(sorting, plain, one)) {
+				String why = ModuleOffer.why(K, d, materials, false);
+				assertEquals(1, count(why, ModuleOffer.LATE_CARGO_WORDS), why);
+			}
+		}
+		// a farm (no chests) doesn't
+		assertFalse(ModuleOffer.namesLateCargo(ModuleKind.CropFarm.INSTANCE));
+	}
+
 	@Test
 	void fromTheNetherTheOfferSortsTheMostHeldFilterKinds() {
 		var v = ModuleGate.offer(LIVE, K.id(), MEASURING);

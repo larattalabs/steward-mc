@@ -82,8 +82,9 @@ class ComposedModulesTest {
 	void theIdentityNamesVersionsAndProgramsInOrder() {
 		String id = ComposedModules.identity(offered());
 		assertTrue(id.startsWith("crop_farm@1:"), id);
-		// the hall offered is the live catalog's newest certified one (storage_hall@2, the sorting hall, since its 0.74.0 carry)
-		assertTrue(id.contains(",storage_hall@" + offered().get(1).entry().version() + ":"), id);
+		// the hall offered on 0.74.0 is the live catalog's newest certified one: storage_hall@2, the sorting hall
+		assertEquals(2, offered().get(1).entry().version());
+		assertTrue(id.contains(",storage_hall@2:"), id);
 		assertEquals(id, ComposedModules.identity(List.of(offered().get(1), offered().get(0))), "sorted, whatever the order offered");
 		assertEquals("", ComposedModules.identity(List.of()));
 	}
@@ -335,6 +336,21 @@ class ComposedModulesTest {
 		assertFalse(ComposedModules.boundWords("f", FARM, farm, null, false).contains("bound"));
 	}
 
+	/** PLAN 2026-11-15, S-M5-12: a composed town's hall (storage_hall@2 on 0.74.0) names the late-cargo gap once; its farm, which has no chests, doesn't. */
+	@Test
+	void aComposedHallNamesTheLateCargoGap() {
+		assertTrue(ModuleOffer.LATE_CARGO_GAP, "drop this test's positive half when LC3 lands");
+		var asked = ComposedModules.read(lots(plan()));
+		var hall = decide(asked.get(1), HALL, WARM, Set.of(), null).order();
+		assertEquals(2, hall.version());
+		for (boolean materials : new boolean[] {true, false}) {
+			String w = ComposedModules.boundWords("sorting warehouse", HALL, hall, null, materials);
+			assertEquals(1, w.split(java.util.regex.Pattern.quote(ModuleOffer.LATE_CARGO_WORDS), -1).length - 1, w);
+		}
+		var farm = decide(asked.get(0), FARM, WARM, new HashSet<>(), null).order();
+		assertFalse(ComposedModules.boundWords("f", FARM, farm, null, true).contains(ModuleOffer.LATE_CARGO_WORDS));
+	}
+
 	/** GPT review 3: a module's marker that can't be read, or a module lot type with no marker, is a module ask (refused or bound), never designed. */
 	@Test
 	void readingFailsClosed() {
@@ -367,9 +383,10 @@ class ComposedModulesTest {
 	void eachModuleSaysWhatItDoes() {
 		var v = ComposedModules.vocabulary(offered());
 		assertTrue(v.get(0).getAsJsonObject().get("does").getAsString().contains("player harvests"));
-		// a hall says it sorts exactly when the offered version has sorting slots (@2 does, @1 does not)
+		// the hall offered on 0.74.0 is @2, which has sorting slots, so it says it sorts
+		assertEquals(2, offered().get(1).entry().version());
 		String hall = v.get(1).getAsJsonObject().get("does").getAsString();
-		assertTrue(offered().get(1).entry().version() >= 2 ? hall.contains("sorts the items") : hall.contains("does not sort"), hall);
+		assertTrue(hall.contains("sorts the items"), hall);
 		assertTrue(ComposeJob_rules().contains("`does`"));
 	}
 

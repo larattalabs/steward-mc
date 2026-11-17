@@ -73,6 +73,14 @@ public final class ModuleOffer {
 	public static final boolean LATE_CARGO_GAP = true;
 	public static final String LATE_CARGO_WORDS = "While a building is being taken down, don't put items into its chests: they could be lost.";
 
+	/**
+	 * Whether a module's offer and approval words name the late-cargo gap: every storage hall (any version, sorting or plain: the gap is Architect's
+	 * removal, not the hall's form) while {@link #LATE_CARGO_GAP} holds. The one place the words come off with LC3.
+	 */
+	public static boolean namesLateCargo(ModuleKind kind) {
+		return LATE_CARGO_GAP && kind.sign() == ModuleKind.Sign.STORES;
+	}
+
 	/** The kinds of items a storage module's sign needs (docs/MODULES.md 4.1): the stockpile and the player's inventory hold 12 or more. */
 	public static final int SIGN_KINDS = 12;
 
@@ -287,7 +295,7 @@ public final class ModuleOffer {
 				+ " slots for " + String.join(", ", names) + ", an overflow chest, " + bulk + " double chest" + (bulk == 1 ? "" : "s") + " and an input chest at the line's head"
 				+ (o.rate() == null ? "" : "; " + o.rate()) + ".");
 			parts.add("It won't sort tools, armour, potions, renamed or enchanted items, or anything that stacks to 16: those go to overflow. Never put petrified oak slabs in it.");
-			if (LATE_CARGO_GAP) parts.add(LATE_CARGO_WORDS);
+			if (namesLateCargo(kind)) parts.add(LATE_CARGO_WORDS);
 			parts.add(materials ? dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + "." : "It's free.");
 			if (lampFallback) parts.add("It's lit by plain lanterns: your style's lamp is too dim.");
 			return String.join(" ", parts);
@@ -297,6 +305,7 @@ public final class ModuleOffer {
 			int bulk = o.params().get(kind.cropParam()).getAsInt();
 			parts.add("Your stores are getting mixed: " + d.seedsHeld() + " kinds of items. I can raise " + kind.title() + " by the town (" + f[0] + " by " + f[1] + "): "
 				+ bulk + " double chest" + (bulk == 1 ? "" : "s") + " and an input chest by the door.");
+			if (namesLateCargo(kind)) parts.add(LATE_CARGO_WORDS);
 			parts.add(materials ? dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + "; " + ModuleBound.CRASH_EXCEPTION + "." : "It's free.");
 			if (lampFallback) parts.add("It's lit by plain lanterns: your style's lamp is too dim.");
 			return String.join(" ", parts);

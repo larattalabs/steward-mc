@@ -509,7 +509,8 @@ public final class ComposedModules {
 		int[] f = kind.frame(o.params());
 		return "The plan's " + name + " is a working " + kind.role() + " from Steward's measured catalog (" + o.moduleId() + "@" + o.version() + ", " + f[0] + " by " + f[1]
 			+ (o.rate() == null ? "" : ", " + o.rate()) + "): no design, $0." + (changed == null ? "" : " (" + changed + ".)")
-			+ (materials ? " From materials, its bill is held to its measured bound: if it would take more, I ask first." : "");
+			+ (materials ? " From materials, its bill is held to its measured bound: if it would take more, I ask first." : "")
+			+ (ModuleOffer.namesLateCargo(kind) ? " " + ModuleOffer.LATE_CARGO_WORDS : "");
 	}
 
 	/** The orders keyed by lot id, in the plan's lot order (what is saved with the build). */
