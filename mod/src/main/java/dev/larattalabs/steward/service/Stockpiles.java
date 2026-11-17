@@ -147,7 +147,8 @@ public final class Stockpiles {
 
 	/**
 	 * Folds the crates older builds left into the stockpile (Architect's adoptCrates: idempotent). What did not fit is dropped at a crate: the player is told
-	 * how much, and where.
+	 * how much, and where. (Slice OVF-S) Architect 0.77.0's OVF leaves this as it was: adoption is not a keyed refund, so its overflow still drops at the
+	 * crate and is booked in {@code dropped}, which this reads; when a later Architect takes it into the stock instead, the count stays 0 and nothing is said.
 	 */
 	private static Stockpile adopt(MinecraftServer server, Settlement s, Stockpile sp, Consumer<String> say) {
 		int droppedBefore = sp.dropped().values().stream().mapToInt(Integer::intValue).sum();
@@ -235,6 +236,16 @@ public final class Stockpiles {
 		} catch (RuntimeException e) {
 			return "No crate there: " + SettlementRunner.message(e);
 		}
+	}
+
+	/**
+	 * (Slice OVF-S) Said when a refund took the stockpile past its capacity ({@code over}: used stacks less capacity), else null. Since Architect 0.77.0
+	 * (OVF) a keyed refund enters the stock whole, past capacity if need be; until it fits again only items an active (unpaused) build still misses go in.
+	 */
+	static @Nullable String overCapacityWords(int over) {
+		if (over <= 0) return null;
+		return "The stockpile now holds more than it fits: " + Words.count(over, "stack", "stacks") + " over. Until it is back under, only items your running builds"
+			+ " still need go in.";
 	}
 
 	/** What the stockpile holds and what the builds still need, in a few lines (the most needed first). */

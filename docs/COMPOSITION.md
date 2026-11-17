@@ -213,7 +213,7 @@ settlements as it serves Patron ones. Square districts, additions and survival w
    materials: 64 stone bricks"), and the runner's item waits match the build's region, not only its batch. `SITE_BUSY` stage waits
    (`architect_mc:waitsFor`) are said once, not as material waits.
 6. **Cancel and undo.** Cancel mid-build removes the region, through `Undo.region` as today. Refunds are Architect's: one credit per key.
-   A player's block in a target drops at its cell, with no refund for it. `Undo.region` reports refund overflow as `lastProject` does.
+   A player's block in a target drops at its cell, with no refund for it. `Undo.region` says a refund that took the stockpile past capacity as `lastProject` does (OVF-S: since Architect 0.77.0 a keyed refund never overflows).
    A free cell the player mined drops nothing (N-RS-2): the steward says so once if the player asks why.
 7. **e2e.** A stub flow in a survival world:
    - a composed plan built through `checkPlan` and `realiseApproved`;

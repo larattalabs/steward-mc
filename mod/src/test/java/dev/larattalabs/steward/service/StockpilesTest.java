@@ -29,4 +29,15 @@ class StockpilesTest {
 		assertTrue(ns.test(9, 0));
 		assertTrue(Stockpiles.offStreet(null).test(0, 0), "no street: anywhere");
 	}
+
+	@Test
+	void aRefundPastCapacityIsSaidWithHowFarOver() {
+		// (slice OVF-S) Architect 0.77.0's keyed refunds enter the stock past capacity: said with the excess, never as items beside the crate
+		assertEquals("The stockpile now holds more than it fits: 3 stacks over. Until it is back under, only items your running builds still need go in.",
+			Stockpiles.overCapacityWords(3));
+		assertEquals("The stockpile now holds more than it fits: 1 stack over. Until it is back under, only items your running builds still need go in.",
+			Stockpiles.overCapacityWords(1));
+		assertNull(Stockpiles.overCapacityWords(0), "within capacity: nothing said");
+		assertNull(Stockpiles.overCapacityWords(-5));
+	}
 }
