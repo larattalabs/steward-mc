@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -221,10 +220,8 @@ public final class SettlementStore {
 	}
 
 	public void save(Path file) throws IOException {
-		Files.createDirectories(file.toAbsolutePath().getParent());
-		Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-		Files.writeString(tmp, toJson(), StandardCharsets.UTF_8);
-		Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+		// (STORE-FSYNC) written, forced, renamed over, the folder forced: a power loss keeps what was saved
+		dev.larattalabs.steward.util.DurableWrite.writeString(file, toJson());
 	}
 
 	/** Loads a store, or an empty one when the file does not exist. A corrupt file is an error, never silently emptied. */
@@ -234,7 +231,7 @@ public final class SettlementStore {
 		// migrated: keep the file as it was before anything is written over it (once; an existing backup is the older one, kept)
 		if (s.readFormat < FORMAT) {
 			Path bak = file.resolveSibling(file.getFileName() + ".v" + s.readFormat + ".bak");
-			if (!Files.exists(bak)) Files.copy(file, bak);
+			if (!Files.exists(bak)) dev.larattalabs.steward.util.DurableWrite.copy(file, bak); // durable before the old file is written over
 		}
 		return s;
 	}

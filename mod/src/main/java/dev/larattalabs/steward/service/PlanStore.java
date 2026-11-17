@@ -97,9 +97,7 @@ public final class PlanStore {
 	private static void save() {
 		if (file == null) return;
 		try {
-			Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-			Files.writeString(tmp, GSON.toJson(new FileShape(1, plans)), StandardCharsets.UTF_8);
-			Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+			dev.larattalabs.steward.util.DurableWrite.writeString(file, GSON.toJson(new FileShape(1, plans)));
 		} catch (IOException e) {
 			Steward.LOGGER.warn("could not save {}: {}", file, e.toString());
 		}
