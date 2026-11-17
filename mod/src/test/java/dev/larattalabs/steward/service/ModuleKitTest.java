@@ -27,28 +27,28 @@ class ModuleKitTest {
 
 	private ModuleGate.Verdict judged() {
 		var r = ModuleDev.running(ArchitectAccess.api());
-		return ModuleGate.offer(LIVE, "crop_farm", new Env("26.3", "0.74.0", Set.of(ModuleGate.FEATURE), false, false, r.kit(), r.checker()));
+		return ModuleGate.offer(LIVE, "crop_farm", new Env("26.3", "0.76.0", Set.of(ModuleGate.FEATURE), false, false, r.kit(), r.checker()));
 	}
 
 	@Test
 	void theRunningKitMatchingThePinsOffers() {
 		a.install();
-		assertEquals(new ModuleDev.Running("0.69.0", "0.69.0"), ModuleDev.running(ArchitectAccess.api()));
+		assertEquals(new ModuleDev.Running("0.71.0", "0.71.0"), ModuleDev.running(ArchitectAccess.api()));
 		var v = judged();
 		assertTrue(v.ok(), v.message());
 	}
 
 	@Test
 	void anotherKitAStaleHelperOrNoHelperRefusesInWords() {
-		a.kitVersion = "0.70.0";
-		a.checkerVersion = "0.70.0";
+		a.kitVersion = "0.72.0";
+		a.checkerVersion = "0.72.0";
 		a.install();
 		var kit = judged();
 		assertEquals(Why.KIT, kit.why());
-		assertTrue(kit.message().contains("runs kit 0.70.0"), kit.message());
+		assertTrue(kit.message().contains("runs kit 0.72.0"), kit.message());
 
-		a.kitVersion = "0.69.0";
-		a.checkerVersion = "0.68.0";
+		a.kitVersion = "0.71.0";
+		a.checkerVersion = "0.70.0";
 		assertEquals(Why.KIT, judged().why(), "a stale helper");
 
 		a.checkerVersion = null;
