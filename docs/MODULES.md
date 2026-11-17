@@ -805,7 +805,18 @@ materials yet; it's left out for now" (the left-out path of 2: no design, no pad
 - **The switch.** One constant, `ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP`. It comes off when a cap scoped to the module lands (QD after BC-d,
   S-M5-16). Everything behind it (6 above) stays and is unit-tested with the guard off. e2e `composed-modules-restart` (the held bill across a
   restart and a stale artifact, which passed on 11-15 before the guard) is registered again then.
-- **e2e:** `composed-modules-survival` expects both module lots left out with these words, and the town built from the stockpile without them.
+- **e2e:** `composed-modules-survival` expected both module lots left out with these words, and the town built from the stockpile without them.
+- **Lifted (slice LIFT-S, 2026-11-17, Architect 0.78.0's LCAP).** The constant became the feature check (`ComposedModules.materialsGuard`,
+  `Town.lotCaps`: Architect's `maxBillPerLot`); without the feature the guard is on as above, and a build saved under it and resumed on an
+  Architect without it is refused at the realise (`composedMaterialsUncapped`), never sent uncapped. With it, the cleared composed quote gives the
+  caps (`ComposedModules.caps`): each module lot's `maxBillPerLot` is its saved bound (the measured one in the town's blocks, or the bill the
+  player approved since), and `maxBill` is the rest of the quote (its total less those lots' own pieces, `lot:`/`fill:`/`mech:` as Architect's
+  `Quote.lotBill`, a terrain item with its allowance) plus the lot caps. A `BILL_CAP` refusal is read by its detail: `lot:<id>` names the module
+  ("the materials the working crop farm needed went past its limit") and re-asks, saved refused first; `unknown_lot:<id>` stops the build
+  (Steward's error); the region's keeps its words. A `bill_cap` wait whose `capScope` names a lot says the module "would take N more than its
+  limit". The hold, the realise and the re-ask go through `ComposedSteps` (saved before anything is asked or sent), tested over a real build
+  file whose save fails (`ComposedRunnerCrashTest`). e2e `composed-modules-survival` now builds both modules under their caps, with a lot-cap
+  refusal and its re-ask, an unclean halt mid-build and the stock-equals-draws check; `composed-modules-restart` is registered again.
 
 **7. Never a pad.** `fitting()` and `palette()` leave a lot whose design breaks the approved box or a palette rule a pad. A module lot they
 would drop refuses the realise instead, said, with nothing placed. The designed lots keep today's rule.

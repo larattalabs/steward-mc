@@ -2831,12 +2831,19 @@ async function composedModulesSurvivalFlow() {
       if (new RegExp(`${name} is built: everything its plan laid out stands`).test(since)) { built = true; break; }
       const stopped = since.match(/(?:^|\s)Not placed: [^\n]*|The build stopped[^\n]*|Cancelled [^\n]*/);
       if (stopped) return fail(label, `stopped: ${stopped[0].slice(0, 300)}`);
-      if (!region) region = /^region:(.+)$/.exec((settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '')?.[1] ?? null;
+      // the region once the realise is answered (the saved build's), else the history's entry
+      if (!region) region = savedBuild(id)?.vRegion ?? /^region:(.+)$/.exec((settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '')?.[1] ?? null;
       // (BC-c, LCAP) an unclean halt once the farm's lot has drawn part of its bill with more to draw
       if (region && !halted) {
-        const c = await capOf({ lot: 'farm_1' });
+        // fed half of what it needs from now on, so the farm's lot is caught part way
+        feeding = false;
         const sp = await ledger().catch(() => null);
-        if (sum(c?.lotCap?.drawn) >= 20 && Object.keys(sp?.need ?? {}).length) {
+        const part = Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, c]) => [k, Math.max(1, Math.floor(c / 2))]));
+        if (Object.keys(part).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: part }).catch(() => null);
+        await sleep(5000);
+        const c = await capOf({ lot: 'farm_1' });
+        const sp2 = await ledger().catch(() => null);
+        if (sum(c?.lotCap?.drawn) > 0 && Object.keys(sp2?.need ?? {}).length) {
           const lbl = `${label} crash within the lot caps`;
           preHalt = said();
           at = logSize();
@@ -2858,6 +2865,7 @@ async function composedModulesSurvivalFlow() {
           const overs = Object.entries(lots).filter(([, x]) => Object.keys(x?.lotCap?.overshoot ?? {}).length);
           const capKept = Object.values(lots).every((x) => x && !x.refused && Object.keys(x.lotCap?.maxBill ?? {}).length);
           halted = { audit: a, lots };
+          feeding = true;
           if (a.uncleanStart === true && capKept && !overs.length)
             ok(lbl, `unclean start; the lot caps read back after the restart (${Object.keys(lots).join(', ')}), none past its cap; farm drew ${sum(lots.farm_1?.lotCap?.drawn)}`);
           else return fail(lbl, `unclean ${a.uncleanStart}; caps ${JSON.stringify(lots).slice(0, 400)}; past ${overs.map(([k]) => k).join(',')}`);
@@ -2873,6 +2881,7 @@ async function composedModulesSurvivalFlow() {
     await cmd('/steward dev cap_short none').catch(() => null);
     feeding = false;
     const since = said();
+    if (!halted) fail(`${label} crash within the lot caps`, `never halted: the farm's lot never caught part way (region ${region})`);
     if (!built) return fail(label, `not built in 40 min; region ${region}; phase ${savedBuild(id)?.state?.phase}; ${since.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
     // the modules bound and placed (never left out, never designed): 2 cottages designed
     const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
@@ -6325,7 +6334,8 @@ async function moduleHallSurvivalFlow() {
     const region = /^region:(.+)$/.exec((st0?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '')?.[1];
     if (!region) return fail(label, 'the town is not a region');
     ok(`${label} town`, `${region} built from the stockpile (${town.placed} buildings)`);
-    await cmd('/steward dev modules {}');
+    // (LIFT-S) the live catalog, or @1 under a measuring gate until the pin's smoke carry certifies it on this Architect
+    await cmd(modulesCertified() ? '/steward dev modules {}' : `/steward dev modules ${JSON.stringify({ dir: path.join(ROOT, 'modules'), id: HALL, measuring: true })}`);
     // the sign: 12 kinds; then the offer's bound, stocked twice
     const kinds = ['cobblestone', 'dirt', 'oak_planks', 'oak_log', 'sand', 'gravel', 'andesite', 'granite', 'diorite', 'coal', 'iron_ingot', 'wheat'];
     // (carried: the stockpile takes only what its targets owe, so the 12 kinds go in the player's inventory, which the sign reads too)
