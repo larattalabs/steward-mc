@@ -582,3 +582,10 @@ The review's open items (12.10) were measured as the bars commit them, in one fu
     - Chest access doesn't stand the player within reach or check the menu's `stillValid`.
   - **Scope:** a single forceload can't bring one side of a border-crossing hall below block-ticking, so 12.7 S7's partial boundary
     isn't measurable this way. The partial run records what it is.
+
+### 12.12 Smoke carry to Architect 0.74.0 (2026-11-16, batch-074)
+
+Carried from 0.72.0 (`basis: smoke`, the full measurement 12.9/12.11 kept in `carried`) to 0.74.0, kit/checker 0.69.0, moduleSha
+`2c977fbb…`; the program is unchanged and module.json differs only in its pins. v0.74.0 carries neither LC3 nor FL, so S-M5-12, S-M5-17 and
+M4b-074 stand. Fresh: offline 295/295 and ingame 292/292 (the whole live catalog), the hall round 218/218, bounds 382/382 (re-quoted bounds
+equal to the carried ones), sort-survival 19/19 (its billing check); ports 9112/9113, slots from Architect's queue (SQ), $0.
