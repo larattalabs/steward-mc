@@ -445,6 +445,25 @@ async function inboxScreen() {
  * (the sim helper, $0), so the pictures show both mods waiting on the player: one pill, one toast column, K with both mods' rows.
  */
 async function sharedHud() {
+  // LUI, lab-ui 0.5.0's idle pill: with only Steward's ideas left (offers, nothing waiting) the top-left shows a quiet "N ideas for you", no pulse;
+  // the picture before it is the same HUD without Steward's rows (what the player saw of ideas before)
+  await closeScreens();
+  await cmd('/steward ui sample-empty e2e');
+  await sleep(1500);
+  const noIdeasShot = (await dev.request('dev.screenshot', { name: 'e2e-idle-pill-off', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  await cmd('/steward ui sample-ideas e2e');
+  await sleep(1500);
+  const idle = await dev.request('dev.j3.state');
+  const ideaRows = (idle.rows ?? []).filter((r) => r.mod === 'steward_mc');
+  const idlePill = ((await dev.request('dev.hud.zones')).zones?.top_left?.slots ?? []).filter((s) => s.id === 'lab_ui:jobs_pill');
+  if (ideaRows.length === 2 && idle.needsYou === 0 && !idle.pill && idlePill.length === 1) ok('shared hud: ideas only, the idle pill', `${ideaRows.map((r) => `${r.title} (${r.state})`).join(', ')}; ${JSON.stringify(idlePill[0])}`);
+  else fail('shared hud: ideas only, the idle pill', `rows ${JSON.stringify(ideaRows).slice(0, 160)}; needsYou ${idle.needsYou}, pill ${idle.pill}, slots ${idlePill.length}`);
+  const idleShot = (await dev.request('dev.screenshot', { name: 'e2e-idle-pill', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.j3.open', {});
+  await sleep(800);
+  const ideasPanelShot = (await dev.request('dev.screenshot', { name: 'e2e-jobs-panel-ideas', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  ok('idle pill pictures', `${noIdeasShot} ${idleShot} ${ideasPanelShot}`);
+  await closeScreens();
   let archRow = null;
   if (mode === 'stub') {
     await dev.request('dev.ui.open', { tab: 'design' });

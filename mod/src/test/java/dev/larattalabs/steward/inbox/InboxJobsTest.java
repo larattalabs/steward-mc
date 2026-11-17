@@ -73,6 +73,9 @@ class InboxJobsTest {
 		assertEquals(JobState.QUEUED, ideaRow.state());
 		assertFalse(ideaRow.waiting(), "an idea is not blocked on the player (the nameplate's rule)");
 		assertEquals("Stilt · ideas", ideaRow.title());
+		assertTrue(ideaRow.offer() && ideaRow.idea(), "an idea is an offer (lab-ui 0.5.0)");
+		assertEquals(JobBoardModel.Group.IDEAS, JobBoardModel.group(ideaRow));
+		assertFalse(rows.get(0).offer() || rows.get(2).offer(), "a build and its updates are not offers");
 		JobRow updRow = rows.get(2);
 		assertTrue(updRow.waiting(), "updates wait for the player, as the old HUD line said");
 		assertNull(updRow.parentId());
@@ -87,12 +90,23 @@ class InboxJobsTest {
 		m.publish(InboxJobs.MOD, rows);
 		assertEquals(1, JobBoardModel.needsYouCount(m.rows()));
 		assertEquals("1 job needs you · Stilt", JobBoardModel.pillText(m.rows()));
+		assertNull(JobBoardModel.pillIdleText(m.rows()), "the idle pill stays away while anything waits");
 		// Architect's ledger already lists the settlement's sidecar jobs, credited to Steward by their owner: today's split shows them once
 		long now = System.currentTimeMillis();
 		m.publishLedger("architect_mc", List.of(JobCost.of("g12", "steward_mc:settlement/a", 1.25, now), JobCost.of("g13", "", 0.5, now)));
 		var t = JobBoardModel.totals(m.ledger(), now, ZoneId.systemDefault());
 		assertEquals(1.75, t.total(), 1e-9);
 		assertEquals(1.25, t.byMod().get("steward_mc"), 1e-9);
+	}
+
+	@Test
+	void onlyIdeasLeftShowTheQuietIdlePill() {
+		JobBoardModel m = new JobBoardModel();
+		m.publish(InboxJobs.MOD, new InboxJobs().rows(List.of(build("a", "Stilt", "NONE"),
+			new InboxModel.Entry("c", "Ford", "PROPOSAL", "idea", List.of(), List.of(), 0, 0, 0)), 0, null));
+		assertEquals(0, JobBoardModel.needsYouCount(m.rows()));
+		assertNull(JobBoardModel.pillText(m.rows()));
+		assertEquals("1 idea for you · Ford · ideas", JobBoardModel.pillIdleText(m.rows()));
 	}
 
 	@Test

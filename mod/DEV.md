@@ -728,3 +728,14 @@ e2e: `STEWARD_PORT=8592 STEWARD_DEV_PORT=8593 node tools/e2e.mjs stub --flows pl
     minute's pass runs on.
   - Module lots are left out as M5 reads them (`ComposedModules.asked` over `LOT_TYPES`, failing closed).
   - Unit tests: `PlanDistrictsTest` 11; the scoped suites with ComposedModules 114, 0 failed. `npm test` 75. Rerun of `--flows plan-district`: PASS 15.
+
+### LUI: lab-ui 0.5.0 (2026-11-16, $0)
+Pinned lab-ui 0.5.0 (`>=0.5.0 <0.6.0`). Dropped the unused `ClientEnv`, `ScreenPause` and `HasParent` copies (lab-ui has them now), the
+disabled-primary workaround in `KitScreen` and the talk field's leading-space caret workaround. Steward's ideas rows (`#proposals`) are offers
+(`JobRow.offer`): listed under Ideas on K, and on lab-ui's idle pill ("N ideas for you") while nothing waits. Kept on: the pill is muted and
+never urgent, it is the only HUD sign of ideas, and `JobBoard.showIdlePill(false)` would hide Architect's offers too.
+- **Unit:** `InboxJobsTest` (offer, Ideas group, idle pill text only when nothing waits); npm 74/75 (the one fail, smoke-carry's moduleSha, is
+  the base's).
+- **e2e** (ports 9116/9117, `STEWARD_RAM_TMP=0`, the RAM disk was full): `stub --only screens` PASS 20, `free --only talk` PASS 12. New
+  dev samples `/steward ui sample-ideas|sample-empty <id>`; pictures `e2e-idle-pill-off`, `e2e-idle-pill`, `e2e-jobs-panel-ideas`.
+- **design-critic:** ship, no blockers. Minor: drop " · ideas" from the idea row title, shorter idea summaries, a neutral dot for ideas.

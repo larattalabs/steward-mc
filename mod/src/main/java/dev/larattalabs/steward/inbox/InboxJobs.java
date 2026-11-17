@@ -19,7 +19,8 @@ import org.jspecify.annotations.Nullable;
  * <li><b>Ids</b>: a build's row is the settlement's Architect owner ({@code steward_mc:settlement/<id>}), so the Architect jobs a build
  * owns fold under it; its updates and proposals are {@code …#updates} and {@code …#proposals}. Land notes are not work and get no row.</li>
  * <li><b>Needs you</b>: exactly the entry's {@link InboxModel.Entry#needsYou()} (the nameplate's "!" and the board say the same); a
- * steward's idea never counts on the pill.</li>
+ * steward's idea never counts as needing you: it is an offer ({@link JobRow#offer}, lab-ui 0.5.0), listed under Ideas and shown on the idle pill
+ * ("N ideas for you") only while nothing waits.</li>
  * <li><b>Spend</b>: a build row carries its spend and budget for the panel's detail only. The panel's "today" total is summed from the
  * cost ledger, and every Claude job Steward runs is an Architect sidecar job owned by {@code steward_mc:…}, which Architect's ledger
  * already lists under its own job id (and credits to Steward by that owner). Steward publishes no ledger of its own: the client has no
@@ -47,7 +48,8 @@ public final class InboxJobs {
 			String id = rowId(e);
 			if (!seen.add(id)) continue;
 			JobState state = state(e);
-			JobRow.Builder b = JobRow.builder(id, kind(e), title(e), state).step(e.headline()).needsYou(e.needsYou());
+			JobRow.Builder b = JobRow.builder(id, kind(e), title(e), state).step(e.headline()).needsYou(e.needsYou())
+				.offer("PROPOSAL".equals(e.decision()));
 			// updates and ideas are rows of their own (under an ended build's row they would move away with it)
 			if (!"UPDATE".equals(e.decision()) && !"PROPOSAL".equals(e.decision())) {
 				b.spent(e.spentUsd());

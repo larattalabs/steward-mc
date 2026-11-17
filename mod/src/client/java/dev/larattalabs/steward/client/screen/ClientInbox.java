@@ -53,7 +53,7 @@ public final class ClientInbox {
 		entries = List.of();
 		TOASTS.clear();
 		JOBS.clear();
-		// the panel's rows go with the world (lab-ui 0.4.1 has no way to drop toasts already queued: they lapse on their own, within 2 min)
+		// the panel's rows go with the world (lab-ui 0.5.0 drops the queued toasts itself on disconnect)
 		JobBoard.publish(InboxJobs.MOD, List.of());
 		version++;
 	}
