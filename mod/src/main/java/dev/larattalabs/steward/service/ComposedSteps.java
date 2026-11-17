@@ -42,11 +42,14 @@ final class ComposedSteps {
 
 	/**
 	 * (QD-2, M5b, LIFT-S) A composed realise refused at put-down: an unknown lot stops; else each order is marked refused ({@code keep}: the runner's
-	 * orders now) and saved before anything is asked again.
+	 * orders now) and saved before anything is asked again; a save that fails puts the orders back as they were.
 	 */
 	static AfterRefusal refusedAtPutDown(ComposedModules.CapRefusal r, Map<String, ModuleOrder> orders, Consumer<Map<String, ModuleOrder>> keep, Save save) {
 		if (r.scope() == ComposedModules.CapRefusal.Scope.UNKNOWN_LOT) return AfterRefusal.STOP_UNKNOWN_LOT;
 		keep.accept(SettlementRunner.refusedAtPutDown(orders));
-		return save.save() ? AfterRefusal.REASK : AfterRefusal.STOP_UNSAVED;
+		if (save.save()) return AfterRefusal.REASK;
+		// unsaved: the runner's orders as they were (the build stops as saved)
+		keep.accept(orders);
+		return AfterRefusal.STOP_UNSAVED;
 	}
 }

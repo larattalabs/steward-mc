@@ -660,48 +660,29 @@ public final class ComposedModules {
 
 	/**
 	 * (LIFT-S, Architect LCAP) What a composed realise from materials is sent with: each module lot's own cap ({@code maxBillPerLot}: its bound as
-	 * saved, the measured one in the town's blocks or the bill the player approved since), and the whole realise's {@code maxBill}, which Architect
-	 * applies too: the rest of the town's bill (the quote's total less the capped lots' own pieces, a terrain item with its allowance) plus the lot
-	 * caps, so the region cap never holds a module lot tighter than its own. {@code refused} says why it can't be sent capped (nothing is sent then).
+	 * saved, the measured one in the town's blocks or the bill the player approved since). No region-wide {@code maxBill} (the LIFT-S GPT review,
+	 * P1): the rest of a composed town was never capped (it is billed as a Supplied plan v1 town's is), the player approves no bill for it, and a cap
+	 * on it could hold the town on terrain past its allowance with no way to raise it, said as "more than you approved". Architect applies the lot caps
+	 * alone then (LCAP: "lot caps with no maxBill cap only those lots"). {@code refused} says why it can't be sent capped (nothing is sent then).
 	 */
-	public record Caps(@Nullable Map<String, Integer> maxBill, @Nullable Map<String, Map<String, Integer>> perLot, @Nullable String refused) {}
+	public record Caps(@Nullable Map<String, Map<String, Integer>> perLot, @Nullable String refused) {}
 
 	/**
-	 * (LIFT-S) The caps for a composed realise from materials of the quote ({@code bom}, {@code bomParts}, {@code terrain}) and the saved orders: only
-	 * the lots this realise binds ({@code realised}: never an earlier revision's lot, which Architect refuses {@code unknown_lot}). An order with no
-	 * readable bound, a quote that isn't a bill, or a module lot this realise doesn't bind refuses. Deterministic (sorted). Pure.
+	 * (LIFT-S) The caps for a composed realise from materials of the quote's {@code bomParts} and the saved orders: only the lots this realise binds
+	 * ({@code realised}: never an earlier revision's lot, which Architect refuses {@code unknown_lot}). An order with no readable bound, a lot share
+	 * that isn't a bill, or a module lot this realise doesn't bind refuses. Deterministic (sorted). Pure.
 	 */
-	public static Caps caps(JsonObject bom, JsonObject bomParts, @Nullable Map<String, Integer> terrain, Map<String, ModuleOrder> orders, Set<String> realised) {
-		JsonObject total = ModuleBound.clean(bom);
-		if (total == null) return new Caps(null, null, "Architect's quote is not a bill of items");
-		Map<String, Integer> rest = new java.util.TreeMap<>();
-		for (var e : total.entrySet()) rest.put(e.getKey(), e.getValue().getAsInt());
+	public static Caps caps(JsonObject bomParts, Map<String, ModuleOrder> orders, Set<String> realised) {
 		Map<String, Map<String, Integer>> perLot = new java.util.TreeMap<>();
 		for (var e : orders.entrySet()) {
 			String name = ModuleKind.of(e.getValue().moduleId()).map(ModuleKind::role).orElse(e.getKey().replace('_', ' '));
-			if (!realised.contains(e.getKey())) return new Caps(null, null, "the working " + name + "'s lot isn't one this realise builds");
+			if (!realised.contains(e.getKey())) return new Caps(null, "the working " + name + "'s lot isn't one this realise builds");
 			Map<String, Integer> cap = ModuleBound.cap(e.getValue().bound());
-			if (cap == null) return new Caps(null, null, "the working " + name + " has no bound to hold its bill to");
-			JsonObject own = share(bomParts, e.getKey());
-			if (own == null) return new Caps(null, null, "Architect's quote of the working " + name + " is not a bill of items");
-			for (var b : own.entrySet()) rest.merge(b.getKey(), -b.getValue().getAsInt(), Integer::sum);
+			if (cap == null) return new Caps(null, "the working " + name + " has no bound to hold its bill to");
+			if (share(bomParts, e.getKey()) == null) return new Caps(null, "Architect's quote of the working " + name + " is not a bill of items");
 			perLot.put(e.getKey(), cap);
 		}
-		rest.values().removeIf(n -> n <= 0);
-		JsonObject restJson = new JsonObject();
-		rest.forEach(restJson::addProperty);
-		JsonObject allowed = ModuleBound.allowed(restJson, terrain);
-		if (allowed == null) return new Caps(null, null, "Architect's quote has a terrain count that is not a count");
-		Map<String, Integer> maxBill = new java.util.TreeMap<>();
-		for (var e : allowed.entrySet()) maxBill.put(e.getKey(), e.getValue().getAsInt());
-		for (var cap : perLot.values()) for (var c : cap.entrySet()) {
-			long n = (long) maxBill.getOrDefault(c.getKey(), 0) + c.getValue();
-			if (n > Integer.MAX_VALUE) return new Caps(null, null, "a working module's bound is too large to send");
-			maxBill.put(c.getKey(), (int) n);
-		}
-		Map<String, Map<String, Integer>> lots = new java.util.TreeMap<>();
-		perLot.forEach((k, v) -> lots.put(k, java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(v))));
-		return new Caps(java.util.Collections.unmodifiableMap(maxBill), java.util.Collections.unmodifiableMap(lots), null);
+		return new Caps(java.util.Collections.unmodifiableMap(perLot), null);
 	}
 
 	/**

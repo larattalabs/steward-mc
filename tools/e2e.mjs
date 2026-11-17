@@ -2758,8 +2758,8 @@ async function composedModulesFlow() {
  * (slice LIFT-S, Architect LCAP v0.78.0; docs/MODULES.md "M5 design", "The guard") A composed town built from materials, its working modules built
  * and each billed within its own cap: at the start each module lot says its bound's rule with the crash exception; the first realise is sent with
  * one item of the farm's lot cap as 0 (/steward dev cap_short), so Architect refuses it at put-down (BILL_CAP, lot:<farm>), said naming the farm,
- * saved and asked again; approved, the quote says each module's bill and limit, and the realise is sent with maxBillPerLot = each lot's bound and
- * maxBill = the rest + the lot caps; an unclean halt mid-build, the reconcile under the lot caps; built, each lot's draws within its cap (no
+ * saved and asked again; approved, the quote says each module's bill and limit, and the realise is sent with maxBillPerLot = each lot's bound (no
+ * region maxBill: the rest of the town is billed as before); an unclean halt mid-build, the reconcile under the lot caps; built, each lot's draws within its cap (no
  * overshoot), the stockpile's loss = what the region's sites drew, item by item; undone, every consumed unit comes back once.
  */
 async function composedModulesSurvivalFlow() {
@@ -2835,10 +2835,13 @@ async function composedModulesSurvivalFlow() {
       if (!region) region = savedBuild(id)?.vRegion ?? /^region:(.+)$/.exec((settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '')?.[1] ?? null;
       // (BC-c, LCAP) an unclean halt once the farm's lot has drawn part of its bill with more to draw
       if (region && !halted) {
-        // fed half of what it needs from now on, so the farm's lot is caught part way
+        // fed half of what it needs from now on, so the farm's lot is caught part way; the hall's fill items in full (its filter hoppers take 41 of
+        // each at once: an unclean start with them half stocked leaves the fill out of the stockpile's outstanding and the hall waiting with
+        // nothing named, an Architect gap seen in LIFT-S run 2)
         feeding = false;
         const sp = await ledger().catch(() => null);
-        const part = Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, c]) => [k, Math.max(1, Math.floor(c / 2))]));
+        const fillItems = new Set(['minecraft:cobblestone', 'minecraft:iron_ingot', 'minecraft:wheat', 'minecraft:coal']);
+        const part = Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, c]) => [k, fillItems.has(k) ? c : Math.max(1, Math.floor(c / 2))]));
         if (Object.keys(part).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: part }).catch(() => null);
         await sleep(5000);
         const c = await capOf({ lot: 'farm_1' });
@@ -2895,10 +2898,10 @@ async function composedModulesSurvivalFlow() {
       ok(`${label} built`, `both modules placed from the catalog (${mods.map((m) => m.key).join(', ')}), ${designing} designed; said: ${farmSaid.slice(0, 160)}`);
     else return fail(`${label} built`, `left out ${leftOut?.[0]?.slice(0, 160)}; designing ${designing}; module sites ${mods.length}; farm said ${farmSaid.slice(0, 120)}; hall said ${hallSaid.slice(0, 120)}`);
     // the put-down refusal: sent with the composter 0 in the farm's cap, refused lot:farm_1, said naming the farm, asked again (saved refused)
-    const sends = [...since.matchAll(new RegExp(`composed modules ${id} realise \\S+ under \\S+: maxBill \\{([^}]*)\\} maxBillPerLot \\{(.*)\\}\\s*$`, 'gm'))];
+    const sends = [...since.matchAll(new RegExp(`composed modules ${id} realise \\S+ under \\S+: maxBillPerLot \\{(.*)\\}\\s*$`, 'gm'))];
     const parseMap = (t) => Object.fromEntries(t.split(', ').filter(Boolean).map((kv) => kv.split('=')).map(([k, c]) => [k, Number(c)]));
     const lotsOf = (t) => Object.fromEntries([...t.matchAll(/(\w+)=\{([^}]*)\}/g)].map((m) => [m[1], parseMap(m[2])]));
-    const sent = sends.map((m) => ({ maxBill: parseMap(m[1]), perLot: lotsOf(m[2]) }));
+    const sent = sends.map((m) => ({ perLot: lotsOf(m[1]) }));
     {
       const lbl = `${label} lot cap refusal`;
       const shorted = new RegExp(`composed modules ${id}: dev cap_short ${shortItem} in lot farm_1`).test(since);
@@ -2918,7 +2921,8 @@ async function composedModulesSurvivalFlow() {
         ok(lbl, q.slice(0, 240));
       else return fail(lbl, `no quote words with both limits: ${q.slice(0, 240) || 'none'}`);
     }
-    // each lot's cap as sent (its bound), Architect's record of it, its draws within it and no overshoot; maxBill covers every lot cap
+    // each lot's cap as sent (its bound), Architect's record of it, its draws within it and no overshoot; no region-wide maxBill (the rest of the
+    // town is billed as before)
     const last = sent.at(-1);
     {
       const lbl = `${label} lot caps`;
@@ -2930,9 +2934,10 @@ async function composedModulesSurvivalFlow() {
         if (!sameItems(c.lotCap.maxBill, cap)) off.push(`${lot}: recorded ${JSON.stringify(c.lotCap.maxBill)} != sent ${JSON.stringify(cap)}`);
         for (const [k, v] of Object.entries(c.lotCap.drawn ?? {})) if (v > (cap[k] ?? 0)) off.push(`${lot}: drew ${v} ${k} past its cap ${cap[k] ?? 0}`);
         if (Object.keys(c.lotCap.overshoot ?? {}).length) off.push(`${lot}: overshoot ${JSON.stringify(c.lotCap.overshoot)}`);
-        for (const [k, v] of Object.entries(cap)) if ((last.maxBill[k] ?? 0) < v) off.push(`maxBill ${k} ${last.maxBill[k] ?? 0} < ${lot}'s cap ${v}`);
       }
-      if (!off.length) ok(lbl, `each module lot drew within its own cap, as sent and as Architect recorded it; maxBill covers both (${Object.keys(last.maxBill).length} items)`);
+      const region0 = await capOf({});
+      if (region0?.maxBill && Object.keys(region0.maxBill).length) off.push(`a region maxBill was recorded: ${JSON.stringify(region0.maxBill).slice(0, 160)}`);
+      if (!off.length) ok(lbl, `each module lot drew within its own cap, as sent and as Architect recorded it; no region maxBill (${Object.keys(last.perLot).join(', ')})`);
       else fail(lbl, off.slice(0, 6).join('; '));
     }
     // conservation: the stockpile's loss is what the region's sites drew, item by item

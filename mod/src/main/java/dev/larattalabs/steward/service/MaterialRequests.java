@@ -273,7 +273,8 @@ public final class MaterialRequests {
 	static String overCap(String what, String settlementId, SiteWait w, TakeUp how) {
 		var over = w.nextNeeded().stream()
 			.map(n -> Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(n.item()).toString(), n.count())).toList();
-		return capLot(w) != null ? lotOverCapWords(what, settlementId, over, w.moreUnits(), how) : overCapWords(what, settlementId, over, w.moreUnits(), how);
+		return capLot(w) != null ? lotOverCapWords(what, settlementId, over, w.moreUnits(), how, capBoth(w.capScope()))
+			: overCapWords(what, settlementId, over, w.moreUnits(), how);
 	}
 
 	/**
@@ -287,6 +288,13 @@ public final class MaterialRequests {
 			if (p.startsWith("lot:") && p.length() > 4) return p.substring(4);
 		}
 		return null;
+	}
+
+	/** (LIFT-S GPT review) Whether a lot's cap and the region's both hold the wait ({@code "lot:<id>,region"}). Pure. */
+	static boolean capBoth(@org.jspecify.annotations.Nullable String capScope) {
+		if (capLot(capScope) == null) return false;
+		for (String part : capScope.split(",")) if (part.strip().equals(SiteWait.CAP_REGION)) return true;
+		return false;
 	}
 
 	static @org.jspecify.annotations.Nullable String capLot(SiteWait w) {
@@ -306,9 +314,11 @@ public final class MaterialRequests {
 	 * After an unclean start the reconcile may already have charged standing blocks past it (the crash exception said at the quote), so the words
 	 * promise only that no more is taken. Pure.
 	 */
-	static String lotOverCapWords(String what, String settlementId, List<Map.Entry<String, Integer>> over, int moreUnits, TakeUp how) {
+	static String lotOverCapWords(String what, String settlementId, List<Map.Entry<String, Integer>> over, int moreUnits, TakeUp how, boolean alsoRegion) {
 		String full = overCapWords(what, settlementId, over, moreUnits, how);
-		return full.replace(" more than you approved, so I take no more for it;", " more than its limit, so I take no more for it;");
+		// both caps hold it: Architect's counts are the larger of the two shortfalls, item by item, so the words name both limits
+		return full.replace(" more than you approved, so I take no more for it;", alsoRegion
+			? " more than its limit or what you approved (whichever holds it), so I take no more for it;" : " more than its limit, so I take no more for it;");
 	}
 
 	/**

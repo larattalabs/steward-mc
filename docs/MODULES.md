@@ -810,8 +810,10 @@ materials yet; it's left out for now" (the left-out path of 2: no design, no pad
   `Town.lotCaps`: Architect's `maxBillPerLot`); without the feature the guard is on as above, and a build saved under it and resumed on an
   Architect without it is refused at the realise (`composedMaterialsUncapped`), never sent uncapped. With it, the cleared composed quote gives the
   caps (`ComposedModules.caps`): each module lot's `maxBillPerLot` is its saved bound (the measured one in the town's blocks, or the bill the
-  player approved since), and `maxBill` is the rest of the quote (its total less those lots' own pieces, `lot:`/`fill:`/`mech:` as Architect's
-  `Quote.lotBill`, a terrain item with its allowance) plus the lot caps. A `BILL_CAP` refusal is read by its detail: `lot:<id>` names the module
+  player approved since), checked by Architect against the lot's own pieces (`lot:`/`fill:`/`mech:`, `Quote.lotBill`, which the steward's share
+  now sums too). No region-wide `maxBill` is sent (the LIFT-S GPT review, P1): the rest of a composed town was never capped, the player approves
+  no bill for it, and a cap on it could hold the town on terrain past its allowance, with no way to raise it, in words saying "more than you
+  approved". The brief's `maxBill` = rest + lot caps is left for a slice that shows and approves a whole-town bill. A `BILL_CAP` refusal is read by its detail: `lot:<id>` names the module
   ("the materials the working crop farm needed went past its limit") and re-asks, saved refused first; `unknown_lot:<id>` stops the build
   (Steward's error); the region's keeps its words. A `bill_cap` wait whose `capScope` names a lot says the module "would take N more than its
   limit". The hold, the realise and the re-ask go through `ComposedSteps` (saved before anything is asked or sent), tested over a real build

@@ -38,8 +38,6 @@ class ComposedRunnerCrashTest {
 	}
 
 	static final JsonObject PARTS = ComposedCrashPointsTest.PARTS;
-	static final JsonObject BOM = json("""
-		{"minecraft:dirt": 620, "minecraft:oak_planks": 90, "minecraft:cobblestone": 41, "minecraft:iron_ingot": 41, "minecraft:wheat": 41, "minecraft:coal": 41}""");
 	static final Set<String> REALISED = Set.of("farm_1", "hall_1", "cottage_1");
 
 	@BeforeEach
@@ -83,7 +81,7 @@ class ComposedRunnerCrashTest {
 
 	/** The cleared quote's caps, from these orders. */
 	static ComposedModules.Caps caps(Map<String, ModuleOrder> o) {
-		return ComposedModules.caps(BOM, PARTS, Map.of(), o, REALISED);
+		return ComposedModules.caps(PARTS, o, REALISED);
 	}
 
 	@Test
@@ -182,8 +180,10 @@ class ComposedRunnerCrashTest {
 		var saved = orders;
 		savesFail();
 		assertEquals(ComposedSteps.AfterRefusal.STOP_UNSAVED, ComposedSteps.refusedAtPutDown(ComposedModules.CapRefusal.of("lot:farm_1"), orders, o -> orders = o, this::persist));
-		// the file holds the orders as approved (the refusal never landed): the runner stopped the build rather than ask on an unsaved refusal
+		// the file holds the orders as approved (the refusal never landed): the runner stopped the build rather than ask on an unsaved refusal, and
+		// its orders are put back as saved
 		assertEquals(saved, crash());
+		assertEquals(saved, orders);
 		// an unknown lot: Steward's error; nothing is changed, saved or asked
 		List<String> kept = new ArrayList<>();
 		assertEquals(ComposedSteps.AfterRefusal.STOP_UNKNOWN_LOT, ComposedSteps.refusedAtPutDown(ComposedModules.CapRefusal.of("unknown_lot:la"), orders,
@@ -200,7 +200,12 @@ class ComposedRunnerCrashTest {
 		assertNull(MaterialRequests.capLot("region"));
 		assertNull(MaterialRequests.capLot((String) null));
 		var over = List.of(Map.entry("minecraft:dirt", 3));
-		String lot = MaterialRequests.lotOverCapWords("working crop farm", "set_1", over, 0, MaterialRequests.TakeUp.CANCEL);
+		assertTrue(MaterialRequests.capBoth("lot:farm_1,region"));
+		assertFalse(MaterialRequests.capBoth("lot:farm_1"));
+		assertFalse(MaterialRequests.capBoth("region"));
+		String both = MaterialRequests.lotOverCapWords("working crop farm", "set_1", over, 0, MaterialRequests.TakeUp.CANCEL, true);
+		assertTrue(both.contains("3 dirt more than its limit or what you approved (whichever holds it)"), both);
+		String lot = MaterialRequests.lotOverCapWords("working crop farm", "set_1", over, 0, MaterialRequests.TakeUp.CANCEL, false);
 		assertTrue(lot.startsWith("The working crop farm has stopped: finishing it would take 3 dirt more than its limit, so I take no more for it;"), lot);
 		assertFalse(lot.contains("you approved"), lot);
 		assertTrue(lot.contains("/steward cancel set_1"), lot);

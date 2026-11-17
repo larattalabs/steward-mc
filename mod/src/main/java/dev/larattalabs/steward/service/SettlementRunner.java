@@ -3282,18 +3282,18 @@ public final class SettlementRunner {
 				feed(new Pipeline.Cancel());
 				return;
 			}
-			// (LIFT-S) cleared: what the realise is sent with, each module lot held to its saved bound (Architect LCAP) and the whole realise to the
-			// rest of the bill plus those bounds; from the orders as saved below, so a restart quotes again and sends the same lot caps
+			// (LIFT-S) cleared: what the realise is sent with, each module lot held to its saved bound (Architect LCAP); from the orders as saved
+			// below, so a restart quotes again and sends the same lot caps
 			dev.larattalabs.steward.module.ComposedModules.Caps caps = null;
 			if (verdict.ask() == null) {
-				Map<String, Integer> terrain = ArchitectApi.get().features().contains(QUOTE_TERRAIN) ? q.terrain() : Map.of();
-				caps = dev.larattalabs.steward.module.ComposedModules.caps(q.bom(), q.bomParts(), terrain, verdict.orders(), entries.keySet());
+				caps = dev.larattalabs.steward.module.ComposedModules.caps(q.bomParts(), verdict.orders(), entries.keySet());
 				if (caps.refused() != null) {
 					say("Not placed: " + caps.refused() + ", so nothing is consumed unchecked.");
 					feed(new Pipeline.Cancel());
 					return;
 				}
 			}
+			var before = moduleOrders;
 			moduleOrders = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(verdict.orders()));
 			// (M5b, LIFT-S: persist before mutate) the hold or the cleared orders saved before anything is asked or realised; unsaved, nothing goes on
 			var cleared = caps;
@@ -3311,6 +3311,8 @@ public final class SettlementRunner {
 				realiseVillage();
 			});
 			if (!went) {
+				// (LIFT-S GPT review) the rejected orders are not kept: the build stops as it was saved
+				moduleOrders = before;
 				say("Not placed: the build could not be saved with its working modules' bills, so nothing is consumed.");
 				feed(new Pipeline.Cancel());
 			}
@@ -3472,9 +3474,8 @@ public final class SettlementRunner {
 				return;
 			}
 			var perLot = devShortLot(caps.perLot());
-			Steward.LOGGER.info("composed modules {} realise {} under {}: maxBill {} maxBillPerLot {}", settlement.id(), sha, opKey("vrealise"), caps.maxBill(), perLot);
-			request = new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext, caps.maxBill())
-				.withMaxBillPerLot(perLot);
+			Steward.LOGGER.info("composed modules {} realise {} under {}: maxBillPerLot {}", settlement.id(), sha, opKey("vrealise"), perLot);
+			request = new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext, null).withMaxBillPerLot(perLot);
 		}
 		Steward.LOGGER.info("realise {}: artifact {} under key {} ({})", settlement.id(), sha, opKey("vrealise"), first ? "first" : "after a re-check");
 		var sent = request;
@@ -3930,7 +3931,8 @@ public final class SettlementRunner {
 			// refused and saved before it is quoted again, so the next quote is put to the player, also after a restart; unsaved, the build stops
 			// (LIFT-S, Architect LCAP) its detail says which cap: a module lot's own (lot:<id>, named), the region's (""), or a lot the realise doesn't
 			// bind (unknown_lot:<id>: Steward's error, the build stops, never asked again)
-			if (billCapped(err) && composedModules() && state.phase() == Pipeline.Phase.PLACING) {
+			// (LIFT-S GPT review P2) sent from READY_TO_PLACE too: a town placed without the player's word realises from there
+			if (billCapped(err) && composedModules() && (state.phase() == Pipeline.Phase.PLACING || state.phase() == Pipeline.Phase.READY_TO_PLACE)) {
 				var refusal = dev.larattalabs.steward.module.ComposedModules.CapRefusal.of(capDetail(err));
 				Steward.LOGGER.info("composed modules {} realise refused at put-down ({}): {}", settlement.id(), refusal, message(err));
 				quoteCleared = null;
@@ -4600,7 +4602,7 @@ public final class SettlementRunner {
 		}
 		// (LIFT-S, Architect LCAP-Q1) held by its lot's own cap (waitsFor.cap "lot:<id>"): its limit, not what the player approved for the town
 		String scope = w.get("cap") instanceof com.google.gson.JsonPrimitive c ? c.getAsString() : null;
-		if (MaterialRequests.capLot(scope) != null) return MaterialRequests.lotOverCapWords(what, settlementId, over, 0, how);
+		if (MaterialRequests.capLot(scope) != null) return MaterialRequests.lotOverCapWords(what, settlementId, over, 0, how, MaterialRequests.capBoth(scope));
 		return MaterialRequests.overCapWords(what, settlementId, over, 0, how);
 	}
 
