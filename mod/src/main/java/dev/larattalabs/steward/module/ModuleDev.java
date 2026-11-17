@@ -134,6 +134,18 @@ public final class ModuleDev {
 				a.add("lot", StorageHallLot.growLot(req.get("id").getAsString(), req.get("slots").getAsInt(), req.get("bulk").getAsInt()));
 				return CompletableFuture.completedFuture(a);
 			}
+			case "hallBefore" -> {
+				// (M4b) Steward's own pre-check of a growth's undo (Growths.undo): the words for its halls' cargo, or null when they hold none of it
+				return CompletableFuture.supplyAsync(() -> {
+					JsonObject a = new JsonObject();
+					String region = req.get("region").getAsString();
+					int rid = req.get("rid").getAsInt();
+					var rv = ArchitectApi.get().regions().get(region)
+						.flatMap(v -> v.revisions().stream().filter(x -> x.rid() == rid).findFirst());
+					a.addProperty("words", rv.map(x -> dev.larattalabs.steward.service.HallCargo.before(server, req.get("owner").getAsString(), x.sites())).orElse(null));
+					return a;
+				}, server);
+			}
 			case "hallCargo" -> {
 				return CompletableFuture.supplyAsync(() -> {
 					JsonObject a = new JsonObject();
@@ -142,6 +154,7 @@ public final class ModuleDev {
 					if (req.has("site")) {
 						String sid = req.get("site").getAsString();
 						a.add("declared", dev.larattalabs.steward.service.HallCargo.declaredJson(server, sid));
+						a.add("cells", dev.larattalabs.steward.service.HallCargo.cellsJson(server, sid));
 						a.addProperty("before", dev.larattalabs.steward.service.HallCargo.before(server, req.get("owner").getAsString(), java.util.List.of(sid)));
 					}
 					return a;
@@ -152,6 +165,9 @@ public final class ModuleDev {
 			}
 			case "putItems" -> {
 				return CompletableFuture.supplyAsync(() -> putItems(server, req), server);
+			}
+			case "playerOpen" -> {
+				return CompletableFuture.supplyAsync(() -> playerOpen(server, req.getAsJsonArray("cells")), server);
 			}
 			case "clearContainers" -> {
 				return CompletableFuture.supplyAsync(() -> clearContainers(server, req.getAsJsonArray("box")), server);
@@ -372,6 +388,74 @@ public final class ModuleDev {
 		JsonObject a = new JsonObject();
 		a.add("taken", taken);
 		return a;
+	}
+
+	/**
+	 * (MEASURE-M4 12.5 bar 6) The player opens each container cell as a player does (the block's own use, so a chest blocked from
+	 * above or by a cat stays shut) and empties it through the menu, shift-clicking every container slot: per cell whether a menu opened, what it
+	 * took through the menu, and what is left in the container.
+	 */
+	private static JsonObject playerOpen(MinecraftServer server, JsonArray cells) {
+		ServerLevel level = server.overworld();
+		// the dev client's own player (Fabric's FakePlayer never opens a menu: its openMenu is a no-op); its inventory set aside and given back
+		var players = server.getPlayerList().getPlayers();
+		JsonObject none = new JsonObject();
+		if (players.isEmpty()) {
+			none.addProperty("error", "no player");
+			return none;
+		}
+		var p = players.get(0);
+		// (fix check 3, 6) a menu already open is closed first, so no carried stack falls into the counted inventory; the inventory is given back
+		// however the loop ends
+		p.closeContainer();
+		List<ItemStack> kept = new ArrayList<>();
+		for (int j = 0; j < p.getInventory().getContainerSize(); j++) kept.add(p.getInventory().getItem(j).copy());
+		JsonArray out = new JsonArray();
+		try {
+		for (JsonElement e : cells) {
+			var a = e.getAsJsonArray();
+			BlockPos pos = new BlockPos(a.get(0).getAsInt(), a.get(1).getAsInt(), a.get(2).getAsInt());
+			JsonObject r = new JsonObject();
+			r.add("at", a);
+			p.getInventory().clearContent();
+			var hit = new net.minecraft.world.phys.BlockHitResult(Vec3.atCenterOf(pos).add(0, 0.5, 0), net.minecraft.core.Direction.UP, pos, false);
+			var result = level.getBlockState(pos).useWithoutItem(level, p, hit);
+			var menu = p.containerMenu;
+			boolean opened = menu != p.inventoryMenu;
+			r.addProperty("result", String.valueOf(result));
+			r.addProperty("opened", opened);
+			JsonObject took = new JsonObject();
+			if (opened) {
+				int containerSlots = menu.slots.size() - 36;
+				for (int i = 0; i < containerSlots; i++) {
+					for (int k = 0; k < 4 && menu.getSlot(i).hasItem(); k++) {
+						menu.clicked(i, 0, net.minecraft.world.inventory.ContainerInput.QUICK_MOVE, p);
+						// what reached the player's inventory, counted, then cleared so the next slot always has room
+						for (int j = 0; j < p.getInventory().getContainerSize(); j++) {
+							ItemStack it = p.getInventory().getItem(j);
+							if (it.isEmpty()) continue;
+							String key = stackKey(it);
+							took.addProperty(key, (took.has(key) ? took.get(key).getAsInt() : 0) + it.getCount());
+						}
+						p.getInventory().clearContent();
+					}
+				}
+				p.closeContainer();
+			}
+			r.add("took", took);
+			int left = 0;
+			if (level.getBlockEntity(pos) instanceof net.minecraft.world.Container c) for (int i = 0; i < c.getContainerSize(); i++) left += c.getItem(i).getCount();
+			r.addProperty("left", left);
+			out.add(r);
+		}
+		} finally {
+			p.closeContainer();
+			p.getInventory().clearContent();
+			for (int j = 0; j < kept.size(); j++) p.getInventory().setItem(j, kept.get(j));
+		}
+		JsonObject o = new JsonObject();
+		o.add("cells", out);
+		return o;
 	}
 
 	/** The dropped items in a box, counted per item id, then discarded (the harvest's count). */

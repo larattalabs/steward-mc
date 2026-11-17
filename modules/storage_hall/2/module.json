@@ -1,0 +1,191 @@
+{
+  "id": "storage_hall",
+  "version": 2,
+  "title": "Storage hall",
+  "programSha": "aa216ff123066b328e9b65d24abfdf00d1beb84e8879fd65e682609ddb04decb",
+  "params": {
+    "slots": {
+      "type": "int",
+      "min": 0,
+      "max": 16,
+      "default": 0,
+      "label": "Sorting slots"
+    },
+    "bulk": {
+      "type": "int",
+      "min": 0,
+      "max": 8,
+      "default": 2,
+      "label": "Double chests"
+    },
+    "item1": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 1"
+    },
+    "item2": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 2"
+    },
+    "item3": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 3"
+    },
+    "item4": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 4"
+    },
+    "item5": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 5"
+    },
+    "item6": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 6"
+    },
+    "item7": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 7"
+    },
+    "item8": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 8"
+    },
+    "item9": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 9"
+    },
+    "item10": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 10"
+    },
+    "item11": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 11"
+    },
+    "item12": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 12"
+    },
+    "item13": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 13"
+    },
+    "item14": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 14"
+    },
+    "item15": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 15"
+    },
+    "item16": {
+      "type": "enum",
+      "options": ["none", "cobblestone", "cobbled_deepslate", "stone", "deepslate", "dirt", "sand", "red_sand", "gravel", "andesite", "diorite", "granite", "tuff", "calcite", "netherrack", "blackstone", "basalt", "end_stone", "clay_ball", "flint", "oak_log", "spruce_log", "birch_log", "jungle_log", "acacia_log", "dark_oak_log", "mangrove_log", "cherry_log", "coal", "charcoal", "iron_ingot", "gold_ingot", "copper_ingot", "raw_iron", "raw_gold", "raw_copper", "redstone", "lapis_lazuli", "quartz", "diamond", "emerald", "wheat", "wheat_seeds", "beetroot_seeds", "sugar_cane", "bone", "string", "gunpowder", "rotten_flesh"],
+      "default": "none",
+      "label": "Slot 16"
+    }
+  },
+  "envelope": {
+    "branches": {
+      "slots": [
+        0,
+        4,
+        8,
+        12,
+        16
+      ],
+      "bulk": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ]
+    },
+    "domains": {
+      "item1": "filter",
+      "item2": "filter",
+      "item3": "filter",
+      "item4": "filter",
+      "item5": "filter",
+      "item6": "filter",
+      "item7": "filter",
+      "item8": "filter",
+      "item9": "filter",
+      "item10": "filter",
+      "item11": "filter",
+      "item12": "filter",
+      "item13": "filter",
+      "item14": "filter",
+      "item15": "filter",
+      "item16": "filter"
+    },
+    "facings": [
+      "north",
+      "east",
+      "south",
+      "west"
+    ],
+    "bibles": [
+      "rustic",
+      "fortress",
+      "desert"
+    ]
+  },
+  "palette": {
+    "lamp": {
+      "role": "light",
+      "minLight": 14,
+      "fallback": "minecraft:lantern"
+    },
+    "noGravity": [
+      "floor",
+      "foundation",
+      "wall",
+      "frame"
+    ],
+    "nonConductive": [],
+    "fullBlock": [
+      "wall",
+      "foundation"
+    ]
+  },
+  "pins": {
+    "kit": "0.69.0",
+    "checker": "0.69.0"
+  }
+}

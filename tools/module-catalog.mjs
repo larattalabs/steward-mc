@@ -38,6 +38,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 import { styleBounds } from './lib/style-bounds.mjs';
 import { moduleShaOf, smokeCarry } from './lib/smoke-carry.mjs';
 
@@ -83,6 +84,25 @@ function combinations(branches) {
   let out = [{}];
   for (const [k, vs] of Object.entries(branches)) out = out.flatMap((m) => vs.map((v) => ({ ...m, [k]: v })));
   return out;
+}
+/**
+ * (M4b) Every branch with its domain params filled: a module whose envelope has `domains` (storage_hall@2's item1..item16, kind `filter`)
+ * gets, per sorting branch, its own item set from the enum's options (all but `none`), rotating through the domain so the run covers every
+ * domain item as a filter (MEASURE-M4 12.1); `slots` names how many. Without domains, the branches as they are.
+ */
+export function branchSets(m) {
+  const combos = combinations(m.envelope.branches);
+  const doms = Object.keys(m.envelope.domains ?? {});
+  if (!doms.length) return combos;
+  const domain = (m.params[doms[0]].options ?? []).filter((o) => o !== 'none');
+  let at = 0;
+  return combos.map((c) => {
+    const n = Number(c.slots ?? 0);
+    const out = { ...c };
+    for (let i = 0; i < n; i++) { out[doms[i]] = domain[(at + i) % domain.length]; }
+    at = (at + n) % domain.length;
+    return out;
+  });
 }
 /** Params outside the envelope: the first int param's first value inside its schema's range that no branch lists (fixture_plot: side 6). */
 function outsideParams(m) {
@@ -134,7 +154,7 @@ async function offline() {
           fs.rmSync(o, { recursive: true, force: true });
         }
       };
-      for (const c of combinations(e.module.envelope.branches)) {
+      for (const c of branchSets(e.module)) {
         for (const bible of e.module.envelope.bibles) {
           const b = await build(c, { bible });
           r.branches.push({ branch: c, bible, ok: b.ok, errors: b.errors ?? [b.threw], warnings: b.warnings?.length ?? 0, blocks: b.bp?.cells?.size ?? null });
@@ -222,6 +242,8 @@ async function startClient() {
   if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
   const world = `Steward M1 Catalog ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
+  // one slot from Architect's machine-wide queue (slice SQ, tools/lib/slot-queue.mjs), held by this driver until the client quits
+  slot = await acquireSlot(`module-catalog ingame`, { root: ROOT });
   const out = fs.openSync(path.join(ART, 'client.log'), 'a');
   child = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], {
     stdio: ['ignore', out, out],
@@ -237,10 +259,19 @@ async function startClient() {
   if (exited) throw new Error('the launched client exited before its bridge answered');
   await dev.waitInWorld({ timeoutMs: 600_000 });
 }
+let slot = null;
 async function stopClient() {
-  if (!dev || !launched || exited || flag('--attach') || flag('--keep-client')) return;
-  const r = await dev.request('dev.quit');
-  if (r.ok) await dev.waitClosed(120_000);
+  // a kept client keeps its slot until this driver ends (the exit handler frees it)
+  if (flag('--attach') || flag('--keep-client')) return;
+  try {
+    if (!dev || !launched || exited) return;
+    const r = await dev.request('dev.quit');
+    if (r.ok) await dev.waitClosed(120_000);
+  } finally {
+    // done for good: the slot goes back, also when the client died before its bridge answered
+    if (slot?.ticket) releaseSlot(slot.ticket);
+    slot = null;
+  }
 }
 let n = 0;
 /** One `/steward dev module` request; its answer from <gameDir>/steward-modules/<label>.json. */
@@ -298,9 +329,10 @@ async function ingame() {
       const again = await mod({ op: 'install', ...base });
       check(again.ok && again.entryId === a.entryId, `${key}: the key replays: the same entry (${again.entryId})`);
       let firstKey = null, firstId = null;
-      for (const c of combinations(e.module.envelope.branches)) {
+      for (const c of branchSets(e.module)) {
         for (const bible of e.module.envelope.bibles) {
-          const vkey = `steward.m1gate${run}.module.${e.id}_${Object.values(c).join('_')}_${bible}`;
+          // (the branch's own values: its domain items left out of the key, which stays short)
+          const vkey = `steward.m1gate${run}.module.${e.id}_v${e.version}_${Object.entries(c).filter(([k]) => !(k in (e.module.envelope.domains ?? {}))).map(([, v]) => v).join('_')}_${bible}`;
           const t1 = Date.now();
           const v = await mod({ op: 'variant', ...base, params: c, bible: { id: bible, version: 0 }, key: vkey });
           const vl = v.ok ? entryFile(v.entryId) ?? {} : {};
@@ -366,7 +398,7 @@ async function record() {
       // speed rule 4: carry the full measurement on a smoke check (tools/lib/smoke-carry.mjs), or refuse
       // the module's evidence directory (artifacts/m2: crop_farm, artifacts/m4: storage_hall) and its round: one field round (crop_farm), or
       // one hall round (storage_hall: module-measure-hall.mjs hall, deterministic)
-      const M = MEASURES[e.id] ?? {};
+      const M = measureOf(e) ?? {};
       const m2 = path.join(ROOT, 'artifacts', M.art ?? 'm2');
       const read = (f) => (fs.existsSync(path.join(m2, f)) ? JSON.parse(fs.readFileSync(path.join(m2, f), 'utf8')) : null);
       const fields = !fs.existsSync(m2) ? [] : M.round === 'hall' ? [read('hall.json')].filter(Boolean)
@@ -379,7 +411,7 @@ async function record() {
         requote.bounds = sb.bounds; requote.problems = sb.problems;
       }
       const c = smokeCarry({ prev: e.measured, mod: e.module, now, gameModuleSha: g.gate.moduleSha, versions: { architect: ARCH_VERSION, minecraft: MC_VERSION },
-        offline: off, offEntry: o, ingame: inn, inEntry: g, checks: freshChecks(), survival: read('survival.json'), fields, requote });
+        offline: off, offEntry: o, ingame: inn, inEntry: g, checks: freshChecks(), survival: read(`${M.billing ?? 'survival'}.json`), billingStep: M.billing ?? 'survival', fields, requote });
       if (c.why.length) { refused++; log(`REFUSED ${key} (smoke): ${c.why.join('; ')}`); continue; }
       fs.writeFileSync(path.join(e.dir, 'measured.json'), `${JSON.stringify(c.m, null, 2)}\n`);
       log(`recorded ${key}: result pass, basis smoke from ${c.m.from}, moduleSha ${c.m.moduleSha.slice(0, 12)}`);
@@ -396,7 +428,7 @@ async function record() {
       minecraft: MC_VERSION, architect, kit: off.data.kit, checker: off.data.checker, result: 'pass' };
     m.checks = freshChecks();
     if (measure) {
-      const M = MEASURES[e.id];
+      const M = measureOf(e);
       m.checks.measure = measure; m.what = M.what; m.bars = M.bars; m.runs = M.runs;
       // M3 reads these: the whole growth's bill per params (the survival bound) and the quoted net rate (the fixed-cycle protocol rate)
       const art = (s) => JSON.parse(fs.readFileSync(path.join(ROOT, 'artifacts', M.art, `${s}.json`), 'utf8')).data;
@@ -410,6 +442,15 @@ async function record() {
       if (sb.problems.length) { refused++; log(`REFUSED ${key}: the per-Style bounds: ${sb.problems.slice(0, 5).join('; ')}`); continue; }
       m.bounds = sb.bounds;
       m.rates = [];
+      // (M4b) storage_hall@2: its bounds are the structure alone; the fill (41 of each item) is added per order (ModuleBound's `fill`); its rates
+      // are items a second per slot count, from the sort step
+      if (M.fill) m.fill = M.fill;
+      if (M.hallRates) {
+        const S = art('sort');
+        const per = {};
+        for (const [id, h] of Object.entries(S.halls ?? {})) if (h.itemsPerSecond && h.bible === 'rustic') (per[h.slots] ??= []).push(h.itemsPerSecond);
+        for (const [slots, xs] of Object.entries(per)) m.rates.push({ params: { slots: Number(slots) }, perSecond: Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 1000) / 1000, item: 'items' });
+      }
       if (M.rates) for (const crop of ['wheat', 'carrots', 'potatoes', 'beetroots']) {
         const F = art(`field-${crop}`);
         for (const f of F.farms) {
@@ -441,22 +482,52 @@ const MEASURES = {
     bars: 'docs/MEASURE-M4.md "4. The bars" (committed before the first measurement)',
     art: 'm4', runs: 1, rates: false, round: 'hall',
   },
+  'storage_hall@2': {
+    steps: ['hall', 'bounds', 'sort', 'sort-survival', 'sort-cargo', 'sort-crash', 'sort-plain'],
+    // (M4b) the sort step's one coverage check, completed by sort-plain: accepted only when it is sort's only failure and sort-plain carried
+    // every item it names as a non-filter kind through 100% runs
+    completes: { sort: { by: 'sort-plain', check: /^12\.1 coverage: every domain item a non-filter kind/, missing: (r) => r.data?.coverage?.plainMissing ?? [], covered: (r) => r.data?.covered ?? [] } },
+    what: 'docs/MEASURE-M4.md 12.5 and 12.7: the sorting hall (slots 4, 8, 12 and 16, each with its own items through the 48-item domain) and its plain branch, measured in a dev client by tools/module-measure-hall.mjs --version 2: shape, light, every chest opened and emptied by a player through its menu, sorting 20 runs a rustic branch over its four facings in acknowledged batches (10,000 items a hall; every domain item a filter and a non-filter kind), throughput, saturation and a full overflow (each drain counted), the filters holding, restart and an asserted full unload and a partial unload mid-sort (the whole mix fed across them), ingress before the lock (a mid-build insert down the line is the known gap S-M5-17: fill_blocked, nothing charged or lost), fill_blocked, the bill (structure + 41 per item) and the refunds after taking, cargo alone in every container class, the fed-slab recovery, the crash points FK1-FK4, FKC1, FKC2 and CS1 (each judged on every item against the saved state, the removals with an unchanged second undo), and a cancel before the fill (FKC0 is deferred to the pin that carries Architect LC3; late cargo is the known gap S-M5-12, named in the offer).',
+    bars: 'docs/MEASURE-M4.md 12.5 and 12.7 (committed before the first measurement)',
+    art: 'm4b', runs: 1, rates: false, hallRates: true, round: 'hall', billing: 'sort-survival', // (review 11) @2's billing check is sort-survival
+    fill: { params: Array.from({ length: 16 }, (_, i) => `item${i + 1}`), count: 41 },
+  },
 };
+/** A catalog entry's measurement: by `id@version` first (storage_hall@2's differs from @1's), else by id. */
+function measureOf(e) {
+  return MEASURES[`${e.id}@${e.version}`] ?? MEASURES[e.id];
+}
 /** The measurement's evidence for a real module, summarised; reasons it can't certify go into `why`. */
 function measurement(e, now, why) {
-  const M = MEASURES[e.id];
+  const M = measureOf(e);
   if (!M) { why.push(`no measurement is defined for ${e.id}`); return null; }
   const out = {};
+  // (fix check 7) a step that only completes another (sort-plain) is required only when the step it completes has that failure
+  const needed = new Set(M.steps.filter((s) => !Object.values(M.completes ?? {}).some((c) => c.by === s)));
+  for (const [s, c] of Object.entries(M.completes ?? {})) {
+    const f = path.join(ROOT, 'artifacts', M.art, `${s}.json`);
+    const r = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : null;
+    if (r && !r.ok) needed.add(c.by);
+  }
   for (const s of M.steps) {
     const f = path.join(ROOT, 'artifacts', M.art, `${s}.json`);
+    if (!needed.has(s) && !fs.existsSync(f)) continue;
     if (!fs.existsSync(f)) { why.push(`no measurement evidence ${s}`); continue; }
     const r = JSON.parse(fs.readFileSync(f, 'utf8'));
-    if (!r.ok) why.push(`measurement ${s} did not pass`);
+    const C = M.completes?.[s];
+    let completedBy = null;
+    if (!r.ok && C) {
+      const failed = r.checks.filter((c) => !c.ok);
+      const fb = path.join(ROOT, 'artifacts', M.art, `${C.by}.json`);
+      const by = fs.existsSync(fb) ? JSON.parse(fs.readFileSync(fb, 'utf8')) : null;
+      if (!r.error && failed.length && failed.every((c) => C.check.test(c.what)) && by?.ok && C.missing(r).length && C.missing(r).every((k) => C.covered(by).includes(k))) completedBy = C.by;
+    }
+    if (!r.ok && !completedBy) why.push(`measurement ${s} did not pass`);
     if (r.programSha !== now.programSha || r.moduleJsonSha !== now.moduleJsonSha) why.push(`measurement ${s} measured other files`);
     if (r.architect !== ARCH_VERSION || r.minecraft !== MC_VERSION) why.push(`measurement ${s} ran on other versions`);
     if (M.fieldRuns && s.startsWith('field-') && !(r.runs >= M.fieldRuns)) why.push(`measurement ${s} has ${r.runs} runs (${M.fieldRuns} needed)`);
     out[s] = { at: r.at, head: r.head, world: r.world, seconds: r.seconds, runs: r.runs ?? null, passed: r.checks.filter((c) => c.ok).length, of: r.checks.length,
-      results: r.checks.map((c) => c.what) };
+      results: r.checks.map((c) => c.what), ...(completedBy ? { completedBy, failed: r.checks.filter((c) => !c.ok).map((c) => c.what) } : {}) };
   }
   return out;
 }

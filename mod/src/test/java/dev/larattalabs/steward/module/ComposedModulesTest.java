@@ -12,10 +12,10 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/** docs/MODULES.md "M5 design" (slice M5a): module lots of a composed plan, on the live catalog (crop_farm@1, storage_hall@1). */
+/** docs/MODULES.md "M5 design" (slice M5a): module lots of a composed plan, on the live catalog (crop_farm@1 and the newest certified storage_hall). */
 class ComposedModulesTest {
 	static final ModuleCatalog LIVE = ModuleCatalog.dir(ModuleCatalogTest.FIXTURES.resolve("../../../modules").normalize(), false);
-	static final ModuleGate.Env PLAYER = new ModuleGate.Env("26.3", "0.73.0", Set.of(ModuleGate.FEATURE));
+	static final ModuleGate.Env PLAYER = new ModuleGate.Env("26.3", "0.74.0", Set.of(ModuleGate.FEATURE));
 	static final ModuleKind FARM = ModuleKind.CropFarm.INSTANCE, HALL = ModuleKind.StorageHall.INSTANCE;
 	static final ComposedModules.Town WARM = new ComposedModules.Town(false, false), COLD = new ComposedModules.Town(true, false),
 		MATERIALS = new ComposedModules.Town(false, true);
@@ -82,7 +82,9 @@ class ComposedModulesTest {
 	void theIdentityNamesVersionsAndProgramsInOrder() {
 		String id = ComposedModules.identity(offered());
 		assertTrue(id.startsWith("crop_farm@1:"), id);
-		assertTrue(id.contains(",storage_hall@1:"), id);
+		// the hall offered on 0.74.0 is the live catalog's newest certified one: storage_hall@2, the sorting hall
+		assertEquals(2, offered().get(1).entry().version());
+		assertTrue(id.contains(",storage_hall@2:"), id);
 		assertEquals(id, ComposedModules.identity(List.of(offered().get(1), offered().get(0))), "sorted, whatever the order offered");
 		assertEquals("", ComposedModules.identity(List.of()));
 	}
@@ -334,6 +336,21 @@ class ComposedModulesTest {
 		assertFalse(ComposedModules.boundWords("f", FARM, farm, null, false).contains("bound"));
 	}
 
+	/** PLAN 2026-11-15, S-M5-12: a composed town's hall (storage_hall@2 on 0.74.0) names the late-cargo gap once; its farm, which has no chests, doesn't. */
+	@Test
+	void aComposedHallNamesTheLateCargoGap() {
+		assertTrue(ModuleOffer.LATE_CARGO_GAP, "drop this test's positive half when LC3 lands");
+		var asked = ComposedModules.read(lots(plan()));
+		var hall = decide(asked.get(1), HALL, WARM, Set.of(), null).order();
+		assertEquals(2, hall.version());
+		for (boolean materials : new boolean[] {true, false}) {
+			String w = ComposedModules.boundWords("sorting warehouse", HALL, hall, null, materials);
+			assertEquals(1, w.split(java.util.regex.Pattern.quote(ModuleOffer.LATE_CARGO_WORDS), -1).length - 1, w);
+		}
+		var farm = decide(asked.get(0), FARM, WARM, new HashSet<>(), null).order();
+		assertFalse(ComposedModules.boundWords("f", FARM, farm, null, true).contains(ModuleOffer.LATE_CARGO_WORDS));
+	}
+
 	/** GPT review 3: a module's marker that can't be read, or a module lot type with no marker, is a module ask (refused or bound), never designed. */
 	@Test
 	void readingFailsClosed() {
@@ -361,13 +378,51 @@ class ComposedModulesTest {
 		assertEquals(1, lots(ComposedModules.apply(p, Map.of(), out)).size());
 	}
 
-	/** GPT review 10: each module says what it does; the plain hall says it doesn't sort, the farm that the player harvests it. */
+	/**
+	 * GPT review 10: each module says what it does; the farm that the player harvests it. batch-074 GPT review P2: the hall offered on 0.74.0 is @2,
+	 * which measured sorting slots, but a composed hall is built plain (sorting in a planned town is M5b's), so it says it does not sort.
+	 */
 	@Test
 	void eachModuleSaysWhatItDoes() {
 		var v = ComposedModules.vocabulary(offered());
 		assertTrue(v.get(0).getAsJsonObject().get("does").getAsString().contains("player harvests"));
-		assertTrue(v.get(1).getAsJsonObject().get("does").getAsString().contains("does not sort"));
+		assertEquals(2, offered().get(1).entry().version());
+		assertFalse(ComposedModules.COMPOSED_HALL_SORTS);
+		String hall = v.get(1).getAsJsonObject().get("does").getAsString();
+		assertTrue(hall.contains("it does not sort"), hall);
+		assertFalse(hall.contains("sorts the items"), hall);
+		// nor do its sizes or its choice offer slots or filter items
+		assertFalse(v.get(1).toString().contains("item1"), v.get(1).toString());
+		for (var sz : v.get(1).getAsJsonObject().getAsJsonArray("sizes")) assertEquals(0, sz.getAsJsonObject().getAsJsonObject("params").get("slots").getAsInt());
 		assertTrue(ComposeJob_rules().contains("`does`"));
+	}
+
+	/** batch-074 GPT review P2: a composed @2 hall asked to sort (valid sorting slots and items) is built as the plain hall, and said so. */
+	@Test
+	void aComposedSortingAskIsBuiltAndDescribedAsPlain() {
+		for (String params : List.of("{\"slots\": 4, \"bulk\": 2, \"item1\": \"cobblestone\", \"item2\": \"iron_ingot\", \"item3\": \"wheat\", \"item4\": \"coal\"}",
+			"{\"slots\": \"four\", \"bulk\": 2}", "{\"bulk\": 2, \"item1\": \"coal\"}")) {
+			var a = new ComposedModules.Asked("warehouse_1", "storage_hall", json(params), "warehouse");
+			for (var town : List.of(WARM, MATERIALS)) {
+				var d = ComposedModules.decide(a, HALL, ok("storage_hall"), town, Set.of(), new int[] {11, 7}, (e, p) -> ModuleBound.of(e.measured(), p), false);
+				assertTrue(d.ok(), params + ": " + d.why());
+				assertEquals(2, d.order().version(), "the newest certified hall");
+				assertEquals(0, d.order().params().get("slots").getAsInt(), params);
+				for (int i = 1; i <= StorageHallLot.SLOT_MAX; i++) if (d.order().params().has("item" + i)) assertEquals("none", d.order().params().get("item" + i).getAsString(), params);
+				assertTrue(d.changed().contains("doesn't sort yet, so a plain hall"), d.changed());
+				String w = ComposedModules.boundWords("sorting warehouse", HALL, d.order(), d.changed(), town.materials());
+				assertTrue(w.startsWith("The plan's sorting warehouse is a working storage hall from Steward's measured catalog (storage_hall@2"), w);
+				assertTrue(w.contains("It's a plain hall: it doesn't sort."), w);
+			}
+		}
+		// a plain ask says nothing about sorting in its notes, and the words still say it doesn't sort
+		var plain = decide(ComposedModules.read(lots(plan())).get(1), HALL, WARM, Set.of(), new int[] {11, 7});
+		assertTrue(plain.ok(), plain.why());
+		assertNull(plain.changed());
+		assertTrue(ComposedModules.boundWords("hall", HALL, plain.order(), null, false).contains("it doesn't sort"));
+		// a farm's words don't
+		var farm = decide(ComposedModules.read(lots(plan())).get(0), FARM, WARM, Set.of(), null).order();
+		assertFalse(ComposedModules.boundWords("f", FARM, farm, null, false).contains("sort"));
 	}
 
 	static String ComposeJob_rules() {

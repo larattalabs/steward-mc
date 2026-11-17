@@ -21,7 +21,7 @@ ln -s ../../steward-mc/node_modules node_modules
 `tools/e2e.mjs` and `tools/nightly.mjs` point TMPDIR at `/Volumes/MCTmp/tmp/steward` when that RAM disk exists. Their clients and builds inherit it. Noah approved the disk: a 24 GB volume made at login by the LaunchAgent `com.laratta.mctmp-ramdisk`, whose contents go at a reboot (`tools/lib/ram-tmp.mjs`).
 - Without the volume, or with `STEWARD_RAM_TMP=0`, TMPDIR stays as it was.
 - The game's run dirs (`mod/run`) stay on disk: the e2e reads its world, logs and screenshots there, and a failed night's world is kept for diagnosis.
-- **The sidecar's data** (`mod/run/architect/sidecar-data`) is on the RAM disk too (11-14). The machine audit measured about 3 GB written per worktree per 30 min there. e2e's preflight makes it a symlink to `/Volumes/MCTmp/tmp/steward/sidecar-<hash>`, one per checkout, kept between runs until a reboot.
+- **The sidecar's data** (`mod/run/architect/sidecar-data`) is on the RAM disk too (11-14). The machine audit measured about 3 GB written per worktree per 30 min there. e2e's preflight makes it a symlink to `/Volumes/MCTmp/tmp/steward/sidecar-<hash>`, one per checkout (each run dir has its own), emptied at each run's start and again at its end ("Temp dirs" below).
   - An on-disk directory found there is renamed to `sidecar-data.ssd`, never deleted.
   - Without the volume, a link left dangling by a reboot becomes an empty directory again (`ramSidecarData`).
   - A dev client in the same checkout follows the link. The opt-in `secrets.json` check reads through it.
@@ -192,8 +192,9 @@ line (action, reason, write box).
 - **`--keep-world`** reopens the old world instead, to look at a run's leftovers.
 - **The client check** looks only for this checkout's own client (`<checkout>/mod/...KnotClient`). A worktree's run is no longer refused when the main
   checkout's client is up, and its own leftover client is caught.
-- **Load.** The client starts once the 1-minute load is at most `E2E_LOAD_MAX` (default 72), waiting at most `E2E_LOAD_WAIT_MIN` minutes (15), then
-  starts anyway and says so. `E2E_LOAD_MAX=0` turns this off.
+- **Load.** The slot queue's load gate (below) decides when the client starts. Steward's own load wait (`E2E_LOAD_MAX`, default 72;
+  `E2E_LOAD_WAIT_MIN`, 15) runs only with `E2E_SLOTS=off`.
+- **A slot from Architect's queue** (slice SQ, 2026-11-16; Noah, 11-15: "Steward joins the queue"). See "The slot queue" below.
 - **Another checkout's ports:** set `STEWARD_PORT` / `STEWARD_DEV_PORT` (e.g. 8598/8599).
 
 `node tools/e2e.mjs stub` runs the whole paid flow at $0 on Architect's helper in sim mode (v0.12.2: `ARCHITECT_SIDECAR_BACKEND=sim`, notional measured
@@ -229,6 +230,77 @@ Then:
 
 Last run: 2026-10-11: **PASS 34 checks** on Architect 0.15.0 (a building placed into a protected area is refused PROTECTED by Architect). Before: **PASS 33 checks**, twice in a row: the Founding Stone's recipe added, and the board check fixed. The board stood at the edge of reach, about 4.4 blocks away, so its right-click missed about half the time; it is a block closer now. That was not the whole cause: it missed once more from 3.4 blocks, with the steward behind the player. It is still intermittent and under watch. The board itself works by hand and in most runs.
 
+### The slot queue (slice SQ, 2026-11-16, $0)
+
+With 6 in-game runs plus builds, load reached 83-142 and runs stalled. Steward's in-game clients now take their slots from Architect's
+machine-wide queue (`../architect-mc/docs/GATES.md`, "Outside callers (Steward)"). That queue allows 6 runs at once. It has the load gate
+(max1 72, settle 120 s), serves tickets in FIFO order, and keeps a turbo run exclusive. Steward keeps no count or start gap of its own.
+
+- **How.** `tools/lib/slot-queue.mjs` calls Architect's CLI: `node $ARCHITECT_DIR/tools/slot.mjs acquire --who steward --worktree <checkout>
+  --label <flow or step> --pid <driver pid>`, then `release --ticket <t>`. `ARCHITECT_DIR` defaults to `ARCHITECT_CHECKOUT`, else
+  `../architect-mc`. That checkout must be at v0.74.0 or later, the first release with `tools/slot.mjs`.
+  - A missing CLI is an error that names the fix.
+  - `E2E_SLOTS=off` takes no slot (unit tests and odd cases), and says so loudly. It brings back Steward's own load wait and the 60 s stagger.
+- **What takes a slot.**
+  - `e2e.mjs`: one slot per client launch, taken after the preflight. It is held across the run's client restarts and released when the
+    client is done for good.
+  - `--clients` leads: each client's slot is held by the lead and handed to the client's run (`E2E_SLOT_TICKET`).
+  - `module-measure.mjs` and `module-measure-hall.mjs` take one per `startClient`, and `module-probe.mjs` and `module-catalog.mjs ingame`
+    take one too. Each is released at `stopClient`; with `--keep-client`, when the driver ends. `--attach` takes none.
+  - `nightly.mjs`: one per e2e step (free, stub), held by the nightly and handed to the step's e2e.
+- **One acquire at a time per process** (11-16). Before Architect v0.75.0, a ticket is `t-<ms>-<holder pid>`, so two acquires by one holder
+  in the same millisecond (`--clients 2`) got one id, and `release --ticket` was ambiguous. Two CLIs spawned 2 ms apart still read the same
+  millisecond, so a process's acquires run in turn, each at least 2 ms after the previous ticket arrived. A ticket the process already holds
+  is refused (`SLOT_DUP_TICKET`), not released.
+- **The holder** is the driver's node pid. A release runs on every way out: the end, a throw, `process.exit`, SIGINT, SIGTERM and SIGHUP. A
+  SIGKILL leaves it to the queue's dead-pid pruning.
+- **A signal** is `tools/lib/shutdown.mjs`'s (batch-074 review): it first stops what the driver started, by pid and bounded. A single driver
+  quits its client and stops its JVM (the DevBridge port's listener) and launcher. A `--clients` lead forwards the signal to its child drivers,
+  waits up to 90 s, then SIGKILLs them and the client pids each printed (`e2e-client: jvm <pid> launcher <pid>`). Only then are the slots
+  released and the sidecar data removed, and it exits 128 + n. A second signal while shutting down is ignored.
+- **Waiting.** `E2E_SLOT_WAIT_MIN` sets the wait (default 15, capped at 15). The CLI's waiting lines are printed. A slot that doesn't come
+  within the wait is not a FAIL:
+  - the e2e prints `NOT RUN: waited N min for a slot (load L, turbo T)`, exits 3, and records `slot: { timedOut, waitedMin, load, turbo,
+    holders, reason }` in summary.json;
+  - a nightly step that waited is listed as not run, and the night is `WAITED`.
+  - Load alone never times it out: the load gate starts anyway at its cap.
+- **Kept:** the claude-login opt-in refusal and the check for a client already on this run dir (`mod/run`). The nightly no longer skips
+  just because another Steward client runs; the queue handles that.
+- **See it:** `node $ARCHITECT_DIR/tools/slot.mjs status --json` lists holders (`who: steward`, the worktree, the label, the pid), the
+  queue, the load and turbo.
+
+### Temp dirs: the run's sidecar dir removed, strays swept (slice TMPSWEEP, 2026-11-16, $0)
+
+Each run dir's sidecar dir on the RAM disk (`/Volumes/MCTmp/tmp/steward/sidecar-<hash of the run dir>`, 2-6 GB) used to stay until a reboot.
+Every worktree and `--clients` run dir has its own, so by 11-16 sixteen of them had filled the 24 GB disk and other runs failed with ENOSPC.
+
+- **Owner-marked.** e2e's preflight (`ramSidecarData(..., { fresh, own })`) writes Architect's marker into the dir: `.arch-owner`, a file
+  holding `{pid, startMs, createdAt}` for the e2e driver (startMs is its Node timeOrigin), plus `tool` and `gameDir`. The format and the liveness
+  rule (the pid runs, with the same start time) match Architect's slice TS (`../architect-mc/tools/lib/arch-tmp.mjs`, `tmp-sweep.mjs`).
+  `tools/lib/tmp-owner.mjs` has its own copy: Architect's modules move TMPDIR to its own RAM dir on import.
+- **Removed when the driver is done for good.** That happens at the end of e2e's `finally`, after the client quits, and in an exit hook that
+  covers a throw, an unhandled rejection, `process.exit` (the slot timeout's exit 3), SIGINT, SIGTERM and SIGHUP (after the client is stopped,
+  above). The start-of-run sweep re-reads each marker and re-checks its owner by pid just before removing a dir (batch-074 review). Client relaunches
+  (`restartClient`, the restart flows) happen in the same process, so the dir and its data survive them.
+  - Only the exact path this run made is removed, and only while its marker still names this process. A later run on the same run dir
+    takes the marker over.
+  - When the `mod/run/architect/sidecar-data` symlink points at exactly that dir, the dir is made again, empty and unmarked, and the link
+    stays. A dev client started later then still writes to the RAM disk. Without the link it would write to a real on-disk dir, which the
+    next run would rename to `sidecar-data.ssd` and keep.
+  - If something (the sidecar, the client's grandchild) writes into the dir during removal, the dir is marked again for the sweep.
+  - Each outcome is printed: `tmp: removed|kept|not-mine|gone|failed <dir>`.
+- **The sweep.** At the start of each e2e run, `sweepStale` looks at the direct children of `/Volumes/MCTmp/tmp/steward` named
+  `sidecar-*`. It removes those that carry a valid marker whose owner is gone, which are leftovers from a SIGKILL or a crash.
+  - It uses no age floor: a dead owner is decisive here, unlike Architect's 6 h default, which would have kept every dir that filled the disk.
+  - It never touches a live owner's dir, an unmarked dir, a symlink or a plain file.
+  - Architect's `tools/tmp-sweep.mjs` CLI lists only the direct children of `/Volumes/MCTmp/tmp` and takes no root, so it never sees these.
+  - Dirs from before this slice have no marker, and the sweep leaves them. A checkout's next run empties its own. Removing the rest takes a
+    one-time manual cleanup.
+- **On disk** (`STEWARD_RAM_TMP=0`, or no volume): the same cleanup applies to `mod/run/architect/sidecar-data` only when this run made it, or
+  when an earlier run had marked it and that owner is gone (it is emptied first). An existing directory that isn't marked, such as a dev
+  client's data, is never removed.
+- **`STEWARD_KEEP_TMP=1`** keeps the dir, still marked. The next Steward e2e run started anywhere sweeps it, so copy out what you need first.
+
 ### Faster runs: two clients, skipping unchanged flows (slice EF, 2026-11-15, $0)
 
 Without these flags a run is as before: one client on `mod/run`, every chosen flow run.
@@ -238,15 +310,17 @@ Without these flags a run is as before: one client on `mod/run`, every chosen fl
     `mod/run-c<k>`, through `STEWARD_RUN_DIR` in build.gradle) with its own RAM-disk sidecar link, and its own evidence dir
     (`artifacts/e2e/c<k>/`: its client.log and summary).
   - Each client is a child `e2e.mjs ... --flows a,b` that runs the sanity set and then exactly its flows, in that order. Its lines come prefixed
-    `[c1]`/`[c2]`. Client k starts `--stagger` seconds (default 60) after the one before, so their Gradle starts don't overlap.
+    `[c1]`/`[c2]`. Each client starts once its slot comes, and the queue's settle (120 s) spaces them. `--stagger s` adds a gap of Steward's
+    own (by default only with `E2E_SLOTS=off`: 60 s).
   - Flows are packed in groups, longest first, each onto the client with the least recorded seconds. A group holds a flow and what it `needs`,
     plus flows whose code shares a block that writes fixed names under `artifacts/e2e` (the snapshot files: the gate-mech family, for one). A group with
     a flow that has no recorded time goes after every timed one. The times come from `artifacts/e2e/summary.json`, then
     `artifacts/e2e/flow-times.json` (every run's, newest kept), then `E2E_TIMES` (another summary).
   - One `artifacts/e2e/summary.json` merges both: each result and flow carries `client`, `clients[]` has each one's ports, flows, packed and real
     seconds and exit. The end lines give each client's wall time and `FAIL [c2] <check>: why` for each failure.
-  - The slot rule: with fewer free of the 6 machine-wide Steward clients (4 before 11-15) (`pgrep -f 'steward[^ ]*/mod.*KnotClient'`) than asked, it runs on one
-    client and says so.
+  - The slot rule (slice SQ): one slot per client from Architect's queue. If client k's slot doesn't come within its wait, it runs after c1
+    on c1's slot, run dir and ports, and so does every client after it. The run says so (`clients: waited N min for a slot ...: falling
+    back to one client`), and `clients[]` records `borrowed` and `waited`.
   - The client check in preflight now refuses only a client of this checkout whose working dir is this run's game dir.
 - **`--skip-unchanged`** skips a flow whose inputs haven't changed since its last PASS (`artifacts/e2e/passes.json`, per mode, local only, written
   after every run that isn't a client of a `--clients` run).
@@ -728,3 +802,23 @@ e2e: `STEWARD_PORT=8592 STEWARD_DEV_PORT=8593 node tools/e2e.mjs stub --flows pl
     minute's pass runs on.
   - Module lots are left out as M5 reads them (`ComposedModules.asked` over `LOT_TYPES`, failing closed).
   - Unit tests: `PlanDistrictsTest` 11; the scoped suites with ComposedModules 114, 0 failed. `npm test` 75. Rerun of `--flows plan-district`: PASS 15.
+- **PD-2 (11-16, light, $0; no in-game run per slice, the next batch's run covers it):**
+  - The flow composes no_wood's plan with an optional districts zone `wards` whose one district is 256 by 256. It has no candidate in the claim, so
+    Architect refuses the zone NO_ROOM. The overall is NEEDS_REPAIR, with an artifact. Start leaves the zone out, and the designs come from the
+    artifact's lots. The kept plan still names the ward, and not as pending; a new step, `plan district plan keeps it`, checks that. The dev
+    `plan_district` step is gone (the command stays).
+  - North and south: Q3 is kept (docs/DISTRICTS.md section 13, "Side"). Ground found only to the north or south is said in the proposal, and no
+    side at all is said once.
+  - The restart mid-build is left to SD's flow.
+  - Unit: `PlanDistrictsTest` 13, `SurvivalDistrictTest` 18, `ProposalRulesTest` 8, `DistrictSiteTest` 6, `ModuleProposalRulesTest` 6, 0 failed.
+
+### LUI: lab-ui 0.5.0 (2026-11-16, $0)
+Pinned lab-ui 0.5.0 (`>=0.5.0 <0.6.0`). Dropped the unused `ClientEnv`, `ScreenPause` and `HasParent` copies (lab-ui has them now), the
+disabled-primary workaround in `KitScreen` and the talk field's leading-space caret workaround. Steward's ideas rows (`#proposals`) are offers
+(`JobRow.offer`): listed under Ideas on K, and on lab-ui's idle pill ("N ideas for you") while nothing waits. Kept on: the pill is muted and
+never urgent, it is the only HUD sign of ideas, and `JobBoard.showIdlePill(false)` would hide Architect's offers too.
+- **Unit:** `InboxJobsTest` (offer, Ideas group, idle pill text only when nothing waits); npm 74/75 (the one fail, smoke-carry's moduleSha, is
+  the base's).
+- **e2e** (ports 9116/9117, `STEWARD_RAM_TMP=0`, the RAM disk was full): `stub --only screens` PASS 20, `free --only talk` PASS 12. New
+  dev samples `/steward ui sample-ideas|sample-empty <id>`; pictures `e2e-idle-pill-off`, `e2e-idle-pill`, `e2e-jobs-panel-ideas`.
+- **design-critic:** ship, no blockers. Minor: drop " · ideas" from the idea row title, shorter idea summaries, a neutral dot for ideas.

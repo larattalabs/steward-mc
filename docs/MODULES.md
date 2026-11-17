@@ -645,6 +645,41 @@ Branch `storage-hall`. The design, bars and GPT design review are in `docs/MEASU
 - **Certified** on 26.3 / Architect 0.67.0 (docs/MEASURE-M4.md section 6). GPT design review and diff review, both taken (sections 5, 7).
 - **No save format changes.**
 
+### M4b as built (2026-11-16, the sorting hall)
+
+Branch `storage-hall-2`. The design, its GPT review, the bars and the results are in `docs/MEASURE-M4.md` section 12.
+- **`storage_hall@2`** (`modules/storage_hall/2/`): the plain hall at `slots 0`, and 4, 8, 12 or 16 sorting slots on M0's tile: per slot a
+  line hopper, a filter hopper F, an output hopper D, its slot chest and the tile's redstone. The hall has one input chest, one overflow
+  chest, a lever lock, and bulk 0-8 double chests. F's fill is Architect's FK: 41 of its filter item (billed) and 4 `petrified_oak_slab` (provided,
+  never billed, FK-b). The params are `item1`..`item16`, from a 48-item filter domain (`envelope.domains`), distinct for the slots and `none` after.
+- **Java:** `StorageHallLot` gives the sorting layout with typed cells, the item rule and `fillBill`. `HallCargo` holds a committed F as ours
+  only while it holds exactly its declaration; a slot is its chest and its D. The bound is the structure plus the fill.
+- **The offer:** the sorting offer comes from the Nether tier on, with the most-held filter kinds, its rate and its words. `/steward hall <settlement>` gives each hall's slot map, and `... items <slot>=<item>` changes a waiting offer's items,
+  with the rule, the bound and the words made again.
+- **Undo:** an undo is refused while anything holds cargo, said with the count. A refused undo's words name the hoppers that still hold
+  the last sorted items.
+- **Known gaps:**
+  - **S-M5-12** (late cargo during an undo): named in the offer, `ModuleOffer.LATE_CARGO_WORDS` behind `LATE_CARGO_GAP`, until the pin
+    that carries LC3. FKC0 is deferred to that pin too.
+  - **S-M5-17** (a mid-build insert down the line): the fill waits `fill_blocked` and nothing is charged or lost, until Architect FL
+    (v0.74.0). It needs no offer line. At the preload the lever and line hopper 0 both stood; FL's reproduction gave their states (lever
+    `powered=true`, hopper `enabled=true`).
+- **Measured** by `tools/module-measure-hall.mjs --version 2` (hall, bounds, sort, sort-survival, sort-cargo, sort-crash, and save-probe,
+  a diagnostic) and recorded by `module-catalog.mjs record`. Certified on 26.3 / Architect 0.72.0: hall 218, bounds 382, sort 100,
+  sort-survival 19, sort-cargo 26, sort-crash 68, sort 258/259 from the 5th run with its one coverage check completed by sort-plain 12/12
+  (MEASURE-M4 12.9, 12.11). e2e: `module-hall`, `module-hall-sort` and `module-hall-survival` pass (31 checks). The fix-check's open items
+  (the unload's full chunk set, the renamed stack before the interruption, chest access within reach, S7's partial boundary) are in 12.11.
+- **Diff review** (GPT-6.1 Sol, rule 15): its findings fixed and measured again. The four committed bars it found unmeasured (facings per
+  branch, the asserted unload, chest access by a player, a cancel before the fill) were measured in the 5th sort run (MEASURE-M4 12.11).
+- **Harness:** every `/save-all` in the tool is a no-op on the integrated client ("Unknown or incomplete command"; `dev.command` answers
+  `ok: true`, `success: false`, so check `success`). sort-crash waits for Architect's periodic save instead. Other working barriers are
+  `dev.world.leave` and `dev.stockpile.halt {mode: "autosave"}`. The tooling fix is LEFTOVERS row SAVEB.
+- **Follow-ups:**
+  - **M4b-074** (the pin that carries LC3 with FL; v0.74.0 carries neither): bar 6 back to `changed 0` (S-M5-18), and the mid-build insert expecting no item in F (S-M5-17).
+  - **M4c-HUD:** a HUD slot label (not this slice).
+- **No save format changes.**
+
+
 ### M5 design (2026-11-15, slice M5a: the $0 half)
 
 Branch `m5-composed` off `batch-072b` (main + Architect 0.72.0 + CA2). Section 4.6 says what M5 is. This section says how, checked against

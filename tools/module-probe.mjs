@@ -15,6 +15,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -187,6 +188,8 @@ const WORLD_NAME = `Steward M0 Probe ${new Date().toISOString().slice(0, 16).rep
 async function startClient() {
   if (flag('--attach')) { dev = await DevClient.connect({ port: PORT, timeoutMs: 30_000 }); await dev.waitInWorld({ timeoutMs: 60_000 }); return; }
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
+  // one slot from Architect's machine-wide queue (slice SQ, tools/lib/slot-queue.mjs), held by this driver until the client quits
+  slot = await acquireSlot(`module-probe`, { root: ROOT });
   const out = fs.openSync(path.join(ART, 'client.log'), 'a');
   child = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], {
     stdio: ['ignore', out, out],
@@ -196,10 +199,19 @@ async function startClient() {
   dev = await DevClient.connect({ port: PORT, timeoutMs: 600_000 });
   await dev.waitInWorld({ timeoutMs: 600_000 });
 }
+let slot = null;
 async function stopClient() {
-  if (!dev || flag('--attach') || flag('--keep-client')) return;
-  const r = await dev.request('dev.quit');
-  if (r.ok) await dev.waitClosed(120_000);
+  // a kept client keeps its slot until this driver ends (the exit handler frees it)
+  if (flag('--attach') || flag('--keep-client')) return;
+  try {
+    if (!dev) return;
+    const r = await dev.request('dev.quit');
+    if (r.ok) await dev.waitClosed(120_000);
+  } finally {
+    // done for good: the slot goes back, also when the client died before its bridge answered
+    if (slot?.ticket) releaseSlot(slot.ticket);
+    slot = null;
+  }
 }
 
 async function raw(c) {

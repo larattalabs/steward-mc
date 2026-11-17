@@ -452,6 +452,22 @@ public final class SettlementRunner {
 		return dev.larattalabs.steward.gateway.PPlan.wallLots(body.getAsJsonArray("lots"));
 	}
 
+	/** The approved artifact's lots that hang inverted (Architect CS: {@code $.lots[].inverted}); none without an artifact. */
+	private java.util.Set<String> invertedLots() {
+		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
+		if (sha == null) return java.util.Set.of();
+		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		if (body == null || !body.has("lots") || !body.get("lots").isJsonArray()) return java.util.Set.of();
+		var out = dev.larattalabs.steward.gateway.PPlan.invertedLots(body.getAsJsonArray("lots"));
+		if (!out.isEmpty()) Steward.LOGGER.info("inverted lots of {}: {} (invertedDesigns {})", settlement.id(), out, invertedDesigns());
+		return out;
+	}
+
+	/** Whether this Architect reads {@code DesignRequest.inverted} (feature {@code invertedDesigns}, API 1.65.0). */
+	private static boolean invertedDesigns() {
+		return ArchitectApi.get().features().contains(dev.larattalabs.steward.gateway.PPlan.INVERTED_FEATURE);
+	}
+
 	private Map<String, dev.larattalabs.architect.api.DesignRequest.Reserved> reservedCells() {
 		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
 		if (sha == null) return Map.of();
@@ -2336,7 +2352,7 @@ public final class SettlementRunner {
 					String no = modulePalette(g.bibleId(), g.bibleVersion());
 					if (no != null) { say(no); feed(new Pipeline.Cancel()); return; }
 				}
-				GroupPlanner.Built built = GroupPlanner.build(settlement, designPlan(), o, reservedCells(), wallLotExts());
+				GroupPlanner.Built built = GroupPlanner.build(settlement, designPlan(), o, reservedCells(), wallLotExts(), invertedLots(), invertedDesigns());
 				landmarkIds = built.request().items().stream().filter(i -> i.role() == GroupRequest.Role.LANDMARK).map(GroupRequest.Item::itemKey).collect(Collectors.toSet());
 				say("Designing " + Words.count(built.request().items().size(), "building", "buildings") + " (massings first)...");
 				groupInFlight = true;
@@ -3460,6 +3476,7 @@ public final class SettlementRunner {
 			if (reserved != null) req = req.withReserved(reserved);
 			var wallExt = wallLotExts().get(a.lotId());
 			if (wallExt != null) req.ext().add(dev.larattalabs.steward.gateway.PPlan.WALL_LOT_EXT, wallExt);
+			req = dev.larattalabs.steward.gateway.PPlan.inverted(req, invertedDesigns(), invertedLots().contains(a.lotId()));
 			if (state.bibleId() != null) req = req.withBible(state.bibleId(), state.bibleVersion());
 			req = req.versionOf(entry, null).withOpKey(a.key());
 		} catch (RuntimeException x) {

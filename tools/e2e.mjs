@@ -18,7 +18,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
-import { useRamTmp, ramSidecarData } from './lib/ram-tmp.mjs';
+import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
+import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
+import { checkCommand } from './lib/save-barrier.mjs';
+import { judgeSort } from './lib/hall-sort.mjs';
+import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
+import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
+import { processStart } from './lib/tmp-owner.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -45,7 +51,8 @@ const only = onlyAt > 0 ? (process.argv[onlyAt + 1] ?? '').toLowerCase().split('
 const argOf = (name) => { const i = process.argv.indexOf(name); return i > 0 ? process.argv[i + 1] ?? '' : null; };
 let clients = Number(argOf('--clients') ?? 1);
 const portsArg = argOf('--ports');
-const stagger = Number(argOf('--stagger') ?? 60);
+// the queue spaces a run's clients (its settle, 120 s): no stagger of Steward's own unless asked for, or with E2E_SLOTS=off (60 s as before)
+const stagger = Number(argOf('--stagger') ?? (slotsOff() ? 60 : 0));
 const skipUnchanged = process.argv.includes('--skip-unchanged');
 const flowsArg = argOf('--flows');
 const exact = flowsArg == null ? null : flowsArg.split(',').map((w) => w.trim()).filter(Boolean);
@@ -55,17 +62,10 @@ if (!['free', 'stub'].includes(mode) || (only && !only.length) || !(Number.isInt
   console.error('usage: node tools/e2e.mjs free|stub [--only word,word] [--keep-world] [--clients N [--ports p1,p2] [--stagger s]] [--skip-unchanged] [--plan]');
   process.exit(2);
 }
-// the slot rule (AGENTS.md "Capacity"): at most 4 Steward clients machine-wide; with too few free, one client as before, and it says so
-const MAX_CLIENTS = Number(process.env.E2E_MAX_CLIENTS ?? 6); // machine-wide in-game runs (AGENTS.md, Noah 2026-11-15)
-if (clients > 1) {
-  let running = 0;
-  try { running = execFileSync('pgrep', ['-f', 'steward[^ ]*/mod.*KnotClient'], { encoding: 'utf8' }).split('\n').filter(Boolean).length; } catch {}
-  const free = MAX_CLIENTS - running;
-  if (free < clients) {
-    console.log(`clients: ${running} Steward client(s) already run, ${Math.max(0, free)} of ${MAX_CLIENTS} slots free: falling back from ${clients} clients to 1`);
-    clients = 1;
-  }
-}
+// the slot rule (AGENTS.md "Capacity", slice SQ): every client takes one slot from Architect's machine-wide queue (tools/lib/slot-queue.mjs:
+// 6 in-game runs, the load gate, FIFO, turbo exclusive), held across its relaunches and released when it is done for good. The queue is the
+// gate: Steward keeps no count or start gap of its own. A --clients run whose further slots don't come within their wait falls back to one
+// client and says so (runLanes); a slot that never comes is a wait (summary.json "slot", exit 3), not a FAIL.
 // a --clients run with 2 or more leads: it starts the clients (each a child e2e.mjs), merges their summaries and starts no game itself
 // --plan: print what would run where (the packing, the skips) and start nothing
 const PLAN = process.argv.includes('--plan');
@@ -85,6 +85,33 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let client = null;
 let dev = null;
+/** The client JVM's pid (the listener on its DevBridge port), recorded at each connect: a signal stops it by this pid (tools/lib/shutdown.mjs). */
+let clientJvm = null;
+/** When this run last launched its client (epoch ms), or null: before a launch nothing is this run's to stop. */
+let launchedAt = null;
+const isClientJvm = (pid) => /KnotClient/.test(commandOf(pid) ?? '');
+const cwdOf = (pid) => { try { return /^n(.+)$/m.exec(execFileSync('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }))?.[1] ?? null; } catch { return null; } };
+/**
+ * (fix-check P1) Whether pid is the client JVM this run launched: a KnotClient whose working directory is this run's game dir (preflight refused
+ * to start while another client ran there) and that started after this run's launch. A port or a class name alone is no ownership.
+ */
+function ownJvm(pid) {
+  if (!launchedAt || !pid || pid === process.pid || !isClientJvm(pid)) return false;
+  const cwd = cwdOf(pid), t = processStart(pid);
+  return cwd != null && realPath(cwd) === realPath(GAME) && Number.isFinite(t) && t >= launchedAt - 2000;
+}
+/**
+ * This run's client JVM, or null: the listener on its DevBridge port, else (still booting, no listener yet) this checkout's KnotClient on its game
+ * dir; either only when ownJvm holds. Found by port or by this checkout's path, killed only by that pid.
+ */
+function jvmOnPort() {
+  if (!launchedAt) return null;
+  const pid = listenerPid(PORT);
+  if (ownJvm(pid)) return pid;
+  let pids = [];
+  try { pids = execFileSync('pgrep', ['-f', `${ROOT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/mod/.*KnotClient`], { encoding: 'utf8' }).split('\n').filter(Boolean).map(Number); } catch {}
+  return pids.find(ownJvm) ?? null;
+}
 
 /**
  * The client's options before it starts: no vanilla tutorial toasts ("Move with WASD", the recipe book) over the HUD shots, no first-launch
@@ -106,6 +133,10 @@ function quietOptions() {
 }
 
 function launch() {
+  // a signal's shutdown has begun: no new client (a restart flow would start one outside the queue)
+  if (shuttingDownNow()) throw new Error('shutting down: no new client');
+  clientJvm = null;
+  launchedAt = Date.now();
   quietOptions();
   const log = fs.openSync(path.join(OUT, 'client.log'), 'a');
   client = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], { stdio: ['ignore', log, log], env: { ...process.env, E2E_STUB: mode === 'stub' ? '1' : '0', E2E_NODE_DIR: path.dirname(process.execPath) } });
@@ -113,6 +144,9 @@ function launch() {
 
 async function connect() {
   dev = await DevClient.connect({ port: PORT, timeoutMs: 400_000 });
+  clientJvm = jvmOnPort();
+  // a --clients lead reads this line: a child it had to SIGKILL leaves these pids to it
+  console.log(`e2e-client: jvm ${clientJvm ?? '-'} launcher ${client?.pid ?? '-'}`);
   await dev.waitInWorld({ timeoutMs: 400_000 });
   // a new client writes a new log: the herder reads it from its start
   herdAt = 0;
@@ -161,6 +195,34 @@ async function quit() {
   await sleep(4000);
 }
 
+/** The stop bound of one driver's client (the quit, then its JVM, then its launcher); a --clients lead waits longer for its child drivers. */
+const CLIENT_STOP_MS = { quit: 25_000, jvm: 15_000, launcher: 10_000 };
+const LANE_STOP_MS = 90_000;
+
+/**
+ * (batch-074 review) A signal's stop step for this driver's client: a bounded dev.quit, then the client JVM by its pid (TERM, then KILL), then the
+ * launcher (the gradlew process this run spawned). Only then do the slot and the sidecar data go (the coordinator's later phases).
+ */
+async function stopClient() {
+  const launcher = client;
+  // nothing launched yet (waiting for a slot, the preflight): nothing of this run's to stop, whatever listens on its ports
+  if (!launcher) return;
+  const sidecar = listenerPid(Number(process.env.STEWARD_PORT ?? 8590));
+  const jvm = (clientJvm && ownJvm(clientJvm) ? clientJvm : null) ?? jvmOnPort();
+  if (dev) {
+    const d = dev;
+    await Promise.race([(async () => { const r = await d.request('dev.quit'); if (r?.ok) await d.waitClosed(CLIENT_STOP_MS.quit); })().catch(() => {}), sleep(CLIENT_STOP_MS.quit)]);
+  }
+  const log = (m) => console.error(m);
+  if (jvm) console.error(`shutdown: client jvm ${jvm}: ${await stopPid(jvm, { graceMs: CLIENT_STOP_MS.jvm, same: () => isClientJvm(jvm), log })}`);
+  console.error(`shutdown: launcher ${launcher.pid}: ${await stopPid(launcher.pid, { graceMs: CLIENT_STOP_MS.launcher, exited: childExited(launcher), log })}`);
+  // a JVM still booting when the signal came (no DevBridge yet): found now on this run's game dir, stopped by its pid
+  const late = jvm ? null : jvmOnPort();
+  if (late) console.error(`shutdown: client jvm ${late} (booting): ${await stopPid(late, { graceMs: CLIENT_STOP_MS.jvm, same: () => ownJvm(late), log })}`);
+  // Architect's helper watches its parent JVM and quits after it: its port free before the sidecar data goes (bounded; never killed here)
+  if (sidecar && (jvm || late)) await waitFor(() => !pidRuns(sidecar), 10_000, 250);
+}
+
 const logSize = () => (fs.existsSync(LOG) ? fs.statSync(LOG).size : 0);
 const logSince = (from) => (fs.existsSync(LOG) ? fs.readFileSync(LOG, 'utf8').slice(from) : '');
 
@@ -174,10 +236,11 @@ async function closeScreens() {
   }
 }
 
-async function cmd(c) {
+async function cmd(c, { allowFail = false } = {}) {
   // an animal in what an undo takes up stops the removal (Architect asks for force), so every undo starts with the land cleared
   if (/^\/steward undo\b/.test(c)) await clearAnimals();
-  const r = await dev.request('dev.command', { cmd: c });
+  // (SAVEB) the bridge's ok only says the call did not throw: an unknown or unparsable command throws here (allowFail for one expected to)
+  const r = checkCommand(await dev.request('dev.command', { cmd: c }), { cmd: c, allowFail });
   return (r.messages ?? []).join(' | ');
 }
 
@@ -309,6 +372,22 @@ async function waitForLoad() {
   console.log(load() > max ? `load ${load()} still above ${max} after ${mins} min: starting anyway` : `load ${load()} after ${mins} min: starting`);
 }
 
+/** This run's slot (slice SQ): the owner's (a --clients lead's or the nightly's, E2E_SLOT_TICKET) or its own; null before it is taken. */
+let slot = null;
+/** A slot that didn't come within its wait (slot-queue waitRecord): the run didn't start. */
+let slotWait = null;
+async function takeSlot() {
+  const inh = inheritedSlot();
+  if (inh) {
+    slot = inh;
+    console.log(`slot: ${CLIENT ?? 'this run'} runs on its owner's slot ${inh.slot ?? '?'} (${inh.ticket})`);
+    return;
+  }
+  slot = await acquireSlot(`e2e ${mode}${only ? ` --only ${only.join(',')}` : ''}`, { root: ROOT });
+  // E2E_SLOTS=off: nothing gates the start but Steward's own load wait
+  if (slot.off) await waitForLoad();
+}
+
 // ------------------------------------------------------------------ steps
 
 const realPath = (p) => { try { return fs.realpathSync(p); } catch { return path.resolve(p); } };
@@ -325,8 +404,12 @@ async function preflight() {
     if (cwd == null || realPath(cwd) === realPath(GAME)) throw new Error(`a Steward client already runs on ${GAME}; quit it first`);
   }
   // the sidecar's data on the RAM disk when it's there (the 11-14 machine audit: ~3 GB written per worktree per 30 min); the world, logs and shots stay on disk
-  const sd = ramSidecarData(GAME, process.env, undefined, { fresh: true });
-  ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}`);
+  // slice TMPSWEEP (mod/DEV.md "Temp dirs"): earlier runs' sidecar dirs whose owner is gone (a hard kill) go first; this run's own is owner-marked
+  // and removed when this process ends, not when its client relaunches
+  const swept = sweepStale({ root: path.join(RAM_TMP, 'steward') });
+  if (swept.removed.length || swept.failed.length) console.log(`tmp-sweep: removed ${swept.removed.length} stale sidecar dir(s)${swept.removed.length ? ` (${swept.removed.join(', ')})` : ''}${swept.failed.length ? `, ${swept.failed.length} failed` : ''}`);
+  const sd = ramSidecarData(GAME, process.env, undefined, { fresh: true, own: true });
+  ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}${sd.owned ? ', removed at the end' : ''}`);
 }
 
 /**
@@ -445,6 +528,25 @@ async function inboxScreen() {
  * (the sim helper, $0), so the pictures show both mods waiting on the player: one pill, one toast column, K with both mods' rows.
  */
 async function sharedHud() {
+  // LUI, lab-ui 0.5.0's idle pill: with only Steward's ideas left (offers, nothing waiting) the top-left shows a quiet "N ideas for you", no pulse;
+  // the picture before it is the same HUD without Steward's rows (what the player saw of ideas before)
+  await closeScreens();
+  await cmd('/steward ui sample-empty e2e');
+  await sleep(1500);
+  const noIdeasShot = (await dev.request('dev.screenshot', { name: 'e2e-idle-pill-off', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  await cmd('/steward ui sample-ideas e2e');
+  await sleep(1500);
+  const idle = await dev.request('dev.j3.state');
+  const ideaRows = (idle.rows ?? []).filter((r) => r.mod === 'steward_mc');
+  const idlePill = ((await dev.request('dev.hud.zones')).zones?.top_left?.slots ?? []).filter((s) => s.id === 'lab_ui:jobs_pill');
+  if (ideaRows.length === 2 && idle.needsYou === 0 && !idle.pill && idlePill.length === 1) ok('shared hud: ideas only, the idle pill', `${ideaRows.map((r) => `${r.title} (${r.state})`).join(', ')}; ${JSON.stringify(idlePill[0])}`);
+  else fail('shared hud: ideas only, the idle pill', `rows ${JSON.stringify(ideaRows).slice(0, 160)}; needsYou ${idle.needsYou}, pill ${idle.pill}, slots ${idlePill.length}`);
+  const idleShot = (await dev.request('dev.screenshot', { name: 'e2e-idle-pill', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  await dev.request('dev.j3.open', {});
+  await sleep(800);
+  const ideasPanelShot = (await dev.request('dev.screenshot', { name: 'e2e-jobs-panel-ideas', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+  ok('idle pill pictures', `${noIdeasShot} ${idleShot} ${ideasPanelShot}`);
+  await closeScreens();
   let archRow = null;
   if (mode === 'stub') {
     await dev.request('dev.ui.open', { tab: 'design' });
@@ -1270,7 +1372,7 @@ async function stockSaveFlow() {
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
   const b = await read();
   const invB = await audit(first.owner);
-  await cmd('/save-all flush');
+  // dev.quit saves on stop (/save-all is dedicated-only: Unknown on this integrated server, it saved nothing)
   await quit();
   launch();
   await connect();
@@ -2583,14 +2685,19 @@ async function composedModulesFlow() {
   const hallSaid = (since.match(/The plan's the storage hall is a working storage hall from Steward's measured catalog[^\n]*/) ?? [null])[0];
   const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
   const bound = since.match(/module \S+ lot (farm_1|warehouse_1): \S+ under steward\.\S+\.module\.\1/g) ?? [];
-  if (farmSaid && hallSaid && designing === '2' && bound.length === 2) ok(`${label} bound`, `${designing} designed; ${bound.join(' | ').slice(0, 220)}`);
+  if (farmSaid && hallSaid && /taken down, don't put items into its chests: they could be lost/.test(hallSaid) && designing === '2' && bound.length === 2) ok(`${label} bound`, `${designing} designed; ${bound.join(' | ').slice(0, 220)}`);
   else return fail(`${label} bound`, `farm said ${!!farmSaid}, hall said ${!!hallSaid}, designing ${designing}, bound ${JSON.stringify(bound)}; ${composeLine.slice(0, 120)}`);
   const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
   const mods = await moduleSites(placed);
-  const farmSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'crop_farm', '1', 'module.json'), 'utf8')).programSha;
-  const hallSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'storage_hall', '1', 'module.json'), 'utf8')).programSha;
-  const farm = mods.find((m) => m.key === 'crop_farm@1'), hall = mods.find((m) => m.key === 'storage_hall@1');
-  if (/^region:rg/.test(placed?.siteGroup ?? '') && farm && hall && farmSha.startsWith(farm.sha) && hallSha.startsWith(hall.sha) && farm.params.width === 9 && hall.params.bulk === 2)
+  // (batch-074 review) the modules a composed town binds are the catalog's newest (ModuleCatalog.newest, which the gate then must certify):
+  // storage_hall@2 since 0.74.0, built as the plain hall (slots 0, ComposedModules.COMPOSED_HALL_SORTS) and said so
+  const fv = catalogNewest('crop_farm'), hv = catalogNewest('storage_hall');
+  if (fv !== newestCertified('crop_farm') || hv !== newestCertified('storage_hall')) return fail(label, `the catalog's newest crop_farm@${fv} / storage_hall@${hv} isn't certified`);
+  const farmSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'crop_farm', String(fv), 'module.json'), 'utf8')).programSha;
+  const hallSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'storage_hall', String(hv), 'module.json'), 'utf8')).programSha;
+  const farm = mods.find((m) => m.key === `crop_farm@${fv}`), hall = mods.find((m) => m.key === `storage_hall@${hv}`);
+  if (/^region:rg/.test(placed?.siteGroup ?? '') && farm && hall && farmSha.startsWith(farm.sha) && hallSha.startsWith(hall.sha) && farm.params.width === 9 && hall.params.bulk === 2
+    && (hall.params.slots ?? 0) === 0 && /It's a plain hall: it doesn't sort\./.test(hallSaid))
     ok(label, `${built.placed} placed (${placed.siteGroup}); ${farm.sid} = ${farm.blueprint} ${JSON.stringify(farm.params)}; ${hall.sid} = ${hall.blueprint} ${JSON.stringify(hall.params)}`);
   else return fail(label, `entry ${placed?.siteGroup}; module sites ${JSON.stringify(mods).slice(0, 300)}`);
   // the field is watered: IRR's sources settled (the fluids stage)
@@ -5125,7 +5232,7 @@ async function planCheckFlow() {
 
 /** Farm animals out of the way: a pig standing on a lot holds its placement up for Architect's 10-minute wait (it happened, on the V RC). */
 async function clearAnimals() {
-  await cmd('/gamerule doMobSpawning false');
+  await cmd('/gamerule spawn_mobs false');
   for (const t of ['pig', 'cow', 'sheep', 'chicken', 'rabbit', 'horse', 'donkey', 'mule', 'llama', 'goat', 'trader_llama', 'wandering_trader', 'fox']) await cmd(`/kill @e[type=minecraft:${t}]`);
   // and what they drop: an item on a lot refuses its placement too (raw beef and feathers held up the library)
   await cmd('/kill @e[type=minecraft:item]');
@@ -5700,6 +5807,162 @@ async function siteBox(sid) {
 }
 
 /**
+ * The sorting hall (M4b, docs/MEASURE-M4.md 12): a V town built at once, the player at the Nether tier carrying 12 kinds (5 filter items) →
+ * storage_hall@2's sorting hall offered (4 slots, the most-held filter items, the slab warning); one slot's item changed with /steward hall items;
+ * accepted → a growth whose filter hoppers are filled (41 + 4) at $0; /steward hall lists the slots; a short mix sorts; cargo refuses the undo, said;
+ * emptied (the fill stays: it is ours), undone, the ground as before. Until @2 is certified the dev source offers it under a measuring gate.
+ */
+/** The newest version of a catalog module, certified or not (ModuleCatalog.newest: the one the gate judges and offers, or refuses). */
+function catalogNewest(id) {
+  const vs = fs.readdirSync(path.join(ROOT, 'modules', id)).filter((d) => /^\d+$/.test(d)).map(Number);
+  return vs.length ? Math.max(...vs) : null;
+}
+
+/** The newest version of a catalog module whose measured.json certifies it (result pass). */
+function newestCertified(id) {
+  const dir = path.join(ROOT, 'modules', id);
+  const vs = fs.readdirSync(dir).filter((d) => /^\d+$/.test(d)).map(Number).sort((a, b) => b - a);
+  for (const v of vs) {
+    const f = path.join(dir, String(v), 'measured.json');
+    if (fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')).result === 'pass') return v;
+  }
+  return null;
+}
+
+/** The sorting hall's flow, its Nether-tier grant taken back on every way out (the flows after it share the player). */
+async function moduleHallSortFlow() {
+  try {
+    return await moduleHallSortFlowBody();
+  } finally {
+    await cmd('/advancement revoke @p until minecraft:story/enter_the_nether').catch(() => null);
+  }
+}
+
+async function moduleHallSortFlowBody() {
+  const label = 'module hall sort';
+  const HALL = 'storage_hall';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 81000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/clear @p');
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Sorting Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little hamlet that keeps its stores sorted`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 3 30`);
+  const town = await buildThrough(id, from, `${label} town`);
+  if (!town) return;
+  const st0 = settlements().find((x) => x.id === id);
+  const region = /^region:(.+)$/.exec((st0?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '')?.[1];
+  if (!region) return fail(label, 'the town is not a region');
+  const claim = st0.claim;
+  const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
+  const snap = path.join(ROOT, 'artifacts', 'e2e', `module-hall-sort-town-${id}.snap.gz`);
+  await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
+  // @2 under its measuring gate until it is certified; then the live catalog
+  const certFile = path.join(ROOT, 'modules', HALL, '2', 'measured.json');
+  const cert = fs.existsSync(certFile) ? JSON.parse(fs.readFileSync(certFile, 'utf8')) : {};
+  if (cert.result === 'pass') await cmd('/steward dev modules {}');
+  else await cmd(`/steward dev modules ${JSON.stringify({ dir: path.join(ROOT, 'modules'), id: HALL, measuring: true })}`);
+  await cmd('/advancement grant @p until minecraft:story/enter_the_nether');
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+  const kinds = [['cobblestone', 64 * 5], ['iron_ingot', 64 * 4], ['wheat', 64 * 3], ['oak_log', 64 * 2], ['coal', 64], ['dirt', 1], ['oak_planks', 1], ['torch', 1], ['bread', 1], ['apple', 1], ['stick', 1], ['glass', 1]];
+  for (const [k, c] of kinds) await cmd(`/give @p minecraft:${k} ${c}`);
+  let offer = null;
+  for (let i = 0; i < 90 && !offer; i++) {
+    await sleep(1000);
+    offer = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.key === `module.${HALL}`) ?? null;
+  }
+  if (!offer) return fail(`${label} offer`, `no module.${HALL} proposal within 90 s`);
+  const P = offer.module?.params ?? {};
+  if (offer.module?.version === 2 && P.slots === 4 && P.item1 === 'cobblestone' && P.item4 === 'oak_log' && /4 slots for cobblestone, iron ingot, wheat, oak log/.test(offer.why)
+    && /Never put petrified oak slabs in it/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 220));
+  else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 400));
+  // the player changes slot 4 to coal
+  const changed = await cmd(`/steward hall ${id} items 4=coal`);
+  const o2 = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.key === `module.${HALL}`);
+  if (/now sorts slot 1 cobblestone, slot 2 iron ingot, slot 3 wheat, slot 4 coal/.test(changed) && o2?.module?.params?.item4 === 'coal' && /coal/.test(o2.why)) ok(`${label} items`, changed.slice(0, 160));
+  else return fail(`${label} items`, `${changed}; ${JSON.stringify(o2?.module?.params)}`);
+  const bad = await cmd(`/steward hall ${id} items 2=cobblestone`);
+  if (/repeats/.test(bad)) ok(`${label} items refused`, bad.slice(0, 120));
+  else fail(`${label} items refused`, bad);
+  await cmd('/clear @p');
+  await clearAnimals();
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept module.${HALL}`);
+  const grew = await buildThrough(id, from, label);
+  if (!grew) return;
+  const g = await growthOf(id);
+  const mods = await moduleSites(g.op);
+  if (g.m && g.m[1] === region && mods.length === 1 && mods[0].key === `${HALL}@2` && mods[0].params.slots === 4 && mods[0].params.item4 === 'coal') ok(label, `revision ${g.m[2]} of ${region}; lot ${mods[0].sid} = ${mods[0].blueprint} (${JSON.stringify(mods[0].params).slice(0, 120)})`);
+  else return fail(label, `entry ${g.op?.siteGroup}; module sites ${JSON.stringify(mods).slice(0, 300)}`);
+  const fk = await dev.request('dev.fk.state', { site: mods[0].sid }).catch(() => null);
+  const holds = (fk?.containers ?? []).map((c) => c.holds);
+  const want = ['cobblestone', 'iron_ingot', 'wheat', 'coal'];
+  if (fk?.phase === 'UNLOCKED' && holds.length === 4 && holds.every((m, u) => m?.[`minecraft:${want[u]}`] === 41 && m?.['minecraft:petrified_oak_slab'] === 4)) ok(`${label} fill`, `UNLOCKED; every filter hopper 41 + 4 slabs`);
+  else fail(`${label} fill`, JSON.stringify(fk).slice(0, 300));
+  const listed = await cmd(`/steward hall ${id}`);
+  if (/slot 1 cobblestone, slot 2 iron ingot, slot 3 wheat, slot 4 coal/.test(listed) && /the input chest at/.test(listed) && /overflow at/.test(listed)) ok(`${label} slots`, listed.slice(0, 220));
+  else fail(`${label} slots`, listed);
+  // a short mix into the input chest: 64 cobblestone, 64 coal, 64 dirt; then (batch-074 review) each where it belongs: the input and the line
+  // drained, slot 1's chest and output hopper hold the 64 cobblestone, slot 4's the 64 coal, slots 2 and 3 nothing, the overflow the 64 dirt, every
+  // filter hopper as filled (judged on the cells the hall declares, tools/lib/hall-sort.mjs; polled until drained, at most 4 min)
+  const sb = await siteBox(mods[0].sid);
+  const cs0 = await devModule({ op: 'containers', box: sb });
+  const input = /the input chest at (-?\d+), (-?\d+), (-?\d+)/.exec(listed)?.slice(1).map(Number);
+  const hc = await devModule({ op: 'hallCargo', owner: `steward_mc:settlement/${id}`, message: '', site: mods[0].sid });
+  const fed = { 'minecraft:cobblestone': 64, 'minecraft:coal': 64, 'minecraft:dirt': 64 };
+  const sortItems = want.map((k) => `minecraft:${k}`);
+  await devModule({ op: 'putItems', at: input, stacks: Object.entries(fed).map(([k, count], slot) => ({ slot, id: k, count })) });
+  let cs1 = null, judged = null;
+  for (let t = 0; t < 240 && !(judged?.drained && judged.ok); t += 5) {
+    await sleep(5000);
+    cs1 = await devModule({ op: 'containers', box: sb });
+    judged = judgeSort({ cells: hc?.cells, before: cs0, after: cs1, fed, items: sortItems });
+  }
+  const conserved = Object.entries(fed).every(([k, n]) => (cs1?.totals?.[k] ?? 0) - (cs0?.totals?.[k] ?? 0) === n);
+  if (judged?.ok && conserved) ok(`${label} sorts`, `192 items in: the input and the line drained, 64 cobblestone in slot 1, 64 coal in slot 4, 64 dirt in the overflow; the filters as filled`);
+  else fail(`${label} sorts`, `${(judged?.why ?? ['no cells']).join('; ').slice(0, 300)}; conserved ${conserved}`);
+  // the undo: refused while the hall holds the player's items, said; emptied (its fill stays: it is ours), undone, the ground as before
+  from = logSize();
+  const said = await cmd(`/steward undo ${id}`);
+  await sleep(4000);
+  const words = `${said}\n${logSince(from)}`.match(/the storage hall still holds [^\n]*/);
+  if (words) ok(`${label} undo refused`, words[0].slice(0, 200));
+  else return fail(`${label} undo refused`, `${said} ${logSince(from).slice(-300)}`);
+  // emptied: every container but the filter hoppers (the ones holding the provided slabs: their fill is ours); the last item each slot let
+  // through waits in its output hopper, the player's, taken too
+  const cs2 = await devModule({ op: 'containers', box: sb });
+  for (const c of cs2?.containers ?? []) if (!c.slots.some(([, k]) => k === 'minecraft:petrified_oak_slab')) await devModule({ op: 'clearContainers', box: [...c.at, ...c.at] });
+  from = logSize();
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  const v2 = await dev.request('dev.region.state', { region }).catch(() => null);
+  const undone = ((v2?.view ?? v2 ?? {}).revisions ?? []).find((r) => String(r.rid) === g.m[2]);
+  const d0 = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
+  const off = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
+  const slabs = await dev.request('dev.fk.slabs', { pos: input }).catch(() => ({}));
+  if (last?.kind === 'PROJECT_REMOVED' && undone?.state === 'UNDONE' && off.length === 0 && (slabs.entities ?? 0) === 0 && (slabs.player ?? 0) === 0) ok(`${label} undo`, `${last.text}; revision ${g.m[2]} UNDONE, the ground as before; no slab loose`);
+  else fail(`${label} undo`, `last ${last?.kind}; revision ${undone?.state}; ${off.length} cell(s) differ; slabs ${JSON.stringify(slabs)}`);
+  await cmd('/steward dev modules {}');
+}
+
+/**
  * The storage hall's flow (M4, docs/MEASURE-M4.md 2; the live catalog's certified storage_hall@1, the plain hall): a V town built at once; 12 kinds
  * of items carried → the hall offered by its rule (bulk from the stacks held); accepted → a growth whose lot is the catalog's variant, at $0;
  * cargo in its input chest → the undo refused and said with the count (Q3); emptied → undone, the ground as before the growth.
@@ -5747,7 +6010,7 @@ async function moduleHallFlow() {
   }
   if (!offer) return fail(`${label} offer`, `no module.${HALL} proposal within 90 s`);
   if (offer.module?.moduleId === HALL && offer.module.params?.slots === 0 && offer.module.params?.bulk === 2 && offer.module.bound == null
-    && /Your stores are getting mixed: 12 kinds of items/.test(offer.why) && /2 double chests and an input chest by the door/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 200));
+    && /Your stores are getting mixed: 12 kinds of items/.test(offer.why) && /2 double chests and an input chest by the door/.test(offer.why) && /they could be lost/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 200));
   else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 300));
   await cmd('/clear @p');
   await clearAnimals();
@@ -5758,9 +6021,11 @@ async function moduleHallFlow() {
   if (!grew) return;
   const g = await growthOf(id);
   const mods = await moduleSites(g.op);
-  const sha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', HALL, '1', 'module.json'), 'utf8')).programSha;
+  // the catalog's newest certified hall builds the plain hall (M4b: @2's slots 0 branch, unchanged from @1, MEASURE-M4 12.1)
+  const v = newestCertified(HALL);
+  const sha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', HALL, String(v), 'module.json'), 'utf8')).programSha;
   const noDesign = !/Designing|massings|Style bible/.test(logSince(from));
-  if (g.m && g.m[1] === region && mods.length === 1 && mods[0].key === `${HALL}@1` && sha.startsWith(mods[0].sha) && mods[0].params.bulk === 2 && noDesign)
+  if (g.m && g.m[1] === region && mods.length === 1 && mods[0].key === `${HALL}@${v}` && sha.startsWith(mods[0].sha) && mods[0].params.bulk === 2 && (mods[0].params.slots ?? 0) === 0 && noDesign)
     ok(label, `revision ${g.m[2]} of ${region} (${g.rev?.state}); lot ${mods[0].sid} = ${mods[0].blueprint} (${JSON.stringify(mods[0].params)}); no design`);
   else return fail(label, `entry ${g.op?.siteGroup}; module sites ${JSON.stringify(mods)}; no design ${noDesign}`);
   // its containers: 2 double chests (4 halves) and the input chest, all empty
@@ -5901,7 +6166,7 @@ async function moduleHallSurvivalFlow() {
     }
     if (!offer) return fail(`${label} offer`, `no module.${HALL} proposal within 90 s`);
     const bound = offer.module?.bound ?? null;
-    if (offer.module?.params?.slots === 0 && bound && Object.keys(bound).length && /at most/.test(offer.why) && /Your stores are getting mixed/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 220));
+    if (offer.module?.params?.slots === 0 && bound && Object.keys(bound).length && /at most/.test(offer.why) && /Your stores are getting mixed/.test(offer.why) && /they could be lost/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 220));
     else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 300));
     let hallKey = `module.${HALL}`;
     // (M4-L) a cancel at a real partial point: accepted with half the bound stocked and no feeder, so the build draws what it can and waits; undone
@@ -5996,7 +6261,7 @@ async function moduleHallSurvivalFlow() {
     const mods = await moduleSites(g.op);
     const within = quoted && Object.entries(quoted).every(([k, c]) => c <= (bound[k] ?? 0));
     const sameBill = quoted && Object.keys({ ...paid, ...quoted }).every((k) => (paid[k] ?? 0) === (quoted[k] ?? 0));
-    if (mods.length === 1 && mods[0].key === `${HALL}@1` && within && sameBill) ok(`${label} bill`, `consumed = the quote ${JSON.stringify(quoted).slice(0, 200)}, within the measured bound`);
+    if (mods.length === 1 && mods[0].key === `${HALL}@${newestCertified(HALL)}` && within && sameBill) ok(`${label} bill`, `consumed = the quote ${JSON.stringify(quoted).slice(0, 200)}, within the measured bound`);
     else return fail(`${label} bill`, `module sites ${mods.length}; quote ${JSON.stringify(quoted)}; paid ${JSON.stringify(paid)}; within ${within}`);
     // undone emptied: what it consumed comes back, exactly once
     await away();
@@ -6716,7 +6981,7 @@ async function moduleCapFlow() {
       const rightCmd = named === (running ? 'cancel' : 'undo');
       if (lowered && !lowered.refused && said && t && nn > over && n === nn && before === after && !/maxBill|bill_cap/.test(words) && rightCmd)
         ok(lbl, `cap of ${plain} set to ${c.drawn[item] - over} (drawn ${c.drawn[item]}): ${t.id} held bill_cap, nextNeeded ${nn} (its need + ${over} over); said "${words.replace(/^.*?The /, 'The ').slice(0, 200)}" (names ${named}: the build ${running ? `still ${build.state?.phase}` : 'ended'}); nothing more drawn in 20 s (${before} = ${after})`);
-      else return fail(lbl, `set ${JSON.stringify(lowered).slice(0, 160)}; said ${words.slice(0, 200) || 'nothing'}; names ${named} (build ${build?.state?.phase ?? 'none'}); held ${String(JSON.stringify(t)).slice(0, 200)} (targets ${String(JSON.stringify(held?.targets?.map((x) => [x.id, x.blocked]))).slice(0, 200)}); drawn ${before} -> ${after}`);
+      else return fail(lbl, `set ${String(JSON.stringify(lowered)).slice(0, 160)}; item ${item}, cap sent ${String(JSON.stringify(capSent)).slice(0, 200)}; said ${words.slice(0, 200) || 'nothing'}; names ${named} (build ${build?.state?.phase ?? 'none'}); held ${String(JSON.stringify(t)).slice(0, 200)} (nextNeeded ${nn}, said ${n}; targets ${String(JSON.stringify(held?.targets?.map((x) => [x.id, x.blocked]))).slice(0, 200)}); drawn ${before} -> ${after}`);
       // restored: it builds on, within the cap sent
       await dev.request('dev.bc.cap', { region, rid: Number(rid), set: capSent }, { timeoutMs: 30_000 }).catch(() => null);
     }
@@ -7670,7 +7935,8 @@ async function survivalDistrictFlow() {
 
 /**
  * (slice PD, Noah 11-15 "Propose in inbox") A district the town's approved plan names and its founding didn't build: a Supplied town from no_wood's plan
- * in a survival world, with a D1 district added to its kept plan as one the founding left out (`/steward dev plan_district`). Not proposed while the town
+ * in a survival world, composed with an optional districts zone whose one D1 district has no room in the claim (PD-2: its 256 by 256 has no candidate,
+ * so Architect's check refuses the zone NO_ROOM and Start leaves it out; the kept plan still names it, not as a waiting part). Not proposed while the town
  * isn't built; once it is, proposed once in the inbox, its words naming the district and its lots; accepted: reserved beside the town, its bill said
  * before the one approval, built from the stockpile with the plan's own lot ids and consumed within its quote; undone: everything it consumed back once,
  * given up, and not proposed again.
@@ -7688,7 +7954,8 @@ async function planDistrictFlow() {
   };
   const back = (a, b) => minusItems(plusItems(b?.returned, b?.refundOverflow), plusItems(a?.returned, a?.refundOverflow));
   const ward = {
-    id: 'mill_ward', label: 'Mill Ward', size: { w: 40, d: 40 }, prefer: ['open', 'flat'],
+    // (PD-2) bigger than the claim (a side is 24..256): no candidate area, so the founding can't build it; beside the town its lots take their own ground
+    id: 'mill_ward', label: 'Mill Ward', size: { w: 256, d: 256 }, prefer: ['open', 'flat'],
     lots: [
       // cottages at no_wood's 13 by 14 (the sim's kit massing fits those; a smaller lot or another type fails its checker)
       { id: 'mill_hall_1', type: 'cottage', role: 'mill hall', label: 'a mill hall', size: [13, 14] },
@@ -7714,13 +7981,27 @@ async function planDistrictFlow() {
     await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
     const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'no_wood.json'), 'utf8')).answer;
     delete answer.plan.rules;
-    answer.summary = 'A small town of stone cottages.';
+    // (PD-2) a composed plan that really leaves a district out: an optional districts zone the claim has no room for
+    answer.plan.zones.push({ id: 'wards', kind: 'standard', label: 'the wards', program: { districts: [ward] } });
+    answer.summary = 'A small town of stone cottages, and a mill ward beside it.';
     await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
     let from = logSize();
     await cmd(`/steward describe ${id} a little stone town with a mill ward beside it`);
     if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
     if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
     if (settlements().find((x) => x.id === id)?.difficulty !== 'SUPPLIED') return fail(label, 'not Supplied in a survival world');
+    // (PD-2) the kept plan names the ward, and not as a part that waits (a waiting part is never proposed)
+    {
+      const read = () => { try { return JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-plans.json'), 'utf8')).plans?.[id] ?? null; } catch { return null; } };
+      const wards = (k) => { try { return JSON.parse(k?.plan ?? '{}').zones?.find((z) => z.id === 'wards'); } catch { return null; } };
+      let kept = read();
+      for (let i = 0; i < 10 && !wards(kept); i++) { await sleep(1000); kept = read(); }
+      const zone = wards(kept);
+      const named = zone?.program?.districts?.some((x) => x.id === ward.id);
+      const waits = (kept?.pending ?? []).filter((x) => x.part === 'wards' || x.part === ward.id).map((x) => x.part);
+      if (named && !waits.length) ok(`${label} plan keeps it`, `the kept plan names ${ward.id} in zone wards; pending ${JSON.stringify((kept?.pending ?? []).map((x) => x.part))}`);
+      else return fail(`${label} plan keeps it`, `zone ${JSON.stringify(zone)?.slice(0, 120)}; waits ${waits.join(', ')}; ${chatTail(from)}`);
+    }
     // nothing is proposed before the town stands
     const early = await cmd(`/steward dev propose_district ${id} plan`);
     await closeScreens();
@@ -7748,10 +8029,8 @@ async function planDistrictFlow() {
     const founding = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
     const town = /^region:(.+)$/.exec(founding?.siteGroup ?? '')?.[1];
     if (!town) return fail(label, `the town is not a region: ${founding?.siteGroup}`);
-    // the kept plan names a district the founding didn't build (added once the town is placed, as one it left out: the entry keeps its time, so it is
-    // still the town's plan); while the town is still being built from materials, nothing is proposed
-    const added = await cmd(`/steward dev plan_district ${id} wards ${JSON.stringify(ward)}`);
-    if (!/plan district mill_ward added/.test(added)) return fail(label, `the district wasn't added to the plan: ${added}`);
+    // the kept plan names a district the founding didn't build (PD-2: composed so, the zone left out at Start); while the town is still being built
+    // from materials, nothing is proposed
     const building = (await regionView(town)).build;
     const mid = await cmd(`/steward dev propose_district ${id} plan`);
     const midNone = /no plan district proposed/.test(mid);
@@ -8400,34 +8679,69 @@ async function lead() {
   });
   for (const c of plan) console.log(`client c${c.k} (${c.sidecarPort}/${c.devPort}, ${path.relative(ROOT, c.gameDir)}): ~${c.packed}s recorded${c.untimed ? `, ${c.untimed} untimed` : ''}: ${c.flows.join(', ') || 'the sanity set only'}`);
   if (PLAN) process.exit(0);
-  const runs = plan.map(async (c, i) => {
-    if (i) await sleep(stagger * 1000 * i);
+  // slice SQ: one slot per client, held by this lead (its pid) and handed to the client's run (E2E_SLOT_TICKET); a lane whose slot doesn't come
+  // runs after c1 on c1's slot, run dir and ports (runLanes)
+  const t00 = Date.now();
+  // (batch-074 review) the child drivers this lead started, and the client pids each said: a signal stops them (forwarded, bounded, then SIGKILL
+  // and their clients by those pids) before the lead's slots go back
+  const procs = new Map();
+  onStop(async (sig) => {
+    const log = (m) => console.error(m);
+    await Promise.all([...procs].map(async ([k, p]) => {
+      console.error(`shutdown: client c${k}'s driver ${p.child.pid}: ${await stopPid(p.child.pid, { sig, graceMs: LANE_STOP_MS, exited: childExited(p.child), log })}`);
+      if (p.jvm && pidRuns(p.jvm)) console.error(`shutdown: client c${k}'s jvm ${p.jvm}: ${await stopPid(p.jvm, { graceMs: CLIENT_STOP_MS.jvm, same: () => isClientJvm(p.jvm), log })}`);
+      if (p.launcher && pidRuns(p.launcher)) console.error(`shutdown: client c${k}'s launcher ${p.launcher}: ${await stopPid(p.launcher, { graceMs: CLIENT_STOP_MS.launcher, same: () => /gradle/i.test(commandOf(p.launcher) ?? ''), log })}`);
+    }));
+  });
+  const startLane = async (c, s, host) => {
+    const i = c.k - 1;
+    if (stagger && i && !host) { const lag = stagger * 1000 * i - (Date.now() - t00); if (lag > 0) await sleep(lag); }
+    if (shuttingDownNow()) return { ...c, slot: s.slot ?? null, code: 130, seconds: 0, summary: null };
+    const at = host ?? c;
+    if (host) console.log(`client c${c.k}: on c${host.k}'s slot ${s.slot ?? '-'}, run dir and ports, after it`);
     fs.mkdirSync(c.out, { recursive: true });
     const args = [fileURLToPath(import.meta.url), mode, '--flows', c.flows.join(','), ...(keepWorld ? ['--keep-world'] : [])];
-    const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_GAME_DIR: c.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(c.sidecarPort), STEWARD_DEV_PORT: String(c.devPort) };
+    const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_GAME_DIR: at.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(at.sidecarPort), STEWARD_DEV_PORT: String(at.devPort),
+      ...(s.ticket ? { E2E_SLOT_TICKET: s.ticket, E2E_SLOT: String(s.slot ?? '') } : {}) };
     const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = { child, jvm: null, launcher: null };
+    procs.set(c.k, proc);
+    child.on('close', () => { if (procs.get(c.k) === proc) procs.delete(c.k); });
+    const said = (line) => {
+      const m = /^e2e-client: jvm (\d+|-) launcher (\d+|-)/.exec(line);
+      if (m) { proc.jvm = m[1] === '-' ? null : Number(m[1]); proc.launcher = m[2] === '-' ? null : Number(m[2]); }
+    };
     const prefix = (stream, to) => {
       let buf = '';
-      stream.on('data', (d) => { buf += d; let n; while ((n = buf.indexOf('\n')) >= 0) { to.write(`[c${c.k}] ${buf.slice(0, n)}\n`); buf = buf.slice(n + 1); } });
+      stream.on('data', (d) => { buf += d; let n; while ((n = buf.indexOf('\n')) >= 0) { said(buf.slice(0, n)); to.write(`[c${c.k}] ${buf.slice(0, n)}\n`); buf = buf.slice(n + 1); } });
       stream.on('end', () => { if (buf) to.write(`[c${c.k}] ${buf}\n`); });
     };
     prefix(child.stdout, process.stdout);
     prefix(child.stderr, process.stderr);
     const t0 = Date.now();
     const code = await new Promise((r) => child.on('close', (x) => r(x ?? 1)));
-    return { ...c, code, seconds: Math.round((Date.now() - t0) / 1000), summary: readJson(path.join(c.out, 'summary.json'), null) };
+    return { ...c, ...(host ? { gameDir: at.gameDir, sidecarPort: at.sidecarPort, devPort: at.devPort, borrowed: `c${host.k}` } : {}), slot: s.slot ?? null, code, seconds: Math.round((Date.now() - t0) / 1000), summary: readJson(path.join(c.out, 'summary.json'), null) };
+  };
+  // a Ctrl-C or kill of the lead stops its clients' runs (each quits its own client); its slots are released on the way out (slot-queue)
+  const rows = await runLanes(plan, {
+    acquire: async (c, i) => (i === 0 && inheritedSlot()) || acquireSlot(`e2e ${mode} c${c.k}`, { root: ROOT }),
+    start: startLane,
+    release: (t) => releaseSlot(t),
   });
-  // a Ctrl-C or kill of the lead stops its clients' runs (each quits its own client)
-  return Promise.all(runs);
+  return rows.map((r) => ({ ...r.result, ...(r.waited ? { waited: r.waited } : {}) }));
 }
 let laneRuns = null;
+// (batch-074 review) the signals are the shutdown coordinator's: this driver's client (or a lead's child drivers) stops first, then the slots, then
+// the sidecar data
+installShutdown();
+if (!LEAD) onStop(() => stopClient());
 try {
   // a --clients lead only names the flows (no game of its own): its clients run the sanity set and the flows
   if (!LEAD) {
     await preflight();
     freshWorld();
     ensureStubEntry();
-    await waitForLoad();
+    await takeSlot();
     launch();
     await connect();
     const r = await cmd('/steward status');
@@ -8484,6 +8798,7 @@ try {
       await flow('module-survival', 'module survival stockpile bill refund', () => moduleSurvivalFlow());
       await flow('module-cap', 'module survival stockpile bill cap crash growth', () => moduleCapFlow());
       await flow('module-hall', 'module hall growth undo', () => moduleHallFlow());
+      await flow('module-hall-sort', 'module hall sort growth undo', () => moduleHallSortFlow());
       await flow('adopt-survival', 'adopt survival stockpile bill refund growth restart undo', () => adoptSurvivalFlow());
       await flow('module-survival-street', 'module adopt survival stockpile bill refund water farm', () => moduleSurvivalStreetFlow());
       await flow('module-hall-survival', 'module hall survival stockpile bill refund', () => moduleHallSurvivalFlow());
@@ -8522,14 +8837,25 @@ try {
     await restartRestore();
   }
 } catch (e) {
-  fail('run', e.message);
+  // a slot that never came: the run didn't start, which is a wait and not a FAIL
+  if (e.code === 'SLOT_TIMEOUT') slotWait = e.record;
+  else fail('run', e.message);
 } finally {
+  // a signal's shutdown owns the way out (its stop, release and cleanup, in that order, then the exit): nothing here may release or remove first,
+  // checked again after each await (fix-check P2: a signal during the quit)
+  const park = async () => { if (shuttingDownNow()) await new Promise(() => setInterval(() => {}, 1000)); };
+  await park();
   try {
     await quit();
   } catch {
     // already gone
   }
+  await park();
   if (client && client.exitCode === null) client.kill();
+  // the client is done for good: its slot goes back (an owner's slot is the owner's to release)
+  if (slot?.ticket && !slot.inherited) releaseSlot(slot.ticket);
+  // the client is gone: this run's sidecar dir goes (slice TMPSWEEP; the exit hook covers the ways out that skip this)
+  for (const [dir, how] of cleanupOwned()) console.log(`tmp: ${how} ${dir}`);
 }
 const clientRows = [];
 if (laneRuns) {
@@ -8540,12 +8866,12 @@ if (laneRuns) {
     for (const f of s?.flows ?? []) flowTimes.push({ ...f, client: `c${c.k}` });
     if (!s) results.push({ check: 'run', ok: false, why: `client c${c.k} wrote no summary (exit ${c.code})`, client: `c${c.k}` });
     else if (c.code !== 0 && !(s.failed > 0)) results.push({ check: 'run', ok: false, why: `client c${c.k} exited ${c.code}`, client: `c${c.k}` });
-    clientRows.push({ client: `c${c.k}`, ports: [c.sidecarPort, c.devPort], gameDir: c.gameDir, flows: c.flows, packedSeconds: c.packed, seconds: c.seconds, sanitySeconds: s?.sanitySeconds ?? null, exit: c.code, failed: s?.failed ?? null });
+    clientRows.push({ client: `c${c.k}`, slot: c.slot ?? null, ...(c.borrowed ? { borrowed: c.borrowed } : {}), ...(c.waited ? { waited: c.waited } : {}), ports: [c.sidecarPort, c.devPort], gameDir: c.gameDir, flows: c.flows, packedSeconds: c.packed, seconds: c.seconds, sanitySeconds: s?.sanitySeconds ?? null, exit: c.code, failed: s?.failed ?? null });
   }
 }
 const failed = results.filter((r) => !r.ok).length;
 const seconds = Math.round((Date.now() - started) / 1000);
-fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), at: new Date().toISOString(), seconds, failed, sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
+fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), ...(slotWait ? { slot: slotWait } : slot ? { slot: { slot: slot.slot ?? null, ticket: slot.ticket ?? null, ...(slot.off ? { off: true } : {}), ...(slot.inherited ? { inherited: true } : {}) } } : {}), at: new Date().toISOString(), seconds, failed, sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
 if (!CLIENT) recordRun(flowTimes);
 if (laneRuns) {
   const sum = flowTimes.reduce((a, f) => a + f.seconds, 0);
@@ -8553,5 +8879,9 @@ if (laneRuns) {
   for (const r of results.filter((x) => !x.ok)) console.log(`FAIL [${r.client}] ${r.check}: ${r.why}`);
 }
 if (only) console.log(`only ${only.join(',')}: ${skipped.length} flows skipped`);
+if (slotWait) {
+  console.log(`NOT RUN: ${waitLine(slotWait)}; a wait, not a FAIL (summary.json "slot")`);
+  process.exit(3);
+}
 console.log(failed === 0 ? `PASS ${results.length} checks` : `${failed} FAIL of ${results.length}`);
 process.exit(failed === 0 && results.length > 0 ? 0 : 1);

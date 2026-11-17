@@ -160,11 +160,20 @@ public final class PlanDistricts {
 	 * first lot's type, as many as its lots: the estimate's count), and {@code place} as the line shown on the ground.
 	 */
 	public static Proposal proposal(Unbuilt u, String way, @Nullable String why, int estimateUsd, boolean fromMaterials, long now) {
+		return proposal(u, way, why, null, estimateUsd, fromMaterials, now);
+	}
+
+	/**
+	 * As above, with {@code note} said after where it goes (PD-2: {@link #betterSideNote}, the ground it asks for lying north or south of the town, where
+	 * a district beside the town doesn't go yet), or null.
+	 */
+	public static Proposal proposal(Unbuilt u, String way, @Nullable String why, @Nullable String note, int estimateUsd, boolean fromMaterials, long now) {
 		String side = dev.larattalabs.steward.model.DistrictRules.directionName(way);
 		String name = named(u.label());
 		String lots = lotWords(u);
 		String words = "The town's plan names " + name + " (" + lots + "), which its founding didn't build. It would go to the " + side + " of the town"
-			+ (why == null || why.isBlank() ? "" : ", " + why) + ", with a street of its own joined to the town's. Founding it costs nothing; building its "
+			+ (why == null || why.isBlank() ? "" : ", " + why) + ", with a street of its own joined to the town's. "
+			+ (note == null || note.isBlank() ? "" : note.strip() + " ") + "Founding it costs nothing; building its "
 			+ (u.lots().size() == 1 ? "lot" : u.lots().size() + " lots") + " costs about $" + estimateUsd
 			+ (fromMaterials ? ", and from materials its bill is said before anything is placed." : ".");
 		String type = PlanGrowth.spec(u.lots().get(0), Secrets.NONE).type();
@@ -172,6 +181,31 @@ public final class PlanDistricts {
 		String title = "The plan's " + (name.startsWith("the ") ? name.substring(4) : name) + " (" + side + ")";
 		return new Proposal(u.key(), title, words, building, now, "the town's plan", null, way)
 			.withPlace(dev.larattalabs.steward.model.DistrictSite.line(why == null ? "" : why, u.label()));
+	}
+
+	/**
+	 * (PD-2) Beside the town a district goes only east or west (Noah's Q3; docs/DISTRICTS.md section 9): the line said when the ground the district asks
+	 * for is to the north or south ({@code groundWay}, chosen from those sides alone, {@code groundWhy} its reason) and the side offered was chosen without
+	 * a reason of its own ({@code offeredWhy} blank). Null otherwise: no ground wish, none found north or south, or the side offered suits it too.
+	 */
+	public static @Nullable String betterSideNote(@Nullable String offeredWhy, @Nullable String groundWay, @Nullable String groundWhy) {
+		if (offeredWhy != null && !offeredWhy.isBlank()) return null;
+		if (groundWay == null || !(groundWay.equals("N") || groundWay.equals("S")) || groundWhy == null) return null;
+		String ground = groundWhy.replaceAll("\\s*\\([^)]*\\)", "").strip();
+		// a side its words name ("the north ward": "to the north, as you said") is no ground it asks for
+		if (ground.isEmpty() || ground.startsWith("to the ") || ground.contains("as you said")) return null;
+		return "The ground it asks for (" + ground + ") is to the " + dev.larattalabs.steward.model.DistrictRules.directionName(groundWay)
+			+ ", but a district beside the town goes only east or west for now.";
+	}
+
+	/**
+	 * (PD-2) What the player hears once when the plan's district has no side beside the town to go (neither east nor west fits), so it isn't proposed: its
+	 * name and lots, why, and that north and south are not offered for it yet.
+	 */
+	public static String noSideWords(Unbuilt u) {
+		return "The town's plan names " + named(u.label()) + " (" + lotWords(u) + "), which its founding didn't build, but there is no room for it beside the town"
+			+ " to the east or west, and a district beside the town doesn't go north or south yet. I haven't proposed it; it is looked at again when the town or"
+			+ " its plan changes.";
 	}
 
 	/** The ground a district asks for, in words for the side chooser: its label and its {@code prefer} words ("near_water" as "by the water"). */

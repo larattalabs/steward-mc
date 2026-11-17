@@ -251,6 +251,12 @@ survival vocab unchanged; QL only adds `Quote.terrain`). Fresh: offline 151/151,
 re-quoted bounds equal the carried ones), the hall round 218/218; e2e `module-hall` PASS 18. `record --smoke` works per module now: the
 hall's evidence is artifacts/m4 and its round is the deterministic hall step (the catalog's smoke check takes it).
 
+## 9c. Smoke carry to Architect 0.74.0 (2026-11-16, pin-074)
+
+Carried from 0.67.0 (`basis: smoke`) to 0.74.0, kit/checker 0.69.0, moduleSha `cf66394f…`. The kit's hall paths change only version strings and
+survival billing is unchanged. Fresh: offline 151/151, ingame 150/150, survival 26/26, bounds 58/58 (re-quoted bounds equal to the carried
+ones), the hall round 218/218; ports 9112/9113, $0.
+
 ## 9b. Smoke carry to Architect 0.73.0 (2026-11-16, pin-073)
 
 Carried from 0.67.0 (`basis: smoke`) to 0.73.0, kit/checker 0.68.0, moduleSha `c467ecf6…`. The kit's hall paths change only version strings; 0.73.0
@@ -280,9 +286,306 @@ The hall's program and its certificate are unchanged (no re-measure). Each of §
   undo), the cancel round failed (nothing drawn: fed before the accept); run 2 the cancel passed, the talk re-ask looked for the wrong key;
   run 3 `--only module-hall-survival` PASS 14.
 
-## 10. Smoke carry to Architect 0.72.0 (2026-11-15)
+## 11. Smoke carry to Architect 0.72.0 (2026-11-15)
 
 Carried from 0.67.0 (`basis: smoke`) to 0.72.0, kit/checker 0.67.0, on branch `storage-hall-072` (batch-072). 0.72.0 changes the billing
 path (QL-b/QL-c: Quotes, FullBom, QuoteLand) and adds FK-b, which @1 doesn't use; the hall's kit paths are unchanged. Fresh: offline 151/151,
 ingame 150/150, survival 26/26 (each growth consumed = its quote, the cancel and the refunds exact), bounds 58/58 with **all 27 re-quoted
 bounds equal to the carried ones** (so the carry recorded), the hall round 218/218.
+
+## 12. `storage_hall@2`, the sorting hall: design (slice M4b, 2026-11-15; for the GPT design review before building)
+
+A new version (§ "Versions"): its own program and envelope, plain branch included. Once certified it is the newest, so it replaces @1.
+Built on Architect 0.72.0 with FK (filled containers) and FK-b (module-provided fill items). Noah's filler: `minecraft:petrified_oak_slab`,
+module-provided. Its requirements are §5's list for @2; each is answered below (§5's number in brackets).
+
+### 12.1 Params and the filter domain [5]
+
+- `slots` int, branches **0, 4, 8, 12, 16**; `bulk` int 0..8, branches 0..8 (plain: §1.2's 11 x 7 hall, unchanged from @1).
+- `item1` .. `item16`: enums. Their options are `none` plus the filter domain's **short keys**, since the kit refuses `minecraft:` in an
+  option. A key `k` means item `minecraft:k`.
+  - **The domain** (`FILTERABLE`, in the program and in Java, pinned equal by a test): 48 plain, 64-stacking items a survival settlement
+    stores in bulk:
+    - stone and earth: cobblestone, cobbled_deepslate, stone, deepslate, dirt, sand, red_sand, gravel, andesite, diorite, granite, tuff,
+      calcite, netherrack, blackstone, basalt, end_stone, clay_ball, flint;
+    - wood: oak_log, spruce_log, birch_log, jungle_log, acacia_log, dark_oak_log, mangrove_log, cherry_log;
+    - ores and gems: coal, charcoal, iron_ingot, gold_ingot, copper_ingot, raw_iron, raw_gold, raw_copper, redstone, lapis_lazuli, quartz,
+      diamond, emerald;
+    - farm and mobs: wheat, wheat_seeds, beetroot_seeds, sugar_cane, bone, string, gunpowder, rotten_flesh.
+  - Never in the domain: the filler, anything that stacks to 1 or 16, anything a player can't rename into the domain (renamed stacks are
+    component stacks and go to overflow).
+- **Dependent rule** (the program throws `storage_hall@2: ...`; Steward checks it first, `StorageHallLot.items`):
+  - `item1`..`item<slots>` are domain keys and all distinct;
+  - every later one is `none`.
+- **The gate** (`ModuleGate.params`): module.json's envelope gains `domains: {"item1": "filter", ...}`. A domain param takes any of its enum
+  options, under the module's dependent rule. It is never a branch, so the branch product stays `slots x bulk`.
+- **Certification of the item class:** the measurement runs each sorting branch with its own item set. Across the measurement every one of
+  the 48 domain items is a filter at least once and a non-filter in some mix. The branch result then holds for any distinct domain choice:
+  every domain item is a plain 64-stack, and the tile's behaviour depends only on that (M0 CS: the comparator reads the fill fraction).
+
+### 12.2 Geometry (sorting branches; §1.2's plan with its fixes) [1, 6, 13]
+
+- `W = max(s + 3, 11)`, `D = 13`, `H = 7`; rows as @1 (0 foundation, 1 floor, 2-5 walls, 6 the roof slab). Line z 6, b = row 2.
+- **The tile** is M0's, exactly. Slot u at x = 1 + u: line hopper (x, 4, 6) facing east; F (x, 3, 6) facing north; D (x, 2, 6) facing
+  south into the slot chest (x, 2, 7) `single`; comparator (x, 3, 5); dust (x, 3, 4), (x, 3, 3) and (x, 2, 2); repeater (x, 1, 3) facing
+  north; the wall torch (x, 1, 5) on (x, 1, 4); stone at (x, 2, 5), (x, 2, 4), (x, 2, 3), (x, 1, 2), (x, 0, 3) and (x, 1, 4). D is the only
+  hopper under F, and it is the controlled one: there is no uncontrolled extraction below F [13].
+- **Fixed core around the mechanism** [6]: every cell of x 0..s+1, z 1..6, rows 0..5 that the tile doesn't use is fixed `minecraft:stone`
+  or air, never a role. That covers:
+  - the circuit zone;
+  - the west wall's segment, which holds the lever;
+  - the partition east of the last slot;
+  - the floor and foundation under the line and the circuit;
+  - the cell under each D: fixed stone, so a floor role can't power D.
+
+  So no role block touches dust, a torch, a comparator, a repeater, a hopper or the lever. The back wall (z 0) is a role behind z 1's air.
+- **The overflow chest** (s + 1, 4, 6), `single`: air above it (s + 1, 5, 6), so it opens [1]. The input chest (1, 5, 6) has the roof slab
+  above it, a non-conductor. The slot chests (row 2) and bulk chests (rows 2-3) have air above.
+- **The lock:** a lever at (1, 4, 5) on the fixed-stone west wall cell (0, 4, 5), `face=wall, facing=east`. FK writes it `powered=true`
+  while built and `false` at the unlock.
+- **Bulk** at z 10, facing north, either side of the door; the aisle is z 8-9; the front wall is z 11 with the door at `gate`; the front
+  row is z 12.
+- **Labels** [12]: a sign above each slot chest at (x, 3, 7) would need sign text, which the kit doesn't write, and item frames are
+  entities. So the slot map is read in game: `/steward hall <settlement>` lists each slot's item, the input and the overflow, from the lot's
+  params (its `steward_mc:module` ext). The offer and the inbox name them too. *A question for Noah:* is a command and the inbox enough, or
+  does he want a look-at HUD label (a UI slice)?
+- **Lamps** in the side walls at row 4 (x 0 at z 8 and z W-1, z 2 and 8; the circuit side is the fixed-stone wall, so its lamp is at z 8),
+  and in the front wall beside the door.
+
+### 12.3 The fill and the lock (FK, FK-b)
+
+- Each F: slot 0 holds **41 of its filter item, billed**; slots 1-4 hold **1 `minecraft:petrified_oak_slab` each, `provided: true`**
+  (M0's 41 + 4; CS: signal 2 at rest, 3 at the 42nd item).
+- Lock: the lever above, `{powered: 'true'}`.
+- Bill: the fill's `fill:<lot>` piece is 41 of each filter item. The slabs are unbilled and never refunded (FK-b).
+- **The bound** (offer and Accept): the measured structure bound for (slots, bulk, Style), re-expressed in the town's blocks as @1, plus
+  the fill part, computed exactly: 41 of each chosen item. `ModuleBound` for storage_hall looks up the structure part by `{slots, bulk}` and
+  adds the fill, so an edited item choice gets its exact bound. The measurement checks quote = structure bound + fill on every branch.
+
+### 12.4 Offer, items and placement
+
+- **Sign:** as @1 (12+ kinds). The tier gate: the sorting branches are offered from the Nether tier on (comparators need quartz); before
+  that, the plain branch.
+- **Params at the offer:** `slots` is the largest of 4/8/12/16 that the settlement's distinct domain items fill, counting the stockpile
+  and the inventory by count, with at least 4 (else plain). The items are those kinds, most held first, ties by key. `bulk` as @1.
+- **Words** name each slot's item, "about N items a second" (the measured rate, § bars), and what it won't sort: "tools, armour, potions,
+  renamed or enchanted items, and anything that stacks to 16 go to overflow; never put petrified oak slabs in it" [10].
+- **The player changes the items** before accepting: `/steward hall <settlement> items <slot>=<key> ...` on the waiting offer.
+  - It checks the dependent rule and recomputes the bound, and the offer's words and bound are rewritten.
+  - In talk, a named item list rides on the module's params as @1's.
+- **Placement and undo:** M3's growth paths. The binding, quote and realise are as @1, with the fill in the quote. Undo with cargo follows
+  MODULES §6's table:
+  - **Steward's pre-check** (`HallCargo.before`, M4-L's declared cells) counts as ours: an F holding a sub-multiset of its declaration (≤ 41
+    of its item, ≤ 4 slabs), and empty line, D, slot, overflow and bulk containers. Anything else is cargo:
+    - an F holding more than declared, even more of its own item;
+    - any item in the line, a D, the input or the overflow;
+    - a slot or bulk chest holding anything.
+
+    Cargo refuses the undo at once, said with the count.
+  - Architect's own blocker rule then judges the same at removal (FK's sub-multiset rule), and its custody takes the F contents in one tick.
+- **Repair** (FK-b §6): undo the hall's growth and grow it again. The steward says so when a filter hopper is broken: the lock and fill run
+  once per key.
+
+### 12.5 The bars (sorting; fixed now) [2, 3, 4, 8, 9]
+
+1. **Sorting 100%.** Each sorting branch x 4 facings, rustic in full, fortress and desert for sorting and light; 20 runs per branch:
+   - the mix is each slot's item x 3 stacks, 5 plain domain kinds the hall doesn't filter, 3 unstackables, a 16-stack and a renamed stack of
+     a filter item;
+   - it is fed in **acknowledged batches of at most 27 stacks** into the input chest, against an independent expected multiset [8];
+   - every filter item ends in its slot, the rest in overflow, the input and the line end empty, items in = out, no item entity.
+2. **Throughput:** items a second from the first item leaving the input chest to the last arriving, recorded (a report, speed rule).
+   Bar: within 10% of M0's HR (2.241-2.739).
+3. **Saturation:** two neighbouring slots' chests full, then a mix:
+   - no wrong item in any chest; conserved; the other slots 100%; each saturated F reads 3 or less;
+   - emptied, all 100% again, every F back to exactly 41 + 4;
+   - a full overflow backs the line up, and recovers once emptied [8].
+4. **The filters hold:** after 10,000 items, each F holds exactly 41 + 4.
+5. **Restart and unload mid-sort:**
+   - a restart with items on the line;
+   - an unload of every chunk the hall touches (asserted), with one hall crossing a chunk border **through its circuit** [9];
+   - nothing lost or duplicated, sorting continues, the contents exact by component (the renamed stack stays renamed).
+6. **Shape, access, light** as @1 [9], plus a fake player opens and empties every chest (input, overflow, each slot chest, each bulk half,
+   upper and lower) [1].
+7. **Cargo, in isolation** [4], with the line stopped (the lever on) so F stays the blocker. One item alone, then the undo refused and the
+   item still there, in each of:
+   - the input, the overflow, a slot chest, either bulk half, a line hopper, a D;
+   - an F holding one more of its own item;
+   - an F holding one item of another kind.
+
+   Then cargo arriving after the pre-check (an item inserted between Steward's check and Architect's removal through a dev hook): Architect
+   refuses, nothing lost.
+8. **Survival, bill and refunds** [3]:
+   - quote = consumed = structure + 41 per filter item; no slab in the quote or the bill;
+   - undo of the emptied hall: refund = consumed, minus what the player took, each item apart:
+     - F untouched;
+     - 8 filter items taken from one F (refund 41 - 8 of it);
+     - one F emptied of its item (refund 0 of it);
+     - a mined bulk chest half (refund less that chest);
+   - the player's inventory, stock, custody and drops are counted per item; no slab ever in the player's inventory or the world (FK-b);
+   - a restart after, and a retried undo: nothing twice.
+9. **Crash cases** [2], each with items in = items out against the saved state:
+   - FK1-FK4 at the fill and FKC1/FKC2 at removal (`dev.fk.halt`), on the hall's own growth path;
+   - a removal failing after the custody take (a cargo item put in during the removal's ticks): a restart, then a retry;
+   - a cancel before the fill: no filter items written or refunded.
+10. **The bound:** every branch's quote = its structure bound (per Style) + 41 per item, for two item sets per branch.
+11. **The filler** [10]: a petrified slab put in the input chest is not on the hall's promise. The offer says so; it lands in slot 1's F
+    (M0 ST5). The bar is that the next undo refuses it as cargo (F holds more than declared). Recovery is the repair (undo, grow again).
+    Recorded, as M0 found.
+
+### 12.6 For the review
+
+- Is the domain-param certification (each domain item filtered at least once, by item class) sound, or must the envelope hold item sets?
+- Is the pre-check's ownership rule right for D and the line? Through-traffic in a running hall makes them hold items; the undo then
+  refuses until the line is stopped and drains. The steward says "pull the lever by the input chest to stop the hall and wait until it is
+  empty", but the lever is behind the line, out of reach. Should the lever be reachable (in the aisle's wall), or should the steward stop it?
+- Anything §5's findings ask that this misses.
+
+### 12.7 Design review (GPT-6.1 Sol, at ae3063c, Architect v0.72.0 de231d14) and what changes
+
+3 blockers, 5 should-fixes, 1 nit. The tile, the item-class certification and the bound are confirmed sound. The review's answers to
+12.6 are taken: item classes certify the domain; D and the line stay cargo; the steward runs the lever.
+- **[B1] Late cargo at removal: an Architect ask, S-M5-12.** Architect's removal scans blockers once and restores ticks later; an item put
+  into an undeclared container in between is erased. Steward's pre-check narrows the window, never closes it. Whether @2 certifies before
+  S-M5-12 is the manager's and Noah's call.
+- **[B2] Ingress before the lock:** bars added (below).
+  - The input preloaded at partial construction and while starving: nothing moves.
+  - An F contaminated before the fill: `fill_blocked`, no charge, the cargo untouched; emptied, exactly one fill.
+- **[B3] Crash:** CS1 is added at removal. A deterministic failed removal after the custody take waits for S-M5-13. Until then the bar is
+  FKC1/FKC2/CS1 plus a restart and an unchanged second retry. Each case is judged on the saved files and the physical refunds, per item,
+  with no custody, `heldProvided` or pending refund left.
+- **[S4] F isolation:** while the extra-in-F case is judged, D is held by a test lock (a dev-placed redstone block beside D, removed
+  after). The bar asserts F itself holds the excess and every other container is empty.
+- **[S5] Slabs in F:** the recovery is break the F (FK-b strips the slabs), take the dropped billed goods, then undo and grow again. The
+  bar: no slab dropped or refunded; the missing hopper and its filter items not refunded; one correct, billed replacement fill.
+- **[S6] Ownership:**
+  - an F is ours only once its fill committed (FILLED/UNLOCKED);
+  - it holds plain stacks only (any component patch is cargo);
+  - in total at most 41 of its item and at most 4 slabs;
+  - the input, the line, every D and every chest have no allowance.
+
+  M4-L's declared cells become typed cells (input, overflow, line, F, D, slot, bulk), unit-tested against the program's rotated layout.
+  HallCargo classifies and says; it never takes or refunds.
+- **[S7] Geometry:** the air mask is explicit (the program's `keepAir`: the cell over the low dust, the low dust's point, the cell over the
+  overflow), and no shell write may reach it (a program check). Partial chunk unloads are added: a hall crossing a border along its line, and
+  one crossing through a tile's control arm, with one side unloaded while the other ticks, then reloaded. Plus the adverse-palette probes.
+- **[S8] Labels:** a question for Noah (a look-at HUD label, or the command and inbox).
+- **[N9]**
+  - Lamps as full triples, in the program: (0, 4, 8), (W-1, 4, 2), (W-1, 4, 8), (gate±2, 4, 11).
+  - A lower bulk chest has a chest above, which still opens.
+  - "Refund 0 of it" means zero fill contribution: the structure's own stone and redstone are still refunded. The bound and refund tests
+    include stone, dirt and redstone as filter items, so structure and fill share an item.
+
+### 12.8 Noah's decision (2026-11-15, PLAN Decisions, main 92b185f): "Certify now, name the gap" (option A)
+
+`storage_hall@2` certifies before Architect's LC (S-M5-12/13) once its bars pass. The offer names the late-cargo gap in one line,
+`ModuleOffer.LATE_CARGO_WORDS` behind `LATE_CARGO_GAP`: "While a building is being taken down, don't put items into its chests: they could be
+lost." It comes off in one edit at the pin that carries LC3 (LC was reverted at Architect v0.73.0; LC2 became LC3, the seal design). The pre-check still refuses an undo while anything holds cargo. FKC0 (bar 9)
+runs at that pin and is recorded as deferred until then. The slot labels for v1 are `/steward hall` with the offer and inbox (rule 13);
+a HUD label is a follow-up.
+- **Judge clarified after the first run (no bar moved):**
+  - A slot is its chest and its output hopper D. The tile unlocks D only long enough to pull the item that tipped F to 42, so the last item
+    of each kind through a run waits in D for the next one, as M0's tile did: M0's judge counted D in the slot.
+  - A run is done when the input and line are empty and each D holds at most one of its own item.
+  - The steward's words for a refused undo say those hoppers hold the last sorted items, and the player takes them out too.
+  - A filled F's settled D state is `enabled=false` in the template, so the land check reads a built hall as unchanged.
+  - Architect's land check counts a container written empty that now holds items as changed, so each filled F is one changed cell: bar 6
+    reads `changed` equal to the slot count, with every F holding exactly 41 + 4 slabs (S-M5-18 asks Architect to count a fill as its own).
+- **Follow-up M4b-074 (at the pin that carries Architect LC3 with FL 50f47d9b; v0.74.0 carries neither):** bar 6 goes back to expecting `changed 0` (S-M5-18), and
+  sort-survival's mid-build insert expects no item in F (S-M5-17, the hopper refusal); `dev.fk.container` answers `state`, `dev.fk.state` `held`.
+
+### 12.9 Results (2026-11-16, Minecraft 26.3, Architect 0.72.0, kit/checker 0.67.0): certified
+
+`storage_hall@2` is certified (`modules/storage_hall/2/measured.json`, moduleSha 315a60271b22, program aa216ff12306), from the evidence
+in `artifacts/m4b` (hall, bounds, sort, sort-survival, sort-cargo and sort-crash, each at one run; the hall is deterministic). It passed:
+
+| Step | Bars | Checks |
+|---|---|---|
+| hall (`--version 2`) | the plain branch, @1's bars 1-6 | 218/218 |
+| bounds | the structure bound per slot count, bulk and Style, and the fill (41 per item) for two item sets | 382/382 |
+| sort | 12.5 bars 1-6 over 20 halls: every rustic branch in all four facings (20 runs a branch, 10,000 items a hall), fortress and desert for 4 and 16; every chest opened by a player; the asserted unload; counted drains; chunk crossings | 258/259 (run 5; its one coverage check completed by sort-plain) |
+| sort-survival | bar 8 and 12.7 B2: the bill, the mid-build insert, fill_blocked (the contaminant intact and taken back whole), refunds after taking | 19/19 |
+| sort-cargo | bars 7 and 11: cargo alone in each container class, the pre-check and the undo, the fed-slab recovery | 26/26 |
+| sort-crash | bar 9: FK1-FK4 at the fill (every item since the pre-crash baseline, the fill's items in = out), FKC1, FKC2 and CS1 at removal (no pending refund, an unchanged second undo and a second restart), a cancel before the fill; FKC0 deferred | 68/68 |
+| sort-plain | 12.1: the item the sort run never used as a non-filter kind (cherry_log), through a rustic hall in 3 runs | 12/12 |
+
+The rates (items a second, rustic, by slot count): 4 slots 2.342, 8 slots 2.424, 12 slots 2.461, 16 slots 2.397. The catalog's own steps
+passed too: offline 295/295, ingame 292/292.
+
+- **Known gaps (as-built, MODULES.md):** S-M5-12, late cargo during an undo, is named in the offer until LC3. S-M5-17, a mid-build insert
+  down the line, makes the fill wait `fill_blocked` with nothing charged or lost, until Architect FL. It needs no offer line.
+- **S-M5-17's readings at the preload:** the lever and line hopper 0 both stood when the player loaded the input. The harness's `cells` op
+  reads only the block id and light, so their states weren't captured. Architect FL's reproduction gave them: the lever `powered=true`
+  (written with no neighbour update) and line hopper 0 `enabled=true`.
+- **The judge, measured once more:**
+  - Bar 6's `changed` is the slot count (S-M5-18, 12.8).
+  - sort-crash sets each case up as Architect's own FK gate does: the hall's blocks fed with the fill's items held back until every cell
+    stands, the site paused, the fill not begun, the fill's items delivered. Its baseline reaches disk before the point is armed.
+  - The fill items there are flint, bone, string and gunpowder, which the structure never uses. A kill point halts the whole JVM, so the
+    harness waits for the client to exit, names the point from its own log line ("reached", or FK3's and CS1's "kill point P:"), and
+    relaunches into the same world. An exit it can't name fails that case.
+- **A harness finding, not Architect's:** `/save-all` is a dedicated-server command. On the integrated client it answers "Unknown or
+  incomplete command", and `dev.command` still answers `ok: true` with `success: false` (S-M5-19, Architect's answer). Every `/save-all`
+  in `module-measure-hall.mjs` is a no-op. sort-crash's baselines reach disk by Architect's periodic save instead: `dev.stockpile.ps
+  {noPeriodic: false}`, waited for until the saved ledger is the live one, then `noPeriodic` on and the point armed. The other steps pass
+  because `dev.world.leave` saves the world. Working save barriers today: the periodic save waited for (over 10 s), `dev.world.leave`,
+  and `dev.stockpile.halt {mode: "autosave"}` (a save, then a halt). The tooling fix is LEFTOVERS row SAVEB (the manager's).
+- **style-bounds** bills a wall-mounted block as its standing item (`redstone_wall_torch` as `redstone_torch`), as Architect's survival
+  bill does. The kit's `vocab/survival.json` has no entry for the wall form.
+
+### 12.10 The diff review (GPT-6.1 Sol, speed rule 15) and what came of it
+
+The review (log `_work/m4b-gpt-review.log`) ranked 8 P1 and 3 P2. A fix check and a second fix check followed (`_work/m4b-gpt-fixcheck*.log`).
+- **Fixed, measured again:**
+  - P2-9: `/steward hall <id> items` is the host's (`Actions.refusal`).
+  - P2-10: the same command keeps the offer's district, and bills an adopted town from materials (`path().materials()`).
+  - P2-11: a smoke carry keeps `fill` and reads sort-survival as @2's billing step, in the tool and the loader (`ModuleCatalog.billingStep`).
+  - P1-1: sort-crash feeds only the fill's items after a restart, and judges every item since the pre-crash baseline and the fill's items
+    in = out.
+  - P1-2: sort-crash checks no pending refund, then an unchanged second undo (Architect's own refusal) and a second restart.
+  - P1-5: sort-survival requires `fill_blocked` and the contaminant taken back whole.
+- **Open, the manager's call (not measured as committed):**
+  - Bar 1, each sorting branch x 4 facings: the facings are a union across halls; 12 slots ran only west and 16 only south.
+  - Bar 5, the mid-sort unload: it waits for the unload but doesn't assert it, and the partial unload doesn't assert the forced side.
+  - Bar 6, a fake player opening and emptying every chest: not done; the check reads the blocks above the chests.
+  - Bar 9, a cancel before the fill: not run.
+  - Hardening: the drain between overflow rounds doesn't count what it removes, the mixes leave 33 domain items never used as a non-filter
+    kind, and the restart/unload batches feed only the first 27 stacks.
+  - Beyond the bars: survival accounting for the repair path (bar 11 only records it).
+
+### 12.11 The 5th sort run (2026-11-16, the manager's call over the cap) and the open items closed
+
+The review's open items (12.10) were measured as the bars commit them, in one full sort run, through Architect's slot queue (`tools/slot.mjs`):
+- **Bar 1:** each rustic branch (4, 8, 12, 16 slots) placed in all four facings: a growth is planned until its lot faces the wanted way,
+  then realised (plans are free until realised). 20 runs a branch, every run 100%, and at least 10,000 items through each rustic hall
+  for bar 4.
+- **Bar 5:** the full unload is asserted (every probe's chunk unloaded, 600 game ticks). The partial unload asserts the forced side loaded
+  for 600 ticks and records the other side: in vanilla a forced chunk's neighbours stay loaded and block-ticking, so one side of a hall
+  crossing a chunk border never stops ticking under a single forceload. The whole mix is fed across each interruption.
+- **Bar 6:** the dev client's own player opens each chest through the block's own use and empties it through the menu: the input, the overflow,
+  every slot chest and every bulk half (Fabric's FakePlayer opens no menu). Its inventory is set aside and given back.
+- **Bar 9:** a cancel before the fill (sort-crash): the hall's blocks built with the fill's items out of stock, then undone. Nothing of the
+  fill was written, charged or refunded, and the structure came back exactly (706 items).
+- **Hardening:** each drain counts what it takes and settles before its limit. Each hall's five plain kinds are planned so every domain item is a
+  non-filter kind somewhere, asserted before the run.
+- **The one miss and its completion:** the 5th run's own offsets left `cherry_log` never a non-filter kind (258/259). The planned
+  assignment above now prevents that. `sort-plain` carried it through a rustic hall in 3 runs of 100% (12/12), and `record` accepts
+  the sort step's coverage check only when `sort-plain` carried every item it names (`completes` in `tools/module-catalog.mjs`).
+- A short probe (`SORT_QUICK=1`, two halls) ran before the full run. It caught the FakePlayer menu and the partial-unload side; it is
+  not evidence.
+- **The fix-check of these harness changes** (GPT-6.1 Sol, `_work/m4b-gpt-fixcheck3.log`, the manager's scope):
+  - **Fixed in code, not re-measured:** the cancel case now also requires queued work, a non-empty structure refund and four empty F
+    hoppers before the undo. The 5th run's evidence already shows real work (701/701 cells, 706 = 706 back). `playerOpen` closes any menu
+    first and gives the inventory back in a `finally`. `sort-plain` is required only when it completes a coverage failure.
+  - **Open: they need another sort run, the manager's call:**
+    - The full unload probes only the F hoppers' chunks, not every chunk a hall touches.
+    - For 8 to 16 slots, the renamed stack (and some filters) enters only after the interruption.
+    - Chest access doesn't stand the player within reach or check the menu's `stillValid`.
+  - **Scope:** a single forceload can't bring one side of a border-crossing hall below block-ticking, so 12.7 S7's partial boundary
+    isn't measurable this way. The partial run records what it is.
+
+### 12.12 Smoke carry to Architect 0.74.0 (2026-11-16, batch-074)
+
+Carried from 0.72.0 (`basis: smoke`, the full measurement 12.9/12.11 kept in `carried`) to 0.74.0, kit/checker 0.69.0, moduleSha
+`2c977fbb…`; the program is unchanged and module.json differs only in its pins. v0.74.0 carries neither LC3 nor FL, so S-M5-12, S-M5-17 and
+M4b-074 stand. Fresh: offline 295/295 and ingame 292/292 (the whole live catalog), the hall round 218/218, bounds 382/382 (re-quoted bounds
+equal to the carried ones), sort-survival 19/19 (its billing check); ports 9112/9113, slots from Architect's queue (SQ), $0.

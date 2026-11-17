@@ -19,6 +19,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
+import { checkCommand } from './lib/save-barrier.mjs';
 import { CROPS, T as TCYCLE, CYCLES, DAY, USEFUL_PER_CROP_DAY, bands as barBands } from './lib/crop-farm-bars.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -131,6 +133,8 @@ async function startClient(label, { mode = 'creative' } = {}) {
   if (fs.existsSync(opts)) fs.writeFileSync(opts, fs.readFileSync(opts, 'utf8').replace(/^simulationDistance:\d+$/m, `simulationDistance:${SIM_DISTANCE}`));
   else fs.writeFileSync(opts, `simulationDistance:${SIM_DISTANCE}\n`);
   worldName = `Steward M2 ${label} ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
+  // one slot from Architect's machine-wide queue (slice SQ, tools/lib/slot-queue.mjs), held by this driver until the client quits
+  slot = await acquireSlot(`module-measure ${label}`, { root: ROOT });
   const out = fs.openSync(path.join(ART, 'client.log'), 'a');
   child = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], {
     stdio: ['ignore', out, out],
@@ -144,14 +148,24 @@ async function startClient(label, { mode = 'creative' } = {}) {
   dev = await Promise.race([DevClient.connect({ port: PORT, timeoutMs: 900_000 }), died]);
   await dev.waitInWorld({ timeoutMs: 900_000 });
 }
+let slot = null;
 async function stopClient() {
-  if (!dev || !launched || exited || flag('--attach') || flag('--keep-client')) return;
-  const r = await dev.request('dev.quit');
-  if (r.ok) await dev.waitClosed(180_000);
+  // a kept client keeps its slot until this driver ends (the exit handler frees it)
+  if (flag('--attach') || flag('--keep-client')) return;
+  try {
+    if (!dev || !launched || exited) return;
+    const r = await dev.request('dev.quit');
+    if (r.ok) await dev.waitClosed(180_000);
+  } finally {
+    // done for good: the slot goes back, also when the client died before its bridge answered
+    if (slot?.ticket) releaseSlot(slot.ticket);
+    slot = null;
+  }
 }
 const call = (type, payload = {}, timeoutMs = 120_000) => dev.call(type, payload, { timeoutMs });
 const req = (type, payload = {}, timeoutMs = 120_000) => dev.request(type, payload, { timeoutMs });
-const cmd = async (c) => { const r = await req('dev.command', { cmd: c }); return r; };
+// (SAVEB) an unknown or unparsable command throws (the bridge's ok only says the call did not throw); allowFail for one expected to
+const cmd = async (c, { allowFail = false } = {}) => checkCommand(await req('dev.command', { cmd: c }), { cmd: c, allowFail });
 let nmod = 0;
 /** One `/steward dev module` request; its answer from <gameDir>/steward-modules/<label>.json. */
 async function mod(r, timeoutMs = 900_000) {
@@ -604,7 +618,7 @@ async function restartCheck(farms, gy) {
   // grow nothing: the check is what the save kept
   await cmd('/gamerule random_tick_speed 0');
   const before = await agesOf(farms);
-  await cmd('/save-all flush');
+  // dev.world.leave saves on stop (/save-all is dedicated-only: Unknown on this integrated server)
   const l = await call('dev.world.leave', {}, 300_000);
   await sleep(2000);
   await call('dev.world.open', { name: worldName }, 300_000);
@@ -915,7 +929,7 @@ async function survival() {
       check(hv.broken >= 9 && took === 8 && cobble?.results?.[0]?.tracked && torch?.results?.[0]?.tracked, `6 worked ${f.id}: ${hv.broken} harvested by the player, 8 replanted (2 of each crop: ${took} took, PT records), a cobblestone and a torch on it (tracked ${!!cobble?.results?.[0]?.tracked}/${!!torch?.results?.[0]?.tracked})`);
     }
     // ---- a restart: the records hold (6a)
-    await cmd('/save-all flush');
+    // dev.world.leave saves on stop (/save-all is dedicated-only: Unknown on this integrated server)
     await call('dev.world.leave', {}, 300_000);
     await sleep(2000);
     await call('dev.world.open', { name: worldName }, 300_000);
@@ -980,7 +994,7 @@ async function survival() {
     const ledger1 = await pile();
     out.items = { consumedTotal: minus(ledger1.ledger?.consumed, ledger0.ledger?.consumed) };
     // a restart after the undo gives nothing twice
-    await cmd('/save-all flush');
+    // dev.world.leave saves on stop (/save-all is dedicated-only: Unknown on this integrated server)
     await call('dev.world.leave', {}, 300_000);
     await sleep(2000);
     await call('dev.world.open', { name: worldName }, 300_000);

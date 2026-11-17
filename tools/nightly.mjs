@@ -13,18 +13,30 @@
 //
 // It never kills a process it didn't start and never touches another checkout's tree:
 //   - one nightly at a time: artifacts/nightly/nightly.lock (pid); a live holder -> exit 0 ("already active");
-//   - the night is skipped (exit 0, SUMMARY.md says why) if artifacts/nightly/skip-<local date> exists (one night, on purpose), if the e2e ports (8590/8591) are taken, if any Steward client runs (a dev client
-//     on mod/run, or record-plans), or if a claude-login opt-in exists in this checkout or the worktree;
+//   - the night is skipped (exit 0, SUMMARY.md says why) if artifacts/nightly/skip-<local date> exists (one night, on purpose), if the e2e ports (8590/8591) are taken,
+//     or if a claude-login opt-in exists in this checkout or the worktree (other clients are the slot queue's business, not a reason to skip);
 //   - the main checkout is only fetched, never checked out or pulled; the worktree is moved only when clean, else the night is skipped;
 //   - a hard limit of 2 h 45 min for the whole night: past it, the e2e's own process group (started here) is stopped and the night is a TIMEOUT.
-// It runs beside Architect's 02:00 nightly without clashing: other ports (Architect's gates use 8890-8905), no gate slot, and it ends by about
-// 01:30 on a normal night (free about 7 min, stub about 2 h).
+// It runs beside Architect's 02:00 nightly without clashing: other ports (Architect's gates use 8890-8905), and each e2e step takes one slot from
+// Architect's machine-wide queue (slice SQ: held by this process, handed to the step's e2e as E2E_SLOT_TICKET, released when the step ends);
+// a slot that doesn't come within its wait skips that step (WAITED, not a FAIL). It ends by about 01:30 on a normal night (free about 7 min, stub about 2 h).
 import { spawn, execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { useRamTmp } from './lib/ram-tmp.mjs';
+import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
+import { onStop, waitFor, shuttingDownNow } from './lib/shutdown.mjs';
+
+// (batch-074 fix-check) a signal stops the running step's process group (its e2e quits its own client) before the night's slot goes back
+const running = new Set();
+onStop(async (sig) => {
+  for (const c of running) { try { process.kill(-c.pid, sig); } catch { /* gone */ } }
+  await waitFor(() => [...running].every((c) => c.exitCode !== null || c.signalCode !== null), 120_000, 250);
+  for (const c of running) if (c.exitCode === null && c.signalCode === null) { try { process.kill(-c.pid, 'SIGKILL'); } catch { /* gone */ } }
+  await waitFor(() => [...running].every((c) => c.exitCode !== null || c.signalCode !== null), 5_000, 250);
+});
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -82,7 +94,24 @@ async function night(dry) {
     steps.push(build);
     if (build.code === 0) {
       for (const mode of ['free', 'stub']) {
-        const r = await run(mode, [process.execPath, path.join(WT, 'tools', 'e2e.mjs'), mode], WT, out, deadline, env);
+        if (shuttingDownNow()) break;
+        let slot;
+        try {
+          slot = await acquireSlot(`nightly ${mode}`, { root: WT, log });
+        } catch (e) {
+          // no CLI or another failure: the step fails (and says why); a timeout is a wait
+          if (e.code !== 'SLOT_TIMEOUT') { log(`${mode}: ${e.message}`); steps.push({ name: mode, code: -1, minutes: 0, timedOut: false }); continue; }
+          log(`${mode}: ${e.message}: not run`);
+          steps.push({ name: mode, code: null, minutes: e.record.waitedMin, timedOut: false, waited: e.record });
+          continue;
+        }
+        const stepEnv = slot.ticket ? { ...env, E2E_SLOT_TICKET: slot.ticket, E2E_SLOT: String(slot.slot) } : env;
+        let r;
+        try {
+          r = await run(mode, [process.execPath, path.join(WT, 'tools', 'e2e.mjs'), mode], WT, out, deadline, stepEnv);
+        } finally {
+          if (slot.ticket) releaseSlot(slot.ticket, { log });
+        }
         const sum = path.join(WT, 'artifacts', 'e2e', 'summary.json');
         if (fs.existsSync(sum)) {
           fs.copyFileSync(sum, path.join(out, `${mode}-summary.json`));
@@ -98,7 +127,8 @@ async function night(dry) {
       }
     }
     const timedOut = steps.some((s) => s.timedOut);
-    const verdict = timedOut ? 'TIMEOUT' : steps.every((s) => s.code === 0) && steps.length === 3 ? 'PASS' : 'FAIL';
+    const ran = steps.filter((s) => !s.waited);
+    const verdict = timedOut ? 'TIMEOUT' : !ran.every((s) => s.code === 0) ? 'FAIL' : steps.length === 3 && ran.length === 3 ? 'PASS' : ran.length === steps.length ? 'FAIL' : 'WAITED';
     writeSummary(out, { verdict, sha: sha.sha, steps, minutes: (Date.now() - started) / 60_000 });
     log(`${verdict}, ${((Date.now() - started) / 60_000).toFixed(1)} min; ${path.join(out, 'SUMMARY.md')}`);
     prune();
@@ -124,12 +154,6 @@ function busy() {
     } catch {
       // free
     }
-  }
-  try {
-    const pids = execFileSync('pgrep', ['-f', 'steward[^ ]*/mod.*KnotClient'], { encoding: 'utf8' }).trim();
-    if (pids) why.push(`a Steward client runs (pid ${pids.split('\n').join(',')})`);
-  } catch {
-    // none
   }
   for (const root of [MAIN, WT]) {
     const optIn = path.join(root, 'mod', 'run', 'architect', 'sidecar-data', 'secrets.json');
@@ -163,11 +187,15 @@ function cleanEnv() {
 
 /** One step in its own process group, its output in <out>/<name>.log; stopped (that group only) at the night's deadline. */
 function run(name, argv, cwd, out, deadline, env) {
+  // (fix-check P2) a signal's shutdown has begun: no further step starts
+  if (shuttingDownNow()) return Promise.resolve({ name, code: -1, minutes: 0, timedOut: false });
   return new Promise((resolve) => {
     const t0 = Date.now();
     const fd = fs.openSync(path.join(out, `${name}.log`), 'a');
     const [cmd, ...a] = argv;
     const child = spawn(cmd, a, { cwd, env, stdio: ['ignore', fd, fd], detached: true });
+    running.add(child);
+    child.on('exit', () => running.delete(child));
     log(`${name}: started (pid ${child.pid})`);
     let timedOut = false;
     const timer = setTimeout(() => {
@@ -192,6 +220,7 @@ function writeSummary(out, s) {
   if (s.why) lines.push(...s.why.map((w) => `- skipped: ${w}`));
   if (s.sha) lines.push(`origin/main ${s.sha}, ${s.minutes.toFixed(1)} min`, '');
   for (const st of s.steps ?? []) {
+    if (st.waited) { lines.push(`- **${st.name}:** not run, ${st.waited.waitedMin} min waiting for a slot (load ${st.waited.load ?? '?'}, turbo ${st.waited.turbo})`); continue; }
     const head = `- **${st.name}:** exit ${st.code}${st.timedOut ? ' (TIMEOUT)' : ''}, ${st.minutes.toFixed(1)} min`;
     lines.push(st.checks == null ? head : `${head}, ${st.checks} checks, ${st.failed.length} failed${st.failed.length ? ': ' + st.failed.join(', ') : ''}`);
   }
