@@ -254,6 +254,10 @@ machine-wide queue (`../architect-mc/docs/GATES.md`, "Outside callers (Steward)"
   is refused (`SLOT_DUP_TICKET`), not released.
 - **The holder** is the driver's node pid. A release runs on every way out: the end, a throw, `process.exit`, SIGINT, SIGTERM and SIGHUP. A
   SIGKILL leaves it to the queue's dead-pid pruning.
+- **A signal** is `tools/lib/shutdown.mjs`'s (batch-074 review): it first stops what the driver started, by pid and bounded. A single driver
+  quits its client and stops its JVM (the DevBridge port's listener) and launcher. A `--clients` lead forwards the signal to its child drivers,
+  waits up to 90 s, then SIGKILLs them and the client pids each printed (`e2e-client: jvm <pid> launcher <pid>`). Only then are the slots
+  released and the sidecar data removed, and it exits 128 + n. A second signal while shutting down is ignored.
 - **Waiting.** `E2E_SLOT_WAIT_MIN` sets the wait (default 15, capped at 15). The CLI's waiting lines are printed. A slot that doesn't come
   within the wait is not a FAIL:
   - the e2e prints `NOT RUN: waited N min for a slot (load L, turbo T)`, exits 3, and records `slot: { timedOut, waitedMin, load, turbo,
@@ -275,7 +279,8 @@ Every worktree and `--clients` run dir has its own, so by 11-16 sixteen of them 
   rule (the pid runs, with the same start time) match Architect's slice TS (`../architect-mc/tools/lib/arch-tmp.mjs`, `tmp-sweep.mjs`).
   `tools/lib/tmp-owner.mjs` has its own copy: Architect's modules move TMPDIR to its own RAM dir on import.
 - **Removed when the driver is done for good.** That happens at the end of e2e's `finally`, after the client quits, and in an exit hook that
-  covers a throw, an unhandled rejection, `process.exit` (the slot timeout's exit 3), SIGINT, SIGTERM and SIGHUP. Client relaunches
+  covers a throw, an unhandled rejection, `process.exit` (the slot timeout's exit 3), SIGINT, SIGTERM and SIGHUP (after the client is stopped,
+  above). The start-of-run sweep re-reads each marker and re-checks its owner by pid just before removing a dir (batch-074 review). Client relaunches
   (`restartClient`, the restart flows) happen in the same process, so the dir and its data survive them.
   - Only the exact path this run made is removed, and only while its marker still names this process. A later run on the same run dir
     takes the marker over.

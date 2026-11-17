@@ -180,6 +180,37 @@ class StorageHall2Test {
 		assertEquals("quartz", da.order().params().get("item2").getAsString());
 	}
 
+	/** batch-074 GPT review P2: a slot count from talk that isn't a whole number in range is refused in words, never a NumberFormatException. */
+	@Test
+	void malformedTalkSlotsAreRefusedInWords() {
+		var v = ModuleGate.offer(LIVE, K.id(), MEASURING);
+		assertTrue(v.ok(), v.message());
+		var stores = held("cobblestone", 900, "iron_ingot", 300, "wheat", 200, "oak_log", 150, "coal", 140);
+		var nether = new Town(Path.REGION, null, true, 100, false, false, stores, Map.of(), Progress.Tier.NETHER);
+		var iron = new Town(Path.REGION, null, true, 100, false, false, stores, Map.of(), Progress.Tier.IRON);
+		for (String bad : List.of("\"four\"", "4.5", "true", "{}", "[]", "-1", "17", "4294967300", "4e0")) {
+			for (Town t : List.of(nether, iron)) {
+				JsonObject asked = JsonParser.parseString("{\"slots\": " + bad + ", \"item1\": \"redstone\"}").getAsJsonObject();
+				var d = assertDoesNotThrow(() -> ModuleOffer.decide(K, v, t, asked, (e, pp) -> null), bad);
+				assertFalse(d.ok(), bad);
+				assertTrue(d.why().contains("whole number from 0 to 16"), d.why());
+			}
+			// the item rule refuses it too, in words
+			var it = StorageHallLot.items(JsonParser.parseString("{\"slots\": " + bad + ", \"bulk\": 2}").getAsJsonObject());
+			assertFalse(it.ok(), bad);
+		}
+		// a whole number keeps working: 4 as written (and as 4, never the raw element)
+		var ok = ModuleOffer.decide(K, v, nether, p(4, 2, "redstone", "quartz", "string", "bone"), (e, pp) -> null);
+		assertTrue(ok.ok(), ok.why());
+		assertEquals(4, ok.order().params().get("slots").getAsInt());
+		// a non-string filter item is no crash either: refused by the rule, so the town's own pick stands
+		JsonObject odd = p(4, 2, "redstone", "quartz", "string");
+		odd.add("item4", new JsonObject());
+		var d = assertDoesNotThrow(() -> ModuleOffer.decide(K, v, nether, odd, (e, pp) -> null));
+		assertTrue(d.ok(), d.why());
+		assertEquals("cobblestone", d.order().params().get("item1").getAsString());
+	}
+
 	@Test
 	void aFilterHopperIsOursOnlyHoldingItsDeclaration() {
 		String f = "minecraft:cobblestone", slab = StorageHallLot.FILLER;

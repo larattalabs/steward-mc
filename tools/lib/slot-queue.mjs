@@ -11,6 +11,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import { onFinal, install as installShutdown } from './shutdown.mjs';
 
 const round1 = (x) => Math.round(x * 10) / 10;
 
@@ -60,20 +61,16 @@ export class SlotWait extends Error {
 
 const held = new Map(); // ticket -> cli
 let hooked = false;
-const SIGNALS = { SIGINT: 2, SIGTERM: 15, SIGHUP: 1 };
 
 function hook() {
   if (hooked) return;
   hooked = true;
-  // 'exit' runs on a normal end, process.exit, an uncaught throw or rejection; a signal releases and exits 128+n; a SIGKILL leaves it to
-  // the queue's dead-pid pruning (the holder pid is this process)
+  // 'exit' runs on a normal end, process.exit, an uncaught throw or rejection; a SIGKILL leaves it to the queue's dead-pid pruning (the holder
+  // pid is this process). A signal is the shutdown coordinator's (tools/lib/shutdown.mjs, batch-074 review): the run's clients are stopped first,
+  // and only then are its slots released (its 'release' phase), then it exits 128+n
   process.on('exit', () => releaseAll());
-  for (const [sig, n] of Object.entries(SIGNALS)) {
-    process.on(sig, () => {
-      releaseAll();
-      process.exit(128 + n);
-    });
-  }
+  onFinal('release', () => releaseAll());
+  installShutdown();
 }
 
 /** The tickets held now (tests, logs). */

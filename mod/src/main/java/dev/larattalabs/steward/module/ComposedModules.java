@@ -74,15 +74,25 @@ public final class ComposedModules {
 	}
 
 	/**
+	 * Whether a composed town's hall may be a sorting hall. Not yet (batch-074 GPT review, the manager's call): a composed hall is built from the
+	 * kind's sizes, which are the plain hall's ({@code slots 0}), and its filter items aren't chosen, so sorting in a planned town is slice M5b's
+	 * (FK-aware cargo). Until then the composed vocabulary and words say a plain hall, and a plan asking for sorting gets the plain hall, said.
+	 */
+	public static final boolean COMPOSED_HALL_SORTS = false;
+
+	/** The words of a plain hall, as the composer and the player read them. */
+	static final String PLAIN_HALL = "a storage hall with an input chest by the door and double chests along its back wall; it does not sort";
+
+	/**
 	 * What a module does, in the composer's words, so it is written only for what it does (GPT review 10): the crop farm is harvested by the player;
-	 * a hall sorts only when a measured branch has sorting slots. Pure.
+	 * a composed hall is a plain hall that does not sort, whatever its catalog version measured ({@link #COMPOSED_HALL_SORTS}). Pure.
 	 */
 	public static String does(ModuleKind k, ModuleCatalog.Entry e) {
 		if (k.sign() == ModuleKind.Sign.STORES) {
 			boolean sorts = false;
-			for (JsonElement v : e.envelope().branches().getOrDefault("slots", List.of())) if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber() && v.getAsInt() > 0) sorts = true;
-			return sorts ? "a storage hall with an input chest by the door that sorts the items it is given into their own chests"
-				: "a storage hall with an input chest by the door and double chests along its back wall; it does not sort";
+			if (COMPOSED_HALL_SORTS)
+				for (JsonElement v : e.envelope().branches().getOrDefault("slots", List.of())) if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber() && v.getAsInt() > 0) sorts = true;
+			return sorts ? "a storage hall with an input chest by the door that sorts the items it is given into their own chests" : PLAIN_HALL;
 		}
 		if (k.irrigate()) return "a watered, lit field of one crop; the player harvests and replants it (no automatic harvest)";
 		return k.title();
@@ -224,6 +234,9 @@ public final class ComposedModules {
 		if (kind.warmOnly() && town.freezing()) return Decision.no("a working " + name + " can't be built here: the water would freeze in this biome");
 		var e = verdict.entry();
 		List<String> notes = new ArrayList<>();
+		// (batch-074 review) a hall asked to sort (slots other than 0, or filter items): the plain hall, said; the sizes below are the plain hall's
+		if (kind.sign() == ModuleKind.Sign.STORES && !COMPOSED_HALL_SORTS && asksToSort(a.params()))
+			notes.add("a planned town's storage hall doesn't sort yet, so a plain hall");
 		// the choice (crop or bulk): as written when it is a measured branch, else the default
 		List<JsonElement> choices = e.envelope().branches().getOrDefault(kind.cropParam(), List.of());
 		JsonElement want = a.params().get(kind.cropParam());
@@ -258,6 +271,17 @@ public final class ComposedModules {
 			return Decision.no("a working " + name + "'s bill from the stockpile wasn't measured for that size, so there is no bound to hold it to");
 		var order = new ModuleOrder(e.id(), e.version(), e.programSha(), p.values(), null, ModuleOffer.rate(e.measured(), p.values()), false, false);
 		return new Decision(order, null, notes.isEmpty() ? null : String.join("; ", notes));
+	}
+
+	/** Whether a hall's params as the plan wrote them ask for sorting: a slots member other than the whole number 0, or any filter item but none. */
+	static boolean asksToSort(JsonObject params) {
+		for (var en : params.entrySet()) {
+			if (en.getKey().equals("slots")) {
+				Integer n = ModuleRef.exactInt(en.getValue());
+				if (n == null || n != 0) return true;
+			} else if (en.getKey().matches("item\\d+") && !(en.getValue().isJsonPrimitive() && "none".equals(en.getValue().getAsString()))) return true;
+		}
+		return false;
 	}
 
 	private static int @Nullable [] frameOf(ModuleKind kind, JsonObject size, JsonElement choice) {
@@ -509,8 +533,15 @@ public final class ComposedModules {
 		int[] f = kind.frame(o.params());
 		return "The plan's " + name + " is a working " + kind.role() + " from Steward's measured catalog (" + o.moduleId() + "@" + o.version() + ", " + f[0] + " by " + f[1]
 			+ (o.rate() == null ? "" : ", " + o.rate()) + "): no design, $0." + (changed == null ? "" : " (" + changed + ".)")
+			+ (kind.sign() == ModuleKind.Sign.STORES && !sorts(o) ? " It's a plain hall: it doesn't sort." : "")
 			+ (materials ? " From materials, its bill is held to its measured bound: if it would take more, I ask first." : "")
 			+ (ModuleOffer.namesLateCargo(kind) ? " " + ModuleOffer.LATE_CARGO_WORDS : "");
+	}
+
+	/** Whether an order's hall sorts (its slots a whole number above 0). */
+	private static boolean sorts(ModuleOrder o) {
+		Integer n = ModuleRef.exactInt(o.params().get("slots"));
+		return n != null && n > 0;
 	}
 
 	/** The orders keyed by lot id, in the plan's lot order (what is saved with the build). */

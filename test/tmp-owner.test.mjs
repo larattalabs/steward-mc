@@ -7,7 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { sweepStale, markOwner, readOwner, removeOwned, own, ownedDirs, OWNER_FILE, PROCESS_START_MS } from '../tools/lib/tmp-owner.mjs';
+import { sweepStale, markOwner, readOwner, removeOwned, own, ownedDirs, isHeld, ownerGone, processStart, OWNER_FILE, PROCESS_START_MS } from '../tools/lib/tmp-owner.mjs';
 import { ramSidecarData } from '../tools/lib/ram-tmp.mjs';
 
 const LIB = pathToFileURL(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'tools', 'lib')).href;
@@ -75,8 +75,8 @@ for (const [how, sig] of [['signal', 'SIGINT'], ['signal', 'SIGTERM'], ['slotlik
     assert.ok(fs.existsSync(path.join(d.dir(), OWNER_FILE)));
     d.child.kill(sig);
     const r = await d.done;
-    if (how === 'slotlike') assert.equal(r.code, 130);
-    else assert.equal(r.signal, sig);
+    // the shutdown coordinator exits 128 + the signal's number once its phases ran
+    assert.equal(r.code, sig === 'SIGINT' ? 130 : 143);
     assertEmptied(d.dir(), game, sig);
   });
 }
@@ -160,7 +160,9 @@ test('the sweep removes only marked sidecar dirs whose owner is gone', () => {
   const other = mk('arch-thing-AbCdEf', { pid: 4242, startMs: now - 10_000 }); // not Steward's name
   fs.symlinkSync(dead, path.join(root, 'sidecar-link'));
   const starts = new Map([[4444, now - 5_000], [4343, now - 60_000], [1, 0]]);
-  const r = sweepStale({ root, starts, now });
+  // the recheck just before a removal judged by the same table (the real one is the next test's)
+  const gone = (o) => !isHeld(o, starts);
+  const r = sweepStale({ root, starts, now, gone });
   assert.deepEqual(r.removed.sort(), ['sidecar-dead', 'sidecar-reused']);
   assert.deepEqual(r.kept, ['sidecar-live']);
   assert.equal(fs.existsSync(dead), false);
@@ -169,8 +171,59 @@ test('the sweep removes only marked sidecar dirs whose owner is gone', () => {
   assert.ok(fs.lstatSync(path.join(root, 'sidecar-link')).isSymbolicLink());
   // an age floor keeps a recently touched dead-owner dir
   const young = mk('sidecar-young', { pid: 4242, startMs: now - 10_000 });
-  assert.deepEqual(sweepStale({ root, starts, now, hours: 1 }).removed, []);
+  assert.deepEqual(sweepStale({ root, starts, now, hours: 1, gone }).removed, []);
   assert.ok(fs.existsSync(young));
   // a missing root is nothing to do
   assert.deepEqual(sweepStale({ root: path.join(root, 'nope'), starts }).removed, []);
+});
+
+/** A live process that isn't this one: a sleeping node child, with its pid and start time as ps has it. */
+async function liveOther() {
+  const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
+  await new Promise((r) => child.on('spawn', r));
+  await new Promise((r) => setTimeout(r, 50));
+  return { child, pid: child.pid, startMs: processStart(child.pid) };
+}
+
+test('(batch-074 P1) a marker rewritten by a live process between the snapshot and the delete is kept, with its data', async () => {
+  const root = tmp('tmpown-ram-');
+  const p = path.join(root, 'sidecar-raced');
+  fs.mkdirSync(p);
+  fs.writeFileSync(path.join(p, 'data'), 'x');
+  markOwner(p, {}, { pid: 4242, startMs: Date.now() - 10_000 });
+  const other = await liveOther();
+  try {
+    assert.ok(Number.isFinite(other.startMs), 'ps reads the live child');
+    // the snapshot predates the new driver (it lists neither pid): the old marker reads as gone; then the live driver marks the dir
+    const starts = new Map([[1, 0]]);
+    const r = sweepStale({ root, starts, between: (dir) => markOwner(dir, {}, { pid: other.pid, startMs: other.startMs }) });
+    assert.deepEqual(r.removed, []);
+    assert.deepEqual(r.kept, ['sidecar-raced']);
+    assert.ok(fs.existsSync(path.join(p, 'data')));
+    assert.equal(readOwner(p).pid, other.pid);
+  } finally {
+    other.child.kill('SIGKILL');
+  }
+});
+
+test('(batch-074 P1) an owner the snapshot missed but alive at the recheck keeps its dir; once it is dead the dir goes', async () => {
+  const root = tmp('tmpown-ram-');
+  const p = path.join(root, 'sidecar-late');
+  fs.mkdirSync(p);
+  fs.writeFileSync(path.join(p, 'data'), 'x');
+  const other = await liveOther();
+  markOwner(p, {}, { pid: other.pid, startMs: other.startMs });
+  const starts = new Map([[1, 0]]); // a snapshot taken before it started
+  assert.equal(ownerGone(readOwner(p)), false);
+  assert.deepEqual(sweepStale({ root, starts }).kept, ['sidecar-late']);
+  assert.ok(fs.existsSync(path.join(p, 'data')));
+  other.child.kill('SIGKILL');
+  await new Promise((r) => other.child.on('close', r));
+  assert.equal(ownerGone(readOwner(p)), true);
+  assert.deepEqual(sweepStale({ root, starts }).removed, ['sidecar-late']);
+  assert.equal(fs.existsSync(p), false);
+  // a pid alive whose start can't be read is held; a reused pid (started long after the marker's time) is gone
+  assert.equal(ownerGone({ pid: 7, startMs: 1 }, { alive: () => true, startOf: () => undefined }), false);
+  assert.equal(ownerGone({ pid: 7, startMs: 1 }, { alive: () => true, startOf: () => 3_600_000 }), true);
+  assert.equal(ownerGone({ pid: 7, startMs: 1 }, { alive: () => false }), true);
 });

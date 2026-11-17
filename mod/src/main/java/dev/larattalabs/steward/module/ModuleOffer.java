@@ -192,16 +192,22 @@ public final class ModuleOffer {
 	 */
 	static Decision stores(ModuleKind kind, ModuleCatalog.Entry e, Town town, @Nullable JsonObject asked, boolean materials,
 		java.util.function.BiFunction<ModuleCatalog.Entry, JsonObject, @Nullable JsonObject> bounds) {
+		// (batch-074 review) a slot count asked for in talk is a whole JSON number from 0 to SLOT_MAX, else it is refused in words here (the talk
+		// schema allows any value in params: {"slots": "four"} threw in getAsInt before the gate could refuse it)
+		Integer askedSlots = null;
+		if (asked != null && asked.has("slots")) {
+			askedSlots = ModuleRef.exactInt(asked.get("slots"));
+			if (askedSlots == null || askedSlots < 0 || askedSlots > StorageHallLot.SLOT_MAX)
+				return Decision.no("its sorting slots must be a whole number from 0 to " + StorageHallLot.SLOT_MAX + ", not " + asked.get("slots"));
+		}
 		Map<String, Integer> held = stores(town);
 		int stacks = stacks(held);
 		var branch = e.envelope().branches().get(kind.cropParam());
 		int most = BULK_MIN;
 		if (branch != null) for (var v : branch) if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber()) most = Math.max(most, v.getAsInt());
 		int bulk = Math.max(BULK_MIN, Math.min(most, (stacks + DOUBLE_CHEST_STACKS - 1) / DOUBLE_CHEST_STACKS));
-		if (asked != null && asked.has(kind.cropParam()) && asked.get(kind.cropParam()).isJsonPrimitive() && asked.get(kind.cropParam()).getAsJsonPrimitive().isNumber()) {
-			var want = asked.get(kind.cropParam());
-			if (branch != null && branch.contains(want)) bulk = want.getAsInt();
-		}
+		Integer askedBulk = asked == null ? null : ModuleRef.exactInt(asked.get(kind.cropParam()));
+		if (askedBulk != null && branch != null && branch.contains(new com.google.gson.JsonPrimitive(askedBulk))) bulk = askedBulk;
 		JsonObject want = kind.params(kind.sizes().get(0), Integer.toString(bulk));
 		// (M4b) the sorting branches: from the Nether tier on, when the catalog's version measured them; the slots the settlement's distinct filter
 		// items fill (most held first), at least the fewest measured; items named in talk are kept when they keep the rule
@@ -210,9 +216,11 @@ public final class ModuleOffer {
 		if (sb != null) for (var v : sb) if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber() && v.getAsInt() > 0) sortSlots.add(v.getAsInt());
 		java.util.Collections.sort(sortSlots);
 		if (!sortSlots.isEmpty() && town.nether()) {
-			if (asked != null && asked.has("slots") && asked.get("slots").isJsonPrimitive() && sortSlots.contains(asked.get("slots").getAsInt())) {
+			if (askedSlots != null && sortSlots.contains(askedSlots)) {
 				JsonObject a = want.deepCopy();
-				for (var en : asked.entrySet()) if (en.getKey().equals("slots") || en.getKey().matches("item\\d+")) a.add(en.getKey(), en.getValue().deepCopy());
+				// the slot count as the whole number read, never the raw element
+				a.addProperty("slots", askedSlots);
+				for (var en : asked.entrySet()) if (en.getKey().matches("item\\d+")) a.add(en.getKey(), en.getValue().deepCopy());
 				if (StorageHallLot.items(a).ok()) want = a;
 			}
 			if (!want.has("slots") || want.get("slots").getAsInt() == 0) {

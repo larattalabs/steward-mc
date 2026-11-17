@@ -154,6 +154,7 @@ public final class ModuleDev {
 					if (req.has("site")) {
 						String sid = req.get("site").getAsString();
 						a.add("declared", dev.larattalabs.steward.service.HallCargo.declaredJson(server, sid));
+						a.add("cells", dev.larattalabs.steward.service.HallCargo.cellsJson(server, sid));
 						a.addProperty("before", dev.larattalabs.steward.service.HallCargo.before(server, req.get("owner").getAsString(), java.util.List.of(sid)));
 					}
 					return a;

@@ -9,11 +9,12 @@
 //
 // Cleanup is tied to the driver process ending, never to a client quitting: a run's client relaunches (restartClient, the restart flows) happen
 // inside the same process, so the dir and the sidecar data in it survive them. It runs on a normal end, process.exit (the slot timeout's exit 3),
-// an uncaught throw or rejection ('exit'), and SIGINT/SIGTERM/SIGHUP. A dir is removed only by its exact path, and only while its marker still
+// an uncaught throw or rejection ('exit'), and SIGINT/SIGTERM/SIGHUP (the shutdown coordinator's last phase, after the client is stopped). A dir is removed only by its exact path, and only while its marker still
 // names this process (another run may have taken the same path since). STEWARD_KEEP_TMP=1 keeps them (debugging); the sweep takes them later.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { onFinal, install as installShutdown } from './shutdown.mjs';
 
 export const OWNER_FILE = '.arch-owner';
 export const PROCESS_START_MS = Math.round(performance.timeOrigin);
@@ -28,17 +29,29 @@ export function markOwner(dir, extra = {}, { pid = process.pid, startMs = PROCES
   fs.writeFileSync(path.join(dir, OWNER_FILE), `${JSON.stringify(ownerRecord(pid, startMs, extra))}\n`);
 }
 
-/** The owner marker of dir, or null (a marker that is a symlink, unreadable or without a pid doesn't count). */
-export function readOwner(dir) {
+/** The owner marker's text as it is on disk, or null (no marker, a symlink, unreadable). */
+export function rawOwner(dir) {
   const f = path.join(dir, OWNER_FILE);
   try {
-    if (!fs.lstatSync(f).isFile()) return null;
-    const o = JSON.parse(fs.readFileSync(f, 'utf8'));
+    return fs.lstatSync(f).isFile() ? fs.readFileSync(f, 'utf8') : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A marker's text parsed, or null (not JSON, or without a pid). */
+export function parseOwner(raw) {
+  if (raw == null) return null;
+  try {
+    const o = JSON.parse(raw);
     return o && typeof o === 'object' && Number.isInteger(o.pid) && o.pid > 0 ? o : null;
   } catch {
     return null;
   }
 }
+
+/** The owner marker of dir, or null (a marker that is a symlink, unreadable or without a pid doesn't count). */
+export const readOwner = (dir) => parseOwner(rawOwner(dir));
 
 /** Whether dir's marker names this process. */
 export const ownedByMe = (dir, { pid = process.pid, startMs = PROCESS_START_MS } = {}) => {
@@ -63,6 +76,19 @@ export function processStarts() {
   return out;
 }
 
+/** One process's start time (epoch ms), from `ps -p`; null when it doesn't run, undefined when ps itself failed (unknown). */
+export function processStart(pid) {
+  let txt;
+  try {
+    txt = execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], { encoding: 'utf8', env: { ...process.env, LC_ALL: 'C' }, stdio: ['ignore', 'pipe', 'ignore'] });
+  } catch (e) {
+    // ps exits 1 when no such process runs (and prints nothing); anything else is unknown
+    return e.status === 1 && !String(e.stdout ?? '').trim() ? null : undefined;
+  }
+  const t = Date.parse(txt.trim());
+  return Number.isFinite(t) ? t : undefined;
+}
+
 const pidAlive = (pid) => {
   try {
     process.kill(pid, 0);
@@ -79,6 +105,19 @@ export function isHeld(owner, starts, alive = pidAlive) {
   if (t === undefined) return starts.size ? false : alive(owner.pid);
   if (!Number.isFinite(owner.startMs)) return true;
   return t <= owner.startMs + START_EARLY_MS && owner.startMs <= t + START_LATE_MS;
+}
+
+/**
+ * Whether owner {pid, startMs} is gone now, judged on its own pid (the sweep's recheck just before a removal): no process with that pid, or one
+ * that started outside the marker's window (a reused pid). A pid alive whose start time can't be read counts as held (not gone).
+ */
+export function ownerGone(owner, { alive = pidAlive, startOf = processStart } = {}) {
+  if (!owner || !Number.isInteger(owner.pid) || owner.pid <= 0) return true;
+  if (!alive(owner.pid)) return true;
+  const t = startOf(owner.pid);
+  if (t === null) return true;
+  if (t === undefined) return false;
+  return !isHeld(owner, new Map([[owner.pid, t]]), alive);
 }
 
 // ------------------------------------------------------------------ the dirs this process owns, removed on every way out
@@ -131,19 +170,14 @@ export function cleanupOwned(opts = {}) {
 /** The dirs this process owns now (tests, logs). */
 export const ownedDirs = () => [...owned.keys()];
 
-function onSignal(sig) {
-  cleanupOwned();
-  // another listener owns the exit (slot-queue's calls process.exit, whose exit hook is then a no-op here); else die of the signal
-  if (process.listenerCount(sig) > 1) return;
-  process.removeListener(sig, onSignal);
-  process.kill(process.pid, sig);
-}
-
 function hook() {
   if (hooked) return;
   hooked = true;
   process.on('exit', () => { cleanupOwned(); });
-  for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, onSignal);
+  // a signal is the shutdown coordinator's (tools/lib/shutdown.mjs, batch-074 review): the run's client JVM is stopped first, then its slots go,
+  // and only then its dirs (the 'cleanup' phase), never while the JVM may still write into them
+  onFinal('cleanup', () => { cleanupOwned(); });
+  installShutdown();
 }
 
 /** Marks dir as this process's and removes it when the process ends ({link}: the symlink to unlink with it). Returns dir. */
@@ -171,8 +205,15 @@ function lastTouched(dir, st) {
  * Removes the direct children of root named `prefix*` that carry a valid owner marker whose owner is gone and that are untouched for `hours`
  * (default 0: a dead owner is decisive, the dir is that run's leftover). A dir without a marker, a symlink and a plain file are never touched (other
  * tools share TMPDIR); a live owner's dir is kept. Never throws. -> { root, removed: [names], kept: [names], failed: [names] }.
+ *
+ * (batch-074 GPT review P1) The snapshot `starts` is taken once, before the walk: a driver that starts after it and marks a dir before the walk
+ * reaches it would read as gone. So just before each removal the marker is read again and must be byte-for-byte the one judged, and its owner is
+ * checked again on its own (`gone`: kill(pid, 0), then that one pid's start time against the marker's); a changed or missing marker, a live owner
+ * or an owner that can't be told keeps the dir. `between(path)` (tests) runs between the judgement and that recheck. A window as short as the
+ * recheck and the rmSync remains (a driver marking the very dir in that gap); renaming the dir away first would break a live owner's paths.
  */
-export function sweepStale({ root, prefix = 'sidecar-', hours = 0, now = Date.now(), starts = processStarts(), alive = pidAlive, dryRun = false } = {}) {
+export function sweepStale({ root, prefix = 'sidecar-', hours = 0, now = Date.now(), starts = processStarts(), alive = pidAlive, dryRun = false,
+  gone = (o) => ownerGone(o, { alive }), between = null } = {}) {
   const res = { root, removed: [], kept: [], failed: [] };
   let names = [];
   try { names = fs.readdirSync(root).sort(); } catch { return res; }
@@ -182,12 +223,16 @@ export function sweepStale({ root, prefix = 'sidecar-', hours = 0, now = Date.no
     let st;
     try { st = fs.lstatSync(p); } catch { continue; }
     if (!st.isDirectory()) continue;
-    const o = readOwner(p);
+    const raw = rawOwner(p);
+    const o = parseOwner(raw);
     if (!o) continue;
     if (isHeld(o, starts, alive) || (hours > 0 && (now - lastTouched(p, st)) / 3_600_000 < hours)) { res.kept.push(name); continue; }
     try {
       if (!dryRun) {
+        if (between) between(p);
         if (!fs.lstatSync(p).isDirectory()) { res.kept.push(name); continue; } // swapped for a symlink meanwhile: not followed
+        // marked again since the judgement (another run took the name), or its owner live after all: kept
+        if (rawOwner(p) !== raw || !gone(o)) { res.kept.push(name); continue; }
         fs.rmSync(p, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 });
       }
       res.removed.push(name);

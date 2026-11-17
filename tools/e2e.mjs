@@ -21,7 +21,9 @@ import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, h
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
 import { checkCommand } from './lib/save-barrier.mjs';
+import { judgeSort } from './lib/hall-sort.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
+import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns } from './lib/shutdown.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -82,6 +84,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 let client = null;
 let dev = null;
+/** The client JVM's pid (the listener on its DevBridge port), recorded at each connect: a signal stops it by this pid (tools/lib/shutdown.mjs). */
+let clientJvm = null;
+const isClientJvm = (pid) => /KnotClient/.test(commandOf(pid) ?? '');
+/** The client JVM on this run's DevBridge port now, or null (by port, never by a command pattern; checked to be a KnotClient). */
+function jvmOnPort() {
+  const pid = listenerPid(PORT);
+  return pid && pid !== process.pid && isClientJvm(pid) ? pid : null;
+}
 
 /**
  * The client's options before it starts: no vanilla tutorial toasts ("Move with WASD", the recipe book) over the HUD shots, no first-launch
@@ -103,6 +113,9 @@ function quietOptions() {
 }
 
 function launch() {
+  // a signal's shutdown has begun: no new client (a restart flow would start one outside the queue)
+  if (shuttingDownNow()) throw new Error('shutting down: no new client');
+  clientJvm = null;
   quietOptions();
   const log = fs.openSync(path.join(OUT, 'client.log'), 'a');
   client = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], { stdio: ['ignore', log, log], env: { ...process.env, E2E_STUB: mode === 'stub' ? '1' : '0', E2E_NODE_DIR: path.dirname(process.execPath) } });
@@ -110,6 +123,9 @@ function launch() {
 
 async function connect() {
   dev = await DevClient.connect({ port: PORT, timeoutMs: 400_000 });
+  clientJvm = jvmOnPort();
+  // a --clients lead reads this line: a child it had to SIGKILL leaves these pids to it
+  console.log(`e2e-client: jvm ${clientJvm ?? '-'} launcher ${client?.pid ?? '-'}`);
   await dev.waitInWorld({ timeoutMs: 400_000 });
   // a new client writes a new log: the herder reads it from its start
   herdAt = 0;
@@ -156,6 +172,26 @@ async function quit() {
   if (r.ok) await dev.waitClosed(120_000);
   dev = null;
   await sleep(4000);
+}
+
+/** The stop bound of one driver's client (the quit, then its JVM, then its launcher); a --clients lead waits longer for its child drivers. */
+const CLIENT_STOP_MS = { quit: 25_000, jvm: 15_000, launcher: 10_000 };
+const LANE_STOP_MS = 90_000;
+
+/**
+ * (batch-074 review) A signal's stop step for this driver's client: a bounded dev.quit, then the client JVM by its pid (TERM, then KILL), then the
+ * launcher (the gradlew process this run spawned). Only then do the slot and the sidecar data go (the coordinator's later phases).
+ */
+async function stopClient() {
+  const launcher = client;
+  const jvm = clientJvm ?? jvmOnPort();
+  if (dev) {
+    const d = dev;
+    await Promise.race([(async () => { const r = await d.request('dev.quit'); if (r?.ok) await d.waitClosed(CLIENT_STOP_MS.quit); })().catch(() => {}), sleep(CLIENT_STOP_MS.quit)]);
+  }
+  const log = (m) => console.error(m);
+  if (jvm) console.error(`shutdown: client jvm ${jvm}: ${await stopPid(jvm, { graceMs: CLIENT_STOP_MS.jvm, same: () => isClientJvm(jvm), log })}`);
+  if (launcher) console.error(`shutdown: launcher ${launcher.pid}: ${await stopPid(launcher.pid, { graceMs: CLIENT_STOP_MS.launcher, exited: childExited(launcher), log })}`);
 }
 
 const logSize = () => (fs.existsSync(LOG) ? fs.statSync(LOG).size : 0);
@@ -2624,10 +2660,15 @@ async function composedModulesFlow() {
   else return fail(`${label} bound`, `farm said ${!!farmSaid}, hall said ${!!hallSaid}, designing ${designing}, bound ${JSON.stringify(bound)}; ${composeLine.slice(0, 120)}`);
   const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
   const mods = await moduleSites(placed);
-  const farmSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'crop_farm', '1', 'module.json'), 'utf8')).programSha;
-  const hallSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'storage_hall', '1', 'module.json'), 'utf8')).programSha;
-  const farm = mods.find((m) => m.key === 'crop_farm@1'), hall = mods.find((m) => m.key === 'storage_hall@1');
-  if (/^region:rg/.test(placed?.siteGroup ?? '') && farm && hall && farmSha.startsWith(farm.sha) && hallSha.startsWith(hall.sha) && farm.params.width === 9 && hall.params.bulk === 2)
+  // (batch-074 review) the modules a composed town binds are the catalog's newest (ModuleCatalog.newest, which the gate then must certify):
+  // storage_hall@2 since 0.74.0, built as the plain hall (slots 0, ComposedModules.COMPOSED_HALL_SORTS) and said so
+  const fv = catalogNewest('crop_farm'), hv = catalogNewest('storage_hall');
+  if (fv !== newestCertified('crop_farm') || hv !== newestCertified('storage_hall')) return fail(label, `the catalog's newest crop_farm@${fv} / storage_hall@${hv} isn't certified`);
+  const farmSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'crop_farm', String(fv), 'module.json'), 'utf8')).programSha;
+  const hallSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'storage_hall', String(hv), 'module.json'), 'utf8')).programSha;
+  const farm = mods.find((m) => m.key === `crop_farm@${fv}`), hall = mods.find((m) => m.key === `storage_hall@${hv}`);
+  if (/^region:rg/.test(placed?.siteGroup ?? '') && farm && hall && farmSha.startsWith(farm.sha) && hallSha.startsWith(hall.sha) && farm.params.width === 9 && hall.params.bulk === 2
+    && (hall.params.slots ?? 0) === 0 && /It's a plain hall: it doesn't sort\./.test(hallSaid))
     ok(label, `${built.placed} placed (${placed.siteGroup}); ${farm.sid} = ${farm.blueprint} ${JSON.stringify(farm.params)}; ${hall.sid} = ${hall.blueprint} ${JSON.stringify(hall.params)}`);
   else return fail(label, `entry ${placed?.siteGroup}; module sites ${JSON.stringify(mods).slice(0, 300)}`);
   // the field is watered: IRR's sources settled (the fluids stage)
@@ -5742,6 +5783,12 @@ async function siteBox(sid) {
  * accepted → a growth whose filter hoppers are filled (41 + 4) at $0; /steward hall lists the slots; a short mix sorts; cargo refuses the undo, said;
  * emptied (the fill stays: it is ours), undone, the ground as before. Until @2 is certified the dev source offers it under a measuring gate.
  */
+/** The newest version of a catalog module, certified or not (ModuleCatalog.newest: the one the gate judges and offers, or refuses). */
+function catalogNewest(id) {
+  const vs = fs.readdirSync(path.join(ROOT, 'modules', id)).filter((d) => /^\d+$/.test(d)).map(Number);
+  return vs.length ? Math.max(...vs) : null;
+}
+
 /** The newest version of a catalog module whose measured.json certifies it (result pass). */
 function newestCertified(id) {
   const dir = path.join(ROOT, 'modules', id);
@@ -5839,17 +5886,25 @@ async function moduleHallSortFlowBody() {
   const listed = await cmd(`/steward hall ${id}`);
   if (/slot 1 cobblestone, slot 2 iron ingot, slot 3 wheat, slot 4 coal/.test(listed) && /the input chest at/.test(listed) && /overflow at/.test(listed)) ok(`${label} slots`, listed.slice(0, 220));
   else fail(`${label} slots`, listed);
-  // a short mix into the input chest: 64 cobblestone, 64 coal, 64 dirt; ten seconds later each in its place
+  // a short mix into the input chest: 64 cobblestone, 64 coal, 64 dirt; then (batch-074 review) each where it belongs: the input and the line
+  // drained, slot 1's chest and output hopper hold the 64 cobblestone, slot 4's the 64 coal, slots 2 and 3 nothing, the overflow the 64 dirt, every
+  // filter hopper as filled (judged on the cells the hall declares, tools/lib/hall-sort.mjs; polled until drained, at most 4 min)
   const sb = await siteBox(mods[0].sid);
   const cs0 = await devModule({ op: 'containers', box: sb });
   const input = /the input chest at (-?\d+), (-?\d+), (-?\d+)/.exec(listed)?.slice(1).map(Number);
-  await devModule({ op: 'putItems', at: input, stacks: [{ slot: 0, id: 'minecraft:cobblestone', count: 64 }, { slot: 1, id: 'minecraft:coal', count: 64 }, { slot: 2, id: 'minecraft:dirt', count: 64 }] });
-  await sleep(120_000);
-  const cs1 = await devModule({ op: 'containers', box: sb });
-  const got = (k) => (cs1?.totals?.[k] ?? 0) - (cs0?.totals?.[k] ?? 0);
-  const slotOf = (cells, k) => (cells?.containers ?? []).filter((c) => c.block === 'minecraft:chest' && c.slots.some(([, kk]) => kk === k)).length;
-  if (got('minecraft:cobblestone') === 64 && got('minecraft:coal') === 64 && got('minecraft:dirt') === 64) ok(`${label} sorts`, `192 items in, 192 in the hall's chests (cobblestone in ${slotOf(cs1, 'minecraft:cobblestone')} chest(s), coal in ${slotOf(cs1, 'minecraft:coal')}, dirt in overflow)`);
-  else fail(`${label} sorts`, JSON.stringify(cs1?.totals).slice(0, 300));
+  const hc = await devModule({ op: 'hallCargo', owner: `steward_mc:settlement/${id}`, message: '', site: mods[0].sid });
+  const fed = { 'minecraft:cobblestone': 64, 'minecraft:coal': 64, 'minecraft:dirt': 64 };
+  const sortItems = want.map((k) => `minecraft:${k}`);
+  await devModule({ op: 'putItems', at: input, stacks: Object.entries(fed).map(([k, count], slot) => ({ slot, id: k, count })) });
+  let cs1 = null, judged = null;
+  for (let t = 0; t < 240 && !(judged?.drained && judged.ok); t += 5) {
+    await sleep(5000);
+    cs1 = await devModule({ op: 'containers', box: sb });
+    judged = judgeSort({ cells: hc?.cells, before: cs0, after: cs1, fed, items: sortItems });
+  }
+  const conserved = Object.entries(fed).every(([k, n]) => (cs1?.totals?.[k] ?? 0) - (cs0?.totals?.[k] ?? 0) === n);
+  if (judged?.ok && conserved) ok(`${label} sorts`, `192 items in: the input and the line drained, 64 cobblestone in slot 1, 64 coal in slot 4, 64 dirt in the overflow; the filters as filled`);
+  else fail(`${label} sorts`, `${(judged?.why ?? ['no cells']).join('; ').slice(0, 300)}; conserved ${conserved}`);
   // the undo: refused while the hall holds the player's items, said; emptied (its fill stays: it is ours), undone, the ground as before
   from = logSize();
   const said = await cmd(`/steward undo ${id}`);
@@ -8598,9 +8653,21 @@ async function lead() {
   // slice SQ: one slot per client, held by this lead (its pid) and handed to the client's run (E2E_SLOT_TICKET); a lane whose slot doesn't come
   // runs after c1 on c1's slot, run dir and ports (runLanes)
   const t00 = Date.now();
+  // (batch-074 review) the child drivers this lead started, and the client pids each said: a signal stops them (forwarded, bounded, then SIGKILL
+  // and their clients by those pids) before the lead's slots go back
+  const procs = new Map();
+  onStop(async (sig) => {
+    const log = (m) => console.error(m);
+    await Promise.all([...procs].map(async ([k, p]) => {
+      console.error(`shutdown: client c${k}'s driver ${p.child.pid}: ${await stopPid(p.child.pid, { sig, graceMs: LANE_STOP_MS, exited: childExited(p.child), log })}`);
+      if (p.jvm && pidRuns(p.jvm)) console.error(`shutdown: client c${k}'s jvm ${p.jvm}: ${await stopPid(p.jvm, { graceMs: CLIENT_STOP_MS.jvm, same: () => isClientJvm(p.jvm), log })}`);
+      if (p.launcher && pidRuns(p.launcher)) console.error(`shutdown: client c${k}'s launcher ${p.launcher}: ${await stopPid(p.launcher, { graceMs: CLIENT_STOP_MS.launcher, same: () => /gradle/i.test(commandOf(p.launcher) ?? ''), log })}`);
+    }));
+  });
   const startLane = async (c, s, host) => {
     const i = c.k - 1;
     if (stagger && i && !host) { const lag = stagger * 1000 * i - (Date.now() - t00); if (lag > 0) await sleep(lag); }
+    if (shuttingDownNow()) return { ...c, slot: s.slot ?? null, code: 130, seconds: 0, summary: null };
     const at = host ?? c;
     if (host) console.log(`client c${c.k}: on c${host.k}'s slot ${s.slot ?? '-'}, run dir and ports, after it`);
     fs.mkdirSync(c.out, { recursive: true });
@@ -8608,9 +8675,16 @@ async function lead() {
     const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_GAME_DIR: at.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(at.sidecarPort), STEWARD_DEV_PORT: String(at.devPort),
       ...(s.ticket ? { E2E_SLOT_TICKET: s.ticket, E2E_SLOT: String(s.slot ?? '') } : {}) };
     const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    const proc = { child, jvm: null, launcher: null };
+    procs.set(c.k, proc);
+    child.on('close', () => { if (procs.get(c.k) === proc) procs.delete(c.k); });
+    const said = (line) => {
+      const m = /^e2e-client: jvm (\d+|-) launcher (\d+|-)/.exec(line);
+      if (m) { proc.jvm = m[1] === '-' ? null : Number(m[1]); proc.launcher = m[2] === '-' ? null : Number(m[2]); }
+    };
     const prefix = (stream, to) => {
       let buf = '';
-      stream.on('data', (d) => { buf += d; let n; while ((n = buf.indexOf('\n')) >= 0) { to.write(`[c${c.k}] ${buf.slice(0, n)}\n`); buf = buf.slice(n + 1); } });
+      stream.on('data', (d) => { buf += d; let n; while ((n = buf.indexOf('\n')) >= 0) { said(buf.slice(0, n)); to.write(`[c${c.k}] ${buf.slice(0, n)}\n`); buf = buf.slice(n + 1); } });
       stream.on('end', () => { if (buf) to.write(`[c${c.k}] ${buf}\n`); });
     };
     prefix(child.stdout, process.stdout);
@@ -8628,6 +8702,10 @@ async function lead() {
   return rows.map((r) => ({ ...r.result, ...(r.waited ? { waited: r.waited } : {}) }));
 }
 let laneRuns = null;
+// (batch-074 review) the signals are the shutdown coordinator's: this driver's client (or a lead's child drivers) stops first, then the slots, then
+// the sidecar data
+installShutdown();
+if (!LEAD) onStop(() => stopClient());
 try {
   // a --clients lead only names the flows (no game of its own): its clients run the sanity set and the flows
   if (!LEAD) {
@@ -8734,6 +8812,8 @@ try {
   if (e.code === 'SLOT_TIMEOUT') slotWait = e.record;
   else fail('run', e.message);
 } finally {
+  // a signal's shutdown owns the way out (its stop, release and cleanup, in that order, then the exit): nothing here may release or remove first
+  if (shuttingDownNow()) await new Promise(() => setInterval(() => {}, 1000));
   try {
     await quit();
   } catch {
