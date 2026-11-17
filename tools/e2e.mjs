@@ -3918,17 +3918,21 @@ async function suppliedGrowthFlow(mode = null) {
       // 'held' (run 2: Architect writes a growth's revision in a second or two, so a cancel never met it still placing): Architect's answer to the
       // realise is held (dev.region.holdRealise), so Steward's build still waits on a realised growth whose targets wait for items; fed in part
       await dev.request('dev.region.holdRealise', { on: true });
-      const rid0 = Math.max(0, ...((await view()).revisions ?? []).map((x) => x.rid));
       let h = null, at = f;
-      for (let i = 0; i < 450 && !h; i++) {
-        await sleep(2000);
-        // the build's decisions approved as they come (the bible, the massings, the placement), as buildThrough does
-        if (/Style bible ready|massings? (?:are|is) ready|Approve to place/.test(logSince(at))) { at = logSize(); await cmd(`/steward approve ${id}`); }
-        if (/The build stopped[^\n]*|Cancelled [^\n]*|still being built from the stockpile[^\n]*|is built(?: in part)?: \d+ building/.test(logSince(f))) break;
-        h = ((await view()).revisions ?? []).filter((x) => x.rid > rid0 && /^(PLACING|PLACED)$/.test(x.state)).sort((a, b) => b.rid - a.rid)[0] ?? null;
-        if (h && !Object.keys((await ledger())?.need ?? {}).length) h = null;
+      // (E2E-STUB-ORDER) released in a finally: a throw here would leave every later keyed realise on this client held
+      try {
+        const rid0 = Math.max(0, ...((await view()).revisions ?? []).map((x) => x.rid));
+        for (let i = 0; i < 450 && !h; i++) {
+          await sleep(2000);
+          // the build's decisions approved as they come (the bible, the massings, the placement), as buildThrough does
+          if (/Style bible ready|massings? (?:are|is) ready|Approve to place/.test(logSince(at))) { at = logSize(); await cmd(`/steward approve ${id}`); }
+          if (/The build stopped[^\n]*|Cancelled [^\n]*|still being built from the stockpile[^\n]*|is built(?: in part)?: \d+ building/.test(logSince(f))) break;
+          h = ((await view()).revisions ?? []).filter((x) => x.rid > rid0 && /^(PLACING|PLACED)$/.test(x.state)).sort((a, b) => b.rid - a.rid)[0] ?? null;
+          if (h && !Object.keys((await ledger())?.need ?? {}).length) h = null;
+        }
+      } finally {
+        await dev.request('dev.region.holdRealise', { on: false }).catch(() => null);
       }
-      await dev.request('dev.region.holdRealise', { on: false }).catch(() => null);
       if (!h || /is built(?: in part)?: \d+ building/.test(logSince(f))) { fail(lbl, `no realised growth left waiting on its answer (${h ? `revision ${h.rid} ${h.state}, but the build ended` : 'no revision'}); ${chatTail(f)}`); return null; }
       if (!(await feedPart(spStart))) { fail(lbl, 'nothing drawn from the stockpile once fed in part'); return { spStart, tag: `revision:${region}:${h.rid}`, siteIds: [], from: f, bad: true }; }
       return { spStart, tag: `revision:${region}:${h.rid}`, siteIds: [], from: f };
@@ -5240,6 +5244,12 @@ async function clearAnimals() {
 
 async function stubFlow(id) {
   // the whole paid flow against Architect's sim helper (v0.12.2, notional measured costs, never Claude); every wait is bounded
+  // (E2E-STUB-ORDER) back on the first settlement's claim, its chunks loaded, whatever flow ran before (with --clients, survival-mech left the
+  // player at its own lane, set_1 unloaded: its survey found every column unusable, "No dry, flat room here", and no bible was asked)
+  const home = settlements().find((x) => x.id === id)?.claim;
+  if (!home) return fail('stub site', `no claim for ${id}`);
+  await cmd(`/spreadplayers ${home.centerX} ${home.centerZ} 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
   const fixture = (f) => JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).card ?? JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).answer);
   // this settlement stays on Steward's own layout (additions, districts and the rest below rest on it); villageFlow builds one on Architect's flat village
   await cmd(`/steward dev layout ${id} legacy`);
@@ -5282,20 +5292,33 @@ async function stubFlow(id) {
   else fail('card limits', 'no "Not yet" line for the stilt village');
   // an operation key (C9, Architect 0.13): the bible request's acknowledgement is dropped, the game stops before the id is saved, and after the restart the
   // steward finds the request by its key and picks it up (never asks, or pays, twice)
-  await dev.request('dev.api.dropAck', { msgType: 'bible.request' });
-  from = logSize();
-  // seven buildings: with Architect 0b's copies, two of the fisher's huts copy a hut design ($0)
+  // (E2E-STUB-ORDER) the hook lives in the client JVM until the next bible request uses it, and no request disarms it: if this step stops before the
+  // restart (no bible asked, or a throw), the client is restarted, and the rest of the flow skipped with one failure (it builds on this start)
   await clearAnimals();
-  await cmd(`/steward start ${id} 7 40`);
-  if (await waitLog(from, /Designing the style bible/, 60_000)) {
-    await sleep(3000);
-    await quit();
-    launch();
-    await connect();
-    const adopted = await waitLog(0, /Architect had the style bible request: picking it up|never reached Architect: asking again|The build lost track of[^\n]*/, 90_000);
-    if (adopted && /picking it up/.test(adopted[0])) ok('recovered by key', 'the bible request whose ack was lost, found by its operation key after a restart');
-    else fail('recovered by key', adopted ? adopted[0] : 'no word after the restart');
-  } else fail('recovered by key', 'the bible was never requested');
+  from = logSize();
+  let armed = false, asked = false, why = '';
+  try {
+    await dev.request('dev.api.dropAck', { msgType: 'bible.request' });
+    armed = true;
+    // seven buildings: with Architect 0b's copies, two of the fisher's huts copy a hut design ($0)
+    await cmd(`/steward start ${id} 7 40`);
+    asked = !!(await waitLog(from, /Designing the style bible/, 60_000));
+    // what the steward said instead, read before a restart starts a new log
+    if (!asked) why = chatTail(from);
+    if (asked) {
+      await sleep(3000);
+      await quit();
+      armed = false;
+      launch();
+      await connect();
+    }
+  } finally {
+    if (armed) await restartClient();
+  }
+  if (!asked) return fail('recovered by key', `the bible was never requested (the client restarted to drop the armed dropAck; the rest of stub skipped): ${why}`);
+  const adopted = await waitLog(0, /Architect had the style bible request: picking it up|never reached Architect: asking again|The build lost track of[^\n]*/, 90_000);
+  if (adopted && /picking it up/.test(adopted[0])) ok('recovered by key', 'the bible request whose ack was lost, found by its operation key after a restart');
+  else fail('recovered by key', adopted ? adopted[0] : 'no word after the restart');
   from = 0;
   const first = await buildThrough(id, from, 'first build', true);
   if (!first) return;
@@ -6865,6 +6888,8 @@ async function moduleCapFlow() {
       const ask = /Approve to build it with this bill|so I ask first/.test(said);
       if (ask && refusedAt != null && !reasked) {
         reasked = said.match(/When it was put down, the materials needed went past what you approved\.[^\n]*/)?.[0] ?? null;
+        // (E2E-STUB-ORDER) the short cap cleared before this early return, so the next module realise on this client is not sent short
+        if (!reasked) await cmd('/steward dev cap_short none').catch(() => null);
         if (!reasked) return fail(`${label} put-down`, `asked again after the refusal without saying why: ${said.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
         for (let j = 0; j < 10 && heldSaved?.state?.phase !== 'AWAITING_PLACEMENT_APPROVAL'; j++) {
           if (j) await sleep(500);
@@ -7817,6 +7842,8 @@ async function survivalDistrictFlow() {
         && v.ext?.['steward_mc:district'] === d.id) ?? null;
       let mine = null;
       for (let i = 0; i < 120 && approved && held && !(mine?.length); i++) { await sleep(1000); mine = await listed(); }
+      // (E2E-STUB-ORDER) the hold released before this early return (only the restart below drops it otherwise): later flows' keyed realises not held
+      if ((!approved || !mine?.length) && held) await dev.request('dev.region.holdRealise', { on: false }).catch(() => null);
       if (!approved || !held || !mine?.length) return fail(rl, `approved ${!!approved}; held ${held}; region ${JSON.stringify(mine)?.slice(0, 120)}; ${chatTail(from)}`);
       region = mine[0].id;
       const savedPhase = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id)?.state?.phase;
