@@ -151,4 +151,16 @@ class GroupPlannerTest {
 		assertTrue(role.contains(near.get(0).role()), role);
 		assertTrue(role.length() <= dev.larattalabs.architect.api.CritiqueSpec.MAX_CRITERION);
 	}
+
+	@Test
+	void anInvertedLotWithoutASiteStaysUprightSoTheGroupIsNeverRefused() throws Exception {
+		Settlement s = settlement("stilt_village");
+		VillageLayout.Plan p = plan(4);
+		var ids = new java.util.HashSet<String>();
+		for (var l : p.lots()) ids.add(l.id());
+		GroupRequest g = GroupPlanner.build(s, p, GroupPlanner.Options.forCard(s, "b", null), java.util.Map.of(), java.util.Map.of(), ids, true).request();
+		assertEquals(p.lots().size(), g.items().size());
+		for (var i : g.items()) assertFalse(i.request().inverted(), i.itemKey() + ": no suspend site, so not told inverted (Architect would refuse the group)");
+		assertEquals(GroupPlanner.build(s, p, GroupPlanner.Options.forCard(s, "b", null)).request().items().size(), g.items().size());
+	}
 }

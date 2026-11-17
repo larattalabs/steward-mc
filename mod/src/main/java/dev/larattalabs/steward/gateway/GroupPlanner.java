@@ -77,6 +77,15 @@ public final class GroupPlanner {
 	 */
 	public static Built build(Settlement s, VillageLayout.Plan plan, Options o, java.util.Map<String, DesignRequest.Reserved> reserved,
 		java.util.Map<String, com.google.gson.JsonObject> wallLots) {
+		return build(s, plan, o, reserved, wallLots, Set.of(), false);
+	}
+
+	/**
+	 * As above; {@code invertedLots}: the artifact's lots that hang inverted (Architect CS, {@code $.lots[].inverted}), and whether this Architect reads
+	 * {@link PPlan#INVERTED_FEATURE}: such a lot's request is told it hangs inverted when it also carries a suspend site ({@link PPlan#inverted}).
+	 */
+	public static Built build(Settlement s, VillageLayout.Plan plan, Options o, java.util.Map<String, DesignRequest.Reserved> reserved,
+		java.util.Map<String, com.google.gson.JsonObject> wallLots, Set<String> invertedLots, boolean invertedFeature) {
 		List<Lot> lots = new ArrayList<>(plan.lots());
 		// landmarks: the ones the card's program marks, else the largest footprints; the largest landmark is the anchor (designed first, the rest match it)
 		List<Lot> byArea = new ArrayList<>(lots);
@@ -114,6 +123,7 @@ public final class GroupPlanner {
 			// an irrigated field's sources, their farmland sides and the air over them: the design leaves them as given
 			if (reserved.containsKey(l.id())) r = r.withReserved(reserved.get(l.id()));
 			if (wallLots.containsKey(l.id())) r.ext().add(PPlan.WALL_LOT_EXT, wallLots.get(l.id()).deepCopy());
+			r = PPlan.inverted(r, invertedFeature, invertedLots.contains(l.id()));
 			boolean anchor = l.id().equals(anchorId);
 			GroupRequest.Item item = new GroupRequest.Item(l.id(), r, landmark ? GroupRequest.Role.LANDMARK : GroupRequest.Role.ORDINARY, landmark && !anchor ? 1 : 2, anchor);
 			String archetype = copyOf.get(l.id());

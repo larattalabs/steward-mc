@@ -282,6 +282,36 @@ public final class PPlan {
 		return out;
 	}
 
+	/** Architect's feature for {@link dev.larattalabs.architect.api.DesignRequest#inverted()} (7c CS, API 1.65.0, helper {@code design.inverted}). */
+	public static final String INVERTED_FEATURE = "invertedDesigns";
+
+	/**
+	 * The ids of the artifact's lots that hang inverted (Architect US/CS: a {@code rule.suspended} lot, {@code $.lots[].inverted: true}, a suspend site lot).
+	 * Only a literal {@code true} counts; absent or false is an upright lot.
+	 */
+	public static Set<String> invertedLots(JsonArray artifactLots) {
+		Set<String> out = new java.util.LinkedHashSet<>();
+		for (JsonElement e : artifactLots) {
+			if (!e.isJsonObject() || !e.getAsJsonObject().has("id")) continue;
+			JsonElement v = e.getAsJsonObject().get("inverted");
+			if (v != null && v.isJsonPrimitive() && v.getAsJsonPrimitive().isBoolean() && v.getAsBoolean()) out.add(e.getAsJsonObject().get("id").getAsString());
+		}
+		return out;
+	}
+
+	/**
+	 * {@code r} told its lot hangs inverted ({@code withInverted(true)}), when Architect reads it ({@link #INVERTED_FEATURE}), the lot is an inverted one and
+	 * the request carries a suspend site: Architect refuses {@code inverted} on any other request, and in a group that refusal sinks every item. Otherwise
+	 * {@code r} as it is (the lot is designed and placed upright, as before; only the look differs). Steward sends no site yet (7b's site API is adopted
+	 * after M5), so until then this leaves every request as it is.
+	 */
+	public static dev.larattalabs.architect.api.DesignRequest inverted(dev.larattalabs.architect.api.DesignRequest r, boolean feature, boolean invertedLot) {
+		if (!feature || !invertedLot || r.massing()) return r;
+		var site = r.site();
+		if (site == null || site.fit() != dev.larattalabs.architect.api.FitMode.SUSPEND) return r;
+		return r.withInverted(true);
+	}
+
 	/** Runs {@code [u, v, y0, y1]} (nested or flat) as cells, at most {@code DesignRequest.MAX_RESERVED} in all. */
 	private static void addCells(JsonArray lotCells, java.util.Set<net.minecraft.core.BlockPos> into) {
 		List<Integer> runs = new ArrayList<>();
