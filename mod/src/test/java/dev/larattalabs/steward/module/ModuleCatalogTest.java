@@ -292,16 +292,16 @@ class ModuleCatalogTest {
 
 	@Test
 	void theLiveCropFarmIsCertifiedAndOfferedOnItsMeasuredVersionsOnly() {
-		// crop_farm@1 (slice M2): measured.json certifies these exact files on Minecraft 26.3 and Architect 0.76.0, by a smoke check carrying
+		// crop_farm@1 (slice M2): measured.json certifies these exact files on Minecraft 26.3 and Architect 0.77.0, by a smoke check carrying
 		// the full measurement on 0.67.0 (speed rule 4; docs/MEASURE-M2.md)
 		ModuleCatalog live = ModuleCatalog.live(getClass().getClassLoader());
-		var env = new ModuleGate.Env("26.3", "0.76.0", java.util.Set.of(ModuleGate.FEATURE), false, false);
+		var env = new ModuleGate.Env("26.3", "0.77.0", java.util.Set.of(ModuleGate.FEATURE), false, false);
 		var v = ModuleGate.offer(live, "crop_farm", env);
 		assertTrue(v.ok(), v.message());
 		assertEquals(List.of(), v.entry().uncertified());
 		assertTrue(v.entry().measured().smoke());
 		assertEquals("0.67.0", v.entry().measured().from());
-		for (String other : List.of("0.75.0", "0.74.0", "0.73.0", "0.67.0", "0.65.0"))
+		for (String other : List.of("0.76.0", "0.75.0", "0.74.0", "0.73.0", "0.67.0", "0.65.0"))
 			assertFalse(ModuleGate.offer(live, "crop_farm", new ModuleGate.Env("26.3", other, java.util.Set.of(ModuleGate.FEATURE), false, false)).ok(), other);
 		var p = new com.google.gson.JsonObject();
 		p.addProperty("width", 27);
@@ -400,20 +400,20 @@ class ModuleCatalogTest {
 		// slice BCU: crop_farm@1 pins kit 0.71.0 and checker 0.71.0; the gate compares them to what Architect runs, not only measured.json's list
 		ModuleCatalog live = ModuleCatalog.live(getClass().getClassLoader());
 		Set<String> f = Set.of(ModuleGate.FEATURE);
-		var match = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.76.0", f, false, false, "0.71.0", "0.71.0"));
+		var match = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.77.0", f, false, false, "0.71.0", "0.71.0"));
 		assertTrue(match.ok(), match.message());
-		var kit = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.76.0", f, false, false, "0.72.0", "0.72.0"));
+		var kit = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.77.0", f, false, false, "0.72.0", "0.72.0"));
 		assertEquals(Why.KIT, kit.why());
 		assertTrue(kit.message().contains("pinned to kit 0.71.0") && kit.message().contains("runs kit 0.72.0"), kit.message());
-		var stale = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.76.0", f, false, false, "0.71.0", "0.70.0"));
+		var stale = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.77.0", f, false, false, "0.71.0", "0.70.0"));
 		assertEquals(Why.KIT, stale.why(), "a stale helper's checker is not the measured one");
 		assertTrue(stale.message().contains("checks with 0.70.0") && stale.message().contains("stale"), stale.message());
-		var none = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.76.0", f, false, false, "0.71.0", ModuleGate.UNKNOWN_KIT));
+		var none = ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.77.0", f, false, false, "0.71.0", ModuleGate.UNKNOWN_KIT));
 		assertEquals(Why.KIT, none.why(), "no helper connected: the checker is unknown, so nothing is offered");
 		assertTrue(none.message().contains("no helper connected"), none.message());
 		// the Architect version is judged first; a measurement run installs whatever the pins
-		assertEquals(Why.ARCHITECT, ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.75.0", f, false, false, "0.72.0", "0.72.0")).why());
-		assertTrue(ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.76.0", f, false, true, "0.72.0", "0.72.0")).ok());
+		assertEquals(Why.ARCHITECT, ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.76.0", f, false, false, "0.72.0", "0.72.0")).why());
+		assertTrue(ModuleGate.offer(live, "crop_farm", new Env("26.3", "0.77.0", f, false, true, "0.72.0", "0.72.0")).ok());
 	}
 
 	@Test

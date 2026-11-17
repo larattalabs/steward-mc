@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 class StorageHallTest {
 	static final ModuleCatalog LIVE = ModuleCatalog.dir(ModuleCatalogTest.FIXTURES.resolve("../../../modules").normalize(), false);
 	/** Uncertified until its measurement: judged as a measuring run judges it. */
-	static final ModuleGate.Env MEASURING = new ModuleGate.Env("26.3", "0.76.0", Set.of(ModuleGate.FEATURE), false, true);
+	static final ModuleGate.Env MEASURING = new ModuleGate.Env("26.3", "0.77.0", Set.of(ModuleGate.FEATURE), false, true);
 	static final ModuleKind K = ModuleKind.StorageHall.INSTANCE;
 	static final JsonObject BOUND = JsonParser.parseString("{\"minecraft:chest\": 5, \"minecraft:spruce_planks\": 60}").getAsJsonObject();
 
@@ -128,12 +128,12 @@ class StorageHallTest {
 
 	@Test
 	void theCertifiedHallIsOfferedFromMaterialsWithItsBoundInATownsOwnBlocks() {
-		var player = new ModuleGate.Env("26.3", "0.76.0", Set.of(ModuleGate.FEATURE));
+		var player = new ModuleGate.Env("26.3", "0.77.0", Set.of(ModuleGate.FEATURE));
 		// @1, the certified plain hall (the catalog's newest, @2, is judged on its own certificate)
 		var e1 = LIVE.get("storage_hall", 1).orElseThrow();
 		var v = ModuleGate.offer(e1, player);
 		assertTrue(v.ok(), v.message());
-		assertFalse(ModuleGate.offer(e1, new ModuleGate.Env("26.3", "0.75.0", Set.of(ModuleGate.FEATURE))).ok(), "only on its certified Architect");
+		assertFalse(ModuleGate.offer(e1, new ModuleGate.Env("26.3", "0.76.0", Set.of(ModuleGate.FEATURE))).ok(), "only on its certified Architect");
 		// a town in a Style none of the measured ones is: oak walls and floor, a stone-brick foundation, a dark oak roof slab, an oak door
 		java.util.Map<String, String> town = new java.util.HashMap<>(java.util.Map.of("foundation", "minecraft:stone_bricks", "floor", "minecraft:oak_planks",
 			"wall", "minecraft:oak_planks", "frame", "minecraft:oak_log", "light", "minecraft:lantern", "path", "minecraft:dirt", "wood.door", "minecraft:oak_door",
@@ -148,7 +148,7 @@ class StorageHallTest {
 
 	@Test
 	void uncertifiedItIsNeverOfferedToAPlayer() {
-		var player = new ModuleGate.Env("26.3", "0.76.0", Set.of(ModuleGate.FEATURE));
+		var player = new ModuleGate.Env("26.3", "0.77.0", Set.of(ModuleGate.FEATURE));
 		assertEquals(LIVE.newest("storage_hall").map(ModuleCatalog.Entry::measured).isPresent() && ModuleGate.offer(LIVE, "storage_hall", player).ok(),
 			LIVE.newest("storage_hall").get().uncertified().isEmpty(), "offered to a player exactly when measured.json certifies it");
 	}

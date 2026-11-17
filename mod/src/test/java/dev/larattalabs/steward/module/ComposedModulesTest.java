@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 /** docs/MODULES.md "M5 design" (slice M5a): module lots of a composed plan, on the live catalog (crop_farm@1 and the newest certified storage_hall). */
 class ComposedModulesTest {
 	static final ModuleCatalog LIVE = ModuleCatalog.dir(ModuleCatalogTest.FIXTURES.resolve("../../../modules").normalize(), false);
-	static final ModuleGate.Env PLAYER = new ModuleGate.Env("26.3", "0.76.0", Set.of(ModuleGate.FEATURE));
+	static final ModuleGate.Env PLAYER = new ModuleGate.Env("26.3", "0.77.0", Set.of(ModuleGate.FEATURE));
 	static final ModuleKind FARM = ModuleKind.CropFarm.INSTANCE, HALL = ModuleKind.StorageHall.INSTANCE;
 	static final ComposedModules.Town WARM = new ComposedModules.Town(false, false), COLD = new ComposedModules.Town(true, false),
 		MATERIALS = new ComposedModules.Town(false, true);
@@ -82,7 +82,7 @@ class ComposedModulesTest {
 	void theIdentityNamesVersionsAndProgramsInOrder() {
 		String id = ComposedModules.identity(offered());
 		assertTrue(id.startsWith("crop_farm@1:"), id);
-		// the hall offered on 0.76.0 is the live catalog's newest certified one: storage_hall@2, the sorting hall
+		// the hall offered on 0.77.0 is the live catalog's newest certified one: storage_hall@2, the sorting hall
 		assertEquals(2, offered().get(1).entry().version());
 		assertTrue(id.contains(",storage_hall@2:"), id);
 		assertEquals(id, ComposedModules.identity(List.of(offered().get(1), offered().get(0))), "sorted, whatever the order offered");
@@ -336,7 +336,7 @@ class ComposedModulesTest {
 		assertFalse(ComposedModules.boundWords("f", FARM, farm, null, false).contains("bound"));
 	}
 
-	/** PLAN 2026-11-15, S-M5-12: a composed town's hall (storage_hall@2 on 0.76.0) names the late-cargo gap once; its farm, which has no chests, doesn't. */
+	/** PLAN 2026-11-15, S-M5-12: a composed town's hall (storage_hall@2 on 0.77.0) names the late-cargo gap once; its farm, which has no chests, doesn't. */
 	@Test
 	void aComposedHallNamesTheLateCargoGap() {
 		assertTrue(ModuleOffer.LATE_CARGO_GAP, "drop this test's positive half when LC3 lands");
@@ -379,7 +379,7 @@ class ComposedModulesTest {
 	}
 
 	/**
-	 * GPT review 10: each module says what it does; the farm that the player harvests it. batch-074 GPT review P2: the hall offered on 0.76.0 is @2,
+	 * GPT review 10: each module says what it does; the farm that the player harvests it. batch-074 GPT review P2: the hall offered on 0.77.0 is @2,
 	 * which measured sorting slots, but a composed hall is built plain (sorting in a planned town is M5b's), so it says it does not sort.
 	 */
 	@Test
