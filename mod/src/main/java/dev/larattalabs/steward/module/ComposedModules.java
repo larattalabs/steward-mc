@@ -46,7 +46,7 @@ public final class ComposedModules {
 			List<JsonElement> choices = o.entry().envelope().branches().getOrDefault(k.cropParam(), List.of());
 			String first = choices.isEmpty() ? null : choices.get(0).getAsString();
 			JsonArray sizes = new JsonArray();
-			for (JsonObject s : k.sizes()) {
+			for (JsonObject s : composedSizes(k, o.entry())) {
 				int[] f;
 				try {
 					f = k.frame(first == null ? s : k.params(s, first));
@@ -68,17 +68,59 @@ public final class ComposedModules {
 			for (JsonElement v : choices) values.add(v.deepCopy());
 			choose.add("values", values);
 			m.add("choose", choose);
+			// (M5b) a sorting hall's filter items: one per slot (item1 .. itemN for N slots), distinct, from the measured domain
+			if (k.sign() == ModuleKind.Sign.STORES && sorts(o.entry())) {
+				JsonObject items = new JsonObject();
+				items.addProperty("params", "item1 .. itemN, one for each of the size's N slots, all different; the hall sorts each slot's item into its own chest");
+				JsonArray domain = new JsonArray();
+				for (String it : StorageHallLot.FILTERABLE) domain.add(it);
+				items.add("values", domain);
+				m.add("items", items);
+			}
 			out.add(m);
 		}
 		return out;
 	}
 
 	/**
-	 * Whether a composed town's hall may be a sorting hall. Not yet (batch-074 GPT review, the manager's call): a composed hall is built from the
-	 * kind's sizes, which are the plain hall's ({@code slots 0}), and its filter items aren't chosen, so sorting in a planned town is slice M5b's
-	 * (FK-aware cargo). Until then the composed vocabulary and words say a plain hall, and a plan asking for sorting gets the plain hall, said.
+	 * Whether a composed town's hall may be a sorting hall (slice M5b): its sizes are the catalog version's measured slot branches
+	 * ({@link #composedSizes}), its filter items are the plan's when they keep the rule, else chosen ({@link #items}), and its cargo follows its fill
+	 * (HallCargo reads the site's own params: a committed F holding its declaration is not cargo). Off, a composed hall is the plain hall, said.
 	 */
-	public static final boolean COMPOSED_HALL_SORTS = false;
+	public static final boolean COMPOSED_HALL_SORTS = true;
+
+	/**
+	 * (M5b) The sizes a composed lot of this kind may take, largest first (the last is the smallest): a storage hall's are the entry's measured
+	 * {@code slots} branches (16, 12, 8, 4, then the plain hall's 0) while {@link #COMPOSED_HALL_SORTS} holds; every other kind's are its own. The
+	 * vocabulary and {@link #decide} both read this, so what the composer is offered is what Steward builds. Pure.
+	 */
+	public static List<JsonObject> composedSizes(ModuleKind k, ModuleCatalog.Entry e) {
+		if (k.sign() != ModuleKind.Sign.STORES || !COMPOSED_HALL_SORTS) return k.sizes();
+		List<Integer> slots = new ArrayList<>();
+		for (JsonElement v : e.envelope().branches().getOrDefault("slots", List.of())) {
+			Integer n = ModuleRef.exactInt(v);
+			if (n != null && StorageHallLot.SLOTS.contains(n) && !slots.contains(n)) slots.add(n);
+		}
+		if (slots.isEmpty()) return k.sizes();
+		slots.sort(java.util.Comparator.reverseOrder());
+		List<JsonObject> out = new ArrayList<>();
+		for (int n : slots) {
+			JsonObject o = new JsonObject();
+			o.addProperty("slots", n);
+			out.add(o);
+		}
+		return List.copyOf(out);
+	}
+
+	/** Whether the entry measured a sorting branch (slots above 0) a composed hall may take now. */
+	static boolean sorts(ModuleCatalog.Entry e) {
+		if (!COMPOSED_HALL_SORTS) return false;
+		for (JsonElement v : e.envelope().branches().getOrDefault("slots", List.of())) {
+			Integer n = ModuleRef.exactInt(v);
+			if (n != null && n > 0 && StorageHallLot.SLOTS.contains(n)) return true;
+		}
+		return false;
+	}
 
 	/** The words of a plain hall, as the composer and the player read them. */
 	static final String PLAIN_HALL = "a storage hall with an input chest by the door and double chests along its back wall; it does not sort";
@@ -88,12 +130,9 @@ public final class ComposedModules {
 	 * a composed hall is a plain hall that does not sort, whatever its catalog version measured ({@link #COMPOSED_HALL_SORTS}). Pure.
 	 */
 	public static String does(ModuleKind k, ModuleCatalog.Entry e) {
-		if (k.sign() == ModuleKind.Sign.STORES) {
-			boolean sorts = false;
-			if (COMPOSED_HALL_SORTS)
-				for (JsonElement v : e.envelope().branches().getOrDefault("slots", List.of())) if (v.isJsonPrimitive() && v.getAsJsonPrimitive().isNumber() && v.getAsInt() > 0) sorts = true;
-			return sorts ? "a storage hall with an input chest by the door that sorts the items it is given into their own chests" : PLAIN_HALL;
-		}
+		if (k.sign() == ModuleKind.Sign.STORES)
+			return sorts(e) ? "a storage hall whose input chest feeds a sorting line: each of its slots sorts one item (its items) into the slot's own chest, the rest goes"
+				+ " to an overflow chest, with double chests along its back wall; its size with 0 slots is a plain hall that does not sort" : PLAIN_HALL;
 		if (k.irrigate()) return "a watered, lit field of one crop; the player harvests and replants it (no automatic harvest)";
 		return k.title();
 	}
@@ -183,8 +222,19 @@ public final class ComposedModules {
 		return new Asked(lot.get("id").getAsString(), id, params, forType == null || forType.isEmpty() ? null : forType);
 	}
 
-	/** What the build sees of the town when it decides: the biome freezes water; it is built from materials. */
-	public record Town(boolean freezing, boolean materials) {}
+	/**
+	 * What the build sees of the town when it decides: the biome freezes water; it is built from materials; {@code held} the items the player
+	 * carries and (from materials) the stockpile holds, item id -> count (a sorting hall's chosen items: the most held filter kinds first).
+	 */
+	public record Town(boolean freezing, boolean materials, Map<String, Integer> held) {
+		public Town {
+			held = held == null ? Map.of() : Map.copyOf(held);
+		}
+
+		public Town(boolean freezing, boolean materials) {
+			this(freezing, materials, Map.of());
+		}
+	}
 
 	/**
 	 * A decision: an order ({@code why} null) with {@code changed} the words for params Steward chose over the plan's, or why not, in the steward's
@@ -234,9 +284,11 @@ public final class ComposedModules {
 		if (kind.warmOnly() && town.freezing()) return Decision.no("a working " + name + " can't be built here: the water would freeze in this biome");
 		var e = verdict.entry();
 		List<String> notes = new ArrayList<>();
-		// (batch-074 review) a hall asked to sort (slots other than 0, or filter items): the plain hall, said; the sizes below are the plain hall's
-		if (kind.sign() == ModuleKind.Sign.STORES && !COMPOSED_HALL_SORTS && asksToSort(a.params()))
+		// (batch-074 review) a hall asked to sort (slots other than 0, or filter items) while composed halls don't sort: the plain hall, said
+		boolean hallSorts = kind.sign() == ModuleKind.Sign.STORES && sorts(e);
+		if (kind.sign() == ModuleKind.Sign.STORES && !hallSorts && asksToSort(a.params()))
 			notes.add("a planned town's storage hall doesn't sort yet, so a plain hall");
+		List<JsonObject> sizes = composedSizes(kind, e);
 		// the choice (crop or bulk): as written when it is a measured branch, else the default
 		List<JsonElement> choices = e.envelope().branches().getOrDefault(kind.cropParam(), List.of());
 		JsonElement want = a.params().get(kind.cropParam());
@@ -249,28 +301,93 @@ public final class ComposedModules {
 		if (choice == null) return Decision.no("a working " + name + " has no measured " + kind.cropParam());
 		// the size: as written, else the size whose frame is the lot's, else the smallest
 		JsonObject size = null;
-		JsonObject asked = kind.sizeOf(a.params());
-		for (JsonObject s : kind.sizes()) if (asked.size() > 0 && Canon.sorted(s).equals(Canon.sorted(asked))) size = s;
+		boolean fromFrame = false;
+		// (M5b) a hall's size is its slots alone (its items are chosen below); a slot count that isn't a whole number is not a size asked
+		JsonObject asked = kind.sign() == ModuleKind.Sign.STORES ? hallSize(a.params()) : kind.sizeOf(a.params());
+		for (JsonObject s : sizes) if (asked.size() > 0 && Canon.sorted(s).equals(Canon.sorted(asked))) size = s;
+		// the lot's frame: the first size (the most slots) whose frame it is, either way round (4 and 8 slots share 11 by 13: 8, said below)
 		if (size == null && lotSize != null) {
-			for (JsonObject s : kind.sizes()) {
+			for (JsonObject s : sizes) {
 				int[] f = frameOf(kind, s, choice);
-				if (f != null && ((f[0] == lotSize[0] && f[1] == lotSize[1]) || (f[0] == lotSize[1] && f[1] == lotSize[0]))) { size = s; break; }
+				if (f != null && ((f[0] == lotSize[0] && f[1] == lotSize[1]) || (f[0] == lotSize[1] && f[1] == lotSize[0]))) { size = s; fromFrame = true; break; }
 			}
 		}
 		if (size == null) {
-			List<JsonObject> all = kind.sizes();
+			List<JsonObject> all = sizes;
 			if (all.isEmpty()) return Decision.no("a working " + name + " has no measured size");
 			size = all.get(all.size() - 1);
 			if (asked.size() > 0 || lotSize != null) notes.add("the size asked isn't measured, so the smallest");
 		}
 		JsonObject params = size.deepCopy();
 		params.add(kind.cropParam(), choice.deepCopy());
+		// (M5b) a sorting hall's filter items: as written where they keep the rule, else chosen, said
+		if (kind.sign() == ModuleKind.Sign.STORES) {
+			Integer n = ModuleRef.exactInt(params.get("slots"));
+			if (n != null && n > 0) {
+				var chosen = items(a.params(), n, town.held());
+				for (int i = 0; i < n; i++) params.addProperty("item" + (i + 1), chosen.items().get(i));
+				if (chosen.said() != null) notes.add(chosen.said());
+				final JsonElement ch = choice;
+				final int[] built = kind.frame(params);
+				if (fromFrame && sizes.stream().filter(s -> sameFrame(kind, s, ch, built)).count() > 1)
+					notes.add("its lot fits more than one hall, so the one with the most slots (" + n + ")");
+			}
+		}
 		var p = ModuleGate.params(e, params);
 		if (!p.ok()) return Decision.no("a working " + name + "'s size isn't one that was measured: " + p.refused());
 		if (town.materials() && bounds.apply(e, p.values()) == null)
 			return Decision.no("a working " + name + "'s bill from the stockpile wasn't measured for that size, so there is no bound to hold it to");
 		var order = new ModuleOrder(e.id(), e.version(), e.programSha(), p.values(), null, ModuleOffer.rate(e.measured(), p.values()), false, false);
 		return new Decision(order, null, notes.isEmpty() ? null : String.join("; ", notes));
+	}
+
+	/** A hall's size as the plan wrote it: {@code {slots: n}} when its slots are a whole number, else empty (not asked). */
+	static JsonObject hallSize(JsonObject params) {
+		JsonObject o = new JsonObject();
+		Integer n = ModuleRef.exactInt(params.get("slots"));
+		if (n != null) o.addProperty("slots", n);
+		return o;
+	}
+
+	private static boolean sameFrame(ModuleKind kind, JsonObject size, JsonElement choice, int[] frame) {
+		int[] f = frameOf(kind, size, choice);
+		return f != null && f[0] == frame[0] && f[1] == frame[1];
+	}
+
+	/** A sorting hall's items (domain keys, slot order) and, when Steward chose any, the words. */
+	public record Chosen(List<String> items, @Nullable String said) {}
+
+	/**
+	 * (M5b) A composed sorting hall's {@code n} filter items: each {@code item<i>} as written when it is a domain key not already taken; every other
+	 * slot from the town's most held filter kinds ({@code ModuleOffer.filterKinds}), then the domain in its order, never repeating. Says which slots
+	 * Steward chose. Deterministic; pure.
+	 */
+	public static Chosen items(JsonObject asked, int n, Map<String, Integer> held) {
+		String[] out = new String[n];
+		java.util.Set<String> used = new java.util.HashSet<>();
+		for (int i = 0; i < n; i++) {
+			JsonElement v = asked.get("item" + (i + 1));
+			String k = v != null && v.isJsonPrimitive() && v.getAsJsonPrimitive().isString() ? v.getAsString().strip().toLowerCase(Locale.ROOT).replaceFirst("^minecraft:", "") : null;
+			if (k != null && StorageHallLot.FILTERABLE.contains(k) && used.add(k)) out[i] = k;
+		}
+		List<String> pool = new ArrayList<>(ModuleOffer.filterKinds(held));
+		for (String k : StorageHallLot.FILTERABLE) if (!pool.contains(k)) pool.add(k);
+		List<Integer> chose = new ArrayList<>();
+		for (int i = 0; i < n; i++) {
+			if (out[i] != null) continue;
+			for (String k : pool) if (used.add(k)) { out[i] = k; break; }
+			chose.add(i + 1);
+		}
+		List<String> items = List.of(out);
+		if (chose.isEmpty()) return new Chosen(items, null);
+		List<String> names = new ArrayList<>();
+		for (int i : chose) names.add(out[i - 1].replace('_', ' '));
+		String which = chose.size() == n ? "its " + n + " slots' items" : (chose.size() == 1 ? "slot " : "slots ") + chose.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(", ")) + "'s items";
+		// (GPT review P3) the stores' most held kinds first, then the domain's defaults, said apart
+		java.util.Set<String> stored = new java.util.HashSet<>(ModuleOffer.filterKinds(held));
+		boolean fromStores = chose.stream().allMatch(i -> stored.contains(out[i - 1])), noneStored = chose.stream().noneMatch(i -> stored.contains(out[i - 1]));
+		String from = fromStores ? "from your stores, most held first" : noneStored ? "from the hall's defaults" : "from your stores, most held first, then the hall's defaults";
+		return new Chosen(items, "Steward chose " + which + " " + from + ": " + String.join(", ", names));
 	}
 
 	/** Whether a hall's params as the plan wrote them ask for sorting: a slots member other than the whole number 0, or any filter item but none. */
@@ -487,7 +604,7 @@ public final class ComposedModules {
 	 */
 	public static Held held(JsonObject bomParts, Map<String, ModuleOrder> orders, @Nullable String inexact) {
 		Map<String, JsonObject> shares = new LinkedHashMap<>();
-		List<String> over = new ArrayList<>(), bills = new ArrayList<>();
+		List<String> over = new ArrayList<>();
 		boolean unapproved = false;
 		for (var e : orders.entrySet()) {
 			String name = ModuleKind.of(e.getValue().moduleId()).map(ModuleKind::role).orElse(e.getKey().replace('_', ' '));
@@ -499,15 +616,25 @@ public final class ComposedModules {
 			var ov = ModuleBound.over(share, e.getValue().bound());
 			if (!ov.isEmpty()) over.add("the " + name + "'s " + ModuleBound.words(ov, 100));
 			if (!e.getValue().inexactApproved()) unapproved = true;
-			bills.add("the " + name + ": " + (share.isEmpty() ? "nothing" : ModuleBound.bill(share, 1000)));
 		}
-		boolean ask = !over.isEmpty() || (inexact != null && unapproved);
+		// (QD-2, M5b) a realise refused at put-down (BILL_CAP, saved on an order) is put to the player whatever the quote says, its bill never less
+		// than what was approved, item by item, as the single-module path does (SettlementRunner.holdWhy)
+		boolean refused = orders.values().stream().anyMatch(ModuleOrder::refusedAtPutDown);
+		boolean ask = refused || !over.isEmpty() || (inexact != null && unapproved);
 		Map<String, ModuleOrder> next = new LinkedHashMap<>();
-		for (var e : orders.entrySet()) next.put(e.getKey(), e.getValue().holding(ask ? shares.get(e.getKey()) : null));
-		if (!ask) return new Held(next, null, null, "From materials, " + String.join("; ", bounded(orders, shares)) + ".");
-		String why = !over.isEmpty() ? "The working modules' bills came to more than their measured bounds: " + String.join("; ", over) + "."
+		List<String> shown = new ArrayList<>();
+		for (var e : orders.entrySet()) {
+			JsonObject share = shares.get(e.getKey());
+			JsonObject bill = ask && e.getValue().refusedAtPutDown() ? ModuleBound.atLeast(share, e.getValue().bound()) : share;
+			next.put(e.getKey(), e.getValue().holding(ask ? bill : null));
+			String name = ModuleKind.of(e.getValue().moduleId()).map(ModuleKind::role).orElse(e.getKey().replace('_', ' '));
+			shown.add("the " + name + ": " + (bill.isEmpty() ? "nothing" : ModuleBound.bill(bill, 1000)));
+		}
+		if (!ask) return new Held(next, null, null, "From materials, " + String.join("; ", bounded(orders, shares)) + "; " + ModuleBound.CRASH_EXCEPTION + ".");
+		String why = refused ? ModuleBound.PUT_DOWN_REFUSED
+			: !over.isEmpty() ? "The working modules' bills came to more than their measured bounds: " + String.join("; ", over) + "."
 			: "Architect can't quote the working modules' bills exactly (" + inexact + "), so I ask first.";
-		return new Held(next, null, why + " Their bills: " + String.join("; ", bills) + ".", null);
+		return new Held(next, null, why + " Their bills: " + String.join("; ", shown) + ".", null);
 	}
 
 	/** Each module's bill with its limit, for the words (Noah, 2026-11-15: the limit is shown with the quote). */
@@ -533,9 +660,17 @@ public final class ComposedModules {
 		int[] f = kind.frame(o.params());
 		return "The plan's " + name + " is a working " + kind.role() + " from Steward's measured catalog (" + o.moduleId() + "@" + o.version() + ", " + f[0] + " by " + f[1]
 			+ (o.rate() == null ? "" : ", " + o.rate()) + "): no design, $0." + (changed == null ? "" : " (" + changed + ".)")
-			+ (kind.sign() == ModuleKind.Sign.STORES && !sorts(o) ? " It's a plain hall: it doesn't sort." : "")
-			+ (materials ? " From materials, its bill is held to its measured bound: if it would take more, I ask first." : "")
+			+ (kind.sign() == ModuleKind.Sign.STORES ? (sorts(o) ? " " + sortWords(o) : " It's a plain hall: it doesn't sort.") : "")
+			+ (materials ? " From materials, its bill is held to its measured bound: if it would take more, I ask first; " + ModuleBound.CRASH_EXCEPTION + "." : "")
 			+ (ModuleOffer.namesLateCargo(kind) ? " " + ModuleOffer.LATE_CARGO_WORDS : "");
+	}
+
+	/** (M5b) A composed sorting hall's words: its slots and their items, what it doesn't sort, and the filler it must never be given. */
+	static String sortWords(ModuleOrder o) {
+		List<String> names = new ArrayList<>();
+		for (String it : StorageHallLot.items(o.params()).items()) names.add(ModuleBound.plain(it));
+		return "It sorts: " + names.size() + " slots for " + String.join(", ", names) + "; anything else, and tools, armour, potions, renamed or enchanted items or"
+			+ " anything that stacks to 16, goes to its overflow chest. Never put petrified oak slabs in it.";
 	}
 
 	/** Whether an order's hall sorts (its slots a whole number above 0). */

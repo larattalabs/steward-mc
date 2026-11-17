@@ -73,8 +73,15 @@ class ComposedModulesTest {
 		assertEquals(4, farm.getAsJsonObject("choose").getAsJsonArray("values").size());
 		JsonObject hall = v.get(1).getAsJsonObject();
 		assertFalse(hall.get("irrigate").getAsBoolean());
-		assertEquals("[11,7]", hall.getAsJsonArray("sizes").get(0).getAsJsonObject().get("size").toString());
+		// (M5b) the hall's sizes are @2's measured slot branches, most slots first, the plain hall last, each with its own frame
+		List<String> sizes = new java.util.ArrayList<>();
+		for (var sz : hall.getAsJsonArray("sizes")) sizes.add(sz.getAsJsonObject().getAsJsonObject("params").get("slots") + ":" + sz.getAsJsonObject().get("size"));
+		assertEquals(List.of("16:[19,13]", "12:[15,13]", "8:[11,13]", "4:[11,13]", "0:[11,7]"), sizes);
 		assertEquals("bulk", hall.getAsJsonObject("choose").get("param").getAsString());
+		// and its items: the filter domain, one per slot
+		assertEquals(StorageHallLot.FILTERABLE.size(), hall.getAsJsonObject("items").getAsJsonArray("values").size());
+		assertTrue(hall.getAsJsonObject("items").get("params").getAsString().contains("item1 .. itemN"));
+		assertFalse(farm.has("items"), "only a sorting hall has items");
 		assertTrue(ComposedModules.vocabulary(List.of()).isEmpty());
 	}
 
@@ -326,6 +333,42 @@ class ComposedModulesTest {
 		assertTrue(stray.ask().contains("not in the bound"), stray.ask());
 	}
 
+	/**
+	 * (QD-2, M5b gap 1) A composed realise refused at put-down (an order saved refused) is put to the player whatever the quote says, as the
+	 * single-module path is: each refused order's bill never below what was approved, the refusal kept through the hold and cleared by approval.
+	 */
+	@Test
+	void aPutDownRefusalOnAComposedTownAsksAgainWhateverTheQuote() {
+		JsonObject parts = json("{\"lot:farm_1\": {\"minecraft:dirt\": 120}, \"lot:hall_1\": {\"minecraft:oak_planks\": 90}, \"fill:hall_1\": {\"minecraft:coal\": 41}}");
+		Map<String, ModuleOrder> orders = new LinkedHashMap<>();
+		orders.put("farm_1", order("crop_farm", "{\"minecraft:dirt\": 130}").refusedAtPutDown(true));
+		orders.put("hall_1", order("storage_hall", "{\"minecraft:oak_planks\": 100, \"minecraft:coal\": 41}").refusedAtPutDown(true));
+		// within every bound and exact: still asked
+		var h = ComposedModules.held(parts, orders, null);
+		assertNull(h.refused());
+		assertNotNull(h.ask(), "a refusal at put-down is never realised on its own");
+		assertTrue(h.ask().startsWith(ModuleBound.PUT_DOWN_REFUSED), h.ask());
+		assertNull(h.said());
+		// the bills shown are at least the approved bounds, item by item
+		assertEquals(json("{\"minecraft:dirt\": 130}"), h.orders().get("farm_1").held());
+		assertEquals(json("{\"minecraft:oak_planks\": 100, \"minecraft:coal\": 41}"), h.orders().get("hall_1").held());
+		assertTrue(h.ask().contains("the crop farm: 130 dirt"), h.ask());
+		// the hold keeps the refusal (a crash before the phase is saved asks again); approving clears it, and the next quote within goes on
+		assertTrue(h.orders().values().stream().allMatch(ModuleOrder::refusedAtPutDown));
+		Map<String, ModuleOrder> approved = new LinkedHashMap<>();
+		h.orders().forEach((k, v) -> approved.put(k, v.approvedHeld()));
+		assertTrue(approved.values().stream().noneMatch(ModuleOrder::refusedAtPutDown));
+		var next = ComposedModules.held(parts, approved, null);
+		assertNull(next.ask());
+		assertTrue(next.said().endsWith("; " + ModuleBound.CRASH_EXCEPTION + "."), next.said());
+		// one order refused is enough; the other's bill is its share
+		Map<String, ModuleOrder> one = new LinkedHashMap<>(orders);
+		one.put("farm_1", order("crop_farm", "{\"minecraft:dirt\": 130}"));
+		var o = ComposedModules.held(parts, one, null);
+		assertTrue(o.ask().startsWith(ModuleBound.PUT_DOWN_REFUSED), o.ask());
+		assertEquals(json("{\"minecraft:dirt\": 120}"), o.orders().get("farm_1").held());
+	}
+
 	@Test
 	void boundWordsSayWhatIsBuiltAndTheHold() {
 		var farm = decide(ComposedModules.read(lots(plan())).get(0), FARM, WARM, new HashSet<>(), null).order();
@@ -378,49 +421,91 @@ class ComposedModulesTest {
 		assertEquals(1, lots(ComposedModules.apply(p, Map.of(), out)).size());
 	}
 
-	/**
-	 * GPT review 10: each module says what it does; the farm that the player harvests it. batch-074 GPT review P2: the hall offered on 0.74.0 is @2,
-	 * which measured sorting slots, but a composed hall is built plain (sorting in a planned town is M5b's), so it says it does not sort.
-	 */
+	/** GPT review 10: each module says what it does; (M5b) a composed @2 hall sorts, and its plain size does not. */
 	@Test
 	void eachModuleSaysWhatItDoes() {
 		var v = ComposedModules.vocabulary(offered());
 		assertTrue(v.get(0).getAsJsonObject().get("does").getAsString().contains("player harvests"));
 		assertEquals(2, offered().get(1).entry().version());
-		assertFalse(ComposedModules.COMPOSED_HALL_SORTS);
+		assertTrue(ComposedModules.COMPOSED_HALL_SORTS);
 		String hall = v.get(1).getAsJsonObject().get("does").getAsString();
-		assertTrue(hall.contains("it does not sort"), hall);
-		assertFalse(hall.contains("sorts the items"), hall);
-		// nor do its sizes or its choice offer slots or filter items
-		assertFalse(v.get(1).toString().contains("item1"), v.get(1).toString());
-		for (var sz : v.get(1).getAsJsonObject().getAsJsonArray("sizes")) assertEquals(0, sz.getAsJsonObject().getAsJsonObject("params").get("slots").getAsInt());
+		assertTrue(hall.contains("each of its slots sorts one item"), hall);
+		assertTrue(hall.contains("0 slots is a plain hall that does not sort"), hall);
 		assertTrue(ComposeJob_rules().contains("`does`"));
+		assertTrue(ComposeJob_rules().contains("item1 .. itemN"), "the rules say how to write a hall's items");
 	}
 
-	/** batch-074 GPT review P2: a composed @2 hall asked to sort (valid sorting slots and items) is built as the plain hall, and said so. */
+	static ComposedModules.Asked hallAsk(String params) {
+		return new ComposedModules.Asked("warehouse_1", "storage_hall", json(params), "warehouse");
+	}
+
+	/** (M5b) A composed sorting hall as the plan wrote it: its slots and items kept, bound to @2, its words saying what it sorts. */
 	@Test
-	void aComposedSortingAskIsBuiltAndDescribedAsPlain() {
-		for (String params : List.of("{\"slots\": 4, \"bulk\": 2, \"item1\": \"cobblestone\", \"item2\": \"iron_ingot\", \"item3\": \"wheat\", \"item4\": \"coal\"}",
-			"{\"slots\": \"four\", \"bulk\": 2}", "{\"bulk\": 2, \"item1\": \"coal\"}")) {
-			var a = new ComposedModules.Asked("warehouse_1", "storage_hall", json(params), "warehouse");
-			for (var town : List.of(WARM, MATERIALS)) {
-				var d = ComposedModules.decide(a, HALL, ok("storage_hall"), town, Set.of(), new int[] {11, 7}, (e, p) -> ModuleBound.of(e.measured(), p), false);
-				assertTrue(d.ok(), params + ": " + d.why());
-				assertEquals(2, d.order().version(), "the newest certified hall");
-				assertEquals(0, d.order().params().get("slots").getAsInt(), params);
-				for (int i = 1; i <= StorageHallLot.SLOT_MAX; i++) if (d.order().params().has("item" + i)) assertEquals("none", d.order().params().get("item" + i).getAsString(), params);
-				assertTrue(d.changed().contains("doesn't sort yet, so a plain hall"), d.changed());
-				String w = ComposedModules.boundWords("sorting warehouse", HALL, d.order(), d.changed(), town.materials());
-				assertTrue(w.startsWith("The plan's sorting warehouse is a working storage hall from Steward's measured catalog (storage_hall@2"), w);
-				assertTrue(w.contains("It's a plain hall: it doesn't sort."), w);
-			}
-		}
-		// a plain ask says nothing about sorting in its notes, and the words still say it doesn't sort
-		var plain = decide(ComposedModules.read(lots(plan())).get(1), HALL, WARM, Set.of(), new int[] {11, 7});
-		assertTrue(plain.ok(), plain.why());
+	void aComposedSortingHallKeepsThePlansSlotsAndItems() {
+		var d = decide(hallAsk("{\"slots\": 4, \"bulk\": 2, \"item1\": \"cobblestone\", \"item2\": \"iron_ingot\", \"item3\": \"wheat\", \"item4\": \"coal\"}"),
+			HALL, WARM, Set.of(), new int[] {11, 13});
+		assertTrue(d.ok(), d.why());
+		assertNull(d.changed(), d.changed());
+		JsonObject p = d.order().params();
+		assertEquals(2, d.order().version());
+		assertEquals(4, p.get("slots").getAsInt());
+		assertEquals(List.of("minecraft:cobblestone", "minecraft:iron_ingot", "minecraft:wheat", "minecraft:coal"), StorageHallLot.items(p).items());
+		for (int i = 5; i <= StorageHallLot.SLOT_MAX; i++) assertEquals("none", p.get("item" + i).getAsString(), "item" + i);
+		assertArrayEquals(new int[] {11, 13}, HALL.frame(p));
+		assertEquals("about 2.3 items a second", ModuleOffer.hallRate(ok("storage_hall").entry().measured(), 4));
+		String w = ComposedModules.boundWords("storage hall", HALL, d.order(), d.changed(), false);
+		assertTrue(w.contains("It sorts: 4 slots for cobblestone, iron ingot, wheat, coal"), w);
+		assertTrue(w.contains("Never put petrified oak slabs in it."), w);
+		assertFalse(w.contains("plain hall"), w);
+		assertTrue(w.contains(ModuleOffer.LATE_CARGO_WORDS), w);
+		// the lot as built is the sorting hall's own lot, its ext the full ref with the items (HallCargo reads them from the site)
+		JsonObject built = ComposedModules.builtLot(json("{\"id\": \"warehouse_1\", \"type\": \"storage_hall\", \"size\": [11, 13]}"), HALL, d.order());
+		assertEquals("[11,13]", built.get("size").toString());
+		assertEquals(d.order().ref(), ModuleRef.of(built.getAsJsonObject("ext")));
+		// (guard off) from materials its bound is measured, the fill included (41 of each filter item)
+		var m = ComposedModules.decide(hallAsk("{\"slots\": 4, \"item1\": \"cobblestone\", \"item2\": \"iron_ingot\", \"item3\": \"wheat\", \"item4\": \"coal\"}"),
+			HALL, ok("storage_hall"), MATERIALS, Set.of(), null, (e, q) -> ModuleBound.of(e.measured(), q), false);
+		assertTrue(m.ok(), m.why());
+		JsonObject b = ModuleBound.of(ok("storage_hall").entry().measured(), m.order().params());
+		assertNotNull(b);
+		assertTrue(b.get("minecraft:iron_ingot").getAsInt() >= StorageHallLot.FILTER_COUNT, b.toString());
+		assertTrue(ComposedModules.boundWords("hall", HALL, m.order(), null, true).contains(ModuleBound.CRASH_EXCEPTION), "the bound's words carry the crash exception");
+	}
+
+	/** (M5b) Slots and items not written, or not kept: the lot's frame picks the slots (most first on a tie), and Steward chooses the items, said. */
+	@Test
+	void aComposedHallsMissingSlotsAndItemsAreChosenAndSaid() {
+		var town = new ComposedModules.Town(false, false, Map.of("minecraft:dirt", 900, "minecraft:sand", 300, "minecraft:diamond_sword", 1, "minecraft:iron_ingot", 0));
+		// 11 by 13 fits 4 and 8 slots: 8, said; every item chosen from the stores, most held first, then the domain in its order
+		var d = ComposedModules.decide(hallAsk("{\"bulk\": 2}"), HALL, ok("storage_hall"), town, Set.of(), new int[] {13, 11}, (e, p) -> ModuleBound.of(e.measured(), p));
+		assertTrue(d.ok(), d.why());
+		assertEquals(8, d.order().params().get("slots").getAsInt());
+		assertEquals(List.of("minecraft:dirt", "minecraft:sand", "minecraft:cobblestone", "minecraft:cobbled_deepslate", "minecraft:stone", "minecraft:deepslate",
+			"minecraft:red_sand", "minecraft:gravel"), StorageHallLot.items(d.order().params()).items());
+		assertTrue(d.changed().contains("fits more than one hall, so the one with the most slots (8)"), d.changed());
+		assertTrue(d.changed().contains("Steward chose its 8 slots' items from your stores, most held first, then the hall's defaults: dirt, sand, cobblestone"), d.changed());
+		// items written but some repeated or not sortable: those slots chosen, the rest kept, said by slot
+		var p = decide(hallAsk("{\"slots\": 4, \"item1\": \"coal\", \"item2\": \"coal\", \"item3\": \"diamond_sword\", \"item4\": \"minecraft:wheat\"}"),
+			HALL, WARM, Set.of(), null);
+		assertTrue(p.ok(), p.why());
+		assertEquals(List.of("minecraft:coal", "minecraft:cobblestone", "minecraft:cobbled_deepslate", "minecraft:wheat"), StorageHallLot.items(p.order().params()).items());
+		assertTrue(p.changed().contains("Steward chose slots 2, 3's items from the hall's defaults"), p.changed());
+		var stored = ComposedModules.items(json("{}"), 2, Map.of("minecraft:coal", 5, "minecraft:dirt", 9));
+		assertEquals(List.of("dirt", "coal"), stored.items());
+		assertTrue(stored.said().endsWith("from your stores, most held first: dirt, coal"), stored.said());
+		// the plain frame, or no size at all: the plain hall (the smallest), said where a size was asked
+		var plain = decide(hallAsk("{\"bulk\": 4}"), HALL, WARM, Set.of(), new int[] {11, 7});
+		assertEquals(0, plain.order().params().get("slots").getAsInt());
 		assertNull(plain.changed());
-		assertTrue(ComposedModules.boundWords("hall", HALL, plain.order(), null, false).contains("it doesn't sort"));
-		// a farm's words don't
+		assertTrue(ComposedModules.boundWords("hall", HALL, plain.order(), null, false).contains("It's a plain hall: it doesn't sort."));
+		var bad = decide(hallAsk("{\"slots\": \"four\"}"), HALL, WARM, Set.of(), null);
+		assertEquals(0, bad.order().params().get("slots").getAsInt());
+		var unmeasured = decide(hallAsk("{\"slots\": 6}"), HALL, WARM, Set.of(), null);
+		assertEquals(0, unmeasured.order().params().get("slots").getAsInt());
+		assertTrue(unmeasured.changed().contains("the size asked isn't measured, so the smallest"), unmeasured.changed());
+		// deterministic
+		assertEquals(d, ComposedModules.decide(hallAsk("{\"bulk\": 2}"), HALL, ok("storage_hall"), town, Set.of(), new int[] {13, 11}, (e, q) -> ModuleBound.of(e.measured(), q)));
+		// a farm's words don't sort
 		var farm = decide(ComposedModules.read(lots(plan())).get(0), FARM, WARM, Set.of(), null).order();
 		assertFalse(ComposedModules.boundWords("f", FARM, farm, null, false).contains("sort"));
 	}

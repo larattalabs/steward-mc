@@ -164,6 +164,9 @@ public final class ModuleBound {
 	 * (QD, pin-073 batch review) What every approval of a capped bill says with it: Architect's reconcile after an unclean start (BC-c) charges
 	 * what stands even past the cap, so the bound is never promised without this exception (the overnight decision's words).
 	 */
+	/** (QD-2) The re-ask after a realise refused at put-down ({@code BILL_CAP}): the single-module path and the composed one say it alike. */
+	public static final String PUT_DOWN_REFUSED = "When it was put down, the materials needed went past what you approved.";
+
 	public static final String CRASH_EXCEPTION = "I stop before passing it, except to pay for blocks already standing after a crash";
 
 	/**

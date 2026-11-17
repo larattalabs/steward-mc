@@ -1,5 +1,5 @@
 {
-  "prompt": "(slice M5) A farming village that feeds itself and keeps its stores in order: a working crop farm and a storage hall, as module lots of the plan (docs/MODULES.md \"M5 design\"), beside two cottages.",
+  "prompt": "(slice M5) A farming village that feeds itself and keeps its stores in order: a working crop farm and a sorting storage hall (4 slots), as module lots of the plan (docs/MODULES.md \"M5 design\"), beside two cottages.",
   "answer": {
     "plan": {
       "schemaVersion": "plan/0",
@@ -37,11 +37,11 @@
                   "type": "storage_hall",
                   "role": "storage",
                   "label": "the storage hall",
-                  "size": [11, 7],
+                  "size": [11, 13],
                   "ext": {
                     "steward_mc:module": {
                       "id": "storage_hall",
-                      "params": { "slots": 0, "bulk": 2 },
+                      "params": { "slots": 4, "bulk": 2, "item1": "cobblestone", "item2": "iron_ingot", "item3": "wheat", "item4": "coal" },
                       "for": "warehouse"
                     }
                   }

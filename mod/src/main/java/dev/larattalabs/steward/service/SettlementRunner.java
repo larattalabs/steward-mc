@@ -238,7 +238,8 @@ public final class SettlementRunner {
 			}
 			case PLACEMENT -> {
 				// (slice M3) a held bill: the bill shown becomes the bound, saved before the phase moves on (a crash between leaves it approved, never lost)
-				if (moduleBuild() || composedModules()) approveHeld();
+				if ((moduleBuild() || composedModules()) && !approveHeld())
+					yield "Not approved: the approval could not be saved, so nothing is built under it. Approve again.";
 				// (slice SD) a district's bill held for the player: the bill they were shown is the one approved
 				if (districtShown != null) { districtCleared = districtShown; districtSurvival = districtShownSurvival; districtShown = null; }
 				feed(new Pipeline.PlacementApproved());
@@ -425,11 +426,7 @@ public final class SettlementRunner {
 	private boolean persist() {
 		if (!alive()) return false;
 		if (settlement == null || state == null || plan == null) return true;
-		boolean ended = state.phase().terminal();
-		if (ended) builds.remove(settlement.id());
-		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, growRegion,
-			growth() ? growRid : null, growth() ? growPosition : null, growKey, moduleBindings, moduleOrders, growZone));
+		boolean ended = cache();
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -440,6 +437,19 @@ public final class SettlementRunner {
 			Steward.LOGGER.warn("could not save {}", buildsFile, e);
 			return false;
 		}
+	}
+
+	/**
+	 * The build as it stands now, put into the shared store (or dropped from it once finished), without writing the file; whether it ended. (M5b
+	 * GPT review P2) A state rolled back after a failed save is put back with this, so another build's save never writes the rejected one.
+	 */
+	private boolean cache() {
+		boolean ended = state.phase().terminal();
+		if (ended) builds.remove(settlement.id());
+		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
+			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, growRegion,
+			growth() ? growRid : null, growth() ? growPosition : null, growKey, moduleBindings, moduleOrders, growZone));
+		return ended;
 	}
 
 	/** An approved plan's irrigated lots' reserved cells (Architect IRR), from its artifact; none for any other build. */
@@ -1717,7 +1727,13 @@ public final class SettlementRunner {
 		for (JsonObject l : dev.larattalabs.steward.gateway.PPlan.lots(base)) lotsById.put(l.get("id").getAsString(), l);
 		ServerLevel level = level();
 		net.minecraft.core.BlockPos at = new net.minecraft.core.BlockPos(settlement.claim().centerX(), level.getSeaLevel(), settlement.claim().centerZ());
-		var town = new dev.larattalabs.steward.module.ComposedModules.Town(level.getBiome(at).value().coldEnoughToSnow(at, level.getSeaLevel()), supplied);
+		// (M5b) what the player carries and (from materials) the stockpile holds: a sorting hall's chosen items are the most held filter kinds
+		Map<String, Integer> held = new HashMap<>();
+		ServerPlayer holder = server.getPlayerList().getPlayer(playerId);
+		if (holder != null) for (var st : holder.getInventory()) if (!st.isEmpty()) held.merge(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), Integer::sum);
+		if (supplied) Stockpiles.of(server, Settlements.store().get(settlement.id()).orElse(settlement))
+			.ifPresent(sp -> sp.stock().forEach((it, n) -> held.merge(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(it).toString(), n, Integer::sum)));
+		var town = new dev.larattalabs.steward.module.ComposedModules.Town(level.getBiome(at).value().coldEnoughToSnow(at, level.getSeaLevel()), supplied, held);
 		Map<String, dev.larattalabs.steward.module.ModuleOrder> orders = new LinkedHashMap<>();
 		java.util.Set<String> taken = new java.util.HashSet<>();
 		for (var a : asked) {
@@ -3114,7 +3130,7 @@ public final class SettlementRunner {
 	}
 
 	/** (QD) The re-ask after a put-down refusal. */
-	static final String PUT_DOWN_REFUSED = "When it was put down, the materials needed went past what you approved.";
+	static final String PUT_DOWN_REFUSED = dev.larattalabs.steward.module.ModuleBound.PUT_DOWN_REFUSED;
 
 	// ----------------------------------------------------------------- module lots of a composed town (slice M5, docs/MODULES.md "M5 design")
 
@@ -3260,13 +3276,17 @@ public final class SettlementRunner {
 				return;
 			}
 			moduleOrders = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(verdict.orders()));
-			if (verdict.ask() != null) {
-				// held, saved with the build: the approval binds to exactly these bills, also after a restart
-				persist();
-				feed(new Pipeline.HoldBill(verdict.ask() + " Nothing has been taken from the stockpile. Approve to build it with these bills (they become the bounds), or cancel."));
+			// (M5b, persist before mutate) the hold or the cleared orders saved before anything is asked or realised; unsaved, nothing goes on
+			if (!persist()) {
+				say("Not placed: the build could not be saved with its working modules' bills, so nothing is consumed.");
+				feed(new Pipeline.Cancel());
 				return;
 			}
-			persist();
+			if (verdict.ask() != null) {
+				// held, saved with the build: the approval binds to exactly these bills, also after a restart
+				feed(new Pipeline.HoldBill(composedHoldWords(verdict.ask())));
+				return;
+			}
 			// (Noah, 2026-11-15) each module's limit is shown with the quote
 			if (verdict.said() != null) say(verdict.said());
 			quoteCleared = key;
@@ -3274,16 +3294,38 @@ public final class SettlementRunner {
 		}));
 	}
 
+	/** (M5b) The composed hold's words: the bills, and what approving them means, the crash exception included (as every capped approval). Pure. */
+	static String composedHoldWords(String ask) {
+		return ask + " Nothing has been taken from the stockpile. Approve to build it with these bills (they become the bounds: "
+			+ dev.larattalabs.steward.module.ModuleBound.CRASH_EXCEPTION + "), or cancel.";
+	}
+
+	/**
+	 * (QD-2, M5b) The orders after a realise refused at put-down ({@code BILL_CAP}): each marked refused, so the next quote is put to the player,
+	 * also after a restart, until they approve it ({@code ModuleOrder.approvedHeld}). Pure.
+	 */
+	static Map<String, dev.larattalabs.steward.module.ModuleOrder> refusedAtPutDown(Map<String, dev.larattalabs.steward.module.ModuleOrder> orders) {
+		var out = new LinkedHashMap<String, dev.larattalabs.steward.module.ModuleOrder>();
+		orders.forEach((lot, o) -> out.put(lot, o.refusedAtPutDown(true)));
+		return java.util.Collections.unmodifiableMap(out);
+	}
+
 	/**
 	 * The player approved a held bill (the approve that ends AWAITING_PLACEMENT_APPROVAL): the bill they were shown becomes the bound, saved before
 	 * anything is quoted again, so the next quote within it goes on, also after a restart. Nothing held (an approve after a hold that cleared): unchanged.
 	 */
-	private void approveHeld() {
+	private boolean approveHeld() {
+		var before = moduleOrders;
 		var next = new LinkedHashMap<String, dev.larattalabs.steward.module.ModuleOrder>();
 		moduleOrders.forEach((lot, o) -> next.put(lot, o.held() == null ? o : o.approvedHeld()));
 		moduleOrders = java.util.Collections.unmodifiableMap(next);
 		quoteCleared = null;
-		persist();
+		// (M5b, persist before mutate) an approval that isn't saved isn't taken: the bill stays held, nothing is quoted or realised under it
+		if (persist()) return true;
+		// rolled back in the runner and in the shared store (GPT review P2: the store held the approval, which another build's save would write)
+		moduleOrders = before;
+		if (alive() && settlement != null && state != null && plan != null) cache();
+		return false;
 	}
 
 	/** A restored module build that ended with nothing standing: its proposal back in the inbox (once), as the accepting hook would have. */
@@ -3372,6 +3414,12 @@ public final class SettlementRunner {
 				? "its design is past the lot's approved box or rule" : "it was not designed") + "), so the wall would stand open there"), session);
 			return;
 		}
+		// (M5b) a composed town's module lots from materials are held only by a cap scoped to each lot (S-M5-16), which realiseApproved doesn't take:
+		// such a realise is never sent uncapped (ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP leaves them out before this)
+		if (composedMaterialsUncapped(artifactSurvival(sha), moduleOrders)) {
+			realised(null, new IllegalStateException("the working modules' bills can't be held to their measured limits in a town built from materials yet"), session);
+			return;
+		}
 		Steward.LOGGER.info("realise {}: artifact {} under key {} ({})", settlement.id(), sha, opKey("vrealise"), first ? "first" : "after a re-check");
 		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext))
 			.whenComplete((id, err) -> server.execute(() -> {
@@ -3419,6 +3467,14 @@ public final class SettlementRunner {
 				}));
 			}));
 	}
+
+	/** (M5b) Whether a composed realise would build module lots from materials with no cap per lot (none exists yet: S-M5-16). Pure. */
+	static boolean composedMaterialsUncapped(boolean fromMaterials, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders) {
+		return fromMaterials && !orders.isEmpty() && !LOT_CAPS;
+	}
+
+	/** (M5b) Whether Architect caps a realise per lot (S-M5-16): not in 0.74.0 ({@code ApprovedRealise.maxBill} is one cap over the region). */
+	static final boolean LOT_CAPS = false;
 
 	/** Architect K3's refusal of a wall lot's bound design: "lot <id> on wall <wall>: ...". */
 	private static final java.util.regex.Pattern ON_WALL = java.util.regex.Pattern.compile("^lot (\\S+) on wall \\S+:");
@@ -3748,9 +3804,7 @@ public final class SettlementRunner {
 			if (billCapped(err) && moduleBuild() && state.phase() == Pipeline.Phase.PLACING) {
 				Steward.LOGGER.info("module {} realise {} refused at put-down: {}", settlement.id(), vPlanId, message(err));
 				// (QD-2) saved before the quote is asked for: a restart puts the next quote to the player too, never realises it on its own
-				var refusedOrders = new LinkedHashMap<String, dev.larattalabs.steward.module.ModuleOrder>();
-				moduleOrders.forEach((lot, o) -> refusedOrders.put(lot, o.refusedAtPutDown(true)));
-				moduleOrders = java.util.Collections.unmodifiableMap(refusedOrders);
+				moduleOrders = refusedAtPutDown(moduleOrders);
 				quoteCleared = null;
 				// (pin-073 batch review, P2) the refusal not saved: a restart would find the build placing as approved and could realise it on its own,
 				// so it is neither quoted again nor realised here; the build stops (nothing was written or taken), said
@@ -3787,6 +3841,22 @@ public final class SettlementRunner {
 			if ((uncertain(err) || keyConflict(err)) && findVillage()) return;
 			// a district's realise re-checks the land under its plan (D3 4.4): planned again once, under a second key, as a stale artifact is
 			if (replanDistrict(err)) return;
+			// (QD-2, M5b) a composed town's realise refused at put-down (BILL_CAP, under a cap): nothing was written or taken; its orders are marked
+			// refused and saved before it is quoted again, so the next quote is put to the player, also after a restart; unsaved, the build stops
+			if (billCapped(err) && composedModules() && state.phase() == Pipeline.Phase.PLACING) {
+				Steward.LOGGER.info("composed modules {} realise refused at put-down: {}", settlement.id(), message(err));
+				moduleOrders = refusedAtPutDown(moduleOrders);
+				quoteCleared = null;
+				if (!persist()) {
+					say("Not placed: the materials needed went past what you approved, and that could not be saved, so I won't ask again or build it."
+						+ " Nothing was taken from the stockpile; start it again.");
+					feed(new Pipeline.Cancel());
+					return;
+				}
+				say("Not placed yet: the materials needed went past what you approved. Nothing was taken from the stockpile; I'll ask you again.");
+				realiseVillage();
+				return;
+			}
 			// (slice SD) a district's region from materials: the world's mode changed since it was planned, or the stockpile is gone, in plain words
 			String plain = districtId == null ? null : materialsRefusal(message(err));
 			if (plain != null) { say("Not placed: " + plain); feed(new Pipeline.Cancel()); return; }

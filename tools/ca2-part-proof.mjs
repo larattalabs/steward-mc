@@ -12,7 +12,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARCH = process.env.ARCHITECT_CHECKOUT ?? path.resolve(ROOT, '..', 'architect-mc');
 const GAME = path.join(ROOT, 'mod', 'run');
 const OPT_IN = path.join(GAME, 'architect', 'sidecar-data', 'secrets.json');
-const WORLD_NAME = 'Steward Compose Proof';
+const WORLD_NAME = process.env.STEWARD_PROOF_WORLD || 'Steward Compose Proof';
 const WORLD = path.join(GAME, 'saves', WORLD_NAME);
 const PORT = Number(process.env.STEWARD_DEV_PORT ?? 8591);
 const SIDECAR_PORT = String(process.env.STEWARD_PORT ?? 8590);
@@ -79,7 +79,7 @@ try {
   const env = {
     HOME: process.env.HOME, USER: process.env.USER, LOGNAME: process.env.USER, TMPDIR: process.env.TMPDIR, SHELL: '/bin/zsh', PATH: '/opt/homebrew/bin:/usr/bin:/bin',
     JAVA_HOME: '/opt/homebrew/opt/openjdk@25', GRADLE_USER_HOME: process.env.GRADLE_USER_HOME ?? path.join(ROOT, '.gradle-home'), STEWARD_PORT: SIDECAR_PORT,
-    STEWARD_DEV_PORT: String(PORT), ARCHITECT_AUTOWORLD_NAME: WORLD_NAME, ARCHITECT_AUTOWORLD_MODE: 'creative', ARCHITECT_AUTOWORLD_PRESET: 'default',
+    STEWARD_DEV_PORT: String(PORT), ARCHITECT_AUTOWORLD_NAME: WORLD_NAME, ARCHITECT_AUTOWORLD_MODE: process.env.ARCHITECT_AUTOWORLD_MODE || 'creative', ARCHITECT_AUTOWORLD_PRESET: process.env.ARCHITECT_AUTOWORLD_PRESET || 'default',
     ARCHITECT_AUTOWORLD_CHEATS: 'true',
     ...(phase === 'town' ? { ARCHITECT_SIDECAR_BACKEND: 'sim', ARCHITECT_SIM_COSTS: 'measured' } : { STEWARD_COMPOSE_CAP_USD: cap.toFixed(2) }),
   };
