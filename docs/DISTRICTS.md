@@ -354,6 +354,13 @@ founding didn't build. Once the town is built, the steward proposes it.
   the town..., with a street of its own joined to the town's. Founding it costs nothing; building its N lots costs about $X[, and from materials its bill
   is said before anything is placed]." It is priced as a quarter's buildings (`Proposals.planDistrictEstimate`), and it always waits for the player.
 - **Side:** east or west only, beside the town region (`besideTown`). It is chosen by `Districts.choose` from the district's label and `prefer` words.
+  (PD-2, 11-16) Architect's beside check would join a district north or south (D3's T junction), but Steward keeps Q3 until Noah decides (section 9):
+  `DistrictRules.reserve` and its request are east-west only, and widening `besideTown` would turn every north or south square district (its road
+  billed from the stockpile) into a beside region. So the words are honest instead. When the side was taken with no ground reason of its own and
+  the district asks for ground, the north and south squares are surveyed too, and ground found there is said in the proposal
+  (`PlanDistricts.betterSideNote`: "The ground it asks for (by the water) is to the north, but a district beside the town goes only east or west for
+  now."). When neither east nor west fits, the steward says so once (`noSideWords`) instead of only logging it; it is looked at again when the town,
+  the plan or the districts change, and said again after a restart.
 - **Accept** (`Actions.acceptPlanDistrict`): the district is read again from the plan (gone: the proposal is withdrawn, not declined). It is reserved
   beside the town under its label ($0, Architect's beside check), then `SettlementRunner.startPlanDistrict` plans its region with the plan's own lots
   (ids, sizes, labels, briefs) through `planDistrict`. That is SD's path: the stockpile, `quoteDistrict` and the one approval in survival, the inexact
@@ -361,12 +368,14 @@ founding didn't build. Once the town is built, the steward proposes it.
   next acceptance builds on it (`PlanDistricts.reservedFor`).
 - **Undo, refund, restart:** as SD's (`Undo.region`, refused while a growth stands, refunds once). The build's `districtSpecs` carry the lots across a
   restart. No save format change. Once accepted, the district is not offered again, even after an undo.
-- **Checks:** unit `PlanDistrictsTest`. e2e (stub) flow `plan-district`: a Supplied town from no_wood's plan with a D1 district added to its kept plan.
+- **Checks:** unit `PlanDistrictsTest`. e2e (stub) flow `plan-district`: a Supplied town from no_wood's plan, composed with an optional districts zone
+  whose one district (256 by 256) has no candidate in the claim (PD-2: Architect refuses the zone NO_ROOM, Start leaves it out, and the kept plan still
+  names it, not as a waiting part; earlier the flow added the district to the kept plan after the town was placed).
   It isn't proposed before the town is built. Once it is built it is proposed once, and its words are checked. It is accepted, reserved, and its bill
   is said before the one approval. It is built from the stockpile with the plan's lot ids, within its quote. It is undone with everything it consumed
   back once, given up, and not proposed again.
 - **Not here:** along or outpost zones are zones, not D1 districts, so the composer never writes them as districts. North or south of the town
-  (square districts) is not offered.
+  (square districts) is not offered (said, PD-2). PD's flow has no restart mid-build; SD's flow covers that path (PD-2 left it there).
 
 ## 14. Slice SD2: quarters from materials, and SD's leftovers (2026-11-15)
 

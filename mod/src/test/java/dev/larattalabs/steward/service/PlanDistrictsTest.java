@@ -178,6 +178,33 @@ class PlanDistrictsTest {
 	}
 
 	@Test
+	void groundNorthOrSouthIsSaid() {
+		// (PD-2) beside the town a district goes only east or west (Q3): ground it asks for that lies north or south is said, never hidden
+		var jungle = PlanDistricts.unbuilt(plan(PLAN), Set.of("trader_1"), Set.of(), Secrets.NONE).get(0);
+		String note = PlanDistricts.betterSideNote("", "N", "by the water (12% of it)");
+		assertEquals("The ground it asks for (by the water) is to the north, but a district beside the town goes only east or west for now.", note);
+		var p = PlanDistricts.proposal(jungle, "E", "", note, 40, false, 7L);
+		assertTrue(p.why().contains("It would go to the east of the town, with a street of its own joined to the town's. The ground it asks for (by the water) is to the north"), p.why());
+		assertTrue(p.why().contains("for now. Founding it costs nothing"), p.why());
+		assertEquals(PlanDistricts.proposal(jungle, "E", "", 40, false, 7L).why(), PlanDistricts.proposal(jungle, "E", "", null, 40, false, 7L).why(), "no note: as before");
+		assertNull(PlanDistricts.betterSideNote("in the woods (30% trees)", "S", "by the water (12% of it)"), "the side offered suits it: nothing to say");
+		assertNull(PlanDistricts.betterSideNote("", "S", ""), "no ground found north or south");
+		assertNull(PlanDistricts.betterSideNote("", null, ""), "neither north nor south fits");
+		assertNull(PlanDistricts.betterSideNote("", "E", "by the water"), "only north or south is said");
+		assertNull(PlanDistricts.betterSideNote("", "N", "to the north, as you said"), "a side the label names is no ground");
+		assertEquals("The ground it asks for (on low ground) is to the south, but a district beside the town goes only east or west for now.",
+			PlanDistricts.betterSideNote(null, "S", "on low ground (6 below the town)"));
+	}
+
+	@Test
+	void noSideIsSaidOnce() {
+		var jungle = PlanDistricts.unbuilt(plan(PLAN), Set.of("trader_1"), Set.of(), Secrets.NONE).get(0);
+		String w = PlanDistricts.noSideWords(jungle);
+		assertTrue(w.startsWith("The town's plan names the jungle side (2 herbalists and a well house), which its founding didn't build, but there is no room"), w);
+		assertTrue(w.contains("east or west") && w.contains("doesn't go north or south yet") && w.contains("I haven't proposed it"), w);
+	}
+
+	@Test
 	void keys() {
 		assertTrue(PlanDistricts.isKey("plan_district_jungle_side"));
 		assertEquals("jungle_side", PlanDistricts.idOf("plan_district_jungle_side"));
