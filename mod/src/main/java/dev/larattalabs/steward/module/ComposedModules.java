@@ -383,7 +383,11 @@ public final class ComposedModules {
 		List<String> names = new ArrayList<>();
 		for (int i : chose) names.add(out[i - 1].replace('_', ' '));
 		String which = chose.size() == n ? "its " + n + " slots' items" : (chose.size() == 1 ? "slot " : "slots ") + chose.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(", ")) + "'s items";
-		return new Chosen(items, "Steward chose " + which + " from your stores, most held first: " + String.join(", ", names));
+		// (GPT review P3) the stores' most held kinds first, then the domain's defaults, said apart
+		java.util.Set<String> stored = new java.util.HashSet<>(ModuleOffer.filterKinds(held));
+		boolean fromStores = chose.stream().allMatch(i -> stored.contains(out[i - 1])), noneStored = chose.stream().noneMatch(i -> stored.contains(out[i - 1]));
+		String from = fromStores ? "from your stores, most held first" : noneStored ? "from the hall's defaults (your stores hold none it sorts)" : "from your stores, most held first, then the hall's defaults";
+		return new Chosen(items, "Steward chose " + which + " " + from + ": " + String.join(", ", names));
 	}
 
 	/** Whether a hall's params as the plan wrote them ask for sorting: a slots member other than the whole number 0, or any filter item but none. */

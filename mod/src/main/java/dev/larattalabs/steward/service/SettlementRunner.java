@@ -426,11 +426,7 @@ public final class SettlementRunner {
 	private boolean persist() {
 		if (!alive()) return false;
 		if (settlement == null || state == null || plan == null) return true;
-		boolean ended = state.phase().terminal();
-		if (ended) builds.remove(settlement.id());
-		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
-			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, growRegion,
-			growth() ? growRid : null, growth() ? growPosition : null, growKey, moduleBindings, moduleOrders, growZone));
+		boolean ended = cache();
 		if (buildsFile == null) return false;
 		try {
 			builds.save(buildsFile);
@@ -441,6 +437,19 @@ public final class SettlementRunner {
 			Steward.LOGGER.warn("could not save {}", buildsFile, e);
 			return false;
 		}
+	}
+
+	/**
+	 * The build as it stands now, put into the shared store (or dropped from it once finished), without writing the file; whether it ended. (M5b
+	 * GPT review P2) A state rolled back after a failed save is put back with this, so another build's save never writes the rejected one.
+	 */
+	private boolean cache() {
+		boolean ended = state.phase().terminal();
+		if (ended) builds.remove(settlement.id());
+		else builds.put(new BuildStore.Saved(settlement.id(), buildId, playerId, dimension, permission, landmarks, settlement, state, plan, bibleJobId, groupId, batchId, siteGroupId,
+			List.copyOf(landmarkIds), List.copyOf(decided), lastAwaiting, addition, districtId, newStreet, keyed, vPlanId, vRegionId, districtSpecs, growRegion,
+			growth() ? growRid : null, growth() ? growPosition : null, growKey, moduleBindings, moduleOrders, growZone));
+		return ended;
 	}
 
 	/** An approved plan's irrigated lots' reserved cells (Architect IRR), from its artifact; none for any other build. */
@@ -3313,7 +3322,9 @@ public final class SettlementRunner {
 		quoteCleared = null;
 		// (M5b, persist before mutate) an approval that isn't saved isn't taken: the bill stays held, nothing is quoted or realised under it
 		if (persist()) return true;
+		// rolled back in the runner and in the shared store (GPT review P2: the store held the approval, which another build's save would write)
 		moduleOrders = before;
+		if (alive() && settlement != null && state != null && plan != null) cache();
 		return false;
 	}
 

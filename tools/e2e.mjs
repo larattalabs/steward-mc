@@ -2748,8 +2748,9 @@ async function composedModulesFlow() {
     await sleep(1000);
     last = settlements().find((x) => x.id === id)?.log.at(-1);
   }
-  const slabs = await dev.request('dev.fk.slabs', { pos: inputCell }).catch(() => ({}));
-  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placed.siteIds.length && (slabs.entities ?? 0) === 0 && (slabs.player ?? 0) === 0) ok(`${label} undo`, `${last.text}; no slab loose`);
+  // (GPT review P2) the probe must answer both counts as numbers: a failed probe never passes as "no slab loose"
+  const slabs = await dev.request('dev.fk.slabs', { pos: inputCell }).catch((e) => ({ error: String(e) }));
+  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placed.siteIds.length && slabs.entities === 0 && slabs.player === 0) ok(`${label} undo`, `${last.text}; no slab loose`);
   else fail(`${label} undo`, `last op ${last?.kind} (${last?.siteIds?.length} of ${placed.siteIds.length}); slabs ${JSON.stringify(slabs)}; ${logSince(from).split('\n').filter((l) => /CHAT|Undo/i.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
 }
 

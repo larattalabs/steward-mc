@@ -483,13 +483,16 @@ class ComposedModulesTest {
 		assertEquals(List.of("minecraft:dirt", "minecraft:sand", "minecraft:cobblestone", "minecraft:cobbled_deepslate", "minecraft:stone", "minecraft:deepslate",
 			"minecraft:red_sand", "minecraft:gravel"), StorageHallLot.items(d.order().params()).items());
 		assertTrue(d.changed().contains("fits more than one hall, so the one with the most slots (8)"), d.changed());
-		assertTrue(d.changed().contains("Steward chose its 8 slots' items from your stores, most held first: dirt, sand, cobblestone"), d.changed());
+		assertTrue(d.changed().contains("Steward chose its 8 slots' items from your stores, most held first, then the hall's defaults: dirt, sand, cobblestone"), d.changed());
 		// items written but some repeated or not sortable: those slots chosen, the rest kept, said by slot
 		var p = decide(hallAsk("{\"slots\": 4, \"item1\": \"coal\", \"item2\": \"coal\", \"item3\": \"diamond_sword\", \"item4\": \"minecraft:wheat\"}"),
 			HALL, WARM, Set.of(), null);
 		assertTrue(p.ok(), p.why());
 		assertEquals(List.of("minecraft:coal", "minecraft:cobblestone", "minecraft:cobbled_deepslate", "minecraft:wheat"), StorageHallLot.items(p.order().params()).items());
-		assertTrue(p.changed().contains("Steward chose slots 2, 3's items"), p.changed());
+		assertTrue(p.changed().contains("Steward chose slots 2, 3's items from the hall's defaults (your stores hold none it sorts)"), p.changed());
+		var stored = ComposedModules.items(json("{}"), 2, Map.of("minecraft:coal", 5, "minecraft:dirt", 9));
+		assertEquals(List.of("dirt", "coal"), stored.items());
+		assertTrue(stored.said().endsWith("from your stores, most held first: dirt, coal"), stored.said());
 		// the plain frame, or no size at all: the plain hall (the smallest), said where a size was asked
 		var plain = decide(hallAsk("{\"bulk\": 4}"), HALL, WARM, Set.of(), new int[] {11, 7});
 		assertEquals(0, plain.order().params().get("slots").getAsInt());
