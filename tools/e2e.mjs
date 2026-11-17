@@ -4008,10 +4008,11 @@ async function suppliedGrowthFlow(mode = null) {
       }
       // 'held' (run 2: Architect writes a growth's revision in a second or two, so a cancel never met it still placing): Architect's answer to the
       // realise is held (dev.region.holdRealise), so Steward's build still waits on a realised growth whose targets wait for items; fed in part
-      await dev.request('dev.region.holdRealise', { on: true });
       let h = null, at = f;
-      // (E2E-STUB-ORDER) released in a finally: a throw here would leave every later keyed realise on this client held
+      // (E2E-STUB-ORDER) released in a finally: a throw here would leave every later keyed realise on this client held; (batch-076 review P2-6)
+      // the hold asked for inside it, so a lost reply is released too
       try {
+        await dev.request('dev.region.holdRealise', { on: true });
         const rid0 = Math.max(0, ...((await view()).revisions ?? []).map((x) => x.rid));
         for (let i = 0; i < 450 && !h; i++) {
           await sleep(2000);
@@ -5389,8 +5390,9 @@ async function stubFlow(id) {
   from = logSize();
   let armed = false, asked = false, why = '';
   try {
-    await dev.request('dev.api.dropAck', { msgType: 'bible.request' });
+    // (batch-076 review P2-6) owed before the request is sent: a lost reply may still have armed the hook
     armed = true;
+    await dev.request('dev.api.dropAck', { msgType: 'bible.request' });
     // seven buildings: with Architect 0b's copies, two of the fisher's huts copy a hut design ($0)
     await cmd(`/steward start ${id} 7 40`);
     asked = !!(await waitLog(from, /Designing the style bible/, 60_000));
@@ -6964,34 +6966,37 @@ async function moduleCapFlow() {
     // (BILL_CAP); the steward quotes again and puts the bill to the player, never realising it on its own; approved, it is realised under a bill
     // never below the bound approved, item by item
     const shortItem = 'minecraft:wheat_seeds';
-    await cmd(`/steward dev cap_short ${shortItem}`);
     const startAt = logSize();
     from = startAt;
-    await cmd(`/steward proposals ${id} accept ${offer.key}`);
     // asked first (an inexact quote, or past the bound): approved once, as shown; then refused at put-down and asked again: approved
     const maxBills = () => [...logSince(startAt).matchAll(new RegExp(`module ${id} realise \\S+ under \\S+: maxBill \\{([^}]*)\\}`, 'g'))]
       .map((m) => Object.fromEntries(m[1].split(', ').map((kv) => kv.split('=')).map(([k, c]) => [k, Number(c)])));
     let refusedAt = null, reasked = null, heldSaved = null;
-    for (let i = 0; i < 360; i++) {
-      const said = logSince(from);
-      if (refusedAt != null && reasked && maxBills().length >= 2) break;
-      if (refusedAt == null && new RegExp(`module ${id} realise \\S+ refused at put-down`).test(said)) refusedAt = logSize();
-      const ask = /Approve to build it with this bill|so I ask first/.test(said);
-      if (ask && refusedAt != null && !reasked) {
-        reasked = said.match(/When it was put down, the materials needed went past what you approved\.[^\n]*/)?.[0] ?? null;
-        // (E2E-STUB-ORDER) the short cap cleared before this early return, so the next module realise on this client is not sent short
-        if (!reasked) await cmd('/steward dev cap_short none').catch(() => null);
-        if (!reasked) return fail(`${label} put-down`, `asked again after the refusal without saying why: ${said.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
-        for (let j = 0; j < 10 && heldSaved?.state?.phase !== 'AWAITING_PLACEMENT_APPROVAL'; j++) {
-          if (j) await sleep(500);
-          try { heldSaved = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id) ?? null; } catch { /* mid-write */ }
+    // (batch-076 review P2-6) the short cap cleared in a finally, set inside it: an early return, a throw or a lost reply never leaves it armed
+    try {
+      await cmd(`/steward dev cap_short ${shortItem}`);
+      await cmd(`/steward proposals ${id} accept ${offer.key}`);
+      for (let i = 0; i < 360; i++) {
+        const said = logSince(from);
+        if (refusedAt != null && reasked && maxBills().length >= 2) break;
+        if (refusedAt == null && new RegExp(`module ${id} realise \\S+ refused at put-down`).test(said)) refusedAt = logSize();
+        const ask = /Approve to build it with this bill|so I ask first/.test(said);
+        if (ask && refusedAt != null && !reasked) {
+          reasked = said.match(/When it was put down, the materials needed went past what you approved\.[^\n]*/)?.[0] ?? null;
+          // (E2E-STUB-ORDER) the short cap is cleared by the finally below, so the next module realise on this client is not sent short
+          if (!reasked) return fail(`${label} put-down`, `asked again after the refusal without saying why: ${said.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+          for (let j = 0; j < 10 && heldSaved?.state?.phase !== 'AWAITING_PLACEMENT_APPROVAL'; j++) {
+            if (j) await sleep(500);
+            try { heldSaved = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id) ?? null; } catch { /* mid-write */ }
+          }
         }
+        // the cursor moves before the approve: what it leads to (a refusal, the re-ask) is never skipped (GPT review of QD-2)
+        if (ask) { from = logSize(); await cmd(`/steward approve ${id}`); }
+        await sleep(1000);
       }
-      // the cursor moves before the approve: what it leads to (a refusal, the re-ask) is never skipped (GPT review of QD-2)
-      if (ask) { from = logSize(); await cmd(`/steward approve ${id}`); }
-      await sleep(1000);
+    } finally {
+      await cmd('/steward dev cap_short none').catch(() => null);
     }
-    await cmd('/steward dev cap_short none').catch(() => null);
     {
       const lbl = `${label} put-down`;
       const sent = maxBills();
@@ -7922,9 +7927,13 @@ async function survivalDistrictFlow() {
       feeding = true;
       from = logSize();
       await cmd(`/steward proposals ${id} accept ${q.key}`);
-      let held = false;
+      // (batch-076 review P2-6) holdAsked marks the hold owed before its request: a lost reply is released below too
+      let held = false, holdAsked = false;
       const approved = await driveUntil(id, from, /Placing (?:the village|sd ward)[^\n]*/, 900_000, async (step) => {
-        if (step === 'Approve to place' && !held) held = !!(await dev.request('dev.region.holdRealise', { on: true }).catch(() => null))?.holding;
+        if (step === 'Approve to place' && !holdAsked) {
+          holdAsked = true;
+          held = !!(await dev.request('dev.region.holdRealise', { on: true }).catch(() => null))?.holding;
+        }
       });
       const qm = logSince(from).match(new RegExp(`district bill ${id} \\S+: (\\{[^\\n]*?\\}) \\(exact (true|false)`));
       quoted = qm ? JSON.parse(qm[1]) : null;
@@ -7934,7 +7943,7 @@ async function survivalDistrictFlow() {
       let mine = null;
       for (let i = 0; i < 120 && approved && held && !(mine?.length); i++) { await sleep(1000); mine = await listed(); }
       // (E2E-STUB-ORDER) the hold released before this early return (only the restart below drops it otherwise): later flows' keyed realises not held
-      if ((!approved || !mine?.length) && held) await dev.request('dev.region.holdRealise', { on: false }).catch(() => null);
+      if ((!approved || !held || !mine?.length) && holdAsked) await dev.request('dev.region.holdRealise', { on: false }).catch(() => null);
       if (!approved || !held || !mine?.length) return fail(rl, `approved ${!!approved}; held ${held}; region ${JSON.stringify(mine)?.slice(0, 120)}; ${chatTail(from)}`);
       region = mine[0].id;
       const savedPhase = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id)?.state?.phase;

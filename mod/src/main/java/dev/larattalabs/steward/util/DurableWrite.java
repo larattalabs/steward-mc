@@ -56,22 +56,47 @@ public final class DurableWrite {
 	static volatile Forcer forcer = REAL;
 	/** (TEST, the store units elsewhere) The next writes whose folder force after the rename fails (an EIO): the new file in place, in doubt. */
 	public static final java.util.concurrent.atomic.AtomicInteger FAIL_DIR_FORCE_AFTER_RENAME = new java.util.concurrent.atomic.AtomicInteger();
+
+	/** (TEST) How one write fails: before its rename (the old file stays), or at the folder's force after it (the new file in place, in doubt). */
+	public enum TestFail { NONE, BEFORE_RENAME, AFTER_RENAME }
+
+	/**
+	 * (TEST, the store units elsewhere) The next writes' failures in order, one taken per write ({@link TestFail#NONE}: that write as usual); checked
+	 * before {@link #FAIL_DIR_FORCE_AFTER_RENAME}.
+	 */
+	public static final java.util.Queue<TestFail> FAIL_NEXT = new java.util.concurrent.ConcurrentLinkedQueue<>();
 	/** (TEST) Whether a folder that can't be opened is best effort (Windows); the units set it. */
 	static volatile boolean dirOpenBestEffort = System.getProperty("os.name", "").toLowerCase(Locale.ROOT).startsWith("windows");
 	private static volatile boolean dirUnsupportedLogged;
 	/** Folders made by a write whose entry in their parent is not forced yet (a force failed): retried before every write (review P2). */
 	private static final Set<Path> unforcedDirs = ConcurrentHashMap.newKeySet();
+	/**
+	 * (batch-076 review P2-3) Folders whose entries up to their store's root were forced by this process. An owed force ({@link #unforcedDirs}) is
+	 * lost when the process ends, and the folder then exists, so it is never made again: the first write to a folder in each process forces its
+	 * chain once (a few folder syncs), then this cache holds it.
+	 */
+	private static final Set<Path> settledDirs = ConcurrentHashMap.newKeySet();
 
-	/** {@code text} (UTF-8) as {@code file}, durably. */
+	/** {@code text} (UTF-8) as {@code file}, durably; its store's root is its own folder (every store sits in the world's folder). */
 	public static void writeString(Path file, String text) throws IOException {
-		write(file, text.getBytes(StandardCharsets.UTF_8));
+		write(file, text.getBytes(StandardCharsets.UTF_8), null);
 	}
 
-	/** {@code data} as {@code file}, durably (the steps in the class comment). */
+	/** {@code data} as {@code file}, durably; its store's root is its own folder. */
 	public static void write(Path file, byte[] data) throws IOException {
+		write(file, data, null);
+	}
+
+	/**
+	 * {@code data} as {@code file}, durably (the steps in the class comment). {@code root}: the store's root (the world's save folder), at or above the
+	 * file's folder; every folder entry from the file's folder up to it, its own included, is forced once a process (null: the file's folder).
+	 */
+	public static void write(Path file, byte[] data, @org.jspecify.annotations.Nullable Path root) throws IOException {
 		Path abs = file.toAbsolutePath();
 		Path dir = abs.getParent();
 		ensureDir(dir);
+		settle(dir, root);
+		TestFail fail = FAIL_NEXT.poll();
 		Path tmp = abs.resolveSibling(abs.getFileName() + ".tmp");
 		Forcer f = forcer;
 		try {
@@ -80,6 +105,7 @@ public final class DurableWrite {
 				while (b.hasRemaining()) ch.write(b);
 				f.file(ch);
 			}
+			if (fail == TestFail.BEFORE_RENAME) throw new IOException("the write failed before its rename (test)");
 			Files.move(tmp, abs, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
 		} catch (IOException | RuntimeException e) {
 			// before the rename: the file is the previous one; the temp file goes (it is never read as the store either way)
@@ -90,7 +116,8 @@ public final class DurableWrite {
 			}
 			throw e;
 		}
-		if (FAIL_DIR_FORCE_AFTER_RENAME.getAndUpdate(n -> Math.max(0, n - 1)) > 0) throw new IOException("the folder's force failed (test)");
+		if (fail == TestFail.AFTER_RENAME) throw new IOException("the folder's force failed (test)");
+		if (fail == null && FAIL_DIR_FORCE_AFTER_RENAME.getAndUpdate(n -> Math.max(0, n - 1)) > 0) throw new IOException("the folder's force failed (test)");
 		f.dir(dir);
 	}
 
@@ -102,6 +129,7 @@ public final class DurableWrite {
 	public static void confirm(Path file) throws IOException {
 		Path abs = file.toAbsolutePath();
 		retryUnforcedDirs();
+		settle(abs.getParent(), null);
 		Forcer f = forcer;
 		// opened for writing (never truncated): Windows' FlushFileBuffers needs write access, and the JDK drops its access-denied (fix-check P2)
 		try (FileChannel ch = FileChannel.open(abs, StandardOpenOption.WRITE)) {
@@ -127,6 +155,28 @@ public final class DurableWrite {
 		}
 		Files.createDirectories(dir);
 		retryUnforcedDirs();
+	}
+
+	/**
+	 * (batch-076 review P2-3) The first time this process writes into {@code dir}: each folder's entry in its parent forced, from {@code dir} up to
+	 * {@code root} (its own entry included), so a folder an earlier process made and could not force is durable before anything is renamed into
+	 * it. A failure throws (before the rename) and leaves it to the next write.
+	 */
+	private static void settle(Path dir, @org.jspecify.annotations.Nullable Path root) throws IOException {
+		if (settledDirs.contains(dir)) return;
+		Path stop = root == null ? dir : root.toAbsolutePath();
+		if (!dir.startsWith(stop)) stop = dir;
+		for (Path d = dir; d != null; d = d.getParent()) {
+			if (d.getParent() != null) forcer.dir(d.getParent());
+			if (d.equals(stop)) break;
+		}
+		settledDirs.add(dir);
+	}
+
+	/** (TEST) A new process: what this one owed and settled forgotten, as a restart forgets it (the folders on disk stay as they are). */
+	static void restartForTest() {
+		unforcedDirs.clear();
+		settledDirs.clear();
 	}
 
 	/** Every owed folder entry forced, deepest first; a failure throws and keeps the rest owed. */
@@ -158,6 +208,9 @@ public final class DurableWrite {
 		try {
 			ch = FileChannel.open(dir, StandardOpenOption.READ);
 		} catch (IOException | UnsupportedOperationException e) {
+			// (batch-076 review P1-1, a known platform limit, not a guarantee) Windows can't open a folder for reading, so a rename's folder entry is
+			// not forced there and a host crash may undo the last save. Kept best effort on purpose: failing closed would fail every save on Windows,
+			// and Architect's DurableFile has the same limit. Elsewhere a failed open is a failed force
 			if (dirOpenBestEffort) {
 				if (!dirUnsupportedLogged) {
 					dirUnsupportedLogged = true;

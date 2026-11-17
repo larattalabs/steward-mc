@@ -19,6 +19,8 @@ import org.junit.jupiter.api.io.TempDir;
 class DurableWriteTest {
 	@AfterEach
 	void reset() {
+		DurableWrite.restartForTest();
+		DurableWrite.FAIL_NEXT.clear();
 		DurableWrite.forcer = DurableWrite.REAL;
 		DurableWrite.FAIL_DIR_FORCE_AFTER_RENAME.set(0);
 		DurableWrite.dirOpenBestEffort = System.getProperty("os.name", "").toLowerCase(java.util.Locale.ROOT).startsWith("windows");
@@ -50,6 +52,11 @@ class DurableWriteTest {
 		}
 	}
 
+	/** {@code dir} written to once already in this process (its chain settled, review P2-3): what follows shows only a write's own forces. */
+	static void settled(Path dir) throws IOException {
+		DurableWrite.writeString(dir.resolve("settled"), "");
+	}
+
 	static String read(Path p) {
 		try {
 			return Files.readString(p, StandardCharsets.UTF_8);
@@ -63,6 +70,7 @@ class DurableWriteTest {
 		Path f = dir.resolve("store.json");
 		Files.writeString(f, "old");
 		var r = new Recorder(f);
+		settled(dir);
 		DurableWrite.forcer = r;
 		DurableWrite.writeString(f, "new ✓");
 		assertEquals("new ✓", read(f));
@@ -86,6 +94,7 @@ class DurableWriteTest {
 		Files.writeString(f, "old");
 		var r = new Recorder(f);
 		r.failFile = true;
+		settled(dir);
 		DurableWrite.forcer = r;
 		IOException e = assertThrows(IOException.class, () -> DurableWrite.writeString(f, "new"));
 		assertEquals("disk full (test)", e.getMessage());
@@ -101,6 +110,7 @@ class DurableWriteTest {
 		Files.writeString(f, "old");
 		var r = new Recorder(f);
 		r.failDir = true;
+		settled(dir);
 		DurableWrite.forcer = r;
 		// the rename happened (in doubt across a power loss): the caller is told the save failed
 		assertThrows(IOException.class, () -> DurableWrite.writeString(f, "new"));
@@ -108,8 +118,12 @@ class DurableWriteTest {
 		assertFalse(Files.exists(dir.resolve("store.json.tmp")));
 	}
 
+	/**
+	 * (batch-076 review P1-1) A known platform limit, not a guarantee: on Windows a folder can't be opened to force, so the rename is best effort
+	 * there (a host crash may undo the last save), as in Architect's DurableFile. Failing closed would fail every save on Windows.
+	 */
 	@Test
-	void aFolderThatCantBeOpenedThrowsExceptOnWindows(@TempDir Path dir) throws Exception {
+	void aFolderThatCantBeOpenedThrowsElsewhereAndIsAKnownBestEffortLimitOnWindows(@TempDir Path dir) throws Exception {
 		Path missing = dir.resolve("gone");
 		DurableWrite.dirOpenBestEffort = false;
 		assertThrows(IOException.class, () -> DurableWrite.forceDir(missing));
@@ -135,8 +149,9 @@ class DurableWriteTest {
 		DurableWrite.forcer = r;
 		DurableWrite.writeString(f, "x");
 		assertEquals("x", read(f));
-		// b's entry in a, a's in the temp dir, before the write; then b once the file is renamed in
-		assertEquals(List.of("dir:a:-", "dir:" + dir.getFileName() + ":-", "file:-", "dir:b:x"), r.calls);
+		// b's entry in a, a's in the temp dir, before the write (then b's again: the first write to b settles its chain, review P2-3); then b once the
+		// file is renamed in
+		assertEquals(List.of("dir:a:-", "dir:" + dir.getFileName() + ":-", "dir:a:-", "file:-", "dir:b:x"), r.calls);
 	}
 
 	@Test
@@ -145,6 +160,7 @@ class DurableWriteTest {
 		byte[] bytes = {0x7b, 0x0a, (byte) 0xe2, (byte) 0x9c, (byte) 0x93, 0x7d, 0x0d, 0x0a};
 		Files.write(from, bytes);
 		var r = new Recorder(dir.resolve("s.json.v3.bak"));
+		settled(dir);
 		DurableWrite.forcer = r;
 		DurableWrite.copy(from, dir.resolve("s.json.v3.bak"));
 		assertArrayEquals(bytes, Files.readAllBytes(dir.resolve("s.json.v3.bak")));
@@ -227,7 +243,7 @@ class DurableWriteTest {
 		DurableWrite.writeString(f, "x");
 		assertEquals("x", read(f));
 		assertTrue(DurableWrite.unforcedDirs().isEmpty());
-		assertEquals(List.of("dir:" + dir.getFileName(), "file:-", "dir:b"), r.calls);
+		assertEquals(List.of("dir:" + dir.getFileName(), "dir:a", "file:-", "dir:b"), r.calls);
 	}
 
 	@Test
@@ -235,6 +251,7 @@ class DurableWriteTest {
 		Path f = dir.resolve("steward-world-id");
 		Files.writeString(f, "abcdef012345\n");
 		var r = new Recorder(f);
+		settled(dir);
 		DurableWrite.forcer = r;
 		DurableWrite.confirm(f);
 		assertEquals(List.of("file:abcdef012345\n", "dir:" + dir.getFileName() + ":abcdef012345\n"), r.calls);
@@ -252,5 +269,47 @@ class DurableWriteTest {
 		assertEquals("new", read(f));
 		DurableWrite.writeString(f, "newer");
 		assertEquals("newer", read(f));
+	}
+
+	@Test
+	void aFolderAnEarlierProcessMadeButCouldNotForceIsForcedByTheNextProcessFirstWrite(@TempDir Path dir) throws Exception {
+		// (batch-076 review P2-3) the store's root is dir; a/b is made by the first write, whose force of a's entry (in dir) fails
+		Path f = dir.resolve("a").resolve("b").resolve("store.json");
+		var r = new Recorder(f) {
+			boolean failRoot = true;
+
+			@Override
+			public void dir(Path d) throws IOException {
+				calls.add("dir:" + d.getFileName());
+				if (d.equals(dir) && failRoot) throw new IOException("EIO (test)");
+				DurableWrite.forceDir(d);
+			}
+		};
+		DurableWrite.forcer = r;
+		assertThrows(IOException.class, () -> DurableWrite.writeString(f, "x"));
+		assertEquals(java.util.Set.of(dir.resolve("a")), DurableWrite.unforcedDirs());
+		// the process ends with a's entry owed; the folders stay on disk
+		DurableWrite.restartForTest();
+		assertTrue(DurableWrite.unforcedDirs().isEmpty());
+		assertTrue(Files.isDirectory(f.getParent()));
+		r.failRoot = false;
+		r.calls.clear();
+		DurableWrite.write(f, "y".getBytes(StandardCharsets.UTF_8), dir);
+		assertEquals("y", read(f));
+		// the new process's first write forces b's entry (in a), a's (in dir) and dir's own, before anything is renamed in; then b
+		assertEquals(List.of("dir:a", "dir:" + dir.getFileName(), "dir:" + dir.getParent().getFileName(), "file:-", "dir:b"), r.calls);
+		// cached: the next write in this process forces only the folder
+		r.calls.clear();
+		DurableWrite.write(f, "z".getBytes(StandardCharsets.UTF_8), dir);
+		assertEquals(List.of("file:y", "dir:b"), r.calls);
+		// a force that fails while settling is retried by the next write, before its rename
+		DurableWrite.restartForTest();
+		r.failRoot = true;
+		r.calls.clear();
+		assertThrows(IOException.class, () -> DurableWrite.write(f, "w".getBytes(StandardCharsets.UTF_8), dir));
+		assertEquals("z", read(f), "nothing renamed in");
+		r.failRoot = false;
+		DurableWrite.write(f, "w".getBytes(StandardCharsets.UTF_8), dir);
+		assertEquals("w", read(f));
 	}
 }

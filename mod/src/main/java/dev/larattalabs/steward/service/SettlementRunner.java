@@ -79,13 +79,13 @@ public final class SettlementRunner {
 	 * listener runs first; on the first tick after SERVER_STARTED each restored build re-reads its group or batch ({@link ResyncRules}). Every runner is dropped when the world closes.
 	 */
 	public static void init() {
-		SiteEvents.BIBLE_DONE.register(job -> List.copyOf(ACTIVE.values()).forEach(r -> r.onBibleDone(job)));
-		SiteEvents.GROUP_UPDATED.register(g -> List.copyOf(ACTIVE.values()).forEach(r -> r.onGroup(g)));
-		SiteEvents.GROUP_DONE.register(g -> List.copyOf(ACTIVE.values()).forEach(r -> r.onGroup(g)));
-		SiteEvents.BATCH_DONE.register(b -> List.copyOf(ACTIVE.values()).forEach(r -> r.onBatchDone(b)));
-		SiteEvents.DESIGN_DONE.register(d -> List.copyOf(ACTIVE.values()).forEach(r -> r.onRepairDone(d)));
+		SiteEvents.BIBLE_DONE.register(job -> running().forEach(r -> r.onBibleDone(job)));
+		SiteEvents.GROUP_UPDATED.register(g -> running().forEach(r -> r.onGroup(g)));
+		SiteEvents.GROUP_DONE.register(g -> running().forEach(r -> r.onGroup(g)));
+		SiteEvents.BATCH_DONE.register(b -> running().forEach(r -> r.onBatchDone(b)));
+		SiteEvents.DESIGN_DONE.register(d -> running().forEach(r -> r.onRepairDone(d)));
 		// an item held up by something in its way (an animal, a player, ground not loaded): the steward says so, or it looks like nothing happens
-		SiteEvents.ITEM_WAITING.register(e -> List.copyOf(ACTIVE.values()).forEach(r -> r.onItemWaiting(e)));
+		SiteEvents.ITEM_WAITING.register(e -> running().forEach(r -> r.onItemWaiting(e)));
 		ServerLifecycleEvents.SERVER_STARTING.register(SettlementRunner::restoreAll);
 		// queued, so it runs after every SERVER_STARTED listener: Architect loads its sites there and fires its catch-up
 		// on the first tick, after every SERVER_STARTED listener (Architect loads its sites and queue and fires its catch-up there); server.execute from the
@@ -113,7 +113,12 @@ public final class SettlementRunner {
 		// a village region has no done event: its state is read once a second while it is placed
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.END_SERVER_TICK.register(server -> {
 			if (server.getTickCount() % 20 != 0) return;
-			for (SettlementRunner r : List.copyOf(ACTIVE.values())) {
+			// (batch-076 review P1-2) settlements disabled mid-session: each running build's player told once; its callbacks do nothing more
+			if (Settlements.disabled() && !fenceSaid && !ACTIVE.isEmpty()) {
+				fenceSaid = true;
+				for (SettlementRunner r : List.copyOf(ACTIVE.values())) if (r.state != null && !r.state.phase().terminal()) r.say(Settlements.DISABLED);
+			}
+			for (SettlementRunner r : running()) {
 				try {
 					r.watchVillage();
 					r.checkRepair();
@@ -138,9 +143,35 @@ public final class SettlementRunner {
 			dev.larattalabs.steward.gateway.PPlan.clear();
 			dev.larattalabs.steward.gateway.DevLayouts.clear();
 			resyncPending = false;
+			fenceSaid = false;
 			builds = new BuildStore();
 			buildsFile = null;
 		});
+	}
+
+	/** Whether the running builds were told that settlements are disabled (once a session). */
+	private static boolean fenceSaid;
+
+	/** The runners Architect's events and the ticks reach: none while settlements are disabled (batch-076 review P1-2), nothing more spent or placed. */
+	static List<SettlementRunner> running() {
+		return Settlements.disabled() ? List.of() : List.copyOf(ACTIVE.values());
+	}
+
+	/** (TEST) A build restored from {@code b} as this session's runner of its settlement (no server: only its guards are read). */
+	static SettlementRunner restoredForTest(BuildStore.Saved b) {
+		SettlementRunner r = new SettlementRunner(null, b);
+		ACTIVE.put(b.settlementId(), r);
+		return r;
+	}
+
+	/** (TEST) Whether this runner's callbacks still act ({@link #alive()}). */
+	boolean aliveForTest() {
+		return alive();
+	}
+
+	/** (TEST) No runner, as after SERVER_STOPPED. */
+	static void clearForTest() {
+		ACTIVE.clear();
 	}
 
 	private static void restoreAll(MinecraftServer server) {
@@ -168,7 +199,8 @@ public final class SettlementRunner {
 
 	/** Whether builds can be saved in this world (its builds file was readable): a build that cannot be saved is not started, since a restart could spend twice. */
 	public static boolean canSave() {
-		return buildsFile != null;
+		// (batch-076 review P1-2) nor while settlements are disabled mid-session (a failed save not written back): a build logs to its settlement
+		return buildsFile != null && !Settlements.disabled();
 	}
 
 	/** Whether a settlement has a runner that has not finished (a second one would spend twice). */
@@ -491,7 +523,9 @@ public final class SettlementRunner {
 
 	/** Whether this runner still owns its slot in the running world: a callback for a closed world, or for a runner replaced since, changes nothing. */
 	private boolean alive() {
-		return Session.is(session) && claimedId != null && ACTIVE.get(claimedId) == this;
+		// (batch-076 review P1-2) settlements disabled mid-session: the build neither spends nor places more, and is inert (an answer that arrives is
+		// neither acted on nor cancelled: its request is found by its key when the build resumes from its save next session)
+		return !Settlements.disabled() && Session.is(session) && claimedId != null && ACTIVE.get(claimedId) == this;
 	}
 
 	/** After a restart: gather what Architect kept, let {@link ResyncRules} decide, and carry it out. Bible and group results also arrive as Architect's catch-up events. */
@@ -1311,7 +1345,8 @@ public final class SettlementRunner {
 				if (composed(existing)) planComposed(existing, r, buildings, budgetUsd, district, claim, specs, own);
 				else {
 					// (slice M5-SCULPT) a kept plan this build doesn't take: its module lots are left out of the card's village, said
-					var m = withoutPlanModules(existing, specs, "its plan isn't used for this build", "as Architect's flat village from the card");
+					// (batch-076 review P2-4) the card only when specs were laid out from it; a plan's own lots are matched as they are
+					var m = withoutPlanModules(existing, planSpecs == null ? r.card() : null, specs, "its plan isn't used for this build", "as Architect's flat village from the card");
 					if (m == null) return;
 					planVillage(r, m.specs().size(), budgetUsd, district, claim, m.specs(), m.removed() > 0 ? streetPlan(m.specs(), claim, grid, rules, line) : own);
 				}
@@ -1329,7 +1364,7 @@ public final class SettlementRunner {
 			// (slice M5-SCULPT, docs/MODULES.md B3) a first whole build whose kept plan names working modules but doesn't take it: the card's buildings on
 			// Steward's streets, each module lot left out and said before anything is spent, never designed as an ordinary building in its place
 			if (existing != null && !addition && districtId == null && planSpecs == null && !moduleBuild()) {
-				var m = withoutPlanModules(existing, specs, StreetModules.why(r.card().site().terrain(), keptPlanOf(existing), overworld, stands,
+				var m = withoutPlanModules(existing, r.card(), specs, StreetModules.why(r.card().site().terrain(), keptPlanOf(existing), overworld, stands,
 					hi - lo <= dev.larattalabs.steward.gateway.VPlan.FLAT_RANGE), "on Steward's streets");
 				if (m == null) return;
 				if (m.removed() > 0) {
@@ -1356,8 +1391,9 @@ public final class SettlementRunner {
 	 * (slice M5-SCULPT) The card's lots without the buildings the kept plan's module lots stand for, each module lot said as left out; null when nothing
 	 * is left to build (the build ends, nothing spent). The card's own lots when the plan names no module.
 	 */
-	private StreetModules.@org.jspecify.annotations.Nullable Result withoutPlanModules(Settlement s, List<VillageLayout.LotSpec> specs, String why, String laidOut) {
-		var m = StreetModules.leaveOut(keptPlanOf(s), offeredLotTypes(), specs, why, laidOut);
+	private StreetModules.@org.jspecify.annotations.Nullable Result withoutPlanModules(Settlement s, dev.larattalabs.steward.model.@org.jspecify.annotations.Nullable ConceptCard card, List<VillageLayout.LotSpec> specs, String why,
+		String laidOut) {
+		var m = StreetModules.leaveOut(keptPlanOf(s), offeredLotTypes(), card, specs, why, laidOut);
 		for (String w : m.said()) say(w);
 		if (m.removed() > 0) Steward.LOGGER.info("plan modules of {} left out of the card's layout: {} lot(s), {} left", s.id(), m.removed(), m.specs().size());
 		if (m.specs().isEmpty()) {
@@ -2401,7 +2437,7 @@ public final class SettlementRunner {
 					}
 					if (err != null) { feed(new Pipeline.BibleDone(false, null, 0, 0, err.getMessage())); return; }
 					// cancelled while the request was on its way (or this runner belongs to a closed world): stop the job now
-					if (!alive() || state.phase().terminal()) { if (!job.finished()) api.bibles().cancel(job.id()); return; }
+					if (!alive() || state.phase().terminal()) { if (!job.finished() && !Settlements.disabled()) api.bibles().cancel(job.id()); return; }
 					bibleJobId = job.id();
 					paidRequestAcked = true;
 					persist();
@@ -2436,7 +2472,7 @@ public final class SettlementRunner {
 						feed(new Pipeline.Cancel());
 						return;
 					}
-					if (!alive() || state.phase().terminal()) { api.designs().cancelGroup(id); return; }
+					if (!alive() || state.phase().terminal()) { if (!Settlements.disabled()) api.designs().cancelGroup(id); return; }
 					groupId = id;
 					paidRequestAcked = true;
 					persist();
@@ -2588,7 +2624,7 @@ public final class SettlementRunner {
 				return;
 			}
 			if (err != null) { say("Queue failed: " + err.getMessage()); feed(new Pipeline.Cancel()); return; }
-			if (!alive() || state.phase().terminal()) { sites.cancelBatch(id); return; }
+			if (!alive() || state.phase().terminal()) { if (!Settlements.disabled()) sites.cancelBatch(id); return; }
 			batchId = id;
 			siteGroupId = sites.batch(id).map(BatchView::group).orElse(null);
 			if (state.phase() == Pipeline.Phase.CANCELLING) { persist(); cancelBatch(id); return; }
@@ -3599,7 +3635,7 @@ public final class SettlementRunner {
 			repairAsking = false;
 			if (!Session.is(session)) return;
 			// this runner replaced meanwhile: the design is stopped, whoever owns the key now finds it by the key
-			if (!alive()) { if (id != null) ArchitectApi.get().designs().cancel(id); return; }
+			if (!alive()) { if (id != null && !Settlements.disabled()) ArchitectApi.get().designs().cancel(id); return; }
 			if (err != null) {
 				// refused: nothing designed; lost, or its key bound to a request already made: found by its key on the watch (never a second design)
 				if (ChangeRequests.definite(err) && !keyConflict(err) && !uncertain(err)) feed(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect would not redesign it: " + message(err)));

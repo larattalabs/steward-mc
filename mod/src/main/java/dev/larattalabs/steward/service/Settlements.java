@@ -61,10 +61,18 @@ public final class Settlements {
 		file = null;
 	}
 
-	/** Whether settlements are disabled this session (their file could not be read): nothing that needs them may finish. */
+	/**
+	 * Whether settlements are disabled this session: their file could not be read, or (batch-076 review P1-2) a failed save could not be written back,
+	 * so the file may hold a change memory doesn't. Nothing that needs them may finish, and nothing that spends or places may start or go on
+	 * ({@link Actions#refusal}, {@link SettlementRunner#canSave}, a running build's callbacks).
+	 */
 	public static boolean disabled() {
 		return file == null;
 	}
+
+	/** What the player is told while settlements are disabled: one line for every refused start, approval, growth or undo. */
+	public static final String DISABLED = "Settlements are disabled for this session: their file could not be read or saved (see the log). The steward starts,"
+		+ " approves, grows and undoes nothing until the world is opened again.";
 
 	public static SettlementStore store() {
 		return store;
@@ -76,7 +84,7 @@ public final class Settlements {
 
 	/** Claims a square around {@code center}; fails (empty with a reason) when it overlaps another claim or saving is disabled. */
 	public static Result found(Level level, BlockPos center, String name, long now) {
-		if (file == null) return Result.fail("Settlements are disabled in this world (its settlements file could not be read).");
+		if (file == null) return Result.fail(DISABLED);
 		String dim = level.dimension().identifier().toString();
 		Claim claim = new Claim(dim, center.getX(), center.getZ(), DEFAULT_RADIUS, level.getMinY(), level.getMaxY());
 		// in a survival world nothing is built free: a new settlement is Supplied until its card says otherwise
@@ -130,7 +138,7 @@ public final class Settlements {
 
 	/** Puts {@code n} in the store and saves; when saving fails the store goes back to {@code before}, so memory never holds what the file does not. */
 	private static Result commit(Optional<Settlement> before, Settlement n, String note) {
-		if (file == null) return Result.fail("Settlements are disabled in this world (its settlements file could not be read).");
+		if (file == null) return Result.fail(DISABLED);
 		store.put(n);
 		if (save()) return new Result(n, null, note);
 		if (before.isPresent()) store.put(before.get());

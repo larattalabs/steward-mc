@@ -80,6 +80,8 @@ public final class Actions {
 	 * server, operators. Null when {@code p} may; else why not.
 	 */
 	public static String refusal(ServerPlayer p) {
+		// (batch-076 review P1-2) settlements disabled (unreadable, or a failed save not written back): nothing is directed that could spend or place
+		if (Settlements.disabled()) return Settlements.DISABLED;
 		MinecraftServer server = p.level().getServer();
 		if (server.isDedicatedServer()) return server.getPlayerList().isOp(p.nameAndId()) ? null : "Only an operator can direct the steward on this server.";
 		return server.isSingleplayerOwner(p.nameAndId()) ? null : "Only the host of this world can direct its steward (its builds spend the host's Claude budget).";
