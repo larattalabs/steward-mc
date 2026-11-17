@@ -168,8 +168,10 @@ class ComposedModulesTest {
 		var refused = ComposedModules.decide(asked.get(0), FARM, gate, WARM, Set.of(), null, (e, p) -> null);
 		assertFalse(refused.ok());
 		assertTrue(refused.why().contains("measured with Architect"), refused.why());
-		// from materials, while the guard is on (no cap scoped to the lot yet): left out, said, whatever its bound
-		assertTrue(ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP, "the guard is on until S-M5-16");
+		// from materials on an Architect without the per-lot cap (no LCAP): the guard is on, left out, said, whatever its bound
+		assertTrue(ComposedModules.materialsGuard(false));
+		assertFalse(ComposedModules.materialsGuard(true), "(LIFT-S) lifted with Architect's maxBillPerLot");
+		assertFalse(MATERIALS.lotCaps(), "a town decided as before LCAP");
 		var guarded = decide(asked.get(0), FARM, MATERIALS, Set.of(), null);
 		assertFalse(guarded.ok());
 		assertTrue(guarded.why().contains("can't be held to its measured limit in a town built from materials yet; it's left out for now"), guarded.why());
@@ -181,6 +183,12 @@ class ComposedModulesTest {
 		assertTrue(unbounded.why().contains("no bound"), unbounded.why());
 		var bounded = ComposedModules.decide(asked.get(0), FARM, ok("crop_farm"), MATERIALS, Set.of(), null, (e, p) -> ModuleBound.of(e.measured(), p), false);
 		assertTrue(bounded.ok(), bounded.why());
+		// (LIFT-S) the public decide with Architect's per-lot cap: the guard is off, and the bound still required
+		var capped = new ComposedModules.Town(false, true, Map.of(), true);
+		var lifted = ComposedModules.decide(asked.get(0), FARM, ok("crop_farm"), capped, Set.of(), null, (e, p) -> ModuleBound.of(e.measured(), p));
+		assertTrue(lifted.ok(), lifted.why());
+		assertEquals(bounded.order(), lifted.order());
+		assertFalse(ComposedModules.decide(asked.get(0), FARM, ok("crop_farm"), capped, Set.of(), null, (e, p) -> null).ok(), "no bound: never built from materials");
 		String words = ComposedModules.leftOutWords("village field", cold.why());
 		assertTrue(words.startsWith("The plan's village field is left out of the town: "), words);
 		assertTrue(words.contains("isn't designed as an ordinary building"), words);

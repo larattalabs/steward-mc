@@ -47,7 +47,7 @@ import org.jspecify.annotations.Nullable;
 public final class ModuleOffers {
 	private ModuleOffers() {}
 
-	/** The dev source: a catalog directory, the one module offered, whether its gate is a measuring one, and bounds for its params. */
+	/** The dev source: a catalog directory, the module offered (or several, comma-joined), whether its gate is a measuring one, and bounds for its params. */
 	public record DevSource(Path dir, String id, boolean measuring, JsonArray bounds, boolean override) {}
 
 	private static @Nullable DevSource devSource;
@@ -89,7 +89,12 @@ public final class ModuleOffers {
 	/** The module ids that may be offered now, each with a kind Steward knows. */
 	public static List<ModuleKind> kinds() {
 		DevSource d = devSource;
-		if (d != null) return ModuleKind.of(d.id()).map(List::of).orElse(List.of());
+		// (TEST, LIFT-S) a dev source may name several modules, comma-joined (a composed town's farm and hall under one gate)
+		if (d != null) {
+			List<ModuleKind> out = new ArrayList<>();
+			for (String id : d.id().split(",")) ModuleKind.of(id.strip()).filter(k -> !out.contains(k)).ifPresent(out::add);
+			return out;
+		}
 		List<ModuleKind> out = new ArrayList<>();
 		for (var e : catalog().entries()) ModuleKind.of(e.id()).filter(k -> !out.contains(k)).ifPresent(out::add);
 		return out;

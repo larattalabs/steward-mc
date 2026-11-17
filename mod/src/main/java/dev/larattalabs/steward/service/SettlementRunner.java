@@ -1733,7 +1733,8 @@ public final class SettlementRunner {
 		if (holder != null) for (var st : holder.getInventory()) if (!st.isEmpty()) held.merge(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), Integer::sum);
 		if (supplied) Stockpiles.of(server, Settlements.store().get(settlement.id()).orElse(settlement))
 			.ifPresent(sp -> sp.stock().forEach((it, n) -> held.merge(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(it).toString(), n, Integer::sum)));
-		var town = new dev.larattalabs.steward.module.ComposedModules.Town(level.getBiome(at).value().coldEnoughToSnow(at, level.getSeaLevel()), supplied, held);
+		// (LIFT-S) from materials, module lots are built only under Architect's per-lot cap (LCAP); without it the guard leaves them out, said
+		var town = new dev.larattalabs.steward.module.ComposedModules.Town(level.getBiome(at).value().coldEnoughToSnow(at, level.getSeaLevel()), supplied, held, lotCaps());
 		Map<String, dev.larattalabs.steward.module.ModuleOrder> orders = new LinkedHashMap<>();
 		java.util.Set<String> taken = new java.util.HashSet<>();
 		for (var a : asked) {
@@ -2193,6 +2194,12 @@ public final class SettlementRunner {
 	static boolean billCapped(@org.jspecify.annotations.Nullable Throwable err) {
 		Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
 		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.BILL_CAP;
+	}
+
+	/** (LIFT-S) A {@code BILL_CAP} refusal's detail ({@code lot:<id>}, {@code unknown_lot:<id>}, or "" for the region's), or null for another error. */
+	static @org.jspecify.annotations.Nullable String capDetail(@org.jspecify.annotations.Nullable Throwable err) {
+		Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
+		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.BILL_CAP ? r.detail() : null;
 	}
 
 	static boolean keyConflict(@org.jspecify.annotations.Nullable Throwable err) {
@@ -3275,23 +3282,56 @@ public final class SettlementRunner {
 				feed(new Pipeline.Cancel());
 				return;
 			}
+			// (LIFT-S) cleared: what the realise is sent with, each module lot held to its saved bound (Architect LCAP) and the whole realise to the
+			// rest of the bill plus those bounds; from the orders as saved below, so a restart quotes again and sends the same lot caps
+			dev.larattalabs.steward.module.ComposedModules.Caps caps = null;
+			if (verdict.ask() == null) {
+				Map<String, Integer> terrain = ArchitectApi.get().features().contains(QUOTE_TERRAIN) ? q.terrain() : Map.of();
+				caps = dev.larattalabs.steward.module.ComposedModules.caps(q.bom(), q.bomParts(), terrain, verdict.orders(), entries.keySet());
+				if (caps.refused() != null) {
+					say("Not placed: " + caps.refused() + ", so nothing is consumed unchecked.");
+					feed(new Pipeline.Cancel());
+					return;
+				}
+			}
 			moduleOrders = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(verdict.orders()));
-			// (M5b, persist before mutate) the hold or the cleared orders saved before anything is asked or realised; unsaved, nothing goes on
-			if (!persist()) {
+			// (M5b, LIFT-S: persist before mutate) the hold or the cleared orders saved before anything is asked or realised; unsaved, nothing goes on
+			var cleared = caps;
+			boolean went = ComposedSteps.saveThen(this::persist, () -> {
+				if (verdict.ask() != null) {
+					// held, saved with the build: the approval binds to exactly these bills, also after a restart
+					feed(new Pipeline.HoldBill(composedHoldWords(verdict.ask())));
+					return;
+				}
+				// (Noah, 2026-11-15) each module's limit is shown with the quote
+				if (verdict.said() != null) say(verdict.said());
+				quoteCleared = key;
+				composedCaps = cleared;
+				composedCapsKey = key;
+				realiseVillage();
+			});
+			if (!went) {
 				say("Not placed: the build could not be saved with its working modules' bills, so nothing is consumed.");
 				feed(new Pipeline.Cancel());
-				return;
 			}
-			if (verdict.ask() != null) {
-				// held, saved with the build: the approval binds to exactly these bills, also after a restart
-				feed(new Pipeline.HoldBill(composedHoldWords(verdict.ask())));
-				return;
-			}
-			// (Noah, 2026-11-15) each module's limit is shown with the quote
-			if (verdict.said() != null) say(verdict.said());
-			quoteCleared = key;
-			realiseVillage();
 		}));
+	}
+
+	/**
+	 * (LIFT-S) The caps of the composed quote cleared this session ({@link #quoteCleared}), for its realise; null until then. Each lot's cap is its
+	 * order's bound as saved; a restart quotes again before any realise, so they are never sent from anything but the saved orders.
+	 */
+	private dev.larattalabs.steward.module.ComposedModules.@org.jspecify.annotations.Nullable Caps composedCaps;
+	/** (LIFT-S) The cleared quote's key ({@link #quoteCleared}) {@link #composedCaps} came with: a realise sends them only while it still holds. */
+	private @org.jspecify.annotations.Nullable String composedCapsKey;
+
+	/** (LIFT-S) Whether this Architect caps a realise per lot (LCAP: {@code maxBillPerLot}). */
+	static boolean lotCaps() {
+		try {
+			return ArchitectApi.get().features().contains(dev.larattalabs.steward.module.ComposedModules.LOT_CAP_FEATURE);
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
 	}
 
 	/** (M5b) The composed hold's words: the bills, and what approving them means, the crash exception included (as every capped approval). Pure. */
@@ -3414,14 +3454,59 @@ public final class SettlementRunner {
 				? "its design is past the lot's approved box or rule" : "it was not designed") + "), so the wall would stand open there"), session);
 			return;
 		}
-		// (M5b) a composed town's module lots from materials are held only by a cap scoped to each lot (S-M5-16), which realiseApproved doesn't take:
-		// such a realise is never sent uncapped (ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP leaves them out before this)
-		if (composedMaterialsUncapped(artifactSurvival(sha), moduleOrders)) {
-			realised(null, new IllegalStateException("the working modules' bills can't be held to their measured limits in a town built from materials yet"), session);
+		// (M5b, LIFT-S) a composed town's module lots from materials are held only by a cap scoped to each lot (Architect LCAP, maxBillPerLot): such a
+		// realise is never sent uncapped (an Architect without it: the guard leaves them out before this; a build saved under one and resumed on
+		// another stops here)
+		boolean fromMaterials = artifactSurvival(sha);
+		if (composedMaterialsUncapped(fromMaterials, moduleOrders, lotCaps())) {
+			realised(null, new IllegalStateException("the working modules' bills can't be held to their measured limits in a town built from materials by this Architect"), session);
 			return;
 		}
+		var request = new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext);
+		if (fromMaterials && !moduleOrders.isEmpty()) {
+			var caps = composedCaps;
+			// only the caps of the quote cleared for exactly these entries this session, and only for lots this realise binds (never an earlier one's)
+			if (caps == null || caps.perLot() == null || composedCapsKey == null || !composedCapsKey.equals(quoteCleared)
+				|| !fitting.keySet().containsAll(caps.perLot().keySet()) || !caps.perLot().keySet().equals(moduleOrders.keySet())) {
+				realised(null, new IllegalStateException("the working modules' bills weren't quoted for exactly this placing, and nothing is consumed unchecked"), session);
+				return;
+			}
+			var perLot = devShortLot(caps.perLot());
+			Steward.LOGGER.info("composed modules {} realise {} under {}: maxBill {} maxBillPerLot {}", settlement.id(), sha, opKey("vrealise"), caps.maxBill(), perLot);
+			request = new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext, caps.maxBill())
+				.withMaxBillPerLot(perLot);
+		}
 		Steward.LOGGER.info("realise {}: artifact {} under key {} ({})", settlement.id(), sha, opKey("vrealise"), first ? "first" : "after a re-check");
-		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext))
+		var sent = request;
+		// (LIFT-S, persist before mutate) the orders whose bounds are the lot caps saved before the realise is sent; unsaved, nothing is sent
+		if (!ComposedSteps.saveThen(this::persist, () -> sendApproved(sha, sent, lotEntries, actor, ext, first, session)))
+			realised(null, new IllegalStateException("the build could not be saved before placing, and nothing is consumed unchecked"), session);
+	}
+
+	/**
+	 * (TEST, LIFT-S: {@code /steward dev cap_short}) The lot caps with one item sent as 0, once, in the first lot (by id) whose cap names it, so
+	 * Architect refuses the realise at put-down ({@code BILL_CAP}, detail {@code lot:<id>}); unchanged when none is set or none names it.
+	 */
+	private Map<String, Map<String, Integer>> devShortLot(Map<String, Map<String, Integer>> perLot) {
+		String item = DEV_CAP_SHORT.get();
+		if (item == null) return perLot;
+		for (var e : perLot.entrySet()) {
+			if (!e.getValue().containsKey(item) || !DEV_CAP_SHORT.compareAndSet(item, null)) continue;
+			var lots = new TreeMap<>(perLot);
+			var shorted = new TreeMap<>(e.getValue());
+			shorted.put(item, 0);
+			lots.put(e.getKey(), java.util.Collections.unmodifiableMap(shorted));
+			Steward.LOGGER.info("composed modules {}: dev cap_short {} in lot {}", settlement.id(), item, e.getKey());
+			return java.util.Collections.unmodifiableMap(lots);
+		}
+		return perLot;
+	}
+
+	/** The approved artifact's realise, sent, and its answer (a stale artifact checked once more, a wall lot repaired). */
+	private void sendApproved(String sha, dev.larattalabs.architect.api.ApprovedRealise request, Map<String, String> lotEntries,
+		@org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
+		var regions = ArchitectApi.get().regions();
+		regions.realiseApproved(request)
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
@@ -3468,13 +3553,13 @@ public final class SettlementRunner {
 			}));
 	}
 
-	/** (M5b) Whether a composed realise would build module lots from materials with no cap per lot (none exists yet: S-M5-16). Pure. */
-	static boolean composedMaterialsUncapped(boolean fromMaterials, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders) {
-		return fromMaterials && !orders.isEmpty() && !LOT_CAPS;
+	/**
+	 * (M5b, LIFT-S) Whether a composed realise would build module lots from materials with no cap per lot: an Architect without LCAP's
+	 * {@code maxBillPerLot} ({@code lotCaps} false). Pure.
+	 */
+	static boolean composedMaterialsUncapped(boolean fromMaterials, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders, boolean lotCaps) {
+		return fromMaterials && !orders.isEmpty() && !lotCaps;
 	}
-
-	/** (M5b) Whether Architect caps a realise per lot (S-M5-16): not in 0.74.0 ({@code ApprovedRealise.maxBill} is one cap over the region). */
-	static final boolean LOT_CAPS = false;
 
 	/** Architect K3's refusal of a wall lot's bound design: "lot <id> on wall <wall>: ...". */
 	private static final java.util.regex.Pattern ON_WALL = java.util.regex.Pattern.compile("^lot (\\S+) on wall \\S+:");
@@ -3843,18 +3928,29 @@ public final class SettlementRunner {
 			if (replanDistrict(err)) return;
 			// (QD-2, M5b) a composed town's realise refused at put-down (BILL_CAP, under a cap): nothing was written or taken; its orders are marked
 			// refused and saved before it is quoted again, so the next quote is put to the player, also after a restart; unsaved, the build stops
+			// (LIFT-S, Architect LCAP) its detail says which cap: a module lot's own (lot:<id>, named), the region's (""), or a lot the realise doesn't
+			// bind (unknown_lot:<id>: Steward's error, the build stops, never asked again)
 			if (billCapped(err) && composedModules() && state.phase() == Pipeline.Phase.PLACING) {
-				Steward.LOGGER.info("composed modules {} realise refused at put-down: {}", settlement.id(), message(err));
-				moduleOrders = refusedAtPutDown(moduleOrders);
+				var refusal = dev.larattalabs.steward.module.ComposedModules.CapRefusal.of(capDetail(err));
+				Steward.LOGGER.info("composed modules {} realise refused at put-down ({}): {}", settlement.id(), refusal, message(err));
 				quoteCleared = null;
-				if (!persist()) {
-					say("Not placed: the materials needed went past what you approved, and that could not be saved, so I won't ask again or build it."
-						+ " Nothing was taken from the stockpile; start it again.");
-					feed(new Pipeline.Cancel());
-					return;
+				composedCaps = null;
+				var orders = moduleOrders;
+				switch (ComposedSteps.refusedAtPutDown(refusal, orders, o -> moduleOrders = o, this::persist)) {
+					case STOP_UNKNOWN_LOT -> {
+						say(dev.larattalabs.steward.module.ComposedModules.putDownWords(refusal, orders));
+						feed(new Pipeline.Cancel());
+					}
+					case STOP_UNSAVED -> {
+						say("Not placed: the materials needed went past what you approved, and that could not be saved, so I won't ask again or build it."
+							+ " Nothing was taken from the stockpile; start it again.");
+						feed(new Pipeline.Cancel());
+					}
+					case REASK -> {
+						say(dev.larattalabs.steward.module.ComposedModules.putDownWords(refusal, orders));
+						realiseVillage();
+					}
 				}
-				say("Not placed yet: the materials needed went past what you approved. Nothing was taken from the stockpile; I'll ask you again.");
-				realiseVillage();
 				return;
 			}
 			// (slice SD) a district's region from materials: the world's mode changed since it was planned, or the stockpile is gone, in plain words
@@ -4502,6 +4598,9 @@ public final class SettlementRunner {
 			int i = t.indexOf(" waits bill_cap");
 			if (i > 0) what = Character.toLowerCase(t.charAt(0)) + t.substring(1, i);
 		}
+		// (LIFT-S, Architect LCAP-Q1) held by its lot's own cap (waitsFor.cap "lot:<id>"): its limit, not what the player approved for the town
+		String scope = w.get("cap") instanceof com.google.gson.JsonPrimitive c ? c.getAsString() : null;
+		if (MaterialRequests.capLot(scope) != null) return MaterialRequests.lotOverCapWords(what, settlementId, over, 0, how);
 		return MaterialRequests.overCapWords(what, settlementId, over, 0, how);
 	}
 
