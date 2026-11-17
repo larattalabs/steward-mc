@@ -137,7 +137,13 @@ public final class Settlements {
 		else store.remove(n.id());
 		// (STORE-FSYNC review P1) a save can fail after its rename (the folder's force): the file then holds the change reported as failed. The
 		// store as it was is written back, so the file matches what was reported (a pre-rename failure leaves it so already: the same bytes again)
-		if (!save()) Steward.LOGGER.error("could not write the settlements back after a failed save: {} may hold a change reported as failed", file);
+		if (!save()) {
+			// (fix-check P1) neither saved nor written back: the file may hold the change reported as failed. Disabled for this session, as for a
+			// file that can't be read, so nothing more is decided on a store the file no longer matches; the next start reads the file as it is
+			Steward.LOGGER.error("could not write the settlements back after a failed save: {} may hold a change reported as failed. Settlements are "
+				+ "disabled for this session.", file);
+			file = null;
+		}
 		return Result.fail("Could not save the settlement.");
 	}
 

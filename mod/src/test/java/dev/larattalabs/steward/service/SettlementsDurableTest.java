@@ -47,4 +47,20 @@ class SettlementsDurableTest {
 		assertNull(ok.error());
 		assertEquals(s.log().size() + 1, SettlementStore.load(file).get("set_1").orElseThrow().log().size());
 	}
+
+	@Test
+	void aWriteBackThatFailsTooDisablesSettlementsForTheSession(@TempDir Path dir) throws Exception {
+		Path file = dir.resolve("steward-settlements.json");
+		Settlement s = Settlement.founded("set_1", "Gea", new Claim("minecraft:overworld", 0, 0, 64, -64, 320), Permission.PROPOSALS, Difficulty.PATRON, 1L);
+		SettlementStore store = new SettlementStore();
+		store.put(s);
+		store.save(file);
+		Settlements.useForTest(store, file);
+		// the save renamed in, then the folder force failed; the write-back failed the same way
+		DurableWrite.FAIL_DIR_FORCE_AFTER_RENAME.set(2);
+		var r = Settlements.log("set_1", Settlement.LogEntry.of(2L, Kind.PROJECT_PLACED, "Placed a hall", List.of(), "x", Settlement.Outcome.DONE));
+		assertNotNull(r.error());
+		var next = Settlements.log("set_1", Settlement.LogEntry.of(3L, Kind.PROJECT_PLACED, "Placed a hall", List.of(), "x", Settlement.Outcome.DONE));
+		assertTrue(next.error().contains("disabled"), next.error());
+	}
 }

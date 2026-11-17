@@ -103,7 +103,8 @@ public final class DurableWrite {
 		Path abs = file.toAbsolutePath();
 		retryUnforcedDirs();
 		Forcer f = forcer;
-		try (FileChannel ch = FileChannel.open(abs, StandardOpenOption.READ)) {
+		// opened for writing (never truncated): Windows' FlushFileBuffers needs write access, and the JDK drops its access-denied (fix-check P2)
+		try (FileChannel ch = FileChannel.open(abs, StandardOpenOption.WRITE)) {
 			f.file(ch);
 		}
 		f.dir(abs.getParent());
