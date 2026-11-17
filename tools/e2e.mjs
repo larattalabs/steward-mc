@@ -2755,6 +2755,62 @@ async function composedModulesFlow() {
 }
 
 /**
+ * (slice M5-SCULPT, docs/MODULES.md B3) A composed plan naming working modules on a card whose land is shaped (terrain sculpt): the plan isn't taken, so
+ * the card's buildings go on Steward's streets, and each module lot is left out and said before anything is spent; the card's farm and storage hall
+ * (the buildings the module lots stand for) are not laid out or designed. Cancelled once the designs are asked for (sim, $0).
+ */
+async function composedModulesStreetFlow() {
+  const label = 'composed modules street';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 95000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward dev modules {}');
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Carved Hamlet';
+  card.site.terrain = 'sculpt';
+  // the buildings the plan's module lots stand for: the farm (its crop farm's `for`) and the storage hall (its hall's lot type)
+  card.program.push({ role: 'village field', type: 'farm', count: 1, footprint: 'M', landmark: false, notes: 'Wheat for the village' },
+    { role: 'storage hall', type: 'storage_hall', count: 1, footprint: 'M', landmark: false, notes: 'Keeps the stores in order' });
+  const total = card.program.reduce((a, b) => a + b.count, 0);
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'composed_modules.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a farming village on a carved river that feeds itself and keeps its stores in order`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+  await closeScreens();
+  from = logSize();
+  await cmd(`/steward start ${id} ${total} 30`);
+  const layout = await waitLog(from, /Layout: (\d+) lots? on the street(?: \((\d+) did not fit\))?/, 120_000);
+  if (!layout) return fail(label, `no layout; ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+  let since = logSince(from);
+  const farmSaid = /The plan's the village field is left out of the town: the land is shaped, so the town is laid out on Steward's streets, where the working crop farm can't be placed yet\. It isn't designed as an ordinary building in its place\./.test(since);
+  const hallSaid = /The plan's the storage hall is left out of the town: the land is shaped, so the town is laid out on Steward's streets, where the working storage hall can't be placed yet\./.test(since);
+  const leftOut = since.match(/plan modules of \S+ left out of the card's layout: (\d+) lot\(s\), (\d+) left/);
+  const laid = Number(layout[1]) + Number(layout[2] ?? 0);
+  const fromPlan = /Laying out the village from its plan/.test(since);
+  if (!(farmSaid && hallSaid && leftOut?.[1] === '2' && Number(leftOut[2]) === total - 2 && laid === total - 2 && !fromPlan))
+    return fail(label, `farm said ${farmSaid}, hall said ${hallSaid}, ${leftOut?.[0]}, laid ${laid} of ${total}, from plan ${fromPlan}`);
+  // the designs asked for are the street's lots only (the bible first, approved)
+  let designing = null;
+  const end = Date.now() + 240_000;
+  let at = from;
+  while (Date.now() < end && !designing) {
+    since = logSince(at);
+    if (/Style bible ready/.test(since)) { at = logSize(); await cmd(`/steward approve ${id}`); }
+    designing = (logSince(from).match(/Designing (\d+) buildings?/) ?? [null, null])[1];
+    if (!designing) await sleep(1000);
+  }
+  await cmd(`/steward cancel ${id}`);
+  if (designing !== null && Number(designing) <= Number(layout[1])) ok(label, `${layout[0]} (${total} asked, 2 module lots left out, said); designing ${designing}`);
+  else fail(label, `designing ${designing} of ${layout[1]} laid out`);
+}
+
+/**
  * (slice M5a, docs/MODULES.md "M5 design", "The guard") A composed town built from materials: while no cap scoped to a module lot exists (S-M5-16), each
  * module lot of the plan is left out of the town, said (never designed in its place, never a pad); the town is built from the stockpile without them
  * (its two cottages) and, undone, every consumed unit comes back once. The held-bill path behind the guard is composed-modules-restart's (registered
@@ -8839,6 +8895,7 @@ try {
       await flow('module-hall-survival', 'module hall survival stockpile bill refund', () => moduleHallSurvivalFlow());
       await flow('composed-modules', 'composed module farm hall plan water undo', () => composedModulesFlow());
       await flow('composed-modules-survival', 'composed module farm survival stockpile bill refund', () => composedModulesSurvivalFlow());
+      await flow('composed-modules-street', 'composed module farm hall sculpt street', () => composedModulesStreetFlow());
       // (slice M5a) composed-modules-restart holds a composed farm's bill from materials: registered again when MODULES.md "The guard" comes off (S-M5-16)
       await flow('copper-lots', 'plan material', () => copperLotsFlow());
       await flow('discard', 'plan undo', () => discardFlow());
