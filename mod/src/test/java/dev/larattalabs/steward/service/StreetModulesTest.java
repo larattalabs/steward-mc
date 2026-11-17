@@ -133,10 +133,38 @@ class StreetModulesTest {
 		// nothing of the card stands but two townhouses: every other building is left out, the hall among them
 		var left = dev.larattalabs.steward.model.ProposalRules.leftOut(card, java.util.Map.of("townhouses", 2), java.util.Map.of());
 		assertTrue(left.stream().anyMatch(b -> b.type().equals("storage_hall")));
-		var offered = StreetModules.withoutModules(realPlan(), Set.of(), left);
+		var offered = StreetModules.withoutModules(realPlan(), Set.of(), card, left);
 		assertTrue(offered.stream().noneMatch(b -> b.type().equals("storage_hall")), "the hall is the plan's module: never offered as an ordinary building");
 		assertEquals(left.size() - 1, offered.size());
 		assertEquals(left.stream().filter(b -> !b.type().equals("storage_hall")).toList(), offered);
-		assertEquals(left, StreetModules.withoutModules(null, Set.of(), left), "no plan: as before");
+		assertEquals(left, StreetModules.withoutModules(null, Set.of(), card, left), "no plan: as before");
+	}
+
+	@Test
+	void aModuleLotTakesTheBuildingOfItsOwnRoleAndAnUnreadableMarkerKeepsItsFor() {
+		// (GPT review) two barns: the module "granary barn" (for barn) takes the granary, never the cattle barn
+		JsonObject granary = json("""
+			{"zones": [{"program": {"lots": [{"id": "granary_1", "type": "storage_hall", "label": "granary barn",
+			  "ext": {"steward_mc:module": {"id": "storage_hall", "for": "barn"}}}]}}]}""");
+		var r = StreetModules.leaveOut(granary, Set.of(), List.of(new LotSpec("barn_1", "barn", 14, 12, "cattle barn", null, false, null),
+			new LotSpec("barn_2", "barn", 14, 12, "granary barn", null, false, null)), "x", "on Steward's streets");
+		assertEquals(List.of("barn_1"), r.specs().stream().map(LotSpec::id).toList());
+		// (GPT review) a marker with no module id is unreadable (refused), and still stands for its for: the ordinary farm is not laid out
+		JsonObject bad = json("""
+			{"zones": [{"program": {"lots": [{"id": "field", "type": "crop_farm", "ext": {"steward_mc:module": {"for": "farm"}}}]}}]}""");
+		var b = StreetModules.leaveOut(bad, Set.of(), List.of(new LotSpec("farm_1", "farm", 14, 12), new LotSpec("cottage_1", "cottage", 11, 9)), "x", "on Steward's streets");
+		assertEquals(List.of("cottage_1"), b.specs().stream().map(LotSpec::id).toList());
+		assertEquals(1, b.said().size());
+	}
+
+	@Test
+	void theDistrictMatchesTheModuleAgainstTheWholeCard() throws Exception {
+		// (GPT review P2) the hall stands as a module (lot id storage_hall_1): a missing barn is still offered, never taken for the hall's for
+		JsonObject plan = json("""
+			{"zones": [{"program": {"lots": [{"id": "storage_hall_1", "type": "storage_hall", "ext": {"steward_mc:module": {"id": "storage_hall", "for": "barn"}}}]}}]}""");
+		ConceptCard card = realCard();
+		var left = dev.larattalabs.steward.model.ProposalRules.leftOut(card, java.util.Map.of(), java.util.Map.of("storage_hall", 1, "shop", 4, "tavern", 1, "house", 4));
+		assertEquals(List.of("barn"), left.stream().map(ConceptCard.Building::type).toList());
+		assertEquals(left, StreetModules.withoutModules(plan, Set.of(), card, left));
 	}
 }

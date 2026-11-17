@@ -43,14 +43,10 @@ final class StreetModules {
 		int removed = 0;
 		for (var a : asked) {
 			JsonObject lot = byId.get(a.lotId());
-			for (String t : stands(a, lot)) {
-				int at = -1;
-				for (int i = 0; i < kept.size() && at < 0; i++) if (t.equals(kept.get(i).type())) at = i;
-				if (at >= 0) {
-					kept.remove(at);
-					removed++;
-					break;
-				}
+			int at = pick(stands(a, lot), names(lot), kept.size(), i -> kept.get(i).type(), i -> kept.get(i).role());
+			if (at >= 0) {
+				kept.remove(at);
+				removed++;
 			}
 			String kind = ModuleKind.of(a.moduleId()).map(ModuleKind::role).orElse("module");
 			said.add(ComposedModules.leftOutWords(PPlan.role(lot), why + ", so the town is laid out " + laidOut + ", where the working " + kind + " can't be placed yet"));
@@ -59,29 +55,61 @@ final class StreetModules {
 	}
 
 	/**
-	 * (slice DP) The card's buildings the town left out, less those the kept plan's module lots stand for: a module lot is never offered again as an
-	 * ordinary building in a district of its own. Pure.
+	 * (slice DP) The card's buildings the town left out ({@code left}, from {@code card}), less those the kept plan's module lots stand for: a module lot
+	 * is never offered again as an ordinary building in a district of its own. Each module lot's building is found in the whole card first (GPT review:
+	 * never against what is already missing, which could take an unrelated building), then taken from {@code left} when it is missing there. Pure.
 	 */
-	static List<ConceptCard.Building> withoutModules(@Nullable JsonObject plan, Set<String> lotTypes, List<ConceptCard.Building> left) {
-		if (plan == null || left.isEmpty()) return left;
+	static List<ConceptCard.Building> withoutModules(@Nullable JsonObject plan, Set<String> lotTypes, @Nullable ConceptCard card, List<ConceptCard.Building> left) {
+		if (plan == null || card == null || !card.hasProgram() || left.isEmpty()) return left;
 		List<JsonObject> lots = PPlan.lots(plan);
 		var asked = ComposedModules.readAll(lots, lotTypes);
 		if (asked.isEmpty()) return left;
 		Map<String, JsonObject> byId = new HashMap<>();
 		for (JsonObject l : lots) byId.putIfAbsent(l.get("id").getAsString(), l);
-		List<ConceptCard.Building> out = new ArrayList<>(left);
+		// each card entry's count of buildings that modules stand for
+		List<ConceptCard.Building> program = card.program();
+		int[] taken = new int[program.size()];
 		for (var a : asked) {
-			for (String t : stands(a, byId.get(a.lotId()))) {
-				int at = -1;
-				for (int i = 0; i < out.size() && at < 0; i++) if (t.equals(out.get(i).type())) at = i;
-				if (at < 0) continue;
-				var b = out.get(at);
-				if (b.count() <= 1) out.remove(at);
-				else out.set(at, new ConceptCard.Building(b.role(), b.type(), b.count() - 1, b.footprint(), b.landmark(), b.notes(), b.placement()));
-				break;
-			}
+			JsonObject lot = byId.get(a.lotId());
+			int at = pick(stands(a, lot), names(lot), program.size(), i -> taken[i] < program.get(i).count() ? program.get(i).type() : null, i -> program.get(i).role());
+			if (at >= 0) taken[at]++;
+		}
+		List<ConceptCard.Building> out = new ArrayList<>();
+		for (var b : left) {
+			int n = 0;
+			for (int i = 0; i < program.size(); i++) if (program.get(i).role().equals(b.role()) && program.get(i).type().equals(b.type())) n += taken[i];
+			int missing = b.count() - n;
+			if (missing > 0) out.add(n == 0 ? b : new ConceptCard.Building(b.role(), b.type(), missing, b.footprint(), b.landmark(), b.notes(), b.placement()));
 		}
 		return List.copyOf(out);
+	}
+
+	/**
+	 * The index of the card building a module lot stands for, or -1: by type in order ({@code types}: its lot type, then its {@code for}), and among those of
+	 * a type the one whose role is the lot's own (its label, role or id's words, {@code names}), else the first (GPT review: a "granary barn" module never
+	 * takes the "cattle barn"). {@code type} answers null for an index already taken.
+	 */
+	private static int pick(List<String> types, Set<String> names, int size, java.util.function.IntFunction<@Nullable String> type, java.util.function.IntFunction<String> role) {
+		for (String t : types) {
+			int first = -1;
+			for (int i = 0; i < size; i++) {
+				if (!t.equals(type.apply(i))) continue;
+				if (names.contains(slug(role.apply(i)))) return i;
+				if (first < 0) first = i;
+			}
+			if (first >= 0) return first;
+		}
+		return -1;
+	}
+
+	/** A module lot's own names, as slugs: its label, role and its id without the number. */
+	private static Set<String> names(@Nullable JsonObject lot) {
+		Set<String> out = new java.util.HashSet<>();
+		if (lot == null) return out;
+		for (String k : List.of("label", "role")) if (lot.has(k) && lot.get(k).isJsonPrimitive()) out.add(slug(lot.get(k).getAsString().replaceFirst("(?i)^(the|a|an) ", "")));
+		if (lot.has("id") && lot.get("id").isJsonPrimitive()) out.add(slug(lot.get("id").getAsString().replaceAll("_\\d+$", "")));
+		out.remove("");
+		return out;
 	}
 
 	/** The card building types a module lot stands for, in order: its lot type, then the type it was written for. */
@@ -91,7 +119,14 @@ final class StreetModules {
 			String t = slug(lot.get("type").getAsString());
 			if (!t.isEmpty()) out.add(t);
 		}
-		if (a.forType() != null && !out.contains(a.forType())) out.add(a.forType());
+		// (GPT review) the marker's for read from the lot itself: an unreadable marker (no module id) still says what it stands for
+		String forType = a.forType();
+		if (forType == null && lot != null && lot.has("ext") && lot.get("ext").isJsonObject() && lot.getAsJsonObject("ext").has(ComposedModules.EXT)
+			&& lot.getAsJsonObject("ext").get(ComposedModules.EXT).isJsonObject()) {
+			JsonObject m = lot.getAsJsonObject("ext").getAsJsonObject(ComposedModules.EXT);
+			if (m.has("for") && m.get("for").isJsonPrimitive()) forType = slug(m.get("for").getAsString());
+		}
+		if (forType != null && !forType.isEmpty() && !out.contains(forType)) out.add(forType);
 		return out;
 	}
 

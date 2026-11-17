@@ -418,7 +418,7 @@ public final class Proposals {
 		} catch (RuntimeException e) {
 			// an unreadable plan names nothing
 		}
-		return StreetModules.withoutModules(kept, SettlementRunner.offeredLotTypes(), ProposalRules.leftOut(s.card(), byRole, byType));
+		return StreetModules.withoutModules(kept, SettlementRunner.offeredLotTypes(), s.card(), ProposalRules.leftOut(s.card(), byRole, byType));
 	}
 
 	/** Proposes the district for the left-out buildings now (dev: the e2e check, past the cooldown). Returns what it did. */
