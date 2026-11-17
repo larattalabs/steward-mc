@@ -27,7 +27,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { useRamTmp } from './lib/ram-tmp.mjs';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
-import { onStop, waitFor } from './lib/shutdown.mjs';
+import { onStop, waitFor, shuttingDownNow } from './lib/shutdown.mjs';
 
 // (batch-074 fix-check) a signal stops the running step's process group (its e2e quits its own client) before the night's slot goes back
 const running = new Set();
@@ -94,6 +94,7 @@ async function night(dry) {
     steps.push(build);
     if (build.code === 0) {
       for (const mode of ['free', 'stub']) {
+        if (shuttingDownNow()) break;
         let slot;
         try {
           slot = await acquireSlot(`nightly ${mode}`, { root: WT, log });
@@ -186,6 +187,8 @@ function cleanEnv() {
 
 /** One step in its own process group, its output in <out>/<name>.log; stopped (that group only) at the night's deadline. */
 function run(name, argv, cwd, out, deadline, env) {
+  // (fix-check P2) a signal's shutdown has begun: no further step starts
+  if (shuttingDownNow()) return Promise.resolve({ name, code: -1, minutes: 0, timedOut: false });
   return new Promise((resolve) => {
     const t0 = Date.now();
     const fd = fs.openSync(path.join(out, `${name}.log`), 'a');
