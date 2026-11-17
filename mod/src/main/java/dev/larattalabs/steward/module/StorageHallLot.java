@@ -112,6 +112,11 @@ public final class StorageHallLot {
 	}
 
 	public static Items items(JsonObject params) {
+		// (batch-074 review) a slot count that isn't a whole number in range is refused, never read with getAsInt (which threw on "four")
+		if (params != null && params.has("slots")) {
+			Integer n = ModuleRef.exactInt(params.get("slots"));
+			if (n == null || n < 0 || n > SLOT_MAX) return new Items(List.of(), "slots must be a whole number from 0 to " + SLOT_MAX + ", not " + params.get("slots"));
+		}
 		int slots = intOf(params, "slots");
 		List<String> out = new ArrayList<>();
 		for (int i = 1; i <= SLOT_MAX; i++) {
@@ -136,7 +141,8 @@ public final class StorageHallLot {
 	}
 
 	private static int intOf(JsonObject o, String k) {
-		return o != null && o.has(k) && o.get(k).isJsonPrimitive() ? o.get(k).getAsInt() : 0;
+		Integer n = o == null ? null : ModuleRef.exactInt(o.get(k));
+		return n == null ? 0 : n;
 	}
 
 	/** The grow lot ({@code {id, type: storage_hall, size: [W, D]}}): no water, no field. Steward's ext is added by the caller. */

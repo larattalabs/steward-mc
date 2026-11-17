@@ -27,6 +27,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { useRamTmp } from './lib/ram-tmp.mjs';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
+import { onStop, waitFor, shuttingDownNow } from './lib/shutdown.mjs';
+
+// (batch-074 fix-check) a signal stops the running step's process group (its e2e quits its own client) before the night's slot goes back
+const running = new Set();
+onStop(async (sig) => {
+  for (const c of running) { try { process.kill(-c.pid, sig); } catch { /* gone */ } }
+  await waitFor(() => [...running].every((c) => c.exitCode !== null || c.signalCode !== null), 120_000, 250);
+  for (const c of running) if (c.exitCode === null && c.signalCode === null) { try { process.kill(-c.pid, 'SIGKILL'); } catch { /* gone */ } }
+  await waitFor(() => [...running].every((c) => c.exitCode !== null || c.signalCode !== null), 5_000, 250);
+});
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -84,6 +94,7 @@ async function night(dry) {
     steps.push(build);
     if (build.code === 0) {
       for (const mode of ['free', 'stub']) {
+        if (shuttingDownNow()) break;
         let slot;
         try {
           slot = await acquireSlot(`nightly ${mode}`, { root: WT, log });
@@ -176,11 +187,15 @@ function cleanEnv() {
 
 /** One step in its own process group, its output in <out>/<name>.log; stopped (that group only) at the night's deadline. */
 function run(name, argv, cwd, out, deadline, env) {
+  // (fix-check P2) a signal's shutdown has begun: no further step starts
+  if (shuttingDownNow()) return Promise.resolve({ name, code: -1, minutes: 0, timedOut: false });
   return new Promise((resolve) => {
     const t0 = Date.now();
     const fd = fs.openSync(path.join(out, `${name}.log`), 'a');
     const [cmd, ...a] = argv;
     const child = spawn(cmd, a, { cwd, env, stdio: ['ignore', fd, fd], detached: true });
+    running.add(child);
+    child.on('exit', () => running.delete(child));
     log(`${name}: started (pid ${child.pid})`);
     let timedOut = false;
     const timer = setTimeout(() => {

@@ -91,6 +91,32 @@ public final class HallCargo {
 		return out;
 	}
 
+	/**
+	 * (dev, batch-074 review) A hall site's declared container cells with their kind and slot, as [{at: [x, y, z], kind, slot}, ...] (slot 1-based,
+	 * 0 for a cell of no slot): the e2e's sorting check tells the input, the line, the filters, the outputs, the slot chests and the overflow apart.
+	 * JSON null when unknown.
+	 */
+	public static com.google.gson.JsonElement cellsJson(MinecraftServer server, String siteId) {
+		var v = ArchitectAccess.api().sites(server).get(siteId).orElse(null);
+		if (v == null) return com.google.gson.JsonNull.INSTANCE;
+		var ref = ModuleRef.of(v.ext());
+		var cells = declaredCells(ref == null ? null : ref.params(), v.box(), v.rotation());
+		if (cells == null) return com.google.gson.JsonNull.INSTANCE;
+		com.google.gson.JsonArray out = new com.google.gson.JsonArray();
+		for (var e : cells.entrySet()) {
+			com.google.gson.JsonObject o = new com.google.gson.JsonObject();
+			com.google.gson.JsonArray a = new com.google.gson.JsonArray();
+			a.add(e.getKey().getX());
+			a.add(e.getKey().getY());
+			a.add(e.getKey().getZ());
+			o.add("at", a);
+			o.addProperty("kind", e.getValue().kind().name());
+			o.addProperty("slot", e.getValue().slot() + 1);
+			out.add(o);
+		}
+		return out;
+	}
+
 	/** (x, z) through a vanilla template rotation about the origin ({@code StructureTemplate.transform} with no mirror and pivot 0, 0, 0). */
 	static int[] turn(int x, int z, Rotation r) {
 		return switch (r) {
