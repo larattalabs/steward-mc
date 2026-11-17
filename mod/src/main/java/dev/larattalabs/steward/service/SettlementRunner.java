@@ -1309,7 +1309,12 @@ public final class SettlementRunner {
 				r.card().site().terrain(), stands, lo, hi)) {
 				// the settlement's composed plan, when it has one (plan v1); else Architect's flat village from the card
 				if (composed(existing)) planComposed(existing, r, buildings, budgetUsd, district, claim, specs, own);
-				else planVillage(r, buildings, budgetUsd, district, claim, specs, own);
+				else {
+					// (slice M5-SCULPT) a kept plan this build doesn't take: its module lots are left out of the card's village, said
+					var m = withoutPlanModules(existing, specs, "its plan isn't used for this build", "as Architect's flat village from the card");
+					if (m == null) return;
+					planVillage(r, m.specs().size(), budgetUsd, district, claim, m.specs(), m.removed() > 0 ? streetPlan(m.specs(), claim, grid, rules, line) : own);
+				}
 				return;
 			}
 			// (Architect RS) a Supplied settlement's composed plan, built from the stockpile; else Steward's own layout as before
@@ -1321,9 +1326,53 @@ public final class SettlementRunner {
 				planComposed(existing, r, buildings, budgetUsd, district, claim, specs, own);
 				return;
 			}
+			// (slice M5-SCULPT, docs/MODULES.md B3) a first whole build whose kept plan names working modules but doesn't take it: the card's buildings on
+			// Steward's streets, each module lot left out and said before anything is spent, never designed as an ordinary building in its place
+			if (existing != null && !addition && districtId == null && planSpecs == null && !moduleBuild()) {
+				var m = withoutPlanModules(existing, specs, StreetModules.why(r.card().site().terrain(), keptPlanOf(existing), overworld, stands,
+					hi - lo <= dev.larattalabs.steward.gateway.VPlan.FLAT_RANGE), "on Steward's streets");
+				if (m == null) return;
+				if (m.removed() > 0) {
+					plan = streetPlan(m.specs(), claim, grid, rules, line).get();
+					continueWithPlan(r, budgetUsd, district);
+					return;
+				}
+			}
 			plan = own.get();
 			continueWithPlan(r, budgetUsd, district);
 		}
+	}
+
+	/** The settlement's kept plan as composed (null: none, or unreadable). */
+	private static @org.jspecify.annotations.Nullable JsonObject keptPlanOf(Settlement s) {
+		try {
+			return PlanStore.get(s.id()).map(e -> com.google.gson.JsonParser.parseString(e.plan()).getAsJsonObject()).orElse(null);
+		} catch (RuntimeException e) {
+			return null;
+		}
+	}
+
+	/**
+	 * (slice M5-SCULPT) The card's lots without the buildings the kept plan's module lots stand for, each module lot said as left out; null when nothing
+	 * is left to build (the build ends, nothing spent). The card's own lots when the plan names no module.
+	 */
+	private StreetModules.@org.jspecify.annotations.Nullable Result withoutPlanModules(Settlement s, List<VillageLayout.LotSpec> specs, String why, String laidOut) {
+		var m = StreetModules.leaveOut(keptPlanOf(s), offeredLotTypes(), specs, why, laidOut);
+		for (String w : m.said()) say(w);
+		if (m.removed() > 0) Steward.LOGGER.info("plan modules of {} left out of the card's layout: {} lot(s), {} left", s.id(), m.removed(), m.specs().size());
+		if (m.specs().isEmpty()) {
+			abandon("Every building the card asks for here is a working module of its plan, and none can be placed without the plan. Nothing was spent.");
+			return null;
+		}
+		return m;
+	}
+
+	/** Steward's own street layout of {@code specs} for a first whole build (as {@code own} in {@link #afterSurvey}, over other lots). */
+	private java.util.function.Supplier<VillageLayout.Plan> streetPlan(List<VillageLayout.LotSpec> specs, Claim claim, Grid grid, VillageLayout.Rules rules,
+		@org.jspecify.annotations.Nullable Integer line) {
+		return () -> !newStreet ? VillageLayout.plan(claim, grid, specs, rules, streetZ, Integer.MIN_VALUE, Integer.MAX_VALUE, streetNorthSouth)
+			: line != null ? VillageLayout.plan(claim, grid, specs, rules, line)
+			: VillageLayout.plan(claim, grid, specs, rules, dev.larattalabs.steward.gateway.VPlan.northSouthStreet(settlement.id()));
 	}
 
 	/**
