@@ -9,13 +9,19 @@ It is a **sibling mod to Architect** (`larattalabs/architect-mc`). Architect is 
 construction engine. Steward is the director on top: concept, site, layout, a standing NPC, proactive upgrades,
 functional modules, villagers, animals, an inbox. Steward depends on Architect and does not copy it.
 
-Status (2026-11-13, evening): **phases 1-4 are built** (phase 3's perception, proposals, change requests, screens and districts; phase 4's survival
+Status (2026-11-16): **phases 1-4 are built** (phase 3's perception, proposals, change requests, screens and districts; phase 4's survival
 stockpile and billing), with growth after them: region towns grow through Architect revisions (A, A2 in survival), old street towns are adopted (B, now
-either street axis), copies follow their source, and the land check. **Phase 5 is under way** (`docs/MODULES.md`): M0, M1, M2 (the crop farm) and M3
-(offer and place) are merged. crop_farm's re-certification on Architect 0.65.0 carries the 0.65.0 pin. M4 (the storage hall) waits on Architect's FK,
-then M5. Steward pins Architect 0.64.1. Process: the manager runs the queue, each slice is its own session, and the speed rules apply (AGENTS.md).
+either street axis), copies follow their source, the land check, districts' growth and survival districts and quarters. **Phase 5 is under way**
+(`docs/MODULES.md`): M0-M4 are merged (crop_farm@1 and storage_hall@1, both carried to Architect 0.73.0 by smoke checks), and M5a (composed towns
+with module lots) with them; M5's paid half and M4b's storage_hall@2 are next. Steward pins Architect **0.73.0** and lab-ui 0.4.1
+(`mod/gradle.properties`; main d614fab, batch 073). Process: the manager runs the queue, each slice is its own session, and the speed rules apply
+(AGENTS.md "Speed rules").
 
-**Steward queue (triage 2026-11-13; detail and items in `../LEFTOVERS.md` "Steward").** Ranked against phase 5 (M4 after FK, then M5), 5b, the player
+**Live queue:** `../LEFTOVERS.md`, "Steward" (kept by the manager). The 2026-11-13 triage below is kept as history; items 1-9 and 11's PV1, SST and
+NS2 are merged on main (crop-farm-065 and DP 004f45f, GE d4a735a, P065 2821d6d, CA be96f5a, DG and ET 586e07f, M4 13ad070, EF 357d9e5,
+A2L ef5608c, PV1/SST/NS2 de9ed93, M5a e3c90c9).
+
+**Steward queue (triage 2026-11-13, history).** Ranked against phase 5 (M4 after FK, then M5), 5b, the player
 settlement UI (after Architect's 8b) and phases 6-7:
 1. **crop-farm-065** (in flight): per-Style bounds and the 0.65.0 pin.
 2. **GE** (in flight): growth hardening and the growth e2e gaps.
