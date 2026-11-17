@@ -304,7 +304,7 @@ public final class ModuleOffer {
 				+ (o.rate() == null ? "" : "; " + o.rate()) + ".");
 			parts.add("It won't sort tools, armour, potions, renamed or enchanted items, or anything that stacks to 16: those go to overflow. Never put petrified oak slabs in it.");
 			if (namesLateCargo(kind)) parts.add(LATE_CARGO_WORDS);
-			parts.add(materials ? dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + "." : "It's free.");
+			parts.add(materials ? dev.larattalabs.steward.inbox.InboxModel.BILL + ModuleBound.bill(o.bound(), Integer.MAX_VALUE) + "; " + ModuleBound.CRASH_EXCEPTION + "." : "It's free.");
 			if (lampFallback) parts.add("It's lit by plain lanterns: your style's lamp is too dim.");
 			return String.join(" ", parts);
 		}

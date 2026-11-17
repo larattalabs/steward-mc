@@ -2645,10 +2645,11 @@ async function irrigationFlow() {
 }
 
 /**
- * (slice M5a, docs/MODULES.md "M5 design") A composed town with working modules: the plan names a crop farm and a storage hall as module lots
- * (fixtures/plans/composed_modules.json, the sim compose); at Start each is bound to the live catalog and left out of the design group (2 cottages
- * designed); placed from the approved artifact with the catalog's variants on the module lots (steward_mc:module on their sites); cargo in the
- * hall refuses the town's undo, said; emptied, the town is undone.
+ * (slice M5a, docs/MODULES.md "M5 design"; M5b, the sorting hall) A composed town with working modules: the plan names a crop farm and a 4-slot
+ * sorting storage hall as module lots (fixtures/plans/composed_modules.json, the sim compose); at Start each is bound to the live catalog and left out
+ * of the design group (2 cottages designed); placed from the approved artifact with the catalog's variants on the module lots (steward_mc:module on
+ * their sites, the hall's items in its params); the hall's filter hoppers filled (41 + 4); a short mix sorts in place; cargo refuses the town's undo,
+ * said with exactly what was put in (the fill is never counted); emptied but for the fill, the town is undone, no filler loose.
  */
 async function composedModulesFlow() {
   const label = 'composed modules';
@@ -2685,39 +2686,61 @@ async function composedModulesFlow() {
   const hallSaid = (since.match(/The plan's the storage hall is a working storage hall from Steward's measured catalog[^\n]*/) ?? [null])[0];
   const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
   const bound = since.match(/module \S+ lot (farm_1|warehouse_1): \S+ under steward\.\S+\.module\.\1/g) ?? [];
-  if (farmSaid && hallSaid && /taken down, don't put items into its chests: they could be lost/.test(hallSaid) && designing === '2' && bound.length === 2) ok(`${label} bound`, `${designing} designed; ${bound.join(' | ').slice(0, 220)}`);
+  if (farmSaid && hallSaid && /taken down, don't put items into its chests: they could be lost/.test(hallSaid) && /It sorts: 4 slots for cobblestone, iron ingot, wheat, coal/.test(hallSaid)
+    && designing === '2' && bound.length === 2) ok(`${label} bound`, `${designing} designed; ${bound.join(' | ').slice(0, 220)}`);
   else return fail(`${label} bound`, `farm said ${!!farmSaid}, hall said ${!!hallSaid}, designing ${designing}, bound ${JSON.stringify(bound)}; ${composeLine.slice(0, 120)}`);
   const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
   const mods = await moduleSites(placed);
   // (batch-074 review) the modules a composed town binds are the catalog's newest (ModuleCatalog.newest, which the gate then must certify):
-  // storage_hall@2 since 0.74.0, built as the plain hall (slots 0, ComposedModules.COMPOSED_HALL_SORTS) and said so
+  // storage_hall@2 since 0.74.0, (M5b) built as the plan's 4-slot sorting hall with its items
   const fv = catalogNewest('crop_farm'), hv = catalogNewest('storage_hall');
   if (fv !== newestCertified('crop_farm') || hv !== newestCertified('storage_hall')) return fail(label, `the catalog's newest crop_farm@${fv} / storage_hall@${hv} isn't certified`);
   const farmSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'crop_farm', String(fv), 'module.json'), 'utf8')).programSha;
   const hallSha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', 'storage_hall', String(hv), 'module.json'), 'utf8')).programSha;
   const farm = mods.find((m) => m.key === `crop_farm@${fv}`), hall = mods.find((m) => m.key === `storage_hall@${hv}`);
   if (/^region:rg/.test(placed?.siteGroup ?? '') && farm && hall && farmSha.startsWith(farm.sha) && hallSha.startsWith(hall.sha) && farm.params.width === 9 && hall.params.bulk === 2
-    && (hall.params.slots ?? 0) === 0 && /It's a plain hall: it doesn't sort\./.test(hallSaid))
+    && hall.params.slots === 4 && ['cobblestone', 'iron_ingot', 'wheat', 'coal'].every((k, u) => hall.params[`item${u + 1}`] === k) && !/plain hall/.test(hallSaid))
     ok(label, `${built.placed} placed (${placed.siteGroup}); ${farm.sid} = ${farm.blueprint} ${JSON.stringify(farm.params)}; ${hall.sid} = ${hall.blueprint} ${JSON.stringify(hall.params)}`);
   else return fail(label, `entry ${placed?.siteGroup}; module sites ${JSON.stringify(mods).slice(0, 300)}`);
   // the field is watered: IRR's sources settled (the fluids stage)
   const fluids = since.match(/stage fluids[^\n]*/g) ?? [];
   if (fluids.some((l) => /placed/.test(l))) ok(`${label} water`, fluids.at(-1).slice(0, 100));
   else fail(`${label} water`, `fluids stage ${fluids.join(' | ').slice(0, 200) || 'none'}`);
-  // cargo in the hall: the town's undo is refused and said, nothing removed
+  // (M5b) the hall's fill: FK filled each filter hopper with its slot's item (41) and the 4 fillers, on a first realise
+  const want = ['cobblestone', 'iron_ingot', 'wheat', 'coal'];
+  const fk = await dev.request('dev.fk.state', { site: hall.sid }).catch(() => null);
+  const holds = (fk?.containers ?? []).map((c) => c.holds);
+  if (fk?.phase === 'UNLOCKED' && holds.length === 4 && holds.every((m, u) => m?.[`minecraft:${want[u]}`] === 41 && m?.['minecraft:petrified_oak_slab'] === 4)) ok(`${label} fill`, 'UNLOCKED; every filter hopper 41 + 4 slabs');
+  else return fail(`${label} fill`, JSON.stringify(fk).slice(0, 300));
+  // a short mix into its input chest sorts in place: 64 cobblestone to slot 1, 64 coal to slot 4, 64 dirt to the overflow, the filters as filled;
+  // conserved: what went in is in the hall, item for item
   const sb = await siteBox(hall.sid);
-  const cs = sb ? await devModule({ op: 'containers', box: sb }) : null;
-  const input = (cs?.containers ?? []).find((c) => c.block === 'minecraft:chest' && /type=single/.test(c.state));
-  if (!input) return fail(`${label} undo refused`, `no input chest in ${JSON.stringify(sb)}: ${JSON.stringify(cs)?.slice(0, 200)}`);
-  await devModule({ op: 'putItems', at: input.at, stacks: [{ slot: 0, id: 'minecraft:cobblestone', count: 64 }, { slot: 1, id: 'minecraft:iron_ingot', count: 10 }] });
+  const hc = sb ? await devModule({ op: 'hallCargo', owner: `steward_mc:settlement/${id}`, message: '', site: hall.sid }) : null;
+  const inputCell = (hc?.cells ?? []).find((c) => c.kind === 'INPUT')?.at;
+  if (!inputCell) return fail(`${label} sorts`, `no input cell for ${hall.sid}: ${JSON.stringify(hc)?.slice(0, 200)}`);
+  const cs0 = await devModule({ op: 'containers', box: sb });
+  const fed = { 'minecraft:cobblestone': 64, 'minecraft:coal': 64, 'minecraft:dirt': 64 };
+  await devModule({ op: 'putItems', at: inputCell, stacks: Object.entries(fed).map(([k, count], slot) => ({ slot, id: k, count })) });
+  let cs1 = null, judged = null;
+  for (let t = 0; t < 240 && !(judged?.drained && judged.ok); t += 5) {
+    await sleep(5000);
+    cs1 = await devModule({ op: 'containers', box: sb });
+    judged = judgeSort({ cells: hc.cells, before: cs0, after: cs1, fed, items: want.map((k) => `minecraft:${k}`) });
+  }
+  const conserved = Object.entries(fed).every(([k, n]) => (cs1?.totals?.[k] ?? 0) - (cs0?.totals?.[k] ?? 0) === n);
+  if (judged?.ok && conserved) ok(`${label} sorts`, '192 items in: 64 cobblestone in slot 1, 64 coal in slot 4, 64 dirt in the overflow; the filters as filled');
+  else return fail(`${label} sorts`, `${(judged?.why ?? ['no cells']).join('; ').slice(0, 300)}; conserved ${conserved}`);
+  // cargo in the hall: the town's undo is refused and said with exactly the 192 put in (the fill, 4 x 45, is never counted), nothing removed
   from = logSize();
   const undoSaid = await cmd(`/steward undo ${id}`);
   await sleep(5000);
-  const said = `${undoSaid}\n${logSince(from)}`.match(/Undo stopped: the storage hall still holds 74 items in 1 chest; empty it first[^\n]*/);
+  const said = `${undoSaid}\n${logSince(from)}`.match(/Undo stopped: the storage hall still holds 192 items in \d+ chests and hoppers; empty it first[^\n]*/);
   const last0 = settlements().find((x) => x.id === id)?.log.at(-1);
   if (said && last0?.kind !== 'PROJECT_REMOVED') ok(`${label} undo refused`, said[0].slice(0, 160));
   else return fail(`${label} undo refused`, `said ${!!said}; last ${last0?.kind}; ${String(undoSaid).slice(0, 200)} ${logSince(from).slice(-300)}`);
-  await devModule({ op: 'clearContainers', box: sb });
+  // emptied but for the filter hoppers (their fill is ours, the fillers can't be taken): the undo goes through
+  const cs2 = await devModule({ op: 'containers', box: sb });
+  for (const c of cs2?.containers ?? []) if (!c.slots.some(([, k]) => k === 'minecraft:petrified_oak_slab')) await devModule({ op: 'clearContainers', box: [...c.at, ...c.at] });
   from = logSize();
   await cmd(`/steward undo ${id}`);
   let last = null;
@@ -2725,8 +2748,9 @@ async function composedModulesFlow() {
     await sleep(1000);
     last = settlements().find((x) => x.id === id)?.log.at(-1);
   }
-  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placed.siteIds.length) ok(`${label} undo`, last.text);
-  else fail(`${label} undo`, `last op ${last?.kind} (${last?.siteIds?.length} of ${placed.siteIds.length}); ${logSince(from).split('\n').filter((l) => /CHAT|Undo/i.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+  const slabs = await dev.request('dev.fk.slabs', { pos: inputCell }).catch(() => ({}));
+  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placed.siteIds.length && (slabs.entities ?? 0) === 0 && (slabs.player ?? 0) === 0) ok(`${label} undo`, `${last.text}; no slab loose`);
+  else fail(`${label} undo`, `last op ${last?.kind} (${last?.siteIds?.length} of ${placed.siteIds.length}); slabs ${JSON.stringify(slabs)}; ${logSince(from).split('\n').filter((l) => /CHAT|Undo/i.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
 }
 
 /**
@@ -2821,6 +2845,16 @@ async function composedModulesSurvivalFlow() {
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     if (last?.kind === 'PROJECT_REMOVED' && off.length === 0) ok(`${label} refund`, `${last.text}; every consumed unit came back (${units(spB?.consumed)})`);
     else fail(`${label} refund`, `${last?.kind}; refunds off: ${off.slice(0, 8).join(', ')}`);
+    // (M5b) conservation over the stockpile, the world and the ledger: undone, every item delivered is in the stock again or in the refund's
+    // overflow (delivered = stock + overflow), and nothing of the settlement stands in the world (no site left but the stockpile's own)
+    const leak = [];
+    for (const item of new Set([...Object.keys(spR?.delivered ?? {}), ...Object.keys(spR?.stock ?? {}), ...Object.keys(spR?.refundOverflow ?? {})])) {
+      const inn = spR?.delivered?.[item] ?? 0, out = (spR?.stock?.[item] ?? 0) + (spR?.refundOverflow?.[item] ?? 0);
+      if (inn !== out) leak.push(`${item} in ${inn} / held ${out}`);
+    }
+    const standing = (spR?.sites ?? []).filter((x) => x.state !== 'REMOVED' && !/stockpile/i.test(`${x.kind} ${x.id}`));
+    if (spR && leak.length === 0 && standing.length === 0) ok(`${label} conserved`, `delivered = stock + overflow for ${Object.keys(spR.delivered ?? {}).length} items; no site left standing`);
+    else fail(`${label} conserved`, `${leak.slice(0, 8).join(', ')}; standing ${JSON.stringify(standing).slice(0, 200)}`);
   } finally {
     stop = true;
     if (feeder) await feeder;

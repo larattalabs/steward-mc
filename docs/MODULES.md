@@ -680,6 +680,34 @@ Branch `storage-hall-2`. The design, its GPT review, the bars and the results ar
 - **No save format changes.**
 
 
+### M5b as built (2026-11-16, composed sorting halls, the $0 half)
+
+Branch `m5b-hall` off `batch-074` (b8f7220). `ComposedModules.COMPOSED_HALL_SORTS` is on.
+- **Sizes:** `ComposedModules.composedSizes` gives a composed hall @2's measured slot branches, most first (16, 12, 8, 4, then 0, the plain
+  hall). The vocabulary and `decide` both read it. The vocabulary's hall carries `items` (the 48-item filter domain, one per slot, all
+  different), and `prompts/compose-rules.md` says how to write them.
+- **Choosing:** the slots are as written, else the lot's frame. 4 and 8 slots share 11 by 13, and 8 is taken, said. Unwritten or broken items
+  (repeated, not filterable) come from the player's and the stockpile's most-held filter kinds, then the domain in its order, said by slot.
+  A composed hall has no Nether-tier gate: the plan asked for it (a product call, noted to the parent).
+- **Cargo:** `HallCargo` already reads the site's own `ModuleRef` params, and FKR (Architect, 11-15) confirmed that `realiseApproved` fills
+  and unlocks before BUILT. So a composed hall's filter hoppers holding their declaration aren't cargo, and its undo is refused only for
+  what was put in.
+- **Put-down refusal (QD-2 on the composed path):** `ComposedModules.held` asks whenever an order is saved refused, with
+  `ModuleBound.PUT_DOWN_REFUSED` and each refused bill at least its approved bound. `realised` marks a composed town's orders refused on
+  `BILL_CAP` and saves them before quoting again (unsaved, the build stops). This can't fire yet: no cap is sent on a composed realise.
+- **Crash exception:** carried by the composed hold, the within-bound words and `boundWords`' bound sentence, and by the sorting offer's own words.
+- **Persist before mutate:** `quoteComposed`'s hold and clear saves, and `approveHeld` (an approval that isn't saved isn't taken), fail closed.
+- **The guard stays:** `MATERIALS_WAIT_FOR_LOT_CAP` stays on (0.74.0's `ApprovedRealise.maxBill` is region-wide; S-M5-16), and
+  `realiseArtifact` refuses a composed realise holding module orders from materials (`composedMaterialsUncapped`). So survival composed
+  towns still leave both modules out.
+- **Tests:**
+  - Units: `ComposedModulesTest` (sizes, items, words, the put-down re-ask) and `ComposedCrashPointsTest` (each save point of the composed
+    realise read back from the file alone; the cargo count equals what was put past the fill).
+  - e2e: `composed-modules` now asserts the 4-slot hall, its fill, sorting in place, and the undo refused with exactly the 192 items put in.
+    Emptied but for the fill, it is undone with no slab loose. `composed-modules-survival` adds a conservation check (delivered = stock +
+    overflow, no site standing).
+- **No save format changes.**
+
 ### M5 design (2026-11-15, slice M5a: the $0 half)
 
 Branch `m5-composed` off `batch-072b` (main + Architect 0.72.0 + CA2). Section 4.6 says what M5 is. This section says how, checked against
