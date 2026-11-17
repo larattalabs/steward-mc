@@ -115,7 +115,8 @@ export function ownerGone(owner, { alive = pidAlive, startOf = processStart } = 
   if (!owner || !Number.isInteger(owner.pid) || owner.pid <= 0) return true;
   if (!alive(owner.pid)) return true;
   const t = startOf(owner.pid);
-  if (t === null) return true;
+  // (fix-check P1) ps says no such process, yet kill(0) found it: held while it still runs (a ps failure never authorises a removal)
+  if (t === null) return !alive(owner.pid);
   if (t === undefined) return false;
   return !isHeld(owner, new Map([[owner.pid, t]]), alive);
 }

@@ -23,7 +23,8 @@ import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
 import { checkCommand } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
-import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns } from './lib/shutdown.mjs';
+import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
+import { processStart } from './lib/tmp-owner.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -86,11 +87,30 @@ let client = null;
 let dev = null;
 /** The client JVM's pid (the listener on its DevBridge port), recorded at each connect: a signal stops it by this pid (tools/lib/shutdown.mjs). */
 let clientJvm = null;
+/** When this run last launched its client (epoch ms), or null: before a launch nothing is this run's to stop. */
+let launchedAt = null;
 const isClientJvm = (pid) => /KnotClient/.test(commandOf(pid) ?? '');
-/** The client JVM on this run's DevBridge port now, or null (by port, never by a command pattern; checked to be a KnotClient). */
+const cwdOf = (pid) => { try { return /^n(.+)$/m.exec(execFileSync('lsof', ['-a', '-p', String(pid), '-d', 'cwd', '-Fn'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }))?.[1] ?? null; } catch { return null; } };
+/**
+ * (fix-check P1) Whether pid is the client JVM this run launched: a KnotClient whose working directory is this run's game dir (preflight refused
+ * to start while another client ran there) and that started after this run's launch. A port or a class name alone is no ownership.
+ */
+function ownJvm(pid) {
+  if (!launchedAt || !pid || pid === process.pid || !isClientJvm(pid)) return false;
+  const cwd = cwdOf(pid), t = processStart(pid);
+  return cwd != null && realPath(cwd) === realPath(GAME) && Number.isFinite(t) && t >= launchedAt - 2000;
+}
+/**
+ * This run's client JVM, or null: the listener on its DevBridge port, else (still booting, no listener yet) this checkout's KnotClient on its game
+ * dir; either only when ownJvm holds. Found by port or by this checkout's path, killed only by that pid.
+ */
 function jvmOnPort() {
+  if (!launchedAt) return null;
   const pid = listenerPid(PORT);
-  return pid && pid !== process.pid && isClientJvm(pid) ? pid : null;
+  if (ownJvm(pid)) return pid;
+  let pids = [];
+  try { pids = execFileSync('pgrep', ['-f', `${ROOT.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/mod/.*KnotClient`], { encoding: 'utf8' }).split('\n').filter(Boolean).map(Number); } catch {}
+  return pids.find(ownJvm) ?? null;
 }
 
 /**
@@ -116,6 +136,7 @@ function launch() {
   // a signal's shutdown has begun: no new client (a restart flow would start one outside the queue)
   if (shuttingDownNow()) throw new Error('shutting down: no new client');
   clientJvm = null;
+  launchedAt = Date.now();
   quietOptions();
   const log = fs.openSync(path.join(OUT, 'client.log'), 'a');
   client = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], { stdio: ['ignore', log, log], env: { ...process.env, E2E_STUB: mode === 'stub' ? '1' : '0', E2E_NODE_DIR: path.dirname(process.execPath) } });
@@ -184,14 +205,22 @@ const LANE_STOP_MS = 90_000;
  */
 async function stopClient() {
   const launcher = client;
-  const jvm = clientJvm ?? jvmOnPort();
+  // nothing launched yet (waiting for a slot, the preflight): nothing of this run's to stop, whatever listens on its ports
+  if (!launcher) return;
+  const sidecar = listenerPid(Number(process.env.STEWARD_PORT ?? 8590));
+  const jvm = (clientJvm && ownJvm(clientJvm) ? clientJvm : null) ?? jvmOnPort();
   if (dev) {
     const d = dev;
     await Promise.race([(async () => { const r = await d.request('dev.quit'); if (r?.ok) await d.waitClosed(CLIENT_STOP_MS.quit); })().catch(() => {}), sleep(CLIENT_STOP_MS.quit)]);
   }
   const log = (m) => console.error(m);
   if (jvm) console.error(`shutdown: client jvm ${jvm}: ${await stopPid(jvm, { graceMs: CLIENT_STOP_MS.jvm, same: () => isClientJvm(jvm), log })}`);
-  if (launcher) console.error(`shutdown: launcher ${launcher.pid}: ${await stopPid(launcher.pid, { graceMs: CLIENT_STOP_MS.launcher, exited: childExited(launcher), log })}`);
+  console.error(`shutdown: launcher ${launcher.pid}: ${await stopPid(launcher.pid, { graceMs: CLIENT_STOP_MS.launcher, exited: childExited(launcher), log })}`);
+  // a JVM still booting when the signal came (no DevBridge yet): found now on this run's game dir, stopped by its pid
+  const late = jvm ? null : jvmOnPort();
+  if (late) console.error(`shutdown: client jvm ${late} (booting): ${await stopPid(late, { graceMs: CLIENT_STOP_MS.jvm, same: () => ownJvm(late), log })}`);
+  // Architect's helper watches its parent JVM and quits after it: its port free before the sidecar data goes (bounded; never killed here)
+  if (sidecar && (jvm || late)) await waitFor(() => !pidRuns(sidecar), 10_000, 250);
 }
 
 const logSize = () => (fs.existsSync(LOG) ? fs.statSync(LOG).size : 0);
@@ -8812,13 +8841,16 @@ try {
   if (e.code === 'SLOT_TIMEOUT') slotWait = e.record;
   else fail('run', e.message);
 } finally {
-  // a signal's shutdown owns the way out (its stop, release and cleanup, in that order, then the exit): nothing here may release or remove first
-  if (shuttingDownNow()) await new Promise(() => setInterval(() => {}, 1000));
+  // a signal's shutdown owns the way out (its stop, release and cleanup, in that order, then the exit): nothing here may release or remove first,
+  // checked again after each await (fix-check P2: a signal during the quit)
+  const park = async () => { if (shuttingDownNow()) await new Promise(() => setInterval(() => {}, 1000)); };
+  await park();
   try {
     await quit();
   } catch {
     // already gone
   }
+  await park();
   if (client && client.exitCode === null) client.kill();
   // the client is done for good: its slot goes back (an owner's slot is the owner's to release)
   if (slot?.ticket && !slot.inherited) releaseSlot(slot.ticket);

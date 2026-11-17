@@ -27,6 +27,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { useRamTmp } from './lib/ram-tmp.mjs';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
+import { onStop, waitFor } from './lib/shutdown.mjs';
+
+// (batch-074 fix-check) a signal stops the running step's process group (its e2e quits its own client) before the night's slot goes back
+const running = new Set();
+onStop(async (sig) => {
+  for (const c of running) { try { process.kill(-c.pid, sig); } catch { /* gone */ } }
+  await waitFor(() => [...running].every((c) => c.exitCode !== null || c.signalCode !== null), 120_000, 250);
+  for (const c of running) if (c.exitCode === null && c.signalCode === null) { try { process.kill(-c.pid, 'SIGKILL'); } catch { /* gone */ } }
+  await waitFor(() => [...running].every((c) => c.exitCode !== null || c.signalCode !== null), 5_000, 250);
+});
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -181,6 +191,8 @@ function run(name, argv, cwd, out, deadline, env) {
     const fd = fs.openSync(path.join(out, `${name}.log`), 'a');
     const [cmd, ...a] = argv;
     const child = spawn(cmd, a, { cwd, env, stdio: ['ignore', fd, fd], detached: true });
+    running.add(child);
+    child.on('exit', () => running.delete(child));
     log(`${name}: started (pid ${child.pid})`);
     let timedOut = false;
     const timer = setTimeout(() => {

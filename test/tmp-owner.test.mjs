@@ -226,4 +226,12 @@ test('(batch-074 P1) an owner the snapshot missed but alive at the recheck keeps
   assert.equal(ownerGone({ pid: 7, startMs: 1 }, { alive: () => true, startOf: () => undefined }), false);
   assert.equal(ownerGone({ pid: 7, startMs: 1 }, { alive: () => true, startOf: () => 3_600_000 }), true);
   assert.equal(ownerGone({ pid: 7, startMs: 1 }, { alive: () => false }), true);
+  // (fix-check P1) ps reporting no such process while kill(0) still finds it alive: held, and the sweep keeps the dir
+  assert.equal(ownerGone({ pid: 7, startMs: 1 }, { alive: () => true, startOf: () => null }), false);
+  const q = path.join(root, 'sidecar-psfail');
+  fs.mkdirSync(q);
+  markOwner(q, {}, { pid: 7, startMs: 1 });
+  const r = sweepStale({ root, starts, alive: () => false, gone: (o) => ownerGone(o, { alive: () => true, startOf: () => null }) });
+  assert.deepEqual(r.kept, ['sidecar-psfail']);
+  assert.ok(fs.existsSync(q));
 });

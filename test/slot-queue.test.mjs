@@ -161,6 +161,15 @@ function lanesHarness(plan) {
 
 const lanes = (n) => Array.from({ length: n }, (_, i) => ({ k: i + 1 }));
 
+test('(fix-check P2) a lane ending during a shutdown frees nothing (the release phase does, after the stop steps)', async () => {
+  const h = lanesHarness(['ok', 'ok']);
+  let stopping = false;
+  const start = h.opts.start;
+  h.opts.start = async (lane, s, host) => { const r = await start(lane, s, host); stopping = true; return r; };
+  await runLanes(lanes(2), { ...h.opts, stopping: () => stopping });
+  assert.deepEqual(h.events.filter((e) => e.startsWith('release')), []);
+});
+
 test('two clients take two slots, each released when its client is done', async () => {
   const h = lanesHarness(['ok', 'ok']);
   const rows = await runLanes(lanes(2), h.opts);

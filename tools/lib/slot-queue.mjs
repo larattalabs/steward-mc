@@ -11,7 +11,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { onFinal, install as installShutdown } from './shutdown.mjs';
+import { onFinal, install as installShutdown, shuttingDownNow } from './shutdown.mjs';
 
 const round1 = (x) => Math.round(x * 10) / 10;
 
@@ -188,7 +188,10 @@ async function acquireNow(label, { root = process.cwd(), env = process.env, pid 
  *   release(ticket)
  * -> [{ lane, result, slot, host, waited }] in lane order.
  */
-export async function runLanes(lanes, { acquire: get, start, release: free, log = (m) => console.log(m) }) {
+export async function runLanes(lanes, { acquire: get, start, release: freeNow, log = (m) => console.log(m), stopping = shuttingDownNow }) {
+  // (fix-check P2) during a signal's shutdown a lane's end frees nothing: its driver may be gone while the client JVM it started is still being
+  // stopped; the shutdown's release phase frees every held ticket after its stop steps
+  const free = (t) => { if (!stopping()) freeNow(t); };
   const first = await get(lanes[0], 0);
   const rows = lanes.map((lane) => ({ lane, result: null, slot: null, host: null, waited: null }));
   rows[0].slot = first;
