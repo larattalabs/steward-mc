@@ -252,6 +252,14 @@ survival vocab unchanged; QL only adds `Quote.terrain`). Fresh: offline 151/151,
 re-quoted bounds equal the carried ones), the hall round 218/218; e2e `module-hall` PASS 18. `record --smoke` works per module now: the
 hall's evidence is artifacts/m4 and its round is the deterministic hall step (the catalog's smoke check takes it).
 
+## 9d. Smoke carry to Architect 0.77.0 (2026-11-17, pin-076 retargeted)
+
+storage_hall@1 carried from 0.67.0 (`basis: smoke`) to 0.77.0, kit/checker 0.71.0, moduleSha `c9503214…`; storage_hall@2 from 0.72.0, moduleSha
+`55d66403…`. On the published 0.77.0 jar (sha256 `73e01fe4…`). The kit's hall paths change only version strings (the rest of the kit diff is
+PL2's ladder.port, behind its own kind). OVF (API 1.66.0) puts a keyed refund all into the stock instead of overflowing; the refund checks count
+returned plus refundOverflow, so they hold. Fresh: @1 hall 218/218, survival 26/26, bounds 58/58; @2 hall 218/218, bounds 382/382,
+sort-survival 19/19 (re-quoted bounds equal the carried ones); offline 295/295, ingame 292/292; ports 9116/9117, $0.
+
 ## 9c. Smoke carry to Architect 0.74.0 (2026-11-16, pin-074)
 
 Carried from 0.67.0 (`basis: smoke`) to 0.74.0, kit/checker 0.69.0, moduleSha `cf66394f…`. The kit's hall paths change only version strings and
