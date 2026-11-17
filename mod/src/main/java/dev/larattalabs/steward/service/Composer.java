@@ -326,7 +326,8 @@ public final class Composer {
 		if (id == null || !id.matches("[a-f0-9]{8,32}")) {
 			id = UUID.randomUUID().toString().replace("-", "").substring(0, 12);
 			try {
-				java.nio.file.Files.writeString(f, id + "\n");
+				// (STORE-FSYNC) durable: an id lost to a power loss is a new key, and a retry could pay again
+				dev.larattalabs.steward.util.DurableWrite.writeString(f, id + "\n");
 			} catch (java.io.IOException e) {
 				// an id that isn't kept would change at the next start: the compose's key with it, so a retry could pay again. None: nothing is composed
 				Steward.LOGGER.warn("could not write {}: {}; no plan is composed in this world", f, e.toString());
