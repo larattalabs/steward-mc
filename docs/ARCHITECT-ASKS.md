@@ -1855,5 +1855,7 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
 - **Ask:** is the fill's charge (41 of each filter item into its hopper) restored to the stockpile's outstanding at load, and drawn from the
   20 already stocked? Is this LCAP-specific (the hall's lot under a lot cap) or any FK fill after an unclean start? Steward has no run of the
   same case without lot caps. Steward's e2e now stocks the fill in full before its halt, so it no longer reaches this state.
+- **A likely cause (the LIFT-S GPT fix-check, read in v0.78.0's source, not confirmed by Architect):** `Builder.java` lines 142, 149 and 326
+  build their cached runs during the load's reconcile before `server` is set, so the unpaid fill demand is left out of the outstanding.
 - **Steward's side (leftover):** the steward's words for that wait read "The the storage hall has waited a while for materials: ." (a doubled
   article and an empty list), while filling the stockpile can't help.
