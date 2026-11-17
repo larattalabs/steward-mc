@@ -83,6 +83,71 @@ class ModuleSavesTest {
 	}
 
 	@Test
+	void anApprovedUpToBillIsTheCapAfterARestartAndAnOlderExactOneStaysExact() {
+		// (QD) held as shown: the quote with its terrain item up to its allowance (209 dirt, 205 from terrain: up to 214), saved in the same member
+		var quote = JsonParser.parseString("{\"minecraft:dirt\": 209, \"minecraft:oak_planks\": 40}").getAsJsonObject();
+		var allowed = dev.larattalabs.steward.module.ModuleBound.allowed(quote, Map.of("minecraft:dirt", 205));
+		var held = order().accepted(false, "module.fixture_plot").holding(allowed);
+		BuildStore st = new BuildStore();
+		st.put(BuildStoreTestAccess.saved().withModuleOrders(Map.of("lot_3", held)));
+		String json = st.toJson();
+		assertTrue(json.contains("\"format\": " + BuildStore.FORMAT), "no new member, no format move of its own (PV1 moved it to 7)");
+		var back = BuildStore.fromJson(json).all().get(0).moduleOrders().get("lot_3");
+		assertEquals(held, back);
+		var approved = back.approvedHeld();
+		assertEquals(Map.of("minecraft:dirt", 214, "minecraft:oak_planks", 40), dev.larattalabs.steward.module.ModuleBound.cap(approved.bound()),
+			"approved after the restart: the bound, and so the maxBill, is what was shown");
+		assertNull(approved.held());
+		// approved and saved, then read again: the cap is unchanged
+		BuildStore st2 = new BuildStore();
+		st2.put(BuildStoreTestAccess.saved().withModuleOrders(Map.of("lot_3", approved)));
+		assertEquals(approved.bound(), BuildStore.fromJson(st2.toJson()).all().get(0).moduleOrders().get("lot_3").bound());
+		// a build held before QD saved the exact quote: approved exactly, as it was shown
+		String older = json.replace("\"minecraft:dirt\": 214", "\"minecraft:dirt\": 209");
+		var old = BuildStore.fromJson(older).all().get(0).moduleOrders().get("lot_3").approvedHeld();
+		assertEquals(Map.of("minecraft:dirt", 209, "minecraft:oak_planks", 40), dev.larattalabs.steward.module.ModuleBound.cap(old.bound()));
+	}
+
+	@Test
+	void aPutDownRefusalIsSavedSoARestartAsksAgainExactlyOnce() {
+		// (QD-2) Architect refused the realise at put-down (BILL_CAP): saved on the order before the quote is asked for
+		var accepted = order().accepted(false, "module.fixture_plot");
+		var refused = accepted.refusedAtPutDown(true);
+		BuildStore st = new BuildStore();
+		st.put(BuildStoreTestAccess.saved().withModuleOrders(Map.of("lot_3", refused)));
+		String json = st.toJson();
+		assertTrue(json.contains("\"refused\": true"));
+		assertTrue(json.contains("\"format\": " + BuildStore.FORMAT), "no format move of its own: an older Steward dropping it loses only the re-ask");
+		// a restart before the hold: the quote is put to the player even when it fits the bound (the ground was put back meanwhile)
+		var back = BuildStore.fromJson(json).all().get(0).moduleOrders().get("lot_3");
+		assertEquals(refused, back);
+		assertTrue(back.refusedAtPutDown());
+		var fits = ModulePlacement.quoteCheck(true, List.of());
+		assertEquals(SettlementRunner.PUT_DOWN_REFUSED, SettlementRunner.holdWhy(back, List.of(), List.of(), fits));
+		// the hold keeps it (GPT review of QD-2, P1): its order is saved before its phase, so a crash between them restores PLACING with the bill
+		// held; that restart quotes again and must still ask, never realise a fitting quote on its own
+		var held = back.holding(JsonParser.parseString("{\"minecraft:dirt\": 120, \"minecraft:wheat_seeds\": 81}").getAsJsonObject());
+		assertTrue(held.refusedAtPutDown());
+		BuildStore st2 = new BuildStore();
+		st2.put(BuildStoreTestAccess.saved().withModuleOrders(Map.of("lot_3", held)));
+		var heldBack = BuildStore.fromJson(st2.toJson()).all().get(0).moduleOrders().get("lot_3");
+		assertEquals(SettlementRunner.PUT_DOWN_REFUSED, SettlementRunner.holdWhy(heldBack, List.of(), List.of(), fits), "a crash between the hold's two saves asks again");
+		// (a restart once the hold's phase is saved waits in AWAITING_PLACEMENT_APPROVAL and quotes nothing: not asked twice)
+		// the player's approval clears it: the next quote within the approved bill goes on
+		var approved = heldBack.approvedHeld();
+		assertFalse(approved.refusedAtPutDown());
+		assertNull(SettlementRunner.holdWhy(approved, List.of(), List.of(), fits), "the next quote within the approved bill goes on");
+		// an order never refused: a quote within its bound goes on; a size or lamp change keeps a refusal
+		assertNull(SettlementRunner.holdWhy(accepted, List.of(), List.of(), fits));
+		assertTrue(refused.withLamp(true).refusedAtPutDown());
+		assertTrue(refused.resized(refused.params(), refused.bound()).refusedAtPutDown());
+		assertFalse(refused.refusedAtPutDown(false).refusedAtPutDown());
+		// a damaged flag refuses the file, never read as a guess
+		String bad = json.replace("\"refused\": true", "\"refused\": \"yes\"");
+		assertThrows(JsonParseException.class, () -> BuildStore.fromJson(bad));
+	}
+
+	@Test
 	void aFormat6SettlementsFileReadsWithNoModuleOffers() throws Exception {
 		Settlement s = Settlement.founded("set_1", "Here", new Claim("minecraft:overworld", 0, 0, 64, -64, 320), Permission.PROPOSALS, Difficulty.PATRON, 1L);
 		SettlementStore st = new SettlementStore();

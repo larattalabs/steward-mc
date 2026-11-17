@@ -38,4 +38,24 @@ class MaterialRequestsPartTest {
 		assertTrue(MaterialRequests.seedsWatch(new dev.larattalabs.steward.model.Settlement.LogEntry(1L, dev.larattalabs.steward.model.Settlement.Kind.PROJECT_PLACED, "Placed",
 			java.util.List.of("s1"), "revision:rg1:1")));
 	}
+
+	@Test
+	void aTargetHeldByItsApprovedBoundIsToldSoNotToFillTheStockpile() {
+		// (QD, S-M5-9) a bill_cap wait: more stock would not help, so it is never "they go in the stockpile"
+		var capped = new dev.larattalabs.architect.api.SiteWait("s1", true, 10, java.util.List.of(), 0, dev.larattalabs.architect.api.SiteWait.BILL_CAP, java.util.List.of());
+		var starved = new dev.larattalabs.architect.api.SiteWait("s1", true, 10, java.util.List.of(), 0);
+		assertTrue(MaterialRequests.capped(capped));
+		assertFalse(MaterialRequests.capped(starved));
+		assertFalse(MaterialRequests.capped(new dev.larattalabs.architect.api.SiteWait("s1", true, 10, java.util.List.of(), 0,
+			dev.larattalabs.architect.api.SiteWait.FILL_BLOCKED, java.util.List.of())));
+		String said = MaterialRequests.overCapWords("farm", "set_1", java.util.List.of(java.util.Map.entry("minecraft:dirt", 3)), 0, MaterialRequests.TakeUp.UNDO);
+		assertEquals("The farm has stopped: finishing it would take 3 dirt more than you approved, so I take no more for it; filling the stockpile"
+			+ " won't help. /steward undo set_1 takes it up and gives back what it drew; then ask for it again and I'll put the new bill to you.", said);
+		// said once per wait and reason: a shortage that turns into a bill_cap wait keeps its waitingSince and is said again
+		assertNotEquals(MaterialRequests.saidKey(starved), MaterialRequests.saidKey(capped));
+		var more = new dev.larattalabs.architect.api.SiteWait("s1", true, 10, java.util.List.of(), 2, dev.larattalabs.architect.api.SiteWait.BILL_CAP, java.util.List.of());
+		assertNotEquals(MaterialRequests.saidKey(capped), MaterialRequests.saidKey(more), "a new over-count is said again");
+		assertEquals(MaterialRequests.saidKey(starved), MaterialRequests.saidKey(new dev.larattalabs.architect.api.SiteWait("s1", true, 10, java.util.List.of(), 5)));
+		assertFalse(said.contains("They go in the stockpile"));
+	}
 }

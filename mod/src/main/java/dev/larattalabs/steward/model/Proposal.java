@@ -73,6 +73,8 @@ public record Proposal(String key, String title, String why, ConceptCard.@Nullab
 		}
 		title = title == null ? key : title;
 		why = why == null ? "" : why;
+		// (pin-073 batch fix-check) an offer saved before the crash exception was said with its bill gets it on read: every offer shown says it
+		if (module != null) why = dev.larattalabs.steward.module.ModuleBound.withCrashException(why);
 		trigger = trigger == null ? "" : trigger;
 	}
 

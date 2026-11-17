@@ -27,7 +27,7 @@ public final class MaterialRequests {
 	/** How often the long waits are read (every 10 s). */
 	private static final int EVERY = 200;
 	/** Targets whose start of waiting was said, by the tick it began (each wait is said once). */
-	private static final Map<String, Long> SAID = new HashMap<>();
+	private static final Map<String, String> SAID = new HashMap<>();
 	/** Settlements with a long wait: the player the steward goes to find, and the wait's start (said once per wait). */
 	private static final Map<String, LongWait> LONG = new HashMap<>();
 	/** When each settlement last told its players about materials (game ticks): at most once a minute (each small delivery can start a new wait). */
@@ -101,14 +101,18 @@ public final class MaterialRequests {
 		if (srv == null || !wait.waiting() || wait.nextNeeded().isEmpty()) return;
 		var s = settlementOf(site.owner());
 		if (s.isEmpty()) return;
-		Long said = SAID.get(wait.targetId());
-		if (said != null && said == wait.waitingSince()) return;
-		SAID.put(wait.targetId(), wait.waitingSince());
+		// once per wait and per reason (QD: a shortage that becomes a bill_cap wait keeps its waitingSince, and is said again)
+		String key = saidKey(wait);
+		if (key.equals(SAID.get(wait.targetId()))) return;
 		long now = srv.overworld().getGameTime();
 		Long last = TOLD.get(s.get().id());
-		if (last != null && now - last < TELL_EVERY_TICKS) return;
+		// (QD) a bill_cap wait is never held back by the settlement's throttle: more stock would not help, and the player must hear why
+		if (!capped(wait) && last != null && now - last < TELL_EVERY_TICKS) return;
+		SAID.put(wait.targetId(), key);
 		TOLD.put(s.get().id(), now);
-		tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
+		// (QD) held by the approved bound, not by the stockpile: more materials would not help
+		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait, takeUp(s.get(), regionOf(site), ridOf(site))));
+		else tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
 	}
 
 	/** Regions built from materials (Architect RS) whose build isn't done yet, by settlement: said once when done. This world's session only. */
@@ -223,7 +227,8 @@ public final class MaterialRequests {
 			if (had == null || had.since() != longest.waitingSince()) {
 				var target = sites.get(longest.targetId());
 				String what = target.map(v -> nameOf(s, v)).orElse("build");
-				tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
+				if (capped(longest)) tell(srv, s, overCap(what, s.id(), longest, takeUp(s, target.map(MaterialRequests::regionOf).orElse(null), target.map(MaterialRequests::ridOf).orElse(0))));
+				else tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
 			}
 		}
 	}
@@ -238,6 +243,110 @@ public final class MaterialRequests {
 				p.sendSystemMessage(net.minecraft.network.chat.Component.literal("[" + s.name() + "] " + text));
 			}
 		}
+	}
+
+	/** (QD) What makes a wait said once: when it began and why (a bill_cap wait said once per over-count). Pure. */
+	static String saidKey(SiteWait w) {
+		if (!capped(w)) return w.waitingSince() + "|" + (w.blocked() == null ? "" : w.blocked());
+		return w.waitingSince() + "|" + w.blocked() + "|" + w.nextNeeded().stream().map(n -> n.item() + "=" + n.count()).collect(java.util.stream.Collectors.joining(","))
+			+ "|" + w.moreUnits();
+	}
+
+	/** (QD, S-M5-9) Whether a target waits because its next cell would draw past the bound its realise was approved under ({@code bill_cap}). */
+	static boolean capped(SiteWait w) {
+		return SiteWait.BILL_CAP.equals(w.blocked());
+	}
+
+	/**
+	 * (QD) A {@code bill_cap} wait in words: how far over what the player approved it would go (Architect's {@code nextNeeded} names the capped
+	 * items and the units over), and that nothing past it is taken. Since Architect v0.73.0 (BC-d) the cap is this growth's own (its revision's,
+	 * {@code survival.caps.<rid>}): a later plain growth is never held to it. (BC-c) After an unclean start the reconcile charges what stands even
+	 * past the cap; the wait's {@code nextNeeded} is then the need plus that overshoot (what the cap must rise by to finish, so the words say "finishing it would take N more", and promise only that no more is taken, never that nothing past the bound was: the GPT review of pin-073); the API
+	 * doesn't say an overshoot apart. Architect can't raise a standing build's cap, so the way on is to take the growth up
+	 * and ask for it again, which quotes and asks afresh. Never automatic. Which command takes it up depends on where its build stands (QD-2, the
+	 * GPT review of pin-073): while the growth's build still runs (PLACING: a later stage waits on the capped one) {@code /steward undo} is refused
+	 * (the settlement is busy) and {@code /steward cancel} is the way (A2L: a growth from materials cancelled part way is taken up by Architect's
+	 * RU, what it drew refunded); once its build has ended (its sites stand, logged), {@code /steward undo} takes it up the same way (RU,
+	 * RecoveryAdapterTest's dg_aSuppliedGrowthStillBuildingIsUndoneAndRefundsWhatWasDrawn). {@code how} says which ({@link TakeUp}).
+	 */
+	static String overCap(String what, String settlementId, SiteWait w, TakeUp how) {
+		var over = w.nextNeeded().stream()
+			.map(n -> Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(n.item()).toString(), n.count())).toList();
+		return overCapWords(what, settlementId, over, w.moreUnits(), how);
+	}
+
+	/**
+	 * (pin-073 batch review, P1) How a capped growth is taken up now. {@code CANCEL}: its build still runs ({@link SettlementRunner#cancelTakesUp}).
+	 * Else {@code /steward undo} is named only when the operation it would take ({@link Undo#headFirst} of {@code lastUndoable}) is this growth's own
+	 * ({@link #ownOp}): {@code UNDO}, or {@code UNDO_LATER} while a build or a district's build refuses it for now (no promise: what finishes meanwhile may be newer). A newer operation standing
+	 * (a district started while the town was still building) is {@code NEWER}: undo would take that one, never this growth, so no command is named
+	 * for it ({@code newer} says what undo would take). {@code NONE}: the growth's own entry isn't in the history.
+	 */
+	record TakeUp(Way way, @org.jspecify.annotations.Nullable String newer) {
+		enum Way { CANCEL, UNDO, UNDO_LATER, NEWER, NONE }
+
+		static final TakeUp CANCEL = new TakeUp(Way.CANCEL, null), UNDO = new TakeUp(Way.UNDO, null), UNDO_LATER = new TakeUp(Way.UNDO_LATER, null),
+			NONE = new TakeUp(Way.NONE, null);
+	}
+
+	/** {@link TakeUp} for a capped target of {@code region}'s revision {@code rid} (0: its first realise), from the live runner, history and Architect. */
+	static TakeUp takeUp(Settlement s, @org.jspecify.annotations.Nullable String region, int rid) {
+		if (SettlementRunner.cancelTakesUp(s.id(), region)) return TakeUp.CANCEL;
+		Settlement now = Settlements.store().get(s.id()).orElse(s);
+		var head = Undo.headFirst(now, now.lastUndoable());
+		boolean refusedNow = SettlementRunner.busy(s.id()) || Undo.districtBlocking(now, head).isPresent();
+		return takeUp(false, head, region, rid, refusedNow);
+	}
+
+	/** {@link #takeUp(Settlement, String, int)} over its readings. Pure. */
+	static TakeUp takeUp(boolean cancel, Optional<Settlement.LogEntry> head, @org.jspecify.annotations.Nullable String region, int rid, boolean refusedNow) {
+		if (cancel) return TakeUp.CANCEL;
+		if (head.isEmpty()) return TakeUp.NONE;
+		if (!ownOp(head.get(), region, rid)) return new TakeUp(TakeUp.Way.NEWER, head.get().text());
+		return refusedNow ? TakeUp.UNDO_LATER : TakeUp.UNDO;
+	}
+
+	/** Whether {@code e} is the operation of {@code region}'s revision {@code rid}: its growth's tag, or (rid 0) the region's own placing entry. Pure. */
+	static boolean ownOp(Settlement.LogEntry e, @org.jspecify.annotations.Nullable String region, int rid) {
+		if (region == null) return false;
+		var g = Growths.parse(e.siteGroup());
+		if (g.isPresent()) return g.get().region().equals(region) && g.get().rid() == rid;
+		return rid == 0 && region.equals(dev.larattalabs.steward.gateway.VPlan.regionOf(e.siteGroup()));
+	}
+
+	/** The revision a target belongs to (Architect's ext {@code architect_mc:revision.rid}, BC-d), else 0 (its region's first realise). */
+	static int ridOf(SiteView v) {
+		return ridOf(v.ext());
+	}
+
+	static int ridOf(com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext) {
+		if (ext == null || !(ext.get("architect_mc:revision") instanceof com.google.gson.JsonObject rv)) return 0;
+		return rv.get("rid") instanceof com.google.gson.JsonPrimitive r && r.isNumber() ? r.getAsInt() : 0;
+	}
+
+	/** (QD-2) The region a target belongs to (Architect's {@code region}, else {@code architect_mc:region} on its ext), or null when it says none. */
+	static @org.jspecify.annotations.Nullable String regionOf(SiteView v) {
+		if (v.region() != null) return v.region();
+		var ext = v.ext();
+		return ext != null && ext.get("architect_mc:region") instanceof com.google.gson.JsonPrimitive r && r.isString() ? r.getAsString() : null;
+	}
+
+	/** {@link #overCap} over plain item ids (testable without the item registry). */
+	static String overCapWords(String what, String settlementId, List<Map.Entry<String, Integer>> over, int moreUnits, TakeUp how) {
+		String again = " takes it up and gives back what it drew; then ask for it again and I'll put the new bill to you.";
+		String way = switch (how.way()) {
+			case CANCEL -> "/steward cancel " + settlementId + again;
+			case UNDO -> "/steward undo " + settlementId + again;
+			// (fix-check) never a promise: what finishes meanwhile (a district) may be logged after it and be what undo takes then
+			case UNDO_LATER -> "Undo can't run while the build under way goes on. Once it has ended, see what undo would take up (the settlement's"
+				+ " history): if it is this one, /steward undo " + settlementId + again;
+			// undo takes the newest operation first: naming it here would take up something else
+			case NEWER -> "An undo now would take up \"" + how.newer() + "\" first, which came after it: to take this one up, undo what came after it,"
+				+ " newest first, or leave it as it stands.";
+			case NONE -> "Its own entry isn't in the settlement's history, so undo can't take it up; it stays as it stands.";
+		};
+		return "The " + what + " has stopped: finishing it would take " + dev.larattalabs.steward.module.ModuleBound.overWords(over, moreUnits)
+			+ " more than you approved, so I take no more for it; filling the stockpile won't help. " + way;
 	}
 
 	/** "12 oak planks, 4 glass" (and how many more units beyond the first 8 kinds). */

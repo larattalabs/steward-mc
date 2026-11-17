@@ -809,6 +809,40 @@ survival quoted again for the new artifact (the cleared key is the artifact and 
 **Not in M5a:** the in-game flows (a composed farm and hall instant and from materials, a restart between binding and realise, a stale
 artifact, an undo refused for cargo); the paid compose of a few cards; the gate (needs `storage_hall@2`, M4b).
 
+### QD as built (2026-11-14): a survival quote approved as a bound, "up to N"
+
+Noah, 2026-11-14: "A: up to N". Architect v0.70.0 (QL's `Quote.terrain()`, BC's `maxBill`).
+- **The allowance** (`ModuleBound.allowed`): a terrain item (one `Quote.terrain()` names, a 0 count included) may go
+  `max(2, ceil(2% of terrain[item]))` over its quoted count; every other item stays exact. Without `quoteTerrain`, every item is exact.
+- **A hold** saves that bill as `held` and shows it: "up to 214 dirt, 40 oak planks". Approving makes it the bound, as before. There is no new
+  save member: an older build's `held` is the exact quote and is approved exactly.
+- **The realise's `maxBill`** (feature `maxBill`, a module growth from materials) is the saved approved bound (the Accept path's B with no
+  allowance on top: confirmed by the manager, 11-14). That is the bill approved at a hold,
+  or the measured bound approved at Accept when the quote was never held. A re-quote within it isn't asked again; one past it is held with its
+  new "up to N".
+- **`BILL_CAP` at put-down:** "the materials needed went past what you approved". It's quoted again and always held; the approval realises under
+  the same key (Architect records neither the revision nor its key on that refusal).
+- **A `bill_cap` wait:** the steward says how far over it would go (`nextNeeded`) and that nothing past it is taken, once per reason and
+  over-count, past the settlement's throttle. Architect 0.70.0 can't raise a standing build's cap, so the line names `/steward undo` (since A2L
+  a growth still building is undone, what it drew refunded once) and asking for it again. No automatic undo-and-retry (the manager, 11-14).
+  Leftovers: an Architect ask to raise a standing cap; Architect's unclean-start reconcile isn't cap-aware (BC's own exclusion; the manager
+  takes it to Architect: BC-c, v0.73.0).
+- **On Architect v0.73.0 (BC-c/BC-d, pin-073, 2026-11-16).** QD was held out of the 0.72.0 batch because 0.72.0's cap was region-wide and
+  outlived its revision (a later plain growth stayed capped). BC-d keeps one cap per revision (`survival.caps.<rid>.maxBill`, Architect's
+  record; no API change): a revision realised without `maxBill` is uncapped. Steward keeps no cap of its own beyond the order's approved bound,
+  and sends one only with a module growth from materials (`SettlementRunner.realiseCap`, pure); a plain growth, a district or a town built at
+  once never sends one. BC-c counts the reconcile and the region's charges (fluids, gate mechanisms) against the cap: an unclean start can
+  leave a build past it (a standing cell is charged, never clamped), and the target then waits `bill_cap` with `nextNeeded` = its need plus
+  the overshoot, which the same line says ("finishing it would take N more than you approved, so I take no more for it": it never says nothing past the bound was taken, since a reconcile may have); the API doesn't tell an overshoot apart. A gate
+  mechanism held by the cap (`waitsFor.kind: bill_cap`) is said in the same words (`capStageWait`), never Architect's "waits bill_cap ...
+  maxBill". Architect migrates a 0.72.0 region-wide cap to its owning rid at load; no Steward save held one (QD never shipped). Units:
+  `BillCapBCdTest`. `ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP` stays on: BC-d's scope is the revision, not the lot (S-M5-16 isn't in it).
+- **Not covered:** a crash between a put-down refusal and its hold being saved re-quotes against the saved bound (cap-safe, but it may place
+  without the re-ask). No e2e engineers a put-down `BILL_CAP` or a `bill_cap` wait (unit-tested words and keys only).
+- **e2e** (module-survival, round 1): the held bill says "up to N dirt"; kept terrain cells that stand are turned to coarse dirt while it is held.
+  Past the allowance, it is asked again with a new "up to". One cell more, within it, places with no third ask, under a `maxBill` equal to the
+  approved bill.
+
 ## 9. Noah's answers (2026-11-12)
 
 Noah, in the Steward manager session: "Go with option 1, defaults/recommendations for the rest". Option 1 is phase 5b (section 3.3). The six

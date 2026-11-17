@@ -77,6 +77,97 @@ public final class ModuleBound {
 		return o;
 	}
 
+	/**
+	 * (QD, Noah 2026-11-14 "A: up to N"; Architect QL) A terrain item's allowance over its quoted count: {@code max(2, ceil(2% of terrain[item]))}.
+	 * Its base is the terrain part (the units the plan's kept paid terrain cells bill at quote time), never the item's whole count, so lot
+	 * material stays exact.
+	 */
+	public static int allowance(int terrain) {
+		return (int) Math.max(2L, (2L * Math.max(0, terrain) + 99) / 100);
+	}
+
+	/**
+	 * (QD) The bill the player approves for a quote: every item of {@code bom} and of {@code terrain} (Architect lists a terrain item at 0 too),
+	 * a terrain item at its quoted count plus its {@link #allowance}, every other item exactly as quoted. An empty {@code terrain} (an Architect
+	 * without {@code quoteTerrain}) gives the bom back unchanged. Sorted by id. Null when the bom or a terrain count can't be read.
+	 */
+	public static @Nullable JsonObject allowed(@Nullable JsonObject bom, @Nullable Map<String, Integer> terrain) {
+		JsonObject b = clean(bom);
+		if (b == null) return null;
+		Map<String, Integer> out = new TreeMap<>();
+		for (var e : b.entrySet()) out.put(e.getKey(), e.getValue().getAsInt());
+		if (terrain != null) for (var e : terrain.entrySet()) {
+			if (e.getKey() == null || e.getValue() == null || e.getValue() < 0) return null;
+			long n = (long) out.getOrDefault(e.getKey(), 0) + allowance(e.getValue());
+			if (n > Integer.MAX_VALUE) return null;
+			out.put(e.getKey(), (int) n);
+		}
+		JsonObject o = new JsonObject();
+		out.forEach(o::addProperty);
+		return o;
+	}
+
+	/** (QD) {@code bill} with each item raised to at least {@code floor}'s count (a re-ask after a refusal never narrows what was approved). */
+	public static JsonObject atLeast(JsonObject bill, @Nullable JsonObject floor) {
+		Map<String, Integer> out = new TreeMap<>();
+		for (var e : bill.entrySet()) out.put(e.getKey(), count(e.getValue()));
+		if (floor != null) for (var e : floor.entrySet()) out.merge(e.getKey(), count(e.getValue()), Math::max);
+		JsonObject o = new JsonObject();
+		out.forEach(o::addProperty);
+		return o;
+	}
+
+	/**
+	 * (QD, pin-073 batch review) What every approval of a capped bill says with it: Architect's reconcile after an unclean start (BC-c) charges
+	 * what stands even past the cap, so the bound is never promised without this exception (the overnight decision's words).
+	 */
+	public static final String CRASH_EXCEPTION = "I stop before passing it, except to pay for blocks already standing after a crash";
+
+	/**
+	 * {@code words} with {@link #CRASH_EXCEPTION} after its bill sentence ({@code InboxModel.BILL} to its ". " or its final "."), when that
+	 * sentence lacks it (an offer saved before it was said); else unchanged. Pure.
+	 */
+	public static String withCrashException(String words) {
+		int i = words.indexOf(dev.larattalabs.steward.inbox.InboxModel.BILL);
+		if (i < 0) return words;
+		int end = words.indexOf(". ", i);
+		if (end < 0) end = words.endsWith(".") ? words.length() - 1 : -1;
+		if (end < 0 || words.substring(i, end).contains(CRASH_EXCEPTION)) return words;
+		return words.substring(0, end) + "; " + CRASH_EXCEPTION + words.substring(end);
+	}
+
+	/** (QD) An approved bill as Architect's {@code maxBill} (item id -> count, sorted), or null when it can't be read. */
+	public static @Nullable Map<String, Integer> cap(@Nullable JsonObject bill) {
+		JsonObject b = clean(bill);
+		if (b == null) return null;
+		Map<String, Integer> out = new TreeMap<>();
+		for (var e : b.entrySet()) out.put(e.getKey(), e.getValue().getAsInt());
+		return java.util.Collections.unmodifiableMap(out);
+	}
+
+	/**
+	 * (QD) "up to 214 dirt, 81 wheat seeds and 4 more": an approved bill's first {@code n} items, most first, a terrain item (one {@code terrain}
+	 * names) as "up to" its allowed count, every other item as its exact count.
+	 */
+	public static String upTo(JsonObject bill, java.util.Set<String> terrain, int n) {
+		List<Map.Entry<String, JsonElement>> l = new ArrayList<>(bill.entrySet());
+		l.sort((a, b) -> Integer.compare(count(b.getValue()), count(a.getValue())));
+		List<String> parts = new ArrayList<>();
+		for (int i = 0; i < Math.min(n, l.size()); i++) {
+			String k = l.get(i).getKey();
+			parts.add((terrain.contains(k) ? "up to " : "") + count(l.get(i).getValue()) + " " + plain(k));
+		}
+		return parts.isEmpty() ? "nothing" : String.join(", ", parts) + (l.size() > n ? " and " + (l.size() - n) + " more" : "");
+	}
+
+	/** (QD) A {@code bill_cap} wait's units over what was approved ("3 dirt, 1 gravel"; Architect's {@code nextNeeded} names them), and any more besides. */
+	public static String overWords(List<Map.Entry<String, Integer>> nextNeeded, int moreUnits) {
+		List<String> parts = new ArrayList<>();
+		for (var e : nextNeeded) parts.add(e.getValue() + " " + plain(e.getKey()));
+		String s = parts.isEmpty() ? "some materials" : String.join(", ", parts);
+		return s + (moreUnits > 0 ? " and " + dev.larattalabs.steward.model.Words.count(moreUnits, "unit", "units") + " more besides" : "");
+	}
+
 	/** One item past its bound: how many the quote asks, and how many the bound allows (0: the bound does not name it). */
 	public record Over(String item, int quoted, int bound) {}
 

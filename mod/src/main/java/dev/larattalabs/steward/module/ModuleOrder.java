@@ -19,17 +19,31 @@ import org.jspecify.annotations.Nullable;
  * @param autonomous the steward accepted it on its own (Autonomous, Full): in survival it asks first when the whole bill takes more than half of
  *     the stockpile's count of any item (Q4); false on an offer
  * @param proposal the key of the proposal accepted (null on an offer): a build that ends with nothing placed gives it back, also after a restart
- * @param held a quote past the bound the player is asked about now (its whole bill), saved with the build so the approval binds to what was shown,
- *     also across a restart; null when nothing waits
+ * @param held the bill the player is asked about now (a quote past the bound, or one asked about for another reason), saved with the build so
+ *     the approval binds to what was shown, also across a restart; null when nothing waits. (QD, since 2026-11-14) It is the quote with each
+ *     terrain item up to its allowance ({@link ModuleBound#allowed}), as shown ("up to N"); an older save's is the exact quote, approved exactly.
+ *     Approved, it becomes the bound, and the bound is the realise's {@code maxBill}
  * @param inexactApproved the player approved a held bill that Architect could not quote exactly: a later quote with the same uncertainty, within
  *     that bill, is not asked about again
+ * @param refused (QD-2, since 2026-11-16) Architect refused the realise at put-down ({@code BILL_CAP}: its bill then was past this bound): the
+ *     next quote is put to the player whatever it says, never realised on its own, also after a restart. Saved with the build before the quote is
+ *     asked for, kept through the hold it leads to and cleared by the player's approval ({@link #approvedHeld}). TRUE or null (absent in the file: Gson writes no null), so an
+ *     order saved before it, or an offer, reads as not refused. No format bump: an older Steward that drops it loses only the re-ask, and the bound
+ *     still holds at the realise (Architect's maxBill), so nothing is paid past what was approved
  */
 public record ModuleOrder(String moduleId, int version, String programSha, JsonObject params, @Nullable JsonObject bound, @Nullable String rate,
-	boolean lampFallback, boolean autonomous, @Nullable String proposal, @Nullable JsonObject held, boolean inexactApproved) {
+	boolean lampFallback, boolean autonomous, @Nullable String proposal, @Nullable JsonObject held, boolean inexactApproved, @Nullable Boolean refused) {
 	public ModuleOrder {
 		params = params == null ? null : Canon.sorted(params).getAsJsonObject();
 		bound = ModuleBound.clean(bound);
 		held = ModuleBound.clean(held);
+		refused = Boolean.TRUE.equals(refused) ? Boolean.TRUE : null;
+	}
+
+	/** As saved before QD-2: not refused at put-down. */
+	public ModuleOrder(String moduleId, int version, String programSha, JsonObject params, @Nullable JsonObject bound, @Nullable String rate,
+		boolean lampFallback, boolean autonomous, @Nullable String proposal, @Nullable JsonObject held, boolean inexactApproved) {
+		this(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, held, inexactApproved, null);
 	}
 
 	/** An offer (not accepted, nothing held). */
@@ -38,9 +52,19 @@ public record ModuleOrder(String moduleId, int version, String programSha, JsonO
 		this(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, null, null, false);
 	}
 
+	/** (QD-2) Whether the realise under this bound was refused at put-down and the player has not been asked again yet. */
+	public boolean refusedAtPutDown() {
+		return Boolean.TRUE.equals(refused);
+	}
+
+	/** (QD-2) The same order, its realise refused at put-down ({@code BILL_CAP}): the next quote is put to the player. */
+	public ModuleOrder refusedAtPutDown(boolean r) {
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, held, inexactApproved, r ? Boolean.TRUE : null);
+	}
+
 	/** The same order with other params (a smaller size) and the bound that goes with them. */
 	public ModuleOrder resized(JsonObject p, @Nullable JsonObject b) {
-		return new ModuleOrder(moduleId, version, programSha, p, b, rate, lampFallback, autonomous, proposal, held, inexactApproved);
+		return new ModuleOrder(moduleId, version, programSha, p, b, rate, lampFallback, autonomous, proposal, held, inexactApproved, refused);
 	}
 
 	/**
@@ -51,9 +75,12 @@ public record ModuleOrder(String moduleId, int version, String programSha, JsonO
 		return new ModuleOrder(moduleId, version, programSha, params, held, rate, lampFallback, false, proposal, null, true);
 	}
 
-	/** The same order holding this quote for the player's word. */
+	/**
+	 * The same order holding this quote for the player's word. A put-down refusal stays until the player approves ({@link #approvedHeld}): the
+	 * hold's order is saved before its phase is (a crash between them restores PLACING), so a restart there asks again, never realises on its own.
+	 */
 	public ModuleOrder holding(JsonObject bill) {
-		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, bill, inexactApproved);
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, lampFallback, autonomous, proposal, bill, inexactApproved, refused);
 	}
 
 	/** The order as accepted: by the player, or by the steward on its own, from the proposal {@code key}. */
@@ -63,7 +90,7 @@ public record ModuleOrder(String moduleId, int version, String programSha, JsonO
 
 	/** The same offer, with the lamp the bible gives (the plain lantern when its lamp is too dim). */
 	public ModuleOrder withLamp(boolean fallback) {
-		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, fallback, autonomous, proposal, held, inexactApproved);
+		return new ModuleOrder(moduleId, version, programSha, params, bound, rate, fallback, autonomous, proposal, held, inexactApproved, refused);
 	}
 
 	/** The lot ext Architect keeps on the placed lot. */

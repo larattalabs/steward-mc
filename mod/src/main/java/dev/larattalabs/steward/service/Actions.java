@@ -580,7 +580,8 @@ public final class Actions {
 			new SettlementRunner(server, level, player, s.permission(), cards(), 0).hooks(() -> Proposals.recordAccepted(s.id(), key, null),
 				() -> Proposals.giveBack(s.id(), p.get(), null), () -> Proposals.backOff(s.id(), key)).startModule(s, p.get().building(), accepted, p.get().district());
 			return Result.ok(String.format("Laying %s in %s: a working module from the catalog (%s@%d), at no design cost%s.", kind.get().title(), s.name(), order.moduleId(),
-				order.version(), order.bound() == null ? "" : "; its bill from the stockpile is held to at most " + dev.larattalabs.steward.module.ModuleBound.bill(order.bound(), 4)));
+				order.version(), order.bound() == null ? "" : "; its bill from the stockpile is held to at most " + dev.larattalabs.steward.module.ModuleBound.bill(order.bound(), 4)
+				+ " (" + dev.larattalabs.steward.module.ModuleBound.CRASH_EXCEPTION + ")"));
 		}
 		// a module rule's proposal without its order is never built as a paid design (a damaged save): refused
 		if (p.get().key().startsWith(dev.larattalabs.steward.module.ModuleKind.RULE_PREFIX)) return Result.fail("That module offer is damaged; it is not built.");
