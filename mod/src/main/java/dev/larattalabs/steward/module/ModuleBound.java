@@ -42,6 +42,49 @@ public final class ModuleBound {
 	 */
 	public static @Nullable JsonObject of(ModuleCatalog.@Nullable Measured m, JsonObject params, @Nullable Map<String, String> town) {
 		if (m == null || m.raw() == null || !m.raw().has(MEMBER) || !m.raw().get(MEMBER).isJsonArray()) return null;
+		// (M4b) a measurement with a fill part (measured.json `fill`: {params: [item1, ...], count: 41}, storage_hall@2): its bounds are the structure
+		// alone, keyed by the params left after the fill's; the fill is added exactly for the items asked (each `<key>` one `minecraft:<key>`)
+		Fill fill = fillOf(m.raw());
+		if (m.raw().has(FILL) && fill == null) return null;
+		JsonObject structure = params;
+		if (fill != null) {
+			structure = params.deepCopy();
+			for (String k : fill.params()) structure.remove(k);
+		}
+		JsonObject b0 = ofStructure(m, structure, town);
+		if (b0 == null || fill == null) return b0;
+		Map<String, Integer> bill = new TreeMap<>();
+		for (var e : b0.entrySet()) bill.put(e.getKey(), e.getValue().getAsInt());
+		for (String k : fill.params()) {
+			JsonElement v = params.get(k);
+			if (v == null || !v.isJsonPrimitive() || v.getAsString().equals("none")) continue;
+			String key = v.getAsString();
+			if (!key.matches("[a-z0-9_]+")) return null;
+			bill.merge("minecraft:" + key, fill.count(), Integer::sum);
+		}
+		return StyleBound.json(bill);
+	}
+
+	/** measured.json's fill member. */
+	public static final String FILL = "fill";
+
+	/** A measurement's fill part: the params that each add {@code count} of their item. */
+	public record Fill(List<String> params, int count) {}
+
+	static @Nullable Fill fillOf(JsonObject raw) {
+		if (!raw.has(FILL) || !raw.get(FILL).isJsonObject()) return null;
+		JsonObject f = raw.getAsJsonObject(FILL);
+		Integer n = f.has("count") ? ModuleRef.exactInt(f.get("count")) : null;
+		if (n == null || n < 1 || !f.has("params") || !f.get("params").isJsonArray()) return null;
+		List<String> ps = new ArrayList<>();
+		for (JsonElement e : f.getAsJsonArray("params")) {
+			if (!e.isJsonPrimitive()) return null;
+			ps.add(e.getAsString());
+		}
+		return ps.isEmpty() ? null : new Fill(List.copyOf(ps), n);
+	}
+
+	private static @Nullable JsonObject ofStructure(ModuleCatalog.Measured m, JsonObject params, @Nullable Map<String, String> town) {
 		JsonElement want = Canon.sorted(params);
 		List<Map<String, Integer>> bills = new ArrayList<>();
 		for (JsonElement b : m.raw().getAsJsonArray(MEMBER)) {

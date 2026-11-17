@@ -56,7 +56,7 @@ const pct = (a, b) => (b ? Math.round(((a - b) / b) * 1000) / 10 : null);
  * @param {{evidence: object|null, bounds: object[]|null, problems: string[]}} a.requote  artifacts/m2/bounds.json (the 108 quotes on the new
  *                                 pin) and the per-Style bounds the tool derived from it (tools/lib/style-bounds.mjs), or why it could not
  */
-export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, offEntry, ingame, inEntry, checks, survival, fields, requote }) {
+export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, offEntry, ingame, inEntry, checks, survival, billingStep = 'survival', fields, requote }) {
   const why = [];
   const no = (m) => { why.push(m); return { why, m: null }; };
   if (!prev) return no('no measured.json to carry');
@@ -102,7 +102,7 @@ export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, o
   // the billing check: survival bills each growth its quote, and the quotes are the carried bounds item for item
   if (!survival) why.push('no billing check (module-measure.mjs survival)');
   else if (!stamped(survival, now, versions)) why.push('the billing check ran on other files or versions');
-  else if (unpassed(survival, 'survival')) why.push(`the billing check (survival) ${unpassed(survival, 'survival')}`);
+  else if (unpassed(survival, billingStep)) why.push(`the billing check (${billingStep}) ${unpassed(survival, billingStep)}`);
   const rq = requote?.evidence;
   if (!rq) why.push('no bounds re-quote (module-measure.mjs bounds)');
   else if (!stamped(rq, now, versions)) why.push('the bounds re-quote ran on other files or versions');
@@ -148,6 +148,8 @@ export function smokeCarry({ prev, mod, now, gameModuleSha, versions, offline, o
     what: core.what, bars: core.bars, runs: core.runs,
     checks: { ...checks, smoke: { rule: SMOKE_RULE, survival: summary(survival), bounds: { ...summary(rq), equal: bounds.length }, fields: fieldRounds } },
     carried: core, bounds, rates,
+    // (M4b GPT review 11) a sorting hall's fill member (its item params and 41 a filter), which ModuleBound strips before matching a bound
+    ...(prev?.fill ? { fill: prev.fill } : {}),
   };
   return { why, m };
 }

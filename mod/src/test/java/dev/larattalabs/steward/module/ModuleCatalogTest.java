@@ -118,7 +118,7 @@ class ModuleCatalogTest {
 		var hall = JsonParser.parseString(live.get("storage_hall/1/measured.json")).getAsJsonObject();
 		var farm = JsonParser.parseString(live.get("crop_farm/1/measured.json")).getAsJsonObject();
 		org.junit.jupiter.api.Assumptions.assumeTrue("smoke".equals(hall.get("basis").getAsString()) && "smoke".equals(farm.get("basis").getAsString()), "both live certificates are smoke carries");
-		assertTrue(ModuleCatalog.load(rel -> Optional.ofNullable(live.get(rel)), false).newest("storage_hall").orElseThrow().uncertified().isEmpty(), "the live hall carries on its hall round");
+		assertTrue(ModuleCatalog.load(rel -> Optional.ofNullable(live.get(rel)), false).get("storage_hall", 1).orElseThrow().uncertified().isEmpty(), "the live hall carries on its hall round");
 		assertTrue(ModuleCatalog.load(rel -> Optional.ofNullable(live.get(rel)), false).newest("crop_farm").orElseThrow().uncertified().isEmpty(), "the live farm carries on its field round");
 		// crop_farm's field round renamed a one-run hall round: refused
 		var f1 = new java.util.HashMap<>(live);
@@ -136,7 +136,7 @@ class ModuleCatalogTest {
 		hf.addProperty("step", "field-wheat");
 		hf.addProperty("runs", 5);
 		f2.put("storage_hall/1/measured.json", hm.toString());
-		var u2 = ModuleCatalog.load(rel -> Optional.ofNullable(f2.get(rel)), false).newest("storage_hall").orElseThrow().uncertified();
+		var u2 = ModuleCatalog.load(rel -> Optional.ofNullable(f2.get(rel)), false).get("storage_hall", 1).orElseThrow().uncertified();
 		assertTrue(u2.stream().anyMatch(x -> x.contains("field-wheat (hall)")), u2.toString());
 	}
 

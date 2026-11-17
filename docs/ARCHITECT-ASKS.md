@@ -1772,3 +1772,61 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
     drawn through the purse; `Fills.creative`; `fill:<lot>` in `quoteApproved`; the cargo refusal and custody at removal for any region.
     No gate ran it on a provisional lot, so Architect adds the test-only step FKR ($0), targeted at v0.73.0.
   - S-M5-16 is logged for later. BCC keys its per-revision cap scope so a per-lot scope can be added without rework.
+
+### M4b asks (slice M4b, storage_hall@2, 2026-11-15)
+
+- **S-M5-12. No item lost to a removal's late cargo** (slice M4b's GPT design review, 2026-11-15; for storage_hall@2, and true of @1 and any
+  building with containers).
+  - **Seen in the v0.72.0 code (the review's reading, not yet reproduced in game):** `Groups.plan` scans every blocker, `Fills.takeCustody`
+    re-checks only the declared fill containers, and `finishGroupDeconstruct` writes the committed restore ticks later with no inventory
+    check. An item put into any other container (the hall's input chest, a line hopper, a slot chest) after the scan and before the restore
+    is erased: not captured, not refunded, not dropped. The same holds for an item put into an emptied declared container after its custody take.
+  - **Asked:** through the restore, either seal a removal's containers (menus and transfers refuse, as FK-b's guards do for provided items) or
+    re-check every container cell in the tick it is written, and, finding cargo, end the removal unwritten (FK's write-back) or hand the cargo
+    to the owner. Whichever you choose, no item is erased.
+  - **Steward's side until then:** its pre-check refuses an undo while any container holds cargo, said with the count. The window between
+    Architect's scan and its restore stays open.
+- **S-M5-13. A deterministic failed removal after its custody take** (TEST): a dev hook (for example `dev.fk.halt` point `FKC0`, or
+  `dev.removal.failAfterCustody {site}`) that makes the next removal of a fill site end unwritten after the custody is saved. M4b's crash bars
+  then cover the write-back, a restart and a retry on the hall's own undoRevision path, beside FKC1, FKC2 and CS1.
+- **S-M5-17. A fill's lock holds through a survival build** (slice M4b's `sort-survival` step B2, 2026-11-15, Architect v0.72.0; sent
+  through the manager, beside M5a's S-M5-14 to 16).
+  - **Seen in game:** a storage_hall@2 (4 slots, rustic) grown from the stockpile in half waves. Once its input chest stood, the player put 64
+    cobblestone into it. Before the fill, line hopper 0 took it down: F0 held 45 cobblestone and D0 held 1. Then the fill waited
+    `fill_blocked` on F0's cell. Nothing was charged or lost: no filter item was charged past the structure, and the player's items stayed in
+    the hall. The fill can run only once the player empties F0, D0 and the line.
+  - **The FK promise broken:** "built with its locks locked and its containers empty". The lever lock (template (1,4,5), beside line hopper 0)
+    didn't hold the line while the site built. There are two possible causes, and Architect checks which in code (Builder's survival placement
+    order and `Fills`):
+    1. The order: a survival build places a cell once its materials arrive, so the lever can stand after the hoppers and the input chest.
+    2. Not powered yet: the lever stands, but not in its locked state until the fill begins.
+  - **Asked:** a fill site's lock cells stand in their locked state before any hopper, dropper or container cell of the site does. Either
+    place the locks first, or hold those cells until every lock stands. The gate covers a survival build fed in half waves with items put
+    into an input that stood part way.
+  - **Steward's side:** the next `sort-survival` run records the lever's and line hopper 0's states at the moment of the preload, as
+    evidence. Until the fix, a player who loads the hall early sees the fill wait on the cell it names, and must empty it.
+  - **Architect's answer (2026-11-15): accepted** as slice FL (strict), on top of LC, targeted at v0.74.0. FL reproduces it first and decides
+    between the two causes from Builder's order and `Fills`. Its gate covers items put in mid-build, both into the input chest and straight
+    into a line hopper, and none of them reaching a fill container. Steward sends the lever and hopper-0 readings through the manager. Until FL
+    ships, @2's mid-build insert is a known gap, named in the as-built beside S-M5-12. It gets no offer line, since nothing is lost.
+  - **Architect's fix (2026-11-15, slice/FL 50f47d9b, for v0.74.0):** the cause was both. The lever is an attachable, so it is built after
+    the hoppers in its row, and `Builder.put` writes it powered with no neighbour update, so the hopper never sees the power. FL reproduced it:
+    lever `powered=true`, line hopper 0 `enabled=true`, 64 cobblestone in F0. The fix is a mixin on `HopperBlockEntity.canPlaceItemInContainer`.
+    From placement until UNLOCKED it refuses every automated insertion into a fill site's declared containers: hopper push and pull, item
+    entities and droppers. A refused item stays where it was, so `fill_blocked` then comes only from a player's own hand. Not held: other mods'
+    Fabric Transfer API insertions, which become FK cargo (`fill_blocked`, nothing lost). Hook changes: `dev.fk.container` answers `state`, and
+    `dev.fk.state` answers `held`. Steward's runs stay on 0.72.0's behaviour until the pin. At the pin that carries LC3 with FL (not v0.74.0), the mid-build insert flow
+    expects no item in F (follow-up M4b-074).
+- **S-M5-18. The land check reads a filled fill container as changed** (slice M4b's `sort` bar 6, 2026-11-15, Architect v0.72.0; sent
+  through the manager).
+  - **Seen in game:** every storage_hall@2 just built and filled (10 halls, 4 to 16 slots, all four facings) reads `standing 1, changed N`
+    from `dev.region.landCheck`, N its slot count. Each slot's F hopper holds exactly its fill (41 of the filter item and 4 provided slabs),
+    FK reads UNLOCKED, and nothing else in the hall holds items.
+  - **Why:** `StillOurs.holds` treats a cell written as an empty container that now holds items as not ours
+    (`emptyContainer(afterNbt) && !emptyContainer(nowNbt)`). A fill site's containers are written empty and filled by `Fills` afterwards, so
+    each filled container is one changed cell. Landing reports and drift checks would call a correctly built fill site changed.
+  - **Asked:** a fill container holding exactly its fill (or less of it) counts as SAME for the land check.
+  - **Steward's side:** bar 6 judges `changed` equal to the slot count, with every F holding exactly 41 + 4 slabs. Not a gap for players:
+    nothing is charged, lost or offered on it.
+  - **Architect's answer (2026-11-15, slice/FL 50f47d9b, for v0.74.0):** a declared container holding its fill or less, as plain stacks,
+    reads SAME, and more reads CHANGED (cargo). At the pin that carries LC3 with FL (not v0.74.0), bar 6 goes back to expecting `changed 0` (follow-up M4b-074).

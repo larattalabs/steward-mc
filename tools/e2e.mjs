@@ -5719,6 +5719,148 @@ async function siteBox(sid) {
 }
 
 /**
+ * The sorting hall (M4b, docs/MEASURE-M4.md 12): a V town built at once, the player at the Nether tier carrying 12 kinds (5 filter items) →
+ * storage_hall@2's sorting hall offered (4 slots, the most-held filter items, the slab warning); one slot's item changed with /steward hall items;
+ * accepted → a growth whose filter hoppers are filled (41 + 4) at $0; /steward hall lists the slots; a short mix sorts; cargo refuses the undo, said;
+ * emptied (the fill stays: it is ours), undone, the ground as before. Until @2 is certified the dev source offers it under a measuring gate.
+ */
+/** The newest version of a catalog module whose measured.json certifies it (result pass). */
+function newestCertified(id) {
+  const dir = path.join(ROOT, 'modules', id);
+  const vs = fs.readdirSync(dir).filter((d) => /^\d+$/.test(d)).map(Number).sort((a, b) => b - a);
+  for (const v of vs) {
+    const f = path.join(dir, String(v), 'measured.json');
+    if (fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')).result === 'pass') return v;
+  }
+  return null;
+}
+
+/** The sorting hall's flow, its Nether-tier grant taken back on every way out (the flows after it share the player). */
+async function moduleHallSortFlow() {
+  try {
+    return await moduleHallSortFlowBody();
+  } finally {
+    await cmd('/advancement revoke @p until minecraft:story/enter_the_nether').catch(() => null);
+  }
+}
+
+async function moduleHallSortFlowBody() {
+  const label = 'module hall sort';
+  const HALL = 'storage_hall';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 81000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/clear @p');
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev layout ${id} village`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Sorting Hamlet';
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a little hamlet that keeps its stores sorted`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 3 30`);
+  const town = await buildThrough(id, from, `${label} town`);
+  if (!town) return;
+  const st0 = settlements().find((x) => x.id === id);
+  const region = /^region:(.+)$/.exec((st0?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '')?.[1];
+  if (!region) return fail(label, 'the town is not a region');
+  const claim = st0.claim;
+  const box = [claim.centerX - claim.radius - 48, 40, claim.centerZ - claim.radius - 48, claim.centerX + claim.radius + 48, 160, claim.centerZ + claim.radius + 48];
+  const snap = path.join(ROOT, 'artifacts', 'e2e', `module-hall-sort-town-${id}.snap.gz`);
+  await dev.call('dev.region.hash', { box, mode: 'snap', file: snap }, { timeoutMs: 1_800_000 });
+  // @2 under its measuring gate until it is certified; then the live catalog
+  const certFile = path.join(ROOT, 'modules', HALL, '2', 'measured.json');
+  const cert = fs.existsSync(certFile) ? JSON.parse(fs.readFileSync(certFile, 'utf8')) : {};
+  if (cert.result === 'pass') await cmd('/steward dev modules {}');
+  else await cmd(`/steward dev modules ${JSON.stringify({ dir: path.join(ROOT, 'modules'), id: HALL, measuring: true })}`);
+  await cmd('/advancement grant @p until minecraft:story/enter_the_nether');
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
+  const kinds = [['cobblestone', 64 * 5], ['iron_ingot', 64 * 4], ['wheat', 64 * 3], ['oak_log', 64 * 2], ['coal', 64], ['dirt', 1], ['oak_planks', 1], ['torch', 1], ['bread', 1], ['apple', 1], ['stick', 1], ['glass', 1]];
+  for (const [k, c] of kinds) await cmd(`/give @p minecraft:${k} ${c}`);
+  let offer = null;
+  for (let i = 0; i < 90 && !offer; i++) {
+    await sleep(1000);
+    offer = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.key === `module.${HALL}`) ?? null;
+  }
+  if (!offer) return fail(`${label} offer`, `no module.${HALL} proposal within 90 s`);
+  const P = offer.module?.params ?? {};
+  if (offer.module?.version === 2 && P.slots === 4 && P.item1 === 'cobblestone' && P.item4 === 'oak_log' && /4 slots for cobblestone, iron ingot, wheat, oak log/.test(offer.why)
+    && /Never put petrified oak slabs in it/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 220));
+  else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 400));
+  // the player changes slot 4 to coal
+  const changed = await cmd(`/steward hall ${id} items 4=coal`);
+  const o2 = settlements().find((x) => x.id === id)?.proposals?.open?.find((x) => x.key === `module.${HALL}`);
+  if (/now sorts slot 1 cobblestone, slot 2 iron ingot, slot 3 wheat, slot 4 coal/.test(changed) && o2?.module?.params?.item4 === 'coal' && /coal/.test(o2.why)) ok(`${label} items`, changed.slice(0, 160));
+  else return fail(`${label} items`, `${changed}; ${JSON.stringify(o2?.module?.params)}`);
+  const bad = await cmd(`/steward hall ${id} items 2=cobblestone`);
+  if (/repeats/.test(bad)) ok(`${label} items refused`, bad.slice(0, 120));
+  else fail(`${label} items refused`, bad);
+  await cmd('/clear @p');
+  await clearAnimals();
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
+  from = logSize();
+  await cmd(`/steward proposals ${id} accept module.${HALL}`);
+  const grew = await buildThrough(id, from, label);
+  if (!grew) return;
+  const g = await growthOf(id);
+  const mods = await moduleSites(g.op);
+  if (g.m && g.m[1] === region && mods.length === 1 && mods[0].key === `${HALL}@2` && mods[0].params.slots === 4 && mods[0].params.item4 === 'coal') ok(label, `revision ${g.m[2]} of ${region}; lot ${mods[0].sid} = ${mods[0].blueprint} (${JSON.stringify(mods[0].params).slice(0, 120)})`);
+  else return fail(label, `entry ${g.op?.siteGroup}; module sites ${JSON.stringify(mods).slice(0, 300)}`);
+  const fk = await dev.request('dev.fk.state', { site: mods[0].sid }).catch(() => null);
+  const holds = (fk?.containers ?? []).map((c) => c.holds);
+  const want = ['cobblestone', 'iron_ingot', 'wheat', 'coal'];
+  if (fk?.phase === 'UNLOCKED' && holds.length === 4 && holds.every((m, u) => m?.[`minecraft:${want[u]}`] === 41 && m?.['minecraft:petrified_oak_slab'] === 4)) ok(`${label} fill`, `UNLOCKED; every filter hopper 41 + 4 slabs`);
+  else fail(`${label} fill`, JSON.stringify(fk).slice(0, 300));
+  const listed = await cmd(`/steward hall ${id}`);
+  if (/slot 1 cobblestone, slot 2 iron ingot, slot 3 wheat, slot 4 coal/.test(listed) && /the input chest at/.test(listed) && /overflow at/.test(listed)) ok(`${label} slots`, listed.slice(0, 220));
+  else fail(`${label} slots`, listed);
+  // a short mix into the input chest: 64 cobblestone, 64 coal, 64 dirt; ten seconds later each in its place
+  const sb = await siteBox(mods[0].sid);
+  const cs0 = await devModule({ op: 'containers', box: sb });
+  const input = /the input chest at (-?\d+), (-?\d+), (-?\d+)/.exec(listed)?.slice(1).map(Number);
+  await devModule({ op: 'putItems', at: input, stacks: [{ slot: 0, id: 'minecraft:cobblestone', count: 64 }, { slot: 1, id: 'minecraft:coal', count: 64 }, { slot: 2, id: 'minecraft:dirt', count: 64 }] });
+  await sleep(120_000);
+  const cs1 = await devModule({ op: 'containers', box: sb });
+  const got = (k) => (cs1?.totals?.[k] ?? 0) - (cs0?.totals?.[k] ?? 0);
+  const slotOf = (cells, k) => (cells?.containers ?? []).filter((c) => c.block === 'minecraft:chest' && c.slots.some(([, kk]) => kk === k)).length;
+  if (got('minecraft:cobblestone') === 64 && got('minecraft:coal') === 64 && got('minecraft:dirt') === 64) ok(`${label} sorts`, `192 items in, 192 in the hall's chests (cobblestone in ${slotOf(cs1, 'minecraft:cobblestone')} chest(s), coal in ${slotOf(cs1, 'minecraft:coal')}, dirt in overflow)`);
+  else fail(`${label} sorts`, JSON.stringify(cs1?.totals).slice(0, 300));
+  // the undo: refused while the hall holds the player's items, said; emptied (its fill stays: it is ours), undone, the ground as before
+  from = logSize();
+  const said = await cmd(`/steward undo ${id}`);
+  await sleep(4000);
+  const words = `${said}\n${logSince(from)}`.match(/the storage hall still holds [^\n]*/);
+  if (words) ok(`${label} undo refused`, words[0].slice(0, 200));
+  else return fail(`${label} undo refused`, `${said} ${logSince(from).slice(-300)}`);
+  // emptied: every container but the filter hoppers (the ones holding the provided slabs: their fill is ours); the last item each slot let
+  // through waits in its output hopper, the player's, taken too
+  const cs2 = await devModule({ op: 'containers', box: sb });
+  for (const c of cs2?.containers ?? []) if (!c.slots.some(([, k]) => k === 'minecraft:petrified_oak_slab')) await devModule({ op: 'clearContainers', box: [...c.at, ...c.at] });
+  from = logSize();
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  const v2 = await dev.request('dev.region.state', { region }).catch(() => null);
+  const undone = ((v2?.view ?? v2 ?? {}).revisions ?? []).find((r) => String(r.rid) === g.m[2]);
+  const d0 = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
+  const off = (d0.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
+  const slabs = await dev.request('dev.fk.slabs', { pos: input }).catch(() => ({}));
+  if (last?.kind === 'PROJECT_REMOVED' && undone?.state === 'UNDONE' && off.length === 0 && (slabs.entities ?? 0) === 0 && (slabs.player ?? 0) === 0) ok(`${label} undo`, `${last.text}; revision ${g.m[2]} UNDONE, the ground as before; no slab loose`);
+  else fail(`${label} undo`, `last ${last?.kind}; revision ${undone?.state}; ${off.length} cell(s) differ; slabs ${JSON.stringify(slabs)}`);
+  await cmd('/steward dev modules {}');
+}
+
+/**
  * The storage hall's flow (M4, docs/MEASURE-M4.md 2; the live catalog's certified storage_hall@1, the plain hall): a V town built at once; 12 kinds
  * of items carried → the hall offered by its rule (bulk from the stacks held); accepted → a growth whose lot is the catalog's variant, at $0;
  * cargo in its input chest → the undo refused and said with the count (Q3); emptied → undone, the ground as before the growth.
@@ -5777,9 +5919,11 @@ async function moduleHallFlow() {
   if (!grew) return;
   const g = await growthOf(id);
   const mods = await moduleSites(g.op);
-  const sha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', HALL, '1', 'module.json'), 'utf8')).programSha;
+  // the catalog's newest certified hall builds the plain hall (M4b: @2's slots 0 branch, unchanged from @1, MEASURE-M4 12.1)
+  const v = newestCertified(HALL);
+  const sha = JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', HALL, String(v), 'module.json'), 'utf8')).programSha;
   const noDesign = !/Designing|massings|Style bible/.test(logSince(from));
-  if (g.m && g.m[1] === region && mods.length === 1 && mods[0].key === `${HALL}@1` && sha.startsWith(mods[0].sha) && mods[0].params.bulk === 2 && noDesign)
+  if (g.m && g.m[1] === region && mods.length === 1 && mods[0].key === `${HALL}@${v}` && sha.startsWith(mods[0].sha) && mods[0].params.bulk === 2 && (mods[0].params.slots ?? 0) === 0 && noDesign)
     ok(label, `revision ${g.m[2]} of ${region} (${g.rev?.state}); lot ${mods[0].sid} = ${mods[0].blueprint} (${JSON.stringify(mods[0].params)}); no design`);
   else return fail(label, `entry ${g.op?.siteGroup}; module sites ${JSON.stringify(mods)}; no design ${noDesign}`);
   // its containers: 2 double chests (4 halves) and the input chest, all empty
@@ -6015,7 +6159,7 @@ async function moduleHallSurvivalFlow() {
     const mods = await moduleSites(g.op);
     const within = quoted && Object.entries(quoted).every(([k, c]) => c <= (bound[k] ?? 0));
     const sameBill = quoted && Object.keys({ ...paid, ...quoted }).every((k) => (paid[k] ?? 0) === (quoted[k] ?? 0));
-    if (mods.length === 1 && mods[0].key === `${HALL}@1` && within && sameBill) ok(`${label} bill`, `consumed = the quote ${JSON.stringify(quoted).slice(0, 200)}, within the measured bound`);
+    if (mods.length === 1 && mods[0].key === `${HALL}@${newestCertified(HALL)}` && within && sameBill) ok(`${label} bill`, `consumed = the quote ${JSON.stringify(quoted).slice(0, 200)}, within the measured bound`);
     else return fail(`${label} bill`, `module sites ${mods.length}; quote ${JSON.stringify(quoted)}; paid ${JSON.stringify(paid)}; within ${within}`);
     // undone emptied: what it consumed comes back, exactly once
     await away();
@@ -8503,6 +8647,7 @@ try {
       await flow('module-survival', 'module survival stockpile bill refund', () => moduleSurvivalFlow());
       await flow('module-cap', 'module survival stockpile bill cap crash growth', () => moduleCapFlow());
       await flow('module-hall', 'module hall growth undo', () => moduleHallFlow());
+      await flow('module-hall-sort', 'module hall sort growth undo', () => moduleHallSortFlow());
       await flow('adopt-survival', 'adopt survival stockpile bill refund growth restart undo', () => adoptSurvivalFlow());
       await flow('module-survival-street', 'module adopt survival stockpile bill refund water farm', () => moduleSurvivalStreetFlow());
       await flow('module-hall-survival', 'module hall survival stockpile bill refund', () => moduleHallSurvivalFlow());
