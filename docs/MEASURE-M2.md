@@ -235,6 +235,12 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.74.0 by a smoke check (2026-11-16, pin-074; speed rule 4).** The pins moved to kit/checker 0.69.0, the program
+unchanged (`c406df05…`), moduleSha `cedb9ab6…`. The kit's diff for crop_farm's paths is version strings only (`realise.mjs`, `region/plan.mjs`);
+the Java FullBom, quotes and survival billing are unchanged (R2's crater-shell billing is a test of Architect's own). Survival 63/63, the
+bounds re-quote 111/111 (`record --smoke` holds the 108 re-quoted bounds equal to the carried ones), offline 151/151, ingame 150/150,
+field-potatoes 62/62 (5 runs), ports 9112/9113, $0. Potatoes per crop-day against 0.67.0: within 3.4% on eight farms, 9x18 +4.2%.
+
 **Carried to Architect 0.73.0 by a smoke check (2026-11-16, pin-073; speed rule 4).** The pins moved to kit/checker 0.68.0, the program
 unchanged (`c406df05…`), moduleSha `05058fa9…`. The kit's diff for crop_farm's paths is version strings only (`realise.mjs`, `region/plan.mjs`);
 the Java changes survival billing (BC-c/BC-d: per-revision caps, region charges counted in the cap, keyed ledger charges), which this

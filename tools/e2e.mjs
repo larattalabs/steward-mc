@@ -6716,7 +6716,7 @@ async function moduleCapFlow() {
       const rightCmd = named === (running ? 'cancel' : 'undo');
       if (lowered && !lowered.refused && said && t && nn > over && n === nn && before === after && !/maxBill|bill_cap/.test(words) && rightCmd)
         ok(lbl, `cap of ${plain} set to ${c.drawn[item] - over} (drawn ${c.drawn[item]}): ${t.id} held bill_cap, nextNeeded ${nn} (its need + ${over} over); said "${words.replace(/^.*?The /, 'The ').slice(0, 200)}" (names ${named}: the build ${running ? `still ${build.state?.phase}` : 'ended'}); nothing more drawn in 20 s (${before} = ${after})`);
-      else return fail(lbl, `set ${JSON.stringify(lowered).slice(0, 160)}; said ${words.slice(0, 200) || 'nothing'}; names ${named} (build ${build?.state?.phase ?? 'none'}); held ${String(JSON.stringify(t)).slice(0, 200)} (targets ${String(JSON.stringify(held?.targets?.map((x) => [x.id, x.blocked]))).slice(0, 200)}); drawn ${before} -> ${after}`);
+      else return fail(lbl, `set ${String(JSON.stringify(lowered)).slice(0, 160)}; item ${item}, cap sent ${String(JSON.stringify(capSent)).slice(0, 200)}; said ${words.slice(0, 200) || 'nothing'}; names ${named} (build ${build?.state?.phase ?? 'none'}); held ${String(JSON.stringify(t)).slice(0, 200)} (nextNeeded ${nn}, said ${n}; targets ${String(JSON.stringify(held?.targets?.map((x) => [x.id, x.blocked]))).slice(0, 200)}); drawn ${before} -> ${after}`);
       // restored: it builds on, within the cap sent
       await dev.request('dev.bc.cap', { region, rid: Number(rid), set: capSent }, { timeoutMs: 30_000 }).catch(() => null);
     }

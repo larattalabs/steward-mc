@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 /** docs/MODULES.md "M5 design" (slice M5a): module lots of a composed plan, on the live catalog (crop_farm@1, storage_hall@1). */
 class ComposedModulesTest {
 	static final ModuleCatalog LIVE = ModuleCatalog.dir(ModuleCatalogTest.FIXTURES.resolve("../../../modules").normalize(), false);
-	static final ModuleGate.Env PLAYER = new ModuleGate.Env("26.3", "0.73.0", Set.of(ModuleGate.FEATURE));
+	static final ModuleGate.Env PLAYER = new ModuleGate.Env("26.3", "0.74.0", Set.of(ModuleGate.FEATURE));
 	static final ModuleKind FARM = ModuleKind.CropFarm.INSTANCE, HALL = ModuleKind.StorageHall.INSTANCE;
 	static final ComposedModules.Town WARM = new ComposedModules.Town(false, false), COLD = new ComposedModules.Town(true, false),
 		MATERIALS = new ComposedModules.Town(false, true);
