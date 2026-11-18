@@ -37,6 +37,7 @@ import net.minecraft.network.chat.Component;
  * /steward expand &lt;id&gt;                            grow the claim one size step (S 97, M 129, L 193, XL 257 across)
  * /steward updates                                look again for newer versions of placed buildings (the inbox offers them)
  * /steward undo &lt;id&gt;                              remove the newest placed project and restore the land exactly
+ * /steward repair &lt;id&gt; [confirm]                  (operators) look over a build stuck after an unclean stop, then repair it
  * dev (cheats):
  * /steward claim                                   claim the land under you, as the Founding Stone does
  * /steward survey                                  survey around you and try four test lots
@@ -115,6 +116,9 @@ public final class StewardCommands {
 					else src.sendSuccess(() -> Component.literal(line), false);
 				}));
 			}).then(Commands.literal("dismiss").executes(ctx -> decide(ctx, "land_dismiss", "", "", 0)))))
+			// (slice DRS) a stuck build after an unclean stop: open to everyone, an operator only repairs (anyone else is told an operator can), the op the actor
+			.then(Commands.literal("repair").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> repair(ctx, false))
+				.then(Commands.literal("confirm").executes(ctx -> repair(ctx, true)))))
 			.then(Commands.literal("expand").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "expand", "", "", 0))))
 			.then(Commands.literal("view").then(Commands.argument("id", StringArgumentType.word()).executes(ctx -> decide(ctx, "settlement", "", "", 0))
 				.then(Commands.argument("site", StringArgumentType.word()).executes(ctx -> decide(ctx, "building", StringArgumentType.getString(ctx, "site"), "", 0)))))
@@ -642,6 +646,16 @@ public final class StewardCommands {
 	private static int decide(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, String action, String lot, String text, double amount)
 		throws com.mojang.brigadier.exceptions.CommandSyntaxException {
 		return answer(ctx.getSource(), Actions.decide(ctx.getSource().getPlayerOrException(), StringArgumentType.getString(ctx, "id"), action, lot, text, amount));
+	}
+
+	private static int repair(com.mojang.brigadier.context.CommandContext<CommandSourceStack> ctx, boolean confirm) {
+		var src = ctx.getSource();
+		var player = src.getPlayer();
+		boolean op = Commands.hasPermission(Commands.LEVEL_GAMEMASTERS).test(src);
+		return answer(src, dev.larattalabs.steward.service.StuckSites.repair(src.getServer(), player, op, StringArgumentType.getString(ctx, "id"), confirm, line -> {
+			if (player != null) player.sendSystemMessage(Component.literal(line));
+			else src.sendSuccess(() -> Component.literal(line), false);
+		}));
 	}
 
 	private static CardService service() {

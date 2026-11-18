@@ -59,6 +59,8 @@ final class FakeArchitect {
 		String state;
 		final List<String> sites;
 		final String planId;
+		/** (slice DRS) What it waits for ({@code RevisionView.waiting}), when a test gives it. */
+		String waiting;
 
 		Rev(int rid, int position, String state, List<String> sites) {
 			this.rid = rid;
@@ -69,7 +71,7 @@ final class FakeArchitect {
 		}
 
 		RevisionView view() {
-			return new RevisionView(rid, position, rid - 1, planId, "sha", state, 0L, List.of(), List.of(), List.of(), 0L, null, true, null, sites);
+			return new RevisionView(rid, position, rid - 1, planId, "sha", state, 0L, List.of(), List.of(), List.of(), 0L, null, true, waiting, sites);
 		}
 	}
 
@@ -89,6 +91,8 @@ final class FakeArchitect {
 		final Map<Integer, String> landAt = new HashMap<>();
 		/** Whether a get() of it answers at all (false: Architect has no record, no tombstone). */
 		boolean present = true;
+		/** (slice DRS) How its last removal stopped ({@code RegionView.removalStop}, Architect DR-S). */
+		dev.larattalabs.architect.api.RemovalStop removalStop = dev.larattalabs.architect.api.RemovalStop.NONE;
 
 		Region(String id, String owner) {
 			this.id = id;
@@ -116,7 +120,7 @@ final class FakeArchitect {
 			RegionBuild build = fromMaterials ? new RegionBuild(built, built, built ? 100 : 40, Map.of(), List.of()) : null;
 			return new RegionView(id, "plan_" + id, "sha", owner, ext.deepCopy(), "grp_" + id, new BoundingBox(0, -64, 0, 300, 320, 300), state, List.of(), List.of(), 0L,
 				Map.of(), null, null, List.of(), state == RegionState.REMOVED ? 1L : 0L, null, List.of(), null, build, position, busy,
-				revisions.stream().map(Rev::view).toList());
+				revisions.stream().map(Rev::view).toList(), removalStop, removalStop == dev.larattalabs.architect.api.RemovalStop.NONE ? null : "stopped");
 		}
 	}
 
@@ -205,6 +209,10 @@ final class FakeArchitect {
 	final Ledger ledger = new Ledger();
 	Answer undoAnswer = Answer.APPLY;
 	Answer removeAnswer = Answer.APPLY;
+	/** (slice DRS) The blocker a BLOCKED answer gives. */
+	String blocker = "a chest of the player's";
+	/** (slice DRS) A BLOCKED undoRevision leaves its suffix UNDOING with this wait (Architect DR-S's refused save), when given. */
+	String undoWaits;
 	Answer unadoptAnswer = Answer.APPLY;
 	/** The calls answered HOLD, to be completed by the test. */
 	final List<Runnable> held = new ArrayList<>();
@@ -334,6 +342,7 @@ final class FakeArchitect {
 			joinedHold = f;
 			return f;
 		}
+		if (undoAnswer == Answer.BLOCKED && undoWaits != null) suffix.forEach(v -> { v.state = "UNDOING"; v.waiting = undoWaits; });
 		return answer(undoAnswer, apply);
 	}
 
@@ -383,7 +392,7 @@ final class FakeArchitect {
 		var f = new CompletableFuture<RemoveResult>();
 		switch (how) {
 			case APPLY -> { apply.run(); f.complete(new RemoveResult(true, List.of(), Map.of())); }
-			case BLOCKED -> f.complete(new RemoveResult(false, List.of("a chest of the player's"), Map.of()));
+			case BLOCKED -> f.complete(new RemoveResult(false, List.of(blocker), Map.of()));
 			case REFUSE -> f.completeExceptionally(new ArchitectRefused(Reason.SITE_BUSY, "refused: busy"));
 			case APPLY_THEN_LOSE -> { apply.run(); f.completeExceptionally(new TimeoutException("the answer was lost")); }
 			case HOLD -> held.add(() -> { apply.run(); f.complete(new RemoveResult(true, List.of(), Map.of())); });

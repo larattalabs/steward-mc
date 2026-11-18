@@ -159,6 +159,9 @@ public final class Undo {
 				UNDOING.remove(s.id());
 			districts(server, s, say);
 				if (err != null) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
+				// (slice DRS) a survival group's refused save (every site still stands: nothing was taken down); its raw text names chunk files
+				else if (!r.removed() && gone.isEmpty() && r.blockers().stream().anyMatch(RemovalStops::saveRefused)) say.accept("Undo stopped: "
+					+ RemovalStops.SAVE_REFUSED + " (/steward undo " + s.id() + ").");
 				else if (!r.removed()) say.accept("Undo stopped after " + gone.size() + " of " + Words.count(standing.size(), "site", "sites") + ": blocked by "
 					+ (r.blockers().isEmpty() ? "something in a box" : String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
 				else say.accept("Undone: removed " + Words.count(gone.size(), "site", "sites") + ", the land is restored.");
@@ -285,8 +288,11 @@ public final class Undo {
 			// (slice M5) refused for a storage hall holding items: said as the steward says it, then Architect's own list
 			String held = !ok && HallCargo.cargoRefusal(why) ? HallCargo.words(server, s.owner(), region, why) : null;
 			// (batch review 2) a refused undo's note is closed: a later removal by something else is never taken for this undo
-			if (!ok && intent && !Settlements.log(s.id(), closedNote(region, why)).ok()) Steward.LOGGER.warn("{}: the stopped undo of {} left its note open", s.id(), region);
-			if (!ok) say.accept("Undo stopped: " + (held != null ? held + " (" + why + ")" : why) + ". Clear it and run /steward undo " + s.id() + " again.");
+			if (!ok && intent && !Settlements.log(s.id(), closedNote(region, RemovalStops.noted(why))).ok()) Steward.LOGGER.warn("{}: the stopped undo of {} left its note open", s.id(), region);
+			// (slice DRS) Architect's typed stop (feature removalStop): NOT_STARTED took nothing down (a refused save leaves the region as it was)
+			String notStarted = ok || err != null ? null : RemovalStops.undoStopped(RemovalStops.of(region), why, s.id());
+			if (notStarted != null) say.accept(notStarted);
+			else if (!ok) say.accept("Undo stopped: " + (held != null ? held + " (" + why + ")" : why) + ". Clear it and run /steward undo " + s.id() + " again.");
 			else say.accept("Undone: the village is taken up, the land restored.");
 			done.accept(ok);
 		}));

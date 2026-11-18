@@ -371,6 +371,10 @@ public final class Growths {
 			// it, with the count and the chests, then Architect's own list
 			String why = err != null ? SettlementRunner.message(err) : "blocked by " + String.join(", ", r.blockers());
 			String held = HallCargo.cargoRefusal(why) ? HallCargo.words(server, owner, ref.region(), why) : null;
+			// (slice DRS) left UNDOING with a stage wait (Architect resumes it at a same-target call or the next world start): waiting, never refused;
+			// a refused save's raw text (it names chunk files) is never shown
+			var after = regions.get(ref.region()).flatMap(v -> v.revisions().stream().filter(x -> x.rid() == ref.rid()).findFirst()).orElse(null);
+			if (held == null && RemovalStops.growthWaits(after)) { say.accept(RemovalStops.growthWaiting(why)); done.accept(false); return; }
 			say.accept("The town's change could not be taken up: " + (held != null ? held + " (" + why + ")" : why) + ".");
 			done.accept(false);
 		}));

@@ -1283,6 +1283,32 @@ async function districts(id) {
 }
 
 /**
+ * (slice DRS) Architect DR on a clean start: no suspects (dev.repair state), and an operator's /steward repair looks and answers that nothing is stuck,
+ * asking nothing to be repaired. The stuck case itself (an unclean halt with lagging cells) is Architect's dr-crash; the words and the op-only gate are
+ * Steward's units (StuckSitesTest, RemovalStopsTest).
+ */
+async function repairLook(id) {
+  const name = settlements().find((x) => x.id === id)?.name ?? id;
+  let st = null;
+  for (let i = 0; i < 30; i++) {
+    st = await dev.request('dev.repair', { op: 'state' }).catch((e) => ({ error: String(e) }));
+    if (st && st.startDone && st.pending === false) break;
+    await sleep(2000);
+  }
+  if (!st || st.error || !st.startDone || st.pending !== false) return fail('repair state', `the auto-diagnose never finished: ${JSON.stringify(st).slice(0, 300)}`);
+  if ((st.suspects ?? []).length) return fail('repair state', `a clean start has suspects: ${JSON.stringify(st.suspects).slice(0, 300)}`);
+  ok('repair state', 'clean start: no suspects, the auto-diagnose done');
+  let r = '';
+  for (let i = 0; i < 15; i++) {
+    r = await cmd(`/steward repair ${id}`);
+    if (!r.includes('still looking the world over')) break;
+    await sleep(2000);
+  }
+  if (r.includes(`Nothing of ${name} looks stuck.`)) ok('repair look', r);
+  else fail('repair look', r || '(no answer)');
+}
+
+/**
  * Talking to the steward (3b): a question it answers itself ($0), then made-up talk answers (no Claude) that put a building and a district in the inbox and
  * note a change; the talk box, with the conversation, in a picture.
  */
@@ -9218,6 +9244,7 @@ try {
       await flow('districts', 'protect road layout', () => districts(id), ['proposals']);
       await flow('player-builds', 'protect', () => playerBuilds(id));
       await flow('talk', 'screens', () => talk(id));
+      await flow('repair', 'repair dr', () => repairLook(id));
     }
     else {
       // stub: the first settlement's whole paid flow; the flows after it build their own
