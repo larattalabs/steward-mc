@@ -252,6 +252,16 @@ survival vocab unchanged; QL only adds `Quote.terrain`). Fresh: offline 151/151,
 re-quoted bounds equal the carried ones), the hall round 218/218; e2e `module-hall` PASS 18. `record --smoke` works per module now: the
 hall's evidence is artifacts/m4 and its round is the deterministic hall step (the catalog's smoke check takes it).
 
+## 9e. Smoke carry to Architect 0.78.0 (2026-11-17, pin-076)
+
+Both halls carried to 0.78.0 (kit/checker 0.71.0, moduleShas unchanged), on the published jar (sha256 `11580aea…`). Fresh: @1 hall 218/218,
+bounds 58/58, survival 26/26 on its rerun; @2 hall 218/218, bounds 382/382, sort-survival 19/19; offline 295/295, ingame 292/292; ports
+9116/9117, $0. The first @1 survival failed "after a restart: nothing given twice" (25/26): 0.78.0's start drops a leaked empty pendingCredit
+record (`site:s10@...: {items: {}}`, the cancelled lot), logging "credited now" though nothing is credited (DR2-DOUBLE). The world files on both
+sides of the restart (_work/dr2-double-evidence/rerun) differ only in that record; delivered, consumed, returned, paid, credited and the stock
+are equal: nothing minted. The check now allows exactly that (tools/lib/pending-credit.mjs, test/pending-credit.test.mjs); a record with items,
+or any other change, still fails. Architect fixes the leak for v0.79.0 (fix/double-credit): drop the exception at that pin.
+
 ## 9d. Smoke carry to Architect 0.77.0 (2026-11-17, pin-076 retargeted)
 
 storage_hall@1 carried from 0.67.0 (`basis: smoke`) to 0.77.0, kit/checker 0.71.0, moduleSha `c9503214…`; storage_hall@2 from 0.72.0, moduleSha
