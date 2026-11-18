@@ -49,6 +49,7 @@ public final class MaterialRequests {
 			LONG.clear();
 			TOLD.clear();
 			BUILDING.clear();
+			KeepOff.clear();
 			seeded = false;
 			seedFailed = false;
 		});
@@ -98,7 +99,8 @@ public final class MaterialRequests {
 
 	private static void onWaiting(SiteView site, SiteWait wait) {
 		var srv = server;
-		if (srv == null || !wait.waiting() || wait.nextNeeded().isEmpty()) return;
+		// (slice 8aS, Architect T1b) held by another change (an open transaction): not short of materials, and it carries on by itself
+		if (srv == null || !wait.waiting() || wait.nextNeeded().isEmpty() && !held(wait)) return;
 		var s = settlementOf(site.owner());
 		if (s.isEmpty()) return;
 		// once per wait and per reason (QD: a shortage that becomes a bill_cap wait keeps its waitingSince, and is said again)
@@ -111,7 +113,8 @@ public final class MaterialRequests {
 		SAID.put(wait.targetId(), key);
 		TOLD.put(s.get().id(), now);
 		// (QD) held by the approved bound, not by the stockpile: more materials would not help
-		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait, takeUp(s.get(), regionOf(site), ridOf(site))));
+		if (held(wait)) tell(srv, s.get(), heldWords(nameOf(s.get(), site)));
+		else if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait, takeUp(s.get(), regionOf(site), ridOf(site))));
 		else tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
 	}
 
@@ -151,6 +154,11 @@ public final class MaterialRequests {
 	static @org.jspecify.annotations.Nullable String regionOfEntry(@org.jspecify.annotations.Nullable String siteGroup) {
 		String id = dev.larattalabs.steward.gateway.VPlan.regionOf(siteGroup);
 		return id != null ? id : Growths.parse(siteGroup).map(Growths.Ref::region).orElse(null);
+	}
+
+	/** (slice 8aS) The regions of {@code settlementId} being built from the stockpile now (watched until fully built). */
+	public static List<String> buildingRegions(String settlementId) {
+		return BUILDING.entrySet().stream().filter(e -> settlementId.equals(e.getValue())).map(Map.Entry::getKey).sorted().toList();
 	}
 
 	/** Watches a settlement's region being built from the stockpile: the steward says when it is fully built. */
@@ -214,7 +222,8 @@ public final class MaterialRequests {
 			for (String target : sp.get().feedOrder()) {
 				SiteWait w = sp.get().waiting().get(target);
 				if (w == null) w = sites.waiting(target).orElse(null);
-				if (w != null && w.waiting() && (longest == null || w.waitingSince() < longest.waitingSince())) longest = w;
+				// (slice 8aS) a target another change holds is not waiting for materials: the steward never goes to fetch a player for it
+				if (w != null && w.waiting() && !held(w) && (longest == null || w.waitingSince() < longest.waitingSince())) longest = w;
 			}
 			if (longest == null || now - longest.waitingSince() < LONG_WAIT_TICKS) {
 				LONG.remove(s.id());
@@ -250,6 +259,16 @@ public final class MaterialRequests {
 		if (!capped(w)) return w.waitingSince() + "|" + (w.blocked() == null ? "" : w.blocked());
 		return w.waitingSince() + "|" + w.blocked() + "|" + w.nextNeeded().stream().map(n -> n.item() + "=" + n.count()).collect(java.util.stream.Collectors.joining(","))
 			+ "|" + w.moreUnits();
+	}
+
+	/** (slice 8aS, Architect T1b, API 1.68.0) Whether a target is held by an open transaction ({@code txn_held}): the feed skips it for a moment. */
+	static boolean held(SiteWait w) {
+		return SiteWait.TXN_HELD.equals(w.blocked());
+	}
+
+	/** (slice 8aS) A target held by another change in words: one short line, nothing for the player to do. Pure. */
+	static String heldWords(String what) {
+		return "The " + what + " is held by another change for a moment: it carries on by itself.";
 	}
 
 	/** (QD, S-M5-9) Whether a target waits because its next cell would draw past the bound its realise was approved under ({@code bill_cap}). */
