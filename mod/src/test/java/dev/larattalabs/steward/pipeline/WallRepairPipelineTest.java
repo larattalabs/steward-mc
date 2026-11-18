@@ -145,4 +145,38 @@ class WallRepairPipelineTest {
 		var g = step(s, new GroupUpdate("g1", "done", Map.of(), List.of(), 3, null));
 		assertEquals(5.8, g.next().spentUsd(), 1e-9);
 	}
+
+	/**
+	 * (WALL-RACE, batch 075/076's wall-lots) tower_2's repair ends DONE and its DESIGN_DONE completion is queued; the rebind at once refuses tower_3, whose
+	 * repair starts with no design yet; then tower_2's queued completion runs. It is not tower_3's: tower_3 isn't finished with tower_2's design, the build
+	 * doesn't stop, and tower_3's own design still ends it.
+	 */
+	@Test
+	void aQueuedCompletionEndsOnlyTheRepairItWasFor() throws Exception {
+		String a = "steward.b1.repair.tower_2.1", b = "steward.b1.repair.tower_3.1";
+		var s = step(placing(5, 35), new WallRefused("tower_2", "corner tower", "open at 1,64,2", true, a)).next();
+		s = step(s, new RepairAsked(a, "d216")).next();
+		// DESIGN_DONE for d216: the completion is captured for repair a, while a is the build's
+		assertTrue(Pipeline.ownsCompletion(s.repair(), a, "d216"));
+		// the watch read d216 first: a ends, the rebind refuses tower_3 at once
+		s = step(s, new RepairEnded(a, RepairEnd.DONE, 0.7, null)).next();
+		assertEquals(Phase.PLACING, s.phase());
+		s = step(s, new WallRefused("tower_3", "corner tower", "open at 1,64,9", true, b)).next();
+		assertEquals(Phase.REPAIRING, s.phase());
+		assertNull(s.repair().designId(), "tower_3's design not known yet");
+		// a's queued completion runs now: not tower_3's (another lot's key), and a repair with no design takes none
+		assertFalse(Pipeline.ownsCompletion(s.repair(), a, "d216"), "another repair's completion");
+		assertFalse(Pipeline.ownsCompletion(s.repair(), b, "d216"), "no design known: no design accepted, even under its own key");
+		assertFalse(Pipeline.ownsCompletion(null, a, "d216"));
+		assertEquals(Phase.REPAIRING, s.phase(), "the build doesn't stop");
+		assertEquals("tower_3", s.repair().lotId());
+		// tower_3's own design ends tower_3's repair
+		s = step(s, new RepairAsked(b, "d217")).next();
+		assertFalse(Pipeline.ownsCompletion(s.repair(), b, "d216"), "still not a's design");
+		assertTrue(Pipeline.ownsCompletion(s.repair(), b, "d217"));
+		assertFalse(Pipeline.ownsCompletion(s.repair(), "steward.b1.repair.tower_3.2", "d217"), "another round's key");
+		var done = step(s, new RepairEnded(b, RepairEnd.DONE, 0.6, null));
+		assertEquals(Phase.PLACING, done.next().phase());
+		assertTrue(done.commands().contains(new Rebind()));
+	}
 }
