@@ -3,13 +3,13 @@
   "version": 1,
   "fixture": false,
   "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
-  "moduleSha": "440289a555e5d06ce4447e915f4f3106d13abaf20f07f899cb0b9165a9547383",
+  "moduleSha": "bb4c1591378759e24f0332d2a753e4f5c8ceee4cfa5d5c37bfcc2405e2deebda",
   "minecraft": "26.3",
   "architect": [
-    "0.78.0"
+    "0.79.0"
   ],
-  "kit": "0.71.0",
-  "checker": "0.71.0",
+  "kit": "0.72.0",
+  "checker": "0.72.0",
   "result": "pass",
   "basis": "smoke",
   "from": "0.67.0",
@@ -18,10 +18,10 @@
   "runs": 5,
   "checks": {
     "offline": {
-      "at": "2026-11-17T23:59:54.108Z",
-      "head": "a53dc3a7a32fc419be1beccb92b1f2b5e6ac70ee",
-      "architect": "0.78.0",
-      "kit": "0.71.0",
+      "at": "2026-11-18T01:49:14.521Z",
+      "head": "191417eb71546ab2ba305cc12d16fcb5330e248f",
+      "architect": "0.79.0",
+      "kit": "0.72.0",
       "branches": [
         {
           "branch": {
@@ -1239,14 +1239,14 @@
       }
     },
     "ingame": {
-      "at": "2026-11-17T21:06:35.121Z",
-      "head": "784649aae348e45df8d25227a7d4743eec5747c8",
+      "at": "2026-11-18T01:54:12.194Z",
+      "head": "191417eb71546ab2ba305cc12d16fcb5330e248f",
       "env": {
         "minecraft": "26.3",
-        "architect": "0.78.0",
+        "architect": "0.79.0",
         "givenPrograms": true,
         "measuring": false,
-        "label": "m1_17478_1",
+        "label": "m1_12911_1",
         "request": {
           "op": "env"
         }
@@ -2458,28 +2458,28 @@
       "rule": "speed rule 4 (Noah 2026-11-13, AGENTS.md \"Module re-certification\"): a plain Architect version bump with the program and module.json unchanged but for the pins: fresh offline and ingame, the billing check (survival, and the bounds re-quoted equal to the carried ones item for item) and one field round; the full measurement is carried",
       "survival": {
         "step": "survival",
-        "at": "2026-11-17T21:10:23.415Z",
-        "head": "784649aae348e45df8d25227a7d4743eec5747c8",
-        "world": "Steward M2 Survival 202611172106",
-        "seconds": 228.215,
+        "at": "2026-11-18T01:58:28.394Z",
+        "head": "191417eb71546ab2ba305cc12d16fcb5330e248f",
+        "world": "Steward M2 Survival 202611180154",
+        "seconds": 256.146,
         "runs": null,
         "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
-        "moduleJsonSha": "b2e1285984e4c6c9d2480caacc6609d81c3d550a2979abe718376f4bcb8156b4",
-        "architect": "0.78.0",
+        "moduleJsonSha": "5ea0be9ee10f936d1ef0399b9976f099337b4bb03bb5cd6f5ba29e6592bbe8f3",
+        "architect": "0.79.0",
         "minecraft": "26.3",
         "passed": 63,
         "of": 63
       },
       "bounds": {
         "step": "bounds",
-        "at": "2026-11-17T21:16:18.773Z",
-        "head": "784649aae348e45df8d25227a7d4743eec5747c8",
-        "world": "Steward M2 Bounds 202611172110",
-        "seconds": 355.312,
+        "at": "2026-11-18T02:13:13.525Z",
+        "head": "191417eb71546ab2ba305cc12d16fcb5330e248f",
+        "world": "Steward M2 Bounds 202611180158",
+        "seconds": 884.997,
         "runs": null,
         "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
-        "moduleJsonSha": "b2e1285984e4c6c9d2480caacc6609d81c3d550a2979abe718376f4bcb8156b4",
-        "architect": "0.78.0",
+        "moduleJsonSha": "5ea0be9ee10f936d1ef0399b9976f099337b4bb03bb5cd6f5ba29e6592bbe8f3",
+        "architect": "0.79.0",
         "minecraft": "26.3",
         "passed": 111,
         "of": 111,
@@ -2488,14 +2488,14 @@
       "fields": [
         {
           "step": "field-potatoes",
-          "at": "2026-11-17T22:10:50.966Z",
-          "head": "784649aae348e45df8d25227a7d4743eec5747c8",
-          "world": "Steward M2 Field potatoes 202611172116",
-          "seconds": 3272.133,
+          "at": "2026-11-18T03:18:06.120Z",
+          "head": "191417eb71546ab2ba305cc12d16fcb5330e248f",
+          "world": "Steward M2 Field potatoes 202611180213",
+          "seconds": 3892.422,
           "runs": 5,
           "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
-          "moduleJsonSha": "b2e1285984e4c6c9d2480caacc6609d81c3d550a2979abe718376f4bcb8156b4",
-          "architect": "0.78.0",
+          "moduleJsonSha": "5ea0be9ee10f936d1ef0399b9976f099337b4bb03bb5cd6f5ba29e6592bbe8f3",
+          "architect": "0.79.0",
           "minecraft": "26.3",
           "passed": 62,
           "of": 62,
@@ -2507,11 +2507,11 @@
                 "depth": 9,
                 "width": 9
               },
-              "perCropDay": 0.6750006750006751,
+              "perCropDay": 0.6707578136149566,
               "perDay": 49,
               "carriedPerCropDay": 0.649157792014935,
               "carriedPerDay": 48,
-              "changePct": 4
+              "changePct": 3.3
             },
             {
               "params": {
@@ -2519,11 +2519,11 @@
                 "depth": 18,
                 "width": 18
               },
-              "perCropDay": 0.6949531074412815,
-              "perDay": 209,
+              "perCropDay": 0.7046879326917169,
+              "perDay": 212,
               "carriedPerCropDay": 0.7014744952304082,
               "carriedPerDay": 211,
-              "changePct": -0.9
+              "changePct": 0.5
             },
             {
               "params": {
@@ -2531,7 +2531,7 @@
                 "depth": 27,
                 "width": 27
               },
-              "perCropDay": 0.7210217516040726,
+              "perCropDay": 0.7210636033426148,
               "perDay": 491,
               "carriedPerCropDay": 0.7180084264290382,
               "carriedPerDay": 489,
@@ -2543,11 +2543,11 @@
                 "depth": 27,
                 "width": 9
               },
-              "perCropDay": 0.6923544218108062,
-              "perDay": 156,
+              "perCropDay": 0.6961433004416568,
+              "perDay": 157,
               "carriedPerCropDay": 0.7123091825999539,
               "carriedPerDay": 160,
-              "changePct": -2.8
+              "changePct": -2.3
             },
             {
               "params": {
@@ -2555,11 +2555,11 @@
                 "depth": 9,
                 "width": 27
               },
-              "perCropDay": 0.6917229420389978,
-              "perDay": 156,
+              "perCropDay": 0.6787144587397431,
+              "perDay": 153,
               "carriedPerCropDay": 0.6831348171424024,
               "carriedPerDay": 154,
-              "changePct": 1.3
+              "changePct": -0.6
             },
             {
               "params": {
@@ -2567,11 +2567,11 @@
                 "depth": 18,
                 "width": 9
               },
-              "perCropDay": 0.6840778269349698,
-              "perDay": 102,
+              "perCropDay": 0.6993006993006994,
+              "perDay": 104,
               "carriedPerCropDay": 0.6462109319252176,
               "carriedPerDay": 96,
-              "changePct": 5.9
+              "changePct": 8.2
             },
             {
               "params": {
@@ -2579,11 +2579,11 @@
                 "depth": 9,
                 "width": 18
               },
-              "perCropDay": 0.6755149612292469,
-              "perDay": 101,
+              "perCropDay": 0.6956852671138385,
+              "perDay": 104,
               "carriedPerCropDay": 0.6867418295989725,
               "carriedPerDay": 103,
-              "changePct": -1.6
+              "changePct": 1.3
             },
             {
               "params": {
@@ -2591,11 +2591,11 @@
                 "depth": 27,
                 "width": 18
               },
-              "perCropDay": 0.7043302826814469,
-              "perDay": 319,
+              "perCropDay": 0.7126290952596805,
+              "perDay": 323,
               "carriedPerCropDay": 0.7105543921151222,
               "carriedPerDay": 322,
-              "changePct": -0.9
+              "changePct": 0.3
             },
             {
               "params": {
@@ -2603,7 +2603,7 @@
                 "depth": 18,
                 "width": 27
               },
-              "perCropDay": 0.7083539493860451,
+              "perCropDay": 0.7079767306324889,
               "perDay": 321,
               "carriedPerCropDay": 0.7067822045795615,
               "carriedPerDay": 320,

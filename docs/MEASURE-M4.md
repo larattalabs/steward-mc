@@ -252,6 +252,15 @@ survival vocab unchanged; QL only adds `Quote.terrain`). Fresh: offline 151/151,
 re-quoted bounds equal the carried ones), the hall round 218/218; e2e `module-hall` PASS 18. `record --smoke` works per module now: the
 hall's evidence is artifacts/m4 and its round is the deterministic hall step (the catalog's smoke check takes it).
 
+## 9f. Smoke carry to Architect 0.79.0 (2026-11-18, pin-079)
+
+Both halls carried to 0.79.0 (kit/checker 0.72.0, moduleShas with the old pins put back unchanged), on the published jar (sha256
+`98e18a42…`). Kit 0.71.0 -> 0.72.0 adds staged terrain (CLASS_STAGED, billing nothing) and the compiled op map for a fluid op with decor;
+neither hall has a terrain or fluid op, so no hall bill moves, as the re-quote shows. Fresh: @1 hall 218/218, bounds 58/58, survival 26/26;
+@2 hall 218/218, bounds 382/382, sort-survival 19/19 (B2 took the S-M5-17 known-gap path and the fill waited fill_blocked, as on 0.78.0);
+offline 295/295, ingame 292/292; ports 9116/9117, $0. The DR2-DOUBLE exception is gone (Architect 0.79.0 leaves no empty pendingCredit
+record): @1's "after a restart: nothing given twice" passed comparing every ledger member and stock item exactly.
+
 ## 9e. Smoke carry to Architect 0.78.0 (2026-11-17, pin-076)
 
 Both halls carried to 0.78.0 (kit/checker 0.71.0, moduleShas unchanged), on the published jar (sha256 `11580aea…`). Fresh: @1 hall 218/218,

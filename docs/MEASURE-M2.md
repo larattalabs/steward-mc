@@ -237,6 +237,15 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.79.0 by a smoke check (2026-11-18, pin-079; speed rule 4).** The pins moved to kit/checker 0.72.0, the program
+(`c406df05…`) unchanged, moduleSha with the old pins put back `440289a5…`; the published 0.79.0 jar (sha256 `98e18a42…`). 0.79.0 touches
+paths this section lists as re-measure triggers (realise.mjs, region/plan.mjs, region/survival.mjs, the stockpile), so the smoke carry rests
+on what they change: 8aF/ST mark a terrain kind's free cells CLASS_STAGED, a subset of free that bills nothing (bom, terrain and maxBill
+unchanged by contract); ST's `opMap: 'compiled'` is set only for a fluid op with decor, which crop_farm's IRR water has none of; T0 changes
+where a give-back lands (the stock, never a crate drop), not what is billed. The billing check is the guard: survival 63/63 (the restart
+gives nothing twice), bounds 111/111 (the 108 re-quoted bounds equal the carried ones item for item), offline 295/295, ingame 292/292,
+field-potatoes 62/62 (5 runs; within -2.3% to 8.2% per crop-day of 0.67.0), ports 9116/9117, $0.
+
 **Carried to Architect 0.78.0 by a smoke check (2026-11-17, pin-076; speed rule 4).** Kit/checker 0.71.0 as at 0.77.0, the program and moduleSha
 `440289a5…` unchanged; the published 0.78.0 jar (sha256 `11580aea…`). 0.78.0 (API 1.67.0) adds LCAP's per-lot caps to `Quotes` (a check against
 `maxBillPerLot`, the bill itself unchanged) and DR's repairs; no crop_farm path's bill moves. Survival 63/63, bounds 111/111 (the 108 re-quoted
