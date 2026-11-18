@@ -2982,7 +2982,8 @@ async function composedModulesSurvivalFlow() {
     {
       const lbl = `${label} quote words`;
       const q = since.match(/From materials, the working crop farm takes [^\n]*/)?.[0] ?? '';
-      if (/\(its measured limit: [^)]*\)/.test(q) && /the working storage hall takes [^\n]*\(its measured limit: /.test(q) && q.includes('I stop before passing it, except to pay for blocks already standing after a crash.'))
+      // (batch 077, P3) the farm's bill was refused at put-down and its re-ask approved, so its limit is now the approved one; the hall's is measured or approved
+      if (/the working crop farm takes [^(]*\(its approved limit: [^)]*\)/.test(q) && /the working storage hall takes [^\n]*\(its (?:measured|approved) limit: /.test(q) && q.includes('I stop before passing it, except to pay for blocks already standing after a crash.'))
         ok(lbl, q.slice(0, 240));
       else return fail(lbl, `no quote words with both limits: ${q.slice(0, 240) || 'none'}`);
     }
