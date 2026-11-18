@@ -7,7 +7,6 @@ import dev.larattalabs.steward.Steward;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.level.storage.LevelResource;
 import org.jspecify.annotations.Nullable;
@@ -55,9 +54,7 @@ public final class DevLayouts {
 		o.add("villageOnly", village);
 		o.add("northSouth", ns);
 		try {
-			Path tmp = f.resolveSibling(FILE + ".tmp");
-			Files.writeString(tmp, o.toString(), StandardCharsets.UTF_8);
-			Files.move(tmp, f, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
+			dev.larattalabs.steward.util.DurableWrite.writeString(f, o.toString());
 		} catch (Exception e) {
 			Steward.LOGGER.warn("could not write {} (the dev layout holds until the world stops)", f, e);
 		}

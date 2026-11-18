@@ -83,6 +83,8 @@ public final class Updates {
 	}
 
 	public static void refreshAll(MinecraftServer server) {
+		// (batch-076 fix-check P1) settlements disabled: no update is looked for or applied (Architect's ENTRY_VERSIONED lands here too)
+		if (Settlements.disabled()) return;
 		for (Settlement s : Settlements.store().all()) {
 			try {
 				// copies follow a source that stands at a newer version (docs/FOLLOW.md): their lots are offered once Architect answers
@@ -101,6 +103,7 @@ public final class Updates {
 
 	/** Re-checks one settlement: applies what its permission lets the steward apply, keeps the rest pending. */
 	static void refresh(MinecraftServer server, Settlement s) {
+		if (Settlements.disabled()) return;
 		var sites = ArchitectApi.get().sites(server);
 		List<Pending> pending = new ArrayList<>();
 		// the library and the sites are the mod's own: a copy's update asks whether or not the helper is connected (docs/FOLLOW.md)
@@ -188,6 +191,7 @@ public final class Updates {
 
 	/** Applies one pending update (or, with an empty {@code siteId}, every one that can be applied). Returns what to tell the player now. */
 	public static String approve(MinecraftServer server, String settlementId, String siteId) {
+		if (Settlements.disabled()) return Settlements.DISABLED;
 		var s = Settlements.store().get(settlementId);
 		List<Pending> list = PENDING.getOrDefault(settlementId, List.of());
 		if (s.isEmpty() || list.isEmpty()) return "No update is waiting for " + settlementId + ".";
@@ -229,6 +233,8 @@ public final class Updates {
 	}
 
 	private static void apply(MinecraftServer server, Settlement s, Pending p) {
+		// (batch-076 fix-check P1) never placed while settlements are disabled: its outcome could not be logged
+		if (Settlements.disabled()) return;
 		var sites = ArchitectApi.get().sites(server);
 		// a working module is never updated to a redesigned version (checked again as it is applied)
 		if (sites.get(p.siteId()).map(ChangeRequests::moduleRefusal).orElse(null) != null) {

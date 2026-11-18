@@ -80,6 +80,8 @@ public final class Actions {
 	 * server, operators. Null when {@code p} may; else why not.
 	 */
 	public static String refusal(ServerPlayer p) {
+		// (batch-076 review P1-2) settlements disabled (unreadable, or a failed save not written back): nothing is directed that could spend or place
+		if (Settlements.disabled()) return Settlements.DISABLED;
 		MinecraftServer server = p.level().getServer();
 		if (server.isDedicatedServer()) return server.getPlayerList().isOp(p.nameAndId()) ? null : "Only an operator can direct the steward on this server.";
 		return server.isSingleplayerOwner(p.nameAndId()) ? null : "Only the host of this world can direct its steward (its builds spend the host's Claude budget).";
@@ -125,6 +127,13 @@ public final class Actions {
 	private static void describeWith(@org.jspecify.annotations.Nullable String land, String words, String id, boolean survival, Settlement settlement, MinecraftServer server,
 		UUID who, long token, int session) {
 		dev.larattalabs.steward.Steward.LOGGER.info("land round {}: {}", id, land == null ? "(not read)" : land);
+		// (batch-076 fix-check P1) disabled while the land was read: the card job (paid) is not submitted
+		if (Settlements.disabled()) {
+			if (Session.is(session) && describing.get(id) != null && describing.get(id).token() == token) describing.remove(id);
+			ServerPlayer p = server.getPlayerList().getPlayer(who);
+			if (p != null) p.sendSystemMessage(Component.literal(Settlements.DISABLED));
+			return;
+		}
 		var s = Optional.of(settlement);
 		cards().submit(words, Map.of(), new ConceptCardJob.Settings(survival, survival ? "supplied" : "patron", Settlements.DEFAULT_RADIUS,
 			land), s.get().owner())
