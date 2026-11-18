@@ -21,7 +21,6 @@ import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, h
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
 import { checkCommand } from './lib/save-barrier.mjs';
-import { emptyPendingGone } from './lib/pending-credit.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
@@ -1380,22 +1379,17 @@ async function stockSaveFlow() {
   await dev.request('dev.waitChunks', { timeoutMs: 120_000 });
   const a = await read();
   const invA = await audit(first.owner);
-  // (DR2-DOUBLE, Architect 0.78.0) the one change allowed: a pendingCredit record whose items are empty may go at the restart (0.78.0's start
-  // drops leaked empty records, logging "credited now" though nothing is credited). Any pendingCredit with items, and any other ledger or stock
-  // change, still fails. Architect fixes the leak for v0.79.0 (fix/double-credit): drop this exception at that pin (tools/lib/pending-credit.mjs).
-  const dropped = [];
-  const ledgerB = (id) => { const r = emptyPendingGone(b[id].ledger, a[id]?.ledger); dropped.push(...r.dropped.map((k) => `${id} ${k}`)); return r.ledger; };
-  const diffs = Object.keys(b).filter((id) => JSON.stringify(b[id].stock) !== JSON.stringify(a[id]?.stock) || JSON.stringify(ledgerB(id)) !== JSON.stringify(a[id]?.ledger));
+  // every ledger member and stock item compared exactly (Architect 0.79.0 fixed DR2-DOUBLE: no empty pendingCredit record goes at a start)
+  const diffs = Object.keys(b).filter((id) => JSON.stringify(b[id].stock) !== JSON.stringify(a[id]?.stock) || JSON.stringify(b[id].ledger) !== JSON.stringify(a[id]?.ledger));
   // what moved, said with a failure: each changed stockpile's ledger members and stock items
   const moved = diffs.map((id) => {
-    const lb = emptyPendingGone(b[id].ledger, a[id]?.ledger).ledger ?? {}, la = a[id]?.ledger ?? {};
+    const lb = b[id].ledger ?? {}, la = a[id]?.ledger ?? {};
     const members = [...new Set([...Object.keys(lb), ...Object.keys(la)])].filter((k) => JSON.stringify(lb[k]) !== JSON.stringify(la[k]));
     const items = [...new Set([...Object.keys(b[id].stock ?? {}), ...Object.keys(a[id]?.stock ?? {})])].filter((k) => (b[id].stock?.[k] ?? 0) !== (a[id]?.stock?.[k] ?? 0))
       .map((k) => `${k} ${b[id].stock?.[k] ?? 0}->${a[id]?.stock?.[k] ?? 0}`);
     return `${id}: ledger ${members.map((k) => `${k} ${JSON.stringify(lb[k] ?? null).slice(0, 200)} -> ${JSON.stringify(la[k] ?? null).slice(0, 200)}`).join('; ') || 'same'}; stock ${items.join(', ') || 'same'}`;
   });
-  if (dropped.length) console.log(`  stock save: the restart dropped ${dropped.length} empty pendingCredit record(s): ${dropped.join(', ')} (DR2-DOUBLE, allowed until v0.79.0)`);
-  if (!diffs.length && invB === invA && invB !== null) ok('stock save', `${Object.keys(b).length} stockpile(s) and the player's inventory unchanged across a save and stop${dropped.length ? ` (${dropped.length} empty pendingCredit record(s) dropped, DR2-DOUBLE)` : ''}`);
+  if (!diffs.length && invB === invA && invB !== null) ok('stock save', `${Object.keys(b).length} stockpile(s) and the player's inventory unchanged across a save and stop`);
   else fail('stock save', `changed ${moved.join(' | ') || 'none'}; inventory same ${invB === invA} (${String(invB).slice(0, 80)})`);
 }
 
