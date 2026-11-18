@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
-import { checkCommand } from './lib/save-barrier.mjs';
+import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
@@ -2941,8 +2941,12 @@ async function composedModulesSurvivalFlow({ fillHalt = false } = {}) {
         }
         const s = await fkState();
         const next = countsOf(s?.wait?.nextNeeded);
-        const waitsForFill = s && !s.error && s.hasFill && s.state === 'BUILDING' && s.wait?.waiting === true && Object.keys(next).length > 0
-          && Object.keys(next).every((k) => FILL_ITEMS.includes(k)) && (s.containers ?? []).every((c) => sum(c.holds) === 0);
+        // (GPT review P2) nextNeeded counts shortfalls after the stock, so every structural cell built is read from the run itself (built ===
+        // queued), every declared container loaded and empty (an unloaded one has no holds), and no typed blocker
+        const run = hallSid ? (await dev.request('dev.stockpile.state', { owner }, { timeoutMs: 60_000 }).catch(() => null))?.stockpile?.targets?.[hallSid] : null;
+        const waitsForFill = s && !s.error && s.hasFill && s.state === 'BUILDING' && s.wait?.waiting === true && !s.wait?.blocked && Object.keys(next).length > 0
+          && Object.keys(next).every((k) => FILL_ITEMS.includes(k)) && (s.containers ?? []).length > 0 && (s.containers ?? []).every((c) => c.holds && sum(c.holds) === 0)
+          && run && run.queued > 0 && run.built === run.queued;
         if (waitsForFill) {
           const lbl = `${label} half stocked`;
           fillBill = onlyFill(countsOf(s.fillItems));
@@ -2960,7 +2964,14 @@ async function composedModulesSurvivalFlow({ fillHalt = false } = {}) {
           // the half in the stock, none of it drawn (the hoppers take the whole fill at once), the whole fill still owed
           if (!sameItems(onlyFill(hIn?.accepted), half) || !sameItems(onlyFill(sp2?.stock), half) || Object.keys(drewFill).length || !sameItems(outPre, fillBill) || s2?.wait?.waiting !== true)
             return fail(lbl, `accepted ${JSON.stringify(hIn?.accepted ?? hIn)} of ${JSON.stringify(half)}; stock ${JSON.stringify(onlyFill(sp2?.stock))}; drew ${JSON.stringify(drewFill)}; outstanding ${JSON.stringify(outPre)} (fill ${JSON.stringify(fillBill)}); waiting ${s2?.wait?.waiting}`);
-          ok(lbl, `the hall (${hallSid}) stands and waits for its fill ${JSON.stringify(fillBill)}; half stocked ${JSON.stringify(half)}, none drawn, the whole fill owed`);
+          // (GPT review P1) the half saved before the halt (an insert is in memory until a save), so the restart starts from it: the barrier, then
+          // the saved ledger's stock of the fill items (delivered + returned - consumed - withdrawn - dropped) is the half
+          const bar = await saveBarrier(dev).then((x) => x.how, (e) => `failed: ${e?.message ?? e}`);
+          const saved = await dev.request('dev.stockpile.saved', {}, { timeoutMs: 30_000 }).catch(() => null);
+          const L = (saved?.file?.stockpiles ?? []).find((x) => x.owner === owner)?.ledger;
+          const savedStock = onlyFill(minusItems(plusItems(L?.delivered, L?.returned), plusItems(plusItems(L?.consumed, L?.withdrawn), L?.dropped)));
+          if (!sameItems(savedStock, half)) return fail(lbl, `harness: the half not saved before the halt (barrier ${bar}; saved stock ${JSON.stringify(savedStock)} of ${JSON.stringify(half)})`);
+          ok(lbl, `the hall (${hallSid}) stands (${run.built}/${run.queued} cells) and waits for its fill ${JSON.stringify(fillBill)}; half stocked ${JSON.stringify(half)} and saved (${bar}), none drawn, the whole fill owed`);
           const lblR = `${label} fill kept across an unclean start`;
           const r = await haltAndRestart();
           if (r.error) return fail(lblR, r.error);
