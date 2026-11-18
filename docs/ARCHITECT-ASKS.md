@@ -1852,5 +1852,6 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
   all today.
 - **Steward meanwhile:** what happened is read from the typed stop only. The words for a refused save ("the world couldn't be saved just now, nothing was
   taken down; ask again") are picked by one narrow test on the fixed phrase " was not started: " (`RemovalStops.saveRefused`), read only under
-  NOT_STARTED (or, for a site group, with every site still standing), and the raw text is never shown or noted. A growth's take-up left UNDOING with a
-  wait reads as waiting by its typed state alone, its wait text never shown.
+  NOT_STARTED (or, for a site group, with every site still standing), and the raw text is never shown or noted; every other stop is said as before. A
+  growth's take-up left UNDOING with a wait reads as waiting by its typed state, with its blocker, or "the world couldn't be saved just now" in place of a
+  refused save's raw text.
