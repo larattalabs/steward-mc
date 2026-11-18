@@ -1809,9 +1809,15 @@ async function adoptedUpdate(id, founding, box) {
   from = logSize();
   await cmd(`/steward update ${id} ${cp.changeSite}`);
   const updated = await waitLog(from, /Updated [^\n]* to version (\d+)/, 120_000);
+  // the player steps out of the town first (as before every undo here): Architect refuses a revert while a player stands in or next to the site's
+  // restore box (PLAYER_IN_BOX: the update's south porch can reach the claim's centre, where the player stands), and then nothing is reverted
+  // (back to the very spot afterwards, so the rest of the flow runs from where it always has)
+  const pos = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+  await cmd(`/tp @p ${Math.round((box[0] + box[3]) / 2)} ~ ${box[2] - 24}`);
   from = logSize();
   await cmd(`/steward revert ${id} ${cp.changeSite} 1`);
   const reverted = await waitLog(from, /Reverted [^\n]* to version 1/, 120_000);
+  if (pos) await cmd(`/tp @p ${pos[1]} ${pos[2]} ${pos[3]}`);
   const site = await cmd(`/steward dev site ${cp.changeSite}`);
   const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
   const off = (d.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
@@ -2682,13 +2688,40 @@ async function groveCoralFlow() {
     const corals = (o) => Object.keys(o ?? {}).filter((k) => CORAL.test(k));
     from = logSize();
     await cmd(`/steward start ${id} 5 30`);
-    // the feeder: whatever the region's targets ask for, until the build is done (the quote is read at the approval, before anything is placed)
+    // the feeder: what the build asks for, until it is done (the quote is read at the approval, before anything is placed). Never the whole bill at
+    // once: a region target builds in runs, each placed only once its whole bill is in stock (at most a quarter of the stockpile, Architect RS),
+    // and the oak's ~2500 leaves and ~900 logs alone fill the 2 crates (54 of 54 stacks) while its current run waits for oak wood and dirt that then
+    // never fit. So first what the targets' current runs reserve (dev.rs.state), then the rest of the need only while a quarter of the stockpile
+    // stays free for the next run. It only paces the feed; what is drawn, and the bill, are unchanged.
+    const fed = { polls: 0, full: 0, last: null };
+    const regionOf = () => {
+      const t = logSince(from);
+      const i = t.indexOf(`realise ${id}: artifact`);
+      return i < 0 ? null : /Queued region (rg\d+) as batch/.exec(t.slice(i))?.[1] ?? null;
+    };
     feeder = (async () => {
       while (!stop) {
         await sleep(3000);
         const sp = await ledger().catch(() => null);
         if (!sp || !Object.keys(sp.need ?? {}).length) continue;
-        await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+        fed.polls++;
+        const region = regionOf();
+        const rs = region ? await dev.request('dev.rs.state', { region }, { timeoutMs: 120_000 }).catch(() => null) : null;
+        const want = {};
+        for (const t of rs?.targets ?? []) if (!t.done) for (const [k, n] of Object.entries(t.reserving ?? {})) want[k] = (want[k] ?? 0) + n;
+        const give = Object.fromEntries(Object.entries(want).map(([k, n]) => [k, Math.min(sp.need[k] ?? 0, n - (sp.stock?.[k] ?? 0))]).filter(([, n]) => n > 0));
+        // the rest, a stack of each at a time, while a quarter of the stockpile stays free
+        let room = (sp.capacityStacks ?? 0) - Math.ceil((sp.capacityStacks ?? 0) / 4) - (sp.usedStacks ?? 0) - Object.values(give).reduce((x, n) => x + Math.ceil(n / 64), 0);
+        for (const [k, n] of Object.entries(sp.need)) {
+          if (room <= 0) break;
+          if (give[k] || (sp.stock?.[k] ?? 0) >= 64) continue;
+          give[k] = Math.min(n, 64);
+          room--;
+        }
+        if (!Object.keys(give).length) continue;
+        const r = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: give }).catch((e) => ({ error: String(e) }));
+        if (!units(r?.accepted ?? {}) && fed.full++ === 0) console.log(`(${label}: the stockpile took none of ${units(give)} items: ${sp.usedStacks} of ${sp.capacityStacks} stacks used; ${JSON.stringify(r).slice(0, 120)})`);
+        fed.last = `${sp.usedStacks}/${sp.capacityStacks} stacks, ${units(sp.need)} still needed, runs reserve ${JSON.stringify(want).slice(0, 160)}`;
       }
     })();
     let sha = null, entries = null, quote = null, sp0 = null;
@@ -2702,7 +2735,7 @@ async function groveCoralFlow() {
       sp0 = await ledger();
     };
     const built = await buildThrough(id, from, label, false, onStep, 1_200_000);
-    if (!built) return;
+    if (!built) return console.log(`(${label} feeder: ${fed.polls} poll(s) owing, ${fed.full} took nothing; last ${fed.last})`);
     if (!quote) return fail(label, `no placement line before the approval (artifact and entries); ${chatTail(from)}`);
     if (quote.refused) return fail(label, `the realise's quote was refused: ${quote.refused} ${quote.reason ?? ''}`);
     // (1) the quote: survival, no coral anywhere in it, the pond's piece billing its shells
