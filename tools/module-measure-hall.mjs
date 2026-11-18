@@ -19,6 +19,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 import { checkCommand, savedOnDisk } from './lib/save-barrier.mjs';
+import { overflowGrew } from './lib/overflow.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -693,8 +694,10 @@ async function survival() {
         out.cancel = { rid: g.rid, half, consumedMid, consumed, back, removed: u.removed ?? null, error: u.error ?? null, state: rv.revisions.find((x) => x.rid === g.rid)?.state };
         const tot = (m) => Object.values(m ?? {}).reduce((a, b) => a + b, 0);
         out.cancel.partial = tot(consumedMid) > 0 && tot(consumedMid) < tot(g.quote?.bom);
-        check(out.cancel.partial && u.removed === true && same(back, consumed) && !Object.keys(minus(back, consumed)).some((k) => minus(back, consumed)[k] > 0),
-          `7 cancel mid-build rid ${g.rid}: consumed ${tot(consumed)} of the quote's ${tot(g.quote?.bom)} items before the undo (removed ${u.removed}, ${out.cancel.state}); refunded exactly that (${same(back, consumed) ? 'equal' : `off by ${json(minus(back, consumed))}`})`, out.cancel);
+        // (CHECK-079) Architect 0.79.0: every give-back enters the stock, so refundOverflow never grows over a refund
+        out.cancel.overflowGrew = overflowGrew(mid.ledger, after.ledger);
+        check(out.cancel.partial && u.removed === true && same(back, consumed) && !Object.keys(minus(back, consumed)).some((k) => minus(back, consumed)[k] > 0) && !out.cancel.overflowGrew,
+          `7 cancel mid-build rid ${g.rid}: consumed ${tot(consumed)} of the quote's ${tot(g.quote?.bom)} items before the undo (removed ${u.removed}, ${out.cancel.state}); refunded exactly that (${same(back, consumed) ? 'equal' : `off by ${json(minus(back, consumed))}`})${out.cancel.overflowGrew ? `; ${out.cancel.overflowGrew}` : '; none to overflow'}`, out.cancel);
       }
     }
     // ---- a construction block the player mined (finding 3 of the design review): one bulk chest half of the newest growth's largest hall,
@@ -722,9 +725,10 @@ async function survival() {
       const after = await pile();
       const back = plus(minus(after.ledger?.returned, before.ledger?.returned), minus(after.ledger?.refundOverflow, before.ledger?.refundOverflow));
       const drops = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
-      g.undo = { removed: u.removed ?? null, blockers: u.blockers ?? [], error: u.error ?? null, back, drops };
+      // (CHECK-079) Architect 0.79.0: every give-back enters the stock, so refundOverflow never grows over a refund
+      g.undo = { removed: u.removed ?? null, blockers: u.blockers ?? [], error: u.error ?? null, back, drops, overflowGrew: overflowGrew(before.ledger, after.ledger) };
       const want = g.wantBack ?? g.consumed;
-      check(u.removed === true && same(back, want) && Object.keys(drops).length === 0, `7 refund rid ${g.rid}: removed ${u.removed}; credited (with overflow) = consumed${g.mined ? ' less the chest the player mined' : ''} (${same(back, want) ? 'equal' : `off by ${json(minus(back, want))}`}); dropped ${json(drops)}`, g.undo);
+      check(u.removed === true && same(back, want) && Object.keys(drops).length === 0 && !g.undo.overflowGrew, `7 refund rid ${g.rid}: removed ${u.removed}; credited (with overflow) = consumed${g.mined ? ' less the chest the player mined' : ''} (${same(back, want) ? 'equal' : `off by ${json(minus(back, want))}`}); dropped ${json(drops)}${g.undo.overflowGrew ? `; ${g.undo.overflowGrew}` : '; none to overflow'}`, g.undo);
     }
     const ledger1 = await pile();
     await reopen([x0 - 20, z0 - 20, gy + 2], '');
@@ -1435,8 +1439,9 @@ async function sortSurvival() {
     const drops = (await mod({ op: 'takeItems', box: [h.boxArr[0] - 4, h.boxArr[1] - 4, h.boxArr[2] - 4, h.boxArr[3] + 4, h.boxArr[4] + 6, h.boxArr[5] + 4] })).items;
     const slabs1 = await call('dev.fk.slabs', { pos: h.input }, 10_000).catch(() => ({}));
     const fk4 = await fkState(site);
-    out.undo = { removed: u.removed ?? null, error: u.error ?? u.refused ?? null, back, want, drops, slabs0, slabs1, fk: { custody: fk4.custody ?? null, heldProvided: fk4.heldProvided ?? null } };
-    check(u.removed === true && same(back, want), `8 refund: removed ${u.removed}; credited (with overflow) = consumed less the 8 stone and 41 redstone taken and the mined chest (${same(back, want) ? 'equal' : `off by ${json(minus(back, want))}`}): the structure's own stone and redstone still refunded`, out.undo);
+    // (CHECK-079) Architect 0.79.0: every give-back enters the stock, so refundOverflow never grows over a refund
+    out.undo = { removed: u.removed ?? null, error: u.error ?? u.refused ?? null, back, want, drops, slabs0, slabs1, fk: { custody: fk4.custody ?? null, heldProvided: fk4.heldProvided ?? null }, overflowGrew: overflowGrew(before.ledger, after.ledger) };
+    check(u.removed === true && same(back, want) && !out.undo.overflowGrew, `8 refund: removed ${u.removed}; credited (with overflow) = consumed less the 8 stone and 41 redstone taken and the mined chest (${same(back, want) ? 'equal' : `off by ${json(minus(back, want))}`}): the structure's own stone and redstone still refunded${out.undo.overflowGrew ? `; ${out.undo.overflowGrew}` : '; none to overflow'}`, out.undo);
     check(Object.keys(drops).length === 0 && (slabs0.player ?? 0) === 0 && (slabs1.player ?? 0) === 0 && (slabs1.entities ?? 0) === 0,
       `8 no item dropped at the undo (${json(drops)}); no petrified slab in the player's inventory or the world, before or after (${json(slabs0)} / ${json(slabs1)})`, out.undo);
     // ---- a restart, and the undo retried: nothing twice
@@ -1729,11 +1734,12 @@ async function sortCrash() {
       const back = minus(plus(F.returned, F.refundOverflow), plus(B.returned, B.refundOverflow));
       const drops = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
       const slabs = await call('dev.fk.slabs', { pos: home }, 10_000).catch(() => ({}));
-      const res = { point: c.point, savedCustody, state: rs, back: totalOf(back), consumed: totalOf(consumed), diff: minus(back, consumed), custody: F.custody ?? null, heldProvided: F.heldProvided ?? null, drops, slabs };
+      // (CHECK-079) Architect 0.79.0: every give-back enters the stock, so refundOverflow never grows over a refund
+      const res = { point: c.point, savedCustody, state: rs, back: totalOf(back), consumed: totalOf(consumed), diff: minus(back, consumed), custody: F.custody ?? null, heldProvided: F.heldProvided ?? null, drops, slabs, overflowGrew: overflowGrew(B, F) };
       out.removal.push(res);
       check(c.point !== 'FKC1' || totalOf(savedCustody) > 0, `9 ${c.point}: the custody (${json(savedCustody)}) was on disk at the halt`, res);
-      check(rs === 'UNDONE' && same(back, consumed) && !Object.keys(F.custody ?? {}).length && !Object.keys(F.heldProvided ?? {}).length && !Object.keys(F.pendingCredit ?? {}).length && !Object.keys(drops).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
-        `9 ${c.point}: after the restart the removal ends once (${rs}): back = consumed item for item (${totalOf(back)} = ${totalOf(consumed)}; off ${json(res.diff)}); no custody, provided custody or pending refund left; nothing dropped; no slab loose`, res);
+      check(rs === 'UNDONE' && same(back, consumed) && !res.overflowGrew && !Object.keys(F.custody ?? {}).length && !Object.keys(F.heldProvided ?? {}).length && !Object.keys(F.pendingCredit ?? {}).length && !Object.keys(drops).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
+        `9 ${c.point}: after the restart the removal ends once (${rs}): back = consumed item for item (${totalOf(back)} = ${totalOf(consumed)}; off ${json(res.diff)}); no custody, provided custody or pending refund left; nothing dropped; no slab loose${res.overflowGrew ? `; ${res.overflowGrew}` : '; none to overflow'}`, res);
       // (MEASURE-M4 12.7 B3, GPT review 2) the unchanged second retry, then a second restart: nothing more comes back, nothing is left pending
       const retry = await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
       await sleep(4000);
@@ -1742,12 +1748,12 @@ async function sortCrash() {
       const F2 = (await pile()).ledger;
       const again = minus(plus(F2.returned, F2.refundOverflow), plus(F.returned, F.refundOverflow));
       const drops2 = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
-      res.retry = { answer: refusal(retry), again, drops: drops2 };
+      res.retry = { answer: refusal(retry), again, drops: drops2, overflowGrew: overflowGrew(F, F2) };
       // (fix check 2) the retry ran and was the expected no-op: Architect's own refusal (NOT_ALLOWED: the head is already below it; a refusal comes
       // back as the call's error), removing nothing; a transport error (a timeout, a closed bridge) carries no NOT_ALLOWED and fails
       const retried = retry.removed !== true && /NOT_ALLOWED/.test(String(retry.refused ?? retry.message ?? retry.error ?? ''));
-      check(retried && !Object.keys(again).length && !Object.keys(drops2).length && !Object.keys(F2.custody ?? {}).length && !Object.keys(F2.heldProvided ?? {}).length && !Object.keys(F2.pendingCredit ?? {}).length && json(F2.consumed) === json(F.consumed),
-        `9 ${c.point}: an unchanged second undo and a second restart: nothing more back (${json(again)}), nothing dropped, nothing pending (${refusal(retry)})`, res.retry);
+      check(retried && !Object.keys(again).length && !res.retry.overflowGrew && !Object.keys(drops2).length && !Object.keys(F2.custody ?? {}).length && !Object.keys(F2.heldProvided ?? {}).length && !Object.keys(F2.pendingCredit ?? {}).length && json(F2.consumed) === json(F.consumed),
+        `9 ${c.point}: an unchanged second undo and a second restart: nothing more back (${json(again)}), nothing dropped, nothing pending (${refusal(retry)})${res.retry.overflowGrew ? `; ${res.retry.overflowGrew}` : ''}`, res.retry);
     }
     // ---- FKC0 (Architect's LC, S-M5-13): a removal failing after its custody take, a restart, a retry. Runs once the hook exists.
     const rest = [...grown].reverse().slice(removalPoints.length);
@@ -1769,9 +1775,10 @@ async function sortCrash() {
       await sleep(6000);
       const F = (await pile()).ledger;
       const back = minus(plus(F.returned, F.refundOverflow), plus(L0.returned, L0.refundOverflow));
-      const res = { first: refusal(u), afterFail: s1 ? totalOf(sumAll(s1)) : null, retry: refusal(u2), back: totalOf(back), consumed: totalOf(c.g.quote?.bom ?? {}) };
+      // (CHECK-079) Architect 0.79.0: every give-back enters the stock, so refundOverflow never grows over a refund
+      const res = { first: refusal(u), afterFail: s1 ? totalOf(sumAll(s1)) : null, retry: refusal(u2), back: totalOf(back), consumed: totalOf(c.g.quote?.bom ?? {}), overflowGrew: overflowGrew(L0, F) };
       out.fkc0 = res;
-      check(u2.removed === true && same(back, c.g.quote?.bom ?? {}), `9 FKC0: the removal failed after its custody take (${refusal(u)}), its contents written back (${res.afterFail} items), restarted and retried: removed, back = consumed once (${res.back} = ${res.consumed})`, res);
+      check(u2.removed === true && same(back, c.g.quote?.bom ?? {}) && !res.overflowGrew, `9 FKC0: the removal failed after its custody take (${refusal(u)}), its contents written back (${res.afterFail} items), restarted and retried: removed, back = consumed once (${res.back} = ${res.consumed})${res.overflowGrew ? `; ${res.overflowGrew}` : ''}`, res);
     }
     // ---- (bar 9, 5th run) a cancel before the fill: the hall's blocks built, the fill's items held back, paused, then undone. No filter item
     // written, charged or refunded; the structure back exactly; no slab anywhere
@@ -1817,11 +1824,12 @@ async function sortCrash() {
         const drops = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
         const slabs = await call('dev.fk.slabs', { pos: home }, 10_000).catch(() => ({}));
         const struct = minus(L0.consumed, Ls.consumed);
-        const res = { state: rs, undo: refusal(u), fillCharged: only(consumed), fillBack: only(back), back, struct, drops, slabs, custody: L1.custody ?? null, pending: L1.pendingCredit ?? null };
+        // (CHECK-079) Architect 0.79.0: every give-back enters the stock, so refundOverflow never grows over a refund
+        const res = { state: rs, undo: refusal(u), fillCharged: only(consumed), fillBack: only(back), back, struct, drops, slabs, custody: L1.custody ?? null, pending: L1.pendingCredit ?? null, overflowGrew: overflowGrew(L0, L1) };
         out.cancel = res;
-        check(rs === 'UNDONE' && totalOf(struct) > 0 && !Object.keys(only(consumed)).length && !Object.keys(only(back)).length && same(back, struct) && !Object.keys(drops).length
+        check(rs === 'UNDONE' && totalOf(struct) > 0 && !res.overflowGrew && !Object.keys(only(consumed)).length && !Object.keys(only(back)).length && same(back, struct) && !Object.keys(drops).length
           && !Object.keys(L1.custody ?? {}).length && !Object.keys(L1.pendingCredit ?? {}).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
-          `9 cancel before the fill: ${rs}; no filter item charged (${json(only(consumed))}) or refunded (${json(only(back))}); the structure back exactly (${totalOf(back)} = ${totalOf(struct)}; off ${json(minus(back, struct))}); nothing dropped, no custody or pending refund, no slab`, res);
+          `9 cancel before the fill: ${rs}; no filter item charged (${json(only(consumed))}) or refunded (${json(only(back))}); the structure back exactly (${totalOf(back)} = ${totalOf(struct)}; off ${json(minus(back, struct))}); nothing dropped, no custody or pending refund, no slab${res.overflowGrew ? `; ${res.overflowGrew}` : ''}`, res);
       }
     }
   } finally {
