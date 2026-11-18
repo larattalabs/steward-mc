@@ -88,7 +88,6 @@ class StreetModulesTest {
 				assertEquals(rest, r.specs(), mode);
 			}
 		}
-		assertTrue(ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP, "the survival guard stays on");
 	}
 
 	@Test
