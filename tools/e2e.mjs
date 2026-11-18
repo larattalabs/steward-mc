@@ -7679,7 +7679,7 @@ async function moduleSurvivalStreetFlow() {
     const quotedAt = await waitLog(from, quoteRe, 600_000);
     const quoted = quotedAt ? JSON.parse(quoteRe.exec(quotedAt[0])[1]) : null;
     if (!quoted) return fail(label, `no quote logged in 10 min; ${chatTail(from)}`);
-    // or held as inexact (a paid cell of natural terrain may already stand in the land where the lanes go: terrain-dependent, so not every run): the
+    // or held as inexact (a paid cell of natural terrain may already stand in the land where the lanes go; seen on batch 077's runs, not on 076's): the
     // player's word builds it with that bill, as module-survival's inexact-only hold
     const heldOver = await waitLog(from, /The bill came to more than you approved[^\n]*|Architect can't quote the bill exactly[^\n]*|is built(?: in part)?: \d+ buildings? placed|construction sites stand and are built/, 240_000);
     if (heldOver && /more than you approved|can't quote the bill exactly/.test(heldOver[0])) {
