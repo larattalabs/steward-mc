@@ -467,6 +467,13 @@ public final class VillageSweep {
 				if (Settlements.log(s.id(), placed).ok()) entry = Settlements.store().get(s.id()).flatMap(x -> entryOf(x, regionId));
 			}
 		}
+		// (batch-077 fix-check P1) that save failed and could not be written back: settlements are disabled from here, so the region stands (nothing of
+		// its take-up could be logged); the next session's sweep looks again
+		if (Settlements.disabled()) {
+			Steward.LOGGER.warn("village region {} of {} is not taken up: settlements were disabled by its history save (looked at again at the next start)", regionId, s.id());
+			done.accept(false);
+			return;
+		}
 		if (entry.isEmpty()) {
 			// the settlement is busy while the region is taken up (Undo.region marks it so too); its answer on the server thread, this world's only
 			Undo.mark(s.id(), true);

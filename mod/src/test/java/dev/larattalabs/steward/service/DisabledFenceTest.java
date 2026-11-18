@@ -74,6 +74,40 @@ class DisabledFenceTest {
 	}
 
 	@Test
+	void aTakeUpWhoseOwnHistorySaveDisablesSettlementsLeavesTheRegionStanding() throws Exception {
+		// (batch-077 fix-check P1) enabled on entry; the take-up's history save renames in, its folder force fails, and the write-back fails before its
+		// rename: settlements are disabled by that save, and the region is not removed
+		var b = BuildStoreTestAccess.saved();
+		Path file = dir.resolve("steward-settlements.json");
+		SettlementStore store = new SettlementStore();
+		store.put(b.settlement());
+		store.save(file);
+		Settlements.useForTest(store, file);
+		var s = Settlements.store().get("set_4").orElseThrow();
+		a.region("rg_mid", s.owner());
+		a.site("st_m", s.owner(), "rg_mid");
+		dev.larattalabs.steward.util.DurableWrite.FAIL_NEXT.addAll(List.of(dev.larattalabs.steward.util.DurableWrite.TestFail.AFTER_RENAME,
+			dev.larattalabs.steward.util.DurableWrite.TestFail.BEFORE_RENAME));
+		AtomicReference<Boolean> done = new AtomicReference<>();
+		try {
+			VillageSweep.takeUp(null, s, "rg_mid", m -> {}, done::set);
+		} finally {
+			dev.larattalabs.steward.util.DurableWrite.FAIL_NEXT.clear();
+		}
+		assertTrue(Settlements.disabled(), "the failed save disabled settlements");
+		assertEquals(Boolean.FALSE, done.get());
+		assertEquals(0, a.count("regions.remove"), a.calls.toString());
+		assertEquals(0, a.count("sites.remove"), a.calls.toString());
+		assertNotEquals(RegionState.REMOVED, a.regions.get("rg_mid").state);
+		// the settlement is not held: a later take-up (next session) is not refused as busy
+		Settlements.useForTest(Settlements.store(), file);
+		AtomicReference<Boolean> again = new AtomicReference<>();
+		VillageSweep.takeUp(null, Settlements.store().get("set_4").orElseThrow(), "rg_mid", m -> {}, again::set);
+		assertNotNull(again.get());
+		assertTrue(a.count("regions.remove") + a.count("sites.remove") + a.count("regions.undoRevision") > 0, a.calls.toString());
+	}
+
+	@Test
 	void aLateRealiseAnswerWhileDisabledLeavesItsRegionStanding() {
 		var r = disabledWithItsSettlement();
 		var owner = Settlements.store().get("set_4").orElseThrow().owner();
