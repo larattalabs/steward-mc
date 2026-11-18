@@ -2718,7 +2718,14 @@ public final class SettlementRunner {
 			if (entries != null) { quoteDistrict(entries, autoApprove ? BillAsk.AUTO : BillAsk.BEFORE_APPROVAL); return; }
 		}
 		if (autoApprove) realiseVillage();
-		else feed(new Pipeline.BatchQueued(VPLAN_PENDING));
+		else {
+			// (slice 8aS) what the approval would place: the artifact and its lots' entries, so a check can quote that realise before it is placed
+			var entries = villageLotEntries();
+			String artifact = vPlanId == null ? null : dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
+			if (entries != null && artifact != null)
+				Steward.LOGGER.info("placement {}: artifact {} entries {}", settlement.id(), artifact, new com.google.gson.Gson().toJson(entries));
+			feed(new Pipeline.BatchQueued(VPLAN_PENDING));
+		}
 	}
 
 	/**
