@@ -19,7 +19,6 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 import { checkCommand, savedOnDisk } from './lib/save-barrier.mjs';
-import { emptyPendingGone } from './lib/pending-credit.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -733,17 +732,13 @@ async function survival() {
     const ledger2 = await pile();
     const stray = (await mod({ op: 'takeItems', box: [x0 - 300, gy - 4, z0 - 300, x0 + 600, gy + 60, z0 + 600] })).items;
     // what moved, kept with the check (a failure says which ledger members and items changed, not only that they did)
-    // (DR2-DOUBLE, Architect 0.78.0) the one change allowed: a pendingCredit record whose items are empty may go at the restart (0.78.0's start
-    // drops an empty record its removal leaked, logging "credited now" though nothing is credited). Any pendingCredit with items, and any other
-    // ledger or stock change, still fails. Architect fixes the leak on fix/double-credit for v0.79.0: drop this exception at that pin.
-    const before1 = emptyPendingGone(ledger1.ledger, ledger2.ledger);
-    if (before1.dropped.length) log(`  the restart dropped ${before1.dropped.length} empty pendingCredit record(s): ${before1.dropped.join(', ')} (DR2-DOUBLE, allowed until v0.79.0)`);
+    // every ledger member and stock item compared exactly (Architect 0.79.0 fixed DR2-DOUBLE: no empty pendingCredit record goes at a start)
     const moved = {};
-    for (const k of new Set([...Object.keys(before1.ledger ?? {}), ...Object.keys(ledger2.ledger ?? {})])) {
-      if (json(before1.ledger?.[k]) !== json(ledger2.ledger?.[k])) moved[k] = { before: before1.ledger?.[k] ?? null, after: ledger2.ledger?.[k] ?? null };
+    for (const k of new Set([...Object.keys(ledger1.ledger ?? {}), ...Object.keys(ledger2.ledger ?? {})])) {
+      if (json(ledger1.ledger?.[k]) !== json(ledger2.ledger?.[k])) moved[k] = { before: ledger1.ledger?.[k] ?? null, after: ledger2.ledger?.[k] ?? null };
     }
     const stockMoved = minus(ledger2.stock, ledger1.stock);
-    check(json(ledger2.ledger) === json(before1.ledger) && json(ledger2.stock) === json(ledger1.stock) && Object.keys(stray).length === 0, `7 after a restart: nothing given twice (the ledger and stock unchanged; items on the ground ${json(stray)})${Object.keys(moved).length || Object.keys(stockMoved).length ? `; changed: ledger ${Object.keys(moved).join(', ') || 'none'}, stock ${json(stockMoved)}` : ''}`, { moved, stockMoved, droppedEmptyPending: before1.dropped });
+    check(json(ledger2.ledger) === json(ledger1.ledger) && json(ledger2.stock) === json(ledger1.stock) && Object.keys(stray).length === 0, `7 after a restart: nothing given twice (the ledger and stock unchanged; items on the ground ${json(stray)})${Object.keys(moved).length || Object.keys(stockMoved).length ? `; changed: ledger ${Object.keys(moved).join(', ') || 'none'}, stock ${json(stockMoved)}` : ''}`, { moved, stockMoved });
   } finally {
     await stopClient().catch((e) => log(`stop: ${e}`));
   }
