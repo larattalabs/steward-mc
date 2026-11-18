@@ -410,10 +410,10 @@ async function reopen(pos, evidence = null) {
   // dev.world.leave saves on stop (/save-all is dedicated-only: Unknown on this integrated server)
   await call('dev.world.leave', {}, 300_000);
   await sleep(2000);
-  if (evidence) snapshotWorld(`${evidence}before`);
+  if (evidence !== null) snapshotWorld(`${evidence}before`);
   await call('dev.world.open', { name: worldName }, 300_000);
   await dev.waitInWorld({ timeoutMs: 600_000 });
-  if (evidence) snapshotWorld(`${evidence}after`);
+  if (evidence !== null) snapshotWorld(`${evidence}after`);
   await rules();
   await standAt(...pos);
 }

@@ -6,7 +6,7 @@
   "moduleSha": "55d66403618f0be0279134bae563b49d401cffdf134345e8848d9cde6515bfba",
   "minecraft": "26.3",
   "architect": [
-    "0.77.0"
+    "0.78.0"
   ],
   "kit": "0.71.0",
   "checker": "0.71.0",
@@ -18,9 +18,9 @@
   "runs": 1,
   "checks": {
     "offline": {
-      "at": "2026-11-17T19:40:10.786Z",
-      "head": "f86a59867d03934338fd856053b303856335403d",
-      "architect": "0.77.0",
+      "at": "2026-11-17T23:59:54.108Z",
+      "head": "a53dc3a7a32fc419be1beccb92b1f2b5e6ac70ee",
+      "architect": "0.78.0",
       "kit": "0.71.0",
       "branches": [
         {
@@ -2489,14 +2489,14 @@
       }
     },
     "ingame": {
-      "at": "2026-11-17T18:02:09.411Z",
-      "head": "f86a59867d03934338fd856053b303856335403d",
+      "at": "2026-11-17T21:06:35.121Z",
+      "head": "784649aae348e45df8d25227a7d4743eec5747c8",
       "env": {
         "minecraft": "26.3",
-        "architect": "0.77.0",
+        "architect": "0.78.0",
         "givenPrograms": true,
         "measuring": false,
-        "label": "m1_80132_1",
+        "label": "m1_17478_1",
         "request": {
           "op": "env"
         }
@@ -4950,28 +4950,28 @@
       "rule": "speed rule 4 (Noah 2026-11-13, AGENTS.md \"Module re-certification\"): a plain Architect version bump with the program and module.json unchanged but for the pins: fresh offline and ingame, the billing check (survival, and the bounds re-quoted equal to the carried ones item for item) and one field round; the full measurement is carried",
       "survival": {
         "step": "sort-survival",
-        "at": "2026-11-17T19:40:05.363Z",
-        "head": "f86a59867d03934338fd856053b303856335403d",
-        "world": "Steward M4 SortSurvival 202611171918",
-        "seconds": 1277.766,
+        "at": "2026-11-17T23:59:49.598Z",
+        "head": "a53dc3a7a32fc419be1beccb92b1f2b5e6ac70ee",
+        "world": "Steward M4 SortSurvival 202611172339",
+        "seconds": 1244.679,
         "runs": null,
         "programSha": "aa216ff123066b328e9b65d24abfdf00d1beb84e8879fd65e682609ddb04decb",
         "moduleJsonSha": "4198317efd4a2e9a8290afc585ba92072b4d4c8a5883e427b0df739bdf0bc192",
-        "architect": "0.77.0",
+        "architect": "0.78.0",
         "minecraft": "26.3",
         "passed": 19,
         "of": 19
       },
       "bounds": {
         "step": "bounds",
-        "at": "2026-11-17T19:18:47.535Z",
-        "head": "f86a59867d03934338fd856053b303856335403d",
-        "world": "Steward M4 Bounds 202611171912",
-        "seconds": 372.048,
+        "at": "2026-11-17T23:39:04.810Z",
+        "head": "784649aae348e45df8d25227a7d4743eec5747c8",
+        "world": "Steward M4 Bounds 202611172304",
+        "seconds": 2056.721,
         "runs": null,
         "programSha": "aa216ff123066b328e9b65d24abfdf00d1beb84e8879fd65e682609ddb04decb",
         "moduleJsonSha": "4198317efd4a2e9a8290afc585ba92072b4d4c8a5883e427b0df739bdf0bc192",
-        "architect": "0.77.0",
+        "architect": "0.78.0",
         "minecraft": "26.3",
         "passed": 382,
         "of": 382,
@@ -4980,14 +4980,14 @@
       "fields": [
         {
           "step": "hall",
-          "at": "2026-11-17T19:12:35.436Z",
-          "head": "f86a59867d03934338fd856053b303856335403d",
-          "world": "Steward M4 Hall 202611171904",
-          "seconds": 466.513,
+          "at": "2026-11-17T23:04:47.865Z",
+          "head": "784649aae348e45df8d25227a7d4743eec5747c8",
+          "world": "Steward M4 Hall 202611172250",
+          "seconds": 865.286,
           "runs": null,
           "programSha": "aa216ff123066b328e9b65d24abfdf00d1beb84e8879fd65e682609ddb04decb",
           "moduleJsonSha": "4198317efd4a2e9a8290afc585ba92072b4d4c8a5883e427b0df739bdf0bc192",
-          "architect": "0.77.0",
+          "architect": "0.78.0",
           "minecraft": "26.3",
           "passed": 218,
           "of": 218,
