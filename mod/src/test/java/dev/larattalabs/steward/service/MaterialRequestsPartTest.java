@@ -58,4 +58,14 @@ class MaterialRequestsPartTest {
 		assertEquals(MaterialRequests.saidKey(starved), MaterialRequests.saidKey(new dev.larattalabs.architect.api.SiteWait("s1", true, 10, java.util.List.of(), 5)));
 		assertFalse(said.contains("They go in the stockpile"));
 	}
+
+	@Test
+	void aWaitWhileTheStockpileIsOverCapacitySaysOnlyWhatTheBuildsNeedGoesIn() {
+		// (slice OVF-S2) a waiting build is never paused, so what it misses still goes in over capacity (Architect 0.77.0 OVF); nothing else does
+		assertEquals("The farm waits for materials: 3 dirt. They go in the stockpile.", MaterialRequests.waitWords("farm", "3 dirt", 0));
+		assertEquals("The farm waits for materials: 3 dirt. They go in the stockpile, though it is over capacity by 2 stacks: it takes only what your running"
+			+ " builds still need, so bring just those.", MaterialRequests.waitWords("farm", "3 dirt", 2));
+		assertTrue(MaterialRequests.waitWords("farm", "3 dirt", 1).contains("over capacity by 1 stack:"));
+		assertFalse(MaterialRequests.waitWords("farm", "3 dirt", 4).contains("take out"), "never 'take items out first': its own items go in");
+	}
 }

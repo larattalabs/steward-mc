@@ -4495,8 +4495,8 @@ public final class SettlementRunner {
 		if (Growths.completed(Settlements.store().get(settlement.id()).orElse(settlement), ref.tag())) { end.run(); return; }
 		growthTakingUp = true;
 		// (slice A2L) a growth cancelled while Architect still wrote it may hold targets its revision does not list yet: what they drew is refunded, said,
-		// with any overflow (review 7)
-		var said = Undo.reportingOverflow(server, Settlements.store().get(settlement.id()).orElse(settlement), this::say);
+		// with the stockpile's state after it (review 7; since OVF a keyed refund never overflows, it can take the stock past capacity)
+		var said = Undo.reportingOverCapacity(server, Settlements.store().get(settlement.id()).orElse(settlement), this::say);
 		java.util.concurrent.atomic.AtomicReference<dev.larattalabs.architect.api.RemoveResult> answer = new java.util.concurrent.atomic.AtomicReference<>();
 		Growths.undo(server, settlement.owner(), ref, said, ok -> {
 			if (ok == null) return;
@@ -4585,7 +4585,7 @@ public final class SettlementRunner {
 			feed(new Pipeline.BatchDone(sites.size(), 0));
 		};
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
-		Undo.growth(server, saved, entry.get(), ref, Map.of(), Undo.reportingOverflow(server, saved, this::say), after);
+		Undo.growth(server, saved, entry.get(), ref, Map.of(), Undo.reportingOverCapacity(server, saved, this::say), after);
 	}
 
 	/**
@@ -4624,7 +4624,7 @@ public final class SettlementRunner {
 			return;
 		}
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
-		Undo.region(server, saved, entry.get(), id, Map.of(), Undo.reportingOverflow(server, saved, this::say), ok -> {
+		Undo.region(server, saved, entry.get(), id, Map.of(), Undo.reportingOverCapacity(server, saved, this::say), ok -> {
 			if (ok == null || !alive()) return;
 			if (ok) {
 				vRegionId = null;

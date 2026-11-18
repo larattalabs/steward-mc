@@ -54,23 +54,25 @@ public final class Undo {
 	}
 
 	/**
-	 * {@code sayTo}, and with an undo's end ("Undone ...", "Undo stopped ..."): a refund that did not fit in the stockpile, dropped beside its crate, said with
-	 * where it lies so it is picked up before it despawns. For any undo or cancel that refunds (a build cancelled while built from materials too).
+	 * {@code sayTo}, and with an undo's end ("Undone ...", "Undo stopped ..."): when its refund took the stockpile past its capacity, by how much and
+	 * what that means. For any undo or cancel that refunds (a build cancelled while built from materials too). (Slice OVF-S) Since Architect 0.77.0 (OVF)
+	 * an undo's refund is keyed and never overflows: all of it enters the stock, past capacity if need be, so nothing lies beside the crate to be picked
+	 * up (the refundOverflow delta this read before could only be some other build's unkeyed give-back, never this undo's).
 	 */
-	public static Consumer<String> reportingOverflow(MinecraftServer server, Settlement s, Consumer<String> sayTo) {
-		int overflowBefore = overflow(server, s);
+	public static Consumer<String> reportingOverCapacity(MinecraftServer server, Settlement s, Consumer<String> sayTo) {
+		int overBefore = Stockpiles.of(server, s).map(Undo::over).orElse(0);
 		return line -> {
 			sayTo.accept(line);
 			// any end of the undo: done, or stopped part way (what it took up before it stopped refunded too)
 			if (!line.startsWith("Undone") && !line.startsWith("Undo stopped")) return;
-			int more = overflow(server, s) - overflowBefore;
-			var sp = Stockpiles.of(server, s);
-			if (more > 0 && sp.isPresent() && !sp.get().crates().isEmpty()) {
-				var c = sp.get().crates().get(0);
-				sayTo.accept(more + " refunded items did not fit in the stockpile and lie beside its crate at " + c.getX() + ", " + c.getY() + ", " + c.getZ()
-					+ ": pick them up, or add a crate (/steward stockpile " + s.id() + " add) and put them in.");
-			}
+			int over = Stockpiles.of(server, s).map(Undo::over).orElse(0);
+			String said = over > overBefore ? Stockpiles.overCapacityWords(over, s.id()) : null;
+			if (said != null) sayTo.accept(said);
 		};
+	}
+
+	private static int over(dev.larattalabs.architect.api.Stockpile sp) {
+		return sp.usedStacks() - sp.capacityStacks();
 	}
 
 	/**
@@ -94,7 +96,7 @@ public final class Undo {
 			return false;
 		}
 		final Settlement s = Settlements.store().get(given.id()).orElse(given);
-		Consumer<String> say = reportingOverflow(server, s, sayTo);
+		Consumer<String> say = reportingOverCapacity(server, s, sayTo);
 		// a district region being built (or one whose build ended unresolved): the newest operation can't be told yet, unless it is that district's own
 		// region, recorded by the world-start sweep after its build ended (taking it up is what puts the district right)
 		var entry = headFirst(s, s.lastUndoable());
@@ -524,11 +526,6 @@ public final class Undo {
 		java.util.Set<String> gone = new java.util.HashSet<>();
 		for (int i = at + 1; i < log.size(); i++) if (log.get(i).kind() == Settlement.Kind.PROJECT_REMOVED) gone.addAll(log.get(i).siteIds());
 		return !placed.siteIds().isEmpty() && gone.containsAll(placed.siteIds());
-	}
-
-	/** The units of refunds that did not fit in the settlement's stockpile so far (0 without one). */
-	private static int overflow(MinecraftServer server, Settlement s) {
-		return Stockpiles.of(server, s).map(sp -> sp.refundOverflow().values().stream().mapToInt(Integer::intValue).sum()).orElse(0);
 	}
 
 	private static void districts(MinecraftServer server, Settlement s, Consumer<String> say) {

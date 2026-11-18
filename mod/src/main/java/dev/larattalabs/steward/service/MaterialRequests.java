@@ -113,7 +113,28 @@ public final class MaterialRequests {
 		// (QD) held by the approved bound, not by the stockpile: more materials would not help
 		if (capped(wait)) tell(srv, s.get(), overCap(capLot(wait) != null ? moduleName(s.get(), site, capLot(wait)) : nameOf(s.get(), site), s.get().id(), wait,
 			takeUp(s.get(), regionOf(site), ridOf(site))));
-		else tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
+		else tell(srv, s.get(), waitWords(nameOf(s.get(), site), needs(wait), overBy(srv, s.get())));
+	}
+
+	/** (Slice OVF-S2) How many stacks the settlement's stockpile holds past its capacity (0 within it, or with none to read). */
+	private static int overBy(MinecraftServer srv, Settlement s) {
+		try {
+			return Stockpiles.of(srv, s).map(sp -> Math.max(0, sp.usedStacks() - sp.capacityStacks())).orElse(0);
+		} catch (RuntimeException e) {
+			return 0;
+		}
+	}
+
+	/**
+	 * A build's wait for materials, in words. (Slice OVF-S2) While the stockpile is over capacity ({@code overBy} stacks, a keyed refund put it there) it
+	 * still takes what this build misses: a waiting target is never paused (Architect's {@code SiteWait.waiting}), and since Architect 0.77.0 (OVF) an item
+	 * an active build still misses goes in over capacity, up to that need; anything else is refused. Pure.
+	 */
+	static String waitWords(String name, String needs, int overBy) {
+		String head = "The " + name + " waits for materials: " + needs + ".";
+		if (overBy <= 0) return head + " They go in the stockpile.";
+		return head + " They go in the stockpile, though it is over capacity by " + dev.larattalabs.steward.model.Words.count(overBy, "stack", "stacks")
+			+ ": it takes only what your running builds still need, so bring just those.";
 	}
 
 	/** Regions built from materials (Architect RS) whose build isn't done yet, by settlement: said once when done. This world's session only. */

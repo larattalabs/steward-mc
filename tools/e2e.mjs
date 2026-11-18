@@ -3556,11 +3556,15 @@ async function survivalFlow() {
     }
     if (!done) return fail('supplied build', `not all built: ${JSON.stringify(sp?.sites?.map((x) => x.state))}, still needed ${units(sp?.need)}`);
     ok('supplied build', `${sp.sites.length} sites built from the stockpile: ${units(sp.delivered)} delivered, ${units(sp.consumed)} consumed`);
-    // undo: what the builds consumed comes back into the stockpile (what does not fit is dropped and counted as overflow); off the street and lots first
+    // undo: what the builds consumed comes back into the stockpile (since Architect 0.77.0's OVF a keyed refund enters it whole, past capacity if need be;
+    // refundOverflow, still summed in, counts only unkeyed give-backs such as a swap's old block); off the street and lots first
     // (Architect holds a removal while a player stands in what it removes), near enough that their chunks stay loaded
     const here = settlements().find((x) => x.id === id).claim;
     await cmd(`/tp @p ${here.centerX} ~ ${here.centerZ + 60}`);
     const before = sp;
+    // (OVF-S2) the stockpile full before the undo (Architect's TEST capacity, every pile's, reset in finally): its keyed refund takes it past capacity
+    const ovf = await dev.request('dev.stockpile.ps', { capacity: before.usedStacks ?? 0 }, { timeoutMs: 30_000 }).catch((e) => ({ error: String(e) }));
+    if (ovf?.capacity !== (before.usedStacks ?? 0)) return fail('over capacity', `the TEST capacity was not set: ${JSON.stringify(ovf).slice(0, 200)}`);
     from = logSize();
     await cmd(`/steward undo ${id}`);
     // the undo's own lines go to the command's sender after the command returned (the dev bridge has stopped listening by then): read the history
@@ -3578,7 +3582,28 @@ async function survivalFlow() {
     }
     if (undone && /Undone/.test(undone[0]) && off.length === 0) ok('refund', `${undone[0]}; every consumed unit came back (${units(before.consumed)})`);
     else fail('refund', `${undone ? undone[0] : 'no undo'}; refunds off: ${off.slice(0, 8).join(', ')}`);
+    // (OVF-S2) past capacity: all of the refund in the stock (returned grew by exactly what was consumed, refundOverflow unchanged, so nothing lies by the
+    // crate), the line said with its excess, and an item no build needs refused at the crate with Architect's over-capacity message
+    const overflowed = Object.entries(sp?.refundOverflow ?? {}).filter(([k, n]) => n !== (before.refundOverflow?.[k] ?? 0));
+    const inStock = Object.entries(before.consumed).filter(([k, n]) => (sp?.returned?.[k] ?? 0) - (before.returned?.[k] ?? 0) !== n);
+    const pastCap = (sp?.usedStacks ?? 0) - (sp?.capacityStacks ?? 0);
+    const said = await waitLog(from, /holds more than it fits: (\d+) stacks? over[^\n]*/, 30_000);
+    if (pastCap > 0 && overflowed.length === 0 && inStock.length === 0 && said && Number(said[1]) === pastCap) {
+      ok('over capacity', `${sp.usedStacks} of ${sp.capacityStacks} stacks, all of the refund in the stock: ${said[0].slice(0, 200)}`);
+    } else {
+      fail('over capacity', `${sp?.usedStacks} of ${sp?.capacityStacks} stacks; overflow ${JSON.stringify(overflowed)}; not in stock ${inStock.slice(0, 6).join(' ')};`
+        + ` said ${said ? said[0].slice(0, 160) : 'nothing'}`);
+    }
+    // the crates lie within 8 of the stone (Insert reaches 16), on the ground; nothing is being built, so no build needs cobblestone
+    await cmd(`/spreadplayers ${here.centerX} ${here.centerZ} 0 1 false @p`);
+    await cmd('/give @p minecraft:cobblestone 16');
+    const refused = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, inventory: true }, { timeoutMs: 30_000 }).then((r) => ({ moved: r?.moved }), (e) => ({ error: String(e?.message ?? e) }));
+    const spR = await ledger();
+    await cmd('/clear @p minecraft:cobblestone');
+    if (/over capacity/.test(refused.error ?? '') && !spR?.stock?.['minecraft:cobblestone']) ok('over capacity refusal', refused.error.slice(0, 160));
+    else fail('over capacity refusal', `${JSON.stringify(refused).slice(0, 200)}; cobblestone in stock ${spR?.stock?.['minecraft:cobblestone'] ?? 0}`);
   } finally {
+    await dev.request('dev.stockpile.ps', { capacity: -1 }, { timeoutMs: 30_000 }).catch(() => null);
     await cmd('/architect survival off');
   }
 }
@@ -3723,7 +3748,8 @@ async function suppliedPlanFlow() {
     if (flight && !flight.fits && /OVERLAP_BUSY/.test(`${flight.reason} ${flight.code} ${flight.message} ${flight.refused}`)) ok('beside a town in flight', String(flight.message ?? flight.refused).slice(0, 140));
     else fail('beside a town in flight', flight ? JSON.stringify(flight).slice(0, 240) : 'the town was never seen placing');
     // (the town's growth from materials is supplied-growth's, through Steward alone; the old dev-call check here is retired)
-    // undone: every unit still consumed back in the stockpile (or dropped and counted as overflow)
+    // undone: every unit still consumed back in the stockpile (since OVF, 0.77.0, all of it, past capacity if need be; refundOverflow, still summed in,
+    // counts only unkeyed give-backs)
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
     const before = await ledger();
     await cmd(`/steward undo ${id}`);
@@ -4099,7 +4125,10 @@ async function suppliedGrowthFlow(mode = null) {
     }
     // (A2L) every take-up judged the same way (the GPT design review 3): what came back = what the growth drew, and it is in the crates (the stock gained
     // exactly the refund, nothing overflowed), once (nothing more 20 s on); one entry and one completion under its revision's tag; none of its sites left
-    // in the ledger, nothing outstanding; its revision UNDONE; the ground as before the growths, the crates aside
+    // in the ledger, nothing outstanding; its revision UNDONE; the ground as before the growths, the crates aside. "Nothing overflowed" (over empty) holds
+    // by Architect 0.77.0's OVF: a take-up's refund is keyed (a region or group removal), so it enters the stock whole, past capacity if need be, and
+    // refundOverflow grows only by unkeyed give-backs (a swap's old block, the feed's bucket), which no take-up makes; a later release that keys every
+    // give-back keeps it so
     const delta = (a, b) => { const o = {}; for (const k of new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])) { const n = (a?.[k] ?? 0) - (b?.[k] ?? 0); if (n) o[k] = n; } return o; };
     const backOf = (x) => plusItems(x?.returned, x?.refundOverflow);
     const crates = () => (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
