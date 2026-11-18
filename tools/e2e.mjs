@@ -2972,6 +2972,8 @@ async function composedModulesSurvivalFlow({ fillHalt = false } = {}) {
           // (GPT review P1) the half saved before the halt (an insert is in memory until a save), so the restart starts from it: the barrier, then
           // the saved ledger's stock of the fill items (delivered + returned - consumed - withdrawn - dropped) is the half
           const bar = await saveBarrier(dev).then((x) => x.how, (e) => `failed: ${e?.message ?? e}`);
+          // (GPT fix-check P2) a refused or in-doubt barrier is no baseline, even when the file already reads the half
+          if (bar !== 'save' && bar !== 'periodic') return fail(lbl, `harness: the save barrier before the halt ${bar}`);
           const saved = await dev.request('dev.stockpile.saved', {}, { timeoutMs: 30_000 }).catch(() => null);
           const L = (saved?.file?.stockpiles ?? []).find((x) => x.owner === owner)?.ledger;
           const savedStock = onlyFill(minusItems(plusItems(L?.delivered, L?.returned), plusItems(plusItems(L?.consumed, L?.withdrawn), L?.dropped)));
