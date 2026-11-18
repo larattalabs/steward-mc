@@ -1593,8 +1593,8 @@ async function landFlow() {
   const said = (re) => new RegExp(`\\[${name}\\] ${re}`);
   from = logSize();
   await cmd(`/steward check ${id}`);
-  // an automatic look of the new town may be running: asked again once it is done
-  if (await waitLog(from, /looking over the land already/, 3000)) {
+  // an automatic look of the new town may be running, or have just ended (LandChecks.AGAIN_MS, 3 s): asked again once it is done
+  if (await waitLog(from, /looking over the land already|I just looked over [^\n]*ask me again in a moment/, 3000)) {
     await sleep(5000);
     from = logSize();
     await cmd(`/steward check ${id}`);
@@ -3596,12 +3596,26 @@ async function survivalFlow() {
     }
     // the crates lie within 8 of the stone (Insert reaches 16), on the ground; nothing is being built, so no build needs cobblestone
     await cmd(`/spreadplayers ${here.centerX} ${here.centerZ} 0 1 false @p`);
+    // none carried before (so the count after is the 16 given, none other)
+    await dev.request('dev.command', { cmd: '/clear @p minecraft:cobblestone' }).catch(() => null);
     await cmd('/give @p minecraft:cobblestone 16');
-    const refused = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, inventory: true }, { timeoutMs: 30_000 }).then((r) => ({ moved: r?.moved }), (e) => ({ error: String(e?.message ?? e) }));
+    // dev.request answers the bridge's raw response, a refusal included ({ok: false, error}), never a rejection: Architect 0.78.0's Insert from inventory
+    // moves nothing into a stockpile over capacity and throws Stockpiles.OVER_CAPACITY (a DevException), so the answer is not ok and moves nothing
+    const refused = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, inventory: true }, { timeoutMs: 30_000 })
+      .then((r) => ({ ok: r?.ok === true, moved: r?.moved, error: r?.error }), (e) => ({ ok: false, lost: String(e?.message ?? e) }));
     const spR = await ledger();
-    await cmd('/clear @p minecraft:cobblestone');
-    if (/over capacity/.test(refused.error ?? '') && !spR?.stock?.['minecraft:cobblestone']) ok('over capacity refusal', refused.error.slice(0, 160));
-    else fail('over capacity refusal', `${JSON.stringify(refused).slice(0, 200)}; cobblestone in stock ${spR?.stock?.['minecraft:cobblestone'] ?? 0}`);
+    // the player's 16 still with them, nothing left the inventory: /clear's command result is the count it removed (dev.command's typed result)
+    const cleared = await dev.request('dev.command', { cmd: '/clear @p minecraft:cobblestone' }).catch(() => null);
+    const kept = Number(cleared?.result ?? 0);
+    const stillOver = (spR?.usedStacks ?? 0) > (spR?.capacityStacks ?? 0);
+    // Architect's refusal carries no code (DevBridge sends a DevException as its message only): its exact words, Stockpiles.OVER_CAPACITY
+    const OVER_CAPACITY = 'This stockpile is over capacity: use or take stock first';
+    if (!refused.ok && !refused.lost && refused.moved == null && refused.error === OVER_CAPACITY && !spR?.stock?.['minecraft:cobblestone'] && kept === 16 && stillOver) {
+      ok('over capacity refusal', `${refused.error.slice(0, 160)}; 16 cobblestone kept, none in stock`);
+    } else {
+      fail('over capacity refusal', `${JSON.stringify(refused).slice(0, 200)}; cobblestone in stock ${spR?.stock?.['minecraft:cobblestone'] ?? 0}; kept ${kept}/16;`
+        + ` ${spR?.usedStacks} of ${spR?.capacityStacks} stacks`);
+    }
   } finally {
     await dev.request('dev.stockpile.ps', { capacity: -1 }, { timeoutMs: 30_000 }).catch(() => null);
     await cmd('/architect survival off');
@@ -7665,10 +7679,13 @@ async function moduleSurvivalStreetFlow() {
     const quotedAt = await waitLog(from, quoteRe, 600_000);
     const quoted = quotedAt ? JSON.parse(quoteRe.exec(quotedAt[0])[1]) : null;
     if (!quoted) return fail(label, `no quote logged in 10 min; ${chatTail(from)}`);
-    const heldOver = await waitLog(from, /The bill came to more than you approved[^\n]*|is built(?: in part)?: \d+ buildings? placed|construction sites stand and are built/, 240_000);
-    if (heldOver && /more than you approved/.test(heldOver[0])) {
+    // or held as inexact (a paid cell of natural terrain may already stand in the land where the lanes go: terrain-dependent, so not every run): the
+    // player's word builds it with that bill, as module-survival's inexact-only hold
+    const heldOver = await waitLog(from, /The bill came to more than you approved[^\n]*|Architect can't quote the bill exactly[^\n]*|is built(?: in part)?: \d+ buildings? placed|construction sites stand and are built/, 240_000);
+    if (heldOver && /more than you approved|can't quote the bill exactly/.test(heldOver[0])) {
       await feed(Object.fromEntries(Object.entries(quoted).map(([k, n]) => [k, n * 2 + 16])));
-      await cmd(`/steward approve ${id}`);
+      const word = await cmd(`/steward approve ${id}`);
+      ok(`${label} held`, `${heldOver[0].slice(0, 120)}; approved: ${word.slice(0, 80)}`);
     }
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
     if (!grew) return;
