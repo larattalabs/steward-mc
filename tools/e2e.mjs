@@ -1299,7 +1299,12 @@ async function repairLook(id) {
   if (!st || st.error || !st.startDone || st.pending !== false) return fail('repair state', `the auto-diagnose never finished: ${JSON.stringify(st).slice(0, 300)}`);
   if ((st.suspects ?? []).length) return fail('repair state', `a clean start has suspects: ${JSON.stringify(st.suspects).slice(0, 300)}`);
   ok('repair state', 'clean start: no suspects, the auto-diagnose done');
-  const r = await cmd(`/steward repair ${id}`);
+  let r = '';
+  for (let i = 0; i < 15; i++) {
+    r = await cmd(`/steward repair ${id}`);
+    if (!r.includes('still looking the world over')) break;
+    await sleep(2000);
+  }
   if (r.includes(`Nothing of ${name} looks stuck.`)) ok('repair look', r);
   else fail('repair look', r || '(no answer)');
 }

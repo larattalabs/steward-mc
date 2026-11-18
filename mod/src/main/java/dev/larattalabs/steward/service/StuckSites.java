@@ -49,6 +49,8 @@ public final class StuckSites {
 	private static final Set<String> REPAIRED = ConcurrentHashMap.newKeySet();
 	/** The last look an operator made, by settlement: its plans, for {@code confirm}. */
 	private static final Map<String, Look> LOOKS = new ConcurrentHashMap<>();
+	/** The settlement each repair this session was asked for (its plan id): a repaired stuck removal's site is gone by its event. */
+	private static final Map<String, String> PLAN_OF = new ConcurrentHashMap<>();
 
 	/** An operator's look at a settlement's stuck parts: the plan ids a confirm applies, and who looked. */
 	record Look(java.util.UUID op, List<String> plans) {
@@ -64,6 +66,7 @@ public final class StuckSites {
 			SAID.clear();
 			REPAIRED.clear();
 			LOOKS.clear();
+			PLAN_OF.clear();
 		});
 		try {
 			// fired on the server thread, once per repaired site
@@ -101,8 +104,10 @@ public final class StuckSites {
 		for (RepairSuspect r : all) {
 			if (SAID.contains(key(r))) continue;
 			String sid = settlementOf(ownerOf(srv, r));
-			SAID.add(key(r)); // a suspect of no settlement (another mod's site) is looked at once
-			if (sid == null || Settlements.store().get(sid).isEmpty()) continue;
+			if (sid == null || Settlements.store().get(sid).isEmpty()) {
+				SAID.add(key(r)); // a suspect of no settlement (another mod's site) is looked at once
+				continue;
+			}
 			fresh.computeIfAbsent(sid, k -> new ArrayList<>()).add(r);
 		}
 		for (var e : fresh.entrySet()) {
@@ -111,8 +116,11 @@ public final class StuckSites {
 			List<String> lines = new ArrayList<>();
 			for (RepairSuspect r : e.getValue()) lines.add(line(r.reason(), what(srv, r)));
 			String text = said(lines, s.id());
+			// said once it is heard: with nobody in the claim yet (a world just started) it waits for the next read (the list is cached)
+			if (!anyoneIn(srv, s)) continue;
 			Steward.LOGGER.info("stuck {}: {}", s.id(), text);
 			tell(srv, s, text);
+			for (RepairSuspect r : e.getValue()) SAID.add(key(r));
 		}
 	}
 
@@ -184,6 +192,11 @@ public final class StuckSites {
 		}
 	}
 
+	private static boolean anyoneIn(MinecraftServer srv, Settlement s) {
+		for (ServerPlayer p : srv.getPlayerList().getPlayers()) if (within(s, p)) return true;
+		return false;
+	}
+
 	private static boolean within(Settlement s, ServerPlayer p) {
 		var at = p.blockPosition();
 		return s.contains(p.level().dimension().identifier().toString(), at.getX(), at.getY(), at.getZ());
@@ -251,6 +264,7 @@ public final class StuckSites {
 			Look look = LOOKS.get(settlementId);
 			if (look == null || !look.op().equals(player.getUUID())) return Actions.Result.fail("Look first: /steward repair " + settlementId + ".");
 			LOOKS.remove(settlementId);
+			for (String plan : look.plans()) PLAN_OF.put(plan, settlementId);
 			int session = Session.current();
 			apply(sites, look.plans(), player, 0, 0, 0).whenComplete((r, err) -> ArchitectAccess.onServer(srv, () -> {
 				if (!Session.is(session) || SettlementRunner.worldStopped(err)) return;
@@ -326,12 +340,15 @@ public final class StuckSites {
 
 	private static void onRepaired(MinecraftServer srv, String siteId, @Nullable String regionId, RepairResult result) {
 		if (!firstOf(result.planId())) return;
-		String owner = ArchitectAccess.api().sites(srv).get(siteId).map(dev.larattalabs.architect.api.SiteView::owner).orElse(null);
-		if (owner == null && regionId != null) owner = ArchitectAccess.api().regions().get(regionId).map(dev.larattalabs.architect.api.RegionView::owner).orElse(null);
-		Optional<Settlement> s = Optional.ofNullable(settlementOf(owner)).flatMap(id -> Settlements.store().get(id));
+		// the settlement Steward's own repair was asked for, else the site's or its region's owner (an op's /architect repair)
+		String sid = PLAN_OF.get(result.planId());
+		if (sid == null) {
+			String owner = ArchitectAccess.api().sites(srv).get(siteId).map(dev.larattalabs.architect.api.SiteView::owner).orElse(null);
+			if (owner == null && regionId != null) owner = ArchitectAccess.api().regions().get(regionId).map(dev.larattalabs.architect.api.RegionView::owner).orElse(null);
+			sid = settlementOf(owner);
+		}
+		Optional<Settlement> s = Optional.ofNullable(sid).flatMap(id -> Settlements.store().get(id));
 		if (s.isEmpty()) return;
-		// what was said about it is said again if it lags again later this session
-		SAID.removeIf(k -> k.startsWith(siteId + "|") || (regionId != null && k.contains("|" + regionId + "|")));
 		String text = repairedLine(result.written(), result.left());
 		Steward.LOGGER.info("repaired {}: {}", s.get().id(), text);
 		tell(srv, s.get(), text);
@@ -342,5 +359,6 @@ public final class StuckSites {
 		SAID.clear();
 		REPAIRED.clear();
 		LOOKS.clear();
+		PLAN_OF.clear();
 	}
 }

@@ -288,7 +288,7 @@ public final class Undo {
 			// (batch review 2) a refused undo's note is closed: a later removal by something else is never taken for this undo
 			if (!ok && intent && !Settlements.log(s.id(), closedNote(region, RemovalStops.noted(why))).ok()) Steward.LOGGER.warn("{}: the stopped undo of {} left its note open", s.id(), region);
 			// (slice DRS) Architect's typed stop (feature removalStop): NOT_STARTED took nothing down (a refused save leaves the region as it was)
-			String notStarted = ok || err != null ? null : RemovalStops.undoStopped(RemovalStops.of(region), why, held, s.id());
+			String notStarted = ok || err != null ? null : RemovalStops.undoStopped(RemovalStops.of(region), why, s.id());
 			if (notStarted != null) say.accept(notStarted);
 			else if (!ok) say.accept("Undo stopped: " + (held != null ? held + " (" + why + ")" : why) + ". Clear it and run /steward undo " + s.id() + " again.");
 			else say.accept("Undone: the village is taken up, the land restored.");

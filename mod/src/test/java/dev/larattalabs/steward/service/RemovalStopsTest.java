@@ -51,13 +51,12 @@ class RemovalStopsTest {
 
 	@Test
 	void onlyANotStartedStopChangesTheWords() {
-		assertNull(RemovalStops.undoStopped(null, RAW, null, "set_1"), "no typed stop: the ordinary line");
-		assertNull(RemovalStops.undoStopped(RemovalStop.NONE, RAW, null, "set_1"));
-		assertNull(RemovalStops.undoStopped(RemovalStop.PARTIAL, RAW, null, "set_1"), "part was taken down: the ordinary stopped line");
+		assertNull(RemovalStops.undoStopped(null, RAW, "set_1"), "no typed stop: the ordinary line");
+		assertNull(RemovalStops.undoStopped(RemovalStop.NONE, RAW, "set_1"));
+		assertNull(RemovalStops.undoStopped(RemovalStop.PARTIAL, RAW, "set_1"), "part was taken down: the ordinary stopped line");
 		assertEquals("Undo stopped: the world couldn't be saved just now, nothing was taken down; ask again (/steward undo set_1).",
-			RemovalStops.undoStopped(RemovalStop.NOT_STARTED, RAW, null, "set_1"));
-		assertEquals("Undo stopped before anything was taken down: a player stayed in s3 for 10 minutes. Clear it and run /steward undo set_1 again.",
-			RemovalStops.undoStopped(RemovalStop.NOT_STARTED, "a player stayed in s3 for 10 minutes", null, "set_1"));
+			RemovalStops.undoStopped(RemovalStop.NOT_STARTED, RAW, "set_1"));
+		assertNull(RemovalStops.undoStopped(RemovalStop.NOT_STARTED, "a player stayed in s3 for 10 minutes", "set_1"), "any other blocker: said as before");
 	}
 
 	@Test
@@ -77,7 +76,10 @@ class RemovalStopsTest {
 		assertFalse(RemovalStops.growthWaits(new dev.larattalabs.architect.api.RevisionView(2, 1, 1, "p", "sha", "PLACED", 0L, List.of(), List.of(), List.of(), 0L,
 			null, true, "stage s1: x")));
 		assertFalse(RemovalStops.growthWaits(null));
-		assertFalse(RemovalStops.growthWaiting().contains("chunk"));
+		assertEquals("The town's change is part way taken up and waits to carry on (the world couldn't be saved just now): nothing more is taken down until it"
+			+ " can. It carries on when you ask again or when the world next starts.", RemovalStops.growthWaiting("blocked by " + RAW));
+		assertTrue(RemovalStops.growthWaiting("blocked by a player stayed in g1 for 10 minutes").contains("(blocked by a player stayed in g1 for 10 minutes)"),
+			"any other wait: said with what it waits for");
 	}
 
 	// ------------------------------------------------------------------ the undo paths, over Architect's fake
@@ -118,12 +120,12 @@ class RemovalStopsTest {
 	}
 
 	@Test
-	void anOtherNotStartedStopSaysNothingWasTakenDownWithItsBlocker() {
+	void anOtherNotStartedStopIsSaidAsBefore() {
 		Settlement s = village("set_drs2");
 		a.removeAnswer = FakeArchitect.Answer.BLOCKED;
 		a.regions.get("rg_v").removalStop = RemovalStop.NOT_STARTED;
 		undo(s);
-		assertTrue(said.stream().anyMatch(l -> l.startsWith("Undo stopped before anything was taken down: blocked by a chest of the player's")), said.toString());
+		assertTrue(said.contains("Undo stopped: blocked by a chest of the player's. Clear it and run /steward undo set_drs2 again."), said.toString());
 	}
 
 	@Test
@@ -153,6 +155,7 @@ class RemovalStopsTest {
 		Growths.undo(null, s.owner(), new Growths.Ref("rg_g", 1), said::add, done::set);
 		a.runServer();
 		assertEquals(Boolean.FALSE, done.get(), "not taken up yet: the entry stays");
-		assertEquals(List.of(RemovalStops.growthWaiting()), said);
+		assertEquals(List.of(RemovalStops.growthWaiting("blocked by " + RAW)), said);
+		assertTrue(said.stream().noneMatch(l -> l.contains("chunk")), said.toString());
 	}
 }
