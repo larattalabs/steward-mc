@@ -1,7 +1,7 @@
 // slice SAVEB: a dev.command's own verdict checked, and the save barrier (tools/lib/save-barrier.mjs), here against a fake bridge.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { checkCommand, runCommand, hasRequest, saveBarrier, CommandNotRun } from '../tools/lib/save-barrier.mjs';
+import { checkCommand, runCommand, hasRequest, saveBarrier, savedOnDisk, CommandNotRun } from '../tools/lib/save-barrier.mjs';
 
 /** A fake DevClient: {@code handlers[type](payload, n)} answers each request (n: that type's call count); every request is kept in {@code sent}. */
 function fakeDev(handlers) {
@@ -145,4 +145,39 @@ test('a save that never comes throws after the timeout, naming the state', async
 test('a refused dev.stockpile.ps throws', async () => {
   const dev = fakeDev({ 'dev.help': help() });
   await assert.rejects(saveBarrier(dev, clock()), /dev.stockpile.ps \{noPeriodic: false\} failed: unknown type dev.stockpile.ps/);
+});
+
+// ---- savedOnDisk (module-measure-hall's savedAs: a baseline on disk before a kill point is armed)
+
+test('savedOnDisk on 0.75+: dev.stockpile.save, then the disk read until it passes; no periodic save asked', async () => {
+  const c = clock();
+  const dev = fakeDev({ 'dev.help': help('dev.stockpile.save', 'dev.stockpile.ps', 'dev.stockpile.saved'), 'dev.stockpile.save': () => ({ ok: true, written: true }) });
+  let reads = 0;
+  const disk = () => ({ delivered: { 'minecraft:oak_log': ++reads < 3 ? 0 : 64 } });
+  const L = await savedOnDisk(dev, disk, (x) => x?.delivered['minecraft:oak_log'] === 64, c);
+  assert.equal(L.delivered['minecraft:oak_log'], 64);
+  assert.deepEqual(dev.sent.map((s) => s.type), ['dev.help', 'dev.stockpile.save']);
+});
+
+test('savedOnDisk on 0.74 (no dev.stockpile.save): the periodic save turned on, waited for until the file passes', async () => {
+  const c = clock();
+  const dev = fakeDev({ 'dev.help': help('dev.stockpile.ps', 'dev.stockpile.saved'), 'dev.stockpile.ps': () => ({ ok: true }), 'dev.stockpile.saved': () => ({ ok: true, unsaved: false }) });
+  let n = 0;
+  const L = await savedOnDisk(dev, () => ({ v: c.now() >= 6000 ? 'live' : 'old', n: ++n }), (x) => x?.v === 'live', c);
+  assert.equal(L.v, 'live');
+  assert.deepEqual(dev.sent[1], { type: 'dev.stockpile.ps', payload: { noPeriodic: false } });
+  assert.ok(!dev.sent.some((s) => s.type === 'dev.stockpile.save'));
+});
+
+test('savedOnDisk never throws: a timeout, a failed save or a bad read returns the last read for the caller to check', async () => {
+  const c = clock();
+  const slow = fakeDev({ 'dev.help': help(), 'dev.stockpile.ps': () => ({ ok: true }), 'dev.stockpile.saved': () => ({ ok: true, unsaved: true }) });
+  assert.deepEqual(await savedOnDisk(slow, () => ({ v: 'old' }), (x) => x?.v === 'live', { ...c, timeoutMs: 10_000 }), { v: 'old' });
+  const broken = fakeDev({ 'dev.help': help('dev.stockpile.save'), 'dev.stockpile.save': () => ({ ok: false, error: 'not in a world' }) });
+  assert.deepEqual(await savedOnDisk(broken, () => ({ v: 'old' }), () => true, c), { v: 'old' });
+  const t = c.now();
+  const unsettled = fakeDev({ 'dev.help': help('dev.stockpile.save'), 'dev.stockpile.save': () => ({ ok: true }) });
+  assert.deepEqual(await savedOnDisk(unsettled, () => ({ v: 'old' }), (x) => x?.v === 'live', { ...c, settleMs: 4000 }), { v: 'old' });
+  assert.equal(c.now() - t, 4000);
+  assert.equal(await savedOnDisk(unsettled, () => { throw new Error('mid-write'); }, () => false, { ...c, settleMs: 0 }), null);
 });

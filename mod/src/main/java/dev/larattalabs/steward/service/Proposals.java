@@ -411,7 +411,14 @@ public final class Proposals {
 		}
 		// nothing stands yet: nothing is left out (the town is still to be built)
 		if (byRole.isEmpty() && byType.isEmpty()) return List.of();
-		return ProposalRules.leftOut(s.card(), byRole, byType);
+		// (slice M5-SCULPT) a building the kept plan made a working module is never offered as an ordinary one: a module is placed only from the plan
+		com.google.gson.JsonObject kept = null;
+		try {
+			kept = PlanStore.get(s.id()).map(e -> com.google.gson.JsonParser.parseString(e.plan()).getAsJsonObject()).orElse(null);
+		} catch (RuntimeException e) {
+			// an unreadable plan names nothing
+		}
+		return StreetModules.withoutModules(kept, SettlementRunner.offeredLotTypes(), s.card(), ProposalRules.leftOutEntries(s.card(), byRole, byType));
 	}
 
 	/** Proposes the district for the left-out buildings now (dev: the e2e check, past the cooldown). Returns what it did. */

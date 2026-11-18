@@ -209,13 +209,23 @@ public final class ProposalRules {
 	 * ({@code byType}). Landmarks count like any entry. Pure.
 	 */
 	public static List<ConceptCard.Building> leftOut(@org.jspecify.annotations.Nullable ConceptCard card, Map<String, Integer> byRole, Map<String, Integer> byType) {
+		return leftOutEntries(card, byRole, byType).stream().map(Missing::building).toList();
+	}
+
+	/** A left-out building with the index of its card program entry ({@code entry}): two entries of one role and type stay told apart. */
+	public record Missing(int entry, ConceptCard.Building building) {}
+
+	/** As {@link #leftOut}, each with its card entry's index (batch-076 review P2-5: what a module stands for is subtracted from its own entry). Pure. */
+	public static List<Missing> leftOutEntries(@org.jspecify.annotations.Nullable ConceptCard card, Map<String, Integer> byRole, Map<String, Integer> byType) {
 		if (card == null || !card.hasProgram()) return List.of();
-		List<ConceptCard.Building> out = new ArrayList<>();
-		for (ConceptCard.Building b : card.program()) {
+		List<Missing> out = new ArrayList<>();
+		List<ConceptCard.Building> program = card.program();
+		for (int i = 0; i < program.size(); i++) {
+			ConceptCard.Building b = program.get(i);
 			String role = b.role().toLowerCase(java.util.Locale.ROOT);
 			int standing = byRole.containsKey(role) ? byRole.get(role) : byType.getOrDefault(b.type(), 0);
 			int missing = b.count() - standing;
-			if (missing > 0) out.add(new ConceptCard.Building(b.role(), b.type(), missing, b.footprint(), b.landmark(), b.notes(), b.placement()));
+			if (missing > 0) out.add(new Missing(i, new ConceptCard.Building(b.role(), b.type(), missing, b.footprint(), b.landmark(), b.notes(), b.placement())));
 		}
 		return List.copyOf(out);
 	}

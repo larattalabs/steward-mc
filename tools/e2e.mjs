@@ -2770,6 +2770,62 @@ async function composedModulesFlow() {
 }
 
 /**
+ * (slice M5-SCULPT, docs/MODULES.md B3) A composed plan naming working modules on a card whose land is shaped (terrain sculpt): the plan isn't taken, so
+ * the card's buildings go on Steward's streets, and each module lot is left out and said before anything is spent; the card's farm and storage hall
+ * (the buildings the module lots stand for) are not laid out or designed. Cancelled once the designs are asked for (sim, $0).
+ */
+async function composedModulesStreetFlow() {
+  const label = 'composed modules street';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 95000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/steward dev modules {}');
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Carved Hamlet';
+  card.site.terrain = 'sculpt';
+  // the buildings the plan's module lots stand for: the farm (its crop farm's `for`) and the storage hall (its hall's lot type)
+  card.program.push({ role: 'village field', type: 'farm', count: 1, footprint: 'M', landmark: false, notes: 'Wheat for the village' },
+    { role: 'storage hall', type: 'storage_hall', count: 1, footprint: 'M', landmark: false, notes: 'Keeps the stores in order' });
+  const total = card.program.reduce((a, b) => a + b.count, 0);
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'composed_modules.json'), 'utf8')).answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a farming village on a carved river that feeds itself and keeps its stores in order`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+  await closeScreens();
+  from = logSize();
+  await cmd(`/steward start ${id} ${total} 30`);
+  const layout = await waitLog(from, /Layout: (\d+) lots? on the street(?: \((\d+) did not fit\))?/, 120_000);
+  if (!layout) return fail(label, `no layout; ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+  let since = logSince(from);
+  const farmSaid = /The plan's the village field is left out of the town: the land is shaped, so the town is laid out on Steward's streets, where the working crop farm can't be placed yet\. It isn't designed as an ordinary building in its place\./.test(since);
+  const hallSaid = /The plan's the storage hall is left out of the town: the land is shaped, so the town is laid out on Steward's streets, where the working storage hall can't be placed yet\./.test(since);
+  const leftOut = since.match(/plan modules of \S+ left out of the card's layout: (\d+) lot\(s\), (\d+) left/);
+  const laid = Number(layout[1]) + Number(layout[2] ?? 0);
+  const fromPlan = /Laying out the village from its plan/.test(since);
+  if (!(farmSaid && hallSaid && leftOut?.[1] === '2' && Number(leftOut[2]) === total - 2 && laid === total - 2 && !fromPlan))
+    return fail(label, `farm said ${farmSaid}, hall said ${hallSaid}, ${leftOut?.[0]}, laid ${laid} of ${total}, from plan ${fromPlan}`);
+  // the designs asked for are the street's lots only (the bible first, approved)
+  let designing = null;
+  const end = Date.now() + 240_000;
+  let at = from;
+  while (Date.now() < end && !designing) {
+    since = logSince(at);
+    if (/Style bible ready/.test(since)) { at = logSize(); await cmd(`/steward approve ${id}`); }
+    designing = (logSince(from).match(/Designing (\d+) buildings?/) ?? [null, null])[1];
+    if (!designing) await sleep(1000);
+  }
+  await cmd(`/steward cancel ${id}`);
+  if (designing !== null && Number(designing) <= Number(layout[1])) ok(label, `${layout[0]} (${total} asked, 2 module lots left out, said); designing ${designing}`);
+  else fail(label, `designing ${designing} of ${layout[1]} laid out`);
+}
+
+/**
  * (slice M5a, docs/MODULES.md "M5 design", "The guard") A composed town built from materials: while no cap scoped to a module lot exists (S-M5-16), each
  * module lot of the plan is left out of the town, said (never designed in its place, never a pad); the town is built from the stockpile without them
  * (its two cottages) and, undone, every consumed unit comes back once. The held-bill path behind the guard is composed-modules-restart's (registered
@@ -3967,18 +4023,23 @@ async function suppliedGrowthFlow(mode = null) {
       }
       // 'held' (run 2: Architect writes a growth's revision in a second or two, so a cancel never met it still placing): Architect's answer to the
       // realise is held (dev.region.holdRealise), so Steward's build still waits on a realised growth whose targets wait for items; fed in part
-      await dev.request('dev.region.holdRealise', { on: true });
-      const rid0 = Math.max(0, ...((await view()).revisions ?? []).map((x) => x.rid));
       let h = null, at = f;
-      for (let i = 0; i < 450 && !h; i++) {
-        await sleep(2000);
-        // the build's decisions approved as they come (the bible, the massings, the placement), as buildThrough does
-        if (/Style bible ready|massings? (?:are|is) ready|Approve to place/.test(logSince(at))) { at = logSize(); await cmd(`/steward approve ${id}`); }
-        if (/The build stopped[^\n]*|Cancelled [^\n]*|still being built from the stockpile[^\n]*|is built(?: in part)?: \d+ building/.test(logSince(f))) break;
-        h = ((await view()).revisions ?? []).filter((x) => x.rid > rid0 && /^(PLACING|PLACED)$/.test(x.state)).sort((a, b) => b.rid - a.rid)[0] ?? null;
-        if (h && !Object.keys((await ledger())?.need ?? {}).length) h = null;
+      // (E2E-STUB-ORDER) released in a finally: a throw here would leave every later keyed realise on this client held; (batch-076 review P2-6)
+      // the hold asked for inside it, so a lost reply is released too
+      try {
+        await dev.request('dev.region.holdRealise', { on: true });
+        const rid0 = Math.max(0, ...((await view()).revisions ?? []).map((x) => x.rid));
+        for (let i = 0; i < 450 && !h; i++) {
+          await sleep(2000);
+          // the build's decisions approved as they come (the bible, the massings, the placement), as buildThrough does
+          if (/Style bible ready|massings? (?:are|is) ready|Approve to place/.test(logSince(at))) { at = logSize(); await cmd(`/steward approve ${id}`); }
+          if (/The build stopped[^\n]*|Cancelled [^\n]*|still being built from the stockpile[^\n]*|is built(?: in part)?: \d+ building/.test(logSince(f))) break;
+          h = ((await view()).revisions ?? []).filter((x) => x.rid > rid0 && /^(PLACING|PLACED)$/.test(x.state)).sort((a, b) => b.rid - a.rid)[0] ?? null;
+          if (h && !Object.keys((await ledger())?.need ?? {}).length) h = null;
+        }
+      } finally {
+        await dev.request('dev.region.holdRealise', { on: false }).catch(() => null);
       }
-      await dev.request('dev.region.holdRealise', { on: false }).catch(() => null);
       if (!h || /is built(?: in part)?: \d+ building/.test(logSince(f))) { fail(lbl, `no realised growth left waiting on its answer (${h ? `revision ${h.rid} ${h.state}, but the build ended` : 'no revision'}); ${chatTail(f)}`); return null; }
       if (!(await feedPart(spStart))) { fail(lbl, 'nothing drawn from the stockpile once fed in part'); return { spStart, tag: `revision:${region}:${h.rid}`, siteIds: [], from: f, bad: true }; }
       return { spStart, tag: `revision:${region}:${h.rid}`, siteIds: [], from: f };
@@ -5290,6 +5351,12 @@ async function clearAnimals() {
 
 async function stubFlow(id) {
   // the whole paid flow against Architect's sim helper (v0.12.2, notional measured costs, never Claude); every wait is bounded
+  // (E2E-STUB-ORDER) back on the first settlement's claim, its chunks loaded, whatever flow ran before (with --clients, survival-mech left the
+  // player at its own lane, set_1 unloaded: its survey found every column unusable, "No dry, flat room here", and no bible was asked)
+  const home = settlements().find((x) => x.id === id)?.claim;
+  if (!home) return fail('stub site', `no claim for ${id}`);
+  await cmd(`/spreadplayers ${home.centerX} ${home.centerZ} 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
   const fixture = (f) => JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).card ?? JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', f), 'utf8')).answer);
   // this settlement stays on Steward's own layout (additions, districts and the rest below rest on it); villageFlow builds one on Architect's flat village
   await cmd(`/steward dev layout ${id} legacy`);
@@ -5332,20 +5399,34 @@ async function stubFlow(id) {
   else fail('card limits', 'no "Not yet" line for the stilt village');
   // an operation key (C9, Architect 0.13): the bible request's acknowledgement is dropped, the game stops before the id is saved, and after the restart the
   // steward finds the request by its key and picks it up (never asks, or pays, twice)
-  await dev.request('dev.api.dropAck', { msgType: 'bible.request' });
-  from = logSize();
-  // seven buildings: with Architect 0b's copies, two of the fisher's huts copy a hut design ($0)
+  // (E2E-STUB-ORDER) the hook lives in the client JVM until the next bible request uses it, and no request disarms it: if this step stops before the
+  // restart (no bible asked, or a throw), the client is restarted, and the rest of the flow skipped with one failure (it builds on this start)
   await clearAnimals();
-  await cmd(`/steward start ${id} 7 40`);
-  if (await waitLog(from, /Designing the style bible/, 60_000)) {
-    await sleep(3000);
-    await quit();
-    launch();
-    await connect();
-    const adopted = await waitLog(0, /Architect had the style bible request: picking it up|never reached Architect: asking again|The build lost track of[^\n]*/, 90_000);
-    if (adopted && /picking it up/.test(adopted[0])) ok('recovered by key', 'the bible request whose ack was lost, found by its operation key after a restart');
-    else fail('recovered by key', adopted ? adopted[0] : 'no word after the restart');
-  } else fail('recovered by key', 'the bible was never requested');
+  from = logSize();
+  let armed = false, asked = false, why = '';
+  try {
+    // (batch-076 review P2-6) owed before the request is sent: a lost reply may still have armed the hook
+    armed = true;
+    await dev.request('dev.api.dropAck', { msgType: 'bible.request' });
+    // seven buildings: with Architect 0b's copies, two of the fisher's huts copy a hut design ($0)
+    await cmd(`/steward start ${id} 7 40`);
+    asked = !!(await waitLog(from, /Designing the style bible/, 60_000));
+    // what the steward said instead, read before a restart starts a new log
+    if (!asked) why = chatTail(from);
+    if (asked) {
+      await sleep(3000);
+      await quit();
+      armed = false;
+      launch();
+      await connect();
+    }
+  } finally {
+    if (armed) await restartClient();
+  }
+  if (!asked) return fail('recovered by key', `the bible was never requested (the client restarted to drop the armed dropAck; the rest of stub skipped): ${why}`);
+  const adopted = await waitLog(0, /Architect had the style bible request: picking it up|never reached Architect: asking again|The build lost track of[^\n]*/, 90_000);
+  if (adopted && /picking it up/.test(adopted[0])) ok('recovered by key', 'the bible request whose ack was lost, found by its operation key after a restart');
+  else fail('recovered by key', adopted ? adopted[0] : 'no word after the restart');
   from = 0;
   const first = await buildThrough(id, from, 'first build', true);
   if (!first) return;
@@ -6900,32 +6981,37 @@ async function moduleCapFlow() {
     // (BILL_CAP); the steward quotes again and puts the bill to the player, never realising it on its own; approved, it is realised under a bill
     // never below the bound approved, item by item
     const shortItem = 'minecraft:wheat_seeds';
-    await cmd(`/steward dev cap_short ${shortItem}`);
     const startAt = logSize();
     from = startAt;
-    await cmd(`/steward proposals ${id} accept ${offer.key}`);
     // asked first (an inexact quote, or past the bound): approved once, as shown; then refused at put-down and asked again: approved
     const maxBills = () => [...logSince(startAt).matchAll(new RegExp(`module ${id} realise \\S+ under \\S+: maxBill \\{([^}]*)\\}`, 'g'))]
       .map((m) => Object.fromEntries(m[1].split(', ').map((kv) => kv.split('=')).map(([k, c]) => [k, Number(c)])));
     let refusedAt = null, reasked = null, heldSaved = null;
-    for (let i = 0; i < 360; i++) {
-      const said = logSince(from);
-      if (refusedAt != null && reasked && maxBills().length >= 2) break;
-      if (refusedAt == null && new RegExp(`module ${id} realise \\S+ refused at put-down`).test(said)) refusedAt = logSize();
-      const ask = /Approve to build it with this bill|so I ask first/.test(said);
-      if (ask && refusedAt != null && !reasked) {
-        reasked = said.match(/When it was put down, the materials needed went past what you approved\.[^\n]*/)?.[0] ?? null;
-        if (!reasked) return fail(`${label} put-down`, `asked again after the refusal without saying why: ${said.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
-        for (let j = 0; j < 10 && heldSaved?.state?.phase !== 'AWAITING_PLACEMENT_APPROVAL'; j++) {
-          if (j) await sleep(500);
-          try { heldSaved = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id) ?? null; } catch { /* mid-write */ }
+    // (batch-076 review P2-6) the short cap cleared in a finally, set inside it: an early return, a throw or a lost reply never leaves it armed
+    try {
+      await cmd(`/steward dev cap_short ${shortItem}`);
+      await cmd(`/steward proposals ${id} accept ${offer.key}`);
+      for (let i = 0; i < 360; i++) {
+        const said = logSince(from);
+        if (refusedAt != null && reasked && maxBills().length >= 2) break;
+        if (refusedAt == null && new RegExp(`module ${id} realise \\S+ refused at put-down`).test(said)) refusedAt = logSize();
+        const ask = /Approve to build it with this bill|so I ask first/.test(said);
+        if (ask && refusedAt != null && !reasked) {
+          reasked = said.match(/When it was put down, the materials needed went past what you approved\.[^\n]*/)?.[0] ?? null;
+          // (E2E-STUB-ORDER) the short cap is cleared by the finally below, so the next module realise on this client is not sent short
+          if (!reasked) return fail(`${label} put-down`, `asked again after the refusal without saying why: ${said.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+          for (let j = 0; j < 10 && heldSaved?.state?.phase !== 'AWAITING_PLACEMENT_APPROVAL'; j++) {
+            if (j) await sleep(500);
+            try { heldSaved = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id) ?? null; } catch { /* mid-write */ }
+          }
         }
+        // the cursor moves before the approve: what it leads to (a refusal, the re-ask) is never skipped (GPT review of QD-2)
+        if (ask) { from = logSize(); await cmd(`/steward approve ${id}`); }
+        await sleep(1000);
       }
-      // the cursor moves before the approve: what it leads to (a refusal, the re-ask) is never skipped (GPT review of QD-2)
-      if (ask) { from = logSize(); await cmd(`/steward approve ${id}`); }
-      await sleep(1000);
+    } finally {
+      await cmd('/steward dev cap_short none').catch(() => null);
     }
-    await cmd('/steward dev cap_short none').catch(() => null);
     {
       const lbl = `${label} put-down`;
       const sent = maxBills();
@@ -7856,9 +7942,13 @@ async function survivalDistrictFlow() {
       feeding = true;
       from = logSize();
       await cmd(`/steward proposals ${id} accept ${q.key}`);
-      let held = false;
+      // (batch-076 review P2-6) holdAsked marks the hold owed before its request: a lost reply is released below too
+      let held = false, holdAsked = false;
       const approved = await driveUntil(id, from, /Placing (?:the village|sd ward)[^\n]*/, 900_000, async (step) => {
-        if (step === 'Approve to place' && !held) held = !!(await dev.request('dev.region.holdRealise', { on: true }).catch(() => null))?.holding;
+        if (step === 'Approve to place' && !holdAsked) {
+          holdAsked = true;
+          held = !!(await dev.request('dev.region.holdRealise', { on: true }).catch(() => null))?.holding;
+        }
       });
       const qm = logSince(from).match(new RegExp(`district bill ${id} \\S+: (\\{[^\\n]*?\\}) \\(exact (true|false)`));
       quoted = qm ? JSON.parse(qm[1]) : null;
@@ -7867,6 +7957,8 @@ async function survivalDistrictFlow() {
         && v.ext?.['steward_mc:district'] === d.id) ?? null;
       let mine = null;
       for (let i = 0; i < 120 && approved && held && !(mine?.length); i++) { await sleep(1000); mine = await listed(); }
+      // (E2E-STUB-ORDER) the hold released before this early return (only the restart below drops it otherwise): later flows' keyed realises not held
+      if ((!approved || !held || !mine?.length) && holdAsked) await dev.request('dev.region.holdRealise', { on: false }).catch(() => null);
       if (!approved || !held || !mine?.length) return fail(rl, `approved ${!!approved}; held ${held}; region ${JSON.stringify(mine)?.slice(0, 120)}; ${chatTail(from)}`);
       region = mine[0].id;
       const savedPhase = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id)?.state?.phase;
@@ -8854,6 +8946,7 @@ try {
       await flow('module-hall-survival', 'module hall survival stockpile bill refund', () => moduleHallSurvivalFlow());
       await flow('composed-modules', 'composed module farm hall plan water undo', () => composedModulesFlow());
       await flow('composed-modules-survival', 'composed module farm survival stockpile bill refund', () => composedModulesSurvivalFlow());
+      await flow('composed-modules-street', 'composed module farm hall sculpt street', () => composedModulesStreetFlow());
       // (slice M5a) composed-modules-restart holds a composed farm's bill from materials: registered again when MODULES.md "The guard" comes off (S-M5-16)
       await flow('copper-lots', 'plan material', () => copperLotsFlow());
       await flow('discard', 'plan undo', () => discardFlow());
