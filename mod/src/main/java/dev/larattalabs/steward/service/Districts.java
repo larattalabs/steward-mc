@@ -610,6 +610,11 @@ public final class Districts {
 		return !placed.isEmpty() && placed.stream().allMatch(e -> Undo.retired(s, e));
 	}
 
+	/** (TEST) {@link #takeUp(MinecraftServer, Settlement, String, String, Consumer, Runnable)}. */
+	static void takeUpForTest(Settlement s, String siteId, Consumer<String> say, Runnable done) {
+		takeUp(null, s, siteId, "test", say, done);
+	}
+
 	private static void takeUpAll(MinecraftServer server, Settlement s, List<String> ids, Consumer<String> say, Runnable done) {
 		if (ids.isEmpty()) {
 			done.run();
@@ -620,6 +625,13 @@ public final class Districts {
 
 	/** Removes a road the settlement does not record, says how that went, then runs {@code done}. */
 	private static void takeUp(MinecraftServer server, Settlement s, String siteId, String why, Consumer<String> say, Runnable done) {
+		// (batch-077 review P1-1, the same rule) never while settlements are disabled: the road stands unrecorded, and the next session's reconcile takes it up
+		if (Settlements.disabled()) {
+			Steward.LOGGER.warn("road {} of {} is not taken up: settlements are disabled this session (taken up at the next start)", siteId, s.id());
+			say.accept(why + ": settlements are disabled this session, so the road " + siteId + " stands until the next session.");
+			done.run();
+			return;
+		}
 		int session = Session.current();
 		ArchitectAccess.api().sites(server).remove(siteId, new RemoveOptions(false, s.owner())).whenComplete((rr, e) -> {
 			if (!Session.is(session)) return;

@@ -113,6 +113,24 @@ public final class Pipeline {
 		}
 	}
 
+	/**
+	 * Whether a design's final answer, captured for the repair under {@code key}, ends {@code current}: the same repair (its lot and round are in its key)
+	 * and its own design. A completion queued for one repair that runs once another has begun (a restart's resumed repair ended, the rebind refused the
+	 * next lot) is not that repair's, and a repair whose design is not known yet takes no design at all.
+	 */
+	public static boolean ownsCompletion(@Nullable Repair current, String key, String designId) {
+		return current != null && current.key().equals(key) && current.designId() != null && current.designId().equals(designId);
+	}
+
+	/**
+	 * (WALL-RACE) Whether a repair design asked for under {@code key} was answered after that repair ended: the build has no repair now, or another
+	 * round's or lot's ({@code current}: the build's repair now, null with no state). Its design is then stopped, not left running. Unlike
+	 * {@link #ownsCompletion}, the design is not compared: the repair asked for it does not know it yet.
+	 */
+	public static boolean answeredAfterItsRepair(@Nullable Repair current, String key) {
+		return current == null || !current.key().equals(key);
+	}
+
 	/** A wall lot's design repairs at the bind (Architect K3): at most this many rounds a lot, each reserving its most, {@link #WALL_REPAIR_USD}. */
 	public static final int WALL_REPAIRS = 2;
 	public static final double WALL_REPAIR_USD = 2.0;

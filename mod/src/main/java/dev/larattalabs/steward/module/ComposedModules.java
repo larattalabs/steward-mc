@@ -226,13 +226,18 @@ public final class ComposedModules {
 	 * What the build sees of the town when it decides: the biome freezes water; it is built from materials; {@code held} the items the player
 	 * carries and (from materials) the stockpile holds, item id -> count (a sorting hall's chosen items: the most held filter kinds first).
 	 */
-	public record Town(boolean freezing, boolean materials, Map<String, Integer> held) {
+	public record Town(boolean freezing, boolean materials, Map<String, Integer> held, boolean lotCaps) {
 		public Town {
 			held = held == null ? Map.of() : Map.copyOf(held);
 		}
 
+		/** (LIFT-S) As before the per-lot cap: an Architect without {@link #LOT_CAP_FEATURE}, so from materials the guard is on. */
+		public Town(boolean freezing, boolean materials, Map<String, Integer> held) {
+			this(freezing, materials, held, false);
+		}
+
 		public Town(boolean freezing, boolean materials) {
-			this(freezing, materials, Map.of());
+			this(freezing, materials, Map.of(), false);
 		}
 	}
 
@@ -259,17 +264,25 @@ public final class ComposedModules {
 	 */
 	public static Decision decide(Asked a, @Nullable ModuleKind kind, ModuleGate.Verdict verdict, Town town, Set<String> taken, int @Nullable [] lotSize,
 		BiFunction<ModuleCatalog.Entry, JsonObject, @Nullable JsonObject> bounds) {
-		return decide(a, kind, verdict, town, taken, lotSize, bounds, MATERIALS_WAIT_FOR_LOT_CAP);
+		return decide(a, kind, verdict, town, taken, lotSize, bounds, materialsGuard(town.lotCaps()));
 	}
 
 	/**
-	 * (batch review blocker, the manager's rule-13 call, 2026-11-15; docs/MODULES.md "M5 design", "The guard") The single guard: while it is on, a composed
-	 * module lot in a town built from materials is left out of the town, said. Architect 0.72.0's {@code realiseApproved} takes no cap scoped to a lot,
-	 * so an inexact quote the player approved could consume past the module's measured bound while it builds, and the steward's "its measured limit"
-	 * would not be enforced; a region-wide {@code maxBill} would outlive its revision (BC-d) until v0.73.0. It comes off when a cap scoped to the module
-	 * lands (QD after BC-d, S-M5-16); the path behind it is kept and unit-tested. A town built at once is unchanged.
+	 * (LIFT-S, Architect LCAP v0.78.0) Architect's feature for a cap scoped to one lot ({@code ApprovedRealise.maxBillPerLot}, {@code Quote.lotBill},
+	 * {@code SiteWait.capScope}): with it, each composed module lot from materials is realised under its own measured bound.
 	 */
-	public static final boolean MATERIALS_WAIT_FOR_LOT_CAP = true;
+	public static final String LOT_CAP_FEATURE = "maxBillPerLot";
+
+	/**
+	 * (batch review blocker, the manager's rule-13 call, 2026-11-15; docs/MODULES.md "M5 design", "The guard"; LIFT-S) The single guard: while it is on,
+	 * a composed module lot in a town built from materials is left out of the town, said. It is on for an Architect without {@link #LOT_CAP_FEATURE}:
+	 * its {@code realiseApproved} takes no cap scoped to a lot, so an inexact quote the player approved could consume past the module's measured bound
+	 * while it builds, and the steward's "its measured limit" would not be enforced. It came off for an Architect with the per-lot cap (S-M5-16, slice
+	 * LCAP, v0.78.0; PLAN 2026-11-16 "Wait for per-module cap"). A town built at once is unchanged. Pure.
+	 */
+	public static boolean materialsGuard(boolean lotCaps) {
+		return !lotCaps;
+	}
 
 	/** As above, with the guard given (unit tests of the path behind it). */
 	static Decision decide(Asked a, @Nullable ModuleKind kind, ModuleGate.Verdict verdict, Town town, Set<String> taken, int @Nullable [] lotSize,
@@ -568,12 +581,20 @@ public final class ComposedModules {
 	}
 
 	/**
-	 * A module lot's share of a quote: its own pieces of {@code bomParts} ({@code lot:<id>}, the bound entry's construction bill, and {@code fill:<id>},
-	 * FK's filled containers), summed per item; empty when the quote has neither. Null when a piece isn't a bill of items. Pure.
+	 * (LIFT-S) The pieces of a quote that are one lot's own bill, as Architect's {@code Quote.LOT_PIECES} (LCAP): what a lot's {@code maxBillPerLot}
+	 * is checked against at put-down and while it builds.
+	 */
+	public static final List<String> LOT_PIECES = List.of("lot:", "fill:", "mech:");
+
+	/**
+	 * A module lot's share of a quote: its own pieces of {@code bomParts} ({@link #LOT_PIECES}: {@code lot:<id>}, the bound entry's construction bill;
+	 * {@code fill:<id>}, FK's filled containers; {@code mech:<id>}, a gate's mechanism), summed per item, as Architect's {@code Quote.lotBill}; empty
+	 * when the quote has none. Null when a piece isn't a bill of items. Pure.
 	 */
 	public static @Nullable JsonObject share(JsonObject bomParts, String lotId) {
 		Map<String, Integer> sum = new java.util.TreeMap<>();
-		for (String piece : List.of("lot:" + lotId, "fill:" + lotId)) {
+		for (String p : LOT_PIECES) {
+			String piece = p + lotId;
 			if (!bomParts.has(piece)) continue;
 			if (!bomParts.get(piece).isJsonObject()) return null;
 			JsonObject bill = ModuleBound.clean(bomParts.getAsJsonObject(piece));
@@ -637,14 +658,82 @@ public final class ComposedModules {
 		return new Held(next, null, why + " Their bills: " + String.join("; ", shown) + ".", null);
 	}
 
+	/**
+	 * (LIFT-S, Architect LCAP) What a composed realise from materials is sent with: each module lot's own cap ({@code maxBillPerLot}: its bound as
+	 * saved, the measured one in the town's blocks or the bill the player approved since). No region-wide {@code maxBill} (the LIFT-S GPT review,
+	 * P1): the rest of a composed town was never capped (it is billed as a Supplied plan v1 town's is), the player approves no bill for it, and a cap
+	 * on it could hold the town on terrain past its allowance with no way to raise it, said as "more than you approved". Architect applies the lot caps
+	 * alone then (LCAP: "lot caps with no maxBill cap only those lots"). {@code refused} says why it can't be sent capped (nothing is sent then).
+	 */
+	public record Caps(@Nullable Map<String, Map<String, Integer>> perLot, @Nullable String refused) {}
+
+	/**
+	 * (LIFT-S) The caps for a composed realise from materials of the quote's {@code bomParts} and the saved orders: only the lots this realise binds
+	 * ({@code realised}: never an earlier revision's lot, which Architect refuses {@code unknown_lot}). An order with no readable bound, a lot share
+	 * that isn't a bill, or a module lot this realise doesn't bind refuses. Deterministic (sorted). Pure.
+	 */
+	public static Caps caps(JsonObject bomParts, Map<String, ModuleOrder> orders, Set<String> realised) {
+		Map<String, Map<String, Integer>> perLot = new java.util.TreeMap<>();
+		for (var e : orders.entrySet()) {
+			String name = ModuleKind.of(e.getValue().moduleId()).map(ModuleKind::role).orElse(e.getKey().replace('_', ' '));
+			if (!realised.contains(e.getKey())) return new Caps(null, "the working " + name + "'s lot isn't one this realise builds");
+			Map<String, Integer> cap = ModuleBound.cap(e.getValue().bound());
+			if (cap == null) return new Caps(null, "the working " + name + " has no bound to hold its bill to");
+			if (share(bomParts, e.getKey()) == null) return new Caps(null, "Architect's quote of the working " + name + " is not a bill of items");
+			perLot.put(e.getKey(), cap);
+		}
+		return new Caps(java.util.Collections.unmodifiableMap(perLot), null);
+	}
+
+	/**
+	 * (LIFT-S, Architect LCAP) A {@code BILL_CAP} refusal's detail: {@code lot:<id>} (that lot's own bill at put-down was past its cap), {@code
+	 * unknown_lot:<id>} (a cap named a lot the realise doesn't bind: Steward's error, never asked again), or the region's ({@code ""}, anything else).
+	 */
+	public record CapRefusal(Scope scope, @Nullable String lot) {
+		public enum Scope { LOT, UNKNOWN_LOT, REGION }
+
+		public static CapRefusal of(@Nullable String detail) {
+			String d = detail == null ? "" : detail.strip();
+			if (d.startsWith("lot:") && d.length() > 4) return new CapRefusal(Scope.LOT, d.substring(4));
+			if (d.startsWith("unknown_lot:") && d.length() > 12) return new CapRefusal(Scope.UNKNOWN_LOT, d.substring(12));
+			return new CapRefusal(Scope.REGION, null);
+		}
+	}
+
+	/** The name a module lot goes by in the steward's words: "working crop farm" (its kind's role), else its lot id in words. Pure. */
+	public static String workingName(Map<String, ModuleOrder> orders, String lot) {
+		ModuleOrder o = orders.get(lot);
+		return "working " + (o == null ? lot.replace('_', ' ') : ModuleKind.of(o.moduleId()).map(ModuleKind::role).orElse(lot.replace('_', ' ')));
+	}
+
+	/**
+	 * (LIFT-S) What the steward says when a composed realise is refused at put-down ({@code BILL_CAP}), nothing written or taken: a module lot past its
+	 * measured limit is named; the region's keeps its words; an unknown lot is Steward's own error (the build stops). Pure.
+	 */
+	public static String putDownWords(CapRefusal r, Map<String, ModuleOrder> orders) {
+		return switch (r.scope()) {
+			case LOT -> "Not placed yet: when it was put down, the materials the " + workingName(orders, r.lot()) + " needed went past its limit. Nothing was"
+				+ " taken from the stockpile; I'll ask you again.";
+			case UNKNOWN_LOT -> "Not placed: Steward asked Architect to hold a lot the plan doesn't build (" + r.lot().replace('_', ' ') + ") to a bill. That's"
+				+ " Steward's mistake, so nothing is built and I won't ask again. Nothing was taken from the stockpile; start it again.";
+			case REGION -> "Not placed yet: the materials needed went past what you approved. Nothing was taken from the stockpile; I'll ask you again.";
+		};
+	}
+
+	/** What an order's bound is called: "its approved limit" once the player approved a held bill as its bound, else "its measured limit". Pure. */
+	static String limitWords(ModuleOrder o) {
+		return o.inexactApproved() ? "its approved limit" : "its measured limit";
+	}
+
 	/** Each module's bill with its limit, for the words (Noah, 2026-11-15: the limit is shown with the quote). */
 	private static List<String> bounded(Map<String, ModuleOrder> orders, Map<String, JsonObject> shares) {
 		List<String> out = new ArrayList<>();
 		for (var e : orders.entrySet()) {
 			String name = ModuleKind.of(e.getValue().moduleId()).map(ModuleKind::role).orElse(e.getKey().replace('_', ' '));
 			JsonObject share = shares.get(e.getKey());
-			out.add("the working " + name + " takes " + (share == null || share.isEmpty() ? "nothing" : ModuleBound.bill(share, 1000)) + " (its measured limit: "
-				+ ModuleBound.bill(e.getValue().bound(), 1000) + ")");
+			// (batch-077 review P3) a bound the player approved since (a held bill, ModuleOrder#approvedHeld) is no longer the measured one
+			out.add("the working " + name + " takes " + (share == null || share.isEmpty() ? "nothing" : ModuleBound.bill(share, 1000)) + " (" + limitWords(e.getValue())
+				+ ": " + ModuleBound.bill(e.getValue().bound(), 1000) + ")");
 		}
 		return out;
 	}

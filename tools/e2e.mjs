@@ -1587,8 +1587,8 @@ async function landFlow() {
   const said = (re) => new RegExp(`\\[${name}\\] ${re}`);
   from = logSize();
   await cmd(`/steward check ${id}`);
-  // an automatic look of the new town may be running: asked again once it is done
-  if (await waitLog(from, /looking over the land already/, 3000)) {
+  // an automatic look of the new town may be running, or have just ended (LandChecks.AGAIN_MS, 3 s): asked again once it is done
+  if (await waitLog(from, /looking over the land already|I just looked over [^\n]*ask me again in a moment/, 3000)) {
     await sleep(5000);
     from = logSize();
     await cmd(`/steward check ${id}`);
@@ -2667,7 +2667,7 @@ async function composedModulesFlow() {
   await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
   await cmd('/clear @p');
   await clearAnimals();
-  await cmd('/steward dev modules {}');
+  await composedSource();
   await cmd('/steward claim');
   const id = settlements().at(-1).id;
   await closeScreens();
@@ -2820,10 +2820,12 @@ async function composedModulesStreetFlow() {
 }
 
 /**
- * (slice M5a, docs/MODULES.md "M5 design", "The guard") A composed town built from materials: while no cap scoped to a module lot exists (S-M5-16), each
- * module lot of the plan is left out of the town, said (never designed in its place, never a pad); the town is built from the stockpile without them
- * (its two cottages) and, undone, every consumed unit comes back once. The held-bill path behind the guard is composed-modules-restart's (registered
- * again when the guard comes off) and the units'.
+ * (slice LIFT-S, Architect LCAP v0.78.0; docs/MODULES.md "M5 design", "The guard") A composed town built from materials, its working modules built
+ * and each billed within its own cap: at the start each module lot says its bound's rule with the crash exception; the first realise is sent with
+ * one item of the farm's lot cap as 0 (/steward dev cap_short), so Architect refuses it at put-down (BILL_CAP, lot:<farm>), said naming the farm,
+ * saved and asked again; approved, the quote says each module's bill and limit, and the realise is sent with maxBillPerLot = each lot's bound (no
+ * region maxBill: the rest of the town is billed as before); an unclean halt mid-build, the reconcile under the lot caps; built, each lot's draws within its cap (no
+ * overshoot), the stockpile's loss = what the region's sites drew, item by item; undone, every consumed unit comes back once.
  */
 async function composedModulesSurvivalFlow() {
   const label = 'composed modules survival';
@@ -2832,7 +2834,7 @@ async function composedModulesSurvivalFlow() {
   await cmd('/gamemode creative @p');
   let feeding = false, stop = false, feeder = null;
   try {
-    await cmd('/steward dev modules {}');
+    ok(`${label} source`, await composedSource());
     const n = settlements().length;
     await cmd(`/spreadplayers ${(n + 1) * 900} 96000 0 1 false @p`);
     await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
@@ -2861,43 +2863,166 @@ async function composedModulesSurvivalFlow() {
     const ledger = async () => {
       const r = await cmd(`/steward dev stockpile ${id}`);
       const m = r.match(/stockpile \S+ (\{.*\})/);
-      return m ? JSON.parse(m[1]) : null;
+      return m ? unweathered(JSON.parse(m[1])) : null;
     };
     feeder = (async () => {
       while (!stop) {
         await sleep(3000);
-        if (!feeding) continue;
+        if (!feeding || !dev) continue;
         const sp = await ledger().catch(() => null);
-        if (sp && Object.keys(sp.need ?? {}).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+        if (sp && Object.keys(sp.need ?? {}).length && dev) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
       }
     })();
     feeding = true;
+    // the farm's lot cap sent with its composter as 0, once: Architect refuses the first realise at put-down, naming the farm's lot
+    const shortItem = 'minecraft:composter';
+    await cmd(`/steward dev cap_short ${shortItem}`);
+    const sp0 = await ledger();
     from = logSize();
+    const startAt = from;
     await cmd(`/steward start ${id} 3 30`);
-    const built = await buildThrough(id, from, label, false, null, 1_800_000);
-    if (!built) return;
-    const done = await waitLog(from, new RegExp(`${name} is built: everything its plan laid out stands`), 900_000);
+    // approved as it comes (the bible, massings, placement, a held bill); halted once mid-build, within the caps
+    const holds = [];
+    let region = null, halted = null, built = false;
+    // the client's log starts again at a restart: what it said before the halt is kept
+    let preHalt = '', at = startAt;
+    const said = () => preHalt + logSince(at);
+    const capOf = async (q) => dev.request('dev.bc.cap', { region, rid: 0, ...q }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
+    const sum = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    const end = Date.now() + 2_400_000;
+    while (Date.now() < end) {
+      await sleep(3000);
+      const since = said();
+      if (new RegExp(`${name} is built: everything its plan laid out stands`).test(since)) { built = true; break; }
+      const stopped = since.match(/(?:^|\s)Not placed: [^\n]*|The build stopped[^\n]*|Cancelled [^\n]*/);
+      if (stopped) return fail(label, `stopped: ${stopped[0].slice(0, 300)}`);
+      // the region once the realise is answered (the saved build's), else the history's entry
+      if (!region) region = savedBuild(id)?.vRegion ?? /^region:(.+)$/.exec((settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '')?.[1] ?? null;
+      // (BC-c, LCAP) an unclean halt once the farm's lot has drawn part of its bill with more to draw
+      if (region && !halted) {
+        // fed half of what it needs from now on, so the farm's lot is caught part way; the hall's fill items in full (its filter hoppers take 41 of
+        // each at once: an unclean start with them half stocked leaves the fill out of the stockpile's outstanding and the hall waiting with
+        // nothing named, an Architect gap seen in LIFT-S run 2)
+        feeding = false;
+        const sp = await ledger().catch(() => null);
+        const fillItems = new Set(['minecraft:cobblestone', 'minecraft:iron_ingot', 'minecraft:wheat', 'minecraft:coal']);
+        const part = Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, c]) => [k, fillItems.has(k) ? c : Math.max(1, Math.floor(c / 2))]));
+        if (Object.keys(part).length) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: part }).catch(() => null);
+        await sleep(5000);
+        const c = await capOf({ lot: 'farm_1' });
+        const sp2 = await ledger().catch(() => null);
+        if (sum(c?.lotCap?.drawn) > 0 && Object.keys(sp2?.need ?? {}).length) {
+          const lbl = `${label} crash within the lot caps`;
+          preHalt = said();
+          at = logSize();
+          await dev.request('dev.stockpile.halt', { mode: 'now' }, { timeoutMs: 10_000 }).catch(() => null);
+          for (let i = 0; i < 120 && client.exitCode === null; i++) await sleep(1000);
+          if (client.exitCode === null) return fail(lbl, 'dev.stockpile.halt did not halt the client in 120 s');
+          dev = null;
+          await sleep(4000);
+          preHalt += logSince(at);
+          at = 0;
+          launch();
+          await connect();
+          await cmd('/architect survival on');
+          await cmd('/gamemode creative @p');
+          await sleep(5000);
+          const a = await dev.request('dev.stockpile.audit', { owner }, { timeoutMs: 120_000 }).catch(() => ({}));
+          const lots = {};
+          for (const lot of ['farm_1', 'warehouse_1']) lots[lot] = await capOf({ lot });
+          const overs = Object.entries(lots).filter(([, x]) => Object.keys(x?.lotCap?.overshoot ?? {}).length);
+          const capKept = Object.values(lots).every((x) => x && !x.refused && Object.keys(x.lotCap?.maxBill ?? {}).length);
+          halted = { audit: a, lots };
+          feeding = true;
+          if (a.uncleanStart === true && capKept && !overs.length)
+            ok(lbl, `unclean start; the lot caps read back after the restart (${Object.keys(lots).join(', ')}), none past its cap; farm drew ${sum(lots.farm_1?.lotCap?.drawn)}`);
+          else return fail(lbl, `unclean ${a.uncleanStart}; caps ${JSON.stringify(lots).slice(0, 400)}; past ${overs.map(([k]) => k).join(',')}`);
+          continue;
+        }
+      }
+      const st = savedBuild(id)?.state;
+      if (st && /^AWAITING_(BIBLE|MASSING|PLACEMENT)_APPROVAL$/.test(st.phase ?? '')) {
+        if (st.heldNote && !holds.includes(st.heldNote)) holds.push(st.heldNote);
+        await cmd(`/steward approve ${id}`);
+      }
+    }
+    await cmd('/steward dev cap_short none').catch(() => null);
     feeding = false;
-    const since = logSince(from);
-    const guard = /can't be held to its measured limit in a town built from materials yet; it's left out for now/;
-    const farmOut = since.match(/The plan's the village field is left out of the town: [^\n]*/);
-    const hallOut = since.match(/The plan's the storage hall is left out of the town: [^\n]*/);
+    const since = said();
+    if (!halted) fail(`${label} crash within the lot caps`, `never halted: the farm's lot never caught part way (region ${region})`);
+    if (!built) return fail(label, `not built in 40 min; region ${region}; phase ${savedBuild(id)?.state?.phase}; ${since.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+    // the modules bound and placed (never left out, never designed): 2 cottages designed
     const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
-    const bound = /module \S+ lot (farm_1|warehouse_1):/.test(since);
+    const leftOut = since.match(/The plan's [^\n]* is left out of the town: [^\n]*/);
     const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
     const mods = await moduleSites(placed);
-    if (farmOut && guard.test(farmOut[0]) && hallOut && guard.test(hallOut[0]) && designing === '2' && !bound && mods.length === 0)
-      ok(`${label} left out`, `${farmOut[0].slice(0, 200)}; the hall too; ${designing} designed, no module bound or placed`);
-    else return fail(`${label} left out`, `farm ${farmOut?.[0]?.slice(0, 120)}; hall ${hallOut?.[0]?.slice(0, 120)}; designing ${designing}; bound ${bound}; module sites ${mods.length}`);
-    if (done && /^region:/.test(placed?.siteGroup ?? '') && built.placed === 2) ok(label, `the town built from the stockpile without them (${placed.siteGroup}, ${built.placed} buildings)`);
-    else return fail(label, `built ${!!done}; placed ${built.placed}; entry ${placed?.siteGroup}`);
-    // undone: every unit consumed comes back once
+    const rule = /From materials, its bill is held to its measured bound: if it would take more, I ask first; I stop before passing it, except to pay for blocks already standing after a crash\./;
+    const farmSaid = since.match(/The plan's [^\n]* is a working crop farm from Steward's measured catalog[^\n]*/)?.[0] ?? '';
+    const hallSaid = since.match(/The plan's [^\n]* is a working storage hall from Steward's measured catalog[^\n]*/)?.[0] ?? '';
+    if (!leftOut && designing === '2' && mods.length === 2 && rule.test(farmSaid) && rule.test(hallSaid))
+      ok(`${label} built`, `both modules placed from the catalog (${mods.map((m) => m.key).join(', ')}), ${designing} designed; said: ${farmSaid.slice(0, 160)}`);
+    else return fail(`${label} built`, `left out ${leftOut?.[0]?.slice(0, 160)}; designing ${designing}; module sites ${mods.length}; farm said ${farmSaid.slice(0, 120)}; hall said ${hallSaid.slice(0, 120)}`);
+    // the put-down refusal: sent with the composter 0 in the farm's cap, refused lot:farm_1, said naming the farm, asked again (saved refused)
+    const sends = [...since.matchAll(new RegExp(`composed modules ${id} realise \\S+ under \\S+: maxBillPerLot \\{(.*)\\}\\s*$`, 'gm'))];
+    const parseMap = (t) => Object.fromEntries(t.split(', ').filter(Boolean).map((kv) => kv.split('=')).map(([k, c]) => [k, Number(c)]));
+    const lotsOf = (t) => Object.fromEntries([...t.matchAll(/(\w+)=\{([^}]*)\}/g)].map((m) => [m[1], parseMap(m[2])]));
+    const sent = sends.map((m) => ({ perLot: lotsOf(m[1]) }));
+    {
+      const lbl = `${label} lot cap refusal`;
+      const shorted = new RegExp(`composed modules ${id}: dev cap_short ${shortItem} in lot farm_1`).test(since);
+      const refused = new RegExp(`composed modules ${id} realise refused at put-down \\(CapRefusal\\[scope=LOT, lot=farm_1\\]\\)`).test(since);
+      const named = /Not placed yet: when it was put down, the materials the working crop farm needed went past its limit\. Nothing was taken from the stockpile; I'll ask you again\./.test(since);
+      const reask = holds.find((h) => h.includes('When it was put down, the materials needed went past what you approved.'));
+      const first = sent[0], last = sent.at(-1);
+      if (shorted && refused && named && reask && sent.length >= 2 && first.perLot.farm_1?.[shortItem] === 0 && last.perLot.farm_1?.[shortItem] > 0)
+        ok(lbl, `refused at put-down naming the farm's lot, said so; asked again "${reask.slice(0, 140)}"; approved, sent with ${shortItem} ${last.perLot.farm_1[shortItem]}`);
+      else return fail(lbl, `shorted ${shorted}; refused ${refused}; said ${named}; reask ${!!reask}; sends ${JSON.stringify(sent).slice(0, 300)}; holds ${holds.map((h) => h.slice(0, 80)).join(' | ')}`);
+    }
+    // the quote's words: each module's bill and limit, with the crash exception
+    {
+      const lbl = `${label} quote words`;
+      const q = since.match(/From materials, the working crop farm takes [^\n]*/)?.[0] ?? '';
+      if (/\(its measured limit: [^)]*\)/.test(q) && /the working storage hall takes [^\n]*\(its measured limit: /.test(q) && q.includes('I stop before passing it, except to pay for blocks already standing after a crash.'))
+        ok(lbl, q.slice(0, 240));
+      else return fail(lbl, `no quote words with both limits: ${q.slice(0, 240) || 'none'}`);
+    }
+    // each lot's cap as sent (its bound), Architect's record of it, its draws within it and no overshoot; no region-wide maxBill (the rest of the
+    // town is billed as before)
+    const last = sent.at(-1);
+    {
+      const lbl = `${label} lot caps`;
+      const off = [];
+      for (const lot of ['farm_1', 'warehouse_1']) {
+        const c = await capOf({ lot });
+        const cap = last?.perLot?.[lot];
+        if (!cap || !c?.lotCap) { off.push(`${lot}: no cap sent or recorded (${JSON.stringify(c).slice(0, 160)})`); continue; }
+        if (!sameItems(c.lotCap.maxBill, cap)) off.push(`${lot}: recorded ${JSON.stringify(c.lotCap.maxBill)} != sent ${JSON.stringify(cap)}`);
+        for (const [k, v] of Object.entries(c.lotCap.drawn ?? {})) if (v > (cap[k] ?? 0)) off.push(`${lot}: drew ${v} ${k} past its cap ${cap[k] ?? 0}`);
+        if (Object.keys(c.lotCap.overshoot ?? {}).length) off.push(`${lot}: overshoot ${JSON.stringify(c.lotCap.overshoot)}`);
+      }
+      const region0 = await capOf({});
+      if (region0?.maxBill && Object.keys(region0.maxBill).length) off.push(`a region maxBill was recorded: ${JSON.stringify(region0.maxBill).slice(0, 160)}`);
+      if (!off.length) ok(lbl, `each module lot drew within its own cap, as sent and as Architect recorded it; no region maxBill (${Object.keys(last.perLot).join(', ')})`);
+      else fail(lbl, off.slice(0, 6).join('; '));
+    }
+    // conservation: the stockpile's loss is what the region's sites drew, item by item
     const spB = await ledger();
+    {
+      const lbl = `${label} stock = draws`;
+      const c = await capOf({});
+      const lost = minusItems(spB?.consumed, sp0?.consumed);
+      const drawn = c?.drawn ?? {};
+      const total = plusItems(c?.paid ?? {}, c?.regionCharged ?? {});
+      if (c && !c.refused && sameItems(lost, drawn) && sameItems(drawn, total))
+        ok(lbl, `the stockpile lost ${sum(lost)} units over ${Object.keys(lost).length} items, exactly what the sites drew (paid ${sum(c.paid)} + region ${sum(c.regionCharged)})`);
+      else fail(lbl, `lost ${JSON.stringify(minusItems(lost, drawn)).slice(0, 200)} more than drawn; drawn-total ${JSON.stringify(minusItems(drawn, total)).slice(0, 200)}; ${JSON.stringify(c).slice(0, 200)}`);
+    }
+    // undone: every unit consumed comes back once
     await cmd(`/steward undo ${id}`);
-    let last = null;
-    for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    let lastOp = null;
+    for (let i = 0; i < 300 && lastOp?.kind !== 'PROJECT_REMOVED'; i++) {
       await sleep(2000);
-      last = settlements().find((x) => x.id === id)?.log.at(-1);
+      lastOp = settlements().find((x) => x.id === id)?.log.at(-1);
     }
     await sleep(10_000);
     const spR = await ledger();
@@ -2909,8 +3034,8 @@ async function composedModulesSurvivalFlow() {
       if (back !== used) off.push(`${item} ${back}/${used}`);
     }
     const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
-    if (last?.kind === 'PROJECT_REMOVED' && off.length === 0) ok(`${label} refund`, `${last.text}; every consumed unit came back (${units(spB?.consumed)})`);
-    else fail(`${label} refund`, `${last?.kind}; refunds off: ${off.slice(0, 8).join(', ')}`);
+    if (lastOp?.kind === 'PROJECT_REMOVED' && off.length === 0) ok(`${label} refund`, `${lastOp.text}; every consumed unit came back (${units(spB?.consumed)})`);
+    else fail(`${label} refund`, `${lastOp?.kind}; refunds off: ${off.slice(0, 8).join(', ')}`);
     // (M5b) conservation over the stockpile, the world and the ledger: undone, every item delivered is in the stock again or in the refund's
     // overflow (delivered = stock + overflow), and nothing of the settlement stands in the world (no site left but the stockpile's own)
     const leak = [];
@@ -2924,9 +3049,34 @@ async function composedModulesSurvivalFlow() {
   } finally {
     stop = true;
     if (feeder) await feeder;
+    await cmd('/steward dev cap_short none').catch(() => null);
+    await cmd('/steward dev modules {}').catch(() => null);
     await cmd('/defaultgamemode creative');
     await cmd('/architect survival off');
   }
+}
+
+/**
+ * (LIFT-S) Whether the catalog's composed modules (crop_farm@1, storage_hall@2) are certified on the pinned Architect (their measured.json names it).
+ */
+function modulesCertified() {
+  const pin = /^architect_version=(.*)$/m.exec(fs.readFileSync(path.join(ROOT, 'mod', 'gradle.properties'), 'utf8'))?.[1]?.trim();
+  return ['crop_farm/1', 'storage_hall/2', 'storage_hall/1'].every((m) => {
+    try {
+      return JSON.parse(fs.readFileSync(path.join(ROOT, 'modules', m, 'measured.json'), 'utf8')).architect.includes(pin);
+    } catch {
+      return false;
+    }
+  });
+}
+
+/**
+ * (LIFT-S) The composed flows' modules: the live catalog when it certifies the pinned Architect; until the pin's smoke carry does, the same catalog
+ * (its measured bounds) under a measuring gate, the farm and the hall both (a dev source: never a player's game).
+ */
+async function composedSource() {
+  if (modulesCertified()) return cmd('/steward dev modules {}');
+  return `${await cmd(`/steward dev modules ${JSON.stringify({ dir: path.join(ROOT, 'modules'), id: 'crop_farm,storage_hall', measuring: true })}`)} (not certified on this Architect yet)`;
 }
 
 /** (slice M5a) The build's saved state (steward-builds.json), or null. */
@@ -3400,11 +3550,15 @@ async function survivalFlow() {
     }
     if (!done) return fail('supplied build', `not all built: ${JSON.stringify(sp?.sites?.map((x) => x.state))}, still needed ${units(sp?.need)}`);
     ok('supplied build', `${sp.sites.length} sites built from the stockpile: ${units(sp.delivered)} delivered, ${units(sp.consumed)} consumed`);
-    // undo: what the builds consumed comes back into the stockpile (what does not fit is dropped and counted as overflow); off the street and lots first
+    // undo: what the builds consumed comes back into the stockpile (since Architect 0.77.0's OVF a keyed refund enters it whole, past capacity if need be;
+    // refundOverflow, still summed in, counts only unkeyed give-backs such as a swap's old block); off the street and lots first
     // (Architect holds a removal while a player stands in what it removes), near enough that their chunks stay loaded
     const here = settlements().find((x) => x.id === id).claim;
     await cmd(`/tp @p ${here.centerX} ~ ${here.centerZ + 60}`);
     const before = sp;
+    // (OVF-S2) the stockpile full before the undo (Architect's TEST capacity, every pile's, reset in finally): its keyed refund takes it past capacity
+    const ovf = await dev.request('dev.stockpile.ps', { capacity: before.usedStacks ?? 0 }, { timeoutMs: 30_000 }).catch((e) => ({ error: String(e) }));
+    if (ovf?.capacity !== (before.usedStacks ?? 0)) return fail('over capacity', `the TEST capacity was not set: ${JSON.stringify(ovf).slice(0, 200)}`);
     from = logSize();
     await cmd(`/steward undo ${id}`);
     // the undo's own lines go to the command's sender after the command returned (the dev bridge has stopped listening by then): read the history
@@ -3422,7 +3576,42 @@ async function survivalFlow() {
     }
     if (undone && /Undone/.test(undone[0]) && off.length === 0) ok('refund', `${undone[0]}; every consumed unit came back (${units(before.consumed)})`);
     else fail('refund', `${undone ? undone[0] : 'no undo'}; refunds off: ${off.slice(0, 8).join(', ')}`);
+    // (OVF-S2) past capacity: all of the refund in the stock (returned grew by exactly what was consumed, refundOverflow unchanged, so nothing lies by the
+    // crate), the line said with its excess, and an item no build needs refused at the crate with Architect's over-capacity message
+    const overflowed = Object.entries(sp?.refundOverflow ?? {}).filter(([k, n]) => n !== (before.refundOverflow?.[k] ?? 0));
+    const inStock = Object.entries(before.consumed).filter(([k, n]) => (sp?.returned?.[k] ?? 0) - (before.returned?.[k] ?? 0) !== n);
+    const pastCap = (sp?.usedStacks ?? 0) - (sp?.capacityStacks ?? 0);
+    const said = await waitLog(from, /holds more than it fits: (\d+) stacks? over[^\n]*/, 30_000);
+    if (pastCap > 0 && overflowed.length === 0 && inStock.length === 0 && said && Number(said[1]) === pastCap) {
+      ok('over capacity', `${sp.usedStacks} of ${sp.capacityStacks} stacks, all of the refund in the stock: ${said[0].slice(0, 200)}`);
+    } else {
+      fail('over capacity', `${sp?.usedStacks} of ${sp?.capacityStacks} stacks; overflow ${JSON.stringify(overflowed)}; not in stock ${inStock.slice(0, 6).join(' ')};`
+        + ` said ${said ? said[0].slice(0, 160) : 'nothing'}`);
+    }
+    // the crates lie within 8 of the stone (Insert reaches 16), on the ground; nothing is being built, so no build needs cobblestone
+    await cmd(`/spreadplayers ${here.centerX} ${here.centerZ} 0 1 false @p`);
+    // none carried before (so the count after is the 16 given, none other)
+    await dev.request('dev.command', { cmd: '/clear @p minecraft:cobblestone' }).catch(() => null);
+    await cmd('/give @p minecraft:cobblestone 16');
+    // dev.request answers the bridge's raw response, a refusal included ({ok: false, error}), never a rejection: Architect 0.78.0's Insert from inventory
+    // moves nothing into a stockpile over capacity and throws Stockpiles.OVER_CAPACITY (a DevException), so the answer is not ok and moves nothing
+    const refused = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, inventory: true }, { timeoutMs: 30_000 })
+      .then((r) => ({ ok: r?.ok === true, moved: r?.moved, error: r?.error }), (e) => ({ ok: false, lost: String(e?.message ?? e) }));
+    const spR = await ledger();
+    // the player's 16 still with them, nothing left the inventory: /clear's command result is the count it removed (dev.command's typed result)
+    const cleared = await dev.request('dev.command', { cmd: '/clear @p minecraft:cobblestone' }).catch(() => null);
+    const kept = Number(cleared?.result ?? 0);
+    const stillOver = (spR?.usedStacks ?? 0) > (spR?.capacityStacks ?? 0);
+    // Architect's refusal carries no code (DevBridge sends a DevException as its message only): its exact words, Stockpiles.OVER_CAPACITY
+    const OVER_CAPACITY = 'This stockpile is over capacity: use or take stock first';
+    if (!refused.ok && !refused.lost && refused.moved == null && refused.error === OVER_CAPACITY && !spR?.stock?.['minecraft:cobblestone'] && kept === 16 && stillOver) {
+      ok('over capacity refusal', `${refused.error.slice(0, 160)}; 16 cobblestone kept, none in stock`);
+    } else {
+      fail('over capacity refusal', `${JSON.stringify(refused).slice(0, 200)}; cobblestone in stock ${spR?.stock?.['minecraft:cobblestone'] ?? 0}; kept ${kept}/16;`
+        + ` ${spR?.usedStacks} of ${spR?.capacityStacks} stacks`);
+    }
   } finally {
+    await dev.request('dev.stockpile.ps', { capacity: -1 }, { timeoutMs: 30_000 }).catch(() => null);
     await cmd('/architect survival off');
   }
 }
@@ -3567,7 +3756,8 @@ async function suppliedPlanFlow() {
     if (flight && !flight.fits && /OVERLAP_BUSY/.test(`${flight.reason} ${flight.code} ${flight.message} ${flight.refused}`)) ok('beside a town in flight', String(flight.message ?? flight.refused).slice(0, 140));
     else fail('beside a town in flight', flight ? JSON.stringify(flight).slice(0, 240) : 'the town was never seen placing');
     // (the town's growth from materials is supplied-growth's, through Steward alone; the old dev-call check here is retired)
-    // undone: every unit still consumed back in the stockpile (or dropped and counted as overflow)
+    // undone: every unit still consumed back in the stockpile (since OVF, 0.77.0, all of it, past capacity if need be; refundOverflow, still summed in,
+    // counts only unkeyed give-backs)
     await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
     const before = await ledger();
     await cmd(`/steward undo ${id}`);
@@ -3943,7 +4133,10 @@ async function suppliedGrowthFlow(mode = null) {
     }
     // (A2L) every take-up judged the same way (the GPT design review 3): what came back = what the growth drew, and it is in the crates (the stock gained
     // exactly the refund, nothing overflowed), once (nothing more 20 s on); one entry and one completion under its revision's tag; none of its sites left
-    // in the ledger, nothing outstanding; its revision UNDONE; the ground as before the growths, the crates aside
+    // in the ledger, nothing outstanding; its revision UNDONE; the ground as before the growths, the crates aside. "Nothing overflowed" (over empty) holds
+    // by Architect 0.77.0's OVF: a take-up's refund is keyed (a region or group removal), so it enters the stock whole, past capacity if need be, and
+    // refundOverflow grows only by unkeyed give-backs (a swap's old block, the feed's bucket), which no take-up makes; a later release that keys every
+    // give-back keeps it so
     const delta = (a, b) => { const o = {}; for (const k of new Set([...Object.keys(a ?? {}), ...Object.keys(b ?? {})])) { const n = (a?.[k] ?? 0) - (b?.[k] ?? 0); if (n) o[k] = n; } return o; };
     const backOf = (x) => plusItems(x?.returned, x?.refundOverflow);
     const crates = () => (settlements().find((x) => x.id === id)?.lands?.protect ?? []).find((a) => a.label === 'the stockpile (kept clear for plans)');
@@ -5751,7 +5944,8 @@ const MODULE_DIR = path.join(ROOT, 'modules', MODULE, '1');
  * (dev only: to hold its bill on purpose).
  */
 async function moduleSource(bounds) {
-  const req = { dir: path.join(ROOT, 'modules'), id: MODULE, measuring: false, ...(bounds ? { bounds, override: true } : {}) };
+  // (LIFT-S) its real certification gate, or a measuring one until the pin's smoke carry certifies it on this Architect
+  const req = { dir: path.join(ROOT, 'modules'), id: MODULE, measuring: !modulesCertified(), ...(bounds ? { bounds, override: true } : {}) };
   return cmd(`/steward dev modules ${JSON.stringify(req)}`);
 }
 
@@ -6278,7 +6472,8 @@ async function moduleHallSurvivalFlow() {
     const region = /^region:(.+)$/.exec((st0?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1)?.siteGroup ?? '')?.[1];
     if (!region) return fail(label, 'the town is not a region');
     ok(`${label} town`, `${region} built from the stockpile (${town.placed} buildings)`);
-    await cmd('/steward dev modules {}');
+    // (LIFT-S) the live catalog, or @1 under a measuring gate until the pin's smoke carry certifies it on this Architect
+    await cmd(modulesCertified() ? '/steward dev modules {}' : `/steward dev modules ${JSON.stringify({ dir: path.join(ROOT, 'modules'), id: HALL, measuring: true })}`);
     // the sign: 12 kinds; then the offer's bound, stocked twice
     const kinds = ['cobblestone', 'dirt', 'oak_planks', 'oak_log', 'sand', 'gravel', 'andesite', 'granite', 'diorite', 'coal', 'iron_ingot', 'wheat'];
     // (carried: the stockpile takes only what its targets owe, so the 12 kinds go in the player's inventory, which the sign reads too)
@@ -7478,10 +7673,13 @@ async function moduleSurvivalStreetFlow() {
     const quotedAt = await waitLog(from, quoteRe, 600_000);
     const quoted = quotedAt ? JSON.parse(quoteRe.exec(quotedAt[0])[1]) : null;
     if (!quoted) return fail(label, `no quote logged in 10 min; ${chatTail(from)}`);
-    const heldOver = await waitLog(from, /The bill came to more than you approved[^\n]*|is built(?: in part)?: \d+ buildings? placed|construction sites stand and are built/, 240_000);
-    if (heldOver && /more than you approved/.test(heldOver[0])) {
+    // or held as inexact (a paid cell of natural terrain may already stand in the land where the lanes go; seen on batch 077's runs, not on 076's): the
+    // player's word builds it with that bill, as module-survival's inexact-only hold
+    const heldOver = await waitLog(from, /The bill came to more than you approved[^\n]*|Architect can't quote the bill exactly[^\n]*|is built(?: in part)?: \d+ buildings? placed|construction sites stand and are built/, 240_000);
+    if (heldOver && /more than you approved|can't quote the bill exactly/.test(heldOver[0])) {
       await feed(Object.fromEntries(Object.entries(quoted).map(([k, n]) => [k, n * 2 + 16])));
-      await cmd(`/steward approve ${id}`);
+      const word = await cmd(`/steward approve ${id}`);
+      ok(`${label} held`, `${heldOver[0].slice(0, 120)}; approved: ${word.slice(0, 80)}`);
     }
     const grew = await buildThrough(id, from, label, false, null, 1_200_000);
     if (!grew) return;
@@ -8941,7 +9139,8 @@ try {
       await flow('composed-modules', 'composed module farm hall plan water undo', () => composedModulesFlow());
       await flow('composed-modules-survival', 'composed module farm survival stockpile bill refund', () => composedModulesSurvivalFlow());
       await flow('composed-modules-street', 'composed module farm hall sculpt street', () => composedModulesStreetFlow());
-      // (slice M5a) composed-modules-restart holds a composed farm's bill from materials: registered again when MODULES.md "The guard" comes off (S-M5-16)
+      // (slice M5a; LIFT-S) a composed farm's bill from materials held, kept across a restart, re-checked stale and realised under its lot cap
+      await flow('composed-modules-restart', 'composed module farm survival stockpile bill restart', () => composedModulesRestartFlow());
       await flow('copper-lots', 'plan material', () => copperLotsFlow());
       await flow('discard', 'plan undo', () => discardFlow());
       await flow('beside', 'plan', () => besideFlow());

@@ -147,7 +147,8 @@ public final class Stockpiles {
 
 	/**
 	 * Folds the crates older builds left into the stockpile (Architect's adoptCrates: idempotent). What did not fit is dropped at a crate: the player is told
-	 * how much, and where.
+	 * how much, and where. (Slice OVF-S) Architect 0.77.0's OVF leaves this as it was: adoption is not a keyed refund, so its overflow still drops at the
+	 * crate and is booked in {@code dropped}, which this reads; when a later Architect takes it into the stock instead, the count stays 0 and nothing is said.
 	 */
 	private static Stockpile adopt(MinecraftServer server, Settlement s, Stockpile sp, Consumer<String> say) {
 		int droppedBefore = sp.dropped().values().stream().mapToInt(Integer::intValue).sum();
@@ -237,10 +238,30 @@ public final class Stockpiles {
 		}
 	}
 
+	/**
+	 * (Slice OVF-S) Said when a refund took the stockpile of settlement {@code id} past its capacity ({@code over}: used stacks less capacity), else null.
+	 * Since Architect 0.77.0 (OVF) a keyed refund enters the stock whole, past capacity if need be; until it fits again only items an active (unpaused)
+	 * build still misses go in. The ways back under (OVF-S2): the crate's Take gives out credit only (stock no build needs, paused ones included), a crate
+	 * adds 27 stacks, and a paused build resumed uses what it holds. (Whether a paused build holds the excess can't be read through Architect's API, which
+	 * has no paused state: so the ways are said, not the case.)
+	 */
+	static @Nullable String overCapacityWords(int over, String id) {
+		if (over <= 0) return null;
+		return "The stockpile now holds more than it fits: " + Words.count(over, "stack", "stacks") + " over. Until it is back under, only items your running builds"
+			+ " still need go in. To bring it under, take out at a crate what no build needs, add a crate (/steward stockpile " + id + " add), or resume a paused"
+			+ " build that needs what it holds.";
+	}
+
+	/** (Slice OVF-S2) {@code /steward stockpile}'s count line: the crates, used of capacity, and by how much it is over capacity when it is. Pure. */
+	static String countLine(int crates, int used, int capacity) {
+		return "Stockpile: " + Words.count(crates, "crate", "crates") + ", " + used + " of " + Words.count(capacity, "stack", "stacks") + " used"
+			+ (used > capacity ? ", over capacity by " + Words.count(used - capacity, "stack", "stacks") : "") + ".";
+	}
+
 	/** What the stockpile holds and what the builds still need, in a few lines (the most needed first). */
 	public static List<String> bill(Stockpile sp, int lines) {
 		List<String> out = new ArrayList<>();
-		out.add("Stockpile: " + Words.count(sp.crates().size(), "crate", "crates") + ", " + sp.usedStacks() + " of " + Words.count(sp.capacityStacks(), "stack", "stacks") + " used.");
+		out.add(countLine(sp.crates().size(), sp.usedStacks(), sp.capacityStacks()));
 		var short_ = shortfall(sp);
 		if (short_.isEmpty()) out.add(sp.outstanding().isEmpty() ? "Nothing is being built from it." : "It holds all that the builds still need.");
 		else {
@@ -267,6 +288,8 @@ public final class Stockpiles {
 	public static com.google.gson.JsonObject json(MinecraftServer server, Settlement s, Stockpile sp) {
 		var o = new com.google.gson.JsonObject();
 		o.addProperty("crates", sp.crates().size());
+		o.addProperty("usedStacks", sp.usedStacks()); // (OVF-S2) past capacityStacks after a keyed refund into a full stockpile
+		o.addProperty("capacityStacks", sp.capacityStacks());
 		o.add("stock", items(sp.stock()));
 		o.add("outstanding", items(sp.outstanding()));
 		var need = new java.util.LinkedHashMap<Item, Integer>();

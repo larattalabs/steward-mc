@@ -1842,3 +1842,20 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
 - **Ask:** on Steward's integrated client `/save-all` is unknown ("Unknown or incomplete command"), yet `dev.command` answered `ok: true`, so the sort-crash baselines were never saved. Could an unrun command answer `ok: false`, and is there a save barrier that works on the integrated client?
 - **Architect's answer:** `ok` meant only that the call didn't throw (DevBridge.java:393). The command's own result is `success`: false with `result: null` and the error in `messages[]` for an unknown command (DevCommands.java:939-945). Barriers for now: `dev.stockpile.ps {noPeriodic:false}` and wait over 10 s, `dev.world.leave {}`, or `dev.stockpile.halt {mode:"autosave"}`. In v0.75.0 (slice M1), `dev.command` answers `ok: false` (a DevError) to any command that never ran, and `dev.stockpile.save {}` returns `{written, path, bytes, saves}`.
 - **Steward:** SAVEB checks `success` on every command, drops the `/save-all` sends, and prefers `dev.stockpile.save` when the bridge lists it.
+
+### LIFT-S-1: a composed sorting hall's fill lost from the stockpile's outstanding after an unclean start (slice LIFT-S, 2026-11-17, v0.78.0; for the manager to send)
+
+- **Seen:** e2e run 2 of `composed-modules-survival` (evidence `_work/steward-lift-s-evidence/`: `steward-lift-s-capstate.json`, client logs
+  `2026-11-17-5/6.log.gz`). A survival composed town (farm_1 crop_farm@1, warehouse_1 storage_hall@2 with 4 filter items, two cottages),
+  realised with `maxBillPerLot` (and, in that run, a region `maxBill`). The stockpile held 20 of each filter item (half of the fill's 41) when
+  `dev.stockpile.halt {mode: now}` stopped the client. After the restart (`Sites check: crate missing` for every site, as usual), the other sites
+  finished; the hall (s5) waits forever: its structure paid in full, `SiteWait.waiting` true with `blocked` null and `nextNeeded` empty, the
+  stockpile's `outstanding` and `need` `{}`, and `dev.crate.insert` of the remaining 21 of each accepted 0. Nothing names what it needs, and
+  nothing put in the stockpile helps.
+- **Ask:** is the fill's charge (41 of each filter item into its hopper) restored to the stockpile's outstanding at load, and drawn from the
+  20 already stocked? Is this LCAP-specific (the hall's lot under a lot cap) or any FK fill after an unclean start? Steward has no run of the
+  same case without lot caps. Steward's e2e now stocks the fill in full before its halt, so it no longer reaches this state.
+- **A likely cause (the LIFT-S GPT fix-check, read in v0.78.0's source, not confirmed by Architect):** `Builder.java` lines 142, 149 and 326
+  build their cached runs during the load's reconcile before `server` is set, so the unpaid fill demand is left out of the outstanding.
+- **Steward's side (leftover):** the steward's words for that wait read "The the storage hall has waited a while for materials: ." (a doubled
+  article and an empty list), while filling the stockpile can't help.

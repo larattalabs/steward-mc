@@ -94,14 +94,9 @@ public final class SettlementRunner {
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.START_SERVER_TICK.register(server -> {
 			if (!resyncPending) return;
 			resyncPending = false;
-			// running(): empty while settlements are disabled for the session (STORE-FSYNC), so nothing resumes then
-			for (SettlementRunner r : running()) {
-				try {
-					r.resync();
-				} catch (RuntimeException e) {
-					Steward.LOGGER.error("could not resume the build of {}", r.claimedId, e);
-				}
-			}
+			// running(): empty while settlements are disabled for the session (STORE-FSYNC), so nothing resumes then; (batch-077 review P1-2) nor
+			// once an earlier runner's resync disables them (a failed save not written back): the fence is read again before each
+			resumeEach(running(), SettlementRunner::resync);
 			// villages no build or history entry holds (cancelled twice before Architect answered, a history that could not be saved): taken up; never
 			// when the builds could not be read (a build that did not resume is not an orphan)
 			try {
@@ -148,6 +143,24 @@ public final class SettlementRunner {
 			builds = new BuildStore();
 			buildsFile = null;
 		});
+	}
+
+	/**
+	 * (batch-077 review P1-2) The first tick's resumes, one runner after another, each only while settlements are not disabled: an earlier one's resync
+	 * can disable them (a failed save not written back), and a later one must then neither queue nor place. Its failures are logged, the next goes on.
+	 */
+	static void resumeEach(List<SettlementRunner> runners, java.util.function.Consumer<SettlementRunner> resync) {
+		for (SettlementRunner r : runners) {
+			if (Settlements.disabled()) {
+				Steward.LOGGER.error("settlements were disabled while builds resumed: {} and the builds after it resume next session", r.claimedId);
+				return;
+			}
+			try {
+				resync.accept(r);
+			} catch (RuntimeException e) {
+				Steward.LOGGER.error("could not resume the build of {}", r.claimedId, e);
+			}
+		}
 	}
 
 	/** Whether the running builds were told that settlements are disabled (once a session). */
@@ -536,6 +549,12 @@ public final class SettlementRunner {
 
 	/** After a restart: gather what Architect kept, let {@link ResyncRules} decide, and carry it out. Bible and group results also arrive as Architect's catch-up events. */
 	private void resync() {
+		// (batch-077 review P1-2) settlements disabled (by an earlier runner's resync, or before): nothing is resumed, queued or placed; the build stays
+		// saved and resumes next session
+		if (Settlements.disabled()) {
+			Steward.LOGGER.warn("resume {}: settlements are disabled this session, so the build resumes next session", claimedId);
+			return;
+		}
 		var api = ArchitectApi.get();
 		var sites = api.sites(server);
 		say("Picking up the build of " + settlement.name() + " where it stopped (" + state.phase().name().toLowerCase().replace('_', ' ') + ").");
@@ -1824,7 +1843,8 @@ public final class SettlementRunner {
 		if (holder != null) for (var st : holder.getInventory()) if (!st.isEmpty()) held.merge(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(st.getItem()).toString(), st.getCount(), Integer::sum);
 		if (supplied) Stockpiles.of(server, Settlements.store().get(settlement.id()).orElse(settlement))
 			.ifPresent(sp -> sp.stock().forEach((it, n) -> held.merge(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(it).toString(), n, Integer::sum)));
-		var town = new dev.larattalabs.steward.module.ComposedModules.Town(level.getBiome(at).value().coldEnoughToSnow(at, level.getSeaLevel()), supplied, held);
+		// (LIFT-S) from materials, module lots are built only under Architect's per-lot cap (LCAP); without it the guard leaves them out, said
+		var town = new dev.larattalabs.steward.module.ComposedModules.Town(level.getBiome(at).value().coldEnoughToSnow(at, level.getSeaLevel()), supplied, held, lotCaps());
 		Map<String, dev.larattalabs.steward.module.ModuleOrder> orders = new LinkedHashMap<>();
 		java.util.Set<String> taken = new java.util.HashSet<>();
 		for (var a : asked) {
@@ -2286,6 +2306,12 @@ public final class SettlementRunner {
 		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.BILL_CAP;
 	}
 
+	/** (LIFT-S) A {@code BILL_CAP} refusal's detail ({@code lot:<id>}, {@code unknown_lot:<id>}, or "" for the region's), or null for another error. */
+	static @org.jspecify.annotations.Nullable String capDetail(@org.jspecify.annotations.Nullable Throwable err) {
+		Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
+		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.BILL_CAP ? r.detail() : null;
+	}
+
 	static boolean keyConflict(@org.jspecify.annotations.Nullable Throwable err) {
 		Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
 		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.OP_KEY_CONFLICT;
@@ -2422,6 +2448,8 @@ public final class SettlementRunner {
 	}
 
 	private void execute(Command c) {
+		// (batch-077 review P1-2) a mutation boundary: nothing is asked of Architect while settlements are disabled (the build resumes from its save)
+		if (Settlements.disabled()) { Steward.LOGGER.warn("{}: {} not sent: settlements are disabled this session", claimedId, c.getClass().getSimpleName()); return; }
 		var api = ArchitectApi.get();
 		switch (c) {
 			case Pipeline.RequestBible b -> {
@@ -2570,6 +2598,8 @@ public final class SettlementRunner {
 	}
 
 	private void fitAndQueue(boolean autoApprove) {
+		// (batch-077 review P1-2) nothing is queued or placed while settlements are disabled
+		if (Settlements.disabled()) { Steward.LOGGER.warn("{}: not queued: settlements are disabled this session", claimedId); return; }
 		if (village()) { queueVillage(autoApprove); return; }
 		var api = ArchitectApi.get();
 		Group g = api.designs().group(groupId).orElse(null);
@@ -2858,6 +2888,8 @@ public final class SettlementRunner {
 
 	private void realiseVillage() {
 		if (vRegionId != null || queueInFlight || districtQuoting) return;
+		// (batch-077 review P1-2) nothing is realised while settlements are disabled
+		if (Settlements.disabled()) { Steward.LOGGER.warn("{}: not realised: settlements are disabled this session", claimedId); return; }
 		var api = ArchitectApi.get();
 		Map<String, String> entries = new LinkedHashMap<>();
 		// (slice M3) module lots: their bound variants, made (or found by key) and their bill quoted first; the realise waits until then
@@ -3366,23 +3398,58 @@ public final class SettlementRunner {
 				feed(new Pipeline.Cancel());
 				return;
 			}
+			// (LIFT-S) cleared: what the realise is sent with, each module lot held to its saved bound (Architect LCAP); from the orders as saved
+			// below, so a restart quotes again and sends the same lot caps
+			dev.larattalabs.steward.module.ComposedModules.Caps caps = null;
+			if (verdict.ask() == null) {
+				caps = dev.larattalabs.steward.module.ComposedModules.caps(q.bomParts(), verdict.orders(), entries.keySet());
+				if (caps.refused() != null) {
+					say("Not placed: " + caps.refused() + ", so nothing is consumed unchecked.");
+					feed(new Pipeline.Cancel());
+					return;
+				}
+			}
+			var before = moduleOrders;
 			moduleOrders = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(verdict.orders()));
-			// (M5b, persist before mutate) the hold or the cleared orders saved before anything is asked or realised; unsaved, nothing goes on
-			if (!persist()) {
+			// (M5b, LIFT-S: persist before mutate) the hold or the cleared orders saved before anything is asked or realised; unsaved, nothing goes on
+			var cleared = caps;
+			boolean went = ComposedSteps.saveThen(this::persist, () -> {
+				if (verdict.ask() != null) {
+					// held, saved with the build: the approval binds to exactly these bills, also after a restart
+					feed(new Pipeline.HoldBill(composedHoldWords(verdict.ask())));
+					return;
+				}
+				// (Noah, 2026-11-15) each module's limit is shown with the quote
+				if (verdict.said() != null) say(verdict.said());
+				quoteCleared = key;
+				composedCaps = cleared;
+				composedCapsKey = key;
+				realiseVillage();
+			});
+			if (!went) {
+				// (LIFT-S GPT review) the rejected orders are not kept: the build stops as it was saved
+				moduleOrders = before;
 				say("Not placed: the build could not be saved with its working modules' bills, so nothing is consumed.");
 				feed(new Pipeline.Cancel());
-				return;
 			}
-			if (verdict.ask() != null) {
-				// held, saved with the build: the approval binds to exactly these bills, also after a restart
-				feed(new Pipeline.HoldBill(composedHoldWords(verdict.ask())));
-				return;
-			}
-			// (Noah, 2026-11-15) each module's limit is shown with the quote
-			if (verdict.said() != null) say(verdict.said());
-			quoteCleared = key;
-			realiseVillage();
 		}));
+	}
+
+	/**
+	 * (LIFT-S) The caps of the composed quote cleared this session ({@link #quoteCleared}), for its realise; null until then. Each lot's cap is its
+	 * order's bound as saved; a restart quotes again before any realise, so they are never sent from anything but the saved orders.
+	 */
+	private dev.larattalabs.steward.module.ComposedModules.@org.jspecify.annotations.Nullable Caps composedCaps;
+	/** (LIFT-S) The cleared quote's key ({@link #quoteCleared}) {@link #composedCaps} came with: a realise sends them only while it still holds. */
+	private @org.jspecify.annotations.Nullable String composedCapsKey;
+
+	/** (LIFT-S) Whether this Architect caps a realise per lot (LCAP: {@code maxBillPerLot}). */
+	static boolean lotCaps() {
+		try {
+			return ArchitectApi.get().features().contains(dev.larattalabs.steward.module.ComposedModules.LOT_CAP_FEATURE);
+		} catch (RuntimeException | LinkageError e) {
+			return false;
+		}
 	}
 
 	/** (M5b) The composed hold's words: the bills, and what approving them means, the crash exception included (as every capped approval). Pure. */
@@ -3505,14 +3572,58 @@ public final class SettlementRunner {
 				? "its design is past the lot's approved box or rule" : "it was not designed") + "), so the wall would stand open there"), session);
 			return;
 		}
-		// (M5b) a composed town's module lots from materials are held only by a cap scoped to each lot (S-M5-16), which realiseApproved doesn't take:
-		// such a realise is never sent uncapped (ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP leaves them out before this)
-		if (composedMaterialsUncapped(artifactSurvival(sha), moduleOrders)) {
-			realised(null, new IllegalStateException("the working modules' bills can't be held to their measured limits in a town built from materials yet"), session);
+		// (M5b, LIFT-S) a composed town's module lots from materials are held only by a cap scoped to each lot (Architect LCAP, maxBillPerLot): such a
+		// realise is never sent uncapped (an Architect without it: the guard leaves them out before this; a build saved under one and resumed on
+		// another stops here)
+		boolean fromMaterials = artifactSurvival(sha);
+		if (composedMaterialsUncapped(fromMaterials, moduleOrders, lotCaps())) {
+			realised(null, new IllegalStateException("the working modules' bills can't be held to their measured limits in a town built from materials by this Architect"), session);
 			return;
 		}
+		var request = new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext);
+		if (fromMaterials && !moduleOrders.isEmpty()) {
+			var caps = composedCaps;
+			// only the caps of the quote cleared for exactly these entries this session, and only for lots this realise binds (never an earlier one's)
+			if (caps == null || caps.perLot() == null || composedCapsKey == null || !composedCapsKey.equals(quoteCleared)
+				|| !fitting.keySet().containsAll(caps.perLot().keySet()) || !caps.perLot().keySet().equals(moduleOrders.keySet())) {
+				realised(null, new IllegalStateException("the working modules' bills weren't quoted for exactly this placing, and nothing is consumed unchecked"), session);
+				return;
+			}
+			var perLot = devShortLot(caps.perLot());
+			Steward.LOGGER.info("composed modules {} realise {} under {}: maxBillPerLot {}", settlement.id(), sha, opKey("vrealise"), perLot);
+			request = new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext, null).withMaxBillPerLot(perLot);
+		}
 		Steward.LOGGER.info("realise {}: artifact {} under key {} ({})", settlement.id(), sha, opKey("vrealise"), first ? "first" : "after a re-check");
-		regions.realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext))
+		var sent = request;
+		// (LIFT-S, persist before mutate) the orders whose bounds are the lot caps saved before the realise is sent; unsaved, nothing is sent
+		if (!ComposedSteps.saveThen(this::persist, () -> sendApproved(sha, sent, lotEntries, actor, ext, first, session)))
+			realised(null, new IllegalStateException("the build could not be saved before placing, and nothing is consumed unchecked"), session);
+	}
+
+	/**
+	 * (TEST, LIFT-S: {@code /steward dev cap_short}) The lot caps with one item sent as 0, once, in the first lot (by id) whose cap names it, so
+	 * Architect refuses the realise at put-down ({@code BILL_CAP}, detail {@code lot:<id>}); unchanged when none is set or none names it.
+	 */
+	private Map<String, Map<String, Integer>> devShortLot(Map<String, Map<String, Integer>> perLot) {
+		String item = DEV_CAP_SHORT.get();
+		if (item == null) return perLot;
+		for (var e : perLot.entrySet()) {
+			if (!e.getValue().containsKey(item) || !DEV_CAP_SHORT.compareAndSet(item, null)) continue;
+			var lots = new TreeMap<>(perLot);
+			var shorted = new TreeMap<>(e.getValue());
+			shorted.put(item, 0);
+			lots.put(e.getKey(), java.util.Collections.unmodifiableMap(shorted));
+			Steward.LOGGER.info("composed modules {}: dev cap_short {} in lot {}", settlement.id(), item, e.getKey());
+			return java.util.Collections.unmodifiableMap(lots);
+		}
+		return perLot;
+	}
+
+	/** The approved artifact's realise, sent, and its answer (a stale artifact checked once more, a wall lot repaired). */
+	private void sendApproved(String sha, dev.larattalabs.architect.api.ApprovedRealise request, Map<String, String> lotEntries,
+		@org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
+		var regions = ArchitectApi.get().regions();
+		regions.realiseApproved(request)
 			.whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
@@ -3559,13 +3670,13 @@ public final class SettlementRunner {
 			}));
 	}
 
-	/** (M5b) Whether a composed realise would build module lots from materials with no cap per lot (none exists yet: S-M5-16). Pure. */
-	static boolean composedMaterialsUncapped(boolean fromMaterials, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders) {
-		return fromMaterials && !orders.isEmpty() && !LOT_CAPS;
+	/**
+	 * (M5b, LIFT-S) Whether a composed realise would build module lots from materials with no cap per lot: an Architect without LCAP's
+	 * {@code maxBillPerLot} ({@code lotCaps} false). Pure.
+	 */
+	static boolean composedMaterialsUncapped(boolean fromMaterials, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders, boolean lotCaps) {
+		return fromMaterials && !orders.isEmpty() && !lotCaps;
 	}
-
-	/** (M5b) Whether Architect caps a realise per lot (S-M5-16): not in 0.74.0 ({@code ApprovedRealise.maxBill} is one cap over the region). */
-	static final boolean LOT_CAPS = false;
 
 	/** Architect K3's refusal of a wall lot's bound design: "lot <id> on wall <wall>: ...". */
 	private static final java.util.regex.Pattern ON_WALL = java.util.regex.Pattern.compile("^lot (\\S+) on wall \\S+:");
@@ -3642,6 +3753,14 @@ public final class SettlementRunner {
 			if (!Session.is(session)) return;
 			// this runner replaced meanwhile: the design is stopped, whoever owns the key now finds it by the key
 			if (!alive()) { if (id != null && !Settlements.disabled()) ArchitectApi.get().designs().cancel(id); return; }
+			// (WALL-RACE) the repair ended meanwhile (the build stopped, or another round or lot's repair is the build's now): its design is stopped, not left running
+			if (Pipeline.answeredAfterItsRepair(state == null ? null : state.repair(), a.key())) {
+				if (id != null) {
+					Steward.LOGGER.info("repair {} of {}: design {} answered after the repair ended; stopped", a.key(), settlement.id(), id);
+					ArchitectApi.get().designs().cancel(id);
+				}
+				return;
+			}
 			if (err != null) {
 				// refused: nothing designed; lost, or its key bound to a request already made: found by its key on the watch (never a second design)
 				if (ChangeRequests.definite(err) && !keyConflict(err) && !uncertain(err)) feed(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect would not redesign it: " + message(err)));
@@ -3670,7 +3789,7 @@ public final class SettlementRunner {
 			// no answer: sent again on the watch (repairStopSent keeps its time)
 			if (err != null) { Steward.LOGGER.warn("repair {} of {}: the stop got no answer ({}); asked again", x.key(), settlement.id(), message(err)); return; }
 			switch (o.kind()) {
-				case CANCELLED, ALREADY_FINAL -> o.design().ifPresentOrElse(d -> repairFinal(d, true),
+				case CANCELLED, ALREADY_FINAL -> o.design().ifPresentOrElse(d -> repairFinal(d, true, x.key()),
 					() -> feed(new Pipeline.RepairEnded(x.key(), Pipeline.RepairEnd.FAILED, 0, "stopped")));
 				case UNKNOWN -> feed(new Pipeline.RepairEnded(x.key(), Pipeline.RepairEnd.LOST, 0, "Architect does not know its design"));
 			}
@@ -3690,7 +3809,7 @@ public final class SettlementRunner {
 		if (r.designId() != null) {
 			var d = designs.get(r.designId());
 			if (d.isPresent()) {
-				if (d.get().status().isFinal()) repairFinal(d.get(), false);
+				if (d.get().status().isFinal()) repairFinal(d.get(), false, r.key());
 				else if (r.stopping() && repairStopSent > 0 && System.currentTimeMillis() - repairStopSent > 20_000) execute(new Pipeline.StopRepair(r.key(), r.designId()));
 				return;
 			}
@@ -3705,7 +3824,7 @@ public final class SettlementRunner {
 			if (err != null) return;
 			if (found.isPresent()) {
 				if (state.repair().designId() == null) feed(new Pipeline.RepairAsked(r.key(), found.get().id()));
-				if (found.get().status().isFinal()) repairFinal(found.get(), false);
+				if (found.get().status().isFinal()) repairFinal(found.get(), false, r.key());
 				return;
 			}
 			// never received: a waiting cancel ends it (nothing spent); else asked again under its key with its own words, while its key is still kept
@@ -3727,9 +3846,13 @@ public final class SettlementRunner {
 	 * CANCELLED read ({@code confirmed} false: a lookup or DESIGN_DONE) is not the end: Architect marks it so before its work has stopped, so the cancel's
 	 * own answer ({@link #stopRepair}) is asked for and ends it.
 	 */
-	private void repairFinal(dev.larattalabs.architect.api.Design d, boolean confirmed) {
+	private void repairFinal(dev.larattalabs.architect.api.Design d, boolean confirmed, String key) {
 		var r = state == null ? null : state.repair();
-		if (r == null || (r.designId() != null && !r.designId().equals(d.id()))) return;
+		// (WALL-RACE) only the repair it was read for, with that repair's own design: never another lot's or round's, nor one whose design isn't known yet
+		if (!Pipeline.ownsCompletion(r, key, d.id())) {
+			if (r != null) Steward.LOGGER.info("repair {} of {}: design {} (read for {}) is not its own, dropped", r.key(), settlement.id(), d.id(), key);
+			return;
+		}
 		if (d.status() == dev.larattalabs.architect.api.Design.Status.CANCELLED && !confirmed) {
 			if (repairStopSent == 0 || System.currentTimeMillis() - repairStopSent > 20_000) execute(new Pipeline.StopRepair(r.key(), d.id()));
 			return;
@@ -3746,7 +3869,8 @@ public final class SettlementRunner {
 	/** A design finished: this build's repair is looked at. */
 	private void onRepairDone(dev.larattalabs.architect.api.Design d) {
 		var r = state == null ? null : state.repair();
-		if (r != null && d.id().equals(r.designId())) server.execute(() -> repairFinal(d, false));
+		// keyed by the repair it is for when queued: by the time it runs, that repair may have ended and another lot's begun
+		if (r != null && d.id().equals(r.designId())) { String key = r.key(); server.execute(() -> repairFinal(d, false, key)); }
 	}
 
 	/** This session's repair requests and lookups in flight, and when the waiting stop was sent (0: none, or it got no answer). */
@@ -3883,6 +4007,12 @@ public final class SettlementRunner {
 		if (!Session.is(session)) return;
 		queueInFlight = false;
 		if (worldStopped(err)) return;
+		// (batch-077 review P1-1) settlements disabled since it was asked: the answer is neither acted on nor taken up (a take-up removes and refunds
+		// with no history saved); the region stands, found by its key or its build tag when the build resumes next session (or by that session's sweep)
+		if (Settlements.disabled()) {
+			if (err == null) keptForNextSession(id);
+			return;
+		}
 		// the build ended (cancelled while this was asked, twice, or replaced): a village realised for it after all is taken up, not left without a history
 		if (!alive() || state == null || switch (state.phase()) { case DONE, FAILED, CANCELLED -> true; default -> false; }) {
 			if (err == null) takeUpOrphan(id);
@@ -3934,18 +4064,30 @@ public final class SettlementRunner {
 			if (replanDistrict(err)) return;
 			// (QD-2, M5b) a composed town's realise refused at put-down (BILL_CAP, under a cap): nothing was written or taken; its orders are marked
 			// refused and saved before it is quoted again, so the next quote is put to the player, also after a restart; unsaved, the build stops
-			if (billCapped(err) && composedModules() && state.phase() == Pipeline.Phase.PLACING) {
-				Steward.LOGGER.info("composed modules {} realise refused at put-down: {}", settlement.id(), message(err));
-				moduleOrders = refusedAtPutDown(moduleOrders);
+			// (LIFT-S, Architect LCAP) its detail says which cap: a module lot's own (lot:<id>, named), the region's (""), or a lot the realise doesn't
+			// bind (unknown_lot:<id>: Steward's error, the build stops, never asked again)
+			// (LIFT-S GPT review P2) sent from READY_TO_PLACE too: a town placed without the player's word realises from there
+			if (billCapped(err) && composedModules() && (state.phase() == Pipeline.Phase.PLACING || state.phase() == Pipeline.Phase.READY_TO_PLACE)) {
+				var refusal = dev.larattalabs.steward.module.ComposedModules.CapRefusal.of(capDetail(err));
+				Steward.LOGGER.info("composed modules {} realise refused at put-down ({}): {}", settlement.id(), refusal, message(err));
 				quoteCleared = null;
-				if (!persist()) {
-					say("Not placed: the materials needed went past what you approved, and that could not be saved, so I won't ask again or build it."
-						+ " Nothing was taken from the stockpile; start it again.");
-					feed(new Pipeline.Cancel());
-					return;
+				composedCaps = null;
+				var orders = moduleOrders;
+				switch (ComposedSteps.refusedAtPutDown(refusal, orders, o -> moduleOrders = o, this::persist)) {
+					case STOP_UNKNOWN_LOT -> {
+						say(dev.larattalabs.steward.module.ComposedModules.putDownWords(refusal, orders));
+						feed(new Pipeline.Cancel());
+					}
+					case STOP_UNSAVED -> {
+						say("Not placed: the materials needed went past what you approved, and that could not be saved, so I won't ask again or build it."
+							+ " Nothing was taken from the stockpile; start it again.");
+						feed(new Pipeline.Cancel());
+					}
+					case REASK -> {
+						say(dev.larattalabs.steward.module.ComposedModules.putDownWords(refusal, orders));
+						realiseVillage();
+					}
 				}
-				say("Not placed yet: the materials needed went past what you approved. Nothing was taken from the stockpile; I'll ask you again.");
-				realiseVillage();
 				return;
 			}
 			// (slice SD) a district's region from materials: the world's mode changed since it was planned, or the stockpile is gone, in plain words
@@ -4030,9 +4172,29 @@ public final class SettlementRunner {
 	 * undo would; when that stops, the entry stays and undo takes it up once it is clear.
 	 */
 	private void takeUpOrphan(String regionId) {
+		// (batch-077 review P1-1) never while settlements are disabled: nothing of it could be logged, so it stands for the next session
+		if (Settlements.disabled()) { keptForNextSession(regionId); return; }
 		if (growth()) { takeUpOrphanGrowth(regionId); return; }
 		Steward.LOGGER.warn("village region {} was realised for {}'s ended build {}: taking it up", regionId, settlement.id(), buildId);
 		Settlements.store().get(settlement.id()).ifPresent(saved -> VillageSweep.takeUp(server, saved, regionId, this::say));
+	}
+
+	/** (batch-077 review P1-1) A region realised while settlements are disabled: left standing, logged and said; the next session resumes or sweeps it. */
+	private void keptForNextSession(@org.jspecify.annotations.Nullable String regionId) {
+		Steward.LOGGER.warn("village region {} of {} (build {}) was realised while settlements are disabled: left standing for the next session", regionId,
+			claimedId, buildId);
+		say("Architect finished placing part of " + (settlement == null ? "the build" : settlement.name()) + ", but settlements are disabled this session, so"
+			+ " nothing is recorded or taken up: the build waits for the next session.");
+	}
+
+	/** (TEST) Architect's answer to this build's realise, as it arrives on the server thread ({@link #realised}). */
+	void realisedForTest(@org.jspecify.annotations.Nullable String id, @org.jspecify.annotations.Nullable Throwable err) {
+		realised(id, err, Session.current());
+	}
+
+	/** (TEST) This build's resume after a restart ({@link #resync}). */
+	void resyncForTest() {
+		resync();
 	}
 
 	/**
@@ -4384,8 +4546,8 @@ public final class SettlementRunner {
 		if (Growths.completed(Settlements.store().get(settlement.id()).orElse(settlement), ref.tag())) { end.run(); return; }
 		growthTakingUp = true;
 		// (slice A2L) a growth cancelled while Architect still wrote it may hold targets its revision does not list yet: what they drew is refunded, said,
-		// with any overflow (review 7)
-		var said = Undo.reportingOverflow(server, Settlements.store().get(settlement.id()).orElse(settlement), this::say);
+		// with the stockpile's state after it (review 7; since OVF a keyed refund never overflows, it can take the stock past capacity)
+		var said = Undo.reportingOverCapacity(server, Settlements.store().get(settlement.id()).orElse(settlement), this::say);
 		java.util.concurrent.atomic.AtomicReference<dev.larattalabs.architect.api.RemoveResult> answer = new java.util.concurrent.atomic.AtomicReference<>();
 		Growths.undo(server, settlement.owner(), ref, said, ok -> {
 			if (ok == null) return;
@@ -4474,7 +4636,7 @@ public final class SettlementRunner {
 			feed(new Pipeline.BatchDone(sites.size(), 0));
 		};
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
-		Undo.growth(server, saved, entry.get(), ref, Map.of(), Undo.reportingOverflow(server, saved, this::say), after);
+		Undo.growth(server, saved, entry.get(), ref, Map.of(), Undo.reportingOverCapacity(server, saved, this::say), after);
 	}
 
 	/**
@@ -4513,7 +4675,7 @@ public final class SettlementRunner {
 			return;
 		}
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
-		Undo.region(server, saved, entry.get(), id, Map.of(), Undo.reportingOverflow(server, saved, this::say), ok -> {
+		Undo.region(server, saved, entry.get(), id, Map.of(), Undo.reportingOverCapacity(server, saved, this::say), ok -> {
 			if (ok == null || !alive()) return;
 			if (ok) {
 				vRegionId = null;
@@ -4593,6 +4755,9 @@ public final class SettlementRunner {
 			int i = t.indexOf(" waits bill_cap");
 			if (i > 0) what = Character.toLowerCase(t.charAt(0)) + t.substring(1, i);
 		}
+		// (LIFT-S, Architect LCAP-Q1) held by its lot's own cap (waitsFor.cap "lot:<id>"): its limit, not what the player approved for the town
+		String scope = w.get("cap") instanceof com.google.gson.JsonPrimitive c ? c.getAsString() : null;
+		if (MaterialRequests.capLot(scope) != null) return MaterialRequests.lotOverCapWords(what, settlementId, over, 0, how, MaterialRequests.capBoth(scope));
 		return MaterialRequests.overCapWords(what, settlementId, over, 0, how);
 	}
 
@@ -4721,7 +4886,7 @@ public final class SettlementRunner {
 			String told = Secrets.ofSettlement(settlement.id()).mask(text);
 			text = told.isBlank() ? "Architect's reason concerns a part of the plan kept private." : told;
 		}
-		if (!Session.is(session)) return;
+		if (!Session.is(session) || server == null) return;
 		if (settlement != null) StewardVoice.say(server, settlement.id(), text);
 		ServerPlayer p = server.getPlayerList().getPlayer(playerId);
 		if (p != null) p.sendSystemMessage(Component.literal(text));

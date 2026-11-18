@@ -513,6 +513,14 @@ public final class PendingOffers {
 			}));
 	}
 
+	/**
+	 * (batch-077 review P1-1, FENCE-TESTS) Whether a placed part whose history save failed is left standing (settlements disabled: nothing of a take-up
+	 * could be logged, so the next session's sweep takes it up) rather than taken up again now.
+	 */
+	static boolean standsUnrecorded() {
+		return Settlements.disabled();
+	}
+
 	/** Reads a part's region while it is placed; once placed (wholly or in part) it is recorded under its region, and the part no longer waits. */
 	private static void watch(MinecraftServer server, String regionId, Watch w) {
 		var v = ArchitectApi.get().regions().get(regionId);
@@ -543,6 +551,14 @@ public final class PendingOffers {
 		var done = now.withLog(entry).withProposals(new Settlement.Proposals(ps.open().stream().filter(x -> !x.key().equals(w.proposal().key())).toList(), ps.declined(),
 			accepted, ps.lastAt()));
 		if (!Settlements.replace(done).ok()) {
+			// (batch-077 review P1-1) settlements disabled (before, or by this failed save not written back): never taken up now (its removal and refund
+			// would go with no history saved); the region stands, tagged as a build of its own, and the next session's sweep takes it up
+			if (standsUnrecorded()) {
+				Steward.LOGGER.warn("part {} of {}: region {} placed while settlements are disabled: left standing for the next session", w.part(), w.settlementId(), regionId);
+				fail(server, w.player(), s.get(), w.proposal(), w.name(), "it was placed, but settlements are disabled this session, so it isn't recorded and"
+					+ " stands until the next session");
+				return;
+			}
 			// without its history entry an undo couldn't reach it: taken up again, and it still waits
 			VillageSweep.takeUp(server, s.get(), regionId, m -> Steward.LOGGER.info("{}: {}", w.settlementId(), m));
 			fail(server, w.player(), s.get(), w.proposal(), w.name(), "the settlement's history could not be saved, so it was taken up again");

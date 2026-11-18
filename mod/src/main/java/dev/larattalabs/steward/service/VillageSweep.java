@@ -425,6 +425,13 @@ public final class VillageSweep {
 	 * the settlement busy with another take-up, an undo or a removal), null when the world closed meanwhile. One take-up per settlement at a time, whoever asks (slice VSR).
 	 */
 	static void takeUp(MinecraftServer server, Settlement s, String regionId, Consumer<String> say, Consumer<Boolean> whenDone) {
+		// (batch-077 review P1-1) never while settlements are disabled: nothing of the take-up could be logged (its removal and refund would have no
+		// history); the region stands, and the next session's sweep looks again
+		if (Settlements.disabled()) {
+			Steward.LOGGER.warn("village region {} of {} is not taken up: settlements are disabled this session (looked at again at the next start)", regionId, s.id());
+			whenDone.accept(false);
+			return;
+		}
 		// (slice VSR review 2) nor while an undo or cancel of the settlement runs, or Architect is removing one of its regions: SettlementRunner.busy's
 		// removal half (the sweep's chain checks the same before it chooses)
 		if (Undo.busy(s.id()) || removingAny(s) || !REMOVING.add(s.id())) {
@@ -459,6 +466,13 @@ public final class VillageSweep {
 					Settlement.Outcome.PARTIAL);
 				if (Settlements.log(s.id(), placed).ok()) entry = Settlements.store().get(s.id()).flatMap(x -> entryOf(x, regionId));
 			}
+		}
+		// (batch-077 fix-check P1) that save failed and could not be written back: settlements are disabled from here, so the region stands (nothing of
+		// its take-up could be logged); the next session's sweep looks again
+		if (Settlements.disabled()) {
+			Steward.LOGGER.warn("village region {} of {} is not taken up: settlements were disabled by its history save (looked at again at the next start)", regionId, s.id());
+			done.accept(false);
+			return;
 		}
 		if (entry.isEmpty()) {
 			// the settlement is busy while the region is taken up (Undo.region marks it so too); its answer on the server thread, this world's only
