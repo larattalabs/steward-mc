@@ -2607,6 +2607,125 @@ async function groveFlow() {
 }
 
 /**
+ * (slice 8aS, Architect v0.79.0 ST) The grove's plan in survival, a coral pond built from materials: since v0.41.0 a fluid op's decor bed billed the pond's
+ * shells free and its coral paid; 0.79.0 bills new plans by their compiled ops (`survival.opMap: "compiled"`): the shells paid, the coral free. The quote
+ * of the realise the approval places (its artifact and lot entries, logged before the approval) is read before anything is placed: no coral or sea pickle
+ * in it, the pond's piece billing its shells. Fed what it asks for, the build draws exactly that quote, item for item, and no coral. Players are told
+ * nothing of past bills (Noah, 2026-11-16: no refund, no notice). The ground's time line and the terrain wait (8aS) are recorded when said.
+ */
+async function groveCoralFlow() {
+  const label = 'grove coral bill';
+  const CORAL = /coral|sea_pickle/;
+  // Architect builds a region from materials only in a survival world: its toggle on and the world's default mode not creative (the player stays creative)
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  let stop = false, feeder = null;
+  try {
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 37500 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = 'Coral Hamlet';
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'grove_pond.json'), 'utf8')).answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a hamlet under a great oak, with a coral pond`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+    const composed = await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after[^\n]*`), 240_000);
+    if (!composed) return fail(label, 'no plan composed');
+    if (!/ 0 pending, 0 unfit/.test(composed[0])) return fail(label, `the giant oak, the pond and its coral didn't all fit: ${composed[0].slice(0, 160)}`);
+    const diff = settlements().find((x) => x.id === id)?.difficulty;
+    if (diff !== 'SUPPLIED') return fail(label, `difficulty ${diff} in a survival world`);
+    await closeScreens();
+    await clearAnimals();
+    const claim = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
+    const owner = `steward_mc:settlement/${id}`;
+    const ledger = async () => {
+      const r = await cmd(`/steward dev stockpile ${id}`);
+      const m = r.match(/stockpile \S+ (\{.*\})/);
+      return m ? unweathered(JSON.parse(m[1])) : null;
+    };
+    const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    const corals = (o) => Object.keys(o ?? {}).filter((k) => CORAL.test(k));
+    from = logSize();
+    await cmd(`/steward start ${id} 5 30`);
+    // the feeder: whatever the region's targets ask for, until the build is done (the quote is read at the approval, before anything is placed)
+    feeder = (async () => {
+      while (!stop) {
+        await sleep(3000);
+        const sp = await ledger().catch(() => null);
+        if (!sp || !Object.keys(sp.need ?? {}).length) continue;
+        await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+      }
+    })();
+    let sha = null, entries = null, quote = null, sp0 = null;
+    const onStep = async (step) => {
+      if (step !== 'Approve to place' || quote) return;
+      const m = new RegExp(`placement ${id}: artifact ([0-9a-f]{64}) entries (\\{[^\\n]*\\})`).exec(logSince(from));
+      if (!m) return;
+      sha = m[1];
+      entries = JSON.parse(m[2]);
+      quote = await dev.request('dev.region.quote', { sha, lotEntries: entries }, { timeoutMs: 300_000 }).catch((e) => ({ refused: String(e?.message ?? e) }));
+      sp0 = await ledger();
+    };
+    const built = await buildThrough(id, from, label, false, onStep, 1_200_000);
+    if (!built) return;
+    if (!quote) return fail(label, `no placement line before the approval (artifact and entries); ${chatTail(from)}`);
+    if (quote.refused) return fail(label, `the realise's quote was refused: ${quote.refused} ${quote.reason ?? ''}`);
+    // (1) the quote: survival, no coral anywhere in it, the pond's piece billing its shells
+    const pieces = Object.entries(quote.bomParts ?? {});
+    const pond = pieces.filter(([k]) => /pond/.test(k) && !/reef/.test(k));
+    const reef = pieces.filter(([k]) => /reef/.test(k));
+    const pondUnits = pond.reduce((a, [, v]) => a + units(v), 0), reefUnits = reef.reduce((a, [, v]) => a + units(v), 0);
+    const coralQuoted = [...corals(quote.bom), ...pieces.flatMap(([k, v]) => corals(v).map((c) => `${k}:${c}`))];
+    if (quote.survival && coralQuoted.length === 0 && pondUnits > 0 && reefUnits === 0)
+      ok(label, `the pond's shells billed (${pond.map(([k, v]) => `${k} ${JSON.stringify(v)}`).join('; ').slice(0, 160)}), its coral free; ${units(quote.bom)} items quoted, exact ${quote.exact}`);
+    else return fail(label, `survival ${quote.survival}; coral quoted ${coralQuoted.join(', ') || 'none'}; pond pieces ${pond.map(([k]) => k).join(', ') || 'none'} (${pondUnits} units); reef ${reefUnits}; pieces ${pieces.map(([k]) => k).join(', ').slice(0, 200)}`);
+    // the realise bound the entries the quote was read with
+    const realised = new RegExp(`realise ${id}: artifact ${sha} under key \\S+ \\(first\\) entries (\\{[^\\n]*\\})`).exec(logSince(from));
+    const sameEntries = realised && JSON.stringify(JSON.parse(realised[1])) === JSON.stringify(entries);
+    // (2) fed in full: built, and what it drew equals the quote item for item (no coral)
+    const doneSaid = await waitLog(from, /Coral Hamlet is built: everything its plan laid out stands/, 900_000);
+    stop = true;
+    await feeder;
+    feeder = null;
+    const sp = await ledger();
+    const drew = Object.fromEntries(Object.entries(sp?.consumed ?? {}).map(([k, c]) => [k, c - (sp0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const off = Object.keys({ ...drew, ...quote.bom }).filter((k) => (drew[k] ?? 0) !== (quote.bom[k] ?? 0)).map((k) => `${k} drew ${drew[k] ?? 0}/quoted ${quote.bom[k] ?? 0}`);
+    if (doneSaid && sameEntries && off.length === 0 && corals(drew).length === 0) ok(`${label} drawn`, `drew exactly the quote: ${units(drew)} items, no coral`);
+    else fail(`${label} drawn`, `${doneSaid ? 'built' : 'not built in 15 min'}; the realise's entries ${sameEntries ? 'the quoted ones' : realised ? 'differ from the quoted ones' : 'not logged'}; off ${off.slice(0, 8).join(', ') || 'none'}; coral drawn ${corals(drew).join(', ') || 'none'}; exact ${quote.exact} ${JSON.stringify(quote.notes ?? []).slice(0, 160)}`);
+    // (8aS) recorded when said: how long the ground takes, and a part waiting for its ground
+    const said = logSince(from);
+    const time = said.match(/The ground is shaped first, and free: [^\n]*/);
+    if (time) ok('ground time said', time[0].slice(0, 160));
+    const waitSaid = said.match(/[^\n\]]*'s? ground is being shaped first: [^\n]*/);
+    if (waitSaid) ok('terrain wait said', waitSaid[0].trim().slice(0, 160));
+    if (/mis-?bill|billed wrongly|refund for (?:the )?coral/i.test(said)) fail(label, 'a past bill was mentioned to the player (Noah: no notice)');
+    // taken up again (the claim left as it was for the flows after it)
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
+    await cmd(`/steward undo ${id}`);
+    let last = null;
+    for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(2000);
+      last = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    if (last?.kind !== 'PROJECT_REMOVED') fail(`${label} undo`, `last op ${last?.kind}`);
+  } finally {
+    stop = true;
+    if (feeder) await feeder;
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
+}
+
+/**
  * Irrigation (Architect IRR): a working wheat farm with a source in every 9x9 of its field (irrigate), built from its plan; its design request carries the
  * field's reserved cells (sources, farmland sides, the air over them), it is placed once the sources settle, and undone with them drained first.
  */
@@ -9122,6 +9241,7 @@ try {
       await flow('irrigation', 'water farm', () => irrigationFlow());
       await flow('palette', 'material plan', () => paletteFlow());
       await flow('grove', 'plan', () => groveFlow());
+      await flow('grove-coral', 'plan survival stockpile bill', () => groveCoralFlow());
       await flow('districts-plan', 'district plan', () => districtsPlanFlow());
       await flow('plan-check', 'plan', () => planCheckFlow());
       await flow('survival', 'stockpile bill refund growth wall', () => survivalFlow());
