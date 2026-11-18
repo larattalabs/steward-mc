@@ -26,6 +26,11 @@ test('a pendingCredit record with items, or one still there after, is kept and s
   assert.deepEqual(r.ledger.pendingCredit, { b: { items: { 'minecraft:dirt': 1 } } }, 'b still differs from after, so the check fails');
 });
 
+test('an empty-items record carrying any other member is not dropped (the gate-verifier\'s paid case)', () => {
+  const extra = { ...base, pendingCredit: { 'site:s10@2': { items: {}, at: 7, paid: 5 } } };
+  assert.deepEqual(emptyPendingGone(extra, { ...base }), { ledger: extra, dropped: [] });
+});
+
 test('no pendingCredit: nothing changes', () => {
   assert.deepEqual(emptyPendingGone(base, base), { ledger: base, dropped: [] });
   assert.deepEqual(emptyPendingGone(undefined, base), { ledger: undefined, dropped: [] });

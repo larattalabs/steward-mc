@@ -9,7 +9,9 @@ export function emptyPendingGone(before, after) {
   if (!pc || typeof pc !== 'object') return { ledger: before, dropped: [] };
   const kept = {}, dropped = [];
   for (const [k, v] of Object.entries(pc)) {
-    const empty = v && typeof v === 'object' && v.items && typeof v.items === 'object' && Object.keys(v.items).length === 0;
+    // empty: items {} and nothing besides items and its timestamp (a record carrying any other member, a paid share say, is compared as before)
+    const empty = v && typeof v === 'object' && v.items && typeof v.items === 'object' && Object.keys(v.items).length === 0
+      && Object.keys(v).every((m) => m === 'items' || m === 'at');
     if (empty && !(after?.pendingCredit && k in after.pendingCredit)) dropped.push(k);
     else kept[k] = v;
   }
