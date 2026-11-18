@@ -720,14 +720,20 @@ public final class ComposedModules {
 		};
 	}
 
+	/** What an order's bound is called: "its approved limit" once the player approved a held bill as its bound, else "its measured limit". Pure. */
+	static String limitWords(ModuleOrder o) {
+		return o.inexactApproved() ? "its approved limit" : "its measured limit";
+	}
+
 	/** Each module's bill with its limit, for the words (Noah, 2026-11-15: the limit is shown with the quote). */
 	private static List<String> bounded(Map<String, ModuleOrder> orders, Map<String, JsonObject> shares) {
 		List<String> out = new ArrayList<>();
 		for (var e : orders.entrySet()) {
 			String name = ModuleKind.of(e.getValue().moduleId()).map(ModuleKind::role).orElse(e.getKey().replace('_', ' '));
 			JsonObject share = shares.get(e.getKey());
-			out.add("the working " + name + " takes " + (share == null || share.isEmpty() ? "nothing" : ModuleBound.bill(share, 1000)) + " (its measured limit: "
-				+ ModuleBound.bill(e.getValue().bound(), 1000) + ")");
+			// (batch-077 review P3) a bound the player approved since (a held bill, ModuleOrder#approvedHeld) is no longer the measured one
+			out.add("the working " + name + " takes " + (share == null || share.isEmpty() ? "nothing" : ModuleBound.bill(share, 1000)) + " (" + limitWords(e.getValue())
+				+ ": " + ModuleBound.bill(e.getValue().bound(), 1000) + ")");
 		}
 		return out;
 	}

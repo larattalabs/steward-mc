@@ -94,14 +94,9 @@ public final class SettlementRunner {
 		net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents.START_SERVER_TICK.register(server -> {
 			if (!resyncPending) return;
 			resyncPending = false;
-			// running(): empty while settlements are disabled for the session (STORE-FSYNC), so nothing resumes then
-			for (SettlementRunner r : running()) {
-				try {
-					r.resync();
-				} catch (RuntimeException e) {
-					Steward.LOGGER.error("could not resume the build of {}", r.claimedId, e);
-				}
-			}
+			// running(): empty while settlements are disabled for the session (STORE-FSYNC), so nothing resumes then; (batch-077 review P1-2) nor
+			// once an earlier runner's resync disables them (a failed save not written back): the fence is read again before each
+			resumeEach(running(), SettlementRunner::resync);
 			// villages no build or history entry holds (cancelled twice before Architect answered, a history that could not be saved): taken up; never
 			// when the builds could not be read (a build that did not resume is not an orphan)
 			try {
@@ -148,6 +143,24 @@ public final class SettlementRunner {
 			builds = new BuildStore();
 			buildsFile = null;
 		});
+	}
+
+	/**
+	 * (batch-077 review P1-2) The first tick's resumes, one runner after another, each only while settlements are not disabled: an earlier one's resync
+	 * can disable them (a failed save not written back), and a later one must then neither queue nor place. Its failures are logged, the next goes on.
+	 */
+	static void resumeEach(List<SettlementRunner> runners, java.util.function.Consumer<SettlementRunner> resync) {
+		for (SettlementRunner r : runners) {
+			if (Settlements.disabled()) {
+				Steward.LOGGER.error("settlements were disabled while builds resumed: {} and the builds after it resume next session", r.claimedId);
+				return;
+			}
+			try {
+				resync.accept(r);
+			} catch (RuntimeException e) {
+				Steward.LOGGER.error("could not resume the build of {}", r.claimedId, e);
+			}
+		}
 	}
 
 	/** Whether the running builds were told that settlements are disabled (once a session). */
@@ -536,6 +549,12 @@ public final class SettlementRunner {
 
 	/** After a restart: gather what Architect kept, let {@link ResyncRules} decide, and carry it out. Bible and group results also arrive as Architect's catch-up events. */
 	private void resync() {
+		// (batch-077 review P1-2) settlements disabled (by an earlier runner's resync, or before): nothing is resumed, queued or placed; the build stays
+		// saved and resumes next session
+		if (Settlements.disabled()) {
+			Steward.LOGGER.warn("resume {}: settlements are disabled this session, so the build resumes next session", claimedId);
+			return;
+		}
 		var api = ArchitectApi.get();
 		var sites = api.sites(server);
 		say("Picking up the build of " + settlement.name() + " where it stopped (" + state.phase().name().toLowerCase().replace('_', ' ') + ").");
@@ -2429,6 +2448,8 @@ public final class SettlementRunner {
 	}
 
 	private void execute(Command c) {
+		// (batch-077 review P1-2) a mutation boundary: nothing is asked of Architect while settlements are disabled (the build resumes from its save)
+		if (Settlements.disabled()) { Steward.LOGGER.warn("{}: {} not sent: settlements are disabled this session", claimedId, c.getClass().getSimpleName()); return; }
 		var api = ArchitectApi.get();
 		switch (c) {
 			case Pipeline.RequestBible b -> {
@@ -2577,6 +2598,8 @@ public final class SettlementRunner {
 	}
 
 	private void fitAndQueue(boolean autoApprove) {
+		// (batch-077 review P1-2) nothing is queued or placed while settlements are disabled
+		if (Settlements.disabled()) { Steward.LOGGER.warn("{}: not queued: settlements are disabled this session", claimedId); return; }
 		if (village()) { queueVillage(autoApprove); return; }
 		var api = ArchitectApi.get();
 		Group g = api.designs().group(groupId).orElse(null);
@@ -2865,6 +2888,8 @@ public final class SettlementRunner {
 
 	private void realiseVillage() {
 		if (vRegionId != null || queueInFlight || districtQuoting) return;
+		// (batch-077 review P1-2) nothing is realised while settlements are disabled
+		if (Settlements.disabled()) { Steward.LOGGER.warn("{}: not realised: settlements are disabled this session", claimedId); return; }
 		var api = ArchitectApi.get();
 		Map<String, String> entries = new LinkedHashMap<>();
 		// (slice M3) module lots: their bound variants, made (or found by key) and their bill quoted first; the realise waits until then
@@ -3982,6 +4007,12 @@ public final class SettlementRunner {
 		if (!Session.is(session)) return;
 		queueInFlight = false;
 		if (worldStopped(err)) return;
+		// (batch-077 review P1-1) settlements disabled since it was asked: the answer is neither acted on nor taken up (a take-up removes and refunds
+		// with no history saved); the region stands, found by its key or its build tag when the build resumes next session (or by that session's sweep)
+		if (Settlements.disabled()) {
+			if (err == null) keptForNextSession(id);
+			return;
+		}
 		// the build ended (cancelled while this was asked, twice, or replaced): a village realised for it after all is taken up, not left without a history
 		if (!alive() || state == null || switch (state.phase()) { case DONE, FAILED, CANCELLED -> true; default -> false; }) {
 			if (err == null) takeUpOrphan(id);
@@ -4141,9 +4172,29 @@ public final class SettlementRunner {
 	 * undo would; when that stops, the entry stays and undo takes it up once it is clear.
 	 */
 	private void takeUpOrphan(String regionId) {
+		// (batch-077 review P1-1) never while settlements are disabled: nothing of it could be logged, so it stands for the next session
+		if (Settlements.disabled()) { keptForNextSession(regionId); return; }
 		if (growth()) { takeUpOrphanGrowth(regionId); return; }
 		Steward.LOGGER.warn("village region {} was realised for {}'s ended build {}: taking it up", regionId, settlement.id(), buildId);
 		Settlements.store().get(settlement.id()).ifPresent(saved -> VillageSweep.takeUp(server, saved, regionId, this::say));
+	}
+
+	/** (batch-077 review P1-1) A region realised while settlements are disabled: left standing, logged and said; the next session resumes or sweeps it. */
+	private void keptForNextSession(@org.jspecify.annotations.Nullable String regionId) {
+		Steward.LOGGER.warn("village region {} of {} (build {}) was realised while settlements are disabled: left standing for the next session", regionId,
+			claimedId, buildId);
+		say("Architect finished placing part of " + (settlement == null ? "the build" : settlement.name()) + ", but settlements are disabled this session, so"
+			+ " nothing is recorded or taken up: the build waits for the next session.");
+	}
+
+	/** (TEST) Architect's answer to this build's realise, as it arrives on the server thread ({@link #realised}). */
+	void realisedForTest(@org.jspecify.annotations.Nullable String id, @org.jspecify.annotations.Nullable Throwable err) {
+		realised(id, err, Session.current());
+	}
+
+	/** (TEST) This build's resume after a restart ({@link #resync}). */
+	void resyncForTest() {
+		resync();
 	}
 
 	/**
@@ -4835,7 +4886,7 @@ public final class SettlementRunner {
 			String told = Secrets.ofSettlement(settlement.id()).mask(text);
 			text = told.isBlank() ? "Architect's reason concerns a part of the plan kept private." : told;
 		}
-		if (!Session.is(session)) return;
+		if (!Session.is(session) || server == null) return;
 		if (settlement != null) StewardVoice.say(server, settlement.id(), text);
 		ServerPlayer p = server.getPlayerList().getPlayer(playerId);
 		if (p != null) p.sendSystemMessage(Component.literal(text));

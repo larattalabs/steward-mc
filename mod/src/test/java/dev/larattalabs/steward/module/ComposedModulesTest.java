@@ -329,6 +329,10 @@ class ComposedModulesTest {
 		over.orders().forEach((k, v) -> approved.put(k, v.approvedHeld()));
 		var again = ComposedModules.held(parts, approved, null);
 		assertNull(again.ask());
+		// (batch-077 review P3) the bound is now the bill the player approved, past the measured one: called so, never "measured"
+		assertTrue(again.said().contains("storage hall takes 90 oak planks (its approved limit: 90 oak planks)"), again.said());
+		assertTrue(again.said().contains("crop farm takes 120 dirt (its approved limit: 120 dirt)"), again.said());
+		assertFalse(again.said().contains("measured limit"), again.said());
 		// an inexact quote asks until each order had an inexact bill approved
 		var inexact = ComposedModules.held(parts, Map.of("farm_1", order("crop_farm", "{\"minecraft:dirt\": 130}")), "a lot may differ");
 		assertTrue(inexact.ask().contains("exactly (a lot may differ)"), inexact.ask());
