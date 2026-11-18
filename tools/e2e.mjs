@@ -2935,9 +2935,14 @@ async function composedModulesSurvivalFlow({ fillHalt = false } = {}) {
       // (CHECK-079, LIFT-S-1) the fill case: once the hall's structure stands and its site waits for the fill alone, half of each fill item
       // stocked, an unclean halt, a restart: the fill still owed, the rest accepted
       if (fillHalt && region && !halted) {
+        // the hall's site: the stockpile's target whose fill bills the filter items (the history's PROJECT_PLACED entry, which moduleSites
+        // reads, is written only once the town is built)
         if (!hallSid) {
-          const op = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
-          hallSid = (await moduleSites(op)).find((m) => /^storage_hall@/.test(m.key))?.sid ?? null;
+          const targets = Object.keys((await dev.request('dev.stockpile.state', { owner }, { timeoutMs: 60_000 }).catch(() => null))?.stockpile?.targets ?? {});
+          for (const t of targets) {
+            const f = await dev.request('dev.fk.state', { site: t }, { timeoutMs: 30_000 }).catch(() => null);
+            if (f?.hasFill && FILL_ITEMS.every((k) => (countsOf(f.fillItems)[k] ?? 0) > 0)) { hallSid = t; break; }
+          }
         }
         const s = await fkState();
         const next = countsOf(s?.wait?.nextNeeded);
@@ -3049,6 +3054,8 @@ async function composedModulesSurvivalFlow({ fillHalt = false } = {}) {
     // (CHECK-079) the fill case: the hall filled, its fill charged exactly once (no double charge across the restart), the hoppers holding it
     if (fillHalt) {
       const lbl = `${label} filled once`;
+      const hallMod = mods.find((m) => /^storage_hall@/.test(m.key));
+      if (hallMod?.sid !== hallSid) fail(lbl, `the site halted on (${hallSid}) is not the storage hall module's (${hallMod?.sid ?? 'none'})`);
       const s = await fkState();
       const spF = await ledger();
       const charged = minusItems(onlyFill(spF?.consumed), onlyFill(fillCase?.sp1?.consumed));
@@ -3077,7 +3084,8 @@ async function composedModulesSurvivalFlow({ fillHalt = false } = {}) {
     {
       const lbl = `${label} quote words`;
       const q = since.match(/From materials, the working crop farm takes [^\n]*/)?.[0] ?? '';
-      if (/\(its measured limit: [^)]*\)/.test(q) && /the working storage hall takes [^\n]*\(its measured limit: /.test(q) && q.includes('I stop before passing it, except to pay for blocks already standing after a crash.'))
+      // (batch-077 ef4d9d9) a bound the player approved at the re-ask is "its approved limit"; the hall's, never re-asked, stays measured
+      if (/\(its (?:measured|approved) limit: [^)]*\)/.test(q) && /the working storage hall takes [^\n]*\(its measured limit: /.test(q) && q.includes('I stop before passing it, except to pay for blocks already standing after a crash.'))
         ok(lbl, q.slice(0, 240));
       else return fail(lbl, `no quote words with both limits: ${q.slice(0, 240) || 'none'}`);
     }
