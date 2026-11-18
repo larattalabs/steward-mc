@@ -365,6 +365,10 @@ public final class Growths {
 			// answered not removed, or refused: read again (a lost answer of an undo that went through reads UNDONE)
 			var again = decide(regions.get(ref.region()), ref.rid());
 			if (again.step() == Step.GONE) { done.accept(true); return; }
+			// (slice DRS) left UNDOING with a stage wait (Architect DR-S: a refused save, resumed by a same-target call or the next world start): waiting,
+			// never refused, and never Architect's text (a refused save's names chunk files)
+			var after = regions.get(ref.region()).flatMap(v -> v.revisions().stream().filter(x -> x.rid() == ref.rid()).findFirst()).orElse(null);
+			if (RemovalStops.growthWaits(after)) { say.accept(RemovalStops.growthWaiting()); done.accept(false); return; }
 			// (slice A2) a target still building (a race past the check above): said plainly, never Architect's text
 			if (err != null && buildingRefusal(SettlementRunner.message(err))) { say.accept(buildingLine(server, ref)); done.accept(false); return; }
 			// (M4, Q3) refused for a storage hall holding items (Architect throws NOT_ALLOWED naming the sites to empty): said as the steward says

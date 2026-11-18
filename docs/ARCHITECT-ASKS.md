@@ -1842,3 +1842,15 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
 - **Ask:** on Steward's integrated client `/save-all` is unknown ("Unknown or incomplete command"), yet `dev.command` answered `ok: true`, so the sort-crash baselines were never saved. Could an unrun command answer `ok: false`, and is there a save barrier that works on the integrated client?
 - **Architect's answer:** `ok` meant only that the call didn't throw (DevBridge.java:393). The command's own result is `success`: false with `result: null` and the error in `messages[]` for an unknown command (DevCommands.java:939-945). Barriers for now: `dev.stockpile.ps {noPeriodic:false}` and wait over 10 s, `dev.world.leave {}`, or `dev.stockpile.halt {mode:"autosave"}`. In v0.75.0 (slice M1), `dev.command` answers `ok: false` (a DevError) to any command that never ran, and `dev.stockpile.save {}` returns `{written, path, bytes, saves}`.
 - **Steward:** SAVEB checks `success` on every command, drops the `/save-all` sends, and prefers `dev.stockpile.save` when the bridge lists it.
+
+### S-DRS-1: a typed cause for a removal stop (slice DRS, 2026-11-17)
+
+- **Ask:** `RegionView.removalStop()` says whether a removal wrote anything (NOT_STARTED, PARTIAL), but not why. NOT_STARTED covers a refused save
+  (Groups' "the removal of group <g> was not started: ..." blocker, which names chunk files), a player in a box, COVERED, an unloaded dimension, an
+  unreadable journal and the cargo blocker alike, and `removalStopReason()` is the same joined text. Could the stop carry a typed cause (an enum, or a
+  `Reason`, on `RegionView` and on `RemoveResult`), with `SAVE_REFUSED` among them? A site-group removal (`Sites.removeGroup`, no region) has no stop at
+  all today.
+- **Steward meanwhile:** what happened is read from the typed stop only. The words for a refused save ("the world couldn't be saved just now, nothing was
+  taken down; ask again") are picked by one narrow test on the fixed phrase " was not started: " (`RemovalStops.saveRefused`), read only under
+  NOT_STARTED (or, for a site group, with every site still standing), and the raw text is never shown or noted. A growth's take-up left UNDOING with a
+  wait reads as waiting by its typed state alone, its wait text never shown.
