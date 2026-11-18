@@ -151,6 +151,29 @@ class WallRepairPipelineTest {
 	 * repair starts with no design yet; then tower_2's queued completion runs. It is not tower_3's: tower_3 isn't finished with tower_2's design, the build
 	 * doesn't stop, and tower_3's own design still ends it.
 	 */
+	/**
+	 * (WALL-RACE, FENCE-TESTS) A repair design answered after its repair ended is stopped (SettlementRunner.askRepair cancels it): no repair now, or another
+	 * lot's or round's. Its own repair, whose design isn't known yet, keeps it.
+	 */
+	@Test
+	void aRepairDesignAnsweredAfterItsRepairEndedIsStopped() throws Exception {
+		String a = "steward.b1.repair.tower_2.1", b = "steward.b1.repair.tower_3.1";
+		var s = step(placing(5, 35), new WallRefused("tower_2", "corner tower", "open at 1,64,2", true, a)).next();
+		assertNull(s.repair().designId(), "asked, not answered yet");
+		assertFalse(Pipeline.answeredAfterItsRepair(s.repair(), a), "its own repair: kept, though its design isn't known yet");
+		assertTrue(Pipeline.answeredAfterItsRepair(s.repair(), "steward.b1.repair.tower_2.2"), "another round's key");
+		assertTrue(Pipeline.answeredAfterItsRepair(null, a), "no repair now (or no state)");
+		// the repair ended meanwhile and another lot's began
+		s = step(s, new RepairAsked(a, "d216")).next();
+		assertFalse(Pipeline.answeredAfterItsRepair(s.repair(), a), "answered, still its repair");
+		s = step(s, new RepairEnded(a, RepairEnd.DONE, 0.7, null)).next();
+		assertTrue(Pipeline.answeredAfterItsRepair(s.repair(), a), "ended: no repair now");
+		s = step(s, new WallRefused("tower_3", "corner tower", "open at 1,64,9", true, b)).next();
+		assertEquals("tower_3", s.repair().lotId());
+		assertTrue(Pipeline.answeredAfterItsRepair(s.repair(), a), "tower_2's answer, late: stopped");
+		assertFalse(Pipeline.answeredAfterItsRepair(s.repair(), b));
+	}
+
 	@Test
 	void aQueuedCompletionEndsOnlyTheRepairItWasFor() throws Exception {
 		String a = "steward.b1.repair.tower_2.1", b = "steward.b1.repair.tower_3.1";

@@ -3754,7 +3754,7 @@ public final class SettlementRunner {
 			// this runner replaced meanwhile: the design is stopped, whoever owns the key now finds it by the key
 			if (!alive()) { if (id != null && !Settlements.disabled()) ArchitectApi.get().designs().cancel(id); return; }
 			// (WALL-RACE) the repair ended meanwhile (the build stopped, or another round or lot's repair is the build's now): its design is stopped, not left running
-			if (state == null || state.repair() == null || !state.repair().key().equals(a.key())) {
+			if (Pipeline.answeredAfterItsRepair(state == null ? null : state.repair(), a.key())) {
 				if (id != null) {
 					Steward.LOGGER.info("repair {} of {}: design {} answered after the repair ended; stopped", a.key(), settlement.id(), id);
 					ArchitectApi.get().designs().cancel(id);
