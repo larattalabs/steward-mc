@@ -214,8 +214,8 @@ final class FakeArchitect {
 	/** (slice BCU) {@code Sites.loadHealthy()}: false models a sites file Architect could not read (it then lists no site). */
 	boolean loadHealthy = true;
 	/** (slice BCU) {@code ArchitectApi.kitVersion()} and {@code checkerVersion()} (null: no helper connected, empty). */
-	String kitVersion = "0.69.0";
-	String checkerVersion = "0.69.0";
+	String kitVersion = "0.71.0";
+	String checkerVersion = "0.71.0";
 	/** Architect's features (BC+'s {@code kitVersion} and {@code sitesLoadHealthy} among them). */
 	Set<String> features = Set.of("regions", "growDistrict", "regionAdopt", "kitVersion", "sitesLoadHealthy");
 

@@ -237,6 +237,20 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.78.0 by a smoke check (2026-11-17, pin-076; speed rule 4).** Kit/checker 0.71.0 as at 0.77.0, the program and moduleSha
+`440289a5…` unchanged; the published 0.78.0 jar (sha256 `11580aea…`). 0.78.0 (API 1.67.0) adds LCAP's per-lot caps to `Quotes` (a check against
+`maxBillPerLot`, the bill itself unchanged) and DR's repairs; no crop_farm path's bill moves. Survival 63/63, bounds 111/111 (the 108 re-quoted
+bounds equal the carried ones), offline 295/295, ingame 292/292, field-potatoes 62/62 (5 runs), ports 9116/9117, $0.
+
+**Carried to Architect 0.77.0 by a smoke check (2026-11-17, pin-076 retargeted; speed rule 4).** The pins moved to kit/checker 0.71.0, the program
+unchanged (`c406df05…`), moduleSha `440289a5…`; run on the published 0.77.0 jar (ARCHITECT_JAR, sha256 `73e01fe4…`). The v0.74.0..v0.77.0 kit
+diff changes only version strings on crop_farm's paths (`realise.mjs`, `region/plan.mjs`); compile.mjs, links.mjs and fluids/body.mjs change
+only behind PL2's ladder.port (ONE_ENDED_KINDS), checkM15 swaps `Math.max(...)` for a loop (same result). The Java adds dev.stockpile.save
+(dev only), CS2's composite delete, and OVF (API 1.66.0): a keyed refund never overflows, it all enters the stock. The undo refund check
+counts credited plus overflow, so it holds either way. Survival 63/63, bounds 111/111 (the 108 re-quoted bounds equal the carried ones),
+offline 295/295, ingame 292/292, field-potatoes 62/62 (5 runs), ports 9116/9117, $0. Potatoes per crop-day against 0.67.0: within 2.5% on
+all nine farms (9x27 -2.5%).
+
 **Carried to Architect 0.74.0 by a smoke check (2026-11-16, pin-074; speed rule 4).** The pins moved to kit/checker 0.69.0, the program
 unchanged (`c406df05…`), moduleSha `cedb9ab6…`. The kit's diff for crop_farm's paths is version strings only (`realise.mjs`, `region/plan.mjs`);
 the Java FullBom, quotes and survival billing are unchanged (R2's crater-shell billing is a test of Architect's own). Survival 63/63, the

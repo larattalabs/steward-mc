@@ -3,13 +3,13 @@
   "version": 1,
   "fixture": false,
   "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
-  "moduleSha": "cedb9ab614cfe060fdf9b134c58f3dc202221c0afadad39ccb15a2af737de29b",
+  "moduleSha": "440289a555e5d06ce4447e915f4f3106d13abaf20f07f899cb0b9165a9547383",
   "minecraft": "26.3",
   "architect": [
-    "0.74.0"
+    "0.78.0"
   ],
-  "kit": "0.69.0",
-  "checker": "0.69.0",
+  "kit": "0.71.0",
+  "checker": "0.71.0",
   "result": "pass",
   "basis": "smoke",
   "from": "0.67.0",
@@ -18,10 +18,10 @@
   "runs": 5,
   "checks": {
     "offline": {
-      "at": "2026-11-16T12:54:09.555Z",
-      "head": "9449224f6c8c6130afe38faaa3984c69d4721366",
-      "architect": "0.74.0",
-      "kit": "0.69.0",
+      "at": "2026-11-17T23:59:54.108Z",
+      "head": "a53dc3a7a32fc419be1beccb92b1f2b5e6ac70ee",
+      "architect": "0.78.0",
+      "kit": "0.71.0",
       "branches": [
         {
           "branch": {
@@ -1239,14 +1239,14 @@
       }
     },
     "ingame": {
-      "at": "2026-11-16T12:58:41.603Z",
-      "head": "9449224f6c8c6130afe38faaa3984c69d4721366",
+      "at": "2026-11-17T21:06:35.121Z",
+      "head": "784649aae348e45df8d25227a7d4743eec5747c8",
       "env": {
         "minecraft": "26.3",
-        "architect": "0.74.0",
+        "architect": "0.78.0",
         "givenPrograms": true,
         "measuring": false,
-        "label": "m1_29225_1",
+        "label": "m1_17478_1",
         "request": {
           "op": "env"
         }
@@ -2458,28 +2458,28 @@
       "rule": "speed rule 4 (Noah 2026-11-13, AGENTS.md \"Module re-certification\"): a plain Architect version bump with the program and module.json unchanged but for the pins: fresh offline and ingame, the billing check (survival, and the bounds re-quoted equal to the carried ones item for item) and one field round; the full measurement is carried",
       "survival": {
         "step": "survival",
-        "at": "2026-11-16T13:03:15.943Z",
-        "head": "9449224f6c8c6130afe38faaa3984c69d4721366",
-        "world": "Steward M2 Survival 202611161259",
-        "seconds": 240.856,
+        "at": "2026-11-17T21:10:23.415Z",
+        "head": "784649aae348e45df8d25227a7d4743eec5747c8",
+        "world": "Steward M2 Survival 202611172106",
+        "seconds": 228.215,
         "runs": null,
         "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
-        "moduleJsonSha": "f6839ee806eba3e209446cdcb0507ef0439534530b5719f37e6049e272527081",
-        "architect": "0.74.0",
+        "moduleJsonSha": "b2e1285984e4c6c9d2480caacc6609d81c3d550a2979abe718376f4bcb8156b4",
+        "architect": "0.78.0",
         "minecraft": "26.3",
         "passed": 63,
         "of": 63
       },
       "bounds": {
         "step": "bounds",
-        "at": "2026-11-16T13:11:27.169Z",
-        "head": "9449224f6c8c6130afe38faaa3984c69d4721366",
-        "world": "Steward M2 Bounds 202611161305",
-        "seconds": 361.161,
+        "at": "2026-11-17T21:16:18.773Z",
+        "head": "784649aae348e45df8d25227a7d4743eec5747c8",
+        "world": "Steward M2 Bounds 202611172110",
+        "seconds": 355.312,
         "runs": null,
         "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
-        "moduleJsonSha": "f6839ee806eba3e209446cdcb0507ef0439534530b5719f37e6049e272527081",
-        "architect": "0.74.0",
+        "moduleJsonSha": "b2e1285984e4c6c9d2480caacc6609d81c3d550a2979abe718376f4bcb8156b4",
+        "architect": "0.78.0",
         "minecraft": "26.3",
         "passed": 111,
         "of": 111,
@@ -2488,14 +2488,14 @@
       "fields": [
         {
           "step": "field-potatoes",
-          "at": "2026-11-16T13:52:31.808Z",
-          "head": "9449224f6c8c6130afe38faaa3984c69d4721366",
-          "world": "Steward M2 Field potatoes 202611161313",
-          "seconds": 2334.539,
+          "at": "2026-11-17T22:10:50.966Z",
+          "head": "784649aae348e45df8d25227a7d4743eec5747c8",
+          "world": "Steward M2 Field potatoes 202611172116",
+          "seconds": 3272.133,
           "runs": 5,
           "programSha": "c406df05dbc0d3fc3022d4a7e1ad413ab650577840e37e1ebfb8dd92ae5a7681",
-          "moduleJsonSha": "f6839ee806eba3e209446cdcb0507ef0439534530b5719f37e6049e272527081",
-          "architect": "0.74.0",
+          "moduleJsonSha": "b2e1285984e4c6c9d2480caacc6609d81c3d550a2979abe718376f4bcb8156b4",
+          "architect": "0.78.0",
           "minecraft": "26.3",
           "passed": 62,
           "of": 62,
@@ -2507,11 +2507,11 @@
                 "depth": 9,
                 "width": 9
               },
-              "perCropDay": 0.6645863788720932,
+              "perCropDay": 0.6750006750006751,
               "perDay": 49,
               "carriedPerCropDay": 0.649157792014935,
               "carriedPerDay": 48,
-              "changePct": 2.4
+              "changePct": 4
             },
             {
               "params": {
@@ -2519,11 +2519,11 @@
                 "depth": 18,
                 "width": 18
               },
-              "perCropDay": 0.6956146975068451,
-              "perDay": 210,
+              "perCropDay": 0.6949531074412815,
+              "perDay": 209,
               "carriedPerCropDay": 0.7014744952304082,
               "carriedPerDay": 211,
-              "changePct": -0.8
+              "changePct": -0.9
             },
             {
               "params": {
@@ -2531,83 +2531,83 @@
                 "depth": 27,
                 "width": 27
               },
-              "perCropDay": 0.7103914100143677,
-              "perDay": 484,
+              "perCropDay": 0.7210217516040726,
+              "perDay": 491,
               "carriedPerCropDay": 0.7180084264290382,
               "carriedPerDay": 489,
-              "changePct": -1.1
-            },
-            {
-              "params": {
-                "crop": "potatoes",
-                "depth": 27,
-                "width": 9
-              },
-              "perCropDay": 0.6879340634081469,
-              "perDay": 155,
-              "carriedPerCropDay": 0.7123091825999539,
-              "carriedPerDay": 160,
-              "changePct": -3.4
-            },
-            {
-              "params": {
-                "crop": "potatoes",
-                "depth": 9,
-                "width": 27
-              },
-              "perCropDay": 0.6938699732631466,
-              "perDay": 156,
-              "carriedPerCropDay": 0.6831348171424024,
-              "carriedPerDay": 154,
-              "changePct": 1.6
-            },
-            {
-              "params": {
-                "crop": "potatoes",
-                "depth": 18,
-                "width": 9
-              },
-              "perCropDay": 0.6734218162789591,
-              "perDay": 101,
-              "carriedPerCropDay": 0.6462109319252176,
-              "carriedPerDay": 96,
-              "changePct": 4.2
-            },
-            {
-              "params": {
-                "crop": "potatoes",
-                "depth": 9,
-                "width": 18
-              },
-              "perCropDay": 0.688454402740117,
-              "perDay": 103,
-              "carriedPerCropDay": 0.6867418295989725,
-              "carriedPerDay": 103,
-              "changePct": 0.2
-            },
-            {
-              "params": {
-                "crop": "potatoes",
-                "depth": 27,
-                "width": 18
-              },
-              "perCropDay": 0.7133206629745332,
-              "perDay": 323,
-              "carriedPerCropDay": 0.7105543921151222,
-              "carriedPerDay": 322,
               "changePct": 0.4
             },
             {
               "params": {
                 "crop": "potatoes",
+                "depth": 27,
+                "width": 9
+              },
+              "perCropDay": 0.6923544218108062,
+              "perDay": 156,
+              "carriedPerCropDay": 0.7123091825999539,
+              "carriedPerDay": 160,
+              "changePct": -2.8
+            },
+            {
+              "params": {
+                "crop": "potatoes",
+                "depth": 9,
+                "width": 27
+              },
+              "perCropDay": 0.6917229420389978,
+              "perDay": 156,
+              "carriedPerCropDay": 0.6831348171424024,
+              "carriedPerDay": 154,
+              "changePct": 1.3
+            },
+            {
+              "params": {
+                "crop": "potatoes",
+                "depth": 18,
+                "width": 9
+              },
+              "perCropDay": 0.6840778269349698,
+              "perDay": 102,
+              "carriedPerCropDay": 0.6462109319252176,
+              "carriedPerDay": 96,
+              "changePct": 5.9
+            },
+            {
+              "params": {
+                "crop": "potatoes",
+                "depth": 9,
+                "width": 18
+              },
+              "perCropDay": 0.6755149612292469,
+              "perDay": 101,
+              "carriedPerCropDay": 0.6867418295989725,
+              "carriedPerDay": 103,
+              "changePct": -1.6
+            },
+            {
+              "params": {
+                "crop": "potatoes",
+                "depth": 27,
+                "width": 18
+              },
+              "perCropDay": 0.7043302826814469,
+              "perDay": 319,
+              "carriedPerCropDay": 0.7105543921151222,
+              "carriedPerDay": 322,
+              "changePct": -0.9
+            },
+            {
+              "params": {
+                "crop": "potatoes",
                 "depth": 18,
                 "width": 27
               },
-              "perCropDay": 0.6963458190645101,
-              "perDay": 316,
+              "perCropDay": 0.7083539493860451,
+              "perDay": 321,
               "carriedPerCropDay": 0.7067822045795615,
               "carriedPerDay": 320,
-              "changePct": -1.5
+              "changePct": 0.2
             }
           ]
         }
