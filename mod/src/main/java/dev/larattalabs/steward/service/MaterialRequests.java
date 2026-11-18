@@ -111,7 +111,8 @@ public final class MaterialRequests {
 		SAID.put(wait.targetId(), key);
 		TOLD.put(s.get().id(), now);
 		// (QD) held by the approved bound, not by the stockpile: more materials would not help
-		if (capped(wait)) tell(srv, s.get(), overCap(nameOf(s.get(), site), s.get().id(), wait, takeUp(s.get(), regionOf(site), ridOf(site))));
+		if (capped(wait)) tell(srv, s.get(), overCap(capLot(wait) != null ? moduleName(s.get(), site, capLot(wait)) : nameOf(s.get(), site), s.get().id(), wait,
+			takeUp(s.get(), regionOf(site), ridOf(site))));
 		else tell(srv, s.get(), "The " + nameOf(s.get(), site) + " waits for materials: " + needs(wait) + ". They go in the stockpile.");
 	}
 
@@ -272,7 +273,52 @@ public final class MaterialRequests {
 	static String overCap(String what, String settlementId, SiteWait w, TakeUp how) {
 		var over = w.nextNeeded().stream()
 			.map(n -> Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(n.item()).toString(), n.count())).toList();
-		return overCapWords(what, settlementId, over, w.moreUnits(), how);
+		return capLot(w) != null ? lotOverCapWords(what, settlementId, over, w.moreUnits(), how, capBoth(w.capScope()))
+			: overCapWords(what, settlementId, over, w.moreUnits(), how);
+	}
+
+	/**
+	 * (LIFT-S, Architect LCAP-Q1) The lot whose own cap ({@code maxBillPerLot}) holds a {@code bill_cap} wait, from its {@code capScope}
+	 * ({@code "lot:<id>"}, or {@code "lot:<id>,region"} when both hold it: the lot's is named first), else null (the region's cap, or no scope). Pure.
+	 */
+	static @org.jspecify.annotations.Nullable String capLot(@org.jspecify.annotations.Nullable String capScope) {
+		if (capScope == null) return null;
+		for (String part : capScope.split(",")) {
+			String p = part.strip();
+			if (p.startsWith("lot:") && p.length() > 4) return p.substring(4);
+		}
+		return null;
+	}
+
+	/** (LIFT-S GPT review) Whether a lot's cap and the region's both hold the wait ({@code "lot:<id>,region"}). Pure. */
+	static boolean capBoth(@org.jspecify.annotations.Nullable String capScope) {
+		if (capLot(capScope) == null) return false;
+		for (String part : capScope.split(",")) if (part.strip().equals(SiteWait.CAP_REGION)) return true;
+		return false;
+	}
+
+	static @org.jspecify.annotations.Nullable String capLot(SiteWait w) {
+		return capped(w) ? capLot(w.capScope()) : null;
+	}
+
+	/** A module lot held by its own cap, in words: "working crop farm" from the site's module ref, else its lot id in words. */
+	private static String moduleName(Settlement s, SiteView v, String lot) {
+		var ref = dev.larattalabs.steward.module.ModuleRef.of(v.ext());
+		var kind = ref == null ? java.util.Optional.<dev.larattalabs.steward.module.ModuleKind>empty() : dev.larattalabs.steward.module.ModuleKind.of(ref.id());
+		return kind.map(k -> "working " + k.role()).orElse(nameOf(s, v));
+	}
+
+	/**
+	 * (LIFT-S) A module lot's {@code bill_cap} wait held by its own cap, in words: which module waits, that it would pass its limit (its measured
+	 * bound, or the bill the player approved since), and that nothing past it is taken; the way on as for any capped wait ({@link #overCapWords}).
+	 * After an unclean start the reconcile may already have charged standing blocks past it (the crash exception said at the quote), so the words
+	 * promise only that no more is taken. Pure.
+	 */
+	static String lotOverCapWords(String what, String settlementId, List<Map.Entry<String, Integer>> over, int moreUnits, TakeUp how, boolean alsoRegion) {
+		String full = overCapWords(what, settlementId, over, moreUnits, how);
+		// both caps hold it: Architect's counts are the larger of the two shortfalls, item by item, so the words name both limits
+		return full.replace(" more than you approved, so I take no more for it;", alsoRegion
+			? " more than its limit or what you approved (whichever holds it), so I take no more for it;" : " more than its limit, so I take no more for it;");
 	}
 
 	/**

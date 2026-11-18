@@ -109,10 +109,11 @@ class ComposedCrashPointsTest {
 	@Test
 	void aComposedRealiseFromMaterialsIsNeverSentUncapped() {
 		var orders = orders(farm("{\"minecraft:dirt\": 130}"), hall(HALL_BOUND));
-		assertTrue(SettlementRunner.composedMaterialsUncapped(true, orders), "no cap per lot in 0.74.0 (S-M5-16)");
-		assertFalse(SettlementRunner.composedMaterialsUncapped(false, orders), "a town built at once bills nothing");
-		assertFalse(SettlementRunner.composedMaterialsUncapped(true, Map.of()), "a town of designed lots only is billed as before");
-		assertTrue(ComposedModules.MATERIALS_WAIT_FOR_LOT_CAP, "the guard stays on until S-M5-16");
+		assertTrue(SettlementRunner.composedMaterialsUncapped(true, orders, false), "an Architect with no cap per lot (no LCAP): never sent");
+		assertFalse(SettlementRunner.composedMaterialsUncapped(true, orders, true), "(LIFT-S) Architect's maxBillPerLot holds each lot");
+		assertFalse(SettlementRunner.composedMaterialsUncapped(false, orders, false), "a town built at once bills nothing");
+		assertFalse(SettlementRunner.composedMaterialsUncapped(true, Map.of(), false), "a town of designed lots only is billed as before");
+		assertTrue(ComposedModules.materialsGuard(false), "the guard stays on without LCAP");
 		// and the single-module growth's cap is never sent for a composed town (more than one order)
 		assertNull(SettlementRunner.realiseCap(true, true, orders, true));
 	}
