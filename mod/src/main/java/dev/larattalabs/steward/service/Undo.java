@@ -159,12 +159,14 @@ public final class Undo {
 				UNDOING.remove(s.id());
 			districts(server, s, say);
 				if (err != null) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
-				// (slice DRS) a survival group's refused save (every site still stands: nothing was taken down); its raw text names chunk files
-				// (8bS) told by the group's typed stop cause (S-DRS-1), never by the blocker's text
-				else if (!r.removed() && gone.isEmpty() && RemovalStops.saveRefused(RemovalStops.groupCause(sites, group))) say.accept("Undo stopped: "
-					+ RemovalStops.SAVE_REFUSED + " (/steward undo " + s.id() + ").");
-				else if (!r.removed()) say.accept("Undo stopped after " + gone.size() + " of " + Words.count(standing.size(), "site", "sites") + ": blocked by "
-					+ (r.blockers().isEmpty() ? "something in a box" : String.join(", ", r.blockers())) + ". Clear it and run /steward undo " + s.id() + " again.");
+				// (slice DRS, 8bS, undo-words) told by the group's typed stop cause (S-DRS-1) in the steward's words, never by the blocker's text (a
+				// refused save's names chunk files); every site still standing took nothing down, some gone took part
+				else if (!r.removed()) {
+					Steward.LOGGER.info("{}: the undo of group {} stopped: {}", s.id(), group, r.blockers());
+					say.accept(RemovalStops.undoStopped(gone.isEmpty() ? dev.larattalabs.architect.api.RemovalStop.NOT_STARTED
+						: dev.larattalabs.architect.api.RemovalStop.PARTIAL, RemovalStops.groupCause(sites, group), s.id(),
+						gone.size() + " of " + Words.count(standing.size(), "site", "sites")));
+				}
 				else say.accept("Undone: removed " + Words.count(gone.size(), "site", "sites") + ", the land is restored.");
 			});
 			return true;
@@ -285,17 +287,22 @@ public final class Undo {
 			// logged once (slice VSR): two asks of one removal (Architect joins them) retire the entry once
 			if (ok && !retired(Settlements.store().get(s.id()).orElse(s), entry) && !Settlements.log(s.id(), removed(entry, regionSites, true, now)).ok()) say.accept(UNLOGGED);
 			districts(server, s, say);
+			// Architect's text (its error, its blockers): read only to find a storage hall's chests and logged, never said or noted (undo-words)
 			String why = err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()) : "blocked by " + String.join(", ", r.blockers());
-			// (slice M5) refused for a storage hall holding items: said as the steward says it, then Architect's own list
+			if (!ok) Steward.LOGGER.info("{}: the undo of {} stopped: {}", s.id(), region, why);
+			// (slice M5) refused for a storage hall holding items: said as the steward says it, with its own count and chests
 			String held = !ok && HallCargo.cargoRefusal(why) ? HallCargo.words(server, s.owner(), region, why) : null;
-			// (batch review 2) a refused undo's note is closed: a later removal by something else is never taken for this undo
-			// (8bS) the stop's typed cause (S-DRS-1): a refused save's raw text is never noted
+			// (slice DRS, 8bS, undo-words) Architect's typed stop (feature removalStop: NOT_STARTED took nothing down, PARTIAL took part) and its typed
+			// cause (S-DRS-1): said and noted in the steward's words for that cause (RemovalStops.causeWords), the generic line for OTHER or none
+			var stop = ok || err != null ? null : RemovalStops.of(region);
 			var cause = ok || err != null ? null : RemovalStops.cause(region);
-			if (!ok && intent && !Settlements.log(s.id(), closedNote(region, RemovalStops.noted(cause, why))).ok()) Steward.LOGGER.warn("{}: the stopped undo of {} left its note open", s.id(), region);
-			// (slice DRS) Architect's typed stop (feature removalStop): NOT_STARTED took nothing down (a refused save leaves the region as it was)
-			String notStarted = ok || err != null ? null : RemovalStops.undoStopped(RemovalStops.of(region), cause, s.id());
-			if (notStarted != null) say.accept(notStarted);
-			else if (!ok) say.accept("Undo stopped: " + (held != null ? held + " (" + why + ")" : why) + ". Clear it and run /steward undo " + s.id() + " again.");
+			String line = ok ? null : held != null ? "Undo stopped: " + held + ". Clear it and run /steward undo " + s.id() + " again."
+				: err != null ? "Undo stopped: " + NOT_NOW + ". Run /steward undo " + s.id() + " again."
+				: RemovalStops.undoStopped(stop, cause, s.id());
+			// (batch review 2) a refused undo's note is closed: a later removal by something else is never taken for this undo
+			String note = held != null ? held : err != null ? NOT_NOW : RemovalStops.noted(stop, cause);
+			if (!ok && intent && !Settlements.log(s.id(), closedNote(region, note)).ok()) Steward.LOGGER.warn("{}: the stopped undo of {} left its note open", s.id(), region);
+			if (line != null) say.accept(line);
 			else say.accept("Undone: the village is taken up, the land restored.");
 			done.accept(ok);
 		}));
@@ -311,6 +318,9 @@ public final class Undo {
 	static String intentTag(String region) {
 		return "undo:" + dev.larattalabs.steward.gateway.VPlan.REGION_PREFIX + region;
 	}
+
+	/** (undo-words) What an undo whose removal Architect refused with an error is said as (its message is logged, never said). */
+	static final String NOT_NOW = "the village couldn't be taken up just now";
 
 	/** The text the note closing a stopped undo starts with. */
 	static final String STOPPED = "Undo stopped";

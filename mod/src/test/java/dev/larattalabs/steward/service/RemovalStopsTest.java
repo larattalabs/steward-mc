@@ -51,22 +51,40 @@ class RemovalStopsTest {
 	// ------------------------------------------------------------------ pure
 
 	@Test
-	void onlyANotStartedStopWithASaveRefusedCauseChangesTheWords() {
-		// (8bS) told by the typed cause (S-DRS-1), never by the blocker's text
-		assertNull(RemovalStops.undoStopped(null, RemovalStopCause.SAVE_REFUSED, "set_1"), "no typed stop: the ordinary line");
-		assertNull(RemovalStops.undoStopped(RemovalStop.NONE, RemovalStopCause.SAVE_REFUSED, "set_1"));
-		assertNull(RemovalStops.undoStopped(RemovalStop.PARTIAL, RemovalStopCause.SAVE_REFUSED, "set_1"), "part was taken down: the ordinary stopped line");
+	void aRegionsStopIsSaidInTheStewardsWordsForEachTypedCause() {
+		// (undo-words) one phrase per cause, shared with a growth's wait (causeWords); the generic line for OTHER or none
 		assertEquals("Undo stopped: the world couldn't be saved just now, nothing was taken down; ask again (/steward undo set_1).",
 			RemovalStops.undoStopped(RemovalStop.NOT_STARTED, RemovalStopCause.SAVE_REFUSED, "set_1"));
-		for (var other : List.of(RemovalStopCause.PLAYER_IN_BOX, RemovalStopCause.COVERED, RemovalStopCause.CARGO, RemovalStopCause.THINGS_IN_BOX, RemovalStopCause.OTHER))
-			assertNull(RemovalStops.undoStopped(RemovalStop.NOT_STARTED, other, "set_1"), other + ": said as before");
-		assertNull(RemovalStops.undoStopped(RemovalStop.NOT_STARTED, null, "set_1"), "no typed cause (an Architect before S-DRS-1): said as before");
+		assertEquals("Undo stopped (the world couldn't be saved just now), part of it was taken down. Ask again with /steward undo set_1.",
+			RemovalStops.undoStopped(RemovalStop.PARTIAL, RemovalStopCause.SAVE_REFUSED, "set_1"));
+		assertEquals("Undo stopped (someone is standing in what it takes up), nothing was taken down. Clear it and run /steward undo set_1 again.",
+			RemovalStops.undoStopped(RemovalStop.NOT_STARTED, RemovalStopCause.PLAYER_IN_BOX, "set_1"));
+		assertEquals("Undo stopped (other buildings stand over part of it), part of it was taken down. Clear it and run /steward undo set_1 again.",
+			RemovalStops.undoStopped(RemovalStop.PARTIAL, RemovalStopCause.COVERED, "set_1"));
+		assertEquals("Undo stopped (its containers hold more than was put in them), 2 of 5 sites were taken down. Clear it and run /steward undo set_1 again.",
+			RemovalStops.undoStopped(RemovalStop.PARTIAL, RemovalStopCause.CARGO, "set_1", "2 of 5 sites"));
+		assertEquals("Undo stopped (your things are in its way: filled containers, pets, item frames or dropped items). Clear it and run /steward undo set_1 again.",
+			RemovalStops.undoStopped(null, RemovalStopCause.THINGS_IN_BOX, "set_1"), "no typed stop: nothing is claimed about what was taken down");
+		assertEquals("Undo stopped: something is in its way, nothing was taken down. Clear it and run /steward undo set_1 again.",
+			RemovalStops.undoStopped(RemovalStop.NOT_STARTED, RemovalStopCause.OTHER, "set_1"));
+		assertEquals("Undo stopped: something is in its way. Clear it and run /steward undo set_1 again.", RemovalStops.undoStopped(null, null, "set_1"),
+			"no feature: the generic line");
+		assertEquals(RemovalStops.undoStopped(null, null, "set_1"), RemovalStops.undoStopped(RemovalStop.NONE, null, "set_1"));
+		for (var c : RemovalStopCause.values()) {
+			String said = RemovalStops.causeWords(c);
+			if (c == RemovalStopCause.OTHER) assertNull(said);
+			else for (var stop : new RemovalStop[] {RemovalStop.NOT_STARTED, RemovalStop.PARTIAL, null})
+				assertTrue(RemovalStops.undoStopped(stop, c, "set_1").contains(said), c + "/" + stop + ": its own words");
+		}
 	}
 
 	@Test
 	void theRefusedSavesRawTextIsNeverNoted() {
-		assertEquals(RemovalStops.SAVE_REFUSED, RemovalStops.noted(RemovalStopCause.SAVE_REFUSED, RAW));
-		assertEquals("a chest of the player's", RemovalStops.noted(RemovalStopCause.THINGS_IN_BOX, "a chest of the player's"));
+		assertEquals(RemovalStops.SAVE_REFUSED, RemovalStops.noted(RemovalStop.NOT_STARTED, RemovalStopCause.SAVE_REFUSED));
+		assertEquals(RemovalStops.WORLD_NOT_SAVED, RemovalStops.noted(RemovalStop.PARTIAL, RemovalStopCause.SAVE_REFUSED), "part was taken down: never \"nothing\"");
+		assertEquals(RemovalStops.causeWords(RemovalStopCause.THINGS_IN_BOX), RemovalStops.noted(RemovalStop.NOT_STARTED, RemovalStopCause.THINGS_IN_BOX));
+		assertEquals(RemovalStops.IN_THE_WAY, RemovalStops.noted(null, RemovalStopCause.OTHER));
+		assertEquals(RemovalStops.IN_THE_WAY, RemovalStops.noted(null, null));
 		assertTrue(RemovalStops.saveRefused(RemovalStopCause.SAVE_REFUSED));
 		assertFalse(RemovalStops.saveRefused(RemovalStopCause.OTHER));
 		assertFalse(RemovalStops.saveRefused((RemovalStopCause) null));
@@ -157,14 +175,34 @@ class RemovalStopsTest {
 		assertTrue(Undo.interrupted(Settlements.store().get(s.id()).orElseThrow()).isEmpty(), "the undo's note is closed: asked again by the player");
 	}
 
+	/** (undo-words) A blocker text that must never reach the player or the history. */
+	private static final String SENTINEL = "zz-architect-raw-blocker-zz";
+
+	private List<String> notes(Settlement s) {
+		return Settlements.store().get(s.id()).orElseThrow().log().stream().filter(e -> e.kind() == Settlement.Kind.NOTE).map(Settlement.LogEntry::text).toList();
+	}
+
 	@Test
-	void anOtherNotStartedStopIsSaidAsBefore() {
-		Settlement s = village("set_drs2");
-		a.removeAnswer = FakeArchitect.Answer.BLOCKED;
-		a.regions.get("rg_v").removalStop = RemovalStop.NOT_STARTED;
-		a.regions.get("rg_v").removalStopCause = RemovalStopCause.THINGS_IN_BOX;
-		undo(s);
-		assertTrue(said.contains("Undo stopped: blocked by a chest of the player's. Clear it and run /steward undo set_drs2 again."), said.toString());
+	void eachTypedCauseOnTheRegionPathIsSaidAndNotedInTheStewardsWords() {
+		int n = 0;
+		for (var c : RemovalStopCause.values()) {
+			for (var stop : new RemovalStop[] {RemovalStop.NOT_STARTED, RemovalStop.PARTIAL}) {
+				said.clear();
+				Settlements.useForTest(new SettlementStore(), dir.resolve("uw" + n + ".json"));
+				Settlement s = village("set_uw" + n++);
+				a.removeAnswer = FakeArchitect.Answer.BLOCKED;
+				a.blocker = SENTINEL;
+				a.regions.get("rg_v").removalStop = stop;
+				a.regions.get("rg_v").removalStopCause = c;
+				assertEquals(Boolean.FALSE, undo(s));
+				assertEquals(List.of(RemovalStops.undoStopped(stop, c, s.id())), said, c + "/" + stop);
+				String words = RemovalStops.causeWords(c);
+				assertTrue(said.get(0).contains(words != null ? words : RemovalStops.IN_THE_WAY), said.toString());
+				assertTrue(said.stream().noneMatch(l -> l.contains(SENTINEL) || l.contains("blocked by")), said.toString());
+				assertTrue(notes(s).stream().anyMatch(t -> t.startsWith(Undo.STOPPED) && t.endsWith(RemovalStops.noted(stop, c))), notes(s).toString());
+				assertTrue(notes(s).stream().noneMatch(t -> t.contains(SENTINEL)), notes(s).toString());
+			}
+		}
 	}
 
 	@Test
@@ -177,21 +215,30 @@ class RemovalStopsTest {
 		a.regions.get("rg_v").removalStopCause = RemovalStopCause.PLAYER_IN_BOX;
 		undo(s);
 		assertTrue(said.stream().noneMatch(l -> l.contains(RemovalStops.SAVE_REFUSED)), said.toString());
+		assertEquals(List.of(RemovalStops.undoStopped(RemovalStop.NOT_STARTED, RemovalStopCause.PLAYER_IN_BOX, "set_drs5")), said);
 	}
 
 	@Test
-	void withoutTheFeatureOrPartWayTheOrdinaryLineStands() {
+	void withoutTheFeaturesTheGenericLineNeverTheBlocker() {
 		Settlement s = village("set_drs3");
 		a.removeAnswer = FakeArchitect.Answer.BLOCKED;
-		a.regions.get("rg_v").removalStop = RemovalStop.PARTIAL;
-		undo(s);
-		assertTrue(said.contains("Undo stopped: blocked by a chest of the player's. Clear it and run /steward undo set_drs3 again."), said.toString());
-		said.clear();
+		a.blocker = SENTINEL;
 		a.features = Set.of("regions");
 		a.regions.get("rg_v").removalStop = RemovalStop.NOT_STARTED;
 		a.regions.get("rg_v").removalStopCause = RemovalStopCause.SAVE_REFUSED;
-		undo(Settlements.store().get(s.id()).orElseThrow());
-		assertTrue(said.contains("Undo stopped: blocked by a chest of the player's. Clear it and run /steward undo set_drs3 again."), "no removalStop feature: never read");
+		undo(s);
+		assertEquals(List.of("Undo stopped: something is in its way. Clear it and run /steward undo set_drs3 again."), said, "no removalStop feature: never read");
+		assertTrue(notes(s).stream().noneMatch(t -> t.contains(SENTINEL)), notes(s).toString());
+	}
+
+	@Test
+	void aRefusedRemovalsErrorIsLoggedNeverSaid() {
+		Settlement s = village("set_uwe");
+		a.removeAnswer = FakeArchitect.Answer.REFUSE;
+		undo(s);
+		assertEquals(List.of("Undo stopped: " + Undo.NOT_NOW + ". Run /steward undo set_uwe again."), said);
+		assertTrue(said.stream().noneMatch(l -> l.contains("refused: busy")), said.toString());
+		assertTrue(notes(s).stream().noneMatch(t -> t.contains("refused: busy")), notes(s).toString());
 	}
 
 	@Test

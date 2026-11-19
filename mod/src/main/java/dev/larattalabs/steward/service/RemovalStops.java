@@ -64,18 +64,34 @@ public final class RemovalStops {
 		return cause == RemovalStopCause.SAVE_REFUSED;
 	}
 
+	/** (undo-words) What a stop with no typed cause (OTHER, none, or an Architect without the feature) is said as: never Architect's text. */
+	static final String IN_THE_WAY = "something is in its way";
+
 	/**
-	 * The undo's stop line for a region removal Architect stopped before it wrote anything on a refused save, or null to keep the ordinary one (no
-	 * typed stop; PARTIAL: part was taken down; any other cause, said as before). Pure.
+	 * (undo-words) The undo's stop line for a region's (or a site group's) removal Architect stopped, always in the steward's words: what its typed
+	 * cause waits for ({@link #causeWords}, one phrase per cause, shared with a growth's wait), whether anything was taken down from the typed stop
+	 * (NOT_STARTED: nothing; PARTIAL: part of it; no typed stop: neither is claimed), and what to do. OTHER, no cause or no feature: the generic line.
+	 * Architect's blocker text is never read here. A refused save that took nothing down keeps its own line. Pure.
 	 */
-	static @Nullable String undoStopped(@Nullable RemovalStop stop, @Nullable RemovalStopCause cause, String settlementId) {
-		if (stop != RemovalStop.NOT_STARTED || !saveRefused(cause)) return null;
-		return "Undo stopped: " + SAVE_REFUSED + " (/steward undo " + settlementId + ").";
+	static String undoStopped(@Nullable RemovalStop stop, @Nullable RemovalStopCause cause, String settlementId) {
+		return undoStopped(stop, cause, settlementId, null);
 	}
 
-	/** What a stopped undo's closing note records: never the refused save's raw text. Pure. */
-	static String noted(@Nullable RemovalStopCause cause, String why) {
-		return saveRefused(cause) ? SAVE_REFUSED : why;
+	/** As above; {@code part}: for PARTIAL, the steward's own count of what was taken down ("2 of 5 sites"), else "part of it". Pure. */
+	static String undoStopped(@Nullable RemovalStop stop, @Nullable RemovalStopCause cause, String settlementId, @Nullable String part) {
+		if (stop == RemovalStop.NOT_STARTED && saveRefused(cause)) return "Undo stopped: " + SAVE_REFUSED + " (/steward undo " + settlementId + ").";
+		String said = causeWords(cause);
+		String taken = stop == RemovalStop.NOT_STARTED ? ", nothing was taken down"
+			: stop == RemovalStop.PARTIAL ? ", " + (part != null ? part + " were" : "part of it was") + " taken down" : "";
+		String next = saveRefused(cause) ? "Ask again with /steward undo " + settlementId + "." : "Clear it and run /steward undo " + settlementId + " again.";
+		return "Undo stopped" + (said != null ? " (" + said + ")" + taken : ": " + IN_THE_WAY + taken) + ". " + next;
+	}
+
+	/** (undo-words) What a stopped undo's closing note records: the steward's words for its typed cause, never Architect's text. Pure. */
+	static String noted(@Nullable RemovalStop stop, @Nullable RemovalStopCause cause) {
+		if (stop == RemovalStop.NOT_STARTED && saveRefused(cause)) return SAVE_REFUSED;
+		String said = causeWords(cause);
+		return said != null ? said : IN_THE_WAY;
 	}
 
 	/**
