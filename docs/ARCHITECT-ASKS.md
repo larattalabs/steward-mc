@@ -1872,3 +1872,12 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
   NOT_STARTED (or, for a site group, with every site still standing), and the raw text is never shown or noted; every other stop is said as before. A
   growth's take-up left UNDOING with a wait reads as waiting by its typed state, with its blocker, or "the world couldn't be saved just now" in place of a
   refused save's raw text.
+- **Answered in v0.81.0 (S-DRS-1, API 1.69.0):** `RegionView.removalStopCause` and `SiteGroup.removalStop/removalStopCause`. **Steward's side (slice
+  8bS, 2026-11-18):** the phrase test is gone. A region's undo and a site group's undo pick the refused-save words by `RemovalStopCause.SAVE_REFUSED`
+  (feature `removalStopCause`), the closing note likewise.
+
+### 8bS-1: a typed cause for a revision's stop (slice 8bS, 2026-11-18; for the manager to send)
+
+- **Ask:** a growth's take-up (`Regions.undoRevision`) left UNDOING with a wait has no typed cause: `RevisionView.waiting` and `RemoveResult.blockers`
+  are text, and a refused save's names chunk files. Could `RevisionView` carry the stop's `RemovalStopCause` as `RegionView` does?
+- **Steward meanwhile:** with the phrase test gone, the waiting line says the change waits to carry on without naming why (no Architect text shown).

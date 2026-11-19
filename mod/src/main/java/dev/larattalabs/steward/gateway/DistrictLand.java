@@ -87,6 +87,40 @@ public final class DistrictLand {
 		return land.get("standingRemoved").getAsLong();
 	}
 
+	// ------------------------------------------------------------------ (8bS) Architect 8b's typed RegionView.land, the ext key only when it is null
+
+	/** The region's {@code outside} land: Architect 8b's typed {@code RegionView.land}, else its ext. */
+	public static Optional<Land> outside(dev.larattalabs.architect.api.RegionView v, String dimension) {
+		var l = v.land();
+		return l != null ? Optional.ofNullable(land(l.outside(), dimension)) : outside(v.ext(), dimension);
+	}
+
+	/** The region's {@code inside} land: typed, else its ext. */
+	public static Optional<Land> inside(dev.larattalabs.architect.api.RegionView v, String dimension) {
+		var l = v.land();
+		return l != null ? Optional.ofNullable(land(l.inside(), dimension)) : inside(v.ext(), dimension);
+	}
+
+	/** {@link #outsideWhole(JsonObject, String)} typed: a typed land is always read whole. */
+	public static @Nullable Read outsideWhole(dev.larattalabs.architect.api.RegionView v, String dimension) {
+		var l = v.land();
+		return l != null ? new Read(land(l.outside(), dimension)) : outsideWhole(v.ext(), dimension);
+	}
+
+	/** {@link #standingRemoved(JsonObject)} typed. */
+	public static @Nullable Long standingRemoved(dev.larattalabs.architect.api.RegionView v) {
+		var l = v.land();
+		return l != null ? l.standingRemoved() : standingRemoved(v.ext());
+	}
+
+	/** Typed runs as Steward's land; null for none. Pure. */
+	static @Nullable Land land(List<dev.larattalabs.architect.api.RegionLand.Run> runs, String dimension) {
+		if (runs == null || runs.isEmpty()) return null;
+		List<Land.Run> out = new ArrayList<>();
+		for (var r : runs) out.add(new Land.Run(r.z(), Math.min(r.x0(), r.x1()), Math.max(r.x0(), r.x1())));
+		return new Land(dimension, out);
+	}
+
 	private static @Nullable JsonObject land(@Nullable JsonObject ext) {
 		return ext != null && ext.has(KEY) && ext.get(KEY).isJsonObject() ? ext.getAsJsonObject(KEY) : null;
 	}

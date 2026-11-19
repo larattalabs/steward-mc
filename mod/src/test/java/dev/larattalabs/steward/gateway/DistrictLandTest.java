@@ -30,6 +30,6 @@ class DistrictLandTest {
 		assertEquals(1790000000000L, DistrictLand.standingRemoved(e));
 		assertTrue(DistrictLand.outside(e, "minecraft:overworld").isPresent());
 		assertTrue(DistrictLand.outside(new JsonObject(), "minecraft:overworld").isEmpty());
-		assertTrue(DistrictLand.outside(null, "minecraft:overworld").isEmpty());
+		assertTrue(DistrictLand.outside((JsonObject) null, "minecraft:overworld").isEmpty());
 	}
 }

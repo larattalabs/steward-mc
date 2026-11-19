@@ -73,17 +73,19 @@ class TerrainBuildTest {
 	void aTerrainWaitInTheStewardsWords() {
 		var e = ext("{\"architect_mc:region\": \"rg1\", \"architect_mc:waitsFor\": {\"target\": \"c4\", \"part\": \"isle\", \"waiter\": \"farm_1\", \"kind\": \"terrain\","
 			+ " \"terrainCells\": 7200, \"terrainBuilt\": 1200, \"say\": \"the farm waits for the island to be built\"}}");
-		assertEquals("The farm's ground is being shaped first: about 6000 blocks of earth to go.", TerrainBuild.waitLine(e));
+		assertEquals("The farm's ground is being shaped first: about 6000 blocks of earth to go.", TerrainBuild.waitLine(e, "farm"));
+		// (8bS) the subject is the typed part in words, never cut out of the say
+		assertEquals("The build's ground is being shaped first: about 6000 blocks of earth to go.", TerrainBuild.waitLine(e, null));
 		assertEquals("terrain|c4|farm_1|isle", TerrainBuild.waitKey(TerrainBuild.terrainWait(e)));
 		// its counts move as the ground is built: the same wait, said once
 		var later = ext("{\"architect_mc:waitsFor\": {\"target\": \"c4\", \"part\": \"isle\", \"waiter\": \"farm_1\", \"kind\": \"terrain\", \"terrainCells\": 7200,"
 			+ " \"terrainBuilt\": 7000, \"say\": \"the farm waits for the island to be built\"}}");
 		assertEquals(TerrainBuild.waitKey(TerrainBuild.terrainWait(e)), TerrainBuild.waitKey(TerrainBuild.terrainWait(later)));
-		assertEquals("The farm's ground is being shaped first: about 200 blocks of earth to go.", TerrainBuild.waitLine(later));
+		assertEquals("The farm's ground is being shaped first: about 200 blocks of earth to go.", TerrainBuild.waitLine(later, "farm"));
 		assertEquals("The street's ground is being shaped first: about 1 block of earth to go.", TerrainBuild.waitLine(ext(
-			"{\"architect_mc:waitsFor\": {\"kind\": \"terrain\", \"terrainCells\": 5, \"terrainBuilt\": 4, \"say\": \"the street waits for the hamlet to be built\"}}")));
+			"{\"architect_mc:waitsFor\": {\"kind\": \"terrain\", \"terrainCells\": 5, \"terrainBuilt\": 4, \"say\": \"the street waits for the hamlet to be built\"}}"), "street"));
 		assertEquals("The Mill Steps' ground is being shaped first: nearly done.", TerrainBuild.waitLine(ext(
-			"{\"architect_mc:waitsFor\": {\"kind\": \"terrain\", \"terrainCells\": 5, \"terrainBuilt\": 5, \"say\": \"The Mill Steps waits for the hamlet to be built\"}}")));
+			"{\"architect_mc:waitsFor\": {\"kind\": \"terrain\", \"terrainCells\": 5, \"terrainBuilt\": 5, \"say\": \"x\"}}"), "Mill Steps"));
 	}
 
 	@Test
@@ -91,13 +93,13 @@ class TerrainBuildTest {
 		// another item of the same part carries the wait without its sentence: a terrain wait, said by the one that has it
 		var quiet = ext("{\"architect_mc:waitsFor\": {\"target\": \"c4\", \"kind\": \"terrain\", \"terrainCells\": 7200, \"terrainBuilt\": 0}}");
 		assertNotNull(TerrainBuild.terrainWait(quiet));
-		assertNull(TerrainBuild.waitLine(quiet));
+		assertNull(TerrainBuild.waitLine(quiet, "farm"));
 		// a plain stage wait and a bill_cap wait are not terrain waits (Architect's sentence and the cap's words keep them)
 		assertNull(TerrainBuild.terrainWait(ext("{\"architect_mc:waitsFor\": {\"say\": \"the street waits for the town wall to be built\"}}")));
 		assertNull(TerrainBuild.terrainWait(ext("{\"architect_mc:waitsFor\": {\"kind\": \"bill_cap\", \"say\": \"x waits bill_cap\"}}")));
 		assertNull(TerrainBuild.terrainWait(ext("{\"architect_mc:region\": \"rg3\"}")));
 		assertNull(TerrainBuild.terrainWait(null));
-		assertNull(TerrainBuild.waitLine(null));
+		assertNull(TerrainBuild.waitLine(null, "farm"));
 	}
 
 	@Test
