@@ -237,6 +237,15 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.83.0 by a smoke check (2026-11-19, pin-083; speed rule 4).** Kit/checker stay 0.73.0, the program (`c406df05…`)
+and module.json unchanged (moduleSha `50d6f992…`); the published 0.83.0 jar (sha256 `9d2ff95b…`, lab-ui 0.6.0 nested). The re-measure
+triggers were read in `git diff v0.82.0 v0.83.0 -- kit mod/src/main`: the kit only moves the catalogue's `PLAN_API` string to 1.70.0 (no
+module reads it); mod/src/main adds RVC (Revisions only wraps its existing `waiting =` writes in `waitFor(why, cause)` and saves the typed
+cause; no state transition, billing or refund moves) and LYW (Layouts, reached only from `Regions.layout`, read-side: PartShape's wall,
+width and height), plus ApiRules' two feature names. No build, billing or realise path moves. The billing check is the guard: survival
+63/63, bounds 111/111, offline 295/295, ingame 292/292, field-potatoes 62/62 (5 runs; -2% to 9.2% per crop-day of the carried rates, 9x18
+the high one, as on 0.82.0), ports 9116/9117, $0.
+
 **Carried to Architect 0.82.0 by a smoke check (2026-11-18, pin-081; speed rule 4).** Kit/checker stay 0.73.0, the program (`c406df05…`)
 and module.json unchanged (moduleSha `50d6f992…`); the published 0.82.0 jar (sha256 `c5cf0291…`, lab-ui 0.6.0 nested). The re-measure
 triggers were read in `git diff v0.81.0 v0.82.0 -- kit mod/src/main`: the kit only adds a step-counts test; mod/src/main adds StyleRoles and
