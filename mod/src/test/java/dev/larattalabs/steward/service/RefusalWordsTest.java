@@ -239,4 +239,17 @@ class RefusalWordsTest {
 		String call = dev.larattalabs.steward.gateway.FollowPlanner.callRefusedText("hut", 2, RefusalWords.of(new CompletionException(new ArchitectRefused(Reason.SITE_BUSY, RAW))));
 		assertEquals("The hut's copies can't follow its new design (v2): the build under it is still being worked on.", call);
 	}
+
+	@Test
+	void aRefusedChangeRequestOrLandLookSaysTheTypedReasonNeverArchitectsText() {
+		var refused = new ArchitectRefused(Reason.SITE_BUSY, RAW, RAW);
+		assertEquals("the build under it is still being worked on", ChangeRequests.refusal(new CompletionException(refused)));
+		clean(ChangeRequests.refusal(new CompletionException(refused)));
+		clean(ChangeRequests.refusal(new RuntimeException(RAW)));
+		var look = LandChecks.refusedLook("Hamlet", false, new ArchitectRefused(Reason.JOURNAL_UNAVAILABLE, RAW));
+		var note = dev.larattalabs.steward.gateway.LandWords.note("Hamlet", List.of(look), x -> null, true);
+		for (String l : note.lines()) clean(l);
+		clean(note.headline());
+		assertEquals(List.of("I couldn't look over Hamlet: " + RefusalWords.GENERIC), note.lines());
+	}
 }

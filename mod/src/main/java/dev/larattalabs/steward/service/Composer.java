@@ -165,7 +165,8 @@ public final class Composer {
 				Throwable c = err instanceof java.util.concurrent.CompletionException && err.getCause() != null ? err.getCause() : err;
 				boolean conflict = c instanceof dev.larattalabs.architect.api.RegionRefused rr && rr.reason() == dev.larattalabs.architect.api.Reason.OP_KEY_CONFLICT;
 				done(s, conflict ? "This card was composed already, over the land as it was then: describe the settlement again to compose it afresh."
-					: "The plan could not be composed (" + c.getMessage() + "): the build takes today's layout.", server, player);
+					: "The plan could not be composed (" + RefusalWords.of(err) + "): the build takes today's layout.", server, player);
+				if (!conflict) Steward.LOGGER.info("compose for {} failed: {}", s.id(), c.getMessage());
 				return;
 			}
 			Steward.LOGGER.info("plan for {}: composing as design {}", s.id(), id);

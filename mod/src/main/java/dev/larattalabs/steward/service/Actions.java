@@ -384,7 +384,9 @@ public final class Actions {
 					return Result.ok("Released " + b.id() + ": it is no longer kept from builds.");
 				}
 			} catch (dev.larattalabs.architect.api.ArchitectRefused e) {
-				return Result.fail(e.getMessage());
+				// (raw-sweep) a claimed or released build refused: by its typed reason, Architect's text to the log only
+				Steward.LOGGER.info("{} {} refused: {}", action, id, e.getMessage());
+				return Result.fail("Architect wouldn't do that: " + RefusalWords.reason(e.reason()) + ".");
 			}
 			var builds = PlayerBuilds.in(server, s.get());
 			if (builds.isEmpty()) return Result.ok("No builds of yours in " + s.get().name() + "'s claim (little blocks and touched-up ground don't count).");

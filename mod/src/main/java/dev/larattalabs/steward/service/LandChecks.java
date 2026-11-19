@@ -210,6 +210,12 @@ public final class LandChecks {
 		return true;
 	}
 
+	/** (raw-sweep) A refused look: its message is the steward's words for the typed reason, Architect's text to the log only. */
+	static LandWords.Look refusedLook(String label, boolean district, ArchitectRefused ar) {
+		Steward.LOGGER.info("land look over {} refused: {} {}", label, ar.reason(), ar.getMessage());
+		return LandWords.Look.refused(label, district, ar.reason().name(), RefusalWords.reason(ar.reason()));
+	}
+
 	/** One region's look; a typed refusal is a look too (its words), anything else fails the whole look. */
 	private static CompletableFuture<LandWords.Look> one(Target t) {
 		CompletableFuture<LandReport> f;
@@ -221,7 +227,8 @@ public final class LandChecks {
 		return f.handle((r, err) -> {
 			if (err == null) return LandWords.Look.of(t.label(), t.district(), r);
 			Throwable e = err instanceof java.util.concurrent.CompletionException && err.getCause() != null ? err.getCause() : err;
-			if (e instanceof ArchitectRefused ar) return LandWords.Look.refused(t.label(), t.district(), ar.reason().name(), String.valueOf(ar.getMessage()));
+			// (raw-sweep) the look's message is the steward's words for the typed reason; Architect's text to the log only
+			if (e instanceof ArchitectRefused ar) return refusedLook(t.label(), t.district(), ar);
 			throw new java.util.concurrent.CompletionException(e);
 		});
 	}

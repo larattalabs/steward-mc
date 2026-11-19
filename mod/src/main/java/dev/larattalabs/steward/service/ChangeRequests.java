@@ -229,15 +229,22 @@ public final class ChangeRequests {
 			Updates.rescan();
 			tell(server, p.player(), p.settlementId(), "The change to " + p.building() + " is designed. It waits in the inbox as an update: preview it, then apply it.");
 		} else {
-			String why = d.error().orElse(d.status().name().toLowerCase());
+			// (raw-sweep) the design's own error to the log; the steward's words in the note and the line
+			Steward.LOGGER.info("the change to {} ended {}: {}", p.building(), d.status(), d.error().orElse(""));
+			String why = "budget".equals(d.error().orElse("")) ? "it ran past its budget" : "Architect didn't finish designing it";
 			Settlements.log(p.settlementId(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The change to " + p.building()
-				+ " could not be designed" + cost + ": " + clip(why, 160), List.of(p.siteId())));
+				+ " could not be designed" + cost + ": " + why, List.of(p.siteId())));
 			tell(server, p.player(), p.settlementId(), "The change to " + p.building() + " could not be designed: " + why + ".");
 		}
 	}
 
-	/** Architect's refusal in words: its reason (and detail) when typed. */
-	private static String refusal(Throwable err) {
+	/** (raw-sweep) Architect's refusal in the steward's words ({@link RefusalWords#of}); its reason, detail and text to the log only. */
+	static String refusal(Throwable err) {
+		Steward.LOGGER.info("change request refused: {}", rawRefusal(err));
+		return RefusalWords.of(err);
+	}
+
+	private static String rawRefusal(Throwable err) {
 		Throwable e = err.getCause() != null ? err.getCause() : err;
 		try {
 			Object reason = e.getClass().getMethod("reason").invoke(e);

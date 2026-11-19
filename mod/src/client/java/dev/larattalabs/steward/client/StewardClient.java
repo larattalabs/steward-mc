@@ -105,7 +105,9 @@ public class StewardClient implements ClientModInitializer {
 				for (String k : java.util.List.copyOf(api.compositeKeys())) if (k.startsWith("steward_mc:update/") && !k.equals(payload.key())) api.clearComposite(k);
 				api.previewDelta(payload.key(), payload.siteId(), payload.toVersion());
 			} catch (RuntimeException e) {
-				if (ctx.player() != null) ctx.player().sendSystemMessage(Component.literal("Steward: could not show the change: " + e.getMessage()));
+				// (raw-sweep) the exception to the log, never said
+				Steward.LOGGER.warn("could not show the change {}", payload.key(), e);
+				if (ctx.player() != null) ctx.player().sendSystemMessage(Component.literal("Steward: could not show the change just now."));
 			}
 		});
 		ClientPlayNetworking.registerGlobalReceiver(StewardNet.ShowLayers.TYPE, (payload, ctx) -> {
@@ -121,7 +123,7 @@ public class StewardClient implements ClientModInitializer {
 				api.previewComposite(payload.key(), layers);
 			} catch (IllegalArgumentException e) {
 				Steward.LOGGER.warn("could not show {}: {}", payload.key(), e.getMessage());
-				if (ctx.player() != null) ctx.player().sendSystemMessage(Component.literal("Steward: could not show the preview: " + e.getMessage()));
+				if (ctx.player() != null) ctx.player().sendSystemMessage(Component.literal("Steward: could not show the preview just now."));
 			}
 		});
 	}

@@ -393,7 +393,8 @@ public final class Adoption {
 					done.accept(true);
 					return;
 				}
-				say.accept("Undo stopped: " + SettlementRunner.message(err) + ". Run /steward undo " + s.id() + " again once it is clear.");
+				Steward.LOGGER.info("{}: the unadopt of {} failed: {}", s.id(), region, SettlementRunner.message(err));
+				say.accept("Undo stopped: " + RefusalWords.of(err) + ". Run /steward undo " + s.id() + " again once it is clear.");
 				done.accept(false);
 				return;
 			}

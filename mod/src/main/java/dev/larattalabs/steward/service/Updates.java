@@ -261,7 +261,8 @@ public final class Updates {
 			String key = p.siteId() + "@" + p.to();
 			var change = new Settlement.SiteChange(p.siteId(), p.lot(), p.from(), p.to());
 			if (err != null) {
-				String why = err.getCause() != null ? err.getCause().getMessage() : err.getMessage();
+				Steward.LOGGER.info("update of {} to v{} failed: {}", p.siteId(), p.to(), SettlementRunner.message(err));
+				String why = RefusalWords.of(err);
 				FAILED.put(key, why);
 				msg = "Could not update " + p.lot() + ": " + why;
 			} else if (!r.applied()) {

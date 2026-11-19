@@ -374,7 +374,8 @@ public final class PendingOffers {
 				Throwable c = err instanceof java.util.concurrent.CompletionException && err.getCause() != null ? err.getCause() : err;
 				boolean conflict = c instanceof dev.larattalabs.architect.api.RegionRefused rr && rr.reason() == dev.larattalabs.architect.api.Reason.OP_KEY_CONFLICT;
 				fail(server, player, s, p, what, conflict ? "it was fitted already over the land as it was then (nothing more is spent)"
-					: "Architect could not compose it (" + c.getMessage() + ")");
+					: "Architect could not compose it (" + RefusalWords.of(err) + ")");
+				if (!conflict) Steward.LOGGER.info("compose of part {} for {} failed: {}", p.pendingPart(), s.id(), c.getMessage());
 				return;
 			}
 			Steward.LOGGER.info("part {} of {}: composing as design {}", p.pendingPart(), s.id(), id);

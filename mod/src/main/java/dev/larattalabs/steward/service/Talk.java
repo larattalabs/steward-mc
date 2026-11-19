@@ -122,8 +122,8 @@ public final class Talk {
 			if (!Session.is(session)) return;
 			if (err != null) {
 				// the job may have started though its acknowledgement was lost: the slot stays held until its time is up, so a retry cannot overlap it at once
-				answer(server, p.getUUID(), s.id(), "I could not think that through: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
-					+ ". Give me a few minutes.");
+				Steward.LOGGER.info("talk for {} could not be asked: {}", s.id(), SettlementRunner.message(err));
+				answer(server, p.getUUID(), s.id(), "I could not think that through: " + RefusalWords.of(err) + ". Give me a few minutes.");
 				return;
 			}
 			PENDING.put(id, pending);

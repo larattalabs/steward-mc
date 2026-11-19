@@ -1520,7 +1520,7 @@ public final class SettlementRunner {
 				if (definitive) {
 					String why = message(err);
 					Steward.LOGGER.info("adopt {}: refused ({}): Steward's own street instead", settlement.id(), why);
-					if (!Settlements.log(settlement.id(), Adoption.released(intent.siteGroup(), "Not taken on as one region: " + why, System.currentTimeMillis())).ok()) {
+					if (!Settlements.log(settlement.id(), Adoption.released(intent.siteGroup(), "Not taken on as one region: " + RefusalWords.of(err), System.currentTimeMillis())).ok()) {
 						abandon("The settlement's history could not be saved; try again.");
 						return;
 					}
@@ -1595,7 +1595,7 @@ public final class SettlementRunner {
 					String inD = districtId == null ? null : settlement.lands().district(districtId).map(Settlement.District::name).orElse(districtId);
 					growthNotPlanned(r, full ? (inD != null ? "No room left in " + inD + " for it: its street is full."
 						: "No room left in the town for it: its streets are full. A district could take it.")
-						: "Architect could not find room for it in the town: " + m);
+						: "Architect could not find room for it in the town: " + said("the growth plan", err) + ".");
 					return;
 				}
 				try {
@@ -2511,7 +2511,7 @@ public final class SettlementRunner {
 						else interrupted("the style bible request (Architect's answers keep getting lost; it may still be made and charged)");
 						return;
 					}
-					if (err != null) { feed(new Pipeline.BibleDone(false, null, 0, 0, err.getMessage())); return; }
+					if (err != null) { feed(new Pipeline.BibleDone(false, null, 0, 0, said("the style bible request", err))); return; }
 					// cancelled while the request was on its way (or this runner belongs to a closed world): stop the job now
 					if (!alive() || state.phase().terminal()) { if (!job.finished() && !Settlements.disabled()) api.bibles().cancel(job.id()); return; }
 					bibleJobId = job.id();
@@ -2584,7 +2584,7 @@ public final class SettlementRunner {
 					if (!alive() || seq != raiseSeq) return;
 					if (err != null) {
 						raiseInFlight = false;
-						feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), message(err), false));
+						feed(new Pipeline.BudgetRaiseFailed(e.previousBudgetUsd(), said("the budget raise", err), false));
 						return;
 					}
 					api.designs().resumeGroup(e.groupId()).whenComplete((v2, err2) -> {
@@ -2755,7 +2755,10 @@ public final class SettlementRunner {
 		bibleJobId = null;
 		boolean ok = job.status() == BibleJob.Status.DONE;
 
-		feed(new Pipeline.BibleDone(ok, ok ? job.bibleId() : null, job.version(), job.cost().usd(), job.error().orElse(job.status().name())));
+		// (raw-sweep) the job's own error to the log; the steward's words in the event (the pipeline says them)
+		if (!ok) Steward.LOGGER.info("{}: the style bible job {} ended {}: {}", settlement.id(), job.id(), job.status(), job.error().orElse(""));
+		feed(new Pipeline.BibleDone(ok, ok ? job.bibleId() : null, job.version(), job.cost().usd(), ok ? null
+			: "budget".equals(job.error().orElse("")) ? "it ran past its budget" : "Architect didn't finish it"));
 	}
 
 	private void onGroup(Group g) {
@@ -3800,7 +3803,8 @@ public final class SettlementRunner {
 			if (state.bibleId() != null) req = req.withBible(state.bibleId(), state.bibleVersion());
 			req = req.versionOf(entry, null).withOpKey(a.key());
 		} catch (RuntimeException x) {
-			later.add(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "it could not be put to Architect: " + x.getMessage()));
+			Steward.LOGGER.warn("repair {} of {} could not be put to Architect", a.key(), settlement.id(), x);
+			later.add(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "it could not be put to Architect"));
 			return;
 		}
 		// saved (its reservation, its key, its words) before it is asked, also when it is asked again on the watch
@@ -3825,7 +3829,7 @@ public final class SettlementRunner {
 			}
 			if (err != null) {
 				// refused: nothing designed; lost, or its key bound to a request already made: found by its key on the watch (never a second design)
-				if (ChangeRequests.definite(err) && !keyConflict(err) && !uncertain(err)) feed(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect would not redesign it: " + message(err)));
+				if (ChangeRequests.definite(err) && !keyConflict(err) && !uncertain(err)) feed(new Pipeline.RepairEnded(a.key(), Pipeline.RepairEnd.REFUSED, 0, "Architect would not redesign it (" + said("the repair " + a.key(), err) + ")"));
 				else Steward.LOGGER.warn("repair {} of {}: the answer was lost ({}); found by its key", a.key(), settlement.id(), message(err));
 				return;
 			}
