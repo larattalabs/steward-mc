@@ -678,7 +678,8 @@ async function placeUpdateUndo(id) {
     if (mine) {
       const [px, py, pz] = mine.slice(1).map((n) => Math.floor(Number(n)));
       await cmd(`/setblock ${px} ${py + 1} ${pz - 3} steward_mc:settlement_board[facing=south]`);
-      await cmd(`/tp @p ${px + 0.5} ${py} ${pz + 0.5} facing ${px + 0.5} ${py + 1.5} ${pz - 2.6}`);
+      // (8bS design review) framed from further back, the whole board in view
+      await cmd(`/tp @p ${px + 0.5} ${py} ${pz + 3.5} facing ${px + 0.5} ${py + 1.2} ${pz - 2.6}`);
       await sleep(2500);
       await dev.request('dev.screenshot', { name: 'e2e-board-waits', frames: 5 }, { timeoutMs: 120_000 });
       await cmd(`/setblock ${px} ${py + 1} ${pz - 3} minecraft:air`);
@@ -710,9 +711,12 @@ async function placeUpdateUndo(id) {
     if (mine) {
       const [px, py, pz] = mine.slice(1).map((n) => Math.floor(Number(n)));
       await cmd(`/setblock ${px} ${py + 1} ${pz - 3} steward_mc:settlement_board[facing=south]`);
-      await cmd(`/tp @p ${px + 0.5} ${py} ${pz + 0.5} facing ${px + 0.5} ${py + 1.5} ${pz - 2.6}`);
+      // (8bS design review) the shot from further back, the whole board in view; then within reach for the right-click
+      await cmd(`/tp @p ${px + 0.5} ${py} ${pz + 3.5} facing ${px + 0.5} ${py + 1.2} ${pz - 2.6}`);
       await sleep(2500);
       const boardShot = (await dev.request('dev.screenshot', { name: 'e2e-board', frames: 5 }, { timeoutMs: 120_000 })).path ?? '';
+      await cmd(`/tp @p ${px + 0.5} ${py} ${pz + 0.5} facing ${px + 0.5} ${py + 1.5} ${pz - 2.6}`);
+      await sleep(1000);
       await dev.request('dev.key', { mapping: 'key.use' });
       await sleep(1500);
       let screen = (await dev.request('dev.state')).screen?.class ?? 'none';

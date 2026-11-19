@@ -49,12 +49,34 @@ final class MapShapes {
 			if (r.state() == RegionState.REMOVED || r.state() == RegionState.REMOVING) continue;
 			var layout = api.regions().layout(r.id());
 			if (layout.isEmpty()) continue;
+			logOnChange(s.id(), r.id(), layout.get());
 			for (MapShape m : shapes(layout.get(), r, secrets, typed)) {
 				if (out.size() >= MAX) return out;
 				out.add(m);
 			}
 		}
 		return out;
+	}
+
+	/** The last layout summary logged per region, so a screen's refreshes don't repeat it. */
+	private static final java.util.Map<String, String> LOGGED = new java.util.concurrent.ConcurrentHashMap<>();
+
+	/** Logs what {@code Regions.layout} gave a region (each part's kind, id, box and end count) when it changed: what the map can draw. */
+	private static void logOnChange(String settlement, String region, RegionLayout layout) {
+		String line = summary(layout);
+		if (line.equals(LOGGED.put(region, line))) return;
+		dev.larattalabs.steward.Steward.LOGGER.info("map layout of {} {}: {}", settlement, region, line);
+	}
+
+	/** A layout's parts in one line: {@code kind part [minX,minZ..maxX,maxZ] ends=n}. Pure. */
+	static String summary(RegionLayout layout) {
+		StringBuilder b = new StringBuilder().append(layout.parts().size()).append(" part(s)");
+		for (PartShape p : layout.parts()) {
+			var x = p.box();
+			b.append("; ").append(p.kind()).append(' ').append(p.part()).append(" [").append(x.minX()).append(',').append(x.minZ()).append("..").append(x.maxX())
+				.append(',').append(x.maxZ()).append("] ends=").append(p.ends().size());
+		}
+		return b.toString();
 	}
 
 	/**

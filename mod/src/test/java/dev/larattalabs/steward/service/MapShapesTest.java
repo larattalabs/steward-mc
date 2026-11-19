@@ -78,4 +78,12 @@ class MapShapesTest {
 		assertNull(MapShapes.kindOf("form.hollow_mountain"));
 		assertNull(MapShapes.kindOf("__lamps__"));
 	}
+
+	@Test
+	void theLoggedSummaryNamesEachPartsKindBoxAndEnds() {
+		String line = MapShapes.summary(layout());
+		assertTrue(line.startsWith("7 part(s); lot hall_1 [0,0..9,9] ends=0"), line);
+		assertTrue(line.contains("; route east_street [0,0..9,9] ends=2"), line);
+		assertTrue(line.contains("; connector.rope_bridge bridge [0,0..9,9] ends=2"), line);
+	}
 }
