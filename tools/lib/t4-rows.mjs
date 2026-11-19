@@ -63,8 +63,9 @@ export function reUndoAnswer(retry, txn) {
 
 /**
  * The FKC1 "custody on disk at the halt" check (T4 change 2). Without T4 it reads the saved stockpile ledger's `custody`. With T4 custody lives in the txn
- * entry: the saved ledger may hold none, so the check is left to the dev view (`custody` with `txn` beside it). TODO(T4c): read txn.json's open entry
- * once its shape is stated. -> { check, ok, note }.
+ * entry: the saved ledger may hold none, so the check is left to the dev view. TODO(T4c), shape stated by Architect 11-19: `dev.stockpile.ledger`
+ * gains `custody: [{key, items, txnId, phase, savedGen, onDisk}]` and a top-level `confirmedGen` (onDisk = savedGen <= confirmedGen); assert every
+ * entry's onDisk at the FKC1 halt. -> { check, ok, note }.
  */
 export function custodyAtHalt(savedLedger, txn, total) {
   const n = total(Object.values(savedLedger?.custody ?? {}).reduce((a, m) => {

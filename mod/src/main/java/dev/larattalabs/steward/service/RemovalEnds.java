@@ -47,7 +47,9 @@ public final class RemovalEnds {
 	 *         owedItems(srv, e.result().owed())), voice(srv)));
 	 * });
 	 * }</pre>
-	 * (the listener's exact shape follows the shipped {@code RemovalFinished(String kind, String id, RemoveResult result)}); {@code owedItems} sums the
+	 * (the listener's exact shape follows the shipped {@code RemovalFinished(String kind, String id, RemoveResult result)}; Architect's binding answer,
+	 * 11-19: an undoRevision arrives as kind {@code group} with the revision's group id, plus a {@code revisionId} (null otherwise), so the held note
+	 * keyed by group id matches; a decided, held site stays listed (status removing, detail held(decided)) until retirement); {@code owedItems} sums the
 	 * {@code Owed.items} of the entries whose key the result lists, over every settlement owner's {@code Sites.owed(owner)}.
 	 */
 	public static void init() {
