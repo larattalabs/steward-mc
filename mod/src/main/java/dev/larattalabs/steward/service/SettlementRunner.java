@@ -2450,7 +2450,7 @@ public final class SettlementRunner {
 	private void execute(Command c) {
 		// (batch-077 review P1-2) a mutation boundary: nothing is asked of Architect while settlements are disabled (the build resumes from its save)
 		if (Settlements.disabled()) { Steward.LOGGER.warn("{}: {} not sent: settlements are disabled this session", claimedId, c.getClass().getSimpleName()); return; }
-		var api = ArchitectApi.get();
+		var api = ArchitectAccess.api();
 		switch (c) {
 			case Pipeline.RequestBible b -> {
 				say("Designing the style bible...");
@@ -2897,7 +2897,7 @@ public final class SettlementRunner {
 		if (vRegionId != null || queueInFlight || districtQuoting) return;
 		// (batch-077 review P1-2) nothing is realised while settlements are disabled
 		if (Settlements.disabled()) { Steward.LOGGER.warn("{}: not realised: settlements are disabled this session", claimedId); return; }
-		var api = ArchitectApi.get();
+		var api = ArchitectAccess.api();
 		Map<String, String> entries = new LinkedHashMap<>();
 		// (slice M3) module lots: their bound variants, made (or found by key) and their bill quoted first; the realise waits until then
 		if (moduleBuild()) {
@@ -3377,11 +3377,11 @@ public final class SettlementRunner {
 		String key = ModulePlacement.cleared(vPlanId, entries);
 		java.util.concurrent.CompletableFuture<dev.larattalabs.architect.api.Quote> fq;
 		try {
-			fq = ArchitectApi.get().regions().quoteApproved(sha, entries);
+			fq = ArchitectAccess.api().regions().quoteApproved(sha, entries);
 		} catch (RuntimeException | LinkageError e) {
 			fq = java.util.concurrent.CompletableFuture.failedFuture(e);
 		}
-		fq.whenComplete((q, err) -> server.execute(() -> {
+		fq.whenComplete((q, err) -> ArchitectAccess.onServer(server, () -> {
 			moduleBusy = false;
 			if (!placingModules(session)) return;
 			if (err != null || q == null) {
@@ -3450,7 +3450,7 @@ public final class SettlementRunner {
 	/** (LIFT-S) Whether this Architect caps a realise per lot (LCAP: {@code maxBillPerLot}). */
 	static boolean lotCaps() {
 		try {
-			return ArchitectApi.get().features().contains(dev.larattalabs.steward.module.ComposedModules.LOT_CAP_FEATURE);
+			return ArchitectAccess.api().features().contains(dev.larattalabs.steward.module.ComposedModules.LOT_CAP_FEATURE);
 		} catch (RuntimeException | LinkageError e) {
 			return false;
 		}
@@ -3559,7 +3559,7 @@ public final class SettlementRunner {
 	 * as the build's ({@link #adoptVillage}) or the build ends ({@link #persist}).
 	 */
 	private void realiseArtifact(String sha, Map<String, String> lotEntries, @org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		Map<String, String> fitting = palette(sha, fitting(sha, lotEntries));
 		// (slice M5) a module lot is never left a pad: one Architect's box or a palette rule would drop refuses the realise, nothing placed
 		var dropped = moduleOrders.keySet().stream().filter(l -> lotEntries.containsKey(l) && !fitting.containsKey(l)).sorted().toList();
@@ -3628,9 +3628,9 @@ public final class SettlementRunner {
 	/** The approved artifact's realise, sent, and its answer (a stale artifact checked once more, a wall lot repaired). */
 	private void sendApproved(String sha, dev.larattalabs.architect.api.ApprovedRealise request, Map<String, String> lotEntries,
 		@org.jspecify.annotations.Nullable ServerPlayer actor, JsonObject ext, boolean first, int session) {
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		regions.realiseApproved(request)
-			.whenComplete((id, err) -> server.execute(() -> {
+			.whenComplete((id, err) -> ArchitectAccess.onServer(server, () -> {
 				if (!Session.is(session)) return;
 				Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
 				boolean stale = e instanceof dev.larattalabs.architect.api.ArchitectRefused rf && rf.reason() == dev.larattalabs.architect.api.Reason.ARTIFACT_STALE;
@@ -3642,7 +3642,7 @@ public final class SettlementRunner {
 				JsonObject frozen = frozenPlan(sha);
 				if (frozen == null) { realised(null, new IllegalStateException("the approved plan could not be read again"), session); return; }
 				var saved = Settlements.store().get(settlement.id()).orElse(settlement);
-				Composer.check(server, saved, frozen, playerId).whenComplete((c, cerr) -> server.execute(() -> {
+				Composer.check(server, saved, frozen, playerId).whenComplete((c, cerr) -> ArchitectAccess.onServer(server, () -> {
 					if (!Session.is(session)) return;
 					// a runner replaced meanwhile (cancelled twice, another build started): nothing more of this one reaches the world
 					if (!alive()) return;
@@ -3893,7 +3893,7 @@ public final class SettlementRunner {
 
 	/** Whether an approved artifact was checked in survival (built from materials). */
 	private static boolean artifactSurvival(String sha) {
-		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		var body = ArchitectAccess.api().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
 		return body != null && body.has("survival") && body.get("survival").isJsonPrimitive() && body.get("survival").getAsBoolean();
 	}
 
@@ -3904,7 +3904,7 @@ public final class SettlementRunner {
 
 	/** The plan as approved: the one Architect froze in the artifact (what the designs were made for), else the kept plan as this build builds it. */
 	private @org.jspecify.annotations.Nullable JsonObject frozenPlan(String sha) {
-		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		var body = ArchitectAccess.api().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
 		if (body != null && body.has("plan") && body.get("plan").isJsonObject()) return body.getAsJsonObject("plan");
 		try {
 			return builtPlan();
@@ -3916,11 +3916,11 @@ public final class SettlementRunner {
 
 	/** The lot entries whose designs fit their approved lots, box, height and cost ({@link dev.larattalabs.steward.gateway.PPlan#lotProblem}); the others are said and left pads. */
 	private Map<String, String> fitting(String sha, Map<String, String> lotEntries) {
-		var body = ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		var body = ArchitectAccess.api().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
 		if (body == null || !body.has("lots") || !body.get("lots").isJsonArray()) return lotEntries;
 		Map<String, JsonObject> lots = new java.util.HashMap<>();
 		for (var l : body.getAsJsonArray("lots")) if (l.isJsonObject() && l.getAsJsonObject().has("id")) lots.put(l.getAsJsonObject().get("id").getAsString(), l.getAsJsonObject());
-		var library = ArchitectApi.get().library();
+		var library = ArchitectAccess.api().library();
 		Map<String, String> out = new LinkedHashMap<>();
 		for (var e : lotEntries.entrySet()) {
 			JsonObject lot = lots.get(e.getKey());
@@ -3942,7 +3942,7 @@ public final class SettlementRunner {
 	 */
 	private Map<String, String> palette(String sha, Map<String, String> entries) {
 		Map<String, String> out = new LinkedHashMap<>(entries);
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		for (int i = 0; i < 24 && !out.isEmpty(); i++) {
 			var pc = regions.checkPalette(sha, out);
 			if (pc.isEmpty() || pc.get().ok()) break;
