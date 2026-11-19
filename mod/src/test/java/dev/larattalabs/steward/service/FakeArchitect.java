@@ -93,6 +93,8 @@ final class FakeArchitect {
 		boolean present = true;
 		/** (slice DRS) How its last removal stopped ({@code RegionView.removalStop}, Architect DR-S). */
 		dev.larattalabs.architect.api.RemovalStop removalStop = dev.larattalabs.architect.api.RemovalStop.NONE;
+		/** (slice 8bS) Its typed cause ({@code RegionView.removalStopCause}, S-DRS-1); null with NONE. */
+		dev.larattalabs.architect.api.RemovalStopCause removalStopCause;
 
 		Region(String id, String owner) {
 			this.id = id;
@@ -120,7 +122,8 @@ final class FakeArchitect {
 			RegionBuild build = fromMaterials ? new RegionBuild(built, built, built ? 100 : 40, Map.of(), List.of()) : null;
 			return new RegionView(id, "plan_" + id, "sha", owner, ext.deepCopy(), "grp_" + id, new BoundingBox(0, -64, 0, 300, 320, 300), state, List.of(), List.of(), 0L,
 				Map.of(), null, null, List.of(), state == RegionState.REMOVED ? 1L : 0L, null, List.of(), null, build, position, busy,
-				revisions.stream().map(Rev::view).toList(), removalStop, removalStop == dev.larattalabs.architect.api.RemovalStop.NONE ? null : "stopped");
+				revisions.stream().map(Rev::view).toList(), removalStop, removalStop == dev.larattalabs.architect.api.RemovalStop.NONE ? null : "stopped",
+				removalStop == dev.larattalabs.architect.api.RemovalStop.NONE ? null : removalStopCause, null, null);
 		}
 	}
 
