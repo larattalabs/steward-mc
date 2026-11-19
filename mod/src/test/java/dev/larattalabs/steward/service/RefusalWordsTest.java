@@ -252,4 +252,18 @@ class RefusalWordsTest {
 		clean(note.headline());
 		assertEquals(List.of("I couldn't look over Hamlet: " + RefusalWords.GENERIC), note.lines());
 	}
+
+	@Test
+	void savingOffIsSaidByItsTypedDetail() {
+		// (SOFF-WORDS) Architect SOFF2's hold: NOT_ALLOWED with detail saving_off:<dims>; the dimension list and the message are never said
+		var held = new ArchitectRefused(Reason.NOT_ALLOWED, RAW, "saving_off:minecraft:overworld,minecraft:the_nether");
+		String line = RefusalWords.of(new CompletionException(held));
+		assertEquals(RefusalWords.SAVING_OFF, line);
+		clean(line);
+		assertEquals(RefusalWords.SAVING_OFF, RefusalWords.of(new ArchitectRefused(Reason.NOT_ALLOWED, RAW, "saving_off")));
+		// before SOFF2 (no detail), and another NOT_ALLOWED detail, keep the reason's line
+		assertEquals("that isn't allowed in this world", RefusalWords.of(new ArchitectRefused(Reason.NOT_ALLOWED, RAW)));
+		assertEquals("that isn't allowed in this world", RefusalWords.of(new ArchitectRefused(Reason.NOT_ALLOWED, RAW, "saving_offline")));
+		assertFalse(RefusalWords.savingOff(null));
+	}
 }
