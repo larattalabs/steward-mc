@@ -7,12 +7,14 @@
  * - standing: every site or tile the build added (in the ledger after it was built, not in the ledger before it started), other than the stockpile's
  *   own, that the ledger after the undo still has in a state other than REMOVED;
  * - left: every cell of a block-state diff (Architect's dev.region.hash diff, against a snapshot taken before the build, the crate cells left out)
- *   inside one of those sites' or tiles' boxes whose class is not one the world itself causes. Allowed, as in the growth and adopt flows' diffs:
- *   `growth` (a random tick grew or spread it) and `grazed` (a sheep ate grass). Architect's classifier also calls a crop or sapling standing where
- *   air or water was "growth"; no random tick plants one, so that is a built block left (`planted`) and fails. Every other class (none, gravity,
- *   unsupported, live) fails;
- * - harness: what would make the audit see nothing: no tile before the undo when tiles are required, a box outside the snapshot, a diff missing or
- *   cut short (its list shorter than its mismatch count).
+ *   inside one of those sites' or tiles' restore boxes (the template's box with its foundation, approach and the row below; the box when there is
+ *   none) whose class is not one the world itself causes. Allowed, as in the growth and adopt flows' diffs: `growth` (a random tick grew or spread
+ *   it) and `grazed` (a sheep ate grass). Architect's classifier also calls a crop or sapling standing where air or water was "growth", and one
+ *   crop or sapling where another species stood; no random tick plants one or swaps species, so either is a built block left (`planted`) and
+ *   fails. Every other class (none, gravity, unsupported, live) fails;
+ * - harness: what would make the audit see nothing: a ledger without its sites, tiles or crate lists, no tile before the undo when tiles are
+ *   required, a box outside the snapshot, a diff missing, cut short (its list shorter than its mismatch count) or over fewer cells than the
+ *   snapshot's box less the crate cells.
  *
  * Cells outside every added box are counted (`outside`) but not failed: the founding stone and the ground the player walks on are not the build's.
  */
@@ -51,29 +53,42 @@ export function crateBoxes(...ledgers) {
 const inside = (b, x, y, z) => x >= b[0] && x <= b[3] && y >= b[1] && y <= b[4] && z >= b[2] && z <= b[5];
 const within = (inner, outer) => inner[0] >= outer[0] && inner[1] >= outer[1] && inner[2] >= outer[2] && inner[3] <= outer[3] && inner[4] <= outer[4] && inner[5] <= outer[5];
 
-/** A diff mismatch's class as this audit judges it: Architect's, except a crop or sapling where air or water was is `planted`. */
+/** A stem and its attached form are one species (a stem attaches when its fruit grows). */
+const species = (b) => b.replace(/^minecraft:attached_/, 'minecraft:');
+
+/**
+ * A diff mismatch's class as this audit judges it: Architect's, except a crop or sapling where air or water was, or where another crop or sapling
+ * species stood (carrots -> wheat), is `planted`.
+ */
 export function judgedClass(m) {
   const cls = String(m?.class ?? 'none');
-  if (cls === 'growth' && EMPTY.test(blockOf(m.was)) && PLANTED.test(blockOf(m.now))) return 'planted';
+  const was = blockOf(m?.was), now = blockOf(m?.now);
+  if (cls === 'growth' && PLANTED.test(now) && (EMPTY.test(was) || species(was) !== species(now))) return 'planted';
   return cls;
 }
 
+/** Cells in a box [x0, y0, z0, x1, y1, z1]. */
+const volume = (b) => (b[3] - b[0] + 1) * (b[4] - b[1] + 1) * (b[5] - b[2] + 1);
+
 /**
  * The audit. `start`: the ledger before the build started (and before the snapshot); `built`: the ledger once built, before the undo; `undone`: the
- * ledger after the undo; `diff`: dev.region.hash's diff answer over `snapBox` against the snapshot; `requireTiles`: fail as harness when the build
+ * ledger after the undo; `diff`: dev.region.hash's diff answer over `snapBox` against the snapshot, `exclude` the single-cell boxes it left out; `requireTiles`: fail as harness when the build
  * added no tile. -> { harness: [...], standing: [...], left: [...], added, tiles, outside, classes }.
  */
-export function judgeUndoWorld({ start, built, undone, diff, snapBox, requireTiles = true }) {
+export function judgeUndoWorld({ start, built, undone, diff, snapBox, exclude = [], requireTiles = true }) {
   const harness = [];
   const added = addedSites(start, built);
   const tiles = added.filter((x) => x.tile);
-  if (!built) harness.push('no ledger once built');
-  if (!undone) harness.push('no ledger after the undo');
+  for (const [name, sp] of [['before the build', start], ['once built', built], ['after the undo', undone]]) {
+    // no stockpile before the build (its first crate comes with the start): nothing of the owner stood
+    if (!sp) { if (name !== 'before the build') harness.push(`no ledger ${name}`); }
+    else if (!Array.isArray(sp.sites) || !Array.isArray(sp.tiles) || !Array.isArray(sp.crateCells)) harness.push(`the ledger ${name} lacks its sites, tiles or crateCells (an old jar?)`);
+  }
   if (requireTiles && !tiles.length) harness.push(`no tile site seen before the undo (${added.length} sites added): the tile list would prove nothing`);
   if (!added.length) harness.push('the build added no site: nothing to audit');
   const boxes = [];
   for (const x of added) {
-    const b = x.box;
+    const b = Array.isArray(x.restoreBox) && x.restoreBox.length === 6 ? x.restoreBox : x.box;
     if (!Array.isArray(b) || b.length !== 6) { harness.push(`${x.id} has no box`); continue; }
     if (!Array.isArray(snapBox) || !within(b, snapBox)) harness.push(`${x.id}'s box ${JSON.stringify(b)} is outside the snapshot ${JSON.stringify(snapBox)}`);
     boxes.push({ id: x.id, box: b });
@@ -86,6 +101,12 @@ export function judgeUndoWorld({ start, built, undone, diff, snapBox, requireTil
   const classes = {};
   if (!diff || typeof diff.mismatches !== 'number' || !Array.isArray(diff.list)) harness.push(`no diff answer: ${JSON.stringify(diff)?.slice(0, 160)}`);
   else if (diff.list.length < diff.mismatches) harness.push(`the diff listed ${diff.list.length} of ${diff.mismatches} mismatches (raise its limit)`);
+  if (diff && Array.isArray(snapBox) && typeof diff.mismatches === 'number') {
+    // every cell of the snapshot's box compared but the crate cells inside it
+    const cut = new Set((exclude ?? []).filter((e) => inside(snapBox, e[0], e[1], e[2])).map((e) => `${e[0]},${e[1]},${e[2]}`)).size;
+    const want = volume(snapBox) - cut;
+    if (diff.cells !== want) harness.push(`the diff compared ${diff.cells} cells, not the snapshot's ${want}`);
+  }
   for (const m of diff?.list ?? []) {
     const [x, y, z] = String(m.pos).split(',').map(Number);
     const cls = judgedClass(m);

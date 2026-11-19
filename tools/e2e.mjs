@@ -6257,7 +6257,7 @@ async function undoWorldAudit(lbl, snap, { start, built, undone, requireTiles = 
   const exclude = crateBoxes(start, built, undone);
   const diff = snap?.error ? null : await dev.call('dev.region.hash', { box: snap.box, mode: 'diff', file: snap.file, exclude, limit: 1_000_000 }, { timeoutMs: 1_800_000 })
     .catch((e) => ({ error: String(e?.message ?? e) }));
-  const a = judgeUndoWorld({ start, built, undone, diff, snapBox: snap?.box, requireTiles });
+  const a = judgeUndoWorld({ start, built, undone, diff, snapBox: snap?.box, exclude, requireTiles });
   const words = auditWords(a);
   if (!words) {
     ok(lbl, `the ${a.added} sites the build added (${a.tiles} of them region tiles) gone; their ${a.boxes} boxes as before the build (${diff.cells} cells compared, `
@@ -6641,6 +6641,7 @@ async function moduleHallSurvivalFlow() {
     if (offer.module?.params?.slots === 0 && bound && Object.keys(bound).length && /at most/.test(offer.why) && /Your stores are getting mixed/.test(offer.why) && /they could be lost/.test(offer.why)) ok(`${label} offer`, offer.why.slice(0, 220));
     else return fail(`${label} offer`, JSON.stringify(offer).slice(0, 300));
     let hallKey = `module.${HALL}`;
+    let snap = null;
     // (M4-L) a cancel at a real partial point: accepted with half the bound stocked and no feeder, so the build draws what it can and waits; undone
     // there (Architect's RU through Steward's undo), it gives back exactly what it drew, once. Then asked again in talk for the full round below.
     {
@@ -6650,6 +6651,9 @@ async function moduleHallSurvivalFlow() {
       await cmd('/clear @p');
       const spC0 = await ledger();
       await away();
+      // (M5-HARD, GPT review P1) the ground before either hall, for both undos' world audits: a leftover of the cancel would otherwise be the
+      // second round's baseline
+      snap = await snapBeforeBuild(claim, `module-hall-before-${id}`);
       from = logSize();
       await cmd(`/steward proposals ${id} accept module.${HALL}`);
       await waitLog(from, new RegExp(`module ${id} quote `), 240_000);
@@ -6690,6 +6694,8 @@ async function moduleHallSurvivalFlow() {
       if (removed && part && still >= 6 && sameItems(backC, paidC) && !Object.keys(overC).length && !Object.keys(againC).length && removedN === 1)
         ok(lbl, `${words}: the same back, once`);
       else return fail(lbl, `${words}; waiting ${still >= 6}; removed ${removed}; paid ${JSON.stringify(paidC).slice(0, 160)}; back ${JSON.stringify(backC).slice(0, 160)}; ${String(said).slice(0, 120)} ${chatTail(from)}`);
+      // (M5-HARD) the part-built hall's sites gone and the ground in their boxes as before it
+      await undoWorldAudit(`${lbl} world`, snap, { start: spC0, built: spW, undone: spL, requireTiles: false });
       // asked again in talk (the rules' 20 min cooldown holds a second offer back): the same plain hall
       await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ}`);
       for (const k of kinds) await cmd(`/give @p minecraft:${k} 64`);
@@ -6710,8 +6716,6 @@ async function moduleHallSurvivalFlow() {
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound).map(([k, c]) => [k, c * 2 + 16])) });
     const sp0 = await ledger();
     await away();
-    // (M5-HARD) the ground before the hall, for the undo's world audit
-    const snap = await snapBeforeBuild(claim, `module-hall-before-${id}`);
     from = logSize();
     feeding = true;
     await cmd(`/steward proposals ${id} accept ${hallKey}`);

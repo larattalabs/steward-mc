@@ -323,20 +323,24 @@ public final class Stockpiles {
 		return o;
 	}
 
-	/** A site's id, kind, state, region (or none) and box [x0, y0, z0, x1, y1, z1] (dev: the e2e check). */
+	/** A site's id, kind, state, region (or none), box and restoreBox, each [x0, y0, z0, x1, y1, z1] (dev: the e2e check). */
 	private static com.google.gson.JsonObject siteJson(dev.larattalabs.architect.api.SiteView v) {
 		var x = new com.google.gson.JsonObject();
 		x.addProperty("id", v.id());
 		x.addProperty("kind", v.kind());
 		x.addProperty("state", v.state().name());
 		if (v.region() != null) x.addProperty("region", v.region());
-		var b = v.box();
-		if (b != null) {
-			var a = new com.google.gson.JsonArray();
-			for (int n : new int[] {b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()}) a.add(n);
-			x.add("box", a);
-		}
+		box(x, "box", v.box());
+		// the box a removal restores: the template's, its foundation, its approach and one row below
+		box(x, "restoreBox", v.restoreBox());
 		return x;
+	}
+
+	private static void box(com.google.gson.JsonObject x, String key, net.minecraft.world.level.levelgen.structure.@Nullable BoundingBox b) {
+		if (b == null) return;
+		var a = new com.google.gson.JsonArray();
+		for (int n : new int[] {b.minX(), b.minY(), b.minZ(), b.maxX(), b.maxY(), b.maxZ()}) a.add(n);
+		x.add(key, a);
 	}
 
 	private static com.google.gson.JsonObject items(Map<Item, Integer> m) {

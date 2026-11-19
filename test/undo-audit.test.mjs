@@ -10,8 +10,9 @@ const built = {
   crateCells: [[5, 60, 5]],
 };
 const undone = { sites: [...start.sites, { id: 'stockpile:x', kind: 'stockpile', state: 'BUILT' }], tiles: [], crateCells: [[5, 60, 5], [6, 60, 5]] };
-const clean = { mismatches: 0, classes: {}, list: [] };
-const diff = (list) => ({ mismatches: list.length, classes: {}, list });
+const CELLS = 201 * 161 * 201;
+const clean = { cells: CELLS, mismatches: 0, classes: {}, list: [] };
+const diff = (list) => ({ cells: CELLS, mismatches: list.length, classes: {}, list });
 
 test('clean: nothing standing, no cell left', () => {
   const a = judgeUndoWorld({ start, built, undone, diff: clean, snapBox: SNAP });
@@ -78,7 +79,7 @@ test('a cell outside every added box is counted, not failed', () => {
 });
 
 test('harness: a truncated diff, no diff, no tiles, a box outside the snapshot', () => {
-  const cut = judgeUndoWorld({ start, built, undone, diff: { mismatches: 5, classes: {}, list: [] }, snapBox: SNAP });
+  const cut = judgeUndoWorld({ start, built, undone, diff: { cells: CELLS, mismatches: 5, classes: {}, list: [] }, snapBox: SNAP });
   assert.match(cut.harness.join(), /listed 0 of 5/);
   assert.match(judgeUndoWorld({ start, built, undone, diff: null, snapBox: SNAP }).harness.join(), /no diff answer/);
   const noTiles = judgeUndoWorld({ start, built: { ...built, tiles: [] }, undone, diff: clean, snapBox: SNAP });
@@ -94,4 +95,28 @@ test('harness: a truncated diff, no diff, no tiles, a box outside the snapshot',
 test('the added sites leave out what stood before and the stockpile; crate cells deduplicated as boxes', () => {
   assert.deepEqual(addedSites(start, built).map((x) => x.id), ['s1', 't1']);
   assert.deepEqual(crateBoxes(built, undone, null), [[5, 60, 5, 5, 60, 5], [6, 60, 5, 6, 60, 5]]);
+});
+
+test('(GPT review P1) a crop of another species where one stood is planted; a stem attaching is growth', () => {
+  assert.equal(judgedClass({ was: 'minecraft:carrots[age=7]', now: 'minecraft:wheat[age=7]', class: 'growth' }), 'planted');
+  assert.equal(judgedClass({ was: 'minecraft:oak_sapling[stage=0]', now: 'minecraft:birch_sapling[stage=0]', class: 'growth' }), 'planted');
+  assert.equal(judgedClass({ was: 'minecraft:melon_stem[age=7]', now: 'minecraft:attached_melon_stem[facing=north]', class: 'growth' }), 'growth');
+});
+
+test('(GPT review P1) a block left in the restore box (the foundation or approach) outside the template box fails', () => {
+  const b = { ...built, sites: built.sites.map((x) => (x.id === 's1' ? { ...x, restoreBox: [8, 58, 8, 24, 80, 24] } : x)) };
+  const a = judgeUndoWorld({ start, built: b, undone, diff: diff([{ pos: '9,59,9', was: 'minecraft:dirt', now: 'minecraft:cobblestone', class: 'none' }]), snapBox: SNAP });
+  assert.equal(a.left.length, 1);
+  assert.equal(a.left[0].site, 's1');
+  const out = judgeUndoWorld({ start, built: { ...b, sites: b.sites.map((x) => (x.id === 's1' ? { ...x, restoreBox: [-5, 58, 8, 24, 80, 24] } : x)) }, undone, diff: clean, snapBox: SNAP });
+  assert.match(out.harness.join(), /s1's box .* is outside the snapshot/);
+});
+
+test('(GPT review P2) a diff over too few cells, or a ledger without its lists, is harness; no ledger before the build is fine', () => {
+  assert.match(judgeUndoWorld({ start, built, undone, diff: { cells: 0, mismatches: 0, classes: {}, list: [] }, snapBox: SNAP }).harness.join(), /compared 0 cells, not the snapshot's/);
+  const ex = [[5, 60, 5, 5, 60, 5], [6, 60, 5, 6, 60, 5], [500, 60, 5, 500, 60, 5]];
+  assert.deepEqual(judgeUndoWorld({ start, built, undone, diff: { ...clean, cells: CELLS - 2 }, snapBox: SNAP, exclude: ex }).harness, []);
+  assert.match(judgeUndoWorld({ start, built, undone: { sites: [] }, diff: clean, snapBox: SNAP }).harness.join(), /after the undo lacks its sites, tiles or crateCells/);
+  assert.match(judgeUndoWorld({ start, built: null, undone, diff: clean, snapBox: SNAP }).harness.join(), /no ledger once built/);
+  assert.deepEqual(judgeUndoWorld({ start: null, built, undone, diff: clean, snapBox: SNAP }).harness, []);
 });
