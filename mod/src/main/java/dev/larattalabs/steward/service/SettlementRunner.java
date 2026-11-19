@@ -3927,8 +3927,10 @@ public final class SettlementRunner {
 		String entry = repairEntry(r.lotId());
 		boolean sameEntry = d.entryId().isPresent() && d.entryId().get().equals(entry);
 		boolean done = d.status() == dev.larattalabs.architect.api.Design.Status.DONE && sameEntry;
-		String why = done ? null : d.status() == dev.larattalabs.architect.api.Design.Status.DONE ? "its repair came back as another design (" + d.entryId().orElse("none") + ")"
-			: d.error().orElse(d.status().name().toLowerCase());
+		// (raw-sweep) the design's own error to the log; the steward's words in the event
+		if (!done) Steward.LOGGER.info("{}: repair {} ended {} ({}): {}", settlement.id(), r.key(), d.status(), d.entryId().orElse("none"), d.error().orElse(""));
+		String why = done ? null : d.status() == dev.larattalabs.architect.api.Design.Status.DONE ? "its repair came back as another design"
+			: "budget".equals(d.error().orElse("")) ? "it ran past its budget" : "Architect didn't finish designing it";
 		feed(new Pipeline.RepairEnded(r.key(), done ? Pipeline.RepairEnd.DONE : Pipeline.RepairEnd.FAILED, d.cost().usd(), why));
 	}
 

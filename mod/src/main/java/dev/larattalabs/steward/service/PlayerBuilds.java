@@ -58,7 +58,8 @@ public final class PlayerBuilds {
 				Throwable c = err.getCause() != null ? err.getCause() : err;
 				String why = String.valueOf(c.getMessage());
 				say.accept(why.startsWith("provisional") ? "That build is still going up: the steward takes it on once you've finished it (a few quiet minutes)."
-					: "The steward can't take that build on: " + why);
+					: "The steward can't take that build on: " + RefusalWords.of(err) + ".");
+				if (!why.startsWith("provisional")) dev.larattalabs.steward.Steward.LOGGER.info("adopt of {} refused: {}", b.id(), why);
 				return;
 			}
 			var entry = Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.BUILD_ADOPTED, "Took on " + by(server, b) + "'s " + kind(b) + " (" + b.id() + ")",
