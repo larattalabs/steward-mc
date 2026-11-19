@@ -3672,6 +3672,8 @@ async function wallOfferFlow() {
   else return fail('wall built', `history ${JSON.stringify(wall)?.slice(0, 160)}; still waits ${stillWaits}; ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ')}`);
   const townRegion = town.siteGroup.replace(/^region:/, '');
   const wallRegion = wall.siteGroup.replace(/^region:/, '');
+  // (slice LYW) the overview's map of the walled town: the wall at its thickness, its gate, its corner towers (Architect's layoutWalls)
+  await wallMapShot(id, wallRegion);
   // (Architect GJ, Steward's RC) a district joins the walled town through its gate; the wall undone first leaves it standing, its gate gone
   const gj = await gateJoinFlow(id, townRegion, wallRegion, before);
   if (!gj) return;
@@ -3684,6 +3686,24 @@ async function wallOfferFlow() {
     if (removed && townStands) ok('wall undo', `${wallRegion} removed; the town stands`);
     else fail('wall undo', `removal ${JSON.stringify(rm).slice(0, 200)}; town stands ${townStands}`);
   });
+}
+
+/**
+ * (slice LYW) The settlement screen's map of a walled town, shot (artifacts/shots/e2e-wall-map.png); with Architect's layoutWalls (0.83.0 on) the
+ * wall region's layout, as the server logs it when the screen reads it, holds the wall (with its thickness) and a gate. Before 0.83.0 a note only.
+ */
+async function wallMapShot(id, wallRegion) {
+  await closeScreens();
+  const from = logSize();
+  await cmd(`/steward view ${id}`);
+  await sleep(1500);
+  const shot = (await dev.request('dev.screenshot', { name: 'e2e-wall-map', frames: 5 }, { timeoutMs: 120_000 }).catch(() => null))?.path ?? '';
+  await closeScreens();
+  const line = logSince(from).split('\n').find((l) => l.includes(`map layout of ${id} ${wallRegion}:`)) ?? '';
+  const walls = /connector\.wall \S+ \[[^\]]+\] ends=\d+ w=\d/.test(line), gates = /connector\.gate /.test(line), towers = (line.match(/; tower /g) ?? []).length;
+  if (walls && gates) ok('wall map', `${shot || 'no shot'}; the wall's layout: wall with its thickness, a gate, ${towers} corner tower(s)`);
+  else if (!/connector\.wall/.test(line)) console.log(`note wall map: no wall shapes in the layout (Architect before layoutWalls?): ${line.slice(0, 200) || 'no layout line'}; ${shot}`);
+  else fail('wall map', `wall ${walls}, gate ${gates}: ${line.slice(0, 300)}`);
 }
 
 /**

@@ -73,12 +73,21 @@ public record SettlementView(String id, String name, boolean described, boolean 
 	 * (slice 8bS) One shape of a region's plan on the settlement map, from Architect 8b's {@code RegionLayout} (hidden parts never sent): a lot (a pad,
 	 * before its building stands), a route (its polyline) or a connector (its two ends). {@code kind} {@code lot}, {@code route} or {@code connector};
 	 * {@code ends} x, z pairs; {@code site} the building standing on a lot, else null; {@code status} and {@code reason} its {@code BuildStatus}'s.
+	 * (slice LYW, Architect feature {@code layoutWalls}) {@code kind} also {@code wall} (its foot line in {@code ends}), {@code gate} (its opening's front
+	 * and back) or {@code tower} (its box); {@code width} a route's road width, a wall's thickness or a gate's opening (0: none given); {@code wall} the
+	 * wall a shape is or stands on (a tower or gatehouse lot too), {@code wallAt} where on it ({@code corner}, {@code gate}, {@code run}), else null.
 	 */
 	public record MapShape(String part, String kind, @Nullable String lot, int minX, int minZ, int maxX, int maxZ, List<Integer> ends, @Nullable String site,
-		String status, @Nullable String reason) {
+		String status, @Nullable String reason, int width, @Nullable String wall, @Nullable String wallAt) {
 		public MapShape {
 			ends = ends == null ? List.of() : List.copyOf(ends);
 			status = status == null ? "planned" : status;
+		}
+
+		/** A shape with no width or wall (before {@code layoutWalls}). */
+		public MapShape(String part, String kind, @Nullable String lot, int minX, int minZ, int maxX, int maxZ, List<Integer> ends, @Nullable String site,
+			String status, @Nullable String reason) {
+			this(part, kind, lot, minX, minZ, maxX, maxZ, ends, site, status, reason, 0, null, null);
 		}
 	}
 

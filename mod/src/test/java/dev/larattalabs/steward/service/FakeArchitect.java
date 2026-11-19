@@ -65,6 +65,8 @@ final class FakeArchitect {
 		final String planId;
 		/** (slice DRS) What it waits for ({@code RevisionView.waiting}), when a test gives it. */
 		String waiting;
+		/** (RVC) Its typed stop cause ({@code RevisionView.removalStopCause}); Architect makes it OTHER when waiting with none, null when not. */
+		dev.larattalabs.architect.api.RemovalStopCause removalStopCause;
 
 		Rev(int rid, int position, String state, List<String> sites) {
 			this.rid = rid;
@@ -75,7 +77,8 @@ final class FakeArchitect {
 		}
 
 		RevisionView view() {
-			return new RevisionView(rid, position, rid - 1, planId, "sha", state, 0L, List.of(), List.of(), List.of(), 0L, null, true, waiting, sites);
+			return new RevisionView(rid, position, rid - 1, planId, "sha", state, 0L, List.of(), List.of(), List.of(), 0L, null, true, waiting, sites,
+				removalStopCause);
 		}
 	}
 
@@ -232,6 +235,8 @@ final class FakeArchitect {
 	String blocker = "a chest of the player's";
 	/** (slice DRS) A BLOCKED undoRevision leaves its suffix UNDOING with this wait (Architect DR-S's refused save), when given. */
 	String undoWaits;
+	/** (RVC) The typed cause a blocked undoRevision leaves on its waiting revisions ({@code RevisionView.removalStopCause}). */
+	dev.larattalabs.architect.api.RemovalStopCause undoWaitCause;
 	Answer unadoptAnswer = Answer.APPLY;
 	/** The calls answered HOLD, to be completed by the test. */
 	final List<Runnable> held = new ArrayList<>();
@@ -417,7 +422,7 @@ final class FakeArchitect {
 			joinedHold = f;
 			return f;
 		}
-		if (undoAnswer == Answer.BLOCKED && undoWaits != null) suffix.forEach(v -> { v.state = "UNDOING"; v.waiting = undoWaits; });
+		if (undoAnswer == Answer.BLOCKED && undoWaits != null) suffix.forEach(v -> { v.state = "UNDOING"; v.waiting = undoWaits; v.removalStopCause = undoWaitCause; });
 		return answer(undoAnswer, apply);
 	}
 

@@ -86,6 +86,39 @@ class RemovalStopsTest {
 			+ " or when the world next starts.", RemovalStops.growthWaiting());
 	}
 
+	@Test
+	void aGrowthsWaitSaysItsTypedCauseInTheStewardsWords() {
+		String generic = RemovalStops.growthWaiting();
+		assertEquals(generic, RemovalStops.growthWaiting(null), "no cause: only that it waits");
+		assertEquals(generic, RemovalStops.growthWaiting(RemovalStopCause.OTHER), "OTHER: only that it waits");
+		// a refused save: a region undo's words for it, without its "nothing was taken down" (a growth's take-up is part way)
+		assertEquals("The town's change is part way taken up and waits to carry on (the world couldn't be saved just now): nothing more is taken down until it"
+			+ " can. It carries on when you ask again or when the world next starts.", RemovalStops.growthWaiting(RemovalStopCause.SAVE_REFUSED));
+		assertTrue(RemovalStops.SAVE_REFUSED.startsWith(RemovalStops.WORLD_NOT_SAVED), "one phrase for a refused save");
+		assertTrue(RemovalStops.growthWaiting(RemovalStopCause.PLAYER_IN_BOX).contains("(someone is standing in what it takes up)"));
+		assertTrue(RemovalStops.growthWaiting(RemovalStopCause.COVERED).contains("(other buildings stand over part of it)"));
+		assertTrue(RemovalStops.growthWaiting(RemovalStopCause.CARGO).contains("(its containers hold more than was put in them)"));
+		assertTrue(RemovalStops.growthWaiting(RemovalStopCause.THINGS_IN_BOX).contains("(your things are in its way: filled containers, pets, item frames or"
+			+ " dropped items)"));
+		for (var c : RemovalStopCause.values()) {
+			String line = RemovalStops.growthWaiting(c);
+			assertTrue(line.startsWith("The town's change is part way taken up and waits to carry on") && line.endsWith("when the world next starts."), line);
+			assertFalse(line.contains("nothing was taken down"), line);
+		}
+	}
+
+	@Test
+	void aRevisionsCauseIsReadOnlyWithTheFeature() {
+		var waiting = new dev.larattalabs.architect.api.RevisionView(2, 1, 1, "p", "sha", "UNDOING", 0L, List.of(), List.of(), List.of(), 0L, null, true, "x",
+			List.of(), RemovalStopCause.SAVE_REFUSED);
+		assertNull(RemovalStops.revisionCause(waiting), "no revisionStopCause feature: never read");
+		a.features = Set.of("regions", RemovalStops.REVISION_CAUSE_FEATURE);
+		assertEquals(RemovalStopCause.SAVE_REFUSED, RemovalStops.revisionCause(waiting));
+		assertNull(RemovalStops.revisionCause(null));
+		assertEquals(RemovalStopCause.OTHER, RemovalStops.revisionCause(new dev.larattalabs.architect.api.RevisionView(2, 1, 1, "p", "sha", "UNDOING", 0L, List.of(),
+			List.of(), List.of(), 0L, null, true, "x", List.of())), "waiting with no cause given: Architect's OTHER");
+	}
+
 	// ------------------------------------------------------------------ the undo paths, over Architect's fake
 
 	private Settlement village(String id) {
@@ -175,6 +208,26 @@ class RemovalStopsTest {
 		a.runServer();
 		assertEquals(Boolean.FALSE, done.get(), "not taken up yet: the entry stays");
 		assertEquals(List.of(RemovalStops.growthWaiting()), said);
+		assertTrue(said.stream().noneMatch(l -> l.contains("chunk")), said.toString());
+	}
+
+	@Test
+	void aGrowthsWaitWithItsTypedCauseSaysWhatItWaitsFor() {
+		Settlement s = Settlement.founded("set_rvc1", "Vale", TOWN, Permission.PROPOSALS, Difficulty.SUPPLIED, 1L);
+		var r = a.region("rg_g", s.owner());
+		r.rev(1, 1, "PLACED", "g1");
+		a.site("g1", s.owner(), "rg_g");
+		a.undoAnswer = FakeArchitect.Answer.BLOCKED;
+		a.blocker = RAW;
+		a.undoWaits = "stage rv1:solids: " + RAW;
+		a.undoWaitCause = RemovalStopCause.SAVE_REFUSED;
+		a.features = new java.util.HashSet<>(a.features);
+		a.features.add(RemovalStops.REVISION_CAUSE_FEATURE);
+		AtomicReference<Boolean> done = new AtomicReference<>();
+		Growths.undo(null, s.owner(), new Growths.Ref("rg_g", 1), said::add, done::set);
+		a.runServer();
+		assertEquals(Boolean.FALSE, done.get(), "not taken up yet: the entry stays");
+		assertEquals(List.of(RemovalStops.growthWaiting(RemovalStopCause.SAVE_REFUSED)), said);
 		assertTrue(said.stream().noneMatch(l -> l.contains("chunk")), said.toString());
 	}
 }

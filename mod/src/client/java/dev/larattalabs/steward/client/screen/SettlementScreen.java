@@ -227,8 +227,10 @@ public final class SettlementScreen extends KitScreen {
 			return;
 		}
 		boolean map = w >= 360;
-		// the map's square, and its legend under it (a row more when the plan has roads or walls)
-		int mapSize = map ? Math.min(h - legendHeight(), w / 2 - 8) : 0;
+		// the map, and its legend under it: as tall as the legend leaves, at least as wide as the legend's three columns need (LYW: a wide map, not a
+		// smaller one, makes room for the walls' entries)
+		int mapH = map ? Math.min(h - legendHeight(), w / 2 - 8) : 0;
+		int mapSize = map ? Math.min(w / 2 - 8, Math.max(mapH, LEGEND_MIN_W)) : 0;
 		int lw = map ? w - mapSize - 8 : w;
 		Panels.inset(g, x, y, lw, h);
 		int fit = Math.max(1, (h - 6) / ROW_H);
@@ -257,18 +259,22 @@ public final class SettlementScreen extends KitScreen {
 			Panels.scrollbar(g, x + lw - 6, y + 1, h - 2, sc, false);
 		}
 		if (map) {
-			drawMap(g, x + lw + 8, y, mapSize, mx, my);
-			drawLegend(g, x + lw + 8, y + mapSize + 4, mapSize);
+			drawMap(g, x + lw + 8, y, mapSize, mapH, mx, my);
+			drawLegend(g, x + lw + 8, y + mapH + 4, mapSize);
 		}
 	}
 
 	/**
-	 * The legend's height: always room for its most rows of two (11 px each: the four states, roads, walls, the claim's edge and the stone), so the map
-	 * keeps one size whatever the plan holds.
+	 * The legend's height: always room for its most rows (11 px each; (LYW) three columns: the four states, roads, crossings, walls, gates and towers,
+	 * the claim's edge and the stone), so the map keeps one size whatever the plan holds.
 	 */
 	private static int legendHeight() {
 		return 4 * 11 + 2;
 	}
+
+	/** (slice LYW) The legend's columns, and the narrowest the map and legend go so each column's words fit ("crossing" the widest). */
+	private static final int LEGEND_COLS = 3;
+	private static final int LEGEND_MIN_W = 3 * 60;
 
 	/** A map footprint's fill for its state's family (each mark also gets a dark edge: at least 3:1 against the inset whatever its fill). */
 	static int fill(String family) {
@@ -288,6 +294,15 @@ public final class SettlementScreen extends KitScreen {
 	static final int CLAIM_EDGE = UiStyle.CLAY_DARK;
 	/** A built road: an earth brown (3.8:1 on the inset), apart from the sage of a built house; a road being built or waiting takes its state's fill. */
 	static final int ROAD = 0xFF8A6A45;
+	/**
+	 * (slice LYW) A built wall and the lots on it: a dark stone grey (about 7:1 on the inset), well apart from the planned grey and the roads' brown;
+	 * drawn as a band, never a square swatch.
+	 */
+	static final int WALL = 0xFF4A443D;
+	/** (slice LYW) A tower's centre: a lighter stone than the wall, inside a 2-pixel walnut frame (a pad's edge is 1 pixel). */
+	static final int TOWER = 0xFF7A7064;
+	/** (slice LYW) A gate's opening in its wall: the cream of the stone's centre, edged walnut. */
+	static final int GATE = UiStyle.CREAM;
 
 	private void box(GuiGraphicsExtractor g, int x0, int y0, int x1, int y1, int argb) {
 		g.fill(x0, y0, x1, y0 + 1, argb);
@@ -301,7 +316,10 @@ public final class SettlementScreen extends KitScreen {
 		return view.map() != null && view.map().stream().anyMatch(m -> kind.equals(m.kind()));
 	}
 
-	/** What the plan's connectors are called in the legend: walls when they all are, else crossings (bridges, tunnels, stairs). */
+	/**
+	 * What the plan's connectors are called in the legend: walls when they all are (before Architect's {@code layoutWalls} a wall is a connector), else
+	 * crossings (bridges, tunnels, stairs).
+	 */
 	private String connectorWord() {
 		return view.map() != null && view.map().stream().filter(m -> "connector".equals(m.kind())).allMatch(m -> m.part().toLowerCase(java.util.Locale.ROOT)
 			.contains("wall")) ? "wall" : "crossing";
@@ -310,23 +328,35 @@ public final class SettlementScreen extends KitScreen {
 	/** The claim's edge was drawn this frame (the legend names it only then). */
 	private boolean claimDrawn;
 
-	/** The legend's items in order, as {key, words}: only marks the map can draw ({@code claim}: the claim's edge drawn, or assumed when sizing). */
+	/**
+	 * The legend's items in fixed slots, as {key, words} (null: a slot left blank, so no entry moves between towns): the four states, road and stone
+	 * (8bS's), then (LYW) wall, gate and tower, then crossings and the claim's edge; only marks the map can draw are named ({@code claim}: the claim's
+	 * edge drawn, or assumed when sizing).
+	 */
 	private List<String[]> legendItems(boolean claim) {
-		List<String[]> items = new ArrayList<>(List.of(new String[] {"done", "built"}, new String[] {"working", "building"}, new String[] {"waiting", "update"},
-			new String[] {"idle", "planned"}));
-		if (has("route")) items.add(new String[] {"road", "road"});
-		if (has("connector")) items.add(new String[] {"connector", connectorWord()});
-		if (claim) items.add(new String[] {"claim", "claim"});
+		boolean towers = has("tower") || view.map() != null && view.map().stream().anyMatch(m -> "lot".equals(m.kind()) && m.wall() != null);
+		List<String[]> items = new ArrayList<>();
+		items.add(new String[] {"done", "built"});
+		items.add(new String[] {"working", "building"});
+		items.add(new String[] {"waiting", "update"});
+		items.add(new String[] {"idle", "planned"});
+		items.add(has("route") ? new String[] {"road", "road"} : null);
 		items.add(new String[] {"stone", "stone"});
+		items.add(has("wall") ? new String[] {"wall", "wall"} : null);
+		items.add(has("gate") ? new String[] {"gate", "gate"} : null);
+		items.add(towers ? new String[] {"tower", "tower"} : null);
+		items.add(has("connector") ? new String[] {"connector", connectorWord()} : null);
+		items.add(claim ? new String[] {"claim", "claim"} : null);
 		return items;
 	}
 
 	/** What the map's marks mean, in two columns under it; each swatch is drawn as its mark is on the map. */
 	private void drawLegend(GuiGraphicsExtractor g, int x, int y, int w) {
 		List<String[]> items = legendItems(claimDrawn);
-		int col = w / 2;
+		int col = w / LEGEND_COLS;
 		for (int i = 0; i < items.size(); i++) {
-			int ix = x + (i % 2) * col, iy = y + (i / 2) * 11;
+			if (items.get(i) == null) continue;
+			int ix = x + (i % LEGEND_COLS) * col, iy = y + (i / LEGEND_COLS) * 11;
 			switch (items.get(i)[0]) {
 				case "claim" -> box(g, ix, iy, ix + 8, iy + 8, CLAIM_EDGE);
 				case "stone" -> stone(g, ix + 4, iy + 4);
@@ -335,6 +365,18 @@ public final class SettlementScreen extends KitScreen {
 					g.fill(ix, iy, ix + 8, iy + 2, MARK_EDGE);
 					g.fill(ix, iy, ix + 2, iy + 8, MARK_EDGE);
 				}
+				case "wall" -> {
+					g.fill(ix, iy + 1, ix + 8, iy + 7, MARK_EDGE);
+					g.fill(ix, iy + 2, ix + 8, iy + 6, WALL);
+				}
+				// as on the map: the wall's band, cut by a cream opening with walnut jambs
+				case "gate" -> {
+					g.fill(ix, iy + 1, ix + 8, iy + 7, MARK_EDGE);
+					g.fill(ix, iy + 2, ix + 8, iy + 6, WALL);
+					g.fill(ix + 2, iy, ix + 6, iy + 8, MARK_EDGE);
+					g.fill(ix + 3, iy, ix + 5, iy + 8, GATE);
+				}
+				case "tower" -> tower(g, ix + 4, iy + 4, 8);
 				default -> {
 					g.fill(ix, iy, ix + 8, iy + 8, fill(items.get(i)[0]));
 					box(g, ix, iy, ix + 8, iy + 8, MARK_EDGE);
@@ -354,8 +396,8 @@ public final class SettlementScreen extends KitScreen {
 	 * The settlement from above, fitted to what it draws (its buildings, the plan's pads, roads and walls, and the stone) with a margin: the claim's edge
 	 * when it fits, each building's footprint in its state's colour, the hovered one outlined. North is up.
 	 */
-	private void drawMap(GuiGraphicsExtractor g, int x, int y, int size, int mx, int my) {
-		Panels.inset(g, x, y, size, size);
+	private void drawMap(GuiGraphicsExtractor g, int x, int y, int size, int sizeH, int mx, int my) {
+		Panels.inset(g, x, y, size, sizeH);
 		var c = view.claim();
 		int minX = c.centerX(), maxX = c.centerX(), minZ = c.centerZ(), maxZ = c.centerZ();
 		for (Building b : view.buildings()) {
@@ -375,9 +417,9 @@ public final class SettlementScreen extends KitScreen {
 			maxZ = Math.max(maxZ, m.maxZ());
 		}
 		// the drawing area: the inset less an 8-pixel margin, above the hint line
-		MapFrame f = MapFrame.fit(minX - 2, minZ - 2, maxX + 2, maxZ + 2, x + 8, y + 8, size - 16, size - 16 - 12);
+		MapFrame f = MapFrame.fit(minX - 2, minZ - 2, maxX + 2, maxZ + 2, x + 8, y + 8, size - 16, sizeH - 16 - 12);
 		int r0x = f.x(c.centerX() - c.radius()), r0z = f.z(c.centerZ() - c.radius()), r1x = f.x(c.centerX() + c.radius() + 1), r1z = f.z(c.centerZ() + c.radius() + 1);
-		claimDrawn = r0x >= x + 2 && r0z >= y + 2 && r1x <= x + size - 2 && r1z <= y + size - 13;
+		claimDrawn = r0x >= x + 2 && r0z >= y + 2 && r1x <= x + size - 2 && r1z <= y + sizeH - 13;
 		if (claimDrawn) box(g, r0x, r0z, r1x, r1z, CLAIM_EDGE);
 		drawShapes(g, shapes, f);
 		for (Building b : view.buildings()) {
@@ -385,6 +427,11 @@ public final class SettlementScreen extends KitScreen {
 			int z0 = f.z(b.minZ()), z1 = Math.max(f.z(b.maxZ() + 1), z0 + 4);
 			boolean hov = b.siteId().equals(hovered) || (mx >= x0 && mx < x1 && my >= z0 && my < z1);
 			if (hov) hovered = b.siteId();
+			// (slice LYW) a building on the wall (a tower or gatehouse lot): ringed in the wall's stone
+			if (onWall(b, shapes)) {
+				g.fill(x0 - 2, z0 - 2, x1 + 2, z1 + 2, WALL);
+				box(g, x0 - 3, z0 - 3, x1 + 3, z1 + 3, MARK_EDGE);
+			}
 			g.fill(x0, z0, x1, z1, fill(state(b)[0]));
 			box(g, x0, z0, x1, z1, MARK_EDGE);
 			// the hovered or chosen one: a second, outer ring
@@ -399,39 +446,160 @@ public final class SettlementScreen extends KitScreen {
 		stone(g, f.x(c.centerX() + 0.5), f.z(c.centerZ() + 0.5));
 		String on = hovered != null ? hovered : selected;
 		String hint = on != null && view.building(on) != null ? view.building(on).role() : "north is up";
-		g.text(font, TextUtil.ellipsize(font, hint, size - 8), x + 4, y + size - 11, UiBits.muted(), false);
+		g.text(font, TextUtil.ellipsize(font, hint, size - 8), x + 4, y + sizeH - 11, UiBits.muted(), false);
 	}
 
 	/**
 	 * (slice 8bS) The plan's shapes under the buildings: roads as bands (earth brown once built, else their state's fill), walls and crossings as dark
 	 * lines (a connector without ends as the outline of its box), and lots no building stands on yet (pads) as footprints in their state's colour. A lot a
-	 * building stands on (its site, or its box under a footprint) is drawn by the building's footprint.
+	 * building stands on (its site, or its box under a footprint) is drawn by the building's footprint. (slice LYW) Roads at their width; a wall as a
+	 * stone band at its thickness (edged walnut; its state's fill until built), each gate an opening across it, each corner tower a small stone block,
+	 * and a pad on the wall in the wall's stone round its state's fill.
 	 */
 	private void drawShapes(GuiGraphicsExtractor g, List<SettlementView.MapShape> shapes, MapFrame f) {
 		int band = Math.max(3, (int) Math.round(3 * f.scale()));
 		for (var m : shapes) {
-			if ("lot".equals(m.kind())) continue;
+			if (!"route".equals(m.kind()) && !"connector".equals(m.kind())) continue;
 			String family = SettlementView.statusWords(m.status(), m.reason())[0];
 			boolean road = "route".equals(m.kind());
 			int color = road ? ("done".equals(family) ? ROAD : fill(family)) : MARK_EDGE;
-			int t = road ? band : 2;
+			int t = road ? (m.width() > 0 ? Math.max(2, (int) Math.round(m.width() * f.scale())) : band) : 2;
 			List<Integer> e = m.ends();
-			if (e.size() >= 4) {
-				for (int i = 0; i + 3 < e.size(); i += 2) line(g, f.x(e.get(i) + 0.5), f.z(e.get(i + 1) + 0.5), f.x(e.get(i + 2) + 0.5), f.z(e.get(i + 3) + 0.5), t, color);
-			} else {
+			if (e.size() >= 4) polyline(g, f, e, t, color);
+			else {
 				int x0 = f.x(m.minX()), x1 = Math.max(f.x(m.maxX() + 1), x0 + t), z0 = f.z(m.minZ()), z1 = Math.max(f.z(m.maxZ() + 1), z0 + t);
 				if (road) g.fill(x0, z0, x1, z1, color);
 				else for (int k = 0; k < t; k++) box(g, x0 + k, z0 + k, x1 - k, z1 - k, color);
 			}
 		}
+		// the walls: the edge under the whole run first, then the stone, so the runs join cleanly at their corners
+		for (int pass = 0; pass < 2; pass++) {
+			for (var m : shapes) {
+				if (!"wall".equals(m.kind())) continue;
+				int t = wallBand(m, f);
+				String family = SettlementView.statusWords(m.status(), m.reason())[0];
+				int stone = "done".equals(family) ? WALL : fill(family);
+				if (m.ends().size() >= 4) polyline(g, f, m.ends(), pass == 0 ? t + 2 : t, pass == 0 ? MARK_EDGE : stone);
+				else {
+					int x0 = f.x(m.minX()), x1 = Math.max(f.x(m.maxX() + 1), x0 + t), z0 = f.z(m.minZ()), z1 = Math.max(f.z(m.maxZ() + 1), z0 + t);
+					for (int k = 0; k < t; k++) box(g, x0 + k, z0 + k, x1 - k, z1 - k, pass == 0 ? MARK_EDGE : stone);
+				}
+			}
+		}
 		for (var m : shapes) {
-			if (!"lot".equals(m.kind()) || standing(m)) continue;
+			if (!"lot".equals(m.kind()) || m.wall() == null || standing(m)) continue;
+			String family = SettlementView.statusWords(m.status(), m.reason())[0];
+			int x0 = f.x(m.minX()), x1 = Math.max(f.x(m.maxX() + 1), x0 + 7);
+			int z0 = f.z(m.minZ()), z1 = Math.max(f.z(m.maxZ() + 1), z0 + 7);
+			g.fill(x0, z0, x1, z1, WALL);
+			box(g, x0, z0, x1, z1, MARK_EDGE);
+			g.fill(x0 + 2, z0 + 2, x1 - 2, z1 - 2, fill(family));
+		}
+		// the corner towers: blocks over the wall's corners, at least the wall's band and 4 more across
+		int towerMin = 3;
+		for (var m : shapes) if ("wall".equals(m.kind())) towerMin = Math.max(towerMin, wallBand(m, f));
+		for (var m : shapes) {
+			if (!"tower".equals(m.kind())) continue;
+			int x0 = f.x(m.minX()), x1 = f.x(m.maxX() + 1), z0 = f.z(m.minZ()), z1 = f.z(m.maxZ() + 1);
+			tower(g, (x0 + x1) / 2, (z0 + z1) / 2, Math.max(towerMin + 4, Math.max(x1 - x0, z1 - z0)));
+		}
+		// the gates: an opening across the wall (its passage from front to back, as wide as the opening), cream edged walnut
+		for (var m : shapes) {
+			if (!"gate".equals(m.kind())) continue;
+			// along the wall at least 8 pixels, so the opening reads as one; its jambs the walnut edge either side
+			int across = Math.max(8, (int) Math.round(Math.max(1, m.width()) * f.scale()));
+			List<Integer> e = m.ends();
+			if (e.size() >= 4) {
+				int ax = f.x(e.get(0) + 0.5), az = f.z(e.get(1) + 0.5), bx = f.x(e.get(2) + 0.5), bz = f.z(e.get(3) + 0.5);
+				// at least the wall's band and its edge through: a passage shorter than the wall is thick still reads as a gap
+				int reach = wallOf(m, shapes, f) + 4, len = Math.max(Math.abs(bx - ax), Math.abs(bz - az));
+				if (len < reach) {
+					int grow = (reach - len + 1) / 2;
+					int dx = Integer.signum(bx - ax), dz = Integer.signum(bz - az);
+					ax -= dx * grow;
+					az -= dz * grow;
+					bx += dx * grow;
+					bz += dz * grow;
+				}
+				line(g, ax, az, bx, bz, across + 2, MARK_EDGE);
+				line(g, ax, az, bx, bz, across, GATE);
+			} else {
+				// a gate given by its place on the wall (one point, or its box): an opening along the nearest wall run, through the band and its edge
+				double gx = e.size() >= 2 ? e.get(0) + 0.5 : (m.minX() + m.maxX() + 1) / 2.0, gz = e.size() >= 2 ? e.get(1) + 0.5 : (m.minZ() + m.maxZ() + 1) / 2.0;
+				int cx = f.x(gx), cz = f.z(gz), half = across / 2, depth = (wallOf(m, shapes, f) + 4) / 2;
+				boolean alongX = runAlongX(m, shapes, gx, gz);
+				int hx = alongX ? half : depth, hz = alongX ? depth : half;
+				g.fill(cx - hx - (alongX ? 1 : 0), cz - hz - (alongX ? 0 : 1), cx + hx + (alongX ? 1 : 0), cz + hz + (alongX ? 0 : 1), MARK_EDGE);
+				g.fill(cx - hx, cz - hz, cx + hx, cz + hz, GATE);
+			}
+		}
+		for (var m : shapes) {
+			if (!"lot".equals(m.kind()) || m.wall() != null || standing(m)) continue;
 			String family = SettlementView.statusWords(m.status(), m.reason())[0];
 			int x0 = f.x(m.minX()), x1 = Math.max(f.x(m.maxX() + 1), x0 + 5);
 			int z0 = f.z(m.minZ()), z1 = Math.max(f.z(m.maxZ() + 1), z0 + 5);
 			g.fill(x0, z0, x1, z1, fill(family));
 			box(g, x0, z0, x1, z1, MARK_EDGE);
 		}
+	}
+
+	/** (slice LYW) A tower's mark: a walnut block {@code size} pixels across centred on a pixel, its centre a lighter stone (the legend's too). */
+	private static void tower(GuiGraphicsExtractor g, int cx, int cy, int size) {
+		int h = size / 2;
+		g.fill(cx - h, cy - h, cx - h + size, cy - h + size, MARK_EDGE);
+		g.fill(cx - h + 2, cy - h + 2, cx - h + size - 2, cy - h + size - 2, TOWER);
+	}
+
+	/** (slice LYW) A wall's band in pixels: its thickness at the map's scale, at least 3 (a wall with no thickness given: 3). */
+	private static int wallBand(SettlementView.MapShape wall, MapFrame f) {
+		return Math.max(3, (int) Math.round(Math.max(1, wall.width()) * f.scale()));
+	}
+
+	/** (slice LYW) The band in pixels of the wall a gate stands in (the widest wall's when it names none drawn). */
+	private static int wallOf(SettlementView.MapShape gate, List<SettlementView.MapShape> shapes, MapFrame f) {
+		int best = 3;
+		for (var m : shapes) {
+			if (!"wall".equals(m.kind())) continue;
+			if (gate.wall() != null && gate.wall().equals(m.part())) return wallBand(m, f);
+			best = Math.max(best, wallBand(m, f));
+		}
+		return best;
+	}
+
+	/** (slice LYW) Whether the wall run nearest a point (blocks) runs east-west (else north-south); east-west when no wall has a run. */
+	private static boolean runAlongX(SettlementView.MapShape gate, List<SettlementView.MapShape> shapes, double px, double pz) {
+		double best = Double.MAX_VALUE;
+		boolean alongX = true;
+		for (var m : shapes) {
+			if (!"wall".equals(m.kind()) || gate.wall() != null && !gate.wall().equals(m.part())) continue;
+			List<Integer> e = m.ends();
+			for (int i = 0; i + 3 < e.size(); i += 2) {
+				double ax = e.get(i) + 0.5, az = e.get(i + 1) + 0.5, bx = e.get(i + 2) + 0.5, bz = e.get(i + 3) + 0.5;
+				double dx = bx - ax, dz = bz - az, len = dx * dx + dz * dz;
+				double t = len == 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len));
+				double qx = ax + t * dx - px, qz = az + t * dz - pz, d = qx * qx + qz * qz;
+				if (d < best) {
+					best = d;
+					alongX = Math.abs(dx) >= Math.abs(dz);
+				}
+			}
+		}
+		return alongX;
+	}
+
+	/** (slice LYW) Whether a building stands on a lot on the wall (a tower or gatehouse): by its site, or its footprint over the lot's box. */
+	private static boolean onWall(Building b, List<SettlementView.MapShape> shapes) {
+		for (var m : shapes) {
+			if (!"lot".equals(m.kind()) || m.wall() == null) continue;
+			if (b.siteId().equals(m.site())) return true;
+			if (m.site() == null && b.minX() <= m.maxX() && b.maxX() >= m.minX() && b.minZ() <= m.maxZ() && b.maxZ() >= m.minZ()) return true;
+		}
+		return false;
+	}
+
+	/** A polyline of x, z pairs (blocks), {@code t} pixels thick. */
+	private static void polyline(GuiGraphicsExtractor g, MapFrame f, List<Integer> e, int t, int argb) {
+		for (int i = 0; i + 3 < e.size(); i += 2) line(g, f.x(e.get(i) + 0.5), f.z(e.get(i + 1) + 0.5), f.x(e.get(i + 2) + 0.5), f.z(e.get(i + 3) + 0.5), t, argb);
 	}
 
 	/** Whether a lot has a building row standing on it: by its site, or a building's footprint over its box. */

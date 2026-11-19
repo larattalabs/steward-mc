@@ -372,9 +372,9 @@ public final class Growths {
 			String why = err != null ? SettlementRunner.message(err) : "blocked by " + String.join(", ", r.blockers());
 			String held = HallCargo.cargoRefusal(why) ? HallCargo.words(server, owner, ref.region(), why) : null;
 			// (slice DRS) left UNDOING with a stage wait (Architect resumes it at a same-target call or the next world start): waiting, never refused;
-			// (8bS) its text is never shown: Architect types no cause for a revision's stop, and a refused save's raw text names chunk files
+			// (8bS) its text is never shown (a refused save's raw text names chunk files); (RVC) what it waits for from the revision's typed cause
 			var after = regions.get(ref.region()).flatMap(v -> v.revisions().stream().filter(x -> x.rid() == ref.rid()).findFirst()).orElse(null);
-			if (held == null && RemovalStops.growthWaits(after)) { say.accept(RemovalStops.growthWaiting()); done.accept(false); return; }
+			if (held == null && RemovalStops.growthWaits(after)) { say.accept(RemovalStops.growthWaiting(RemovalStops.revisionCause(after))); done.accept(false); return; }
 			say.accept("The town's change could not be taken up: " + (held != null ? held + " (" + why + ")" : why) + ".");
 			done.accept(false);
 		}));

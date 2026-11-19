@@ -11,6 +11,7 @@
           "required": true,
           "label": "the town wall",
           "where": { "around": { "feature": { "region": "$TOWN" } } },
+          "corners": "tower",
           "notes": "A stone wall round the market town, with a gate where its street leaves it."
         }
       ]
