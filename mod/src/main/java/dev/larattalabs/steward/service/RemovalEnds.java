@@ -80,6 +80,8 @@ public final class RemovalEnds {
 		Steward.LOGGER.info("removal {} {} finished (removed {}, refund {}, owed {})", e.kind(), e.id(), e.removed(), e.refund().size(), e.owed().size());
 		if (!e.removed()) return;
 		for (Settlement s : List.copyOf(Settlements.store().all())) {
+			// an undo of it still answering in this session logs it itself (a held one has released its mark)
+			if (Undo.busy(s.id())) continue;
 			List<Settlement.LogEntry> logged;
 			try {
 				logged = Undo.finish(srv, s, e.kind(), e.id(), say);

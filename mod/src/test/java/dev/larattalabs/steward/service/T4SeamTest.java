@@ -58,6 +58,7 @@ class T4SeamTest {
 
 	@AfterEach
 	void tearDown() {
+		Undo.later = Undo.LATER;
 		ArchitectAccess.reset();
 		Settlements.resetForTest();
 	}
@@ -348,6 +349,24 @@ class T4SeamTest {
 		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_g", false, Map.of(), Map.of()), (sid, line) -> lines.add(line));
 		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED));
 		assertEquals(1, lines.size());
+	}
+
+	@Test
+	void removalFinishedForAnUnheldRemovalLeavesItToItsOwnAnswerLoggedOnce() throws IOException {
+		a.features = T4;
+		String id = nextId();
+		Settlement s = project(id, "grp_u", "u1", "u2");
+		// T4 fires RemovalFinished for an unheld removal too, at its EFFECTS_DONE: it may come before the future's answer
+		a.removeAnswer = Answer.HOLD;
+		group(s);
+		var lines = new ArrayList<String>();
+		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_u", true, Map.of(), Map.of()), (sid, line) -> lines.add(line));
+		assertEquals(0, count(now(id), Kind.PROJECT_REMOVED), "not held: the undo's own answer logs it");
+		a.complete();
+		RemovalEnds.handle(null, new RemovalEnds.RemovalEnd("group", "grp_u", true, Map.of(), Map.of()), (sid, line) -> lines.add(line));
+		assertEquals(1, count(now(id), Kind.PROJECT_REMOVED), "once");
+		assertEquals(List.of(), lines, "the event says nothing for it");
+		assertEquals(1, said.stream().filter(l -> l.startsWith("Undone")).count(), String.valueOf(said));
 	}
 
 	@Test

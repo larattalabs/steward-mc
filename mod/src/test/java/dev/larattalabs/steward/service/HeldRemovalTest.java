@@ -49,6 +49,7 @@ class HeldRemovalTest {
 
 	@AfterEach
 	void tearDown() {
+		Undo.later = Undo.LATER;
 		ArchitectAccess.reset();
 		Settlements.resetForTest();
 	}

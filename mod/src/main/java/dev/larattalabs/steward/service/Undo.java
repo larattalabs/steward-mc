@@ -67,7 +67,8 @@ public final class Undo {
 	/** (T4 change 5c) How many times a removal Architect refuses {@code held(other)} (another change holds what it needs; nothing changed) is asked. */
 	static final int OTHER_TRIES = 5;
 	/** Runs a held(other) retry a moment later (tests run it at once or queue it). */
-	static java.util.function.Consumer<Runnable> later = r -> CompletableFuture.delayedExecutor(2, java.util.concurrent.TimeUnit.SECONDS).execute(r);
+	static final java.util.function.Consumer<Runnable> LATER = r -> CompletableFuture.delayedExecutor(2, java.util.concurrent.TimeUnit.SECONDS).execute(r);
+	static java.util.function.Consumer<Runnable> later = LATER;
 
 	/**
 	 * {@code ask}'s removal, asked again a moment later while Architect answers SITE_BUSY {@code held(other)}, at most {@link #OTHER_TRIES} times and only
@@ -283,7 +284,9 @@ public final class Undo {
 			boolean done = err == null && r.removed();
 			// gone read from absence only for an Architect that may stop part way, and only on a healthy sites read (a file that did not load lists nothing)
 			List<String> gone = done ? standing : txn || !healthy(server) ? List.of() : standing.stream().filter(id -> sites.get(id).isEmpty()).toList();
-			if (!gone.isEmpty() && !Settlements.log(s.id(), removed(entry, gone, gone.size() == standing.size(), now)).ok()) say.accept(UNLOGGED);
+			// logged once: a removal already logged since (the sweep, RemovalFinished) is not logged again
+			List<String> fresh = notYetLogged(s, entry, gone);
+			if (!fresh.isEmpty() && !Settlements.log(s.id(), removed(entry, fresh, gone.size() == standing.size(), now)).ok()) say.accept(UNLOGGED);
 			UNDOING.remove(s.id());
 			districts(server, s, say);
 			// (raw-text) Architect's error is logged, never said
@@ -363,7 +366,8 @@ public final class Undo {
 				say.accept(RemovalStops.underWay(heldHow[0]));
 				return;
 			}
-			if (!removed.isEmpty() && !Settlements.log(s.id(), removed(entry, List.copyOf(removed), removed.size() == ids.size(), now)).ok()) say.accept(UNLOGGED);
+			List<String> fresh = notYetLogged(s, entry, removed);
+			if (!fresh.isEmpty() && !Settlements.log(s.id(), removed(entry, fresh, removed.size() == ids.size(), now)).ok()) say.accept(UNLOGGED);
 			UNDOING.remove(s.id());
 			districts(server, s, say);
 			// (raw-text) Architect's error and blockers are logged, never said: a site's removal has no typed cause, so the generic words
@@ -623,9 +627,10 @@ public final class Undo {
 			} catch (RuntimeException | LinkageError e) {
 				state = null;
 			}
-			boolean said = "region".equals(doneKind) && region.equals(doneId);
-			if (!said && resume(state) != Resume.LOG) continue;
 			var fresh = Settlements.store().get(s.id()).orElse(s);
+			// the event's answer counts only for a held removal: an unheld one (RemovalFinished fires for it too) is its own answer's to log
+			boolean said = "region".equals(doneKind) && region.equals(doneId) && heldOpen(fresh, intentTag(region));
+			if (!said && resume(state) != Resume.LOG) continue;
 			var placed = VillageSweep.entryOf(fresh, region);
 			if (placed.isEmpty() || retired(fresh, placed.get())) continue;
 			boolean wasHeld = heldOpen(fresh, intentTag(region));
@@ -734,8 +739,10 @@ public final class Undo {
 		for (EntryIntent it : open) {
 			var placed = it.placed();
 			java.util.Set<String> done = new java.util.HashSet<>();
-			if ("group".equals(doneKind) && doneId != null && doneId.equals(placed.siteGroup())) done.addAll(placed.siteIds());
-			if ("site".equals(doneKind) && doneId != null && placed.siteIds().contains(doneId)) done.add(doneId);
+			// the event's answer counts only for a held removal (an unheld one is its own answer's to log)
+			String kind = it.held() ? doneKind : null;
+			if ("group".equals(kind) && doneId != null && doneId.equals(placed.siteGroup())) done.addAll(placed.siteIds());
+			if ("site".equals(kind) && doneId != null && placed.siteIds().contains(doneId)) done.add(doneId);
 			// sites named by an earlier removal of this entry are not logged again
 			var fresh = Settlements.store().get(s.id()).orElse(s);
 			java.util.Set<String> already = removedSince(fresh, placed);
@@ -761,6 +768,12 @@ public final class Undo {
 				: "Undone in part: " + Words.count(gone.size(), "site", "sites") + " of \"" + placed.text() + "\" " + how + "; the rest stands (/steward undo " + s.id() + " again).");
 		}
 		return logged;
+	}
+
+	/** Of {@code gone}, the sites no {@code PROJECT_REMOVED} after {@code placed} names yet, on a fresh read. */
+	private static List<String> notYetLogged(Settlement s, Settlement.LogEntry placed, List<String> gone) {
+		var already = removedSince(Settlements.store().get(s.id()).orElse(s), placed);
+		return gone.stream().filter(id -> !already.contains(id)).toList();
 	}
 
 	/** The sites a {@code PROJECT_REMOVED} after {@code placed} names already. Pure. */
