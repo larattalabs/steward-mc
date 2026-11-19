@@ -111,11 +111,12 @@ origins are in `docs/archive/AGENTS-HISTORY.md`.
 
 16. **Standing approvals** [13] (11-15: "Standing approvals"): on a product question with a confident recommendation, the manager proceeds
     and sends the parent a one-line note (question, choice, why); Noah can overrule. Still ask first: anything irreversible, anything
-    changing what a player loses or pays, a new public surface, new budgets or raised caps, any step over $1, or anything not confident.
-17. **Spending** [13, 21]. Noah said on 11-16 that spending can be very loose (subscription usage). **Pending:** rule 21's pre-approval
-    isn't live in either repo's docs. Both managers' safety checks refused writing it on a relayed approval, so Noah has to type it in each
-    manager's own session. **Until then:** a paid step under $1 inside an approved budget goes ahead with a one-line note to the parent,
-    giving its cost; any other paid run goes as a card Noah starts himself. Never route around a session's safety check.
+    changing what a player loses or pays, a new public surface, new budgets or raised caps, a paid step outside rule 17, or anything not confident.
+17. **Spending** [13, 21] (Noah, typed in this manager session 2026-11-19: "Rule 21 approved: paid runs allowed."). Paid runs on Noah's
+    claude login (subscription usage) are **pre-approved** for planned work: PAY-style measurement, paid proofs, re-records, M5's paid
+    half and similar. No per-run approval. Keep sensible per-run caps in the driver, log the spend, and note it to the parent in one line.
+    Ask first only for something unusually large or unplanned. If a session's own safety check still refuses a run, don't route around
+    it: tell the parent, who puts it up as a card.
 18. **Everything routes through the parent session** (`local_a69a2186-cbdd-40c1-bdf5-afdbf5a330cc`): Noah's questions, decisions and spend.
 
 **Hygiene**
@@ -171,7 +172,7 @@ Steward uses only 8490-8491, 8590-8601 and 9100-9149 (Noah, 2026-11-15). Within 
 ## Hard rules
 
 - **No Anthropic API key, ever.** A paid run uses Noah's claude login (the sidecar's opt-in `run/architect/sidecar-data/secrets.json`) only for a run Noah
-  approved with a spend cap; the opt-in file is created for that run and removed after it. Everything else is $0 (the e2e check, unit tests).
+  approved, or one pre-approved by speed rule 17, with a spend cap; the opt-in file is created for that run and removed after it. Everything else is $0 (the e2e check, unit tests).
 - **No Discord notifications.**
 - **Kill only processes you started, by PID.** Never `pkill`/`killall` by pattern: other sessions run Minecraft clients.
 - Never commit secrets, logs or `artifacts/` (local evidence only). Run `gitleaks git` over new commits before a push.
