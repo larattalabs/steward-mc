@@ -4851,7 +4851,8 @@ public final class SettlementRunner {
 		if (w == null || w.reason() == null) return null;
 		return switch (w.reason()) {
 			case dev.larattalabs.architect.api.BuildStatus.MATERIALS -> MaterialRequests.waitWords(what, dev.larattalabs.steward.module.ModuleBound.overWords(w.over(),
-				w.moreUnits()), 0);
+				// (batch-080 merge) WORDS-079's signature: a pure item wait reads no stockpile, so no full-pile claim (Pile.UNREAD; the id is only for that line)
+				w.moreUnits()), MaterialRequests.Pile.UNREAD, "");
 			case dev.larattalabs.architect.api.BuildStatus.FILL_BLOCKED, dev.larattalabs.architect.api.BuildStatus.TXN_HELD,
 				dev.larattalabs.architect.api.BuildStatus.APPROVAL -> "The " + what + " is " + dev.larattalabs.steward.view.SettlementView.statusWords(
 					dev.larattalabs.architect.api.BuildStatus.WAITING, w.reason())[1] + ".";
