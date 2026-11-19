@@ -20,6 +20,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 import { repairSidecarData } from './lib/ram-tmp.mjs';
 import { checkCommand, savedOnDisk } from './lib/save-barrier.mjs';
+import { t4Gate, custodyAtHalt, custodyClear, reUndoAnswer, FKC0_HOOK } from './lib/t4-rows.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -1705,6 +1706,11 @@ async function sortCrash() {
     // ---- FKC1, FKC2, CS1 at removal, newest first: after the restart, what comes back = what the growth consumed, once; no custody or slab left
     const removalPoints = ['FKC1', 'FKC2', 'CS1'];
     const cases = [...grown].reverse().slice(0, removalPoints.length).map((x, i) => ({ ...x, point: removalPoints[i] }));
+    // (T4S-PRE) Architect T4c's removal transactions (feature removal_finished): the same aliases (change 1), custody in the txn entry with the dev view
+    // keeping its names (change 2), the re-undo answered replayed while the result cache holds it (change 4). Without the feature: as before
+    const t4g = t4Gate(await mod({ op: 'env' }).catch(() => null));
+    const t4 = t4g.run;
+    check(true, `9 T4 rows: ${t4 ? 'on (removal_finished)' : `as before (${t4g.why})`}`);
     for (const c of cases) {
       const L0 = (await pile()).ledger;
       await cmd('/kill @e[type=item]');
@@ -1740,8 +1746,10 @@ async function sortCrash() {
       // (CHECK-079) Architect 0.79.0: every give-back enters the stock, so refundOverflow never grows over a refund
       const res = { point: c.point, savedCustody, state: rs, back: totalOf(back), consumed: totalOf(consumed), diff: minus(back, consumed), custody: F.custody ?? null, heldProvided: F.heldProvided ?? null, drops, slabs, overflowGrew: overflowGrew(B, F) };
       out.removal.push(res);
-      check(c.point !== 'FKC1' || totalOf(savedCustody) > 0, `9 ${c.point}: the custody (${json(savedCustody)}) was on disk at the halt`, res);
-      check(rs === 'UNDONE' && same(back, consumed) && !res.overflowGrew && !Object.keys(F.custody ?? {}).length && !Object.keys(F.heldProvided ?? {}).length && !Object.keys(F.pendingCredit ?? {}).length && !Object.keys(drops).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
+      const atHalt = custodyAtHalt(S, t4, totalOf);
+      if (c.point === 'FKC1') check(!atHalt.check || atHalt.ok, `9 ${c.point}: the custody (${json(savedCustody)}) was on disk at the halt${atHalt.check ? '' : ` (${atHalt.note})`}`, res);
+      res.custodyLeft = custodyClear(F).left;
+      check(rs === 'UNDONE' && same(back, consumed) && !res.overflowGrew && custodyClear(F).ok && !Object.keys(drops).length && (slabs.player ?? 0) === 0 && (slabs.entities ?? 0) === 0,
         `9 ${c.point}: after the restart the removal ends once (${rs}): back = consumed item for item (${totalOf(back)} = ${totalOf(consumed)}; off ${json(res.diff)}); no custody, provided custody or pending refund left; nothing dropped; no slab loose${res.overflowGrew ? `; ${res.overflowGrew}` : '; none to overflow'}`, res);
       // (MEASURE-M4 12.7 B3, GPT review 2) the unchanged second retry, then a second restart: nothing more comes back, nothing is left pending
       const retry = await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
@@ -1754,14 +1762,20 @@ async function sortCrash() {
       res.retry = { answer: refusal(retry), again, drops: drops2, overflowGrew: overflowGrew(F, F2) };
       // (fix check 2) the retry ran and was the expected no-op: Architect's own refusal (NOT_ALLOWED: the head is already below it; a refusal comes
       // back as the call's error), removing nothing; a transport error (a timeout, a closed bridge) carries no NOT_ALLOWED and fails
-      const retried = retry.removed !== true && /NOT_ALLOWED/.test(String(retry.refused ?? retry.message ?? retry.error ?? ''));
-      check(retried && !Object.keys(again).length && !res.retry.overflowGrew && !Object.keys(drops2).length && !Object.keys(F2.custody ?? {}).length && !Object.keys(F2.heldProvided ?? {}).length && !Object.keys(F2.pendingCredit ?? {}).length && json(F2.consumed) === json(F.consumed),
-        `9 ${c.point}: an unchanged second undo and a second restart: nothing more back (${json(again)}), nothing dropped, nothing pending (${refusal(retry)})${res.retry.overflowGrew ? `; ${res.retry.overflowGrew}` : ''}`, res.retry);
+      // (T4S-PRE, T4 change 4) on a txn removal the unchanged re-ask may instead be answered with the original result, replayed (nothing more back)
+      const retried = reUndoAnswer(retry, t4);
+      res.retry.how = retried.how;
+      check(retried.ok && !Object.keys(again).length && !res.retry.overflowGrew && !Object.keys(drops2).length && custodyClear(F2).ok && json(F2.consumed) === json(F.consumed),
+        `9 ${c.point}: an unchanged second undo (${retried.how}) and a second restart: nothing more back (${json(again)}), nothing dropped, nothing pending (${refusal(retry)})${res.retry.overflowGrew ? `; ${res.retry.overflowGrew}` : ''}`, res.retry);
     }
     // ---- FKC0 (Architect's LC, S-M5-13): a removal failing after its custody take, a restart, a retry. Runs once the hook exists.
     const rest = [...grown].reverse().slice(removalPoints.length);
-    const hook = await call('dev.removal.failAfterCustody', { probe: true }, 10_000).then(() => true).catch(() => false);
-    if (!hook) {
+    const hook = await call(FKC0_HOOK, { probe: true }, 10_000).then(() => true).catch(() => false);
+    // (T4S-PRE, T4 change 3) T4c ships the hook: on an Architect with removal_finished its absence is a failure, not a deferral
+    if (!hook && t4) {
+      out.fkc0 = `the hook ${FKC0_HOOK} is missing on an Architect with removal_finished (T4 change 3 ships it in T4c)`;
+      check(false, `9 FKC0: ${out.fkc0}`);
+    } else if (!hook) {
       // Noah, 2026-11-15 ("Certify now, name the gap"): @2 certifies before Architect's LC; FKC0 runs at the pin that carries LC3 (LC was reverted at v0.73.0; LC2 became LC3, the seal design)
       out.fkc0 = 'deferred: the hook dev.removal.failAfterCustody is not in this Architect (S-M5-13, slice LC); the offer names the gap';
       check(true, `9 FKC0: ${out.fkc0}`);
@@ -1772,6 +1786,11 @@ async function sortCrash() {
       const u = await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
       await sleep(4000);
       const s1 = await sortState(c.g.halls[0]).catch(() => null);
+      // (T4S-PRE, T4 change 3) a txn removal aborted after its custody take is compensated before it retires: nothing left in the custody view
+      if (t4) {
+        const LF = (await pile()).ledger;
+        check(u.removed !== true && custodyClear(LF).ok, `9 FKC0 (T4): the aborted removal took nothing down (${refusal(u)}) and left no custody (${json(custodyClear(LF).left)})`);
+      }
       // reopen's dev.world.leave saves on stop (SAVEB: /save-all is dedicated-only, and cmd now throws on it)
       await reopen(home);
       const u2 = await call('dev.rv.undo', { region, toPosition: c.g.position - 1 }, 600_000).catch((e) => ({ error: String(e) }));
