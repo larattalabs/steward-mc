@@ -652,7 +652,7 @@ public final class ComposedModules {
 			shown.add("the " + name + ": " + (bill.isEmpty() ? "nothing" : ModuleBound.bill(bill, 1000)));
 		}
 		if (!ask) return new Held(next, null, null, "From materials, " + String.join("; ", bounded(orders, shares)) + "; " + ModuleBound.CRASH_EXCEPTION + ".");
-		String why = refused ? ModuleBound.PUT_DOWN_REFUSED
+		String why = refused ? putDownRefused(orders)
 			: !over.isEmpty() ? "The working modules' bills came to more than their measured bounds: " + String.join("; ", over) + "."
 			: "Architect can't quote the working modules' bills exactly (" + inexact + "), so I ask first.";
 		return new Held(next, null, why + " Their bills: " + String.join("; ", shown) + ".", null);
@@ -718,6 +718,16 @@ public final class ComposedModules {
 				+ " Steward's mistake, so nothing is built and I won't ask again. Nothing was taken from the stockpile; start it again.";
 			case REGION -> "Not placed yet: the materials needed went past what you approved. Nothing was taken from the stockpile; I'll ask you again.";
 		};
+	}
+
+	/**
+	 * (WORDS-079) The composed re-ask after a put-down refusal ({@code BILL_CAP}). Every order is marked refused (SettlementRunner.refusedAtPutDown), so
+	 * which lot went past isn't known: one module lot is named with its limit; more say "a working module" and the limit they share ({@link
+	 * ModuleBound#limitOf}). Never "what you approved" for a measured bound. Pure.
+	 */
+	static String putDownRefused(Map<String, ModuleOrder> orders) {
+		String who = orders.size() == 1 ? "the " + workingName(orders, orders.keySet().iterator().next()) : "a working module";
+		return ModuleBound.PUT_DOWN_REFUSED + " " + who + " needed went past " + ModuleBound.limitOf(orders.values()) + ".";
 	}
 
 	/** What an order's bound is called: "its approved limit" once the player approved a held bill as its bound, else "its measured limit". Pure. */

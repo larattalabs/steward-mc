@@ -117,28 +117,92 @@ public final class MaterialRequests {
 		if (held(wait)) tell(srv, s.get(), heldWords(nameOf(s.get(), site)));
 		else if (capped(wait)) tell(srv, s.get(), overCap(capLot(wait) != null ? moduleName(s.get(), site, capLot(wait)) : nameOf(s.get(), site), s.get().id(), wait,
 			takeUp(s.get(), regionOf(site), ridOf(site))));
-		else tell(srv, s.get(), waitWords(nameOf(s.get(), site), needs(wait), overBy(srv, s.get())));
-	}
-
-	/** (Slice OVF-S2) How many stacks the settlement's stockpile holds past its capacity (0 within it, or with none to read). */
-	private static int overBy(MinecraftServer srv, Settlement s) {
-		try {
-			return Stockpiles.of(srv, s).map(sp -> Math.max(0, sp.usedStacks() - sp.capacityStacks())).orElse(0);
-		} catch (RuntimeException e) {
-			return 0;
-		}
+		else tell(srv, s.get(), waitWords(nameOf(s.get(), site), needs(wait), pile(srv, s.get(), wait), s.get().id()));
 	}
 
 	/**
-	 * A build's wait for materials, in words. (Slice OVF-S2) While the stockpile is over capacity ({@code overBy} stacks, a keyed refund put it there) it
-	 * still takes what this build misses: a waiting target is never paused (Architect's {@code SiteWait.waiting}), and since Architect 0.77.0 (OVF) an item
-	 * an active build still misses goes in over capacity, up to that need; anything else is refused. Pure.
+	 * (Slice WORDS-079) A part's name at the head of a sentence, with its article once: "The great oak" from "great oak" and from a plan label that
+	 * already has it ("the great oak"). Every line here that names a part goes through it. Pure.
 	 */
-	static String waitWords(String name, String needs, int overBy) {
-		String head = "The " + name + " waits for materials: " + needs + ".";
-		if (overBy <= 0) return head + " They go in the stockpile.";
-		return head + " They go in the stockpile, though it is over capacity by " + dev.larattalabs.steward.model.Words.count(overBy, "stack", "stacks")
+	static String theName(String name) {
+		String n = name.strip();
+		if (n.regionMatches(true, 0, "the ", 0, 4)) n = n.substring(4).stripLeading();
+		return "The " + n;
+	}
+
+	/**
+	 * (Slices OVF-S2, WORDS-079) The stockpile as a waiting build meets it: {@code over}, the stacks it holds past its capacity (a keyed refund put them
+	 * there); {@code free}, its stacks still free; {@code need}, the new stacks what the build misses would take (each item's partly filled stack
+	 * first, as Architect counts {@code usedStacks}). {@link #UNREAD} when there is none to read.
+	 */
+	record Pile(int over, int free, int need) {
+		static final Pile UNREAD = new Pile(0, Integer.MAX_VALUE, 0);
+
+		/**
+		 * Within capacity, but what the build misses can't all go in: since Architect 0.77.0 (OVF) a stockpile at or under capacity takes a delivery only
+		 * into the room it has ({@code StockLedger.room}); past capacity, the missed items do go in (the over-capacity words).
+		 */
+		boolean noRoom() {
+			return over <= 0 && need > free;
+		}
+	}
+
+	/** {@link Pile} for {@code wait} in the settlement's stockpile. */
+	private static Pile pile(MinecraftServer srv, Settlement s, SiteWait wait) {
+		try {
+			return Stockpiles.of(srv, s).map(sp -> {
+				int need = 0;
+				for (var n : wait.nextNeeded())
+					need += newStacks(sp.stock().getOrDefault(n.item(), 0), n.count(), new net.minecraft.world.item.ItemStack(n.item()).getMaxStackSize());
+				return new Pile(Math.max(0, sp.usedStacks() - sp.capacityStacks()), Math.max(0, sp.capacityStacks() - sp.usedStacks()), need);
+			}).orElse(Pile.UNREAD);
+		} catch (RuntimeException e) {
+			return Pile.UNREAD;
+		}
+	}
+
+	/** (WORDS-079) The new stacks {@code need} more of an item takes on top of {@code stock} of it, {@code max} to a stack. Pure. */
+	static int newStacks(int stock, int need, int max) {
+		int m = Math.max(1, max), have = Math.max(0, stock);
+		return ceilDiv(have + Math.max(0, need), m) - ceilDiv(have, m);
+	}
+
+	private static int ceilDiv(int a, int b) {
+		return (a + b - 1) / b;
+	}
+
+	/**
+	 * A build's wait for materials, in words. (Slice OVF-S2) While the stockpile is over capacity ({@code over} stacks, a keyed refund put it there) it
+	 * still takes what this build misses: a waiting target is never paused (Architect's {@code SiteWait.waiting}), and since Architect 0.77.0 (OVF) an item
+	 * an active build still misses goes in over capacity, up to that need; anything else is refused. (WORDS-079) Within capacity it takes only what it has
+	 * room for, so a stockpile full, or too full for what the build misses, is said with the ways to make room. Pure.
+	 */
+	static String waitWords(String name, String needs, Pile pile, String id) {
+		String head = theName(name) + " waits for materials: " + needs;
+		if (pile.noRoom()) return head + noRoomWords(pile, id);
+		if (pile.over() <= 0) return head + ". They go in the stockpile.";
+		return head + ". They go in the stockpile, though it is over capacity by " + dev.larattalabs.steward.model.Words.count(pile.over(), "stack", "stacks")
 			+ ": it takes only what your running builds still need, so bring just those.";
+	}
+
+	/** (WORDS-079) ", but the stockpile is full: …" (or too full for what the build misses), with the ways to make room. Pure. */
+	private static String noRoomWords(Pile pile, String id) {
+		return ", but the stockpile is " + (pile.free() <= 0 ? "full" : "too full to take them") + ": take out what no build needs, or add a crate"
+			+ " (/steward stockpile " + id + " add).";
+	}
+
+	/**
+	 * (WORDS-079) A build that has waited long, in words: as {@link #waitWords}, with the way on ("fill the stockpile" only when it has room). A wait
+	 * that names no materials ({@code needs} empty: Architect's {@code nextNeeded} empty and nothing more besides) is said so, never as an empty list
+	 * (the steward still goes to the player, so it isn't left unsaid). Pure.
+	 */
+	static String longWaitWords(String name, String needs, Pile pile, String id) {
+		if (needs.isBlank()) return theName(name) + " has waited a while, though not for any materials I can name.";
+		String head = theName(name) + " has waited a while for materials: " + needs;
+		if (pile.noRoom()) return head + noRoomWords(pile, id);
+		if (pile.over() <= 0) return head + ". Fill the stockpile and I can carry on.";
+		return head + ". The stockpile is over capacity by " + dev.larattalabs.steward.model.Words.count(pile.over(), "stack", "stacks")
+			+ ": it takes only what your running builds still need, so bring just those and I can carry on.";
 	}
 
 	/** Regions built from materials (Architect RS) whose build isn't done yet, by settlement: said once when done. This world's session only. */
@@ -260,7 +324,7 @@ public final class MaterialRequests {
 				var target = sites.get(longest.targetId());
 				String what = target.map(v -> nameOf(s, v)).orElse("build");
 				if (capped(longest)) tell(srv, s, overCap(what, s.id(), longest, takeUp(s, target.map(MaterialRequests::regionOf).orElse(null), target.map(MaterialRequests::ridOf).orElse(0))));
-				else tell(srv, s, "The " + what + " has waited a while for materials: " + needs(longest) + ". Fill the stockpile and I can carry on.");
+				else tell(srv, s, longWaitWords(what, longest.nextNeeded().isEmpty() && longest.moreUnits() <= 0 ? "" : needs(longest), pile(srv, s, longest), s.id()));
 			}
 		}
 	}
@@ -291,7 +355,7 @@ public final class MaterialRequests {
 
 	/** (slice 8aS) A target held by another change in words: one short line, nothing for the player to do. Pure. */
 	static String heldWords(String what) {
-		return "The " + what + " is held by another change for a moment: it carries on by itself.";
+		return theName(what) + " is held by another change for a moment: it carries on by itself.";
 	}
 
 	/** (QD, S-M5-9) Whether a target waits because its next cell would draw past the bound its realise was approved under ({@code bill_cap}). */
@@ -432,7 +496,7 @@ public final class MaterialRequests {
 				+ " newest first, or leave it as it stands.";
 			case NONE -> "Its own entry isn't in the settlement's history, so undo can't take it up; it stays as it stands.";
 		};
-		return "The " + what + " has stopped: finishing it would take " + dev.larattalabs.steward.module.ModuleBound.overWords(over, moreUnits)
+		return theName(what) + " has stopped: finishing it would take " + dev.larattalabs.steward.module.ModuleBound.overWords(over, moreUnits)
 			+ " more than you approved, so I take no more for it; filling the stockpile won't help. " + way;
 	}
 

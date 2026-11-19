@@ -365,6 +365,9 @@ class ComposedModulesTest {
 		assertEquals(json("{\"minecraft:dirt\": 130}"), h.orders().get("farm_1").held());
 		assertEquals(json("{\"minecraft:oak_planks\": 100, \"minecraft:coal\": 41}"), h.orders().get("hall_1").held());
 		assertTrue(h.ask().contains("the crop farm: 130 dirt"), h.ask());
+		// (WORDS-079) which lot went past isn't known (every order is marked refused): the limit both hold to, never "what you approved"
+		assertTrue(h.ask().startsWith("When it was put down, the materials a working module needed went past its measured limit. "), h.ask());
+		assertFalse(h.ask().contains("what you approved"), h.ask());
 		// the hold keeps the refusal (a crash before the phase is saved asks again); approving clears it, and the next quote within goes on
 		assertTrue(h.orders().values().stream().allMatch(ModuleOrder::refusedAtPutDown));
 		Map<String, ModuleOrder> approved = new LinkedHashMap<>();
@@ -379,6 +382,14 @@ class ComposedModulesTest {
 		var o = ComposedModules.held(parts, one, null);
 		assertTrue(o.ask().startsWith(ModuleBound.PUT_DOWN_REFUSED), o.ask());
 		assertEquals(json("{\"minecraft:dirt\": 120}"), o.orders().get("farm_1").held());
+		// (WORDS-079) one approved since, one measured: "its limit"; a single lot is named with its own
+		Map<String, ModuleOrder> mixed = new LinkedHashMap<>(orders);
+		mixed.put("farm_1", orders.get("farm_1").holding(json("{\"minecraft:dirt\": 130}")).approvedHeld().refusedAtPutDown(true));
+		assertTrue(ComposedModules.held(parts, mixed, null).ask().startsWith("When it was put down, the materials a working module needed went past its limit. "));
+		var single = ComposedModules.held(json("{\"lot:farm_1\": {\"minecraft:dirt\": 120}}"), Map.of("farm_1", orders.get("farm_1")), null);
+		assertTrue(single.ask().startsWith("When it was put down, the materials the working crop farm needed went past its measured limit. "), single.ask());
+		var singleApproved = ComposedModules.held(json("{\"lot:farm_1\": {\"minecraft:dirt\": 120}}"), Map.of("farm_1", mixed.get("farm_1")), null);
+		assertTrue(singleApproved.ask().startsWith("When it was put down, the materials the working crop farm needed went past its approved limit. "), singleApproved.ask());
 	}
 
 	@Test
