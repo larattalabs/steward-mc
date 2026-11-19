@@ -21,7 +21,7 @@ import org.jspecify.annotations.Nullable;
  */
 public final class RefusalWords {
 	/** What an untyped or unknown refusal is said as: never Architect's text. */
-	static final String GENERIC = "Architect couldn't do it just now";
+	static final String GENERIC = "it couldn't be done just now"; // (raw-sweep) no second "Architect": most lines already name it before the colon
 	/** A refusal that waits on the helper or ran out of time. */
 	static final String NO_ANSWER = "Architect didn't answer in time";
 
