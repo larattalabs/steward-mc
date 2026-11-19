@@ -36,6 +36,10 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  * {@link ArchitectAccess#useForTest}. It models what those paths read and ask, as Architect's contract says it behaves: regions with their state, position,
  * busy note, revisions and {@code architect_mc:land}; sites with their state and region; {@code undoRevision}, {@code Regions.remove}, {@code unadopt} and
  * {@code Sites.remove} answers, refusals and lost answers included; {@code Sites.loadHealthy} and the kit and checker versions (slice BCU); and the stockpile ledger of a region built from materials (paid == returned).
+ * (TESTABLE-ARCH) Also a composed town's realise: approved artifacts ({@code regions().artifact}, an empty {@code checkPalette}), the read-only quote
+ * ({@code quoteApproved}, answered with {@link #quote}), and {@code realiseApproved}, each request recorded ({@link #approved}, its
+ * {@code maxBillPerLot} included) and answered as {@link #realiseAnswer} says ({@code REFUSE}: {@code BILL_CAP} with the detail {@link #capDetail});
+ * {@code designs().group} and {@code library().get} answer empty. {@link #onCall} runs as each call is recorded, so a test can read the disk then.
  * Anything it does not model throws, so a path that reaches past the model fails loudly; every call is recorded ({@link #calls}).
  */
 final class FakeArchitect {
@@ -204,6 +208,18 @@ final class FakeArchitect {
 	}
 
 	final Map<String, Region> regions = new LinkedHashMap<>();
+	/** (TESTABLE-ARCH) Approved artifacts' bodies, by sha ({@code regions().artifact}). */
+	final Map<String, JsonObject> artifacts = new LinkedHashMap<>();
+	/** (TESTABLE-ARCH) What {@code quoteApproved} answers (null: the call is refused). */
+	dev.larattalabs.architect.api.Quote quote;
+	/** (TESTABLE-ARCH) Every {@code realiseApproved} request, as sent. */
+	final List<dev.larattalabs.architect.api.ApprovedRealise> approved = new ArrayList<>();
+	/** (TESTABLE-ARCH) How {@code realiseApproved} is answered: APPLY (the region id {@code rg_realised}), REFUSE ({@code BILL_CAP}), or HOLD. */
+	Answer realiseAnswer = Answer.HOLD;
+	/** (TESTABLE-ARCH) The detail of a {@code BILL_CAP} refusal ({@code lot:<id>}, {@code unknown_lot:<id>}, or "" for the region's). */
+	String capDetail = "lot:hall_1";
+	/** (TESTABLE-ARCH) Run with each call's line as it is recorded (before it is answered). */
+	java.util.function.Consumer<String> onCall = c -> {};
 	final Map<String, Site> sites = new LinkedHashMap<>();
 	final List<String> calls = new ArrayList<>();
 	final Ledger ledger = new Ledger();
@@ -272,6 +288,21 @@ final class FakeArchitect {
 				calls.add("regions.list " + a[0]);
 				yield regions.values().stream().filter(r -> r.present && (a[0] == null || a[0].equals(r.owner))).map(Region::view).toList();
 			}
+			case "artifact" -> {
+				call("regions.artifact " + a[0]);
+				JsonObject body = artifacts.get((String) a[0]);
+				yield body == null ? Optional.empty()
+					: Optional.of(new dev.larattalabs.architect.api.PlanArtifact((String) a[0], body.deepCopy(), "plan_" + a[0], Set.of(), Set.of(), false, 0L));
+			}
+			case "checkPalette" -> {
+				call("regions.checkPalette " + a[0]);
+				yield Optional.empty();
+			}
+			case "quoteApproved" -> {
+				call("regions.quoteApproved " + a[0] + " " + a[1]);
+				yield quote == null ? CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "no quote")) : CompletableFuture.completedFuture(quote);
+			}
+			case "realiseApproved" -> realiseApproved((dev.larattalabs.architect.api.ApprovedRealise) a[0]);
 			case "undoRevision" -> undoRevision((String) a[0], (Integer) a[1], (String) a[2]);
 			case "remove" -> removeRegion((String) a[0]);
 			case "unadopt" -> unadopt((String) a[0]);
@@ -292,14 +323,55 @@ final class FakeArchitect {
 			case "loadHealthy" -> loadHealthy;
 			default -> throw new UnsupportedOperationException("FakeArchitect: Sites." + m + " is not modelled");
 		});
+		dev.larattalabs.architect.api.Designs designsApi = proxy(dev.larattalabs.architect.api.Designs.class, (m, a) -> switch (m) {
+			case "group" -> {
+				call("designs.group " + a[0]);
+				yield Optional.empty();
+			}
+			default -> throw new UnsupportedOperationException("FakeArchitect: Designs." + m + " is not modelled");
+		});
+		dev.larattalabs.architect.api.Library libraryApi = proxy(dev.larattalabs.architect.api.Library.class, (m, a) -> switch (m) {
+			case "get" -> {
+				call("library.get " + a[0]);
+				yield Optional.empty();
+			}
+			default -> throw new UnsupportedOperationException("FakeArchitect: Library." + m + " is not modelled");
+		});
 		return proxy(ArchitectApi.class, (m, a) -> switch (m) {
 			case "regions" -> regionsApi;
+			case "designs" -> designsApi;
+			case "library" -> libraryApi;
 			case "sites" -> sitesApi;
 			case "features" -> features;
 			case "kitVersion" -> kitVersion;
 			case "checkerVersion" -> Optional.ofNullable(checkerVersion);
 			default -> throw new UnsupportedOperationException("FakeArchitect: ArchitectApi." + m + " is not modelled");
 		});
+	}
+
+	/** (TESTABLE-ARCH) Records a call, then runs {@link #onCall} with it. */
+	private void call(String line) {
+		calls.add(line);
+		onCall.accept(line);
+	}
+
+	/**
+	 * (TESTABLE-ARCH) Architect's {@code realiseApproved}: recorded as sent; APPLY answers a region id, REFUSE a {@code BILL_CAP} refusal at put-down
+	 * (nothing written or taken, as Architect's) with {@link #capDetail}, HOLD answers when {@link #complete} is run (as APPLY).
+	 */
+	private CompletableFuture<String> realiseApproved(dev.larattalabs.architect.api.ApprovedRealise r) {
+		approved.add(r);
+		call("regions.realiseApproved " + r.artifactSha() + " " + r.opKey());
+		return switch (realiseAnswer) {
+			case APPLY -> CompletableFuture.completedFuture("rg_realised");
+			case REFUSE -> CompletableFuture.failedFuture(new ArchitectRefused(Reason.BILL_CAP, "a lot's bill at put-down is past its maxBillPerLot", capDetail));
+			case HOLD -> {
+				var f = new CompletableFuture<String>();
+				held.add(() -> f.complete("rg_realised"));
+				yield f;
+			}
+			default -> throw new UnsupportedOperationException("FakeArchitect: realiseApproved answered " + realiseAnswer + " is not modelled");
+		};
 	}
 
 	private static boolean standing(Rev v) {

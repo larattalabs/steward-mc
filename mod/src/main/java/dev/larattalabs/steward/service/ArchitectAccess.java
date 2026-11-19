@@ -6,7 +6,8 @@ import net.minecraft.server.MinecraftServer;
 import org.jspecify.annotations.Nullable;
 
 /**
- * (slice GEA) Architect's API on the recovery paths unit tests drive (the reconcile, the growth sweep, growth undo, a district's land): {@link ArchitectApi#get()}
+ * (slice GEA) Architect's API on the recovery paths unit tests drive (the reconcile, the growth sweep, growth undo, a district's land; TESTABLE-ARCH: the
+ * composed hold, realise and put-down re-ask): {@link ArchitectApi#get()}
  * on every call, and the server's own executor, unless a test supplied its own. {@code ArchitectApi} is Architect's, so the seam is Steward's side of the call.
  * Production never calls {@link #useForTest}; with nothing supplied this is exactly {@code ArchitectApi.get()} and {@code server.execute}.
  */
