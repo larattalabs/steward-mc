@@ -237,6 +237,15 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.84.0 by a smoke check (2026-11-19, rc-084; speed rule 11b).** The pins moved to kit/checker 0.74.0, the program
+(`c406df05…`) unchanged, module.json with the old pins put back hashing to the carried moduleSha; the published 0.84.0 jar (sha256 `e343ec08…`,
+lab-ui 0.6.1 nested). The re-measure triggers were read in `git diff v0.83.0 v0.84.0 -- kit mod/src/main`: realise.mjs and region/plan.mjs
+change only their version strings (kit 0.74.0) and LYW2's `walls` IR member, which the evaluator ignores and only `ring(..., {wall: true})`
+writes (no module program calls `ring`); program.mjs's ring() gains that option; mod/src/main moves IrStale's kit string and adds
+Layouts' ring walls (read-side). survival.mjs, quotes, the stockpile and FullBom don't move. The billing check is the guard: survival 63/63,
+bounds 111/111, offline 295/295, ingame 292/292, field-potatoes 62/62 (5 runs; -2.2% to 6.4% per crop-day of the carried rates, 9x18 the
+high one), ports 9126/9127, $0.
+
 **Carried to Architect 0.83.0 by a smoke check (2026-11-19, pin-083; speed rule 4).** Kit/checker stay 0.73.0, the program (`c406df05…`)
 and module.json unchanged (moduleSha `50d6f992…`); the published 0.83.0 jar (sha256 `9d2ff95b…`, lab-ui 0.6.0 nested). The re-measure
 triggers were read in `git diff v0.82.0 v0.83.0 -- kit mod/src/main`: the kit only moves the catalogue's `PLAN_API` string to 1.70.0 (no
