@@ -237,6 +237,25 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.82.0 by a smoke check (2026-11-18, pin-081; speed rule 4).** Kit/checker stay 0.73.0, the program (`c406df05…`)
+and module.json unchanged (moduleSha `50d6f992…`); the published 0.82.0 jar (sha256 `c5cf0291…`, lab-ui 0.6.0 nested). The re-measure
+triggers were read in `git diff v0.81.0 v0.82.0 -- kit mod/src/main`: the kit only adds a step-counts test; mod/src/main adds StyleRoles and
+StyleSwap (reached only from the client's Preview on ghost, StylePeek), ghost-palette tints in CompositeMesh, a Reconcile wording change, lang
+strings and the lab_ui range. No build, billing or realise path moves. The billing check is the guard: survival 63/63, bounds 111/111, offline
+295/295, ingame 292/292, field-potatoes 62/62 (5 runs; -2.7% to 6.9% per crop-day of the carried rates, 9x18 the high one), ports 9116/9117, $0.
+The first chain failed at once: the e2e had left `mod/run/architect/sidecar-data` a RAM-disk symlink, dangling after a reboot, and the module
+tools (unlike e2e.mjs) don't repair it, so Architect's launcher never started the helper; the on-disk `sidecar-data.ssd` was put back.
+
+**Carried to Architect 0.81.0 by a smoke check (2026-11-18, pin-081; speed rule 4).** The pins moved to kit/checker 0.73.0, the program
+(`c406df05…`) unchanged, module.json with the old pins put back hashing to the carried moduleSha `c85389f8…`; the published 0.81.0 jar (sha256 `74f2ab44…`); 0.80.0 was skipped (pins skip
+versions). The re-measure triggers were read in `git diff v0.79.0 v0.81.0 -- kit mod/src/main`: realise.mjs and region/plan.mjs change only
+their version strings (kit 0.73.0); the fluid sim's 8c WM rules are opt-in per body (`model: 'wm'`, which IRR's water has none of; Architect
+reports every existing IR byte-identical), its scheduler rewritten to an equal (due, scheduling order) bucket queue; the stockpile's DFG defers
+an unreadable or foreign crate at adoption instead of restoring it, and LT moves a load-time warning; 8b adds read-only status views
+(BuildStatus, Regions.layout, SETTLEMENT_CHANGED, RemovalStopCause) and a connector check; Quotes only exposes its overCap test. No bill moves.
+The billing check is the guard: survival 63/63, bounds 111/111 (the 108 re-quoted bounds equal the carried ones item for item), offline
+295/295, ingame 292/292, field-potatoes 62/62 (5 runs; within -1.2% to 1.1% per crop-day of the carried rates), ports 9116/9117, $0.
+
 **Carried to Architect 0.79.0 by a smoke check (2026-11-18, pin-079; speed rule 4).** The pins moved to kit/checker 0.72.0, the program
 (`c406df05…`) unchanged, moduleSha with the old pins put back `440289a5…`; the published 0.79.0 jar (sha256 `98e18a42…`). 0.79.0 touches
 paths this section lists as re-measure triggers (realise.mjs, region/plan.mjs, region/survival.mjs, the stockpile), so the smoke carry rests
