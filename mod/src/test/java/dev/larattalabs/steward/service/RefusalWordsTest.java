@@ -49,6 +49,9 @@ class RefusalWordsTest {
 		assertEquals(RefusalWords.NO_ANSWER, RefusalWords.of(new CompletionException(new java.util.concurrent.TimeoutException(RAW))));
 		assertEquals(RefusalWords.NO_ANSWER, RefusalWords.of(null));
 		clean(RefusalWords.of(new CompletionException(refused)));
+		// Steward's own failure keeps its own words; anything else's message is never read
+		assertEquals("the build could not be saved before placing", RefusalWords.of(new CompletionException(new RefusalWords.Own("the build could not be saved before placing"))));
+		assertEquals(RefusalWords.GENERIC, RefusalWords.of(new IllegalStateException(RAW)));
 	}
 
 	@Test

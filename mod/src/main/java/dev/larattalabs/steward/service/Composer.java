@@ -456,7 +456,8 @@ public final class Composer {
 		check(server, s, plan, who).whenComplete((c, cerr) -> server.execute(() -> {
 			if (!Session.is(session)) return;
 			if (cerr != null) {
-				done(s, "Architect could not check the plan (" + cerr.getMessage() + "): the build takes today's layout.", server, who);
+				Steward.LOGGER.warn("plan for {}: not checked: {}", s.id(), cerr.getMessage());
+				done(s, "Architect could not check the plan (" + RefusalWords.of(cerr) + "): the build takes today's layout.", server, who);
 				return;
 			}
 			checked(server, who, s, session, plan, composed, c);
@@ -501,7 +502,7 @@ public final class Composer {
 	/** Architect's check of {@code plan} over {@code s}'s claim, the stone and (when in the claim) the player as anchors. */
 	static java.util.concurrent.CompletableFuture<PlanCheck> check(MinecraftServer server, Settlement s, JsonObject plan, UUID player) {
 		var level = Districts.level(server, s.claim().dimension());
-		if (level == null) return java.util.concurrent.CompletableFuture.failedFuture(new IllegalStateException("the settlement's dimension is not loaded"));
+		if (level == null) return java.util.concurrent.CompletableFuture.failedFuture(new RefusalWords.Own("the settlement's dimension is not loaded"));
 		int cx = s.claim().centerX(), cz = s.claim().centerZ(), r = s.claim().radius();
 		var claim = new BoundingBox(cx - r, level.getMinY(), cz - r, cx + r, level.getMaxY(), cz + r);
 		Map<String, BlockPos> anchors = anchors(server, s, player, level);

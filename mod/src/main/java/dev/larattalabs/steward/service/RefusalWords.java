@@ -28,6 +28,16 @@ public final class RefusalWords {
 	private RefusalWords() {
 	}
 
+	/**
+	 * A failure Steward raises itself, in the steward's own words (a save that failed, a lot it won't place): {@link #of} says its message as it is.
+	 * Every other exception's message is Architect's (or the JVM's), never shown.
+	 */
+	public static final class Own extends IllegalStateException {
+		public Own(String stewardWords) {
+			super(stewardWords);
+		}
+	}
+
 	/** What a typed placement refusal is, in the steward's words (a clause, no full stop); {@link #GENERIC} for one with no words of its own. Pure. */
 	static String reason(@Nullable Reason r) {
 		if (r == null) return GENERIC;
@@ -70,6 +80,7 @@ public final class RefusalWords {
 	static String of(@Nullable Throwable err) {
 		if (err == null) return NO_ANSWER;
 		for (Throwable t = err; t != null; t = t.getCause() == t ? null : t.getCause()) {
+			if (t instanceof Own own && own.getMessage() != null) return own.getMessage();
 			if (t instanceof ArchitectRefused r) return reason(r.reason());
 			if (t instanceof java.util.concurrent.TimeoutException) return NO_ANSWER;
 		}

@@ -3594,7 +3594,7 @@ public final class SettlementRunner {
 		// (slice M5) a module lot is never left a pad: one Architect's box or a palette rule would drop refuses the realise, nothing placed
 		var dropped = moduleOrders.keySet().stream().filter(l -> lotEntries.containsKey(l) && !fitting.containsKey(l)).sorted().toList();
 		if (!dropped.isEmpty()) {
-			realised(null, new IllegalStateException("the working " + String.join(", ", dropped.stream().map(l -> l.replace('_', ' ')).toList())
+			realised(null, new RefusalWords.Own("the working " + String.join(", ", dropped.stream().map(l -> l.replace('_', ' ')).toList())
 				+ " would be left a pad, and a module lot never is"), session);
 			return;
 		}
@@ -3602,7 +3602,7 @@ public final class SettlementRunner {
 		// stands: Architect binds nothing there, so the build ends here, naming it
 		var open = plan == null ? null : plan.lots().stream().filter(l -> l.exact() && !fitting.containsKey(l.id())).findFirst().orElse(null);
 		if (open != null) {
-			realised(null, new IllegalStateException("the " + open.role() + " on the wall has no design that fits its box (" + (lotEntries.containsKey(open.id())
+			realised(null, new RefusalWords.Own("the " + open.role() + " on the wall has no design that fits its box (" + (lotEntries.containsKey(open.id())
 				? "its design is past the lot's approved box or rule" : "it was not designed") + "), so the wall would stand open there"), session);
 			return;
 		}
@@ -3611,7 +3611,7 @@ public final class SettlementRunner {
 		// another stops here)
 		boolean fromMaterials = artifactSurvival(sha);
 		if (composedMaterialsUncapped(fromMaterials, moduleOrders, lotCaps())) {
-			realised(null, new IllegalStateException("the working modules' bills can't be held to their measured limits in a town built from materials by this Architect"), session);
+			realised(null, new RefusalWords.Own("the working modules' bills can't be held to their measured limits in a town built from materials by this Architect"), session);
 			return;
 		}
 		var request = new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext);
@@ -3620,7 +3620,7 @@ public final class SettlementRunner {
 			// only the caps of the quote cleared for exactly these entries this session, and only for lots this realise binds (never an earlier one's)
 			if (caps == null || caps.perLot() == null || composedCapsKey == null || !composedCapsKey.equals(quoteCleared)
 				|| !fitting.keySet().containsAll(caps.perLot().keySet()) || !caps.perLot().keySet().equals(moduleOrders.keySet())) {
-				realised(null, new IllegalStateException("the working modules' bills weren't quoted for exactly this placing, and nothing is consumed unchecked"), session);
+				realised(null, new RefusalWords.Own("the working modules' bills weren't quoted for exactly this placing, and nothing is consumed unchecked"), session);
 				return;
 			}
 			var perLot = devShortLot(caps.perLot());
@@ -3633,7 +3633,7 @@ public final class SettlementRunner {
 		var sent = request;
 		// (LIFT-S, persist before mutate) the orders whose bounds are the lot caps saved before the realise is sent; unsaved, nothing is sent
 		if (!ComposedSteps.saveThen(this::persist, () -> sendApproved(sha, sent, lotEntries, actor, ext, first, session)))
-			realised(null, new IllegalStateException("the build could not be saved before placing, and nothing is consumed unchecked"), session);
+			realised(null, new RefusalWords.Own("the build could not be saved before placing, and nothing is consumed unchecked"), session);
 	}
 
 	/**
@@ -3668,9 +3668,10 @@ public final class SettlementRunner {
 				String wallLot = stale ? wallLotOf(e.getMessage()) : null;
 				if (wallLot != null && alive() && !over()) { wallRefused(lotEntries, session, wallLot, e.getMessage()); return; }
 				if (!first || !stale || !alive() || over()) { realised(id, err, session); return; }
-				say("The land under the plan changed while the buildings were designed (" + e.getMessage() + "): checking it again...");
+				Steward.LOGGER.info("{}: the artifact {} is stale: {}", settlement.id(), sha, e.getMessage());
+				say("The land under the plan changed while the buildings were designed: checking it again...");
 				JsonObject frozen = frozenPlan(sha);
-				if (frozen == null) { realised(null, new IllegalStateException("the approved plan could not be read again"), session); return; }
+				if (frozen == null) { realised(null, new RefusalWords.Own("the approved plan could not be read again"), session); return; }
 				var saved = Settlements.store().get(settlement.id()).orElse(settlement);
 				Composer.check(server, saved, frozen, playerId).whenComplete((c, cerr) -> ArchitectAccess.onServer(server, () -> {
 					if (!Session.is(session)) return;
@@ -3681,11 +3682,12 @@ public final class SettlementRunner {
 						if (state != null && state.phase() == Pipeline.Phase.CANCELLING) feed(new Pipeline.CancelConfirmed());
 						return;
 					}
-					String no = cerr != null ? "Architect could not check it again (" + message(cerr) + ")" : unbuildable(c, Secrets.of(frozen, null));
+					if (cerr != null) Steward.LOGGER.warn("{}: the plan was not checked again: {}", settlement.id(), message(cerr));
+					String no = cerr != null ? "Architect could not check it again (" + RefusalWords.of(cerr) + ")" : unbuildable(c, Secrets.of(frozen, null));
 					// the world's mode changed while the buildings were designed: built from materials now, or no longer; this build stops, a new Start plans anew
 					if (no == null && c.survival() != artifactSurvival(sha)) no = "the world's mode changed while the buildings were designed (" + (c.survival()
 						? "it builds from materials now" : "it no longer builds from materials") + "): start the build again";
-					if (no != null) { realised(null, new IllegalStateException(no), session); return; }
+					if (no != null) { realised(null, new RefusalWords.Own(no), session); return; }
 					String next = c.artifactSha();
 					// saved with the build before the old one is let go (a crash between keeps a target to resume from); the same sha keeps its pin
 					pin(next);
@@ -3695,7 +3697,7 @@ public final class SettlementRunner {
 						vPlanId = before;
 						// the new pin is not the build's (it kept the old one): let go so it isn't orphaned
 						if (!next.equals(sha)) regions.unpinArtifact(next, settlement.owner());
-						realised(null, new IllegalStateException("the build could not be saved before placing again"), session);
+						realised(null, new RefusalWords.Own("the build could not be saved before placing again"), session);
 						return;
 					}
 					if (!next.equals(sha)) regions.unpinArtifact(sha, settlement.owner());
@@ -3742,7 +3744,8 @@ public final class SettlementRunner {
 		VillageLayout.Lot lot = plan == null ? null : plan.lots().stream().filter(l -> l.id().equals(lotId)).findFirst().orElse(null);
 		String role = lot == null ? lotId : lot.role();
 		if (!keyedDesigns()) {
-			realised(null, new IllegalStateException("Architect refused the " + role + " on the wall (" + why + "), and this Architect cannot repair a design safely"
+			Steward.LOGGER.info("{}: the wall lot {}'s design was refused: {}", settlement.id(), lotId, why);
+			realised(null, new RefusalWords.Own("Architect refused the " + role + " on the wall, and this Architect cannot repair a design safely"
 				+ " (no design.opKeys)"), session);
 			return;
 		}
@@ -4130,7 +4133,8 @@ public final class SettlementRunner {
 			// (slice SD) a district's region from materials: the world's mode changed since it was planned, or the stockpile is gone, in plain words
 			String plain = districtId == null ? null : materialsRefusal(message(err));
 			if (plain != null) { say("Not placed: " + plain); feed(new Pipeline.Cancel()); return; }
-			say("Architect could not place the village: " + message(err));
+			Steward.LOGGER.warn("{}: the village was not placed: {}", settlement.id(), message(err), err);
+			say("Architect could not place the village: " + RefusalWords.of(err) + ".");
 			feed(new Pipeline.Cancel());
 			return;
 		}
@@ -4371,7 +4375,8 @@ public final class SettlementRunner {
 		int[] request = districtRequest(Settlements.store().get(settlement.id()).orElse(settlement), district, new int[] {b.minX(), b.minZ(), b.maxX(), b.maxZ()});
 		List<JsonObject> lots = new ArrayList<>();
 		for (var x : dev.larattalabs.steward.gateway.VPlan.params(districtSpecs, settlement.id(), buildId).getAsJsonArray("lots")) lots.add(x.getAsJsonObject());
-		say("The land beside " + district.name() + " changed while its buildings were designed (" + message(err) + "): laying it out again.");
+		Steward.LOGGER.info("{}: the land beside {} changed: {}", settlement.id(), district.name(), message(err));
+		say("The land beside " + district.name() + " changed while its buildings were designed: laying it out again.");
 		int session = Session.current();
 		if (regionMaterials()) districtPlannedMaterials = true;
 		regions.plan(Districts.besideRequest(level(), settlement, town.get().id(), request, district.id(), lots, opKey("vplan2"), buildId, district.kind(), district.follow()))

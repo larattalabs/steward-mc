@@ -443,7 +443,7 @@ public final class PendingOffers {
 			var now = Settlements.store().get(s.id()).orElse(s);
 			Composer.check(server, now, plan, player).whenComplete((c, cerr) -> server.execute(() -> guarded(server, player, s, p, what, () -> {
 				if (!Session.is(session)) return;
-				if (cerr != null) { fail(server, player, s, p, what, "Architect could not check it (" + cerr.getMessage() + ")"); return; }
+				if (cerr != null) { Steward.LOGGER.warn("part {} of {}: not checked: {}", f.part(), s.id(), cerr.getMessage()); fail(server, player, s, p, what, "Architect could not check it (" + RefusalWords.of(cerr) + ")"); return; }
 				var answer = c.parts().stream().filter(x -> x.has("part") && f.part().equals(x.get("part").getAsString())).findFirst();
 				String cls = answer.map(x -> x.has("class") ? x.get("class").getAsString() : "").orElse("missing");
 				if (c.artifactSha() != null && cls.equals("fits")) {
@@ -507,7 +507,7 @@ public final class PendingOffers {
 		ArchitectApi.get().regions().realiseApproved(new dev.larattalabs.architect.api.ApprovedRealise(artifactSha, dev.larattalabs.architect.api.Mode.INSTANT, actor,
 			Map.of(), "steward.part." + s.id() + "." + p.pendingPart(), ext)).whenComplete((id, err) -> server.execute(() -> {
 				if (!Session.is(session)) return;
-				if (err != null) { fail(server, player, s, p, what, "Architect could not build it (" + SettlementRunner.message(err) + ")"); return; }
+				if (err != null) { Steward.LOGGER.warn("part of {}: not built: {}", s.id(), SettlementRunner.message(err)); fail(server, player, s, p, what, "Architect could not build it (" + RefusalWords.of(err) + ")"); return; }
 				Steward.LOGGER.info("part {} of {}: region {} (composing ${})", p.pendingPart(), s.id(), id, String.format("%.3f", cost));
 				Composer.tellNow(server, player, s, summary + String.format(java.util.Locale.ROOT, " Raising it now (fitting it cost $%.2f)...", cost));
 				WATCHING.put(id, new Watch(s.id(), p.pendingPart(), what, player, p));
