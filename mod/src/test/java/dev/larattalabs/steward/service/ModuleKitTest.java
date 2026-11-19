@@ -27,7 +27,7 @@ class ModuleKitTest {
 
 	private ModuleGate.Verdict judged() {
 		var r = ModuleDev.running(ArchitectAccess.api());
-		return ModuleGate.offer(LIVE, "crop_farm", new Env("26.3", "0.84.0", Set.of(ModuleGate.FEATURE), false, false, r.kit(), r.checker()));
+		return ModuleGate.offer(LIVE, "crop_farm", new Env("26.3", "0.85.0", Set.of(ModuleGate.FEATURE), false, false, r.kit(), r.checker()));
 	}
 
 	@Test
