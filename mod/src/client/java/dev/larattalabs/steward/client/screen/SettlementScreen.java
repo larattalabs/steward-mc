@@ -348,7 +348,7 @@ public final class SettlementScreen extends KitScreen {
 	}
 
 	/**
-	 * The settlement from above, fitted to what it holds (its buildings, the plan's pads, roads and walls, and the stone) with a margin: the claim's edge
+	 * The settlement from above, fitted to what it draws (its buildings, the plan's pads, roads and walls, and the stone) with a margin: the claim's edge
 	 * when it fits, each building's footprint in its state's colour, the hovered one outlined. North is up.
 	 */
 	private void drawMap(GuiGraphicsExtractor g, int x, int y, int size, int mx, int my) {
@@ -361,9 +361,11 @@ public final class SettlementScreen extends KitScreen {
 			minZ = Math.min(minZ, b.minZ());
 			maxZ = Math.max(maxZ, b.maxZ());
 		}
-		// (8bS) the plan's pads, roads and connectors (Architect's layout) count too
+		// (8bS) the plan's pads, roads and connectors (Architect's layout) count too; a lot a building stands on counts by its building (lots are often
+		// larger than what stands on them, and the map fits what it draws)
 		var shapes = view.map() == null ? List.<SettlementView.MapShape>of() : view.map();
 		for (var m : shapes) {
+			if ("lot".equals(m.kind()) && standing(m)) continue;
 			minX = Math.min(minX, m.minX());
 			maxX = Math.max(maxX, m.maxX());
 			minZ = Math.min(minZ, m.minZ());
