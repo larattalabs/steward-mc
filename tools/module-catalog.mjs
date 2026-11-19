@@ -39,6 +39,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
+import { repairSidecarData } from './lib/ram-tmp.mjs';
 import { styleBounds } from './lib/style-bounds.mjs';
 import { moduleShaOf, smokeCarry } from './lib/smoke-carry.mjs';
 
@@ -240,6 +241,8 @@ async function startClient() {
   claim();
   for (const p of [PORT - 1, PORT]) if (await listening(p)) throw new Error(`port ${p} is in use (another client?): refusing to launch; use --attach to drive it`);
   if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
+  // a sidecar-data link left dangling by a reboot (an earlier e2e's RAM-disk dir) stops Architect's sidecar from starting (LINK-SIDECAR)
+  repairSidecarData(GAME);
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
   const world = `Steward M1 Catalog ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
   // one slot from Architect's machine-wide queue (slice SQ, tools/lib/slot-queue.mjs), held by this driver until the client quits

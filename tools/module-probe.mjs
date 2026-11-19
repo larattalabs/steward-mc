@@ -16,6 +16,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
+import { repairSidecarData } from './lib/ram-tmp.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -187,6 +188,8 @@ let dev = null, child = null;
 const WORLD_NAME = `Steward M0 Probe ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
 async function startClient() {
   if (flag('--attach')) { dev = await DevClient.connect({ port: PORT, timeoutMs: 30_000 }); await dev.waitInWorld({ timeoutMs: 60_000 }); return; }
+  // a sidecar-data link left dangling by a reboot (an earlier e2e's RAM-disk dir) stops Architect's sidecar from starting (LINK-SIDECAR)
+  repairSidecarData(GAME);
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
   // one slot from Architect's machine-wide queue (slice SQ, tools/lib/slot-queue.mjs), held by this driver until the client quits
   slot = await acquireSlot(`module-probe`, { root: ROOT });

@@ -20,6 +20,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
+import { repairSidecarData } from './lib/ram-tmp.mjs';
 import { checkCommand } from './lib/save-barrier.mjs';
 import { CROPS, T as TCYCLE, CYCLES, DAY, USEFUL_PER_CROP_DAY, bands as barBands } from './lib/crop-farm-bars.mjs';
 
@@ -127,6 +128,8 @@ async function startClient(label, { mode = 'creative' } = {}) {
   claimRun();
   for (const p of [PORT - 1, PORT]) if (await listening(p)) throw new Error(`port ${p} is in use (another client?): refusing to launch; use --attach to drive it`);
   if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
+  // a sidecar-data link left dangling by a reboot (an earlier e2e's RAM-disk dir) stops Architect's sidecar from starting (LINK-SIDECAR)
+  repairSidecarData(GAME);
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
   // every field measured sits inside the player's simulation distance (random ticks run in block-ticking chunks only): 16 chunks
   const opts = path.join(GAME, 'options.txt');

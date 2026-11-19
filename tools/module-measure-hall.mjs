@@ -18,6 +18,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
+import { repairSidecarData } from './lib/ram-tmp.mjs';
 import { checkCommand, savedOnDisk } from './lib/save-barrier.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
 
@@ -123,6 +124,8 @@ async function startClient(label, { mode = 'creative', world = null } = {}) {
   if (!world) claimRun();
   for (const p of [PORT - 1, PORT]) if (await listening(p)) throw new Error(`port ${p} is in use (another client?): refusing to launch; use --attach to drive it`);
   if (fs.existsSync(path.join(GAME, 'architect', 'devbridge.token'))) fs.rmSync(path.join(GAME, 'architect', 'devbridge.token'));
+  // a sidecar-data link left dangling by a reboot (an earlier e2e's RAM-disk dir) stops Architect's sidecar from starting (LINK-SIDECAR)
+  repairSidecarData(GAME);
   if (fs.existsSync(path.join(GAME, 'architect', 'sidecar-data', 'secrets.json'))) throw new Error('the claude-login opt-in exists: refusing');
   worldName = world ?? `Steward M4 ${label} ${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`;
   exited = false;

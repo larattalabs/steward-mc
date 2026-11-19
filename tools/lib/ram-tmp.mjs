@@ -22,6 +22,31 @@ export function useRamTmp(env = process.env, root = RAM_TMP) {
   }
 }
 
+const ramUp = (env, root) => env.STEWARD_RAM_TMP !== '0' && (() => { try { fs.accessSync(root, fs.constants.W_OK); return fs.statSync(root).isDirectory(); } catch { return false; } })();
+
+/**
+ * (slice LINK-SIDECAR) Repairs `<gameDir>/architect/sidecar-data` when it is a symlink whose target is gone: an earlier e2e linked it to the RAM
+ * disk and a reboot wiped that dir, so Architect's launcher throws FileAlreadyExistsException on the dangling link and the sidecar never starts.
+ * Every tool that launches a client on a game dir calls it first (ramSidecarData does for the e2e). When the volume is up and the link points
+ * under root, its target is made again, empty (the data stays on the RAM disk); otherwise the link is replaced by an empty directory. A live
+ * link, a real directory or a missing path is left as it is. Returns 'relinked' | 'replaced' | null (nothing to repair).
+ */
+export function repairSidecarData(gameDir, env = process.env, root = RAM_TMP) {
+  const link = path.join(gameDir, 'architect', 'sidecar-data');
+  let st = null;
+  try { st = fs.lstatSync(link); } catch { return null; }
+  if (!st.isSymbolicLink() || fs.existsSync(link)) return null;
+  const target = path.resolve(path.dirname(link), fs.readlinkSync(link));
+  const rel = path.relative(path.resolve(root), target);
+  if (ramUp(env, root) && rel && !rel.startsWith('..') && !path.isAbsolute(rel)) {
+    fs.mkdirSync(target, { recursive: true });
+    return 'relinked';
+  }
+  fs.unlinkSync(link);
+  fs.mkdirSync(link);
+  return 'replaced';
+}
+
 /**
  * The bundled Architect sidecar's data (`<gameDir>/architect/sidecar-data`: jobs, designs, plans, its npm install) on the RAM disk. The machine
  * audit of 2026-11-14 measured about 3 GB written per worktree per 30 minutes there. When the volume is up, the directory becomes a symlink to
@@ -38,10 +63,10 @@ export function ramSidecarData(gameDir, env = process.env, root = RAM_TMP, { fre
   fs.mkdirSync(path.dirname(link), { recursive: true });
   let st = null;
   try { st = fs.lstatSync(link); } catch {}
-  const up = env.STEWARD_RAM_TMP !== '0' && (() => { try { fs.accessSync(root, fs.constants.W_OK); return fs.statSync(root).isDirectory(); } catch { return false; } })();
+  const up = ramUp(env, root);
   if (!up) {
     let made = false;
-    if (st?.isSymbolicLink() && !fs.existsSync(link)) { fs.unlinkSync(link); fs.mkdirSync(link); made = true; }
+    if (st?.isSymbolicLink() && !fs.existsSync(link)) made = repairSidecarData(gameDir, env, root) === 'replaced';
     else if (!st) { fs.mkdirSync(link); made = true; }
     else if (own && st.isDirectory()) {
       // an earlier run's own dir, left by a hard kill: it is Steward's to take again
