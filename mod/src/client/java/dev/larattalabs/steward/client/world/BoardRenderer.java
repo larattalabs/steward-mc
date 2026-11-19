@@ -109,7 +109,8 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 		var rows = v.buildings();
 		for (int i = 0; i < Math.min(ROWS, rows.size()); i++) {
 			SettlementView.Building b = rows.get(i);
-			String fam = b.updateAvailable() ? "waiting" : b.updating() || !"built".equals(b.state()) ? "working" : "done";
+			// (8bS) from Architect's BuildStatus when there is one
+			String fam = b.status() != null ? b.stateWords()[0] : b.updateAvailable() ? "waiting" : b.updating() || !"built".equals(b.state()) ? "working" : "done";
 			WorldUi.submitSprite(ps, c, WorldUi.Layer.SOLID, Kit.dot(fam, false), 6, y + 1, 7, 7, 0f, 0xFFFFFFFF, light);
 			String right = b.updateAvailable() ? "update ready" : "v" + b.version();
 			int rw = font.width(right);

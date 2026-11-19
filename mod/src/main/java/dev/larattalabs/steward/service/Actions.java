@@ -677,12 +677,26 @@ public final class Actions {
 
 	/** Opens the settlement screen (or, with a site id, that building's panel) with the settlement's buildings as Architect has them now. Viewing is open to everyone. */
 	public static void sendSettlement(ServerPlayer p, Settlement s, String siteId) {
-		ServerPlayNetworking.send(p, new StewardNet.SettlementPanel(view(p.level().getServer(), s).toJson(), siteId == null ? "" : siteId));
+		ServerPlayNetworking.send(p, new StewardNet.SettlementPanel(panelView(p.level().getServer(), s).toJson(), siteId == null ? "" : siteId));
+	}
+
+	/**
+	 * (slice 8bS) The settlement screen's view: {@link #view} with its map's shapes (Architect 8b's {@code Regions.layout}, read on every open and refresh,
+	 * so a changed {@code irSha} or revision is drawn). Never the two-second in-world view's: the shapes stay out of it.
+	 */
+	static dev.larattalabs.steward.view.SettlementView panelView(MinecraftServer server, Settlement s) {
+		var v = view(server, s);
+		try {
+			return v.withMap(MapShapes.of(s));
+		} catch (RuntimeException | LinkageError e) {
+			Steward.LOGGER.warn("could not read the map of {}", s.id(), e);
+			return v;
+		}
 	}
 
 	/** The settlement's view again, for its screen if the player still has it open (the client drops it otherwise): an action's progress. */
 	public static void refreshSettlement(ServerPlayer p, Settlement s) {
-		ServerPlayNetworking.send(p, new StewardNet.SettlementPanel(view(p.level().getServer(), s).toJson(), "", true));
+		ServerPlayNetworking.send(p, new StewardNet.SettlementPanel(panelView(p.level().getServer(), s).toJson(), "", true));
 	}
 
 	// ------------------------------------------------------------------ undo, updates, the land check (each command's path and its screen button's)
@@ -727,7 +741,9 @@ public final class Actions {
 	/** The settlement as its screens show it, with its buildings as Architect has them now. */
 	public static dev.larattalabs.steward.view.SettlementView view(MinecraftServer server, Settlement s) {
 		var api = ArchitectApi.get().sites(server);
-		var sites = api.list(s.owner()).stream().map(v -> site(api, v)).toList();
+		// (8bS) a hidden part's target (S-7c-4) is never sent to the client
+		var secrets = Secrets.ofSettlement(s.id());
+		var sites = api.list(s.owner()).stream().filter(v -> !secrets.hides(dev.larattalabs.steward.gateway.Typed.part(v))).map(v -> site(api, v)).toList();
 		// where each district waiting in the inbox would go: survey mode shows it before it is founded
 		List<dev.larattalabs.steward.view.SettlementView.DistrictInfo> proposed = new ArrayList<>();
 		var street = Districts.townStreet(server, s);
@@ -761,11 +777,13 @@ public final class Actions {
 
 	private static dev.larattalabs.steward.view.SettlementView.Site site(dev.larattalabs.architect.api.Sites sites, dev.larattalabs.architect.api.SiteView v) {
 		var ext = v.ext();
+		// (8bS) Architect 8b's BuildStatus (feature buildStatus): the row's state and the map's fill
+		var st = MapShapes.status(v);
 		java.util.function.Function<String, String> str = k -> ext != null && ext.has(k) && ext.get(k).isJsonPrimitive() ? ext.get(k).getAsString() : null;
 		var b = v.box();
 		return new dev.larattalabs.steward.view.SettlementView.Site(v.id(), v.kind(), v.itemKey(), str.apply("steward_mc:role") != null ? str.apply("steward_mc:role") : Updates.recordedRole(v), Updates.lotIdOf(v), v.blueprintId(),
 			v.version(), v.headVersion(), v.deviations(), v.state().name().toLowerCase(), v.updating(), b.minX(), b.minZ(), b.maxX(), b.maxZ(), Revert.previousVersion(sites, v.id()),
-			b.minY(), b.maxY());
+			b.minY(), b.maxY(), st == null ? null : st.state(), st == null ? null : st.reason(), st == null ? 0L : st.since());
 	}
 
 	/** A card as the JSON the screens and the fixtures use. */

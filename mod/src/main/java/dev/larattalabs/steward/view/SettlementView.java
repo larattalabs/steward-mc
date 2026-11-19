@@ -16,7 +16,7 @@ import org.jspecify.annotations.Nullable;
 public record SettlementView(String id, String name, boolean described, boolean busy, ClaimInfo claim, String permission, String difficulty,
 	List<Building> buildings, int roads, List<Op> history, int historyTotal, double weeklyUsd, double spentWeekUsd, List<DistrictInfo> districts, List<AreaInfo> areas,
 	List<DistrictInfo> proposed, List<String> stockpile, List<PlayerBuildInfo> playerBuilds, dev.larattalabs.steward.inbox.@org.jspecify.annotations.Nullable Attention attention,
-	@Nullable UndoTarget undo) {
+	@Nullable UndoTarget undo, @Nullable List<MapShape> map) {
 	public SettlementView {
 		districts = districts == null ? List.of() : districts;
 		// districts waiting in the inbox, where they would go (survey mode previews them)
@@ -57,7 +57,60 @@ public record SettlementView(String id, String name, boolean described, boolean 
 	/** This view with its undo target (the server's {@code Actions.view} reads it; {@link #of} is pure and leaves it null). */
 	public SettlementView withUndo(@Nullable UndoTarget target) {
 		return new SettlementView(id, name, described, busy, claim, permission, difficulty, buildings, roads, history, historyTotal, weeklyUsd, spentWeekUsd, districts,
-			areas, proposed, stockpile, playerBuilds, attention, target);
+			areas, proposed, stockpile, playerBuilds, attention, target, map);
+	}
+
+	/**
+	 * (slice 8bS) This view with its map's shapes (Architect 8b's {@code Regions.layout}): sent with the settlement screen (on open and its refreshes),
+	 * never in the two-second in-world view. Null: none read.
+	 */
+	public SettlementView withMap(@Nullable List<MapShape> shapes) {
+		return new SettlementView(id, name, described, busy, claim, permission, difficulty, buildings, roads, history, historyTotal, weeklyUsd, spentWeekUsd, districts,
+			areas, proposed, stockpile, playerBuilds, attention, undo, shapes == null ? null : List.copyOf(shapes));
+	}
+
+	/**
+	 * (slice 8bS) One shape of a region's plan on the settlement map, from Architect 8b's {@code RegionLayout} (hidden parts never sent): a lot (a pad,
+	 * before its building stands), a route (its polyline) or a connector (its two ends). {@code kind} {@code lot}, {@code route} or {@code connector};
+	 * {@code ends} x, z pairs; {@code site} the building standing on a lot, else null; {@code status} and {@code reason} its {@code BuildStatus}'s.
+	 */
+	public record MapShape(String part, String kind, @Nullable String lot, int minX, int minZ, int maxX, int maxZ, List<Integer> ends, @Nullable String site,
+		String status, @Nullable String reason) {
+		public MapShape {
+			ends = ends == null ? List.of() : List.copyOf(ends);
+			status = status == null ? "planned" : status;
+		}
+	}
+
+	/**
+	 * (slice 8bS) A building's or shape's state in the steward's words, from its {@code BuildStatus} ({@code status}, {@code reason}): the dot family
+	 * ({@code done}, {@code working}, {@code waiting}, {@code idle}, {@code error}) and the words. Never Architect's {@code say}. Pure.
+	 */
+	public static String[] statusWords(String status, @Nullable String reason) {
+		return switch (status) {
+			case "built" -> new String[] {"done", "built"};
+			case "placing" -> new String[] {"working", "being placed"};
+			case "building" -> new String[] {"working", "under construction"};
+			case "removing" -> new String[] {"working", "being taken down"};
+			case "removed" -> new String[] {"idle", "taken down"};
+			case "paused" -> new String[] {"idle", "paused"};
+			case "planned" -> new String[] {"idle", "planned"};
+			case "failed" -> new String[] {"error", "not built"};
+			case "waiting" -> new String[] {"waiting", switch (reason == null ? "" : reason) {
+				case "materials" -> "waiting for materials";
+				case "bill_cap" -> "held at the bill you approved";
+				case "fill_blocked" -> "waiting for its containers to be emptied";
+				case "txn_held" -> "held by an unfinished change";
+				case "terrain" -> "waiting for its land to be shaped";
+				case "stage" -> "waiting for an earlier part";
+				case "approval" -> "waiting for your approval";
+				case "not_loaded" -> "waiting for its ground to load";
+				case "occupied" -> "waiting for its lot to clear";
+				case "player_in_box" -> "waiting for someone to step off its lot";
+				default -> "waiting";
+			}};
+			default -> new String[] {"idle", status};
+		};
 	}
 
 	/** The History tab's word for an operation's kind: every kind has its own ("Note" is NOTE's). */
@@ -99,8 +152,34 @@ public record SettlementView(String id, String name, boolean described, boolean 
 	 * One placed building. {@code version} the version of its design it stands at, {@code head} the newest; {@code edits} cells the player changed that updates
 	 * keep; {@code state} Architect's site state (planned, building, built, ...); the box is its footprint in world x/z.
 	 */
+	/**
+	 * (slice 8bS) {@code status}, {@code reason}, {@code since}: Architect 8b's {@code BuildStatus} of its site (state, why it waits, the game tick the
+	 * wait began, 0 when not waiting); null status from an Architect before 8b (then {@code state} alone).
+	 */
 	public record Building(String siteId, String role, @Nullable String lot, String entry, int version, int head, int edits, String state, boolean updating,
-		int minX, int minZ, int maxX, int maxZ, List<String> ops, int previous, int heldFrom, int minY, int maxY, @Nullable String district) {
+		int minX, int minZ, int maxX, int maxZ, List<String> ops, int previous, int heldFrom, int minY, int maxY, @Nullable String district,
+		@Nullable String status, @Nullable String reason, long since) {
+		public Building(String siteId, String role, @Nullable String lot, String entry, int version, int head, int edits, String state, boolean updating,
+			int minX, int minZ, int maxX, int maxZ, List<String> ops, int previous, int heldFrom, int minY, int maxY, @Nullable String district) {
+			this(siteId, role, lot, entry, version, head, edits, state, updating, minX, minZ, maxX, maxZ, ops, previous, heldFrom, minY, maxY, district, null, null, 0L);
+		}
+
+		/**
+		 * (8bS) The row's dot family and words: updating, then a wait, pause or removal (its {@code BuildStatus}), then a newer version, then built at
+		 * its version. Without a status (an Architect before 8b), from {@code state}. Pure.
+		 */
+		public String[] stateWords() {
+			if (updating) return new String[] {"working", "updating"};
+			if (status != null && !"built".equals(status)) return statusWords(status, reason);
+			if (updateAvailable()) return new String[] {"waiting", "update to v" + head};
+			if (status != null || "built".equals(state)) return new String[] {"done", "v" + version};
+			return switch (state) {
+				case "building" -> new String[] {"working", "under construction"};
+				case "placing" -> new String[] {"working", "being placed"};
+				default -> new String[] {"idle", state};
+			};
+		}
+
 		/** A newer version the player has not reverted away from. */
 		public boolean updateAvailable() {
 			return head > version && head > heldFrom;
@@ -131,8 +210,15 @@ public record SettlementView(String id, String name, boolean described, boolean 
 
 	/** A site as the server reads it from Architect ({@code SiteView}), reduced to what the view needs. */
 	/** {@code previous}: the version it stood at before this one (0: none, it was placed at this one). */
+	/** (8bS) {@code status}, {@code reason}, {@code since}: its {@code BuildStatus}'s (null status: an Architect before 8b). */
 	public record Site(String id, String kind, @Nullable String itemKey, @Nullable String role, @Nullable String lot, String entry, int version, int head, int deviations,
-		String state, boolean updating, int minX, int minZ, int maxX, int maxZ, int previous, int minY, int maxY) {
+		String state, boolean updating, int minX, int minZ, int maxX, int maxZ, int previous, int minY, int maxY, @Nullable String status, @Nullable String reason,
+		long since) {
+		public Site(String id, String kind, @Nullable String itemKey, @Nullable String role, @Nullable String lot, String entry, int version, int head, int deviations,
+			String state, boolean updating, int minX, int minZ, int maxX, int maxZ, int previous, int minY, int maxY) {
+			this(id, kind, itemKey, role, lot, entry, version, head, deviations, state, updating, minX, minZ, maxX, maxZ, previous, minY, maxY, null, null, 0L);
+		}
+
 		public Site(String id, String kind, @Nullable String itemKey, @Nullable String role, @Nullable String lot, String entry, int version, int head, int deviations,
 			String state, boolean updating, int minX, int minZ, int maxX, int maxZ, int previous) {
 			this(id, kind, itemKey, role, lot, entry, version, head, deviations, state, updating, minX, minZ, maxX, maxZ, previous, 0, 0);
@@ -186,7 +272,7 @@ public record SettlementView(String id, String name, boolean described, boolean 
 			at.ifPresent(d -> perDistrict.merge(d.id(), 1, Integer::sum));
 			String in = at.map(Settlement.District::name).orElse(null);
 			buildings.add(new Building(x.id(), role, x.lot(), x.entry(), x.version(), x.head(), x.deviations(), x.state(), x.updating(), x.minX(), x.minZ(), x.maxX(),
-				x.maxZ(), ops, x.previous(), s.revertedFrom(x.id()), x.minY(), x.maxY(), in));
+				x.maxZ(), ops, x.previous(), s.revertedFrom(x.id()), x.minY(), x.maxY(), in, x.status(), x.reason(), x.since()));
 		}
 		buildings.sort(Comparator.comparing(Building::role).thenComparing(Building::siteId));
 		List<Op> history = new ArrayList<>();
@@ -203,7 +289,7 @@ public record SettlementView(String id, String name, boolean described, boolean 
 		}
 		List<AreaInfo> areas = s.lands().protect().stream().map(a -> new AreaInfo(a.id(), a.label(), a.x0(), a.z0(), a.x1(), a.z1())).toList();
 		return new SettlementView(s.id(), s.name(), s.described(), busy, claim, s.permission().name(), s.difficulty().name(), List.copyOf(buildings), roads,
-			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()), List.copyOf(districts), areas, List.copyOf(proposed), List.copyOf(stockpile), List.copyOf(playerBuilds), attention, null);
+			List.copyOf(history), log.size(), s.autonomy().weeklyUsd(), s.autonomy().spentInWeek(System.currentTimeMillis()), List.copyOf(districts), areas, List.copyOf(proposed), List.copyOf(stockpile), List.copyOf(playerBuilds), attention, null, null);
 	}
 
 	public String toJson() {

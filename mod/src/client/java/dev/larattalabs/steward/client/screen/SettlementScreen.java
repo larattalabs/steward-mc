@@ -204,16 +204,19 @@ public final class SettlementScreen extends KitScreen {
 
 	// ------------------------------------------------------------------ buildings
 
-	/** A building's dot family and state word. */
+	/** A building's dot family and state word: (slice 8bS) from its Architect BuildStatus ({@link Building#stateWords}), with how long a wait has held. */
 	static String[] state(Building b) {
-		if (b.updating()) return new String[] {"working", "updating"};
-		if (b.updateAvailable()) return new String[] {"waiting", "update to v" + b.head()};
-		return switch (b.state()) {
-			case "built" -> new String[] {"done", "v" + b.version()};
-			case "building" -> new String[] {"working", "under construction"};
-			case "placing" -> new String[] {"working", "being placed"};
-			default -> new String[] {"idle", b.state()};
-		};
+		String[] st = b.stateWords();
+		String ago = "waiting".equals(st[0]) && "waiting".equals(b.status()) ? waited(b.since()) : "";
+		return ago.isEmpty() ? st : new String[] {st[0], st[1] + " · " + ago};
+	}
+
+	/** (8bS) How long a wait has held, from its {@code since} game tick ("for 3 min"); "" when not known. */
+	static String waited(long since) {
+		var mc = net.minecraft.client.Minecraft.getInstance();
+		if (since <= 0 || mc.level == null) return "";
+		long min = Math.max(0, mc.level.getGameTime() - since) / 1200;
+		return min < 1 ? "" : "for " + min + " min";
 	}
 
 	private void drawBuildings(GuiGraphicsExtractor g, int x, int y, int w, int h, int mx, int my) {
@@ -263,7 +266,7 @@ public final class SettlementScreen extends KitScreen {
 	/** A map footprint's fill for its state's family (each mark also gets a dark edge: at least 3:1 against the inset whatever its fill). */
 	static int fill(String family) {
 		return switch (family) {
-			case "waiting" -> UiStyle.CLAY;
+			case "waiting", "error" -> UiStyle.CLAY;
 			case "working" -> UiStyle.BRASS;
 			case "done" -> UiStyle.SAGE;
 			default -> IDLE;
@@ -286,7 +289,7 @@ public final class SettlementScreen extends KitScreen {
 
 	/** What the map's marks mean, in two columns of three under it: the four states, the claim's edge and the stone. */
 	private void drawLegend(GuiGraphicsExtractor g, int x, int y, int w) {
-		String[][] items = {{"done", "built"}, {"working", "building"}, {"waiting", "update"}, {"idle", "idle"}, {"claim", "claim"}, {"stone", "stone"}};
+		String[][] items = {{"done", "built"}, {"working", "building"}, {"waiting", "update"}, {"idle", "planned"}, {"claim", "claim"}, {"stone", "stone"}};
 		int col = w / 2;
 		for (int i = 0; i < items.length; i++) {
 			int ix = x + (i % 2) * col, iy = y + (i / 2) * 11;
@@ -314,6 +317,14 @@ public final class SettlementScreen extends KitScreen {
 			minZ = Math.min(minZ, b.minZ());
 			maxZ = Math.max(maxZ, b.maxZ());
 		}
+		// (8bS) the plan's pads, routes and connectors (Architect's layout) count too
+		var shapes = view.map() == null ? List.<SettlementView.MapShape>of() : view.map();
+		for (var m : shapes) {
+			minX = Math.min(minX, m.minX());
+			maxX = Math.max(maxX, m.maxX());
+			minZ = Math.min(minZ, m.minZ());
+			maxZ = Math.max(maxZ, m.maxZ());
+		}
 		int half = Math.max(Math.max(Math.abs(minX - c.centerX()), Math.abs(maxX - c.centerX())), Math.max(Math.abs(minZ - c.centerZ()), Math.abs(maxZ - c.centerZ()))) + 12;
 		half = Math.min(Math.max(half, 32), c.radius());
 		double scale = (size - 8) / (2.0 * half);
@@ -322,6 +333,7 @@ public final class SettlementScreen extends KitScreen {
 			int r = (int) (c.radius() * scale);
 			box(g, ox - r, oy - r, ox + r, oy + r, CLAIM_EDGE);
 		}
+		drawShapes(g, shapes, c.centerX(), c.centerZ(), ox, oy, scale);
 		for (Building b : view.buildings()) {
 			int x0 = ox + (int) Math.floor((b.minX() - c.centerX()) * scale), x1 = ox + (int) Math.ceil((b.maxX() + 1 - c.centerX()) * scale);
 			int z0 = oy + (int) Math.floor((b.minZ() - c.centerZ()) * scale), z1 = oy + (int) Math.ceil((b.maxZ() + 1 - c.centerZ()) * scale);
@@ -344,6 +356,37 @@ public final class SettlementScreen extends KitScreen {
 		String on = hovered != null ? hovered : selected;
 		String hint = on != null && view.building(on) != null ? view.building(on).role() : "north is up";
 		g.text(font, TextUtil.ellipsize(font, hint, size - 8), x + 4, y + size - 11, UiBits.muted(), false);
+	}
+
+	/**
+	 * (slice 8bS) The plan's shapes under the buildings: routes and connectors as lines, lots whose building isn't standing yet (pads) as footprints in
+	 * their state's colour (a pad planned). A lot with a building row is drawn by the row's footprint.
+	 */
+	private void drawShapes(GuiGraphicsExtractor g, List<SettlementView.MapShape> shapes, int cx, int cz, int ox, int oy, double scale) {
+		for (var m : shapes) {
+			String family = SettlementView.statusWords(m.status(), m.reason())[0];
+			List<Integer> e = m.ends();
+			if (!"lot".equals(m.kind()) && e.size() >= 4) {
+				for (int i = 0; i + 3 < e.size(); i += 2) line(g, ox + (int) Math.round((e.get(i) + 0.5 - cx) * scale), oy + (int) Math.round((e.get(i + 1) + 0.5 - cz) * scale),
+					ox + (int) Math.round((e.get(i + 2) + 0.5 - cx) * scale), oy + (int) Math.round((e.get(i + 3) + 0.5 - cz) * scale),
+					"connector".equals(m.kind()) ? MARK_EDGE : fill(family));
+				continue;
+			}
+			if (!"lot".equals(m.kind()) || m.site() != null && view.building(m.site()) != null) continue;
+			int x0 = ox + (int) Math.floor((m.minX() - cx) * scale), x1 = Math.max(ox + (int) Math.ceil((m.maxX() + 1 - cx) * scale), x0 + 3);
+			int z0 = oy + (int) Math.floor((m.minZ() - cz) * scale), z1 = Math.max(oy + (int) Math.ceil((m.maxZ() + 1 - cz) * scale), z0 + 3);
+			g.fill(x0, z0, x1, z1, fill(family));
+			box(g, x0, z0, x1, z1, MARK_EDGE);
+		}
+	}
+
+	/** A one-pixel line between two map points, in steps (the map is at most a couple of hundred pixels across). */
+	private static void line(GuiGraphicsExtractor g, int x0, int y0, int x1, int y1, int argb) {
+		int n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0));
+		for (int i = 0; i <= n; i++) {
+			int x = n == 0 ? x0 : x0 + (int) Math.round((x1 - x0) * (double) i / n), y = n == 0 ? y0 : y0 + (int) Math.round((y1 - y0) * (double) i / n);
+			g.fill(x, y, x + 1, y + 1, argb);
+		}
 	}
 
 	// ------------------------------------------------------------------ history
