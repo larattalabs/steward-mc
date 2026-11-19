@@ -1283,6 +1283,32 @@ async function districts(id) {
 }
 
 /**
+ * (slice DRS) Architect DR on a clean start: no suspects (dev.repair state), and an operator's /steward repair looks and answers that nothing is stuck,
+ * asking nothing to be repaired. The stuck case itself (an unclean halt with lagging cells) is Architect's dr-crash; the words and the op-only gate are
+ * Steward's units (StuckSitesTest, RemovalStopsTest).
+ */
+async function repairLook(id) {
+  const name = settlements().find((x) => x.id === id)?.name ?? id;
+  let st = null;
+  for (let i = 0; i < 30; i++) {
+    st = await dev.request('dev.repair', { op: 'state' }).catch((e) => ({ error: String(e) }));
+    if (st && st.startDone && st.pending === false) break;
+    await sleep(2000);
+  }
+  if (!st || st.error || !st.startDone || st.pending !== false) return fail('repair state', `the auto-diagnose never finished: ${JSON.stringify(st).slice(0, 300)}`);
+  if ((st.suspects ?? []).length) return fail('repair state', `a clean start has suspects: ${JSON.stringify(st.suspects).slice(0, 300)}`);
+  ok('repair state', 'clean start: no suspects, the auto-diagnose done');
+  let r = '';
+  for (let i = 0; i < 15; i++) {
+    r = await cmd(`/steward repair ${id}`);
+    if (!r.includes('still looking the world over')) break;
+    await sleep(2000);
+  }
+  if (r.includes(`Nothing of ${name} looks stuck.`)) ok('repair look', r);
+  else fail('repair look', r || '(no answer)');
+}
+
+/**
  * Talking to the steward (3b): a question it answers itself ($0), then made-up talk answers (no Claude) that put a building and a district in the inbox and
  * note a change; the talk box, with the conversation, in a picture.
  */
@@ -1783,9 +1809,15 @@ async function adoptedUpdate(id, founding, box) {
   from = logSize();
   await cmd(`/steward update ${id} ${cp.changeSite}`);
   const updated = await waitLog(from, /Updated [^\n]* to version (\d+)/, 120_000);
+  // the player steps out of the town first (as before every undo here): Architect refuses a revert while a player stands in or next to the site's
+  // restore box (PLAYER_IN_BOX: the update's south porch can reach the claim's centre, where the player stands), and then nothing is reverted
+  // (back to the very spot afterwards, so the rest of the flow runs from where it always has)
+  const pos = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+  await cmd(`/tp @p ${Math.round((box[0] + box[3]) / 2)} ~ ${box[2] - 24}`);
   from = logSize();
   await cmd(`/steward revert ${id} ${cp.changeSite} 1`);
   const reverted = await waitLog(from, /Reverted [^\n]* to version 1/, 120_000);
+  if (pos) await cmd(`/tp @p ${pos[1]} ${pos[2]} ${pos[3]}`);
   const site = await cmd(`/steward dev site ${cp.changeSite}`);
   const d = await dev.call('dev.region.hash', { box, mode: 'diff', file: snap }, { timeoutMs: 1_800_000 });
   const off = (d.list ?? []).filter((x) => !/^(growth|grazed)$/.test(String(x.class)));
@@ -2604,6 +2636,152 @@ async function groveFlow() {
   if (diff.mismatches === 1 + worlds.length && unexplained === 0 && mine.length === 1 && /cobblestone/.test(String(mine[0].now)))
     ok('grove undo', `${last.text}; the claim as it was (${box[3] - box[0] + 1}x${box[4] - box[1] + 1}x${box[5] - box[2] + 1}) but the player's cobblestone at ${lx},${ly},${lz}${worlds.length ? ` (and ${worlds.length} grass cell(s) grazed or spread away from the oak, the world's)` : ''}`);
   else fail('grove undo', `player's cell ${mine.length ? mine[0].now : 'not kept'}; ${diff.mismatches} cell(s) differ in all, e.g. ${other.filter((m) => !worlds.includes(m)).slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now} (${m.class}${oakCols.has(String(m.pos).split(',').filter((_, i) => i !== 1).join(',')) ? ', under the oak' : ''})`).join('; ').slice(0, 300)}`);
+}
+
+/**
+ * (slice 8aS, Architect v0.79.0 ST) The grove's plan in survival, a coral pond built from materials: since v0.41.0 a fluid op's decor bed billed the pond's
+ * shells free and its coral paid; 0.79.0 bills new plans by their compiled ops (`survival.opMap: "compiled"`): the shells paid, the coral free. The quote
+ * of the realise the approval places (its artifact and lot entries, logged before the approval) is read before anything is placed: no coral or sea pickle
+ * in it, the pond's piece billing its shells. Fed what it asks for, the build draws exactly that quote, item for item, and no coral. Players are told
+ * nothing of past bills (Noah, 2026-11-16: no refund, no notice). The ground's time line and the terrain wait (8aS) are recorded when said.
+ */
+async function groveCoralFlow() {
+  const label = 'grove coral bill';
+  const CORAL = /coral|sea_pickle/;
+  // Architect builds a region from materials only in a survival world: its toggle on and the world's default mode not creative (the player stays creative)
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  let stop = false, feeder = null;
+  try {
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 37500 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+    card.name = 'Coral Hamlet';
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'grove_pond.json'), 'utf8')).answer)}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a hamlet under a great oak, with a coral pond`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+    const composed = await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after[^\n]*`), 240_000);
+    if (!composed) return fail(label, 'no plan composed');
+    if (!/ 0 pending, 0 unfit/.test(composed[0])) return fail(label, `the giant oak, the pond and its coral didn't all fit: ${composed[0].slice(0, 160)}`);
+    const diff = settlements().find((x) => x.id === id)?.difficulty;
+    if (diff !== 'SUPPLIED') return fail(label, `difficulty ${diff} in a survival world`);
+    await closeScreens();
+    await clearAnimals();
+    const claim = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
+    const owner = `steward_mc:settlement/${id}`;
+    const ledger = async () => {
+      const r = await cmd(`/steward dev stockpile ${id}`);
+      const m = r.match(/stockpile \S+ (\{.*\})/);
+      return m ? unweathered(JSON.parse(m[1])) : null;
+    };
+    const units = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    const corals = (o) => Object.keys(o ?? {}).filter((k) => CORAL.test(k));
+    from = logSize();
+    await cmd(`/steward start ${id} 5 30`);
+    // the feeder: what the build asks for, until it is done (the quote is read at the approval, before anything is placed). Never the whole bill at
+    // once: a region target builds in runs, each placed only once its whole bill is in stock (at most a quarter of the stockpile, Architect RS),
+    // and the oak's ~2500 leaves and ~900 logs alone fill the 2 crates (54 of 54 stacks) while its current run waits for oak wood and dirt that then
+    // never fit. So first what the targets' current runs reserve (dev.rs.state), then the rest of the need only while a quarter of the stockpile
+    // stays free for the next run. It only paces the feed; what is drawn, and the bill, are unchanged.
+    const fed = { polls: 0, full: 0, last: null };
+    const regionOf = () => {
+      const t = logSince(from);
+      const i = t.indexOf(`realise ${id}: artifact`);
+      return i < 0 ? null : /Queued region (rg\d+) as batch/.exec(t.slice(i))?.[1] ?? null;
+    };
+    feeder = (async () => {
+      while (!stop) {
+        await sleep(3000);
+        const sp = await ledger().catch(() => null);
+        if (!sp || !Object.keys(sp.need ?? {}).length) continue;
+        fed.polls++;
+        const region = regionOf();
+        const rs = region ? await dev.request('dev.rs.state', { region }, { timeoutMs: 120_000 }).catch(() => null) : null;
+        const want = {};
+        for (const t of rs?.targets ?? []) if (!t.done) for (const [k, n] of Object.entries(t.reserving ?? {})) want[k] = (want[k] ?? 0) + n;
+        const give = Object.fromEntries(Object.entries(want).map(([k, n]) => [k, Math.min(sp.need[k] ?? 0, n - (sp.stock?.[k] ?? 0))]).filter(([, n]) => n > 0));
+        // the rest, a stack of each at a time, while a quarter of the stockpile stays free
+        let room = (sp.capacityStacks ?? 0) - Math.ceil((sp.capacityStacks ?? 0) / 4) - (sp.usedStacks ?? 0) - Object.values(give).reduce((x, n) => x + Math.ceil(n / 64), 0);
+        for (const [k, n] of Object.entries(sp.need)) {
+          if (room <= 0) break;
+          if (give[k] || (sp.stock?.[k] ?? 0) >= 64) continue;
+          give[k] = Math.min(n, 64);
+          room--;
+        }
+        if (!Object.keys(give).length) continue;
+        const r = await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: give }).catch((e) => ({ error: String(e) }));
+        if (!units(r?.accepted ?? {}) && fed.full++ === 0) console.log(`(${label}: the stockpile took none of ${units(give)} items: ${sp.usedStacks} of ${sp.capacityStacks} stacks used; ${JSON.stringify(r).slice(0, 120)})`);
+        fed.last = `${sp.usedStacks}/${sp.capacityStacks} stacks, ${units(sp.need)} still needed, runs reserve ${JSON.stringify(want).slice(0, 160)}`;
+      }
+    })();
+    let sha = null, entries = null, quote = null, sp0 = null;
+    const onStep = async (step) => {
+      if (step !== 'Approve to place' || quote) return;
+      const m = new RegExp(`placement ${id}: artifact ([0-9a-f]{64}) entries (\\{[^\\n]*\\})`).exec(logSince(from));
+      if (!m) return;
+      sha = m[1];
+      entries = JSON.parse(m[2]);
+      quote = await dev.request('dev.region.quote', { sha, lotEntries: entries }, { timeoutMs: 300_000 }).catch((e) => ({ refused: String(e?.message ?? e) }));
+      sp0 = await ledger();
+    };
+    const built = await buildThrough(id, from, label, false, onStep, 1_200_000);
+    if (!built) return console.log(`(${label} feeder: ${fed.polls} poll(s) owing, ${fed.full} took nothing; last ${fed.last})`);
+    if (!quote) return fail(label, `no placement line before the approval (artifact and entries); ${chatTail(from)}`);
+    if (quote.refused) return fail(label, `the realise's quote was refused: ${quote.refused} ${quote.reason ?? ''}`);
+    // (1) the quote: survival, no coral anywhere in it, the pond's piece billing its shells
+    const pieces = Object.entries(quote.bomParts ?? {});
+    const pond = pieces.filter(([k]) => /pond/.test(k) && !/reef/.test(k));
+    const reef = pieces.filter(([k]) => /reef/.test(k));
+    const pondUnits = pond.reduce((a, [, v]) => a + units(v), 0), reefUnits = reef.reduce((a, [, v]) => a + units(v), 0);
+    const coralQuoted = [...corals(quote.bom), ...pieces.flatMap(([k, v]) => corals(v).map((c) => `${k}:${c}`))];
+    if (quote.survival && coralQuoted.length === 0 && pondUnits > 0 && reefUnits === 0)
+      ok(label, `the pond's shells billed (${pond.map(([k, v]) => `${k} ${JSON.stringify(v)}`).join('; ').slice(0, 160)}), its coral free; ${units(quote.bom)} items quoted, exact ${quote.exact}`);
+    else return fail(label, `survival ${quote.survival}; coral quoted ${coralQuoted.join(', ') || 'none'}; pond pieces ${pond.map(([k]) => k).join(', ') || 'none'} (${pondUnits} units); reef ${reefUnits}; pieces ${pieces.map(([k]) => k).join(', ').slice(0, 200)}`);
+    // the realise bound the entries the quote was read with
+    const realised = new RegExp(`realise ${id}: artifact ${sha} under key \\S+ \\(first\\) entries (\\{[^\\n]*\\})`).exec(logSince(from));
+    const sameEntries = realised && JSON.stringify(JSON.parse(realised[1])) === JSON.stringify(entries);
+    // (2) fed in full: built, and what it drew equals the quote item for item (no coral)
+    const doneSaid = await waitLog(from, /Coral Hamlet is built: everything its plan laid out stands/, 900_000);
+    stop = true;
+    await feeder;
+    feeder = null;
+    const sp = await ledger();
+    const drew = Object.fromEntries(Object.entries(sp?.consumed ?? {}).map(([k, c]) => [k, c - (sp0?.consumed?.[k] ?? 0)]).filter(([, c]) => c > 0));
+    const off = Object.keys({ ...drew, ...quote.bom }).filter((k) => (drew[k] ?? 0) !== (quote.bom[k] ?? 0)).map((k) => `${k} drew ${drew[k] ?? 0}/quoted ${quote.bom[k] ?? 0}`);
+    if (doneSaid && sameEntries && off.length === 0 && corals(drew).length === 0) ok(`${label} drawn`, `drew exactly the quote: ${units(drew)} items, no coral`);
+    else fail(`${label} drawn`, `${doneSaid ? 'built' : 'not built in 15 min'}; the realise's entries ${sameEntries ? 'the quoted ones' : realised ? 'differ from the quoted ones' : 'not logged'}; off ${off.slice(0, 8).join(', ') || 'none'}; coral drawn ${corals(drew).join(', ') || 'none'}; exact ${quote.exact} ${JSON.stringify(quote.notes ?? []).slice(0, 160)}`);
+    // (8aS) recorded when said: how long the ground takes, and a part waiting for its ground
+    const said = logSince(from);
+    const time = said.match(/The ground is shaped first, and free: [^\n]*/);
+    if (time) ok('ground time said', time[0].slice(0, 160));
+    const waitSaid = said.match(/[^\n\]]*'s? ground is being shaped first: [^\n]*/);
+    if (waitSaid) ok('terrain wait said', waitSaid[0].trim().slice(0, 160));
+    if (/mis-?bill|billed wrongly|refund for (?:the )?coral/i.test(said)) fail(label, 'a past bill was mentioned to the player (Noah: no notice)');
+    // taken up again (the claim left as it was for the flows after it)
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ + 60}`);
+    await cmd(`/steward undo ${id}`);
+    let last = null;
+    for (let i = 0; i < 300 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(2000);
+      last = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    if (last?.kind !== 'PROJECT_REMOVED') fail(`${label} undo`, `last op ${last?.kind}`);
+  } finally {
+    stop = true;
+    if (feeder) await feeder;
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
 }
 
 /**
@@ -9099,6 +9277,7 @@ try {
       await flow('districts', 'protect road layout', () => districts(id), ['proposals']);
       await flow('player-builds', 'protect', () => playerBuilds(id));
       await flow('talk', 'screens', () => talk(id));
+      await flow('repair', 'repair dr', () => repairLook(id));
     }
     else {
       // stub: the first settlement's whole paid flow; the flows after it build their own
@@ -9122,6 +9301,7 @@ try {
       await flow('irrigation', 'water farm', () => irrigationFlow());
       await flow('palette', 'material plan', () => paletteFlow());
       await flow('grove', 'plan', () => groveFlow());
+      await flow('grove-coral', 'plan survival stockpile bill', () => groveCoralFlow());
       await flow('districts-plan', 'district plan', () => districtsPlanFlow());
       await flow('plan-check', 'plan', () => planCheckFlow());
       await flow('survival', 'stockpile bill refund growth wall', () => survivalFlow());

@@ -14,7 +14,7 @@ rootProject.name = 'steward_mc'
 // lab-ui (dev.larattalabs:lab_ui), the shared client UI library (mod/DEV.md "lab-ui"). The same rule as AgentCraft's and Architect's. Where Gradle gets it:
 // 1. A lab-ui checkout, built as part of this build (composite includeBuild; Gradle swaps the Maven dependency for it),
 //    only when it is the release: clean (no uncommitted changes) and HEAD exactly at the tag v<lab_ui_version>. Looked
-//    for at ../../lab-ui from mod/ (lab-ui next to this repo in LarattaLabs) and ~/Developer/LarattaLabs/lab-ui (worktrees sit
+//    for at ../../lab-ui from mod/ (lab-ui next to this repo in LarattaLabs/Minecraft) and ~/Developer/LarattaLabs/Minecraft/lab-ui (worktrees sit
 //    deeper); any other state is skipped with a note.
 //    lab-ui development: -Plab_ui.dir=<path> or LAB_UI_DIR=<path> forces that checkout whatever its state (a loud warning
 //    says the nested lab_ui is then unreleased); -Plab_ui.dir=none turns checkouts off.

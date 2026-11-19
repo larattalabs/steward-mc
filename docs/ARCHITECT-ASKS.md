@@ -1859,3 +1859,16 @@ takes everything a module lot needs (plan/0 `lot.size`, `irrigate`, `field`, `ex
   build their cached runs during the load's reconcile before `server` is set, so the unpaid fill demand is left out of the outstanding.
 - **Steward's side (leftover):** the steward's words for that wait read "The the storage hall has waited a while for materials: ." (a doubled
   article and an empty list), while filling the stockpile can't help.
+
+### S-DRS-1: a typed cause for a removal stop (slice DRS, 2026-11-17)
+
+- **Ask:** `RegionView.removalStop()` says whether a removal wrote anything (NOT_STARTED, PARTIAL), but not why. NOT_STARTED covers a refused save
+  (Groups' "the removal of group <g> was not started: ..." blocker, which names chunk files), a player in a box, COVERED, an unloaded dimension, an
+  unreadable journal and the cargo blocker alike, and `removalStopReason()` is the same joined text. Could the stop carry a typed cause (an enum, or a
+  `Reason`, on `RegionView` and on `RemoveResult`), with `SAVE_REFUSED` among them? A site-group removal (`Sites.removeGroup`, no region) has no stop at
+  all today.
+- **Steward meanwhile:** what happened is read from the typed stop only. The words for a refused save ("the world couldn't be saved just now, nothing was
+  taken down; ask again") are picked by one narrow test on the fixed phrase " was not started: " (`RemovalStops.saveRefused`), read only under
+  NOT_STARTED (or, for a site group, with every site still standing), and the raw text is never shown or noted; every other stop is said as before. A
+  growth's take-up left UNDOING with a wait reads as waiting by its typed state, with its blocker, or "the world couldn't be saved just now" in place of a
+  refused save's raw text.

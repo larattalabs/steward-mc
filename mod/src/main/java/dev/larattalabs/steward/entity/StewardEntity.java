@@ -65,6 +65,13 @@ public final class StewardEntity extends PathfinderMob {
 			public boolean canUse() {
 				return plan == Plan.NONE && super.canUse();
 			}
+
+			@Override
+			protected net.minecraft.world.phys.@Nullable Vec3 getPosition() {
+				// (slice 8aS) never a stroll onto a part still being built
+				var v = super.getPosition();
+				return v == null || offLimits(v) != null ? null : v;
+			}
 		});
 		goalSelector.addGoal(4, new RandomLookAroundGoal(this));
 	}
@@ -151,8 +158,39 @@ public final class StewardEntity extends PathfinderMob {
 
 	// ------------------------------------------------------------------ what it does
 
-	/** What the steward is up to, picked by {@link LifeGoal} (in this order): a player waits on a decision, work, night, a seat, home. */
-	enum Plan { COME, WORK, SLEEP, SIT, HOME, NONE }
+	/**
+	 * What the steward is up to, picked by {@link LifeGoal} (in this order): off a part still being built, a player waits on a decision, work, night, a
+	 * seat, home.
+	 */
+	enum Plan { CLEAR, COME, WORK, SLEEP, SIT, HOME, NONE }
+
+	/**
+	 * (slice 8aS, Architect 8a HB, S-8a-1) The boxes of its settlement's parts still being built from the stockpile (staged terrain opens drops, fills leave
+	 * steps): it walks out of one it stands in, and never makes one its place. Read once a second ({@link #pick}).
+	 */
+	private java.util.List<net.minecraft.world.level.levelgen.structure.BoundingBox> keepOff = java.util.List.of();
+	/** Where it walks to stand clear of a part being built ({@link Plan#CLEAR}). */
+	private @Nullable BlockPos clearSpot;
+	/** How long it may try to walk clear before it steps out at once (ticks): a cut can leave it no way out on foot. */
+	static final int CLEAR_TICKS = 20 * 10;
+
+	/** The kept-off box that holds {@code v}, or null. */
+	private net.minecraft.world.level.levelgen.structure.@Nullable BoundingBox offLimits(net.minecraft.world.phys.Vec3 v) {
+		return dev.larattalabs.steward.service.TerrainBuild.holding(keepOff, net.minecraft.util.Mth.floor(v.x), net.minecraft.util.Mth.floor(v.y),
+			net.minecraft.util.Mth.floor(v.z));
+	}
+
+	/** {@code to} itself, or, when a part being built holds it, the nearest spot clear of it on the ground (from where the steward stands). */
+	private net.minecraft.world.phys.@Nullable Vec3 clearOf(net.minecraft.world.phys.@Nullable Vec3 to) {
+		if (to == null) return null;
+		var box = offLimits(to);
+		if (box == null) return to;
+		return net.minecraft.world.phys.Vec3.atBottomCenterOf(ground(dev.larattalabs.steward.service.TerrainBuild.clearOf(keepOff, box, BlockPos.containing(to))));
+	}
+
+	private BlockPos ground(BlockPos p) {
+		return new BlockPos(p.getX(), level().getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, p.getX(), p.getZ()), p.getZ());
+	}
 
 	private static final net.minecraft.network.syncher.EntityDataAccessor<Integer> POSTURE = net.minecraft.network.syncher.SynchedEntityData.defineId(StewardEntity.class,
 		net.minecraft.network.syncher.EntityDataSerializers.INT);
@@ -297,6 +335,14 @@ public final class StewardEntity extends PathfinderMob {
 	}
 
 	private Plan pick() {
+		if (!settlementId.isEmpty() && level() instanceof net.minecraft.server.level.ServerLevel sl)
+			keepOff = dev.larattalabs.steward.service.KeepOff.of(sl.getServer(), settlementId, sl.getGameTime());
+		var in = offLimits(position());
+		if (in != null) {
+			// it stands on a part still being built: off it first, to the nearest spot clear of it
+			if (plan != Plan.CLEAR || clearSpot == null) clearSpot = ground(dev.larattalabs.steward.service.TerrainBuild.clearOf(keepOff, in, blockPosition()));
+			return Plan.CLEAR;
+		}
 		if (summoner() != null) return Plan.COME;
 		if (work != null) return Plan.WORK;
 		BlockPos home = hasHome() ? getHomePosition() : blockPosition();
@@ -306,14 +352,14 @@ public final class StewardEntity extends PathfinderMob {
 				nextBedSearch = tickCount + 200;
 				bed = StewardSpots.bed(level(), home, BED_RADIUS);
 			}
-			if (bed != null) return Plan.SLEEP;
+			if (bed != null && offLimits(net.minecraft.world.phys.Vec3.atBottomCenterOf(bed)) == null) return Plan.SLEEP;
 		} else {
 			bed = null;
 		}
 		if (plan == Plan.SIT && planAge < SIT_TICKS) return Plan.SIT;
 		if (idleTicks > IDLE_BEFORE_SIT && plan != Plan.SIT) {
 			seat = StewardSpots.seat(level(), home, SEAT_RADIUS);
-			if (seat != null) return Plan.SIT;
+			if (seat != null && offLimits(net.minecraft.world.phys.Vec3.atBottomCenterOf(seat)) == null) return Plan.SIT;
 		}
 		if (hasHome() && distanceToSqr(home.getX() + 0.5, home.getY(), home.getZ() + 0.5) > HOME_RADIUS * HOME_RADIUS) return Plan.HOME;
 		return Plan.NONE;
@@ -327,6 +373,7 @@ public final class StewardEntity extends PathfinderMob {
 			setNoGravity(false);
 			setPos(getX(), Math.floor(getY()) + 1, getZ());
 		}
+		if (p != Plan.CLEAR) clearSpot = null;
 		plan = p;
 		planAge = 0;
 		settled = false;
@@ -338,6 +385,13 @@ public final class StewardEntity extends PathfinderMob {
 
 	/** Where it walks for its plan, or null (it stays). */
 	private net.minecraft.world.phys.@Nullable Vec3 target() {
+		if (plan == Plan.CLEAR) return clearSpot == null ? null : net.minecraft.world.phys.Vec3.atBottomCenterOf(clearSpot);
+		// (slice 8aS) a place on a part still being built is looked at from just clear of it
+		return clearOf(placeFor());
+	}
+
+	/** Where its plan's place is, kept-off parts aside. */
+	private net.minecraft.world.phys.@Nullable Vec3 placeFor() {
 		return switch (plan) {
 			case COME -> {
 				Player p = summoner();
@@ -354,14 +408,14 @@ public final class StewardEntity extends PathfinderMob {
 			case SLEEP -> bed == null ? null : net.minecraft.world.phys.Vec3.atBottomCenterOf(bed);
 			case SIT -> seat == null ? null : net.minecraft.world.phys.Vec3.atBottomCenterOf(seat);
 			case HOME -> hasHome() ? net.minecraft.world.phys.Vec3.atBottomCenterOf(getHomePosition()) : null;
-			case NONE -> null;
+			case CLEAR, NONE -> null;
 		};
 	}
 
 	/** How close is close enough for each plan. */
 	private double reach() {
 		return switch (plan) {
-			case COME -> 0.8;
+			case COME, CLEAR -> 0.8;
 			case WORK -> WORK_REACH;
 			case SLEEP, SIT -> 1.6;
 			case HOME -> HOME_RADIUS - 2;
@@ -452,6 +506,12 @@ public final class StewardEntity extends PathfinderMob {
 				getLookControl().setLookAt(t.x, t.y + 1, t.z);
 			}
 			if (settled || t == null) return;
+			// a cut or a fill left it no way off on foot: it steps out at once (as before a removal)
+			var in = plan == Plan.CLEAR && planAge > CLEAR_TICKS ? offLimits(position()) : null;
+			if (in != null && clearSpot != null) {
+				stepOutOf(in, clearSpot);
+				return;
+			}
 			double r = reach();
 			if (distanceToSqr(t) <= r * r) {
 				getNavigation().stop();

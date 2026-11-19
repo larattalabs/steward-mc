@@ -2748,7 +2748,14 @@ public final class SettlementRunner {
 			if (entries != null) { quoteDistrict(entries, autoApprove ? BillAsk.AUTO : BillAsk.BEFORE_APPROVAL); return; }
 		}
 		if (autoApprove) realiseVillage();
-		else feed(new Pipeline.BatchQueued(VPLAN_PENDING));
+		else {
+			// (slice 8aS) what the approval would place: the artifact and its lots' entries, so a check can quote that realise before it is placed
+			var entries = villageLotEntries();
+			String artifact = vPlanId == null ? null : dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
+			if (entries != null && artifact != null)
+				Steward.LOGGER.info("placement {}: artifact {} entries {}", settlement.id(), artifact, new com.google.gson.Gson().toJson(entries));
+			feed(new Pipeline.BatchQueued(VPLAN_PENDING));
+		}
 	}
 
 	/**
@@ -3593,7 +3600,9 @@ public final class SettlementRunner {
 			Steward.LOGGER.info("composed modules {} realise {} under {}: maxBillPerLot {}", settlement.id(), sha, opKey("vrealise"), perLot);
 			request = new dev.larattalabs.architect.api.ApprovedRealise(sha, realiseMode(sha), actor, fitting, opKey("vrealise"), ext, null).withMaxBillPerLot(perLot);
 		}
-		Steward.LOGGER.info("realise {}: artifact {} under key {} ({})", settlement.id(), sha, opKey("vrealise"), first ? "first" : "after a re-check");
+		// (slice 8aS) the lot entries it binds are logged too, so a check can quote the same realise (Architect's quoteApproved) against what it drew
+		Steward.LOGGER.info("realise {}: artifact {} under key {} ({}) entries {}", settlement.id(), sha, opKey("vrealise"), first ? "first" : "after a re-check",
+			new com.google.gson.Gson().toJson(fitting));
 		var sent = request;
 		// (LIFT-S, persist before mutate) the orders whose bounds are the lot caps saved before the realise is sent; unsaved, nothing is sent
 		if (!ComposedSteps.saveThen(this::persist, () -> sendApproved(sha, sent, lotEntries, actor, ext, first, session)))
@@ -4472,6 +4481,8 @@ public final class SettlementRunner {
 		var build = v.get().build();
 		if (build != null) {
 			if (!build.done()) say(String.format("Its construction sites stand: it's built as the stockpile feeds it (%.0f%% so far). I'll say when it's done.", build.percent()));
+			// (slice 8aS) the ground first (Architect 8a ST: staged terrain, free, at the world's rate): how long it takes
+			if (!build.done()) sayTerrainTime(build);
 			// watched even when it is already done (a stockpile fed in time: GM-c's drawbridge run): the watch says it fully built on its next read
 			MaterialRequests.watchBuild(settlement.id(), vRegionId);
 		}
@@ -4531,6 +4542,7 @@ public final class SettlementRunner {
 			String owed = b.outstanding().isEmpty() ? "" : " (the stockpile still owes " + Stockpiles.items(b.outstanding().entrySet().stream().toList(), 6)
 				+ " for what is being built)";
 			say("The addition's construction sites stand and are built from the stockpile as it's fed" + owed + ". I'll say when it's done.");
+			sayTerrainTime(b);
 		}
 		MaterialRequests.watchBuild(settlement.id(), v.id());
 	}
@@ -4706,6 +4718,13 @@ public final class SettlementRunner {
 			if (saidWaits.add(capped)) say(capped);
 			return;
 		}
+		// (slice 8aS, Architect 8a ST) a part waiting for the ground under it, staged terrain built over time: in the steward's words, once per wait
+		var terrain = TerrainBuild.terrainWait(e.ext());
+		if (terrain != null) {
+			String line = TerrainBuild.waitLine(e.ext());
+			if (line != null && saidWaits.add(TerrainBuild.waitKey(terrain))) say(line);
+			return;
+		}
 		// a stage wait (built from materials: a part waits for the parts it stands on): Architect's own sentence, said once
 		String stage = stageWait(e.ext());
 		if (stage != null) {
@@ -4722,6 +4741,18 @@ public final class SettlementRunner {
 			default -> {
 			}
 		}
+	}
+
+	/** (slice 8aS) How long a build's staged terrain takes, said when there is some left and Architect builds it over time ({@link TerrainBuild#FEATURE}). */
+	private void sayTerrainTime(dev.larattalabs.architect.api.RegionBuild b) {
+		boolean feature;
+		try {
+			feature = ArchitectApi.get().features().contains(TerrainBuild.FEATURE);
+		} catch (RuntimeException | LinkageError e) {
+			feature = false;
+		}
+		String line = TerrainBuild.timeLine(b, feature);
+		if (line != null) say(line);
 	}
 
 	/** Stage waits said this session (each sentence once: several items of a part wait alike). */
