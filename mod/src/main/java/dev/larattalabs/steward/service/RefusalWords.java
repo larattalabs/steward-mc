@@ -149,6 +149,68 @@ public final class RefusalWords {
 	}
 
 	/**
+	 * (raw-sweep) What a plan check's part reason code is ({@code plan.json $defs/reason.code}, not a {@link Reason}), in the steward's words (a clause,
+	 * no full stop); {@link #GENERIC} for a code with no words of its own. The reason's {@code message} is never read. Pure.
+	 */
+	static String planCode(@Nullable String code) {
+		if (code == null) return GENERIC;
+		return switch (code.strip().toUpperCase(Locale.ROOT)) {
+			case "SCHEMA", "UNKNOWN_REF", "CYCLE" -> "its plan doesn't hold together";
+			case "EXTENSION_BOUND", "UNSUPPORTED", "NO_PROGRAM" -> "this Architect can't build that kind of part";
+			case "NO_FEATURE" -> "the land has nothing it needs there (a slope, a river or a hill)";
+			case "NO_ROOM" -> "there is no room left for it";
+			case "OUT_OF_CLAIM" -> "it would go outside the claim";
+			case "OVERLAP" -> "another build stands where it goes";
+			case "PROTECTED" -> "it is in a protected area";
+			case "KEEP_OUT" -> "it would go where the plan keeps clear";
+			case "TOO_STEEP" -> "the ground is too steep";
+			case "WATER" -> "there is water where it goes";
+			case "UNREACHABLE" -> "it couldn't be reached from the street";
+			case "TOLERANCE" -> "the land is too far from what it needs";
+			case "DEPENDENCY" -> "a part it needs can't be built";
+			case "BUDGET", "LIMIT" -> "it is past what Architect may work out for one plan";
+			case "CANCELLED" -> "it was cancelled";
+			case "NO_GAP" -> "there is no gap for it to cross";
+			case "SPAN" -> "the gap is too wide or too narrow for it";
+			case "ANCHOR" -> "there is no firm ground to hold it";
+			case "HEADROOM" -> "there isn't room above it";
+			case "MOVER" -> "villagers couldn't get across it";
+			case "NO_COVER" -> "there isn't enough rock over it";
+			case "VOLUME" -> "Architect couldn't read all the rock it goes through";
+			case "LEAK" -> "its water would spill where it shouldn't";
+			case "FIRE" -> "it would put something that burns too near fire";
+			case "VOCAB", "PALETTE" -> "the style doesn't fit the town's rules";
+			case "SURVIVAL" -> "it has blocks that can't be built in survival";
+			case "NO_CLIMB" -> "the ground doesn't rise enough for it";
+			case "AUTHORED_STALE" -> "the land changed since it was planned";
+			default -> GENERIC;
+		};
+	}
+
+	/** (raw-sweep) What a plan check's part class ({@code partAnswer.class}) that isn't {@code fits} or {@code adjusted} means, in the steward's words. Pure. */
+	static String planClass(@Nullable String cls) {
+		return switch (cls == null ? "" : cls.strip().toLowerCase(Locale.ROOT)) {
+			case "unsupported" -> "this Architect can't build it";
+			case "blocked" -> "something stands in its way";
+			case "malformed" -> "its plan doesn't hold together";
+			case "incomplete" -> "Architect ran out of time working it out";
+			case "refused" -> "it doesn't fit there";
+			default -> GENERIC;
+		};
+	}
+
+	/** (raw-sweep) A plan check's overall answer with no artifact, in the steward's words (never the enum's name). Pure. */
+	static String planOverall(dev.larattalabs.architect.api.PlanCheck.@Nullable Overall o) {
+		if (o == null) return "Architect's check gave no answer";
+		return switch (o) {
+			case MALFORMED -> "the plan doesn't hold together";
+			case INCOMPLETE -> "Architect ran out of time checking the plan";
+			case REQUIRED_BLOCKED -> "a part the plan needs can't be built here";
+			default -> "Architect's check came back with nothing to build from";
+		};
+	}
+
+	/**
 	 * Why a compose ended with no plan, from its result's typed {@code refused} code ({@code "NOT_ALLOWED: ..."}: the reason before the colon), or
 	 * null when it has none (the caller says its own generic line). A compose refused for another level than the Overworld is said so. Pure.
 	 */

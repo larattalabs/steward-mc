@@ -25,14 +25,15 @@ public final class CardService {
 	/** Starts a parse. Fails fast (with a message the player can read) when Architect's Claude link is not up. */
 	public CompletableFuture<CardResult> submit(String prompt, Map<String, String> chips, ConceptCardJob.Settings settings, String owner) {
 		if (!jobs.available()) {
-			return CompletableFuture.failedFuture(new IllegalStateException(
+			return CompletableFuture.failedFuture(new RefusalWords.Own(
 				"Architect's Claude link is not available (the helper is not running, or it has no API key or login). Open Architect and check its status line."));
 		}
 		JobSpec spec;
 		try {
 			spec = ConceptCardJob.build(prompt, chips, settings, owner);
 		} catch (IllegalArgumentException e) {
-			return CompletableFuture.failedFuture(e);
+			// (raw-sweep) Steward's own words (an empty or too long description): said as they are
+			return CompletableFuture.failedFuture(new RefusalWords.Own(e.getMessage()));
 		}
 		CompletableFuture<CardResult> out = new CompletableFuture<>();
 		jobs.run(spec).whenComplete((id, err) -> {

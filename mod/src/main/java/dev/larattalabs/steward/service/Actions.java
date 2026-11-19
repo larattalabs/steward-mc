@@ -143,7 +143,9 @@ public final class Actions {
 				describing.remove(id);
 				ServerPlayer p = server.getPlayerList().getPlayer(who);
 				if (err != null || !r.ok()) {
-					String why = err != null ? String.valueOf(err.getCause() != null ? err.getCause().getMessage() : err.getMessage()) : r.error();
+					// (raw-sweep) the steward's words (Steward's own refusal as it is, else the typed reason or the card's said line); the raw text to the log
+					Steward.LOGGER.info("card for {} failed: {}", id, err != null ? SettlementRunner.message(err) : r.error());
+					String why = err != null ? RefusalWords.of(err) : r.said();
 					if (p != null) {
 						p.sendSystemMessage(Component.literal("The card could not be made: " + why));
 						// back to the words, so the player can try again without retyping

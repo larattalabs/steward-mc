@@ -30,6 +30,17 @@ public record CardResult(@Nullable ConceptCard card, @Nullable String error, Cos
 		}
 	}
 
+	/**
+	 * (raw-sweep) Why the card failed, in the steward's words: {@link #error()} keeps the job's own text (its error, a parse exception) for the log,
+	 * never shown. Pure.
+	 */
+	public String said() {
+		String e = error == null ? "" : error;
+		if (e.contains("hit its budget")) return "reading it ran past its budget";
+		if (e.startsWith("the concept-card job did not finish")) return "Claude didn't finish reading it";
+		return "Claude's answer couldn't be read";
+	}
+
 	/** The card as chat lines for the player (the real card UI comes later): what Claude took each field to mean. */
 	public static List<String> lines(ConceptCard c, Cost cost) {
 		List<String> l = new ArrayList<>();

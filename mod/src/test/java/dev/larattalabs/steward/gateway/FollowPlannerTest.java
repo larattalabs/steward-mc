@@ -95,7 +95,9 @@ class FollowPlannerTest {
 		assertTrue(FollowPlanner.refusalText("hut", "cottage", 2, refused("fit")).contains("larger"));
 		assertTrue(FollowPlanner.refusalText("hut", "cottage", 2, refused("check")).contains("check"));
 		assertTrue(FollowPlanner.refusalText("hut", "cottage", 2, refused("source_gone")).endsWith("is gone."));
-		assertTrue(FollowPlanner.refusalText("hut", "cottage", 2, refused("something_new")).contains("(something_new)"));
+		// (raw-sweep) an untyped refusal says no code of Architect's
+		assertTrue(FollowPlanner.refusalText("hut", "cottage", 2, refused("something_new")).endsWith("could not be followed."));
+		assertFalse(FollowPlanner.refusalText("hut", "cottage", 2, refused("something_new")).contains("something_new"));
 	}
 
 	@Test

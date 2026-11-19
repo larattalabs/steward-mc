@@ -106,7 +106,7 @@ public final class Districts {
 			if (!Session.is(session)) return;
 			if (err != null || !r.placed()) {
 				LAYING.remove(s.id());
-				say.accept("The road to " + label + " was refused: " + (err != null ? message(err) : reasons(r.refusals())));
+				say.accept("The road to " + label + " was refused: " + (err != null ? said(err) : reasons(r.refusals())) + ".");
 				return;
 			}
 			String siteId = r.siteId().orElse(null);
@@ -448,18 +448,19 @@ public final class Districts {
 			check = ArchitectAccess.api().regions().checkBeside(req);
 		} catch (RuntimeException | LinkageError e) {
 			LAYING.remove(s.id());
-			return "Architect can't check a district beside the town here (" + e.getMessage() + ").";
+			Steward.LOGGER.warn("beside check for {} could not be asked", s.id(), e);
+			return "Architect can't check a district beside the town here (" + RefusalWords.of(e) + ").";
 		}
 		check.whenComplete((v, err) -> server.execute(() -> {
 			if (!Session.is(session)) return;
 			LAYING.remove(s.id());
 			if (err != null) {
-				say.accept("Could not reserve " + label + ": " + message(err));
+				say.accept("Could not reserve " + label + ": " + said(err) + ".");
 				return;
 			}
 			if (!v.fits()) {
 				Steward.LOGGER.info("beside check for {} {}: {} {} {}", s.id(), dir, v.reason(), v.code(), v.message());
-				say.accept("Could not reserve " + label + ": " + besideRefusal(v.code(), v.message()));
+				say.accept("Could not reserve " + label + ": " + besideRefusal(v.code(), v.message(), v.reason()));
 				return;
 			}
 			Claim c = r.claim();
@@ -507,19 +508,43 @@ public final class Districts {
 		return id[0];
 	}
 
-	/** Architect's refusal of a beside plan in Steward's words (D3 §2.5's bracketed kinds), the message kept for the rest. */
+	/**
+	 * Architect's refusal of a beside plan in Steward's words (D3 §2.5's bracketed kinds). (raw-sweep) Architect's code and message are read only to
+	 * pick the words, never said: anything else is said by its typed reason ({@link RefusalWords#reason}), else the generic line.
+	 */
 	static String besideRefusal(@Nullable String code, String message) {
-		String m = message == null ? "" : message;
+		return besideRefusal(code, message, null);
+	}
+
+	/** As {@link #besideRefusal(String, String)}, with the verdict's typed reason for a refusal with no words of its own. Pure. */
+	static String besideRefusal(@Nullable String code, @Nullable String message, dev.larattalabs.architect.api.@Nullable Reason reason) {
+		String m = (code == null ? "" : code) + " " + (message == null ? "" : message);
 		if (code != null && code.startsWith("NO_JOIN")) {
 			if (m.contains("[apart]")) return "it would not touch the town.";
 			if (m.contains("[street]")) return "the town has no street to join yet.";
 			if (m.contains("[wall]")) return "the town's wall closes every way in (a gate would let a road through).";
 			if (m.contains("[route]") || m.contains("[budget]")) return "no road could be found from there to the town's street.";
+			return "it can't join the town's street from there.";
 		}
-		if ("PROTECTED".equals(code)) return "it would cross a protected area.";
-		if ("OVERLAP".equals(code)) return "something already stands there (" + m + ").";
-		if ("NO_ROOM".equals(code)) return "there isn't room for a street there.";
-		return m.isBlank() ? String.valueOf(code) : m;
+		if (code != null && code.startsWith("PROTECTED")) return "it would cross a protected area.";
+		if (code != null && code.startsWith("OVERLAP")) return "something already stands there.";
+		if (code != null && code.startsWith("NO_ROOM")) return "there isn't room for a street there.";
+		return RefusalWords.reason(reason) + ".";
+	}
+
+	/**
+	 * (raw-sweep) A failed beside plan in Steward's words: the {@link dev.larattalabs.architect.api.ArchitectRefused} in its cause chain read as
+	 * {@link #besideRefusal(String, String, dev.larattalabs.architect.api.Reason)} (its detail, else the code its message starts with), else {@link RefusalWords#of}.
+	 */
+	static String besideRefusal(Throwable err) {
+		for (Throwable t = err; t != null; t = t.getCause() == t ? null : t.getCause()) {
+			if (t instanceof dev.larattalabs.architect.api.ArchitectRefused ar) {
+				String msg = ar.getMessage() == null ? "" : ar.getMessage();
+				String code = !ar.detail().isBlank() ? ar.detail() : msg.matches("^[A-Z_]{3,}.*") ? msg.replaceFirst("^([A-Z_]+).*", "$1") : null;
+				return besideRefusal(code, msg, ar.reason());
+			}
+		}
+		return RefusalWords.of(err) + ".";
 	}
 
 	/**
@@ -638,7 +663,7 @@ public final class Districts {
 			if (e == null && rr.removed()) say.accept(why + ": the road was taken up again.");
 			else {
 				// (raw-text) Architect's error or blockers are logged, never said (a road's removal has no typed cause)
-				Steward.LOGGER.info("road {} of {} was not taken up: {}", siteId, s.id(), e != null ? message(e) : String.join(", ", rr.blockers()));
+				Steward.LOGGER.info("road {} of {} was not taken up: {}", siteId, s.id(), e != null ? SettlementRunner.message(e) : String.join(", ", rr.blockers()));
 				say.accept(why + ", and the road " + siteId + " could not be taken up" + (e != null ? " just now" : ": " + RemovalStops.IN_THE_WAY)
 					+ ". It is tried again later.");
 			}
@@ -682,7 +707,7 @@ public final class Districts {
 			if (!Session.is(session)) return;
 			if (err != null || !r.placed() || r.siteId().isEmpty()) {
 				LAYING.remove(settlementId);
-				say.accept("The road to " + d.get().name() + "'s street was refused: " + (err != null ? message(err) : reasons(r.refusals())));
+				say.accept("The road to " + d.get().name() + "'s street was refused: " + (err != null ? said(err) : reasons(r.refusals())) + ".");
 				return;
 			}
 			String siteId = r.siteId().get();
@@ -1090,11 +1115,14 @@ public final class Districts {
 	}
 
 	private static String reasons(List<dev.larattalabs.architect.api.Refusal> refusals) {
-		return refusals.isEmpty() ? "no reason given" : String.join("; ", refusals.stream().map(x -> x.message()).toList());
+		// (raw-sweep) each typed reason once in the steward's words (RefusalWords.fit); Architect's messages to the log only
+		if (!refusals.isEmpty()) Steward.LOGGER.info("road refused: {}", refusals.stream().map(x -> x.reason() + " " + x.message()).toList());
+		return RefusalWords.fit(refusals);
 	}
 
-	private static String message(Throwable err) {
+	/** (raw-sweep) A failed call in the steward's words ({@link RefusalWords#of}); Architect's error to the log only. */
+	private static String said(Throwable err) {
 		Steward.LOGGER.warn("district road failed", err);
-		return err.getCause() != null ? err.getCause().getMessage() : err.getMessage();
+		return RefusalWords.of(err);
 	}
 }

@@ -274,8 +274,11 @@ public final class SettlementRunner {
 		if (heldStage != null && vRegionId != null) {
 			String stage = heldStage, region = vRegionId;
 			ArchitectApi.get().regions().nudge(region, dev.larattalabs.architect.api.WaitAction.Kind.APPROVE_STAGE).whenComplete((r, err) -> server.execute(() -> {
-				if (err != null) say("Architect would not go on with the " + stage + " stage: " + message(err));
-				else if (!r.done()) say("Architect would not go on with the " + stage + " stage: " + r.message());
+				if (err != null) say("Architect would not go on with the " + stage + " stage: " + said("the stage go-on", err) + ".");
+				else if (!r.done()) {
+					Steward.LOGGER.info("{}: the {} stage's go-on was not done: {}", settlement.id(), stage, r.message());
+					say("Architect would not go on with the " + stage + " stage just now; approve it again in a moment.");
+				}
 				else heldStage = null;
 			}));
 			return "Approved: the " + stage + " stage is built as planned.";
@@ -840,7 +843,7 @@ public final class SettlementRunner {
 	static final long KEY_TRUST_MS = 25L * 24 * 3600_000;
 
 	private void recoverLater(int attempt, boolean live, String what, Throwable err) {
-		if (attempt + 1 >= RECOVER_TRIES) { interrupted(what + ": " + message(err)); return; }
+		if (attempt + 1 >= RECOVER_TRIES) { interrupted(what + " (" + said("the lookup of " + what, err) + ")"); return; }
 		recovering = true;
 		java.util.concurrent.CompletableFuture.delayedExecutor(5, java.util.concurrent.TimeUnit.SECONDS).execute(() -> server.execute(() -> {
 			recovering = false;
@@ -988,7 +991,7 @@ public final class SettlementRunner {
 				// a lookup that failed (the helper away) proves nothing: the cancel waits and asks again, keeping the build saved
 				if (err != null || pair == null) {
 					if (attempt + 1 >= RECOVER_TRIES) {
-						say("The cancel is waiting for Architect (" + (err == null ? "no answer" : message(err)) + "); the build stays saved. Cancel again later.");
+						say("The cancel is waiting for Architect (" + (err == null ? RefusalWords.NO_ANSWER : said("the cancel's lookup", err)) + "); the build stays saved. Cancel again later.");
 						return;
 					}
 					recovering = true;
@@ -1101,8 +1104,8 @@ public final class SettlementRunner {
 		say("Reading your description...");
 		// owned by the settlement-to-be (founded as DEV_ID once the card is in), so its cost is Steward's in Architect's jobs ledger, not Architect's own
 		cards.submit(prompt, Map.of(), new ConceptCardJob.Settings(false, "patron", CLAIM_RADIUS), Settlement.ownerOf(DEV_ID)).whenComplete((r, err) -> {
-			if (err != null) { abandon("Card failed: " + err.getMessage()); return; }
-			if (!r.ok()) { abandon("Card failed: " + r.error()); return; }
+			if (err != null) { abandon("Card failed: " + said("the concept card", err) + "."); return; }
+			if (!r.ok()) { Steward.LOGGER.info("concept card failed: {}", r.error()); abandon("Card failed: " + r.said() + "."); return; }
 			for (String l : CardResult.lines(r.card(), r.cost())) say(l);
 			surveyAndStart(r, buildings, budgetUsd);
 		});
@@ -1116,7 +1119,7 @@ public final class SettlementRunner {
 		var job = api.jobs().get(cardJobId).orElse(null);
 		if (g == null || job == null) { abandon("Unknown group or card job."); return; }
 		CardResult r = CardResult.interpret(job);
-		if (!r.ok()) { abandon("Card job unreadable: " + r.error()); return; }
+		if (!r.ok()) { Steward.LOGGER.info("concept card job {} unreadable: {}", cardJobId, r.error()); abandon("Card job unreadable: " + r.said() + "."); return; }
 		this.resumeGroup = g;
 		this.resumeBudget = newBudgetUsd;
 		surveyAndStart(r, buildings, newBudgetUsd);
@@ -1256,7 +1259,7 @@ public final class SettlementRunner {
 			ServerLevel level = level();
 			int cx = district != null ? district.claim().centerX() : existing != null ? existing.claim().centerX() : origin.getX();
 			int cz = district != null ? district.claim().centerZ() : existing != null ? existing.claim().centerZ() : origin.getZ();
-			if (err != null) { abandon("Survey failed: " + err.getMessage()); return; }
+			if (err != null) { abandon("Survey failed: " + said("the survey", err) + "."); return; }
 			Grid grid = TerrainGrid.fromSample(sample);
 			// what the settlement has built is taken ground (its buildings and its street), with a block's margin
 			if (existing != null) markSites(grid, existing, district);
@@ -1696,7 +1699,7 @@ public final class SettlementRunner {
 			bible == null ? null : bible.version(), LoadPolicy.LOADED_ONLY, settlement.owner(), ext, opKey("vplan"))).whenComplete((rp, err) -> server.execute(() -> {
 				if (!Session.is(session) || !alive()) return;
 				if (worldStopped(err)) return;
-				if (err != null) { abandon("Architect could not lay out the village: " + message(err)); return; }
+				if (err != null) { abandon("Architect could not lay out the village: " + said("the village plan", err) + "."); return; }
 				try {
 					// a north-south street: Steward's designs and growth know an east-west one, so its own layout is used (nothing is spent yet)
 					if (dev.larattalabs.steward.gateway.VPlan.northSouth(rp.lots())) {
@@ -1775,7 +1778,8 @@ public final class SettlementRunner {
 			if (!Session.is(session) || !alive()) return;
 			if (worldStopped(err)) return;
 			if (err != null) {
-				abandon("Architect could not lay out " + district.name() + ": " + Districts.besideRefusal(null, message(err)));
+				Steward.LOGGER.info("{}: the plan of {} failed: {}", settlement.id(), district.name(), message(err));
+				abandon("Architect could not lay out " + district.name() + ": " + Districts.besideRefusal(err));
 				return;
 			}
 			try {
@@ -1875,20 +1879,25 @@ public final class SettlementRunner {
 
 	/** As {@link #unbuildable(dev.larattalabs.architect.api.PlanCheck)}; a secret part (S-7c-4) is "a part of the plan", never its name. */
 	static @org.jspecify.annotations.Nullable String unbuildable(dev.larattalabs.architect.api.PlanCheck c, Secrets secrets) {
+		// (raw-sweep) each stuck part said by its typed class and first reason code in the steward's words (RefusalWords.planCode/planClass), never the tokens
 		List<String> stuck = new ArrayList<>();
+		boolean volume = false;
 		for (JsonObject part : c.parts()) {
 			String cls = part.has("class") ? part.get("class").getAsString() : "";
 			boolean required = part.has("required") && part.get("required").getAsBoolean();
 			String id = part.has("part") ? part.get("part").getAsString() : "?";
-			if (required && !cls.equals("fits") && !cls.equals("adjusted")) stuck.add((secrets.hides(id) ? "one part" : id.replace('_', ' ')) + " (" + cls
-				+ (part.has("reasons") && part.get("reasons").isJsonArray() && !part.getAsJsonArray("reasons").isEmpty()
-					&& part.getAsJsonArray("reasons").get(0).isJsonObject() && part.getAsJsonArray("reasons").get(0).getAsJsonObject().has("code")
-					? " " + part.getAsJsonArray("reasons").get(0).getAsJsonObject().get("code").getAsString() : "") + ")");
+			if (!required || cls.equals("fits") || cls.equals("adjusted")) continue;
+			String code = part.has("reasons") && part.get("reasons").isJsonArray() && !part.getAsJsonArray("reasons").isEmpty()
+				&& part.getAsJsonArray("reasons").get(0).isJsonObject() && part.getAsJsonArray("reasons").get(0).getAsJsonObject().has("code")
+				? part.getAsJsonArray("reasons").get(0).getAsJsonObject().get("code").getAsString() : null;
+			if ("VOLUME".equals(code)) volume = true;
+			String why = code != null && !RefusalWords.planCode(code).equals(RefusalWords.GENERIC) ? RefusalWords.planCode(code) : RefusalWords.planClass(cls);
+			stuck.add((secrets.hides(id) ? "one part" : id.replace('_', ' ')) + " (" + why + ")");
 		}
 		if (!stuck.isEmpty()) return "the plan's " + String.join(", ", stuck) + " can't be built here"
 			// a tunnel past the volume pass's caps: the rock under it couldn't all be read
-			+ (stuck.stream().anyMatch(x -> x.contains("VOLUME")) ? " (Architect couldn't read all the rock a tunnel goes through: stand nearer it and start again)" : "");
-		if (c.artifactSha() == null) return "Architect's check came back " + c.overall();
+			+ (volume ? " (Architect couldn't read all the rock a tunnel goes through: stand nearer it and start again)" : "");
+		if (c.artifactSha() == null) return RefusalWords.planOverall(c.overall());
 		return null;
 	}
 
@@ -1947,13 +1956,17 @@ public final class SettlementRunner {
 			if (!Session.is(session) || !alive()) return;
 			if (worldStopped(err)) return;
 			if (err != null) {
-				say("Architect could not check the plan (" + message(err) + ")" + (supplied ? "." : ": the village is laid out as usual."));
+				say("Architect could not check the plan (" + said("the plan check", err) + ")" + (supplied ? "." : ": the village is laid out as usual."));
 				otherwise.run();
 				return;
 			}
 			try {
 				String no = unbuildable(c, Secrets.of(built, null));
-				if (no != null) { abandon("The plan can't be built as it stands: " + no + ". Describe the settlement again for a new plan."); return; }
+				if (no != null) {
+					Steward.LOGGER.info("{}: the plan check came back {}: {}", settlement.id(), c.overall(), c.parts());
+					abandon("The plan can't be built as it stands: " + no + ". Describe the settlement again for a new plan.");
+					return;
+				}
 				// Architect builds a region from materials only in a survival world (its toggle on, the world's default mode not creative): its check says
 				// whether it ran in survival; otherwise the town would be refused at the realise, so Steward's own layout builds it from materials
 				// the check's mode is this build's: built from materials for a Supplied build, at once for a Patron one; the world's mode changed while it was
@@ -2053,7 +2066,7 @@ public final class SettlementRunner {
 				var d = ArchitectApi.get().designs();
 				if (resumeGroup.status() == Group.Status.DONE) { say("The group is already done; placing."); apply(Pipeline.step(state, new Pipeline.GroupUpdate(groupId, "done", Map.of(), List.of(), resumeGroup.cost().usd(), null), permission)); return; }
 				d.extendGroup(groupId, resumeBudget).thenCompose(v -> alive() ? d.resumeGroup(groupId) : java.util.concurrent.CompletableFuture.<Void>completedFuture(null))
-					.whenComplete((v, e) -> { if (e != null) say("Resume failed: " + e.getMessage()); });
+					.whenComplete((v, e) -> { if (e != null) say("Resume failed: " + said("the resume", e) + "."); });
 				noteMassings(resumeGroup);
 				for (Group.Item it : resumeGroup.items()) if (it.status() == dev.larattalabs.architect.api.Design.Status.DONE || it.stage().isPresent()) decided.add(decisionKey(it.itemKey()));
 				return;
@@ -2327,6 +2340,15 @@ public final class SettlementRunner {
 		return err.getCause() != null ? err.getCause().getMessage() : err.getMessage();
 	}
 
+	/**
+	 * (raw-sweep) A failed call's refusal in the steward's words ({@link RefusalWords#of}: its typed reason, Steward's own words, else the generic line);
+	 * Architect's text ({@link #message}) goes to the log only, with what failed.
+	 */
+	private String said(String what, Throwable err) {
+		Steward.LOGGER.info("{}: {} failed: {}", settlement == null ? DEV_ID : settlement.id(), what, message(err));
+		return RefusalWords.of(err);
+	}
+
 	/** (place-words) A design group's cancel that got no answer: the steward's words, Architect's error to the log only. */
 	static final String CANCEL_GROUP_WAITS = "Could not reach Architect to stop the design group. It is cancelled when Architect answers; cancel again to stop waiting.";
 
@@ -2521,7 +2543,7 @@ public final class SettlementRunner {
 						return;
 					}
 					if (err != null) {
-						say("Group failed: " + err.getMessage());
+						say("Group failed: " + said("the design group request", err) + ".");
 						// nothing reached Architect: the cancel finishes at once
 						feed(new Pipeline.Cancel());
 						return;
@@ -2547,7 +2569,7 @@ public final class SettlementRunner {
 				if (approve.isEmpty() && redirect.isEmpty() && cancel.isEmpty()) break;
 				api.designs().approveGroup(a.groupId(), approve, redirect, cancel, settlement.owner()).whenComplete((r, err) -> {
 					if (err == null) return;
-					say("Architect did not take that decision: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
+					say("Architect did not take that decision: " + said("the decision", err) + ".");
 					// automatic approvals are not retried (a refusal would repeat on every update)
 					if (!permission.needsApproval(Permission.Action.NEW_PROJECT)) return;
 					// the player's decision: forget it and re-read the group, so the pipeline waits for it again instead of moving on
@@ -2685,7 +2707,7 @@ public final class SettlementRunner {
 				else interrupted("the placement (Architect's answers keep getting lost; it may still be at work)");
 				return;
 			}
-			if (err != null) { say("Queue failed: " + err.getMessage()); feed(new Pipeline.Cancel()); return; }
+			if (err != null) { say("Queue failed: " + said("the placement batch", err) + "."); feed(new Pipeline.Cancel()); return; }
 			if (!alive() || state.phase().terminal()) { if (!Settlements.disabled()) sites.cancelBatch(id); return; }
 			batchId = id;
 			siteGroupId = sites.batch(id).map(BatchView::group).orElse(null);
@@ -2720,7 +2742,8 @@ public final class SettlementRunner {
 			try {
 				sites.approveStage(siteGroup, st.name());
 			} catch (IllegalStateException e) {
-				say("Stage " + st.name() + " could not be approved: " + e.getMessage());
+				Steward.LOGGER.info("{}: stage {} could not be approved: {}", settlement.id(), st.name(), e.getMessage());
+				say("Stage " + st.name() + " could not be approved: " + RefusalWords.of(e) + ".");
 			}
 		}
 	}
@@ -4386,7 +4409,8 @@ public final class SettlementRunner {
 				// (cancelVillage confirmed the cancel already: no realise was in flight and no region stood)
 				if (state == null || state.phase().terminal() || state.phase() == Pipeline.Phase.CANCELLING) return;
 				if (perr != null) {
-					say("Architect could not lay " + district.name() + " out again: " + Districts.besideRefusal(null, message(perr)));
+					Steward.LOGGER.info("{}: the new plan of {} failed: {}", settlement.id(), district.name(), message(perr));
+					say("Architect could not lay " + district.name() + " out again: " + Districts.besideRefusal(perr));
 					feed(new Pipeline.Cancel());
 					return;
 				}

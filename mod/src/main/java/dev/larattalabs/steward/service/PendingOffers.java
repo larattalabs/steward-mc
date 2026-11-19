@@ -489,7 +489,8 @@ public final class PendingOffers {
 			step.run();
 		} catch (RuntimeException e) {
 			Steward.LOGGER.warn("part {} of {} stopped", p.pendingPart(), s.id(), e);
-			fail(server, player, s, p, what, "its plan could not be read (" + e.getMessage() + ")");
+			// (raw-sweep) the exception is logged above, never said
+			fail(server, player, s, p, what, "its plan could not be read");
 		}
 	}
 

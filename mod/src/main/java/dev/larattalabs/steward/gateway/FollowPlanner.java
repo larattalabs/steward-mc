@@ -96,7 +96,8 @@ public final class FollowPlanner {
 			case "check" -> "did not pass Architect's check as a copy";
 			case "bible_gone" -> "needs a style bible that is gone";
 			case "source_gone" -> "is gone";
-			default -> "could not be followed (" + r.refused() + ")";
+			// (raw-sweep) an untyped refusal: never Architect's code (logged by Follows)
+			default -> "could not be followed";
 		};
 		return "The " + copyLot + " stays as it is: the " + sourceLot + "'s new design (v" + target + ") " + why + ".";
 	}

@@ -137,7 +137,7 @@ public final class Follows {
 		if (ChangeRequests.definite(err)) {
 			// a typed refusal of the whole call: said once; the key stays asked (a replay would answer the same)
 			Steward.LOGGER.warn("follow {}: {} refused: {}", settlementId, key, e.getMessage());
-			note(server, settlementId, FollowPlanner.callRefusedText(sourceLot, target, String.valueOf(e.getMessage())), List.of());
+			note(server, settlementId, FollowPlanner.callRefusedText(sourceLot, target, RefusalWords.of(err)), List.of());
 		} else {
 			// a lost answer: Architect resumes the saved operation; the next scan asks again with the same key, which replays it
 			Steward.LOGGER.warn("follow {}: {} lost its answer ({}); asked again on the next scan", settlementId, key, e.getMessage());

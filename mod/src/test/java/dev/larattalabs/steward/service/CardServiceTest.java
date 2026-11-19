@@ -130,4 +130,16 @@ class CardServiceTest {
 		assertTrue(all.contains("[infernal]"));
 		assertTrue(all.contains("Cost: $0.019"));
 	}
+
+	@Test
+	void stewardsOwnRefusalsOfADescriptionKeepTheirWords() {
+		// (raw-sweep) Steward's own words survive RefusalWords.of (the describe screen says them), never replaced by the generic line
+		FakeJobs jobs = new FakeJobs();
+		var empty = new CardService(jobs).submit(" ", Map.of(), SETTINGS, null);
+		var e = assertThrows(ExecutionException.class, empty::get);
+		assertEquals("the prompt is empty", RefusalWords.of(e));
+		jobs.available = false;
+		var down = assertThrows(ExecutionException.class, new CardService(jobs).submit("x", Map.of(), SETTINGS, null)::get);
+		assertTrue(RefusalWords.of(down).startsWith("Architect's Claude link is not available"), RefusalWords.of(down));
+	}
 }

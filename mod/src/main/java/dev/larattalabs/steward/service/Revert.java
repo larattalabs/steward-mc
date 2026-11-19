@@ -1,5 +1,6 @@
 package dev.larattalabs.steward.service;
 
+import dev.larattalabs.steward.Steward;
 import dev.larattalabs.steward.model.Words;
 import dev.larattalabs.architect.api.ArchitectApi;
 import dev.larattalabs.architect.api.SiteVersion;
@@ -52,8 +53,10 @@ public final class Revert {
 		sites.revert(siteId, toVersion, null).whenComplete((r, err) -> {
 			if (!Session.is(session)) return;
 			boolean ok = err == null && r.applied();
-			String why = err != null ? (err.getCause() != null ? err.getCause().getMessage() : err.getMessage())
-				: r.refusals().stream().map(x -> x.message()).reduce((a, b) -> a + "; " + b).orElse("refused");
+			// (raw-sweep) the steward's words for the typed refusal (RefusalWords); Architect's text to the log only
+			if (!ok) Steward.LOGGER.info("revert of {} to v{} refused: {}", siteId, toVersion, err != null ? SettlementRunner.message(err)
+				: r.refusals().stream().map(x -> x.reason() + " " + x.message()).toList());
+			String why = err != null ? RefusalWords.of(err) : RefusalWords.fit(r.refusals());
 			String msg = ok ? "Reverted " + lot + " to version " + r.toVersion() + " (" + Words.count(r.written(), "block", "blocks") + (r.kept().isEmpty() ? "" : ", " + r.kept().size()
 				+ " of your edits kept") + ")." : "Could not revert " + lot + ": " + why;
 			var logged = Settlements.log(s.id(), Settlement.LogEntry.of(System.currentTimeMillis(), Settlement.Kind.REVERTED, msg, List.of(new Settlement.SiteChange(siteId, lot,
