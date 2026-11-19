@@ -243,6 +243,13 @@ public final class Growths {
 		return buildingLine(unbuilt(r, id -> sites.get(id).map(dev.larattalabs.architect.api.SiteView::state).orElse(null)), r.sites().size());
 	}
 
+	/** (raw-text) What a growth's take-up Architect refused (not waiting) says: a storage hall's words, else the steward's generic words. Pure. */
+	static String refusedLine(@Nullable String held, boolean error) {
+		if (held != null) return "The town's change could not be taken up: " + held + ".";
+		if (error) return "The town's change could not be taken up just now. Ask again in a moment.";
+		return "The town's change could not be taken up: " + RemovalStops.IN_THE_WAY + ". Ask again " + RemovalStops.tail(null) + ".";
+	}
+
 	/** Whether Architect's refusal is its survival_building one (a target still building: undo refused, nothing written). */
 	public static boolean buildingRefusal(@Nullable String message) {
 		return message != null && message.contains("survival_building");
@@ -375,7 +382,9 @@ public final class Growths {
 			// (8bS) its text is never shown (a refused save's raw text names chunk files); (RVC) what it waits for from the revision's typed cause
 			var after = regions.get(ref.region()).flatMap(v -> v.revisions().stream().filter(x -> x.rid() == ref.rid()).findFirst()).orElse(null);
 			if (held == null && RemovalStops.growthWaits(after)) { say.accept(RemovalStops.growthWaiting(RemovalStops.revisionCause(after))); done.accept(false); return; }
-			say.accept("The town's change could not be taken up: " + (held != null ? held + " (" + why + ")" : why) + ".");
+			// (raw-text) Architect's text is logged, never said: the hall's own words, else (no typed cause when not waiting) the generic line
+			Steward.LOGGER.info("undo growth {} of {} stopped: {}", ref.tag(), owner, why);
+			say.accept(refusedLine(held, err != null));
 			done.accept(false);
 		}));
 	}

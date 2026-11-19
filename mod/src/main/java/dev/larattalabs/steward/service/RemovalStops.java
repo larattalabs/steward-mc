@@ -93,8 +93,29 @@ public final class RemovalStops {
 		String said = causeWords(cause);
 		String taken = stop == RemovalStop.NOT_STARTED ? ", nothing was taken down"
 			: stop == RemovalStop.PARTIAL ? ", " + (part != null ? part + " were" : "part of it was") + " taken down" : "";
-		String next = saveRefused(cause) ? "Ask again with /steward undo " + settlementId + "." : "Clear it and run /steward undo " + settlementId + " again.";
-		return "Undo stopped" + (said != null ? " (" + said + ")" + taken : ": " + IN_THE_WAY + taken) + ". " + next;
+		return "Undo stopped" + (said != null ? " (" + said + ")" + taken : ": " + IN_THE_WAY + taken) + ". " + again(cause, "/steward undo " + settlementId);
+	}
+
+	/**
+	 * (raw-text) When a stopped removal can be asked again, for each typed cause: the one table every stop line ends with (an undo's, a cancel's). OTHER,
+	 * no cause or no feature: once it is clear. Pure.
+	 */
+	static String tail(@Nullable RemovalStopCause cause) {
+		if (cause == null) return "once it is clear";
+		return switch (cause) {
+			case SAVE_REFUSED -> "in a moment";
+			case PLAYER_IN_BOX -> "once they step out";
+			case COVERED -> "once what stands over it is taken down";
+			case CARGO -> "once what was added to its containers is taken out";
+			case THINGS_IN_BOX -> "once your things are moved out";
+			default -> "once it is clear";
+		};
+	}
+
+	/** (raw-text) The sentence a stop line ends with: ask again with {@code command} ("/steward undo set_1"), {@link #tail} for its cause. Pure. */
+	static String again(@Nullable RemovalStopCause cause, String command) {
+		if (saveRefused(cause)) return "Ask again with " + command + ".";
+		return "Run " + command + " again " + tail(cause) + ".";
 	}
 
 	/** (undo-words) What a stopped undo's closing note records: the steward's words for its typed cause, never Architect's text. Pure. */

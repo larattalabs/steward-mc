@@ -57,17 +57,17 @@ class RemovalStopsTest {
 			RemovalStops.undoStopped(RemovalStop.NOT_STARTED, RemovalStopCause.SAVE_REFUSED, "set_1"));
 		assertEquals("Undo stopped (the world couldn't be saved just now), part of it was taken down. Ask again with /steward undo set_1.",
 			RemovalStops.undoStopped(RemovalStop.PARTIAL, RemovalStopCause.SAVE_REFUSED, "set_1"));
-		assertEquals("Undo stopped (someone is standing in what it takes up), nothing was taken down. Clear it and run /steward undo set_1 again.",
+		assertEquals("Undo stopped (someone is standing in what it takes up), nothing was taken down. Run /steward undo set_1 again once they step out.",
 			RemovalStops.undoStopped(RemovalStop.NOT_STARTED, RemovalStopCause.PLAYER_IN_BOX, "set_1"));
-		assertEquals("Undo stopped (other buildings stand over part of it), part of it was taken down. Clear it and run /steward undo set_1 again.",
+		assertEquals("Undo stopped (other buildings stand over part of it), part of it was taken down. Run /steward undo set_1 again once what stands over it is taken down.",
 			RemovalStops.undoStopped(RemovalStop.PARTIAL, RemovalStopCause.COVERED, "set_1"));
-		assertEquals("Undo stopped (its containers hold more than was put in them), 2 of 5 sites were taken down. Clear it and run /steward undo set_1 again.",
+		assertEquals("Undo stopped (its containers hold more than was put in them), 2 of 5 sites were taken down. Run /steward undo set_1 again once what was added to its containers is taken out.",
 			RemovalStops.undoStopped(RemovalStop.PARTIAL, RemovalStopCause.CARGO, "set_1", "2 of 5 sites"));
-		assertEquals("Undo stopped (your things are in its way: filled containers, pets, item frames or dropped items). Clear it and run /steward undo set_1 again.",
+		assertEquals("Undo stopped (your things are in its way: filled containers, pets, item frames or dropped items). Run /steward undo set_1 again once your things are moved out.",
 			RemovalStops.undoStopped(null, RemovalStopCause.THINGS_IN_BOX, "set_1"), "no typed stop: nothing is claimed about what was taken down");
-		assertEquals("Undo stopped: something is in its way, nothing was taken down. Clear it and run /steward undo set_1 again.",
+		assertEquals("Undo stopped: something is in its way, nothing was taken down. Run /steward undo set_1 again once it is clear.",
 			RemovalStops.undoStopped(RemovalStop.NOT_STARTED, RemovalStopCause.OTHER, "set_1"));
-		assertEquals("Undo stopped: something is in its way. Clear it and run /steward undo set_1 again.", RemovalStops.undoStopped(null, null, "set_1"),
+		assertEquals("Undo stopped: something is in its way. Run /steward undo set_1 again once it is clear.", RemovalStops.undoStopped(null, null, "set_1"),
 			"no feature: the generic line");
 		assertEquals(RemovalStops.undoStopped(null, null, "set_1"), RemovalStops.undoStopped(RemovalStop.NONE, null, "set_1"));
 		for (var c : RemovalStopCause.values()) {
@@ -227,7 +227,7 @@ class RemovalStopsTest {
 		a.regions.get("rg_v").removalStop = RemovalStop.NOT_STARTED;
 		a.regions.get("rg_v").removalStopCause = RemovalStopCause.SAVE_REFUSED;
 		undo(s);
-		assertEquals(List.of("Undo stopped: something is in its way. Clear it and run /steward undo set_drs3 again."), said, "no removalStop feature: never read");
+		assertEquals(List.of("Undo stopped: something is in its way. Run /steward undo set_drs3 again once it is clear."), said, "no removalStop feature: never read");
 		assertTrue(notes(s).stream().noneMatch(t -> t.contains(SENTINEL)), notes(s).toString());
 	}
 
@@ -276,5 +276,90 @@ class RemovalStopsTest {
 		assertEquals(Boolean.FALSE, done.get(), "not taken up yet: the entry stays");
 		assertEquals(List.of(RemovalStops.growthWaiting(RemovalStopCause.SAVE_REFUSED)), said);
 		assertTrue(said.stream().noneMatch(l -> l.contains("chunk")), said.toString());
+	}
+
+	// ------------------------------------------------------------------ (raw-text) the removal paths undo-words left
+
+	@Test
+	void everyCauseHasItsOwnTailAndEveryStopLineEndsWithIt() {
+		assertEquals("Ask again with /steward undo set_1.", RemovalStops.again(RemovalStopCause.SAVE_REFUSED, "/steward undo set_1"));
+		assertEquals("Run /steward undo set_1 again once they step out.", RemovalStops.again(RemovalStopCause.PLAYER_IN_BOX, "/steward undo set_1"));
+		assertEquals("Run /steward cancel set_1 again once it is clear.", RemovalStops.again(null, "/steward cancel set_1"));
+		assertEquals(RemovalStops.tail(null), RemovalStops.tail(RemovalStopCause.OTHER));
+		Set<String> tails = new java.util.HashSet<>();
+		for (var c : RemovalStopCause.values()) {
+			tails.add(RemovalStops.tail(c));
+			if (c != RemovalStopCause.SAVE_REFUSED) assertTrue(RemovalStops.undoStopped(RemovalStop.NOT_STARTED, c, "set_1")
+				.endsWith(" again " + RemovalStops.tail(c) + "."), c.toString());
+			assertTrue(SettlementRunner.cancelStopped(false, c, "set_1").endsWith(RemovalStops.again(c, "/steward cancel set_1")), c.toString());
+			assertFalse(RemovalStops.undoStopped(RemovalStop.PARTIAL, c, "set_1").contains("Clear it and"), c.toString());
+		}
+		assertEquals(RemovalStopCause.values().length, tails.size(), "one tail per cause (OTHER's is the generic one)");
+	}
+
+	@Test
+	void aGroupOrSiteBySiteUndoNeverSaysArchitectsErrorOrBlockers() {
+		var err = new java.util.concurrent.CompletionException(new IllegalStateException(SENTINEL));
+		String line = Undo.stoppedByError("set_1", 2, 5, err);
+		assertEquals("Undo stopped after 2 of 5 sites: " + Undo.SITES_NOT_NOW + ". Run /steward undo set_1 again.", line);
+		String blocked = Undo.blockedText("st_9", new dev.larattalabs.architect.api.RemoveResult(false, List.of(SENTINEL), Map.of()));
+		assertFalse(blocked.contains(SENTINEL), blocked);
+		line = Undo.stoppedAfter("set_1", 1, 3, blocked);
+		assertEquals("Undo stopped after 1 of 3 sites: something is in its way. Run /steward undo set_1 again once it is clear.", line);
+		assertFalse(line.contains(SENTINEL) || line.contains("st_9") || line.contains("blocked by"), line);
+	}
+
+	@Test
+	void aCancelsStoppedTakeUpIsSaidByItsTypedCause() {
+		assertEquals("The village could not be taken up yet (someone is standing in what it takes up). Run /steward cancel set_1 again once they step out.",
+			SettlementRunner.cancelStopped(false, RemovalStopCause.PLAYER_IN_BOX, "set_1"));
+		assertEquals("The village could not be taken up yet (something is in its way). Run /steward cancel set_1 again once it is clear.",
+			SettlementRunner.cancelStopped(false, null, "set_1"));
+		assertEquals("The village could not be taken up just now. Run /steward cancel set_1 again.", SettlementRunner.cancelStopped(true, null, "set_1"));
+	}
+
+	private Settlement growthTown(String id) {
+		Settlement s = Settlement.founded(id, "Vale", TOWN, Permission.PROPOSALS, Difficulty.SUPPLIED, 1L);
+		var r = a.region("rg_g", s.owner());
+		r.rev(1, 1, "PLACED", "g1");
+		a.site("g1", s.owner(), "rg_g");
+		return s;
+	}
+
+	@Test
+	void aGrowthsRefusalThatIsNotWaitingNeverSaysArchitectsText() {
+		for (var how : new FakeArchitect.Answer[] {FakeArchitect.Answer.BLOCKED, FakeArchitect.Answer.REFUSE}) {
+			said.clear();
+			Settlement s = growthTown("set_rt_" + how);
+			a.undoAnswer = how;
+			a.blocker = SENTINEL;
+			AtomicReference<Boolean> done = new AtomicReference<>();
+			Growths.undo(null, s.owner(), new Growths.Ref("rg_g", 1), said::add, done::set);
+			a.runServer();
+			assertEquals(Boolean.FALSE, done.get(), how.toString());
+			assertEquals(List.of(Growths.refusedLine(null, how == FakeArchitect.Answer.REFUSE)), said, how.toString());
+			assertTrue(said.get(0).startsWith("The town's change could not be taken up"), said.toString());
+			assertTrue(said.stream().noneMatch(l -> l.contains(SENTINEL) || l.contains("blocked by") || l.contains("refused: busy")), said.toString());
+		}
+		assertEquals("The town's change could not be taken up: the hall holds things.", Growths.refusedLine("the hall holds things", false),
+			"a hall's own words, never followed by Architect's in brackets");
+	}
+
+	@Test
+	void aRoadsTakeUpNeverSaysArchitectsText() {
+		Settlement s = Settlement.founded("set_rd", "Vale", TOWN, Permission.PROPOSALS, Difficulty.SUPPLIED, 1L);
+		Settlements.store().put(s);
+		for (var how : new FakeArchitect.Answer[] {FakeArchitect.Answer.BLOCKED, FakeArchitect.Answer.REFUSE}) {
+			said.clear();
+			a.site("road_1", s.owner(), null);
+			a.removeAnswer = how;
+			a.blocker = SENTINEL;
+			boolean[] ran = {false};
+			Districts.takeUpForTest(s, "road_1", said::add, () -> ran[0] = true);
+			assertTrue(ran[0], how.toString());
+			assertEquals(List.of("test, and the road road_1 could not be taken up" + (how == FakeArchitect.Answer.REFUSE ? " just now" : ": something is in its way")
+				+ ". It is tried again later."), said, how.toString());
+			assertTrue(said.stream().noneMatch(l -> l.contains(SENTINEL) || l.contains("refused: busy")), said.toString());
+		}
 	}
 }

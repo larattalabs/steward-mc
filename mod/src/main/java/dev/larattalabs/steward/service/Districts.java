@@ -636,8 +636,12 @@ public final class Districts {
 		ArchitectAccess.api().sites(server).remove(siteId, new RemoveOptions(false, s.owner())).whenComplete((rr, e) -> {
 			if (!Session.is(session)) return;
 			if (e == null && rr.removed()) say.accept(why + ": the road was taken up again.");
-			else say.accept(why + ", and the road " + siteId + " could not be taken up (" + (e != null ? message(e) : String.join(", ", rr.blockers()))
-				+ "). It is tried again later.");
+			else {
+				// (raw-text) Architect's error or blockers are logged, never said (a road's removal has no typed cause)
+				Steward.LOGGER.info("road {} of {} was not taken up: {}", siteId, s.id(), e != null ? message(e) : String.join(", ", rr.blockers()));
+				say.accept(why + ", and the road " + siteId + " could not be taken up" + (e != null ? " just now" : ": " + RemovalStops.IN_THE_WAY)
+					+ ". It is tried again later.");
+			}
 			done.run();
 		});
 	}

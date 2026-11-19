@@ -158,7 +158,8 @@ public final class Undo {
 				if (!gone.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), gone, gone.size() == standing.size(), now)).ok()) say.accept(UNLOGGED);
 				UNDOING.remove(s.id());
 			districts(server, s, say);
-				if (err != null) say.accept("Undo stopped after " + gone.size() + " of " + standing.size() + " sites: " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
+				// (raw-text) Architect's error is logged, never said
+				if (err != null) say.accept(stoppedByError(s.id(), gone.size(), standing.size(), err));
 				// (slice DRS, 8bS, undo-words) told by the group's typed stop cause (S-DRS-1) in the steward's words, never by the blocker's text (a
 				// refused save's names chunk files); every site still standing took nothing down, some gone took part
 				else if (!r.removed()) {
@@ -199,12 +200,9 @@ public final class Undo {
 			if (!removed.isEmpty() && !Settlements.log(s.id(), removed(entry.get(), List.copyOf(removed), removed.size() == ids.size(), now)).ok()) say.accept(UNLOGGED);
 			UNDOING.remove(s.id());
 			districts(server, s, say);
-			if (err != null) {
-				Steward.LOGGER.warn("undo of {} failed", s.id(), err);
-				say.accept("Undo stopped after " + removed.size() + " of " + Words.count(ids.size(), "site", "sites") + ": " + (err.getCause() != null ? err.getCause().getMessage() : err.getMessage()));
-			} else if (stop != null) {
-				say.accept("Undo stopped after " + removed.size() + " of " + Words.count(ids.size(), "site", "sites") + ": " + stop + " Clear it and run /steward undo " + s.id() + " again.");
-			} else if (adopted) {
+			// (raw-text) Architect's error and blockers are logged, never said: a site's removal has no typed cause, so the generic words
+			if (err != null) say.accept(stoppedByError(s.id(), removed.size(), ids.size(), err));
+			else if (stop != null) say.accept(stoppedAfter(s.id(), removed.size(), ids.size(), stop)); else if (adopted) {
 				say.accept("Undone: the steward no longer looks after it, and the build stands as it was.");
 			} else {
 				say.accept("Undone: removed " + Words.count(removed.size(), "site", "sites") + ", the land is restored.");
@@ -299,7 +297,7 @@ public final class Undo {
 			// cause (S-DRS-1): said and noted in the steward's words for that cause (RemovalStops.causeWords), the generic line for OTHER or none
 			var stop = ok || err != null ? null : RemovalStops.of(region);
 			var cause = ok || err != null ? null : RemovalStops.cause(region);
-			String line = ok ? null : held != null ? "Undo stopped: " + held + ". Clear it and run /steward undo " + s.id() + " again."
+			String line = ok ? null : held != null ? "Undo stopped: " + held + ". " + RemovalStops.again(null, "/steward undo " + s.id())
 				: err != null ? "Undo stopped: " + NOT_NOW + ". Run /steward undo " + s.id() + " again."
 				: RemovalStops.undoStopped(stop, cause, s.id());
 			// (batch review 2) a refused undo's note is closed: a later removal by something else is never taken for this undo
@@ -556,7 +554,23 @@ public final class Undo {
 		if (!more.isEmpty()) say.accept(more);
 	}
 
-	private static String blockedText(String siteId, RemoveResult r) {
-		return "site " + siteId + " is blocked by " + (r.blockers().isEmpty() ? "something in its box" : String.join(", ", r.blockers())) + ".";
+	/** (raw-text) What a site-by-site undo says a site's blocked removal as: Architect's blockers are logged, the steward's words returned. */
+	static String blockedText(String siteId, RemoveResult r) {
+		Steward.LOGGER.info("the undo of site {} stopped: {}", siteId, r.blockers());
+		return RemovalStops.IN_THE_WAY;
 	}
+
+	/** (raw-text) What a group's or a site-by-site undo whose removal stopped after {@code removed} of {@code of} sites says, {@code why} the steward's words. Pure. */
+	static String stoppedAfter(String settlementId, int removed, int of, String why) {
+		return "Undo stopped after " + removed + " of " + Words.count(of, "site", "sites") + ": " + why + ". " + RemovalStops.again(null, "/steward undo " + settlementId);
+	}
+
+	/** (raw-text) What a group's or a site-by-site undo refused with an error says: the error is logged with it, never said. */
+	static String stoppedByError(String settlementId, int removed, int of, Throwable err) {
+		Steward.LOGGER.warn("{}: the undo stopped after {} of {} sites", settlementId, removed, of, err);
+		return "Undo stopped after " + removed + " of " + Words.count(of, "site", "sites") + ": " + SITES_NOT_NOW + ". Run /steward undo " + settlementId + " again.";
+	}
+
+	/** (raw-text) What a group's or a site-by-site undo whose removal Architect refused with an error is said as. */
+	static final String SITES_NOT_NOW = "the rest couldn't be taken down just now";
 }

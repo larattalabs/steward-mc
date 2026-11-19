@@ -4678,7 +4678,12 @@ public final class SettlementRunner {
 			regions.remove(id, new RemoveOptions(false, settlement.owner())).whenComplete((r, err) -> server.execute(() -> {
 				if (!alive() || worldStopped(err)) return;
 				boolean gone = (err == null && r.removed()) || regions.get(id).map(x -> x.state() == dev.larattalabs.architect.api.RegionState.REMOVED).orElse(true);
-				if (!gone) { say("The village could not be taken up yet (" + (err != null ? message(err) : String.join(", ", r.blockers())) + "); cancel again once it is clear."); return; }
+				// (raw-text) Architect's error or blockers are logged, never said: its typed stop cause says it in the steward's words
+				if (!gone) {
+					Steward.LOGGER.info("{}: the cancel's take-up of {} stopped: {}", settlement.id(), id, err != null ? message(err) : String.join(", ", r.blockers()));
+					say(cancelStopped(err != null, err != null ? null : RemovalStops.cause(id), settlement.id()));
+					return;
+				}
 				vRegionId = null;
 				feed(new Pipeline.CancelConfirmed());
 			}));
@@ -4695,6 +4700,17 @@ public final class SettlementRunner {
 			say("What the village placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
 			feed(new Pipeline.BatchDone(placed, skipped));
 		});
+	}
+
+	/**
+	 * (raw-text) What a cancel says when the village's record could not be taken up: {@code error} (refused, its message logged) or blocked, said by its
+	 * typed cause ({@link RemovalStops#causeWords}, the generic words for OTHER or none) and when to cancel again ({@link RemovalStops#again}). Pure.
+	 */
+	static String cancelStopped(boolean error, dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable RemovalStopCause cause, String settlementId) {
+		String command = "/steward cancel " + settlementId;
+		if (error) return "The village could not be taken up just now. Run " + command + " again.";
+		String said = RemovalStops.causeWords(cause);
+		return "The village could not be taken up yet (" + (said != null ? said : RemovalStops.IN_THE_WAY) + "). " + RemovalStops.again(cause, command);
 	}
 
 	/** The history entry that placed this region (its newest), whichever entry is the newest undoable one. */
