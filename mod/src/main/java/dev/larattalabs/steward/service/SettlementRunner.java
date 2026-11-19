@@ -4741,6 +4741,12 @@ public final class SettlementRunner {
 			if (saidWaits.add(stage)) say(stage);
 			return;
 		}
+		// (8bS) a whole charge the stockpile lacks (materials), or a held item (fill_blocked, txn_held, approval): in the steward's words, once
+		String other = otherWait(w, what);
+		if (other != null) {
+			if (saidWaits.add(other)) say(other);
+			return;
+		}
 		String in = e.message().replaceFirst("(?s).*in the box: ", "").replaceFirst("\\s*\\(.*", "").strip();
 		switch (e.reason().get()) {
 			case PLAYER_IN_BOX -> say("The " + what + " waits: someone is standing on its lot. Step off it and it goes up.");
@@ -4834,6 +4840,23 @@ public final class SettlementRunner {
 			case dev.larattalabs.architect.api.BuildStatus.STAGE -> "The " + what + " waits for " + (waitsOn == null || waitsOn.isBlank() ? "an earlier part"
 				: "the " + waitsOn) + " to be built.";
 			case dev.larattalabs.architect.api.BuildStatus.TERRAIN -> "The " + what + " waits for its land to be shaped.";
+			default -> null;
+		};
+	}
+
+	/**
+	 * (8bS) A queued item's other typed waits in the steward's words: a whole charge the stockpile lacks ({@code materials}, its items by id: "The
+	 * gatehouse waits for materials: 3 observer. They go in the stockpile."), its containers to be emptied, an unfinished change, the player's approval;
+	 * else null (a stage, terrain or cap wait is said by its own words, a box's wait by Architect's typed reason). Pure.
+	 */
+	static @org.jspecify.annotations.Nullable String otherWait(@org.jspecify.annotations.Nullable ItemWait w, String what) {
+		if (w == null || w.reason() == null) return null;
+		return switch (w.reason()) {
+			case dev.larattalabs.architect.api.BuildStatus.MATERIALS -> MaterialRequests.waitWords(what, dev.larattalabs.steward.module.ModuleBound.overWords(w.over(),
+				w.moreUnits()), 0);
+			case dev.larattalabs.architect.api.BuildStatus.FILL_BLOCKED, dev.larattalabs.architect.api.BuildStatus.TXN_HELD,
+				dev.larattalabs.architect.api.BuildStatus.APPROVAL -> "The " + what + " is " + dev.larattalabs.steward.view.SettlementView.statusWords(
+					dev.larattalabs.architect.api.BuildStatus.WAITING, w.reason())[1] + ".";
 			default -> null;
 		};
 	}

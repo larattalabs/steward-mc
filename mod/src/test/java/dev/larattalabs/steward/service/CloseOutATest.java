@@ -25,6 +25,22 @@ class CloseOutATest {
 	}
 
 	@Test
+	void anItemsOtherWaitsAreSaidInTheStewardsWords() {
+		// (8bS) a whole charge the stockpile lacks (ext kind bill, Architect 8b's materials): said, never Architect's say
+		var bill = SettlementRunner.ItemWait.ofExt(JsonParser.parseString("{\"architect_mc:waitsFor\":{\"kind\":\"bill\",\"missing\":{\"minecraft:observer\":3},"
+			+ "\"say\":\"x\"}}").getAsJsonObject());
+		assertEquals("materials", bill.reason());
+		assertEquals("The gatehouse waits for materials: 3 observer. They go in the stockpile.", SettlementRunner.otherWait(bill, "gatehouse"));
+		var held = new SettlementRunner.ItemWait("txn_held", "c1", java.util.List.of(), 0, null, 0);
+		assertEquals("The gatehouse is held by an unfinished change.", SettlementRunner.otherWait(held, "gatehouse"));
+		assertEquals("The gatehouse is waiting for its containers to be emptied.", SettlementRunner.otherWait(new SettlementRunner.ItemWait("fill_blocked", "c1",
+			java.util.List.of(), 0, null, 0), "gatehouse"));
+		assertNull(SettlementRunner.otherWait(new SettlementRunner.ItemWait("stage", "c1", java.util.List.of(), 0, null, 0), "gatehouse"), "said as a stage wait");
+		assertNull(SettlementRunner.otherWait(new SettlementRunner.ItemWait("occupied", null, java.util.List.of(), 0, null, 0), "gatehouse"), "said by the box's words");
+		assertNull(SettlementRunner.otherWait(null, "gatehouse"));
+	}
+
+	@Test
 	void aTypedStatusIsReadOverTheExt() {
 		// (8bS) Architect 8b's ItemEvent.status wins: its reason and waitsOn; a status that isn't a wait is no wait
 		var ext = JsonParser.parseString("{\"architect_mc:waitsFor\":{\"kind\":\"bill_cap\",\"say\":\"x waits bill_cap\"}}").getAsJsonObject();
