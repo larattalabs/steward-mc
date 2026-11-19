@@ -23,6 +23,7 @@ import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
+import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES } from './lib/undo-audit.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
@@ -2891,6 +2892,8 @@ async function composedModulesSurvivalFlow({ fillHalt = false } = {}) {
     const shortItem = 'minecraft:composter';
     if (!fillHalt) await cmd(`/steward dev cap_short ${shortItem}`);
     const sp0 = await ledger();
+    // (M5-HARD) the ground before the build, for the undo's world audit
+    const snap = await snapBeforeBuild(claim, `${fillHalt ? 'composed-fill' : 'composed'}-before-${id}`);
     from = logSize();
     const startAt = from;
     await cmd(`/steward start ${id} 3 30`);
@@ -3150,11 +3153,14 @@ async function composedModulesSurvivalFlow({ fillHalt = false } = {}) {
       const inn = spR?.delivered?.[item] ?? 0, out = (spR?.stock?.[item] ?? 0) + (spR?.refundOverflow?.[item] ?? 0);
       if (inn !== out) leak.push(`${item} in ${inn} / held ${out}`);
     }
-    const standing = (spR?.sites ?? []).filter((x) => x.state !== 'REMOVED' && !/stockpile/i.test(`${x.kind} ${x.id}`));
+    // (M5-HARD) the region's ground tiles too (sites.list(owner) hides them; the ledger's tiles are list(owner, true)'s rest)
+    const standing = [...(spR?.sites ?? []), ...(spR?.tiles ?? [])].filter((x) => x.state !== 'REMOVED' && !/stockpile/i.test(`${x.kind} ${x.id}`));
     // (CHECK-079) nothing of it left as overflow over the whole flow: refundOverflow as it was before the start
     if (overflowGrew(sp0, spR)) leak.push(overflowGrew(sp0, spR));
-    if (spR && leak.length === 0 && standing.length === 0) ok(`${label} conserved`, `delivered = stock + overflow for ${Object.keys(spR.delivered ?? {}).length} items; no site left standing`);
+    if (spR && leak.length === 0 && standing.length === 0) ok(`${label} conserved`, `delivered = stock + overflow for ${Object.keys(spR.delivered ?? {}).length} items; no site or tile left standing (${(spB?.tiles ?? []).length} tiles before the undo)`);
     else fail(`${label} conserved`, `${leak.slice(0, 8).join(', ')}; standing ${JSON.stringify(standing).slice(0, 200)}`);
+    // (M5-HARD) the world: every site and tile the build added gone, the ground in their boxes as before the build
+    await undoWorldAudit(`${label} world restored`, snap, { start: sp0, built: spB, undone: spR });
   } finally {
     stop = true;
     if (feeder) await feeder;
@@ -6232,6 +6238,35 @@ async function devModule(r, ms = 120_000) {
   return null;
 }
 
+/**
+ * (M5-HARD) The ground before a build, for the undo's world audit: the claim and 16 around it, y 20..240, snapped to a file (dev.region.hash snap).
+ * -> { box, file } or { box, error }.
+ */
+async function snapBeforeBuild(claim, tag) {
+  const box = [claim.centerX - claim.radius - 16, 20, claim.centerZ - claim.radius - 16, claim.centerX + claim.radius + 16, 240, claim.centerZ + claim.radius + 16];
+  const file = path.join(ROOT, 'artifacts', 'e2e', `${tag}.snap.gz`);
+  return dev.call('dev.region.hash', { box, mode: 'snap', file }, { timeoutMs: 1_800_000 }).then(() => ({ box, file }), (e) => ({ box, error: String(e?.message ?? e) }));
+}
+
+/**
+ * (M5-HARD) The undo's world audit (tools/lib/undo-audit.mjs): every site and tile the build added gone (the ledger's hidden tiles too), and every
+ * cell of their boxes as in the snapshot before the build, the crate cells left out; only growth and grazed are the world's doing. `start`, `built`,
+ * `undone`: the ledgers before the build, once built and after the undo.
+ */
+async function undoWorldAudit(lbl, snap, { start, built, undone, requireTiles = true }) {
+  const exclude = crateBoxes(start, built, undone);
+  const diff = snap?.error ? null : await dev.call('dev.region.hash', { box: snap.box, mode: 'diff', file: snap.file, exclude, limit: 1_000_000 }, { timeoutMs: 1_800_000 })
+    .catch((e) => ({ error: String(e?.message ?? e) }));
+  const a = judgeUndoWorld({ start, built, undone, diff, snapBox: snap?.box, requireTiles });
+  const words = auditWords(a);
+  if (!words) {
+    ok(lbl, `the ${a.added} sites the build added (${a.tiles} of them region tiles) gone; their ${a.boxes} boxes as before the build (${diff.cells} cells compared, `
+      + `${exclude.length} crate cells left out; in the boxes ${JSON.stringify(a.classes)}, allowed ${ALLOWED_CLASSES.join(', ')}; outside them ${a.outside.count} `
+      + `${JSON.stringify(a.outside.classes)})`);
+  } else fail(lbl, `${words}${snap?.error ? `; the snapshot failed: ${snap.error}` : ''}${diff?.error ? `; the diff failed: ${diff.error}` : ''}`);
+  return a;
+}
+
 /** A placed site's box as [x0, y0, z0, x1, y1, z1] (Architect's dev.sites.state), or null. */
 async function siteBox(sid) {
   const r = await dev.request('dev.sites.state', {}).catch(() => null);
@@ -6675,6 +6710,8 @@ async function moduleHallSurvivalFlow() {
     await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: Object.fromEntries(Object.entries(bound).map(([k, c]) => [k, c * 2 + 16])) });
     const sp0 = await ledger();
     await away();
+    // (M5-HARD) the ground before the hall, for the undo's world audit
+    const snap = await snapBeforeBuild(claim, `module-hall-before-${id}`);
     from = logSize();
     feeding = true;
     await cmd(`/steward proposals ${id} accept ${hallKey}`);
@@ -6715,6 +6752,8 @@ async function moduleHallSurvivalFlow() {
     const exact = Object.keys(paid).length > 0 && Object.entries(paid).every(([k, c]) => back[k] === c) && Object.keys(back).every((k) => paid[k] != null);
     if (last?.kind === 'PROJECT_REMOVED' && exact) ok(`${label} undo refund`, `paid ${JSON.stringify(paid).slice(0, 160)}, returned the same once`);
     else fail(`${label} undo refund`, `last ${last?.kind}; paid ${JSON.stringify(paid)}; returned ${JSON.stringify(back)}`);
+    // (M5-HARD) the hall's sites (and any tiles its revision added) gone, the ground in their boxes as before it; the town stands
+    await undoWorldAudit(`${label} undo world`, snap, { start: sp0, built: spB, undone: spR, requireTiles: false });
   } finally {
     stop = true;
     await feeder?.catch(() => null);
