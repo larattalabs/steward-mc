@@ -227,8 +227,10 @@ public final class SettlementScreen extends KitScreen {
 			return;
 		}
 		boolean map = w >= 360;
-		// the map's square, and its legend under it (a row more when the plan has roads or walls)
-		int mapSize = map ? Math.min(h - legendHeight(), w / 2 - 8) : 0;
+		// the map, and its legend under it: as tall as the legend leaves, at least as wide as the legend's three columns need (LYW: a wide map, not a
+		// smaller one, makes room for the walls' entries)
+		int mapH = map ? Math.min(h - legendHeight(), w / 2 - 8) : 0;
+		int mapSize = map ? Math.min(w / 2 - 8, Math.max(mapH, LEGEND_MIN_W)) : 0;
 		int lw = map ? w - mapSize - 8 : w;
 		Panels.inset(g, x, y, lw, h);
 		int fit = Math.max(1, (h - 6) / ROW_H);
@@ -257,18 +259,22 @@ public final class SettlementScreen extends KitScreen {
 			Panels.scrollbar(g, x + lw - 6, y + 1, h - 2, sc, false);
 		}
 		if (map) {
-			drawMap(g, x + lw + 8, y, mapSize, mx, my);
-			drawLegend(g, x + lw + 8, y + mapSize + 4, mapSize);
+			drawMap(g, x + lw + 8, y, mapSize, mapH, mx, my);
+			drawLegend(g, x + lw + 8, y + mapH + 4, mapSize);
 		}
 	}
 
 	/**
-	 * The legend's height: always room for its most rows of two (11 px each: the four states, roads, crossings, (LYW) walls, gates and towers, the
-	 * claim's edge and the stone), so the map keeps one size whatever the plan holds.
+	 * The legend's height: always room for its most rows (11 px each; (LYW) three columns: the four states, roads, crossings, walls, gates and towers,
+	 * the claim's edge and the stone), so the map keeps one size whatever the plan holds.
 	 */
 	private static int legendHeight() {
-		return 6 * 11 + 2;
+		return 4 * 11 + 2;
 	}
+
+	/** (slice LYW) The legend's columns, and the narrowest the map and legend go so each column's words fit ("crossing" the widest). */
+	private static final int LEGEND_COLS = 3;
+	private static final int LEGEND_MIN_W = 3 * 60;
 
 	/** A map footprint's fill for its state's family (each mark also gets a dark edge: at least 3:1 against the inset whatever its fill). */
 	static int fill(String family) {
@@ -336,9 +342,9 @@ public final class SettlementScreen extends KitScreen {
 	/** What the map's marks mean, in two columns under it; each swatch is drawn as its mark is on the map. */
 	private void drawLegend(GuiGraphicsExtractor g, int x, int y, int w) {
 		List<String[]> items = legendItems(claimDrawn);
-		int col = w / 2;
+		int col = w / LEGEND_COLS;
 		for (int i = 0; i < items.size(); i++) {
-			int ix = x + (i % 2) * col, iy = y + (i / 2) * 11;
+			int ix = x + (i % LEGEND_COLS) * col, iy = y + (i / LEGEND_COLS) * 11;
 			switch (items.get(i)[0]) {
 				case "claim" -> box(g, ix, iy, ix + 8, iy + 8, CLAIM_EDGE);
 				case "stone" -> stone(g, ix + 4, iy + 4);
@@ -380,8 +386,8 @@ public final class SettlementScreen extends KitScreen {
 	 * The settlement from above, fitted to what it draws (its buildings, the plan's pads, roads and walls, and the stone) with a margin: the claim's edge
 	 * when it fits, each building's footprint in its state's colour, the hovered one outlined. North is up.
 	 */
-	private void drawMap(GuiGraphicsExtractor g, int x, int y, int size, int mx, int my) {
-		Panels.inset(g, x, y, size, size);
+	private void drawMap(GuiGraphicsExtractor g, int x, int y, int size, int sizeH, int mx, int my) {
+		Panels.inset(g, x, y, size, sizeH);
 		var c = view.claim();
 		int minX = c.centerX(), maxX = c.centerX(), minZ = c.centerZ(), maxZ = c.centerZ();
 		for (Building b : view.buildings()) {
@@ -401,9 +407,9 @@ public final class SettlementScreen extends KitScreen {
 			maxZ = Math.max(maxZ, m.maxZ());
 		}
 		// the drawing area: the inset less an 8-pixel margin, above the hint line
-		MapFrame f = MapFrame.fit(minX - 2, minZ - 2, maxX + 2, maxZ + 2, x + 8, y + 8, size - 16, size - 16 - 12);
+		MapFrame f = MapFrame.fit(minX - 2, minZ - 2, maxX + 2, maxZ + 2, x + 8, y + 8, size - 16, sizeH - 16 - 12);
 		int r0x = f.x(c.centerX() - c.radius()), r0z = f.z(c.centerZ() - c.radius()), r1x = f.x(c.centerX() + c.radius() + 1), r1z = f.z(c.centerZ() + c.radius() + 1);
-		claimDrawn = r0x >= x + 2 && r0z >= y + 2 && r1x <= x + size - 2 && r1z <= y + size - 13;
+		claimDrawn = r0x >= x + 2 && r0z >= y + 2 && r1x <= x + size - 2 && r1z <= y + sizeH - 13;
 		if (claimDrawn) box(g, r0x, r0z, r1x, r1z, CLAIM_EDGE);
 		drawShapes(g, shapes, f);
 		for (Building b : view.buildings()) {
@@ -430,7 +436,7 @@ public final class SettlementScreen extends KitScreen {
 		stone(g, f.x(c.centerX() + 0.5), f.z(c.centerZ() + 0.5));
 		String on = hovered != null ? hovered : selected;
 		String hint = on != null && view.building(on) != null ? view.building(on).role() : "north is up";
-		g.text(font, TextUtil.ellipsize(font, hint, size - 8), x + 4, y + size - 11, UiBits.muted(), false);
+		g.text(font, TextUtil.ellipsize(font, hint, size - 8), x + 4, y + sizeH - 11, UiBits.muted(), false);
 	}
 
 	/**
