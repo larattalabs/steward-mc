@@ -235,6 +235,15 @@ public final class Composer {
 		}));
 	}
 
+	/**
+	 * (place-words) What the steward says for a compose that ended with no plan: its typed {@code refused} code in the steward's words
+	 * ({@link RefusalWords#composeRefused}), else the generic line; Architect's summary and error are never shown. Pure.
+	 */
+	static String noPlanLine(@org.jspecify.annotations.Nullable JsonObject result) {
+		String why = RefusalWords.composeRefused(result);
+		return why != null ? "No plan was composed: " + why + ". The build takes today's layout." : "The plan could not be composed: the build takes today's layout.";
+	}
+
 	/** A recorded compose as the record tools keep it (the old plan-writer answer's shape, with Architect's outcome). Pure. */
 	static JsonObject recorded(dev.larattalabs.architect.api.Design d, JsonObject card) {
 		var o = dev.larattalabs.steward.gateway.ComposeJob.interpret(d);
@@ -425,9 +434,9 @@ public final class Composer {
 		String summary;
 		switch (o.kind()) {
 			case NONE -> {
-				// (CP) a compose refused at once says why in Architect's words ("regions can only be built in the Overworld for now")
-				done(s, o.reason().isBlank() ? "The plan could not be composed (" + o.error() + "): the build takes today's layout."
-					: "No plan was composed: " + o.reason() + ". The build takes today's layout.", server, player);
+				// (CP) a compose refused at once: (place-words) said by its typed refused code, Architect's summary and error to the log only
+				Steward.LOGGER.info("plan for {}: no plan ({}): {}", s.id(), o.error(), o.reason());
+				done(s, noPlanLine(d.result().orElse(null)), server, player);
 				return;
 			}
 			// a compose asked before CA2 (with Architect's template pick) that ends after the update: its template is kept as a one-zone plan

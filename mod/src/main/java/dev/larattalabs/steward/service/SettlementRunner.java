@@ -2327,6 +2327,26 @@ public final class SettlementRunner {
 		return err.getCause() != null ? err.getCause().getMessage() : err.getMessage();
 	}
 
+	/** (place-words) A design group's cancel that got no answer: the steward's words, Architect's error to the log only. */
+	static final String CANCEL_GROUP_WAITS = "Could not reach Architect to stop the design group. It is cancelled when Architect answers; cancel again to stop waiting.";
+
+	/** (place-words) A lot's fit refused: its typed reasons in the steward's words ({@link RefusalWords#fit}), never Architect's messages. Pure. */
+	static String fitRefusedLine(String lotId, java.util.Collection<dev.larattalabs.architect.api.Refusal> refusals) {
+		return "Lot " + lotId + " can't take its building: " + RefusalWords.fit(refusals) + ".";
+	}
+
+	/** (place-words) A module's variant not made: why from its typed detail ({@link RefusalWords#module}), or the error's typed reason. Pure. */
+	static String moduleNotMadeLine(@org.jspecify.annotations.Nullable String detail, @org.jspecify.annotations.Nullable String message,
+		@org.jspecify.annotations.Nullable Throwable err) {
+		String why = detail == null && err != null ? RefusalWords.of(err) : RefusalWords.module(detail, message);
+		return "Not placed: the module couldn't be made for its lot (" + why + "). Nothing was placed.";
+	}
+
+	/** (place-words) A batch item that failed: its key (Steward's own lot id) and its typed reason in the steward's words. Pure. */
+	static String itemNotPlacedLine(String itemKey, dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable Reason reason) {
+		return "Not placed: " + itemKey + ": " + RefusalWords.reason(reason) + ".";
+	}
+
 	/** Commands that ask Architect to spend on Claude or to change the world. */
 	private static boolean spends(Command c) {
 		return c instanceof Pipeline.RequestBible || c instanceof Pipeline.RequestGroup || c instanceof Pipeline.ExtendAndResumeGroup || c instanceof Pipeline.FitAndQueue
@@ -2572,7 +2592,10 @@ public final class SettlementRunner {
 					if (now.isPresent() && now.get().status().isFinal()) onGroup(now.get());
 					// only the helper's refusal ("no group", "already <status>") says it is over; a lost link or a timeout says nothing
 					else if (now.isEmpty() && err != null && refusedAsOver(err)) feed(new Pipeline.CancelConfirmed());
-					else if (err != null) say("Could not reach Architect to stop the design group (" + message(err) + "). It is cancelled when Architect answers; cancel again to stop waiting.");
+					else if (err != null) {
+						Steward.LOGGER.warn("{}: the design group {} wasn't stopped: {}", settlement.id(), id, message(err), err);
+						say(CANCEL_GROUP_WAITS);
+					}
 				});
 				else if (!groupInFlight && !recovering) { if (keyed) cancelByKeys(); else later.add(new Pipeline.CancelConfirmed()); }
 			}
@@ -2615,7 +2638,10 @@ public final class SettlementRunner {
 			BoundingBox box = BatchPlanner.lotBox(lot, lot.sizeX() > 20 ? 40 : 24);
 			LotFit fit = sites.fitToLot(entry, box, BatchPlanner.streetSide(lot), FitOptions.DEFAULT.withLevel(level));
 			fits.put(lot.id(), fit);
-			if (!fit.ok()) say("Fit " + lot.id() + " (" + entry + ") refused: " + fit.verdict().refusals().stream().map(r -> r.reason() + " " + r.message()).collect(Collectors.joining("; ")));
+			if (!fit.ok()) {
+				Steward.LOGGER.info("fit {} lot {} ({}) refused: {}", settlement.id(), lot.id(), entry, fit.verdict().refusals().stream().map(r -> r.reason() + " " + r.message()).collect(Collectors.joining("; ")));
+				say(fitRefusedLine(lot.id(), fit.verdict().refusals()));
+			}
 		}
 		// the street: all of it for a new one; for an addition, the pieces its lots reach past the street's ends (the street as it stands now)
 		var now = Settlements.store().get(settlement.id()).orElse(settlement);
@@ -2813,11 +2839,12 @@ public final class SettlementRunner {
 			String line = quote == null ? null : districtBillLine(name, quote, null);
 			switch (next) {
 				case CANCEL_UNQUOTED -> {
-					say("Not placed: " + name + "'s bill couldn't be quoted (" + message(err) + "), so nothing is placed unchecked. Start it again.");
+					if (err != null) Steward.LOGGER.warn("district bill {} {}: not quoted: {}", settlement.id(), vPlanId, message(err), err);
+					say("Not placed: " + name + "'s bill couldn't be quoted (" + RefusalWords.of(err) + "), so nothing is placed unchecked. Start it again.");
 					feed(new Pipeline.Cancel());
 				}
 				case CANCEL_UNBILLED -> {
-					say("Not placed: Architect couldn't quote all of " + name + "'s bill (" + ModulePlacement.quoteCheck(quote.exact(), quote.notes()).refused()
+					say("Not placed: Architect couldn't quote all of " + name + "'s bill (" + RefusalWords.unbilled(ModulePlacement.quoteCheck(quote.exact(), quote.notes()).refused())
 						+ "), so nothing is consumed unchecked.");
 					feed(new Pipeline.Cancel());
 				}
@@ -3109,7 +3136,8 @@ public final class SettlementRunner {
 							}));
 							return;
 						}
-						say("Not placed: the module couldn't be made for its lot (" + (o == null ? message(err2) : o.message()) + "). Nothing was placed.");
+						Steward.LOGGER.warn("module {} lot {}: no variant ({}): {}", settlement.id(), lotId, o == null ? "error" : o.detail(), o == null ? message(err2) : o.message());
+						say(moduleNotMadeLine(o == null ? null : o.detail(), o == null ? null : o.message(), err2));
 						feed(new Pipeline.Cancel());
 						return;
 					}
@@ -3193,7 +3221,8 @@ public final class SettlementRunner {
 			moduleBusy = false;
 			if (!placingModules(session)) return;
 			if (err != null || q == null) {
-				say("Not placed: the bill couldn't be quoted (" + message(err) + "), and nothing is consumed unchecked.");
+				if (err != null) Steward.LOGGER.warn("module quote {}: not quoted: {}", settlement.id(), message(err), err);
+				say("Not placed: the bill couldn't be quoted (" + RefusalWords.of(err) + "), and nothing is consumed unchecked.");
 				feed(new Pipeline.Cancel());
 				return;
 			}
@@ -3209,7 +3238,7 @@ public final class SettlementRunner {
 			var check = ModulePlacement.quoteCheck(q.exact(), q.notes());
 			// a quote that leaves a part unbilled can't hold the build to anything: refused, nothing consumed
 			if (check.refused() != null) {
-				say("Not placed: Architect couldn't quote the whole bill (" + check.refused() + "), so nothing is consumed unchecked.");
+				say("Not placed: Architect couldn't quote the whole bill (" + RefusalWords.unbilled(check.refused()) + "), so nothing is consumed unchecked.");
 				feed(new Pipeline.Cancel());
 				return;
 			}
@@ -3249,7 +3278,7 @@ public final class SettlementRunner {
 			: !over.isEmpty() ? "The bill came to more than you approved: " + dev.larattalabs.steward.module.ModuleBound.words(over, 100) + "."
 			: !heavy.isEmpty() ? "The whole bill takes more than half of the stockpile's " + heavy.stream().map(h -> dev.larattalabs.steward.module.ModuleBound.plain(h.item())
 				+ " (" + h.bill() + " of " + h.stock() + ")").collect(Collectors.joining(", ")) + ", so I ask first."
-			: check.ask() != null && !order.inexactApproved() ? "Architect can't quote the bill exactly (" + check.ask() + "), so I ask first." : null;
+			: check.ask() != null && !order.inexactApproved() ? "Architect can't quote the bill exactly (" + RefusalWords.inexact(check.ask()) + "), so I ask first." : null;
 	}
 
 	/** (TEST, QD-2) The item the next module realise sends as 0 ({@code /steward dev cap_short}), once; null for none. */
@@ -3385,18 +3414,19 @@ public final class SettlementRunner {
 			moduleBusy = false;
 			if (!placingModules(session)) return;
 			if (err != null || q == null) {
-				say("Not placed: the bill couldn't be quoted (" + message(err) + "), and nothing is consumed unchecked.");
+				if (err != null) Steward.LOGGER.warn("module quote {}: not quoted: {}", settlement.id(), message(err), err);
+				say("Not placed: the bill couldn't be quoted (" + RefusalWords.of(err) + "), and nothing is consumed unchecked.");
 				feed(new Pipeline.Cancel());
 				return;
 			}
 			var check = ModulePlacement.quoteCheck(q.exact(), q.notes());
 			Steward.LOGGER.info("composed modules {} quote {}: {} (exact {}, notes {})", settlement.id(), sha, q.bomParts(), q.exact(), q.notes());
 			if (check.refused() != null) {
-				say("Not placed: Architect couldn't quote the whole bill (" + check.refused() + "), so nothing is consumed unchecked.");
+				say("Not placed: Architect couldn't quote the whole bill (" + RefusalWords.unbilled(check.refused()) + "), so nothing is consumed unchecked.");
 				feed(new Pipeline.Cancel());
 				return;
 			}
-			var verdict = dev.larattalabs.steward.module.ComposedModules.held(q.bomParts(), moduleOrders, check.ask());
+			var verdict = dev.larattalabs.steward.module.ComposedModules.held(q.bomParts(), moduleOrders, check.ask() == null ? null : RefusalWords.inexact(check.ask()));
 			if (verdict.refused() != null) {
 				say("Not placed: " + verdict.refused() + ", so nothing is consumed unchecked.");
 				feed(new Pipeline.Cancel());
@@ -4896,7 +4926,10 @@ public final class SettlementRunner {
 		// buildings only: the street is a road, reported on its own when it fails
 		long placed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED && !BatchPlanner.isStreet(i.itemKey())).count();
 		long failed = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED && !BatchPlanner.isStreet(i.itemKey())).count();
-		b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).forEach(i -> say("Not placed: " + i.itemKey() + " (" + i.reason().map(Enum::name).orElse("?") + ") " + i.message()));
+		b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.FAILED).forEach(i -> {
+			Steward.LOGGER.info("batch {} of {}: {} not placed ({}): {}", b.id(), settlement.id(), i.itemKey(), i.reason().map(Enum::name).orElse("?"), i.message());
+			say(itemNotPlacedLine(i.itemKey(), i.reason().orElse(null)));
+		});
 		// every site of the build, street included, so an undo removes all of it
 		if (siteGroupId == null) siteGroupId = b.group();
 		List<String> placedIds = b.items().stream().filter(i -> i.status() == BatchView.ItemStatus.PLACED).flatMap(i -> i.siteId().stream()).toList();

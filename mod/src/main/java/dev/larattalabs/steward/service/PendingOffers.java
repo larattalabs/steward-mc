@@ -426,7 +426,8 @@ public final class PendingOffers {
 			Steward.LOGGER.info("part {} of {}: Architect's compose {} ({} round(s){}), ${}", f.part(), s.id(), o.outcome(), o.rounds(), o.stopped() != null ? ", stopped: " + o.stopped() : "",
 				String.format(java.util.Locale.ROOT, "%.3f", cost));
 			if (o.kind() != ComposeJob.Kind.PLAN || o.plan() == null) {
-				fail(server, player, s, p, what, !o.reason().isBlank() ? o.reason() : "Architect composed no plan for it (" + o.error() + ")");
+				Steward.LOGGER.info("part {} of {}: no plan ({}): {}", f.part(), s.id(), o.error(), o.reason());
+				fail(server, player, s, p, what, noPlanWhy(d.result().orElse(null)));
 				return;
 			}
 			JsonObject plan = o.plan();
@@ -587,6 +588,12 @@ public final class PendingOffers {
 	}
 
 	/** It stops: the offer stays in the inbox, and the part still waits. */
+	/** (place-words) Why a part's compose ended with no plan: its typed {@code refused} code in the steward's words, else the generic line. Pure. */
+	static String noPlanWhy(com.google.gson.@org.jspecify.annotations.Nullable JsonObject result) {
+		String why = RefusalWords.composeRefused(result);
+		return why != null ? why : "Architect composed no plan for it";
+	}
+
 	private static void fail(MinecraftServer server, UUID player, Settlement s, Proposal p, String what, String why) {
 		BUSY.remove(s.id() + "/" + p.pendingPart());
 		FAILED.add(s.id() + "/" + p.pendingPart());
