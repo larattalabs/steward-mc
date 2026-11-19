@@ -6,9 +6,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * (slice DRS) How an undo's removal stopped, as Architect types it (DR-S, feature {@code removalStop}: {@code RegionView.removalStop()}), and the
- * steward's words for it. Whether anything was taken down is read from the typed stop only. Architect gives no typed cause, so one narrow phrase picks
- * the words for a refused save (its raw blocker is never shown: it names chunk files). (slice 8bS) A refused save is told by Architect's typed cause
- * (S-DRS-1, feature {@code removalStopCause}: {@code RegionView.removalStopCause}, {@code SiteGroup.removalStopCause}), never by its text.
+ * steward's words for it. Whether anything was taken down is read from the typed stop only. (slice 8bS) The cause is Architect's typed one (S-DRS-1,
+ * feature {@code removalStopCause}: {@code RegionView.removalStopCause}, {@code SiteGroup.removalStopCause}), never its text. (undo-words) Every
+ * typed cause is said in the steward's words ({@link #causeWords}); Architect's blocker text is never shown (it names chunk files, the player's things).
  */
 public final class RemovalStops {
 	/** Architect's feature for the typed stop. */
@@ -54,6 +54,16 @@ public final class RemovalStops {
 		try {
 			if (!ArchitectAccess.api().features().contains(CAUSE_FEATURE)) return null;
 			return sites.group(group).map(dev.larattalabs.architect.api.SiteGroup::removalStopCause).orElse(null);
+		} catch (RuntimeException | LinkageError e) {
+			return null;
+		}
+	}
+
+	/** (undo-words) A site group's last whole-group removal stop, typed (S-DRS-1, {@code SiteGroup.removalStop}); null when not typed or not readable. */
+	static @Nullable RemovalStop groupStop(dev.larattalabs.architect.api.Sites sites, String group) {
+		try {
+			if (!ArchitectAccess.api().features().contains(CAUSE_FEATURE)) return null;
+			return sites.group(group).map(dev.larattalabs.architect.api.SiteGroup::removalStop).orElse(null);
 		} catch (RuntimeException | LinkageError e) {
 			return null;
 		}

@@ -163,8 +163,11 @@ public final class Undo {
 				// refused save's names chunk files); every site still standing took nothing down, some gone took part
 				else if (!r.removed()) {
 					Steward.LOGGER.info("{}: the undo of group {} stopped: {}", s.id(), group, r.blockers());
-					say.accept(RemovalStops.undoStopped(gone.isEmpty() ? dev.larattalabs.architect.api.RemovalStop.NOT_STARTED
-						: dev.larattalabs.architect.api.RemovalStop.PARTIAL, RemovalStops.groupCause(sites, group), s.id(),
+					// the group's typed stop when Architect types it, else what still stands
+					var stop = RemovalStops.groupStop(sites, group);
+					if (stop == null || stop == dev.larattalabs.architect.api.RemovalStop.NONE) stop = gone.isEmpty() ? dev.larattalabs.architect.api.RemovalStop.NOT_STARTED
+						: dev.larattalabs.architect.api.RemovalStop.PARTIAL;
+					say.accept(RemovalStops.undoStopped(stop, RemovalStops.groupCause(sites, group), s.id(),
 						gone.size() + " of " + Words.count(standing.size(), "site", "sites")));
 				}
 				else say.accept("Undone: removed " + Words.count(gone.size(), "site", "sites") + ", the land is restored.");
