@@ -237,6 +237,15 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.82.0 by a smoke check (2026-11-18, pin-081; speed rule 4).** Kit/checker stay 0.73.0, the program (`c406df05…`)
+and module.json unchanged (moduleSha `50d6f992…`); the published 0.82.0 jar (sha256 `c5cf0291…`, lab-ui 0.6.0 nested). The re-measure
+triggers were read in `git diff v0.81.0 v0.82.0 -- kit mod/src/main`: the kit only adds a step-counts test; mod/src/main adds StyleRoles and
+StyleSwap (reached only from the client's Preview on ghost, StylePeek), ghost-palette tints in CompositeMesh, a Reconcile wording change, lang
+strings and the lab_ui range. No build, billing or realise path moves. The billing check is the guard: survival 63/63, bounds 111/111, offline
+295/295, ingame 292/292, field-potatoes 62/62 (5 runs; -2.7% to 6.9% per crop-day of the carried rates, 9x18 the high one), ports 9116/9117, $0.
+The first chain failed at once: the e2e had left `mod/run/architect/sidecar-data` a RAM-disk symlink, dangling after a reboot, and the module
+tools (unlike e2e.mjs) don't repair it, so Architect's launcher never started the helper; the on-disk `sidecar-data.ssd` was put back.
+
 **Carried to Architect 0.81.0 by a smoke check (2026-11-18, pin-081; speed rule 4).** The pins moved to kit/checker 0.73.0, the program
 (`c406df05…`) unchanged, module.json with the old pins put back hashing to the carried moduleSha `c85389f8…`; the published 0.81.0 jar (sha256 `74f2ab44…`); 0.80.0 was skipped (pins skip
 versions). The re-measure triggers were read in `git diff v0.79.0 v0.81.0 -- kit mod/src/main`: realise.mjs and region/plan.mjs change only
