@@ -33,6 +33,11 @@ public class StewardClient implements ClientModInitializer {
 		// the shared HUD (S-J4): lab-ui's Jobs & spend panel (K), its needs-you pill in the top-left zone and its one toast stack, never a HUD of our own
 		JobBoard.install();
 		JobBoard.name(dev.larattalabs.steward.inbox.InboxJobs.MOD, "Steward");
+		// vanilla chat stays hidden while the talk panel is open: the panel holds the same lines, and chat bled out from under it (8bS design review)
+		net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry.replaceElement(net.fabricmc.fabric.api.client.rendering.v1.hud.VanillaHudElements.CHAT,
+			chat -> (g, delta) -> {
+				if (!(Minecraft.getInstance().gui.screen() instanceof dev.larattalabs.steward.client.screen.TalkScreen)) chat.extractRenderState(g, delta);
+			});
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			while (Keys.inbox.consumeClick()) {
 				if (mc.player != null && mc.gui.screen() == null) mc.gui.setScreen(new InboxScreen(null));

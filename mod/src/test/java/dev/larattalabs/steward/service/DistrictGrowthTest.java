@@ -77,7 +77,7 @@ class DistrictGrowthTest {
 
 	@Test
 	void aPartOrMalformedLandReadIsNeverTrusted() {
-		assertNull(DistrictLand.outsideWhole(null, OW));
+		assertNull(DistrictLand.outsideWhole((com.google.gson.JsonObject) null, OW));
 		assertNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"v\":2}}").getAsJsonObject(), OW), "no outside");
 		assertNull(DistrictLand.outsideWhole(JsonParser.parseString("{\"architect_mc:land\":{\"outside\":{\"runs\":[[1,2,3,2],[1,2,3]]}}}").getAsJsonObject(), OW),
 			"one malformed run: the whole read is refused");

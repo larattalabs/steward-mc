@@ -140,7 +140,11 @@ public final class Settlements {
 	private static Result commit(Optional<Settlement> before, Settlement n, String note) {
 		if (file == null) return Result.fail(DISABLED);
 		store.put(n);
-		if (save()) return new Result(n, null, note);
+		if (save()) {
+			// (8bS) its view goes out on the next round (SettlementSync rebuilds only dirty views when Architect signals its own changes)
+			SettlementSync.dirty(n.id());
+			return new Result(n, null, note);
+		}
 		if (before.isPresent()) store.put(before.get());
 		else store.remove(n.id());
 		// (STORE-FSYNC review P1) a save can fail after its rename (the folder's force): the file then holds the change reported as failed. The

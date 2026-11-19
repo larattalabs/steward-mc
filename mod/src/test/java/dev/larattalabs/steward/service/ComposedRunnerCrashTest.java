@@ -213,10 +213,10 @@ class ComposedRunnerCrashTest {
 		assertTrue(region.contains("3 dirt more than you approved"), region);
 		// a gate mechanism's stage wait held by its lot's cap (waitsFor.cap)
 		var ext = json("{\"architect_mc:waitsFor\": {\"kind\": \"bill_cap\", \"say\": \"Main gatehouse's portcullis waits bill_cap\", \"missing\": {\"minecraft:iron_ingot\": 2}, \"cap\": \"lot:gate_1\"}}");
-		String stage = SettlementRunner.capStageWait(ext, "set_1", MaterialRequests.TakeUp.CANCEL);
+		String stage = SettlementRunner.capStageWait(SettlementRunner.ItemWait.ofExt(ext), "Main gatehouse's portcullis", "set_1", MaterialRequests.TakeUp.CANCEL);
 		assertTrue(stage.contains("2 iron ingot") && stage.contains("more than its limit"), stage);
 		ext.getAsJsonObject("architect_mc:waitsFor").addProperty("cap", "region");
-		assertTrue(SettlementRunner.capStageWait(ext, "set_1", MaterialRequests.TakeUp.CANCEL).contains("more than you approved"));
+		assertTrue(SettlementRunner.capStageWait(SettlementRunner.ItemWait.ofExt(ext), "Main gatehouse's portcullis", "set_1", MaterialRequests.TakeUp.CANCEL).contains("more than you approved"));
 	}
 
 	@Test

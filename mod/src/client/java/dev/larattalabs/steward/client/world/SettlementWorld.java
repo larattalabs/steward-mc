@@ -210,9 +210,12 @@ public final class SettlementWorld {
 
 	/** A label over the building: an ink pill with its role and, under it, its version or what waits. */
 	private static void label(SubmitNodeCollector c, CameraRenderState camera, SettlementView.Building b, boolean on, double dist) {
-		String sub = b.updating() ? "updating" : b.updateAvailable() ? "update to v" + b.head() + " ready" : "v" + b.version() + (b.edits() > 0 ? " · " + b.edits() + " of your edits" : "");
+		// (8bS) a wait, a pause or a removal in the steward's words (Architect's BuildStatus), before a newer version
+		String[] st = b.stateWords();
+		boolean construction = b.status() != null && !"built".equals(b.status()) && !b.updating();
+		String sub = construction ? st[1] : b.updating() ? "updating" : b.updateAvailable() ? "update to v" + b.head() + " ready" : "v" + b.version() + (b.edits() > 0 ? " · " + b.edits() + " of your edits" : "");
 		if (on) sub += " · I to inspect";
-		String family = b.updateAvailable() ? "waiting" : b.updating() || !"built".equals(b.state()) ? "working" : "done";
+		String family = b.status() != null ? st[0] : b.updateAvailable() ? "waiting" : b.updating() || !"built".equals(b.state()) ? "working" : "done";
 		pill(c, camera, (b.minX() + b.maxX() + 1) / 2.0, b.maxY() + 2.4, (b.minZ() + b.maxZ() + 1) / 2.0, b.role(), sub, family, on, dist);
 	}
 

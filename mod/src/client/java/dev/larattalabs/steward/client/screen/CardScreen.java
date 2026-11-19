@@ -281,7 +281,8 @@ public final class CardScreen extends KitScreen {
 		List<String> well = wellLines(colW - 12);
 		int programRows = card.hasProgram() ? card.program().size() : 1;
 		int leftH = factsH;
-		int rightH = 18 + Math.max(Math.min(programRows, 8) * ROW_H, showNotes ? Math.min(well.size(), 12) * 10 : 0) + 6;
+		// both tabs' heights, so switching tabs never moves the controls under them
+		int rightH = 18 + Math.max(Math.min(programRows, 8) * ROW_H, Math.min(well.size(), 12) * 10) + 6;
 		int bodyH = twoCol ? Math.max(leftH, rightH) : leftH + 8 + rightH;
 		int controlsH = 8 + 20 + 12 + 6 + 20 + 18;
 		int h = Math.min(height - 16, pad.top() + 18 + bodyH + controlsH + pad.bottom());
@@ -342,7 +343,9 @@ public final class CardScreen extends KitScreen {
 		programArea = new int[] {rx, ry, colW, listH};
 		wellArea = programArea;
 		if (showNotes) {
-			int view = Math.max(1, (listH - 6) / 10);
+			int fitLines = Math.max(1, (listH - 6) / 10);
+			// more than fits: the last row says how much more, as the builds list does, rather than a sentence cut off at the inset's edge
+			int view = well.size() > fitLines ? Math.max(1, fitLines - 1) : fitLines;
 			wellScroll = Math.max(0, Math.min(wellScroll, well.size() - view));
 			int wy = ry + 4;
 			for (int i = wellScroll; i < Math.min(well.size(), wellScroll + view); i++) {
@@ -354,6 +357,11 @@ public final class CardScreen extends KitScreen {
 				sc.scrollBy(-1_000_000);
 				sc.scrollBy(wellScroll);
 				Panels.scrollbar(g, rx + colW - 7, ry + 1, listH - 2, sc, false);
+				int below = well.size() - wellScroll - view;
+				if (below > 0) {
+					String more = "+" + below + " more line" + (below == 1 ? "" : "s") + " (scroll)";
+					g.text(font, more, rx + colW - font.width(more) - 14, ry + listH - 11, attention(), false);
+				}
 			}
 		} else if (!card.hasProgram()) {
 			int ey = ry + 4;
