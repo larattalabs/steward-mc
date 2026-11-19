@@ -2319,6 +2319,41 @@ public final class SettlementRunner {
 		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.BILL_CAP;
 	}
 
+	/**
+	 * (T4S-PRE, TXN-S) {@code siteBusy(err)}: a {@code SITE_BUSY} from Architect's transactions, read from its typed detail ({@link SiteBusy}):
+	 * held(decided) (finishing by itself), held(other) (nothing changed: asked again), or none.
+	 */
+	static SiteBusy.Held siteBusy(@org.jspecify.annotations.Nullable Throwable err) {
+		return SiteBusy.of(err);
+	}
+
+	/**
+	 * (T4S-PRE) Whether a cancel's take-up of a region with nothing of it in the world is done: answered removed, or Architect holds its tombstone, or
+	 * (the record absent) Architect's sites loaded cleanly ({@code healthy}): an absent record read from a store that did not load is never taken for
+	 * gone. Pure.
+	 */
+	static boolean takenUp(boolean answeredRemoved, dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable RegionState state, boolean present, boolean healthy) {
+		if (answeredRemoved) return true;
+		if (present) return state == dev.larattalabs.architect.api.RegionState.REMOVED;
+		return healthy;
+	}
+
+	/**
+	 * (T4S-PRE) A removal txn ended ({@link RemovalEnds}): each runner of this world cancelling a village or growth whose take-up waited on a decided
+	 * hold reads its region again ({@link #cancelVillage}, which finds the tombstone or the UNDONE revision and ends the cancel once).
+	 */
+	static void removalFinished(String kind, String id) {
+		for (SettlementRunner r : List.copyOf(ACTIVE.values())) {
+			if (r.state == null || r.state.phase() != Pipeline.Phase.CANCELLING || r.vRegionId == null || !r.cancelHeld) continue;
+			if ("region".equals(kind) && !id.equals(r.vRegionId)) continue;
+			r.cancelHeld = false;
+			r.server.execute(r::cancelVillage);
+		}
+	}
+
+	/** (T4S-PRE) This runner's cancel waits on a take-up Architect decided and holds: it ends once that finishes ({@link #removalFinished}, or a restart). */
+	private boolean cancelHeld;
+
 	/** (LIFT-S) A {@code BILL_CAP} refusal's detail ({@code lot:<id>}, {@code unknown_lot:<id>}, or "" for the region's), or null for another error. */
 	static @org.jspecify.annotations.Nullable String capDetail(@org.jspecify.annotations.Nullable Throwable err) {
 		Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
@@ -4634,8 +4669,9 @@ public final class SettlementRunner {
 				MaterialRequests.forgetIfBuilt(ref.region());
 				// the completion, tagged with the growth (Growths.completed), checked on a fresh read; the build ends only once it is saved
 				var now = Settlements.store().get(settlement.id()).orElse(settlement);
+				// (OVF-S3) TODO(T4c): owed from the answer's RemoveResult.owed() once the pin has it
 				boolean done = Growths.completed(now, ref.tag()) || Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE,
-					Growths.NOT_PLACED + " (" + why + (refunded ? "; what it drew was refunded" : "") + ")", List.of(), ref.tag())).ok();
+					Growths.notPlacedNote(why, refunded, false), List.of(), ref.tag())).ok();
 				// (GPT diff review) a known empty answer is said too, in a Supplied town
 				if (Growths.reportsRefund(now, answer.get())) {
 					said.accept(Growths.refundLine(answer.get().refund()));
@@ -4649,7 +4685,10 @@ public final class SettlementRunner {
 			var saved = Settlements.log(settlement.id(), new Settlement.LogEntry(System.currentTimeMillis(), Settlement.Kind.NOTE, "The addition was not placed ("
 				+ why + "); the town's change " + ref.tag() + " stands with nothing of it placed: " + d.why(), List.of()));
 			if (saved.ok()) end.run();
-		}, answer::set);
+		}, answer::set, () -> {
+			// (T4S-PRE) decided and held (said once by Growths.undo): not refused; the next pass reads the revision again (a re-ask joins it)
+			growthTakingUp = false;
+		});
 	}
 
 	/**
@@ -4711,7 +4750,11 @@ public final class SettlementRunner {
 			feed(new Pipeline.BatchDone(sites.size(), 0));
 		};
 		var saved = Settlements.store().get(settlement.id()).orElse(settlement);
-		Undo.growth(server, saved, entry.get(), ref, Map.of(), Undo.reportingOverCapacity(server, saved, this::say), after);
+		Undo.growth(server, saved, entry.get(), ref, Map.of(), Undo.reportingOverCapacity(server, saved, this::say), after, () -> {
+			// (T4S-PRE) decided and held (said by Growths.undo): the cancel stays CANCELLING and ends once the revision reads UNDONE
+			growthTakingUp = false;
+			if (alive()) cancelHeld = true;
+		});
 	}
 
 	/**
@@ -4740,9 +4783,17 @@ public final class SettlementRunner {
 		}
 		if (entry.isEmpty()) {
 			// nothing of it shows in the world: its record is removed (a tombstone, or no region, is gone already)
-			regions.remove(id, new RemoveOptions(false, settlement.owner())).whenComplete((r, err) -> server.execute(() -> {
+			Undo.asking(server, () -> regions.remove(id, new RemoveOptions(false, settlement.owner()))).whenComplete((r, err) -> server.execute(() -> {
 				if (!alive() || worldStopped(err)) return;
-				boolean gone = (err == null && r.removed()) || regions.get(id).map(x -> x.state() == dev.larattalabs.architect.api.RegionState.REMOVED).orElse(true);
+				// (T4S-PRE) decided and held: it finishes by itself; the cancel waits for REMOVED (never ends on an absent record or a guess)
+				if (siteBusy(err).decided()) {
+					cancelHeld = true;
+					Steward.LOGGER.info("{}: the cancel's take-up of {} is decided and held: {}", settlement.id(), id, message(err));
+					if (saidRegionWaits.add("cancel held " + id)) say(RemovalStops.underWay(siteBusy(err)));
+					return;
+				}
+				var after = regions.get(id);
+				boolean gone = takenUp(err == null && r.removed(), after.map(x -> x.state()).orElse(null), after.isPresent(), Undo.healthy(server));
 				// (raw-text) Architect's error or blockers are logged, never said: its typed stop cause says it in the steward's words
 				if (!gone) {
 					Steward.LOGGER.info("{}: the cancel's take-up of {} stopped: {}", settlement.id(), id, err != null ? message(err) : String.join(", ", r.blockers()));
@@ -4764,6 +4815,9 @@ public final class SettlementRunner {
 			}
 			say("What the village placed stays; /steward undo " + settlement.id() + " takes it up once it is clear.");
 			feed(new Pipeline.BatchDone(placed, skipped));
+		}, false, () -> {
+			// (T4S-PRE) decided and held (said by Undo.region): the cancel stays CANCELLING and ends once Architect's removal finishes
+			if (alive()) cancelHeld = true;
 		});
 	}
 

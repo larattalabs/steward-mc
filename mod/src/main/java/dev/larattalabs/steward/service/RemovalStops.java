@@ -166,6 +166,51 @@ public final class RemovalStops {
 			+ " it can. It carries on when you ask again or when the world next starts.";
 	}
 
+	/**
+	 * (T4S-PRE) A growth's take-up whose decided hold carries on by itself ({@code held(decided)}, T4): it waits for what the hold names, and nothing is
+	 * asked of the player. Pure.
+	 */
+	static String growthWaiting(@Nullable RemovalStopCause cause, boolean byItself) {
+		if (!byItself) return growthWaiting(cause);
+		String said = causeWords(cause);
+		return "The town's change is part way taken up and waits to carry on" + (said != null ? " (" + said + ")" : "") + ": it carries on by itself. Nothing"
+			+ " more to do.";
+	}
+
+	// ------------------------------------------------------------------ (T4S-PRE) a removal Architect's transactions hold (SiteBusy)
+
+	/** What a decided, held removal waits for, in the steward's words ("it finishes by itself when chunk 3, -4 loads"); never Architect's text. Pure. */
+	static String waitsFor(SiteBusy.Held h) {
+		if (h.recordsUnreadable()) return RECORDS_UNREADABLE;
+		if (h.chunkX() != null && h.chunkZ() != null) return "it finishes by itself when chunk " + h.chunkX() + ", " + h.chunkZ() + " loads";
+		return "it finishes by itself";
+	}
+
+	/** (T4 change 7) A hold caused by Architect's records not loading. */
+	static final String RECORDS_UNREADABLE = "Architect's records didn't load; it waits";
+
+	/**
+	 * An undo (or a cancel's take-up) Architect decided and holds: under way, finishing by itself, nothing for the player to do. Never "Undone" or "Undo
+	 * stopped" ({@code Undo.reportingOverCapacity} reads those: the refund has not landed yet). Pure.
+	 */
+	static String underWay(SiteBusy.Held h) {
+		if (h.recordsUnreadable()) return "Undo under way: " + RECORDS_UNREADABLE + ", and finishes by itself. Nothing more to do.";
+		return "Undo under way: " + waitsFor(h) + ". Nothing more to do.";
+	}
+
+	/** A growth's take-up Architect decided and holds: it carries on by itself (never "ask again"). Pure. */
+	static String growthUnderWay(SiteBusy.Held h) {
+		return "The town's change is being taken up: " + waitsFor(h) + ". Nothing more to do.";
+	}
+
+	/** Another change holds what a removal needs ({@code held(other)}; nothing changed): asked again in a moment. Pure. */
+	static final String HELD_OTHER = "Architect is still finishing an earlier change there; it is tried again in a moment.";
+
+	/**
+	 * (T4 change 8) What a stop of a removal on Architect's transactions means: blockers are decided before it begins, so it took nothing down. Pure.
+	 */
+	static final String NOTHING_TAKEN = "nothing was taken down";
+
 	/** {@link #growthWaiting(RemovalStopCause)} with no cause: only that it waits. Pure. */
 	static String growthWaiting() {
 		return growthWaiting(null);

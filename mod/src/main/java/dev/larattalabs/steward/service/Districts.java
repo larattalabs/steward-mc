@@ -658,10 +658,14 @@ public final class Districts {
 			return;
 		}
 		int session = Session.current();
-		ArchitectAccess.api().sites(server).remove(siteId, new RemoveOptions(false, s.owner())).whenComplete((rr, e) -> {
+		Undo.asking(server, () -> ArchitectAccess.api().sites(server).remove(siteId, new RemoveOptions(false, s.owner()))).whenComplete((rr, e) -> {
 			if (!Session.is(session)) return;
 			if (e == null && rr.removed()) say.accept(why + ": the road was taken up again.");
-			else {
+			// (T4S-PRE) decided and held: it finishes by itself (the next reconcile finds it gone); not a failure, nothing to try again
+			else if (SiteBusy.of(e).decided()) {
+				Steward.LOGGER.info("road {} of {} is being taken up, decided and held: {}", siteId, s.id(), SettlementRunner.message(e));
+				say.accept(why + ": the road " + siteId + " is being taken up; " + RemovalStops.waitsFor(SiteBusy.of(e)) + ".");
+			} else {
 				// (raw-text) Architect's error or blockers are logged, never said (a road's removal has no typed cause)
 				Steward.LOGGER.info("road {} of {} was not taken up: {}", siteId, s.id(), e != null ? SettlementRunner.message(e) : String.join(", ", rr.blockers()));
 				say.accept(why + ", and the road " + siteId + " could not be taken up" + (e != null ? " just now" : ": " + RemovalStops.IN_THE_WAY)

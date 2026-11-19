@@ -182,10 +182,35 @@ public final class Growths {
 	}
 
 	public static String refundLine(java.util.Map<net.minecraft.world.item.Item, Integer> refund) {
-		if (refund.isEmpty()) return "Nothing had been drawn from the stockpile for it, so nothing came back.";
-		var list = refund.entrySet().stream().map(e -> java.util.Map.entry(e.getKey(), e.getValue())).toList();
-		return "Refunded: " + Stockpiles.items(list, 8) + ".";
+		return refundLine(refund, java.util.Map.of());
 	}
+
+	/**
+	 * (OVF-S3, T4S-PRE) As above, with what Architect owes ({@code RemoveResult.owed()}, resolved to items: T2b's owed entries, listed apart from the refund
+	 * totals, never in them). Owed items mean something did come back, so "nothing came back" is never said then.
+	 */
+	public static String refundLine(java.util.Map<net.minecraft.world.item.Item, Integer> refund, java.util.Map<net.minecraft.world.item.Item, Integer> owed) {
+		return refundLine(refund, owed, m -> Stockpiles.items(m.entrySet().stream().map(e -> java.util.Map.entry(e.getKey(), e.getValue())).toList(), 8));
+	}
+
+	/** {@link #refundLine(java.util.Map, java.util.Map)} over any item key, {@code items} saying a map ("12 oak planks, 3 glass"). Pure. */
+	static <T> String refundLine(java.util.Map<T, Integer> refund, java.util.Map<T, Integer> owed, java.util.function.Function<java.util.Map<T, Integer>, String> items) {
+		String owes = owed.isEmpty() ? "" : "Owed to you: " + items.apply(owed) + " (take them from the stockpile's Take, or /architect collect; they wait for you).";
+		if (refund.isEmpty()) return owed.isEmpty() ? NOTHING_BACK : owes;
+		return "Refunded: " + items.apply(refund) + "." + (owes.isEmpty() ? "" : " " + owes);
+	}
+
+	/**
+	 * (OVF-S3) The completion note of a growth's empty take-up: {@code refunded} (its answer's refund not empty) and {@code owed} (its owed not empty) both
+	 * mean something came back. Starts with {@link #NOT_PLACED} ({@link #completed} reads it). Pure.
+	 */
+	public static String notPlacedNote(String why, boolean refunded, boolean owed) {
+		String back = refunded && owed ? "; what it drew was refunded, and some is owed to you" : refunded ? "; what it drew was refunded" : owed ? "; what it drew is owed to you" : "";
+		return NOT_PLACED + " (" + why + back + ")";
+	}
+
+	/** What a take-up that drew nothing says. */
+	static final String NOTHING_BACK = "Nothing had been drawn from the stockpile for it, so nothing came back.";
 
 	/**
 	 * (slice A2) How many of the revision's own sites are construction targets not built yet (BUILDING or PLACING), as Architect's undo preflight reads its
@@ -340,10 +365,36 @@ public final class Growths {
 	 */
 	public static void undo(MinecraftServer server, String owner, Ref ref, Consumer<String> say, Consumer<@Nullable Boolean> done,
 		Consumer<dev.larattalabs.architect.api.RemoveResult> result) {
+		undo(server, owner, ref, say, done, result, null);
+	}
+
+	/** (T4S-PRE) The growth take-ups whose held, decided words were said this session (a re-ask answered held again says nothing more). */
+	private static final java.util.Set<String> HELD_SAID = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+	static {
+		net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents.SERVER_STOPPING.register(s -> HELD_SAID.clear());
+	}
+
+	/**
+	 * As above; {@code onHeld} (T4S-PRE) runs instead of {@code done} when Architect decided the take-up and holds it ({@code SITE_BUSY held(decided)}): said
+	 * once as under way (it carries on by itself; never "ask again"), the revision stays UNDOING and the growth sweep logs it once it reads UNDONE. Null:
+	 * {@code done(false)}. A take-up refused {@code held(other)} (nothing changed) is asked again a moment later ({@link Undo#asking}).
+	 */
+	public static void undo(MinecraftServer server, String owner, Ref ref, Consumer<String> say, Consumer<@Nullable Boolean> done,
+		Consumer<dev.larattalabs.architect.api.RemoveResult> result, @Nullable Runnable onHeld) {
 		var regions = ArchitectAccess.api().regions();
 		Decision d = decide(regions.get(ref.region()), ref.rid(), ArchitectAccess.api().sites(server));
 		switch (d.step()) {
-			case GONE -> { done.accept(true); return; }
+			case GONE -> {
+				// (T4S-PRE) a town read as gone only because Architect has no record of it, on a store that did not load: never taken for gone
+				if (regions.get(ref.region()).isEmpty() && !Undo.healthy(server)) {
+					say.accept("The town's change can't be taken up now: " + RemovalStops.RECORDS_UNREADABLE + ".");
+					done.accept(false);
+					return;
+				}
+				done.accept(true);
+				return;
+			}
 			case UNKNOWN, NEWER, WAIT -> {
 				say.accept("The town's change can't be taken up now: " + d.why() + ".");
 				done.accept(false);
@@ -366,12 +417,21 @@ public final class Growths {
 		}
 		int session = Session.current();
 		Steward.LOGGER.info("undo growth {} of {}: undoRevision to {}", ref.tag(), owner, d.toPosition());
-		regions.undoRevision(ref.region(), d.toPosition(), owner).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
+		Undo.asking(server, () -> regions.undoRevision(ref.region(), d.toPosition(), owner)).whenComplete((r, err) -> ArchitectAccess.onServer(server, () -> {
 			if (!Session.is(session) || SettlementRunner.worldStopped(err)) { done.accept(null); return; }
+			// (T4S-PRE) decided and held: under way, carrying on by itself; nothing refused, nothing to ask again
+			var hold = SiteBusy.of(err);
+			if (hold.decided()) {
+				Steward.LOGGER.info("undo growth {} of {} is decided and held: {}", ref.tag(), owner, SettlementRunner.message(err));
+				if (HELD_SAID.add(ref.tag())) say.accept(RemovalStops.growthUnderWay(hold));
+				if (onHeld != null) onHeld.run();
+				else done.accept(false);
+				return;
+			}
 			if (err == null && r.removed()) { result.accept(r); done.accept(true); return; }
 			// answered not removed, or refused: read again (a lost answer of an undo that went through reads UNDONE)
 			var again = decide(regions.get(ref.region()), ref.rid());
-			if (again.step() == Step.GONE) { done.accept(true); return; }
+			if (again.step() == Step.GONE && (regions.get(ref.region()).isPresent() || Undo.healthy(server))) { done.accept(true); return; }
 			// (slice A2) a target still building (a race past the check above): said plainly, never Architect's text
 			if (err != null && buildingRefusal(SettlementRunner.message(err))) { say.accept(buildingLine(server, ref)); done.accept(false); return; }
 			// (M4, Q3) refused for a storage hall holding items (Architect throws NOT_ALLOWED naming the sites to empty): said as the steward says
@@ -381,7 +441,8 @@ public final class Growths {
 			// (slice DRS) left UNDOING with a stage wait (Architect resumes it at a same-target call or the next world start): waiting, never refused;
 			// (8bS) its text is never shown (a refused save's raw text names chunk files); (RVC) what it waits for from the revision's typed cause
 			var after = regions.get(ref.region()).flatMap(v -> v.revisions().stream().filter(x -> x.rid() == ref.rid()).findFirst()).orElse(null);
-			if (held == null && RemovalStops.growthWaits(after)) { say.accept(RemovalStops.growthWaiting(RemovalStops.revisionCause(after))); done.accept(false); return; }
+			// (T4S-PRE) on Architect's transactions (T4) a revision left UNDOING waits on a decided hold, which carries on by itself
+			if (held == null && RemovalStops.growthWaits(after)) { say.accept(RemovalStops.growthWaiting(RemovalStops.revisionCause(after), Undo.txnRemovals())); done.accept(false); return; }
 			// (raw-text) Architect's text is logged, never said: the hall's own words, else (no typed cause when not waiting) the generic line
 			Steward.LOGGER.info("undo growth {} of {} stopped: {}", ref.tag(), owner, why);
 			say.accept(refusedLine(held, err != null));
