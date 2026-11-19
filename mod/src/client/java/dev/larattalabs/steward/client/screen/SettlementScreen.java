@@ -262,9 +262,12 @@ public final class SettlementScreen extends KitScreen {
 		}
 	}
 
-	/** The legend's rows of two (11 px each): the four states, the plan's roads and walls when it has them, the claim's edge and the stone. */
-	private int legendHeight() {
-		return (legendItems(true).size() + 1) / 2 * 11 + 2;
+	/**
+	 * The legend's height: always room for its most rows of two (11 px each: the four states, roads, walls, the claim's edge and the stone), so the map
+	 * keeps one size whatever the plan holds.
+	 */
+	private static int legendHeight() {
+		return 4 * 11 + 2;
 	}
 
 	/** A map footprint's fill for its state's family (each mark also gets a dark edge: at least 3:1 against the inset whatever its fill). */
