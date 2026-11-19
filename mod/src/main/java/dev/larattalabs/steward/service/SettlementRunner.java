@@ -3245,7 +3245,7 @@ public final class SettlementRunner {
 	 */
 	static @org.jspecify.annotations.Nullable String holdWhy(dev.larattalabs.steward.module.ModuleOrder order, List<dev.larattalabs.steward.module.ModuleBound.Over> over,
 		List<dev.larattalabs.steward.module.ModuleBound.Heavy> heavy, ModulePlacement.QuoteCheck check) {
-		return order.refusedAtPutDown() ? PUT_DOWN_REFUSED
+		return order.refusedAtPutDown() ? dev.larattalabs.steward.module.ModuleBound.putDownRefused(order)
 			: !over.isEmpty() ? "The bill came to more than you approved: " + dev.larattalabs.steward.module.ModuleBound.words(over, 100) + "."
 			: !heavy.isEmpty() ? "The whole bill takes more than half of the stockpile's " + heavy.stream().map(h -> dev.larattalabs.steward.module.ModuleBound.plain(h.item())
 				+ " (" + h.bill() + " of " + h.stock() + ")").collect(Collectors.joining(", ")) + ", so I ask first."
@@ -3258,9 +3258,6 @@ public final class SettlementRunner {
 	public static void devCapShort(@org.jspecify.annotations.Nullable String item) {
 		DEV_CAP_SHORT.set(item);
 	}
-
-	/** (QD) The re-ask after a put-down refusal. */
-	static final String PUT_DOWN_REFUSED = dev.larattalabs.steward.module.ModuleBound.PUT_DOWN_REFUSED;
 
 	// ----------------------------------------------------------------- module lots of a composed town (slice M5, docs/MODULES.md "M5 design")
 
@@ -4039,12 +4036,13 @@ public final class SettlementRunner {
 				// (pin-073 batch review, P2) the refusal not saved: a restart would find the build placing as approved and could realise it on its own,
 				// so it is neither quoted again nor realised here; the build stops (nothing was written or taken), said
 				if (!persist()) {
-					say("Not placed: the materials needed went past what you approved, and that could not be saved, so I won't ask again or build it."
-						+ " Nothing was taken from the stockpile; ask for it again.");
+					say("Not placed: the materials needed went past " + dev.larattalabs.steward.module.ModuleBound.limitOf(moduleOrders.values())
+						+ ", and that could not be saved, so I won't ask again or build it. Nothing was taken from the stockpile; ask for it again.");
 					feed(new Pipeline.Cancel());
 					return;
 				}
-				say("Not placed yet: the materials needed went past what you approved. Nothing was taken from the stockpile; I'll ask you again.");
+				say("Not placed yet: the materials needed went past " + dev.larattalabs.steward.module.ModuleBound.limitOf(moduleOrders.values())
+					+ ". Nothing was taken from the stockpile; I'll ask you again.");
 				realiseVillage();
 				return;
 			}
@@ -4088,8 +4086,8 @@ public final class SettlementRunner {
 						feed(new Pipeline.Cancel());
 					}
 					case STOP_UNSAVED -> {
-						say("Not placed: the materials needed went past what you approved, and that could not be saved, so I won't ask again or build it."
-							+ " Nothing was taken from the stockpile; start it again.");
+						say("Not placed: the materials needed went past " + dev.larattalabs.steward.module.ModuleBound.limitOf(orders.values())
+							+ ", and that could not be saved, so I won't ask again or build it. Nothing was taken from the stockpile; start it again.");
 						feed(new Pipeline.Cancel());
 					}
 					case REASK -> {

@@ -164,8 +164,23 @@ public final class ModuleBound {
 	 * (QD, pin-073 batch review) What every approval of a capped bill says with it: Architect's reconcile after an unclean start (BC-c) charges
 	 * what stands even past the cap, so the bound is never promised without this exception (the overnight decision's words).
 	 */
-	/** (QD-2) The re-ask after a realise refused at put-down ({@code BILL_CAP}): the single-module path and the composed one say it alike. */
-	public static final String PUT_DOWN_REFUSED = "When it was put down, the materials needed went past what you approved.";
+	/**
+	 * (QD-2) How the re-ask after a realise refused at put-down ({@code BILL_CAP}) begins: the single-module path ({@link #putDownRefused}) and the
+	 * composed one ({@link ComposedModules#putDownRefused}) say it alike. (WORDS-079) It names the bound it went past as {@link ComposedModules#limitWords}
+	 * does, never "what you approved" for a measured bound the player didn't approve by hand.
+	 */
+	public static final String PUT_DOWN_REFUSED = "When it was put down, the materials";
+
+	/** (WORDS-079) The single-module re-ask after a put-down refusal: "…went past its measured limit." (or its approved limit). Pure. */
+	public static String putDownRefused(ModuleOrder o) {
+		return PUT_DOWN_REFUSED + " needed went past " + ComposedModules.limitWords(o) + ".";
+	}
+
+	/** (WORDS-079) The bound {@code orders} hold to, in words: "its measured limit" or "its approved limit" when they all agree, else "its limit". Pure. */
+	public static String limitOf(java.util.Collection<ModuleOrder> orders) {
+		var ws = orders.stream().map(ComposedModules::limitWords).distinct().toList();
+		return ws.size() == 1 ? ws.get(0) : "its limit";
+	}
 
 	public static final String CRASH_EXCEPTION = "I stop before passing it, except to pay for blocks already standing after a crash";
 

@@ -123,7 +123,11 @@ class ModuleSavesTest {
 		assertEquals(refused, back);
 		assertTrue(back.refusedAtPutDown());
 		var fits = ModulePlacement.quoteCheck(true, List.of());
-		assertEquals(SettlementRunner.PUT_DOWN_REFUSED, SettlementRunner.holdWhy(back, List.of(), List.of(), fits));
+		// (WORDS-079) it names the measured bound it went past, never "what you approved"
+		assertEquals("When it was put down, the materials needed went past its measured limit.", SettlementRunner.holdWhy(back, List.of(), List.of(), fits));
+		assertEquals("When it was put down, the materials needed went past its approved limit.",
+			SettlementRunner.holdWhy(back.holding(JsonParser.parseString("{\"minecraft:dirt\": 1}").getAsJsonObject()).approvedHeld().refusedAtPutDown(true), List.of(), List.of(), fits),
+			"a bound the player approved since is named so");
 		// the hold keeps it (GPT review of QD-2, P1): its order is saved before its phase, so a crash between them restores PLACING with the bill
 		// held; that restart quotes again and must still ask, never realise a fitting quote on its own
 		var held = back.holding(JsonParser.parseString("{\"minecraft:dirt\": 120, \"minecraft:wheat_seeds\": 81}").getAsJsonObject());
@@ -131,7 +135,7 @@ class ModuleSavesTest {
 		BuildStore st2 = new BuildStore();
 		st2.put(BuildStoreTestAccess.saved().withModuleOrders(Map.of("lot_3", held)));
 		var heldBack = BuildStore.fromJson(st2.toJson()).all().get(0).moduleOrders().get("lot_3");
-		assertEquals(SettlementRunner.PUT_DOWN_REFUSED, SettlementRunner.holdWhy(heldBack, List.of(), List.of(), fits), "a crash between the hold's two saves asks again");
+		assertEquals(dev.larattalabs.steward.module.ModuleBound.putDownRefused(heldBack), SettlementRunner.holdWhy(heldBack, List.of(), List.of(), fits), "a crash between the hold's two saves asks again");
 		// (a restart once the hold's phase is saved waits in AWAITING_PLACEMENT_APPROVAL and quotes nothing: not asked twice)
 		// the player's approval clears it: the next quote within the approved bill goes on
 		var approved = heldBack.approvedHeld();

@@ -62,10 +62,64 @@ class MaterialRequestsPartTest {
 	@Test
 	void aWaitWhileTheStockpileIsOverCapacitySaysOnlyWhatTheBuildsNeedGoesIn() {
 		// (slice OVF-S2) a waiting build is never paused, so what it misses still goes in over capacity (Architect 0.77.0 OVF); nothing else does
-		assertEquals("The farm waits for materials: 3 dirt. They go in the stockpile.", MaterialRequests.waitWords("farm", "3 dirt", 0));
+		assertEquals("The farm waits for materials: 3 dirt. They go in the stockpile.", MaterialRequests.waitWords("farm", "3 dirt", room(0, 5, 1), "set_1"));
 		assertEquals("The farm waits for materials: 3 dirt. They go in the stockpile, though it is over capacity by 2 stacks: it takes only what your running"
-			+ " builds still need, so bring just those.", MaterialRequests.waitWords("farm", "3 dirt", 2));
-		assertTrue(MaterialRequests.waitWords("farm", "3 dirt", 1).contains("over capacity by 1 stack:"));
-		assertFalse(MaterialRequests.waitWords("farm", "3 dirt", 4).contains("take out"), "never 'take items out first': its own items go in");
+			+ " builds still need, so bring just those.", MaterialRequests.waitWords("farm", "3 dirt", room(2, 0, 1), "set_1"));
+		assertTrue(MaterialRequests.waitWords("farm", "3 dirt", room(1, 0, 1), "set_1").contains("over capacity by 1 stack:"));
+		assertFalse(MaterialRequests.waitWords("farm", "3 dirt", room(4, 0, 9), "set_1").contains("take out"), "never 'take items out first': its own items go in");
+		assertEquals("The farm waits for materials: 3 dirt. They go in the stockpile.", MaterialRequests.waitWords("farm", "3 dirt", MaterialRequests.Pile.UNREAD, "set_1"));
+	}
+
+	private static MaterialRequests.Pile room(int over, int free, int need) {
+		return new MaterialRequests.Pile(over, free, need);
+	}
+
+	@Test
+	void aPartLabelWithItsOwnArticleIsNamedWithItOnce() {
+		// (WORDS-079) "The the great oak waits for materials": a plan label already has its article
+		assertEquals("The great oak", MaterialRequests.theName("the great oak"));
+		assertEquals("The great oak", MaterialRequests.theName("The great oak"));
+		assertEquals("The great oak", MaterialRequests.theName("great oak"));
+		assertEquals("The theatre", MaterialRequests.theName("theatre"), "only the article, never a word starting so");
+		assertEquals("The great oak waits for materials: 3 dirt. They go in the stockpile.", MaterialRequests.waitWords("the great oak", "3 dirt", room(0, 5, 1), "s"));
+		assertTrue(MaterialRequests.longWaitWords("the storage hall", "3 dirt", room(0, 5, 1), "s").startsWith("The storage hall has waited a while for materials: 3 dirt."));
+		assertEquals("The town wall is held by another change for a moment: it carries on by itself.", MaterialRequests.heldWords("the town wall"));
+		assertTrue(MaterialRequests.overCapWords("the great oak", "s", java.util.List.of(java.util.Map.entry("minecraft:dirt", 3)), 0, MaterialRequests.TakeUp.UNDO)
+			.startsWith("The great oak has stopped:"));
+		assertTrue(MaterialRequests.lotOverCapWords("the working crop farm", "s", java.util.List.of(java.util.Map.entry("minecraft:dirt", 3)), 0, MaterialRequests.TakeUp.UNDO, false)
+			.startsWith("The working crop farm has stopped: finishing it would take 3 dirt more than its limit,"));
+	}
+
+	@Test
+	void aWaitWithTheStockpileFullSaysSoAndHowToMakeRoom() {
+		// (WORDS-079) exactly full (not over): within capacity Architect takes a delivery only into the room it has, so the plain line would mislead
+		assertEquals("The farm waits for materials: 3 dirt, but the stockpile is full: take out what no build needs, or add a crate (/steward stockpile set_1 add).",
+			MaterialRequests.waitWords("farm", "3 dirt", room(0, 0, 1), "set_1"));
+		// room left, but too little for what the build misses (a run needs its whole bill in stock)
+		assertEquals("The farm waits for materials: 3 dirt, but the stockpile is too full to take them: take out what no build needs, or add a crate"
+			+ " (/steward stockpile set_1 add).", MaterialRequests.waitWords("farm", "3 dirt", room(0, 2, 3), "set_1"));
+		// full, but what it misses fits in its items' partly filled stacks: they still go in
+		assertEquals("The farm waits for materials: 3 dirt. They go in the stockpile.", MaterialRequests.waitWords("farm", "3 dirt", room(0, 0, 0), "set_1"));
+		// over capacity keeps its own words (OVF-S2)
+		assertTrue(MaterialRequests.waitWords("farm", "3 dirt", room(1, 0, 4), "set_1").contains("over capacity by 1 stack:"));
+		// the long wait: the same reading, never "fill the stockpile" when it is full
+		assertEquals("The farm has waited a while for materials: 3 dirt, but the stockpile is full: take out what no build needs, or add a crate"
+			+ " (/steward stockpile set_1 add).", MaterialRequests.longWaitWords("farm", "3 dirt", room(0, 0, 1), "set_1"));
+		assertEquals("The farm has waited a while for materials: 3 dirt. Fill the stockpile and I can carry on.", MaterialRequests.longWaitWords("farm", "3 dirt", room(0, 9, 1), "set_1"));
+		assertTrue(MaterialRequests.longWaitWords("farm", "3 dirt", room(2, 0, 1), "set_1").contains("over capacity by 2 stacks"));
+		// the stacks counted as Architect counts usedStacks: a partly filled stack is filled first
+		assertEquals(0, MaterialRequests.newStacks(10, 54, 64));
+		assertEquals(1, MaterialRequests.newStacks(10, 55, 64));
+		assertEquals(2, MaterialRequests.newStacks(0, 65, 64));
+		assertEquals(3, MaterialRequests.newStacks(0, 3, 1));
+		assertEquals(0, MaterialRequests.newStacks(5, 0, 64));
+	}
+
+	@Test
+	void aLongWaitThatNamesNoMaterialsIsNeverAnEmptyList() {
+		// (WORDS-079) "The the storage hall has waited a while for materials: ."
+		String said = MaterialRequests.longWaitWords("the storage hall", "", room(0, 0, 0), "set_1");
+		assertEquals("The storage hall has waited a while, though not for any materials I can name.", said);
+		assertFalse(said.contains(": ."));
 	}
 }

@@ -3150,7 +3150,7 @@ async function composedModulesSurvivalFlow() {
       const shorted = new RegExp(`composed modules ${id}: dev cap_short ${shortItem} in lot farm_1`).test(since);
       const refused = new RegExp(`composed modules ${id} realise refused at put-down \\(CapRefusal\\[scope=LOT, lot=farm_1\\]\\)`).test(since);
       const named = /Not placed yet: when it was put down, the materials the working crop farm needed went past its limit\. Nothing was taken from the stockpile; I'll ask you again\./.test(since);
-      const reask = holds.find((h) => h.includes('When it was put down, the materials needed went past what you approved.'));
+      const reask = holds.find((h) => /When it was put down, the materials (the working \w[\w ]*|a working module) needed went past its (measured |approved )?limit\./.test(h));
       const first = sent[0], last = sent.at(-1);
       if (shorted && refused && named && reask && sent.length >= 2 && first.perLot.farm_1?.[shortItem] === 0 && last.perLot.farm_1?.[shortItem] > 0)
         ok(lbl, `refused at put-down naming the farm's lot, said so; asked again "${reask.slice(0, 140)}"; approved, sent with ${shortItem} ${last.perLot.farm_1[shortItem]}`);
@@ -7365,7 +7365,7 @@ async function moduleCapFlow() {
         if (refusedAt == null && new RegExp(`module ${id} realise \\S+ refused at put-down`).test(said)) refusedAt = logSize();
         const ask = /Approve to build it with this bill|so I ask first/.test(said);
         if (ask && refusedAt != null && !reasked) {
-          reasked = said.match(/When it was put down, the materials needed went past what you approved\.[^\n]*/)?.[0] ?? null;
+          reasked = said.match(/When it was put down, the materials needed went past its (measured|approved) limit\.[^\n]*/)?.[0] ?? null;
           // (E2E-STUB-ORDER) the short cap is cleared by the finally below, so the next module realise on this client is not sent short
           if (!reasked) return fail(`${label} put-down`, `asked again after the refusal without saying why: ${said.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
           for (let j = 0; j < 10 && heldSaved?.state?.phase !== 'AWAITING_PLACEMENT_APPROVAL'; j++) {
@@ -7384,7 +7384,7 @@ async function moduleCapFlow() {
       const lbl = `${label} put-down`;
       const sent = maxBills();
       const first = sent[0], second = sent.at(-1);
-      const notPlaced = /Not placed yet: the materials needed went past what you approved\. Nothing was taken from the stockpile; I'll ask you again\./.test(logSince(startAt));
+      const notPlaced = /Not placed yet: the materials needed went past its (measured|approved) limit\. Nothing was taken from the stockpile; I'll ask you again\./.test(logSince(startAt));
       const order = Object.values(heldSaved?.moduleOrders ?? {})[0];
       const atLeast = second && Object.entries(order?.bound ?? {}).every(([k, c]) => (second[k] ?? 0) >= c);
       if (refusedAt != null && notPlaced && reasked && sent.length >= 2 && first?.[shortItem] === 0 && second?.[shortItem] > 0 && atLeast
