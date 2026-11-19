@@ -747,10 +747,11 @@ public final class Actions {
 		for (var d : s.lands().districts()) {
 			if (d.region() == null) continue;
 			ArchitectApi.get().regions().get(d.region()).ifPresent(v -> {
-				var beside = v.ext().has("architect_mc:beside") && v.ext().get("architect_mc:beside").isJsonObject() ? v.ext().getAsJsonObject("architect_mc:beside") : null;
-				boolean dangling = beside != null && beside.has("dangling") && beside.get("dangling").getAsBoolean();
-				boolean gate = beside != null && beside.has("gateRemoved") && !beside.get("gateRemoved").isJsonNull();
-				if (dangling || dev.larattalabs.steward.gateway.DistrictLand.standingRemoved(v.ext()) != null) notes.put(d.id(), gate ? "the gate its road came through is gone" : "its road to the town is gone");
+				// (8bS) Architect 8b's typed besideNote and land
+				var beside = dev.larattalabs.steward.gateway.Typed.beside(v);
+				boolean dangling = beside != null && beside.dangling();
+				boolean gate = beside != null && beside.gateRemoved() != null;
+				if (dangling || dev.larattalabs.steward.gateway.DistrictLand.standingRemoved(v) != null) notes.put(d.id(), gate ? "the gate its road came through is gone" : "its road to the town is gone");
 			});
 		}
 		// what an undo would take up, chosen as Undo.lastProject chooses it (read only: the adoption reconcile it runs first is left to the undo itself)

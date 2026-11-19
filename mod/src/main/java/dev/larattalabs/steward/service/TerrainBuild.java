@@ -63,21 +63,20 @@ public final class TerrainBuild {
 	}
 
 	/**
-	 * A part waiting for its ground in the steward's words, from Architect's typed wait ({@code say} "the farm waits for the hamlet to be built", with
-	 * {@code terrainCells} and {@code terrainBuilt}): "The farm's ground is being shaped first: about 7200 blocks of earth to go." Null when the wait
-	 * carries no sentence (another item of the same part says it: Architect gives one sentence per waiting part), or is not a terrain wait.
+	 * A part waiting for its ground in the steward's words, from Architect's typed wait's counts ({@code terrainCells} and {@code terrainBuilt}): "The
+	 * farm's ground is being shaped first: about 7200 blocks of earth to go." {@code who}: the waiting part in the steward's words (slice 8bS: Architect 8b's
+	 * typed part, never cut out of its {@code say}), else "the build". Null when it is not a terrain wait, or carries no sentence (another item of the
+	 * same part says it: Architect gives one per waiting part; only whether there is one is read, never its words).
 	 */
-	static @Nullable String waitLine(@Nullable JsonObject ext) {
+	static @Nullable String waitLine(@Nullable JsonObject ext, @Nullable String who) {
 		JsonObject w = terrainWait(ext);
-		if (w == null || !(w.get("say") instanceof JsonPrimitive say)) return null;
-		String t = say.getAsString().strip();
-		int i = t.indexOf(" waits for ");
-		String who = i > 0 ? t.substring(0, i).strip() : "";
-		if (who.isEmpty()) who = "the build";
-		who = Character.toUpperCase(who.charAt(0)) + who.substring(1);
+		if (w == null || !(w.get("say") instanceof JsonPrimitive)) return null;
+		String name = who == null || who.isBlank() ? "the build" : who.strip();
+		if (!name.regionMatches(true, 0, "the ", 0, 4)) name = "the " + name;
+		name = Character.toUpperCase(name.charAt(0)) + name.substring(1);
 		long left = Math.max(0, num(w, "terrainCells") - num(w, "terrainBuilt"));
 		String rest = left > 0 ? "about " + Words.count(left, "block of earth", "blocks of earth") + " to go" : "nearly done";
-		return who + (who.endsWith("s") ? "'" : "'s") + " ground is being shaped first: " + rest + ".";
+		return name + (name.endsWith("s") ? "'" : "'s") + " ground is being shaped first: " + rest + ".";
 	}
 
 	/** What makes a terrain wait said once: the target it waits on and the waiting part (its counts move as the ground is built). */

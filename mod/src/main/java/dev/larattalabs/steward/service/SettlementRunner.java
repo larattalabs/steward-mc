@@ -1056,7 +1056,7 @@ public final class SettlementRunner {
 			// a village lot's site carries Architect's lot id only: its role is the plan's
 			String lot = v.map(x -> extString(x.ext(), "steward_mc:role")).orElse(null);
 			if (lot == null) {
-				String lotId = v.map(x -> extString(x.ext(), "architect_mc:lot")).orElse(null);
+				String lotId = v.map(dev.larattalabs.steward.gateway.Typed::lot).orElse(null);
 				if (lotId != null && plan != null) lot = plan.lots().stream().filter(l -> l.id().equals(lotId)).map(VillageLayout.Lot::role).findFirst().orElse(lotId);
 			}
 			return new Settlement.SiteChange(id, lot, 0, v.map(dev.larattalabs.architect.api.SiteView::version).orElse(1));
@@ -1070,7 +1070,7 @@ public final class SettlementRunner {
 		if (district != null && !district.square() && vRegionId != null) {
 			// (slice DG review round 2) only a whole read of the region's land ever replaces what the district owns; else it keeps its land (the sweep reads it
 			// again once the region has settled)
-			var read = ArchitectApi.get().regions().get(vRegionId).map(v -> dev.larattalabs.steward.gateway.DistrictLand.outsideWhole(v.ext(), district.claim().dimension()))
+			var read = ArchitectApi.get().regions().get(vRegionId).map(v -> dev.larattalabs.steward.gateway.DistrictLand.outsideWhole(v, district.claim().dimension()))
 				.orElse(null);
 			var land = java.util.Optional.ofNullable(read == null ? null : read.land());
 			var res = Settlements.placeDistrict(settlement.id(), district.id(), vRegionId, land.orElse(null), entry);
@@ -2100,7 +2100,7 @@ public final class SettlementRunner {
 				// the district's land, which a town build keeps off, and its region's join inside the town (town land the district holds; read live)
 				List<dev.larattalabs.steward.model.Land> off = new ArrayList<>(List.of(d.land()));
 				if (d.region() != null) ArchitectApi.get().regions().get(d.region())
-					.flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.inside(v.ext(), dim)).ifPresent(off::add);
+					.flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.inside(v, dim)).ifPresent(off::add);
 				for (var land : off) for (dev.larattalabs.steward.model.Land.Run r : land.runs()) for (int x = r.x0(); x <= r.x1(); x++) {
 					if (grid.has(x, r.z())) grid.setBuilt(x, r.z(), true);
 				}
@@ -2141,7 +2141,7 @@ public final class SettlementRunner {
 			if (d.id().equals(own)) continue;
 			List<dev.larattalabs.steward.model.Land> off = new ArrayList<>(List.of(d.land()));
 			if (d.region() != null) ArchitectApi.get().regions().get(d.region())
-				.flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.inside(v.ext(), dim)).ifPresent(off::add);
+				.flatMap(v -> dev.larattalabs.steward.gateway.DistrictLand.inside(v, dim)).ifPresent(off::add);
 			for (int[] sp : spans) {
 				int[] b = plan.spanBox(sp[0], sp[1], 2);
 				var band = dev.larattalabs.steward.model.Land.ofRect(dim, b[0], b[1], b[2], b[3]);
@@ -4706,32 +4706,41 @@ public final class SettlementRunner {
 
 	/** A queued item of this build waits for a temporary blocker (Architect fires it when the reason changes; it waits up to 10 minutes). */
 	private void onItemWaiting(dev.larattalabs.architect.api.ItemEvent e) {
-		// a batch build's by its batch; a region's by the build tag on its lots, or by the region its tiles and roads name (Architect close-out A)
+		// a batch build's by its batch; a region's by the build tag on its lots, or by the region its tiles and roads name (Architect close-out A; 8b's
+		// typed ItemEvent.region)
+		String region = dev.larattalabs.steward.gateway.Typed.region(e);
 		boolean ours = batchId != null && batchId.equals(e.batchId()) || buildId != null && buildId.equals(extString(e.ext(), BatchPlanner.BUILD_EXT))
-			|| vRegionId != null && vRegionId.equals(extString(e.ext(), "architect_mc:region"));
+			|| vRegionId != null && vRegionId.equals(region);
 		if (!ours || e.reason().isEmpty()) return;
+		// (8bS) the wait read typed (Architect 8b's ItemEvent.status; the home of waitsFor): Architect's say is never parsed or shown
+		ItemWait w = ItemWait.of(dev.larattalabs.steward.gateway.Typed.status(e), e.ext());
+		String plan = PlanStore.get(settlement.id()).map(PlanStore.Entry::plan).orElse(null);
+		String part = MaterialRequests.partWords(plan, dev.larattalabs.steward.gateway.Typed.part(e), settlement.name());
 		// (QD, BC-c) a part whose whole charge (a gate mechanism) would pass the approved bound: said in the steward's words, not Architect's
 		// (pin-073 batch review) cancel while this growth's build runs; else undo only when it would take this growth's own operation
-		String capped = capStageWait(e.ext(), settlement.id(), cancelTakesUp() ? MaterialRequests.TakeUp.CANCEL
-			: MaterialRequests.takeUp(settlement, extString(e.ext(), "architect_mc:region"), MaterialRequests.ridOf(e.ext())));
-		if (capped != null) {
+		if (w != null && w.capped()) {
+			int rid = w.rid() > 0 ? w.rid() : dev.larattalabs.steward.gateway.Typed.rid(e);
+			String capped = capStageWait(w, part, settlement.id(), cancelTakesUp() ? MaterialRequests.TakeUp.CANCEL : MaterialRequests.takeUp(settlement, region, rid));
 			if (saidWaits.add(capped)) say(capped);
 			return;
 		}
+		// a stage or terrain wait (built from materials: a part waits for the parts it stands on, or for its land): said once, what it waits for named
+		// in the steward's words (a hidden part by its host)
+		// the waiting item in words: a lot's role, else its part (typed), else the street or its key
+		String role = extString(e.ext(), "steward_mc:role");
+		String what = role != null ? role : part != null ? part : BatchPlanner.isStreet(e.itemKey()) ? "street" : e.itemKey().replace('_', ' ');
 		// (slice 8aS, Architect 8a ST) a part waiting for the ground under it, staged terrain built over time: in the steward's words, once per wait
 		var terrain = TerrainBuild.terrainWait(e.ext());
 		if (terrain != null) {
-			String line = TerrainBuild.waitLine(e.ext());
+			String line = TerrainBuild.waitLine(e.ext(), what);
 			if (line != null && saidWaits.add(TerrainBuild.waitKey(terrain))) say(line);
 			return;
 		}
-		// a stage wait (built from materials: a part waits for the parts it stands on): Architect's own sentence, said once
-		String stage = stageWait(e.ext());
+		String stage = stageWait(w, what, w == null ? null : waitsOnName(w));
 		if (stage != null) {
-			if (saidWaits.add(stage)) say(stage + ".");
+			if (saidWaits.add(stage)) say(stage);
 			return;
 		}
-		String what = BatchPlanner.isStreet(e.itemKey()) ? "street" : java.util.Optional.ofNullable(extString(e.ext(), "steward_mc:role")).orElse(e.itemKey().replace('_', ' '));
 		String in = e.message().replaceFirst("(?s).*in the box: ", "").replaceFirst("\\s*\\(.*", "").strip();
 		switch (e.reason().get()) {
 			case PLAYER_IN_BOX -> say("The " + what + " waits: someone is standing on its lot. Step off it and it goes up.");
@@ -4740,6 +4749,16 @@ public final class SettlementRunner {
 			case NOT_LOADED -> say("The " + what + " waits for its ground to load: come nearer to it.");
 			default -> {
 			}
+		}
+	}
+
+	/** What a stage wait waits for, in the steward's words (a site's: its part, its host when hidden, its role), else null. */
+	private @org.jspecify.annotations.Nullable String waitsOnName(ItemWait w) {
+		if (w.waitsOn() == null || !dev.larattalabs.architect.api.BuildStatus.STAGE.equals(w.reason())) return null;
+		try {
+			return ArchitectApi.get().sites(server).get(w.waitsOn()).map(v -> MaterialRequests.targetName(settlement, v)).orElse(null);
+		} catch (RuntimeException ex) {
+			return null;
 		}
 	}
 
@@ -4758,38 +4777,80 @@ public final class SettlementRunner {
 	/** Stage waits said this session (each sentence once: several items of a part wait alike). */
 	private final Set<String> saidWaits = new java.util.HashSet<>();
 
-	/** A stage wait's sentence ({@code architect_mc:waitsFor.say}: "the street waits for the town wall to be built"), capitalised; else null. */
-	static @org.jspecify.annotations.Nullable String stageWait(com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext) {
-		if (ext == null || !ext.has("architect_mc:waitsFor") || !ext.get("architect_mc:waitsFor").isJsonObject()) return null;
-		var w = ext.getAsJsonObject("architect_mc:waitsFor");
-		if (!w.has("say") || !w.get("say").isJsonPrimitive()) return null;
-		String t = w.get("say").getAsString().strip();
-		return t.isEmpty() ? null : Character.toUpperCase(t.charAt(0)) + t.substring(1);
+	/**
+	 * (8bS) A queued item's wait, typed: its reason ({@code BuildStatus} reasons), what it waits on (a target or part id), the units over a cap (by item id),
+	 * the cap's scope and the revision. From Architect 8b's {@code ItemEvent.status}; for an event without one, from the structured fields of ext
+	 * {@code architect_mc:waitsFor} ({@code kind}, {@code target}, {@code part}, {@code missing}, {@code cap}), never its {@code say}.
+	 */
+	record ItemWait(@org.jspecify.annotations.Nullable String reason, @org.jspecify.annotations.Nullable String waitsOn, List<Map.Entry<String, Integer>> over,
+		int moreUnits, @org.jspecify.annotations.Nullable String capScope, int rid) {
+		boolean capped() {
+			return dev.larattalabs.architect.api.BuildStatus.BILL_CAP.equals(reason);
+		}
+
+		/** From a typed status (needs by registry id) or the ext's structured fields; null when the item names no wait. */
+		static @org.jspecify.annotations.Nullable ItemWait of(dev.larattalabs.architect.api.@org.jspecify.annotations.Nullable BuildStatus st,
+			com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext) {
+			if (st != null) {
+				if (!dev.larattalabs.architect.api.BuildStatus.WAITING.equals(st.state()) || st.reason() == null) return null;
+				List<Map.Entry<String, Integer>> over = new ArrayList<>();
+				st.needs().forEach((item, n) -> {
+					if (n != null && n > 0) over.add(Map.entry(net.minecraft.core.registries.BuiltInRegistries.ITEM.getKey(item).toString(), n));
+				});
+				return new ItemWait(st.reason(), st.waitsOn(), over, st.moreUnits(), st.capScope(), st.revision());
+			}
+			return ofExt(ext);
+		}
+
+		/** From ext {@code architect_mc:waitsFor}'s structured fields alone (an event from before Architect 8b). Pure. */
+		static @org.jspecify.annotations.Nullable ItemWait ofExt(com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext) {
+			if (ext == null || !(ext.get("architect_mc:waitsFor") instanceof JsonObject w)) return null;
+			String kind = w.get("kind") instanceof com.google.gson.JsonPrimitive k ? k.getAsString() : null;
+			List<Map.Entry<String, Integer>> over = new ArrayList<>();
+			if (w.get("missing") instanceof JsonObject m) for (var x : m.entrySet()) {
+				if (x.getValue() instanceof com.google.gson.JsonPrimitive n && n.isNumber() && n.getAsInt() > 0) over.add(Map.entry(x.getKey(), n.getAsInt()));
+			}
+			String cap = w.get("cap") instanceof com.google.gson.JsonPrimitive c ? c.getAsString() : null;
+			String target = w.get("target") instanceof com.google.gson.JsonPrimitive t ? t.getAsString() : null;
+			String part = w.get("part") instanceof com.google.gson.JsonPrimitive t ? t.getAsString() : null;
+			int rid = dev.larattalabs.steward.gateway.Typed.rid(ext);
+			if (dev.larattalabs.architect.api.SiteWait.BILL_CAP.equals(kind)) return new ItemWait(kind, target, over, 0, cap, rid);
+			if (dev.larattalabs.architect.api.BuildStatus.TERRAIN.equals(kind)) return new ItemWait(kind, part, List.of(), 0, null, rid);
+			// a whole charge the stockpile lacks: Architect 8b's materials
+			if ("bill".equals(kind)) return new ItemWait(dev.larattalabs.architect.api.BuildStatus.MATERIALS, target, over, 0, null, rid);
+			// any other waitsFor is a stage wait: the target it waits for
+			return new ItemWait(dev.larattalabs.architect.api.BuildStatus.STAGE, target, List.of(), 0, null, rid);
+		}
 	}
 
 	/**
-	 * (QD, Architect BC-c v0.73.0) A stage wait held by the realise's {@code maxBill} ({@code architect_mc:waitsFor.kind = bill_cap}: a gate
-	 * mechanism's whole charge would pass the approved bound; {@code missing} names the units over) in the steward's words, as a site's
-	 * {@code bill_cap} wait is ({@link MaterialRequests#overCapWords}); else null. Its subject is Architect's ("Main gatehouse's portcullis"),
-	 * else "build". Pure.
+	 * (8bS) A stage or terrain wait in the steward's words: "The street waits for the town wall to be built." ({@code waitsOn}: what it waits for in words,
+	 * else "an earlier part"), "The market hall waits for its land to be shaped."; else null. Never Architect's own sentence. Pure.
 	 */
-	static @org.jspecify.annotations.Nullable String capStageWait(com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext, String settlementId, MaterialRequests.TakeUp how) {
-		if (ext == null || !(ext.get("architect_mc:waitsFor") instanceof JsonObject w)) return null;
-		if (!(w.get("kind") instanceof com.google.gson.JsonPrimitive k) || !dev.larattalabs.architect.api.SiteWait.BILL_CAP.equals(k.getAsString())) return null;
-		List<Map.Entry<String, Integer>> over = new ArrayList<>();
-		if (w.get("missing") instanceof JsonObject m) for (var e : m.entrySet()) {
-			if (e.getValue() instanceof com.google.gson.JsonPrimitive n && n.isNumber() && n.getAsInt() > 0) over.add(Map.entry(e.getKey(), n.getAsInt()));
-		}
-		String what = "build";
-		if (w.get("say") instanceof com.google.gson.JsonPrimitive say) {
-			String t = say.getAsString().strip();
-			int i = t.indexOf(" waits bill_cap");
-			if (i > 0) what = Character.toLowerCase(t.charAt(0)) + t.substring(1, i);
-		}
-		// (LIFT-S, Architect LCAP-Q1) held by its lot's own cap (waitsFor.cap "lot:<id>"): its limit, not what the player approved for the town
-		String scope = w.get("cap") instanceof com.google.gson.JsonPrimitive c ? c.getAsString() : null;
-		if (MaterialRequests.capLot(scope) != null) return MaterialRequests.lotOverCapWords(what, settlementId, over, 0, how, MaterialRequests.capBoth(scope));
-		return MaterialRequests.overCapWords(what, settlementId, over, 0, how);
+	static @org.jspecify.annotations.Nullable String stageWait(@org.jspecify.annotations.Nullable ItemWait w, String what,
+		@org.jspecify.annotations.Nullable String waitsOn) {
+		if (w == null || w.reason() == null) return null;
+		return switch (w.reason()) {
+			case dev.larattalabs.architect.api.BuildStatus.STAGE -> "The " + what + " waits for " + (waitsOn == null || waitsOn.isBlank() ? "an earlier part"
+				: "the " + waitsOn) + " to be built.";
+			case dev.larattalabs.architect.api.BuildStatus.TERRAIN -> "The " + what + " waits for its land to be shaped.";
+			default -> null;
+		};
+	}
+
+	/**
+	 * (QD, Architect BC-c v0.73.0; 8bS typed) A stage wait held by the realise's {@code maxBill} ({@code bill_cap}: a gate mechanism's whole charge would
+	 * pass the approved bound; the over-cap units by item) in the steward's words, as a site's {@code bill_cap} wait is ({@link MaterialRequests#overCapWords});
+	 * else null. Its subject is the item's part in words ({@code part}, typed: never cut out of Architect's say), else "build". Pure.
+	 */
+	static @org.jspecify.annotations.Nullable String capStageWait(@org.jspecify.annotations.Nullable ItemWait w, @org.jspecify.annotations.Nullable String part,
+		String settlementId, MaterialRequests.TakeUp how) {
+		if (w == null || !w.capped()) return null;
+		String what = part == null || part.isBlank() ? "build" : Character.toLowerCase(part.charAt(0)) + part.substring(1);
+		// (LIFT-S, Architect LCAP-Q1) held by its lot's own cap (capScope "lot:<id>"): its limit, not what the player approved for the town
+		if (MaterialRequests.capLot(w.capScope()) != null) return MaterialRequests.lotOverCapWords(what, settlementId, w.over(), w.moreUnits(), how,
+			MaterialRequests.capBoth(w.capScope()));
+		return MaterialRequests.overCapWords(what, settlementId, w.over(), w.moreUnits(), how);
 	}
 
 	private void onBatchDone(BatchView b) {

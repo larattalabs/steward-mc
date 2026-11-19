@@ -403,12 +403,12 @@ public final class MaterialRequests {
 
 	/** The revision a target belongs to (Architect's ext {@code architect_mc:revision.rid}, BC-d), else 0 (its region's first realise). */
 	static int ridOf(SiteView v) {
-		return ridOf(v.ext());
+		// (8bS) Architect 8b's typed SiteView.revision, the ext key only for a site written before it
+		return dev.larattalabs.steward.gateway.Typed.rid(v);
 	}
 
 	static int ridOf(com.google.gson.@org.jspecify.annotations.Nullable JsonObject ext) {
-		if (ext == null || !(ext.get("architect_mc:revision") instanceof com.google.gson.JsonObject rv)) return 0;
-		return rv.get("rid") instanceof com.google.gson.JsonPrimitive r && r.isNumber() ? r.getAsInt() : 0;
+		return dev.larattalabs.steward.gateway.Typed.rid(ext);
 	}
 
 	/** (QD-2) The region a target belongs to (Architect's {@code region}, else {@code architect_mc:region} on its ext), or null when it says none. */
@@ -443,11 +443,27 @@ public final class MaterialRequests {
 		return Stockpiles.items(list, 4) + (w.moreUnits() > 0 ? " (" + w.moreUnits() + " more besides)" : "");
 	}
 
+	/** (8bS) A construction target in the steward's words (a street, a road, a plan part, a hidden part's host, a lot's role): what a stage wait waits for. */
+	static String targetName(Settlement s, SiteView v) {
+		return nameOf(s, v);
+	}
+
+	/**
+	 * (8bS) A plan part in words: its label, or a hidden part's host (S-7c-4), never the hidden part's own name; null for no part. {@code fallback}: what
+	 * a hidden part with no host is called (the settlement's name). Pure.
+	 */
+	static @org.jspecify.annotations.Nullable String partWords(@org.jspecify.annotations.Nullable String planJson, @org.jspecify.annotations.Nullable String part,
+		String fallback) {
+		if (part == null || part.isBlank()) return null;
+		return Secrets.of(planJson).hides(part) ? hostName(planJson, part, fallback) : partName(planJson, part);
+	}
+
 	private static String nameOf(Settlement s, SiteView v) {
 		if (dev.larattalabs.steward.gateway.BatchPlanner.isStreet(v.itemKey())) return "street";
 		if ("road".equals(v.kind())) return "road";
 		// a region's construction target (Architect RS): its plan part, unless it is a lot (which carries its role)
-		String part = v.ext() != null && v.ext().has(PART_EXT) && v.ext().get(PART_EXT).isJsonPrimitive() ? v.ext().get(PART_EXT).getAsString() : null;
+		// (8bS) Architect 8b's typed SiteView.part
+		String part = dev.larattalabs.steward.gateway.Typed.part(v);
 		if (part != null && (v.ext() == null || !v.ext().has("steward_mc:role"))) {
 			String plan = PlanStore.get(s.id()).map(PlanStore.Entry::plan).orElse(null);
 			// (S-7c-4) a hidden room's entrance is asked for under its host ("market hall"), never its own name
@@ -456,9 +472,6 @@ public final class MaterialRequests {
 		}
 		return Updates.lotOf(v);
 	}
-
-	/** The ext key naming the plan part a region's construction target builds (Architect RS). */
-	static final String PART_EXT = "architect_mc:part";
 
 	/**
 	 * A secret part's host in words (S-7c-4): its host lot's label or role ("market hall"), else {@code fallback} (the settlement's name); never the

@@ -171,9 +171,9 @@ public final class Updates {
 
 	/** The lot id a building stands on: Steward's tag, or Architect's on a flat village's lot (it names the card's lot, {@code cottage_2}). */
 	public static @org.jspecify.annotations.Nullable String lotIdOf(SiteView v) {
-		if (v.ext() == null) return null;
-		if (v.ext().has("steward_mc:lot")) return v.ext().get("steward_mc:lot").getAsString();
-		return v.ext().has("architect_mc:lot") ? v.ext().get("architect_mc:lot").getAsString() : null;
+		if (v.ext() != null && v.ext().has("steward_mc:lot")) return v.ext().get("steward_mc:lot").getAsString();
+		// (8bS) Architect 8b's typed SiteView.lot
+		return dev.larattalabs.steward.gateway.Typed.lot(v);
 	}
 
 	/** The role the owner's history recorded for this site when it was placed (a flat village's lots carry no Steward tags until Architect's slice X). */

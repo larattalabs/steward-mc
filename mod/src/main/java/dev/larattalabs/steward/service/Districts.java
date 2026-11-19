@@ -275,7 +275,7 @@ public final class Districts {
 		try {
 			var v = ArchitectAccess.api().regions().get(region);
 			if (v.isEmpty() || !settled(v.get())) return;
-			var read = dev.larattalabs.steward.gateway.DistrictLand.outsideWhole(v.get().ext(), d.get().claim().dimension());
+			var read = dev.larattalabs.steward.gateway.DistrictLand.outsideWhole(v.get(), d.get().claim().dimension());
 			var land = landAfter(d.get(), read, s.get().lands().districts());
 			if (land == null || land.equals(d.get().land())) return;
 			var x = d.get();
