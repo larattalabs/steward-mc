@@ -57,6 +57,11 @@ class SettlementViewStatusTest {
 		var route = new SettlementView.MapShape("east_street", "route", null, 0, 0, 30, 2, List.of(0, 1, 15, 1, 30, 1), null, "building", null);
 		var withMap = SettlementView.fromJson(v.withMap(List.of(shape, route)).toJson());
 		assertEquals(List.of(shape, route), withMap.map());
+		// (slice LYW) a wall's width, a wall lot's wall and where on it: through the JSON too
+		var wall = new SettlementView.MapShape("town_wall", "wall", null, 0, 0, 40, 40, List.of(0, 0, 40, 0), null, "built", null, 2, null, null);
+		var tower = new SettlementView.MapShape("gatehouse", "lot", "gatehouse", 16, 36, 24, 44, List.of(), "s4", "built", null, 0, "town_wall", "gate");
+		assertEquals(List.of(wall, tower), SettlementView.fromJson(v.withMap(List.of(wall, tower)).toJson()).map());
+		assertEquals(0, shape.width(), "a shape from before layoutWalls has no width");
 		assertEquals("planned", new SettlementView.MapShape("p", "lot", null, 0, 0, 1, 1, null, null, null, null).status(), "a pad with no status is planned");
 	}
 }

@@ -23,6 +23,8 @@ import org.jspecify.annotations.Nullable;
 final class MapShapes {
 	static final String STATUS_FEATURE = "buildStatus";
 	static final String LAYOUT_FEATURE = "regionLayout";
+	/** (slice LYW) Architect's walls in the layout: walls, gates and towers, widths, a lot's wall (API 1.70.0). */
+	static final String WALLS_FEATURE = "layoutWalls";
 	/** The most shapes sent (a bundled program's routes and lots fit well under it). */
 	static final int MAX = 400;
 
@@ -44,13 +46,14 @@ final class MapShapes {
 		if (!api.features().contains(LAYOUT_FEATURE)) return null;
 		var secrets = Secrets.ofSettlement(s.id());
 		boolean typed = api.features().contains(STATUS_FEATURE);
+		boolean walls = api.features().contains(WALLS_FEATURE);
 		List<MapShape> out = new ArrayList<>();
 		for (RegionView r : api.regions().list(s.owner())) {
 			if (r.state() == RegionState.REMOVED || r.state() == RegionState.REMOVING) continue;
 			var layout = api.regions().layout(r.id());
 			if (layout.isEmpty()) continue;
 			logOnChange(s.id(), r.id(), layout.get());
-			for (MapShape m : shapes(layout.get(), r, secrets, typed)) {
+			for (MapShape m : shapes(layout.get(), r, secrets, typed, walls)) {
 				if (out.size() >= MAX) return out;
 				out.add(m);
 			}
@@ -68,27 +71,50 @@ final class MapShapes {
 		dev.larattalabs.steward.Steward.LOGGER.info("map layout of {} {}: {}", settlement, region, line);
 	}
 
-	/** A layout's parts in one line: {@code kind part [minX,minZ..maxX,maxZ] ends=n}. Pure. */
+	/** A layout's parts in one line: {@code kind part [minX,minZ..maxX,maxZ] ends=n} (and {@code w=n}, {@code wall=id} when given). Pure. */
 	static String summary(RegionLayout layout) {
 		StringBuilder b = new StringBuilder().append(layout.parts().size()).append(" part(s)");
 		for (PartShape p : layout.parts()) {
 			var x = p.box();
 			b.append("; ").append(p.kind()).append(' ').append(p.part()).append(" [").append(x.minX()).append(',').append(x.minZ()).append("..").append(x.maxX())
 				.append(',').append(x.maxZ()).append("] ends=").append(p.ends().size());
+			if (p.width() > 0) b.append(" w=").append(p.width());
+			if (p.wall() != null) b.append(" wall=").append(p.wall()).append(p.wallAt() != null ? "@" + p.wallAt() : "");
 		}
 		return b.toString();
 	}
 
+	/** {@link #shapes(RegionLayout, RegionView, Secrets, boolean, boolean)} without walls (before {@code layoutWalls}). Pure. */
+	static List<MapShape> shapes(RegionLayout layout, RegionView region, Secrets secrets, boolean typed) {
+		return shapes(layout, region, secrets, typed, false);
+	}
+
 	/**
 	 * One region's shapes: its lots (pads too), routes and connectors, the hidden ones left out; each with its status (a lot's, else its part's, else, in
-	 * creative, built once the region stands). {@code typed}: the statuses are read (feature {@code buildStatus}). Pure.
+	 * creative, built once the region stands). {@code typed}: the statuses are read (feature {@code buildStatus}). (slice LYW) {@code walls}: its walls,
+	 * gates and towers, each shape's width and wall are read (feature {@code layoutWalls}), and a route given twice (a mixed route's road pieces) is
+	 * kept once by its box, at the wider width. Pure.
 	 */
-	static List<MapShape> shapes(RegionLayout layout, RegionView region, Secrets secrets, boolean typed) {
+	static List<MapShape> shapes(RegionLayout layout, RegionView region, Secrets secrets, boolean typed, boolean walls) {
 		List<MapShape> out = new ArrayList<>();
+		java.util.Map<String, Integer> routes = new java.util.HashMap<>();
 		for (PartShape p : layout.parts()) {
 			if (secrets.hides(p.part()) || p.lot() != null && secrets.hides(p.lot())) continue;
-			String kind = kindOf(p.kind());
+			String kind = kindOf(p.kind(), walls);
 			if (kind == null) continue;
+			var b = p.box();
+			int width = walls ? Math.max(0, p.width()) : 0;
+			if (walls && "route".equals(kind)) {
+				String key = b.minX() + "," + b.minY() + "," + b.minZ() + ".." + b.maxX() + "," + b.maxY() + "," + b.maxZ();
+				Integer seen = routes.get(key);
+				if (seen != null) {
+					MapShape first = out.get(seen);
+					if (width > first.width()) out.set(seen, new MapShape(first.part(), first.kind(), first.lot(), first.minX(), first.minZ(), first.maxX(), first.maxZ(),
+						first.ends(), first.site(), first.status(), first.reason(), width, first.wall(), first.wallAt()));
+					continue;
+				}
+				routes.put(key, out.size());
+			}
 			String site = null;
 			BuildStatus st = null;
 			if ("lot".equals(kind)) {
@@ -100,7 +126,7 @@ final class MapShapes {
 				}
 			}
 			if (st == null && typed && region.build() != null) {
-				st = region.build().parts().stream().filter(b -> b.part().equals(p.part())).map(PartBuild::status).findFirst().orElse(null);
+				st = region.build().parts().stream().filter(x -> x.part().equals(p.part())).map(PartBuild::status).findFirst().orElse(null);
 			}
 			String status = st != null ? st.state() : region.build() == null && (region.state() == RegionState.PLACED || region.state() == RegionState.PARTIAL)
 				? BuildStatus.BUILT : BuildStatus.PLANNED;
@@ -109,15 +135,28 @@ final class MapShapes {
 				ends.add(e.getX());
 				ends.add(e.getZ());
 			}
-			var b = p.box();
-			out.add(new MapShape(p.part(), kind, p.lot(), b.minX(), b.minZ(), b.maxX(), b.maxZ(), ends, site, status, st == null ? null : st.reason()));
+			out.add(new MapShape(p.part(), kind, p.lot(), b.minX(), b.minZ(), b.maxX(), b.maxZ(), ends, site, status, st == null ? null : st.reason(), width,
+				walls ? p.wall() : null, walls ? p.wallAt() : null));
 		}
 		return out;
 	}
 
-	/** The map's kind of a plan part's kind: {@code lot}, {@code route}, {@code connector} (any {@code connector.*}); null for one the map leaves out. Pure. */
+	/** {@link #kindOf(String, boolean)} without walls. Pure. */
 	static @Nullable String kindOf(String kind) {
+		return kindOf(kind, false);
+	}
+
+	/**
+	 * The map's kind of a plan part's kind: {@code lot}, {@code route}, {@code connector} (any other {@code connector.*}); (slice LYW) with {@code walls}
+	 * also {@code wall} ({@code connector.wall}), {@code gate} ({@code connector.gate}) and {@code tower}; null for one the map leaves out. Pure.
+	 */
+	static @Nullable String kindOf(String kind, boolean walls) {
 		if ("lot".equals(kind) || "route".equals(kind)) return kind;
+		if (walls) {
+			if ("connector.wall".equals(kind)) return "wall";
+			if ("connector.gate".equals(kind)) return "gate";
+			if ("tower".equals(kind)) return "tower";
+		}
 		if (kind.equals("connector") || kind.startsWith("connector.")) return "connector";
 		return null;
 	}
