@@ -16,8 +16,13 @@ public final class RemovalStops {
 	/** (8bS) Architect's feature for the stop's typed cause (S-DRS-1). */
 	public static final String CAUSE_FEATURE = "removalStopCause";
 
+	/** (RVC) Architect's feature for a revision's typed stop cause ({@code RevisionView.removalStopCause}; ask 8bS-1). */
+	public static final String REVISION_CAUSE_FEATURE = "revisionStopCause";
+
+	/** (RVC) The steward's words for a refused save, wherever it stopped a removal (a region's, a group's or a growth's take-up). */
+	static final String WORLD_NOT_SAVED = "the world couldn't be saved just now";
 	/** The steward's words for a refused save (nothing was taken down). */
-	static final String SAVE_REFUSED = "the world couldn't be saved just now, nothing was taken down; ask again";
+	static final String SAVE_REFUSED = WORLD_NOT_SAVED + ", nothing was taken down; ask again";
 
 	private RemovalStops() {
 	}
@@ -74,13 +79,49 @@ public final class RemovalStops {
 	}
 
 	/**
-	 * A growth's take-up Architect left UNDOING with a wait (a stage's removal stopped: resumed by a same-target call or the next world start): said as
-	 * waiting, never refused. (8bS) Architect types no cause for a revision's stop, so its text is never shown (a refused save's names chunk files);
-	 * asked of Architect (docs/ARCHITECT-ASKS.md, 8bS). Pure.
+	 * (RVC) A growth's revision's typed stop cause, when this Architect types it (feature {@code revisionStopCause}); null when it doesn't, the revision
+	 * is not waiting, or it can't be read.
 	 */
+	static @Nullable RemovalStopCause revisionCause(dev.larattalabs.architect.api.@Nullable RevisionView rv) {
+		if (rv == null) return null;
+		try {
+			if (!ArchitectAccess.api().features().contains(REVISION_CAUSE_FEATURE)) return null;
+			return rv.removalStopCause();
+		} catch (RuntimeException | LinkageError e) {
+			return null;
+		}
+	}
+
+	/**
+	 * (RVC) What a typed stop cause waits for, in the steward's words (never Architect's text, which can name chunk files or the player's things by their
+	 * custom names); null for OTHER or no cause (the line then says only that it waits). A refused save is said as a region's undo says it. Pure.
+	 */
+	static @Nullable String causeWords(@Nullable RemovalStopCause cause) {
+		if (cause == null) return null;
+		return switch (cause) {
+			case SAVE_REFUSED -> WORLD_NOT_SAVED;
+			case PLAYER_IN_BOX -> "someone is standing in what it takes up";
+			case COVERED -> "other buildings stand over part of it";
+			case CARGO -> "its containers hold more than was put in them";
+			case THINGS_IN_BOX -> "your things are in its way: filled containers, pets, item frames or dropped items";
+			default -> null;
+		};
+	}
+
+	/**
+	 * A growth's take-up Architect left UNDOING with a wait (a stage's removal stopped: resumed by a same-target call or the next world start): said as
+	 * waiting, never refused. (8bS) Architect's text is never shown (a refused save's names chunk files). (RVC) With the revision's typed cause (feature
+	 * {@code revisionStopCause}) it says what it waits for ({@link #causeWords}); without one, or OTHER, only that it waits. Pure.
+	 */
+	static String growthWaiting(@Nullable RemovalStopCause cause) {
+		String said = causeWords(cause);
+		return "The town's change is part way taken up and waits to carry on" + (said != null ? " (" + said + ")" : "") + ": nothing more is taken down until"
+			+ " it can. It carries on when you ask again or when the world next starts.";
+	}
+
+	/** {@link #growthWaiting(RemovalStopCause)} with no cause: only that it waits. Pure. */
 	static String growthWaiting() {
-		return "The town's change is part way taken up and waits to carry on: nothing more is taken down until it can. It carries on when you ask again or"
-			+ " when the world next starts.";
+		return growthWaiting(null);
 	}
 
 	/** Whether a growth's revision, read after its take-up answered not removed, is waiting part way (UNDOING with a wait), not refused. Pure. */
