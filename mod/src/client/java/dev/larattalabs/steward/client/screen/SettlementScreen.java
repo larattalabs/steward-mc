@@ -299,8 +299,13 @@ public final class SettlementScreen extends KitScreen {
 	 * drawn as a band, never a square swatch.
 	 */
 	static final int WALL = 0xFF4A443D;
-	/** (slice LYW) A tower's centre: a lighter stone than the wall, inside a 2-pixel walnut frame (a pad's edge is 1 pixel). */
-	static final int TOWER = 0xFF7A7064;
+	/**
+	 * (slice LYW) A tower's centre: a lighter stone than the wall, inside a 2-pixel walnut frame (a pad's edge is 1 pixel). (LYW-P3) A pale stone, well
+	 * lighter than the planned grey (IDLE) it sat too close to, and still darker than the cream of the stone and the gates.
+	 */
+	static final int TOWER = 0xFFC2B49C;
+	/** (slice LYW-P3) A gate's jambs: a stone darker than the wall's, a tick either side of the opening along its wall run, past the band's edge. */
+	static final int JAMB = 0xFF26201B;
 	/** (slice LYW) A gate's opening in its wall: the cream of the stone's centre, edged walnut. */
 	static final int GATE = UiStyle.CREAM;
 
@@ -369,12 +374,13 @@ public final class SettlementScreen extends KitScreen {
 					g.fill(ix, iy + 1, ix + 8, iy + 7, MARK_EDGE);
 					g.fill(ix, iy + 2, ix + 8, iy + 6, WALL);
 				}
-				// as on the map: the wall's band, cut by a cream opening with walnut jambs
+				// as on the map: the wall's band, cut by a cream opening with a dark stone jamb either side
 				case "gate" -> {
 					g.fill(ix, iy + 1, ix + 8, iy + 7, MARK_EDGE);
 					g.fill(ix, iy + 2, ix + 8, iy + 6, WALL);
-					g.fill(ix + 2, iy, ix + 6, iy + 8, MARK_EDGE);
-					g.fill(ix + 3, iy, ix + 5, iy + 8, GATE);
+					g.fill(ix + 3, iy + 1, ix + 5, iy + 7, GATE);
+					g.fill(ix + 1, iy, ix + 3, iy + 8, JAMB);
+					g.fill(ix + 5, iy, ix + 7, iy + 8, JAMB);
 				}
 				case "tower" -> tower(g, ix + 4, iy + 4, 8);
 				default -> {
@@ -422,6 +428,7 @@ public final class SettlementScreen extends KitScreen {
 		claimDrawn = r0x >= x + 2 && r0z >= y + 2 && r1x <= x + size - 2 && r1z <= y + sizeH - 13;
 		if (claimDrawn) box(g, r0x, r0z, r1x, r1z, CLAIM_EDGE);
 		drawShapes(g, shapes, f);
+		List<int[]> rings = new ArrayList<>();
 		for (Building b : view.buildings()) {
 			int x0 = f.x(b.minX()), x1 = Math.max(f.x(b.maxX() + 1), x0 + 4);
 			int z0 = f.z(b.minZ()), z1 = Math.max(f.z(b.maxZ() + 1), z0 + 4);
@@ -434,19 +441,25 @@ public final class SettlementScreen extends KitScreen {
 			}
 			g.fill(x0, z0, x1, z1, fill(state(b)[0]));
 			box(g, x0, z0, x1, z1, MARK_EDGE);
-			// the hovered or chosen one: a second, outer ring
-			if (hov || b.siteId().equals(selected)) {
-				box(g, x0 - 2, z0 - 2, x1 + 2, z1 + 2, UiStyle.INK);
-				box(g, x0 - 1, z0 - 1, x1 + 1, z1 + 1, UiStyle.CREAM);
-			}
+			if (hov || b.siteId().equals(selected)) rings.add(new int[] {x0, z0, x1, z1});
 			mapRects.add(new int[] {x0, z0, x1 - x0, z1 - z0});
 			mapIds.add(b.siteId());
 		}
 		// the stone (the steward stands by it)
 		stone(g, f.x(c.centerX() + 0.5), f.z(c.centerZ() + 0.5));
+		// (LYW-P3) the hovered or chosen one: a second, outer ring, drawn last so no road, wall, gate or neighbour covers it
+		for (int[] r : rings) {
+			box(g, r[0] - 2, r[1] - 2, r[2] + 2, r[3] + 2, UiStyle.INK);
+			box(g, r[0] - 1, r[1] - 1, r[2] + 1, r[3] + 1, UiStyle.CREAM);
+		}
+		// (LYW-P3) the hint line: "north is up" always, at its right; the hovered or chosen building's name in its own place at the left
+		String north = "north is up";
+		int nw = font.width(north), ty = y + sizeH - 11;
+		g.text(font, north, x + size - 4 - nw, ty, UiBits.muted(), false);
 		String on = hovered != null ? hovered : selected;
-		String hint = on != null && view.building(on) != null ? view.building(on).role() : "north is up";
-		g.text(font, TextUtil.ellipsize(font, hint, size - 8), x + 4, y + sizeH - 11, UiBits.muted(), false);
+		if (on != null && view.building(on) != null) {
+			g.text(font, TextUtil.ellipsize(font, view.building(on).role(), size - 16 - nw), x + 4, ty, UiBits.ink(), false);
+		}
 	}
 
 	/**
@@ -523,6 +536,10 @@ public final class SettlementScreen extends KitScreen {
 				}
 				line(g, ax, az, bx, bz, across + 2, MARK_EDGE);
 				line(g, ax, az, bx, bz, across, GATE);
+				// (LYW-P3) the jambs: the passage runs across the wall, so the wall runs the other way
+				boolean wallAlongX = Math.abs(bz - az) > Math.abs(bx - ax);
+				int depth = (Math.max(Math.abs(bx - ax), Math.abs(bz - az)) + 1) / 2;
+				jambs(g, (ax + bx) / 2, (az + bz) / 2, wallAlongX, across / 2, depth);
 			} else {
 				// a gate given by its place on the wall (one point, or its box): an opening along the nearest wall run, through the band and its edge
 				double gx = e.size() >= 2 ? e.get(0) + 0.5 : (m.minX() + m.maxX() + 1) / 2.0, gz = e.size() >= 2 ? e.get(1) + 0.5 : (m.minZ() + m.maxZ() + 1) / 2.0;
@@ -531,6 +548,7 @@ public final class SettlementScreen extends KitScreen {
 				int hx = alongX ? half : depth, hz = alongX ? depth : half;
 				g.fill(cx - hx - (alongX ? 1 : 0), cz - hz - (alongX ? 0 : 1), cx + hx + (alongX ? 1 : 0), cz + hz + (alongX ? 0 : 1), MARK_EDGE);
 				g.fill(cx - hx, cz - hz, cx + hx, cz + hz, GATE);
+				jambs(g, cx, cz, alongX, half, depth);
 			}
 		}
 		for (var m : shapes) {
@@ -540,6 +558,21 @@ public final class SettlementScreen extends KitScreen {
 			int z0 = f.z(m.minZ()), z1 = Math.max(f.z(m.maxZ() + 1), z0 + 5);
 			g.fill(x0, z0, x1, z1, fill(family));
 			box(g, x0, z0, x1, z1, MARK_EDGE);
+		}
+	}
+
+	/**
+	 * (slice LYW-P3) A gate's jambs: a 2-pixel tick of dark stone either side of an opening {@code half} pixels from its centre along its wall run
+	 * ({@code alongX}: the run is east-west), reaching a pixel past the opening's {@code depth} (its half-depth through the wall) at both faces.
+	 */
+	private static void jambs(GuiGraphicsExtractor g, int cx, int cz, boolean alongX, int half, int depth) {
+		int d = depth + 1;
+		if (alongX) {
+			g.fill(cx - half - 2, cz - d, cx - half, cz + d, JAMB);
+			g.fill(cx + half, cz - d, cx + half + 2, cz + d, JAMB);
+		} else {
+			g.fill(cx - d, cz - half - 2, cx + d, cz - half, JAMB);
+			g.fill(cx - d, cz + half, cx + d, cz + half + 2, JAMB);
 		}
 	}
 
