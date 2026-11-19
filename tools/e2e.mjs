@@ -3267,8 +3267,8 @@ async function composedModulesSurvivalFlow({ fillHalt = false } = {}) {
     {
       const lbl = `${label} quote words`;
       const q = since.match(/From materials, the working crop farm takes [^\n]*/)?.[0] ?? '';
-      // (batch-077 ef4d9d9) a bound the player approved (an inexact quote held, or the re-ask) is "its approved limit", else "its measured limit"
-      if (/\(its (?:measured|approved) limit: [^)]*\)/.test(q) && /the working storage hall takes [^\n]*\(its (?:measured|approved) limit: /.test(q) && q.includes('I stop before passing it, except to pay for blocks already standing after a crash.'))
+      // (batch-077 ef4d9d9) a bound the player approved (an inexact quote held, or the re-ask) is "its approved limit", else "its measured limit"; each module's limit is matched in its own clause (batch-079 GPT P2)
+      if (/the working crop farm takes [^(]*\(its (?:measured|approved) limit: [^)]*\)/.test(q) && /the working storage hall takes [^\n]*\(its (?:measured|approved) limit: /.test(q) && q.includes('I stop before passing it, except to pay for blocks already standing after a crash.'))
         ok(lbl, q.slice(0, 240));
       else return fail(lbl, `no quote words with both limits: ${q.slice(0, 240) || 'none'}`);
     }

@@ -154,6 +154,9 @@ public final class MaterialRequests {
 				int need = 0;
 				for (var n : wait.nextNeeded())
 					need += newStacks(sp.stock().getOrDefault(n.item(), 0), n.count(), new net.minecraft.world.item.ItemStack(n.item()).getMaxStackSize());
+				// (batch-079 GPT P2) Architect names at most eight items; units past them (moreUnits) take at least one more new stack, so a pile with none
+				// free says it's full (never a guess past that one stack)
+				if (wait.moreUnits() > 0) need += 1;
 				return new Pile(Math.max(0, sp.usedStacks() - sp.capacityStacks()), Math.max(0, sp.capacityStacks() - sp.usedStacks()), need);
 			}).orElse(Pile.UNREAD);
 		} catch (RuntimeException e) {
