@@ -1309,6 +1309,56 @@ async function repairLook(id) {
 }
 
 /**
+ * (RC l06, Architect 0.82.0's watch areas) Steward's keys beside Architect's and lab-ui's: Y opens Steward's inbox, K lab-ui's jobs board, B Architect's
+ * screen (which, in a world with no sites, offers Architect's first-build tour). Then the tour, offered and started, while the player talks to the steward
+ * (by command and in the talk box): Steward's talk still answers, and the tour's state is reported (it is Architect's; dev.pr.guide). The tour is reset after.
+ */
+async function tourTalk(id) {
+  const name = settlements().find((x) => x.id === id)?.name ?? id;
+  const guide = async (p = {}) => dev.request('dev.pr.guide', p).catch((e) => ({ error: String(e) }));
+  const press = async (k) => {
+    await closeScreens();
+    await dev.request('dev.key', { key: k });
+    await sleep(900);
+    return (await dev.request('dev.state')).screen?.class ?? 'none';
+  };
+  await guide({ reset: true });
+  const y = await press('y'), k = await press('k'), b = await press('b');
+  const offeredByB = await guide();
+  const i = await press('i');
+  await closeScreens();
+  const keys = `Y ${y}, K ${k}, B ${b}, I ${i}`;
+  if (/InboxScreen/.test(y) && /JobsScreen/.test(k) && /ArchitectScreen/.test(b) && !/Architect|Jobs|Inbox/.test(i)) ok('keys apart', keys);
+  else fail('keys apart', keys);
+  // the tour offered (by B's screen with no sites, else by its event), then started
+  let g = offeredByB;
+  if (!/offered/i.test(JSON.stringify(g))) g = await guide({ event: 'SCREEN_OPENED_NO_SITES' });
+  const offered = JSON.stringify(g);
+  g = await guide({ press: 'guide:start' });
+  const running = JSON.stringify(g);
+  await closeScreens();
+  let from = logSize();
+  await cmd(`/steward talk ${id} what are you doing?`);
+  const status = await waitLog(from, new RegExp(`\\[${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\] (I am [^\n]*)`), 10_000);
+  await cmd(`/steward ui talk ${id}`);
+  await sleep(1500);
+  from = logSize();
+  await dev.request('dev.type', { text: 'hello' });
+  await dev.request('dev.key', { key: 'enter' });
+  const typed = await waitLog(from, /\] Hello! Tell me what/, 10_000);
+  await sleep(800);
+  const screen = (await dev.request('dev.state')).screen?.class ?? 'none';
+  const shot = (await dev.request('dev.screenshot', { name: 'e2e-tour-talk', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  await closeScreens();
+  const after = JSON.stringify(await guide());
+  const hudShot = (await dev.request('dev.screenshot', { name: 'e2e-tour-hud', frames: 5, hideHud: false }, { timeoutMs: 120_000 })).path ?? '';
+  console.log(`tour: by B ${JSON.stringify(offeredByB).slice(0, 200)} | offered ${offered.slice(0, 200)} | started ${running.slice(0, 200)} | after talk ${after.slice(0, 200)}`);
+  if (status && typed && /TalkScreen/.test(screen) && /running/i.test(running)) ok('talk during the tour', `"${status[1].slice(0, 60)}"; the box answered; tour after: ${after.slice(0, 120)}; ${shot}, ${hudShot}`);
+  else fail('talk during the tour', `status ${!!status}, box ${!!typed} on ${screen}, tour started ${running.slice(0, 160)}`);
+  await guide({ reset: true });
+}
+
+/**
  * Talking to the steward (3b): a question it answers itself ($0), then made-up talk answers (no Claude) that put a building and a district in the inbox and
  * note a change; the talk box, with the conversation, in a picture.
  */
@@ -2307,6 +2357,8 @@ async function planBuildFlow() {
   await closeScreens();
   await cmd(`/steward view ${id}`);
   await sleep(1500);
+  // (8bS) the overview's map of a region-built town: its pads, routes and connectors from Regions.layout
+  await dev.request('dev.screenshot', { name: 'e2e-secrets-map', frames: 5 }, { timeoutMs: 120_000 }).catch(() => null);
   // Tab moves along: Buildings, History
   await dev.request('dev.key', { key: 'tab' });
   await sleep(800);
@@ -9268,6 +9320,7 @@ try {
     await flow('stone-recipe', 'screens', () => stoneRecipe());
     await flow('inbox', 'screens', () => inboxScreen());
     await flow('shared-hud', 'screens inbox hud jobs', () => sharedHud());
+    await flow('tour-talk', 'keys tour', () => tourTalk(id));
     if (mode === 'free') {
       await flow('place', 'update revert undo screens', () => placeUpdateUndo(id));
       await flow('ui-actions', 'screens place undo revert', () => uiActions(id));
