@@ -100,8 +100,8 @@ origins are in `docs/archive/AGENTS-HISTORY.md`.
       e2e's defaults are `E2E_LOAD_MAX` 72 and `E2E_LOAD_WAIT_MIN` 15. Going past these bounds needs Noah.
     - Unit suites run under `nice -n 10`. Docs-only and unit-only work takes no slot.
     - The shared slot queue is Architect's `../architect-mc/tools/slot.mjs` (its `docs/GATES.md`, "Outside callers (Steward)"). Steward's
-      e2e on main doesn't take a slot from it yet: it counts running Steward clients itself (`E2E_MAX_CLIENTS`, default 6), and its
-      `--clients` stagger defaults to 60 s, so pass `--stagger 120`.
+      e2e takes its slots from it through `tools/lib/slot-queue.mjs` (one per client; the queue spaces starts by its 120 s settle).
+      `E2E_SLOTS=off` takes no slot, and then the `--clients` stagger defaults to 60 s; pass `--stagger 120` either way.
 13. **Ports** [12]: Steward's are in "Ports" below; Architect's slice, turbo and infra ranges are never Steward's.
 14. **Parallel slices** [14] (11-15: "More parallel slices"): the manager keeps 6-8 slices in progress where files and ports allow, and
     pre-briefs the next ones.
