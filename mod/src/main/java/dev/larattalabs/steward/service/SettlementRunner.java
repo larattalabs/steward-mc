@@ -3683,7 +3683,7 @@ public final class SettlementRunner {
 						return;
 					}
 					if (cerr != null) Steward.LOGGER.warn("{}: the plan was not checked again: {}", settlement.id(), message(cerr));
-					String no = cerr != null ? "Architect could not check it again (" + RefusalWords.of(cerr) + ")" : unbuildable(c, Secrets.of(frozen, null));
+					String no = cerr != null ? "it couldn't be checked again (" + RefusalWords.of(cerr) + ")" : unbuildable(c, Secrets.of(frozen, null));
 					// the world's mode changed while the buildings were designed: built from materials now, or no longer; this build stops, a new Start plans anew
 					if (no == null && c.survival() != artifactSurvival(sha)) no = "the world's mode changed while the buildings were designed (" + (c.survival()
 						? "it builds from materials now" : "it no longer builds from materials") + "): start the build again";

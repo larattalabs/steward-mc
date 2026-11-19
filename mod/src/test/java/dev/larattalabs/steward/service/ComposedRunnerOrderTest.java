@@ -293,6 +293,21 @@ class ComposedRunnerOrderTest {
 		assertNull(field("composedCaps"), "no caps kept for a realise");
 	}
 
+	@Test
+	void aRealiseArchitectRefusesIsSaidInTheStewardsWordsNeverItsText() {
+		// (place-words) a refusal at the realise other than BILL_CAP: the steward's words for its typed reason, Architect's text to the log only
+		cleared(BOUNDED);
+		a.realiseFailure = new dev.larattalabs.architect.api.ArchitectRefused(dev.larattalabs.architect.api.Reason.PROTECTED, "SENTINEL-RAW area 'Grandma's garden' r.0.0.mca");
+		try (LogCapture log = LogCapture.open()) {
+			realiseArtifact();
+			assertEquals(1, a.approved.size(), a.calls + " " + tails);
+			drain();
+			assertTrue(said(log, "Architect could not place the village: it is in a protected area."), log.lines.toString());
+			assertTrue(log.lines.stream().noneMatch(l -> l.startsWith("settlement: ") && l.contains("SENTINEL")), log.lines.toString());
+			assertTrue(log.has("SENTINEL-RAW"), "the raw text is logged: " + log.lines);
+		}
+	}
+
 	// ----------------------------------------------------------------- the put-down re-ask
 
 	@Test

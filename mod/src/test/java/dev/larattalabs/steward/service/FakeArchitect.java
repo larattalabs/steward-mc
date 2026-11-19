@@ -224,6 +224,8 @@ final class FakeArchitect {
 	Answer realiseAnswer = Answer.HOLD;
 	/** (TESTABLE-ARCH) The detail of a {@code BILL_CAP} refusal ({@code lot:<id>}, {@code unknown_lot:<id>}, or "" for the region's). */
 	String capDetail = "lot:hall_1";
+	/** (place-words) When set, {@code realiseApproved} fails with it instead (a refusal other than BILL_CAP). */
+	RuntimeException realiseFailure;
 	/** (TESTABLE-ARCH) Run with each call's line as it is recorded (before it is answered). */
 	java.util.function.Consumer<String> onCall = c -> {};
 	final Map<String, Site> sites = new LinkedHashMap<>();
@@ -370,6 +372,7 @@ final class FakeArchitect {
 	private CompletableFuture<String> realiseApproved(dev.larattalabs.architect.api.ApprovedRealise r) {
 		approved.add(r);
 		call("regions.realiseApproved " + r.artifactSha() + " " + r.opKey());
+		if (realiseFailure != null) return CompletableFuture.failedFuture(realiseFailure);
 		return switch (realiseAnswer) {
 			case APPLY -> CompletableFuture.completedFuture("rg_realised");
 			case REFUSE -> CompletableFuture.failedFuture(new ArchitectRefused(Reason.BILL_CAP, "a lot's bill at put-down is past its maxBillPerLot", capDetail));
