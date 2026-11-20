@@ -309,7 +309,9 @@ class ComposedPlacingCrashTest {
 	}
 
 	void drain() {
-		while (!a.serverQueue.isEmpty()) {
+		// (CRASH-T2) bounded: a step that loops on its own (refused, quoted, realised, refused again...) fails here instead of hanging the run
+		for (int ran = 0; !a.serverQueue.isEmpty(); ran++) {
+			if (ran > 500) throw new AssertionError("the runner's steps never settle (a loop): " + a.calls.subList(Math.max(0, a.calls.size() - 12), a.calls.size()));
 			try {
 				a.serverQueue.remove(0).run();
 			} catch (RuntimeException | LinkageError e) {
