@@ -132,7 +132,7 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 			// (8bS) from Architect's BuildStatus when there is one
 			String fam = b.status() != null ? b.stateWords()[0] : b.updateAvailable() ? "waiting" : b.updating() || !"built".equals(b.state()) ? "working" : "done";
 			if (dev.larattalabs.labui.ui.GhostPalette.current() == dev.larattalabs.labui.ui.GhostPalette.Palette.OKABE_ITO) {
-				// (UI-PR-S) the map's swatch in the Okabe-Ito palette (lab-ui's dots have no Okabe-Ito set yet: an ask)
+				// (UI-PR-S) the map's swatch in the Okabe-Ito palette, so the board's buildings read as on the map (LUI3-S: SettlementScreen.stateMark says why not lab-ui's Okabe dots)
 				WorldUi.submitFill(ps, c, 6, y + 1, 13, y + 8, dev.larattalabs.steward.view.MapColors.fill(fam, dev.larattalabs.labui.ui.GhostPalette.Palette.OKABE_ITO,
 					new dev.larattalabs.steward.view.MapColors.Standard(UiStyle.SAGE, UiStyle.BRASS, UiStyle.CLAY)), light);
 			} else WorldUi.submitSprite(ps, c, WorldUi.Layer.SOLID, Kit.dot(fam, false), 6, y + 1, 7, 7, 0f, 0xFFFFFFFF, light);

@@ -432,7 +432,9 @@ public final class SettlementScreen extends KitScreen {
 
 	/**
 	 * (UI-PR-S) A building's state mark in the list: lab-ui's dot, or under the Okabe-Ito palette the map's own swatch (its fill, edged walnut), so
-	 * the list, the map and its legend say a state in one colour (lab-ui's dots have no Okabe-Ito set yet: an ask).
+	 * the list, the map and its legend say a state in one colour. (LUI3-S) lab-ui 0.6.2's Okabe-Ito dots stay off the map and its key: their
+	 * done, working and waiting sit within ΔE 3-12 of the map's planned grey, road and wall under CVD (the map's bar is 15, MapColorsTest), so the
+	 * map keeps the ghosts' colours and the list, as its key, follows the map.
 	 */
 	private void stateMark(GuiGraphicsExtractor g, String family, int x, int y) {
 		if (dev.larattalabs.labui.ui.GhostPalette.current() != dev.larattalabs.labui.ui.GhostPalette.Palette.OKABE_ITO) {
@@ -741,7 +743,7 @@ public final class SettlementScreen extends KitScreen {
 			// the operation Undo takes up (as the server chose it): marked, and named on the button's first press
 			boolean next = view.undo() != null && o.op() != null && o.op().equals(view.undo().op());
 			if (next) Panels.selectedRow(g, x + 2, ry - 2, w - 4, rowH() - 1);
-			Panels.dot(g, outcomeFamily(o), x + 5, ry + 1, false);
+			statusDot(g, outcomeFamily(o), x + 5, ry + 1);
 			String when = UiBits.ago(o.at());
 			g.text(font, kindLabel(o.kind()), x + 15, ry, UiBits.ink(), false);
 			if (next) g.text(font, "Undo takes this", x + 15 + font.width(kindLabel(o.kind())) + 8, ry, attention(), false);

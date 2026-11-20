@@ -197,7 +197,7 @@ public final class InboxScreen extends KitScreen {
 		int actionsY = footerY - lh(10) - 20;
 		if (e == null) {
 			Panels.inset(g, cx, bodyTop, inner, actionsY - bodyTop - 4);
-			Panels.dot(g, "idle", cx + 8, bodyTop + 9, false);
+			statusDot(g, "idle", cx + 8, bodyTop + 9);
 			g.text(font, "Nothing is being built.", cx + 20, bodyTop + 8, UiBits.ink(), false);
 			int ly = bodyTop + 8 + lh(12);
 			for (String l : TextUtil.wrapPlain(font, EMPTY, inner - 28)) {
@@ -286,7 +286,7 @@ public final class InboxScreen extends KitScreen {
 				boolean hov = mx >= x && mx < x + w && my >= ry - 2 && my < ry + rowH() - 2;
 				if (sel) Panels.selectedRow(g, x + 2, ry - 3, w - 4, rowH() - 1);
 				else if (hov) Panels.hoverRow(g, x + 2, ry - 3, w - 4, rowH() - 1);
-				Panels.dot(g, pill(en)[0], x + 6, ry + 1, false);
+				statusDot(g, pill(en)[0], x + 6, ry + 1);
 				g.text(font, TextUtil.ellipsize(font, en.name(), w - 22), x + 16, ry, needs ? UiBits.ink() : UiBits.muted(), false);
 				g.text(font, TextUtil.ellipsize(font, pill(en)[1], w - 22), x + 16, ry + lh(10), UiBits.muted(), false);
 				listIds.add(en.key());
@@ -308,7 +308,7 @@ public final class InboxScreen extends KitScreen {
 	private void drawDetail(GuiGraphicsExtractor g, InboxModel.Entry e, int x, int y, int w, int bottom, int mx, int my) {
 		// the pill, the name, the spend
 		String[] p = pill(e);
-		int pw = UiBits.dotPill(g, font, p[0], p[1], x, y - 1, UiBits.ink());
+		int pw = statusPill(g, p[0], p[1], x, y - 1, UiBits.ink());
 		String spend = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision()) || InboxModel.LAND.equals(e.decision()) ? "" : String.format("$%.2f of $%.0f", e.spentUsd(), e.budgetUsd());
 		g.text(font, spend, x + w - font.width(spend), y + 1, e.spentUsd() >= e.budgetUsd() * 0.8 ? UiStyle.warn() : UiBits.muted(), false);
 		g.text(font, TextUtil.ellipsize(font, e.name(), w - pw - font.width(spend) - 14), x + pw + 6, y + 1, UiBits.ink(), false);
@@ -352,7 +352,7 @@ public final class InboxScreen extends KitScreen {
 				InboxModel.Lot l = e.lots().get(i);
 				int ry = y + 4 + (i - lotScroll) * rowH();
 				String[] st = stage(l);
-				Panels.dot(g, st[0], x + 5, ry + 1, false);
+				statusDot(g, st[0], x + 5, ry + 1);
 				int actionsW = 0;
 				if ("PROPOSAL".equals(e.decision()) && sentAtVersion < 0) {
 					int ax = x + w - 6 - (e.lots().size() > fit ? 6 : 0);

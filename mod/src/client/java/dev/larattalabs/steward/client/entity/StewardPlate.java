@@ -75,9 +75,9 @@ final class StewardPlate {
 		if (s.needsYou) {
 			float pulse = 0.5f + 0.5f * (float) Math.sin(s.ageInTicks / 20f * Math.PI * 2 / (UiStyle.metric("metrics.pulse_ms", 1200) / 1000.0));
 			int a = (int) (90 + 165 * pulse);
-			WorldUi.submitSprite(ps, c, Kit.dot("waiting", true), cx - 2, ty - 1, 11, 11, (a << 24) | 0xFFFFFF, light);
+			WorldUi.submitSprite(ps, c, Kit.dot("waiting", true, dev.larattalabs.labui.ui.GhostPalette.current()), cx - 2, ty - 1, 11, 11, (a << 24) | 0xFFFFFF, light);
 		}
-		WorldUi.submitSprite(ps, c, WorldUi.Layer.OVERLAY, Kit.dot(family, false), cx, ty + 1, DOT, DOT, 0.15f, 0xFFFFFFFF, light);
+		WorldUi.submitSprite(ps, c, WorldUi.Layer.OVERLAY, Kit.dot(family, false, dev.larattalabs.labui.ui.GhostPalette.current()), cx, ty + 1, DOT, DOT, 0.15f, 0xFFFFFFFF, light);
 		// the text a hair in front of the plate (a fraction of the camera distance: coplanar glyphs lose to the plate otherwise)
 		ps.pushPose();
 		float px = WorldUi.PX * scale;

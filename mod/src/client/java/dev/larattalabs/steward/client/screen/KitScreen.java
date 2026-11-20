@@ -106,6 +106,26 @@ public abstract class KitScreen extends Screen {
 		return CHIP_H + grow();
 	}
 
+	/** The player's colour palette (lab-ui's ghost palette, set on Architect's Status tab or Steward's Settings). */
+	protected static dev.larattalabs.labui.ui.GhostPalette.Palette palette() {
+		return dev.larattalabs.labui.ui.GhostPalette.current();
+	}
+
+	/**
+	 * (LUI3-S) A status dot on the screen's paper: under Okabe-Ito lab-ui 0.6.2's colour-blind-safe paper dot (at least 3:1 on every paper
+	 * surface; the HUD set is too light on cream), else today's dot, so the standard look is unchanged.
+	 */
+	protected static void statusDot(GuiGraphicsExtractor g, String family, int x, int y) {
+		var p = palette();
+		if (p == dev.larattalabs.labui.ui.GhostPalette.Palette.OKABE_ITO) Panels.paperDot(g, family, x, y, p);
+		else Panels.dot(g, family, x, y, false);
+	}
+
+	/** (LUI3-S) {@code UiBits.dotPill} with its dot in the player's palette (the waiting pill keeps its brass edge). */
+	protected int statusPill(GuiGraphicsExtractor g, String family, String text, int x, int y, int textArgb) {
+		return UiBits.dotPill(g, font, family, text, x, y, textArgb, "waiting".equals(family), palette());
+	}
+
 	/** The screen's help (its tip and its "?" overlay), or null for none. */
 	protected dev.larattalabs.steward.ui.StewardHelp.@Nullable Screen help() {
 		return null;
