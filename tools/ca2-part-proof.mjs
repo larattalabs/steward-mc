@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { checkCommand } from './lib/save-barrier.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ARCH = process.env.ARCHITECT_CHECKOUT ?? path.resolve(ROOT, '..', 'architect-mc');
@@ -54,9 +55,10 @@ for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => {
   if (client && client.exitCode === null) client.kill('SIGTERM');
   process.exit(130);
 });
-const cmd = async (c) => ((await dev.request('dev.command', { cmd: c })).messages ?? []).join(' | ');
+// (SAVEB) checkCommand throws on a command that never ran (unknown or unparsable, e.g. a pre-26.x gamerule name); one that ran and failed passes
+const cmd = async (c) => (checkCommand(await dev.request('dev.command', { cmd: c }), { cmd: c }).messages ?? []).join(' | ');
 const clearAnimals = async () => {
-  await cmd('/gamerule doMobSpawning false');
+  await cmd('/gamerule spawn_mobs false');
   for (const t of ['pig', 'cow', 'sheep', 'chicken', 'rabbit', 'horse', 'donkey', 'mule', 'llama', 'goat', 'trader_llama', 'wandering_trader', 'fox']) await cmd(`/kill @e[type=minecraft:${t}]`);
   await cmd('/kill @e[type=minecraft:item]');
 };
