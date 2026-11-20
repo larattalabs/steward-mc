@@ -558,7 +558,7 @@ public final class SettlementRunner {
 			Steward.LOGGER.warn("resume {}: settlements are disabled this session, so the build resumes next session", claimedId);
 			return;
 		}
-		var api = ArchitectApi.get();
+		var api = ArchitectAccess.api();
 		var sites = api.sites(server);
 		say("Picking up the build of " + settlement.name() + " where it stopped (" + state.phase().name().toLowerCase().replace('_', ' ') + ").");
 		var batch = batchId == null ? java.util.Optional.<BatchView>empty() : sites.batch(batchId);
@@ -1053,7 +1053,7 @@ public final class SettlementRunner {
 			if (districtId != null && saved.get().lands().district(districtId).map(Settlement.District::square).orElse(false)) Districts.link(server, settlement.id(), districtId, this::say, true);
 			return true;
 		}
-		var sites = ArchitectApi.get().sites(server);
+		var sites = ArchitectAccess.api().sites(server);
 		List<Settlement.SiteChange> changes = siteIds.stream().map(id -> {
 			var v = sites.get(id);
 			// a village lot's site carries Architect's lot id only: its role is the plan's
@@ -2934,7 +2934,7 @@ public final class SettlementRunner {
 
 	/** The village's lots, each with its design (a lot with none stays a pad): what its realise and quote take. Null when the group is gone. */
 	private @org.jspecify.annotations.Nullable Map<String, String> villageLotEntries() {
-		Group g = groupId == null ? null : ArchitectApi.get().designs().group(groupId).orElse(null);
+		Group g = groupId == null ? null : ArchitectAccess.api().designs().group(groupId).orElse(null);
 		if (g == null || plan == null) return null;
 		Map<String, String> entries = new LinkedHashMap<>();
 		for (Group.Item it : g.items()) it.entryId().ifPresent(e -> entries.put(it.itemKey(), e));
@@ -4225,7 +4225,7 @@ public final class SettlementRunner {
 			adoptGrowth(g.get());
 			return true;
 		}
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		var found = regions.realiseByKey(settlement.owner(), opKey("vrealise"))
 			// a plan's village realised from its re-checked artifact (plan v1, after a stale one) is under the second key
 			.or(() -> regions.realiseByKey(settlement.owner(), opKey("vrealise2")))
@@ -4502,7 +4502,7 @@ public final class SettlementRunner {
 		if (state.phase() != Pipeline.Phase.PLACING && state.phase() != Pipeline.Phase.READY_TO_PLACE) return;
 		if (growth()) { watchGrowth(); return; }
 
-		var v = ArchitectApi.get().regions().get(vRegionId);
+		var v = ArchitectAccess.api().regions().get(vRegionId);
 		if (v.isEmpty()) return;
 		// what the region waits for that the player can act on (Architect's wait actions): a held stage, a place to come nearer to
 		String held = null;

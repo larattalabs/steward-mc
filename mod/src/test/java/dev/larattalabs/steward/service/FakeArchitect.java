@@ -226,6 +226,20 @@ final class FakeArchitect {
 	String capDetail = "lot:hall_1";
 	/** (place-words) When set, {@code realiseApproved} fails with it instead (a refusal other than BILL_CAP). */
 	RuntimeException realiseFailure;
+	/**
+	 * (CRASH-T) Architect's realise of a town from materials ({@code realiseApproved} with this set): applied when it is sent, as Architect's is (its
+	 * answer, per {@link #realiseAnswer}, may still be lost or held: APPLY answers, HOLD leaves it unanswered until {@link #complete}, APPLY_THEN_LOSE
+	 * answers a timeout). Each lot of the request takes its put-down bill ({@link #putDown}) from {@link #ledger}; a capped lot ({@code maxBillPerLot})
+	 * whose put-down bill is past its cap refuses the whole realise ({@code BILL_CAP}, detail {@code lot:<id>}), nothing written or drawn. Keyed: a
+	 * second realise under a key it has answers that region, never a second one, and draws nothing ({@code realiseByKey} finds it too).
+	 */
+	boolean materials;
+	/** (CRASH-T) What each lot takes from the stockpile at put-down (its lot and fill bill), by lot id; a lot not given takes nothing. */
+	final Map<String, Map<String, Integer>> putDown = new LinkedHashMap<>();
+	/** (CRASH-T) The region each realise key made (Architect's realiseByKey). */
+	final Map<String, String> realisedByKey = new LinkedHashMap<>();
+	/** (CRASH-T) The owner the materials realise's region is made for (the settlement's). */
+	String realiseOwner = "owner";
 	/** (TESTABLE-ARCH) Run with each call's line as it is recorded (before it is answered). */
 	java.util.function.Consumer<String> onCall = c -> {};
 	final Map<String, Site> sites = new LinkedHashMap<>();
@@ -313,6 +327,15 @@ final class FakeArchitect {
 				yield quote == null ? CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "no quote")) : CompletableFuture.completedFuture(quote);
 			}
 			case "realiseApproved" -> realiseApproved((dev.larattalabs.architect.api.ApprovedRealise) a[0]);
+			case "realiseByKey" -> {
+				call("regions.realiseByKey " + a[1]);
+				String id = realisedByKey.get((String) a[1]);
+				Region r = id == null ? null : regions.get(id);
+				yield r == null || !r.present || !a[0].equals(r.owner) ? Optional.empty() : Optional.of(r.view());
+			}
+			// (CRASH-T) the artifact's pin under the realise key (close-out A): recorded only
+			case "pinArtifact" -> { calls.add("regions.pinArtifact " + a[0]); yield null; }
+			case "unpinArtifact" -> { calls.add("regions.unpinArtifact " + a[0]); yield null; }
 			case "undoRevision" -> undoRevision((String) a[0], (Integer) a[1], (String) a[2]);
 			case "remove" -> removeRegion((String) a[0]);
 			case "unadopt" -> unadopt((String) a[0]);
@@ -331,12 +354,20 @@ final class FakeArchitect {
 			}
 			case "remove" -> removeSite((String) a[0], (RemoveOptions) a[1]);
 			case "loadHealthy" -> loadHealthy;
+			// (CRASH-T) a composed town is placed as a region, never a batch or a site group: none
+			case "batches" -> { calls.add("sites.batches " + a[0]); yield List.of(); }
+			case "batch", "group" -> { calls.add("sites." + m + " " + a[0]); yield Optional.empty(); }
 			default -> throw new UnsupportedOperationException("FakeArchitect: Sites." + m + " is not modelled");
 		});
 		dev.larattalabs.architect.api.Designs designsApi = proxy(dev.larattalabs.architect.api.Designs.class, (m, a) -> switch (m) {
 			case "group" -> {
 				call("designs.group " + a[0]);
 				yield Optional.empty();
+			}
+			// (CRASH-T) a cancelled build's resume stops its design group: answered done (the group is gone)
+			case "cancelGroup" -> {
+				call("designs.cancelGroup " + a[0]);
+				yield CompletableFuture.completedFuture(null);
 			}
 			default -> throw new UnsupportedOperationException("FakeArchitect: Designs." + m + " is not modelled");
 		});
@@ -373,6 +404,7 @@ final class FakeArchitect {
 		approved.add(r);
 		call("regions.realiseApproved " + r.artifactSha() + " " + r.opKey());
 		if (realiseFailure != null) return CompletableFuture.failedFuture(realiseFailure);
+		if (materials) return realiseFromMaterials(r);
 		return switch (realiseAnswer) {
 			case APPLY -> CompletableFuture.completedFuture("rg_realised");
 			case REFUSE -> CompletableFuture.failedFuture(new ArchitectRefused(Reason.BILL_CAP, "a lot's bill at put-down is past its maxBillPerLot", capDetail));
@@ -382,6 +414,47 @@ final class FakeArchitect {
 				yield f;
 			}
 			default -> throw new UnsupportedOperationException("FakeArchitect: realiseApproved answered " + realiseAnswer + " is not modelled");
+		};
+	}
+
+	/** (CRASH-T) The region a realise from materials makes ({@link #materials}). */
+	static final String REALISED = "rg_realised";
+
+	/** (CRASH-T) {@link #materials}: Architect's realise, applied (or refused, nothing drawn) as it is sent; its answer as {@link #realiseAnswer} says. */
+	private CompletableFuture<String> realiseFromMaterials(dev.larattalabs.architect.api.ApprovedRealise r) {
+		String had = realisedByKey.get(r.opKey());
+		if (had == null) {
+			var caps = r.maxBillPerLot();
+			for (String lot : new java.util.TreeSet<>(r.lotEntries().keySet())) {
+				var cap = caps == null ? null : caps.get(lot);
+				if (cap == null) continue;
+				for (var e : putDown.getOrDefault(lot, Map.of()).entrySet())
+					if (e.getValue() > cap.getOrDefault(e.getKey(), 0))
+						return CompletableFuture.failedFuture(new ArchitectRefused(Reason.BILL_CAP, "lot " + lot + "'s bill at put-down is past its maxBillPerLot", "lot:" + lot));
+			}
+			Region region = region(REALISED, realiseOwner);
+			region.fromMaterials = true;
+			region.built = false;
+			region.state = RegionState.PLACING;
+			for (String lot : r.lotEntries().keySet()) {
+				String sid = "s_" + lot;
+				site(sid, realiseOwner, REALISED).state = State.BUILDING;
+				ledger.bills.put(sid, Map.copyOf(putDown.getOrDefault(lot, Map.of())));
+				if (!ledger.build(this, sid)) throw new IllegalStateException("FakeArchitect: the stockpile is short for " + lot + " (give the test more stock)");
+			}
+			realisedByKey.put(r.opKey(), REALISED);
+			had = REALISED;
+		}
+		String id = had;
+		return switch (realiseAnswer) {
+			case APPLY -> CompletableFuture.completedFuture(id);
+			case HOLD -> {
+				var f = new CompletableFuture<String>();
+				held.add(() -> f.complete(id));
+				yield f;
+			}
+			case APPLY_THEN_LOSE -> CompletableFuture.failedFuture(new TimeoutException("the answer was lost"));
+			default -> throw new UnsupportedOperationException("FakeArchitect: a materials realise answered " + realiseAnswer + " is not modelled");
 		};
 	}
 

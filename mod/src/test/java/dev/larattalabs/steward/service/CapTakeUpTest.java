@@ -7,6 +7,8 @@ import dev.larattalabs.steward.model.Claim;
 import dev.larattalabs.steward.model.Difficulty;
 import dev.larattalabs.steward.model.Permission;
 import dev.larattalabs.steward.model.Settlement;
+import dev.larattalabs.steward.model.SettlementStore;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -60,6 +62,71 @@ class CapTakeUpTest {
 		// never a promise of what undo takes later: a build finishing meanwhile (a district) may be logged after the farm
 		assertTrue(words(later).contains("Undo can't run while the build under way goes on. Once it has ended, see what undo would take up"), words(later));
 		assertTrue(words(later).contains("if it is this one, /steward undo set_1 takes it up"), words(later));
+	}
+
+	/**
+	 * (QD-2's fix-check gap) The capped farm's words while a district is still building ({@code UNDO_LATER}) promise nothing, because the district,
+	 * once it completes, is logged after the farm: driven to that end here, through Undo's own readings (its district guard asks Architect for the
+	 * district's live region, faked), the undo target is then the district, never the farm, and only once the district is undone is it the farm's.
+	 */
+	@Test
+	void aDistrictStillBuildingCompletesAndUndoThenTakesItBeforeTheCappedFarm(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
+		var a = new FakeArchitect();
+		a.install();
+		try {
+			var town = Settlement.founded("set_1", "Here", TOWN, Permission.PROPOSALS, Difficulty.SUPPLIED, 1L)
+				.withLog(new Settlement.LogEntry(2L, Settlement.Kind.PROJECT_PLACED, "town", List.of("t1"), "region:rg1")).withLog(FARM);
+			var east = new Claim("minecraft:overworld", 113, 0, 48, -64, 320);
+			var building = new Settlement.District("dst_e", "the east ward", "E", east, 4L, List.of(), false, Settlement.District.SQUARE,
+				Settlement.District.BUILDING, null, null, null, null, null);
+			var s = town.withLands(town.lands().withDistrict(building));
+			// the district's region stands in Architect, still building; nothing of it is logged yet
+			a.region("rg9", s.owner()).ext.addProperty(Districts.DISTRICT_EXT, "dst_e");
+			var head = undoTakes(s, 2);
+			assertEquals("revision:rg1:2", head.get().siteGroup(), "the farm is the newest entry while the district builds");
+			assertTrue(Undo.districtBlocking(s, head).isPresent(), "undo is refused while the district's build is unsettled");
+			var later = MaterialRequests.takeUp(false, head, "rg1", 2, Undo.districtBlocking(s, head).isPresent());
+			assertEquals(MaterialRequests.TakeUp.UNDO_LATER, later);
+			assertTrue(words(later).contains("Once it has ended, see what undo would take up"), "no promise while it builds: " + words(later));
+
+			// the district completes: its region logged (after the farm) and the district standing
+			var done = s.withLands(s.lands().withoutDistrict("dst_e").withDistrict(new Settlement.District("dst_e", "the east ward", "E", east, 4L, List.of(), false,
+				Settlement.District.SQUARE, Settlement.District.STANDING, null, "rg9", null, null, null))).withLog(DISTRICT);
+			var taken = undoTakes(done, 2);
+			assertEquals("region:rg9", taken.get().siteGroup(), "undo now takes the district, not the farm");
+			assertTrue(Undo.districtBlocking(done, taken).isEmpty(), "nothing building any more");
+			var how = MaterialRequests.takeUp(false, taken, "rg1", 2, false);
+			assertEquals(new MaterialRequests.TakeUp(MaterialRequests.TakeUp.Way.NEWER, "the east ward"), how);
+			assertFalse(words(how).contains("/steward undo") || words(how).contains("/steward cancel"), words(how));
+			assertTrue(words(how).contains("An undo now would take up \"the east ward\" first"), words(how));
+
+			// the district undone: the farm's own revision is undo's target again, and only then do the words name the command
+			var after = done.withLog(new Settlement.LogEntry(7L, Settlement.Kind.PROJECT_REMOVED, "undid", List.of("d1")));
+			var own = undoTakes(after, 2);
+			assertEquals("revision:rg1:2", own.get().siteGroup());
+			assertEquals(MaterialRequests.TakeUp.UNDO, MaterialRequests.takeUp(false, own, "rg1", 2, false));
+
+			// the player's own undo (Undo.lastProject) does the same: refused while the district builds (nothing asked of Architect), then the
+			// district's region taken up, never the farm; then the farm's revision
+			a.region("rg1", s.owner()).rev(2, 2, "PLACED");
+			Settlements.useForTest(new SettlementStore(), dir.resolve("steward-settlements.json"));
+			Settlements.store().put(s);
+			List<String> said = new ArrayList<>();
+			assertFalse(Undo.lastProject(null, s, said::add), String.valueOf(said));
+			assertTrue(said.stream().anyMatch(l -> l.startsWith("the east ward is being built")), String.valueOf(said));
+			assertEquals(0, a.count("regions.remove") + a.count("regions.undoRevision"), "asked Architect while the district builds: " + a.calls);
+			Settlements.store().put(done);
+			said.clear();
+			assertTrue(Undo.lastProject(null, done, said::add), String.valueOf(said));
+			assertEquals(List.of("regions.remove rg9"), a.calls.stream().filter(c -> c.startsWith("regions.remove") || c.startsWith("regions.undoRevision")).toList(),
+				"undo took the district, never the farm: " + said);
+			assertEquals(dev.larattalabs.architect.api.RegionState.REMOVED, a.regions.get("rg9").state);
+			var next = Settlements.store().get("set_1").orElseThrow();
+			assertEquals("revision:rg1:2", Undo.headFirst(next, next.lastUndoable(), 2).get().siteGroup(), "the farm is next");
+		} finally {
+			ArchitectAccess.reset();
+			Settlements.resetForTest();
+		}
 	}
 
 	@Test
