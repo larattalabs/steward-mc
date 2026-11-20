@@ -57,7 +57,9 @@ final class StewardPlate {
 		int h = pad.top() + 9 + (activity.isEmpty() ? 0 : 10) + (activity2.isEmpty() ? 0 : 10) + pad.bottom() + 1;
 		int light = WorldUi.uiLight();
 		double dist = Math.sqrt(s.distanceToCameraSq);
-		float scale = (float) Math.max(1.0, Math.min(SCALE_MAX, dist / SCALE_FROM));
+		// (UI-PR-S) the player's text size: the plate and its bubble grow as one (the pose scales; lab-ui scales only screens' text)
+		float scale = (float) Math.max(1.0, Math.min(SCALE_MAX, dist / SCALE_FROM))
+			* dev.larattalabs.steward.view.WorldText.factor(dev.larattalabs.steward.client.screen.KitScreen.OWNER);
 		double base = switch (s.posture) {
 			case SIT -> SITTING;
 			case LIE -> LYING;

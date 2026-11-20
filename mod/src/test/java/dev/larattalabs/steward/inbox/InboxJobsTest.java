@@ -72,7 +72,8 @@ class InboxJobsTest {
 		JobRow ideaRow = rows.get(1);
 		assertEquals(JobState.QUEUED, ideaRow.state());
 		assertFalse(ideaRow.waiting(), "an idea is not blocked on the player (the nameplate's rule)");
-		assertEquals("Stilt · ideas", ideaRow.title());
+		assertEquals("Stilt", ideaRow.title(), "(LUI-2) the Ideas group says what it is; the title is the name alone");
+		assertEquals("an idea", ideaRow.step(), "(LUI-2) no lots named: a short step, never the inbox's sentence");
 		assertTrue(ideaRow.offer() && ideaRow.idea(), "an idea is an offer (lab-ui 0.5.0)");
 		assertEquals(JobBoardModel.Group.IDEAS, JobBoardModel.group(ideaRow));
 		assertFalse(rows.get(0).offer() || rows.get(2).offer(), "a build and its updates are not offers");
@@ -106,7 +107,7 @@ class InboxJobsTest {
 			new InboxModel.Entry("c", "Ford", "PROPOSAL", "idea", List.of(), List.of(), 0, 0, 0)), 0, null));
 		assertEquals(0, JobBoardModel.needsYouCount(m.rows()));
 		assertNull(JobBoardModel.pillText(m.rows()));
-		assertEquals("1 idea for you · Ford · ideas", JobBoardModel.pillIdleText(m.rows()));
+		assertEquals("1 idea for you · Ford", JobBoardModel.pillIdleText(m.rows()));
 	}
 
 	@Test
@@ -117,5 +118,18 @@ class InboxJobsTest {
 		r.link().run();
 		assertEquals(List.of("set_4"), opened);
 		assertTrue(r.linkLabel().contains("Inbox"));
+	}
+
+	@Test
+	void anIdeaRowsStepNamesWhatIsOfferedShortly() {
+		java.util.function.Function<List<String>, String> step = roles -> InboxJobs.step(InboxModel.proposals("s", "Ford", roles.stream()
+			.map(r -> new InboxModel.Lot(r + "_1", r, "proposal", false, true, "a long detail that the inbox shows whole")).toList()));
+		assertEquals("smokehouse", step.apply(List.of("smokehouse")));
+		assertEquals("smokehouse, well", step.apply(List.of("smokehouse", "well")));
+		assertEquals("smokehouse, well +2 more", step.apply(List.of("smokehouse", "well", "mill", "dock")));
+		var build = new InboxModel.Entry("s", "Ford", "BIBLE", "Approve the style bible.", List.of(), List.of(), 0, 0, 0);
+		assertEquals("Approve the style bible.", InboxJobs.step(build), "other rows keep their headline");
+		assertTrue(InboxModel.proposals("s", "Ford", List.of(new InboxModel.Lot("a", "smokehouse", "proposal", false, true, ""))).headline().length()
+			> step.apply(List.of("smokehouse")).length(), "the inbox keeps its sentence");
 	}
 }

@@ -39,7 +39,7 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 	 * Pixels per block on the slate: 3 x 2 blocks are 144 x 96 px. (MAP-P3B) 48, not 64: the same slate, its text a third larger, so it reads from
 	 * a few blocks away; fewer rows fit, and the rest are counted ("and N more").
 	 */
-	static final float PPB = 48;
+	static final float PPB = dev.larattalabs.steward.view.WorldText.BASE_PPB;
 	static final int W = 3 * (int) PPB, H = 2 * (int) PPB;
 	/** A row's height; the footer's top. */
 	static final int ROW = 11, FOOT = H - 11;
@@ -78,6 +78,10 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 	private static void draw(State s, PoseStack ps, SubmitNodeCollector c) {
 		Font font = Minecraft.getInstance().font;
 		int light = WorldUi.uiLight();
+		// (UI-PR-S) the player's text size: the slate keeps its size in the world, its pixels (and so its text) grow; fewer rows fit
+		var slate = dev.larattalabs.steward.view.WorldText.slate(dev.larattalabs.steward.view.WorldText.factor(dev.larattalabs.steward.client.screen.KitScreen.OWNER));
+		final float PPB = slate.ppb();
+		final int W = slate.w(), H = slate.h(), FOOT = slate.foot();
 		ps.pushPose();
 		// onto the plank's front (2 px thick at the back of the block), then one block left and one up: the slate is centred on the plank, its bottom at the plank's
 		toFace(ps, s.facing, 14f / 16f - 0.01f, PPB);
@@ -114,27 +118,34 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 		// counting the rest when they don't all fit
 		List<String> said = TextUtil.wrapPlain(font, status, W - 12);
 		int y = 21;
-		for (int i = 0; i < Math.min(2, said.size()); i++, y += 10) {
-			String line = i == 1 && said.size() > 2 ? TextUtil.ellipsize(font, String.join(" ", said.subList(1, said.size())), W - 12) : said.get(i);
+		int lines = slate.statusLines();
+		for (int i = 0; i < Math.min(lines, said.size()); i++, y += 10) {
+			String line = lines == 1 && said.size() > 1 ? TextUtil.ellipsize(font, status, W - 12) : i == 1 && said.size() > 2 ? TextUtil.ellipsize(font, String.join(" ", said.subList(1, said.size())), W - 12) : said.get(i);
 			WorldUi.submitText(ps, c, Component.literal(line).getVisualOrderText(), 6, y, loud ? UiStyle.BRASS : muted, light);
 		}
 		y += 3;
 		var rows = v.buildings();
-		int slots = Math.max(1, (FOOT - 2 - y) / ROW);
-		int shown = rows.size() <= slots ? rows.size() : slots - 1;
+		int slots = slate.slots(y);
+		int shown = dev.larattalabs.steward.view.WorldText.Slate.shown(rows.size(), slots);
 		for (int i = 0; i < shown; i++) {
 			SettlementView.Building b = rows.get(i);
 			// (8bS) from Architect's BuildStatus when there is one
 			String fam = b.status() != null ? b.stateWords()[0] : b.updateAvailable() ? "waiting" : b.updating() || !"built".equals(b.state()) ? "working" : "done";
-			WorldUi.submitSprite(ps, c, WorldUi.Layer.SOLID, Kit.dot(fam, false), 6, y + 1, 7, 7, 0f, 0xFFFFFFFF, light);
+			if (dev.larattalabs.labui.ui.GhostPalette.current() == dev.larattalabs.labui.ui.GhostPalette.Palette.OKABE_ITO) {
+				// (UI-PR-S) the map's swatch in the Okabe-Ito palette (lab-ui's dots have no Okabe-Ito set yet: an ask)
+				WorldUi.submitFill(ps, c, 6, y + 1, 13, y + 8, dev.larattalabs.steward.view.MapColors.fill(fam, dev.larattalabs.labui.ui.GhostPalette.Palette.OKABE_ITO,
+					new dev.larattalabs.steward.view.MapColors.Standard(UiStyle.SAGE, UiStyle.BRASS, UiStyle.CLAY)), light);
+			} else WorldUi.submitSprite(ps, c, WorldUi.Layer.SOLID, Kit.dot(fam, false), 6, y + 1, 7, 7, 0f, 0xFFFFFFFF, light);
 			String right = b.updateAvailable() ? "update ready" : "v" + b.version();
 			int rw = font.width(right);
 			WorldUi.submitText(ps, c, Component.literal(TextUtil.ellipsize(font, b.role(), W - 30 - rw)).getVisualOrderText(), 17, y, UiStyle.CREAM, light);
 			WorldUi.submitText(ps, c, Component.literal(right).getVisualOrderText(), W - 6 - rw, y, muted, light);
 			y += ROW;
 		}
-		if (rows.size() > shown) WorldUi.submitText(ps, c, Component.literal("and " + (rows.size() - shown) + " more").getVisualOrderText(), 17, y, muted, light);
-		WorldUi.submitText(ps, c, Component.literal("Right-click: the settlement").getVisualOrderText(), 6, FOOT, muted, light);
+		if (dev.larattalabs.steward.view.WorldText.Slate.more(rows.size(), shown, slots)) WorldUi.submitText(ps, c, Component.literal("and " + (rows.size() - shown) + " more").getVisualOrderText(), 17, y, muted, light);
+		// (UI-PR-S) at a larger text size the footer's words may not fit the slate: the short form
+		String foot = font.width("Right-click: the settlement") <= W - 12 ? "Right-click: the settlement" : "Right-click: open";
+		WorldUi.submitText(ps, c, Component.literal(TextUtil.ellipsize(font, foot, W - 12)).getVisualOrderText(), 6, FOOT, muted, light);
 		ps.popPose();
 	}
 

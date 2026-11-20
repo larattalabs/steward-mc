@@ -35,6 +35,17 @@ public final class Keys {
 		survey = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.steward_mc.survey", InputConstants.Type.KEYBOARD, InputConstants.KEY_U, cat, 3));
 	}
 
+	/** (UI-PR-S) A mapping by its id ({@code key.steward_mc.<id>}: inbox, inspect, survey), for the "?" overlay; null when unknown. */
+	public static KeyMapping byId(String id) {
+		ensureRegistered();
+		return switch (id) {
+			case "inbox" -> inbox;
+			case "inspect" -> inspect;
+			case "survey" -> survey;
+			default -> null;
+		};
+	}
+
 	/**
 	 * Short label of the key a mapping is bound to ("B", "Enter", "Backtick"). Punctuation keys whose glyph is only a pixel
 	 * or two in the Minecraft font are spelled out, so a keycap never looks empty.

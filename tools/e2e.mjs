@@ -1430,6 +1430,138 @@ async function talk(id) {
   if (harbour) await cmd(`/steward proposals ${id} decline district_E`);
 }
 
+/**
+ * (UI-PR-S) lab-ui L-0.6's player-ready pass on Steward's screens, for the design check: each screen at 150 % text and GUI scale 4 (the
+ * contract's gate), the settlement screen also at GUI 2, its "?" overlay, the map, list and board in the Okabe-Ito palette, and the nameplate
+ * with its bubble at 150 %. Set through Architect's DevBridge (dev.gui.scale, dev.pr.textScale, dev.pr.palette, dev.pr.keys), the way its
+ * Status tab sets them; everything is put back after (lab_ui.json and options.txt outlive the run). Checks: the overlay opens on F1 and Esc
+ * closes it, the screen stays; each screen opened.
+ */
+async function uiPr(id) {
+  const shot = async (name, hideHud = true) => (await dev.request('dev.screenshot', { name, frames: 5, hideHud }, { timeoutMs: 120_000 })).path ?? '';
+  const screen = async () => (await dev.request('dev.state')).screen?.class ?? 'none';
+  const key = async (k, n = 1) => {
+    for (let i = 0; i < n; i++) {
+      await dev.request('dev.key', { key: k });
+      await sleep(300);
+    }
+  };
+  const opts = (() => { try { return fs.readFileSync(path.join(GAME, 'options.txt'), 'utf8'); } catch { return ''; } })();
+  const guiWas = Number(opts.match(/^guiScale:(\d+)/m)?.[1] ?? 0);
+  const textWas = (await dev.request('dev.pr.textScale', {})).percent ?? 100;
+  const paletteWas = (await dev.request('dev.pr.palette', {})).palette ?? 'standard';
+  const shots = [];
+  const opened = [];
+  try {
+    await closeScreens();
+    // two buildings of the UI entry for the map and the list (the flows before undid theirs), 14 blocks apart, east of the player
+    const me = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/)?.slice(1).map(Number);
+    if (me) {
+      for (const dx of [0, 14]) {
+        await cmd(`/tp @p ${me[0] + 30 + dx} ${me[1]} ${me[2]}`);
+        await dev.request('dev.waitChunks', { timeoutMs: 30_000 });
+        const from = logSize();
+        await cmd(`/steward dev place ${id} ${STUB_UI}`);
+        await waitLog(from, /dev placed (s\d+)|dev place refused/, 30_000);
+      }
+      await cmd(`/tp @p ${me[0]} ${me[1]} ${me[2]}`);
+      await sleep(1000);
+    }
+    // the Okabe-Ito map, list and legend (GUI 2, 100 %), and the board's slate in it
+    await dev.request('dev.pr.palette', { palette: 'okabe_ito' });
+    await dev.request('dev.pr.textScale', { percent: 100 });
+    await dev.request('dev.gui.scale', { scale: 2 });
+    await cmd(`/steward view ${id}`);
+    await sleep(1500);
+    shots.push(await shot('pr__settlement_okabe__s2'));
+    await closeScreens();
+    // the settlement screen at 150 % on GUI 2 and 4, then every screen at 150 % x GUI 4
+    await dev.request('dev.pr.palette', { palette: 'standard' });
+    await dev.request('dev.pr.textScale', { percent: 150 });
+    await cmd(`/steward view ${id}`);
+    await sleep(1500);
+    shots.push(await shot('pr__settlement_text150__s2'));
+    await closeScreens();
+    const gui = await dev.request('dev.gui.scale', { scale: 4 });
+    await cmd(`/steward view ${id}`);
+    await sleep(1500);
+    if (/SettlementScreen/.test(await screen())) opened.push('settlement');
+    shots.push(await shot('pr__settlement_text150__s4'));
+    // the "?" overlay: F1 opens it over the screen, Esc closes it and the screen stays
+    const f1 = await dev.request('dev.pr.keys', { press: true });
+    await sleep(500);
+    shots.push(await shot('pr__settlement_keys_text150__s4'));
+    await key('escape');
+    const after = await screen();
+    if (f1.handled && /SettlementScreen/.test(after)) ok('ui-pr overlay', `F1 opened the "?" overlay on the settlement screen, Esc closed it and the screen stayed (GUI ${gui.guiScale}, ${gui.guiWidth}x${gui.guiHeight})`);
+    else fail('ui-pr overlay', `F1 ${JSON.stringify(f1)}; after Esc the screen is ${after}`);
+    for (const [n, tab] of [[1, 'history'], [1, 'claim'], [1, 'settings']]) {
+      await key('tab', n);
+      await sleep(400);
+      shots.push(await shot(`pr__settlement_${tab}_text150__s4`));
+    }
+    await key('tab');
+    await key('down');
+    await key('enter');
+    await sleep(600);
+    if (/BuildingScreen/.test(await screen())) opened.push('building');
+    shots.push(await shot('pr__building_text150__s4'));
+    await closeScreens();
+    for (const [what, cls] of [['inbox', 'InboxScreen'], ['talk', 'TalkScreen'], ['describe', 'DescribeScreen'], ['card', 'CardScreen']]) {
+      await cmd(`/steward ui ${what} ${id}`);
+      await sleep(1500);
+      if (new RegExp(cls).test(await screen())) {
+        opened.push(what);
+        shots.push(await shot(`pr__${what}_text150__s4`));
+      }
+      await closeScreens();
+    }
+    // the empty inbox (its words wrap to more lines at 150 %), then the inbox's samples (a build waiting, ideas, a usage limit)
+    await cmd('/steward ui sample-empty e2e');
+    await sleep(800);
+    await dev.request('dev.key', { key: 'y' });
+    await sleep(1200);
+    if (/InboxScreen/.test(await screen())) shots.push(await shot('pr__inbox_empty_text150__s4'));
+    await closeScreens();
+    // the inbox's samples (a build waiting, ideas, a usage limit): the fullest rows at 150 % x GUI 4
+    await cmd('/steward ui sample e2e');
+    await sleep(1500);
+    if (/InboxScreen/.test(await screen())) shots.push(await shot('pr__inbox_sample_text150__s4'));
+    await closeScreens();
+    // (the card opens only for a described settlement; this one is not)
+    if (['settlement', 'building', 'inbox', 'talk', 'describe'].every((w) => opened.includes(w))) ok('ui-pr screens', `opened at 150 % x GUI 4: ${opened.join(', ')}`);
+    else fail('ui-pr screens', `opened only ${opened.join(', ')}`);
+    // the world UI at 150 %: the nameplate with a bubble (the steward answers), and the board's slate in Okabe-Ito
+    await dev.request('dev.gui.scale', { scale: guiWas });
+    await cmd(`/steward talk ${id} what are you doing?`);
+    const r = await cmd(`/data get entity @e[type=steward_mc:steward,tag=steward_mc.settlement.${id},limit=1] Pos`);
+    const p = r.match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/)?.slice(1).map(Number);
+    const mine = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/);
+    if (p) {
+      await cmd(`/tp @p ${(p[0] + 2).toFixed(1)} ${p[1].toFixed(1)} ${(p[2] + 4).toFixed(1)} facing ${p[0].toFixed(1)} ${(p[1] + 1.8).toFixed(1)} ${p[2].toFixed(1)}`);
+      await sleep(1500);
+      shots.push(await shot('pr__plate_bubble_text150'));
+    }
+    if (mine) {
+      const [px, py, pz] = mine.slice(1).map((n) => Math.floor(Number(n)));
+      await cmd(`/tp @p ${mine[1]} ${mine[2]} ${mine[3]}`);
+      await dev.request('dev.pr.palette', { palette: 'okabe_ito' });
+      await cmd(`/setblock ${px} ${py + 1} ${pz - 3} steward_mc:settlement_board[facing=south]`);
+      await cmd(`/tp @p ${px + 0.5} ${py} ${pz + 3.5} facing ${px + 0.5} ${py + 1.2} ${pz - 2.6}`);
+      await sleep(2500);
+      shots.push(await shot('pr__board_okabe_text150'));
+      await cmd(`/setblock ${px} ${py + 1} ${pz - 3} minecraft:air`);
+      await cmd(`/tp @p ${mine[1]} ${mine[2]} ${mine[3]}`);
+    }
+  } finally {
+    await closeScreens();
+    await dev.request('dev.pr.palette', { palette: paletteWas }).catch(() => {});
+    await dev.request('dev.pr.textScale', { percent: textWas }).catch(() => {});
+    await dev.request('dev.gui.scale', { scale: guiWas }).catch(() => {});
+  }
+  ok('ui-pr shots', shots.filter(Boolean).map((f) => path.basename(f)).join(' '));
+}
+
 /** A world from before the steward entity: its mannequin stewards become steward_mc:steward when their chunks load. */
 async function migratedSteward() {
   const first = settlements()[0];
@@ -9579,6 +9711,7 @@ try {
       await flow('districts', 'protect road layout', () => districts(id), ['proposals']);
       await flow('player-builds', 'protect', () => playerBuilds(id));
       await flow('talk', 'screens', () => talk(id));
+      await flow('ui-pr', 'screens text palette', () => uiPr(id), ['ui-actions']);
       await flow('repair', 'repair dr', () => repairLook(id));
     }
     else {
