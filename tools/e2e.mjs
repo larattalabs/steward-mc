@@ -150,6 +150,7 @@ async function connect() {
   // a --clients lead reads this line: a child it had to SIGKILL leaves these pids to it
   console.log(`e2e-client: jvm ${clientJvm ?? '-'} launcher ${client?.pid ?? '-'}`);
   await dev.waitInWorld({ timeoutMs: 400_000 });
+  await worldRules();
   // a new client writes a new log: the herder reads it from its start
   herdAt = 0;
   startHerder();
@@ -236,6 +237,24 @@ async function closeScreens() {
     await dev.request('dev.key', { key: 'escape' });
     await sleep(200);
   }
+}
+
+/**
+ * (E2E-FIRE) No weather and no fire in the e2e world, as the module tools have it. The flat world cycled its weather, and a thunderstorm's lightning
+ * set one cell of fire on the grass (y 65) beside a build: the undo cell diffs saw it appear or burn out as a class-none cell (batches 081 and 083,
+ * passed on rerun). The world is Peaceful, which stops only the strike's first spawnFire(4); each re-flash's spawnFire(0) lights the struck cell
+ * whatever the difficulty, hence one cell. In 26.3 LightningBolt.spawnFire, lava's ignition and FireBlock's spread all ask ServerLevel.canSpreadFireAround, which reads
+ * fire_spread_radius_around_player (default 128; -1 everywhere; 0 none near a player); advance_weather false keeps the storm (and a struck
+ * lightning rod's change) away. Gamerules are saved with the world; set on every connect, so a restart's reopened world keeps them. An unknown rule
+ * throws (checkCommand), so a renamed rule fails loudly.
+ */
+async function worldRules() {
+  for (const r of ['fire_spread_radius_around_player 0', 'advance_weather false']) await cmd(`/gamerule ${r}`);
+  await cmd('/weather clear');
+  // the game's own answer, so the log shows what it accepted
+  const said = [];
+  for (const r of ['fire_spread_radius_around_player', 'advance_weather']) said.push(await cmd(`/gamerule ${r}`));
+  console.log(`world rules: ${said.join(' | ')}; weather clear`);
 }
 
 async function cmd(c, { allowFail = false } = {}) {
