@@ -44,6 +44,14 @@ public final class TalkScreen extends KitScreen {
 		fieldFocused = true;
 	}
 
+	/**
+	 * (MAP-P3B) Whether the talk box for this settlement is open: its steward's speech bubble is then not drawn (the box's log already holds the line, and
+	 * the bubble would sit behind the panel), as chat is hidden under it.
+	 */
+	public static boolean openFor(String settlementId) {
+		return net.minecraft.client.Minecraft.getInstance().gui.screen() instanceof TalkScreen t && t.settlementId.equals(settlementId);
+	}
+
 	/** The steward said something (its bubble): kept for the talk box. */
 	public static void heard(String settlementId, String text) {
 		add(settlementId, new Line(false, text));
