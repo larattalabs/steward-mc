@@ -230,13 +230,14 @@ public final class SettlementScreen extends KitScreen {
 		// the map, its hint line and its legend under it, in a column at least as wide as the legend's three columns need (LYW: a wide map, not a
 		// smaller one, makes room for the walls' entries). (MAP-P3B) The map takes the town's own shape within the most the column and the legend
 		// leave (half the body's width, its height less the hint line and the legend), so neither axis is left half empty: a wide town gets a wider
-		// column and a shorter map, a square or tall one a narrower map, centred over the legend.
+		// column and a shorter map, a square or tall one a narrower map, centred over the legend. The column keeps one width (the list does not move
+		// between towns); the hint line runs under the map's own edges, widened (centred) when the map is too narrow for a name and "north is up".
 		int colMax = w / 2 - 8;
 		int[] bounds = map ? mapBounds() : null;
 		int[] area = map ? MapFrame.area(bounds[2] + 1 - bounds[0], bounds[3] + 1 - bounds[1], colMax - 16, Math.min(h - legendHeight(), colMax) - HINT_H - 16,
 			MAP_MIN_W - 16) : null;
 		int mapW = map ? area[0] + 16 : 0, mapH = map ? area[1] + 16 : 0;
-		int col = map ? Math.min(colMax, Math.max(mapW, LEGEND_MIN_W)) : 0;
+		int col = map ? Math.max(colMax, LEGEND_MIN_W) : 0;
 		int lw = map ? w - col - 8 : w;
 		Panels.inset(g, x, y, lw, h);
 		int fit = Math.max(1, (h - 6) / ROW_H);
@@ -266,8 +267,9 @@ public final class SettlementScreen extends KitScreen {
 		}
 		if (map) {
 			int cx = x + lw + 8;
-			drawMap(g, bounds, cx + (col - mapW) / 2, y, mapW, mapH, mx, my);
-			drawHint(g, cx, y + mapH + 3, col);
+			int mx0 = cx + (col - mapW) / 2, hw = Math.min(col, Math.max(mapW, HINT_MIN_W));
+			drawMap(g, bounds, mx0, y, mapW, mapH, mx, my);
+			drawHint(g, cx + (col - hw) / 2, y + mapH + 3, hw);
 			drawLegend(g, cx, y + mapH + HINT_H + 4, col);
 		}
 	}
@@ -285,7 +287,7 @@ public final class SettlementScreen extends KitScreen {
 	private static final int LEGEND_MIN_W = 3 * 60;
 	/** (MAP-P3B) The hint line's row under the map ("north is up" and the hovered name), and the narrowest the map's inset goes. */
 	private static final int HINT_H = 12;
-	private static final int MAP_MIN_W = 48;
+	private static final int MAP_MIN_W = 48, HINT_MIN_W = 140;
 
 	/** A map footprint's fill for its state's family (each mark also gets a dark edge: at least 3:1 against the inset whatever its fill). */
 	static int fill(String family) {
