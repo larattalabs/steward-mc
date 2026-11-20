@@ -227,11 +227,17 @@ public final class SettlementScreen extends KitScreen {
 			return;
 		}
 		boolean map = w >= 360;
-		// the map, and its legend under it: as tall as the legend leaves, at least as wide as the legend's three columns need (LYW: a wide map, not a
-		// smaller one, makes room for the walls' entries)
-		int mapH = map ? Math.min(h - legendHeight(), w / 2 - 8) : 0;
-		int mapSize = map ? Math.min(w / 2 - 8, Math.max(mapH, LEGEND_MIN_W)) : 0;
-		int lw = map ? w - mapSize - 8 : w;
+		// the map, its hint line and its legend under it, in a column at least as wide as the legend's three columns need (LYW: a wide map, not a
+		// smaller one, makes room for the walls' entries). (MAP-P3B) The map takes the town's own shape within the most the column and the legend
+		// leave (half the body's width, its height less the hint line and the legend), so neither axis is left half empty: a wide town gets a wider
+		// column and a shorter map, a square or tall one a narrower map, centred over the legend.
+		int colMax = w / 2 - 8;
+		int[] bounds = map ? mapBounds() : null;
+		int[] area = map ? MapFrame.area(bounds[2] + 1 - bounds[0], bounds[3] + 1 - bounds[1], colMax - 16, Math.min(h - legendHeight(), colMax) - HINT_H - 16,
+			MAP_MIN_W - 16) : null;
+		int mapW = map ? area[0] + 16 : 0, mapH = map ? area[1] + 16 : 0;
+		int col = map ? Math.min(colMax, Math.max(mapW, LEGEND_MIN_W)) : 0;
+		int lw = map ? w - col - 8 : w;
 		Panels.inset(g, x, y, lw, h);
 		int fit = Math.max(1, (h - 6) / ROW_H);
 		List<Building> all = view.buildings();
@@ -259,8 +265,10 @@ public final class SettlementScreen extends KitScreen {
 			Panels.scrollbar(g, x + lw - 6, y + 1, h - 2, sc, false);
 		}
 		if (map) {
-			drawMap(g, x + lw + 8, y, mapSize, mapH, mx, my);
-			drawLegend(g, x + lw + 8, y + mapH + 4, mapSize);
+			int cx = x + lw + 8;
+			drawMap(g, bounds, cx + (col - mapW) / 2, y, mapW, mapH, mx, my);
+			drawHint(g, cx, y + mapH + 3, col);
+			drawLegend(g, cx, y + mapH + HINT_H + 4, col);
 		}
 	}
 
@@ -275,6 +283,9 @@ public final class SettlementScreen extends KitScreen {
 	/** (slice LYW) The legend's columns, and the narrowest the map and legend go so each column's words fit ("crossing" the widest). */
 	private static final int LEGEND_COLS = 3;
 	private static final int LEGEND_MIN_W = 3 * 60;
+	/** (MAP-P3B) The hint line's row under the map ("north is up" and the hovered name), and the narrowest the map's inset goes. */
+	private static final int HINT_H = 12;
+	private static final int MAP_MIN_W = 48;
 
 	/** A map footprint's fill for its state's family (each mark also gets a dark edge: at least 3:1 against the inset whatever its fill). */
 	static int fill(String family) {
@@ -402,30 +413,14 @@ public final class SettlementScreen extends KitScreen {
 	 * The settlement from above, fitted to what it draws (its buildings, the plan's pads, roads and walls, and the stone) with a margin: the claim's edge
 	 * when it fits, each building's footprint in its state's colour, the hovered one outlined. North is up.
 	 */
-	private void drawMap(GuiGraphicsExtractor g, int x, int y, int size, int sizeH, int mx, int my) {
+	private void drawMap(GuiGraphicsExtractor g, int[] bounds, int x, int y, int size, int sizeH, int mx, int my) {
 		Panels.inset(g, x, y, size, sizeH);
 		var c = view.claim();
-		int minX = c.centerX(), maxX = c.centerX(), minZ = c.centerZ(), maxZ = c.centerZ();
-		for (Building b : view.buildings()) {
-			minX = Math.min(minX, b.minX());
-			maxX = Math.max(maxX, b.maxX());
-			minZ = Math.min(minZ, b.minZ());
-			maxZ = Math.max(maxZ, b.maxZ());
-		}
-		// (8bS) the plan's pads, roads and connectors (Architect's layout) count too; a lot a building stands on counts by its building (lots are often
-		// larger than what stands on them, and the map fits what it draws)
 		var shapes = view.map() == null ? List.<SettlementView.MapShape>of() : view.map();
-		for (var m : shapes) {
-			if ("lot".equals(m.kind()) && standing(m)) continue;
-			minX = Math.min(minX, m.minX());
-			maxX = Math.max(maxX, m.maxX());
-			minZ = Math.min(minZ, m.minZ());
-			maxZ = Math.max(maxZ, m.maxZ());
-		}
-		// the drawing area: the inset less an 8-pixel margin, above the hint line
-		MapFrame f = MapFrame.fit(minX - 2, minZ - 2, maxX + 2, maxZ + 2, x + 8, y + 8, size - 16, sizeH - 16 - 12);
+		// the drawing area: the inset less an 8-pixel margin
+		MapFrame f = MapFrame.fit(bounds[0], bounds[1], bounds[2], bounds[3], x + 8, y + 8, size - 16, sizeH - 16);
 		int r0x = f.x(c.centerX() - c.radius()), r0z = f.z(c.centerZ() - c.radius()), r1x = f.x(c.centerX() + c.radius() + 1), r1z = f.z(c.centerZ() + c.radius() + 1);
-		claimDrawn = r0x >= x + 2 && r0z >= y + 2 && r1x <= x + size - 2 && r1z <= y + sizeH - 13;
+		claimDrawn = r0x >= x + 2 && r0z >= y + 2 && r1x <= x + size - 2 && r1z <= y + sizeH - 2;
 		if (claimDrawn) box(g, r0x, r0z, r1x, r1z, CLAIM_EDGE);
 		drawShapes(g, shapes, f);
 		List<int[]> rings = new ArrayList<>();
@@ -452,14 +447,41 @@ public final class SettlementScreen extends KitScreen {
 			box(g, r[0] - 2, r[1] - 2, r[2] + 2, r[3] + 2, UiStyle.INK);
 			box(g, r[0] - 1, r[1] - 1, r[2] + 1, r[3] + 1, UiStyle.CREAM);
 		}
-		// (LYW-P3) the hint line: "north is up" always, at its right; the hovered or chosen building's name in its own place at the left
+	}
+
+	/** (LYW-P3) The hint line under the map: "north is up" always, at its right; the hovered or chosen building's name in its own place at the left. */
+	private void drawHint(GuiGraphicsExtractor g, int x, int ty, int w) {
 		String north = "north is up";
-		int nw = font.width(north), ty = y + sizeH - 11;
-		g.text(font, north, x + size - 4 - nw, ty, UiBits.muted(), false);
+		int nw = font.width(north);
+		g.text(font, north, x + w - nw, ty, UiBits.muted(), false);
 		String on = hovered != null ? hovered : selected;
 		if (on != null && view.building(on) != null) {
-			g.text(font, TextUtil.ellipsize(font, view.building(on).role(), size - 16 - nw), x + 4, ty, UiBits.ink(), false);
+			g.text(font, TextUtil.ellipsize(font, view.building(on).role(), w - 8 - nw), x, ty, UiBits.ink(), false);
 		}
+	}
+
+	/**
+	 * What the map fits, in blocks {minX, minZ, maxX, maxZ} (inclusive) with a 2-block margin: the stone, the buildings, and (8bS) the plan's pads, roads
+	 * and connectors (Architect's layout); a lot a building stands on counts by its building (lots are often larger than what stands on them, and the map
+	 * fits what it draws).
+	 */
+	private int[] mapBounds() {
+		var c = view.claim();
+		int minX = c.centerX(), maxX = c.centerX(), minZ = c.centerZ(), maxZ = c.centerZ();
+		for (Building b : view.buildings()) {
+			minX = Math.min(minX, b.minX());
+			maxX = Math.max(maxX, b.maxX());
+			minZ = Math.min(minZ, b.minZ());
+			maxZ = Math.max(maxZ, b.maxZ());
+		}
+		for (var m : view.map() == null ? List.<SettlementView.MapShape>of() : view.map()) {
+			if ("lot".equals(m.kind()) && standing(m)) continue;
+			minX = Math.min(minX, m.minX());
+			maxX = Math.max(maxX, m.maxX());
+			minZ = Math.min(minZ, m.minZ());
+			maxZ = Math.max(maxZ, m.maxZ());
+		}
+		return new int[] {minX - 2, minZ - 2, maxX + 2, maxZ + 2};
 	}
 
 	/**

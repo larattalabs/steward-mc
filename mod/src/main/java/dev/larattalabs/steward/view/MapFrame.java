@@ -23,6 +23,21 @@ public record MapFrame(double cx, double cz, double scale, int ax, int ay, int a
 		return new MapFrame((minX + maxX + 1) / 2.0, (minZ + maxZ + 1) / 2.0, scale, ax, ay, aw, ah);
 	}
 
+	/**
+	 * (MAP-P3B) The drawing area for the blocks {@code spanX} by {@code spanZ} (each at least {@link #MIN_SPAN}) within at most {@code maxW} by {@code maxH}
+	 * pixels, the town's own shape (one scale for both axes, north up): the largest such area, at least {@code minW} wide (a narrow town is then centred
+	 * in it). Returns {width, height}; a frame {@link #fit} into it fills it on the town's longer side and leaves at most a pixel or two on the other.
+	 */
+	public static int[] area(int spanX, int spanZ, int maxW, int maxH, int minW) {
+		double sx = Math.max(MIN_SPAN, spanX), sz = Math.max(MIN_SPAN, spanZ);
+		maxW = Math.max(1, maxW);
+		maxH = Math.max(1, maxH);
+		double scale = Math.min(maxW / sx, maxH / sz);
+		int w = Math.min(maxW, Math.max(Math.min(minW, maxW), (int) Math.ceil(sx * scale - 1e-9)));
+		int h = Math.min(maxH, (int) Math.ceil(sz * scale - 1e-9));
+		return new int[] {w, h};
+	}
+
 	/** The pixel column of a world x (a block's west edge). */
 	public int x(double wx) {
 		return (int) Math.floor(ax + aw / 2.0 + (wx - cx) * scale);
