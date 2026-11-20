@@ -7718,37 +7718,42 @@ async function moduleCapFlow() {
       if (!item) return fail(lbl, `no item drawn with more still to draw: drawn ${JSON.stringify(c?.drawn)}; need ${JSON.stringify(sp?.need)}`);
       const over = 1;
       from = logSize();
-      const lowered = await dev.request('dev.bc.cap', { region, rid: Number(rid), set: { ...capSent, [item]: c.drawn[item] - over } }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
-      feeding = true;
-      const plain = item.replace(/^[^:]*:/, '').replaceAll('_', ' ');
-      const said = await waitLog(from, new RegExp(`has stopped: finishing it would take [^\\n]*?(\\d+) ${plain}[^\\n]* more than you approved[^\\n]*`), 240_000);
-      feeding = false;
-      // the hold read until it shows: while the stock already fed builds the target's other cells, each cell built lifts the hold until the next
-      // one would pass the cap (Architect's billUncapped, then billCapped again), so one read can fall between them
-      let held = null, t = null;
-      for (let i = 0; i < 30 && !t; i++) {
-        if (i) await sleep(1000);
-        held = await capOf(rid);
-        t = (held?.targets ?? []).find((x) => x.blocked === 'bill_cap') ?? null;
+      // (E2E-STUB-ORDER) the lowered cap restored in a finally, set inside it: an early return, a throw or a lost reply never leaves it lowered
+      try {
+        const lowered = await dev.request('dev.bc.cap', { region, rid: Number(rid), set: { ...capSent, [item]: c.drawn[item] - over } }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
+        feeding = true;
+        const plain = item.replace(/^[^:]*:/, '').replaceAll('_', ' ');
+        const said = await waitLog(from, new RegExp(`has stopped: finishing it would take [^\\n]*?(\\d+) ${plain}[^\\n]* more than you approved[^\\n]*`), 240_000);
+        feeding = false;
+        // the hold read until it shows: while the stock already fed builds the target's other cells, each cell built lifts the hold until the next
+        // one would pass the cap (Architect's billUncapped, then billCapped again), so one read can fall between them
+        let held = null, t = null;
+        for (let i = 0; i < 30 && !t; i++) {
+          if (i) await sleep(1000);
+          held = await capOf(rid);
+          t = (held?.targets ?? []).find((x) => x.blocked === 'bill_cap') ?? null;
+        }
+        const nn = needOf(t)[item];
+        const before = held?.drawn?.[item];
+        await sleep(20_000);
+        const after = (await capOf(rid))?.drawn?.[item];
+        const words = said?.[0] ?? '';
+        const n = Number(new RegExp(`(\\d+) ${plain}`).exec(words)?.[1] ?? NaN);
+        // (QD-2) the words name the command that takes it up now: cancel while the growth's build still runs (undo is refused as busy then), undo
+        // once it has ended
+        let build = null;
+        try { build = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id) ?? null; } catch { /* none, or mid-write */ }
+        const running = !!build && !['DONE', 'FAILED', 'CANCELLED'].includes(build.state?.phase);
+        const named = /\/steward (undo|cancel) /.exec(words)?.[1];
+        const rightCmd = named === (running ? 'cancel' : 'undo');
+        if (lowered && !lowered.refused && said && t && nn > over && n === nn && before === after && !/maxBill|bill_cap/.test(words) && rightCmd)
+          ok(lbl, `cap of ${plain} set to ${c.drawn[item] - over} (drawn ${c.drawn[item]}): ${t.id} held bill_cap, nextNeeded ${nn} (its need + ${over} over); said "${words.replace(/^.*?The /, 'The ').slice(0, 200)}" (names ${named}: the build ${running ? `still ${build.state?.phase}` : 'ended'}); nothing more drawn in 20 s (${before} = ${after})`);
+        else return fail(lbl, `set ${String(JSON.stringify(lowered)).slice(0, 160)}; item ${item}, cap sent ${String(JSON.stringify(capSent)).slice(0, 200)}; said ${words.slice(0, 200) || 'nothing'}; names ${named} (build ${build?.state?.phase ?? 'none'}); held ${String(JSON.stringify(t)).slice(0, 200)} (nextNeeded ${nn}, said ${n}; targets ${String(JSON.stringify(held?.targets?.map((x) => [x.id, x.blocked]))).slice(0, 200)}); drawn ${before} -> ${after}`);
+      } finally {
+        feeding = false;
+        // restored: it builds on, within the cap sent
+        if (dev) await dev.request('dev.bc.cap', { region, rid: Number(rid), set: capSent }, { timeoutMs: 30_000 }).catch(() => null);
       }
-      const nn = needOf(t)[item];
-      const before = held?.drawn?.[item];
-      await sleep(20_000);
-      const after = (await capOf(rid))?.drawn?.[item];
-      const words = said?.[0] ?? '';
-      const n = Number(new RegExp(`(\\d+) ${plain}`).exec(words)?.[1] ?? NaN);
-      // (QD-2) the words name the command that takes it up now: cancel while the growth's build still runs (undo is refused as busy then), undo
-      // once it has ended
-      let build = null;
-      try { build = JSON.parse(fs.readFileSync(path.join(WORLD, 'steward-builds.json'), 'utf8')).builds.find((x) => x.settlementId === id) ?? null; } catch { /* none, or mid-write */ }
-      const running = !!build && !['DONE', 'FAILED', 'CANCELLED'].includes(build.state?.phase);
-      const named = /\/steward (undo|cancel) /.exec(words)?.[1];
-      const rightCmd = named === (running ? 'cancel' : 'undo');
-      if (lowered && !lowered.refused && said && t && nn > over && n === nn && before === after && !/maxBill|bill_cap/.test(words) && rightCmd)
-        ok(lbl, `cap of ${plain} set to ${c.drawn[item] - over} (drawn ${c.drawn[item]}): ${t.id} held bill_cap, nextNeeded ${nn} (its need + ${over} over); said "${words.replace(/^.*?The /, 'The ').slice(0, 200)}" (names ${named}: the build ${running ? `still ${build.state?.phase}` : 'ended'}); nothing more drawn in 20 s (${before} = ${after})`);
-      else return fail(lbl, `set ${String(JSON.stringify(lowered)).slice(0, 160)}; item ${item}, cap sent ${String(JSON.stringify(capSent)).slice(0, 200)}; said ${words.slice(0, 200) || 'nothing'}; names ${named} (build ${build?.state?.phase ?? 'none'}); held ${String(JSON.stringify(t)).slice(0, 200)} (nextNeeded ${nn}, said ${n}; targets ${String(JSON.stringify(held?.targets?.map((x) => [x.id, x.blocked]))).slice(0, 200)}); drawn ${before} -> ${after}`);
-      // restored: it builds on, within the cap sent
-      await dev.request('dev.bc.cap', { region, rid: Number(rid), set: capSent }, { timeoutMs: 30_000 }).catch(() => null);
     }
     feeding = true;
     for (let i = 0; i < 300; i++) {
