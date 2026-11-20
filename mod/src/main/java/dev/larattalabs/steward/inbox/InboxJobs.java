@@ -48,7 +48,7 @@ public final class InboxJobs {
 			String id = rowId(e);
 			if (!seen.add(id)) continue;
 			JobState state = state(e);
-			JobRow.Builder b = JobRow.builder(id, kind(e), title(e), state).step(e.headline()).needsYou(e.needsYou())
+			JobRow.Builder b = JobRow.builder(id, kind(e), title(e), state).step(step(e)).needsYou(e.needsYou())
 				.offer("PROPOSAL".equals(e.decision()));
 			// updates and ideas are rows of their own (under an ended build's row they would move away with it)
 			if (!"UPDATE".equals(e.decision()) && !"PROPOSAL".equals(e.decision())) {
@@ -89,9 +89,24 @@ public final class InboxJobs {
 	static String title(InboxModel.Entry e) {
 		return switch (e.decision()) {
 			case "UPDATE" -> e.name() + " · updates";
-			case "PROPOSAL" -> e.name() + " · ideas";
+			// (LUI-2) an idea's row is under the panel's Ideas group, and its title is the idle pill's ("1 idea for you · Ford"): the name alone
 			default -> e.name();
 		};
+	}
+
+	/** At most this many idea names in an idea row's step; the rest are counted. */
+	static final int IDEA_NAMES = 2;
+
+	/**
+	 * A row's step (the panel's second column). (LUI-2) An idea's is what is offered, by name ("smokehouse", "smokehouse, well +1 more"), not
+	 * the inbox's sentence, which the panel cut; every other row's is the entry's headline.
+	 */
+	static String step(InboxModel.Entry e) {
+		if (!"PROPOSAL".equals(e.decision())) return e.headline();
+		List<String> names = e.lots().stream().map(InboxModel.Lot::role).filter(r -> r != null && !r.isBlank()).toList();
+		if (names.isEmpty()) return "an idea";
+		String shown = String.join(", ", names.subList(0, Math.min(IDEA_NAMES, names.size())));
+		return names.size() > IDEA_NAMES ? shown + " +" + (names.size() - IDEA_NAMES) + " more" : shown;
 	}
 
 	static JobState state(InboxModel.Entry e) {
