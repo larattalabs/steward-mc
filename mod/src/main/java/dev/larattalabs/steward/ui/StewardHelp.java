@@ -18,10 +18,19 @@ public final class StewardHelp {
 	public static final String NS = "steward_mc:";
 
 	/**
-	 * (LUI3-S) Where every Steward term is listed: Steward's glossary section sits on Architect's Status > Help page, so the "?" overlay's footer
-	 * and its "+N more" line name it as Architect's (lab-ui 0.6.2 {@code KeysOverlay.helpPlace}).
+	 * (LUI3-S) Where every Steward term is listed: Steward's glossary section sits on Architect's Help page (its Status tab), so the "?" overlay's
+	 * footer and its "+N more" line name it as Architect's (lab-ui 0.6.2 {@code KeysOverlay.footer} / {@code moreTerms}). Short, so the footer
+	 * fits at 150 % text x GUI 4 (lab-ui's "{place} lists every term" form cut there).
 	 */
-	public static final String HELP_PLACE = "Architect's Status > Help";
+	public static final String HELP_PLACE = "Architect's Help";
+
+	/** The overlay's footer: lab-ui's close hint, then where every term is. */
+	public static final String FOOTER = HelpKeys.CLOSE_HINT + " · all terms: " + HELP_PLACE;
+
+	/** The overlay's line under the terms that did not fit. */
+	public static String moreTerms(int n) {
+		return HelpKeys.moreTerms(n, HELP_PLACE);
+	}
 
 	/** Steward's screens with help, by id. */
 	public enum Screen {

@@ -66,8 +66,9 @@ class StewardHelpTest {
 
 	@Test
 	void theOverlaySendsThePlayerToArchitectsHelpForEveryTerm() {
-		// (LUI3-S) lab-ui 0.6.2's KeysOverlay.helpPlace builds both lines from these
-		assertEquals("Esc or ? closes · Architect's Status > Help lists every term", HelpKeys.footer(StewardHelp.HELP_PLACE));
-		assertEquals("+3 more in Architect's Status > Help", HelpKeys.moreTerms(3, StewardHelp.HELP_PLACE));
+		// (LUI3-S) set on lab-ui 0.6.2's KeysOverlay.footer / moreTerms; no longer than lab-ui's default footer, which fits at 150 % x GUI 4
+		assertEquals("Esc or ? closes · all terms: Architect's Help", StewardHelp.FOOTER);
+		assertEquals("+3 more in Architect's Help", StewardHelp.moreTerms(3));
+		assertTrue(StewardHelp.FOOTER.length() <= HelpKeys.DEFAULT_FOOTER.length(), StewardHelp.FOOTER);
 	}
 }

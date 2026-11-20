@@ -133,7 +133,7 @@ public final class InboxScreen extends KitScreen {
 			case "BUDGET" -> new String[] {"waiting", "budget paused"};
 			case "PLACEMENT" -> new String[] {"waiting", "ready to place"};
 			case "UPDATE" -> new String[] {"done", "update available"};
-			case "PROPOSAL" -> new String[] {"thinking", "an idea"};
+			case "PROPOSAL" -> new String[] {"idle", "an idea"}; // (LUI3-S) an idea is idle, as lab-ui's Jobs panel draws it (0.6.2: list and detail)
 			case InboxModel.LAND -> new String[] {"idle", "the land"};
 			case "DONE" -> new String[] {"done", "built"};
 			case "FAILED" -> new String[] {"error", "failed"};

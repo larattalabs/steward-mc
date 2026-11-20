@@ -148,7 +148,8 @@ public abstract class KitScreen extends Screen {
 		if (h == null) return null;
 		if (overlay == null) overlay = new KeysOverlay(h.title, () -> dev.larattalabs.steward.ui.StewardHelp.rows(h,
 			id -> dev.larattalabs.labui.client.ui.KeyLabels.label(dev.larattalabs.steward.client.hud.Keys.byId(id))),
-			dev.larattalabs.steward.ui.StewardHelp.terms(h)).helpPlace(dev.larattalabs.steward.ui.StewardHelp.HELP_PLACE);
+			dev.larattalabs.steward.ui.StewardHelp.terms(h)).footer(dev.larattalabs.steward.ui.StewardHelp.FOOTER)
+			.moreTerms(dev.larattalabs.steward.ui.StewardHelp::moreTerms);
 		return overlay;
 	}
 
