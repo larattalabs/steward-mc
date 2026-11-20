@@ -558,7 +558,7 @@ public final class SettlementRunner {
 			Steward.LOGGER.warn("resume {}: settlements are disabled this session, so the build resumes next session", claimedId);
 			return;
 		}
-		var api = ArchitectApi.get();
+		var api = ArchitectAccess.api();
 		var sites = api.sites(server);
 		say("Picking up the build of " + settlement.name() + " where it stopped (" + state.phase().name().toLowerCase().replace('_', ' ') + ").");
 		var batch = batchId == null ? java.util.Optional.<BatchView>empty() : sites.batch(batchId);
@@ -4225,7 +4225,7 @@ public final class SettlementRunner {
 			adoptGrowth(g.get());
 			return true;
 		}
-		var regions = ArchitectApi.get().regions();
+		var regions = ArchitectAccess.api().regions();
 		var found = regions.realiseByKey(settlement.owner(), opKey("vrealise"))
 			// a plan's village realised from its re-checked artifact (plan v1, after a stale one) is under the second key
 			.or(() -> regions.realiseByKey(settlement.owner(), opKey("vrealise2")))
@@ -4502,7 +4502,7 @@ public final class SettlementRunner {
 		if (state.phase() != Pipeline.Phase.PLACING && state.phase() != Pipeline.Phase.READY_TO_PLACE) return;
 		if (growth()) { watchGrowth(); return; }
 
-		var v = ArchitectApi.get().regions().get(vRegionId);
+		var v = ArchitectAccess.api().regions().get(vRegionId);
 		if (v.isEmpty()) return;
 		// what the region waits for that the player can act on (Architect's wait actions): a held stage, a place to come nearer to
 		String held = null;
