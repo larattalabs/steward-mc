@@ -396,9 +396,20 @@ class ComposedPlacingCrashTest {
 		assertEquals(a.ledger.paid - a.ledger.returned, w.values().stream().mapToInt(Integer::intValue).sum(), "ledger: paid - returned == what stands");
 		var bounds = BuildStore.load(buildsFile).all().stream().filter(b -> b.settlementId().equals(saved.settlementId())).findFirst().map(BuildStore.Saved::moduleOrders)
 			.orElse(saved.moduleOrders());
+		// (CRASH-T2, batch-086 review P2) a town that stands stands whole: every lot of the realise drew exactly its put-down bill, so a lot missing
+		// from what was built (and its cap check with it) never passes as "drew nothing"
+		boolean stands = a.sites.values().stream().anyMatch(x -> FakeArchitect.REALISED.equals(x.region));
+		if (stands) {
+			var built = a.sites.values().stream().filter(x -> FakeArchitect.REALISED.equals(x.region)).map(x -> x.id).collect(java.util.stream.Collectors.toSet());
+			assertEquals(Set.of("s_" + FARM, "s_" + HALL, "s_" + COTTAGE), built, "the region's lots");
+			for (String lot : List.of(FARM, HALL, COTTAGE)) assertEquals(a.putDown.getOrDefault(lot, Map.of()), drawn(lot), lot + " drew its put-down bill");
+		}
 		for (String lot : List.of(FARM, HALL)) {
 			var d = drawn(lot);
-			if (d.isEmpty()) continue;
+			if (!stands) {
+				assertTrue(d.isEmpty(), lot + " drew with no region standing: " + d);
+				continue;
+			}
 			var sent = a.approved.stream().filter(x -> a.realisedByKey.containsKey(x.opKey())).reduce((x, y) -> y).orElseThrow().maxBillPerLot();
 			assertNotNull(sent, "a module lot drew under a realise sent uncapped");
 			for (var e : d.entrySet()) {
@@ -427,6 +438,28 @@ class ComposedPlacingCrashTest {
 		} else {
 			watch();
 		}
+		placedThen();
+	}
+
+	/**
+	 * (CRASH-T2, batch-086 review P2) Placed, and the log's save lands, but every write after it fails (a failure that persists, as a full disk): the
+	 * files hold the placement logged and the build's checkpoint still open. The crash after it finds the entry and never logs it twice.
+	 */
+	void placedLoggedCheckpointStays() throws IOException {
+		a.regions.get(FakeArchitect.REALISED).state = dev.larattalabs.architect.api.RegionState.PLACED;
+		DurableWrite.FAIL_NEXT.add(DurableWrite.TestFail.NONE);
+		for (int i = 0; i < 20; i++) DurableWrite.FAIL_NEXT.add(DurableWrite.TestFail.BEFORE_RENAME);
+		watch();
+		assertTrue(DurableWrite.FAIL_NEXT.size() < 20, "a write after the log's was reached");
+		assertEquals(1, placedEntries().size(), "the log's save landed");
+		assertTrue(BuildStore.load(buildsFile).all().stream().anyMatch(b -> b.settlementId().equals(saved.settlementId())), "the checkpoint stays on disk");
+		assertEquals(FakeArchitect.REALISED, disk().vRegion());
+		crash();
+		placedThen();
+	}
+
+	/** Logged exactly once, the entry holding every site of the region, and the build ended on disk. */
+	void placedThen() throws IOException {
 		var placed = placedEntries();
 		assertEquals(1, placed.size(), "logged once: " + placed + " " + tails());
 		var realised = a.sites.values().stream().filter(x -> FakeArchitect.REALISED.equals(x.region)).map(x -> x.id).collect(java.util.stream.Collectors.toSet());
@@ -802,7 +835,7 @@ class ComposedPlacingCrashTest {
 		assertEquals(1, a.approved.size(), a.calls + " " + tails());
 		assertEquals(FakeArchitect.REALISED, field("vRegionId"));
 		conserved();
-		placedAndLogged(false);
+		placedLoggedCheckpointStays();
 		undoneBalances();
 	}
 
