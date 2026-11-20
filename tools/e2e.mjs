@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
+import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
 import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
@@ -9348,7 +9348,7 @@ function flowCode(f) {
   return { names, text: text + '\n' + names.map((n) => `// ${n}\n${blocks[n]}`).join('\n') };
 }
 
-/** The run's inputs that are not one flow's: the jar's sha, the Architect pin, the mod's sources. */
+/** The run's inputs that are not one flow's: the jar's sha, the Architect pin, the mod's sources, the harness lib (tools/lib/*.mjs). */
 let commonMemo = null;
 function commonInputs() {
   if (commonMemo) return commonMemo;
@@ -9365,14 +9365,14 @@ function commonInputs() {
   try { if (process.env.ARCHITECT_JAR) rcJar = hashText(fs.readFileSync(process.env.ARCHITECT_JAR)); } catch { rcJar = 'unreadable'; }
   const pin = `architect ${pinOf('architect_version')}${rcJar ? ` jar ${rcJar}` : ''}; lab-ui ${pinOf('lab_ui_version')}`;
   const src = hashPaths(ROOT, ['mod/src/main', 'mod/src/client', 'mod/build.gradle', 'mod/settings.gradle', 'mod/gradle.properties']);
-  return (commonMemo = { jar, pin, src });
+  return (commonMemo = { jar, pin, src, lib: hashLib(ROOT) });
 }
 
-/** A flow's key parts for passes.json: its code block, its fixtures, the mod sources, the jar, the pin. */
+/** A flow's key parts for passes.json: its code block, its fixtures, the mod sources, the harness lib, the jar, the pin. */
 function flowKey(f) {
   const code = flowCode(f);
   const c = commonInputs();
-  return { block: hashText(code.text), fixtures: hashPaths(ROOT, fixtureRefs(code.text)), src: c.src, jar: c.jar, pin: c.pin };
+  return { block: hashText(code.text), fixtures: hashPaths(ROOT, fixtureRefs(code.text)), src: c.src, lib: c.lib, jar: c.jar, pin: c.pin };
 }
 
 /**

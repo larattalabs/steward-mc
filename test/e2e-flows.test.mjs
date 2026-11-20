@@ -48,7 +48,7 @@ test('a word matching nothing runs no flows (the sanity set runs outside them)',
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, skipDecision, applySkips, isStrict } from '../tools/lib/e2e-flows.mjs';
+import { groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashLib, libFiles, skipDecision, applySkips, isStrict } from '../tools/lib/e2e-flows.mjs';
 
 const STUB = [
   { name: 'stub', tags: 'paid card plan wall revision undo' },
@@ -146,7 +146,7 @@ test('hashPaths changes with a file in a hashed directory, and counts a missing 
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
-const KEY = { block: 'b1', fixtures: 'f1', src: 's1', jar: 'j1', pin: 'architect 0.67.0; lab-ui 0.4.1' };
+const KEY = { block: 'b1', fixtures: 'f1', src: 's1', lib: 'l1', jar: 'j1', pin: 'architect 0.67.0; lab-ui 0.4.1' };
 const LAST = { at: '2026-11-15T01:00:00Z', ...KEY };
 
 test('strict flows are the ones with bill, refund, undo, restart or survival in their name or tags', () => {
@@ -171,6 +171,37 @@ test('a light flow skips on its block, fixtures and the mod sources, whatever th
   assert.match(skipDecision(f, { ...KEY, src: 's2' }, LAST).why, /src changed/);
   assert.match(skipDecision(f, { ...KEY, block: 'b2' }, LAST).why, /block changed/);
   assert.match(skipDecision(f, { ...KEY, fixtures: 'f2' }, LAST).why, /fixtures changed/);
+});
+
+test('(SAVEB leftover) a tools/lib change runs strict and light flows again; a PASS from before lib was keyed runs once', () => {
+  for (const f of [{ name: 'survival', tags: 'stockpile bill refund' }, { name: 'plan-check', tags: 'plan' }]) {
+    assert.match(skipDecision(f, { ...KEY, lib: 'l2' }, LAST).why, /lib changed/);
+    const { lib, ...old } = LAST;
+    assert.equal(skipDecision(f, KEY, old).skip, false);
+    assert.match(skipDecision(f, { ...KEY, lib: null }, LAST).why, /no lib/);
+  }
+});
+
+test('hashLib covers every tools/lib/*.mjs and only those', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ef-lib-'));
+  const lib = path.join(dir, 'tools', 'lib');
+  fs.mkdirSync(lib, { recursive: true });
+  fs.writeFileSync(path.join(lib, 'a.mjs'), 'export const a = 1;');
+  fs.writeFileSync(path.join(lib, 'notes.txt'), 'x');
+  assert.deepEqual(libFiles(dir), ['tools/lib/a.mjs']);
+  const h = hashLib(dir);
+  fs.writeFileSync(path.join(lib, 'notes.txt'), 'y');
+  assert.equal(hashLib(dir), h);
+  fs.writeFileSync(path.join(lib, 'a.mjs'), 'export const a = 2;');
+  const h2 = hashLib(dir);
+  assert.notEqual(h2, h);
+  fs.writeFileSync(path.join(lib, 'b.mjs'), 'export const b = 1;');
+  assert.notEqual(hashLib(dir), h2);
+  fs.rmSync(dir, { recursive: true, force: true });
+  // the repo's own lib: the modules e2e.mjs imports are all in it
+  const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  const real = libFiles(ROOT);
+  for (const m of fs.readFileSync(path.join(ROOT, 'tools', 'e2e.mjs'), 'utf8').matchAll(/from '\.\/(lib\/[^']+)'/g)) assert.ok(real.includes(`tools/${m[1]}`), m[1]);
 });
 
 test('an unchanged flow that a running flow needs runs anyway', () => {

@@ -137,16 +137,28 @@ export function hashPaths(root, rels) {
 export const hashText = (s) => crypto.createHash('sha256').update(s).digest('hex').slice(0, 16);
 
 /**
- * Whether a flow can be skipped: `now` and `last` are {block, fixtures, src, jar, pin} (last from passes.json, its last PASS, with `at`). A strict
- * flow needs every part equal (an exact key: block, fixtures, jar, pin); a light flow its block, its fixtures and the mod's sources. A part that
+ * (SAVEB leftover) The harness's own library: every tools/lib/*.mjs under `root`, hashed as one part. A flow's block holds only the lib modules it
+ * names directly; this catches the rest (a lib that one of those imports, or the shared helpers every flow runs through).
+ */
+export function libFiles(root) {
+  let names = [];
+  try { names = fs.readdirSync(path.join(root, 'tools', 'lib')).filter((n) => n.endsWith('.mjs')).sort(); } catch {}
+  return names.map((n) => `tools/lib/${n}`);
+}
+export const hashLib = (root) => hashPaths(root, libFiles(root));
+
+/**
+ * Whether a flow can be skipped: `now` and `last` are {block, fixtures, src, lib, jar, pin} (last from passes.json, its last PASS, with `at`). A
+ * strict flow needs every part equal (an exact key: block, fixtures, lib, jar, pin); a light flow its block, its fixtures, the harness lib and the mod's
+ * sources. A PASS recorded before `lib` was keyed has none, so it runs once. A part that
  * could not be worked out (null) never matches. Returns { skip, why }.
  */
 export function skipDecision(f, now, last) {
   if (!last) return { skip: false, why: 'no PASS recorded' };
-  const parts = isStrict(f) ? ['block', 'fixtures', 'jar', 'pin'] : ['block', 'fixtures', 'src'];
+  const parts = isStrict(f) ? ['block', 'fixtures', 'lib', 'jar', 'pin'] : ['block', 'fixtures', 'lib', 'src'];
   const changed = parts.filter((p) => now[p] == null || now[p] !== last[p]);
   if (changed.length) return { skip: false, why: `${changed.map((p) => (now[p] == null ? `no ${p}` : `${p} changed`)).join(', ')} since its PASS at ${last.at}` };
-  return { skip: true, why: `${isStrict(f) ? 'strict, exact key' : 'light: its code, fixtures and the mod sources'} unchanged since its PASS at ${last.at}` };
+  return { skip: true, why: `${isStrict(f) ? 'strict, exact key' : 'light: its code, fixtures, the harness lib and the mod sources'} unchanged since its PASS at ${last.at}` };
 }
 
 /**
