@@ -36,6 +36,24 @@ public final class WorldText {
 		public int slots(int y) {
 			return Math.max(1, (foot() - 2 - y) / ROW);
 		}
+
+		/** The status's lines: two at 100 %, one when the text is larger (so a building row still fits). */
+		public int statusLines() {
+			return ppb < BASE_PPB ? 1 : 2;
+		}
+
+		/**
+		 * How many of {@code rows} buildings are listed in {@code slots}: all when they fit; else all but the last slot, which counts the rest
+		 * ("and N more"), unless there is only one slot: then one building, and the status line says how many there are.
+		 */
+		public static int shown(int rows, int slots) {
+			return rows <= slots ? rows : slots == 1 ? 1 : slots - 1;
+		}
+
+		/** Whether the "and N more" line is drawn under the {@code shown} rows. */
+		public static boolean more(int rows, int shown, int slots) {
+			return rows > shown && slots > 1;
+		}
 	}
 
 	public static Slate slate(float factor) {

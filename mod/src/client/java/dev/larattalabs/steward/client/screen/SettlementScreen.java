@@ -146,7 +146,13 @@ public final class SettlementScreen extends KitScreen {
 		}
 		drawActions(g, cx, actionsY, inner, mouseX, mouseY);
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, footerY - 2, statusError ? UiBits.errorText() : UiBits.muted(), false);
-		else if (footerWhy != null) g.text(font, TextUtil.ellipsize(font, footerWhy, inner), cx, footerY - 2, UiBits.muted(), false);
+		else if (footerWhy != null) {
+			// (UI-PR-S) why a button is off, then the keys that still fit beside it (the help and close, at least), so the footer never goes blank
+			String why = TextUtil.ellipsize(font, footerWhy, inner * 2 / 3);
+			g.text(font, why, cx, footerY - 2, UiBits.muted(), false);
+			int ww = font.width(why) + 12;
+			footerHints(g, cx + ww, footerY - 4, inner - ww, "Tab", "next tab", "Esc", "close");
+		}
 		else {
 			// the number keys drawn, and "click a building" only where there are buildings to click
 			java.util.List<String> hs = new java.util.ArrayList<>();
@@ -286,10 +292,15 @@ public final class SettlementScreen extends KitScreen {
 
 	/**
 	 * The legend's height: always room for its most rows (11 px each; (LYW) three columns: the four states, roads, crossings, walls, gates and towers,
-	 * the claim's edge and the stone), so the map keeps one size whatever the plan holds.
+	 * the claim's edge and the stone), so the map keeps one size whatever the plan holds. (UI-PR-S) At a larger text size the rows are taller and
+	 * the map was left a thumbnail: there the legend takes only the rows this plan fills (the map's size then follows the plan, the lesser harm).
 	 */
-	private static int legendHeight() {
-		return 4 * lh(11) + 2;
+	private int legendHeight() {
+		if (grow() == 0) return 4 * lh(11) + 2;
+		List<String[]> items = legendItems(true);
+		int last = 0;
+		for (int i = 0; i < items.size(); i++) if (items.get(i) != null) last = i;
+		return (last / LEGEND_COLS + 1) * lh(11) + 2;
 	}
 
 	/** (slice LYW) The legend's columns, and the narrowest the map and legend go so each column's words fit ("crossing" the widest). */
@@ -811,10 +822,12 @@ public final class SettlementScreen extends KitScreen {
 		// what the player built by hand in the claim (Architect PT): the steward builds round it and never over it; taken on, claimed or let go here
 		String claimLabel = "Claim my build here";
 		int cbw = optionWidth(claimLabel);
-		rows.add(new Row(ROW_BUTTON_H + 2, ry -> {
+		String what = view.playerBuilds().isEmpty() ? "None tracked. Stand in an old build to claim it." : "Kept as built.";
+		// (UI-PR-S) the words wrap beside the button (at a larger text size they took two lines and were cut)
+		List<String> whatLines = TextUtil.wrapPlain(font, what, fw - LW - cbw - 6);
+		rows.add(new Row(Math.max(ROW_BUTTON_H + 2, whatLines.size() * lh(10) + 8), ry -> {
 			g.text(font, "Hand-built", fx, ry + 5, UiBits.muted(), false);
-			String what = view.playerBuilds().isEmpty() ? "None tracked. Stand in an old build to claim it." : "Kept as built.";
-			g.text(font, TextUtil.ellipsize(font, what, fw - LW - cbw - 6), lx, ry + 5, UiBits.ink(), false);
+			for (int i = 0; i < whatLines.size(); i++) g.text(font, whatLines.get(i), lx, ry + 5 + i * lh(10), UiBits.ink(), false);
 			option(g, claimLabel, x + w - 8 - cbw, ry, false, true, mx, my, () -> send("build_claim", "", "Claiming the build you stand in", CLAIM_REACH));
 		}));
 		for (var b : view.playerBuilds()) {

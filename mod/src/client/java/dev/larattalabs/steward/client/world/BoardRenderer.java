@@ -118,14 +118,15 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 		// counting the rest when they don't all fit
 		List<String> said = TextUtil.wrapPlain(font, status, W - 12);
 		int y = 21;
-		for (int i = 0; i < Math.min(2, said.size()); i++, y += 10) {
-			String line = i == 1 && said.size() > 2 ? TextUtil.ellipsize(font, String.join(" ", said.subList(1, said.size())), W - 12) : said.get(i);
+		int lines = slate.statusLines();
+		for (int i = 0; i < Math.min(lines, said.size()); i++, y += 10) {
+			String line = lines == 1 && said.size() > 1 ? TextUtil.ellipsize(font, status, W - 12) : i == 1 && said.size() > 2 ? TextUtil.ellipsize(font, String.join(" ", said.subList(1, said.size())), W - 12) : said.get(i);
 			WorldUi.submitText(ps, c, Component.literal(line).getVisualOrderText(), 6, y, loud ? UiStyle.BRASS : muted, light);
 		}
 		y += 3;
 		var rows = v.buildings();
 		int slots = slate.slots(y);
-		int shown = rows.size() <= slots ? rows.size() : slots - 1;
+		int shown = dev.larattalabs.steward.view.WorldText.Slate.shown(rows.size(), slots);
 		for (int i = 0; i < shown; i++) {
 			SettlementView.Building b = rows.get(i);
 			// (8bS) from Architect's BuildStatus when there is one
@@ -141,8 +142,10 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 			WorldUi.submitText(ps, c, Component.literal(right).getVisualOrderText(), W - 6 - rw, y, muted, light);
 			y += ROW;
 		}
-		if (rows.size() > shown) WorldUi.submitText(ps, c, Component.literal("and " + (rows.size() - shown) + " more").getVisualOrderText(), 17, y, muted, light);
-		WorldUi.submitText(ps, c, Component.literal("Right-click: the settlement").getVisualOrderText(), 6, FOOT, muted, light);
+		if (dev.larattalabs.steward.view.WorldText.Slate.more(rows.size(), shown, slots)) WorldUi.submitText(ps, c, Component.literal("and " + (rows.size() - shown) + " more").getVisualOrderText(), 17, y, muted, light);
+		// (UI-PR-S) at a larger text size the footer's words may not fit the slate: the short form
+		String foot = font.width("Right-click: the settlement") <= W - 12 ? "Right-click: the settlement" : "Right-click: open";
+		WorldUi.submitText(ps, c, Component.literal(TextUtil.ellipsize(font, foot, W - 12)).getVisualOrderText(), 6, FOOT, muted, light);
 		ps.popPose();
 	}
 

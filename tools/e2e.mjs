@@ -1454,6 +1454,19 @@ async function uiPr(id) {
   const opened = [];
   try {
     await closeScreens();
+    // two buildings of the UI entry for the map and the list (the flows before undid theirs), 14 blocks apart, east of the player
+    const me = (await cmd('/data get entity @p Pos')).match(/\[(-?[\d.]+)d, (-?[\d.]+)d, (-?[\d.]+)d\]/)?.slice(1).map(Number);
+    if (me) {
+      for (const dx of [0, 14]) {
+        await cmd(`/tp @p ${me[0] + 30 + dx} ${me[1]} ${me[2]}`);
+        await dev.request('dev.waitChunks', { timeoutMs: 30_000 });
+        const from = logSize();
+        await cmd(`/steward dev place ${id} ${STUB_UI}`);
+        await waitLog(from, /dev placed (s\d+)|dev place refused/, 30_000);
+      }
+      await cmd(`/tp @p ${me[0]} ${me[1]} ${me[2]}`);
+      await sleep(1000);
+    }
     // the Okabe-Ito map, list and legend (GUI 2, 100 %), and the board's slate in it
     await dev.request('dev.pr.palette', { palette: 'okabe_ito' });
     await dev.request('dev.pr.textScale', { percent: 100 });
@@ -1508,6 +1521,7 @@ async function uiPr(id) {
     await sleep(1500);
     if (/InboxScreen/.test(await screen())) shots.push(await shot('pr__inbox_sample_text150__s4'));
     await closeScreens();
+    // (the card opens only for a described settlement; this one is not)
     if (['settlement', 'building', 'inbox', 'talk', 'describe'].every((w) => opened.includes(w))) ok('ui-pr screens', `opened at 150 % x GUI 4: ${opened.join(', ')}`);
     else fail('ui-pr screens', `opened only ${opened.join(', ')}`);
     // the world UI at 150 %: the nameplate with a bubble (the steward answers), and the board's slate in Okabe-Ito

@@ -146,7 +146,8 @@ public abstract class KitScreen extends Screen {
 
 	/**
 	 * The footer's key hints (key, verb pairs) with the "?" overlay's key named before a closing "Esc" pair when the screen has help: "?" , or
-	 * "F1" while a text field takes the keys ("?" types there). What doesn't fit drops the help pair first, then draws nothing, as before.
+	 * "F1" while a text field takes the keys ("?" types there). What doesn't fit drops the help pair first, then (a larger text size) the pairs
+	 * before the closing one, from the end, so the closing pair stays.
 	 */
 	protected void footerHints(GuiGraphicsExtractor g, int x, int y, int inner, String... keyThenVerb) {
 		List<String> with = new ArrayList<>(List.of(keyThenVerb));
@@ -154,13 +155,15 @@ public abstract class KitScreen extends Screen {
 			int at = with.size() >= 2 && "Esc".equals(with.get(with.size() - 2)) ? with.size() - 2 : with.size();
 			with.addAll(at, List.of(field != null && fieldFocused ? "F1" : "?", "help"));
 		}
-		for (List<String> h : List.of(with, List.of(keyThenVerb))) {
-			String[] a = h.toArray(String[]::new);
-			if (UiBits.hintsWidth(font, a) <= inner) {
-				UiBits.hints(g, font, x, y, false, a);
-				return;
-			}
+		List<String> h = new ArrayList<>(List.of(keyThenVerb));
+		if (UiBits.hintsWidth(font, with.toArray(String[]::new)) <= inner) h = with;
+		while (h.size() > 2 && UiBits.hintsWidth(font, h.toArray(String[]::new)) > inner) {
+			// the pair before the closing one
+			h.remove(h.size() - 4);
+			h.remove(h.size() - 4);
 		}
+		String[] a = h.toArray(String[]::new);
+		if (UiBits.hintsWidth(font, a) <= inner) UiBits.hints(g, font, x, y, false, a);
 	}
 
 	/** Runs an input handler at the screen's text size, as its draw does (measurements in a handler match what was drawn). */

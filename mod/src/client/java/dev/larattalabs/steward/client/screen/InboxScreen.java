@@ -28,7 +28,11 @@ import org.jspecify.annotations.Nullable;
  */
 public final class InboxScreen extends KitScreen {
 	private static final int MAX_W = 480;
-	private static final int LIST_W = 128;
+	private static final int LIST_W_BASE = 128;
+	/** (UI-PR-S) The list column: 128 px, wider at a larger text size (names cut less), at most a third of the panel. */
+	private int listW(int inner) {
+		return Math.max(LIST_W_BASE, Math.min(inner / 3, LIST_W_BASE + 12 * grow()));
+	}
 	/** A row's height at the text size (24 at 100 %: two lines and the row buttons' room). */
 	private static int rowH() {
 		return twoLineRow(4);
@@ -171,10 +175,12 @@ public final class InboxScreen extends KitScreen {
 		boolean twoPane = all.size() > 1 && width >= 360;
 		int w = Math.min(twoPane ? MAX_W : 400, width - 16);
 		int inner = w - pad.left() - pad.right();
+		final int LIST_W = listW(inner);
 		int dw = twoPane ? inner - LIST_W - 8 : inner;
 		// height: what the content needs, within the screen
 		// the tallest build's height, so the panel does not jump when the player walks the list
-		int contentH = 40;
+		// nothing at all: the empty state's own height (its words wrap to more lines at a larger text size)
+		int contentH = all.isEmpty() ? emptyHeight(inner) : 40;
 		for (InboxModel.Entry en : all) contentH = Math.max(contentH, detailHeight(en, dw));
 		if (twoPane) contentH = Math.max(contentH, listHeight(all));
 		int h = Math.min(height - 16, pad.top() + belowHeader() + tipHeight() + contentH + 8 + 20 + 8 + lh(10) + pad.bottom());
@@ -194,7 +200,7 @@ public final class InboxScreen extends KitScreen {
 			Panels.dot(g, "idle", cx + 8, bodyTop + 9, false);
 			g.text(font, "Nothing is being built.", cx + 20, bodyTop + 8, UiBits.ink(), false);
 			int ly = bodyTop + 8 + lh(12);
-			for (String l : TextUtil.wrapPlain(font, "Claim land with a Founding Stone and describe what you want; the steward asks here when it needs you.", inner - 28)) {
+			for (String l : TextUtil.wrapPlain(font, EMPTY, inner - 28)) {
 				g.text(font, l, cx + 20, ly, UiBits.muted(), false);
 				ly += lh(10);
 			}
@@ -210,6 +216,13 @@ public final class InboxScreen extends KitScreen {
 		drawDetail(g, e, dx, bodyTop, dw, actionsY - 4, mouseX, mouseY);
 		drawActions(g, e, cx, actionsY, inner, mouseX, mouseY);
 		drawFooter(g, cx, footerY, inner, all.size() > 1);
+	}
+
+	private static final String EMPTY = "Claim land with a Founding Stone and describe what you want; the steward asks here when it needs you.";
+
+	/** The empty state's inset: its line, the wrapped words under it, and a margin. */
+	private int emptyHeight(int inner) {
+		return 8 + lh(12) + TextUtil.wrapPlain(font, EMPTY, inner - 28).size() * lh(10) + 8;
 	}
 
 	/** An entry's further lines, and the usage limit it waits for (its reset time in this player's clock). */
