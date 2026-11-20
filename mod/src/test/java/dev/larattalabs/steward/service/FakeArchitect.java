@@ -39,7 +39,7 @@ import net.minecraft.world.level.levelgen.structure.BoundingBox;
  * (TESTABLE-ARCH) Also a composed town's realise: approved artifacts ({@code regions().artifact}, an empty {@code checkPalette}), the read-only quote
  * ({@code quoteApproved}, answered with {@link #quote}), and {@code realiseApproved}, each request recorded ({@link #approved}, its
  * {@code maxBillPerLot} included) and answered as {@link #realiseAnswer} says ({@code REFUSE}: {@code BILL_CAP} with the detail {@link #capDetail});
- * {@code designs().group} and {@code library().get} answer empty. {@link #onCall} runs as each call is recorded, so a test can read the disk then.
+ * {@code designs().group} answers {@link #groups} (empty unless a test gives one), {@code library().get} empty. {@link #onCall} runs as each call is recorded, so a test can read the disk then.
  * Anything it does not model throws, so a path that reaches past the model fails loudly; every call is recorded ({@link #calls}).
  */
 final class FakeArchitect {
@@ -218,6 +218,10 @@ final class FakeArchitect {
 	final Map<String, JsonObject> artifacts = new LinkedHashMap<>();
 	/** (TESTABLE-ARCH) What {@code quoteApproved} answers (null: the call is refused). */
 	dev.larattalabs.architect.api.Quote quote;
+	/** (CRASH-T2) When set, {@code quoteApproved} is never answered until {@link #complete} is run (an answer in flight). */
+	boolean quoteHold;
+	/** (CRASH-T2) The design groups {@code designs().group} answers, by id; none (empty) when a test gives none. */
+	final Map<String, dev.larattalabs.architect.api.Group> groups = new LinkedHashMap<>();
 	/** (TESTABLE-ARCH) Every {@code realiseApproved} request, as sent. */
 	final List<dev.larattalabs.architect.api.ApprovedRealise> approved = new ArrayList<>();
 	/** (TESTABLE-ARCH) How {@code realiseApproved} is answered: APPLY (the region id {@code rg_realised}), REFUSE ({@code BILL_CAP}), or HOLD. */
@@ -324,6 +328,12 @@ final class FakeArchitect {
 			}
 			case "quoteApproved" -> {
 				call("regions.quoteApproved " + a[0] + " " + a[1]);
+				if (quoteHold) {
+					var f = new CompletableFuture<dev.larattalabs.architect.api.Quote>();
+					var q = quote;
+					held.add(() -> f.complete(q));
+					yield f;
+				}
 				yield quote == null ? CompletableFuture.failedFuture(new ArchitectRefused(Reason.SITE_BUSY, "no quote")) : CompletableFuture.completedFuture(quote);
 			}
 			case "realiseApproved" -> realiseApproved((dev.larattalabs.architect.api.ApprovedRealise) a[0]);
@@ -362,7 +372,7 @@ final class FakeArchitect {
 		dev.larattalabs.architect.api.Designs designsApi = proxy(dev.larattalabs.architect.api.Designs.class, (m, a) -> switch (m) {
 			case "group" -> {
 				call("designs.group " + a[0]);
-				yield Optional.empty();
+				yield Optional.ofNullable(groups.get((String) a[0]));
 			}
 			// (CRASH-T) a cancelled build's resume stops its design group: answered done (the group is gone)
 			case "cancelGroup" -> {
