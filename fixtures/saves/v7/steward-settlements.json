@@ -1,0 +1,265 @@
+{
+  "format": 7,
+  "settlements": [
+    {
+      "id": "set_1",
+      "name": "Settlement",
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 899,
+        "centerZ": 0,
+        "radius": 128,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 1,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "PATRON",
+      "log": [
+        {
+          "at": 1794836060546,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794836062536,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794836062543,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 257 x 257",
+          "siteIds": [],
+          "op": "op_3",
+          "changes": [],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [],
+        "lastAt": 0
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [],
+        "serial": 0
+      }
+    },
+    {
+      "id": "set_2",
+      "name": "Capped Supply",
+      "card": {
+        "name": "Capped Supply",
+        "site": {
+          "text": "stilt village over a swamp",
+          "template": "waterfront",
+          "terrain": "find",
+          "size": "M"
+        },
+        "style": {
+          "text": "mossy and crooked",
+          "template": "rustic"
+        },
+        "purpose": {
+          "text": "fishing village",
+          "template": "port"
+        },
+        "story": {
+          "text": ""
+        },
+        "constraints": {
+          "near": "search",
+          "density": "med"
+        },
+        "avoid": [],
+        "interpretation": "A cluster of crooked wooden houses on stilts above swamp water, with boardwalks, nets and moss. It needs a swamp or shallow water nearby.",
+        "contradictions": [],
+        "assumptions": [
+          "swamp or shallow water must exist nearby; otherwise the steward will ask"
+        ],
+        "program": [
+          {
+            "role": "smokehouse",
+            "type": "smokehouse",
+            "count": 1,
+            "footprint": "L",
+            "landmark": true,
+            "notes": "Big crooked smokehouse at the centre of the boardwalks"
+          },
+          {
+            "role": "fisher\u0027s hut",
+            "type": "cabin",
+            "count": 6,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Mossy stilt huts with nets"
+          },
+          {
+            "role": "net loft",
+            "type": "barn",
+            "count": 1,
+            "footprint": "M",
+            "landmark": false,
+            "notes": "Storage for nets and boats"
+          },
+          {
+            "role": "bait shop",
+            "type": "shop",
+            "count": 1,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Tiny trading shack"
+          },
+          {
+            "role": "lookout",
+            "type": "tower",
+            "count": 1,
+            "footprint": "S",
+            "landmark": false,
+            "notes": "Leaning watchtower over the swamp"
+          }
+        ]
+      },
+      "claim": {
+        "dimension": "minecraft:overworld",
+        "centerX": 1800,
+        "centerZ": 77999,
+        "radius": 96,
+        "minY": -64,
+        "maxY": 319
+      },
+      "siteVersion": 1,
+      "styleVersion": 2,
+      "purposeVersion": 1,
+      "permission": "PROPOSALS",
+      "difficulty": "SUPPLIED",
+      "log": [
+        {
+          "at": 1794836065626,
+          "kind": "FOUNDED",
+          "text": "Claimed Settlement",
+          "siteIds": [],
+          "op": "op_1",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794836066076,
+          "kind": "CLAIM_CHANGED",
+          "text": "Claim is now 193 x 193",
+          "siteIds": [],
+          "op": "op_2",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794836066665,
+          "kind": "CARD_EDITED",
+          "text": "Described as: stilt village over a swamp, mossy and crooked",
+          "siteIds": [],
+          "op": "op_3",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794836072158,
+          "kind": "PROTECTED_CHANGED",
+          "text": "Protected \"the stockpile (kept clear for plans)\" (3 x 4 at 1797,77998)",
+          "siteIds": [],
+          "op": "op_4",
+          "changes": [],
+          "outcome": "DONE"
+        },
+        {
+          "at": 1794836091081,
+          "kind": "PROJECT_PLACED",
+          "text": "Placed 2 buildings",
+          "siteIds": [
+            "s1",
+            "s2",
+            "r1",
+            "r2"
+          ],
+          "siteGroup": "region:rg1",
+          "op": "op_5",
+          "changes": [
+            {
+              "siteId": "s1",
+              "lot": "a stone cottage",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "s2",
+              "lot": "a stone cottage",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "r1",
+              "from": 0,
+              "to": 1
+            },
+            {
+              "siteId": "r2",
+              "from": 0,
+              "to": 1
+            }
+          ],
+          "outcome": "DONE"
+        }
+      ],
+      "proposals": {
+        "open": [],
+        "declined": [],
+        "accepted": [
+          "module.crop_farm"
+        ],
+        "lastAt": 1794836116044
+      },
+      "bible": {
+        "id": "bib_capped_supply",
+        "version": 1,
+        "styleVersion": 2
+      },
+      "autonomy": {
+        "weeklyUsd": 500.0,
+        "spends": []
+      },
+      "lands": {
+        "districts": [],
+        "protect": [
+          {
+            "id": "pa_1",
+            "label": "the stockpile (kept clear for plans)",
+            "dimension": "minecraft:overworld",
+            "x0": 1797,
+            "z0": 77998,
+            "x1": 1799,
+            "z1": 78001,
+            "at": 1794836072158
+          }
+        ],
+        "serial": 1
+      }
+    }
+  ],
+  "nextSerial": 3
+}

@@ -61,12 +61,6 @@ class ModuleOfferTest {
 		// (pin-073 batch review, P1) the first approval says the crash exception too: an exact quote within the bound is never asked again
 		assertTrue(words.contains(dev.larattalabs.steward.inbox.InboxModel.BILL), words);
 		assertTrue(words.contains("; I stop before passing it, except to pay for blocks already standing after a crash."), words);
-		// an offer saved before the exception was said gets it on read (the Proposal record), once; the rest of its words unchanged
-		String legacy = "Planting it takes 81 wheat seeds from the stockpile. " + dev.larattalabs.steward.inbox.InboxModel.BILL + "210 dirt, 81 wheat seeds. It's lit by plain lanterns.";
-		var saved = new dev.larattalabs.steward.model.Proposal("module.crop_farm", "A field", legacy, null, 1L, "rule", null, null, null, null, "lot_1", null, d.order());
-		assertEquals("Planting it takes 81 wheat seeds from the stockpile. " + dev.larattalabs.steward.inbox.InboxModel.BILL + "210 dirt, 81 wheat seeds; "
-			+ ModuleBound.CRASH_EXCEPTION + ". It's lit by plain lanterns.", saved.why());
-		assertEquals(saved.why(), saved.withPlace("x").why(), "said once");
 		assertEquals(words, ModuleBound.withCrashException(words), "a new offer's words already say it");
 		assertEquals("At the end: " + dev.larattalabs.steward.inbox.InboxModel.BILL + "3 dirt; " + ModuleBound.CRASH_EXCEPTION + ".",
 			ModuleBound.withCrashException("At the end: " + dev.larattalabs.steward.inbox.InboxModel.BILL + "3 dirt."));
@@ -74,6 +68,60 @@ class ModuleOfferTest {
 		var none = ModuleOffer.decide(K, ok(), t, null, (e, p) -> null);
 		assertFalse(none.ok());
 		assertTrue(none.why().contains("bound"), none.why());
+	}
+
+	/** fixtures/saves/v7/steward-settlements.json: the QD-2 e2e world (2026-11-16 06:35), written by a format-7 Steward from before the crash exception (dae2448). */
+	static final java.nio.file.Path V7_SETTLEMENTS = java.nio.file.Path.of(System.getProperty("user.dir")).resolve("../fixtures/saves/v7/steward-settlements.json").normalize();
+	static final String LEGACY_WHY = "Planting it takes 81 wheat seeds from the stockpile. " + dev.larattalabs.steward.inbox.InboxModel.BILL
+		+ "210 dirt, 81 wheat seeds. It's lit by plain lanterns.";
+
+	/**
+	 * (QD-2's fix-check gap) A module offer saved before the crash exception was said with its bill (that Steward's file, the offer as it wrote one) is
+	 * read through SettlementStore, and the inbox shows it with the exception once: in the offer's words and in its bill line. Saved and read again,
+	 * still once.
+	 */
+	@Test
+	void aSavedOfferFromBeforeTheCrashExceptionLoadsThroughTheStoreAndTheInboxSaysItOnce() throws java.io.IOException {
+		var file = JsonParser.parseString(java.nio.file.Files.readString(V7_SETTLEMENTS)).getAsJsonObject();
+		assertEquals(7, file.get("format").getAsInt());
+		// the offer as that Steward wrote it into a Supplied town's open proposals (its record's members, its why with no exception)
+		var offer = JsonParser.parseString("""
+			{"key": "module.crop_farm", "title": "A field", "why": "%s",
+			 "building": {"role": "crop farm", "type": "crop_farm", "count": 1, "footprint": "L", "landmark": false}, "at": 1794836070000, "trigger": "seeds",
+			 "module": {"moduleId": "crop_farm", "version": 1, "programSha": "%s", "params": {"crop": "wheat", "depth": 9, "width": 9},
+			            "bound": {"minecraft:dirt": 210, "minecraft:wheat_seeds": 81}, "lampFallback": true, "autonomous": false, "inexactApproved": false}}"""
+			.formatted(LEGACY_WHY, "c".repeat(64))).getAsJsonObject();
+		JsonObject town = null;
+		for (var x : file.getAsJsonArray("settlements")) if ("set_2".equals(x.getAsJsonObject().get("id").getAsString())) town = x.getAsJsonObject();
+		assertNotNull(town);
+		town.getAsJsonObject("proposals").getAsJsonArray("open").add(offer);
+		var store = dev.larattalabs.steward.model.SettlementStore.fromJson(file.toString());
+		var read = store.get("set_2").orElseThrow().proposals().open().stream().filter(p -> p.key().equals("module.crop_farm")).findFirst().orElseThrow();
+		assertTrue(read.offersModule());
+		String said = "Planting it takes 81 wheat seeds from the stockpile. " + dev.larattalabs.steward.inbox.InboxModel.BILL + "210 dirt, 81 wheat seeds; "
+			+ ModuleBound.CRASH_EXCEPTION + ". It's lit by plain lanterns.";
+		assertEquals(said, read.why());
+		// saved by this Steward and read again: still once
+		var again = dev.larattalabs.steward.model.SettlementStore.fromJson(store.toJson()).get("set_2").orElseThrow().proposals().open().get(0);
+		assertEquals(said, again.why());
+		// the inbox: the offer's row and its bill line, the exception once in each
+		dev.larattalabs.steward.service.SettlementsTestAccess.use(store);
+		try {
+			var entry = dev.larattalabs.steward.service.Proposals.inboxEntries().stream().filter(e -> e.settlementId().equals("set_2")).findFirst().orElseThrow();
+			var row = entry.lots().stream().filter(l -> l.id().equals("module.crop_farm")).findFirst().orElseThrow();
+			assertEquals(1, count(row.detail(), ModuleBound.CRASH_EXCEPTION), row.detail());
+			assertTrue(row.detail().startsWith("$0 · at most "), row.detail());
+			String line = entry.lines().stream().filter(l -> l.contains(dev.larattalabs.steward.inbox.InboxModel.BILL)).findFirst().orElseThrow();
+			assertEquals("A field: " + dev.larattalabs.steward.inbox.InboxModel.BILL + "210 dirt, 81 wheat seeds; " + ModuleBound.CRASH_EXCEPTION + ".", line);
+		} finally {
+			dev.larattalabs.steward.service.SettlementsTestAccess.reset();
+		}
+	}
+
+	static int count(String s, String part) {
+		int n = 0;
+		for (int i = s.indexOf(part); i >= 0; i = s.indexOf(part, i + 1)) n++;
+		return n;
 	}
 
 	@Test
