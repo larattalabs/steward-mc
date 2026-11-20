@@ -23,7 +23,7 @@ import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
-import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES } from './lib/undo-audit.mjs';
+import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, addedBoxes } from './lib/undo-audit.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
@@ -6546,8 +6546,19 @@ async function undoWorldAudit(lbl, snap, { start, built, undone, requireTiles = 
   const exclude = crateBoxes(start, built, undone);
   const diff = snap?.error ? null : await dev.call('dev.region.hash', { box: snap.box, mode: 'diff', file: snap.file, exclude, limit: 1_000_000 }, { timeoutMs: 1_800_000 })
     .catch((e) => ({ error: String(e?.message ?? e) }));
-  const a = judgeUndoWorld({ start, built, undone, diff, snapBox: snap?.box, exclude, requireTiles });
-  const words = auditWords(a);
+  // (HARNESS-T) the unchanged neighbours of new cane, kelp or vine cells in the boxes, read now (unchanged: as before the build), so the audit can
+  // tell growth from a root of its kind from a plant the build left; a cell not read (unloaded, past the bound) is no root, so it fails
+  const lookup = {};
+  const probes = diff?.list ? rootProbes(diff, addedBoxes(start, built)) : [];
+  for (const pr of probes.slice(0, 600)) {
+    const [x, y, z] = pr.pos.split(',');
+    for (const id of pr.ids) {
+      const r = checkCommand(await dev.request('dev.command', { cmd: `/execute if block ${x} ${y} ${z} ${id}` }).catch(() => null), { allowFail: true });
+      if (r?.success === true) { lookup[pr.pos] = id; break; }
+    }
+  }
+  const a = judgeUndoWorld({ start, built, undone, diff, snapBox: snap?.box, exclude, requireTiles, lookup });
+  const words = [auditWords(a), probes.length > 600 ? `${probes.length - 600} root probe(s) past the bound of 600 not read` : ''].filter(Boolean).join('; ');
   if (!words) {
     ok(lbl, `the ${a.added} sites the build added (${a.tiles} of them region tiles) gone; their ${a.boxes} boxes as before the build (${diff.cells} cells compared, `
       + `${exclude.length} crate cells left out; in the boxes ${JSON.stringify(a.classes)}, allowed ${ALLOWED_CLASSES.join(', ')}; outside them ${a.outside.count} `

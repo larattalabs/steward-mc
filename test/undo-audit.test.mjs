@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { judgeUndoWorld, auditWords, crateBoxes, judgedClass, addedSites } from '../tools/lib/undo-audit.mjs';
+import { judgeUndoWorld, auditWords, crateBoxes, judgedClass, addedSites, rootProbes, addedBoxes } from '../tools/lib/undo-audit.mjs';
 
 const SNAP = [0, 40, 0, 200, 200, 200];
 const start = { sites: [{ id: 'old', kind: 'building', state: 'BUILT', box: [150, 60, 150, 160, 70, 160] }], tiles: [], crateCells: [] };
@@ -63,7 +63,9 @@ test('a crop or sapling where air was is planted, not growth', () => {
   assert.equal(judgedClass({ was: 'minecraft:air', now: 'minecraft:wheat[age=7]', class: 'growth' }), 'planted');
   assert.equal(judgedClass({ was: 'minecraft:air', now: 'minecraft:oak_sapling[stage=0]', class: 'growth' }), 'planted');
   assert.equal(judgedClass({ was: 'minecraft:wheat[age=2]', now: 'minecraft:wheat[age=7]', class: 'growth' }), 'growth');
+  // outside every box (no roots given) only counted, so Architect's class stands; inside a box the root walk judges it (the HARNESS-T tests)
   assert.equal(judgedClass({ was: 'minecraft:air', now: 'minecraft:sugar_cane[age=0]', class: 'growth' }), 'growth');
+  assert.equal(judgedClass({ pos: '1,1,1', was: 'minecraft:air', now: 'minecraft:sugar_cane[age=0]', class: 'growth' }, {}), 'unrooted');
   const a = judgeUndoWorld({ start, built, undone, diff: diff([{ pos: '12,61,12', was: 'minecraft:air', now: 'minecraft:wheat[age=3]', class: 'growth' }]), snapBox: SNAP });
   assert.equal(a.left.length, 1);
   assert.equal(a.left[0].class, 'planted');
@@ -119,4 +121,66 @@ test('(GPT review P2) a diff over too few cells, or a ledger without its lists, 
   assert.match(judgeUndoWorld({ start, built, undone: { sites: [] }, diff: clean, snapBox: SNAP }).harness.join(), /after the undo lacks its sites, tiles or crateCells/);
   assert.match(judgeUndoWorld({ start, built: null, undone, diff: clean, snapBox: SNAP }).harness.join(), /no ledger once built/);
   assert.deepEqual(judgeUndoWorld({ start: null, built, undone, diff: clean, snapBox: SNAP }).harness, []);
+});
+
+// (HARNESS-T, the M5-HARD leftover) cane, kelp and vines pass as growth only when they grew from a root of their kind that stood before the build
+const inS1 = (list, lookup) => judgeUndoWorld({ start, built, undone, diff: diff(list), snapBox: SNAP, lookup });
+
+test('cane grown on cane that stood before the build passes; cane on bare sand next to water fails', () => {
+  const grown = [{ pos: '12,62,12', was: 'minecraft:air', now: 'minecraft:sugar_cane[age=0]', class: 'growth' }];
+  assert.deepEqual(rootProbes(diff(grown), addedBoxes(start, built)).map((p) => [p.pos, p.kind]), [['12,61,12', 'cane']]);
+  const ok1 = inS1(grown, { '12,61,12': 'minecraft:sugar_cane' });
+  assert.deepEqual(ok1.left, []);
+  assert.deepEqual(ok1.classes, { growth: 1 });
+  // the cell below is sand (where a farm plants cane, beside water): no random tick puts cane there
+  const bad = inS1(grown, { '12,61,12': 'minecraft:sand', '13,61,12': 'minecraft:water' });
+  assert.deepEqual(bad.left.map((c) => c.class), ['unrooted']);
+  assert.match(auditWords(bad), /unrooted/);
+  // a cell the caller could not read is no root
+  assert.deepEqual(inS1(grown, {}).left.map((c) => c.class), ['unrooted']);
+});
+
+test('a two-cell cane chain roots through its listed lower cell; cane on a cell that only now holds cane fails', () => {
+  const chain = [
+    { pos: '12,63,12', was: 'minecraft:air', now: 'minecraft:sugar_cane[age=0]', class: 'growth' },
+    { pos: '12,62,12', was: 'minecraft:air', now: 'minecraft:sugar_cane[age=0]', class: 'growth' },
+  ];
+  assert.deepEqual(rootProbes(diff(chain), addedBoxes(start, built)).map((p) => p.pos), ['12,61,12']);
+  assert.deepEqual(inS1(chain, { '12,61,12': 'minecraft:sugar_cane' }).left, []);
+  assert.equal(inS1(chain, { '12,61,12': 'minecraft:dirt' }).left.length, 2);
+  // the lower cell was built (class none, air before): the cane on it has no root either
+  const built2 = [chain[0], { pos: '12,62,12', was: 'minecraft:air', now: 'minecraft:sugar_cane[age=0]', class: 'none' }];
+  assert.deepEqual(inS1(built2, { '12,61,12': 'minecraft:sand' }).left.map((c) => c.class).sort(), ['none', 'unrooted']);
+});
+
+test('kelp grown on kelp in water passes (the old top turned kelp_plant); kelp on a solid block in water fails', () => {
+  const grown = [
+    { pos: '35,63,35', was: 'minecraft:water[level=0]', now: 'minecraft:kelp[age=4]', class: 'growth' },
+    { pos: '35,62,35', was: 'minecraft:kelp[age=3]', now: 'minecraft:kelp_plant', class: 'growth' },
+  ];
+  assert.deepEqual(rootProbes(diff(grown), addedBoxes(start, built)), []);
+  assert.deepEqual(inS1(grown, {}).left, []);
+  const planted = [{ pos: '35,63,35', was: 'minecraft:water[level=0]', now: 'minecraft:kelp[age=4]', class: 'growth' }];
+  assert.deepEqual(inS1(planted, { '35,62,35': 'minecraft:gravel' }).left.map((c) => c.class), ['unrooted']);
+});
+
+test('vines spread from a vine beside them pass; a vine on a bare wall fails', () => {
+  const spread = [{ pos: '36,64,36', was: 'minecraft:air', now: 'minecraft:vine[north=true]', class: 'growth' }];
+  const probes = rootProbes(diff(spread), addedBoxes(start, built));
+  assert.equal(probes.length, 6);
+  assert.ok(probes.every((p) => p.kind === 'vines' && p.ids.includes('minecraft:vine')));
+  assert.deepEqual(inS1(spread, { '37,64,36': 'minecraft:vine' }).left, []);
+  assert.deepEqual(inS1(spread, { '36,65,36': 'minecraft:vine' }).left, []);
+  // only a solid face next to it (the build's wall left): no vine to spread from
+  assert.deepEqual(inS1(spread, { '36,64,35': 'minecraft:stone_bricks' }).left.map((c) => c.class), ['unrooted']);
+  // a vine where a vine was (its faces changed) is the old plant's, rooted or not
+  assert.deepEqual(inS1([{ pos: '36,64,36', was: 'minecraft:vine[north=true]', now: 'minecraft:vine[east=true,north=true]', class: 'growth' }], {}).left, []);
+});
+
+test('outside every box cane, kelp and vines are only counted, never probed', () => {
+  const far = [{ pos: '100,62,100', was: 'minecraft:air', now: 'minecraft:sugar_cane[age=0]', class: 'growth' }];
+  assert.deepEqual(rootProbes(diff(far), addedBoxes(start, built)), []);
+  const a = inS1(far, {});
+  assert.deepEqual(a.left, []);
+  assert.deepEqual(a.outside, { count: 1, classes: { growth: 1 } });
 });

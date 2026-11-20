@@ -11,7 +11,11 @@
  *   none) whose class is not one the world itself causes. Allowed, as in the growth and adopt flows' diffs: `growth` (a random tick grew or spread
  *   it) and `grazed` (a sheep ate grass). Architect's classifier also calls a crop or sapling standing where air or water was "growth", and one
  *   crop or sapling where another species stood; no random tick plants one or swaps species, so either is a built block left (`planted`) and
- *   fails. Every other class (none, gravity, unsupported, live) fails;
+ *   fails. Sugar cane, kelp and vines are "growth" to it wherever they stand; a random tick only grows them from their own kind (cane and kelp up
+ *   from the cell below, vines spreading from any side), so a new cell of one is growth only when a chain of new cells of it reaches a cell that
+ *   held it before the build and holds it still (HARNESS-T, the M5-HARD leftover); else it is `unrooted` and fails. A neighbour the diff does not
+ *   list is unchanged, so its block now (`lookup`, read by the caller through {@link rootProbes}) is its block before the build. Every other class
+ *   (none, gravity, unsupported, live) fails;
  * - harness: what would make the audit see nothing: a ledger without its sites, tiles or crate lists, no tile before the undo when tiles are
  *   required, a box outside the snapshot, a diff missing, cut short (its list shorter than its mismatch count) or over fewer cells than the
  *   snapshot's box less the crate cells.
@@ -24,6 +28,13 @@ export const ALLOWED_CLASSES = ['growth', 'grazed'];
 /** Crops and saplings: a "growth" from air or water to one of these is a planted (built) block, not a random tick's. */
 const PLANTED = /^minecraft:(?:wheat|carrots|potatoes|beetroots|melon_stem|pumpkin_stem|attached_melon_stem|attached_pumpkin_stem|sweet_berry_bush|cocoa|torchflower_crop|pitcher_crop|[a-z_]+_sapling)$/;
 const EMPTY = /^minecraft:(?:air|cave_air|void_air|water)$/;
+
+/** Plants a random tick grows only from their own kind: each with the block ids it is, and the sides (dx, dy, dz) its new cells grow from. */
+export const ROOTED = [
+  { name: 'cane', ids: ['minecraft:sugar_cane'], sides: [[0, -1, 0]] },
+  { name: 'kelp', ids: ['minecraft:kelp', 'minecraft:kelp_plant'], sides: [[0, -1, 0]] },
+  { name: 'vines', ids: ['minecraft:vine'], sides: [[0, 1, 0], [0, -1, 0], [1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]] },
+];
 
 /** The block id of a cell value ("minecraft:wheat[age=7]{...}" -> "minecraft:wheat"). */
 export function blockOf(v) {
@@ -53,17 +64,87 @@ export function crateBoxes(...ledgers) {
 const inside = (b, x, y, z) => x >= b[0] && x <= b[3] && y >= b[1] && y <= b[4] && z >= b[2] && z <= b[5];
 const within = (inner, outer) => inner[0] >= outer[0] && inner[1] >= outer[1] && inner[2] >= outer[2] && inner[3] <= outer[3] && inner[4] <= outer[4] && inner[5] <= outer[5];
 
+/** The ROOTED kind a cell value is, or null. */
+export function rootedKind(v) {
+  const b = blockOf(v);
+  return ROOTED.find((k) => k.ids.includes(b)) ?? null;
+}
+
+const posOf = (p) => String(p).split(',').map(Number);
+const step = (p, d) => { const [x, y, z] = posOf(p); return `${x + d[0]},${y + d[1]},${z + d[2]}`; };
+/** A mismatch that is a new cell of a ROOTED plant: Architect's growth, its block now one, the cell not one of that kind before. */
+const newRooted = (m) => {
+  if (String(m?.class) !== 'growth') return null;
+  const k = rootedKind(m.now);
+  return k && rootedKind(m.was) !== k ? k : null;
+};
+
+/**
+ * Whether the new {@code kind} cell at {@code pos} grew from a root: a side (kind.sides) that holds the kind now and held it before the build (a
+ * listed cell's `was`; an unlisted one is unchanged, its block now from {@code lookup}), or a listed new cell of the kind that is rooted itself.
+ * {@code byPos}: the diff's mismatches by pos. A side whose block is unknown is no root.
+ */
+function rooted(pos, kind, byPos, lookup, seen = new Set([pos])) {
+  for (const d of kind.sides) {
+    const n = step(pos, d);
+    if (seen.has(n)) continue;
+    seen.add(n);
+    const m = byPos.get(n);
+    if (m) {
+      if (rootedKind(m.now) !== kind) continue;
+      if (rootedKind(m.was) === kind || rooted(n, kind, byPos, lookup, seen)) return true;
+    } else if (rootedKind(lookup?.[n]) === kind) return true;
+  }
+  return false;
+}
+
+/**
+ * The unlisted cells whose blocks the audit needs (each new ROOTED cell inside {@code boxes}, and the new cells of its kind it reaches, looks at
+ * its sides): [{ pos, kind, ids }], one per pos. The caller reads each (is it one of `ids`?) into the `lookup` it passes {@link judgeUndoWorld}.
+ */
+export function rootProbes(diff, boxes) {
+  const byPos = new Map((diff?.list ?? []).map((m) => [String(m.pos), m]));
+  const out = new Map();
+  const walk = (pos, kind, seen) => {
+    for (const d of kind.sides) {
+      const n = step(pos, d);
+      if (seen.has(n)) continue;
+      seen.add(n);
+      const m = byPos.get(n);
+      if (!m) { if (!out.has(n)) out.set(n, { pos: n, kind: kind.name, ids: kind.ids }); }
+      else if (rootedKind(m.now) === kind && rootedKind(m.was) !== kind) walk(n, kind, seen);
+    }
+  };
+  for (const m of diff?.list ?? []) {
+    const k = newRooted(m);
+    if (!k) continue;
+    const [x, y, z] = posOf(m.pos);
+    if (!boxes.some((b) => inside(b, x, y, z))) continue;
+    walk(String(m.pos), k, new Set([String(m.pos)]));
+  }
+  return [...out.values()];
+}
+
+/** The restore boxes of the sites and tiles the build added (as {@link judgeUndoWorld} audits them; a site with no box is left out). */
+export function addedBoxes(start, built) {
+  return addedSites(start, built).map((x) => (Array.isArray(x.restoreBox) && x.restoreBox.length === 6 ? x.restoreBox : x.box)).filter((b) => Array.isArray(b) && b.length === 6);
+}
+
 /** A stem and its attached form are one species (a stem attaches when its fruit grows). */
 const species = (b) => b.replace(/^minecraft:attached_/, 'minecraft:');
 
 /**
  * A diff mismatch's class as this audit judges it: Architect's, except a crop or sapling where air or water was, or where another crop or sapling
- * species stood (carrots -> wheat), is `planted`.
+ * species stood (carrots -> wheat), is `planted`; and, given {@code roots}, a new cane, kelp or vine cell with no root of its kind ({@code roots.byPos}: the diff's
+ * mismatches by pos; {@code roots.lookup}: unlisted cells' blocks now, by pos) is `unrooted`. Without {@code roots} (a cell outside every box, only counted) the root
+ * walk is skipped.
  */
-export function judgedClass(m) {
+export function judgedClass(m, roots = null) {
   const cls = String(m?.class ?? 'none');
   const was = blockOf(m?.was), now = blockOf(m?.now);
   if (cls === 'growth' && PLANTED.test(now) && (EMPTY.test(was) || species(was) !== species(now))) return 'planted';
+  const k = newRooted(m);
+  if (k && roots && !rooted(String(m.pos), k, roots.byPos ?? new Map(), roots.lookup ?? {})) return 'unrooted';
   return cls;
 }
 
@@ -73,9 +154,9 @@ const volume = (b) => (b[3] - b[0] + 1) * (b[4] - b[1] + 1) * (b[5] - b[2] + 1);
 /**
  * The audit. `start`: the ledger before the build started (and before the snapshot); `built`: the ledger once built, before the undo; `undone`: the
  * ledger after the undo; `diff`: dev.region.hash's diff answer over `snapBox` against the snapshot, `exclude` the single-cell boxes it left out; `requireTiles`: fail as harness when the build
- * added no tile. -> { harness: [...], standing: [...], left: [...], added, tiles, outside, classes }.
+ * added no tile; `lookup`: the blocks now of {@link rootProbes}' cells, by pos ({pos: block id}; a cell not in it is unknown, so no root). -> { harness: [...], standing: [...], left: [...], added, tiles, outside, classes }.
  */
-export function judgeUndoWorld({ start, built, undone, diff, snapBox, exclude = [], requireTiles = true }) {
+export function judgeUndoWorld({ start, built, undone, diff, snapBox, exclude = [], requireTiles = true, lookup = {} }) {
   const harness = [];
   const added = addedSites(start, built);
   const tiles = added.filter((x) => x.tile);
@@ -107,10 +188,12 @@ export function judgeUndoWorld({ start, built, undone, diff, snapBox, exclude = 
     const want = volume(snapBox) - cut;
     if (diff.cells !== want) harness.push(`the diff compared ${diff.cells} cells, not the snapshot's ${want}`);
   }
+  const byPos = new Map((diff?.list ?? []).map((m) => [String(m.pos), m]));
   for (const m of diff?.list ?? []) {
     const [x, y, z] = String(m.pos).split(',').map(Number);
-    const cls = judgedClass(m);
     const hit = boxes.find((b) => inside(b.box, x, y, z));
+    // (HARNESS-T) the root walk only where it can fail: outside every box a class is only counted
+    const cls = hit ? judgedClass(m, { byPos, lookup }) : judgedClass(m);
     if (!hit) { outside.count++; outside.classes[cls] = (outside.classes[cls] ?? 0) + 1; continue; }
     classes[cls] = (classes[cls] ?? 0) + 1;
     if (!ALLOWED_CLASSES.includes(cls)) left.push({ pos: m.pos, was: m.was, now: m.now, class: cls, site: hit.id });
