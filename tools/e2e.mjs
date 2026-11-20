@@ -2918,6 +2918,15 @@ async function irrigationFlow() {
  * said with exactly what was put in (the fill is never counted); emptied but for the fill, the town is undone, no filler loose.
  */
 async function composedModulesFlow() {
+  // (HARNESS-T) composedSource's measuring source (an uncertified pin) put back to the live catalog on every exit, early returns included
+  try {
+    return await composedModulesFlowBody();
+  } finally {
+    await cmd('/steward dev modules {}').catch(() => null);
+  }
+}
+
+async function composedModulesFlowBody() {
   const label = 'composed modules';
   const n = settlements().length;
   await cmd(`/spreadplayers ${(n + 1) * 900} 93000 0 1 false @p`);
@@ -6585,6 +6594,8 @@ async function moduleHallSortFlow() {
   try {
     return await moduleHallSortFlowBody();
   } finally {
+    // (HARNESS-T) its measuring source (an uncertified hall) put back to the live catalog on every exit, early returns included
+    await cmd('/steward dev modules {}').catch(() => null);
     await cmd('/advancement revoke @p until minecraft:story/enter_the_nether').catch(() => null);
   }
 }
@@ -7041,6 +7052,8 @@ async function moduleHallSurvivalFlow() {
   } finally {
     stop = true;
     await feeder?.catch(() => null);
+    // (HARNESS-T) its measuring source (an uncertified hall) put back to the live catalog on every exit, early returns included
+    await cmd('/steward dev modules {}').catch(() => null);
     await cmd('/architect survival off');
     await cmd('/defaultgamemode creative');
   }
@@ -8159,8 +8172,9 @@ async function moduleSurvivalStreetFlow() {
     if (last && undone?.state === 'UNDONE' && sameItems(back, paid) && sameItems(gain, back) && !Object.keys(again).length && removedN === 1 && off.length === 0)
       ok(`${label} undo`, `${last.text}; paid == returned (${JSON.stringify(back).slice(0, 120)}), into the crates, once; the ground as before`);
     else fail(`${label} undo`, `removed ${removedN}; revision ${undone?.state}; back ${JSON.stringify(back).slice(0, 120)} vs paid ${JSON.stringify(paid).slice(0, 120)}; stock +${JSON.stringify(gain).slice(0, 80)}; more ${JSON.stringify(again)}; ${off.length} cell(s) differ`);
-    await cmd('/steward dev modules {}');
   } finally {
+    // (HARNESS-T) the overridden bounds (moduleSource above) put back to the live catalog on every exit, early returns included
+    await cmd('/steward dev modules {}').catch(() => null);
     await survivalStreetDone(st);
   }
 }
