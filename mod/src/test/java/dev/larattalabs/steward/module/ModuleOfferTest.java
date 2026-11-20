@@ -72,8 +72,8 @@ class ModuleOfferTest {
 
 	/** fixtures/saves/v7/steward-settlements.json: the QD-2 e2e world (2026-11-16 06:35), written by a format-7 Steward from before the crash exception (dae2448). */
 	static final java.nio.file.Path V7_SETTLEMENTS = java.nio.file.Path.of(System.getProperty("user.dir")).resolve("../fixtures/saves/v7/steward-settlements.json").normalize();
-	static final String LEGACY_WHY = "Planting it takes 81 wheat seeds from the stockpile. " + dev.larattalabs.steward.inbox.InboxModel.BILL
-		+ "210 dirt, 81 wheat seeds. It's lit by plain lanterns.";
+	/** The offer's words as that Steward wrote them, frozen (not built from today's constants). */
+	static final String LEGACY_WHY = "Planting it takes 81 wheat seeds from the stockpile. The whole bill is at most 210 dirt, 81 wheat seeds. It's lit by plain lanterns.";
 
 	/**
 	 * (QD-2's fix-check gap) A module offer saved before the crash exception was said with its bill (that Steward's file, the offer as it wrote one) is

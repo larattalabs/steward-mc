@@ -364,6 +364,11 @@ final class FakeArchitect {
 				call("designs.group " + a[0]);
 				yield Optional.empty();
 			}
+			// (CRASH-T) a cancelled build's resume stops its design group: answered done (the group is gone)
+			case "cancelGroup" -> {
+				call("designs.cancelGroup " + a[0]);
+				yield CompletableFuture.completedFuture(null);
+			}
 			default -> throw new UnsupportedOperationException("FakeArchitect: Designs." + m + " is not modelled");
 		});
 		dev.larattalabs.architect.api.Library libraryApi = proxy(dev.larattalabs.architect.api.Library.class, (m, a) -> switch (m) {

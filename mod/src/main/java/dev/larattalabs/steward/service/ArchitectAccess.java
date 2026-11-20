@@ -7,7 +7,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * (slice GEA) Architect's API on the recovery paths unit tests drive (the reconcile, the growth sweep, growth undo, a district's land; TESTABLE-ARCH: the
- * composed hold, realise and put-down re-ask; CRASH-T: a restart's resume, the village found by its realise key, the region watched): {@link ArchitectApi#get()}
+ * composed hold, realise and put-down re-ask; CRASH-T: a restart's resume, the village found by its realise key, the region watched and its placement logged): {@link ArchitectApi#get()}
  * on every call, and the server's own executor, unless a test supplied its own. {@code ArchitectApi} is Architect's, so the seam is Steward's side of the call.
  * Production never calls {@link #useForTest}; with nothing supplied this is exactly {@code ArchitectApi.get()} and {@code server.execute}.
  */

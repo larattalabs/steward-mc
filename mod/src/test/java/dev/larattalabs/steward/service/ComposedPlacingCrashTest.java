@@ -86,6 +86,16 @@ class ComposedPlacingCrashTest {
 		a.putDown.put(COTTAGE, Map.of("minecraft:cobblestone", 30));
 	}
 
+	/**
+	 * Nothing was thrown past the runner's steps but what needs the server this test has none of (the inbox's send, the steward's walk, a player's
+	 * lookup): every check reads what happened before those, so anything else thrown is a step that broke, never a pass.
+	 */
+	@AfterEach
+	void onlyServerlessTails() {
+		for (Throwable t : tails)
+			assertTrue(t instanceof NullPointerException && String.valueOf(t.getMessage()).contains("\"server\" is null"), "unexpected: " + tails());
+	}
+
 	@AfterEach
 	void tearDown() {
 		SettlementRunner.clearForTest();
@@ -127,6 +137,7 @@ class ComposedPlacingCrashTest {
 		a.serverQueue.clear();
 		a.held.clear();
 		DurableWrite.FAIL_NEXT.clear();
+		durableWriteRestart();
 		BuildStore disk = BuildStore.load(buildsFile);
 		setBuilds(disk);
 		Settlements.useForTest(SettlementStore.load(settlementsFile), settlementsFile);
@@ -139,6 +150,17 @@ class ComposedPlacingCrashTest {
 			tails.add(e);
 		}
 		drain();
+	}
+
+	/** DurableWrite's process memory (the folders it owes a force, the ones it settled) forgotten, as a new process has it. */
+	static void durableWriteRestart() {
+		try {
+			Method m = DurableWrite.class.getDeclaredMethod("restartForTest");
+			m.setAccessible(true);
+			m.invoke(null);
+		} catch (ReflectiveOperationException e) {
+			throw new AssertionError(e);
+		}
 	}
 
 	static void setBuilds(BuildStore s) {
@@ -281,12 +303,13 @@ class ComposedPlacingCrashTest {
 	 * Items in == items out: every item the stockpile started with is in it or in a standing site, the ledger's paid less returned is what stands,
 	 * and no module lot drew past the cap its realise was sent with, nor past the bound saved for it (what the player approved, or the measured one).
 	 */
-	void conserved() {
+	void conserved() throws IOException {
 		var w = world();
 		for (var e : stock0.entrySet())
 			assertEquals(e.getValue(), a.ledger.stock.getOrDefault(e.getKey(), 0) + w.getOrDefault(e.getKey(), 0), "stockpile + world for " + e.getKey());
 		assertEquals(a.ledger.paid - a.ledger.returned, w.values().stream().mapToInt(Integer::intValue).sum(), "ledger: paid - returned == what stands");
-		var bounds = disk().moduleOrders();
+		var bounds = BuildStore.load(buildsFile).all().stream().filter(b -> b.settlementId().equals(saved.settlementId())).findFirst().map(BuildStore.Saved::moduleOrders)
+			.orElse(saved.moduleOrders());
 		for (String lot : List.of(FARM, HALL)) {
 			var d = drawn(lot);
 			if (d.isEmpty()) continue;
@@ -300,13 +323,52 @@ class ComposedPlacingCrashTest {
 		}
 	}
 
-	/** The town taken up by the player's undo (Steward's Undo.region over what the build placed): everything drawn comes back, once. */
-	void undoneBalances() {
+	/**
+	 * Architect finishes placing the region (its construction sites stand); the runner watches it, logs the placement to the settlement's history and
+	 * ends the build. A log that can't be saved keeps the build open on disk (its recovery checkpoint), and the crash after it logs it once.
+	 */
+	void placedAndLogged(boolean logFails) throws IOException {
+		a.regions.get(FakeArchitect.REALISED).state = dev.larattalabs.architect.api.RegionState.PLACED;
+		if (logFails) {
+			DurableWrite.FAIL_NEXT.add(DurableWrite.TestFail.BEFORE_RENAME);
+			watch();
+			assertEquals(0, placedEntries().size(), "logged unsaved");
+			assertTrue(BuildStore.load(buildsFile).all().stream().anyMatch(b -> b.settlementId().equals(saved.settlementId())),
+				"the build ended with its placement unlogged (no checkpoint, no undo record)");
+			assertEquals(Pipeline.Phase.PLACING, disk().state().phase(), "the build stays open while its placement isn't logged");
+			assertEquals(FakeArchitect.REALISED, disk().vRegion());
+			crash();
+		} else {
+			watch();
+		}
+		var placed = placedEntries();
+		assertEquals(1, placed.size(), "logged once: " + placed + " " + tails());
+		var realised = a.sites.values().stream().filter(x -> FakeArchitect.REALISED.equals(x.region)).map(x -> x.id).collect(java.util.stream.Collectors.toSet());
+		assertEquals(realised, Set.copyOf(placed.get(0).siteIds()), "the entry holds every site of the region");
+		assertTrue(BuildStore.load(buildsFile).all().stream().noneMatch(b -> b.settlementId().equals(saved.settlementId())), "the build ended once logged");
+	}
+
+	/** The runner's watch of its region (as its tick does), to its end or the inbox's send, which needs the server. */
+	void watch() {
+		try {
+			r.watchVillage();
+		} catch (NullPointerException e) {
+			tails.add(e);
+		}
+		drain();
+	}
+
+	/** The settlement's PROJECT_PLACED entries for the realised region, as its file holds them. */
+	List<Settlement.LogEntry> placedEntries() throws IOException {
+		return SettlementStore.load(settlementsFile).get(saved.settlementId()).orElseThrow().log().stream()
+			.filter(e -> e.kind() == Settlement.Kind.PROJECT_PLACED && ("region:" + FakeArchitect.REALISED).equals(e.siteGroup())).toList();
+	}
+
+	/** The town taken up by the player's undo (Steward's Undo.region over the entry the runner logged, read from the file): everything drawn back, once. */
+	void undoneBalances() throws IOException {
+		Settlements.useForTest(SettlementStore.load(settlementsFile), settlementsFile);
 		var s = Settlements.store().get(saved.settlementId()).orElseThrow();
-		var sites = a.sites.values().stream().filter(x -> FakeArchitect.REALISED.equals(x.region)).map(x -> x.id).sorted().toList();
-		var changes = sites.stream().map(id -> new Settlement.SiteChange(id, id, 0, 1)).toList();
-		var entry = Settlement.LogEntry.of(9L, Settlement.Kind.PROJECT_PLACED, "Placed the village", changes, "region:" + FakeArchitect.REALISED, Settlement.Outcome.DONE);
-		assertTrue(Settlements.log(s.id(), entry).ok());
+		var entry = placedEntries().get(0);
 		AtomicReference<Boolean> done = new AtomicReference<>();
 		List<String> said = new ArrayList<>();
 		Undo.region(null, Settlements.store().get(s.id()).orElseThrow(), entry, FakeArchitect.REALISED, Map.of(), said::add, done::set);
@@ -337,6 +399,7 @@ class ComposedPlacingCrashTest {
 		orders().forEach((lot, o) -> heldBills.put(lot, o.held()));
 		assertTrue(approve().startsWith("Approved"), tails());
 		assertEquals(Pipeline.Phase.PLACING, disk().state().phase(), "PLACING saved");
+		int callsBefore = a.calls.size();
 		crash();
 		assertEquals(Pipeline.Phase.PLACING, phase());
 		for (var e : orders().entrySet()) {
@@ -348,6 +411,7 @@ class ComposedPlacingCrashTest {
 		assertTrue(a.calls.contains("regions.realiseByKey steward." + saved.buildId() + ".vrealise"), a.calls.toString());
 		assertNull(field("vRegionId"));
 		assertEquals(0, a.count("regions.realiseApproved"));
+		assertTrue(a.calls.subList(callsBefore, a.calls.size()).contains("designs.group grp_1"), "the resume went on to the realise: " + a.calls);
 
 		// (3) the restart quotes again before any realise (no caps carried over a crash): the same uncertainty within the approved bills goes on, never asked
 		// again; (4) the realise saved, then sent under the approved bounds, and applied by Architect; its answer never arrives (the world stops)
@@ -382,6 +446,9 @@ class ComposedPlacingCrashTest {
 		assertEquals(1, a.approved.size());
 		assertEquals(paid, a.ledger.paid);
 		conserved();
+		// (7) placed: the log's save fails first (the build stays open), the crash after it logs it once and ends the build; the undo balances
+		placedAndLogged(true);
+		conserved();
 		undoneBalances();
 	}
 
@@ -401,7 +468,13 @@ class ComposedPlacingCrashTest {
 		conserved();
 
 		// the crash: the refusal read back; the next quote, exact and within every bound, is still put to the player (QD-2: the multi-lot hold reads it)
+		// (the refusal came from READY_TO_PLACE: the resume puts the placement to the player first, nothing realised; their approve goes on to the quote)
 		crash();
+		assertEquals(Pipeline.Phase.AWAITING_PLACEMENT_APPROVAL, phase(), "the resume asks before placing: " + a.calls);
+		assertEquals(1, a.approved.size());
+		assertTrue(orders().values().stream().allMatch(ModuleOrder::refusedAtPutDown), "an approve with nothing held keeps the refusal");
+		assertTrue(approve().startsWith("Approved"), tails());
+		assertTrue(disk().moduleOrders().values().stream().allMatch(ModuleOrder::refusedAtPutDown), "still refused on disk");
 		int groups = (int) a.count("designs.group");
 		a.quote = exact();
 		quoteComposed();
@@ -436,7 +509,84 @@ class ComposedPlacingCrashTest {
 		assertEquals(105, drawn(HALL).get("minecraft:oak_planks"));
 		assertEquals(FakeArchitect.REALISED, field("vRegionId"));
 		conserved();
+		placedAndLogged(false);
 		undoneBalances();
+	}
+
+	/** Held, approved (PLACING, the held bills the bounds), crashed, quoted again within them: cleared for the realise. */
+	void approvedAndCleared() throws IOException {
+		runner(BOUNDED);
+		a.quote = inexact();
+		quoteComposed();
+		assertTrue(approve().startsWith("Approved"), tails());
+		crash();
+		assertEquals(Pipeline.Phase.PLACING, phase());
+		a.quote = inexact();
+		quoteComposed();
+		assertNotNull(field("composedCaps"), "cleared: " + tails());
+		assertEquals(Pipeline.Phase.PLACING, phase());
+	}
+
+	@Test
+	void aRestartedBuildNeverRealisesWithoutItsOwnFreshQuote() throws IOException {
+		// approved and placing, then the crash: no caps survive it, so a realise reached before the restart's quote sends nothing
+		runner(BOUNDED);
+		a.quote = inexact();
+		quoteComposed();
+		assertTrue(approve().startsWith("Approved"), tails());
+		crash();
+		try (LogCapture log = LogCapture.open()) {
+			realiseArtifact();
+			assertTrue(log.has("weren't quoted for exactly this placing"), "reached the caps' check: " + log.lines);
+		}
+		assertEquals(0, a.count("regions.realiseApproved"), "sent with caps from before the crash");
+		assertEquals(0, a.ledger.paid);
+		conserved();
+	}
+
+	@Test
+	void aPutDownRefusalWhilePlacingAnApprovedBillIsSavedAndAskedAgainAcrossACrash() throws IOException {
+		approvedAndCleared();
+		// Architect's bill at put-down is past the hall's approved bound (90 planks): refused, nothing drawn
+		a.putDown.put(HALL, Map.of("minecraft:oak_planks", 95, "minecraft:cobblestone", 41, "minecraft:iron_ingot", 41, "minecraft:wheat", 41, "minecraft:coal", 41));
+		realiseArtifact();
+		assertEquals(1, a.approved.size(), a.calls + " " + tails());
+		assertEquals(0, a.ledger.paid);
+		assertEquals(Pipeline.Phase.PLACING, phase(), "still placing: asked again, never cancelled");
+		assertTrue(disk().moduleOrders().values().stream().allMatch(ModuleOrder::refusedAtPutDown), "the refusal saved: " + disk().moduleOrders());
+		crash();
+		a.quote = inexact();
+		quoteComposed();
+		assertEquals(Pipeline.Phase.AWAITING_PLACEMENT_APPROVAL, phase(), "realised on its own after a refusal while placing: " + a.calls);
+		assertTrue(((Pipeline.State) field("state")).heldNote().startsWith(ModuleBound.PUT_DOWN_REFUSED));
+		assertEquals(1, a.approved.size());
+		conserved();
+	}
+
+	@Test
+	void aPutDownRefusalWhilePlacingWhoseWriteFailsStopsAndNeverRealisesOnItsOwn() throws IOException {
+		for (var fail : List.of(DurableWrite.TestFail.BEFORE_RENAME, DurableWrite.TestFail.AFTER_RENAME)) {
+			a.approved.clear();
+			approvedAndCleared();
+			a.putDown.put(HALL, Map.of("minecraft:oak_planks", 95));
+			a.onCall = c -> { if (c.startsWith("regions.realiseApproved")) DurableWrite.FAIL_NEXT.add(fail); };
+			try (LogCapture log = LogCapture.open()) {
+				realiseArtifact();
+				assertTrue(ComposedRunnerOrderTest.said(log, "that could not be saved, so I won't ask again or build it"), fail + ": " + log.lines);
+			}
+			a.onCall = c -> {};
+			assertEquals(1, a.approved.size(), fail + " " + a.calls);
+			assertEquals(0, a.ledger.paid);
+			assertTrue(orders().values().stream().noneMatch(ModuleOrder::refusedAtPutDown), fail + ": rolled back as saved");
+			crash();
+			a.quote = exact();
+			quoteComposed();
+			assertEquals(1, a.approved.size(), fail + ": realised on its own after an unsaved refusal");
+			assertEquals(0, a.ledger.paid);
+			conserved();
+			SettlementRunner.clearForTest();
+			a.putDown.put(HALL, Map.of("minecraft:oak_planks", 90));
+		}
 	}
 
 	// ------------------------------------------------------------------ a failed write at each save point
@@ -514,6 +664,7 @@ class ComposedPlacingCrashTest {
 		assertEquals(1, a.approved.size(), a.calls + " " + tails());
 		assertEquals(FakeArchitect.REALISED, field("vRegionId"));
 		conserved();
+		placedAndLogged(false);
 		undoneBalances();
 	}
 

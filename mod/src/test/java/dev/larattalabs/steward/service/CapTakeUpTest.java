@@ -7,6 +7,8 @@ import dev.larattalabs.steward.model.Claim;
 import dev.larattalabs.steward.model.Difficulty;
 import dev.larattalabs.steward.model.Permission;
 import dev.larattalabs.steward.model.Settlement;
+import dev.larattalabs.steward.model.SettlementStore;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -68,7 +70,7 @@ class CapTakeUpTest {
 	 * district's live region, faked), the undo target is then the district, never the farm, and only once the district is undone is it the farm's.
 	 */
 	@Test
-	void aDistrictStillBuildingCompletesAndUndoThenTakesItBeforeTheCappedFarm() {
+	void aDistrictStillBuildingCompletesAndUndoThenTakesItBeforeTheCappedFarm(@org.junit.jupiter.api.io.TempDir java.nio.file.Path dir) {
 		var a = new FakeArchitect();
 		a.install();
 		try {
@@ -103,8 +105,27 @@ class CapTakeUpTest {
 			var own = undoTakes(after, 2);
 			assertEquals("revision:rg1:2", own.get().siteGroup());
 			assertEquals(MaterialRequests.TakeUp.UNDO, MaterialRequests.takeUp(false, own, "rg1", 2, false));
+
+			// the player's own undo (Undo.lastProject) does the same: refused while the district builds (nothing asked of Architect), then the
+			// district's region taken up, never the farm; then the farm's revision
+			a.region("rg1", s.owner()).rev(2, 2, "PLACED");
+			Settlements.useForTest(new SettlementStore(), dir.resolve("steward-settlements.json"));
+			Settlements.store().put(s);
+			List<String> said = new ArrayList<>();
+			assertFalse(Undo.lastProject(null, s, said::add), String.valueOf(said));
+			assertTrue(said.stream().anyMatch(l -> l.startsWith("the east ward is being built")), String.valueOf(said));
+			assertEquals(0, a.count("regions.remove") + a.count("regions.undoRevision"), "asked Architect while the district builds: " + a.calls);
+			Settlements.store().put(done);
+			said.clear();
+			assertTrue(Undo.lastProject(null, done, said::add), String.valueOf(said));
+			assertEquals(List.of("regions.remove rg9"), a.calls.stream().filter(c -> c.startsWith("regions.remove") || c.startsWith("regions.undoRevision")).toList(),
+				"undo took the district, never the farm: " + said);
+			assertEquals(dev.larattalabs.architect.api.RegionState.REMOVED, a.regions.get("rg9").state);
+			var next = Settlements.store().get("set_1").orElseThrow();
+			assertEquals("revision:rg1:2", Undo.headFirst(next, next.lastUndoable(), 2).get().siteGroup(), "the farm is next");
 		} finally {
 			ArchitectAccess.reset();
+			Settlements.resetForTest();
 		}
 	}
 

@@ -1053,7 +1053,7 @@ public final class SettlementRunner {
 			if (districtId != null && saved.get().lands().district(districtId).map(Settlement.District::square).orElse(false)) Districts.link(server, settlement.id(), districtId, this::say, true);
 			return true;
 		}
-		var sites = ArchitectApi.get().sites(server);
+		var sites = ArchitectAccess.api().sites(server);
 		List<Settlement.SiteChange> changes = siteIds.stream().map(id -> {
 			var v = sites.get(id);
 			// a village lot's site carries Architect's lot id only: its role is the plan's
@@ -2934,7 +2934,7 @@ public final class SettlementRunner {
 
 	/** The village's lots, each with its design (a lot with none stays a pad): what its realise and quote take. Null when the group is gone. */
 	private @org.jspecify.annotations.Nullable Map<String, String> villageLotEntries() {
-		Group g = groupId == null ? null : ArchitectApi.get().designs().group(groupId).orElse(null);
+		Group g = groupId == null ? null : ArchitectAccess.api().designs().group(groupId).orElse(null);
 		if (g == null || plan == null) return null;
 		Map<String, String> entries = new LinkedHashMap<>();
 		for (Group.Item it : g.items()) it.entryId().ifPresent(e -> entries.put(it.itemKey(), e));
