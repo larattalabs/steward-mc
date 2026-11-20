@@ -17,6 +17,12 @@ public final class StewardHelp {
 	/** The tips' keys are namespaced, as Architect's are ({@code architect_mc:library}). */
 	public static final String NS = "steward_mc:";
 
+	/**
+	 * (LUI3-S) Where every Steward term is listed: Steward's glossary section sits on Architect's Status > Help page, so the "?" overlay's footer
+	 * and its "+N more" line name it as Architect's (lab-ui 0.6.2 {@code KeysOverlay.helpPlace}).
+	 */
+	public static final String HELP_PLACE = "Architect's Status > Help";
+
 	/** Steward's screens with help, by id. */
 	public enum Screen {
 		SETTLEMENT("settlement", "Settlement"),

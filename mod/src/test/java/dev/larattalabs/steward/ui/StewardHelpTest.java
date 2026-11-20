@@ -63,4 +63,11 @@ class StewardHelpTest {
 		assertFalse(StewardHelp.rows(StewardHelp.Screen.TALK, bound::get).stream().anyMatch(r -> r.verb().contains("survey")), "only where it helps");
 		for (StewardHelp.Screen s : StewardHelp.Screen.values()) assertFalse(StewardHelp.rows(s, bound::get).isEmpty());
 	}
+
+	@Test
+	void theOverlaySendsThePlayerToArchitectsHelpForEveryTerm() {
+		// (LUI3-S) lab-ui 0.6.2's KeysOverlay.helpPlace builds both lines from these
+		assertEquals("Esc or ? closes · Architect's Status > Help lists every term", HelpKeys.footer(StewardHelp.HELP_PLACE));
+		assertEquals("+3 more in Architect's Status > Help", HelpKeys.moreTerms(3, StewardHelp.HELP_PLACE));
+	}
 }
