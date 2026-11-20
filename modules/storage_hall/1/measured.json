@@ -3,13 +3,13 @@
   "version": 1,
   "fixture": false,
   "programSha": "9e6f1f15926fef6c9cdd77df276ee98aab08f36bdc7bbc06e2bffd73b179ef05",
-  "moduleSha": "a099ee3113059d54b9e762669140d34d632263809cae52198fa57924c227e6ff",
+  "moduleSha": "255bbe25ed21b0e94e1c66fe8a8d139cea7d6398f0d9cea433c13ddc13a9e5ac",
   "minecraft": "26.3",
   "architect": [
-    "0.86.0"
+    "0.87.0"
   ],
-  "kit": "0.75.0",
-  "checker": "0.75.0",
+  "kit": "0.76.0",
+  "checker": "0.76.0",
   "result": "pass",
   "basis": "smoke",
   "from": "0.67.0",
@@ -18,10 +18,10 @@
   "runs": 1,
   "checks": {
     "offline": {
-      "at": "2026-11-20T04:56:40.180Z",
-      "head": "af902e86ab98d467fe81da7885f0966c8d72daaf",
-      "architect": "0.86.0",
-      "kit": "0.75.0",
+      "at": "2026-11-20T08:01:41.126Z",
+      "head": "a29a5b031ae4717bd8ac664d169f94d39e408441",
+      "architect": "0.87.0",
+      "kit": "0.76.0",
       "branches": [
         {
           "branch": {
@@ -329,14 +329,14 @@
       }
     },
     "ingame": {
-      "at": "2026-11-20T05:05:20.411Z",
-      "head": "af902e86ab98d467fe81da7885f0966c8d72daaf",
+      "at": "2026-11-20T08:17:00.942Z",
+      "head": "a29a5b031ae4717bd8ac664d169f94d39e408441",
       "env": {
         "minecraft": "26.3",
-        "architect": "0.86.0",
+        "architect": "0.87.0",
         "givenPrograms": true,
         "measuring": false,
-        "label": "m1_91700_1",
+        "label": "m1_91803_1",
         "request": {
           "op": "env"
         }
@@ -630,28 +630,28 @@
       "rule": "speed rule 4 (Noah 2026-11-13, AGENTS.md \"Module re-certification\"): a plain Architect version bump with the program and module.json unchanged but for the pins: fresh offline and ingame, the billing check (survival, and the bounds re-quoted equal to the carried ones item for item) and one field round; the full measurement is carried",
       "survival": {
         "step": "survival",
-        "at": "2026-11-20T06:22:57.176Z",
-        "head": "af902e86ab98d467fe81da7885f0966c8d72daaf",
-        "world": "Steward M4 Survival 202611200618",
-        "seconds": 262.086,
+        "at": "2026-11-20T09:33:09.111Z",
+        "head": "a29a5b031ae4717bd8ac664d169f94d39e408441",
+        "world": "Steward M4 Survival 202611200929",
+        "seconds": 223.929,
         "runs": null,
         "programSha": "9e6f1f15926fef6c9cdd77df276ee98aab08f36bdc7bbc06e2bffd73b179ef05",
-        "moduleJsonSha": "701f21401e5545786e0d7c7f772fe587ec1a95c43c9fb38eb48786751bc20056",
-        "architect": "0.86.0",
+        "moduleJsonSha": "da1b79191c8513197a6e376f154d35e7549845252a8ff4fbb9d292cc291cb36a",
+        "architect": "0.87.0",
         "minecraft": "26.3",
         "passed": 26,
         "of": 26
       },
       "bounds": {
         "step": "bounds",
-        "at": "2026-11-20T06:25:30.877Z",
-        "head": "af902e86ab98d467fe81da7885f0966c8d72daaf",
-        "world": "Steward M4 Bounds 202611200622",
-        "seconds": 153.598,
+        "at": "2026-11-20T09:34:27.163Z",
+        "head": "a29a5b031ae4717bd8ac664d169f94d39e408441",
+        "world": "Steward M4 Bounds 202611200933",
+        "seconds": 78.001,
         "runs": null,
         "programSha": "9e6f1f15926fef6c9cdd77df276ee98aab08f36bdc7bbc06e2bffd73b179ef05",
-        "moduleJsonSha": "701f21401e5545786e0d7c7f772fe587ec1a95c43c9fb38eb48786751bc20056",
-        "architect": "0.86.0",
+        "moduleJsonSha": "da1b79191c8513197a6e376f154d35e7549845252a8ff4fbb9d292cc291cb36a",
+        "architect": "0.87.0",
         "minecraft": "26.3",
         "passed": 58,
         "of": 58,
@@ -660,14 +660,14 @@
       "fields": [
         {
           "step": "hall",
-          "at": "2026-11-20T06:18:35.000Z",
-          "head": "af902e86ab98d467fe81da7885f0966c8d72daaf",
-          "world": "Steward M4 Hall 202611200607",
-          "seconds": 677.055,
+          "at": "2026-11-20T09:29:25.096Z",
+          "head": "a29a5b031ae4717bd8ac664d169f94d39e408441",
+          "world": "Steward M4 Hall 202611200921",
+          "seconds": 472.324,
           "runs": null,
           "programSha": "9e6f1f15926fef6c9cdd77df276ee98aab08f36bdc7bbc06e2bffd73b179ef05",
-          "moduleJsonSha": "701f21401e5545786e0d7c7f772fe587ec1a95c43c9fb38eb48786751bc20056",
-          "architect": "0.86.0",
+          "moduleJsonSha": "da1b79191c8513197a6e376f154d35e7549845252a8ff4fbb9d292cc291cb36a",
+          "architect": "0.87.0",
           "minecraft": "26.3",
           "passed": 218,
           "of": 218,

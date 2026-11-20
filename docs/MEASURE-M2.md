@@ -237,6 +237,16 @@ Speed rule 4 (Noah, 2026-11-13; AGENTS.md "Module re-certification") says when a
 
 ## Results
 
+**Carried to Architect 0.87.0 by a smoke check (2026-11-20, rc-087; speed rule 11b).** The pins moved to kit/checker 0.76.0, the program
+(`c406df05…`) unchanged, module.json with the old pins put back hashing to the carried moduleSha; the published 0.87.0 jar (sha256 `b89c6672…`).
+The re-measure triggers were read in `git diff v0.86.0 v0.87.0 -- kit mod/src/main`: realise.mjs and region/plan.mjs change only their version
+strings (kit 0.76.0); RTE2 changes district land ownership (land.mjs and DistrictLand.java: the longest district id, route-tagged streets, a
+join's long road groups), the ext of a grown district street's pieces in grow.mjs `emitGrowth` (metadata only, no block moves), tagged route
+passes' piece numbers in program.mjs (opt-in `tagEdges`; no module program routes) and plan check attribution in plan/compile.mjs; LYW3
+records mega_bench's ring wall as a wall. survival.mjs, quotes, the stockpile, FullBom and the lot realise path don't move. The billing check
+is the guard: survival 63/63, bounds 111/111, offline 295/295, ingame 292/292, field-potatoes 62/62 (5 runs; -3.6% to 7.9% per crop-day of
+the carried rates), ports 9126/9127, $0; e2e stub RC set 289/289 on 9126,9128.
+
 **Carried to Architect 0.86.0 by a smoke check (2026-11-19, mod-086; speed rule 11b).** The pins moved to kit/checker 0.75.0, the program
 (`c406df05…`) unchanged, module.json with the old pins put back hashing to the carried moduleSha; the published 0.86.0 jar (sha256 `1d73a68a…`).
 The re-measure triggers were read in `git diff v0.85.0 v0.86.0 -- kit mod/src/main`: realise.mjs and region/plan.mjs change only their version

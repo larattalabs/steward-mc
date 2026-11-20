@@ -252,6 +252,13 @@ survival vocab unchanged; QL only adds `Quote.terrain`). Fresh: offline 151/151,
 re-quoted bounds equal the carried ones), the hall round 218/218; e2e `module-hall` PASS 18. `record --smoke` works per module now: the
 hall's evidence is artifacts/m4 and its round is the deterministic hall step (the catalog's smoke check takes it).
 
+## 9m. Smoke carry to Architect 0.87.0 (2026-11-20, rc-087)
+
+Both halls carried to 0.87.0 (kit/checker pins moved to 0.76.0, programs unchanged, moduleShas with the old pins put back unchanged), on the
+published jar (sha256 `b89c6672…`). 0.87.0 adds RTE2 (district land ownership per district) and LYW3 (mega_bench's ring wall) and the kit
+0.76.0 strings; nothing a hall's build or bill uses moves. Fresh: @1 hall 218/218, bounds 58/58, survival 26/26; @2 hall 218/218, bounds
+382/382, sort-survival 19/19; offline 295/295, ingame 292/292; ports 9128/9129, $0.
+
 ## 9l. Smoke carry to Architect 0.86.0 (2026-11-19, mod-086)
 
 Both halls carried to 0.86.0 (kit/checker pins moved to 0.75.0, programs unchanged, moduleShas with the old pins put back unchanged), on the
