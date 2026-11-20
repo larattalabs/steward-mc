@@ -234,7 +234,8 @@ public final class Stockpiles {
 		} catch (UnsupportedOperationException | LinkageError e) {
 			return "This Architect has no stockpiles (it needs 0.20).";
 		} catch (RuntimeException e) {
-			return "No crate there: " + SettlementRunner.message(e);
+			Steward.LOGGER.info("stockpile of {}: crate at {} refused: {}", s.id(), at.toShortString(), SettlementRunner.message(e));
+			return "No crate there: " + RefusalWords.of(e) + "."; // (SOFF-WORDS) typed words, never Architect's text
 		}
 	}
 

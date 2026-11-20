@@ -24,6 +24,11 @@ public final class RefusalWords {
 	static final String GENERIC = "it couldn't be done just now"; // (raw-sweep) no second "Architect": most lines already name it before the colon
 	/** A refusal that waits on the helper or ran out of time. */
 	static final String NO_ANSWER = "Architect didn't answer in time";
+	/**
+	 * (SOFF-WORDS) A change Architect holds because a level has saving off ({@code /save-off}): its refusal's typed detail {@code saving_off:<dims>}
+	 * (Architect SOFF2; before it the refusal is a bare NOT_ALLOWED and says {@link #reason}'s line).
+	 */
+	static final String SAVING_OFF = "the world isn't saving right now (/save-off), so Architect is holding stockpile changes; it carries on after /save-on";
 
 	private RefusalWords() {
 	}
@@ -81,10 +86,15 @@ public final class RefusalWords {
 		if (err == null) return NO_ANSWER;
 		for (Throwable t = err; t != null; t = t.getCause() == t ? null : t.getCause()) {
 			if (t instanceof Own own && own.getMessage() != null) return own.getMessage();
-			if (t instanceof ArchitectRefused r) return reason(r.reason());
+			if (t instanceof ArchitectRefused r) return savingOff(r.detail()) ? SAVING_OFF : reason(r.reason());
 			if (t instanceof java.util.concurrent.TimeoutException) return NO_ANSWER;
 		}
 		return GENERIC;
+	}
+
+	/** (SOFF-WORDS) Whether a refusal's typed detail is Architect's saving-off hold ({@code saving_off} or {@code saving_off:<dims>}). Pure. */
+	static boolean savingOff(@Nullable String detail) {
+		return detail != null && (detail.equals("saving_off") || detail.startsWith("saving_off:"));
 	}
 
 	/** A fit's refusals in the steward's words, each typed reason once, in order. Pure. */
