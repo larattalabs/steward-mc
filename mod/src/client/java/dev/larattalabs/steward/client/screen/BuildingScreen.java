@@ -18,7 +18,6 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
  * or the &lt; &gt; beside the button choose it, the version it stood at before first; asks twice), back to the settlement. Client thread.
  */
 public final class BuildingScreen extends KitScreen {
-	private static final int ROW_H = 22;
 	private final SettlementView view;
 	private final Building b;
 	private final SettlementScreen back;
@@ -54,7 +53,14 @@ public final class BuildingScreen extends KitScreen {
 	}
 
 	@Override
+	protected dev.larattalabs.steward.ui.StewardHelp.Screen help() {
+		return dev.larattalabs.steward.ui.StewardHelp.Screen.BUILDING;
+	}
+
+	@Override
 	protected void draw(GuiGraphicsExtractor g, int mouseX, int mouseY) {
+		// (UI-PR-S) a history row's height at the text size (22 at 100 %)
+		final int ROW_H = twoLineRow(2);
 		Kit.Padding pad = Kit.padding("panel_paper");
 		int w = Math.min(420, width - 16);
 		int inner = w - pad.left() - pad.right();
@@ -65,10 +71,11 @@ public final class BuildingScreen extends KitScreen {
 		int cx = x + pad.left();
 		int top = y + pad.top();
 		Panels.header(g, font, b.role(), view.name(), UiBits.muted(), cx - 2, top - 2, inner + 4);
-		int fy = top + 18;
+		int fy = top + belowHeader() - 2;
+		fy += drawTip(g, cx, fy, inner, mouseX, mouseY) + 2;
 		String[] st = SettlementScreen.state(b);
 		UiBits.dotPill(g, font, st[0], st[1], cx, fy - 1, UiBits.ink());
-		fy += 16;
+		fy += 16 + grow();
 		fy = fact(g, cx, fy, inner, "Design", b.entry() + ", version " + b.version() + (b.updateAvailable() ? " (version " + b.head() + " is ready)"
 			: b.heldFrom() > 0 && b.head() > b.version() ? " (you went back from version " + b.heldFrom() + "; it is not offered again)" : b.head() > b.version() ? "" : " (the newest)"));
 		fy = fact(g, cx, fy, inner, "Your edits", b.edits() == 0 ? "none" : UiBits.plural(b.edits(), "block", "blocks")
@@ -76,10 +83,10 @@ public final class BuildingScreen extends KitScreen {
 		fy = fact(g, cx, fy, inner, "Where", (b.maxX() - b.minX() + 1) + " x " + (b.maxZ() - b.minZ() + 1) + " at " + b.minX() + ", " + b.minZ()
 			+ (b.lot() != null ? " (lot " + b.lot() + ")" : "") + " · site " + b.siteId());
 		// its history
-		int footerY = y + h - pad.bottom() - 10;
-		int actionsY = footerY - 10 - 20;
+		int footerY = y + h - pad.bottom() - lh(10);
+		int actionsY = footerY - lh(10) - 20;
 		g.text(font, "History", cx, fy + 2, UiBits.muted(), false);
-		fy += 14;
+		fy += lh(14);
 		int listH = actionsY - 4 - fy;
 		List<SettlementView.Op> ops = view.opsOf(b.siteId());
 		if (listH > 16) {
@@ -96,7 +103,7 @@ public final class BuildingScreen extends KitScreen {
 				g.text(font, when, cx + inner - 8 - font.width(when), ry, UiBits.muted(), false);
 				String change = o.changes().stream().filter(c -> c.siteId().equals(b.siteId())).findFirst().map(c -> c.from() < 0 ? " · to v" + c.to()
 					: c.from() == 0 ? " · placed at v" + c.to() : c.to() == 0 ? " · removed" : " · v" + c.from() + " to v" + c.to()).orElse("");
-				g.text(font, TextUtil.ellipsize(font, o.text() + change, inner - 22), cx + 15, ry + 10, UiBits.muted(), false);
+				g.text(font, TextUtil.ellipsize(font, o.text() + change, inner - 22), cx + 15, ry + lh(10), UiBits.muted(), false);
 			}
 		}
 		int bx = cx;
@@ -137,16 +144,17 @@ public final class BuildingScreen extends KitScreen {
 			if (keys != null) hs.addAll(java.util.List.of(keys, "act"));
 			if (b.version() > 2) hs.addAll(java.util.List.of("\u2190\u2192", "version"));
 			hs.addAll(java.util.List.of("Esc", "close"));
-			UiBits.hints(g, font, cx, footerY - 4, false, hs.toArray(String[]::new));
+			footerHints(g, cx, footerY - 4, inner, hs.toArray(String[]::new));
 		}
 	}
 
 	private int fact(GuiGraphicsExtractor g, int x, int y, int w, String label, String value) {
 		g.text(font, label, x, y, UiBits.muted(), false);
-		int lw = 70;
+		// (UI-PR-S) the label column holds the widest label at the text size
+		int lw = Math.max(70, font.width("Your edits") + 10);
 		for (String l : TextUtil.wrapPlain(font, value, w - lw)) {
 			g.text(font, l, x + lw, y, UiBits.ink(), false);
-			y += 10;
+			y += lh(10);
 		}
 		return y + 3;
 	}

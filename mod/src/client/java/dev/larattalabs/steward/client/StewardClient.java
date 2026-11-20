@@ -27,6 +27,11 @@ public class StewardClient implements ClientModInitializer {
 	@Override
 	public void onInitializeClient() {
 		Keys.ensureRegistered();
+		// (UI-PR-S) lab-ui L-0.6's player-ready pass: Steward's screens, nameplate, bubbles and board follow the text size; the stored text
+		// size and ghost palette apply now (idempotent: Architect applies them too); Steward's section of the shared glossary
+		dev.larattalabs.labui.ui.TextScale.optIn(dev.larattalabs.steward.client.screen.KitScreen.OWNER);
+		dev.larattalabs.labui.client.prefs.LabUiPrefs.applyStored();
+		dev.larattalabs.steward.ui.StewardGlossary.register();
 		net.minecraft.client.renderer.entity.EntityRenderers.register(dev.larattalabs.steward.entity.StewardEntity.TYPE, dev.larattalabs.steward.client.entity.StewardRenderer::new);
 		net.minecraft.client.renderer.blockentity.BlockEntityRenderers.register(dev.larattalabs.steward.block.StewardBlocks.BOARD_ENTITY,
 			ctx -> new dev.larattalabs.steward.client.world.BoardRenderer());

@@ -64,6 +64,11 @@ public final class DescribeScreen extends KitScreen {
 	}
 
 	@Override
+	protected dev.larattalabs.steward.ui.StewardHelp.Screen help() {
+		return dev.larattalabs.steward.ui.StewardHelp.Screen.DESCRIBE;
+	}
+
+	@Override
 	protected void draw(GuiGraphicsExtractor g, int mouseX, int mouseY) {
 		int w = Math.min(380, width - 16);
 		Kit.Padding pad = Kit.padding("panel_paper");
@@ -74,23 +79,24 @@ public final class DescribeScreen extends KitScreen {
 			+ " concept card you can check before anything is built.", inner);
 		java.util.List<String> ex = TextUtil.wrapPlain(font, EXAMPLES, inner);
 		int fh = fieldHeight(inner, st);
-		int h = pad.top() + 18 + help.size() * 10 + 6 + fh + 6 + ex.size() * 10 + 8 + 20 + 14 + pad.bottom();
+		int h = pad.top() + belowHeader() + tipHeight() + help.size() * lh(10) + 6 + fh + 6 + ex.size() * lh(10) + 8 + 20 + 4 + lh(10) + pad.bottom();
 		int x = (width - w) / 2;
 		int y = Math.max(8, (height - h) / 2);
 		Panels.panel(g, x, y, w, h);
 		int cx = x + pad.left();
 		int cy = y + pad.top();
 		Panels.header(g, font, "Settlement".equals(name) ? "Describe your settlement" : "Describe " + name, cx - 2, cy - 2, inner + 4);
-		cy += 18;
+		cy += belowHeader() - 2;
+		cy += drawTip(g, cx, cy, inner, mouseX, mouseY) + 2;
 		for (String l : help) {
 			g.text(font, l, cx, cy, UiBits.ink(), false);
-			cy += 10;
+			cy += lh(10);
 		}
 		cy += 6;
 		cy += drawField(g, cx, cy, inner, st) + 6;
 		for (String l : ex) {
 			g.text(font, l, cx, cy, UiBits.muted(), false);
-			cy += 10;
+			cy += lh(10);
 		}
 		cy += 8;
 		int bx = cx;
@@ -99,8 +105,7 @@ public final class DescribeScreen extends KitScreen {
 		cy += 24;
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, cy, statusError ? UiBits.errorText() : UiBits.muted(), false);
 		else {
-			String[] hints = {"Enter", "make the card", "Shift+Enter", "new line", "Tab", "leave the box"};
-			if (UiBits.hintsWidth(font, hints) <= inner) UiBits.hints(g, font, cx, cy - 2, false, hints);
+			footerHints(g, cx, cy - 2, inner, "Enter", "make the card", "Shift+Enter", "new line", "Tab", "leave the box");
 		}
 	}
 }

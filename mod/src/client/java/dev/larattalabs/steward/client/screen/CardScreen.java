@@ -30,7 +30,10 @@ import net.minecraft.client.input.KeyEvent;
  * spends; a click on Start takes one. The panel takes the height its content needs. Client thread.
  */
 public final class CardScreen extends KitScreen {
-	private static final int ROW_H = 22;
+	/** A program row's height at the text size (22 at 100 %). */
+	private static int rowH() {
+		return twoLineRow(2);
+	}
 	private final StewardNet.Card payload;
 	private final ConceptCard card;
 	private final int total;
@@ -208,14 +211,14 @@ public final class CardScreen extends KitScreen {
 
 	/** A fact row: the label, the wrapped value, a template pill after it; returns its height. */
 	private int fact(GuiGraphicsExtractor g, String label, String value, String template, int x, int y, int w, boolean draw) {
-		int lw = 50;
+		int lw = factLabelW();
 		List<String> lines = TextUtil.wrapPlain(font, value, w - lw);
 		if (draw) {
 			g.text(font, label, x, y, attention(), false);
 			int ly = y;
 			for (String l : lines) {
 				g.text(font, l, x + lw, ly, UiBits.ink(), false);
-				ly += 10;
+				ly += lh(10);
 			}
 			if (template != null && !template.isBlank()) {
 				String last = lines.isEmpty() ? "" : lines.get(lines.size() - 1);
@@ -223,11 +226,16 @@ public final class CardScreen extends KitScreen {
 				if (px + font.width(template) + 10 > x + w) {
 					px = x + lw;
 					ly += 1;
-				} else ly -= 10;
+				} else ly -= lh(10);
 				Panels.pill(g, font, template, px, ly, UiBits.muted());
 			}
 		}
-		return lines.size() * 10 + (template != null && !template.isBlank() && fitsAfter(lines, template, w - lw) ? 0 : template == null || template.isBlank() ? 0 : 12) + 4;
+		return lines.size() * lh(10) + (template != null && !template.isBlank() && fitsAfter(lines, template, w - lw) ? 0 : template == null || template.isBlank() ? 0 : 12 + grow()) + 4;
+	}
+
+	/** (UI-PR-S) The facts' label column: 50 px, or the widest label ("Purpose") and a gap at the text size. */
+	private int factLabelW() {
+		return Math.max(50, font.width("Purpose") + 10);
 	}
 
 	private boolean fitsAfter(List<String> lines, String template, int w) {
@@ -240,7 +248,7 @@ public final class CardScreen extends KitScreen {
 		h += fact(null, "Style", card.style().text(), card.style().template(), 0, 0, w, false);
 		h += fact(null, "Purpose", card.purpose().text(), card.purpose().template(), 0, 0, w, false);
 		if (story() != null) h += fact(null, "Story", story(), null, 0, 0, w, false);
-		if (!card.avoid().isEmpty()) h += 16;
+		if (!card.avoid().isEmpty()) h += 16 + grow();
 		return h;
 	}
 
@@ -253,6 +261,11 @@ public final class CardScreen extends KitScreen {
 
 	private String story() {
 		return card.story() == null || card.story().text() == null || card.story().text().isBlank() ? null : card.story().text();
+	}
+
+	@Override
+	protected dev.larattalabs.steward.ui.StewardHelp.Screen help() {
+		return dev.larattalabs.steward.ui.StewardHelp.Screen.CARD;
 	}
 
 	@Override
@@ -282,10 +295,10 @@ public final class CardScreen extends KitScreen {
 		int programRows = card.hasProgram() ? card.program().size() : 1;
 		int leftH = factsH;
 		// both tabs' heights, so switching tabs never moves the controls under them
-		int rightH = 18 + Math.max(Math.min(programRows, 8) * ROW_H, Math.min(well.size(), 12) * 10) + 6;
+		int rightH = chipH() + 4 + Math.max(Math.min(programRows, 8) * rowH(), Math.min(well.size(), 12) * lh(10)) + 6;
 		int bodyH = twoCol ? Math.max(leftH, rightH) : leftH + 8 + rightH;
-		int controlsH = 8 + 20 + 12 + 6 + 20 + 18;
-		int h = Math.min(height - 16, pad.top() + 18 + bodyH + controlsH + pad.bottom());
+		int controlsH = 8 + 20 + grow() + lh(12) + 6 + 20 + 8 + lh(10);
+		int h = Math.min(height - 16, pad.top() + belowHeader() + tipHeight() + bodyH + controlsH + pad.bottom());
 		int x = (width - w) / 2;
 		int y = Math.max(8, (height - h) / 2);
 		Panels.panel(g, x, y, w, h);
@@ -294,7 +307,8 @@ public final class CardScreen extends KitScreen {
 		int side = dev.larattalabs.steward.model.ClaimRules.side(payload.claimRadius());
 		String meta = "claim " + side + "×" + side + " (" + dev.larattalabs.steward.model.ClaimRules.sizeOf(payload.claimRadius()) + ") · terrain " + card.site().terrain();
 		Panels.header(g, font, payload.name(), meta, UiBits.muted(), cx - 2, top - 2, inner + 4);
-		int bodyTop = top + 18;
+		int bodyTop = top + belowHeader() - 2;
+		bodyTop += drawTip(g, cx, bodyTop, inner, mouseX, mouseY) + 2;
 		int controlsTop = y + h - pad.bottom() - controlsH;
 		int bodyBottom = controlsTop;
 		// left: facts, then the well
@@ -305,26 +319,27 @@ public final class CardScreen extends KitScreen {
 		if (story() != null) ly += fact(g, "Story", story(), null, cx, ly, colW, true);
 		if (!card.avoid().isEmpty()) {
 			g.text(font, "Avoid", cx, ly + 2, attention(), false);
-			int px = cx + 50;
+			int px = cx + factLabelW();
 			for (String a : card.avoid()) {
 				int pw = font.width(a) + 10;
 				if (px + pw > cx + colW) break;
 				px += Panels.pill(g, font, a, px, ly, attention()) + 3;
 			}
-			ly += 16;
+			ly += 16 + grow();
 		}
 		// what Steward cannot do yet for this card, where it is read before Start (Noah: shown before spending)
 		for (String l : limits()) {
-			if (ly + 10 > bodyBottom - 6) break;
+			if (ly + lh(10) > bodyBottom - 6) break;
 			// laid out as the facts above: the label in the same column, the text beside it
 			g.text(font, "Not yet", cx, ly, attention(), false);
 			// at most 3 lines here, a little clear of the right column; the whole text is under Interpretation
-			List<String> lines = TextUtil.wrapPlain(font, l, colW - 56);
+			int lw = factLabelW();
+			List<String> lines = TextUtil.wrapPlain(font, l, colW - lw - 6);
 			for (int i = 0; i < Math.min(3, lines.size()); i++) {
-				if (ly + 10 > bodyBottom - 6) break;
-				String line = i == 2 && lines.size() > 3 ? TextUtil.ellipsize(font, lines.get(i) + " " + lines.get(3), colW - 56) : lines.get(i);
-				g.text(font, line, cx + 50, ly, UiBits.ink(), false);
-				ly += 10;
+				if (ly + lh(10) > bodyBottom - 6) break;
+				String line = i == 2 && lines.size() > 3 ? TextUtil.ellipsize(font, lines.get(i) + " " + lines.get(3), colW - lw - 6) : lines.get(i);
+				g.text(font, line, cx + lw, ly, UiBits.ink(), false);
+				ly += lh(10);
 			}
 			ly += 6;
 		}
@@ -337,20 +352,20 @@ public final class CardScreen extends KitScreen {
 		int tx = rx;
 		tx += chip(g, t1, tx, ry, !showNotes, true, mouseX, mouseY, () -> showNotes = false) + 3;
 		chip(g, t2, tx, ry, showNotes, true, mouseX, mouseY, () -> showNotes = true);
-		ry += CHIP_H + 4;
-		int listH = Math.max(ROW_H + 6, bodyBottom - 4 - ry);
+		ry += chipH() + 4;
+		int listH = Math.max(rowH() + 6, bodyBottom - 4 - ry);
 		Panels.inset(g, rx, ry, colW, listH);
 		programArea = new int[] {rx, ry, colW, listH};
 		wellArea = programArea;
 		if (showNotes) {
-			int fitLines = Math.max(1, (listH - 6) / 10);
+			int fitLines = Math.max(1, (listH - 6) / lh(10));
 			// more than fits: the last row says how much more, as the builds list does, rather than a sentence cut off at the inset's edge
 			int view = well.size() > fitLines ? Math.max(1, fitLines - 1) : fitLines;
 			wellScroll = Math.max(0, Math.min(wellScroll, well.size() - view));
 			int wy = ry + 4;
 			for (int i = wellScroll; i < Math.min(well.size(), wellScroll + view); i++) {
 				g.text(font, well.get(i), rx + 5, wy, wellColors.get(i)[0], false);
-				wy += 10;
+				wy += lh(10);
 			}
 			if (well.size() > view) {
 				TextUtil.Scroll sc = new TextUtil.Scroll().update(well.size(), view);
@@ -360,21 +375,21 @@ public final class CardScreen extends KitScreen {
 				int below = well.size() - wellScroll - view;
 				if (below > 0) {
 					String more = "+" + below + " more line" + (below == 1 ? "" : "s") + " (scroll)";
-					g.text(font, more, rx + colW - font.width(more) - 14, ry + listH - 11, attention(), false);
+					g.text(font, more, rx + colW - font.width(more) - 14, ry + listH - lh(11), attention(), false);
 				}
 			}
 		} else if (!card.hasProgram()) {
 			int ey = ry + 4;
 			for (String l : TextUtil.wrapPlain(font, "No building program (described before programs existed): describe it again for buildings of its own.", colW - 12)) {
 				g.text(font, l, rx + 5, ey, UiBits.errorText(), false);
-				ey += 10;
+				ey += lh(10);
 			}
 		} else {
-			int fit = Math.max(1, (listH - 6) / ROW_H);
+			int fit = Math.max(1, (listH - 6) / rowH());
 			programScroll = Math.max(0, Math.min(programScroll, card.program().size() - fit));
 			for (int i = programScroll; i < Math.min(card.program().size(), programScroll + fit); i++) {
 				ConceptCard.Building b = card.program().get(i);
-				int iy = ry + 4 + (i - programScroll) * ROW_H;
+				int iy = ry + 4 + (i - programScroll) * rowH();
 				Panels.dot(g, b.landmark() ? "thinking" : "idle", rx + 5, iy + 1, false);
 				String fp = b.footprint();
 				int fpw = font.width(fp) + 10;
@@ -388,7 +403,7 @@ public final class CardScreen extends KitScreen {
 					case "high_ground" -> "on high ground · ";
 					default -> "";
 				};
-				g.text(font, TextUtil.ellipsize(font, where + (b.notes() == null ? b.type() : b.notes()), colW - 24), rx + 15, iy + 10, UiBits.muted(), false);
+				g.text(font, TextUtil.ellipsize(font, where + (b.notes() == null ? b.type() : b.notes()), colW - 24), rx + 15, iy + lh(10), UiBits.muted(), false);
 			}
 			if (card.program().size() > fit) {
 				TextUtil.Scroll sc = new TextUtil.Scroll().update(card.program().size(), fit);
@@ -399,8 +414,8 @@ public final class CardScreen extends KitScreen {
 				if (below > 0) {
 					String more = "+" + below + " more (scroll)";
 					int mw = font.width(more) + 8;
-					g.fill(rx + colW - mw - 10, ry + listH - 12, rx + colW - 10, ry + listH - 2, UiStyle.withAlpha(UiStyle.PAPER, 0xE0));
-					g.text(font, more, rx + colW - mw - 6, ry + listH - 11, attention(), false);
+					g.fill(rx + colW - mw - 10, ry + listH - 2 - lh(10), rx + colW - 10, ry + listH - 2, UiStyle.withAlpha(UiStyle.PAPER, 0xE0));
+					g.text(font, more, rx + colW - mw - 6, ry + listH - lh(11), attention(), false);
 				}
 			}
 		}
@@ -421,7 +436,7 @@ public final class CardScreen extends KitScreen {
 		g.text(font, "Budget", bx, cy + 3, UiBits.ink(), false);
 		bx += font.width("Budget") + 6;
 		drawField(g, bx, cy - 2, Math.min(80, cx + inner - bx), new TextFieldView.Style("$ ", UiBits.muted(), "USD", null, null, UiBits.muted(), 1));
-		cy += 20;
+		cy += 20 + grow();
 		var e = estimate();
 		int lm = BudgetPolicy.landmarksFor(size, buildings, flagged);
 		String range = String.format("About $%.0f–%.0f", e.usdLow(), e.usdHigh());
@@ -430,7 +445,7 @@ public final class CardScreen extends KitScreen {
 			copies > 0 ? " · " + copies + (copies == 1 ? " copy" : " copies") + " free" : "", (int) (BudgetPolicy.SOFT_FRACTION * 100));
 		g.text(font, range, cx, cy, UiBits.ink(), false);
 		g.text(font, TextUtil.ellipsize(font, rest, inner - font.width(range)), cx + font.width(range), cy, UiBits.muted(), false);
-		cy += 14;
+		cy += lh(14);
 		int ax = cx;
 		if (payload.busy()) {
 			ax += button(g, "Open the inbox", 1, true, false, true, ax, cy, mouseX, mouseY, () -> Minecraft.getInstance().gui.setScreen(new InboxScreen(payload.settlementId()))) + 6;
@@ -455,12 +470,11 @@ public final class CardScreen extends KitScreen {
 			ClientPlayNetworking.send(new StewardNet.Decide(payload.settlementId(), "expand", "", "", 0));
 			say("Growing the claim...", false);
 		});
-		int fy = y + h - pad.bottom() - 8;
+		int fy = y + h - pad.bottom() - lh(8);
 		// the armed start says what pressing again spends: clay text, the colour of what waits on the player, not the muted of a passing note
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, fy - 2, statusError ? UiBits.errorText() : confirmShown && !sent ? attention() : UiBits.muted(), false);
 		else {
-			String[] hints = {"←→", "buildings", "Tab", "builds / interpretation", "Enter ×2", "start", "Esc", "close"};
-			if (UiBits.hintsWidth(font, hints) <= inner) UiBits.hints(g, font, cx, fy - 4, false, hints);
+			footerHints(g, cx, fy - 4, inner, "←→", "buildings", "Tab", "builds / interpretation", "Enter ×2", "start", "Esc", "close");
 		}
 	}
 
@@ -481,7 +495,7 @@ public final class CardScreen extends KitScreen {
 	}
 
 	@Override
-	public boolean keyPressed(KeyEvent e) {
+	protected boolean onKey(KeyEvent e) {
 		boolean enter = TextKeys.isEnter(e) && !e.hasShiftDown();
 		// Enter (in the budget box or not) starts on the second press, as 1 does while it is Start's number (the base class would focus the box, or start
 		// on the first press); busy, Enter says why and 1 opens the inbox
@@ -501,7 +515,7 @@ public final class CardScreen extends KitScreen {
 			showNotes = !showNotes;
 			return true;
 		}
-		return super.keyPressed(e);
+		return super.onKey(e);
 	}
 
 	@Override

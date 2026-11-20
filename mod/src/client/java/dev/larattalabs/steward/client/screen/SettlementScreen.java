@@ -28,7 +28,10 @@ public final class SettlementScreen extends KitScreen {
 	enum Tab { BUILDINGS, HISTORY, CLAIM, SETTINGS }
 
 	private static final int MAX_W = 500;
-	private static final int ROW_H = 22;
+	/** A list row's height at the text size (22 at 100 %: two lines and a gap). */
+	private static int rowH() {
+		return twoLineRow(2);
+	}
 	/** The reach of "Claim my build here" (the command's 1-15): a house's floor round the player. */
 	static final int CLAIM_REACH = 8;
 	private final SettlementView view;
@@ -95,6 +98,11 @@ public final class SettlementScreen extends KitScreen {
 	}
 
 	@Override
+	protected dev.larattalabs.steward.ui.StewardHelp.Screen help() {
+		return dev.larattalabs.steward.ui.StewardHelp.Screen.SETTLEMENT;
+	}
+
+	@Override
 	protected void draw(GuiGraphicsExtractor g, int mouseX, int mouseY) {
 		Kit.Padding pad = Kit.padding("panel_paper");
 		int w = Math.min(MAX_W, width - 16);
@@ -108,8 +116,10 @@ public final class SettlementScreen extends KitScreen {
 		String sub = UiBits.plural(view.buildings().size(), "building", "buildings") + " · " + view.claim().side() + " x " + view.claim().side()
 			+ (view.busy() ? " · building now" : "");
 		Panels.header(g, font, view.name(), sub, UiBits.muted(), cx - 2, top - 2, inner + 4);
-		// tabs
-		int ty = top + 16;
+		// (UI-PR-S) the "what's this" line under the header, then the tabs
+		int ty = top + Panels.headerH() + 2;
+		int tipH = drawTip(g, cx, ty, inner, mouseX, mouseY);
+		ty += tipH > 0 ? tipH + 1 : 0;
 		int tx = cx;
 		for (Tab t : Tab.values()) {
 			String label = switch (t) {
@@ -120,9 +130,9 @@ public final class SettlementScreen extends KitScreen {
 			};
 			tx += chip(g, label, tx, ty, tab == t, true, mouseX, mouseY, () -> setTab(t)) + 3;
 		}
-		int bodyTop = ty + CHIP_H + 6;
-		int footerY = y + h - pad.bottom() - 10;
-		int actionsY = footerY - 10 - 20;
+		int bodyTop = ty + chipH() + 6;
+		int footerY = y + h - pad.bottom() - lh(10);
+		int actionsY = footerY - lh(10) - 20;
 		int bodyH = actionsY - 4 - bodyTop;
 		rowIds.clear();
 		rowRects.clear();
@@ -145,7 +155,7 @@ public final class SettlementScreen extends KitScreen {
 			if (tab == Tab.BUILDINGS && !view.buildings().isEmpty()) hs.addAll(java.util.List.of("↑↓←→", "choose", "Enter", "open"));
 			if (tab == Tab.CLAIM && !fieldFocused) hs.addAll(java.util.List.of("Enter", "name a district"));
 			hs.addAll(java.util.List.of("Tab", "next tab", "Esc", "close"));
-			UiBits.hints(g, font, cx, footerY - 4, false, hs.toArray(String[]::new));
+			footerHints(g, cx, footerY - 4, inner, hs.toArray(String[]::new));
 		}
 	}
 
@@ -199,7 +209,7 @@ public final class SettlementScreen extends KitScreen {
 		if (why.stream().anyMatch(l -> font.width(l) > room)) footerWhy = String.join("  ", why);
 		else if (!why.isEmpty()) {
 			int ly = why.size() > 1 ? y + 1 : y + 6;
-			for (int i = 0; i < Math.min(2, why.size()); i++) g.text(font, TextUtil.ellipsize(font, why.get(i), room), bx + 2, ly + i * 10, UiBits.muted(), false);
+			for (int i = 0; i < Math.min(2, why.size()); i++) g.text(font, TextUtil.ellipsize(font, why.get(i), room), bx + 2, ly + i * lh(10), UiBits.muted(), false);
 		}
 	}
 
@@ -234,30 +244,30 @@ public final class SettlementScreen extends KitScreen {
 		// between towns); the hint line runs under the map's own edges, widened (centred) when the map is too narrow for a name and "north is up".
 		int colMax = w / 2 - 8;
 		int[] bounds = map ? mapBounds() : null;
-		int[] area = map ? MapFrame.area(bounds[2] + 1 - bounds[0], bounds[3] + 1 - bounds[1], colMax - 16, Math.min(h - legendHeight(), colMax) - HINT_H - 16,
+		int[] area = map ? MapFrame.area(bounds[2] + 1 - bounds[0], bounds[3] + 1 - bounds[1], colMax - 16, Math.min(h - legendHeight(), colMax) - hintH() - 16,
 			MAP_MIN_W - 16) : null;
 		int mapW = map ? area[0] + 16 : 0, mapH = map ? area[1] + 16 : 0;
-		int col = map ? Math.max(colMax, LEGEND_MIN_W) : 0;
+		int col = map ? Math.max(colMax, legendMinW()) : 0;
 		int lw = map ? w - col - 8 : w;
 		Panels.inset(g, x, y, lw, h);
-		int fit = Math.max(1, (h - 6) / ROW_H);
+		int fit = Math.max(1, (h - 6) / rowH());
 		List<Building> all = view.buildings();
 		scroll = Math.max(0, Math.min(scroll, all.size() - fit));
 		hovered = null;
 		for (int i = scroll; i < Math.min(all.size(), scroll + fit); i++) {
 			Building b = all.get(i);
-			int ry = y + 4 + (i - scroll) * ROW_H;
-			boolean hov = mx >= x && mx < x + lw && my >= ry - 2 && my < ry + ROW_H - 2;
-			if (b.siteId().equals(selected)) Panels.selectedRow(g, x + 2, ry - 2, lw - 4, ROW_H - 1);
-			else if (hov) Panels.hoverRow(g, x + 2, ry - 2, lw - 4, ROW_H - 1);
+			int ry = y + 4 + (i - scroll) * rowH();
+			boolean hov = mx >= x && mx < x + lw && my >= ry - 2 && my < ry + rowH() - 2;
+			if (b.siteId().equals(selected)) Panels.selectedRow(g, x + 2, ry - 2, lw - 4, rowH() - 1);
+			else if (hov) Panels.hoverRow(g, x + 2, ry - 2, lw - 4, rowH() - 1);
 			if (hov) hovered = b.siteId();
 			String[] st = state(b);
-			Panels.dot(g, st[0], x + 5, ry + 1, false);
+			stateMark(g, st[0], x + 5, ry + 1);
 			g.text(font, TextUtil.ellipsize(font, b.role(), lw - 20), x + 15, ry, UiBits.ink(), false);
 			String detail = st[1] + (b.edits() > 0 ? " · " + b.edits() + " of your edits kept" : "") + " · " + b.siteId();
-			g.text(font, TextUtil.ellipsize(font, detail, lw - 20), x + 15, ry + 10, UiBits.muted(), false);
+			g.text(font, TextUtil.ellipsize(font, detail, lw - 20), x + 15, ry + lh(10), UiBits.muted(), false);
 			rowIds.add(b.siteId());
-			rowRects.add(new int[] {x, ry - 2, lw, ROW_H});
+			rowRects.add(new int[] {x, ry - 2, lw, rowH()});
 		}
 		if (all.size() > fit) {
 			TextUtil.Scroll sc = new TextUtil.Scroll().update(all.size(), fit);
@@ -270,7 +280,7 @@ public final class SettlementScreen extends KitScreen {
 			int mx0 = cx + (col - mapW) / 2, hw = Math.min(col, Math.max(mapW, HINT_MIN_W));
 			drawMap(g, bounds, mx0, y, mapW, mapH, mx, my);
 			drawHint(g, cx + (col - hw) / 2, y + mapH + 3, hw);
-			drawLegend(g, cx, y + mapH + HINT_H + 4, col);
+			drawLegend(g, cx, y + mapH + hintH() + 4, col);
 		}
 	}
 
@@ -279,39 +289,43 @@ public final class SettlementScreen extends KitScreen {
 	 * the claim's edge and the stone), so the map keeps one size whatever the plan holds.
 	 */
 	private static int legendHeight() {
-		return 4 * 11 + 2;
+		return 4 * lh(11) + 2;
 	}
 
 	/** (slice LYW) The legend's columns, and the narrowest the map and legend go so each column's words fit ("crossing" the widest). */
 	private static final int LEGEND_COLS = 3;
-	private static final int LEGEND_MIN_W = 3 * 60;
+	/** (UI-PR-S) at least 60 px a column, or the widest word ("crossing") and its swatch at the text size. */
+	private int legendMinW() {
+		return LEGEND_COLS * Math.max(60, font.width("crossing") + 16);
+	}
 	/** (MAP-P3B) The hint line's row under the map ("north is up" and the hovered name), and the narrowest the map's inset goes. */
-	private static final int HINT_H = 12;
+	private static int hintH() {
+		return lh(12);
+	}
 	private static final int MAP_MIN_W = 48, HINT_MIN_W = 140;
 
 	/** A map footprint's fill for its state's family (each mark also gets a dark edge: at least 3:1 against the inset whatever its fill). */
 	static int fill(String family) {
-		return switch (family) {
-			case "waiting", "error" -> UiStyle.CLAY;
-			case "working" -> UiStyle.BRASS;
-			case "done" -> UiStyle.SAGE;
-			default -> IDLE;
-		};
+		// (UI-PR-S) in lab-ui's ghost palette (Architect's Status sets it): Okabe-Ito takes the ghosts' colours for the same meanings
+		return dev.larattalabs.steward.view.MapColors.fill(family, dev.larattalabs.labui.ui.GhostPalette.current(), STANDARD);
 	}
 
+	/** The kit's state colours, the standard palette's. */
+	static final dev.larattalabs.steward.view.MapColors.Standard STANDARD = new dev.larattalabs.steward.view.MapColors.Standard(UiStyle.SAGE, UiStyle.BRASS,
+		UiStyle.CLAY);
 	/** An idle (planned, held) building's fill: a stone grey, darker than the disabled text it was (#A39B8E, about 2.1:1 on the inset). */
-	static final int IDLE = 0xFF857B6E;
+	static final int IDLE = dev.larattalabs.steward.view.MapColors.IDLE;
 	/** The edge of every footprint, the walls and the stone. */
 	static final int MARK_EDGE = UiStyle.WALNUT;
 	/** The claim's edge: opaque clay (3.76:1 on the inset, lab-ui's figure for CLAY_DARK). */
 	static final int CLAIM_EDGE = UiStyle.CLAY_DARK;
 	/** A built road: an earth brown (3.8:1 on the inset), apart from the sage of a built house; a road being built or waiting takes its state's fill. */
-	static final int ROAD = 0xFF8A6A45;
+	static final int ROAD = dev.larattalabs.steward.view.MapColors.ROAD;
 	/**
 	 * (slice LYW) A built wall and the lots on it: a dark stone grey (about 7:1 on the inset), well apart from the planned grey and the roads' brown;
 	 * drawn as a band, never a square swatch.
 	 */
-	static final int WALL = 0xFF4A443D;
+	static final int WALL = dev.larattalabs.steward.view.MapColors.WALL;
 	/**
 	 * (slice LYW) A tower's centre: a lighter stone than the wall, inside a 2-pixel walnut frame (a pad's edge is 1 pixel). (LYW-P3) A pale stone, well
 	 * lighter than the planned grey (IDLE) it sat too close to, and still darker than the cream of the stone and the gates.
@@ -374,7 +388,7 @@ public final class SettlementScreen extends KitScreen {
 		int col = w / LEGEND_COLS;
 		for (int i = 0; i < items.size(); i++) {
 			if (items.get(i) == null) continue;
-			int ix = x + (i % LEGEND_COLS) * col, iy = y + (i / LEGEND_COLS) * 11;
+			int ix = x + (i % LEGEND_COLS) * col, iy = y + (i / LEGEND_COLS) * lh(11);
 			switch (items.get(i)[0]) {
 				case "claim" -> box(g, ix, iy, ix + 8, iy + 8, CLAIM_EDGE);
 				case "stone" -> stone(g, ix + 4, iy + 4);
@@ -403,6 +417,19 @@ public final class SettlementScreen extends KitScreen {
 			}
 			g.text(font, TextUtil.ellipsize(font, items.get(i)[1], col - 12), ix + 11, iy, UiBits.muted(), false);
 		}
+	}
+
+	/**
+	 * (UI-PR-S) A building's state mark in the list: lab-ui's dot, or under the Okabe-Ito palette the map's own swatch (its fill, edged walnut), so
+	 * the list, the map and its legend say a state in one colour (lab-ui's dots have no Okabe-Ito set yet: an ask).
+	 */
+	private void stateMark(GuiGraphicsExtractor g, String family, int x, int y) {
+		if (dev.larattalabs.labui.ui.GhostPalette.current() != dev.larattalabs.labui.ui.GhostPalette.Palette.OKABE_ITO) {
+			Panels.dot(g, family, x, y, false);
+			return;
+		}
+		g.fill(x, y, x + 7, y + 7, fill(family));
+		box(g, x, y, x + 7, y + 7, MARK_EDGE);
 	}
 
 	/** The Founding Stone's mark: a 7-pixel walnut square with a cream centre, centred on a pixel (the same in the legend). */
@@ -695,14 +722,14 @@ public final class SettlementScreen extends KitScreen {
 	private void drawHistory(GuiGraphicsExtractor g, int x, int y, int w, int h) {
 		Panels.inset(g, x, y, w, h);
 		List<SettlementView.Op> ops = view.history();
-		int fit = Math.max(1, (h - 6) / ROW_H);
+		int fit = Math.max(1, (h - 6) / rowH());
 		scroll = Math.max(0, Math.min(scroll, ops.size() - fit));
 		for (int i = scroll; i < Math.min(ops.size(), scroll + fit); i++) {
 			SettlementView.Op o = ops.get(i);
-			int ry = y + 4 + (i - scroll) * ROW_H;
+			int ry = y + 4 + (i - scroll) * rowH();
 			// the operation Undo takes up (as the server chose it): marked, and named on the button's first press
 			boolean next = view.undo() != null && o.op() != null && o.op().equals(view.undo().op());
-			if (next) Panels.selectedRow(g, x + 2, ry - 2, w - 4, ROW_H - 1);
+			if (next) Panels.selectedRow(g, x + 2, ry - 2, w - 4, rowH() - 1);
 			Panels.dot(g, outcomeFamily(o), x + 5, ry + 1, false);
 			String when = UiBits.ago(o.at());
 			g.text(font, kindLabel(o.kind()), x + 15, ry, UiBits.ink(), false);
@@ -712,7 +739,7 @@ public final class SettlementScreen extends KitScreen {
 				case "REVERT_VERSION" -> " · revertible";
 				default -> "";
 			};
-			g.text(font, TextUtil.ellipsize(font, o.text() + undo, w - 22), x + 15, ry + 10, UiBits.muted(), false);
+			g.text(font, TextUtil.ellipsize(font, o.text() + undo, w - 22), x + 15, ry + lh(10), UiBits.muted(), false);
 		}
 		if (ops.size() > fit) {
 			TextUtil.Scroll sc = new TextUtil.Scroll().update(ops.size(), fit);
@@ -722,25 +749,30 @@ public final class SettlementScreen extends KitScreen {
 		}
 		if (view.historyTotal() > ops.size()) {
 			String more = "the newest " + ops.size() + " of " + view.historyTotal();
-			g.text(font, more, x + w - 8 - font.width(more), y + h - 11, UiBits.muted(), false);
+			g.text(font, more, x + w - 8 - font.width(more), y + h - lh(11), UiBits.muted(), false);
 		}
 	}
 
 	// ------------------------------------------------------------------ claim and settings
 
+	/** (UI-PR-S) The Claim and Settings tabs' label column: 90 px, or the widest label and a gap at the text size. */
+	private int labelW() {
+		return Math.max(90, font.width("Permission") + 10);
+	}
+
 	private int fact(GuiGraphicsExtractor g, int x, int y, int w, String label, String value) {
 		g.text(font, label, x, y, UiBits.muted(), false);
-		int lw = 90;
+		int lw = labelW();
 		List<String> lines = TextUtil.wrapPlain(font, value, w - lw);
 		for (String l : lines) {
 			g.text(font, l, x + lw, y, UiBits.ink(), false);
-			y += 10;
+			y += lh(10);
 		}
 		return y + 4;
 	}
 
 	private int factHeight(int w, String value) {
-		return TextUtil.wrapPlain(font, value, w - 90).size() * 10 + 4;
+		return TextUtil.wrapPlain(font, value, w - labelW()).size() * lh(10) + 4;
 	}
 
 	/** The size a district founded from the Claim tab takes (S or M). */
@@ -756,8 +788,9 @@ public final class SettlementScreen extends KitScreen {
 	 */
 	private void drawClaim(GuiGraphicsExtractor g, int x, int y, int w, int h, int mx, int my) {
 		Panels.inset(g, x, y, w, h);
+		final int LW = labelW();
 		var c = view.claim();
-		int fx = x + 8, fw = w - 16, lx = fx + 90;
+		int fx = x + 8, fw = w - 16, lx = fx + LW;
 		List<Row> rows = new ArrayList<>();
 		String size = c.side() + " x " + c.side() + " blocks (" + c.size() + "), centred on " + c.centerX() + ", " + c.centerZ() + " in " + c.dimension().replace("minecraft:", "");
 		rows.add(new Row(factHeight(fw, size), ry -> fact(g, fx, ry, fw, "Size", size)));
@@ -781,7 +814,7 @@ public final class SettlementScreen extends KitScreen {
 		rows.add(new Row(ROW_BUTTON_H + 2, ry -> {
 			g.text(font, "Hand-built", fx, ry + 5, UiBits.muted(), false);
 			String what = view.playerBuilds().isEmpty() ? "None tracked. Stand in an old build to claim it." : "Kept as built.";
-			g.text(font, TextUtil.ellipsize(font, what, fw - 90 - cbw - 6), lx, ry + 5, UiBits.ink(), false);
+			g.text(font, TextUtil.ellipsize(font, what, fw - LW - cbw - 6), lx, ry + 5, UiBits.ink(), false);
 			option(g, claimLabel, x + w - 8 - cbw, ry, false, true, mx, my, () -> send("build_claim", "", "Claiming the build you stand in", CLAIM_REACH));
 		}));
 		for (var b : view.playerBuilds()) {
@@ -790,14 +823,14 @@ public final class SettlementScreen extends KitScreen {
 				int aw = rowButtonWidth(adopt), rw = rowButtonWidth(release);
 				int bx = x + w - 8 - rw;
 				String line = what(b) + " by " + b.by() + (b.provisional() ? " (still going up)" : "") + " · " + b.id();
-				g.text(font, TextUtil.ellipsize(font, line, fw - 90 - aw - rw - 12), lx, ry + 5, UiBits.ink(), false);
+				g.text(font, TextUtil.ellipsize(font, line, fw - LW - aw - rw - 12), lx, ry + 5, UiBits.ink(), false);
 				// taken on as one of the settlement's buildings, unchanged (undone from the History tab); released: no longer kept from builds
 				rowButton(g, adopt, false, !b.provisional() && !view.busy(), bx - 4 - aw, ry, mx, my, () -> send("build_adopt", b.id(), "Taking it on"));
 				rowButton(g, release, false, true, bx, ry, mx, my, () -> send("build_release", b.id(), "Releasing it"));
 			}));
 		}
 		// districts: one each way, founded with a road to the town ($0), named as the player types
-		if (view.districts().isEmpty()) rows.add(new Row(12, ry -> {
+		if (view.districts().isEmpty()) rows.add(new Row(lh(12), ry -> {
 			g.text(font, "Districts", fx, ry, UiBits.muted(), false);
 			g.text(font, "None yet.", lx, ry, UiBits.ink(), false);
 		}));
@@ -807,17 +840,17 @@ public final class SettlementScreen extends KitScreen {
 			// a region district says where it stands (reserved, being built) and anything the player should know (its road to the town gone)
 			String where = "square".equals(d.kind()) ? "" : "reserved".equals(d.state()) ? " · reserved beside the town" : "building".equals(d.state()) ? " · being built" : " · beside the town";
 			String line = d.name() + " · " + d.side() + " x " + d.side() + " · " + UiBits.plural(d.buildings(), "building", "buildings") + (d.roads() > 1 ? " · street linked" : "") + where;
-			rows.add(new Row(d.note() != null ? 22 : 11, ry -> {
+			rows.add(new Row(d.note() != null ? 2 * lh(11) : lh(11), ry -> {
 				if (first) g.text(font, "Districts", fx, ry, UiBits.muted(), false);
-				g.text(font, TextUtil.ellipsize(font, line, fw - 90), lx, ry, UiBits.ink(), false);
+				g.text(font, TextUtil.ellipsize(font, line, fw - LW), lx, ry, UiBits.ink(), false);
 				// what the player should know of it: its own line, so a long name never hides it
-				if (d.note() != null) g.text(font, TextUtil.ellipsize(font, "  " + d.note(), fw - 90), lx, ry + 11, attention(), false);
+				if (d.note() != null) g.text(font, TextUtil.ellipsize(font, "  " + d.note(), fw - LW), lx, ry + lh(11), attention(), false);
 			}));
 		}
 		TextFieldView.Style nameStyle = new TextFieldView.Style(null, 0, (fieldFocused ? " " : "") + "a name for the next district (optional)", null, null, UiBits.muted(), 1);
-		rows.add(new Row(Math.max(ROW_BUTTON_H, fieldHeight(fw - 90, nameStyle)) + 4, ry -> {
+		rows.add(new Row(Math.max(ROW_BUTTON_H, fieldHeight(fw - LW, nameStyle)) + 4, ry -> {
 			g.text(font, "Name", fx, ry + 5, UiBits.muted(), false);
-			drawField(g, lx, ry, Math.min(220, fw - 90), nameStyle);
+			drawField(g, lx, ry, Math.min(220, fw - LW), nameStyle);
 		}));
 		rows.add(new Row(ROW_BUTTON_H + 4, ry -> {
 			int bx = lx;
@@ -856,10 +889,15 @@ public final class SettlementScreen extends KitScreen {
 			rows.add(new Row(ROW_BUTTON_H + 2, ry -> {
 				String line = a.label() + " · " + (a.x1() - a.x0() + 1) + " x " + (a.z1() - a.z0() + 1);
 				int cw = optionWidth("Clear");
-				g.text(font, TextUtil.ellipsize(font, line, fw - 90 - cw - 6), lx, ry + 5, UiBits.ink(), false);
+				g.text(font, TextUtil.ellipsize(font, line, fw - LW - cw - 6), lx, ry + 5, UiBits.ink(), false);
 				option(g, "Clear", x + w - 8 - cw, ry, false, true, mx, my, () -> send("unprotect", a.id(), "Clearing the protected area"));
 			}));
 		}
+		drawRows(g, rows, x, y, w, h);
+	}
+
+	/** Rows in an inset, scrolled by whole rows (the wheel, or the arrows) when they don't all fit: the first shown is {@code scroll}. */
+	private void drawRows(GuiGraphicsExtractor g, List<Row> rows, int x, int y, int w, int h) {
 		// scrolled by whole rows: the first shown is `scroll`; as many as fit after it
 		int top = y + 8, bottom = y + h - 4;
 		int total = 0;
@@ -890,39 +928,72 @@ public final class SettlementScreen extends KitScreen {
 
 	private void drawSettings(GuiGraphicsExtractor g, int x, int y, int w, int h, int mx, int my) {
 		Panels.inset(g, x, y, w, h);
-		int fx = x + 8, fy = y + 8, fw = w - 16;
+		final int LW = labelW();
+		int fx = x + 8, fw = w - 16;
+		List<Row> rows = new ArrayList<>();
 		// the permission level: a chip each, the current one lit (host only: the server refuses a guest)
-		g.text(font, "Permission", fx, fy + 5, UiBits.muted(), false);
-		int cx = fx + 90;
-		for (String p : new String[] {"OBSERVER", "PROPOSALS", "AUTONOMOUS", "FULL"}) {
-			String label = p.charAt(0) + p.substring(1).toLowerCase();
-			cx += option(g, label, cx, fy, p.equals(view.permission()), true, mx, my, () -> send("permission", p, "Setting the permission")) + 3;
-		}
-		fy += ROW_BUTTON_H + 4;
-		fy = fact(g, fx, fy, fw, "", switch (view.permission()) {
+		rows.add(new Row(ROW_BUTTON_H + 4, fy -> {
+			g.text(font, "Permission", fx, fy + 5, UiBits.muted(), false);
+			int cx = fx + LW;
+			for (String p : new String[] {"OBSERVER", "PROPOSALS", "AUTONOMOUS", "FULL"}) {
+				String label = p.charAt(0) + p.substring(1).toLowerCase();
+				cx += option(g, label, cx, fy, p.equals(view.permission()), true, mx, my, () -> send("permission", p, "Setting the permission")) + 3;
+			}
+		}));
+		String perm = switch (view.permission()) {
 			case "OBSERVER" -> "Asks about everything.";
 			case "PROPOSALS" -> "You approve each project; its ideas wait in the inbox.";
 			case "AUTONOMOUS" -> "Builds its own ideas within the weekly allowance; asks before demolitions and new districts.";
 			case "FULL" -> "Acts on its own within the weekly allowance; the history can undo it.";
 			default -> view.permission();
-		});
+		};
+		rows.add(new Row(factHeight(fw, perm), fy -> fact(g, fx, fy, fw, "", perm)));
 		// the weekly allowance: what it may spend on its own at Autonomous and Full
-		g.text(font, "Allowance", fx, fy + 5, UiBits.muted(), false);
-		String a = String.format("$%.0f a week", view.weeklyUsd());
-		g.text(font, a, fx + 90, fy + 5, UiBits.ink(), false);
-		int ax = fx + 90 + font.width(a) + 8;
-		ax += option(g, "- $50", ax, fy, false, view.weeklyUsd() > 50, mx, my, () -> send("allowance", "", "Lowering the allowance", Math.max(dev.larattalabs.steward.service.Actions.MIN_ALLOWANCE,
-			view.weeklyUsd() - 50))) + 3;
-		option(g, "+ $50", ax, fy, false, view.weeklyUsd() < dev.larattalabs.steward.service.Actions.MAX_ALLOWANCE, mx, my, () -> send("allowance", "", "Raising the allowance",
-			Math.min(dev.larattalabs.steward.service.Actions.MAX_ALLOWANCE, view.weeklyUsd() + 50)));
-		fy += ROW_BUTTON_H + 4;
-		fy = fact(g, fx, fy, fw, "", String.format("Spent on its own this week: $%.0f.", view.spentWeekUsd()));
-		fact(g, fx, fy, fw, "Difficulty", switch (view.difficulty()) {
+		rows.add(new Row(ROW_BUTTON_H + 4, fy -> {
+			g.text(font, "Allowance", fx, fy + 5, UiBits.muted(), false);
+			String a = String.format("$%.0f a week", view.weeklyUsd());
+			g.text(font, a, fx + LW, fy + 5, UiBits.ink(), false);
+			int ax = fx + LW + font.width(a) + 8;
+			ax += option(g, "- $50", ax, fy, false, view.weeklyUsd() > 50, mx, my, () -> send("allowance", "", "Lowering the allowance", Math.max(
+				dev.larattalabs.steward.service.Actions.MIN_ALLOWANCE, view.weeklyUsd() - 50))) + 3;
+			option(g, "+ $50", ax, fy, false, view.weeklyUsd() < dev.larattalabs.steward.service.Actions.MAX_ALLOWANCE, mx, my, () -> send("allowance", "",
+				"Raising the allowance", Math.min(dev.larattalabs.steward.service.Actions.MAX_ALLOWANCE, view.weeklyUsd() + 50)));
+		}));
+		String spent = String.format("Spent on its own this week: $%.0f.", view.spentWeekUsd());
+		rows.add(new Row(factHeight(fw, spent), fy -> fact(g, fx, fy, fw, "", spent)));
+		String diff = switch (view.difficulty()) {
 			case "PATRON" -> "Patron: free, instant builds";
 			case "SUPPLIED" -> "Supplied: builds from a stockpile";
 			case "HARDCORE" -> "Hardcore: you gather everything";
 			default -> view.difficulty();
-		});
+		};
+		rows.add(new Row(factHeight(fw, diff) + 2, fy -> fact(g, fx, fy, fw, "Difficulty", diff)));
+		// (UI-PR-S) lab-ui's shared display settings (the same as Architect's Status tab; they apply to both mods): the text size, the ghost and
+		// map colours, and the screens' "what's this" lines
+		rows.add(new Row(ROW_BUTTON_H + 4, fy -> {
+			g.text(font, "Text size", fx, fy + 5, UiBits.muted(), false);
+			int cx = fx + LW;
+			int now = dev.larattalabs.labui.ui.TextScale.preference();
+			for (int pct : dev.larattalabs.labui.ui.TextScale.STEPS) {
+				cx += option(g, pct + " %", cx, fy, pct == now, true, mx, my, () -> dev.larattalabs.labui.client.prefs.TextScaleHost.set(pct)) + 3;
+			}
+		}));
+		rows.add(new Row(ROW_BUTTON_H + 4, fy -> {
+			g.text(font, "Colours", fx, fy + 5, UiBits.muted(), false);
+			int cx = fx + LW;
+			var cur = dev.larattalabs.labui.ui.GhostPalette.current();
+			for (var p : dev.larattalabs.labui.ui.GhostPalette.Palette.values()) {
+				cx += option(g, p.label(), cx, fy, p == cur, true, mx, my, () -> dev.larattalabs.labui.client.prefs.LabUiPrefs.setGhostPalette(p)) + 3;
+			}
+		}));
+		rows.add(new Row(ROW_BUTTON_H + 4, fy -> {
+			g.text(font, "Tips", fx, fy + 5, UiBits.muted(), false);
+			option(g, "Show tips again", fx + LW, fy, false, true, mx, my, () -> {
+				dev.larattalabs.labui.client.prefs.LabUiPrefs.tips().showAll();
+				say("The \"what's this\" lines are back on Steward's screens.", false);
+			});
+		}));
+		drawRows(g, rows, x, y, w, h);
 	}
 
 	// ------------------------------------------------------------------ input
@@ -1040,7 +1111,7 @@ public final class SettlementScreen extends KitScreen {
 	}
 
 	@Override
-	public boolean keyPressed(net.minecraft.client.input.KeyEvent e) {
+	protected boolean onKey(net.minecraft.client.input.KeyEvent e) {
 		// Tab (Shift+Tab back) moves between the tabs, as the card screen's Tab does, when no text box has the keys
 		if (!fieldFocused && e.key() == com.mojang.blaze3d.platform.InputConstants.KEY_TAB) {
 			Tab[] all = Tab.values();
@@ -1049,7 +1120,7 @@ public final class SettlementScreen extends KitScreen {
 		}
 		// Enter opens the chosen building (KitScreen would give it to a text box; the Buildings tab has none)
 		if (tab == Tab.BUILDINGS && keyOther(e)) return true;
-		return super.keyPressed(e);
+		return super.onKey(e);
 	}
 
 	/** DevBridge and the e2e check: show a tab by its name (buildings, history, claim, settings). */

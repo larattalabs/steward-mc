@@ -39,7 +39,7 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 	 * Pixels per block on the slate: 3 x 2 blocks are 144 x 96 px. (MAP-P3B) 48, not 64: the same slate, its text a third larger, so it reads from
 	 * a few blocks away; fewer rows fit, and the rest are counted ("and N more").
 	 */
-	static final float PPB = 48;
+	static final float PPB = dev.larattalabs.steward.view.WorldText.BASE_PPB;
 	static final int W = 3 * (int) PPB, H = 2 * (int) PPB;
 	/** A row's height; the footer's top. */
 	static final int ROW = 11, FOOT = H - 11;
@@ -78,6 +78,10 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 	private static void draw(State s, PoseStack ps, SubmitNodeCollector c) {
 		Font font = Minecraft.getInstance().font;
 		int light = WorldUi.uiLight();
+		// (UI-PR-S) the player's text size: the slate keeps its size in the world, its pixels (and so its text) grow; fewer rows fit
+		var slate = dev.larattalabs.steward.view.WorldText.slate(dev.larattalabs.steward.view.WorldText.factor(dev.larattalabs.steward.client.screen.KitScreen.OWNER));
+		final float PPB = slate.ppb();
+		final int W = slate.w(), H = slate.h(), FOOT = slate.foot();
 		ps.pushPose();
 		// onto the plank's front (2 px thick at the back of the block), then one block left and one up: the slate is centred on the plank, its bottom at the plank's
 		toFace(ps, s.facing, 14f / 16f - 0.01f, PPB);
@@ -120,13 +124,17 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 		}
 		y += 3;
 		var rows = v.buildings();
-		int slots = Math.max(1, (FOOT - 2 - y) / ROW);
+		int slots = slate.slots(y);
 		int shown = rows.size() <= slots ? rows.size() : slots - 1;
 		for (int i = 0; i < shown; i++) {
 			SettlementView.Building b = rows.get(i);
 			// (8bS) from Architect's BuildStatus when there is one
 			String fam = b.status() != null ? b.stateWords()[0] : b.updateAvailable() ? "waiting" : b.updating() || !"built".equals(b.state()) ? "working" : "done";
-			WorldUi.submitSprite(ps, c, WorldUi.Layer.SOLID, Kit.dot(fam, false), 6, y + 1, 7, 7, 0f, 0xFFFFFFFF, light);
+			if (dev.larattalabs.labui.ui.GhostPalette.current() == dev.larattalabs.labui.ui.GhostPalette.Palette.OKABE_ITO) {
+				// (UI-PR-S) the map's swatch in the Okabe-Ito palette (lab-ui's dots have no Okabe-Ito set yet: an ask)
+				WorldUi.submitFill(ps, c, 6, y + 1, 13, y + 8, dev.larattalabs.steward.view.MapColors.fill(fam, dev.larattalabs.labui.ui.GhostPalette.Palette.OKABE_ITO,
+					new dev.larattalabs.steward.view.MapColors.Standard(UiStyle.SAGE, UiStyle.BRASS, UiStyle.CLAY)), light);
+			} else WorldUi.submitSprite(ps, c, WorldUi.Layer.SOLID, Kit.dot(fam, false), 6, y + 1, 7, 7, 0f, 0xFFFFFFFF, light);
 			String right = b.updateAvailable() ? "update ready" : "v" + b.version();
 			int rw = font.width(right);
 			WorldUi.submitText(ps, c, Component.literal(TextUtil.ellipsize(font, b.role(), W - 30 - rw)).getVisualOrderText(), 17, y, UiStyle.CREAM, light);

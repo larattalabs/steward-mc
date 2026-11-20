@@ -88,6 +88,11 @@ public final class TalkScreen extends KitScreen {
 	}
 
 	@Override
+	protected dev.larattalabs.steward.ui.StewardHelp.Screen help() {
+		return dev.larattalabs.steward.ui.StewardHelp.Screen.TALK;
+	}
+
+	@Override
 	protected void draw(GuiGraphicsExtractor g, int mouseX, int mouseY) {
 		int w = Math.min(380, width - 16);
 		Kit.Padding pad = Kit.padding("panel_paper");
@@ -106,7 +111,7 @@ public final class TalkScreen extends KitScreen {
 			}
 			last = l.you();
 		}
-		int maxRows = Math.max(4, Math.min(12, (height - 170) / 10));
+		int maxRows = Math.max(4, Math.min(12, (height - 170 - tipHeight() - 4 * grow()) / lh(10)));
 		List<Row> shown = new ArrayList<>(rows.size() > maxRows ? rows.subList(rows.size() - maxRows, rows.size()) : rows);
 		// the top line names its speaker even when the line that did has scrolled away
 		if (!shown.isEmpty() && shown.get(0).who().isEmpty()) {
@@ -115,15 +120,16 @@ public final class TalkScreen extends KitScreen {
 		}
 		int gaps = (int) shown.stream().skip(1).filter(Row::turn).count();
 		int fh = fieldHeight(inner, st);
-		int listH = Math.max(4, shown.size()) * 10 + gaps * 4 + 8;
-		int h = pad.top() + 18 + listH + 6 + fh + 8 + 20 + 18 + pad.bottom();
+		int listH = Math.max(4, shown.size()) * lh(10) + gaps * 4 + 8;
+		int h = pad.top() + belowHeader() + tipHeight() + listH + 6 + fh + 8 + 20 + 8 + lh(10) + pad.bottom();
 		int x = (width - w) / 2;
 		int y = Math.max(8, (height - h) / 2);
 		Panels.panel(g, x, y, w, h);
 		int cx = x + pad.left();
 		int cy = y + pad.top();
 		Panels.header(g, font, "The steward of " + name, cx - 2, cy - 2, inner + 4);
-		cy += 18;
+		cy += belowHeader() - 2;
+		cy += drawTip(g, cx, cy, inner, mouseX, mouseY) + 2;
 		Panels.inset(g, cx, cy, inner, listH);
 		int ly = cy + 4;
 		if (shown.isEmpty()) g.text(font, "Say what " + name + " needs, or ask what I am doing.", cx + 6, ly, UiBits.muted(), false);
@@ -132,7 +138,7 @@ public final class TalkScreen extends KitScreen {
 			if (i > 0 && r.turn()) ly += 4;
 			g.text(font, r.who(), cx + 6, ly, r.you() ? attention() : UiBits.muted(), false);
 			g.text(font, r.text(), cx + 6 + col, ly, r.you() ? UiStyle.WALNUT : UiBits.ink(), false);
-			ly += 10;
+			ly += lh(10);
 		}
 		cy += listH + 6;
 		cy += drawField(g, cx, cy, inner, st) + 8;
@@ -149,8 +155,7 @@ public final class TalkScreen extends KitScreen {
 		if (status != null) g.text(font, TextUtil.ellipsize(font, status, inner), cx, cy, statusError ? UiBits.errorText() : UiBits.muted(), false);
 		else if (thinking) g.text(font, "The steward is thinking...", cx, cy, UiBits.muted(), false);
 		else {
-			String[] hints = {"Enter", "say it", "Tab", "leave box", "Esc", "close"};
-			if (UiBits.hintsWidth(font, hints) <= inner) UiBits.hints(g, font, cx, cy - 2, false, hints);
+			footerHints(g, cx, cy - 2, inner, "Enter", "say it", "Tab", "leave box", "Esc", "close");
 		}
 	}
 }

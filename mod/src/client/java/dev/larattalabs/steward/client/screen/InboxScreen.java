@@ -29,7 +29,10 @@ import org.jspecify.annotations.Nullable;
 public final class InboxScreen extends KitScreen {
 	private static final int MAX_W = 480;
 	private static final int LIST_W = 128;
-	private static final int ROW_H = 24;
+	/** A row's height at the text size (24 at 100 %: two lines and the row buttons' room). */
+	private static int rowH() {
+		return twoLineRow(4);
+	}
 	private @Nullable String selectedId;
 	/** The player picked {@link #selectedId} in the list (else the screen was opened for a settlement, or picked the first row itself). */
 	private boolean picked;
@@ -152,6 +155,11 @@ public final class InboxScreen extends KitScreen {
 	}
 
 	@Override
+	protected dev.larattalabs.steward.ui.StewardHelp.Screen help() {
+		return dev.larattalabs.steward.ui.StewardHelp.Screen.INBOX;
+	}
+
+	@Override
 	protected void draw(GuiGraphicsExtractor g, int mouseX, int mouseY) {
 		if (sentAtVersion >= 0 && ClientInbox.version() > sentAtVersion) {
 			sentAtVersion = -1;
@@ -169,7 +177,7 @@ public final class InboxScreen extends KitScreen {
 		int contentH = 40;
 		for (InboxModel.Entry en : all) contentH = Math.max(contentH, detailHeight(en, dw));
 		if (twoPane) contentH = Math.max(contentH, listHeight(all));
-		int h = Math.min(height - 16, pad.top() + 18 + contentH + 8 + 20 + 18 + pad.bottom());
+		int h = Math.min(height - 16, pad.top() + belowHeader() + tipHeight() + contentH + 8 + 20 + 8 + lh(10) + pad.bottom());
 		int x = (width - w) / 2;
 		int y = Math.max(8, (height - h) / 2);
 		Panels.panel(g, x, y, w, h);
@@ -177,17 +185,18 @@ public final class InboxScreen extends KitScreen {
 		int top = y + pad.top();
 		String count = ClientInbox.waiting() > 0 ? ClientInbox.waiting() + " waiting for you" : all.isEmpty() ? "" : "nothing waits for you";
 		Panels.header(g, font, "Steward", count, UiBits.muted(), cx - 2, top - 2, inner + 4);
-		int bodyTop = top + 18;
-		int footerY = y + h - pad.bottom() - 10;
-		int actionsY = footerY - 10 - 20;
+		int bodyTop = top + belowHeader() - 2;
+		bodyTop += drawTip(g, cx, bodyTop, inner, mouseX, mouseY) + 2;
+		int footerY = y + h - pad.bottom() - lh(10);
+		int actionsY = footerY - lh(10) - 20;
 		if (e == null) {
 			Panels.inset(g, cx, bodyTop, inner, actionsY - bodyTop - 4);
 			Panels.dot(g, "idle", cx + 8, bodyTop + 9, false);
 			g.text(font, "Nothing is being built.", cx + 20, bodyTop + 8, UiBits.ink(), false);
-			int ly = bodyTop + 20;
+			int ly = bodyTop + 8 + lh(12);
 			for (String l : TextUtil.wrapPlain(font, "Claim land with a Founding Stone and describe what you want; the steward asks here when it needs you.", inner - 28)) {
 				g.text(font, l, cx + 20, ly, UiBits.muted(), false);
-				ly += 10;
+				ly += lh(10);
 			}
 			drawFooter(g, cx, footerY, inner, false);
 			return;
@@ -237,7 +246,7 @@ public final class InboxScreen extends KitScreen {
 
 	private int listHeight(List<InboxModel.Entry> all) {
 		int groups = (int) all.stream().mapToInt(InboxScreen::group).distinct().count();
-		return groups * 14 + all.size() * ROW_H + 6;
+		return groups * lh(14) + all.size() * rowH() + 6;
 	}
 
 	private void drawList(GuiGraphicsExtractor g, List<InboxModel.Entry> all, int x, int y, int w, int h, int mx, int my) {
@@ -252,34 +261,34 @@ public final class InboxScreen extends KitScreen {
 			List<InboxModel.Entry> group = all.stream().filter(en -> group(en) == at).toList();
 			// a head with no room for one of its rows would dangle: stop before it
 			if (group.isEmpty()) continue;
-			if (ry + 14 + ROW_H > y + h) break;
+			if (ry + lh(14) + rowH() > y + h) break;
 			String label = needs ? GROUPS[gi] + " · " + group.size() : GROUPS[gi];
 			// only "Needs you" is blocked on the player: the attention colour; the other groups are labels
 			g.text(font, label, x + 5, ry + 1, needs ? attention() : UiBits.muted(), false);
-			Panels.divider(g, x + 9 + font.width(label), ry + 5, Math.max(0, w - 18 - font.width(label)));
-			ry += 14;
+			Panels.divider(g, x + 9 + font.width(label), ry + 5 + grow() / 2, Math.max(0, w - 18 - font.width(label)));
+			ry += lh(14);
 			for (InboxModel.Entry en : group) {
-				if (ry + ROW_H > y + h) break;
+				if (ry + rowH() > y + h) break;
 				boolean sel = en == selected();
-				boolean hov = mx >= x && mx < x + w && my >= ry - 2 && my < ry + ROW_H - 2;
-				if (sel) Panels.selectedRow(g, x + 2, ry - 3, w - 4, ROW_H - 1);
-				else if (hov) Panels.hoverRow(g, x + 2, ry - 3, w - 4, ROW_H - 1);
+				boolean hov = mx >= x && mx < x + w && my >= ry - 2 && my < ry + rowH() - 2;
+				if (sel) Panels.selectedRow(g, x + 2, ry - 3, w - 4, rowH() - 1);
+				else if (hov) Panels.hoverRow(g, x + 2, ry - 3, w - 4, rowH() - 1);
 				Panels.dot(g, pill(en)[0], x + 6, ry + 1, false);
 				g.text(font, TextUtil.ellipsize(font, en.name(), w - 22), x + 16, ry, needs ? UiBits.ink() : UiBits.muted(), false);
-				g.text(font, TextUtil.ellipsize(font, pill(en)[1], w - 22), x + 16, ry + 10, UiBits.muted(), false);
+				g.text(font, TextUtil.ellipsize(font, pill(en)[1], w - 22), x + 16, ry + lh(10), UiBits.muted(), false);
 				listIds.add(en.key());
-				listRows.add(new int[] {ry - 2, ry + ROW_H - 2});
-				ry += ROW_H;
+				listRows.add(new int[] {ry - 2, ry + rowH() - 2});
+				ry += rowH();
 			}
 		}
 	}
 
 	private int detailHeight(InboxModel.Entry e, int w) {
-		int h = 14 + 10; // pill row, progress
-		h += TextUtil.wrapPlain(font, e.headline(), w).size() * 10 + 6;
-		for (String l : shownLines(e)) h += (isBill(l) ? 4 : 0) + TextUtil.wrapPlain(font, shown(l), w).size() * 10;
-		h += Math.min(e.lots().size(), 8) * ROW_H + 8;
-		if (field != null) h += TextFieldView.BASE_H + 10 + (redirectLot != null ? 12 : 0);
+		int h = 14 + grow() + lh(10); // pill row, progress
+		h += TextUtil.wrapPlain(font, e.headline(), w).size() * lh(10) + 6;
+		for (String l : shownLines(e)) h += (isBill(l) ? 4 : 0) + TextUtil.wrapPlain(font, shown(l), w).size() * lh(10);
+		h += Math.min(e.lots().size(), 8) * rowH() + 8;
+		if (field != null) h += TextFieldView.BASE_H + grow() + 10 + (redirectLot != null ? lh(12) : 0);
 		return h;
 	}
 
@@ -290,7 +299,7 @@ public final class InboxScreen extends KitScreen {
 		String spend = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision()) || InboxModel.LAND.equals(e.decision()) ? "" : String.format("$%.2f of $%.0f", e.spentUsd(), e.budgetUsd());
 		g.text(font, spend, x + w - font.width(spend), y + 1, e.spentUsd() >= e.budgetUsd() * 0.8 ? UiStyle.warn() : UiBits.muted(), false);
 		g.text(font, TextUtil.ellipsize(font, e.name(), w - pw - font.width(spend) - 14), x + pw + 6, y + 1, UiBits.ink(), false);
-		y += 14;
+		y += 14 + grow();
 		boolean update = "UPDATE".equals(e.decision()) || "PROPOSAL".equals(e.decision()) || InboxModel.LAND.equals(e.decision());
 		if (!update) {
 			// progress: buildings designed
@@ -298,12 +307,12 @@ public final class InboxScreen extends KitScreen {
 			String prog = e.done() + " of " + e.lots().size() + " designed";
 			Panels.progress(g, x, y + 1, w - font.width(prog) - 8, (double) e.done() / total, e.needsYou() ? "clay" : "sage");
 			g.text(font, prog, x + w - font.width(prog), y, UiBits.muted(), false);
-			y += 12;
+			y += lh(12);
 		}
 		for (String l : TextUtil.wrapPlain(font, e.headline(), w)) {
 			// clay is for what is blocked on the player only: an idea's words, and a build's, are ink
 			g.text(font, l, x, y, e.needsYou() ? attention() : "FAILED".equals(e.decision()) ? UiBits.errorText() : UiBits.ink(), false);
-			y += 10;
+			y += lh(10);
 		}
 		// the further lines: the buildings by stage, a usage limit it waits for
 		for (String line : shownLines(e)) {
@@ -314,21 +323,21 @@ public final class InboxScreen extends KitScreen {
 			for (String l : TextUtil.wrapPlain(font, shown(line), w)) {
 				// the usage limit is a state, not a request: ink, set apart from the muted lines, never the clay of "needs you"
 				g.text(font, l, x, y, held || bill ? UiBits.ink() : UiBits.muted(), false);
-				y += 10;
+				y += lh(10);
 			}
 		}
 		y += 6;
 		// the buildings
-		int fieldH = field != null ? TextFieldView.BASE_H + 10 + (redirectLot != null ? 12 : 0) : 0;
-		int listH = Math.min(bottom - fieldH - y, e.lots().size() * ROW_H + 6);
+		int fieldH = field != null ? TextFieldView.BASE_H + grow() + 10 + (redirectLot != null ? lh(12) : 0) : 0;
+		int listH = Math.min(bottom - fieldH - y, e.lots().size() * rowH() + 6);
 		if (listH > 10 && !e.lots().isEmpty()) {
 			Panels.inset(g, x, y, w, listH);
-			int fit = Math.max(1, (listH - 6) / ROW_H);
+			int fit = Math.max(1, (listH - 6) / rowH());
 			lotScroll = Math.max(0, Math.min(lotScroll, e.lots().size() - fit));
 			boolean massings = "MASSINGS".equals(e.decision()) && sentAtVersion < 0;
 			for (int i = lotScroll; i < Math.min(e.lots().size(), lotScroll + fit); i++) {
 				InboxModel.Lot l = e.lots().get(i);
-				int ry = y + 4 + (i - lotScroll) * ROW_H;
+				int ry = y + 4 + (i - lotScroll) * rowH();
 				String[] st = stage(l);
 				Panels.dot(g, st[0], x + 5, ry + 1, false);
 				int actionsW = 0;
@@ -380,7 +389,7 @@ public final class InboxScreen extends KitScreen {
 				String size = l.detail().contains(" (") ? l.detail().substring(0, l.detail().indexOf(" (")) : l.detail();
 				// with chips on the row its stage goes without saying
 				String sub = "update".equals(l.stage()) || "proposal".equals(l.stage()) ? l.detail() : l.id() + (actionsW > 0 ? "" : " · " + st[1]) + (size.isEmpty() ? "" : " · " + size.replace(", ", " · "));
-				g.text(font, TextUtil.ellipsize(font, sub, w - 20 - actionsW), x + 15, ry + 10, UiBits.muted(), false);
+				g.text(font, TextUtil.ellipsize(font, sub, w - 20 - actionsW), x + 15, ry + lh(10), UiBits.muted(), false);
 			}
 			if (e.lots().size() > fit) {
 				TextUtil.Scroll sc = new TextUtil.Scroll().update(e.lots().size(), fit);
@@ -395,7 +404,7 @@ public final class InboxScreen extends KitScreen {
 			if (redirectLot != null) {
 				String parts = e.lots().stream().filter(l -> l.id().equals(redirectLot)).map(InboxModel.Lot::detail).findFirst().orElse("");
 				g.text(font, TextUtil.ellipsize(font, "How should " + redirectLot + " change?" + (parts.isEmpty() ? "" : "  " + parts), w), x, y, UiBits.ink(), false);
-				y += 12;
+				y += lh(12);
 			}
 			TextFieldView.Style st = redirectLot != null
 				? new TextFieldView.Style(null, 0, "e.g. taller stilts, a wraparound porch; Enter sends", null, field.length() + "/" + Actions.MAX_NOTES, UiBits.muted(), 2)
@@ -472,8 +481,7 @@ public final class InboxScreen extends KitScreen {
 		if (keys != null) h.addAll(List.of(keys, "act"));
 		if (several) h.addAll(List.of("↑↓", "select"));
 		h.addAll(List.of("Esc", "close"));
-		String[] hints = h.toArray(String[]::new);
-		if (UiBits.hintsWidth(font, hints) <= inner) UiBits.hints(g, font, cx, fy - 4, false, hints);
+		footerHints(g, cx, fy - 4, inner, h.toArray(String[]::new));
 	}
 
 	@Override

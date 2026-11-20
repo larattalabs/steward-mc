@@ -6,7 +6,11 @@ import dev.larattalabs.labui.client.text.TextKeys;
 import dev.larattalabs.labui.client.text.TextModel;
 import dev.larattalabs.labui.client.ui.Kit;
 import dev.larattalabs.labui.client.ui.Panels;
+import dev.larattalabs.labui.client.ui.TextUtil;
 import dev.larattalabs.labui.client.ui.UiStyle;
+import dev.larattalabs.labui.client.help.KeysOverlay;
+import dev.larattalabs.labui.client.help.WhatsThis;
+import dev.larattalabs.labui.client.prefs.LabUiPrefs;
 import java.util.ArrayList;
 import java.util.List;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -18,6 +22,11 @@ import net.minecraft.network.chat.Component;
 import org.jspecify.annotations.Nullable;
 
 /**
+ * (UI-PR-S) Steward's screens follow lab-ui's text size (100/125/150 %, set on Architect's Status tab or Steward's Settings tab): they draw inside
+ * {@code TextScaleHost}, their input runs at the same scale, and their line advances, rows and chips grow with the text ({@link #lh}, {@link #grow}).
+ * Each has lab-ui's "what's this" line under its title ({@link #drawTip}) and its "?" overlay (Shift+/ or F1: its keys and terms), from
+ * {@link dev.larattalabs.steward.ui.StewardHelp}.
+ * <p>
  * Steward's screens on the ported kit: a frame lays its buttons out ({@link #button}) and they are clicked by mouse or by their number key (1-9); at most one
  * text field takes the keyboard while focused (Enter fires the primary button, Shift+Enter a new line, Tab or a click leaves it). Never pauses and never
  * blurs, so massing ghosts and the world stay in view. Client thread.
@@ -29,6 +38,9 @@ public abstract class KitScreen extends Screen {
 			return mx >= x && mx < x + w && my >= y && my < y + h;
 		}
 	}
+
+	/** The owner Steward's screens opt in to the text size under ({@code TextScale.optIn} at client init). */
+	public static final String OWNER = "steward_mc";
 
 	private final List<Btn> buttons = new ArrayList<>();
 	private final List<Btn> lastButtons = new ArrayList<>();
@@ -57,9 +69,108 @@ public abstract class KitScreen extends Screen {
 	@Override
 	public final void extractRenderState(GuiGraphicsExtractor g, int mouseX, int mouseY, float a) {
 		buttons.clear();
-		draw(g, mouseX, mouseY);
+		dev.larattalabs.labui.client.prefs.TextScaleHost.render(this, OWNER, g, mouseX, mouseY, (gg, mx, my) -> {
+			draw(gg, mx, my);
+			// the "?" overlay last, over everything (it swallows the keys and clicks while open)
+			KeysOverlay o = overlay();
+			if (o != null) o.draw(gg, font, width, height);
+		});
 		lastButtons.clear();
 		lastButtons.addAll(buttons);
+	}
+
+	// ------------------------------------------------------------------ (UI-PR-S) the text size and the help
+
+	/** A line advance of {@code px} at the screen's text size (10 px at 100 % is 15 px at 150 %). */
+	protected static int lh(int px) {
+		return TextUtil.lh(px);
+	}
+
+	/** The extra height a text run takes at the screen's text size (0 at 100 %, 4 px at 150 %): rows, chips and pills holding one line grow by it. */
+	protected static int grow() {
+		return Panels.textGrow();
+	}
+
+	/** The gap from the header strip's top to the content under it ({@code top + 18} at 100 %). */
+	protected static int belowHeader() {
+		return Panels.headerH() + 4;
+	}
+
+	/** The height of a two-line row (a dot, a title and a muted line under it), {@code extra} px of padding: 22 at 100 % with 2. */
+	protected static int twoLineRow(int extra) {
+		return lh(10) * 2 + extra;
+	}
+
+	/** {@link #chip}'s height at the text size. */
+	protected static int chipH() {
+		return CHIP_H + grow();
+	}
+
+	/** The screen's help (its tip and its "?" overlay), or null for none. */
+	protected dev.larattalabs.steward.ui.StewardHelp.@Nullable Screen help() {
+		return null;
+	}
+
+	private @Nullable WhatsThis tip;
+	private @Nullable KeysOverlay overlay;
+
+	/** The screen's "what's this" line (hidden with its ×, remembered in lab-ui's {@code lab_ui.json}), or null. */
+	protected @Nullable WhatsThis tip() {
+		var h = help();
+		if (h == null) return null;
+		if (tip == null) tip = new WhatsThis(LabUiPrefs.tips(), h.key(), dev.larattalabs.steward.ui.StewardHelp.tip(h));
+		return tip;
+	}
+
+	/** The screen's "?" overlay, or null; its rows are read each frame, so a rebound Steward key shows as bound. */
+	public @Nullable KeysOverlay overlay() {
+		var h = help();
+		if (h == null) return null;
+		if (overlay == null) overlay = new KeysOverlay(h.title, () -> dev.larattalabs.steward.ui.StewardHelp.rows(h,
+			id -> dev.larattalabs.labui.client.ui.KeyLabels.label(dev.larattalabs.steward.client.hud.Keys.byId(id))),
+			dev.larattalabs.steward.ui.StewardHelp.terms(h));
+		return overlay;
+	}
+
+	/** The "what's this" line at (x, y) in a row {@code w} wide; returns the height it took (0 once hidden), so the content goes under it. */
+	protected int drawTip(GuiGraphicsExtractor g, int x, int y, int w, int mouseX, int mouseY) {
+		WhatsThis t = tip();
+		return t == null ? 0 : t.draw(g, font, x, y, w, mouseX, mouseY);
+	}
+
+	/** The height {@link #drawTip} takes (for a panel sized to its content). */
+	protected int tipHeight() {
+		WhatsThis t = tip();
+		return t == null ? 0 : t.height();
+	}
+
+	/**
+	 * The footer's key hints (key, verb pairs) with the "?" overlay's key named before a closing "Esc" pair when the screen has help: "?" , or
+	 * "F1" while a text field takes the keys ("?" types there). What doesn't fit drops the help pair first, then draws nothing, as before.
+	 */
+	protected void footerHints(GuiGraphicsExtractor g, int x, int y, int inner, String... keyThenVerb) {
+		List<String> with = new ArrayList<>(List.of(keyThenVerb));
+		if (help() != null) {
+			int at = with.size() >= 2 && "Esc".equals(with.get(with.size() - 2)) ? with.size() - 2 : with.size();
+			with.addAll(at, List.of(field != null && fieldFocused ? "F1" : "?", "help"));
+		}
+		for (List<String> h : List.of(with, List.of(keyThenVerb))) {
+			String[] a = h.toArray(String[]::new);
+			if (UiBits.hintsWidth(font, a) <= inner) {
+				UiBits.hints(g, font, x, y, false, a);
+				return;
+			}
+		}
+	}
+
+	/** Runs an input handler at the screen's text size, as its draw does (measurements in a handler match what was drawn). */
+	private boolean scaled(java.util.function.BooleanSupplier body) {
+		float was = dev.larattalabs.labui.ui.TextScale.activate(dev.larattalabs.labui.client.prefs.TextScaleHost.result(this, OWNER).factor());
+		try {
+			return body.getAsBoolean();
+		} finally {
+			dev.larattalabs.labui.ui.TextScale.activate(was);
+		}
 	}
 
 	/** Draws the frame; lay buttons out with {@link #button} and the field with {@link #drawField}. */
@@ -86,12 +197,13 @@ public abstract class KitScreen extends Screen {
 	/** A small chip (the tab sprites, as Architect's set view draws its per-item Approve / Redirect): registers a click target, returns its width. */
 	protected int chip(GuiGraphicsExtractor g, String label, int x, int y, boolean on, boolean enabled, int mouseX, int mouseY, Runnable action) {
 		int w = font.width(label) + 12;
+		int h = chipH();
 		dev.larattalabs.labui.client.ui.Panels.sprite(g, on ? dev.larattalabs.labui.client.ui.Kit.TAB_ACTIVE : dev.larattalabs.labui.client.ui.Kit.TAB_INACTIVE, x, y, w,
-			CHIP_H, enabled ? 0xFFFFFFFF : 0x90FFFFFF);
-		boolean hover = enabled && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + CHIP_H;
-		if (hover && !on) g.fill(x + 1, y + 1, x + w - 1, y + CHIP_H - 1, UiStyle.rowHover());
+			h, enabled ? 0xFFFFFFFF : 0x90FFFFFF);
+		boolean hover = enabled && mouseX >= x && mouseX < x + w && mouseY >= y && mouseY < y + h;
+		if (hover && !on) g.fill(x + 1, y + 1, x + w - 1, y + h - 1, UiStyle.rowHover());
 		g.text(font, label, x + 6, y + 3, !enabled ? UiStyle.color("paper.disabled") : UiBits.ink(), false);
-		buttons.add(new Btn(label, 0, false, false, enabled, x, y, w, CHIP_H, action));
+		buttons.add(new Btn(label, 0, false, false, enabled, x, y, w, h, action));
 		return w;
 	}
 
@@ -186,8 +298,16 @@ public abstract class KitScreen extends Screen {
 		statusError = error;
 	}
 
+	/** The overlay takes a key first ("?" yields to a focused text field), then the screen's {@link #onKey}. */
 	@Override
-	public boolean keyPressed(KeyEvent e) {
+	public final boolean keyPressed(KeyEvent e) {
+		KeysOverlay o = overlay();
+		if (o != null && o.keyPressed(e, field != null && fieldFocused)) return true;
+		return scaled(() -> onKey(e));
+	}
+
+	/** The screen's keys: the field's while it is focused, Esc, Tab and Enter to the field, the number keys, then {@link #keyOther}. */
+	protected boolean onKey(KeyEvent e) {
 		if (field != null && fieldFocused) {
 			if (e.isEscape() || e.key() == com.mojang.blaze3d.platform.InputConstants.KEY_TAB) {
 				fieldFocused = false;
@@ -232,6 +352,8 @@ public abstract class KitScreen extends Screen {
 
 	@Override
 	public boolean charTyped(CharacterEvent e) {
+		KeysOverlay o = overlay();
+		if (o != null && o.isOpen()) return true;
 		if (field != null && fieldFocused && e.codepoint() >= 32) {
 			field.insert(e.codepointAsString());
 			return true;
@@ -239,8 +361,18 @@ public abstract class KitScreen extends Screen {
 		return false;
 	}
 
+	/** An open overlay takes any click (and closes); the tip's × hides it; then the screen's {@link #onClick}. */
 	@Override
-	public boolean mouseClicked(MouseButtonEvent e, boolean doubleClick) {
+	public final boolean mouseClicked(MouseButtonEvent e, boolean doubleClick) {
+		KeysOverlay o = overlay();
+		if (o != null && o.mouseClicked(e.x(), e.y())) return true;
+		WhatsThis t = tip();
+		if (t != null && t.mouseClicked(e.x(), e.y())) return true;
+		return scaled(() -> onClick(e));
+	}
+
+	/** The buttons, the field, then {@link #clickOther}. */
+	protected boolean onClick(MouseButtonEvent e) {
 		for (Btn b : lastButtons) {
 			if (b.hit(e.x(), e.y())) {
 				if (b.enabled()) b.action().run();
