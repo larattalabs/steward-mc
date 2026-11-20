@@ -36,7 +36,8 @@ public final class StewardRenderer extends HumanoidMobRenderer<StewardEntity, St
 		s.posture = e.posture();
 		s.activity = e.activity();
 		s.needsYou = e.needsYou();
-		s.bubble = StewardVoices.layout(e.settlementId());
+		// (MAP-P3B) not while the player talks to it in the talk box: the line is in the box, and the bubble would collide with the panel
+		s.bubble = dev.larattalabs.steward.client.screen.TalkScreen.openFor(e.settlementId()) ? null : StewardVoices.layout(e.settlementId());
 		s.bubbleVisibility = s.bubble == null ? 0f : StewardVoices.visibility(e.settlementId(), partial);
 		var bed = e.bedFacing();
 		if (s.posture == Poses.Posture.LIE && bed != null) {
