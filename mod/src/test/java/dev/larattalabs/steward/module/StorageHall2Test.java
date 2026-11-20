@@ -128,7 +128,7 @@ class StorageHall2Test {
 		assertTrue(ModuleOffer.LATE_CARGO_GAP, "drop this test's positive half when LC3 lands");
 		var v = ModuleGate.offer(LIVE, K.id(), MEASURING);
 		assertTrue(v.ok(), v.message());
-		var v1 = ModuleGate.offer(LIVE.get("storage_hall", 1).orElseThrow(), new ModuleGate.Env("26.3", "0.87.0", Set.of(ModuleGate.FEATURE)));
+		var v1 = ModuleGate.offer(LIVE.get("storage_hall", 1).orElseThrow(), new ModuleGate.Env("26.3", "0.89.0", Set.of(ModuleGate.FEATURE)));
 		assertTrue(v1.ok(), v1.message());
 		var stores = held("cobblestone", 900, "iron_ingot", 300, "wheat", 200, "oak_log", 150, "coal", 140);
 		var bound = JsonParser.parseString("{\"minecraft:stone\":1}").getAsJsonObject();
