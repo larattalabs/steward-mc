@@ -11,6 +11,7 @@ import dev.larattalabs.labui.client.ui.WorldUi;
 import dev.larattalabs.steward.block.SettlementBoardBlock;
 import dev.larattalabs.steward.block.SettlementBoardBlockEntity;
 import dev.larattalabs.steward.view.SettlementView;
+import java.util.List;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -34,9 +35,14 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 		@Nullable SettlementView view;
 	}
 
-	/** Pixels per block on the slate: 3 x 2 blocks are 192 x 128 px. */
-	static final float PPB = 64;
-	static final int W = 192, H = 128, ROWS = 7;
+	/**
+	 * Pixels per block on the slate: 3 x 2 blocks are 144 x 96 px. (MAP-P3B) 48, not 64: the same slate, its text a third larger, so it reads from
+	 * a few blocks away; fewer rows fit, and the rest are counted ("and N more").
+	 */
+	static final float PPB = 48;
+	static final int W = 3 * (int) PPB, H = 2 * (int) PPB;
+	/** A row's height; the footer's top. */
+	static final int ROW = 11, FOOT = H - 11;
 
 	@Override
 	public State createRenderState() {
@@ -104,10 +110,19 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 			status = v.buildings().size() + (v.buildings().size() == 1 ? " building" : " buildings") + ", nothing waits";
 			loud = false;
 		}
-		WorldUi.submitText(ps, c, Component.literal(TextUtil.ellipsize(font, status, W - 12)).getVisualOrderText(), 6, 21, loud ? UiStyle.BRASS : muted, light);
-		int y = 34;
+		// (MAP-P3B) the status on up to two lines (the larger text fits fewer words on one), then as many rows as fit above the footer, the last slot
+		// counting the rest when they don't all fit
+		List<String> said = TextUtil.wrapPlain(font, status, W - 12);
+		int y = 21;
+		for (int i = 0; i < Math.min(2, said.size()); i++, y += 10) {
+			String line = i == 1 && said.size() > 2 ? TextUtil.ellipsize(font, String.join(" ", said.subList(1, said.size())), W - 12) : said.get(i);
+			WorldUi.submitText(ps, c, Component.literal(line).getVisualOrderText(), 6, y, loud ? UiStyle.BRASS : muted, light);
+		}
+		y += 3;
 		var rows = v.buildings();
-		for (int i = 0; i < Math.min(ROWS, rows.size()); i++) {
+		int slots = Math.max(1, (FOOT - 2 - y) / ROW);
+		int shown = rows.size() <= slots ? rows.size() : slots - 1;
+		for (int i = 0; i < shown; i++) {
 			SettlementView.Building b = rows.get(i);
 			// (8bS) from Architect's BuildStatus when there is one
 			String fam = b.status() != null ? b.stateWords()[0] : b.updateAvailable() ? "waiting" : b.updating() || !"built".equals(b.state()) ? "working" : "done";
@@ -116,10 +131,10 @@ public final class BoardRenderer implements BlockEntityRenderer<SettlementBoardB
 			int rw = font.width(right);
 			WorldUi.submitText(ps, c, Component.literal(TextUtil.ellipsize(font, b.role(), W - 30 - rw)).getVisualOrderText(), 17, y, UiStyle.CREAM, light);
 			WorldUi.submitText(ps, c, Component.literal(right).getVisualOrderText(), W - 6 - rw, y, muted, light);
-			y += 11;
+			y += ROW;
 		}
-		if (rows.size() > ROWS) WorldUi.submitText(ps, c, Component.literal("and " + (rows.size() - ROWS) + " more").getVisualOrderText(), 17, y, muted, light);
-		WorldUi.submitText(ps, c, Component.literal("Right-click: the settlement").getVisualOrderText(), 6, H - 11, muted, light);
+		if (rows.size() > shown) WorldUi.submitText(ps, c, Component.literal("and " + (rows.size() - shown) + " more").getVisualOrderText(), 17, y, muted, light);
+		WorldUi.submitText(ps, c, Component.literal("Right-click: the settlement").getVisualOrderText(), 6, FOOT, muted, light);
 		ps.popPose();
 	}
 
