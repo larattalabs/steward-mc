@@ -1516,6 +1516,13 @@ async function uiPr(id) {
       }
       await closeScreens();
     }
+    // the empty inbox (its words wrap to more lines at 150 %), then the inbox's samples (a build waiting, ideas, a usage limit)
+    await cmd('/steward ui sample-empty e2e');
+    await sleep(800);
+    await dev.request('dev.key', { key: 'y' });
+    await sleep(1200);
+    if (/InboxScreen/.test(await screen())) shots.push(await shot('pr__inbox_empty_text150__s4'));
+    await closeScreens();
     // the inbox's samples (a build waiting, ideas, a usage limit): the fullest rows at 150 % x GUI 4
     await cmd('/steward ui sample e2e');
     await sleep(1500);
