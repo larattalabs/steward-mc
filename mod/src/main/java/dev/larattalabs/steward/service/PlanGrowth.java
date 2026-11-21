@@ -49,6 +49,15 @@ public final class PlanGrowth {
 	 * that waits ({@code waiting}), not a secret, not a module lot, and with an id Architect takes for a region lot. Empty: the addition takes today's path.
 	 */
 	public static Optional<Pick> pick(JsonObject plan, Set<String> waiting, Secrets secrets, Set<String> regionLots, String type, @Nullable String role) {
+		return pick(plan, waiting, secrets, regionLots, type, role, dev.larattalabs.steward.module.ModuleTypes.KNOWN);
+	}
+
+	/**
+	 * As above; (slice MODULE-TYPE, GPT review P1) a lot of a module's type ({@code types}: {@link dev.larattalabs.steward.module.ModuleTypes}), marked
+	 * or bare, is never an ordinary addition's: an ordinary proposal whose role matches its label never takes it.
+	 */
+	public static Optional<Pick> pick(JsonObject plan, Set<String> waiting, Secrets secrets, Set<String> regionLots, String type, @Nullable String role,
+		java.util.Map<String, String> types) {
 		List<Lot> all = lots(plan);
 		String t = norm(type), r = norm(role);
 		for (int pass = 0; pass < 2; pass++) {
@@ -56,6 +65,7 @@ public final class PlanGrowth {
 				if (regionLots.contains(l.id()) || waiting.contains(l.zone()) || (l.district() != null && waiting.contains(l.district()))) continue;
 				if (secrets.hides(l.id()) || secrets.hides(l.zone()) || !LOT_ID.matcher(l.id()).matches()) continue;
 				if (l.lot().has("ext") && l.lot().get("ext").isJsonObject() && l.lot().getAsJsonObject("ext").has("steward_mc:module")) continue;
+				if (dev.larattalabs.steward.module.ModuleTypes.moduleOf(typeOf(l.lot()), types) != null) continue;
 				String lt = norm(typeOf(l.lot()));
 				boolean match = pass == 0 ? lt.equals(t)
 					: r != null && !r.isEmpty() && (r.equals(norm(str(l.lot(), "role"))) || r.equals(norm(str(l.lot(), "label"))));

@@ -64,6 +64,18 @@ public final class Proposals {
 		// proposals are additions: only for a settlement that has something standing (an addition faces its street)
 		if (!here.get().described() || SettlementRunner.busy(here.get().id()) || here.get().lastUndoable().isEmpty()) return;
 		Settlement s = here.get();
+		// (slice MODULE-TYPE) an ordinary proposal of a module's type saved before Noah's 11-20 rule leaves the inbox (not declined), said once; the
+		// module itself is offered through its own rule when the town qualifies
+		var swept = withoutPlainModules(s.proposals(), ModuleOffers.moduleTypes());
+		if (!swept.removed().isEmpty()) {
+			if (!Settlements.proposals(s.id(), swept.proposals()).ok()) return;
+			for (Proposal x : swept.removed()) {
+				dev.larattalabs.steward.Steward.LOGGER.info("{}: proposal {} withdrawn: an ordinary building of a module's type, saved before the module-type rule", s.id(), x.key());
+				StewardVoice.say(server, s.id(), dev.larattalabs.steward.module.ModuleTypes.refusal(x.title(), dev.larattalabs.steward.module.ModuleTypes.plainModule(x, ModuleOffers.moduleTypes())));
+			}
+			SettlementRunner.sendInbox(server, p.getUUID());
+			return;
+		}
 		var open = s.proposals().open();
 		// (slice PD) a district the town's approved plan names and its founding didn't build: proposed once the town is built (one at a time); the side is
 		// chosen in the background, so the rest of the pass runs (a district with no side to go is skipped until the town or the plan changes)
@@ -90,11 +102,18 @@ public final class Proposals {
 			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open.stream().filter(x -> !x.offersPart()).toList(),
 				s.proposals().lastAt(), now, modules).stream()
 				.map(x -> x.in(where.district())).toList();
+			// (slice MODULE-TYPE, GPT review P2) a rule whose type a catalog module took is never offered as an ordinary building
+			fresh = withoutPlain(fresh, ModuleOffers.moduleTypes());
 		}
 		if (fresh.isEmpty()) {
 			// nothing the signs ask for: the buildings the card left out, in a district of their own (slice DP; offered once)
-			var left = leftOut(server, s);
-			if (!left.isEmpty()) proposeDistrictFromLand(server, p.getUUID(), s, open, now, left);
+			// (slice MODULE-TYPE) a left-out building of a module's type isn't one of them: the district's words say why
+			var left = leftOutSplit(server, s);
+			if (!left.ordinary().isEmpty()) proposeDistrictFromLand(server, p.getUUID(), s, open, now, left.ordinary(), left.modules());
+			// (GPT review P2) only modules left out: said once this session, never offered as buildings
+			else if (!left.modules().isEmpty() && SAID_MODULES_LEFT.add(s.id())) StewardVoice.say(server, s.id(),
+				"The card's plan left out " + ProposalRules.leftOutWords(left.modules()) + ". " + capital(dev.larattalabs.steward.module.ModuleTypes.leftOutWords(left.modules(),
+					ModuleOffers.moduleTypes()).replaceFirst("^It leaves out [^:]*: ", "")));
 			return;
 		}
 		List<Proposal> all = new ArrayList<>(open);
@@ -110,6 +129,28 @@ public final class Proposals {
 		if (ProposalWords.start(server, saved, first, p.getUUID())) return;
 		StewardVoice.say(server, s.id(), "I have an idea: " + first.title().toLowerCase() + ". " + first.why() + " See the inbox (Y).");
 		SettlementRunner.sendInbox(server, p.getUUID());
+	}
+
+	/** (slice MODULE-TYPE) Settlements told this session that the card's left-out buildings are all modules' types. */
+	private static final Set<String> SAID_MODULES_LEFT = new HashSet<>();
+
+	private static String capital(String t) {
+		return t.isEmpty() ? t : Character.toUpperCase(t.charAt(0)) + t.substring(1);
+	}
+
+	/** (slice MODULE-TYPE) {@code fresh} without any ordinary proposal of a module's type. Pure. */
+	static List<Proposal> withoutPlain(List<Proposal> fresh, Map<String, String> types) {
+		return fresh.stream().filter(x -> !dev.larattalabs.steward.module.ModuleTypes.plain(x, types)).toList();
+	}
+
+	/** (slice MODULE-TYPE) Proposals with the ordinary ones of a module's type taken out of the open ones ({@code removed}); declined and accepted as they were. */
+	record Swept(Settlement.Proposals proposals, List<Proposal> removed) {}
+
+	/** (slice MODULE-TYPE) {@code ps} without its open ordinary proposals of a module's type (an old save's): withdrawn, not declined. Pure. */
+	static Swept withoutPlainModules(Settlement.Proposals ps, Map<String, String> types) {
+		List<Proposal> kept = new ArrayList<>(), removed = new ArrayList<>();
+		for (Proposal x : ps.open()) (dev.larattalabs.steward.module.ModuleTypes.plain(x, types) ? removed : kept).add(x);
+		return new Swept(removed.isEmpty() ? ps : new Settlement.Proposals(kept, ps.declined(), ps.accepted(), ps.lastAt()), List.copyOf(removed));
 	}
 
 	/** Lands (the town: "", or a district's id) where an addition found no room lately, per settlement: they count as full for a while. */
@@ -180,7 +221,7 @@ public final class Proposals {
 			for (var o : regions.list(s.owner())) if (!o.id().equals(v.id()) && o.state() != dev.larattalabs.architect.api.RegionState.REMOVED) for (var l : o.lots()) all.add(l.id());
 			Set<String> waiting = new HashSet<>();
 			for (var pd : entry.get().pending()) waiting.add(pd.part());
-			return new PlanRead(PlanDistricts.unbuilt(plan, all, waiting, Secrets.of(entry.get())),
+			return new PlanRead(PlanDistricts.unbuilt(plan, all, waiting, Secrets.of(entry.get()), ModuleOffers.moduleTypes()),
 				PlanDistricts.fingerprint(v.id(), entry.get().at(), entry.get().plan(), s.lands().districts()));
 		} catch (RuntimeException | LinkageError e) {
 			dev.larattalabs.steward.Steward.LOGGER.info("{}: the plan's districts can't be read now ({})", s.id(), e.toString());
@@ -284,15 +325,16 @@ public final class Proposals {
 	 * the settlement's purpose and buildings best (a fishing town's next district by the water; docs/PLAN.md "Zones", first step), else the first that fits.
 	 */
 	static void proposeDistrictFromLand(MinecraftServer server, java.util.UUID player, Settlement s, List<Proposal> open, long now) {
-		proposeDistrictFromLand(server, player, s, open, now, List.of());
+		proposeDistrictFromLand(server, player, s, open, now, List.of(), List.of());
 	}
 
 	/**
 	 * As above; with {@code left} (the card's buildings the town left out, slice DP), the district is for them: its side is chosen by what they ask of the
 	 * ground, and the proposal names them. Always an ordinary district (founding it is free; the buildings are proposed and approved after).
+	 * {@code modules}: the left-out buildings of a module's type, never among the district's, said in its words (slice MODULE-TYPE).
 	 */
 	static void proposeDistrictFromLand(MinecraftServer server, java.util.UUID player, Settlement s, List<Proposal> open, long now,
-		List<dev.larattalabs.steward.model.ConceptCard.Building> left) {
+		List<dev.larattalabs.steward.model.ConceptCard.Building> left, List<dev.larattalabs.steward.model.ConceptCard.Building> modules) {
 		// a waiting part of the plan takes none of the room
 		if (!ProposalRules.room(open.stream().filter(x -> !x.offersPart()).toList(), s.proposals().lastAt(), now) || open.stream().anyMatch(Proposal::foundsDistrict)) return;
 		if (s.lands().districts().size() >= dev.larattalabs.steward.model.DistrictRules.DIRECTIONS.size() || !CHOOSING.add(s.id())) return;
@@ -304,7 +346,7 @@ public final class Proposals {
 			var now2 = Settlements.store().get(s.id());
 			if (c.way() == null || now2.isEmpty() || now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
 			if (!left.isEmpty()) {
-				offerDistrict(server, player, s, c, now, left);
+				offerDistrict(server, player, s, c, now, left, modules);
 				return;
 			}
 			// beside a town Architect laid out, a side by the water is offered as a quarter along its shore (docs/DISTRICTS.md section 4), judged again by the
@@ -338,19 +380,23 @@ public final class Proposals {
 
 	/** The ordinary district {@link #proposeDistrictFromLand} chose, in the inbox. */
 	private static void offerDistrict(MinecraftServer server, java.util.UUID player, Settlement s, dev.larattalabs.steward.model.DistrictSite.Choice c, long now) {
-		offerDistrict(server, player, s, c, now, List.of());
+		offerDistrict(server, player, s, c, now, List.of(), List.of());
 	}
 
-	/** As above; for {@code left}, the buildings the card left out (they are named, and the place line says the district is for the first). */
+	/**
+	 * As above; for {@code left}, the buildings the card left out (they are named, and the place line says the district is for the first), and
+	 * {@code modules} (slice MODULE-TYPE), the left-out buildings of a module's type, said as left out of the district.
+	 */
 	private static void offerDistrict(MinecraftServer server, java.util.UUID player, Settlement s, dev.larattalabs.steward.model.DistrictSite.Choice c, long now,
-		List<dev.larattalabs.steward.model.ConceptCard.Building> left) {
+		List<dev.larattalabs.steward.model.ConceptCard.Building> left, List<dev.larattalabs.steward.model.ConceptCard.Building> modules) {
 		var now2 = Settlements.store().get(s.id());
 		if (now2.isEmpty() || now2.get().proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return;
 		String side = dev.larattalabs.steward.model.DistrictRules.directionName(c.way());
 		Proposal d = left.isEmpty()
 			? Proposal.district(c.way(), "The town's street is full: a district to the " + side + (c.why().isEmpty() ? "" : ", " + c.why() + ",")
 				+ " gives the next buildings a street of their own. Founding it lays a road and costs nothing.", now).withPlace(dev.larattalabs.steward.model.DistrictSite.line(c.why(), "the next buildings"))
-			: leftOutDistrict(c, left, now);
+			: leftOutDistrict(c, left, modules, ModuleOffers.moduleTypes(), now);
+		if (d == null) return;
 		var ps = now2.get().proposals();
 		List<Proposal> all = new ArrayList<>(ps.open());
 		all.add(d);
@@ -366,7 +412,11 @@ public final class Proposals {
 	static @org.jspecify.annotations.Nullable String offerQuarter(MinecraftServer server, java.util.UUID player, Settlement s, String way,
 		dev.larattalabs.steward.model.Proposal.Quarter q) {
 		if (s.card() == null || !s.card().hasProgram()) return "Describe " + s.name() + " with its buildings first.";
-		var b = s.card().program().stream().filter(x -> !x.landmark()).findFirst().orElse(s.card().program().get(0));
+		// (slice MODULE-TYPE) never three ordinary buildings of a module's type: the first of the card's other buildings, else said
+		var types = ModuleOffers.moduleTypes();
+		var b = quarterBuilding(s.card(), types);
+		if (b == null) return "A quarter's buildings are the card's ordinary ones, and " + s.name() + "'s are all working modules: "
+			+ dev.larattalabs.steward.module.ModuleTypes.rule(dev.larattalabs.steward.module.ModuleTypes.moduleOf(s.card().program().get(0).type(), types)) + ".";
 		var building = new dev.larattalabs.steward.model.ConceptCard.Building(b.role(), b.type(), 3, b.footprint(), false, b.notes(), null);
 		String where = "outpost".equals(q.kind()) ? "An outpost to the " + dev.larattalabs.steward.model.DistrictRules.directionName(way)
 			: "A quarter along the " + q.boundary().replace('_', ' ') + " to the " + dev.larattalabs.steward.model.DistrictRules.directionName(way);
@@ -383,12 +433,35 @@ public final class Proposals {
 		return null;
 	}
 
+	/**
+	 * (slice MODULE-TYPE) The card building a quarter is made of: the first ordinary (not a landmark) one, else the first; a building of a module's type
+	 * is never one (Noah 11-20: a module isn't built as an ordinary building). Null when every building is a module's. Pure.
+	 */
+	static dev.larattalabs.steward.model.ConceptCard.@org.jspecify.annotations.Nullable Building quarterBuilding(dev.larattalabs.steward.model.ConceptCard card,
+		Map<String, String> types) {
+		var ordinary = card.program().stream().filter(x -> dev.larattalabs.steward.module.ModuleTypes.moduleOf(x.type(), types) == null).toList();
+		if (ordinary.isEmpty()) return null;
+		return ordinary.stream().filter(x -> !x.landmark()).findFirst().orElse(ordinary.get(0));
+	}
+
 	/** The steward's own district for the buildings the card left out ({@code left}), on the side {@code c} chose. */
-	static Proposal leftOutDistrict(dev.larattalabs.steward.model.DistrictSite.Choice c, List<dev.larattalabs.steward.model.ConceptCard.Building> left, long now) {
+	/**
+	 * {@code modules}, the card's left-out buildings of a module's type ({@code types}), are never the district's (slice MODULE-TYPE): its words say so,
+	 * and {@code left} holding one anyway (a caller that didn't split) is split here. Null when no ordinary building is left. Pure.
+	 */
+	static @org.jspecify.annotations.Nullable Proposal leftOutDistrict(dev.larattalabs.steward.model.DistrictSite.Choice c, List<dev.larattalabs.steward.model.ConceptCard.Building> left,
+		List<dev.larattalabs.steward.model.ConceptCard.Building> modules, Map<String, String> types, long now) {
+		if (types.isEmpty()) types = dev.larattalabs.steward.module.ModuleTypes.KNOWN;
+		var split = dev.larattalabs.steward.module.ModuleTypes.split(left, types);
+		left = split.ordinary();
+		List<dev.larattalabs.steward.model.ConceptCard.Building> out = new ArrayList<>(modules);
+		out.addAll(split.modules());
+		if (left.isEmpty()) return null;
 		String side = dev.larattalabs.steward.model.DistrictRules.directionName(c.way());
 		String names = ProposalRules.leftOutWords(left);
+		String moduleWords = dev.larattalabs.steward.module.ModuleTypes.leftOutWords(out, types);
 		var p = Proposal.district(c.way(), "The card's plan left out " + names + ": a district to the " + side + (c.why().isEmpty() ? "" : ", " + c.why() + ",")
-			+ " would give them a street of their own. Founding it lays a road and costs nothing; each building is proposed after.", now);
+			+ " would give them a street of their own. Founding it lays a road and costs nothing; each building is proposed after." + (moduleWords.isEmpty() ? "" : " " + moduleWords), now);
 		p = new Proposal(p.key(), "A district for " + names + " (" + side + ")", p.why(), null, now, "left out", null, c.way());
 		return p.withPlace(dev.larattalabs.steward.model.DistrictSite.line(c.why(), left.get(0).role()));
 	}
@@ -398,6 +471,16 @@ public final class Proposals {
 	 * declined (the steward offers it once; slice DP).
 	 */
 	static List<dev.larattalabs.steward.model.ConceptCard.Building> leftOut(MinecraftServer server, Settlement s) {
+		return leftOutSplit(server, s).ordinary();
+	}
+
+	/** (slice MODULE-TYPE) The card's left-out buildings ({@link #leftOutAll}), split: the ordinary ones, and those of a module's type (never offered as buildings). */
+	static dev.larattalabs.steward.module.ModuleTypes.Split leftOutSplit(MinecraftServer server, Settlement s) {
+		return dev.larattalabs.steward.module.ModuleTypes.split(leftOutAll(server, s), ModuleOffers.moduleTypes());
+	}
+
+	/** The card's left-out buildings, those of a module's type included. */
+	private static List<dev.larattalabs.steward.model.ConceptCard.Building> leftOutAll(MinecraftServer server, Settlement s) {
 		if (s.card() == null || !s.card().hasProgram() || !s.lands().districts().isEmpty()) return List.of();
 		if (s.proposals().declined().stream().anyMatch(k -> k.startsWith("district_")) || s.proposals().open().stream().anyMatch(Proposal::foundsDistrict)) return List.of();
 		java.util.Map<String, Integer> byRole = new java.util.HashMap<>(), byType = new java.util.HashMap<>();
@@ -425,12 +508,13 @@ public final class Proposals {
 	public static String proposeLeftOut(MinecraftServer server, java.util.UUID player, String settlementId) {
 		var s = Settlements.store().get(settlementId);
 		if (s.isEmpty()) return "No such settlement: " + settlementId;
-		var left = leftOut(server, s.get());
-		if (left.isEmpty()) return "nothing left out";
+		var split = leftOutSplit(server, s.get());
+		var left = split.ordinary();
+		if (left.isEmpty()) return split.modules().isEmpty() ? "nothing left out" : "nothing left out but " + ProposalRules.leftOutWords(split.modules()) + ", of a module's type (never an ordinary building)";
 		Set<String> skip = new HashSet<>();
 		for (String d : dev.larattalabs.steward.model.DistrictRules.DIRECTIONS) if (s.get().proposals().declined().contains("district_" + d)) skip.add(d);
 		Districts.choose(server, s.get(), dev.larattalabs.steward.model.DistrictSite.fromWords(ProposalRules.leftOutSiteWords(left)), null, skip, c -> {
-			if (c.way() != null) offerDistrict(server, player, s.get(), c, System.currentTimeMillis(), left);
+			if (c.way() != null) offerDistrict(server, player, s.get(), c, System.currentTimeMillis(), left, split.modules());
 		});
 		return "choosing a district for " + ProposalRules.leftOutWords(left);
 	}
@@ -546,10 +630,13 @@ public final class Proposals {
 	/** One inbox entry per settlement with proposals waiting. */
 	public static List<InboxModel.Entry> inboxEntries() {
 		List<InboxModel.Entry> out = new ArrayList<>();
+		var types = ModuleOffers.moduleTypes();
 		for (Settlement s : Settlements.store().all()) {
 			if (s.proposals().open().isEmpty()) continue;
-			// the cost first, where the row never cuts it
-			List<InboxModel.Lot> ideas = new ArrayList<>(s.proposals().open().stream().filter(p -> !p.offersPart()).map(p -> new InboxModel.Lot(p.key(), p.title(), "proposal",
+			// the cost first, where the row never cuts it; (slice MODULE-TYPE) an old save's ordinary proposal of a module's type has no price: it isn't built
+			List<InboxModel.Lot> ideas = new ArrayList<>(s.proposals().open().stream().filter(p -> !p.offersPart()).map(p -> dev.larattalabs.steward.module.ModuleTypes.plain(p, types)
+				? new InboxModel.Lot(p.key(), p.title(), "proposal", false, true, dev.larattalabs.steward.module.ModuleTypes.refusal(p.title(), dev.larattalabs.steward.module.ModuleTypes.plainModule(p, types)))
+				: new InboxModel.Lot(p.key(), p.title(), "proposal",
 				false, true, (p.foundsDistrict() && !PlanDistricts.isKey(p.key()) ? "free" : p.offersModule() ? (p.module().bound() == null ? "free" : "$0 · at most " + dev.larattalabs.steward.module.ModuleBound.bill(p.module().bound(), 3)) : "about $" + estimate(p)) + (p.district() == null ? "" : " · in " + s.lands().district(p.district())
 					.map(Settlement.District::name).orElse("a district")) + " · " + p.why())).toList());
 			// the waiting parts, however many: one row

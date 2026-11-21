@@ -6651,6 +6651,16 @@ async function moduleFlow() {
   if (deco && /can't go here \(one stands already\)/.test(deco.why) && /about \$\d+/.test(deco.why)) ok(`${label} decorative`, deco.why.slice(0, 160));
   else fail(`${label} decorative`, JSON.stringify(deco)?.slice(0, 200));
   if (deco) await cmd(`/steward proposals ${id} decline ${deco.key}`);
+  // (MODULE-TYPE, Noah 11-20 "Never as plain buildings") asked in the module's own type with no module named: asked of the module, which stands, so
+  // it is left out and said; nothing of that type waits in the inbox, nothing priced
+  const plainAsk = { reply: 'A crop farm: drawn up, it waits in the inbox.', intent: 'building', building: { role: 'crop farm', type: MODULE, footprint: 'L', landmark: false } };
+  await cmd(`/steward dev sim_answer talk ${JSON.stringify(plainAsk)}`);
+  from = logSize();
+  await cmd(`/steward talk ${id} build me a crop farm`);
+  const plainSaid = await waitLog(from, /A working [^\n]*I don't put a [^\n]* in the inbox as an ordinary building/, 60_000);
+  const plainOpen = (settlements().find((x) => x.id === id)?.proposals?.open ?? []).filter((p) => p.building?.type === MODULE && !p.module);
+  if (plainSaid && /can't go here: one stands already/.test(plainSaid[0]) && plainOpen.length === 0) ok(`${label} plain type`, plainSaid[0].slice(0, 200));
+  else fail(`${label} plain type`, `said ${plainSaid?.[0]?.slice(0, 160)}; plain proposals of ${MODULE} open: ${plainOpen.map((p) => p.key).join(', ')}`);
   // undone: the revision goes, the ground as before the growth
   await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius - 40}`);
   from = logSize();

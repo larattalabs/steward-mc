@@ -16,6 +16,7 @@ import dev.larattalabs.steward.module.ModuleCatalog;
 import dev.larattalabs.steward.module.ModuleDev;
 import dev.larattalabs.steward.module.ModuleGate;
 import dev.larattalabs.steward.module.ModuleKind;
+import dev.larattalabs.steward.module.ModuleTypes;
 import dev.larattalabs.steward.module.ModuleOffer;
 import dev.larattalabs.steward.module.ModuleOrder;
 import dev.larattalabs.steward.module.ModuleRef;
@@ -98,6 +99,20 @@ public final class ModuleOffers {
 		List<ModuleKind> out = new ArrayList<>();
 		for (var e : catalog().entries()) ModuleKind.of(e.id()).filter(k -> !out.contains(k)).ifPresent(out::add);
 		return out;
+	}
+
+	/**
+	 * (slice MODULE-TYPE) Every building type that is a module's: the kinds Steward knows and every id the catalog lists, offered now or not (failing
+	 * closed: with no catalog, the known kinds alone). Such a type is never proposed or built as an ordinary building ({@link ModuleTypes}).
+	 */
+	public static Map<String, String> moduleTypes() {
+		try {
+			List<String> ids = new ArrayList<>();
+			for (var e : catalog().entries()) ids.add(e.id());
+			return ModuleTypes.of(kinds(), ids);
+		} catch (RuntimeException | LinkageError e) {
+			return ModuleTypes.KNOWN;
+		}
 	}
 
 	/**
@@ -329,7 +344,8 @@ public final class ModuleOffers {
 		for (String rule : kind.decorative().stream().sorted().toList()) {
 			if (now.proposals().declined().contains(rule) || now.proposals().open().stream().anyMatch(x -> x.key().equals(rule))) continue;
 			Proposal deco = ProposalRules.find(rule);
-			if (deco == null) continue;
+			// (slice MODULE-TYPE, GPT review P2) a decorative rule whose type a catalog module took is no substitute
+			if (deco == null || ModuleTypes.plain(deco, moduleTypes())) continue;
 			int usd = Proposals.estimate(deco);
 			deco = new Proposal(deco.key(), deco.title(), base + " A decorative " + deco.building().role() + " (designed, not working) would cost about $" + usd + ".", deco.building(),
 				System.currentTimeMillis(), "a working one can't go here");

@@ -516,6 +516,10 @@ public final class Actions {
 		}
 		var p = s.proposals().open().stream().filter(x -> x.key().equals(key)).findFirst();
 		if (p.isEmpty()) return Result.fail("No proposal " + key + " waits.");
+		// (slice MODULE-TYPE; Noah 11-20, "Never as plain buildings") an ordinary proposal of a module's type (an old save's, or one any path let
+		// through) is never built as a designed building: it leaves the inbox, said, before anything is surveyed, saved as accepted or spent
+		String plainModule = dev.larattalabs.steward.module.ModuleTypes.plainModule(p.get(), ModuleOffers.moduleTypes());
+		if (plainModule != null) return refusePlainModule(player == null ? null : player.level().getServer(), s, p.get(), plainModule);
 		if (SettlementRunner.busy(s.id())) return Result.fail(s.id() + " is being built; build the proposal once that is done.");
 		if (p.get().offersPart()) {
 			// a part of the plan that waited for Architect, built now (docs/COMPOSITION.md section 11): always the player's call
@@ -609,6 +613,18 @@ public final class Actions {
 			() -> Proposals.giveBack(s.id(), p.get(), spend), () -> Proposals.backOff(s.id(), key)).startAddition(s, p.get().building(), budget, district);
 		return Result.ok(String.format("Building %s for %s: one building beside what stands%s, budget $%d.", title.toLowerCase(), s.name(),
 			district == null ? "" : " in " + s.lands().district(district).map(Settlement.District::name).orElse("its district"), budget));
+	}
+
+	/**
+	 * (slice MODULE-TYPE) Refuses an ordinary proposal of a module's type: it leaves the inbox (not declined: the module itself is offered on its own
+	 * when the town qualifies) and the steward says why. Nothing is surveyed, accepted or spent. {@code server} null: not said aloud (a unit test).
+	 */
+	static Result refusePlainModule(@org.jspecify.annotations.Nullable MinecraftServer server, Settlement s, dev.larattalabs.steward.model.Proposal p, String moduleId) {
+		String said = dev.larattalabs.steward.module.ModuleTypes.refusal(p.title(), moduleId);
+		Proposals.withdraw(s.id(), p.key());
+		Steward.LOGGER.info("{}: proposal {} refused: an ordinary building of module {}'s type", s.id(), p.key(), moduleId);
+		if (server != null) StewardVoice.say(server, s.id(), said);
+		return Result.fail(said);
 	}
 
 	/**
