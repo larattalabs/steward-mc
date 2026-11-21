@@ -108,6 +108,38 @@ class VPlanTest {
 		assertFalse(VPlan.shapingBuilt(List.of(), List.of(part.apply("river", "fits"))));
 	}
 
+	/**
+	 * (B092-FIX, batch 092 GPT review P1) A stale artifact's re-check: the frozen plan still holds the optional pond the approved check refused, so a
+	 * re-check where the ponds swap (west refused, east now fits) builds a shaping nobody approved. Only the approved shaping, as approved, passes.
+	 */
+	@Test
+	void aRecheckKeepsOnlyTheApprovedShaping() {
+		var json = (java.util.function.Function<String, JsonObject>) t -> com.google.gson.JsonParser.parseString(t).getAsJsonObject();
+		JsonObject frozen = json.apply("""
+			{"connectors": [{"id": "main", "kind": "street"}],
+			 "forms": [{"id": "west_pond", "kind": "pond"}, {"id": "east_pond", "kind": "pond"}]}""");
+		var shaping = VPlan.shapingParts(frozen, java.util.Set.of());
+		assertEquals(List.of("west_pond", "east_pond"), shaping);
+		var part = (java.util.function.BiFunction<String, String, JsonObject>) (id, cls) -> json.apply("{\"part\": \"" + id + "\", \"class\": \"" + cls
+			+ "\", \"geometry\": {\"rect\": [0, 0, 9, 9]}}");
+		var approved = List.of(part.apply("town", "fits"), part.apply("west_pond", "fits"), part.apply("east_pond", "refused"));
+		// the transition the review found: the approved pond refused now, the refused one fits
+		assertFalse(VPlan.sameShaping(shaping, approved, List.of(part.apply("town", "fits"), part.apply("west_pond", "refused"), part.apply("east_pond", "fits"))),
+			"the ponds swapped: east was never approved");
+		// both fit now: more shaping than approved
+		assertFalse(VPlan.sameShaping(shaping, approved, List.of(part.apply("west_pond", "fits"), part.apply("east_pond", "adjusted"))), "east added");
+		// the same pond, built elsewhere (its geometry changed)
+		JsonObject moved = json.apply("{\"part\": \"west_pond\", \"class\": \"fits\", \"geometry\": {\"rect\": [4, 0, 13, 9]}}");
+		assertFalse(VPlan.sameShaping(shaping, approved, List.of(part.apply("town", "fits"), moved, part.apply("east_pond", "refused"))), "west moved");
+		// the approved artifact unreadable: nothing to compare with, so no
+		assertFalse(VPlan.sameShaping(shaping, null, List.of(part.apply("west_pond", "fits"), part.apply("east_pond", "refused"))), "unreadable original");
+		assertFalse(VPlan.sameShaping(shaping, List.of(part.apply("west_pond", "refused"), part.apply("east_pond", "refused")),
+			List.of(part.apply("west_pond", "refused"), part.apply("east_pond", "refused"))), "no shaping built at all");
+		// the same shaping, the same geometry: yes (fits and adjusted both build it; the rest of the plan may change)
+		assertTrue(VPlan.sameShaping(shaping, approved, List.of(part.apply("town", "adjusted"), part.apply("west_pond", "adjusted"), part.apply("east_pond", "incomplete"))));
+		assertTrue(VPlan.sameShaping(shaping, approved, approved));
+	}
+
 	@Test
 	void theLotsGoAsTheContractSays() {
 		JsonObject p = VPlan.params(SPECS);

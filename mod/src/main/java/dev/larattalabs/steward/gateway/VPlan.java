@@ -143,6 +143,30 @@ public final class VPlan {
 		return false;
 	}
 
+	/**
+	 * (B092-FIX, GPT review P1) Whether a stale artifact's re-check keeps the shaping the player approved: {@code shaping} is the frozen plan's shaping
+	 * candidates, {@code approvedParts} the approved artifact's own {@code parts} (null: unreadable), {@code checkParts} the re-check's. Yes only when
+	 * the approved check built some shaping and the re-check builds exactly the same shaping parts (fits or adjusted), each with the same geometry: a
+	 * refused optional part that fits now, an approved one refused now, or one laid elsewhere is a shaping nobody approved. Pure.
+	 */
+	public static boolean sameShaping(List<String> shaping, @Nullable List<JsonObject> approvedParts, List<JsonObject> checkParts) {
+		if (shaping.isEmpty() || approvedParts == null) return false;
+		Map<String, JsonObject> before = builtShaping(shaping, approvedParts), now = builtShaping(shaping, checkParts);
+		return !before.isEmpty() && before.equals(now);
+	}
+
+	/** The shaping parts a check builds (fits or adjusted), by id, each with its geometry (an empty object when it has none). */
+	private static Map<String, JsonObject> builtShaping(List<String> shaping, List<JsonObject> parts) {
+		Map<String, JsonObject> out = new java.util.TreeMap<>();
+		for (JsonObject p : parts) {
+			String id = p.has("part") && p.get("part").isJsonPrimitive() ? p.get("part").getAsString() : null;
+			String cls = p.has("class") && p.get("class").isJsonPrimitive() ? p.get("class").getAsString() : "";
+			if (id == null || !shaping.contains(id) || !(cls.equals("fits") || cls.equals("adjusted"))) continue;
+			out.put(id, p.has("geometry") && p.get("geometry").isJsonObject() ? p.getAsJsonObject("geometry") : new JsonObject());
+		}
+		return out;
+	}
+
 	/** (slice M5-SCULPT-2) The shaping parts in words, each by its label else its id's words ("river", "river and crater lake"). Pure. */
 	public static String shapingWords(JsonObject plan, List<String> shaping) {
 		List<String> names = new ArrayList<>();
