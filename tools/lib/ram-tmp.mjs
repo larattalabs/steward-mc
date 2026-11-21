@@ -87,7 +87,11 @@ export function ramSidecarData(gameDir, env = process.env, root = RAM_TMP, { fre
   let target = path.join(root, 'steward', `sidecar-${hash(path.resolve(gameDir))}`);
   // fresh (an e2e run, whose world is new): start from an empty directory. The sidecar's designs, bibles and jobs pile up run after run
   // (6 GB in one checkout by 11-15), and a 24 GB RAM disk shared by every worktree filled up (ENOSPC) mid-run
-  if (fresh) target = freshTarget(target, gameDir, starts);
+  if (fresh) {
+    // (E2E-DISK-3) the link's current target first: a live run's dir (a kept one, or one beside the game dir's) is never relinked away from it
+    if (st?.isSymbolicLink()) refuseLive(path.resolve(path.dirname(link), fs.readlinkSync(link)), gameDir, starts);
+    target = freshTarget(target, gameDir, starts);
+  }
   fs.mkdirSync(target, { recursive: true });
   if (own) ownDir(target, { link, env, extra: { tool: 'steward-e2e', gameDir: path.resolve(gameDir) } });
   let moved = null;
@@ -113,11 +117,8 @@ function freshTarget(target, gameDir, starts) {
   try { st = fs.lstatSync(target); } catch {}
   if (!st) return target;
   if (st.isDirectory()) {
-    const o = readOwner(target);
+    const o = refuseLive(target, gameDir, starts);
     if (o && !isKept(o)) {
-      if (!ownedByMe(target) && (isHeld(o, starts ?? processStarts()) || !ownerGone(o))) {
-        throw new Error(`${target} (the sidecar dir of ${path.resolve(gameDir)}) is held by another live run (pid ${o.pid}): refused, nothing emptied; let it finish first`);
-      }
       fs.rmSync(target, { recursive: true, force: true });
       return target;
     }
@@ -125,4 +126,19 @@ function freshTarget(target, gameDir, starts) {
   }
   // kept data (STEWARD_KEEP_TMP), a dev client's data, or not a dir: left as it is
   return fs.mkdtempSync(`${target}-`);
+}
+
+/**
+ * (E2E-DISK-3) Throws when dir (a sidecar dir: the game dir's, or the link's current target) is marked by another run that is live, or can't be told
+ * gone, kept or not: emptying it or relinking away from it would pull its data from under it (say during its slot wait). -> its marker, or null.
+ */
+function refuseLive(dir, gameDir, starts) {
+  let st = null;
+  try { st = fs.lstatSync(dir); } catch {}
+  if (!st?.isDirectory()) return null;
+  const o = readOwner(dir);
+  if (o && !ownedByMe(dir) && (isHeld(o, starts ?? processStarts()) || !ownerGone(o))) {
+    throw new Error(`${dir} (the sidecar dir of ${path.resolve(gameDir)}) is held by another live run (pid ${o.pid}): refused, nothing emptied or relinked; let it finish first`);
+  }
+  return o;
 }

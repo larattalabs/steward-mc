@@ -325,3 +325,24 @@ test('(E2E-DISK-3) on disk, a kept dir (STEWARD_KEEP_TMP) is never taken again o
   assert.equal(r.owned, false);
   assert.ok(fs.existsSync(path.join(link, 'old.json')));
 });
+
+for (const [what, env, devData] of [['a live STEWARD_KEEP_TMP=1 run', { STEWARD_KEEP_TMP: '1' }, false], ['a live run on a dir of its own (dev data in the game dir\'s)', {}, true]]) {
+  test(`(E2E-DISK-3) ${what} keeps its link: a second run on the game dir refuses, nothing relinked or emptied`, async () => {
+    const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-');
+    const link = path.join(game, 'architect', 'sidecar-data');
+    if (devData) fs.writeFileSync(path.join(ramSidecarData(game, {}, root).dir, 'designs.json'), 'x');
+    const d = driver('signal', { game, root, env });
+    await d.ready;
+    try {
+      const before = fs.readlinkSync(link);
+      assert.equal(before, d.dir());
+      assert.throws(() => ramSidecarData(game, {}, root, { fresh: true, own: true }), /another live run/);
+      assert.equal(fs.readlinkSync(link), before, 'its link moved');
+      assert.ok(fs.existsSync(dataFile(d.dir())), 'its data emptied');
+      assert.deepEqual(fs.readdirSync(path.join(root, 'steward')).length, devData ? 2 : 1, 'no new dir made');
+    } finally {
+      d.child.kill('SIGTERM');
+      await d.done;
+    }
+  });
+}

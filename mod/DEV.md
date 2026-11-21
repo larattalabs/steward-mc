@@ -301,11 +301,11 @@ Every worktree and `--clients` run dir has its own, so by 11-16 sixteen of them 
   when an earlier run had marked it and that owner is gone (it is emptied first). An existing directory that isn't marked, such as a dev
   client's data, is never removed.
 - **`STEWARD_KEEP_TMP=1`** keeps the dir, its marker saying `kept` from the start (so a SIGKILL keeps it too). Since E2E-DISK-3 neither the
-  sweep nor a later run ever empties it; it goes at a reboot, or by hand. (Before, the next run swept it.)
+  sweep nor a later run ever empties it; it goes at a reboot, the RAM disk's 04:17 refresh, or by hand. (Before, the next run swept it.)
 - **A fresh run empties only what it owns** (E2E-DISK-3): the game dir's `sidecar-<hash>` is taken when it is absent, empty and unmarked
   (what a run leaves), or marked by an owner provably gone (then emptied). Kept data or unmarked data (a dev client's) is left as it is and the
-  run starts in a new `sidecar-<hash>-XXXXXX` (mkdtemp) beside it. A dir held by another live run (say in its slot wait on the same game dir)
-  refuses the run in preflight, before anything is emptied or relinked.
+  run starts in a new `sidecar-<hash>-XXXXXX` (mkdtemp) beside it. A dir held by another live run (say in its slot wait on the same game dir),
+  whether the game dir's own or the one its link points at, kept or not, refuses the run in preflight, before anything is emptied or relinked.
 
 ### Disk: cleanup after a run, the free-space guard (slice E2E-DISK, 2026-11-21, $0)
 
