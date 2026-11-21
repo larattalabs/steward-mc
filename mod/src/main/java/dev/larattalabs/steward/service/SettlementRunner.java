@@ -3808,8 +3808,18 @@ public final class SettlementRunner {
 				if (wallLot != null && alive() && !over()) { wallRefused(lotEntries, session, wallLot, e.getMessage()); return; }
 				if (!first || !stale || !alive() || over()) { realised(id, err, session); return; }
 				Steward.LOGGER.info("{}: the artifact {} is stale: {}", settlement.id(), sha, e.getMessage());
-				say("The land under the plan changed while the buildings were designed: checking it again...");
 				JsonObject frozen = frozenPlan(sha);
+				// (B092-FIX, batch 092 GPT review P1; Noah 2026-11-21: "One narrow extra round") a sculpted site is never checked again here: it stops
+				// before anything more is pinned, quoted or realised, and a new Start plans it anew (a re-check can't show its shaping is still the one
+				// approved); every other site is checked again as before
+				String sculptStop = dev.larattalabs.steward.gateway.VPlan.staleRecheckStop(settlement.card() == null ? null : settlement.card().site().terrain(),
+					frozen, waitingOf(settlement));
+				if (sculptStop != null) {
+					Steward.LOGGER.info("{}: a stale artifact on a sculpted site: stopped, not checked again", settlement.id());
+					realised(null, new RefusalWords.Own(sculptStop), session);
+					return;
+				}
+				say("The land under the plan changed while the buildings were designed: checking it again...");
 				if (frozen == null) { realised(null, new RefusalWords.Own("the approved plan could not be read again"), session); return; }
 				var saved = Settlements.store().get(settlement.id()).orElse(settlement);
 				Composer.check(server, saved, frozen, playerId).whenComplete((c, cerr) -> ArchitectAccess.onServer(server, () -> {
@@ -3826,15 +3836,6 @@ public final class SettlementRunner {
 					// the world's mode changed while the buildings were designed: built from materials now, or no longer; this build stops, a new Start plans anew
 					if (no == null && c.survival() != artifactSurvival(sha)) no = "the world's mode changed while the buildings were designed (" + (c.survival()
 						? "it builds from materials now" : "it no longer builds from materials") + "): start the build again";
-					// (slice M5-SCULPT-2, GPT review P1) a shaped site checked again: its shaping must still be built
-					// (B092-FIX, GPT review P1) and built as approved: the same shaping parts, each with the same geometry, as the approved artifact's own
-					// check built (the frozen plan also holds the optional parts that check refused, which now fitting is no approval)
-					if (no == null && settlement.card() != null && "sculpt".equals(settlement.card().site().terrain())) {
-						var shaping = dev.larattalabs.steward.gateway.VPlan.shapingParts(frozen, waitingOf(settlement));
-						if (shaping.isEmpty() || !dev.larattalabs.steward.gateway.VPlan.sameShaping(shaping, approvedParts(sha), c.parts()))
-							no = "the plan's " + dev.larattalabs.steward.gateway.VPlan.shapingWords(frozen, shaping) + " can't be built here any more as it was approved, and"
-								+ " this shaped site isn't built without it: start the build again for a new check";
-					}
 					if (no != null) { realised(null, new RefusalWords.Own(no), session); return; }
 					String next = c.artifactSha();
 					// saved with the build before the old one is let go (a crash between keeps a target to resume from); the same sha keeps its pin
@@ -4084,15 +4085,6 @@ public final class SettlementRunner {
 	/** Whether this build is cancelling or has ended (nothing more is placed for it). */
 	private boolean over() {
 		return state == null || switch (state.phase()) { case CANCELLING, DONE, FAILED, CANCELLED -> true; default -> false; };
-	}
-
-	/** (B092-FIX) The approved artifact's own check parts ({@code body.parts}), or null when the artifact or its parts can't be read. */
-	private static @org.jspecify.annotations.Nullable List<JsonObject> approvedParts(String sha) {
-		var body = ArchitectAccess.api().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
-		if (body == null || !body.has("parts") || !body.get("parts").isJsonArray()) return null;
-		List<JsonObject> out = new ArrayList<>();
-		for (var e : body.getAsJsonArray("parts")) if (e.isJsonObject()) out.add(e.getAsJsonObject());
-		return out;
 	}
 
 	/** The plan as approved: the one Architect froze in the artifact (what the designs were made for), else the kept plan as this build builds it. */

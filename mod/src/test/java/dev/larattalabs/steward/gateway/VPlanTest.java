@@ -109,35 +109,32 @@ class VPlanTest {
 	}
 
 	/**
-	 * (B092-FIX, batch 092 GPT review P1) A stale artifact's re-check: the frozen plan still holds the optional pond the approved check refused, so a
-	 * re-check where the ponds swap (west refused, east now fits) builds a shaping nobody approved. Only the approved shaping, as approved, passes.
+	 * (B092-FIX narrow round, Noah 2026-11-21: "One narrow extra round") Every stale re-check of a sculpt site stops: the review's two cases (the ponds
+	 * swapped; a relief whose geometry names the town only, {"around": ["town"]}, with the town moved) both stop, as does a re-check that would come back
+	 * identical. A site that isn't sculpted is checked again as before (no stop here).
 	 */
 	@Test
-	void aRecheckKeepsOnlyTheApprovedShaping() {
+	void aStaleRecheckOfASculptSiteAlwaysStops() {
 		var json = (java.util.function.Function<String, JsonObject>) t -> com.google.gson.JsonParser.parseString(t).getAsJsonObject();
-		JsonObject frozen = json.apply("""
+		var none = java.util.Set.<String>of();
+		// the ponds swapped (west approved, east refused; re-checked, west refused and east fits): whatever the re-check says, it stops before it
+		JsonObject ponds = json.apply("""
 			{"connectors": [{"id": "main", "kind": "street"}],
 			 "forms": [{"id": "west_pond", "kind": "pond"}, {"id": "east_pond", "kind": "pond"}]}""");
-		var shaping = VPlan.shapingParts(frozen, java.util.Set.of());
-		assertEquals(List.of("west_pond", "east_pond"), shaping);
-		var part = (java.util.function.BiFunction<String, String, JsonObject>) (id, cls) -> json.apply("{\"part\": \"" + id + "\", \"class\": \"" + cls
-			+ "\", \"geometry\": {\"rect\": [0, 0, 9, 9]}}");
-		var approved = List.of(part.apply("town", "fits"), part.apply("west_pond", "fits"), part.apply("east_pond", "refused"));
-		// the transition the review found: the approved pond refused now, the refused one fits
-		assertFalse(VPlan.sameShaping(shaping, approved, List.of(part.apply("town", "fits"), part.apply("west_pond", "refused"), part.apply("east_pond", "fits"))),
-			"the ponds swapped: east was never approved");
-		// both fit now: more shaping than approved
-		assertFalse(VPlan.sameShaping(shaping, approved, List.of(part.apply("west_pond", "fits"), part.apply("east_pond", "adjusted"))), "east added");
-		// the same pond, built elsewhere (its geometry changed)
-		JsonObject moved = json.apply("{\"part\": \"west_pond\", \"class\": \"fits\", \"geometry\": {\"rect\": [4, 0, 13, 9]}}");
-		assertFalse(VPlan.sameShaping(shaping, approved, List.of(part.apply("town", "fits"), moved, part.apply("east_pond", "refused"))), "west moved");
-		// the approved artifact unreadable: nothing to compare with, so no
-		assertFalse(VPlan.sameShaping(shaping, null, List.of(part.apply("west_pond", "fits"), part.apply("east_pond", "refused"))), "unreadable original");
-		assertFalse(VPlan.sameShaping(shaping, List.of(part.apply("west_pond", "refused"), part.apply("east_pond", "refused")),
-			List.of(part.apply("west_pond", "refused"), part.apply("east_pond", "refused"))), "no shaping built at all");
-		// the same shaping, the same geometry: yes (fits and adjusted both build it; the rest of the plan may change)
-		assertTrue(VPlan.sameShaping(shaping, approved, List.of(part.apply("town", "adjusted"), part.apply("west_pond", "adjusted"), part.apply("east_pond", "incomplete"))));
-		assertTrue(VPlan.sameShaping(shaping, approved, approved));
+		assertNotNull(VPlan.staleRecheckStop("sculpt", ponds, none), "the ponds swapped");
+		// the reviewer's moved town (the relief's geometry only names the town, {"around": ["town"]}, so it reads the same though the town moved from
+		// [37, 42, 89, 86] to [3, 8, 55, 52]): it stops too
+		JsonObject relief = json.apply("""
+			{"zones": [{"id": "town", "kind": "standard"}], "forms": [{"id": "hills", "kind": "relief", "around": ["town"]}]}""");
+		String stop = VPlan.staleRecheckStop("sculpt", relief, none);
+		assertNotNull(stop, "the town moved under its relief");
+		assertTrue(stop.contains("the land changed under the shaped site") && stop.contains("start the build again"), stop);
+		assertTrue(stop.contains("relief") || stop.contains("hills"), "names the shaping: " + stop);
+		// the approved plan unreadable: it stops all the same
+		assertNotNull(VPlan.staleRecheckStop("sculpt", null, none), "no frozen plan");
+		// not sculpted (flat, as found, none): no stop here, the re-check goes on as before
+		for (String t : new String[] {"flat", "as_found", null})
+			assertNull(VPlan.staleRecheckStop(t, ponds, none), "terrain " + t);
 	}
 
 	@Test
