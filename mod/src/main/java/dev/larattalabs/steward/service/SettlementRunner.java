@@ -3015,7 +3015,7 @@ public final class SettlementRunner {
 			: "Placing the village (" + Words.count(lotEntries.size(), "building", "buildings") + ", its street, lanes and square)...");
 		queueInFlight = true;
 		inFlightSince = System.currentTimeMillis();
-		ServerPlayer actor = server.getPlayerList().getPlayer(playerId);
+		ServerPlayer actor = ArchitectAccess.player(server, playerId);
 		int session = Session.current();
 		String artifact = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
 		if (artifact != null) {
@@ -3359,7 +3359,7 @@ public final class SettlementRunner {
 	private boolean composedReady(Map<String, String> designed) {
 		if (moduleBusy || !placingModules(Session.current())) return false;
 		String sha = dev.larattalabs.steward.gateway.PPlan.artifactOf(vPlanId);
-		var body = sha == null ? null : ArchitectApi.get().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
+		var body = sha == null ? null : ArchitectAccess.api().regions().artifact(sha).map(dev.larattalabs.architect.api.PlanArtifact::body).orElse(null);
 		if (body == null || !body.has("lots") || !body.get("lots").isJsonArray()) {
 			say("Not placed: the approved plan can't be read back from Architect, so its working modules can't be bound to their lots. Nothing was placed.");
 			feed(new Pipeline.Cancel());
