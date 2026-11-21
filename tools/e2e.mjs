@@ -3293,7 +3293,8 @@ function sculptCard(name) {
 /** What a sculpt build said and placed: the plan path, the hall bound (never left out, never designed), the river's water. */
 async function sculptChecks(label, id, since) {
   const fromPlan = /Laying out the village from its plan/.test(since);
-  const street = since.match(/Layout: \d+ lots? on the street[^\n]*/)?.[0];
+  // (the plan's own lots are said as a street layout too: the street fallback is told by the left-out modules, logged before anything is spent)
+  const street = since.match(/plan modules of \S+ left out of the card's layout[^\n]*/)?.[0];
   const leftOut = since.match(/The plan's [^\n]* is left out of the town: [^\n]*/)?.[0];
   const hallSaid = since.match(/The plan's storage hall is a working storage hall from Steward's measured catalog[^\n]*/)?.[0] ?? '';
   const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
@@ -3340,7 +3341,7 @@ async function composedSculptFlowBody() {
   await clearAnimals();
   from = logSize();
   await cmd(`/steward start ${id} 3 30`);
-  await waitLog(from, /Laying out the village from its plan|Layout: \d+ lots? on the street/, 120_000);
+  await waitLog(from, /Laying out the village from its plan|left out of the card's layout/, 120_000);
   const claim = settlements().find((x) => x.id === id).claim;
   await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius + 4}`);
   const built = await buildThrough(id, from, label, false, null, 1_200_000);
@@ -3419,7 +3420,7 @@ async function composedSculptSurvivalFlow() {
       await sleep(3000);
       const since = logSince(from);
       if (new RegExp(`${name} is built: everything its plan laid out stands`).test(since)) { built = true; break; }
-      const stopped = since.match(/(?:^|\s)Not placed: [^\n]*|The build stopped[^\n]*|Cancelled [^\n]*|Layout: \d+ lots? on the street[^\n]*/);
+      const stopped = since.match(/(?:^|\s)Not placed: [^\n]*|The build stopped[^\n]*|Cancelled [^\n]*|plan modules of \S+ left out of the card's layout[^\n]*/);
       if (stopped) return fail(label, `stopped: ${stopped[0].slice(0, 300)}`);
       if (!region) region = savedBuild(id)?.vRegion ?? null;
       const st = savedBuild(id)?.state;
