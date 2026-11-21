@@ -3207,9 +3207,10 @@ async function composedModulesFlowBody() {
 }
 
 /**
- * (slice M5-SCULPT, docs/MODULES.md B3) A composed plan naming working modules on a card whose land is shaped (terrain sculpt): the plan isn't taken, so
- * the card's buildings go on Steward's streets, and each module lot is left out and said before anything is spent; the card's farm and storage hall
- * (the buildings the module lots stand for) are not laid out or designed. Cancelled once the designs are asked for (sim, $0).
+ * (slice M5-SCULPT, docs/MODULES.md B3) A composed plan naming working modules on a build that doesn't take it: the card's buildings go on Steward's
+ * streets, and each module lot is left out and said before anything is spent; the card's farm and storage hall (the buildings the module lots stand
+ * for) are not laid out or designed. Cancelled once the designs are asked for (sim, $0). (slice M5-SCULPT-2) A sculpt card whose plan carries the
+ * shaping now takes its plan (composed-sculpt), so the trigger here is uneven ground: a stone pillar 25 high in the surveyed square.
  */
 async function composedModulesStreetFlow() {
   const label = 'composed modules street';
@@ -3222,8 +3223,10 @@ async function composedModulesStreetFlow() {
   await closeScreens();
   await cmd(`/steward expand ${id}`);
   const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
-  card.name = 'Carved Hamlet';
-  card.site.terrain = 'sculpt';
+  card.name = 'Uneven Hamlet';
+  card.site.terrain = 'find';
+  // (slice M5-SCULPT-2) the ground made uneven past VPlan.FLAT_RANGE (12): a pillar beside the stone, inside the surveyed square
+  await cmd('/execute at @p run fill ~20 ~ ~20 ~20 ~25 ~20 minecraft:stone');
   // the buildings the plan's module lots stand for: the farm (its crop farm's `for`) and the storage hall (its hall's lot type)
   card.program.push({ role: 'village field', type: 'farm', count: 1, footprint: 'M', landmark: false, notes: 'Wheat for the village' },
     { role: 'storage hall', type: 'storage_hall', count: 1, footprint: 'M', landmark: false, notes: 'Keeps the stores in order' });
@@ -3231,7 +3234,7 @@ async function composedModulesStreetFlow() {
   await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
   await cmd(`/steward dev sim_answer plan ${JSON.stringify(JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'composed_modules.json'), 'utf8')).answer)}`);
   let from = logSize();
-  await cmd(`/steward describe ${id} a farming village on a carved river that feeds itself and keeps its stores in order`);
+  await cmd(`/steward describe ${id} a farming village that feeds itself and keeps its stores in order`);
   if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
   if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
   await closeScreens();
@@ -3240,13 +3243,14 @@ async function composedModulesStreetFlow() {
   const layout = await waitLog(from, /Layout: (\d+) lots? on the street(?: \((\d+) did not fit\))?/, 120_000);
   if (!layout) return fail(label, `no layout; ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
   let since = logSince(from);
-  const farmSaid = /The plan's the village field is left out of the town: the land is shaped, so the town is laid out on Steward's streets, where the working crop farm can't be placed yet\. It isn't designed as an ordinary building in its place\./.test(since);
-  const hallSaid = /The plan's the storage hall is left out of the town: the land is shaped, so the town is laid out on Steward's streets, where the working storage hall can't be placed yet\./.test(since);
+  const farmSaid = /The plan's the village field is left out of the town: the ground isn't flat enough for its plan, so the town is laid out on Steward's streets, where the working crop farm can't be placed yet\. It isn't designed as an ordinary building in its place\./.test(since);
+  const hallSaid = /The plan's the storage hall is left out of the town: the ground isn't flat enough for its plan, so the town is laid out on Steward's streets, where the working storage hall can't be placed yet\./.test(since);
   const leftOut = since.match(/plan modules of \S+ left out of the card's layout: (\d+) lot\(s\), (\d+) left/);
   const laid = Number(layout[1]) + Number(layout[2] ?? 0);
   const fromPlan = /Laying out the village from its plan/.test(since);
+  const ground = since.match(/survey: [^\n]*ground y (-?\d+)\.\.(-?\d+)/);
   if (!(farmSaid && hallSaid && leftOut?.[1] === '2' && Number(leftOut[2]) === total - 2 && laid === total - 2 && !fromPlan))
-    return fail(label, `farm said ${farmSaid}, hall said ${hallSaid}, ${leftOut?.[0]}, laid ${laid} of ${total}, from plan ${fromPlan}`);
+    return fail(label, `farm said ${farmSaid}, hall said ${hallSaid}, ${leftOut?.[0]}, laid ${laid} of ${total}, from plan ${fromPlan}; ground ${ground?.[1]}..${ground?.[2]}`);
   // the designs asked for are the street's lots only (the bible first, approved)
   let designing = null;
   const end = Date.now() + 240_000;
@@ -3260,6 +3264,242 @@ async function composedModulesStreetFlow() {
   await cmd(`/steward cancel ${id}`);
   if (designing !== null && Number(designing) <= Number(layout[1])) ok(label, `${layout[0]} (${total} asked, 2 module lots left out, said); designing ${designing}`);
   else fail(label, `designing ${designing} of ${layout[1]} laid out`);
+}
+
+/**
+ * (slice M5-SCULPT-2) Fixture 1's real composed plan (fixtures/real/composed_modules_real_1.json: a market town with a carved river, a channel
+ * connector from claim_w via claim_s to claim_e, and a 16-slot sorting storage hall), its ordinary lots trimmed to the quay and a townhouse so the
+ * run stays short, on a sculpt card: Start takes the plan (VPlan passes sculpt when the kept plan carries the shaping), keeps the hall as the
+ * catalog's module and carves the river. Never the street, never the hall designed as an ordinary building.
+ */
+function sculptAnswer() {
+  const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'real', 'composed_modules_real_1.json'), 'utf8')).answer;
+  const prog = answer.plan.zones[0].program;
+  prog.lots = prog.lots.filter((l) => ['storage_hall_1', 'shop_4', 'house_1'].includes(l.id));
+  return answer;
+}
+
+function sculptCard(name) {
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = name;
+  card.site = { text: 'A market town on a river carved across the plains.', template: 'waterfront', terrain: 'sculpt', size: 'M' };
+  card.program = [
+    { role: 'storage hall', type: 'storage_hall', count: 1, footprint: 'XL', landmark: true, notes: "Big hall that sorts the town's goods.", placement: 'central' },
+    { role: 'river quay and boathouse', type: 'shop', count: 1, footprint: 'M', landmark: false, placement: 'near_water' },
+    { role: 'townhouse', type: 'house', count: 1, footprint: 'S', landmark: false }];
+  return card;
+}
+
+/** What a sculpt build said and placed: the plan path, the hall bound (never left out, never designed), the river's water. */
+async function sculptChecks(label, id, since) {
+  const fromPlan = /Laying out the village from its plan/.test(since);
+  const street = since.match(/Layout: \d+ lots? on the street[^\n]*/)?.[0];
+  const leftOut = since.match(/The plan's [^\n]* is left out of the town: [^\n]*/)?.[0];
+  const hallSaid = since.match(/The plan's storage hall is a working storage hall from Steward's measured catalog[^\n]*/)?.[0] ?? '';
+  const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
+  const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED').at(-1);
+  const mods = await moduleSites(placed);
+  const hall = mods.find((m) => /^storage_hall@/.test(m.key));
+  if (fromPlan && !street && !leftOut && hallSaid && designing === '2' && /^region:/.test(placed?.siteGroup ?? '') && hall?.params?.slots === 16 && hall.params.bulk === 4)
+    ok(`${label} plan`, `the plan taken on a sculpt card (${placed.siteGroup}); hall ${hall.key} ${hall.params.slots} slots; ${designing} designed; ${hallSaid.slice(0, 120)}`);
+  else return fail(`${label} plan`, `from plan ${fromPlan}; street ${street}; left out ${leftOut?.slice(0, 160)}; hall said ${!!hallSaid}; designing ${designing}; entry ${placed?.siteGroup}; module sites ${JSON.stringify(mods).slice(0, 200)}`), null;
+  // the river: its course carved and its water settled (the fluids stage), Architect's channel.course
+  const fluids = since.match(/stage fluids[^\n]*/g) ?? [];
+  if (fluids.some((l) => /placed/.test(l))) ok(`${label} river`, fluids.at(-1).slice(0, 120));
+  else fail(`${label} river`, `fluids stage ${fluids.join(' | ').slice(0, 200) || 'none'}`);
+  return placed;
+}
+
+async function composedSculptFlow() {
+  try {
+    return await composedSculptFlowBody();
+  } finally {
+    await cmd('/steward dev modules {}').catch(() => null);
+  }
+}
+
+async function composedSculptFlowBody() {
+  const label = 'composed sculpt';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 98000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await cmd('/clear @p');
+  await clearAnimals();
+  await composedSource();
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(sculptCard('River Market'))}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(sculptAnswer())}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a market town on a carved river with a big storage hall that sorts the town's goods`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 3 30`);
+  await waitLog(from, /Laying out the village from its plan|Layout: \d+ lots? on the street/, 120_000);
+  const claim = settlements().find((x) => x.id === id).claim;
+  await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius + 4}`);
+  const built = await buildThrough(id, from, label, false, null, 1_200_000);
+  if (!built) return;
+  const placed = await sculptChecks(label, id, logSince(from));
+  if (!placed) return;
+  // undone: the town and its river (drained first)
+  await cmd(`/steward undo ${id}`);
+  let last = null;
+  for (let i = 0; i < 240 && last?.kind !== 'PROJECT_REMOVED'; i++) {
+    await sleep(1000);
+    last = settlements().find((x) => x.id === id)?.log.at(-1);
+  }
+  if (last?.kind === 'PROJECT_REMOVED' && last.siteIds.length === placed.siteIds.length) ok(`${label} undo`, last.text.slice(0, 160));
+  else fail(`${label} undo`, `last op ${last?.kind} (${last?.siteIds?.length} of ${placed.siteIds.length})`);
+}
+
+/**
+ * (slice M5-SCULPT-2) The same sculpt town built from materials: the plan taken, the hall bound under its lot cap, the river carved; the carve and its
+ * water are free held work (never in the bill), its lining (clay, mud, moss) is billed as the plan's parts and drawn from the stockpile. Conservation:
+ * the stockpile's loss is what the region's sites drew, item by item; undone, every consumed unit comes back once, nothing stands, and the world in
+ * the build's boxes is as before.
+ */
+async function composedSculptSurvivalFlow() {
+  const label = 'composed sculpt survival';
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  let feeding = false, stop = false, feeder = null;
+  try {
+    ok(`${label} source`, await composedSource());
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 99000 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/clear @p');
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const name = 'River Supply';
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(sculptCard(name))}`);
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(sculptAnswer())}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a market town on a carved river with a big storage hall`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+    const diff = settlements().find((x) => x.id === id)?.difficulty;
+    if (diff !== 'SUPPLIED') return fail(label, `difficulty ${diff} in a survival world`);
+    await closeScreens();
+    await clearAnimals();
+    const claim = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius + 4}`);
+    const owner = `steward_mc:settlement/${id}`;
+    const ledger = async () => {
+      const r = await cmd(`/steward dev stockpile ${id}`);
+      const m = r.match(/stockpile \S+ (\{.*\})/);
+      return m ? unweathered(JSON.parse(m[1])) : null;
+    };
+    feeder = (async () => {
+      while (!stop) {
+        await sleep(3000);
+        if (!feeding || !dev) continue;
+        const sp = await ledger().catch(() => null);
+        if (sp && Object.keys(sp.need ?? {}).length && dev) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+      }
+    })();
+    feeding = true;
+    const sp0 = await ledger();
+    const snap = await snapBeforeBuild(claim, `sculpt-before-${id}`);
+    from = logSize();
+    await cmd(`/steward start ${id} 3 30`);
+    let region = null, built = false;
+    const end = Date.now() + 2_400_000;
+    while (Date.now() < end) {
+      await sleep(3000);
+      const since = logSince(from);
+      if (new RegExp(`${name} is built: everything its plan laid out stands`).test(since)) { built = true; break; }
+      const stopped = since.match(/(?:^|\s)Not placed: [^\n]*|The build stopped[^\n]*|Cancelled [^\n]*|Layout: \d+ lots? on the street[^\n]*/);
+      if (stopped) return fail(label, `stopped: ${stopped[0].slice(0, 300)}`);
+      if (!region) region = savedBuild(id)?.vRegion ?? null;
+      const st = savedBuild(id)?.state;
+      if (st && /^AWAITING_(BIBLE|MASSING|PLACEMENT)_APPROVAL$/.test(st.phase ?? '')) await cmd(`/steward approve ${id}`);
+    }
+    feeding = false;
+    const since = logSince(from);
+    if (!built) return fail(label, `not built in 40 min; region ${region}; phase ${savedBuild(id)?.state?.phase}; ${since.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+    const placed = await sculptChecks(label, id, since);
+    if (!placed) return;
+    region = region ?? /^region:(.+)$/.exec(placed.siteGroup ?? '')?.[1];
+    const capOf = async (q) => dev.request('dev.bc.cap', { region, rid: 0, ...q }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
+    const sum = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    // the words: the plan's parts billed with the river's lining, the carve never called paid
+    {
+      const lbl = `${label} bill words`;
+      const bill = since.match(/From materials, the plan's ground, streets and parts need [^\n]*/)?.[0] ?? '';
+      const lining = ['clay', 'mud', 'moss block'].filter((k) => new RegExp(`\\d+ ${k}\\b`).test(bill));
+      const carvePaid = /carv[^\n]*(?:cost|pay|need|bill)|(?:cost|pay|bill)[^\n]*carv/i.test(since.split('\n').filter((l) => /\(steward\)|CHAT/.test(l)).join('\n'));
+      if (bill && lining.length >= 1 && !carvePaid) ok(lbl, `${bill.slice(0, 200)} (lining named: ${lining.join(', ')})`);
+      else fail(lbl, `bill ${bill.slice(0, 200) || 'none'}; lining ${lining.join(',')}; the carve called paid ${carvePaid}`);
+    }
+    // the hall's lot drew within its own cap (its measured bound), no overshoot; no region maxBill
+    {
+      const lbl = `${label} hall cap`;
+      const c = await capOf({ lot: 'storage_hall_1' });
+      const over = Object.entries(c?.lotCap?.drawn ?? {}).filter(([k, v]) => v > (c.lotCap.maxBill?.[k] ?? 0));
+      const region0 = await capOf({});
+      if (c?.lotCap && Object.keys(c.lotCap.maxBill ?? {}).length && !over.length && !Object.keys(c.lotCap.overshoot ?? {}).length && !Object.keys(region0?.maxBill ?? {}).length)
+        ok(lbl, `the hall drew ${sum(c.lotCap.drawn)} within its cap of ${sum(c.lotCap.maxBill)}; no region maxBill`);
+      else fail(lbl, `cap ${JSON.stringify(c).slice(0, 300)}; over ${JSON.stringify(over)}; region maxBill ${JSON.stringify(region0?.maxBill)}`);
+    }
+    // conservation: the stockpile's loss is what the region's sites drew, item by item, the lining among it
+    const spB = await ledger();
+    {
+      const lbl = `${label} stock = draws`;
+      const c = await capOf({});
+      const lost = minusItems(spB?.consumed, sp0?.consumed);
+      const drawn = c?.drawn ?? {};
+      const total = plusItems(c?.paid ?? {}, c?.regionCharged ?? {});
+      const liningDrawn = ['minecraft:clay', 'minecraft:mud', 'minecraft:moss_block'].filter((k) => (lost[k] ?? 0) > 0);
+      if (c && !c.refused && sameItems(lost, drawn) && sameItems(drawn, total) && liningDrawn.length)
+        ok(lbl, `the stockpile lost ${sum(lost)} units over ${Object.keys(lost).length} items, exactly what the sites drew (paid ${sum(c.paid)} + region ${sum(c.regionCharged)}); lining ${liningDrawn.map((k) => `${lost[k]} ${k.slice(10)}`).join(', ')}`);
+      else fail(lbl, `lost-drawn ${JSON.stringify(minusItems(lost, drawn)).slice(0, 200)}; drawn-total ${JSON.stringify(minusItems(drawn, total)).slice(0, 200)}; lining ${liningDrawn.join(',')}; ${JSON.stringify(c).slice(0, 200)}`);
+    }
+    await cmd(`/steward undo ${id}`);
+    let lastOp = null;
+    for (let i = 0; i < 300 && lastOp?.kind !== 'PROJECT_REMOVED'; i++) {
+      await sleep(2000);
+      lastOp = settlements().find((x) => x.id === id)?.log.at(-1);
+    }
+    await sleep(10_000);
+    const spR = await ledger();
+    const off = [];
+    for (const [item, all] of Object.entries(spB?.consumed ?? {})) {
+      const used = all - (spB.returned?.[item] ?? 0) - (spB.refundOverflow?.[item] ?? 0);
+      if (used <= 0) continue;
+      const back = (spR?.returned?.[item] ?? 0) + (spR?.refundOverflow?.[item] ?? 0) - (spB.returned?.[item] ?? 0) - (spB.refundOverflow?.[item] ?? 0);
+      if (back !== used) off.push(`${item} ${back}/${used}`);
+    }
+    if (overflowGrew(spB, spR)) off.push(overflowGrew(spB, spR));
+    if (lastOp?.kind === 'PROJECT_REMOVED' && off.length === 0) ok(`${label} refund`, `${lastOp.text.slice(0, 120)}; every consumed unit came back (${sum(spB?.consumed)})`);
+    else fail(`${label} refund`, `${lastOp?.kind}; refunds off: ${off.slice(0, 8).join(', ')}`);
+    const leak = [];
+    for (const item of new Set([...Object.keys(spR?.delivered ?? {}), ...Object.keys(spR?.stock ?? {}), ...Object.keys(spR?.refundOverflow ?? {})])) {
+      const inn = spR?.delivered?.[item] ?? 0, out = (spR?.stock?.[item] ?? 0) + (spR?.refundOverflow?.[item] ?? 0);
+      if (inn !== out) leak.push(`${item} in ${inn} / held ${out}`);
+    }
+    const standing = [...(spR?.sites ?? []), ...(spR?.tiles ?? [])].filter((x) => x.state !== 'REMOVED' && !/stockpile/i.test(`${x.kind} ${x.id}`));
+    if (overflowGrew(sp0, spR)) leak.push(overflowGrew(sp0, spR));
+    if (spR && leak.length === 0 && standing.length === 0) ok(`${label} conserved`, `delivered = stock + overflow for ${Object.keys(spR.delivered ?? {}).length} items; no site or tile left standing (${(spB?.tiles ?? []).length} tiles before the undo)`);
+    else fail(`${label} conserved`, `${leak.slice(0, 8).join(', ')}; standing ${JSON.stringify(standing).slice(0, 200)}`);
+    await undoWorldAudit(`${label} world restored`, snap, { start: sp0, built: spB, undone: spR });
+  } finally {
+    stop = true;
+    if (feeder) await feeder;
+    await cmd('/steward dev modules {}').catch(() => null);
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
 }
 
 /**
@@ -9869,7 +10109,10 @@ try {
       await flow('composed-modules-survival', 'composed module farm survival stockpile bill refund', () => composedModulesSurvivalFlow());
       // (CHECK-079) Architect LIFT-S-1: a composed sorting hall halted uncleanly with its fill half stocked, restarted, then finished
       await flow('composed-hall-fill-restart', 'composed module hall survival stockpile bill refund restart crash fill', () => composedModulesSurvivalFlow({ fillHalt: true }));
-      await flow('composed-modules-street', 'composed module farm hall sculpt street', () => composedModulesStreetFlow());
+      await flow('composed-modules-street', 'composed module farm hall uneven street', () => composedModulesStreetFlow());
+      // (slice M5-SCULPT-2) a sculpt card whose kept plan carries the shaping (fixture 1's carved river) takes the plan, keeping the hall and the river
+      await flow('composed-sculpt', 'composed module hall sculpt plan water undo', () => composedSculptFlow());
+      await flow('composed-sculpt-survival', 'composed module hall sculpt survival stockpile bill refund water', () => composedSculptSurvivalFlow());
       // (slice MODULE-TYPE-2) a bare module-type plan lot the catalog doesn't offer: left out of the first build, said, the rest built
       await flow('composed-unoffered', 'composed module farm plan first-build left out', () => composedUnofferedFlow());
       // (slice M5a; LIFT-S) a composed farm's bill from materials held, kept across a restart, re-checked stale and realised under its lot cap

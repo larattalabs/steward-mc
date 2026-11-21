@@ -199,10 +199,11 @@ final class StreetModules {
 
 	/**
 	 * Why a first whole build doesn't take its plan, in the steward's words (the first that holds): the land is shaped (what the plan carves, when it
-	 * says), the town isn't in the Overworld, something stands in the claim, the ground isn't flat, else the town's mode. Pure.
+	 * says), the town isn't in the Overworld, something stands in the claim, the ground isn't flat, else the town's mode. (slice M5-SCULPT-2) A shaped
+	 * site whose plan carries the shaping ({@code planShapes}) takes the plan, so the shaping is never the reason then: the next that holds is. Pure.
 	 */
-	static String why(String terrain, @Nullable JsonObject plan, boolean overworld, boolean somethingStands, boolean flat) {
-		if ("sculpt".equals(terrain)) {
+	static String why(String terrain, @Nullable JsonObject plan, boolean planShapes, boolean overworld, boolean somethingStands, boolean flat) {
+		if ("sculpt".equals(terrain) && !planShapes) {
 			String what = shaped(plan);
 			return "the land is shaped" + (what == null ? "" : " (" + what + ")");
 		}

@@ -73,22 +73,55 @@ public final class VPlan {
 	 * (a build without a composed plan) stays Patron's.
 	 */
 	public static boolean appliesSupplied(String settlementId, Difficulty difficulty, boolean worldSurvival, boolean regionSurvival, boolean overworld, boolean addition,
-		@Nullable String districtId, String terrain, boolean somethingStands, int groundLow, int groundHigh) {
+		@Nullable String districtId, String terrain, boolean planShapes, boolean somethingStands, int groundLow, int groundHigh) {
 		if (LEGACY.contains(settlementId)) return false;
-		return regionSurvival && worldSurvival && difficulty == Difficulty.SUPPLIED && overworld && !addition && districtId == null && !"sculpt".equals(terrain)
+		return regionSurvival && worldSurvival && difficulty == Difficulty.SUPPLIED && overworld && !addition && districtId == null && takesTerrain(terrain, planShapes)
 			&& !somethingStands && groundHigh - groundLow <= FLAT_RANGE;
 	}
 
 	/**
 	 * Whether a build uses the flat village: Patron (no materials) in a world without survival, in the Overworld (Architect's regions are Overworld only), a
 	 * settlement's first whole build (not an addition, not in a district, nothing standing), a card whose terrain is flat or as found (a sculpted form is a
-	 * region program of its own), and flat ground.
+	 * region program of its own), and flat ground. (slice M5-SCULPT-2) A sculpted card passes only when {@code planShapes}: the settlement's kept composed
+	 * plan itself carries the shaping ({@link #carriesShaping}), so the build takes that plan; never for the flat village from the card.
 	 */
 	public static boolean applies(String settlementId, Difficulty difficulty, boolean worldSurvival, boolean overworld, boolean addition, @Nullable String districtId,
-		String terrain, boolean somethingStands, int groundLow, int groundHigh) {
+		String terrain, boolean planShapes, boolean somethingStands, int groundLow, int groundHigh) {
 		if (LEGACY.contains(settlementId)) return false;
-		return difficulty == Difficulty.PATRON && !worldSurvival && overworld && !addition && districtId == null && !"sculpt".equals(terrain) && !somethingStands
+		return difficulty == Difficulty.PATRON && !worldSurvival && overworld && !addition && districtId == null && takesTerrain(terrain, planShapes) && !somethingStands
 			&& groundHigh - groundLow <= FLAT_RANGE;
+	}
+
+	/** Whether a card's terrain can take a region plan: flat or as found, or (slice M5-SCULPT-2) sculpted when the kept plan carries the shaping. */
+	private static boolean takesTerrain(String terrain, boolean planShapes) {
+		return !"sculpt".equals(terrain) || planShapes;
+	}
+
+	/**
+	 * (slice M5-SCULPT-2) The plan form kinds that move the ground (carve or raise it): with a channel connector, what a kept plan shapes a sculpted site
+	 * with. A form that only stands on the land (a tree, brush, scatter, a fountain, a hidden room) shapes nothing.
+	 */
+	public static final Set<String> SHAPING_FORMS = Set.of("relief", "terrace", "crater", "pond", "waterfall", "hollow_mountain");
+
+	/**
+	 * (slice M5-SCULPT-2) Whether a kept composed plan itself carries the shaping a sculpted card asks for: a channel connector (a carved river, Architect's
+	 * channel.course since API 1.36.0) or a ground-moving form ({@link #SHAPING_FORMS}), not one of the parts that wait for Architect ({@code waiting}: a
+	 * build makes those optional, so they could drop out unsaid as the shaping). Null or unreadable: false. Pure.
+	 */
+	public static boolean carriesShaping(@Nullable JsonObject plan, Set<String> waiting) {
+		if (plan == null) return false;
+		for (String sec : List.of("connectors", "forms")) {
+			if (!plan.has(sec) || !plan.get(sec).isJsonArray()) continue;
+			for (var e : plan.getAsJsonArray(sec)) {
+				if (!e.isJsonObject()) continue;
+				JsonObject o = e.getAsJsonObject();
+				String kind = o.has("kind") && o.get("kind").isJsonPrimitive() ? o.get("kind").getAsString() : "";
+				String id = o.has("id") && o.get("id").isJsonPrimitive() ? o.get("id").getAsString() : null;
+				if (id != null && waiting.contains(id)) continue;
+				if ("connectors".equals(sec) ? "channel".equals(kind) : SHAPING_FORMS.contains(kind)) return true;
+			}
+		}
+		return false;
 	}
 
 	/**
