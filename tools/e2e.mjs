@@ -27,6 +27,7 @@ import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, ad
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
+import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups } from './lib/disk.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -72,6 +73,17 @@ if (!['free', 'stub'].includes(mode) || (only && !only.length) || !(Number.isInt
 // --plan: print what would run where (the packing, the skips) and start nothing
 const PLAN = process.argv.includes('--plan');
 const LEAD = clients > 1 || PLAN;
+// slice E2E-DISK (mod/DEV.md "Disk"): no run below E2E_MIN_FREE_GIB (default 150) free on this worktree's volume; exit 5. A --clients run's
+// children don't check again (their lead did), and --plan starts nothing.
+if (!PLAN && !CLIENT) {
+  const g = checkFreeSpace(ROOT);
+  for (const w of g.warnings) console.log(w);
+  if (!g.ok) {
+    console.error(g.message);
+    process.exit(EXIT_LOW_DISK);
+  }
+  console.log(g.message);
+}
 const { DevClient } = await import(pathToFileURL(path.join(ARCH, 'tools', 'lib', 'devclient.mjs')).href);
 const { Blueprint, PALETTES } = await import(pathToFileURL(path.join(ARCH, 'kit', 'lib', 'kit.mjs')).href);
 const { writeBlueprint } = await import(pathToFileURL(path.join(ARCH, 'kit', 'lib', 'write.mjs')).href);
@@ -79,6 +91,8 @@ const { decodeArwd } = await import(pathToFileURL(path.join(ARCH, 'kit', 'lib', 
 
 fs.mkdirSync(OUT, { recursive: true });
 const results = [];
+/** The temp blueprint dirs this run made (mkdtemp), removed at its end whatever the outcome (slice E2E-DISK). */
+const tempInputs = [];
 const ok = (check, note = '') => { results.push({ check, ok: true, note }); console.log(`ok ${check}${note ? ' (' + note + ')' : ''}`); };
 const fail = (check, why) => { results.push({ check, ok: false, why }); console.log(`FAIL ${check}: ${why}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -669,6 +683,7 @@ async function placeUpdateUndo(id) {
   await dev.request('dev.key', { key: 'escape' });
   // a new version of the entry, built and checked by the kit, installed as the entry's next version
   const v2 = fs.mkdtempSync(path.join(os.tmpdir(), 'steward-e2e-v2-'));
+  tempInputs.push(v2);
   writeBlueprint(stubBlueprint(true), v2);
   const inst = await dev.request('dev.entry.installVersion', { entry: STUB, dir: v2, by: 'design', summary: 'e2e: a second lantern' });
   if (!inst.ok) return fail('update', `installVersion: ${JSON.stringify(inst).slice(0, 160)}`);
@@ -828,6 +843,7 @@ async function uiActions(id) {
   await cmd(`/tp @p ${me[0]} ${me[1]} ${me[2]}`);
   for (const variant of [true, 2]) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'steward-e2e-ui-'));
+    tempInputs.push(dir);
     writeBlueprint(stubBlueprint(variant, STUB_UI), dir);
     const inst = await dev.request('dev.entry.installVersion', { entry: STUB_UI, dir, by: 'design', summary: `e2e ui: v${variant === 2 ? 3 : 2}` });
     if (!inst.ok) return fail('ui place', `installVersion: ${JSON.stringify(inst).slice(0, 160)}`);
@@ -9861,7 +9877,26 @@ if (laneRuns) {
 }
 const failed = results.filter((r) => !r.ok).length;
 const seconds = Math.round((Date.now() - started) / 1000);
-fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), ...(slotWait ? { slot: slotWait } : slot ? { slot: { slot: slot.slot ?? null, ticket: slot.ticket ?? null, ...(slot.off ? { off: true } : {}), ...(slot.inherited ? { inherited: true } : {}) } } : {}), at: new Date().toISOString(), seconds, failed, sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
+// slice E2E-DISK (mod/DEV.md "Disk"): what this run made goes once it passed, its world kept (and named) when it didn't. Each driver cleans its
+// own game dir (a --clients lead has none: it merges its clients' records). Only this run's world (never with --keep-world, never the dev world,
+// never the game dir's architect/, config or logs) and its temp blueprints; the sidecar data is TMPSWEEP's (removed above, always).
+let cleanup = null;
+if (!LEAD) {
+  const keep = keepReason({ failed, checks: results.length, slotWait: !!slotWait, shuttingDown: shuttingDownNow() });
+  const jvm = jvmOnPort();
+  const items = [
+    ...(keepWorld ? [] : [{ path: WORLD, root: path.join(GAME, 'saves'), what: 'the e2e world' }]),
+    ...tempInputs.map((p) => ({ path: p, root: os.tmpdir(), what: 'a temp blueprint', always: true })),
+  ];
+  cleanup = cleanupRun(items, { keep, hold: jvm ? `a client JVM (${jvm}) still runs on ${GAME}` : null });
+} else if (laneRuns) cleanup = mergeCleanups(laneRuns.map((c) => ({ client: `c${c.k}`, cleanup: c.summary?.cleanup })));
+if (cleanup) {
+  for (const p of cleanup.deleted) console.log(`disk: deleted ${p}`);
+  for (const k of cleanup.kept) console.log(`disk: kept ${k.path}${k.client ? ` [${k.client}]` : ''} (${k.why})`);
+  for (const f of cleanup.failed) console.log(`disk: not deleted ${f.path ?? '?'}${f.client ? ` [${f.client}]` : ''}: ${f.why}`);
+  if (cleanup.note) console.log(`disk: ${cleanup.note}`);
+}
+fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, skipped, ...(skipUnchanged ? { unchanged } : {}), ...(CLIENT ? { client: CLIENT } : {}), ...(laneRuns ? { clients: clientRows } : {}), ...(slotWait ? { slot: slotWait } : slot ? { slot: { slot: slot.slot ?? null, ticket: slot.ticket ?? null, ...(slot.off ? { off: true } : {}), ...(slot.inherited ? { inherited: true } : {}) } } : {}), at: new Date().toISOString(), seconds, failed, ...(cleanup ? { cleanup } : {}), sanitySeconds: laneRuns ? null : flowsAt ? Math.round((flowsAt - started) / 1000) : null, flows: flowTimes, results }, null, 2));
 if (!CLIENT) recordRun(flowTimes);
 if (laneRuns) {
   const sum = flowTimes.reduce((a, f) => a + f.seconds, 0);
