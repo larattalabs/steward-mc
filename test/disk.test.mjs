@@ -311,4 +311,7 @@ test('(B091 switch-off) lane run dirs are never claimed or deleted: the flag is 
   assert.match(src, /if \(DELETE_LANE_DIRS\) addCleanup\(cleanup, cleanupRun\(laneRunDirs\(/, 'the lead delete is gated');
   assert.equal((src.match(/laneRunDirs\(/g) ?? []).length, 1, 'no other caller');
   assert.equal((src.match(/claimRunDir\(/g) ?? []).length, 1, 'no other claim');
+  // (GPT P3) the driver passes its slot wait to runItems: without it a timed-out driver would delete the world again
+  assert.match(src, /runItems\(\{ world: WORLD, saves: path\.join\(GAME, 'saves'\), keepWorld, slotWait: !!slotWait,/, 'the caller passes slotWait');
+  assert.equal((src.match(/runItems\(/g) ?? []).length, 1, 'one runItems caller');
 });
