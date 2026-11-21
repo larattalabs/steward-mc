@@ -3661,7 +3661,8 @@ async function composedUnofferedFlowBody() {
   const built = await buildThrough(id, from, label);
   if (!built) return;
   const since = logSince(from);
-  const said = since.match(/The plan's the village field is left out of this first build: a crop farm comes as a working module from the catalog once the town qualifies[^\n]*/g) ?? [];
+  // the steward's own line (the server's; the chat echoes it)
+  const said = since.match(/\(steward\) settlement: The plan's the village field is left out of this first build: a crop farm comes as a working module from the catalog once the town qualifies[^\n]*/g) ?? [];
   const layout = (since.match(/Layout: (\d+) lots?/) ?? [null, null])[1];
   const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
   const saidAt = since.indexOf(said[0] ?? '\u0000'), designAt = since.search(/Designing \d+ buildings?/);
