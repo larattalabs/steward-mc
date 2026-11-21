@@ -344,7 +344,8 @@ public final class ModuleOffers {
 		for (String rule : kind.decorative().stream().sorted().toList()) {
 			if (now.proposals().declined().contains(rule) || now.proposals().open().stream().anyMatch(x -> x.key().equals(rule))) continue;
 			Proposal deco = ProposalRules.find(rule);
-			if (deco == null) continue;
+			// (slice MODULE-TYPE, GPT review P2) a decorative rule whose type a catalog module took is no substitute
+			if (deco == null || ModuleTypes.plain(deco, moduleTypes())) continue;
 			int usd = Proposals.estimate(deco);
 			deco = new Proposal(deco.key(), deco.title(), base + " A decorative " + deco.building().role() + " (designed, not working) would cost about $" + usd + ".", deco.building(),
 				System.currentTimeMillis(), "a working one can't go here");

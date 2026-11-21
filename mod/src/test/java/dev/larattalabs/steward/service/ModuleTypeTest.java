@@ -199,4 +199,48 @@ class ModuleTypeTest {
 		assertTrue(r.message().contains("isn't built"), r.message());
 		assertTrue(Settlements.store().get("set_2").orElseThrow().autonomy().spends().isEmpty());
 	}
+
+	// ------------------------------------------------------------------ the GPT review's fix round
+
+	static com.google.gson.JsonObject plan(String json) {
+		return JsonParser.parseString(json).getAsJsonObject();
+	}
+
+	/** (GPT review P1) An ordinary proposal whose role matches a bare module lot's label never takes that lot as its addition. */
+	@Test
+	void anOrdinaryAdditionNeverTakesAPlansModuleLot() {
+		var p = plan("""
+			{"schemaVersion":"plan/0","zones":[{"id":"town","required":true,"program":{"lots":[
+			  {"id":"cottage_1","type":"cottage","size":[13,14]},
+			  {"id":"farm_1","type":"crop_farm","label":"farm and barn","size":[13,14]},
+			  {"id":"mill_1","type":"windmill","label":"the mill","size":[9,9]},
+			  {"id":"barn_1","type":"barn","label":"farm and barn","size":[9,9]}]}}]}""");
+		var pick = PlanGrowth.pick(p, java.util.Set.of(), Secrets.NONE, java.util.Set.of("cottage_1"), "farm", "farm and barn", TYPES);
+		assertEquals("barn_1", pick.orElseThrow().spec().id(), "the ordinary lot of that label, never the crop farm's");
+		assertTrue(PlanGrowth.pick(p, java.util.Set.of(), Secrets.NONE, java.util.Set.of("cottage_1", "barn_1"), "farm", "farm and barn", TYPES).isEmpty());
+		assertTrue(PlanGrowth.pick(p, java.util.Set.of(), Secrets.NONE, java.util.Set.of("cottage_1"), "windmill", null, ModuleTypes.of(List.of(), List.of("windmill"))).isEmpty(),
+			"a type the catalog lists");
+		assertTrue(PlanGrowth.pick(p, java.util.Set.of(), Secrets.NONE, java.util.Set.of("cottage_1", "barn_1"), "farm", "farm and barn").isEmpty(), "the old signature fails closed too");
+	}
+
+	/** (GPT review P1) A plan district never carries a lot of any module's type behind its first, ordinary lot. */
+	@Test
+	void aPlanDistrictLeavesOutEveryModulesType() {
+		var p = plan("""
+			{"schemaVersion":"plan/0","zones":[{"id":"town","required":true,"program":{"lots":[{"id":"cottage_1","type":"cottage","size":[13,14]}]}},
+			 {"id":"quarters","program":{"districts":[{"id":"east_side","label":"the east side","lots":[
+			   {"id":"house_1","type":"house","size":[9,9]},{"id":"farm_1","type":"crop__farm","size":[13,14]},{"id":"mill_1","type":"windmill","size":[9,9]}]}]}}]}""");
+		var u = PlanDistricts.unbuilt(p, java.util.Set.of("cottage_1"), java.util.Set.of(), Secrets.NONE, ModuleTypes.of(List.of(), List.of("windmill")));
+		assertEquals(List.of("house_1"), u.get(0).lots().stream().map(l -> l.get("id").getAsString()).toList());
+	}
+
+	/** (GPT review P2) A rule whose type a catalog module took is never a fresh ordinary proposal, nor a decorative substitute. */
+	@Test
+	void aRuleWhoseTypeTheCatalogTookIsNotOffered() {
+		var orchard = ProposalRules.find("orchard");
+		var farm = ProposalRules.find("farm");
+		var types = ModuleTypes.of(List.of(), List.of("orchard"));
+		assertEquals(List.of("farm"), Proposals.withoutPlain(List.of(orchard, farm), types).stream().map(Proposal::key).toList());
+		assertEquals(2, Proposals.withoutPlain(List.of(orchard, farm), TYPES).size());
+	}
 }

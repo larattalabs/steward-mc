@@ -53,6 +53,11 @@ public final class PlanDistricts {
 	 * lot Architect takes as a region lot (not a secret, not a module lot); a district that waits ({@code waiting}) or is a secret is left out.
 	 */
 	public static List<Unbuilt> unbuilt(JsonObject plan, Set<String> regionLots, Set<String> waiting, Secrets secrets) {
+		return unbuilt(plan, regionLots, waiting, secrets, dev.larattalabs.steward.module.ModuleTypes.KNOWN);
+	}
+
+	/** As above; (slice MODULE-TYPE, GPT review P1) a lot of any module's type ({@code types}, slugged: every catalog id) is left out too. */
+	public static List<Unbuilt> unbuilt(JsonObject plan, Set<String> regionLots, Set<String> waiting, Secrets secrets, Map<String, String> types) {
 		Map<String, List<PlanGrowth.Lot>> byDistrict = new LinkedHashMap<>();
 		for (PlanGrowth.Lot l : PlanGrowth.lots(plan)) if (l.district() != null) byDistrict.computeIfAbsent(l.district(), k -> new ArrayList<>()).add(l);
 		List<Unbuilt> out = new ArrayList<>();
@@ -66,6 +71,7 @@ public final class PlanDistricts {
 				if (secrets.hides(l.id()) || !PlanGrowth.LOT_ID.matcher(l.id()).matches()) continue;
 				// a module lot (M5's reading, failing closed: a marker, readable or not, or a module's lot type such as a bare crop_farm) is never designed
 				if (dev.larattalabs.steward.module.ComposedModules.asked(l.lot(), dev.larattalabs.steward.module.ComposedModules.LOT_TYPES) != null) continue;
+				if (l.lot().has("type") && l.lot().get("type").isJsonPrimitive() && dev.larattalabs.steward.module.ModuleTypes.moduleOf(l.lot().get("type").getAsString(), types) != null) continue;
 				take.add(l.lot());
 			}
 			if (take.isEmpty()) continue;

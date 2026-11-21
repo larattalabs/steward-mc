@@ -186,6 +186,10 @@ public final class Talk {
 			var counts = Districts.counts(server, s);
 			var where = ProposalRules.where(counts.town(), counts.districts(), Proposals.full(s.id(), now));
 			if (where.full()) {
+				// (slice MODULE-TYPE, GPT review P2) a building asked in a module's type gets no district first: a module grows the town's region,
+				// and isn't an ordinary building waiting for a street; said, nothing proposed
+				String moduleType = dev.larattalabs.steward.module.ModuleTypes.moduleOf(a.building().type(), ModuleOffers.moduleTypes());
+				if (moduleType != null) return plainLeftOut(a.building(), "the town's street is full, and its next buildings go to a district first", ModuleOffers.moduleTypes());
 				// a district first: the one already waiting, else the first way the player has not declined
 				var waiting = s.proposals().open().stream().filter(Proposal::foundsDistrict).findFirst();
 				if (waiting.isPresent()) return "The town's street is full, and " + waiting.get().title().toLowerCase() + " waits in the inbox: found it, then ask me again for the "

@@ -102,12 +102,18 @@ public final class Proposals {
 			fresh = ProposalRules.propose(signs(server, p, s), types(s), new HashSet<>(s.proposals().declined()), open.stream().filter(x -> !x.offersPart()).toList(),
 				s.proposals().lastAt(), now, modules).stream()
 				.map(x -> x.in(where.district())).toList();
+			// (slice MODULE-TYPE, GPT review P2) a rule whose type a catalog module took is never offered as an ordinary building
+			fresh = withoutPlain(fresh, ModuleOffers.moduleTypes());
 		}
 		if (fresh.isEmpty()) {
 			// nothing the signs ask for: the buildings the card left out, in a district of their own (slice DP; offered once)
 			// (slice MODULE-TYPE) a left-out building of a module's type isn't one of them: the district's words say why
 			var left = leftOutSplit(server, s);
 			if (!left.ordinary().isEmpty()) proposeDistrictFromLand(server, p.getUUID(), s, open, now, left.ordinary(), left.modules());
+			// (GPT review P2) only modules left out: said once this session, never offered as buildings
+			else if (!left.modules().isEmpty() && SAID_MODULES_LEFT.add(s.id())) StewardVoice.say(server, s.id(),
+				"The card's plan left out " + ProposalRules.leftOutWords(left.modules()) + ". " + capital(dev.larattalabs.steward.module.ModuleTypes.leftOutWords(left.modules(),
+					ModuleOffers.moduleTypes()).replaceFirst("^It leaves out [^:]*: ", "")));
 			return;
 		}
 		List<Proposal> all = new ArrayList<>(open);
@@ -123,6 +129,18 @@ public final class Proposals {
 		if (ProposalWords.start(server, saved, first, p.getUUID())) return;
 		StewardVoice.say(server, s.id(), "I have an idea: " + first.title().toLowerCase() + ". " + first.why() + " See the inbox (Y).");
 		SettlementRunner.sendInbox(server, p.getUUID());
+	}
+
+	/** (slice MODULE-TYPE) Settlements told this session that the card's left-out buildings are all modules' types. */
+	private static final Set<String> SAID_MODULES_LEFT = new HashSet<>();
+
+	private static String capital(String t) {
+		return t.isEmpty() ? t : Character.toUpperCase(t.charAt(0)) + t.substring(1);
+	}
+
+	/** (slice MODULE-TYPE) {@code fresh} without any ordinary proposal of a module's type. Pure. */
+	static List<Proposal> withoutPlain(List<Proposal> fresh, Map<String, String> types) {
+		return fresh.stream().filter(x -> !dev.larattalabs.steward.module.ModuleTypes.plain(x, types)).toList();
 	}
 
 	/** (slice MODULE-TYPE) Proposals with the ordinary ones of a module's type taken out of the open ones ({@code removed}); declined and accepted as they were. */
@@ -203,7 +221,7 @@ public final class Proposals {
 			for (var o : regions.list(s.owner())) if (!o.id().equals(v.id()) && o.state() != dev.larattalabs.architect.api.RegionState.REMOVED) for (var l : o.lots()) all.add(l.id());
 			Set<String> waiting = new HashSet<>();
 			for (var pd : entry.get().pending()) waiting.add(pd.part());
-			return new PlanRead(PlanDistricts.unbuilt(plan, all, waiting, Secrets.of(entry.get())),
+			return new PlanRead(PlanDistricts.unbuilt(plan, all, waiting, Secrets.of(entry.get()), ModuleOffers.moduleTypes()),
 				PlanDistricts.fingerprint(v.id(), entry.get().at(), entry.get().plan(), s.lands().districts()));
 		} catch (RuntimeException | LinkageError e) {
 			dev.larattalabs.steward.Steward.LOGGER.info("{}: the plan's districts can't be read now ({})", s.id(), e.toString());

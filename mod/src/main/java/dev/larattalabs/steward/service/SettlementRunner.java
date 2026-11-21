@@ -697,7 +697,7 @@ public final class SettlementRunner {
 		java.util.Set<String> waiting = new java.util.HashSet<>();
 		for (var p : entry.get().pending()) waiting.add(p.part());
 		var b = r.card().program().get(0);
-		var pick = PlanGrowth.pick(plan, waiting, Secrets.of(entry.get()), all, b.type(), b.role());
+		var pick = PlanGrowth.pick(plan, waiting, Secrets.of(entry.get()), all, b.type(), b.role(), ModuleOffers.moduleTypes());
 		if (pick.isEmpty()) return specs;
 		planLot = true;
 		growZone = pick.get().growZone();
