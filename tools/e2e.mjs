@@ -3435,10 +3435,12 @@ async function composedSculptSurvivalFlow() {
     const capOf = async (q) => dev.request('dev.bc.cap', { region, rid: 0, ...q }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
     const sum = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
     // the words: the plan's parts billed with the river's lining, the carve never called paid
+    const quoted = {};
     {
       const lbl = `${label} bill words`;
       const bill = since.match(/From materials, the plan's ground, streets and parts need [^\n]*/)?.[0] ?? '';
       const lining = ['clay', 'mud', 'moss block'].filter((k) => new RegExp(`\\d+ ${k}\\b`).test(bill));
+      for (const k of lining) quoted[`minecraft:${k.replace(' ', '_')}`] = Number(bill.match(new RegExp(`(\\d+) ${k}\\b`))[1]);
       const carvePaid = /carv[^\n]*(?:cost|pay|need|bill)|(?:cost|pay|bill)[^\n]*carv/i.test(since.split('\n').filter((l) => /\(steward\)|CHAT/.test(l)).join('\n'));
       if (bill && lining.length >= 1 && !carvePaid) ok(lbl, `${bill.slice(0, 200)} (lining named: ${lining.join(', ')})`);
       else fail(lbl, `bill ${bill.slice(0, 200) || 'none'}; lining ${lining.join(',')}; the carve called paid ${carvePaid}`);
@@ -3462,6 +3464,10 @@ async function composedSculptSurvivalFlow() {
       const drawn = c?.drawn ?? {};
       const total = plusItems(c?.paid ?? {}, c?.regionCharged ?? {});
       const liningDrawn = ['minecraft:clay', 'minecraft:mud', 'minecraft:moss_block'].filter((k) => (lost[k] ?? 0) > 0);
+      // (GPT review P2) the quote and the draws agree: each lining item the plan's bill named was drawn exactly as quoted (the carve is in neither)
+      const quoteOff = Object.entries(quoted).filter(([k, v]) => (lost[k] ?? 0) !== v).map(([k, v]) => `${k} quoted ${v} drew ${lost[k] ?? 0}`);
+      if (quoteOff.length || !Object.keys(quoted).length) return fail(`${label} quote = draws`, quoteOff.join('; ') || 'no lining quoted');
+      ok(`${label} quote = draws`, Object.entries(quoted).map(([k, v]) => `${v} ${k.slice(10)}`).join(', '));
       if (c && !c.refused && sameItems(lost, drawn) && sameItems(drawn, total) && liningDrawn.length)
         ok(lbl, `the stockpile lost ${sum(lost)} units over ${Object.keys(lost).length} items, exactly what the sites drew (paid ${sum(c.paid)} + region ${sum(c.regionCharged)}); lining ${liningDrawn.map((k) => `${lost[k]} ${k.slice(10)}`).join(', ')}`);
       else fail(lbl, `lost-drawn ${JSON.stringify(minusItems(lost, drawn)).slice(0, 200)}; drawn-total ${JSON.stringify(minusItems(drawn, total)).slice(0, 200)}; lining ${liningDrawn.join(',')}; ${JSON.stringify(c).slice(0, 200)}`);

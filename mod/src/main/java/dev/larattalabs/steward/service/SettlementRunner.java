@@ -2037,6 +2037,15 @@ public final class SettlementRunner {
 		if (went != null) say(went);
 		String stays = keptWords(applied.kept(), base);
 		if (stays != null) say(stays);
+		// (slice M5-SCULPT-2, GPT review P1) a shaped site took this plan for its shaping: the plan as built must still carry it (a channel from a zone
+		// left out goes with it), else nothing is spent
+		boolean sculpt = "sculpt".equals(r.card().site().terrain());
+		List<String> shaping = sculpt ? dev.larattalabs.steward.gateway.VPlan.shapingParts(built, waitingOf(existing)) : List.of();
+		if (sculpt && shaping.isEmpty()) {
+			abandon("The plan's " + dev.larattalabs.steward.gateway.VPlan.shapingWords(base, dev.larattalabs.steward.gateway.VPlan.shapingParts(base, java.util.Set.of()))
+				+ " went with what is left out, and this shaped site isn't built without it. Nothing was spent; describe the settlement again for a new plan.");
+			return;
+		}
 		int session = Session.current();
 		// a plan Architect can't check, or without lots: the flat village for a Patron town; a Supplied one stops before anything is spent (its survey was taken
 		// before its stockpile and that ground's protection, so Steward's own layout over it could pay for designs that then don't fit), and is started again
@@ -2044,6 +2053,8 @@ public final class SettlementRunner {
 		boolean namesModules = !dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(base), ModuleOffers.moduleTypes()).isEmpty();
 		Runnable otherwise = () -> {
 			if (supplied) abandon("The plan couldn't be used from materials this time: start the build again.");
+			// (slice M5-SCULPT-2, GPT review P2) a shaped site is never laid out as the flat village from its card
+			else if (sculpt) abandon("The plan that shapes this site couldn't be used this time, and a shaped site isn't built without it. Nothing was spent: start the build again.");
 			else if (namesModules) abandon("The plan with its working modules couldn't be used this time, and its buildings aren't designed without it. Nothing was spent: start the build again.");
 			else planVillage(r, buildings, budgetUsd, district, claim, specs, own);
 		};
@@ -2069,6 +2080,13 @@ public final class SettlementRunner {
 				if (c.survival() != supplied) {
 					abandon("The world's mode changed while the land was surveyed (" + (c.survival() ? "it builds from materials now" : "it no longer builds from materials")
 						+ "): start the build again.");
+					return;
+				}
+				// (slice M5-SCULPT-2, GPT review P1) the shaping must be built, not an optional part Architect refused or dropped while the rest fits
+				if (sculpt && !dev.larattalabs.steward.gateway.VPlan.shapingBuilt(shaping, c.parts())) {
+					Steward.LOGGER.info("{}: the plan's shaping {} isn't built by the check: {}", settlement.id(), shaping, c.parts());
+					abandon("The plan's " + dev.larattalabs.steward.gateway.VPlan.shapingWords(built, shaping) + " can't be built here as the land is now, and this shaped site isn't"
+						+ " built without it. Nothing was spent; describe the settlement again for a new plan.");
 					return;
 				}
 				var art = ArchitectApi.get().regions().artifact(c.artifactSha());
@@ -3808,6 +3826,12 @@ public final class SettlementRunner {
 					// the world's mode changed while the buildings were designed: built from materials now, or no longer; this build stops, a new Start plans anew
 					if (no == null && c.survival() != artifactSurvival(sha)) no = "the world's mode changed while the buildings were designed (" + (c.survival()
 						? "it builds from materials now" : "it no longer builds from materials") + "): start the build again";
+					// (slice M5-SCULPT-2, GPT review P1) a shaped site checked again: its shaping must still be built
+					if (no == null && settlement.card() != null && "sculpt".equals(settlement.card().site().terrain())) {
+						var shaping = dev.larattalabs.steward.gateway.VPlan.shapingParts(frozen, waitingOf(settlement));
+						if (!shaping.isEmpty() && !dev.larattalabs.steward.gateway.VPlan.shapingBuilt(shaping, c.parts()))
+							no = "the plan's " + dev.larattalabs.steward.gateway.VPlan.shapingWords(frozen, shaping) + " can't be built here any more, and this shaped site isn't built without it";
+					}
 					if (no != null) { realised(null, new RefusalWords.Own(no), session); return; }
 					String next = c.artifactSha();
 					// saved with the build before the old one is let go (a crash between keeps a target to resume from); the same sha keeps its pin

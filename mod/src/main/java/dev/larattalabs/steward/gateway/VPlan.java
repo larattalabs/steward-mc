@@ -109,7 +109,13 @@ public final class VPlan {
 	 * build makes those optional, so they could drop out unsaid as the shaping). Null or unreadable: false. Pure.
 	 */
 	public static boolean carriesShaping(@Nullable JsonObject plan, Set<String> waiting) {
-		if (plan == null) return false;
+		return !shapingParts(plan, waiting).isEmpty();
+	}
+
+	/** (slice M5-SCULPT-2) The ids of the plan's parts that carry the shaping ({@link #carriesShaping}), in the plan's order. Pure. */
+	public static List<String> shapingParts(@Nullable JsonObject plan, Set<String> waiting) {
+		List<String> out = new ArrayList<>();
+		if (plan == null) return out;
 		for (String sec : List.of("connectors", "forms")) {
 			if (!plan.has(sec) || !plan.get(sec).isJsonArray()) continue;
 			for (var e : plan.getAsJsonArray(sec)) {
@@ -117,11 +123,42 @@ public final class VPlan {
 				JsonObject o = e.getAsJsonObject();
 				String kind = o.has("kind") && o.get("kind").isJsonPrimitive() ? o.get("kind").getAsString() : "";
 				String id = o.has("id") && o.get("id").isJsonPrimitive() ? o.get("id").getAsString() : null;
-				if (id != null && waiting.contains(id)) continue;
-				if ("connectors".equals(sec) ? "channel".equals(kind) : SHAPING_FORMS.contains(kind)) return true;
+				if (id == null || waiting.contains(id)) continue;
+				if ("connectors".equals(sec) ? "channel".equals(kind) : SHAPING_FORMS.contains(kind)) out.add(id);
 			}
 		}
+		return out;
+	}
+
+	/**
+	 * (slice M5-SCULPT-2, GPT review P1) Whether Architect's check builds the shaping: at least one of {@code shaping} came back fits or adjusted (an
+	 * optional river Architect refused or dropped is no shaping, though the rest of the plan builds). Pure.
+	 */
+	public static boolean shapingBuilt(List<String> shaping, List<JsonObject> checkParts) {
+		for (JsonObject p : checkParts) {
+			String id = p.has("part") && p.get("part").isJsonPrimitive() ? p.get("part").getAsString() : null;
+			String cls = p.has("class") && p.get("class").isJsonPrimitive() ? p.get("class").getAsString() : "";
+			if (id != null && shaping.contains(id) && (cls.equals("fits") || cls.equals("adjusted"))) return true;
+		}
 		return false;
+	}
+
+	/** (slice M5-SCULPT-2) The shaping parts in words, each by its label else its id's words ("river", "river and crater lake"). Pure. */
+	public static String shapingWords(JsonObject plan, List<String> shaping) {
+		List<String> names = new ArrayList<>();
+		for (String sec : List.of("connectors", "forms")) {
+			if (!plan.has(sec) || !plan.get(sec).isJsonArray()) continue;
+			for (var e : plan.getAsJsonArray(sec)) {
+				if (!e.isJsonObject()) continue;
+				JsonObject o = e.getAsJsonObject();
+				String id = o.has("id") && o.get("id").isJsonPrimitive() ? o.get("id").getAsString() : null;
+				if (id == null || !shaping.contains(id)) continue;
+				String label = o.has("label") && o.get("label").isJsonPrimitive() && !o.get("label").getAsString().isBlank() ? o.get("label").getAsString() : id.replace('_', ' ');
+				names.add(label.toLowerCase(java.util.Locale.ROOT));
+			}
+		}
+		if (names.isEmpty()) return "shaping of the land";
+		return names.size() == 1 ? names.get(0) : String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.get(names.size() - 1);
 	}
 
 	/**

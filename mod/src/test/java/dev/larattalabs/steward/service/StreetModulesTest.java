@@ -133,6 +133,29 @@ class StreetModulesTest {
 		assertNull(again.vPlan());
 	}
 
+	/**
+	 * (slice M5-SCULPT-2, GPT review P1) The plan as built must still carry the shaping: a river from a zone holding only a module lot that is left out
+	 * goes with that zone (MODULE-TYPE-3's prune), so the plan as built has no shaping and the shaped site's build stops before anything is spent.
+	 * Fixture 1's river runs between claim anchors: it stays whatever happens to the hall.
+	 */
+	@Test
+	void theShapingIsReadFromThePlanAsBuiltAfterTheLeftOutLotsGo() throws Exception {
+		JsonObject plan = json("""
+			{"schemaVersion": "plan/0", "planId": "p", "zones": [
+			  {"id": "town", "kind": "standard", "required": true, "program": {"layout": "street", "lots": [{"id": "cottage_1", "type": "cottage", "size": [9, 9]}]}},
+			  {"id": "dock", "kind": "standard", "required": false, "program": {"layout": "street", "lots": [{"id": "storage_hall_1", "type": "storage_hall", "size": [19, 13],
+			    "ext": {"steward_mc:module": {"id": "storage_hall", "params": {}, "for": "storage_hall"}}}]}}],
+			 "connectors": [{"id": "river", "kind": "channel", "required": true, "from": {"part": "dock"}, "to": {"anchor": "claim_e"}, "width": 3, "depth": 1}],
+			 "forms": [], "rules": []}""");
+		assertTrue(VPlan.carriesShaping(plan, Set.of()), "as kept, the plan carries its river");
+		var applied = SettlementRunner.withModulesApplied(plan, java.util.Map.of(), ModuleTypes.KNOWN, Set.of());
+		assertTrue(applied.dropped().contains("river"), applied.dropped().toString());
+		assertTrue(VPlan.shapingParts(applied.plan(), Set.of()).isEmpty(), "as built, no shaping: Start stops before anything is spent");
+		// fixture 1, its hall left out (no order): the river between claim anchors stays
+		var real = SettlementRunner.withModulesApplied(realPlan(), java.util.Map.of(), ModuleTypes.KNOWN, Set.of());
+		assertEquals(List.of("river"), VPlan.shapingParts(real.plan(), Set.of()));
+	}
+
 	@Test
 	void aPlanWithoutModulesOrNoPlanLeavesTheCardsLotsAsTheyAre() throws Exception {
 		var specs = ProgramPlanner.lots(realCard(), 11, 2).specs();

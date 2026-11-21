@@ -86,6 +86,28 @@ class VPlanTest {
 		assertFalse(VPlan.carriesShaping(json.apply("{}"), none));
 	}
 
+	/** (slice M5-SCULPT-2, GPT review P1) The shaping parts by id, whether the check builds one, and their words. */
+	@Test
+	void theShapingIsBuiltOnlyWhenTheCheckFitsOneOfItsParts() {
+		var json = (java.util.function.Function<String, JsonObject>) t -> com.google.gson.JsonParser.parseString(t).getAsJsonObject();
+		JsonObject plan = json.apply("""
+			{"connectors": [{"id": "main", "kind": "street"}, {"id": "river", "kind": "channel", "label": "River"}],
+			 "forms": [{"id": "crater_lake", "kind": "crater"}, {"id": "oak", "kind": "giant_tree"}, {"kind": "relief"}]}""");
+		assertEquals(List.of("river", "crater_lake"), VPlan.shapingParts(plan, java.util.Set.of()), "an id-less form can't be matched to its check");
+		assertEquals(List.of("crater_lake"), VPlan.shapingParts(plan, java.util.Set.of("river")));
+		assertEquals("river and crater lake", VPlan.shapingWords(plan, List.of("river", "crater_lake")));
+		assertEquals("river", VPlan.shapingWords(plan, List.of("river")));
+		assertEquals("shaping of the land", VPlan.shapingWords(plan, List.of()));
+		var shaping = List.of("river", "crater_lake");
+		var part = (java.util.function.BiFunction<String, String, JsonObject>) (id, cls) -> json.apply("{\"part\": \"" + id + "\", \"class\": \"" + cls + "\"}");
+		assertTrue(VPlan.shapingBuilt(shaping, List.of(part.apply("town", "adjusted"), part.apply("river", "fits"))));
+		assertTrue(VPlan.shapingBuilt(shaping, List.of(part.apply("river", "refused"), part.apply("crater_lake", "adjusted"))));
+		assertFalse(VPlan.shapingBuilt(shaping, List.of(part.apply("town", "fits"), part.apply("river", "refused"))), "the optional river refused, the rest fits");
+		assertFalse(VPlan.shapingBuilt(shaping, List.of(part.apply("river", "incomplete"), part.apply("crater_lake", "malformed"))));
+		assertFalse(VPlan.shapingBuilt(shaping, List.of(part.apply("town", "fits"))), "not answered at all");
+		assertFalse(VPlan.shapingBuilt(List.of(), List.of(part.apply("river", "fits"))));
+	}
+
 	@Test
 	void theLotsGoAsTheContractSays() {
 		JsonObject p = VPlan.params(SPECS);
