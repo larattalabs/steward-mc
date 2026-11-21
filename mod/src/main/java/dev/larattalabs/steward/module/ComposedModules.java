@@ -491,27 +491,38 @@ public final class ComposedModules {
 	}
 
 	/**
-	 * The plan as built: each lot with an order replaced by {@link #builtLot}, each lot in {@code leftOut} removed from its zone (or district), a zone or
-	 * district left with no lot keeping its other members. A copy; deterministic. Pure.
+	 * The plan as built: each lot with an order replaced by {@link #builtLot}, each lot in {@code leftOut} removed from its zone (or district).
+	 * (slice MODULE-TYPE-2, the final pass's P2) A district whose lots were all left out is dropped, and so is a zone left with no lot or district,
+	 * so Architect is never sent {@code lots: []} (a malformed zone that refuses the whole build); a zone or district that had no lot to begin with
+	 * stays as written. A copy; deterministic. Pure.
 	 */
 	public static JsonObject apply(JsonObject plan, Map<String, ModuleOrder> orders, Set<String> leftOut) {
 		JsonObject out = plan.deepCopy();
 		if (!out.has("zones") || !out.get("zones").isJsonArray()) return out;
+		JsonArray zones = new JsonArray();
 		for (JsonElement z : out.getAsJsonArray("zones")) {
-			if (!z.isJsonObject() || !z.getAsJsonObject().has("program") || !z.getAsJsonObject().get("program").isJsonObject()) continue;
+			if (!z.isJsonObject() || !z.getAsJsonObject().has("program") || !z.getAsJsonObject().get("program").isJsonObject()) { zones.add(z); continue; }
 			JsonObject program = z.getAsJsonObject().getAsJsonObject("program");
+			boolean emptied;
 			if (program.has("districts") && program.get("districts").isJsonArray()) {
-				for (JsonElement d : program.getAsJsonArray("districts")) if (d.isJsonObject()) rewrite(d.getAsJsonObject(), "lots", orders, leftOut);
-				continue;
-			}
-			if (program.has("lots") && program.get("lots").isJsonArray()) rewrite(program, "lots", orders, leftOut);
-			else if (program.has("params") && program.get("params").isJsonObject()) rewrite(program.getAsJsonObject("params"), "lots", orders, leftOut);
+				JsonArray kept = new JsonArray();
+				int before = program.getAsJsonArray("districts").size();
+				for (JsonElement d : program.getAsJsonArray("districts")) if (!d.isJsonObject() || !rewrite(d.getAsJsonObject(), "lots", orders, leftOut)) kept.add(d);
+				program.add("districts", kept);
+				emptied = before > 0 && kept.isEmpty();
+			} else if (program.has("lots") && program.get("lots").isJsonArray()) emptied = rewrite(program, "lots", orders, leftOut);
+			else if (program.has("params") && program.get("params").isJsonObject()) emptied = rewrite(program.getAsJsonObject("params"), "lots", orders, leftOut);
+			else emptied = false;
+			if (!emptied) zones.add(z);
 		}
+		out.add("zones", zones);
 		return out;
 	}
 
-	private static void rewrite(JsonObject holder, String member, Map<String, ModuleOrder> orders, Set<String> leftOut) {
-		if (!holder.has(member) || !holder.get(member).isJsonArray()) return;
+	/** Rewrites {@code holder}'s lots; true when it had lots and every one was left out (the holder is then dropped by {@link #apply}). */
+	private static boolean rewrite(JsonObject holder, String member, Map<String, ModuleOrder> orders, Set<String> leftOut) {
+		if (!holder.has(member) || !holder.get(member).isJsonArray()) return false;
+		int before = holder.getAsJsonArray(member).size();
 		JsonArray next = new JsonArray();
 		for (JsonElement l : holder.getAsJsonArray(member)) {
 			if (!l.isJsonObject() || !l.getAsJsonObject().has("id")) { next.add(l); continue; }
@@ -523,6 +534,7 @@ public final class ComposedModules {
 			next.add(kind.isPresent() ? builtLot(lot, kind.get(), o) : lot);
 		}
 		holder.add(member, next);
+		return before > 0 && next.isEmpty();
 	}
 
 	/** An artifact lot's front ({@code south} when it names none). */

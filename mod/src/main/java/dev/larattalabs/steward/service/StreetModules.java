@@ -152,8 +152,9 @@ final class StreetModules {
 			if (first >= 0) return first;
 		}
 		// (slice MODULE-TYPE-2, GPT review P1) a bare module lot has no "for": the card building it was written for is the one of its own label or role,
-		// whatever that building's type (a "farm" entry the composer wrote as a bare crop_farm lot), never left to be designed beside it
-		if (bare) for (int i = 0; i < size; i++) if (type.apply(i) != null && names.get(0).contains(slug(role.apply(i)))) return i;
+		// else (the final pass's P1) of its id's words, whatever that building's type (a "farm" entry the composer wrote as a bare crop_farm lot
+		// farm_1), never left to be designed beside it
+		if (bare) for (Set<String> tier : names) for (int i = 0; i < size; i++) if (type.apply(i) != null && tier.contains(slug(role.apply(i)))) return i;
 		return -1;
 	}
 

@@ -141,6 +141,47 @@ class ModuleTypeFirstBuildTest {
 		assertEquals(2, r.specs().size());
 	}
 
+	/** (extra round, final pass P1) A bare lot with no label or role stands for the card building its id's words name, whatever that building's type. */
+	@Test
+	void aBareLotWithNoLabelOrRoleStandsForTheCardBuildingItsIdNames() throws Exception {
+		var card = StreetModulesTest.cardWith("""
+			[{"role": "farm", "type": "farm", "count": 1, "footprint": "L", "landmark": false},
+			 {"role": "cottage", "type": "cottage", "count": 2, "footprint": "S", "landmark": false}]""");
+		JsonObject plan = json("""
+			{"zones":[{"id":"town","program":{"lots":[{"id":"farm_1","type":"crop_farm","size":[11,12]},{"id":"cottage_1","type":"cottage"}]}}]}""");
+		var specs = dev.larattalabs.steward.gateway.ProgramPlanner.lots(card, 3, 0).specs();
+		var r = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, Set.of(), card, specs, "x", "on Steward's streets");
+		assertEquals(1, r.removed(), "farm_1's farm is never designed beside it");
+		assertTrue(r.specs().stream().noneMatch(s -> s.type().equals("farm")));
+		var left = List.of(new ProposalRules.Missing(0, card.program().get(0)));
+		assertTrue(StreetModules.withoutModules(plan, ModuleTypes.KNOWN, card, left).isEmpty(), "nor offered later as a left-out building");
+	}
+
+	/** (extra round, final pass P2) A zone or district whose only lots are left out is dropped: Architect never gets lots: [] (a malformed zone). */
+	@Test
+	void aZoneOrDistrictLeftWithNoLotIsDropped() {
+		JsonObject plan = json("""
+			{"schemaVersion":"plan/0","zones":[
+			  {"id":"fields","required":true,"program":{"lots":[{"id":"crop_farm_1","type":"crop_farm","size":[13,14]}]}},
+			  {"id":"town","required":true,"program":{"template":"flat_village","params":{"lots":[{"id":"cottage_1","type":"cottage"},{"id":"hall_1","type":"storage_hall"}]}}},
+			  {"id":"quarters","program":{"districts":[{"id":"east","lots":[{"id":"farm_2","type":"crop_farm"}]},{"id":"west","lots":[{"id":"house_1","type":"house"}]}]}},
+			  {"id":"wards","program":{"districts":[{"id":"north","lots":[{"id":"hall_2","type":"storage_hall"}]}]}},
+			  {"id":"crater","program":{"template":"crater_works"}}]}""");
+		JsonObject built = SettlementRunner.withModules(plan, Map.of(), ModuleTypes.KNOWN, Set.of());
+		var zones = built.getAsJsonArray("zones");
+		assertEquals(List.of("town", "quarters", "crater"), zones.asList().stream().map(z -> z.getAsJsonObject().get("id").getAsString()).toList(),
+			"the emptied zones go; a zone that never had lots stays");
+		var districts = zones.get(1).getAsJsonObject().getAsJsonObject("program").getAsJsonArray("districts");
+		assertEquals(List.of("west"), districts.asList().stream().map(d -> d.getAsJsonObject().get("id").getAsString()).toList());
+		assertEquals(List.of("cottage_1", "house_1"), ids(built));
+		// refused module lots (left out with no order) go the same way, through ComposedModules.apply
+		JsonObject refused = ComposedModules.apply(plan, Map.of(), Set.of("crop_farm_1"));
+		assertFalse(refused.getAsJsonArray("zones").asList().stream().anyMatch(z -> z.getAsJsonObject().get("id").getAsString().equals("fields")));
+		// nothing left out: the plan as it was
+		JsonObject plain = json("{\"zones\":[{\"id\":\"t\",\"program\":{\"lots\":[]}}]}");
+		assertEquals(plain, ComposedModules.apply(plain, Map.of(), Set.of()), "an already empty zone isn't Steward's to drop");
+	}
+
 	@Test
 	void anAskedModuleGoesToTheTownNotTheDistrictWithRoom() {
 		assertNull(Talk.moduleIn(null, new ProposalRules.Where("d_east", false)));
