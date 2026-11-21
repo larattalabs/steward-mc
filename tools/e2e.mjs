@@ -27,7 +27,8 @@ import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, ad
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
-import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup, claimRunDir, runItems, DELETE_LANE_DIRS } from './lib/disk.mjs';
+import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup, claimRunDir, runItems, DELETE_LANE_DIRS, runTag, e2eWorld,
+  worldAtStart, markWorld, filesToWrite, laneDirName } from './lib/disk.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -37,7 +38,6 @@ const ARCH = process.env.ARCHITECT_CHECKOUT ?? path.resolve(ROOT, '..', 'archite
 const GAME = path.resolve(process.env.E2E_GAME_DIR ?? path.join(ROOT, 'mod', 'run'));
 process.env.ARCHITECT_GAME_DIR = GAME;
 const PORT = Number(process.env.STEWARD_DEV_PORT ?? 8591);
-const WORLD = path.join(GAME, 'saves', process.env.ARCHITECT_AUTOWORLD_NAME ?? 'Steward E2E');
 const BASE = path.join(ROOT, 'artifacts', 'e2e');
 const OUT = path.resolve(process.env.E2E_OUT ?? BASE);
 const CLIENT = process.env.E2E_CLIENT ?? null;
@@ -46,6 +46,13 @@ const mode = process.argv[2] ?? 'free';
 // --only a,b: run only the flows whose name or tags hold one of the words (and the flows they need), plus the sanity set (status, claim, expand, restart); an RC's run
 // --keep-world: open the existing "Steward E2E" world instead of a fresh one (to look at a run's leftovers); by default every run starts fresh
 const keepWorld = process.argv.includes('--keep-world');
+// slice E2E-DISK-2 (mod/DEV.md "Disk"): this run's tag names everything it may delete: its world `Steward E2E <tag>` (new each run; the fixed name
+// only with --keep-world or an explicit ARCHITECT_AUTOWORLD_NAME, then never deleted), a lead's lane dirs run-c<k>-<tag>, its stub entries and its
+// owner markers. The name goes to the client in launch()'s env only: a lead's children each make their own.
+const RUN_TAG = runTag();
+const runOwner = { run: RUN_TAG, pid: process.pid };
+const E2E_WORLD = e2eWorld({ saves: path.join(GAME, 'saves'), tag: RUN_TAG, keepWorld });
+const WORLD = E2E_WORLD.path;
 const onlyAt = process.argv.indexOf('--only');
 const only = onlyAt > 0 ? (process.argv[onlyAt + 1] ?? '').toLowerCase().split(',').map((w) => w.trim()).filter(Boolean) : null;
 // slice EF (mod/DEV.md "Faster runs"): --clients N runs the flows on N clients at once (--ports a,b: client k's sidecar port, its DevBridge port is
@@ -158,15 +165,22 @@ function launch() {
   launchedAt = Date.now();
   quietOptions();
   const log = fs.openSync(path.join(OUT, 'client.log'), 'a');
-  client = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], { stdio: ['ignore', log, log], env: { ...process.env, E2E_STUB: mode === 'stub' ? '1' : '0', E2E_NODE_DIR: path.dirname(process.execPath) } });
+  client = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], { stdio: ['ignore', log, log], env: { ...process.env, ARCHITECT_AUTOWORLD_NAME: E2E_WORLD.name, E2E_STUB: mode === 'stub' ? '1' : '0', E2E_NODE_DIR: path.dirname(process.execPath) } });
 }
 
+let worldMarked = false;
 async function connect() {
   dev = await DevClient.connect({ port: PORT, timeoutMs: 400_000 });
   clientJvm = jvmOnPort();
   // a --clients lead reads this line: a child it had to SIGKILL leaves these pids to it
   console.log(`e2e-client: jvm ${clientJvm ?? '-'} launcher ${client?.pid ?? '-'}`);
   await dev.waitInWorld({ timeoutMs: 400_000 });
+  // (E2E-DISK-2) the first time in: the client made this run's world, so it gets this run's owner marker (read again just before its delete)
+  if (!worldMarked) {
+    worldMarked = true;
+    const why = markWorld(E2E_WORLD, runOwner);
+    if (why) fail('world owner', `${why}: the world is not this run's to delete`);
+  }
   await worldRules();
   // a new client writes a new log: the herder reads it from its start
   herdAt = 0;
@@ -333,7 +347,7 @@ function secretLeaks(id, from) {
 
 // a new entry each run: the world keeps earlier runs' settlements, and their copies of one shared entry were offered the update first (set_28's, not
 // loaded, on the WE-WS RC); an earlier run's entry never gets a new version, so the inbox's only update is this run's
-const STUB = `e2e_stub_${Date.now().toString(36)}`;
+const STUB = `e2e_stub_${RUN_TAG}`;
 /** The ui-actions flow's own entry, so its versions don't depend on what the place flow installed. */
 const STUB_UI = `${STUB}_ui`;
 
@@ -354,13 +368,32 @@ function stubBlueprint(extraLantern, id = STUB) {
 
 /**
  * A fresh entry every run (only this script uses it): the update check installs a version that must differ from the one placed. The fixed
- * `e2e_stub` is written too, for the dev commands that realise it (PlanChecks.realise, VSpike).
+ * `e2e_stub` is written too, for the dev commands that realise it (PlanChecks.realise, VSpike). (E2E-DISK-2) Nothing is removed: this run's own
+ * entries are new dirs (mkdir without -p: named for this run), and the fixed one is written only where its bytes differ, each file through a temp
+ * file and a rename, so another run on the same game dir never sees it gone.
  */
 function ensureStubEntry() {
-  for (const id of [STUB, 'e2e_stub', STUB_UI]) {
-    const dir = path.join(GAME, 'architect', 'library', id);
-    fs.rmSync(dir, { recursive: true, force: true });
+  const lib = path.join(GAME, 'architect', 'library');
+  fs.mkdirSync(lib, { recursive: true });
+  for (const id of [STUB, STUB_UI]) {
+    const dir = path.join(lib, id);
+    fs.mkdirSync(dir);
     writeBlueprint(stubBlueprint(false, id), dir);
+  }
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'steward-e2e-stub-'));
+  try {
+    writeBlueprint(stubBlueprint(false, 'e2e_stub'), tmp);
+    const files = Object.fromEntries(fs.readdirSync(tmp).map((n) => [n, fs.readFileSync(path.join(tmp, n))]));
+    const dir = path.join(lib, 'e2e_stub');
+    const stale = filesToWrite(dir, files);
+    if (stale.length) fs.mkdirSync(dir, { recursive: true });
+    for (const n of stale) {
+      const t = path.join(dir, `.${n}.${RUN_TAG}.tmp`);
+      fs.writeFileSync(t, files[n], { flag: 'wx' });
+      fs.renameSync(t, path.join(dir, n));
+    }
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
   }
 }
 
@@ -368,21 +401,18 @@ function ensureStubEntry() {
 
 /**
  * Every run starts from a fresh world (2026-11-12): the world used to be kept, and the main checkout's had grown to 559 settlements and 9.4 GB, so
- * `/steward status` got empty replies and every run started slower. The last run's world is kept beside it as "<name> (last)" for a look after a
- * failure (one copy: the one before it is deleted), and the client's autoworld creates the new one. Once per run, before the first launch; the
- * restarts inside a run reopen the same world. Only the e2e's own world under this checkout's mod/run/saves is touched, never the dev world, and
- * Architect's game-level state (mod/run/architect: library, api-*.json) stays.
+ * `/steward status` got empty replies and every run started slower. (E2E-DISK-2) Each run's world is its own, `Steward E2E <tag>`, made by its
+ * client: nothing is moved or deleted here (this ran before the slot wait, when another driver on the same game dir may be using its world). The
+ * earlier e2e worlds under saves (the old fixed `Steward E2E` and its `(last)`, other runs' kept worlds) are named and left as they are.
  */
 function freshWorld() {
   const saves = path.join(GAME, 'saves');
   if (path.dirname(WORLD) !== saves || !path.basename(WORLD).trim()) throw new Error(`the e2e world ${WORLD} is not a world under ${saves}`);
-  if (keepWorld) return ok('fresh world', `--keep-world: ${path.basename(WORLD)} kept (${fs.existsSync(WORLD) ? 'exists' : 'new'})`);
-  if (!fs.existsSync(WORLD)) return ok('fresh world', `${path.basename(WORLD)} is new`);
-  const last = `${WORLD} (last)`;
-  const n = settlementsIn(WORLD);
-  fs.rmSync(last, { recursive: true, force: true });
-  fs.renameSync(WORLD, last);
-  ok('fresh world', `the last run's world (${n} settlement(s)) moved to "${path.basename(last)}"`);
+  const at = worldAtStart(E2E_WORLD);
+  if (at.earlier.length) console.log(`disk: ${at.earlier.length} earlier e2e world(s) under ${path.relative(ROOT, saves)} left as they are (not this run's): ${at.earlier.map((n) => `"${n}"`).join(', ')}`);
+  if (!at.ok) throw new Error(at.why);
+  if (E2E_WORLD.protect) return ok('fresh world', `${E2E_WORLD.protect === 'keep-world' ? '--keep-world' : 'ARCHITECT_AUTOWORLD_NAME'}: "${E2E_WORLD.name}" opened as it is (${fs.existsSync(WORLD) ? 'exists' : 'new'}), never deleted`);
+  ok('fresh world', `"${E2E_WORLD.name}", this run's own (new)`);
 }
 
 const settlementsIn = (dir) => {
@@ -9730,7 +9760,7 @@ async function lead() {
   const plan = lanes.map((l, i) => {
     const k = i + 1;
     const sp = base ? base[i] : Number(process.env.STEWARD_PORT ?? 8590) + 2 * i;
-    return { k, flows: l.flows, packed: l.seconds, untimed: l.untimed, sidecarPort: sp, devPort: sp + 1, gameDir: k === 1 ? path.join(ROOT, 'mod', 'run') : path.join(ROOT, 'mod', `run-c${k}`), out: path.join(BASE, `c${k}`) };
+    return { k, flows: l.flows, packed: l.seconds, untimed: l.untimed, sidecarPort: sp, devPort: sp + 1, gameDir: k === 1 ? path.join(ROOT, 'mod', 'run') : path.join(ROOT, 'mod', laneDirName(k, RUN_TAG)), out: path.join(BASE, `c${k}`) };
   });
   for (const c of plan) console.log(`client c${c.k} (${c.sidecarPort}/${c.devPort}, ${path.relative(ROOT, c.gameDir)}): ~${c.packed}s recorded${c.untimed ? `, ${c.untimed} untimed` : ''}: ${c.flows.join(', ') || 'the sanity set only'}`);
   if (PLAN) process.exit(0);
@@ -9754,13 +9784,15 @@ async function lead() {
     if (shuttingDownNow()) return { ...c, slot: s.slot ?? null, code: 130, seconds: 0, summary: null };
     const at = host ?? c;
     if (host) console.log(`client c${c.k}: on c${host.k}'s slot ${s.slot ?? '-'}, run dir and ports, after it`);
-    // slice E2E-DISK (batch 091 review P1): a lane's own run-c<k> is this lead's only when it makes it now, at its use (mkdir without -p, an owner
-    // marker); one already there (another run's, or an earlier one's) is used but never deleted
-    // switched off (DELETE_LANE_DIRS, Noah 11-21): no claim, no delete, until E2E-DISK-2
+    // slice E2E-DISK (batch 091 review P1) and E2E-DISK-2: a lane's run-c<k>-<tag> is named for this run and made now, at its use (mkdir without
+    // -p, an owner marker). One already there is not this run's: the lane doesn't run on it (and nothing of it is deleted)
     if (DELETE_LANE_DIRS && !host && c.k > 1) {
-      const cl = claimRunDir(at.gameDir, leadOwner);
+      const cl = claimRunDir(at.gameDir, runOwner);
       if (cl.claimed) leadMadeDirs.push(at.gameDir);
-      else console.log(`disk: ${path.relative(ROOT, at.gameDir)} isn't this run's to delete: ${cl.why}`);
+      else {
+        console.log(`disk: ${path.relative(ROOT, at.gameDir)} isn't this run's: ${cl.why}; client c${c.k} not run`);
+        return { ...c, slot: s.slot ?? null, code: 1, seconds: 0, summary: null, refused: `its run dir ${path.relative(ROOT, at.gameDir)} isn't this run's (${cl.why})` };
+      }
     }
     fs.mkdirSync(c.out, { recursive: true });
     const args = [fileURLToPath(import.meta.url), mode, '--flows', c.flows.join(','), ...(keepWorld ? ['--keep-world'] : [])];
@@ -9794,9 +9826,8 @@ async function lead() {
   return rows.map((r) => ({ ...r.result, ...(r.waited ? { waited: r.waited } : {}) }));
 }
 let laneRuns = null;
-/** The run-c<k> dirs a --clients lead claimed this run (slice E2E-DISK; batch 091 review P1: claimed at their use, with this owner marker). */
+/** The run-c<k>-<tag> dirs a --clients lead claimed this run (slice E2E-DISK; batch 091 review P1: claimed at their use, with runOwner's marker). */
 let leadMadeDirs = [];
-const leadOwner = { run: `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`, pid: process.pid };
 // (batch-074 review) the signals are the shutdown coordinator's: this driver's client (or a lead's child drivers) stops first, then the slots, then
 // the sidecar data
 installShutdown();
@@ -9940,7 +9971,7 @@ if (laneRuns) {
     const s = c.summary;
     for (const r of s?.results ?? []) results.push({ ...r, client: `c${c.k}` });
     for (const f of s?.flows ?? []) flowTimes.push({ ...f, client: `c${c.k}` });
-    if (!s) results.push({ check: 'run', ok: false, why: `client c${c.k} wrote no summary (exit ${c.code})`, client: `c${c.k}` });
+    if (!s) results.push({ check: 'run', ok: false, why: c.refused ? `client c${c.k} not run: ${c.refused}` : `client c${c.k} wrote no summary (exit ${c.code})`, client: `c${c.k}` });
     else if (c.code !== 0 && !(s.failed > 0)) results.push({ check: 'run', ok: false, why: `client c${c.k} exited ${c.code}`, client: `c${c.k}` });
     clientRows.push({ client: `c${c.k}`, slot: c.slot ?? null, ...(c.borrowed ? { borrowed: c.borrowed } : {}), ...(c.waited ? { waited: c.waited } : {}), ports: [c.sidecarPort, c.devPort], gameDir: c.gameDir, flows: c.flows, packedSeconds: c.packed, seconds: c.seconds, sanitySeconds: s?.sanitySeconds ?? null, exit: c.code, failed: s?.failed ?? null });
   }
@@ -9954,12 +9985,13 @@ let cleanup = null;
 if (!LEAD) {
   const keep = keepReason({ failed, checks: results.length, slotWait: !!slotWait, shuttingDown: shuttingDownNow() });
   const jvm = jvmOnPort();
-  // (batch 091 review P2) with --keep-world the world is reported kept ('keep-world'), so a lead never deletes the lane holding it
-  const items = runItems({ world: WORLD, saves: path.join(GAME, 'saves'), keepWorld, slotWait: !!slotWait, tempInputs, tmp: os.tmpdir() });
+  // (batch 091 review P2) with --keep-world the world is reported kept ('keep-world'), so a lead never deletes the lane holding it. (E2E-DISK-2)
+  // a per-run world goes only while its marker still names this run (read just before the delete); a named one is protected
+  const items = runItems({ world: WORLD, saves: path.join(GAME, 'saves'), protect: E2E_WORLD.protect, owner: runOwner, slotWait: !!slotWait, tempInputs, tmp: os.tmpdir() });
   cleanup = cleanupRun(items, { keep, hold: jvm ? `a client JVM (${jvm}) still runs on ${GAME}` : null });
 } else if (laneRuns) {
   cleanup = mergeCleanups(laneRuns.map((c) => ({ client: `c${c.k}`, cleanup: c.summary?.cleanup })));
-  if (DELETE_LANE_DIRS) addCleanup(cleanup, cleanupRun(laneRunDirs({ modDir: path.join(ROOT, 'mod'), created: leadMadeDirs, lanes: laneRuns, owner: leadOwner, keepWorld })));
+  if (DELETE_LANE_DIRS) addCleanup(cleanup, cleanupRun(laneRunDirs({ modDir: path.join(ROOT, 'mod'), created: leadMadeDirs, lanes: laneRuns, owner: runOwner, tag: RUN_TAG, keepWorld })));
 }
 if (cleanup) {
   for (const p of cleanup.deleted) console.log(`disk: deleted ${p}`);
