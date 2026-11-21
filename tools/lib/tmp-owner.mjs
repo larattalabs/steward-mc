@@ -10,7 +10,8 @@
 // Cleanup is tied to the driver process ending, never to a client quitting: a run's client relaunches (restartClient, the restart flows) happen
 // inside the same process, so the dir and the sidecar data in it survive them. It runs on a normal end, process.exit (the slot timeout's exit 3),
 // an uncaught throw or rejection ('exit'), and SIGINT/SIGTERM/SIGHUP (the shutdown coordinator's last phase, after the client is stopped). A dir is removed only by its exact path, and only while its marker still
-// names this process (another run may have taken the same path since). STEWARD_KEEP_TMP=1 keeps them (debugging); the sweep takes them later.
+// names this process (another run may have taken the same path since). STEWARD_KEEP_TMP=1 keeps them (debugging): marked `kept` from the start
+// (E2E-DISK-3), so neither the sweep nor a later run on the same game dir ever empties them; they go at a reboot or by hand.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -52,6 +53,9 @@ export function parseOwner(raw) {
 
 /** The owner marker of dir, or null (a marker that is a symlink, unreadable or without a pid doesn't count). */
 export const readOwner = (dir) => parseOwner(rawOwner(dir));
+
+/** Whether a marker says its dir was kept (STEWARD_KEEP_TMP=1, E2E-DISK-3): never swept, never emptied by a later run. */
+export const isKept = (o) => o?.kept === true;
 
 /** Whether dir's marker names this process. */
 export const ownedByMe = (dir, { pid = process.pid, startMs = PROCESS_START_MS } = {}) => {
@@ -139,7 +143,11 @@ export function removeOwned(dir, { link = null, env = process.env } = {}) {
     try { st = fs.lstatSync(dir); } catch {}
     if (!st) return 'gone';
     if (!st.isDirectory() || !ownedByMe(dir)) return 'not-mine';
-    if (keep(env)) return 'kept';
+    if (keep(env)) {
+      // (E2E-DISK-3) the marker says kept, so the sweep and the next run's preflight leave the data
+      try { const o = readOwner(dir); if (o && !isKept(o)) fs.writeFileSync(path.join(dir, OWNER_FILE), `${JSON.stringify({ ...o, kept: true })}\n`); } catch {}
+      return 'kept';
+    }
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 50 });
     if (fs.existsSync(dir)) {
       // a straggler (the sidecar, the client's grandchild) wrote into it meanwhile: marked again, so the next run's sweep takes it
@@ -181,9 +189,12 @@ function hook() {
   installShutdown();
 }
 
-/** Marks dir as this process's and removes it when the process ends ({link}: the symlink to unlink with it). Returns dir. */
-export function own(dir, { link = null, extra = {} } = {}) {
-  markOwner(dir, extra);
+/**
+ * Marks dir as this process's and removes it when the process ends ({link}: the symlink to unlink with it). With STEWARD_KEEP_TMP=1 the marker says
+ * `kept` from the start (E2E-DISK-3): a SIGKILL skips the exit hook, and the data is still never swept. Returns dir.
+ */
+export function own(dir, { link = null, extra = {}, env = process.env } = {}) {
+  markOwner(dir, keep(env) ? { ...extra, kept: true } : extra);
   owned.set(dir, { link });
   hook();
   return dir;
@@ -205,7 +216,7 @@ function lastTouched(dir, st) {
 /**
  * Removes the direct children of root named `prefix*` that carry a valid owner marker whose owner is gone and that are untouched for `hours`
  * (default 0: a dead owner is decisive, the dir is that run's leftover). A dir without a marker, a symlink and a plain file are never touched (other
- * tools share TMPDIR); a live owner's dir is kept. Never throws. -> { root, removed: [names], kept: [names], failed: [names] }.
+ * tools share TMPDIR); a live owner's dir is kept, and so is a dir marked `kept` (STEWARD_KEEP_TMP=1, E2E-DISK-3), whatever its owner. Never throws. -> { root, removed: [names], kept: [names], failed: [names] }.
  *
  * (batch-074 GPT review P1) The snapshot `starts` is taken once, before the walk: a driver that starts after it and marks a dir before the walk
  * reaches it would read as gone. So just before each removal the marker is read again and must be byte-for-byte the one judged, and its owner is
@@ -227,13 +238,14 @@ export function sweepStale({ root, prefix = 'sidecar-', hours = 0, now = Date.no
     const raw = rawOwner(p);
     const o = parseOwner(raw);
     if (!o) continue;
+    if (isKept(o)) { res.kept.push(name); continue; }
     if (isHeld(o, starts, alive) || (hours > 0 && (now - lastTouched(p, st)) / 3_600_000 < hours)) { res.kept.push(name); continue; }
     try {
       if (!dryRun) {
         if (between) between(p);
         if (!fs.lstatSync(p).isDirectory()) { res.kept.push(name); continue; } // swapped for a symlink meanwhile: not followed
         // marked again since the judgement (another run took the name), or its owner live after all: kept
-        if (rawOwner(p) !== raw || !gone(o)) { res.kept.push(name); continue; }
+        if (rawOwner(p) !== raw || isKept(parseOwner(rawOwner(p))) || !gone(o)) { res.kept.push(name); continue; }
         fs.rmSync(p, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 });
       }
       res.removed.push(name);

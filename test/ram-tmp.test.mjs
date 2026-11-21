@@ -61,9 +61,13 @@ test('a fresh e2e run starts the RAM-disk sidecar data empty', () => {
   fs.writeFileSync(path.join(r.dir, 'designs.json'), 'x');
   ramSidecarData(game, {}, root);
   assert.ok(fs.existsSync(path.join(r.dir, 'designs.json')), 'kept without fresh');
-  ramSidecarData(game, {}, root, { fresh: true });
-  assert.ok(!fs.existsSync(path.join(r.dir, 'designs.json')), 'emptied when fresh');
+  // (E2E-DISK-3) unmarked data (a dev client's) is never emptied: a fresh run starts empty in a dir of its own beside it
+  const f = ramSidecarData(game, {}, root, { fresh: true });
+  assert.ok(fs.existsSync(path.join(r.dir, 'designs.json')), 'unmarked data left as it is');
+  assert.notEqual(f.dir, r.dir);
+  assert.deepEqual(fs.readdirSync(f.dir), [], 'the fresh dir is empty');
   assert.ok(fs.lstatSync(path.join(game, 'architect', 'sidecar-data')).isSymbolicLink());
+  assert.equal(fs.realpathSync(path.join(game, 'architect', 'sidecar-data')), fs.realpathSync(f.dir));
 });
 
 import { repairSidecarData } from '../tools/lib/ram-tmp.mjs';

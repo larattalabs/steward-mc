@@ -235,3 +235,93 @@ test('(batch-074 P1) an owner the snapshot missed but alive at the recheck keeps
   assert.deepEqual(r.kept, ['sidecar-psfail']);
   assert.ok(fs.existsSync(q));
 });
+
+// ------------------------------------------------------------------ E2E-DISK-3 (P1, pre-existing): the preflight empties only what it owns, never kept data
+
+const dataFile = (dir) => path.join(dir, 'regions', 'plans', 'p.json');
+
+test('(E2E-DISK-3) STEWARD_KEEP_TMP=1 marks the dir kept: the sweep never takes it, and the next run on the game dir starts in a dir of its own', async () => {
+  const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-');
+  const d = driver('end', { game, root, env: { STEWARD_KEEP_TMP: '1' } });
+  await d.ready;
+  await d.done;
+  assert.equal(readOwner(d.dir()).kept, true);
+  const r = sweepStale({ root: path.join(root, 'steward') });
+  assert.deepEqual(r.removed, []);
+  assert.ok(fs.existsSync(dataFile(d.dir())), 'kept data swept');
+  const e = driver('end', { game, root });
+  await e.ready;
+  assert.notEqual(e.dir(), d.dir());
+  await e.done;
+  assert.ok(fs.existsSync(dataFile(d.dir())), 'kept data emptied by the next run');
+  assert.equal(readOwner(d.dir()).kept, true);
+});
+
+test('(E2E-DISK-3) a SIGKILLed STEWARD_KEEP_TMP run (no exit hook) is still kept: marked at the start', async () => {
+  const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-');
+  const d = driver('signal', { game, root, env: { STEWARD_KEEP_TMP: '1' } });
+  await d.ready;
+  d.child.kill('SIGKILL');
+  await d.done;
+  assert.deepEqual(sweepStale({ root: path.join(root, 'steward') }).removed, []);
+  assert.ok(fs.existsSync(dataFile(d.dir())));
+});
+
+test('(E2E-DISK-3) the game dir\'s sidecar dir held by another live run (its slot wait) is never emptied: the second run refuses', async () => {
+  const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-');
+  const d = driver('signal', { game, root });
+  await d.ready;
+  try {
+    assert.throws(() => ramSidecarData(game, {}, root, { fresh: true, own: true }), /another live run/);
+    assert.ok(fs.existsSync(dataFile(d.dir())), 'the live run\'s data emptied');
+    assert.equal(fs.readlinkSync(path.join(game, 'architect', 'sidecar-data')), d.dir(), 'its link moved');
+  } finally {
+    d.child.kill('SIGTERM');
+    await d.done;
+  }
+});
+
+test('(E2E-DISK-3) unmarked data in the game dir\'s sidecar dir (a dev client\'s) is never emptied: the run takes a dir of its own', () => {
+  const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-');
+  const dev = ramSidecarData(game, {}, root);
+  fs.writeFileSync(path.join(dev.dir, 'designs.json'), 'x');
+  const r = ramSidecarData(game, {}, root, { fresh: true, own: true });
+  try {
+    assert.notEqual(r.dir, dev.dir);
+    assert.ok(path.basename(r.dir).startsWith('sidecar-'), 'still swept by name when its owner dies');
+    assert.ok(fs.existsSync(path.join(dev.dir, 'designs.json')));
+    assert.deepEqual(fs.readdirSync(r.dir), [OWNER_FILE]);
+    assert.equal(fs.realpathSync(path.join(game, 'architect', 'sidecar-data')), fs.realpathSync(r.dir));
+  } finally {
+    removeOwned(r.dir, { link: path.join(game, 'architect', 'sidecar-data') });
+  }
+});
+
+test('(E2E-DISK-3) the dir an earlier run left (owner dead, not kept), or the empty one a run leaves, is taken and emptied as before', () => {
+  const game = tmp('tmpown-game-'), root = tmp('tmpown-ram-');
+  const first = ramSidecarData(game, {}, root, { fresh: true, own: true });
+  removeOwned(first.dir, { link: path.join(game, 'architect', 'sidecar-data') });
+  assert.deepEqual(fs.readdirSync(first.dir), [], 'emptied and unmarked at the end');
+  const again = ramSidecarData(game, {}, root, { fresh: true, own: true });
+  assert.equal(again.dir, first.dir, 'the empty one is taken');
+  fs.writeFileSync(path.join(again.dir, 'old.json'), '{}');
+  markOwner(again.dir, {}, { pid: 999_999, startMs: 1 });
+  const third = ramSidecarData(game, {}, root, { fresh: true, own: true, starts: new Map([[1, 0]]) });
+  try {
+    assert.equal(third.dir, first.dir);
+    assert.equal(fs.existsSync(path.join(third.dir, 'old.json')), false, 'a dead owner\'s data goes');
+  } finally {
+    removeOwned(third.dir, { link: path.join(game, 'architect', 'sidecar-data') });
+  }
+});
+
+test('(E2E-DISK-3) on disk, a kept dir (STEWARD_KEEP_TMP) is never taken again or emptied', () => {
+  const game = tmp('tmpown-game-');
+  const link = path.join(game, 'architect', 'sidecar-data');
+  fs.mkdirSync(link, { recursive: true });
+  fs.writeFileSync(path.join(link, 'old.json'), '{}');
+  markOwner(link, { kept: true }, { pid: 999_999, startMs: 1 });
+  const r = ramSidecarData(game, { STEWARD_RAM_TMP: '0' }, '/nonexistent', { fresh: true, own: true, starts: new Map([[1, 0]]) });
+  assert.equal(r.owned, false);
+  assert.ok(fs.existsSync(path.join(link, 'old.json')));
+});
