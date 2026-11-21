@@ -773,6 +773,39 @@ class ComposedPlacingCrashTest {
 		conserved();
 	}
 
+	@Test
+	void capsMissingAModuleLotAreNeverSent() throws IOException {
+		// (CRASH-T2 leftover) the cleared quote is the realise's own, but its caps hold the farm's alone: the hall would go uncapped, so nothing is sent
+		runner(BOUNDED);
+		String k = key(ENTRIES.get(COTTAGE));
+		set("quoteCleared", k);
+		set("composedCaps", new ComposedModules.Caps(Map.of(FARM, Map.of("minecraft:dirt", 130)), null));
+		set("composedCapsKey", k);
+		try (LogCapture log = LogCapture.open()) {
+			place();
+			assertTrue(log.has("weren't quoted for exactly this placing"), "reached the caps' check: " + log.lines + " " + a.calls);
+		}
+		assertEquals(0, a.count("regions.realiseApproved"), "sent with a module lot uncapped");
+		assertEquals(0, a.ledger.paid);
+		conserved();
+	}
+
+	@Test
+	void anEarlierPlacementInTheLogNeverStandsInForThisOne() throws IOException {
+		// (CRASH-T2 leftover) the town's log holds an earlier, unrelated placement: this one is still logged (its own undo record), once
+		runner(BOUNDED);
+		var earlier = Settlement.LogEntry.of(1L, Settlement.Kind.PROJECT_PLACED, "Placed 1 building", List.of(new Settlement.SiteChange("s_earlier", "well", 0, 1)),
+			"region:rg_earlier", Settlement.Outcome.DONE);
+		assertTrue(Settlements.log(saved.settlementId(), earlier).ok());
+		a.quote = inexact();
+		place();
+		assertTrue(approve().startsWith("Approved"), tails());
+		assertEquals(FakeArchitect.REALISED, field("vRegionId"), a.calls + " " + tails());
+		assertEquals(Pipeline.Phase.PLACING, phase());
+		placedAndLogged(false);
+		conserved();
+	}
+
 	// ------------------------------------------------------------------ a crash between a step's two saves (CRASH-T2)
 
 	@Test
