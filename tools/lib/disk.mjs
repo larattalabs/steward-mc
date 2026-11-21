@@ -91,7 +91,7 @@ const q = (p) => `'${String(p).replace(/'/g, `'\\''`)}'`;
 export const deleteNote = (paths) => (paths.length ? `delete when done looking: rm -rf ${paths.map(q).join(' ')}` : null);
 
 /**
- * Deletes what a run made, or keeps it. items: [{path, root, what, always?}]: each path must be strictly inside its root (else it is never touched:
+ * Deletes what a run made, or keeps it. items: [{path, root, what, always?, hold?}]: each path must be strictly inside its root (else it is never touched:
  * 'outside'), is lstat'ed first (a symlink is unlinked, never followed), and goes unless the run is kept (`keep`, a reason) or `hold` (a reason
  * this one item stays, e.g. a client JVM still on the game dir). `always` items (temp inputs) go even when the run is kept.
  * -> {deleted: [path], kept: [{path, what, why}], failed: [{path, why}], note}. Never throws.
@@ -102,7 +102,7 @@ export function cleanupRun(items, { keep = null, hold = null, lstat = fs.lstatSy
     if (!it?.path || !it.root || !isInside(it.path, it.root)) { out.failed.push({ path: it?.path ?? null, why: `outside ${it?.root ?? 'its root'}: not touched` }); continue; }
     let st = null;
     try { st = lstat(it.path); } catch { continue; } // gone already (or never made)
-    const why = it.always ? null : (keep ?? hold);
+    const why = it.always ? null : (keep ?? it.hold ?? hold);
     if (why) { out.kept.push({ path: it.path, what: it.what, why }); continue; }
     try {
       if (st.isSymbolicLink()) unlink(it.path);
@@ -114,6 +114,32 @@ export function cleanupRun(items, { keep = null, hold = null, lstat = fs.lstatSy
   }
   out.note = deleteNote(out.kept.map((k) => k.path));
   return out;
+}
+
+/**
+ * A --clients lead's own part: the run dirs `<mod>/run-c<k>` it made this run (they didn't exist before its lanes started), as cleanup items. Each
+ * is held (kept) unless every lane that ran on it exited 0, wrote a summary with no failure and kept nothing; a dir no lane ran on is held too.
+ * Never mod/run, never a run-c<k> that existed before (it isn't in `created`), never anything not named run-c<k> right under mod.
+ */
+export function laneRunDirs({ modDir, created, lanes }) {
+  const items = [];
+  for (const dir of created) {
+    if (!/^run-c\d+$/.test(path.basename(dir)) || path.dirname(path.resolve(dir)) !== path.resolve(modDir)) continue;
+    const on = lanes.filter((l) => l?.gameDir && path.resolve(l.gameDir) === path.resolve(dir));
+    const bad = on.find((l) => l.code !== 0 || !l.summary || l.summary.failed > 0 || l.summary.cleanup?.kept?.length);
+    const hold = !on.length ? 'no client ran on it' : bad ? `client c${bad.k ?? '?'} ${bad.code !== 0 ? `exited ${bad.code}` : !bad.summary ? 'wrote no summary' : bad.summary.failed > 0 ? `had ${bad.summary.failed} failure(s)` : 'kept its world'}` : null;
+    items.push({ path: dir, root: modDir, what: 'a client run dir this run made', ...(hold ? { hold } : {}) });
+  }
+  return items;
+}
+
+/** Adds one cleanup record's lists to another's and redoes the note. */
+export function addCleanup(into, more) {
+  into.deleted.push(...more.deleted);
+  into.kept.push(...more.kept);
+  into.failed.push(...more.failed);
+  into.note = deleteNote(into.kept.map((k) => k.path));
+  return into;
 }
 
 /** Merges the cleanup records of a --clients run's children (each result naming its client). */

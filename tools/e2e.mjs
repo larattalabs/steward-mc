@@ -27,7 +27,7 @@ import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, ad
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
-import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups } from './lib/disk.mjs';
+import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup } from './lib/disk.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -80,6 +80,9 @@ if (!PLAN && !CLIENT) {
   for (const w of g.warnings) console.log(w);
   if (!g.ok) {
     console.error(g.message);
+    // a summary that says so, never the last run's PASS left in place
+    fs.mkdirSync(OUT, { recursive: true });
+    fs.writeFileSync(path.join(OUT, 'summary.json'), JSON.stringify({ mode, only, refused: { reason: 'disk', freeGiB: g.freeGiB, minGiB: g.minGiB, message: g.message }, at: new Date().toISOString(), failed: 0, flows: [], results: [] }, null, 2));
     process.exit(EXIT_LOW_DISK);
   }
   console.log(g.message);
@@ -9680,6 +9683,8 @@ async function lead() {
   // slice SQ: one slot per client, held by this lead (its pid) and handed to the client's run (E2E_SLOT_TICKET); a lane whose slot doesn't come
   // runs after c1 on c1's slot, run dir and ports (runLanes)
   const t00 = Date.now();
+  // slice E2E-DISK: the client run dirs this lead makes now (not there yet), deleted at its end when their clients passed
+  leadMadeDirs = plan.filter((c) => c.k > 1 && !fs.existsSync(c.gameDir)).map((c) => c.gameDir);
   // (batch-074 review) the child drivers this lead started, and the client pids each said: a signal stops them (forwarded, bounded, then SIGKILL
   // and their clients by those pids) before the lead's slots go back
   const procs = new Map();
@@ -9729,6 +9734,8 @@ async function lead() {
   return rows.map((r) => ({ ...r.result, ...(r.waited ? { waited: r.waited } : {}) }));
 }
 let laneRuns = null;
+/** The run-c<k> dirs a --clients lead made this run (slice E2E-DISK). */
+let leadMadeDirs = [];
 // (batch-074 review) the signals are the shutdown coordinator's: this driver's client (or a lead's child drivers) stops first, then the slots, then
 // the sidecar data
 installShutdown();
@@ -9889,7 +9896,10 @@ if (!LEAD) {
     ...tempInputs.map((p) => ({ path: p, root: os.tmpdir(), what: 'a temp blueprint', always: true })),
   ];
   cleanup = cleanupRun(items, { keep, hold: jvm ? `a client JVM (${jvm}) still runs on ${GAME}` : null });
-} else if (laneRuns) cleanup = mergeCleanups(laneRuns.map((c) => ({ client: `c${c.k}`, cleanup: c.summary?.cleanup })));
+} else if (laneRuns) {
+  cleanup = mergeCleanups(laneRuns.map((c) => ({ client: `c${c.k}`, cleanup: c.summary?.cleanup })));
+  addCleanup(cleanup, cleanupRun(laneRunDirs({ modDir: path.join(ROOT, 'mod'), created: leadMadeDirs, lanes: laneRuns })));
+}
 if (cleanup) {
   for (const p of cleanup.deleted) console.log(`disk: deleted ${p}`);
   for (const k of cleanup.kept) console.log(`disk: kept ${k.path}${k.client ? ` [${k.client}]` : ''} (${k.why})`);

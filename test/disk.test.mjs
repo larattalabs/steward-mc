@@ -2,7 +2,7 @@
 // injected: nothing here deletes or reads a real disk.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { minFreeGiB, existingAncestor, freeBytes, checkFreeSpace, keepReason, isInside, deleteNote, cleanupRun, mergeCleanups,
+import { minFreeGiB, existingAncestor, freeBytes, checkFreeSpace, keepReason, isInside, deleteNote, cleanupRun, mergeCleanups, laneRunDirs, addCleanup,
   DEFAULT_MIN_FREE_GIB, EXIT_LOW_DISK } from '../tools/lib/disk.mjs';
 
 const GIB = 1024 ** 3;
@@ -156,4 +156,41 @@ test("a --clients lead merges its clients' records, each kept dir naming its cli
   assert.deepEqual(r.deleted, ['/w/mod/run/saves/Steward E2E']);
   assert.equal(r.kept[0].client, 'c2');
   assert.match(r.note, /run-c2\/saves\/Steward E2E/);
+});
+
+// ------------------------------------------------------------------ a --clients lead's run-c<k> dirs
+
+const pass = { failed: 0, cleanup: { deleted: [], kept: [], failed: [] } };
+const C2 = '/w/mod/run-c2', C3 = '/w/mod/run-c3';
+
+test('a run-c<k> the lead made goes when every lane on it passed', () => {
+  const items = laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [{ k: 1, gameDir: '/w/mod/run', code: 0, summary: pass }, { k: 2, gameDir: C2, code: 0, summary: pass }] });
+  assert.deepEqual(items, [{ path: C2, root: '/w/mod', what: 'a client run dir this run made' }]);
+  const f = fakeFs([C2]);
+  assert.deepEqual(cleanupRun(items, { ...f }).deleted, [C2]);
+});
+
+test('a run-c<k> is kept when a lane on it failed, wrote no summary, kept its world, or none ran on it', () => {
+  const failedLane = { k: 2, gameDir: C2, code: 1, summary: { failed: 2 } };
+  const keptWorld = { k: 3, gameDir: C3, code: 0, summary: { failed: 0, cleanup: { kept: [{ path: `${C3}/saves/Steward E2E` }] } } };
+  const items = laneRunDirs({ modDir: '/w/mod', created: [C2, C3, '/w/mod/run-c4'], lanes: [failedLane, keptWorld, { waited: {} }] });
+  assert.deepEqual(items.map((i) => i.hold), ['client c2 exited 1', 'client c3 kept its world', 'no client ran on it']);
+  const f = fakeFs([C2, C3]);
+  const r = cleanupRun(items, { ...f });
+  assert.deepEqual(f.calls, []);
+  assert.deepEqual(r.kept.map((k) => k.path), [C2, C3]);
+  assert.equal(laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [{ k: 2, gameDir: C2, code: 0, summary: null }] })[0].hold, 'client c2 wrote no summary');
+});
+
+test('never mod/run, never a pre-existing run-c<k> (not in created), never a dir not named run-c<k> right under mod', () => {
+  const lanes = [{ k: 1, gameDir: '/w/mod/run', code: 0, summary: pass }];
+  assert.deepEqual(laneRunDirs({ modDir: '/w/mod', created: ['/w/mod/run', '/w/mod/run-c2/x', '/w/other/run-c2', '/w/mod/src'], lanes }), []);
+  assert.deepEqual(laneRunDirs({ modDir: '/w/mod', created: [], lanes: [{ k: 2, gameDir: C2, code: 0, summary: pass }] }), []);
+});
+
+test('addCleanup joins a lead\'s own record to its clients\' and redoes the note', () => {
+  const into = { deleted: ['a'], kept: [], failed: [], note: null };
+  addCleanup(into, { deleted: [], kept: [{ path: C2, why: 'x' }], failed: [] });
+  assert.deepEqual(into.deleted, ['a']);
+  assert.match(into.note, /rm -rf '\/w\/mod\/run-c2'/);
 });
