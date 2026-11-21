@@ -23,7 +23,7 @@ import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
-import { drawsBetween, partsTotal, judgeQuote } from './lib/quote-draws.mjs';
+import { drawsBetween, partsTotal, judgeQuote, lotsOff } from './lib/quote-draws.mjs';
 import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, addedBoxes } from './lib/undo-audit.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
@@ -3567,14 +3567,18 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
         const realised = [...since.matchAll(new RegExp(`realise ${id}: artifact ([0-9a-f]{64}) under key \\S+ \\((?:first|after a re-check)\\) entries (\\{[^\\n]*\\})`, 'g'))].at(-1);
         const quoted = realised ? [...since.slice(0, realised.index).matchAll(new RegExp(`composed modules ${id} quote ([0-9a-f]{64}): (\\{.*?\\}) \\(exact (true|false), notes \\[(.*)\\]\\)$`, 'gm'))].at(-1) : null;
         if (!realised || !quoted || quoted[1] !== realised[1]) return fail(qlbl, `no quote of the last realise (realise ${realised?.[1]?.slice(0, 12) ?? 'none'}; quote ${quoted?.[1]?.slice(0, 12) ?? 'none'})`);
-        let parts = null;
-        try { parts = JSON.parse(quoted[2]); } catch (e) { return fail(qlbl, `the quote's pieces unreadable: ${e.message}`); }
+        let parts = null, entries = null;
+        try { parts = JSON.parse(quoted[2]); entries = JSON.parse(realised[2]); } catch (e) { return fail(qlbl, `the quote's pieces or the realise's entries unreadable: ${e.message}`); }
+        // (B092-LEFT, batch 092 GPT review P2) the quote's lot pieces are exactly the realise's entries: a lot quoted then left a pad (fitting,
+        // palette) under the same artifact, or a lot realised unquoted, fails
+        const lotsMiss = lotsOff(parts, entries);
+        if (lotsMiss.length) return fail(qlbl, `the quote's lots aren't the realise's: ${lotsMiss.join(', ')} (entries ${Object.keys(entries).join(', ')})`);
         const quote = { bom: partsTotal(parts), exact: quoted[3] === 'true', notes: [quoted[4]] };
         const drew = drawsBetween(sp0, spB);
         const j = judgeQuote(quote, drew, LINING);
         const liningQuoted = LINING.filter((k) => (quote.bom[k] ?? 0) > 0);
         if (liningQuoted.length && !j.fails.length)
-          ok(qlbl, `the realised artifact's quote (${sum(quote.bom)} units over ${Object.keys(quote.bom).length} items in ${Object.keys(parts).length} pieces, exact ${quote.exact}) against the stockpile's draws (${sum(drew)} over ${Object.keys(drew).length}): nothing unquoted, nothing past it, lining ${liningQuoted.map((k) => `${drew[k] ?? 0}/${quote.bom[k]} ${k.slice(10)}`).join(', ')}; under the quote (its upper bound): ${j.short.slice(0, 8).join(', ') || 'none'}`);
+          ok(qlbl, `the realised artifact's quote (lots = the realise's ${Object.keys(entries).length} entries; ${sum(quote.bom)} units over ${Object.keys(quote.bom).length} items in ${Object.keys(parts).length} pieces, exact ${quote.exact}) against the stockpile's draws (${sum(drew)} over ${Object.keys(drew).length}): nothing unquoted, nothing past it, lining ${liningQuoted.map((k) => `${drew[k] ?? 0}/${quote.bom[k]} ${k.slice(10)}`).join(', ')}; under the quote (its upper bound): ${j.short.slice(0, 8).join(', ') || 'none'}`);
         else return fail(qlbl, `lining quoted ${liningQuoted.join(',') || 'none'}; ${j.fails.slice(0, 10).join(', ') || 'no fails'}; under ${j.short.slice(0, 6).join(', ')}; pieces ${Object.keys(parts).join(', ')}`);
       }
       if (c && !c.refused && sameItems(lost, drawn) && sameItems(drawn, total) && liningDrawn.length)
