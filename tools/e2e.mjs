@@ -23,6 +23,7 @@ import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
+import { drawsBetween, quoteOff } from './lib/quote-draws.mjs';
 import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, addedBoxes } from './lib/undo-audit.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
@@ -3364,13 +3365,21 @@ async function composedSculptFlowBody() {
  * water are free held work (never in the bill), its lining (clay, mud, moss) is billed as the plan's parts and drawn from the stockpile. Conservation:
  * the stockpile's loss is what the region's sites drew, item by item; undone, every consumed unit comes back once, nothing stands, and the world in
  * the build's boxes is as before.
+ *
+ * (B092-FIX, batch 092 GPT review P2) The quote is the structured one: the realised artifact's quoteApproved (dev.region.quote) with its lot entries,
+ * read at the placement approval (before the land changes), and the stockpile's draws must equal it item by item over both sides
+ * (tools/lib/quote-draws.mjs: an extra draw of any item fails). `crash`: the lining is fed a little at a time, and once the river's paid lining has
+ * drawn part of its bill with more to draw (the carve and the water free held work under way), the client is halted uncleanly (nothing saved) and
+ * restarted; the reconcile keeps draws = charges with no overshoot, the town finishes, and the same quote = draws, refund, conservation and world
+ * checks run over the whole build (a duplicate lining debit after the restart would show as a draw past the quote).
  */
-async function composedSculptSurvivalFlow() {
-  const label = 'composed sculpt survival';
+async function composedSculptSurvivalFlow({ crash = false } = {}) {
+  const label = crash ? 'composed sculpt survival crash' : 'composed sculpt survival';
+  const LINING = ['minecraft:clay', 'minecraft:mud', 'minecraft:moss_block'];
   await cmd('/architect survival on');
   await cmd('/defaultgamemode survival');
   await cmd('/gamemode creative @p');
-  let feeding = false, stop = false, feeder = null;
+  let feeding = false, stop = false, feeder = null, halted = null;
   try {
     ok(`${label} source`, await composedSource());
     const n = settlements().length;
@@ -3406,41 +3415,91 @@ async function composedSculptSurvivalFlow() {
         await sleep(3000);
         if (!feeding || !dev) continue;
         const sp = await ledger().catch(() => null);
-        if (sp && Object.keys(sp.need ?? {}).length && dev) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items: sp.need }).catch(() => null);
+        // (B092-FIX crash) until the halt, the lining a little at a time (16 of each per poll), so the river is caught part way through its paid lining
+        const items = crash && !halted ? Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, c]) => [k, LINING.includes(k) ? Math.min(c, 16) : c])) : sp?.need;
+        if (sp && Object.keys(items ?? {}).length && dev) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items }).catch(() => null);
       }
     })();
     feeding = true;
     const sp0 = await ledger();
-    const snap = await snapBeforeBuild(claim, `sculpt-before-${id}`);
+    const snap = await snapBeforeBuild(claim, `sculpt-${crash ? 'crash-' : ''}before-${id}`);
     from = logSize();
     await cmd(`/steward start ${id} 3 30`);
     let region = null, built = false;
+    // the client's log starts again at a restart: what it said before the halt is kept
+    let preHalt = '', at = from;
+    const said = () => preHalt + logSince(at);
+    const capOf = async (q) => dev.request('dev.bc.cap', { region, rid: 0, ...q }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
+    const sum = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    // (B092-FIX, GPT review P2) the structured quote of what the approval places: the artifact and its lots' entries (the steward's placement line),
+    // quoted (Architect's quoteApproved) before the placement is approved, while the land is as the realise will bill it
+    let quote = null;
     const end = Date.now() + 2_400_000;
     while (Date.now() < end) {
       await sleep(3000);
-      const since = logSince(from);
+      const since = said();
       if (new RegExp(`${name} is built: everything its plan laid out stands`).test(since)) { built = true; break; }
       const stopped = since.match(/(?:^|\s)Not placed: [^\n]*|The build stopped[^\n]*|Cancelled [^\n]*|plan modules of \S+ left out of the card's layout[^\n]*/);
       if (stopped) return fail(label, `stopped: ${stopped[0].slice(0, 300)}`);
       if (!region) region = savedBuild(id)?.vRegion ?? null;
+      // (B092-FIX, GPT review P2 crash) an unclean halt once the river's paid lining has drawn part of its bill with more still to draw
+      if (crash && region && !halted) {
+        const c = await capOf({});
+        const sp = await ledger().catch(() => null);
+        const liningDrawn = LINING.filter((k) => (c?.drawn?.[k] ?? 0) > 0);
+        const liningOwed = LINING.filter((k) => (sp?.need?.[k] ?? 0) > 0);
+        if (liningDrawn.length && liningOwed.length) {
+          const lbl = `${label} halt mid-lining`;
+          const before = { drawn: c.drawn, consumed: sp?.consumed };
+          preHalt = said();
+          at = logSize();
+          await dev.request('dev.stockpile.halt', { mode: 'now' }, { timeoutMs: 10_000 }).catch(() => null);
+          for (let i = 0; i < 120 && client.exitCode === null; i++) await sleep(1000);
+          if (client.exitCode === null) return fail(lbl, 'dev.stockpile.halt did not halt the client in 120 s');
+          dev = null;
+          await sleep(4000);
+          preHalt += logSince(at);
+          at = 0;
+          launch();
+          await connect();
+          await cmd('/architect survival on');
+          await cmd('/gamemode creative @p');
+          await sleep(5000);
+          const a = await dev.request('dev.stockpile.audit', { owner }, { timeoutMs: 120_000 }).catch(() => ({}));
+          const c2 = await capOf({});
+          const total = plusItems(c2?.paid ?? {}, c2?.regionCharged ?? {});
+          const blocked = (c2?.targets ?? []).filter((t) => t.blocked === 'bill_cap').map((t) => t.id);
+          halted = { audit: a, before };
+          if (a.uncleanStart === true && c2 && !c2.refused && sameItems(c2.drawn, total) && !Object.keys(c2.overshoot ?? {}).length && !blocked.length)
+            ok(lbl, `halted uncleanly with the lining part drawn (${liningDrawn.map((k) => `${before.drawn[k]} ${k.slice(10)}`).join(', ')}) and owed (${liningOwed.map((k) => k.slice(10)).join(', ')}); after the restart drawn ${sum(c2.drawn)} = paid ${sum(c2.paid)} + region ${sum(c2.regionCharged)}, no overshoot, nothing held`);
+          else return fail(lbl, `unclean ${a.uncleanStart}; cap ${JSON.stringify(c2).slice(0, 400)}; held ${blocked.join(',')}`);
+          continue;
+        }
+      }
       const st = savedBuild(id)?.state;
-      if (st && /^AWAITING_(BIBLE|MASSING|PLACEMENT)_APPROVAL$/.test(st.phase ?? '')) await cmd(`/steward approve ${id}`);
+      if (st && /^AWAITING_(BIBLE|MASSING|PLACEMENT)_APPROVAL$/.test(st.phase ?? '')) {
+        if (st.phase === 'AWAITING_PLACEMENT_APPROVAL' && !quote) {
+          const m = [...since.matchAll(new RegExp(`placement ${id}: artifact ([0-9a-f]{64}) entries (\\{[^\\n]*\\})`, 'g'))].at(-1);
+          if (m) {
+            const r = await dev.request('dev.region.quote', { sha: m[1], lotEntries: JSON.parse(m[2]) }, { timeoutMs: 300_000 }).catch((e) => ({ refused: String(e?.message ?? e) }));
+            quote = { ...r, sha: m[1], entries: JSON.parse(m[2]) };
+          }
+        }
+        await cmd(`/steward approve ${id}`);
+      }
     }
     feeding = false;
-    const since = logSince(from);
+    const since = said();
+    if (crash && !halted) fail(`${label} halt mid-lining`, `never halted: the river's lining never caught part way (region ${region})`);
     if (!built) return fail(label, `not built in 40 min; region ${region}; phase ${savedBuild(id)?.state?.phase}; ${since.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
     const placed = await sculptChecks(label, id, since);
     if (!placed) return;
     region = region ?? /^region:(.+)$/.exec(placed.siteGroup ?? '')?.[1];
-    const capOf = async (q) => dev.request('dev.bc.cap', { region, rid: 0, ...q }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
-    const sum = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
-    // the words: the plan's parts billed with the river's lining, the carve never called paid
-    const quoted = {};
+    // the words: the plan's parts billed with the river's lining, the carve never called paid (words only: the quote check below is the structured one)
     {
       const lbl = `${label} bill words`;
       const bill = since.match(/From materials, the plan's ground, streets and parts need [^\n]*/)?.[0] ?? '';
       const lining = ['clay', 'mud', 'moss block'].filter((k) => new RegExp(`\\d+ ${k}\\b`).test(bill));
-      for (const k of lining) quoted[`minecraft:${k.replace(' ', '_')}`] = Number(bill.match(new RegExp(`(\\d+) ${k}\\b`))[1]);
       const carvePaid = /carv[^\n]*(?:cost|pay|need|bill)|(?:cost|pay|bill)[^\n]*carv/i.test(since.split('\n').filter((l) => /\(steward\)|CHAT/.test(l)).join('\n'));
       if (bill && lining.length >= 1 && !carvePaid) ok(lbl, `${bill.slice(0, 200)} (lining named: ${lining.join(', ')})`);
       else fail(lbl, `bill ${bill.slice(0, 200) || 'none'}; lining ${lining.join(',')}; the carve called paid ${carvePaid}`);
@@ -3464,10 +3523,21 @@ async function composedSculptSurvivalFlow() {
       const drawn = c?.drawn ?? {};
       const total = plusItems(c?.paid ?? {}, c?.regionCharged ?? {});
       const liningDrawn = ['minecraft:clay', 'minecraft:mud', 'minecraft:moss_block'].filter((k) => (lost[k] ?? 0) > 0);
-      // (GPT review P2) the quote and the draws agree: each lining item the plan's bill named was drawn exactly as quoted (the carve is in neither)
-      const quoteOff = Object.entries(quoted).filter(([k, v]) => (lost[k] ?? 0) !== v).map(([k, v]) => `${k} quoted ${v} drew ${lost[k] ?? 0}`);
-      if (quoteOff.length || !Object.keys(quoted).length) return fail(`${label} quote = draws`, quoteOff.join('; ') || 'no lining quoted');
-      ok(`${label} quote = draws`, Object.entries(quoted).map(([k, v]) => `${v} ${k.slice(10)}`).join(', '));
+      // (B092-FIX, batch 092 GPT review P2) the whole quote of the realised artifact and the stockpile's draws agree item by item, both ways: an
+      // extra draw of any item, a short or doubled one, fails (the carve and its water are in neither: free held work)
+      {
+        const qlbl = `${label} quote = draws`;
+        const realised = [...since.matchAll(new RegExp(`realise ${id}: artifact ([0-9a-f]{64}) under key \\S+ \\((?:first|after a re-check)\\) entries (\\{[^\\n]*\\})`, 'g'))].at(-1);
+        const sameArtifact = realised && quote && realised[1] === quote.sha && JSON.stringify(JSON.parse(realised[2])) === JSON.stringify(quote.entries);
+        const drew = drawsBetween(sp0, spB);
+        const off = quoteOff(quote?.bom ?? {}, drew);
+        const liningQuoted = LINING.filter((k) => (quote?.bom?.[k] ?? 0) > 0);
+        if (!quote || quote.refused) return fail(qlbl, `no quote of the placement: ${quote ? `${quote.refused} ${quote.reason ?? ''}` : 'no placement line at its approval'}`);
+        if (!sameArtifact) return fail(qlbl, `the last realise (${realised?.[1]?.slice(0, 12) ?? 'none'}) is not the artifact and entries quoted (${quote.sha.slice(0, 12)})`);
+        if (quote.survival && quote.exact === true && off.length === 0 && liningQuoted.length)
+          ok(qlbl, `the realised artifact's quote (${sum(quote.bom)} units over ${Object.keys(quote.bom).length} items, exact; lining ${liningQuoted.map((k) => `${quote.bom[k]} ${k.slice(10)}`).join(', ')}) = the stockpile's draws, item by item`);
+        else return fail(qlbl, `survival ${quote.survival}; exact ${quote.exact}; lining quoted ${liningQuoted.join(',') || 'none'}; off ${off.slice(0, 10).join(', ') || 'none'}; pieces ${JSON.stringify(quote.bomParts ?? {}).slice(0, 300)}; notes ${JSON.stringify(quote.notes ?? []).slice(0, 160)}`);
+      }
       if (c && !c.refused && sameItems(lost, drawn) && sameItems(drawn, total) && liningDrawn.length)
         ok(lbl, `the stockpile lost ${sum(lost)} units over ${Object.keys(lost).length} items, exactly what the sites drew (paid ${sum(c.paid)} + region ${sum(c.regionCharged)}); lining ${liningDrawn.map((k) => `${lost[k]} ${k.slice(10)}`).join(', ')}`);
       else fail(lbl, `lost-drawn ${JSON.stringify(minusItems(lost, drawn)).slice(0, 200)}; drawn-total ${JSON.stringify(minusItems(drawn, total)).slice(0, 200)}; lining ${liningDrawn.join(',')}; ${JSON.stringify(c).slice(0, 200)}`);
@@ -10127,6 +10197,8 @@ try {
       // (slice M5-SCULPT-2) a sculpt card whose kept plan carries the shaping (fixture 1's carved river) takes the plan, keeping the hall and the river
       await flow('composed-sculpt', 'composed module hall sculpt plan water undo', () => composedSculptFlow());
       await flow('composed-sculpt-survival', 'composed module hall sculpt survival stockpile bill refund water', () => composedSculptSurvivalFlow());
+      // (B092-FIX, batch 092 GPT review P2) the same town halted uncleanly part way through the river's paid lining, restarted, finished and undone
+      await flow('composed-sculpt-survival-crash', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: true }));
       // (slice MODULE-TYPE-2) a bare module-type plan lot the catalog doesn't offer: left out of the first build, said, the rest built
       await flow('composed-unoffered', 'composed module farm plan first-build left out', () => composedUnofferedFlow());
       // (slice M5a; LIFT-S) a composed farm's bill from materials held, kept across a restart, re-checked stale and realised under its lot cap
