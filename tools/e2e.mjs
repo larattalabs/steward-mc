@@ -3777,9 +3777,15 @@ async function composedSculptStaleFlow() {
     const pinsOf = async (s) => JSON.stringify((await dev.call('dev.coa.artifact', { sha: s }).catch(() => ({})))?.pins ?? null);
     const pinBefore = await pinsOf(sha);
     from = logSize();
-    await cmd(`/steward approve ${id}`);
     const stopRe = /the land changed under the shaped site while its buildings were designed[^\n]*start the build again to plan the site anew/;
-    const stopped = await waitLog(from, stopRe, 600_000);
+    // approved; the composed quote of a town from materials is inexact (natural cells may stand), so its bills are held and asked: approved too
+    let stopped = null, approvals = 0;
+    for (let lastApprove = 0, end = Date.now() + 600_000; Date.now() < end && !(stopped = logSince(from).match(stopRe));) {
+      const p = savedBuild(id)?.state?.phase;
+      if (p === 'AWAITING_PLACEMENT_APPROVAL' && Date.now() - lastApprove > 5000) { lastApprove = Date.now(); approvals++; await cmd(`/steward approve ${id}`); }
+      if (/^(DONE|FAILED|CANCELLED)$/.test(p ?? '') && !logSince(from).match(stopRe)) { await sleep(3000); stopped = logSince(from).match(stopRe); break; }
+      await sleep(1000);
+    }
     await sleep(8000);
     const since = logSince(from);
     const chat = since.split('\n').filter((l) => /CHAT/.test(l));
@@ -3800,9 +3806,9 @@ async function composedSculptStaleFlow() {
       const others = [...since.matchAll(new RegExp(`plan of ${id}: artifact ([0-9a-f]{64})`, 'g'))];
       const quotes = [...since.matchAll(new RegExp(`composed modules ${id} quote ([0-9a-f]{64})`, 'g'))];
       const pinAfter = await pinsOf(sha);
-      if (realises.length === 1 && realises[0][1] === sha && realises[0][2] === 'first' && others.length === 0 && quotes.every((q) => q[1] === sha) && quotes.length <= 1
+      if (realises.length === 1 && realises[0][1] === sha && realises[0][2] === 'first' && others.length === 0 && quotes.every((q) => q[1] === sha)
         && pinBefore.includes(owner) && !pinAfter.includes(owner))
-        ok(lbl, `one realise of ${sha.slice(0, 12)} (refused stale), no re-check, no other artifact, ${quotes.length} quote of it; its pin let go (${pinBefore} -> ${pinAfter})`);
+        ok(lbl, `one realise of ${sha.slice(0, 12)} (refused stale) after ${approvals} approval(s), no re-check, no other artifact, ${quotes.length} quote(s) of it only; its pin let go (${pinBefore} -> ${pinAfter})`);
       else fail(lbl, `realises ${realises.map((x) => `${x[1].slice(0, 8)} ${x[2]}`).join('; ')}; other plans ${others.length}; quotes ${quotes.map((q) => q[1].slice(0, 8)).join(',')}; pins ${pinBefore} -> ${pinAfter}`);
     }
     // nothing drawn or charged: the stock and the consumed as before the approval, nothing owed
