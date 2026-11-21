@@ -288,6 +288,12 @@ class StreetModulesTest {
 		ConceptCard only = cardWith("""
 			[{"role": "crop field", "type": "crop_farm", "count": 1, "footprint": "M", "landmark": false}]""");
 		assertEquals(List.of("crop_farm"), ProgramPlanner.lots(only, 3, 0).specs().stream().map(LotSpec::type).toList());
+		// the runner's live reading: a catalog-only module id is never padded either
+		ConceptCard mill = cardWith("""
+			[{"role": "windmill", "type": "windmill", "count": 1, "footprint": "M", "landmark": false},
+			 {"role": "cottage", "type": "cottage", "count": 1, "footprint": "S", "landmark": false}]""");
+		assertEquals(List.of("windmill", "cottage", "cottage"),
+			ProgramPlanner.lots(mill, 3, 0, ModuleTypes.of(List.of(), List.of("windmill"))).specs().stream().map(LotSpec::type).toList());
 		// every lot of a module's type goes, each said (a layout holding two, e.g. a count of 2 for one module lot)
 		List<LotSpec> two = List.of(new LotSpec("crop_farm_1", "crop_farm", 14, 12), new LotSpec("cottage_1", "cottage", 11, 9), new LotSpec("crop_farm_2", "crop_farm", 14, 12));
 		var both = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, OFFERED, null, two, "x", "on Steward's streets");
