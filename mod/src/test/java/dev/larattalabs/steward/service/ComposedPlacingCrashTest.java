@@ -718,6 +718,61 @@ class ComposedPlacingCrashTest {
 		}
 	}
 
+	// ------------------------------------------------------------------ a stale quote's identity (CRASH-T2, its GPT review P2)
+
+	void set(String name, Object value) {
+		try {
+			Field f = SettlementRunner.class.getDeclaredField(name);
+			f.setAccessible(true);
+			f.set(r, value);
+		} catch (ReflectiveOperationException e) {
+			throw new AssertionError(e);
+		}
+	}
+
+	/** The quote key of the realise with the cottage bound to {@code cottage} (the module lots as bound). */
+	String key(String cottage) {
+		var e = new TreeMap<>(ENTRIES);
+		e.put(COTTAGE, cottage);
+		return ModulePlacement.cleared((String) field("vPlanId"), e);
+	}
+
+	@Test
+	void aQuoteClearedForOtherEntriesIsQuotedAgainBeforeTheRealise() throws IOException {
+		// this session cleared a quote (and its caps) for the cottage's earlier entry; the group's entry is another now (a design repaired): the
+		// runner's realise quotes the entries it binds now before anything is sent
+		runner(BOUNDED);
+		String old = key("e_cottage_old");
+		set("quoteCleared", old);
+		set("composedCaps", ComposedModules.caps(PARTS, BOUNDED, ENTRIES.keySet()));
+		set("composedCapsKey", old);
+		a.quote = exact();
+		a.realiseAnswer = FakeArchitect.Answer.HOLD;
+		place();
+		int quoted = indexOf(a.calls, "regions.quoteApproved"), sent = indexOf(a.calls, "regions.realiseApproved");
+		assertTrue(quoted >= 0 && sent > quoted, "quoted again for the entries bound now, then sent: " + a.calls + " " + tails());
+		assertEquals("regions.quoteApproved " + SHA + " " + new TreeMap<>(ENTRIES), a.calls.get(quoted));
+		assertEquals(key(ENTRIES.get(COTTAGE)), field("composedCapsKey"), "the caps sent are the new quote's");
+		assertEquals(1, a.approved.size());
+	}
+
+	@Test
+	void capsFromAnotherQuoteThanTheClearedOneAreNeverSent() throws IOException {
+		// the cleared quote is the realise's own, but the caps held are an earlier quote's: the realise refuses, nothing sent or drawn
+		runner(BOUNDED);
+		set("quoteCleared", key(ENTRIES.get(COTTAGE)));
+		set("composedCaps", ComposedModules.caps(PARTS, BOUNDED, ENTRIES.keySet()));
+		set("composedCapsKey", key("e_cottage_old"));
+		try (LogCapture log = LogCapture.open()) {
+			place();
+			assertTrue(log.has("weren't quoted for exactly this placing"), "reached the caps' check: " + log.lines + " " + a.calls);
+		}
+		assertEquals(0, a.count("regions.quoteApproved"), "the realise's own quote was cleared: not quoted again");
+		assertEquals(0, a.count("regions.realiseApproved"), "sent with another quote's caps");
+		assertEquals(0, a.ledger.paid);
+		conserved();
+	}
+
 	// ------------------------------------------------------------------ a crash between a step's two saves (CRASH-T2)
 
 	@Test
