@@ -309,12 +309,17 @@ Minecraft/_work grew from 89 GB to about 977 GB (Steward about 684 GB), mostly e
 - **Cleanup after a run.** Each e2e driver (a `--clients` run's children each on their own run dir) ends by deleting what it made, and only what
   it can prove is its own (slice E2E-DISK-2, 11-21: every path it deletes is named for this run and owner-marked):
   - this run's world, `<run dir>/saves/Steward E2E <tag>` (200-470 MB). The tag is the run's own (`runTag`: base36 time, pid, random), the
-    name goes to the client in its launch env only, and once the client is in the world the driver writes `.steward-e2e-owner.json` ({run,
-    pid}, exclusive) into it. Just before the delete the marker is read again: no marker or another run's, and it is not touched (`disk: not
-    deleted ...`). A marker that couldn't be written fails the run (`world owner`), so the world is kept.
+    name goes to the client in its launch env only (an explicit `ARCHITECT_AUTOWORLD_NAME` of that shape is refused). Once the client is in
+    the world the driver writes `.steward-e2e-owner.json` ({run, pid}, exclusive) into it, only when this run's client created it (fix round,
+    GPT P1 #2): absent (lstat) when the driver launched its first client, a real dir (a symlink is refused) born after that launch, and this
+    run's client log since then says `AutoWorld: creating world '<name>'`. Just before the delete the marker is read again: no marker or
+    another run's, and it is not touched (`disk: not deleted ...`). A marker that couldn't be written fails the run (`world owner`), so the
+    world is kept.
   - its temp blueprint dirs (`steward-e2e-v2-*`, `steward-e2e-ui-*`, `steward-e2e-stub-*` in TMPDIR; mkdtemp, unique).
   - a `--clients` lead's lane dirs, `mod/run-c<k>-<tag>` (client 1 stays on `mod/run`). Each is made at its use with `mkdir` without `-p` and
-    the owner marker (`claimRunDir`); a dir already there isn't this run's and the lane doesn't run on it. The lead deletes a lane dir
+    the owner marker (`claimRunDir`); a dir already there isn't this run's and the lane doesn't run on it. The lead hands its owner to the
+    child (`E2E_LANE_OWNER`), and a driver on any `run-c<k>-<tag>` refuses to start unless the dir's marker is that owner (`laneUse`; fix
+    round, GPT P1 #1): one started by hand there makes and deletes nothing. The lead deletes a lane dir
     (`DELETE_LANE_DIRS`, on again) when every client on it exited 0, failed nothing, kept nothing and failed no delete, and its marker still names this run;
     otherwise it is kept and named. Only names with this run's tag are ever items, so an old plain `mod/run-c<k>` or another run's dir is
     never deleted. A fresh lane dir costs a configuration-cache miss and Architect's sidecar copy (~21 MB) on its first launch.
@@ -329,8 +334,12 @@ Minecraft/_work grew from 89 GB to about 977 GB (Steward about 684 GB), mostly e
     file only where it differs), `config`, `logs`, `mods`, `options.txt`, `mod/run` itself, `artifacts/` (the evidence). A path outside its
     own root is never deleted, and a symlink is unlinked, never followed.
   - The sidecar data stays TMPSWEEP's ("Temp dirs" above): removed at every end, failed or not, since keeping 2-6 GB per failed run on the
-    24 GB RAM disk brought back ENOSPC. `STEWARD_KEEP_TMP=1` keeps it for a look. (Not covered by E2E-DISK-2: its RAM dir is named for the
-    game dir, not the run, and `fresh` empties it at preflight.)
+    24 GB RAM disk brought back ENOSPC. `STEWARD_KEEP_TMP=1` keeps it for a look.
+  - **Known gaps** (E2E-DISK-2's GPT review, not fixed there): (P1 #3, pre-existing) the sidecar's RAM dir is named for the game dir, not the
+    run, and preflight's `fresh` empties it before the slot wait with no ownership check, so two drivers on one game dir can remove each
+    other's; the stale sweep also removes data an earlier run kept with `STEWARD_KEEP_TMP=1`. (P2 #5) `/steward dev module` answer files
+    (`<run dir>/steward-modules/<label>.json`, read and removed by the driver) were named by pid and a counter; they now carry the run tag
+    (`e2e_<tag>_<n>`), so another run's leftover answer can't match, but their creation still isn't exclusive.
 - **The free-space guard.** `e2e.mjs` (not `--plan`, not a `--clients` child: its lead checked) and `nightly.mjs` refuse to start when the
   volume holding the worktree has less than **`E2E_MIN_FREE_GIB`** free (GiB, default **150**; statfs, no disk walk). The refusal says how much
   is free, writes summary.json with `refused`, and exits **5** (2 is usage, 3 a slot wait, 4 the slot CLI's own); the nightly writes a `NOSPACE` SUMMARY.md, and `--dry` prints the

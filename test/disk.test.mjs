@@ -310,6 +310,12 @@ test('(B091 switch-off) a driver that never got its slot deletes no world, only 
 
 // ------------------------------------------------------------------ slice E2E-DISK-2: every delete provably this run's own (per-run names, markers)
 
+/** A fake lstat over ownFs dirs, with birth times (ms) and symlinks. */
+const statOf = (f, born = {}, links = []) => (p) => {
+  if (links.includes(p)) return { isSymbolicLink: () => true, isDirectory: () => false, birthtimeMs: born[p] ?? 0 };
+  if (!f.dirs.has(p)) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+  return { isSymbolicLink: () => false, isDirectory: () => true, birthtimeMs: born[p] ?? 0 };
+};
 const disk2 = await import('../tools/lib/disk.mjs');
 const src2 = () => fs2.readFileSync(new URL('../tools/e2e.mjs', import.meta.url), 'utf8');
 const fs2 = await import('node:fs');
@@ -358,9 +364,10 @@ test('(E2E-DISK-2 b, d) the start never moves or deletes a world: a per-run worl
 test('(E2E-DISK-2 c) the world is marked after its client made it, and deleted only while its marker names this run', () => {
   const a = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: {} });
   const f = ownFs(['/w/saves']);
-  assert.match(disk2.markWorld(a, A, { ...f, exists: (p) => f.dirs.has(p) }), /not there/, 'no world, no marker: said');
+  const facts = { launchedAt: 1, absentAtLaunch: true, clientLog: `AutoWorld: creating world '${a.name}' (FLAT)` };
+  assert.match(disk2.markWorld(a, A, { ...f, lstat: statOf(f, { [a.path]: 5 }), ...facts }), /not there/, 'no world, no marker: said');
   f.dirs.add(a.path);
-  assert.equal(disk2.markWorld(a, A, { ...f, exists: (p) => f.dirs.has(p) }), null);
+  assert.equal(disk2.markWorld(a, A, { ...f, lstat: statOf(f, { [a.path]: 5 }), ...facts }), null);
   assert.deepEqual(f.calls.at(-1), ['write', `${a.path}/${OWNER_FILE}`, 'wx']);
   const items = () => runItems({ world: a.path, saves: '/w/saves', owner: A, readFile: f.readFile, tempInputs: [], tmp: TMP.root });
   // another run's marker (or none): not touched, after the slot went back or not
@@ -412,7 +419,7 @@ test('(E2E-DISK-2) e2e.mjs uses the ownership path: per-run world in the spawn e
   assert.equal(disk2.DELETE_LANE_DIRS, true);
   assert.match(src, /env: \{ \.\.\.process\.env, ARCHITECT_AUTOWORLD_NAME: E2E_WORLD\.name,/, 'the spawn env carries the per-run name');
   assert.doesNotMatch(src, /process\.env\.ARCHITECT_AUTOWORLD_NAME\s*=/, 'never set in process.env (a lead\'s children would inherit it)');
-  assert.match(src, /markWorld\(E2E_WORLD, runOwner\)/, 'the world is marked');
+  assert.match(src, /markWorld\(E2E_WORLD, runOwner, /, 'the world is marked');
   assert.match(src, /runItems\(\{ world: WORLD, saves: path\.join\(GAME, 'saves'\), protect: E2E_WORLD\.protect, owner: runOwner, slotWait: !!slotWait,/, 'the world item is verified against this run');
   assert.match(src, /laneDirName\(k, RUN_TAG\)/, 'lane dirs are named for this run');
   assert.match(src, /laneRunDirs\(\{ modDir: path\.join\(ROOT, 'mod'\), created: leadMadeDirs, lanes: laneRuns, owner: runOwner, tag: RUN_TAG, keepWorld \}\)/);
@@ -438,4 +445,99 @@ test('(E2E-DISK-2) a lane whose client could not delete something (cleanup.faile
   const r = cleanupRun(items, { ...f });
   assert.deepEqual(r.deleted, []);
   assert.deepEqual(f.calls.filter((c) => c[0] === 'rm'), []);
+});
+
+// ------------------------------------------------------------------ E2E-DISK-2 fix round (GPT review NOT SAFE: P1 #1, P1 #2, P2 #4)
+
+const created = (name) => `[12:00:00] [Render thread/INFO] (architect) AutoWorld: creating world '${name}' (FLAT, seed 1, CREATIVE, cheats on)`;
+
+test('(fix P1 #1) a driver runs on a tagged lane dir only when its marker names the lead that passed it; by hand it refuses', () => {
+  const CA = `/w/mod/run-c2-${TAG_A}`;
+  const f = ownFs(['/w/mod']);
+  assert.equal(claimRunDir(CA, A, f).claimed, true);
+  // the lead's child: E2E_LANE_OWNER is the lead's owner
+  assert.equal(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', laneOwner: JSON.stringify(A), readFile: f.readFile }), null);
+  // driver B by hand on A's lane (no lane owner, or its own): refused
+  assert.match(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', laneOwner: undefined, readFile: f.readFile }), /refus/);
+  assert.match(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', laneOwner: JSON.stringify(B), readFile: f.readFile }), /refus/);
+  assert.match(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', laneOwner: 'junk', readFile: f.readFile }), /refus/);
+  // a tagged lane dir with no marker: refused too
+  f.files.delete(`${CA}/${OWNER_FILE}`);
+  assert.match(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', laneOwner: JSON.stringify(A), readFile: f.readFile }), /refus/);
+  // mod/run and an old plain run-c2 aren't lane dirs of any run: no check
+  assert.equal(disk2.laneUse({ gameDir: '/w/mod/run', modDir: '/w/mod', readFile: f.readFile }), null);
+  assert.equal(disk2.laneUse({ gameDir: '/w/mod/run-c2', modDir: '/w/mod', readFile: f.readFile }), null);
+});
+
+test('(fix P1 #1, lifecycle) B refused on A\'s lane makes nothing there, so A\'s delete of its lane takes only A\'s', () => {
+  const CA = `/w/mod/run-c2-${TAG_A}`;
+  const f = ownFs(['/w/mod']);
+  claimRunDir(CA, A, f);
+  const items = laneRunDirs({ modDir: '/w/mod', created: [CA], lanes: [passLane(CA)], owner: A, tag: TAG_A, readFile: f.readFile });
+  // B, by hand, after A's c2 passed: refused before it makes a world (the marker untouched)
+  assert.notEqual(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', readFile: f.readFile }), null);
+  assert.equal([...f.dirs].some((d) => d.startsWith(`${CA}/saves`)), false);
+  assert.deepEqual(cleanupRun(items, { ...f }).deleted, [CA]);
+});
+
+test('(fix P1 #2) a world is marked only when this run\'s client created it: absent at launch, born after, a real dir, our client said "creating"', () => {
+  const a = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: {} });
+  const T = 1000;
+  const f = ownFs(['/w/saves', a.path]);
+  const mark = (o) => disk2.markWorld(a, A, { writeFile: f.writeFile, lstat: statOf(f, { [a.path]: 2000 }), launchedAt: T, absentAtLaunch: true, clientLog: created(a.name), ...o });
+  assert.match(mark({ absentAtLaunch: false }), /there before/);
+  assert.match(mark({ lstat: statOf(f, { [a.path]: 500 }) }), /before this run launched/);
+  assert.match(mark({ clientLog: `AutoWorld: loading existing world '${a.name}'` }), /didn't create/);
+  assert.match(mark({ clientLog: created(`${a.name}x`) }), /didn't create/);
+  assert.match(mark({ lstat: statOf(f, {}, [a.path]) }), /symlink/);
+  assert.match(mark({ lstat: statOf(ownFs(['/w/saves'])) }), /not there/);
+  assert.equal(f.files.has(`${a.path}/${OWNER_FILE}`), false, 'no marker written by any refusal');
+  assert.equal(mark(), null);
+  assert.equal(f.files.get(`${a.path}/${OWNER_FILE}`), JSON.stringify(A));
+});
+
+test('(fix P1 #2, lifecycle) B makes A\'s world name during A\'s wait: A never marks it, so never deletes it', () => {
+  const a = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: {} });
+  // B by an explicit name equal to A's: refused (the tag pattern can't be chosen through ARCHITECT_AUTOWORLD_NAME)
+  const b = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_B, env: { ARCHITECT_AUTOWORLD_NAME: a.name } });
+  assert.match(b.refuse, /tag/);
+  assert.match(disk2.e2eWorld({ saves: '/w/saves', tag: TAG_B, keepWorld: true, env: { ARCHITECT_AUTOWORLD_NAME: a.name } }).refuse, /tag/);
+  assert.equal(disk2.e2eWorld({ saves: '/w/saves', tag: TAG_B, env: { ARCHITECT_AUTOWORLD_NAME: 'Steward E2E' } }).refuse, undefined);
+  // were it made anyway (born before A's launch, or A's client only loaded it), A writes no marker and its cleanup deletes nothing
+  const f = ownFs(['/w/saves', a.path]);
+  const why = disk2.markWorld(a, A, { writeFile: f.writeFile, lstat: statOf(f, { [a.path]: 900 }), launchedAt: 1000, absentAtLaunch: true, clientLog: `AutoWorld: loading existing world '${a.name}'` });
+  assert.notEqual(why, null);
+  assert.deepEqual(cleanupRun(runItems({ world: a.path, saves: '/w/saves', owner: A, readFile: f.readFile, tempInputs: [], tmp: TMP.root }), { ...f }).deleted, []);
+  // an explicitly named world is never marked
+  const named = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: { ARCHITECT_AUTOWORLD_NAME: 'Mine' } });
+  const g = ownFs(['/w/saves', named.path]);
+  assert.equal(disk2.markWorld(named, A, { writeFile: g.writeFile, lstat: statOf(g, { [named.path]: 2000 }), launchedAt: 1000, absentAtLaunch: true, clientLog: created('Mine') }), null);
+  assert.equal(g.files.size, 0);
+});
+
+test('(fix P2 #4) ownership is read at the delete, not when the items are built: items first, then the marker changes or goes', () => {
+  const a = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: {} });
+  const CA = `/w/mod/run-c2-${TAG_A}`;
+  for (const after of [(f, p) => f.files.set(`${p}/${OWNER_FILE}`, JSON.stringify(B)), (f, p) => f.files.delete(`${p}/${OWNER_FILE}`)]) {
+    const f = ownFs(['/w/saves', a.path, '/w/mod', CA]);
+    f.files.set(`${a.path}/${OWNER_FILE}`, JSON.stringify(A));
+    f.files.set(`${CA}/${OWNER_FILE}`, JSON.stringify(A));
+    const world = runItems({ world: a.path, saves: '/w/saves', owner: A, readFile: f.readFile, tempInputs: [], tmp: TMP.root });
+    const lane = laneRunDirs({ modDir: '/w/mod', created: [CA], lanes: [passLane(CA)], owner: A, tag: TAG_A, readFile: f.readFile });
+    after(f, a.path);
+    after(f, CA);
+    const r = cleanupRun([...world, ...lane], { ...f });
+    assert.deepEqual(r.deleted, [], 'a marker changed after the items were built stops the delete');
+    assert.deepEqual(f.calls.filter((c) => c[0] === 'rm'), []);
+  }
+});
+
+test('(fix) e2e.mjs: a driver checks its lane before anything, the lead passes its owner, the marker needs the launch facts, module labels carry the tag', () => {
+  const src = src2();
+  assert.match(src, /E2E_LANE_OWNER: JSON\.stringify\(runOwner\)/, 'the lead passes its owner to each child');
+  assert.match(src, /laneUse\(\{ gameDir: GAME, modDir: path\.join\(ROOT, 'mod'\), laneOwner: process\.env\.E2E_LANE_OWNER \}\)/);
+  const i = src.indexOf('laneUse({ gameDir: GAME'), j = src.indexOf('await preflight();');
+  assert.ok(i > 0 && i < j, 'checked before preflight, freshWorld and the stub entries');
+  assert.match(src, /markWorld\(E2E_WORLD, runOwner, \{ launchedAt: firstLaunch\.at, absentAtLaunch: firstLaunch\.absent, clientLog: clientLogSince\(firstLaunch\.logAt\) \}\)/);
+  assert.match(src, /const lab = `e2e_\$\{RUN_TAG\}_\$\{\+\+nDevModule\}`;/);
 });

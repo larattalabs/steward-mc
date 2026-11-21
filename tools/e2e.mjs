@@ -28,7 +28,7 @@ import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
 import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup, claimRunDir, runItems, DELETE_LANE_DIRS, runTag, e2eWorld,
-  worldAtStart, markWorld, filesToWrite, laneDirName } from './lib/disk.mjs';
+  worldAtStart, markWorld, filesToWrite, laneDirName, laneUse } from './lib/disk.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -163,12 +163,28 @@ function launch() {
   if (shuttingDownNow()) throw new Error('shutting down: no new client');
   clientJvm = null;
   launchedAt = Date.now();
+  if (firstLaunch.at == null) {
+    let absent = false;
+    try { fs.lstatSync(WORLD); } catch (e) { absent = e?.code === 'ENOENT'; }
+    let logAt = 0;
+    try { logAt = fs.statSync(path.join(OUT, 'client.log')).size; } catch { /* none yet */ }
+    Object.assign(firstLaunch, { at: launchedAt, absent, logAt });
+  }
   quietOptions();
   const log = fs.openSync(path.join(OUT, 'client.log'), 'a');
   client = spawn(path.join(ROOT, 'tools', 'run-e2e-client.sh'), [], { stdio: ['ignore', log, log], env: { ...process.env, ARCHITECT_AUTOWORLD_NAME: E2E_WORLD.name, E2E_STUB: mode === 'stub' ? '1' : '0', E2E_NODE_DIR: path.dirname(process.execPath) } });
 }
 
 let worldMarked = false;
+/**
+ * (fix round, GPT P1 #2) The facts of this driver's first launch, for markWorld: when, whether its world was absent just then (lstat), and where
+ * its client log stood, so the marker is written only for a world this run's own client created.
+ */
+const firstLaunch = { at: null, absent: false, logAt: 0 };
+/** This driver's client log from byte `from` on (its own launches append to it). */
+function clientLogSince(from) {
+  try { return fs.readFileSync(path.join(OUT, 'client.log')).subarray(from).toString('utf8'); } catch { return ''; }
+}
 async function connect() {
   dev = await DevClient.connect({ port: PORT, timeoutMs: 400_000 });
   clientJvm = jvmOnPort();
@@ -178,7 +194,7 @@ async function connect() {
   // (E2E-DISK-2) the first time in: the client made this run's world, so it gets this run's owner marker (read again just before its delete)
   if (!worldMarked) {
     worldMarked = true;
-    const why = markWorld(E2E_WORLD, runOwner);
+    const why = markWorld(E2E_WORLD, runOwner, { launchedAt: firstLaunch.at, absentAtLaunch: firstLaunch.absent, clientLog: clientLogSince(firstLaunch.logAt) });
     if (why) fail('world owner', `${why}: the world is not this run's to delete`);
   }
   await worldRules();
@@ -408,6 +424,7 @@ function ensureStubEntry() {
 function freshWorld() {
   const saves = path.join(GAME, 'saves');
   if (path.dirname(WORLD) !== saves || !path.basename(WORLD).trim()) throw new Error(`the e2e world ${WORLD} is not a world under ${saves}`);
+  if (E2E_WORLD.refuse) throw new Error(E2E_WORLD.refuse);
   const at = worldAtStart(E2E_WORLD);
   if (at.earlier.length) console.log(`disk: ${at.earlier.length} earlier e2e world(s) under ${path.relative(ROOT, saves)} left as they are (not this run's): ${at.earlier.map((n) => `"${n}"`).join(', ')}`);
   if (!at.ok) throw new Error(at.why);
@@ -6786,7 +6803,7 @@ async function moduleFlow() {
 /** One `/steward dev module` request (M4's hooks: containers, putItems, clearContainers); its answer from <gameDir>/steward-modules/<label>.json. */
 let nDevModule = 0;
 async function devModule(r, ms = 120_000) {
-  const lab = `e2e_${process.pid}_${++nDevModule}`;
+  const lab = `e2e_${RUN_TAG}_${++nDevModule}`;
   const f = path.join(GAME, 'steward-modules', `${lab}.json`);
   await cmd(`/steward dev module ${lab} ${JSON.stringify(r)}`);
   for (let t = 0; t < ms / 200; t++) {
@@ -9796,7 +9813,7 @@ async function lead() {
     }
     fs.mkdirSync(c.out, { recursive: true });
     const args = [fileURLToPath(import.meta.url), mode, '--flows', c.flows.join(','), ...(keepWorld ? ['--keep-world'] : [])];
-    const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_GAME_DIR: at.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(at.sidecarPort), STEWARD_DEV_PORT: String(at.devPort),
+    const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_LANE_OWNER: JSON.stringify(runOwner), E2E_GAME_DIR: at.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(at.sidecarPort), STEWARD_DEV_PORT: String(at.devPort),
       ...(s.ticket ? { E2E_SLOT_TICKET: s.ticket, E2E_SLOT: String(s.slot ?? '') } : {}) };
     const child = spawn(process.execPath, args, { cwd: ROOT, env, stdio: ['ignore', 'pipe', 'pipe'] });
     const proc = { child, jvm: null, launcher: null };
@@ -9835,6 +9852,9 @@ if (!LEAD) onStop(() => stopClient());
 try {
   // a --clients lead only names the flows (no game of its own): its clients run the sanity set and the flows
   if (!LEAD) {
+    // (fix round, GPT P1 #1) a lead's lane dir only for the child that lead started (its owner marker), before anything is made or removed
+    const lane = laneUse({ gameDir: GAME, modDir: path.join(ROOT, 'mod'), laneOwner: process.env.E2E_LANE_OWNER });
+    if (lane) throw new Error(lane);
     await preflight();
     freshWorld();
     ensureStubEntry();

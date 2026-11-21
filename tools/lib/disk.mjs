@@ -159,8 +159,14 @@ export function e2eWorld({ saves, tag, keepWorld = false, env = process.env }) {
   const explicit = String(env.ARCHITECT_AUTOWORLD_NAME ?? '').trim() || null;
   const name = keepWorld ? explicit ?? E2E_WORLD_NAME : explicit ?? `${E2E_WORLD_NAME} ${tag}`;
   const protect = keepWorld ? 'keep-world' : explicit ? 'a named world (ARCHITECT_AUTOWORLD_NAME): never deleted' : null;
-  return { name, path: path.join(saves, name), perRun: !keepWorld && !explicit, protect };
+  const w = { name, path: path.join(saves, name), perRun: !keepWorld && !explicit, protect };
+  // (fix round, GPT P1 #2) a per-run name can't be chosen by hand: another run's world is never opened, made or kept under its name
+  if (explicit && PER_RUN_WORLD.test(explicit)) w.refuse = `ARCHITECT_AUTOWORLD_NAME "${explicit}" has a run tag's shape (a per-run world's name): refused`;
+  return w;
 }
+
+/** A per-run world's name: `Steward E2E <tag>`. */
+const PER_RUN_WORLD = /^Steward E2E [a-z0-9_]+$/;
 
 /**
  * Before the first launch (E2E-DISK-2): nothing is moved or deleted. A per-run world must not be there yet (else it is not this run's: refused);
@@ -175,14 +181,39 @@ export function worldAtStart(world, { exists = fs.existsSync, list = (d) => fs.r
 }
 
 /**
- * After the client made the world (E2E-DISK-2): this run's owner marker, written exclusively ('wx') into it. Null when written, else why not
- * (then the world is never this run's to delete). Fixed-name worlds aren't marked (they are protected). Never throws.
+ * After the client made the world (E2E-DISK-2; fix round, GPT P1 #2): this run's owner marker, written exclusively ('wx') into it, only when this
+ * run's own client created it: the world was absent when this driver launched its first client (`absentAtLaunch`, lstat just before the launch),
+ * it is a real directory (lstat: a symlink is refused, never followed) born at or after that launch (`launchedAt`, birthtime), and this run's
+ * client log since that launch says `AutoWorld: creating world '<name>'` (Architect's AutoWorld creates only when no world of that name exists;
+ * a world it opened says "loading existing world"). Null when written, else why not: then the world is never this run's to delete. Fixed-name
+ * worlds (--keep-world, ARCHITECT_AUTOWORLD_NAME) are never marked: they are protected. Never throws.
  */
-export function markWorld(world, owner, { exists = fs.existsSync, writeFile = fs.writeFileSync } = {}) {
+export function markWorld(world, owner, { lstat = fs.lstatSync, writeFile = fs.writeFileSync, launchedAt = null, absentAtLaunch = false, clientLog = '' } = {}) {
   if (!world.perRun) return null;
-  if (!exists(world.path)) return `${world.path} is not there: the client made no world of this name`;
+  if (!absentAtLaunch) return `${world.path} was there before this run launched its client`;
+  let st;
+  try { st = lstat(world.path); } catch { return `${world.path} is not there: the client made no world of this name`; }
+  if (st.isSymbolicLink()) return `${world.path} is a symlink`;
+  if (!st.isDirectory()) return `${world.path} is not a directory`;
+  if (!(launchedAt > 0) || !(st.birthtimeMs >= launchedAt)) return `${world.path} was born before this run launched its client`;
+  if (!String(clientLog).includes(`AutoWorld: creating world '${world.name}'`)) return `this run's client didn't create ${world.path} (its log says no "creating world")`;
   try { writeFile(path.join(world.path, OWNER_FILE), JSON.stringify(owner), { flag: 'wx' }); } catch (e) { return `owner marker not written (${e?.code ?? e?.message})`; }
   return null;
+}
+
+/**
+ * (fix round, GPT P1 #1) Whether a driver may run on gameDir: a lane dir of some run (`<mod>/run-c<k>-<tag>`) only by the child its lead started,
+ * whose E2E_LANE_OWNER ({run, pid}, JSON) is the dir's owner marker (only that lead writes it, once, exclusively). A driver started by hand on one,
+ * or with another lead's owner, is refused before it touches anything, so it never makes a world the lane's lead would delete with the lane.
+ * mod/run and old plain run-c<k> dirs aren't any run's lane: no check. Null when it may, else why not. Never throws.
+ */
+export function laneUse({ gameDir, modDir, laneOwner, readFile = (p) => fs.readFileSync(p, 'utf8') }) {
+  if (path.dirname(path.resolve(gameDir)) !== path.resolve(modDir) || !/^run-c\d+-[a-z0-9_]+$/.test(path.basename(gameDir))) return null;
+  let owner = null;
+  try { owner = JSON.parse(laneOwner); } catch { /* none or junk */ }
+  if (!owner?.run) return `refused: ${gameDir} is a --clients lead's lane dir, and this driver wasn't started by its lead (no E2E_LANE_OWNER)`;
+  const why = ownsRunDir(gameDir, owner, { readFile });
+  return why ? `refused: ${gameDir} is another lead's lane dir (${why})` : null;
 }
 
 /**
