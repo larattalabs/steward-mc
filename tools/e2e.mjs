@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Steward's end-to-end check, driven through Architect's DevBridge like Architect's gate scripts. It launches its own client (tools/run-e2e-client.sh:
-// ports 8590/8591, the flat creative world "Steward E2E", no Claude), runs the steps, and prints one line per check: "ok <check>" or "FAIL <check>: why".
+// ports 8590/8591, a flat creative world of its own, "Steward E2E <run tag>", no Claude), runs the steps, and prints one line per check: "ok <check>" or "FAIL <check>: why".
 // Exit 0 = no FAIL and at least one ok. A summary goes to artifacts/e2e/summary.json.
 //
 //   node tools/e2e.mjs free     $0, no Claude: claim and steward, the save format, expand, the inbox screen, a placed building on the settlement screen and its panel,

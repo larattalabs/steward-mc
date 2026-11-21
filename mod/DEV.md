@@ -315,7 +315,7 @@ Minecraft/_work grew from 89 GB to about 977 GB (Steward about 684 GB), mostly e
   - its temp blueprint dirs (`steward-e2e-v2-*`, `steward-e2e-ui-*`, `steward-e2e-stub-*` in TMPDIR; mkdtemp, unique).
   - a `--clients` lead's lane dirs, `mod/run-c<k>-<tag>` (client 1 stays on `mod/run`). Each is made at its use with `mkdir` without `-p` and
     the owner marker (`claimRunDir`); a dir already there isn't this run's and the lane doesn't run on it. The lead deletes a lane dir
-    (`DELETE_LANE_DIRS`, on again) when every client on it exited 0, failed nothing and kept nothing, and its marker still names this run;
+    (`DELETE_LANE_DIRS`, on again) when every client on it exited 0, failed nothing, kept nothing and failed no delete, and its marker still names this run;
     otherwise it is kept and named. Only names with this run's tag are ever items, so an old plain `mod/run-c<k>` or another run's dir is
     never deleted. A fresh lane dir costs a configuration-cache miss and Architect's sidecar copy (~21 MB) on its first launch.
   - A driver whose slot never came (a slot wait) never launched, so it deletes no world; its temp blueprint dirs still go.

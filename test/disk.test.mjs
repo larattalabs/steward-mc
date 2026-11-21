@@ -427,3 +427,15 @@ test('(E2E-DISK-2) e2e.mjs uses the ownership path: per-run world in the spawn e
   for (const [call, n] of [['runItems(', 1], ['laneRunDirs(', 1], ['claimRunDir(', 1], ['markWorld(', 1]]) assert.equal(src.split(call).length - 1, n, `one ${call} caller`);
   for (const [call, n] of [['runItems(', 1], ['laneRunDirs(', 1], ['claimRunDir(', 1], ['markWorld(', 1]]) assert.equal(src.split(call).length - 1, n, `one ${call} caller`);
 });
+
+test('(E2E-DISK-2) a lane whose client could not delete something (cleanup.failed) holds its lane dir: failure keeps everything', () => {
+  const CA = `/w/mod/run-c2-${TAG_A}`;
+  const f = ownFs(['/w/mod', CA]);
+  f.files.set(`${CA}/${OWNER_FILE}`, JSON.stringify(A));
+  const lane = { k: 2, gameDir: CA, code: 0, summary: { failed: 0, cleanup: { deleted: [], kept: [], failed: [{ path: `${CA}/saves/Steward E2E ${TAG_B}`, why: "not this run's: not touched" }] } } };
+  const items = laneRunDirs({ modDir: '/w/mod', created: [CA], lanes: [lane], owner: A, tag: TAG_A, readFile: f.readFile });
+  assert.match(items[0].hold, /client c2 could not delete 1 path/);
+  const r = cleanupRun(items, { ...f });
+  assert.deepEqual(r.deleted, []);
+  assert.deepEqual(f.calls.filter((c) => c[0] === 'rm'), []);
+});

@@ -228,7 +228,7 @@ export function ownsRunDir(dir, owner, { readFile = (p) => fs.readFileSync(p, 'u
 
 /**
  * A --clients lead's own part: the lane dirs `<mod>/run-c<k>-<tag>` it claimed this run ({@link claimRunDir}), as cleanup items. Each is held (kept)
- * unless every lane that ran on it exited 0, wrote a summary with no failure and kept nothing; a dir no lane ran on is held too, and every one under
+ * unless every lane that ran on it exited 0, wrote a summary with no failure, kept nothing and failed no delete; a dir no lane ran on is held too, and every one under
  * the lead's --keep-world (batch 091 review P2). Each is checked again, just before its delete, to hold this run's owner marker (`owner`).
  * Never mod/run, never a dir this run didn't claim (it isn't in `created`), never anything not named run-c<k>-<this run's tag> right under mod
  * (E2E-DISK-2: an old plain run-c<k>, or another run's, is never an item; no tag, no items).
@@ -240,8 +240,9 @@ export function laneRunDirs({ modDir, created, lanes, owner = null, tag = null, 
     const m = /^run-c(\d+)-(.+)$/.exec(path.basename(dir));
     if (!m || m[2] !== tag || path.dirname(path.resolve(dir)) !== path.resolve(modDir)) continue;
     const on = lanes.filter((l) => l?.gameDir && path.resolve(l.gameDir) === path.resolve(dir));
-    const bad = on.find((l) => l.code !== 0 || !l.summary || l.summary.failed > 0 || l.summary.cleanup?.kept?.length);
-    const hold = keepWorld ? '--keep-world: its world is kept' : !on.length ? 'no client ran on it' : bad ? `client c${bad.k ?? '?'} ${bad.code !== 0 ? `exited ${bad.code}` : !bad.summary ? 'wrote no summary' : bad.summary.failed > 0 ? `had ${bad.summary.failed} failure(s)` : 'kept its world'}` : null;
+    // (E2E-DISK-2) a path the client could not, or would not, delete (cleanup.failed) holds the lane too: its exit counts checks only
+    const bad = on.find((l) => l.code !== 0 || !l.summary || l.summary.failed > 0 || l.summary.cleanup?.kept?.length || l.summary.cleanup?.failed?.length);
+    const hold = keepWorld ? '--keep-world: its world is kept' : !on.length ? 'no client ran on it' : bad ? `client c${bad.k ?? '?'} ${bad.code !== 0 ? `exited ${bad.code}` : !bad.summary ? 'wrote no summary' : bad.summary.failed > 0 ? `had ${bad.summary.failed} failure(s)` : bad.summary.cleanup?.kept?.length ? 'kept its world' : `could not delete ${bad.summary.cleanup.failed.length} path(s)`}` : null;
     items.push({ path: dir, root: modDir, what: 'a client run dir this run made', ...(hold ? { hold } : {}), verify: () => ownsRunDir(dir, owner, readFile ? { readFile } : {}) });
   }
   return items;
