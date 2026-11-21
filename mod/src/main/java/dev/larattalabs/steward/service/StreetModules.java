@@ -29,17 +29,19 @@ final class StreetModules {
 	record Result(List<LotSpec> specs, List<String> said, int removed) {}
 
 	/**
-	 * The lots without the buildings the plan's module lots stand for, and the words. {@code plan}: the kept plan (null: none); {@code lotTypes}: the
-	 * module lot types offered now ({@link ComposedModules#readAll(List, Set)}); {@code card}: the card {@code specs} were laid out from (null, or no
+	 * The lots without the buildings the plan's module lots stand for, and the words. {@code plan}: the kept plan (null: none); {@code types}: every
+	 * module's type, offered now or not ({@link ComposedModules#readAll(List, Map)}, slice MODULE-TYPE-2); {@code offered}: the module ids the catalog
+	 * offers this town (a bare lot of another is said as {@link ComposedModules#notOfferedWords}); {@code card}: the card {@code specs} were laid out from (null, or no
 	 * program: {@code specs} are all there is); {@code why}: why the plan isn't used, without the module's tail.
 	 * <p>
 	 * (batch-076 review P2-4) Each module lot's building is found in the WHOLE card first, then only a lot laid out for that same card entry is taken
 	 * from {@code specs}: a module whose entry the build count didn't select removes nothing, and an ordinary building that only shares its type stays.
 	 */
-	static Result leaveOut(@Nullable JsonObject plan, Set<String> lotTypes, @Nullable ConceptCard card, List<LotSpec> specs, String why, String laidOut) {
+	static Result leaveOut(@Nullable JsonObject plan, Map<String, String> types, Set<String> offered, @Nullable ConceptCard card, List<LotSpec> specs, String why,
+		String laidOut) {
 		if (plan == null) return new Result(List.copyOf(specs), List.of(), 0);
 		List<JsonObject> lots = PPlan.lots(plan);
-		var asked = ComposedModules.readAll(lots, lotTypes);
+		var asked = ComposedModules.readAll(lots, types);
 		if (asked.isEmpty()) return new Result(List.copyOf(specs), List.of(), 0);
 		Map<String, JsonObject> byId = byId(lots);
 		List<LotSpec> kept = new ArrayList<>(specs);
@@ -58,7 +60,7 @@ final class StreetModules {
 		} else {
 			for (var a : asked) {
 				JsonObject lot = byId.get(a.lotId());
-				int at = pick(stands(a, lot), names(lot), kept.size(), i -> kept.get(i).type(), i -> kept.get(i).role());
+				int at = pick(stands(a, lot), names(lot), bare(lot), kept.size(), i -> kept.get(i).type(), i -> kept.get(i).role());
 				if (at >= 0) {
 					kept.remove(at);
 					removed++;
@@ -67,6 +69,10 @@ final class StreetModules {
 		}
 		List<String> said = new ArrayList<>();
 		for (var a : asked) {
+			if (!ComposedModules.marked(byId.get(a.lotId())) && !offered.contains(a.moduleId())) {
+				said.add(ComposedModules.notOfferedWords(PPlan.role(byId.get(a.lotId())), a.moduleId()));
+				continue;
+			}
 			String kind = ModuleKind.of(a.moduleId()).map(ModuleKind::role).orElse("module");
 			said.add(ComposedModules.leftOutWords(PPlan.role(byId.get(a.lotId())), why + ", so the town is laid out " + laidOut + ", where the working " + kind
 				+ " can't be placed yet"));
@@ -80,11 +86,11 @@ final class StreetModules {
 	 * whole card first (GPT review: never against what is already missing, which could take an unrelated building), then subtracted from that same
 	 * entry's missing count (batch-076 review P2-5: two entries of one role and type stay apart). Pure.
 	 */
-	static List<ConceptCard.Building> withoutModules(@Nullable JsonObject plan, Set<String> lotTypes, @Nullable ConceptCard card, List<ProposalRules.Missing> left) {
+	static List<ConceptCard.Building> withoutModules(@Nullable JsonObject plan, Map<String, String> types, @Nullable ConceptCard card, List<ProposalRules.Missing> left) {
 		List<ConceptCard.Building> all = left.stream().map(ProposalRules.Missing::building).toList();
 		if (plan == null || card == null || !card.hasProgram() || left.isEmpty()) return all;
 		List<JsonObject> lots = PPlan.lots(plan);
-		var asked = ComposedModules.readAll(lots, lotTypes);
+		var asked = ComposedModules.readAll(lots, types);
 		if (asked.isEmpty()) return all;
 		List<ConceptCard.Building> program = card.program();
 		int[] taken = taken(asked, byId(lots), program);
@@ -103,7 +109,7 @@ final class StreetModules {
 		int[] taken = new int[program.size()];
 		for (var a : asked) {
 			JsonObject lot = byId.get(a.lotId());
-			int at = pick(stands(a, lot), names(lot), program.size(), i -> taken[i] < program.get(i).count() ? program.get(i).type() : null, i -> program.get(i).role());
+			int at = pick(stands(a, lot), names(lot), bare(lot), program.size(), i -> taken[i] < program.get(i).count() ? program.get(i).type() : null, i -> program.get(i).role());
 			if (at >= 0) taken[at]++;
 		}
 		return taken;
@@ -136,7 +142,8 @@ final class StreetModules {
 	 * a type the one whose role is the lot's own (its label, role or id's words, {@code names}), else the first (GPT review: a "granary barn" module never
 	 * takes the "cattle barn"). {@code type} answers null for an index already taken.
 	 */
-	private static int pick(List<String> types, List<Set<String>> names, int size, java.util.function.IntFunction<@Nullable String> type, java.util.function.IntFunction<String> role) {
+	private static int pick(List<String> types, List<Set<String>> names, boolean bare, int size, java.util.function.IntFunction<@Nullable String> type,
+		java.util.function.IntFunction<String> role) {
 		for (String t : types) {
 			int first = -1;
 			// its label or role first, then its id's words (GPT fix check: a generic id never outranks the exact label)
@@ -144,7 +151,16 @@ final class StreetModules {
 			for (int i = 0; i < size && first < 0; i++) if (t.equals(type.apply(i))) first = i;
 			if (first >= 0) return first;
 		}
+		// (slice MODULE-TYPE-2, GPT review P1) a bare module lot has no "for": the card building it was written for is the one of its own label or role,
+		// else (the final pass's P1) of its id's words, whatever that building's type (a "farm" entry the composer wrote as a bare crop_farm lot
+		// farm_1), never left to be designed beside it
+		if (bare) for (Set<String> tier : names) for (int i = 0; i < size; i++) if (type.apply(i) != null && tier.contains(slug(role.apply(i)))) return i;
 		return -1;
+	}
+
+	/** Whether a plan lot carries no module marker (its "for" can't say which card building it stands for). */
+	private static boolean bare(@Nullable JsonObject lot) {
+		return lot != null && !ComposedModules.marked(lot);
 	}
 
 	/** A module lot's own names, as slugs, in tiers: its label and role, then its id without the number. */

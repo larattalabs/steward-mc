@@ -116,6 +116,15 @@ public final class ProposalRules {
 	 * old decorative rule ({@code farm}) is offered as today, priced. A module that stands or waits also holds its decorative rule back.
 	 */
 	public static List<Proposal> propose(Signs s, Set<String> types, Set<String> declined, List<Proposal> open, long lastAt, long now, List<ModuleCandidate> modules) {
+		return propose(s, types, declined, open, lastAt, now, modules, Map.of());
+	}
+
+	/**
+	 * As above; (slice MODULE-TYPE-2) a rule whose building type is a module's ({@code moduleTypes}: {@link dev.larattalabs.steward.module.ModuleTypes},
+	 * every catalog id) is passed over while the rule is chosen, so the next rule that fires is offered in its place.
+	 */
+	public static List<Proposal> propose(Signs s, Set<String> types, Set<String> declined, List<Proposal> open, long lastAt, long now, List<ModuleCandidate> modules,
+		Map<String, String> moduleTypes) {
 		if (!room(open, lastAt, now)) return List.of();
 		Set<String> openKeys = new java.util.HashSet<>();
 		for (Proposal p : open) openKeys.add(p.key());
@@ -131,7 +140,8 @@ public final class ProposalRules {
 		}
 		List<Proposal> out = new ArrayList<>();
 		for (Rule r : RULES) {
-			if (!fires(r.key(), s) || declined.contains(r.key()) || openKeys.contains(r.key()) || types.contains(r.type()) || heldBack.contains(r.key())) continue;
+			if (!fires(r.key(), s) || declined.contains(r.key()) || openKeys.contains(r.key()) || types.contains(r.type()) || heldBack.contains(r.key())
+				|| dev.larattalabs.steward.module.ModuleTypes.moduleOf(r.type(), moduleTypes) != null) continue;
 			out.add(new Proposal(r.key(), r.title(), r.why(), new ConceptCard.Building(r.role(), r.type(), 1, r.footprint(), false, r.notes(), null), now, trigger(r.key())));
 			// one at a time: the next waits for the cooldown
 			break;

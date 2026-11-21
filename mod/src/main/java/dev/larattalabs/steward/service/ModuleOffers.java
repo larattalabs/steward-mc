@@ -71,6 +71,11 @@ public final class ModuleOffers {
 		return "modules: " + devSource.id() + " from " + devSource.dir() + (devSource.measuring() ? " (measuring gate)" : "");
 	}
 
+	/** Tests only: the catalog read as the live one ({@code null}: the jar's again). */
+	static void testCatalog(@Nullable ModuleCatalog c) {
+		live = c;
+	}
+
 	/** The catalog modules are offered from now. */
 	public static ModuleCatalog catalog() {
 		DevSource d = devSource;
@@ -341,11 +346,8 @@ public final class ModuleOffers {
 	public static String substitute(MinecraftServer server, ServerPlayer player, Settlement s, ModuleKind kind, String why) {
 		String base = "A working " + kind.role() + " can't go here: " + why + ".";
 		var now = Settlements.store().get(s.id()).orElse(s);
-		for (String rule : kind.decorative().stream().sorted().toList()) {
-			if (now.proposals().declined().contains(rule) || now.proposals().open().stream().anyMatch(x -> x.key().equals(rule))) continue;
-			Proposal deco = ProposalRules.find(rule);
-			// (slice MODULE-TYPE, GPT review P2) a decorative rule whose type a catalog module took is no substitute
-			if (deco == null || ModuleTypes.plain(deco, moduleTypes())) continue;
+		Proposal deco = substituteRule(now, kind);
+		if (deco != null) {
 			int usd = Proposals.estimate(deco);
 			deco = new Proposal(deco.key(), deco.title(), base + " A decorative " + deco.building().role() + " (designed, not working) would cost about $" + usd + ".", deco.building(),
 				System.currentTimeMillis(), "a working one can't go here");
@@ -357,6 +359,22 @@ public final class ModuleOffers {
 			return base + " A decorative " + deco.building().role() + " would cost about $" + usd + ": it waits in the inbox as its own proposal.";
 		}
 		return base;
+	}
+
+	/**
+	 * The decorative rule a working {@code kind} that can't go here is substituted by, as {@link ProposalRules#find} makes it, or null: none the
+	 * player declined or that waits already, and (slice MODULE-TYPE, GPT review P2) none whose type a module of the live catalog took
+	 * ({@link #moduleTypes}).
+	 */
+	static @Nullable Proposal substituteRule(Settlement now, ModuleKind kind) {
+		var types = moduleTypes();
+		for (String rule : kind.decorative().stream().sorted().toList()) {
+			if (now.proposals().declined().contains(rule) || now.proposals().open().stream().anyMatch(x -> x.key().equals(rule))) continue;
+			Proposal deco = ProposalRules.find(rule);
+			if (deco == null || ModuleTypes.plain(deco, types)) continue;
+			return deco;
+		}
+		return null;
 	}
 
 	/** A module offer that no longer stands leaves the inbox (not declined: offered again once it is eligible). */

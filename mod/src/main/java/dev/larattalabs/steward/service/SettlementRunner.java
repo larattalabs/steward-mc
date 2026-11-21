@@ -1421,7 +1421,7 @@ public final class SettlementRunner {
 	 */
 	private StreetModules.@org.jspecify.annotations.Nullable Result withoutPlanModules(Settlement s, dev.larattalabs.steward.model.@org.jspecify.annotations.Nullable ConceptCard card, List<VillageLayout.LotSpec> specs, String why,
 		String laidOut) {
-		var m = StreetModules.leaveOut(keptPlanOf(s), offeredLotTypes(), card, specs, why, laidOut);
+		var m = StreetModules.leaveOut(keptPlanOf(s), ModuleOffers.moduleTypes(), offeredModules(), card, specs, why, laidOut);
 		for (String w : m.said()) say(w);
 		if (m.removed() > 0) Steward.LOGGER.info("plan modules of {} left out of the card's layout: {} lot(s), {} left", s.id(), m.removed(), m.specs().size());
 		if (m.specs().isEmpty()) {
@@ -1801,7 +1801,15 @@ public final class SettlementRunner {
 	/** The kept plan as this build builds it: the parts that wait not required, each lot tagged with this build ({@link dev.larattalabs.steward.gateway.PPlan#forBuild}). */
 	private JsonObject builtPlan() {
 		// (slice M5) its module lots as this build binds them (the saved orders); a module lot with none is left out, as it was at the Start re-check
-		return withModules(keptPlan(), moduleOrders);
+		// (slice MODULE-TYPE-2) a bare lot this build already laid out as an ordinary lot (a build saved before Noah's 11-20 rule) stays as laid out
+		return withModules(keptPlan(), moduleOrders, ModuleOffers.moduleTypes(), laidOutIds());
+	}
+
+	/** The lot ids of this build's layout (empty before it is laid out). */
+	private java.util.Set<String> laidOutIds() {
+		java.util.Set<String> out = new java.util.HashSet<>();
+		if (plan != null) for (var l : plan.lots()) out.add(l.id());
+		return out;
 	}
 
 	/** The kept plan as this build builds it, its module lots as the composer wrote them (what the Start re-check decides them from). */
@@ -1812,22 +1820,87 @@ public final class SettlementRunner {
 		return dev.larattalabs.steward.gateway.PPlan.forBuild(com.google.gson.JsonParser.parseString(entry.plan()).getAsJsonObject(), waiting, settlement.id(), buildId);
 	}
 
-	/** (slice M5) The lot types of the modules the catalog offers now: a bare lot of one of them is a module ask (a marked lot always is). */
-	static java.util.Set<String> offeredLotTypes() {
+	/**
+	 * (slice M5) The ids of the modules the catalog offers this town now (the composer's vocabulary). (slice MODULE-TYPE-2) A bare plan lot of any
+	 * other module's type is still a module ask, refused and left out of the first build, said ({@link dev.larattalabs.steward.module.ComposedModules#notOfferedWords}).
+	 */
+	static java.util.Set<String> offeredModules() {
 		java.util.Set<String> out = new java.util.HashSet<>();
 		try {
-			for (var o : ModuleOffers.composable()) out.add(o.kind().lotType());
+			for (var o : ModuleOffers.composable()) out.add(o.kind().id());
 		} catch (RuntimeException | LinkageError e) {
-			// no catalog: only marked lots are module asks
+			// no catalog: nothing is offered (every module lot is left out)
 		}
 		return out;
 	}
 
 	/** (slice M5) The plan as built with these module orders: each ordered lot is the catalog's lot, every other module lot is left out. */
 	static JsonObject withModules(JsonObject plan, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders) {
+		return withModules(plan, orders, ModuleOffers.moduleTypes(), java.util.Set.of());
+	}
+
+	/**
+	 * As above over every module's type ({@code types}, failing closed: slice MODULE-TYPE-2). {@code laidOut}: lots a build already laid out as ordinary
+	 * lots; a bare one of them stays (a build saved before the 11-20 rule finishes as it began), a marked one never does. Pure.
+	 */
+	static JsonObject withModules(JsonObject plan, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders, Map<String, String> types, java.util.Set<String> laidOut) {
+		return withModulesApplied(plan, orders, types, laidOut).plan();
+	}
+
+	/** As {@link #withModules(JsonObject, Map, Map, java.util.Set)}, with the parts that went with the left-out lots (slice MODULE-TYPE-3). Pure. */
+	static dev.larattalabs.steward.module.PlanPrune.Result withModulesApplied(JsonObject plan, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders,
+		Map<String, String> types, java.util.Set<String> laidOut) {
 		java.util.Set<String> leftOut = new java.util.HashSet<>();
-		for (var a : dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(plan), offeredLotTypes())) if (!orders.containsKey(a.lotId())) leftOut.add(a.lotId());
-		return dev.larattalabs.steward.module.ComposedModules.apply(plan, orders, leftOut);
+		Map<String, JsonObject> byId = new HashMap<>();
+		for (JsonObject l : dev.larattalabs.steward.gateway.PPlan.lots(plan)) byId.putIfAbsent(l.get("id").getAsString(), l);
+		for (var a : dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(plan), types)) {
+			if (orders.containsKey(a.lotId())) continue;
+			if (laidOut.contains(a.lotId()) && !dev.larattalabs.steward.module.ComposedModules.marked(byId.get(a.lotId()))) continue;
+			leftOut.add(a.lotId());
+		}
+		return dev.larattalabs.steward.module.ComposedModules.applied(plan, orders, leftOut);
+	}
+
+	/**
+	 * (slice MODULE-TYPE-3) What the steward says, once before the check, of the parts that went with the left-out lots (a road, a wall, a rule that
+	 * served only them): each by its label, else its id's words; a secret part (S-7c-4) as "one part". Null when none went. Pure.
+	 */
+	/**
+	 * (MODULE-TYPE-3 fix round) What the steward says of left-out lots kept in the plan after all, as ordinary buildings, because other parts of the
+	 * plan are placed by them (or the build order couldn't be written without them). Null when none. Pure.
+	 */
+	static @org.jspecify.annotations.Nullable String keptWords(java.util.List<String> kept, JsonObject plan) {
+		if (kept.isEmpty()) return null;
+		Map<String, JsonObject> byId = new HashMap<>();
+		for (JsonObject l : dev.larattalabs.steward.gateway.PPlan.lots(plan)) byId.putIfAbsent(l.get("id").getAsString(), l);
+		List<String> names = new ArrayList<>();
+		for (String id : kept) {
+			String n = byId.containsKey(id) ? dev.larattalabs.steward.gateway.PPlan.role(byId.get(id)) : id.replace('_', ' ');
+			if (!names.contains(n)) names.add(n);
+		}
+		String list = names.size() == 1 ? names.get(0) : String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.get(names.size() - 1);
+		boolean one = kept.size() == 1;
+		return "After all, the plan's " + list + (one ? " stays" : " stay") + " in the town as " + (one ? "an ordinary building" : "ordinary buildings")
+			+ ": the rest of the plan is laid out by " + (one ? "it" : "them") + ", so leaving " + (one ? "it" : "them") + " out would stop the whole build.";
+	}
+
+	static @org.jspecify.annotations.Nullable String droppedWords(java.util.List<String> dropped, JsonObject plan, Secrets secrets) {
+		if (dropped.isEmpty()) return null;
+		Map<String, String> labels = new HashMap<>();
+		for (String family : dev.larattalabs.steward.module.PlanPrune.FAMILIES)
+			if (plan.has(family) && plan.get(family).isJsonArray()) for (var e : plan.getAsJsonArray(family))
+				if (e.isJsonObject() && e.getAsJsonObject().has("id") && e.getAsJsonObject().has("label") && e.getAsJsonObject().get("label").isJsonPrimitive())
+					labels.put(e.getAsJsonObject().get("id").getAsString(), e.getAsJsonObject().get("label").getAsString());
+		List<String> names = new ArrayList<>();
+		int hidden = 0;
+		for (String id : dropped) {
+			if (secrets.hides(id)) hidden++;
+			else names.add(labels.getOrDefault(id, id.replace('_', ' ')));
+		}
+		if (hidden > 0) names.add(names.isEmpty() ? (hidden == 1 ? "one part" : hidden + " parts") : (hidden == 1 ? "one more part" : hidden + " more parts"));
+		String list = names.size() == 1 ? names.get(0) : String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.get(names.size() - 1);
+		boolean one = dropped.size() == 1;
+		return "The plan's " + list + (one ? " is" : " are") + " left out too: " + (one ? "it" : "they") + " served only what is left out.";
 	}
 
 	/**
@@ -1835,8 +1908,9 @@ public final class SettlementRunner {
 	 * (a refused one is left out of the town, never designed in its place or left a pad). Only an Architect that runs given programs is asked.
 	 */
 	private Map<String, dev.larattalabs.steward.module.ModuleOrder> decideModules(JsonObject base) {
-		var asked = dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(base), offeredLotTypes());
+		var asked = dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(base), ModuleOffers.moduleTypes());
 		if (asked.isEmpty()) return Map.of();
+		var offered = offeredModules();
 		Map<String, JsonObject> lotsById = new HashMap<>();
 		for (JsonObject l : dev.larattalabs.steward.gateway.PPlan.lots(base)) lotsById.put(l.get("id").getAsString(), l);
 		ServerLevel level = level();
@@ -1852,6 +1926,12 @@ public final class SettlementRunner {
 		Map<String, dev.larattalabs.steward.module.ModuleOrder> orders = new LinkedHashMap<>();
 		java.util.Set<String> taken = new java.util.HashSet<>();
 		for (var a : asked) {
+			// (slice MODULE-TYPE-2; Noah 11-20, "Leave it out and say why") a bare lot of a module the catalog doesn't offer this town: left out of the
+			// first build, said once here (before the check, the designs or the quote), and the rest builds
+			if (!dev.larattalabs.steward.module.ComposedModules.marked(lotsById.get(a.lotId())) && !offered.contains(a.moduleId())) {
+				say(dev.larattalabs.steward.module.ComposedModules.notOfferedWords(dev.larattalabs.steward.gateway.PPlan.role(lotsById.get(a.lotId())), a.moduleId()));
+				continue;
+			}
 			var kind = dev.larattalabs.steward.module.ModuleKind.of(a.moduleId()).filter(k -> ModuleOffers.kinds().contains(k)).orElse(null);
 			var verdict = kind == null ? new dev.larattalabs.steward.module.ModuleGate.Verdict(null, dev.larattalabs.steward.module.ModuleGate.Why.UNKNOWN, "")
 				: ModuleOffers.verdict(kind.id());
@@ -1941,12 +2021,17 @@ public final class SettlementRunner {
 		moduleOrders = Map.of();
 		JsonObject base = keptPlan();
 		var orders = decideModules(base);
-		JsonObject built = withModules(base, orders);
+		var applied = withModulesApplied(base, orders, ModuleOffers.moduleTypes(), java.util.Set.of());
+		JsonObject built = applied.plan();
+		String went = droppedWords(applied.dropped(), base, Secrets.of(base, null));
+		if (went != null) say(went);
+		String stays = keptWords(applied.kept(), base);
+		if (stays != null) say(stays);
 		int session = Session.current();
 		// a plan Architect can't check, or without lots: the flat village for a Patron town; a Supplied one stops before anything is spent (its survey was taken
 		// before its stockpile and that ground's protection, so Steward's own layout over it could pay for designs that then don't fit), and is started again
 		// (slice M5, GPT review 3) a plan that names working modules never falls back to designing the card's buildings: nothing is spent, start again
-		boolean namesModules = !dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(base), offeredLotTypes()).isEmpty();
+		boolean namesModules = !dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(base), ModuleOffers.moduleTypes()).isEmpty();
 		Runnable otherwise = () -> {
 			if (supplied) abandon("The plan couldn't be used from materials this time: start the build again.");
 			else if (namesModules) abandon("The plan with its working modules couldn't be used this time, and its buildings aren't designed without it. Nothing was spent: start the build again.");
@@ -1978,7 +2063,7 @@ public final class SettlementRunner {
 				}
 				var art = ArchitectApi.get().regions().artifact(c.artifactSha());
 				var lots = art.flatMap(a -> java.util.Optional.ofNullable(a.body())).filter(b -> b.has("lots") && b.get("lots").isJsonArray()).map(b -> b.getAsJsonArray("lots"));
-				if (lots.isEmpty() || lots.get().isEmpty()) { say("The plan's check has no lots to build on" + (supplied ? "." : ": the village is laid out as usual.")); otherwise.run(); return; }
+				if (lots.isEmpty() || lots.get().isEmpty()) { say("The plan's check has no lots to build on" + (supplied || namesModules ? "." : ": the village is laid out as usual.")); otherwise.run(); return; }
 				// built from materials: what the plan's ground, streets and parts take (the buildings' bills are said once they are designed)
 				if (supplied) {
 					String bill = Composer.billLine(c.cost());

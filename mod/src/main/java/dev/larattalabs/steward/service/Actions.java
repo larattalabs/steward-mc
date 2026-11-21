@@ -620,9 +620,10 @@ public final class Actions {
 	 * when the town qualifies) and the steward says why. Nothing is surveyed, accepted or spent. {@code server} null: not said aloud (a unit test).
 	 */
 	static Result refusePlainModule(@org.jspecify.annotations.Nullable MinecraftServer server, Settlement s, dev.larattalabs.steward.model.Proposal p, String moduleId) {
-		String said = dev.larattalabs.steward.module.ModuleTypes.refusal(p.title(), moduleId);
-		Proposals.withdraw(s.id(), p.key());
-		Steward.LOGGER.info("{}: proposal {} refused: an ordinary building of module {}'s type", s.id(), p.key(), moduleId);
+		// (slice MODULE-TYPE-2, P3) "it leaves the inbox" only when the withdrawal was saved; else said as it is: refused, still waiting, nothing spent
+		boolean left = Proposals.withdraw(s.id(), p.key());
+		String said = dev.larattalabs.steward.module.ModuleTypes.refusal(p.title(), moduleId, left);
+		Steward.LOGGER.info("{}: proposal {} refused: an ordinary building of module {}'s type{}", s.id(), p.key(), moduleId, left ? "" : " (its withdrawal could not be saved)");
 		if (server != null) StewardVoice.say(server, s.id(), said);
 		return Result.fail(said);
 	}

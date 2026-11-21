@@ -3616,6 +3616,60 @@ function modulesCertified() {
  * (LIFT-S) The composed flows' modules: the live catalog when it certifies the pinned Architect; until the pin's smoke carry does, the same catalog
  * (its measured bounds) under a measuring gate, the farm and the hall both (a dev source: never a player's game).
  */
+/**
+ * (slice MODULE-TYPE-2; Noah 11-20, "Leave it out and say why") A composed town whose plan holds a bare crop_farm lot (no module marker) while the
+ * catalog offers only the storage hall: the lot is left out of the first build, said once before anything is designed, and the rest builds (the
+ * two cottages: 2 lots laid out, 2 designed); never designed as an ordinary crop farm.
+ */
+async function composedUnofferedFlow() {
+  try {
+    return await composedUnofferedFlowBody();
+  } finally {
+    await cmd('/steward dev modules {}').catch(() => null);
+  }
+}
+
+async function composedUnofferedFlowBody() {
+  const label = 'composed unoffered';
+  const n = settlements().length;
+  await cmd(`/spreadplayers ${(n + 1) * 900} 97000 0 1 false @p`);
+  await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+  await clearAnimals();
+  await cmd(`/steward dev modules ${JSON.stringify({ dir: path.join(ROOT, 'modules'), id: 'storage_hall', measuring: true })}`);
+  await cmd('/steward claim');
+  const id = settlements().at(-1).id;
+  await closeScreens();
+  await cmd(`/steward expand ${id}`);
+  const card = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'stilt_village.json'), 'utf8')).card;
+  card.name = 'Bare Field Hamlet';
+  const answer = JSON.parse(fs.readFileSync(path.join(ROOT, 'fixtures', 'plans', 'composed_modules.json'), 'utf8')).answer;
+  const lots = answer.plan.zones[0].program.params.lots;
+  // the farm's lot bare (as a composer that wasn't offered the module could write it), the hall's lot gone
+  answer.plan.zones[0].program.params.lots = lots.filter((l) => l.id !== 'warehouse_1').map((l) => (l.id === 'farm_1' ? { id: l.id, type: l.type, role: l.role, label: l.label, size: l.size } : l));
+  await cmd(`/steward dev sim_answer card ${JSON.stringify(card)}`);
+  await cmd(`/steward dev sim_answer plan ${JSON.stringify(answer)}`);
+  let from = logSize();
+  await cmd(`/steward describe ${id} a farming village with a field and two cottages`);
+  if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+  if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+  await closeScreens();
+  await clearAnimals();
+  from = logSize();
+  await cmd(`/steward start ${id} 5 30`);
+  await waitLog(from, /Laying out the village from its plan[^\n]*/, 60_000);
+  await cmd('/tp @p ~ ~ ~90');
+  const built = await buildThrough(id, from, label);
+  if (!built) return;
+  const since = logSince(from);
+  // the steward's own line (the server's; the chat echoes it)
+  const said = since.match(/\(steward\) settlement: The plan's the village field is left out of this first build: a crop farm comes as a working module from the catalog once the town qualifies[^\n]*/g) ?? [];
+  const layout = (since.match(/Layout: (\d+) lots?/) ?? [null, null])[1];
+  const designing = (since.match(/Designing (\d+) buildings?/) ?? [null, null])[1];
+  const saidAt = since.indexOf(said[0] ?? '\u0000'), designAt = since.search(/Designing \d+ buildings?/);
+  if (said.length === 1 && layout === '2' && designing === '2' && saidAt >= 0 && saidAt < designAt) ok(label, `${said[0].slice(0, 160)}; ${layout} lots, ${designing} designed, ${built.placed} placed`);
+  else fail(label, `said ${said.length}x; layout ${layout}; designing ${designing}; said before designs ${saidAt >= 0 && saidAt < designAt}`);
+}
+
 async function composedSource() {
   if (modulesCertified()) return cmd('/steward dev modules {}');
   return `${await cmd(`/steward dev modules ${JSON.stringify({ dir: path.join(ROOT, 'modules'), id: 'crop_farm,storage_hall', measuring: true })}`)} (not certified on this Architect yet)`;
@@ -6657,7 +6711,7 @@ async function moduleFlow() {
   await cmd(`/steward dev sim_answer talk ${JSON.stringify(plainAsk)}`);
   from = logSize();
   await cmd(`/steward talk ${id} build me a crop farm`);
-  const plainSaid = await waitLog(from, /A working [^\n]*I don't put a [^\n]* in the inbox as an ordinary building/, 60_000);
+  const plainSaid = await waitLog(from, /A working [^\n]*I won't draw one up for the inbox: [^\n]*never design one as an ordinary building/, 60_000);
   const plainOpen = (settlements().find((x) => x.id === id)?.proposals?.open ?? []).filter((p) => p.building?.type === MODULE && !p.module);
   if (plainSaid && /can't go here: one stands already/.test(plainSaid[0]) && plainOpen.length === 0) ok(`${label} plain type`, plainSaid[0].slice(0, 200));
   else fail(`${label} plain type`, `said ${plainSaid?.[0]?.slice(0, 160)}; plain proposals of ${MODULE} open: ${plainOpen.map((p) => p.key).join(', ')}`);
@@ -9793,6 +9847,8 @@ try {
       // (CHECK-079) Architect LIFT-S-1: a composed sorting hall halted uncleanly with its fill half stocked, restarted, then finished
       await flow('composed-hall-fill-restart', 'composed module hall survival stockpile bill refund restart crash fill', () => composedModulesSurvivalFlow({ fillHalt: true }));
       await flow('composed-modules-street', 'composed module farm hall sculpt street', () => composedModulesStreetFlow());
+      // (slice MODULE-TYPE-2) a bare module-type plan lot the catalog doesn't offer: left out of the first build, said, the rest built
+      await flow('composed-unoffered', 'composed module farm plan first-build left out', () => composedUnofferedFlow());
       // (slice M5a; LIFT-S) a composed farm's bill from materials held, kept across a restart, re-checked stale and realised under its lot cap
       await flow('composed-modules-restart', 'composed module farm survival stockpile bill restart', () => composedModulesRestartFlow());
       await flow('copper-lots', 'plan material', () => copperLotsFlow());

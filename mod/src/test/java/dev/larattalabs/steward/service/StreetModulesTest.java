@@ -10,6 +10,7 @@ import dev.larattalabs.steward.layout.VillageLayout.LotSpec;
 import dev.larattalabs.steward.model.ConceptCard;
 import dev.larattalabs.steward.model.Difficulty;
 import dev.larattalabs.steward.module.ComposedModules;
+import dev.larattalabs.steward.module.ModuleTypes;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -21,6 +22,8 @@ import org.junit.jupiter.api.Test;
  * card's street layout and said, never designed as an ordinary building. Fixture 1 of M5's paid half (a carved river, a sorting storage hall).
  */
 class StreetModulesTest {
+	static final Set<String> OFFERED = Set.of("crop_farm", "storage_hall");
+
 	static JsonObject json(String s) {
 		return JsonParser.parseString(s).getAsJsonObject();
 	}
@@ -74,8 +77,8 @@ class StreetModulesTest {
 		for (boolean survival : List.of(false, true)) {
 			String why = StreetModules.why(card.site().terrain(), plan, true, false, true);
 			// no catalog offered (the unit test's) and the catalog offered: a marked lot is a module ask either way
-			for (Set<String> offered : List.of(Set.<String>of(), ComposedModules.LOT_TYPES)) {
-				var r = StreetModules.leaveOut(plan, offered, card, program.specs(), why, "on Steward's streets");
+			for (Set<String> offered : List.of(Set.<String>of(), OFFERED)) {
+				var r = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, offered, card, program.specs(), why, "on Steward's streets");
 				String mode = (survival ? "survival" : "creative") + ", offered " + offered;
 				assertEquals(1, r.removed(), mode);
 				assertEquals(total - 1, r.specs().size(), mode + ": the count excludes the hall");
@@ -93,13 +96,17 @@ class StreetModulesTest {
 	@Test
 	void aPlanWithoutModulesOrNoPlanLeavesTheCardsLotsAsTheyAre() throws Exception {
 		var specs = ProgramPlanner.lots(realCard(), 11, 2).specs();
-		var none = StreetModules.leaveOut(null, Set.of(), null, specs, "x", "on Steward's streets");
+		var none = StreetModules.leaveOut(null, ModuleTypes.KNOWN, Set.of(), null, specs, "x", "on Steward's streets");
 		assertEquals(specs, none.specs());
 		assertTrue(none.said().isEmpty());
 		JsonObject plain = json("{\"zones\": [{\"id\": \"t\", \"program\": {\"lots\": [{\"id\": \"storage_hall_1\", \"type\": \"storage_hall\"}]}}]}");
-		var r = StreetModules.leaveOut(plain, Set.of(), null, specs, "x", "on Steward's streets");
-		assertEquals(specs, r.specs(), "a bare storage_hall lot while no hall is offered is an ordinary lot, as before M5");
-		var offered = StreetModules.leaveOut(plain, ComposedModules.LOT_TYPES, null, specs, "x", "on Steward's streets");
+		// (slice MODULE-TYPE-2; Noah 11-20, "Leave it out and say why": B3's narrowing is gone) a bare storage_hall lot while no hall is offered is
+		// still a module's: left out with its reason, never an ordinary lot
+		var r = StreetModules.leaveOut(plain, ModuleTypes.KNOWN, Set.of(), null, specs, "x", "on Steward's streets");
+		assertEquals(specs.size() - 1, r.specs().size(), "a bare storage_hall lot the catalog doesn't offer is left out, never designed");
+		assertEquals(List.of(ComposedModules.notOfferedWords("storage hall", "storage_hall")), r.said());
+		assertTrue(r.said().get(0).contains("comes as a working module from the catalog once the town qualifies"), r.said().get(0));
+		var offered = StreetModules.leaveOut(plain, ModuleTypes.KNOWN, OFFERED, null, specs, "x", "on Steward's streets");
 		assertEquals(specs.size() - 1, offered.specs().size(), "while the hall is offered, a bare lot of its type is a module ask (B3)");
 	}
 
@@ -113,14 +120,14 @@ class StreetModulesTest {
 			  {"id": "cottage_1", "type": "cottage"}]}}}]}""");
 		List<LotSpec> specs = List.of(new LotSpec("farm_1", "farm", 14, 12), new LotSpec("farm_2", "farm", 14, 12), new LotSpec("storage_hall_1", "storage_hall", 18, 15),
 			new LotSpec("barn_1", "barn", 14, 12), new LotSpec("cottage_1", "cottage", 11, 9));
-		var r = StreetModules.leaveOut(plan, Set.of(), null, specs, "the ground isn't flat enough for its plan", "on Steward's streets");
+		var r = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, Set.of(), null, specs, "the ground isn't flat enough for its plan", "on Steward's streets");
 		assertEquals(List.of("farm_2", "barn_1", "cottage_1"), r.specs().stream().map(LotSpec::id).toList(),
 			"one farm for the crop farm (its for), the hall by its own type before its for (the barn stays)");
 		assertEquals(2, r.said().size());
 		assertTrue(r.said().get(0).startsWith("The plan's the village field is left out of the town: the ground isn't flat enough for its plan, so the town is laid out on"
 			+ " Steward's streets, where the working crop farm can't be placed yet."), r.said().get(0));
 		// a module lot whose building isn't in this count's lots: nothing removed, still said
-		var only = StreetModules.leaveOut(plan, Set.of(), null, List.of(new LotSpec("cottage_1", "cottage", 11, 9)), "x", "on Steward's streets");
+		var only = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, Set.of(), null, List.of(new LotSpec("cottage_1", "cottage", 11, 9)), "x", "on Steward's streets");
 		assertEquals(0, only.removed());
 		assertEquals(2, only.said().size());
 	}
@@ -143,11 +150,11 @@ class StreetModulesTest {
 		// nothing of the card stands but two townhouses: every other building is left out, the hall among them
 		var left = dev.larattalabs.steward.model.ProposalRules.leftOutEntries(card, java.util.Map.of("townhouses", 2), java.util.Map.of());
 		assertTrue(left.stream().anyMatch(m -> m.building().type().equals("storage_hall")));
-		var offered = StreetModules.withoutModules(realPlan(), Set.of(), card, left);
+		var offered = StreetModules.withoutModules(realPlan(), ModuleTypes.KNOWN, card, left);
 		assertTrue(offered.stream().noneMatch(b -> b.type().equals("storage_hall")), "the hall is the plan's module: never offered as an ordinary building");
 		assertEquals(left.size() - 1, offered.size());
 		assertEquals(buildings(left).stream().filter(b -> !b.type().equals("storage_hall")).toList(), offered);
-		assertEquals(buildings(left), StreetModules.withoutModules(null, Set.of(), card, left), "no plan: as before");
+		assertEquals(buildings(left), StreetModules.withoutModules(null, ModuleTypes.KNOWN, card, left), "no plan: as before");
 	}
 
 	@Test
@@ -156,13 +163,13 @@ class StreetModulesTest {
 		JsonObject granary = json("""
 			{"zones": [{"program": {"lots": [{"id": "granary_1", "type": "storage_hall", "label": "granary barn",
 			  "ext": {"steward_mc:module": {"id": "storage_hall", "for": "barn"}}}]}}]}""");
-		var r = StreetModules.leaveOut(granary, Set.of(), null, List.of(new LotSpec("barn_1", "barn", 14, 12, "cattle barn", null, false, null),
+		var r = StreetModules.leaveOut(granary, ModuleTypes.KNOWN, Set.of(), null, List.of(new LotSpec("barn_1", "barn", 14, 12, "cattle barn", null, false, null),
 			new LotSpec("barn_2", "barn", 14, 12, "granary barn", null, false, null)), "x", "on Steward's streets");
 		assertEquals(List.of("barn_1"), r.specs().stream().map(LotSpec::id).toList());
 		// (GPT review) a marker with no module id is unreadable (refused), and still stands for its for: the ordinary farm is not laid out
 		JsonObject bad = json("""
 			{"zones": [{"program": {"lots": [{"id": "field", "type": "crop_farm", "ext": {"steward_mc:module": {"for": "farm"}}}]}}]}""");
-		var b = StreetModules.leaveOut(bad, Set.of(), null, List.of(new LotSpec("farm_1", "farm", 14, 12), new LotSpec("cottage_1", "cottage", 11, 9)), "x", "on Steward's streets");
+		var b = StreetModules.leaveOut(bad, ModuleTypes.KNOWN, Set.of(), null, List.of(new LotSpec("farm_1", "farm", 14, 12), new LotSpec("cottage_1", "cottage", 11, 9)), "x", "on Steward's streets");
 		assertEquals(List.of("cottage_1"), b.specs().stream().map(LotSpec::id).toList());
 		assertEquals(1, b.said().size());
 	}
@@ -175,7 +182,7 @@ class StreetModulesTest {
 		ConceptCard card = realCard();
 		var left = dev.larattalabs.steward.model.ProposalRules.leftOutEntries(card, java.util.Map.of(), java.util.Map.of("storage_hall", 1, "shop", 4, "tavern", 1, "house", 4));
 		assertEquals(List.of("barn"), buildings(left).stream().map(ConceptCard.Building::type).toList());
-		assertEquals(buildings(left), StreetModules.withoutModules(plan, Set.of(), card, left));
+		assertEquals(buildings(left), StreetModules.withoutModules(plan, ModuleTypes.KNOWN, card, left));
 	}
 
 	@Test
@@ -184,7 +191,7 @@ class StreetModulesTest {
 		JsonObject plan = json("""
 			{"zones": [{"program": {"lots": [{"id": "barn_1", "type": "storage_hall", "label": "granary barn", "role": "granary_barn",
 			  "ext": {"steward_mc:module": {"id": "storage_hall", "for": "barn"}}}]}}]}""");
-		var r = StreetModules.leaveOut(plan, Set.of(), null, List.of(new LotSpec("barn_1", "barn", 14, 12, "barn", null, false, null),
+		var r = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, Set.of(), null, List.of(new LotSpec("barn_1", "barn", 14, 12, "barn", null, false, null),
 			new LotSpec("barn_2", "barn", 14, 12, "granary barn", null, false, null)), "x", "on Steward's streets");
 		assertEquals(List.of("barn_1"), r.specs().stream().map(LotSpec::id).toList());
 		// two card entries with the same role and type: one module takes one of them, the other is still offered
@@ -196,7 +203,7 @@ class StreetModulesTest {
 		ConceptCard card = ConceptCard.parse(c);
 		var left = dev.larattalabs.steward.model.ProposalRules.leftOutEntries(card, java.util.Map.of("house", 1), java.util.Map.of());
 		assertEquals(2, left.size());
-		var offered = StreetModules.withoutModules(plan, Set.of(), card, left);
+		var offered = StreetModules.withoutModules(plan, ModuleTypes.KNOWN, card, left);
 		assertEquals(1, offered.size());
 		assertEquals("L", offered.get(0).footprint());
 	}
@@ -213,12 +220,12 @@ class StreetModulesTest {
 		JsonObject granary = json("""
 			{"zones": [{"program": {"lots": [{"id": "granary_1", "type": "storage_hall", "label": "granary barn",
 			  "ext": {"steward_mc:module": {"id": "storage_hall", "for": "barn"}}}]}}]}""");
-		var r = StreetModules.leaveOut(granary, Set.of(), card, specs, "x", "on Steward's streets");
+		var r = StreetModules.leaveOut(granary, ModuleTypes.KNOWN, Set.of(), card, specs, "x", "on Steward's streets");
 		assertEquals(0, r.removed());
 		assertEquals(specs, r.specs(), "the cattle barn is laid out");
 		assertEquals(1, r.said().size(), "the module lot is still said as left out");
 		// both selected: the granary goes, the cattle barn stays
-		var both = StreetModules.leaveOut(granary, Set.of(), card, ProgramPlanner.lots(card, 2, 0).specs(), "x", "on Steward's streets");
+		var both = StreetModules.leaveOut(granary, ModuleTypes.KNOWN, Set.of(), card, ProgramPlanner.lots(card, 2, 0).specs(), "x", "on Steward's streets");
 		assertEquals(List.of("cattle barn"), both.specs().stream().map(LotSpec::role).toList());
 		assertEquals(1, both.removed());
 	}
@@ -237,7 +244,7 @@ class StreetModulesTest {
 		var left = dev.larattalabs.steward.model.ProposalRules.leftOutEntries(card, java.util.Map.of("barn", 1, "house", 1), java.util.Map.of());
 		assertEquals(1, left.size());
 		assertEquals(1, left.get(0).entry(), "the second entry's missing barn");
-		var offered = StreetModules.withoutModules(plan, Set.of(), card, left);
+		var offered = StreetModules.withoutModules(plan, ModuleTypes.KNOWN, card, left);
 		assertEquals(1, offered.size(), "the missing barn is not taken for the module of the first entry");
 		assertEquals("the big ones", offered.get(0).notes());
 		assertEquals(1, offered.get(0).count());
@@ -255,7 +262,7 @@ class StreetModulesTest {
 		JsonObject plan = json("""
 			{"zones": [{"program": {"lots": [{"id": "barn_1", "type": "storage_hall", "label": "barn",
 			  "ext": {"steward_mc:module": {"id": "storage_hall", "for": "barn"}}}]}}]}""");
-		var r = StreetModules.leaveOut(plan, Set.of(), card, specs, "x", "on Steward's streets");
+		var r = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, Set.of(), card, specs, "x", "on Steward's streets");
 		assertEquals(1, r.removed());
 		assertEquals(List.of(specs.get(0)), r.specs(), "the landmark barn stays");
 	}

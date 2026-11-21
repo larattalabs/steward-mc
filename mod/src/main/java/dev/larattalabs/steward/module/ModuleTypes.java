@@ -73,7 +73,16 @@ public final class ModuleTypes {
 
 	/** Why a plain proposal of a module's type isn't built (an old save's, or one Accept refuses): what the steward says. */
 	public static String refusal(String title, String moduleId) {
-		return title + " isn't built: " + rule(moduleId) + ". It leaves the inbox (not declined).";
+		return refusal(title, moduleId, true);
+	}
+
+	/**
+	 * As above; {@code left}: whether its withdrawal was saved. (slice MODULE-TYPE-2, P3) When it wasn't, the steward says so rather than that it left
+	 * the inbox: still refused, nothing built or spent.
+	 */
+	public static String refusal(String title, String moduleId, boolean left) {
+		return title + " isn't built: " + rule(moduleId) + "." + (left ? " It leaves the inbox (not declined)."
+			: " It couldn't be taken out of the inbox (the settlement couldn't be saved), so it still shows there; it won't be built, and nothing was spent.");
 	}
 
 	/** The module-type buildings a district or quarter leaves out, in the steward's words ("" when none). */
