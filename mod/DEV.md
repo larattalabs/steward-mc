@@ -292,20 +292,29 @@ Every worktree and `--clients` run dir has its own, so by 11-16 sixteen of them 
   - Each outcome is printed: `tmp: removed|kept|not-mine|gone|failed <dir>`.
 - **The sweep.** At the start of each e2e run, `sweepStale` looks at the direct children of `/Volumes/MCTmp/tmp/steward` named
   `sidecar-*`. It removes those that carry a valid marker whose owner is gone, which are leftovers from a SIGKILL or a crash.
-  - It uses no age floor: a dead owner is decisive here, unlike Architect's 6 h default, which would have kept every dir that filled the disk.
-  - It never touches a live owner's dir, an unmarked dir, a symlink or a plain file.
+  - It uses no age floor for an unkept dir: a dead owner is decisive here, unlike Architect's 6 h default, which would have kept every dir
+    that filled the disk. Kept dirs and empty fallbacks have their own bounds (E2E-DISK-4, below).
+  - It never touches a live owner's dir, a symlink or a plain file, nor an unmarked dir other than an empty fallback (below).
   - Architect's `tools/tmp-sweep.mjs` CLI lists only the direct children of `/Volumes/MCTmp/tmp` and takes no root, so it never sees these.
   - Dirs from before this slice have no marker, and the sweep leaves them. A checkout's next run empties its own. Removing the rest takes a
     one-time manual cleanup.
 - **On disk** (`STEWARD_RAM_TMP=0`, or no volume): the same cleanup applies to `mod/run/architect/sidecar-data` only when this run made it, or
   when an earlier run had marked it and that owner is gone (it is emptied first). An existing directory that isn't marked, such as a dev
   client's data, is never removed.
-- **`STEWARD_KEEP_TMP=1`** keeps the dir, its marker saying `kept` from the start (so a SIGKILL keeps it too). Since E2E-DISK-3 neither the
-  sweep nor a later run ever empties it; it goes at a reboot, the RAM disk's 04:17 refresh, or by hand. (Before, the next run swept it.)
+- **`STEWARD_KEEP_TMP=1`** keeps the dir, its marker saying `kept` from the start (so a SIGKILL keeps it too). Since E2E-DISK-3 a later run
+  never empties it. Since E2E-DISK-4 the sweep bounds kept dirs, so repeated kept runs (2-6 GB each) can't fill the RAM disk. A kept dir whose
+  owner is gone goes once untouched for 24 h (`STEWARD_KEEP_TMP_HOURS`), and while all kept dirs total more than 8 GiB
+  (`STEWARD_KEEP_TMP_CAP_GIB`; live owners' count but are never taken) the dead owners' go oldest first. 0 turns either bound off. Each removal
+  prints `tmp-sweep: removed <dir>: <why>`; a total still past the cap (live runs only) is said too.
 - **A fresh run empties only what it owns** (E2E-DISK-3): the game dir's `sidecar-<hash>` is taken when it is absent, empty and unmarked
   (what a run leaves), or marked by an owner provably gone (then emptied). Kept data or unmarked data (a dev client's) is left as it is and the
   run starts in a new `sidecar-<hash>-XXXXXX` (mkdtemp) beside it. A dir held by another live run (say in its slot wait on the same game dir),
   whether the game dir's own or the one its link points at, kept or not, refuses the run in preflight, before anything is emptied or relinked.
+- **Fallback dirs don't pile up** (E2E-DISK-4): at its end a run removes the `sidecar-<hash>-XXXXXX` it owns (not made again empty) and points
+  the link back at the game dir's `sidecar-<hash>`, where it pointed before. The sweep also removes empty unmarked fallbacks untouched for 10 min
+  (by rmdir, so one written into meanwhile stays) and a dead owner's kept fallback holding only its marker.
+- **Module answer files** (E2E-DISK-4): `tools/module-measure*.mjs` and `tools/module-catalog.mjs` claim each `steward-modules/<label>.json`
+  exclusively before the request (`claimAnswerFile`, as e2e does), under a pid-and-start-time tag, and drop the placeholder on a failure.
 
 ### Disk: cleanup after a run, the free-space guard (slice E2E-DISK, 2026-11-21, $0)
 
