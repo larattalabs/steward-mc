@@ -21,6 +21,7 @@ import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue
 import { repairSidecarData } from './lib/ram-tmp.mjs';
 import { checkCommand, savedOnDisk } from './lib/save-barrier.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
+import { waitForPrograms } from './lib/helper-wait.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -250,12 +251,15 @@ async function town(cx, cz, { w = 224, d = 176, lots = 4, orientation = 'ew' } =
 let installed = null;
 async function install() {
   if (installed) return installed;
-  // the helper reports its features (givenPrograms) once it is up: wait for it, at most 5 minutes
-  for (let i = 0; i < 60; i++) {
-    const env = await mod({ op: 'env' });
-    if (env.givenPrograms === true) break;
-    await sleep(5000);
-  }
+  // the helper reports its features (givenPrograms) once it is up: wait for it, at most 5 minutes (tools/lib/helper-wait.mjs)
+  await waitForPrograms({
+    probe: async () => {
+      const env = await mod({ op: 'env' });
+      const link = (await call('dev.sidecar.state', {}, 30_000)).link;
+      return { up: link === 'synced', given: env.givenPrograms === true, detail: `link ${link}` };
+    },
+    sleep, log,
+  });
   const a = await mod({ op: 'install', dir: CATALOG, id: MODULE.id, version: MODULE.version, measuring: true });
   check(a.ok && a.entryId, `${MODULE.id}@${MODULE.version} installed at $0 by its key ${a.key} as ${a.entryId}${a.ok ? '' : `: ${a.detail} ${a.message}`}`);
   if (!a.ok) throw new Error('install failed');

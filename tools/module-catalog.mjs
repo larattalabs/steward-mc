@@ -42,6 +42,7 @@ import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue
 import { repairSidecarData } from './lib/ram-tmp.mjs';
 import { styleBounds } from './lib/style-bounds.mjs';
 import { moduleShaOf, smokeCarry } from './lib/smoke-carry.mjs';
+import { waitForPrograms } from './lib/helper-wait.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MAIN_CHECKOUT = path.resolve(execFileSync('git', ['-C', ROOT, 'rev-parse', '--git-common-dir']).toString().trim(), '..');
@@ -301,7 +302,16 @@ async function ingame() {
   const out = { entries: {} };
   await startClient();
   try {
-    const env = await mod({ op: 'env' });
+    // a fresh run dir's helper is still being installed (Architect's first-start npm ci): wait for it, at most 5 minutes (CATALOG-WAIT)
+    let env = null;
+    await waitForPrograms({
+      probe: async () => {
+        env = await mod({ op: 'env' });
+        const link = (await dev.call('dev.sidecar.state', {}, { timeoutMs: 30_000 })).link;
+        return { up: link === 'synced', given: env.givenPrograms === true, detail: `link ${link}` };
+      },
+      sleep, log,
+    });
     out.env = env;
     check(env.minecraft === MC_VERSION && env.architect === ARCH_VERSION && env.givenPrograms === true,
       `the game: Minecraft ${env.minecraft}, Architect ${env.architect}, givenPrograms ${env.givenPrograms} (pinned ${MC_VERSION} / ${ARCH_VERSION})`);
