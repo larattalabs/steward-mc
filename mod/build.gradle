@@ -62,7 +62,7 @@ loom {
 			// 8590+ if more are needed. Override with STEWARD_PORT / STEWARD_DEV_PORT.
 			environmentVariable "ARCHITECT_PORT", System.getenv("STEWARD_PORT") ?: "8490"
 			environmentVariable "ARCHITECT_DEV_PORT", System.getenv("STEWARD_DEV_PORT") ?: "8491"
-			// STEWARD_RUN_DIR: another run dir, for the e2e's second client (tools/e2e.mjs --clients, mod/run-c<k>); unset, run as before
+			// STEWARD_RUN_DIR: another run dir, for the e2e's second client (tools/e2e.mjs --clients, mod/run-c<k>-<run tag>); unset, run as before
 			runDir System.getenv("STEWARD_RUN_DIR") ?: "run"
 		}
 		server {

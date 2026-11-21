@@ -7,7 +7,7 @@
 set -e
 R=${0:A:h:h}
 ARCH=${ARCHITECT_CHECKOUT:-${R:h}/architect-mc}
-# E2E_GAME_DIR: the client's run dir (mod/run unless a `e2e.mjs --clients` run gives each client its own, mod/run-c<k>; build.gradle STEWARD_RUN_DIR)
+# E2E_GAME_DIR: the client's run dir (mod/run unless a `e2e.mjs --clients` run gives each client its own, mod/run-c<k>-<run tag>; build.gradle STEWARD_RUN_DIR)
 GAME_DIR=${E2E_GAME_DIR:-$R/mod/run}
 GAME_DIR=${GAME_DIR:A}
 # Loom takes the run dir relative to mod/: it must sit under it

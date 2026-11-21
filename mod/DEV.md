@@ -180,16 +180,17 @@ runs 11 checks:
 - a kit-built building placed, then updated to a new version from the inbox, then undone;
 - a build restored after a restart (with the player's real UUID put into `tools/e2e/restore-build.json`), then cancelled.
 
-It refuses to start while the claude-login opt-in exists or another Steward client uses `mod/run`. The test entry `e2e_stub` is rewritten each run, so its
-new version always differs from the placed one. Results go to `artifacts/e2e/summary.json`, with each named flow's seconds, the 1-minute load at its start, its checks and failures (`flows`), and the seconds before the first flow (`sanitySeconds`; slice ET, 2026-11-14). On a failed update it prints Steward's `update check` log
+It refuses to start while the claude-login opt-in exists or another Steward client uses `mod/run`. Each run installs its own test entries
+(`e2e_stub_<tag>`, `..._ui`), so a new version always differs from the placed one; the fixed `e2e_stub` is written only where its bytes differ, never removed. Results go to `artifacts/e2e/summary.json`, with each named flow's seconds, the 1-minute load at its start, its checks and failures (`flows`), and the seconds before the first flow (`sanitySeconds`; slice ET, 2026-11-14). On a failed update it prints Steward's `update check` log
 line (action, reason, write box).
 
 **A fresh world every run (2026-11-12).** The world used to be kept between runs. The main checkout's had grown to 559 settlements and 9.4 GB, and
 `/steward status` got empty replies.
-- **What happens.** Before the first launch, `e2e.mjs` moves the last run's world to `Steward E2E (last)` (one copy: the one before it is deleted). The
-  client's autoworld then creates a new flat world, and the restarts inside the run reopen it. Only that world under this checkout's `mod/run/saves` is
-  touched: never the dev world, and Architect's game-level `mod/run/architect` (library, `api-*.json`) is kept.
-- **`--keep-world`** reopens the old world instead, to look at a run's leftovers.
+- **What happens** (since E2E-DISK-2, 11-21). Each run's world is its own, `Steward E2E <tag>` (the run's tag: time, pid, random), created by
+  the client's autoworld; the restarts inside the run reopen it. Nothing is moved or deleted at the start (the old `(last)` rotation is gone);
+  the run deletes its world at its end when it passed ("Disk" below). The dev world and Architect's game-level `mod/run/architect` (library,
+  `api-*.json`) are never touched.
+- **`--keep-world`** opens the fixed `Steward E2E` (or `ARCHITECT_AUTOWORLD_NAME`) instead, to look at a run's leftovers; it is never deleted.
 - **The client check** looks only for this checkout's own client (`<checkout>/mod/...KnotClient`). A worktree's run is no longer refused when the main
   checkout's client is up, and its own leftover client is caught.
 - **Load.** The slot queue's load gate (below) decides when the client starts. Steward's own load wait (`E2E_LOAD_MAX`, default 72;
@@ -305,22 +306,31 @@ Every worktree and `--clients` run dir has its own, so by 11-16 sixteen of them 
 
 Minecraft/_work grew from 89 GB to about 977 GB (Steward about 684 GB), mostly e2e worlds left in slice and batch worktrees. `tools/lib/disk.mjs`.
 
-- **Cleanup after a run.** Each e2e driver (a `--clients` run's children each on their own run dir) ends by deleting what it made:
-  - this run's world, `<run dir>/saves/Steward E2E` (200-470 MB), and its temp blueprint dirs (`steward-e2e-v2-*`, `steward-e2e-ui-*` in TMPDIR).
-  - A `--clients` lead does **not** delete the `mod/run-c<k>` lane dirs (switched off, `DELETE_LANE_DIRS = false`, Noah 11-21: batch 091's
-    final review found another run can reuse a lane between its claim and its delete). Each child still deletes its own passing world inside
-    its lane, so a kept lane dir is small (config, logs, mods). The claim-and-marker helpers stay in `disk.mjs` for E2E-DISK-2, which gives
-    each run its own dirs.
-  - A driver whose slot never came (a slot wait) never launched, so it deletes no world: the world under its run dir may be another
-    driver's, made during the wait. Its temp blueprint dirs (unique, mkdtemp) still go.
+- **Cleanup after a run.** Each e2e driver (a `--clients` run's children each on their own run dir) ends by deleting what it made, and only what
+  it can prove is its own (slice E2E-DISK-2, 11-21: every path it deletes is named for this run and owner-marked):
+  - this run's world, `<run dir>/saves/Steward E2E <tag>` (200-470 MB). The tag is the run's own (`runTag`: base36 time, pid, random), the
+    name goes to the client in its launch env only, and once the client is in the world the driver writes `.steward-e2e-owner.json` ({run,
+    pid}, exclusive) into it. Just before the delete the marker is read again: no marker or another run's, and it is not touched (`disk: not
+    deleted ...`). A marker that couldn't be written fails the run (`world owner`), so the world is kept.
+  - its temp blueprint dirs (`steward-e2e-v2-*`, `steward-e2e-ui-*`, `steward-e2e-stub-*` in TMPDIR; mkdtemp, unique).
+  - a `--clients` lead's lane dirs, `mod/run-c<k>-<tag>` (client 1 stays on `mod/run`). Each is made at its use with `mkdir` without `-p` and
+    the owner marker (`claimRunDir`); a dir already there isn't this run's and the lane doesn't run on it. The lead deletes a lane dir
+    (`DELETE_LANE_DIRS`, on again) when every client on it exited 0, failed nothing and kept nothing, and its marker still names this run;
+    otherwise it is kept and named. Only names with this run's tag are ever items, so an old plain `mod/run-c<k>` or another run's dir is
+    never deleted. A fresh lane dir costs a configuration-cache miss and Architect's sidecar copy (~21 MB) on its first launch.
+  - A driver whose slot never came (a slot wait) never launched, so it deletes no world; its temp blueprint dirs still go.
   - The world is **kept** when a check failed, the run threw, no checks ran, or a signal stopped it; also while a client JVM of this run still
-    runs on the run dir. summary.json's `cleanup` lists `deleted`, `kept` (path, why, client) and `note`, a quoted `rm -rf` line to delete
-    what was kept; the run prints `disk: deleted|kept ...` lines. The nightly copies kept paths and the note into SUMMARY.md.
-  - Never touched: `--keep-world`'s world (listed as kept, why `keep-world`), `Steward E2E (last)` (an earlier run's world, moved aside by a later run's start; left as it is), the dev
-    world, the run dir's `architect/`, `config`, `logs`, `mods`, `options.txt`, `mod/run` itself, a `mod/run-c<k>` from an earlier run, `artifacts/`
-    (summary.json, shots, snaps: the evidence). A path outside its own root is never deleted, and a symlink is unlinked, never followed.
+    runs on the run dir. summary.json's `cleanup` lists `deleted`, `kept` (path, why, client), `failed` and `note`, a quoted `rm -rf` line to
+    delete what was kept; the run prints `disk: deleted|kept|not deleted ...` lines. The nightly copies kept paths and the note into SUMMARY.md.
+    Kept worlds now pile up one per failed run (each named, with its note), no longer capped at two.
+  - Never touched: `--keep-world`'s or an explicitly named (`ARCHITECT_AUTOWORLD_NAME`) world (listed as kept), the worlds from before
+    E2E-DISK-2 (`Steward E2E`, `Steward E2E (last)`: the start names them, `disk: N earlier e2e world(s) ... left as they are`; delete them
+    by hand), other runs' worlds and lane dirs, the dev world, the run dir's `architect/` (the fixed `e2e_stub` entry is rewritten file by
+    file only where it differs), `config`, `logs`, `mods`, `options.txt`, `mod/run` itself, `artifacts/` (the evidence). A path outside its
+    own root is never deleted, and a symlink is unlinked, never followed.
   - The sidecar data stays TMPSWEEP's ("Temp dirs" above): removed at every end, failed or not, since keeping 2-6 GB per failed run on the
-    24 GB RAM disk brought back ENOSPC. `STEWARD_KEEP_TMP=1` keeps it for a look.
+    24 GB RAM disk brought back ENOSPC. `STEWARD_KEEP_TMP=1` keeps it for a look. (Not covered by E2E-DISK-2: its RAM dir is named for the
+    game dir, not the run, and `fresh` empties it at preflight.)
 - **The free-space guard.** `e2e.mjs` (not `--plan`, not a `--clients` child: its lead checked) and `nightly.mjs` refuse to start when the
   volume holding the worktree has less than **`E2E_MIN_FREE_GIB`** free (GiB, default **150**; statfs, no disk walk). The refusal says how much
   is free, writes summary.json with `refused`, and exits **5** (2 is usage, 3 a slot wait, 4 the slot CLI's own); the nightly writes a `NOSPACE` SUMMARY.md, and `--dry` prints the
@@ -333,7 +343,7 @@ Without these flags a run is as before: one client on `mod/run`, every chosen fl
 
 - **`--clients 2 --ports 8596,8598`** runs the chosen flows (`--only` as usual) on two clients at once.
   - Each client has its own port pair (the sidecar port given, the DevBridge port one above), its own run dir (client 1 `mod/run`, client k
-    `mod/run-c<k>`, through `STEWARD_RUN_DIR` in build.gradle) with its own RAM-disk sidecar link, and its own evidence dir
+    `mod/run-c<k>-<tag>`, new each run, through `STEWARD_RUN_DIR` in build.gradle) with its own RAM-disk sidecar link, and its own evidence dir
     (`artifacts/e2e/c<k>/`: its client.log and summary).
   - Each client is a child `e2e.mjs ... --flows a,b` that runs the sanity set and then exactly its flows, in that order. Its lines come prefixed
     `[c1]`/`[c2]`. Each client starts once its slot comes, and the queue's settle (120 s) spaces them. `--stagger s` adds a gap of Steward's
