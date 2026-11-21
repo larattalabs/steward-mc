@@ -1367,8 +1367,11 @@ public final class SettlementRunner {
 					+ "street town, a world whose mode can't take it on, or an Architect without growth). Nothing was spent.");
 				return;
 			}
+			// (slice M5-SCULPT-2) a sculpted card takes its kept composed plan when that plan carries the shaping itself (a carved river, a ground-moving
+			// form): only a composed settlement's, never the flat village from the card
+			boolean planShapes = existing != null && composed(existing) && dev.larattalabs.steward.gateway.VPlan.carriesShaping(keptPlanOf(existing), waitingOf(existing));
 			if (existing != null && dev.larattalabs.steward.gateway.VPlan.applies(existing.id(), existing.difficulty(), worldSurvival, overworld, addition, districtId,
-				r.card().site().terrain(), stands, lo, hi)) {
+				r.card().site().terrain(), planShapes, stands, lo, hi)) {
 				// the settlement's composed plan, when it has one (plan v1); else Architect's flat village from the card
 				if (composed(existing)) planComposed(existing, r, buildings, budgetUsd, district, claim, specs, own);
 				else {
@@ -1384,7 +1387,7 @@ public final class SettlementRunner {
 			// Architect builds a region from materials only with the toggle on and the world's default mode not creative
 			boolean regionSurvival = worldSurvival && server.getDefaultGameType() != net.minecraft.world.level.GameType.CREATIVE;
 			if (existing != null && composed(existing) && dev.larattalabs.steward.gateway.VPlan.appliesSupplied(existing.id(), existing.difficulty(), regionSurvival,
-				Composer.survivalAvailable(), overworld, addition, districtId, r.card().site().terrain(), stands, lo, hi)) {
+				Composer.survivalAvailable(), overworld, addition, districtId, r.card().site().terrain(), planShapes, stands, lo, hi)) {
 				supplied = true;
 				planComposed(existing, r, buildings, budgetUsd, district, claim, specs, own);
 				return;
@@ -1392,7 +1395,7 @@ public final class SettlementRunner {
 			// (slice M5-SCULPT, docs/MODULES.md B3) a first whole build whose kept plan names working modules but doesn't take it: the card's buildings on
 			// Steward's streets, each module lot left out and said before anything is spent, never designed as an ordinary building in its place
 			if (existing != null && !addition && districtId == null && planSpecs == null && !moduleBuild()) {
-				var m = withoutPlanModules(existing, r.card(), specs, StreetModules.why(r.card().site().terrain(), keptPlanOf(existing), overworld, stands,
+				var m = withoutPlanModules(existing, r.card(), specs, StreetModules.why(r.card().site().terrain(), keptPlanOf(existing), planShapes, overworld, stands,
 					hi - lo <= dev.larattalabs.steward.gateway.VPlan.FLAT_RANGE), "on Steward's streets");
 				if (m == null) return;
 				if (m.removed() > 0) {
@@ -1404,6 +1407,13 @@ public final class SettlementRunner {
 			plan = own.get();
 			continueWithPlan(r, budgetUsd, district);
 		}
+	}
+
+	/** (slice M5-SCULPT-2) The kept plan's parts that wait for Architect (none: no kept plan). */
+	private static java.util.Set<String> waitingOf(Settlement s) {
+		java.util.Set<String> waiting = new java.util.HashSet<>();
+		PlanStore.get(s.id()).ifPresent(e -> e.pending().forEach(p -> waiting.add(p.part())));
+		return waiting;
 	}
 
 	/** The settlement's kept plan as composed (null: none, or unreadable). */
@@ -2027,6 +2037,15 @@ public final class SettlementRunner {
 		if (went != null) say(went);
 		String stays = keptWords(applied.kept(), base);
 		if (stays != null) say(stays);
+		// (slice M5-SCULPT-2, GPT review P1) a shaped site took this plan for its shaping: the plan as built must still carry it (a channel from a zone
+		// left out goes with it), else nothing is spent
+		boolean sculpt = "sculpt".equals(r.card().site().terrain());
+		List<String> shaping = sculpt ? dev.larattalabs.steward.gateway.VPlan.shapingParts(built, waitingOf(existing)) : List.of();
+		if (sculpt && shaping.isEmpty()) {
+			abandon("The plan's " + dev.larattalabs.steward.gateway.VPlan.shapingWords(base, dev.larattalabs.steward.gateway.VPlan.shapingParts(base, java.util.Set.of()))
+				+ " went with what is left out, and this shaped site isn't built without it. Nothing was spent; describe the settlement again for a new plan.");
+			return;
+		}
 		int session = Session.current();
 		// a plan Architect can't check, or without lots: the flat village for a Patron town; a Supplied one stops before anything is spent (its survey was taken
 		// before its stockpile and that ground's protection, so Steward's own layout over it could pay for designs that then don't fit), and is started again
@@ -2034,6 +2053,8 @@ public final class SettlementRunner {
 		boolean namesModules = !dev.larattalabs.steward.module.ComposedModules.readAll(dev.larattalabs.steward.gateway.PPlan.lots(base), ModuleOffers.moduleTypes()).isEmpty();
 		Runnable otherwise = () -> {
 			if (supplied) abandon("The plan couldn't be used from materials this time: start the build again.");
+			// (slice M5-SCULPT-2, GPT review P2) a shaped site is never laid out as the flat village from its card
+			else if (sculpt) abandon("The plan that shapes this site couldn't be used this time, and a shaped site isn't built without it. Nothing was spent: start the build again.");
 			else if (namesModules) abandon("The plan with its working modules couldn't be used this time, and its buildings aren't designed without it. Nothing was spent: start the build again.");
 			else planVillage(r, buildings, budgetUsd, district, claim, specs, own);
 		};
@@ -2059,6 +2080,13 @@ public final class SettlementRunner {
 				if (c.survival() != supplied) {
 					abandon("The world's mode changed while the land was surveyed (" + (c.survival() ? "it builds from materials now" : "it no longer builds from materials")
 						+ "): start the build again.");
+					return;
+				}
+				// (slice M5-SCULPT-2, GPT review P1) the shaping must be built, not an optional part Architect refused or dropped while the rest fits
+				if (sculpt && !dev.larattalabs.steward.gateway.VPlan.shapingBuilt(shaping, c.parts())) {
+					Steward.LOGGER.info("{}: the plan's shaping {} isn't built by the check: {}", settlement.id(), shaping, c.parts());
+					abandon("The plan's " + dev.larattalabs.steward.gateway.VPlan.shapingWords(built, shaping) + " can't be built here as the land is now, and this shaped site isn't"
+						+ " built without it. Nothing was spent; describe the settlement again for a new plan.");
 					return;
 				}
 				var art = ArchitectApi.get().regions().artifact(c.artifactSha());
@@ -3780,8 +3808,18 @@ public final class SettlementRunner {
 				if (wallLot != null && alive() && !over()) { wallRefused(lotEntries, session, wallLot, e.getMessage()); return; }
 				if (!first || !stale || !alive() || over()) { realised(id, err, session); return; }
 				Steward.LOGGER.info("{}: the artifact {} is stale: {}", settlement.id(), sha, e.getMessage());
-				say("The land under the plan changed while the buildings were designed: checking it again...");
 				JsonObject frozen = frozenPlan(sha);
+				// (B092-FIX, batch 092 GPT review P1; Noah 2026-11-21: "One narrow extra round") a sculpted site is never checked again here: it stops
+				// before anything more is pinned, quoted or realised, and a new Start plans it anew (a re-check can't show its shaping is still the one
+				// approved); every other site is checked again as before
+				String sculptStop = dev.larattalabs.steward.gateway.VPlan.staleRecheckStop(settlement.card() == null ? null : settlement.card().site().terrain(),
+					frozen, waitingOf(settlement));
+				if (sculptStop != null) {
+					Steward.LOGGER.info("{}: a stale artifact on a sculpted site: stopped, not checked again", settlement.id());
+					realised(null, new RefusalWords.Own(sculptStop), session);
+					return;
+				}
+				say("The land under the plan changed while the buildings were designed: checking it again...");
 				if (frozen == null) { realised(null, new RefusalWords.Own("the approved plan could not be read again"), session); return; }
 				var saved = Settlements.store().get(settlement.id()).orElse(settlement);
 				Composer.check(server, saved, frozen, playerId).whenComplete((c, cerr) -> ArchitectAccess.onServer(server, () -> {

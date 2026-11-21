@@ -60,37 +60,100 @@ class StreetModulesTest {
 		return ConceptCard.parse(c);
 	}
 
-	static final String HALL_WORDS = "The plan's storage hall is left out of the town: the land is shaped (a carved river), so the town is laid out on Steward's streets,"
-		+ " where the working storage hall can't be placed yet. It isn't designed as an ordinary building in its place.";
+	static final String HALL_WORDS = "The plan's storage hall is left out of the town: the ground isn't flat enough for its plan, so the town is laid out on Steward's"
+		+ " streets, where the working storage hall can't be placed yet. It isn't designed as an ordinary building in its place.";
 
+	/**
+	 * (slice M5-SCULPT-2) Fixture 1's sculpt card takes its kept plan in both modes: the plan carries the shaping (its river, a channel connector), so the
+	 * hall stays a module of the plan. Where the plan still can't be taken (uneven ground here), the hall is left out of the street and said, and the
+	 * reason is the ground, never the shaping the plan carries.
+	 */
 	@Test
-	void theRealSculptPlansHallIsLeftOutOfTheStreetAndSaidInCreativeAndSurvival() throws Exception {
+	void theRealSculptPlanIsTakenAndWhereItCantTheHallIsLeftOutOfTheStreetAndSaid() throws Exception {
 		ConceptCard card = realCard();
 		JsonObject plan = realPlan();
-		// the fallback is taken in both modes: a sculpt card takes neither the plan at once nor from materials
-		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, null, card.site().terrain(), false, 64, 64), "creative: the street");
-		assertFalse(VPlan.appliesSupplied("set_1", Difficulty.SUPPLIED, true, true, true, false, null, card.site().terrain(), false, 64, 64), "survival: the street");
+		boolean shapes = VPlan.carriesShaping(plan, Set.of());
+		assertTrue(shapes, "fixture 1's river is a channel connector: the plan carries the shaping");
+		assertTrue(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, null, card.site().terrain(), shapes, false, 64, 64), "creative: the plan");
+		assertTrue(VPlan.appliesSupplied("set_1", Difficulty.SUPPLIED, true, true, true, false, null, card.site().terrain(), shapes, false, 64, 64), "survival: the plan");
+		// uneven ground: neither mode takes it
+		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, null, card.site().terrain(), shapes, false, 60, 80), "creative, uneven: the street");
+		assertFalse(VPlan.appliesSupplied("set_1", Difficulty.SUPPLIED, true, true, true, false, null, card.site().terrain(), shapes, false, 60, 80), "survival, uneven: the street");
 		int total = ProgramPlanner.total(card);
 		assertEquals(11, total);
 		var program = ProgramPlanner.lots(card, total, 2);
 		assertTrue(program.specs().stream().anyMatch(s -> s.type().equals("storage_hall")), "the card asks for the hall as an ordinary building");
-		for (boolean survival : List.of(false, true)) {
-			String why = StreetModules.why(card.site().terrain(), plan, true, false, true);
-			// no catalog offered (the unit test's) and the catalog offered: a marked lot is a module ask either way
-			for (Set<String> offered : List.of(Set.<String>of(), OFFERED)) {
-				var r = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, offered, card, program.specs(), why, "on Steward's streets");
-				String mode = (survival ? "survival" : "creative") + ", offered " + offered;
-				assertEquals(1, r.removed(), mode);
-				assertEquals(total - 1, r.specs().size(), mode + ": the count excludes the hall");
-				assertTrue(r.specs().stream().noneMatch(s -> s.type().equals("storage_hall")), mode + ": no ordinary design is asked for the hall");
-				assertEquals(List.of(HALL_WORDS), r.said(), mode);
-				assertFalse(r.said().get(0).contains("measured catalog"), "never the bound words: nothing is bound on the street");
-				assertFalse(r.said().get(0).contains("from materials yet"), "the street's reason, not the materials guard's");
-				// every other building the card asks for is still laid out, in the card's order
-				List<LotSpec> rest = program.specs().stream().filter(s -> !s.type().equals("storage_hall")).toList();
-				assertEquals(rest, r.specs(), mode);
-			}
+		String why = StreetModules.why(card.site().terrain(), plan, shapes, true, false, false);
+		assertEquals("the ground isn't flat enough for its plan", why, "the shaping is carried by the plan: never the reason");
+		// no catalog offered (the unit test's) and the catalog offered: a marked lot is a module ask either way
+		for (Set<String> offered : List.of(Set.<String>of(), OFFERED)) {
+			var r = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, offered, card, program.specs(), why, "on Steward's streets");
+			String mode = "offered " + offered;
+			assertEquals(1, r.removed(), mode);
+			assertEquals(total - 1, r.specs().size(), mode + ": the count excludes the hall");
+			assertTrue(r.specs().stream().noneMatch(s -> s.type().equals("storage_hall")), mode + ": no ordinary design is asked for the hall");
+			assertEquals(List.of(HALL_WORDS), r.said(), mode);
+			assertFalse(r.said().get(0).contains("measured catalog"), "never the bound words: nothing is bound on the street");
+			assertFalse(r.said().get(0).contains("from materials yet"), "the street's reason, not the materials guard's");
+			// every other building the card asks for is still laid out, in the card's order
+			List<LotSpec> rest = program.specs().stream().filter(s -> !s.type().equals("storage_hall")).toList();
+			assertEquals(rest, r.specs(), mode);
 		}
+	}
+
+	/**
+	 * (slice M5-SCULPT-2) A sculpt card whose kept plan doesn't carry the shaping (the e2e's composed_modules.json: no channel, no form) keeps the street
+	 * in both modes, said as the shaped land, as before.
+	 */
+	@Test
+	void aSculptPlanWithoutTheShapingStillTakesTheStreet() throws Exception {
+		JsonObject plan = json(Files.readString(Path.of("..", "fixtures", "plans", "composed_modules.json"))).getAsJsonObject("answer").getAsJsonObject("plan");
+		boolean shapes = VPlan.carriesShaping(plan, Set.of());
+		assertFalse(shapes);
+		assertFalse(VPlan.applies("set_1", Difficulty.PATRON, false, true, false, null, "sculpt", shapes, false, 64, 64), "creative: the street");
+		assertFalse(VPlan.appliesSupplied("set_1", Difficulty.SUPPLIED, true, true, true, false, null, "sculpt", shapes, false, 64, 64), "survival: the street");
+		assertEquals("the land is shaped", StreetModules.why("sculpt", plan, shapes, true, false, true));
+	}
+
+	/**
+	 * (slice M5-SCULPT-2) A build saved on the street fallback before this slice (fixtures/saves/v7/steward-builds.json: a sculpt card, Steward's own street
+	 * plan, no region plan) loads and is written back as it was: a restart restores its plan and its missing vPlan from the file and never decides the
+	 * layout again (SettlementRunner's restoring constructor), so it resumes on its street.
+	 */
+	@Test
+	void aBuildSavedOnTheStreetFallbackResumesAsItWas(@org.junit.jupiter.api.io.TempDir Path dir) throws Exception {
+		Path f = dir.resolve("steward-builds.json");
+		Files.writeString(f, Files.readString(Path.of("..", "fixtures", "saves", "v7", "steward-builds.json")));
+		var b = BuildStore.load(f).all().get(0);
+		assertEquals("sculpt", b.settlement().card().site().terrain());
+		assertNull(b.vPlan(), "a street build: no region plan");
+		assertFalse(b.plan().lots().isEmpty());
+		var again = BuildStore.fromJson(BuildStore.load(f).toJson()).all().get(0);
+		assertEquals(b.plan(), again.plan());
+		assertNull(again.vPlan());
+	}
+
+	/**
+	 * (slice M5-SCULPT-2, GPT review P1) The plan as built must still carry the shaping: a river from a zone holding only a module lot that is left out
+	 * goes with that zone (MODULE-TYPE-3's prune), so the plan as built has no shaping and the shaped site's build stops before anything is spent.
+	 * Fixture 1's river runs between claim anchors: it stays whatever happens to the hall.
+	 */
+	@Test
+	void theShapingIsReadFromThePlanAsBuiltAfterTheLeftOutLotsGo() throws Exception {
+		JsonObject plan = json("""
+			{"schemaVersion": "plan/0", "planId": "p", "zones": [
+			  {"id": "town", "kind": "standard", "required": true, "program": {"layout": "street", "lots": [{"id": "cottage_1", "type": "cottage", "size": [9, 9]}]}},
+			  {"id": "dock", "kind": "standard", "required": false, "program": {"layout": "street", "lots": [{"id": "storage_hall_1", "type": "storage_hall", "size": [19, 13],
+			    "ext": {"steward_mc:module": {"id": "storage_hall", "params": {}, "for": "storage_hall"}}}]}}],
+			 "connectors": [{"id": "river", "kind": "channel", "required": true, "from": {"part": "dock"}, "to": {"anchor": "claim_e"}, "width": 3, "depth": 1}],
+			 "forms": [], "rules": []}""");
+		assertTrue(VPlan.carriesShaping(plan, Set.of()), "as kept, the plan carries its river");
+		var applied = SettlementRunner.withModulesApplied(plan, java.util.Map.of(), ModuleTypes.KNOWN, Set.of());
+		assertTrue(applied.dropped().contains("river"), applied.dropped().toString());
+		assertTrue(VPlan.shapingParts(applied.plan(), Set.of()).isEmpty(), "as built, no shaping: Start stops before anything is spent");
+		// fixture 1, its hall left out (no order): the river between claim anchors stays
+		var real = SettlementRunner.withModulesApplied(realPlan(), java.util.Map.of(), ModuleTypes.KNOWN, Set.of());
+		assertEquals(List.of("river"), VPlan.shapingParts(real.plan(), Set.of()));
 	}
 
 	@Test
@@ -135,13 +198,18 @@ class StreetModulesTest {
 	@Test
 	void theReasonIsTheFirstThatHolds() throws Exception {
 		JsonObject plan = realPlan();
-		assertEquals("the land is shaped (a carved river)", StreetModules.why("sculpt", plan, false, true, false));
-		assertEquals("the land is shaped", StreetModules.why("sculpt", json("{}"), true, false, true));
-		assertEquals("the land is shaped (crater)", StreetModules.why("sculpt", json("{\"forms\": [{\"kind\": \"crater\"}]}"), true, false, true));
-		assertEquals("the town isn't in the Overworld, where its plan is built", StreetModules.why("flat", plan, false, true, false));
-		assertEquals("something already stands in the claim", StreetModules.why("find", plan, true, true, false));
-		assertEquals("the ground isn't flat enough for its plan", StreetModules.why("find", plan, true, false, false));
-		assertEquals("its plan isn't built in this world's mode", StreetModules.why("flat", plan, true, false, true));
+		assertEquals("the land is shaped (a carved river)", StreetModules.why("sculpt", plan, false, false, true, false));
+		assertEquals("the land is shaped", StreetModules.why("sculpt", json("{}"), false, true, false, true));
+		assertEquals("the land is shaped (crater)", StreetModules.why("sculpt", json("{\"forms\": [{\"kind\": \"crater\"}]}"), false, true, false, true));
+		assertEquals("the town isn't in the Overworld, where its plan is built", StreetModules.why("flat", plan, false, false, true, false));
+		assertEquals("something already stands in the claim", StreetModules.why("find", plan, false, true, true, false));
+		assertEquals("the ground isn't flat enough for its plan", StreetModules.why("find", plan, false, true, false, false));
+		assertEquals("its plan isn't built in this world's mode", StreetModules.why("flat", plan, false, true, false, true));
+		// (slice M5-SCULPT-2) a shaped site whose plan carries the shaping takes the plan: the reason it doesn't is the next that holds
+		assertEquals("the town isn't in the Overworld, where its plan is built", StreetModules.why("sculpt", plan, true, false, true, false));
+		assertEquals("something already stands in the claim", StreetModules.why("sculpt", plan, true, true, true, false));
+		assertEquals("the ground isn't flat enough for its plan", StreetModules.why("sculpt", plan, true, true, false, false));
+		assertEquals("its plan isn't built in this world's mode", StreetModules.why("sculpt", plan, true, true, false, true));
 	}
 
 	@Test

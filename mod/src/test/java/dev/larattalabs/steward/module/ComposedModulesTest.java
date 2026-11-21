@@ -462,6 +462,29 @@ class ComposedModulesTest {
 		return new ComposedModules.Asked("warehouse_1", "storage_hall", json(params), "warehouse");
 	}
 
+	/**
+	 * (slice M5-SCULPT-2) Fixture 1's hall (the carved-river market town, composed_modules_real_1.json) binds as the plan wrote it on its own lot: 16 slots,
+	 * 4 double chests, its 16 items, @2, in both modes (from materials under Architect's per-lot cap). What its sculpt card's planComposed now keeps.
+	 */
+	@Test
+	void fixtureOnesSixteenSlotHallBindsOnItsOwnLot() throws Exception {
+		JsonObject plan = json(java.nio.file.Files.readString(java.nio.file.Path.of("..", "fixtures", "real", "composed_modules_real_1.json")))
+			.getAsJsonObject("answer").getAsJsonObject("plan");
+		var all = lots(plan);
+		var asked = ComposedModules.readAll(all, ModuleTypes.KNOWN);
+		assertEquals(1, asked.size());
+		JsonObject lot = all.stream().filter(l -> l.get("id").getAsString().equals(asked.get(0).lotId())).findFirst().orElseThrow();
+		for (var town : List.of(WARM, new ComposedModules.Town(false, true, Map.of(), true))) {
+			var d = ComposedModules.decide(asked.get(0), HALL, ok("storage_hall"), town, Set.of(), ComposedModules.size(lot), (e, p) -> ModuleBound.of(e.measured(), p));
+			assertTrue(d.ok(), d.why());
+			assertNull(d.changed(), d.changed());
+			assertEquals(2, d.order().version());
+			assertEquals(16, d.order().params().get("slots").getAsInt());
+			assertEquals(4, d.order().params().get("bulk").getAsInt());
+			assertEquals(16, StorageHallLot.items(d.order().params()).items().size());
+		}
+	}
+
 	/** (M5b) A composed sorting hall as the plan wrote it: its slots and items kept, bound to @2, its words saying what it sorts. */
 	@Test
 	void aComposedSortingHallKeepsThePlansSlotsAndItems() {

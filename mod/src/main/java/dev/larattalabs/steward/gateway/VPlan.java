@@ -73,22 +73,105 @@ public final class VPlan {
 	 * (a build without a composed plan) stays Patron's.
 	 */
 	public static boolean appliesSupplied(String settlementId, Difficulty difficulty, boolean worldSurvival, boolean regionSurvival, boolean overworld, boolean addition,
-		@Nullable String districtId, String terrain, boolean somethingStands, int groundLow, int groundHigh) {
+		@Nullable String districtId, String terrain, boolean planShapes, boolean somethingStands, int groundLow, int groundHigh) {
 		if (LEGACY.contains(settlementId)) return false;
-		return regionSurvival && worldSurvival && difficulty == Difficulty.SUPPLIED && overworld && !addition && districtId == null && !"sculpt".equals(terrain)
+		return regionSurvival && worldSurvival && difficulty == Difficulty.SUPPLIED && overworld && !addition && districtId == null && takesTerrain(terrain, planShapes)
 			&& !somethingStands && groundHigh - groundLow <= FLAT_RANGE;
 	}
 
 	/**
 	 * Whether a build uses the flat village: Patron (no materials) in a world without survival, in the Overworld (Architect's regions are Overworld only), a
 	 * settlement's first whole build (not an addition, not in a district, nothing standing), a card whose terrain is flat or as found (a sculpted form is a
-	 * region program of its own), and flat ground.
+	 * region program of its own), and flat ground. (slice M5-SCULPT-2) A sculpted card passes only when {@code planShapes}: the settlement's kept composed
+	 * plan itself carries the shaping ({@link #carriesShaping}), so the build takes that plan; never for the flat village from the card.
 	 */
 	public static boolean applies(String settlementId, Difficulty difficulty, boolean worldSurvival, boolean overworld, boolean addition, @Nullable String districtId,
-		String terrain, boolean somethingStands, int groundLow, int groundHigh) {
+		String terrain, boolean planShapes, boolean somethingStands, int groundLow, int groundHigh) {
 		if (LEGACY.contains(settlementId)) return false;
-		return difficulty == Difficulty.PATRON && !worldSurvival && overworld && !addition && districtId == null && !"sculpt".equals(terrain) && !somethingStands
+		return difficulty == Difficulty.PATRON && !worldSurvival && overworld && !addition && districtId == null && takesTerrain(terrain, planShapes) && !somethingStands
 			&& groundHigh - groundLow <= FLAT_RANGE;
+	}
+
+	/** Whether a card's terrain can take a region plan: flat or as found, or (slice M5-SCULPT-2) sculpted when the kept plan carries the shaping. */
+	private static boolean takesTerrain(String terrain, boolean planShapes) {
+		return !"sculpt".equals(terrain) || planShapes;
+	}
+
+	/**
+	 * (slice M5-SCULPT-2) The plan form kinds that move the ground (carve or raise it): with a channel connector, what a kept plan shapes a sculpted site
+	 * with. A form that only stands on the land (a tree, brush, scatter, a fountain, a hidden room) shapes nothing.
+	 */
+	public static final Set<String> SHAPING_FORMS = Set.of("relief", "terrace", "crater", "pond", "waterfall", "hollow_mountain");
+
+	/**
+	 * (slice M5-SCULPT-2) Whether a kept composed plan itself carries the shaping a sculpted card asks for: a channel connector (a carved river, Architect's
+	 * channel.course since API 1.36.0) or a ground-moving form ({@link #SHAPING_FORMS}), not one of the parts that wait for Architect ({@code waiting}: a
+	 * build makes those optional, so they could drop out unsaid as the shaping). Null or unreadable: false. Pure.
+	 */
+	public static boolean carriesShaping(@Nullable JsonObject plan, Set<String> waiting) {
+		return !shapingParts(plan, waiting).isEmpty();
+	}
+
+	/** (slice M5-SCULPT-2) The ids of the plan's parts that carry the shaping ({@link #carriesShaping}), in the plan's order. Pure. */
+	public static List<String> shapingParts(@Nullable JsonObject plan, Set<String> waiting) {
+		List<String> out = new ArrayList<>();
+		if (plan == null) return out;
+		for (String sec : List.of("connectors", "forms")) {
+			if (!plan.has(sec) || !plan.get(sec).isJsonArray()) continue;
+			for (var e : plan.getAsJsonArray(sec)) {
+				if (!e.isJsonObject()) continue;
+				JsonObject o = e.getAsJsonObject();
+				String kind = o.has("kind") && o.get("kind").isJsonPrimitive() ? o.get("kind").getAsString() : "";
+				String id = o.has("id") && o.get("id").isJsonPrimitive() ? o.get("id").getAsString() : null;
+				if (id == null || waiting.contains(id)) continue;
+				if ("connectors".equals(sec) ? "channel".equals(kind) : SHAPING_FORMS.contains(kind)) out.add(id);
+			}
+		}
+		return out;
+	}
+
+	/**
+	 * (slice M5-SCULPT-2, GPT review P1) Whether Architect's check builds the shaping: at least one of {@code shaping} came back fits or adjusted (an
+	 * optional river Architect refused or dropped is no shaping, though the rest of the plan builds). Pure.
+	 */
+	public static boolean shapingBuilt(List<String> shaping, List<JsonObject> checkParts) {
+		for (JsonObject p : checkParts) {
+			String id = p.has("part") && p.get("part").isJsonPrimitive() ? p.get("part").getAsString() : null;
+			String cls = p.has("class") && p.get("class").isJsonPrimitive() ? p.get("class").getAsString() : "";
+			if (id != null && shaping.contains(id) && (cls.equals("fits") || cls.equals("adjusted"))) return true;
+		}
+		return false;
+	}
+
+	/**
+	 * (B092-FIX, batch 092 GPT review P1; Noah 2026-11-21: "One narrow extra round") What a stale artifact's re-check says before anything more is
+	 * pinned, quoted or realised: a sculpted site always stops (a re-check can't show its shaping is still the one approved: an optional part refused
+	 * then may fit now, and a form's geometry may name only the zone it shapes, which moved), so a new Start plans it again; null for any other site,
+	 * whose re-check goes on as before. Pure.
+	 */
+	public static @Nullable String staleRecheckStop(@Nullable String terrain, @Nullable JsonObject frozen, Set<String> waiting) {
+		if (!"sculpt".equals(terrain)) return null;
+		String what = frozen == null ? "shaping of the land" : shapingWords(frozen, shapingParts(frozen, waiting));
+		return "the land changed under the shaped site while its buildings were designed, and its " + what + " was approved for the land as it was; nothing"
+			+ " more is placed or taken: start the build again to plan the site anew";
+	}
+
+	/** (slice M5-SCULPT-2) The shaping parts in words, each by its label else its id's words ("river", "river and crater lake"). Pure. */
+	public static String shapingWords(JsonObject plan, List<String> shaping) {
+		List<String> names = new ArrayList<>();
+		for (String sec : List.of("connectors", "forms")) {
+			if (!plan.has(sec) || !plan.get(sec).isJsonArray()) continue;
+			for (var e : plan.getAsJsonArray(sec)) {
+				if (!e.isJsonObject()) continue;
+				JsonObject o = e.getAsJsonObject();
+				String id = o.has("id") && o.get("id").isJsonPrimitive() ? o.get("id").getAsString() : null;
+				if (id == null || !shaping.contains(id)) continue;
+				String label = o.has("label") && o.get("label").isJsonPrimitive() && !o.get("label").getAsString().isBlank() ? o.get("label").getAsString() : id.replace('_', ' ');
+				names.add(label.toLowerCase(java.util.Locale.ROOT));
+			}
+		}
+		if (names.isEmpty()) return "shaping of the land";
+		return names.size() == 1 ? names.get(0) : String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.get(names.size() - 1);
 	}
 
 	/**
