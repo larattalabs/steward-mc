@@ -941,7 +941,10 @@ class ComposedPlacingCrashTest {
 			assertEquals(0, a.ledger.returned, "an old session's answer took up the build's region: " + log.lines);
 			assertFalse(log.has("taking it up"), "an old session's answer took up the build's region: " + log.lines);
 		}
-		assertTrue(a.regions.get(FakeArchitect.REALISED).present, "the region stands");
+		// (CRASH-T3 GPT review P3) the fake's removal keeps the region's present flag: read its state and its standing sites
+		assertNotEquals(dev.larattalabs.architect.api.RegionState.REMOVED, a.regions.get(FakeArchitect.REALISED).state, "the region stands");
+		assertEquals(Set.of("s_" + FARM, "s_" + HALL, "s_" + COTTAGE), a.sites.values().stream().filter(x -> FakeArchitect.REALISED.equals(x.region))
+			.map(x -> x.id).collect(java.util.stream.Collectors.toSet()), "the region's sites stand");
 		assertEquals(paid, a.ledger.paid);
 		assertEquals(FakeArchitect.REALISED, field("vRegionId"));
 		assertEquals(FakeArchitect.REALISED, disk().vRegion());
