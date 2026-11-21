@@ -313,12 +313,13 @@ test('(B091 switch-off) a driver that never got its slot deletes no world, only 
 const disk2 = await import('../tools/lib/disk.mjs');
 const src2 = () => fs2.readFileSync(new URL('../tools/e2e.mjs', import.meta.url), 'utf8');
 const fs2 = await import('node:fs');
-const TAG_A = 'mabc123-1x0001', TAG_B = 'mabc124-2y0002';
+const TAG_A = 'mabc123_1x0001', TAG_B = 'mabc124_2y0002';
 const A = { run: TAG_A, pid: 101 }, B = { run: TAG_B, pid: 202 };
 
 test('(E2E-DISK-2) a run tag is short and name-safe, and two runs never share one', () => {
   const t1 = disk2.runTag({ now: 1, pid: 5, rand: () => 0 }), t2 = disk2.runTag({ now: 1, pid: 6, rand: () => 0 });
-  assert.match(t1, /^[a-z0-9-]+$/);
+  assert.match(t1, /^[a-z0-9_]+$/, 'name-safe, and a valid blueprint id part (the stub entries carry it)');
+  assert.match(`e2e_stub_${disk2.runTag()}_ui`, /^[a-z0-9_]+$/);
   assert.notEqual(t1, t2, 'the pid is in it');
   assert.notEqual(disk2.runTag({ now: 1, pid: 5, rand: () => 0.5 }), t1, 'and a random part');
   assert.ok(`Steward E2E ${disk2.runTag()}`.length <= 64, "Architect's AutoWorldSpec takes at most 64 characters");

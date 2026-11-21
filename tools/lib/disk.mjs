@@ -140,11 +140,11 @@ export function runItems({ world, saves, keepWorld = false, protect = null, owne
 // ------------------------------------------------------------------ E2E-DISK-2: per-run names, so every delete is provably this run's
 
 /**
- * This run's tag (E2E-DISK-2): base36 time, pid and a random part, [a-z0-9-] only. It names the run's world (`Steward E2E <tag>`), a --clients
+ * This run's tag (E2E-DISK-2): base36 time, pid and a random part, [a-z0-9_] only (an Architect blueprint id's characters). It names the run's world (`Steward E2E <tag>`), a --clients
  * lead's lane dirs (`mod/run-c<k>-<tag>`), its library stub entries and its owner markers, so no other run ever computes the same path.
  */
 export function runTag({ now = Date.now(), pid = process.pid, rand = Math.random } = {}) {
-  return `${now.toString(36)}-${pid.toString(36)}${Math.floor(rand() * 36 ** 4).toString(36).padStart(4, '0')}`;
+  return `${now.toString(36)}_${pid.toString(36)}${Math.floor(rand() * 36 ** 4).toString(36).padStart(4, '0')}`;
 }
 
 /** The fixed e2e world name: --keep-world's, and every run's before E2E-DISK-2 (so the name of the leftovers a run never touches). */
@@ -235,7 +235,7 @@ export function ownsRunDir(dir, owner, { readFile = (p) => fs.readFileSync(p, 'u
  */
 export function laneRunDirs({ modDir, created, lanes, owner = null, tag = null, readFile, keepWorld = false }) {
   const items = [];
-  if (!tag || !/^[a-z0-9-]+$/.test(tag)) return items;
+  if (!tag || !/^[a-z0-9_]+$/.test(tag)) return items;
   for (const dir of created) {
     const m = /^run-c(\d+)-(.+)$/.exec(path.basename(dir));
     if (!m || m[2] !== tag || path.dirname(path.resolve(dir)) !== path.resolve(modDir)) continue;
