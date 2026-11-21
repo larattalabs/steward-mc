@@ -203,6 +203,15 @@ class ModuleTypeFirstBuildTest {
 		assertFalse(said.contains("cellar"));
 		assertNull(SettlementRunner.droppedWords(List.of(), plan, Secrets.NONE));
 		assertEquals("The plan's farm pond is left out too: it served only what is left out.", SettlementRunner.droppedWords(List.of("farm_pond"), plan, Secrets.NONE));
+		// (fix round) a farm kept after all, as an ordinary building, is said so
+		assertNull(SettlementRunner.keptWords(List.of(), plan));
+		assertEquals("After all, the plan's crop farm stays in the town as an ordinary building: the rest of the plan is laid out by it, so leaving it out would stop the whole build.",
+			SettlementRunner.keptWords(List.of("crop_farm_1"), plan));
+		JsonObject placed = plan.deepCopy();
+		placed.getAsJsonArray("zones").get(1).getAsJsonObject().add("where", json("{\"adjacent\":{\"to\":{\"part\":\"fields\"}}}"));
+		var kept = SettlementRunner.withModulesApplied(placed, Map.of(), ModuleTypes.KNOWN, Set.of());
+		assertEquals(List.of("crop_farm_1"), kept.kept());
+		assertEquals(kept.plan(), SettlementRunner.withModules(placed, Map.of(), ModuleTypes.KNOWN, Set.of("crop_farm_1")), "a resume (the farm laid out) builds the same plan");
 	}
 
 	@Test

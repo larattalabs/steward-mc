@@ -86,8 +86,32 @@ class PlanPruneTest {
 			"dependencies":[{"part":"fields","after":["town"]},{"part":"main_road","after":["fields","green"]},{"part":"green","after":["quarters"]}]"""));
 		JsonArray deps = r.plan().getAsJsonArray("dependencies");
 		assertEquals(2, deps.size(), deps.toString());
-		assertEquals("{\"part\":\"main_road\",\"after\":[\"town\",\"green\"]}", deps.get(0).toString(), "after the fields: after what the fields were after");
+		assertEquals("{\"part\":\"main_road\",\"after\":[\"green\"]}", deps.get(0).toString(), "the fields go; after the town it stays, by its own end");
 		assertEquals("{\"part\":\"green\",\"after\":[\"quarters\"]}", deps.get(1).toString(), "untouched");
+	}
+
+	/** (fix round, GPT P1) An order the plan held through a dropped zone's own locator (R3: implicit) is written out. */
+	@Test
+	void anOrderThroughADroppedZonesLocatorIsKept() {
+		JsonObject p = plan("""
+			"forms":[{"id":"spire","kind":"rock_spire","where":{"near":{"anchor":"claim_center"}}}],
+			"dependencies":[{"part":"town","after":["fields"]}]""");
+		p.getAsJsonArray("zones").get(1).getAsJsonObject().add("where", JsonParser.parseString("{\"near\":{\"feature\":{\"part\":\"spire\"}}}"));
+		var r = built("deps-implicit", p);
+		assertEquals("[{\"part\":\"town\",\"after\":[\"spire\"]}]", r.plan().getAsJsonArray("dependencies").toString(), "the town stood after the fields, near the spire");
+	}
+
+	/** The order is kept through a chain of dropped parts: the quarters after the farm lane, the lane from the fields, the fields by the spire. */
+	@Test
+	void anOrderThroughTwoDroppedPartsIsKept() {
+		JsonObject p = plan("""
+			"forms":[{"id":"spire","kind":"rock_spire","where":{"near":{"anchor":"claim_center"}}}],
+			"connectors":[{"id":"farm_lane","kind":"path","from":{"part":"fields"},"to":{"anchor":"claim_s"}}],
+			"dependencies":[{"part":"quarters","after":["farm_lane"]}]""");
+		p.getAsJsonArray("zones").get(1).getAsJsonObject().add("where", JsonParser.parseString("{\"near\":{\"feature\":{\"part\":\"spire\"}}}"));
+		var r = built("deps-chain", p);
+		assertEquals(List.of("farm_lane"), r.dropped());
+		assertEquals("[{\"part\":\"quarters\",\"after\":[\"spire\"]}]", r.plan().getAsJsonArray("dependencies").toString());
 	}
 
 	@Test
@@ -134,22 +158,63 @@ class PlanPruneTest {
 			  {"id":"oak","kind":"giant_tree","where":{"near":{"feature":{"part":"crop_farm_3"}}}},
 			  {"id":"terraces","kind":"terrace","where":{"adjacent":{"to":{"part":"fields"}}}}],
 			"connectors":[{"id":"fields_wall","kind":"wall","where":{"inside":{"part":"fields"}}},
-			  {"id":"town_road","kind":"road","from":{"anchor":"claim_s"},"to":{"part":"town"},"avoid":[{"part":"fields"},{"water":{}}]}]"""));
+			  {"id":"town_road","kind":"road","from":{"anchor":"claim_s"},"to":{"part":"town"},"avoid":[{"part":"fields"},{"part":"crop_farm_3"},{"water":{}}]}]"""));
 		JsonObject plan = r.plan();
 		assertEquals(List.of("oak"), ids(plan, "forms"));
 		assertEquals("{\"near\":{\"feature\":{\"part\":\"town\"}}}", part(plan, "forms", "oak").get("where").toString(), "near a lot of a zone still built: the zone");
 		assertEquals(List.of("town_road"), ids(plan, "connectors"));
-		assertEquals("[{\"water\":{}}]", part(plan, "connectors", "town_road").get("avoid").toString());
+		assertEquals("[{\"water\":{}}]", part(plan, "connectors", "town_road").get("avoid").toString(), "a gone lot isn't avoided as its whole zone");
 		assertEquals(List.of("farm_pond", "fields_wall", "terraces"), r.dropped().stream().sorted().toList());
 	}
 
+	/** (fix round, GPT P1) A zone placed by a dropped zone is never unplaced: the farm stays, as an ordinary lot, and the town keeps its place. */
 	@Test
-	void aZoneWhoseLocatorNamedADroppedZoneKeepsItsLotsAndLosesItsWhere() {
+	void aZonePlacedByADroppedZoneKeepsItAsAnOrdinaryLot() {
 		JsonObject p = plan("");
 		p.getAsJsonArray("zones").get(0).getAsJsonObject().add("where", JsonParser.parseString("{\"adjacent\":{\"to\":{\"part\":\"fields\"}}}"));
+		JsonObject farm = p.getAsJsonArray("zones").get(1).getAsJsonObject().getAsJsonObject("program").getAsJsonArray("lots").get(0).getAsJsonObject();
+		farm.add("ext", JsonParser.parseString("{\"" + ComposedModules.EXT + "\":{\"id\":\"crop_farm\"},\"other\":1}"));
 		var r = built("zone-where", p);
-		assertFalse(part(r.plan(), "zones", "town").has("where"));
-		assertEquals(1, part(r.plan(), "zones", "town").getAsJsonObject("program").getAsJsonArray("lots").size(), "the cottage stays");
+		assertEquals(List.of("crop_farm_1"), r.kept());
+		assertEquals("{\"adjacent\":{\"to\":{\"part\":\"fields\"}}}", part(r.plan(), "zones", "town").get("where").toString());
+		JsonObject kept = part(r.plan(), "zones", "fields").getAsJsonObject("program").getAsJsonArray("lots").get(0).getAsJsonObject();
+		assertFalse(ComposedModules.marked(kept), "an ordinary lot now: " + kept);
+		assertEquals("{\"other\":1}", kept.get("ext").toString());
+		assertEquals(List.of("town", "quarters", "fields").stream().sorted().toList(), ids(r.plan(), "zones").stream().sorted().toList());
+		assertEquals(1, part(r.plan(), "zones", "town").getAsJsonObject("program").getAsJsonArray("lots").size(), "the town's third farm still goes");
+	}
+
+	/** (fix round, GPT P1) A town hanging from a form placed by the dropped fields: the form isn't dropped from under it; the farm stays instead. */
+	@Test
+	void aFormAZoneIsPlacedByIsNeverDroppedFromUnderIt() {
+		JsonObject p = plan("""
+			"forms":[{"id":"isle","kind":"floating_island","where":{"near":{"feature":{"part":"fields"}}}}]""");
+		p.getAsJsonArray("zones").get(0).getAsJsonObject().add("where", JsonParser.parseString("{\"inside\":{\"part\":\"isle\"}}"));
+		var r = built("isle", p);
+		assertEquals(List.of("isle"), ids(r.plan(), "forms"));
+		assertEquals(List.of("crop_farm_1"), r.kept());
+		assertEquals(List.of(), r.dropped());
+		assertTrue(part(r.plan(), "zones", "town").has("where"));
+	}
+
+	/** (fix round, GPT P2) Orders that would need more than Architect's 128 dependencies: the farm stays instead. */
+	@Test
+	void anOrderPastTheDependencyLimitKeepsTheFarm() {
+		StringBuilder c = new StringBuilder("\"connectors\":[");
+		for (int i = 0; i < 60; i++) c.append(i == 0 ? "" : ",").append("{\"id\":\"road_").append(i).append("\",\"kind\":\"road\",\"from\":{\"anchor\":\"claim_s\"},\"via\":[{\"part\":\"fields\"}],\"to\":{\"part\":\"quarters\"}}");
+		c.append("],\"rules\":[");
+		for (int i = 0; i < 30; i++) c.append(i == 0 ? "" : ",").append("{\"id\":\"oak_").append(i).append("\",\"kind\":\"palette\",\"family\":\"oak\",\"scope\":[\"fields\",\"quarters\"]}");
+		c.append("],\"forms\":[{\"id\":\"spire\",\"kind\":\"rock_spire\",\"where\":{\"near\":{\"anchor\":\"claim_center\"}}}");
+		for (int i = 0; i < 30; i++) c.append(",{\"id\":\"blend_").append(i).append("\",\"kind\":\"relief\",\"around\":[\"fields\",\"quarters\"]}");
+		c.append("],\"dependencies\":[{\"part\":\"quarters\",\"after\":[\"spire\"]}");
+		// 124 parts (Architect's cap is 128): 120 would each be written after the spire, past 128 entries with these 10
+		for (int i = 0; i < 9; i++) c.append(",{\"part\":\"oak_").append(i).append("\",\"after\":[\"town\"]}");
+		c.append("]");
+		JsonObject p = plan(c.toString());
+		p.getAsJsonArray("zones").get(1).getAsJsonObject().add("where", JsonParser.parseString("{\"near\":{\"feature\":{\"part\":\"spire\"}}}"));
+		var r = built("deps-limit", p);
+		assertEquals(List.of("crop_farm_1"), r.kept());
+		assertTrue(r.plan().getAsJsonArray("dependencies").size() <= 128);
 	}
 
 	// ------------------------------------------------------------------ a form's around, a rule's scope, a hidden room's host
@@ -199,7 +264,7 @@ class PlanPruneTest {
 			"dependencies":[{"part":"quarters","after":["farm_lane"]}]"""));
 		assertEquals(List.of(), ids(r.plan(), "connectors"), "the lane, its gate, the plan's one wall and the gate that stood in it");
 		assertEquals(List.of(), ids(r.plan(), "rules"));
-		assertEquals(0, r.plan().getAsJsonArray("dependencies").size());
+		assertEquals("[{\"part\":\"quarters\",\"after\":[\"town\"]}]", r.plan().getAsJsonArray("dependencies").toString(), "after the lane: after where the lane began");
 	}
 
 	/** A gate on a dropped crossing or in a dropped wall goes while another wall stands; a route to a form that went (written before it) goes too. */
@@ -307,7 +372,9 @@ class PlanPruneTest {
 			if (f.equals("forms") && p.has("around") && p.get("around").isJsonArray()) for (JsonElement a : p.getAsJsonArray("around")) place.accept(a.getAsString(), false);
 			if (f.equals("rules") && p.has("scope") && p.get("scope").isJsonArray()) for (JsonElement a : p.getAsJsonArray("scope")) place.accept(a.getAsString(), false);
 		}
+		if (plan.has("dependencies") && plan.getAsJsonArray("dependencies").size() > 128) bad.add("more than 128 dependencies");
 		if (plan.has("dependencies")) for (JsonElement el : plan.getAsJsonArray("dependencies")) {
+			if (el.getAsJsonObject().getAsJsonArray("after").size() > 16) bad.add("more than 16 afters");
 			JsonObject d = el.getAsJsonObject();
 			place.accept(d.get("part").getAsString(), false);
 			if (d.getAsJsonArray("after").isEmpty()) bad.add("after [] of " + d.get("part").getAsString());

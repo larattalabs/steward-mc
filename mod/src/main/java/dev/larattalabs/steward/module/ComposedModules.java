@@ -502,58 +502,111 @@ public final class ComposedModules {
 
 	/**
 	 * As {@link #apply}, with the parts (connectors, forms, rules) that went with what was left out: (slice MODULE-TYPE-3) every other reference to a
-	 * left-out lot or a dropped district or zone is settled by {@link PlanPrune}, so Architect's check never meets an id the plan no longer holds. Pure.
+	 * left-out lot or a dropped district or zone is settled by {@link PlanPrune}, so Architect's check never meets an id the plan no longer holds.
+	 * (fix round, GPT P1/P2) Where that can't be done safely (a zone still built is placed by what would go, or the build order would need more than
+	 * Architect's 128 dependencies), the left-out lots stay in the plan as ordinary lots ({@link PlanPrune.Result#kept}), so the player never loses the
+	 * whole build: first one emptied zone's or district's, then every emptied one's, then every left-out lot. Pure; deterministic.
 	 */
 	public static PlanPrune.Result applied(JsonObject plan, Map<String, ModuleOrder> orders, Set<String> leftOut) {
+		Once first = once(plan, orders, leftOut, Set.of());
+		if (!first.pruned().unsafe()) return first.pruned().result();
+		List<Set<String>> tries = new ArrayList<>();
+		for (List<String> h : first.holders()) tries.add(new java.util.LinkedHashSet<>(h));
+		Set<String> emptied = new java.util.LinkedHashSet<>();
+		first.holders().forEach(emptied::addAll);
+		tries.add(emptied);
+		tries.add(new java.util.LinkedHashSet<>(first.left()));
+		for (Set<String> keep : tries) {
+			if (keep.isEmpty()) continue;
+			Set<String> less = new java.util.HashSet<>(leftOut);
+			less.removeAll(keep);
+			Once t = once(plan, orders, less, keep);
+			if (!t.pruned().unsafe()) return new PlanPrune.Result(t.pruned().result().plan(), t.pruned().result().dropped(), List.copyOf(keep));
+		}
+		// not reached (the last try leaves no lot out, so nothing is gone): every left-out lot kept
+		return new PlanPrune.Result(once(plan, orders, Set.of(), new java.util.HashSet<>(first.left())).pruned().result().plan(), List.of(), List.copyOf(first.left()));
+	}
+
+	/** One pass of {@link #applied}: the prune, the lots of each zone or district it emptied, and every left-out lot it took (in plan order). */
+	private record Once(PlanPrune.Pruned pruned, List<List<String>> holders, List<String> left) {}
+
+	private static Once once(JsonObject plan, Map<String, ModuleOrder> orders, Set<String> leftOut, Set<String> kept) {
 		JsonObject out = plan.deepCopy();
-		if (!out.has("zones") || !out.get("zones").isJsonArray()) return new PlanPrune.Result(out, List.of());
+		List<List<String>> holders = new ArrayList<>();
+		List<String> left = new ArrayList<>();
+		if (!out.has("zones") || !out.get("zones").isJsonArray()) return new Once(new PlanPrune.Pruned(new PlanPrune.Result(out, List.of()), false), holders, left);
 		Set<String> gone = new java.util.HashSet<>();
-		// a gone lot or district, to its zone (a stand-in while that zone is built)
+		// a gone lot, to its zone (a stand-in while that zone is built)
 		Map<String, String> zoneOf = new java.util.HashMap<>();
 		JsonArray zones = new JsonArray();
 		for (JsonElement z : out.getAsJsonArray("zones")) {
 			if (!z.isJsonObject() || !z.getAsJsonObject().has("program") || !z.getAsJsonObject().get("program").isJsonObject()) { zones.add(z); continue; }
-			String zoneId = z.getAsJsonObject().has("id") && z.getAsJsonObject().get("id").isJsonPrimitive() ? z.getAsJsonObject().get("id").getAsString() : null;
+			String zoneId = PlanPrune.str(z.getAsJsonObject(), "id");
 			JsonObject program = z.getAsJsonObject().getAsJsonObject("program");
-			boolean emptied;
+			Lots r;
 			if (program.has("districts") && program.get("districts").isJsonArray()) {
-				JsonArray kept = new JsonArray();
+				JsonArray keptDistricts = new JsonArray();
 				int before = program.getAsJsonArray("districts").size();
+				List<String> zoneLeft = new ArrayList<>();
 				for (JsonElement d : program.getAsJsonArray("districts")) {
-					if (!d.isJsonObject() || !rewrite(d.getAsJsonObject(), "lots", orders, leftOut, gone, zoneOf, zoneId)) { kept.add(d); continue; }
-					if (d.getAsJsonObject().has("id") && d.getAsJsonObject().get("id").isJsonPrimitive()) {
-						String did = d.getAsJsonObject().get("id").getAsString();
-						gone.add(did);
-						if (zoneId != null) zoneOf.put(did, zoneId);
-					}
+					Lots dl = d.isJsonObject() ? rewrite(d.getAsJsonObject(), "lots", orders, leftOut, kept, gone, zoneOf, zoneId, left) : Lots.NONE;
+					zoneLeft.addAll(dl.left());
+					if (!dl.emptied()) { keptDistricts.add(d); continue; }
+					holders.add(dl.left());
+					String did = PlanPrune.str(d.getAsJsonObject(), "id");
+					if (did != null) gone.add(did);
 				}
-				program.add("districts", kept);
-				emptied = before > 0 && kept.isEmpty();
-			} else if (program.has("lots") && program.get("lots").isJsonArray()) emptied = rewrite(program, "lots", orders, leftOut, gone, zoneOf, zoneId);
-			else if (program.has("params") && program.get("params").isJsonObject()) emptied = rewrite(program.getAsJsonObject("params"), "lots", orders, leftOut, gone, zoneOf, zoneId);
-			else emptied = false;
-			if (!emptied) zones.add(z);
-			else if (zoneId != null) gone.add(zoneId);
+				program.add("districts", keptDistricts);
+				r = new Lots(before > 0 && keptDistricts.isEmpty(), zoneLeft);
+			} else if (program.has("lots") && program.get("lots").isJsonArray()) r = rewrite(program, "lots", orders, leftOut, kept, gone, zoneOf, zoneId, left);
+			else if (program.has("params") && program.get("params").isJsonObject()) r = rewrite(program.getAsJsonObject("params"), "lots", orders, leftOut, kept, gone, zoneOf, zoneId, left);
+			else r = Lots.NONE;
+			if (!r.emptied()) zones.add(z);
+			else {
+				if (zoneId != null) gone.add(zoneId);
+				// a zone's districts were each a holder already
+				if (!program.has("districts")) holders.add(r.left());
+			}
 		}
 		out.add("zones", zones);
 		Map<String, String> standIn = new java.util.HashMap<>();
 		zoneOf.forEach((id, zone) -> { if (!gone.contains(zone)) standIn.put(id, zone); });
-		return PlanPrune.prune(out, gone, standIn);
+		return new Once(PlanPrune.prune(plan, out, gone, standIn), holders, left);
 	}
 
-	/** Rewrites {@code holder}'s lots; true when it had lots and every one was left out (the holder is then dropped by {@link #apply}). */
-	private static boolean rewrite(JsonObject holder, String member, Map<String, ModuleOrder> orders, Set<String> leftOut, Set<String> gone,
-		Map<String, String> zoneOf, @Nullable String zoneId) {
-		if (!holder.has(member) || !holder.get(member).isJsonArray()) return false;
+	/** A holder's lots rewritten: whether it had lots and every one was left out, and the lots it left out. */
+	private record Lots(boolean emptied, List<String> left) {
+		static final Lots NONE = new Lots(false, List.of());
+	}
+
+	/**
+	 * Rewrites {@code holder}'s lots: each in {@code leftOut} goes ({@code gone}, with its zone in {@code zoneOf}), each in {@code kept} stays as an
+	 * ordinary lot (its module marker taken off), each with an order is {@link #builtLot}.
+	 */
+	private static Lots rewrite(JsonObject holder, String member, Map<String, ModuleOrder> orders, Set<String> leftOut, Set<String> kept, Set<String> gone,
+		Map<String, String> zoneOf, @Nullable String zoneId, List<String> left) {
+		if (!holder.has(member) || !holder.get(member).isJsonArray()) return Lots.NONE;
 		int before = holder.getAsJsonArray(member).size();
 		JsonArray next = new JsonArray();
+		List<String> mine = new ArrayList<>();
 		for (JsonElement l : holder.getAsJsonArray(member)) {
 			if (!l.isJsonObject() || !l.getAsJsonObject().has("id")) { next.add(l); continue; }
 			JsonObject lot = l.getAsJsonObject();
 			String id = lot.get("id").getAsString();
 			if (leftOut.contains(id)) {
 				gone.add(id);
+				mine.add(id);
+				left.add(id);
 				if (zoneId != null) zoneOf.put(id, zoneId);
+				continue;
+			}
+			if (kept.contains(id)) {
+				JsonObject plain = lot.deepCopy();
+				if (marked(plain)) {
+					plain.getAsJsonObject("ext").remove(EXT);
+					if (plain.getAsJsonObject("ext").isEmpty()) plain.remove("ext");
+				}
+				next.add(plain);
 				continue;
 			}
 			ModuleOrder o = orders.get(id);
@@ -561,7 +614,7 @@ public final class ComposedModules {
 			next.add(kind.isPresent() ? builtLot(lot, kind.get(), o) : lot);
 		}
 		holder.add(member, next);
-		return before > 0 && next.isEmpty();
+		return new Lots(before > 0 && next.isEmpty(), mine);
 	}
 
 	/** An artifact lot's front ({@code south} when it names none). */

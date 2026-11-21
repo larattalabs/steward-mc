@@ -1865,6 +1865,25 @@ public final class SettlementRunner {
 	 * (slice MODULE-TYPE-3) What the steward says, once before the check, of the parts that went with the left-out lots (a road, a wall, a rule that
 	 * served only them): each by its label, else its id's words; a secret part (S-7c-4) as "one part". Null when none went. Pure.
 	 */
+	/**
+	 * (MODULE-TYPE-3 fix round) What the steward says of left-out lots kept in the plan after all, as ordinary buildings, because other parts of the
+	 * plan are placed by them (or the build order couldn't be written without them). Null when none. Pure.
+	 */
+	static @org.jspecify.annotations.Nullable String keptWords(java.util.List<String> kept, JsonObject plan) {
+		if (kept.isEmpty()) return null;
+		Map<String, JsonObject> byId = new HashMap<>();
+		for (JsonObject l : dev.larattalabs.steward.gateway.PPlan.lots(plan)) byId.putIfAbsent(l.get("id").getAsString(), l);
+		List<String> names = new ArrayList<>();
+		for (String id : kept) {
+			String n = byId.containsKey(id) ? dev.larattalabs.steward.gateway.PPlan.role(byId.get(id)) : id.replace('_', ' ');
+			if (!names.contains(n)) names.add(n);
+		}
+		String list = names.size() == 1 ? names.get(0) : String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.get(names.size() - 1);
+		boolean one = kept.size() == 1;
+		return "After all, the plan's " + list + (one ? " stays" : " stay") + " in the town as " + (one ? "an ordinary building" : "ordinary buildings")
+			+ ": the rest of the plan is laid out by " + (one ? "it" : "them") + ", so leaving " + (one ? "it" : "them") + " out would stop the whole build.";
+	}
+
 	static @org.jspecify.annotations.Nullable String droppedWords(java.util.List<String> dropped, JsonObject plan, Secrets secrets) {
 		if (dropped.isEmpty()) return null;
 		Map<String, String> labels = new HashMap<>();
@@ -2006,6 +2025,8 @@ public final class SettlementRunner {
 		JsonObject built = applied.plan();
 		String went = droppedWords(applied.dropped(), base, Secrets.of(base, null));
 		if (went != null) say(went);
+		String stays = keptWords(applied.kept(), base);
+		if (stays != null) say(stays);
 		int session = Session.current();
 		// a plan Architect can't check, or without lots: the flat village for a Patron town; a Supplied one stops before anything is spent (its survey was taken
 		// before its stockpile and that ground's protection, so Steward's own layout over it could pay for designs that then don't fit), and is started again
