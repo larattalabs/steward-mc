@@ -390,7 +390,7 @@ public final class CardScreen extends KitScreen {
 			for (int i = programScroll; i < Math.min(card.program().size(), programScroll + fit); i++) {
 				ConceptCard.Building b = card.program().get(i);
 				int iy = ry + 4 + (i - programScroll) * rowH();
-				Panels.dot(g, b.landmark() ? "thinking" : "idle", rx + 5, iy + 1, false);
+				statusDot(g, b.landmark() ? "thinking" : "idle", rx + 5, iy + 1);
 				String fp = b.footprint();
 				int fpw = font.width(fp) + 10;
 				Panels.pill(g, font, fp, rx + colW - fpw - 6 - (card.program().size() > fit ? 6 : 0), iy - 1, UiBits.muted());

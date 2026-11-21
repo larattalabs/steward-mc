@@ -1528,6 +1528,27 @@ async function uiPr(id) {
     await sleep(1500);
     if (/InboxScreen/.test(await screen())) shots.push(await shot('pr__inbox_sample_text150__s4'));
     await closeScreens();
+    // (LUI3-S) lab-ui 0.6.2's Okabe-Ito paper dots on the screens: the inbox's samples (the waiting pill's #654600 dot, the ideas' idle dots)
+    // and the building (its pill, its history) at 100 % x GUI 2, then at 150 % x GUI 4
+    await dev.request('dev.pr.palette', { palette: 'okabe_ito' });
+    for (const [pct, s] of [[100, 2], [150, 4]]) {
+      await dev.request('dev.pr.textScale', { percent: pct });
+      await dev.request('dev.gui.scale', { scale: s });
+      await cmd('/steward ui sample e2e');
+      await sleep(1500);
+      if (/InboxScreen/.test(await screen())) shots.push(await shot(`pr__inbox_sample_okabe_text${pct}__s${s}`));
+      await closeScreens();
+      await cmd(`/steward view ${id}`);
+      await sleep(1500);
+      await key('down');
+      await key('enter');
+      await sleep(600);
+      if (/BuildingScreen/.test(await screen())) shots.push(await shot(`pr__building_okabe_text${pct}__s${s}`));
+      await closeScreens();
+    }
+    await dev.request('dev.pr.palette', { palette: 'standard' });
+    await dev.request('dev.pr.textScale', { percent: 150 });
+    await dev.request('dev.gui.scale', { scale: 4 });
     // (the card opens only for a described settlement; this one is not)
     if (['settlement', 'building', 'inbox', 'talk', 'describe'].every((w) => opened.includes(w))) ok('ui-pr screens', `opened at 150 % x GUI 4: ${opened.join(', ')}`);
     else fail('ui-pr screens', `opened only ${opened.join(', ')}`);
@@ -1541,6 +1562,11 @@ async function uiPr(id) {
       await cmd(`/tp @p ${(p[0] + 2).toFixed(1)} ${p[1].toFixed(1)} ${(p[2] + 4).toFixed(1)} facing ${p[0].toFixed(1)} ${(p[1] + 1.8).toFixed(1)} ${p[2].toFixed(1)}`);
       await sleep(1500);
       shots.push(await shot('pr__plate_bubble_text150'));
+      // (LUI3-S) the nameplate's dot in lab-ui's Okabe-Ito HUD set
+      await dev.request('dev.pr.palette', { palette: 'okabe_ito' });
+      await sleep(800);
+      shots.push(await shot('pr__plate_bubble_okabe_text150'));
+      await dev.request('dev.pr.palette', { palette: 'standard' });
     }
     if (mine) {
       const [px, py, pz] = mine.slice(1).map((n) => Math.floor(Number(n)));

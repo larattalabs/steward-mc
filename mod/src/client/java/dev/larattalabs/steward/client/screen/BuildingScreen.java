@@ -74,7 +74,7 @@ public final class BuildingScreen extends KitScreen {
 		int fy = top + belowHeader() - 2;
 		fy += drawTip(g, cx, fy, inner, mouseX, mouseY) + 2;
 		String[] st = SettlementScreen.state(b);
-		UiBits.dotPill(g, font, st[0], st[1], cx, fy - 1, UiBits.ink());
+		statusPill(g, st[0], st[1], cx, fy - 1, UiBits.ink());
 		fy += 16 + grow();
 		fy = fact(g, cx, fy, inner, "Design", b.entry() + ", version " + b.version() + (b.updateAvailable() ? " (version " + b.head() + " is ready)"
 			: b.heldFrom() > 0 && b.head() > b.version() ? " (you went back from version " + b.heldFrom() + "; it is not offered again)" : b.head() > b.version() ? "" : " (the newest)"));
@@ -97,7 +97,7 @@ public final class BuildingScreen extends KitScreen {
 			for (int i = scroll; i < Math.min(ops.size(), scroll + fit); i++) {
 				SettlementView.Op o = ops.get(i);
 				int ry = fy + 4 + (i - scroll) * ROW_H;
-				Panels.dot(g, SettlementScreen.outcomeFamily(o), cx + 5, ry + 1, false);
+				statusDot(g, SettlementScreen.outcomeFamily(o), cx + 5, ry + 1);
 				String when = UiBits.ago(o.at());
 				g.text(font, SettlementScreen.kindLabel(o.kind()), cx + 15, ry, UiBits.ink(), false);
 				g.text(font, when, cx + inner - 8 - font.width(when), ry, UiBits.muted(), false);

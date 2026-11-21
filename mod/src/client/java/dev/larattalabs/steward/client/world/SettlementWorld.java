@@ -249,7 +249,7 @@ public final class SettlementWorld {
 		float x0 = -w / 2f, y0 = -h;
 		WorldUi.submitNineSlice(ps, c, WorldUi.Layer.SOLID, Kit.NAMEPLATE, x0, y0, w, h, 0xFFFFFFFF, light);
 		float tx = x0 + pad.left() + 1, ty = y0 + pad.top() + 1;
-		WorldUi.submitSprite(ps, c, WorldUi.Layer.OVERLAY, Kit.dot(family, false), tx + (inner - font.width(title) - 10) / 2f, ty + 1, 7, 7, 0.15f, 0xFFFFFFFF, light);
+		WorldUi.submitSprite(ps, c, WorldUi.Layer.OVERLAY, Kit.dot(family, false, dev.larattalabs.labui.ui.GhostPalette.current()), tx + (inner - font.width(title) - 10) / 2f, ty + 1, 7, 7, 0.15f, 0xFFFFFFFF, light);
 		ps.pushPose();
 		double dd = Math.sqrt(x * x + y * y + z * z);
 		float px = WorldUi.PX * scale;

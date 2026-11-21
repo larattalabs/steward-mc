@@ -63,4 +63,12 @@ class StewardHelpTest {
 		assertFalse(StewardHelp.rows(StewardHelp.Screen.TALK, bound::get).stream().anyMatch(r -> r.verb().contains("survey")), "only where it helps");
 		for (StewardHelp.Screen s : StewardHelp.Screen.values()) assertFalse(StewardHelp.rows(s, bound::get).isEmpty());
 	}
+
+	@Test
+	void theOverlaySendsThePlayerToArchitectsHelpForEveryTerm() {
+		// (LUI3-S) set on lab-ui 0.6.2's KeysOverlay.footer / moreTerms; no longer than lab-ui's default footer, which fits at 150 % x GUI 4
+		assertEquals("Esc or ? closes · all terms: Architect's Help", StewardHelp.FOOTER);
+		assertEquals("+3 more in Architect's Help", StewardHelp.moreTerms(3));
+		assertTrue(StewardHelp.FOOTER.length() <= HelpKeys.DEFAULT_FOOTER.length(), StewardHelp.FOOTER);
+	}
 }
