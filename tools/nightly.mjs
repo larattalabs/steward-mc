@@ -16,6 +16,7 @@
 //   - the night is skipped (exit 0, SUMMARY.md says why) if artifacts/nightly/skip-<local date> exists (one night, on purpose), if the e2e ports (8590/8591) are taken,
 //     or if a claude-login opt-in exists in this checkout or the worktree (other clients are the slot queue's business, not a reason to skip);
 //   - the main checkout is only fetched, never checked out or pulled; the worktree is moved only when clean, else the night is skipped;
+//   - no night below E2E_MIN_FREE_GIB (default 150) free on the worktree's volume: SUMMARY.md says NOSPACE, exit 5 (tools/lib/disk.mjs);
 //   - a hard limit of 2 h 45 min for the whole night: past it, the e2e's own process group (started here) is stopped and the night is a TIMEOUT.
 // It runs beside Architect's 02:00 nightly without clashing: other ports (Architect's gates use 8890-8905), and each e2e step takes one slot from
 // Architect's machine-wide queue (slice SQ: held by this process, handed to the step's e2e as E2E_SLOT_TICKET, released when the step ends);
@@ -28,6 +29,7 @@ import { fileURLToPath } from 'node:url';
 import { useRamTmp } from './lib/ram-tmp.mjs';
 import { acquire as acquireSlot, release as releaseSlot } from './lib/slot-queue.mjs';
 import { onStop, waitFor, shuttingDownNow } from './lib/shutdown.mjs';
+import { checkFreeSpace, EXIT_LOW_DISK } from './lib/disk.mjs';
 
 // (batch-074 fix-check) a signal stops the running step's process group (its e2e quits its own client) before the night's slot goes back
 const running = new Set();
@@ -71,7 +73,17 @@ async function night(dry) {
     if (!dry) writeSummary(out, { verdict: 'SKIPPED', why });
     return;
   }
+  // slice E2E-DISK (mod/DEV.md "Disk"): no night below E2E_MIN_FREE_GIB (default 150) free on the worktree's volume; SUMMARY.md says NOSPACE, exit 5
+  const space = checkFreeSpace(WT);
+  for (const w of space.warnings) log(w);
+  if (!space.ok) {
+    log(space.message);
+    if (!dry) writeSummary(out, { verdict: 'NOSPACE', why: [space.message] });
+    process.exitCode = EXIT_LOW_DISK;
+    return;
+  }
   if (dry) {
+    log(space.message);
     log(`would run: worktree ${WT} at origin/main, build, e2e free, e2e stub; results in ${out}`);
     return;
   }
@@ -120,6 +132,8 @@ async function night(dry) {
           const names = (s.results ?? []).filter((x) => !x.ok).map((x) => x.check);
           r.failed = [...new Set(names)].map((n) => { const k = names.filter((m) => m === n).length; return k > 1 ? `${n} x${k}` : n; });
           r.checks = (s.results ?? []).length;
+          // what the step's e2e kept after a failure (its world), named in SUMMARY.md with how to delete it
+          if (s.cleanup?.kept?.length) r.kept = { paths: s.cleanup.kept.map((k) => k.path), note: s.cleanup.note };
           fs.rmSync(sum);
         }
         steps.push(r);
@@ -217,12 +231,13 @@ function run(name, argv, cwd, out, deadline, env) {
 function writeSummary(out, s) {
   fs.mkdirSync(out, { recursive: true });
   const lines = [`# Steward nightly ${path.basename(out)}: ${s.verdict}`, ''];
-  if (s.why) lines.push(...s.why.map((w) => `- skipped: ${w}`));
+  if (s.why) lines.push(...s.why.map((w) => `- ${s.verdict === 'NOSPACE' ? 'not run' : 'skipped'}: ${w}`));
   if (s.sha) lines.push(`origin/main ${s.sha}, ${s.minutes.toFixed(1)} min`, '');
   for (const st of s.steps ?? []) {
     if (st.waited) { lines.push(`- **${st.name}:** not run, ${st.waited.waitedMin} min waiting for a slot (load ${st.waited.load ?? '?'}, turbo ${st.waited.turbo})`); continue; }
     const head = `- **${st.name}:** exit ${st.code}${st.timedOut ? ' (TIMEOUT)' : ''}, ${st.minutes.toFixed(1)} min`;
     lines.push(st.checks == null ? head : `${head}, ${st.checks} checks, ${st.failed.length} failed${st.failed.length ? ': ' + st.failed.join(', ') : ''}`);
+    if (st.kept) lines.push(`  - kept for a look: ${st.kept.paths.join(', ')}; ${st.kept.note}`);
   }
   lines.push('', `Logs: ${out}/{build,free,stub}.log`);
   fs.writeFileSync(path.join(out, 'SUMMARY.md'), lines.join('\n') + '\n');

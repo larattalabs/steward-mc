@@ -301,6 +301,28 @@ Every worktree and `--clients` run dir has its own, so by 11-16 sixteen of them 
   client's data, is never removed.
 - **`STEWARD_KEEP_TMP=1`** keeps the dir, still marked. The next Steward e2e run started anywhere sweeps it, so copy out what you need first.
 
+### Disk: cleanup after a run, the free-space guard (slice E2E-DISK, 2026-11-21, $0)
+
+Minecraft/_work grew from 89 GB to about 977 GB (Steward about 684 GB), mostly e2e worlds left in slice and batch worktrees. `tools/lib/disk.mjs`.
+
+- **Cleanup after a run.** Each e2e driver (a `--clients` run's children each on their own run dir) ends by deleting what it made:
+  - this run's world, `<run dir>/saves/Steward E2E` (200-470 MB), and its temp blueprint dirs (`steward-e2e-v2-*`, `steward-e2e-ui-*` in TMPDIR).
+  - A `--clients` lead also deletes each `mod/run-c<k>` it made this run (absent before its lanes started), once every client on it exited 0
+    with no failure and kept nothing; otherwise the dir is listed as kept.
+  - The world is **kept** when a check failed, the run threw, no checks ran, or a signal stopped it; also while a client JVM of this run still
+    runs on the run dir. summary.json's `cleanup` lists `deleted`, `kept` (path, why, client) and `note`, a quoted `rm -rf` line to delete
+    what was kept; the run prints `disk: deleted|kept ...` lines. The nightly copies kept paths and the note into SUMMARY.md.
+  - Never touched: `--keep-world`'s world, `Steward E2E (last)` (an earlier run's world, moved aside by a later run's start; left as it is), the dev
+    world, the run dir's `architect/`, `config`, `logs`, `mods`, `options.txt`, `mod/run` itself, a `mod/run-c<k>` from an earlier run, `artifacts/`
+    (summary.json, shots, snaps: the evidence). A path outside its own root is never deleted, and a symlink is unlinked, never followed.
+  - The sidecar data stays TMPSWEEP's ("Temp dirs" above): removed at every end, failed or not, since keeping 2-6 GB per failed run on the
+    24 GB RAM disk brought back ENOSPC. `STEWARD_KEEP_TMP=1` keeps it for a look.
+- **The free-space guard.** `e2e.mjs` (not `--plan`, not a `--clients` child: its lead checked) and `nightly.mjs` refuse to start when the
+  volume holding the worktree has less than **`E2E_MIN_FREE_GIB`** free (GiB, default **150**; statfs, no disk walk). The refusal says how much
+  is free, writes summary.json with `refused`, and exits **5** (2 is usage, 3 a slot wait, 4 the slot CLI's own); the nightly writes a `NOSPACE` SUMMARY.md, and `--dry` prints the
+  check. Override for one run: `E2E_MIN_FREE_GIB=100 node tools/e2e.mjs free`; `E2E_MIN_FREE_GIB=0` turns the guard off. A statfs error
+  starts the run anyway, with a warning.
+
 ### Faster runs: two clients, skipping unchanged flows (slice EF, 2026-11-15, $0)
 
 Without these flags a run is as before: one client on `mod/run`, every chosen flow run.
