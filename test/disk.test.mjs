@@ -642,3 +642,12 @@ test('(E2E-DISK-3 P2) a module answer file is claimed exclusively before its req
   const src = src2();
   assert.match(src, /const claim = claimAnswerFile\(f\);/, 'e2e.mjs claims the answer file before the request');
 });
+
+test('(E2E-DISK-4) the module tools claim their answer file exclusively before the request, under a per-process tag', () => {
+  for (const t of ['module-measure.mjs', 'module-measure-hall.mjs', 'module-catalog.mjs']) {
+    const src = fs2.readFileSync(path3.join(path3.dirname(new URL(import.meta.url).pathname), '..', 'tools', t), 'utf8');
+    assert.match(src, /import \{[^}]*claimAnswerFile[^}]*\} from '\.\/lib\/disk\.mjs'/, `${t} imports claimAnswerFile`);
+    assert.match(src, /const claim = claimAnswerFile\(f\);/, `${t} claims before the request`);
+    assert.doesNotMatch(src, /const lab = `m\d_\$\{process\.pid\}_\$\{\+\+n/, `${t} names its answer by pid and counter alone`);
+  }
+});
