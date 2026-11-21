@@ -69,7 +69,9 @@ public final class RefusalWords {
 			case PLAYER_BUILD, PLAYER_BLOCKS, PLAYER_EDITS -> "your own build stands there";
 			case DRIFTED, SITE_DRIFTED, ARTIFACT_STALE, REPAIR_STALE -> "the land changed since it was planned";
 			case WORLD_STOPPED -> "the world stopped";
-			case BILL_CAP -> "its bill went past what you approved";
+			// (WORDS-089) its cap is a module's bound: measured unless the player approved a bill since, and a Reason can't say which; the re-asks
+			// that know the order say "its measured limit" or "its approved limit" (ComposedModules.limitWords)
+			case BILL_CAP -> "its bill went past its limit";
 			case NO_ROOM -> "there is no room left for it";
 			case PROGRAM_REFUSED -> "it didn't pass Architect's checks";
 			case PLAN_STALE -> "this Architect is too old for its plan";

@@ -96,11 +96,19 @@ class ComposedLotCapsTest {
 		assertEquals(ComposedModules.CapRefusal.Scope.UNKNOWN_LOT, unknown.scope());
 		String u = ComposedModules.putDownWords(unknown, orders());
 		assertTrue(u.contains("Steward's mistake") && u.contains("won't ask again"), u);
-		for (String region : new String[] {"", null, "something_else"}) {
-			var r = ComposedModules.CapRefusal.of(region);
-			assertEquals(ComposedModules.CapRefusal.Scope.REGION, r.scope());
-			assertEquals("Not placed yet: the materials needed went past what you approved. Nothing was taken from the stockpile; I'll ask you again.",
-				ComposedModules.putDownWords(r, orders()), "the region's cap keeps its words");
+		// (WORDS-089) no region cap is ever sent for a composed town: a detail that doesn't name the lot is one of the lot caps, said by their limit
+		for (String unnamed : new String[] {"", null, "something_else"}) {
+			var r = ComposedModules.CapRefusal.of(unnamed);
+			assertEquals(ComposedModules.CapRefusal.Scope.UNNAMED, r.scope());
+			assertNull(r.lot());
+			String said = ComposedModules.putDownWords(r, orders());
+			assertEquals("Not placed yet: when it was put down, the materials a working module needed went past its measured limit. Nothing was taken"
+				+ " from the stockpile; I'll ask you again.", said);
+			assertFalse(said.contains("you approved"), said);
 		}
+		// one module lot is named, with its limit as the player last set it
+		Map<String, ModuleOrder> one = new java.util.LinkedHashMap<>();
+		one.put("hall_1", orders().get("hall_1"));
+		assertTrue(ComposedModules.putDownWords(ComposedModules.CapRefusal.of(""), one).contains("the materials the working storage hall needed went past its measured limit."));
 	}
 }

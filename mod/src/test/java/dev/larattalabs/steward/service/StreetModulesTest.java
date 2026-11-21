@@ -259,4 +259,12 @@ class StreetModulesTest {
 		assertEquals(1, r.removed());
 		assertEquals(List.of(specs.get(0)), r.specs(), "the landmark barn stays");
 	}
+
+	@Test
+	void theStartHintNeverPromisesEveryBuilding() throws Exception {
+		// (WORDS-089) said before the plan is composed: the storage hall may be a catalog module or, on the street fallback, left out
+		String hint = Actions.startHint("set_1", realCard());
+		assertTrue(hint.startsWith("Saved. Start building: /steward start set_1 "), hint);
+		assertTrue(hint.matches(".*\\(up to \\d+ buildings, about \\$\\d+-\\d+ and \\d+-\\d+ minutes\\)$"), hint);
+	}
 }
