@@ -818,7 +818,13 @@ public final class Actions {
 			waits, refresh));
 	}
 
-	/** The start command to type for a freshly described card: its program's size and a budget at the high estimate, rounded up to $5. */
+	/**
+	 * The start command to type for a freshly described card: its program's size and a budget at the high estimate, rounded up to $5.
+	 * <p>
+	 * (WORDS-089, the M5-SCULPT leftover) Said before the plan is composed, so it can't know which buildings the plan makes working modules (placed
+	 * from the catalog, not designed) or which Start leaves out ({@code StreetModules}: a module lot on the street fallback). The count is a most
+	 * ("up to"), never a promise of every building, and the estimate is on the high side.
+	 */
 	public static String startHint(String id, ConceptCard c) {
 		int n = Math.min(MAX_BUILDINGS, ProgramPlanner.total(c));
 		int flagged = c.hasProgram() ? (int) c.program().stream().filter(ConceptCard.Building::landmark).count() : 0;
@@ -826,7 +832,7 @@ public final class Actions {
 		// copies of a design are free: only the designs are estimated
 		var e = ProgramPlanner.estimate(c, n, landmarks);
 		int budget = (int) (Math.ceil(e.usdHigh() / 5.0) * 5);
-		return String.format("Saved. Start building: /steward start %s %d %d (%d buildings, about $%.0f-%.0f and %d-%d minutes)", id, n, budget, n, e.usdLow(), e.usdHigh(),
+		return String.format("Saved. Start building: /steward start %s %d %d (up to %d buildings, about $%.0f-%.0f and %d-%d minutes)", id, n, budget, n, e.usdLow(), e.usdHigh(),
 			e.minutesLow(), e.minutesHigh());
 	}
 }

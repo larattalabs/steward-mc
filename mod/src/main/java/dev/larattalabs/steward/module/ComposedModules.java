@@ -687,16 +687,22 @@ public final class ComposedModules {
 
 	/**
 	 * (LIFT-S, Architect LCAP) A {@code BILL_CAP} refusal's detail: {@code lot:<id>} (that lot's own bill at put-down was past its cap), {@code
-	 * unknown_lot:<id>} (a cap named a lot the realise doesn't bind: Steward's error, never asked again), or the region's ({@code ""}, anything else).
+	 * unknown_lot:<id>} (a cap named a lot the realise doesn't bind: Steward's error, never asked again), or {@link Scope#UNNAMED} ({@code ""},
+	 * anything else).
+	 * <p>
+	 * (WORDS-089) There is no region cap behind {@code UNNAMED}: a composed realise is sent with lot caps only, never a region {@code maxBill}
+	 * ({@link Caps}; {@code ApprovedRealise.withMaxBillPerLot} with {@code maxBill} null), and a cap covers only the realise it comes with (BC-d).
+	 * Architect 0.89.0 (Quotes.capRefusal) refuses lot caps only as {@code lot:} or {@code unknown_lot:}, so it is only a refusal whose detail this
+	 * Steward can't read (a later or different Architect): one of the lot caps, but which isn't known. Never "what you approved": those caps are measured bounds unless the player approved a bill since.
 	 */
 	public record CapRefusal(Scope scope, @Nullable String lot) {
-		public enum Scope { LOT, UNKNOWN_LOT, REGION }
+		public enum Scope { LOT, UNKNOWN_LOT, UNNAMED }
 
 		public static CapRefusal of(@Nullable String detail) {
 			String d = detail == null ? "" : detail.strip();
 			if (d.startsWith("lot:") && d.length() > 4) return new CapRefusal(Scope.LOT, d.substring(4));
 			if (d.startsWith("unknown_lot:") && d.length() > 12) return new CapRefusal(Scope.UNKNOWN_LOT, d.substring(12));
-			return new CapRefusal(Scope.REGION, null);
+			return new CapRefusal(Scope.UNNAMED, null);
 		}
 	}
 
@@ -708,15 +714,17 @@ public final class ComposedModules {
 
 	/**
 	 * (LIFT-S) What the steward says when a composed realise is refused at put-down ({@code BILL_CAP}), nothing written or taken: a module lot past its
-	 * measured limit is named; the region's keeps its words; an unknown lot is Steward's own error (the build stops). Pure.
+	 * measured limit is named; one whose detail doesn't name the lot ({@link CapRefusal.Scope#UNNAMED}) is said by the limits the orders share
+	 * ({@link ModuleBound#limitOf}); an unknown lot is Steward's own error (the build stops). Pure.
 	 */
 	public static String putDownWords(CapRefusal r, Map<String, ModuleOrder> orders) {
 		return switch (r.scope()) {
-			case LOT -> "Not placed yet: when it was put down, the materials the " + workingName(orders, r.lot()) + " needed went past its limit. Nothing was"
-				+ " taken from the stockpile; I'll ask you again.";
+			case LOT -> "Not placed yet: when it was put down, the materials the " + workingName(orders, r.lot()) + " needed went past "
+				+ (orders.get(r.lot()) == null ? "its limit" : limitWords(orders.get(r.lot()))) + ". Nothing was taken from the stockpile; I'll ask you again.";
 			case UNKNOWN_LOT -> "Not placed: Steward asked Architect to hold a lot the plan doesn't build (" + r.lot().replace('_', ' ') + ") to a bill. That's"
 				+ " Steward's mistake, so nothing is built and I won't ask again. Nothing was taken from the stockpile; start it again.";
-			case REGION -> "Not placed yet: the materials needed went past what you approved. Nothing was taken from the stockpile; I'll ask you again.";
+			case UNNAMED -> "Not placed yet: when it was put down, the materials " + whose(orders) + " needed went past " + ModuleBound.limitOf(orders.values())
+				+ ". Nothing was taken from the stockpile; I'll ask you again.";
 		};
 	}
 
@@ -726,8 +734,12 @@ public final class ComposedModules {
 	 * ModuleBound#limitOf}). Never "what you approved" for a measured bound. Pure.
 	 */
 	static String putDownRefused(Map<String, ModuleOrder> orders) {
-		String who = orders.size() == 1 ? "the " + workingName(orders, orders.keySet().iterator().next()) : "a working module";
-		return ModuleBound.PUT_DOWN_REFUSED + " " + who + " needed went past " + ModuleBound.limitOf(orders.values()) + ".";
+		return ModuleBound.PUT_DOWN_REFUSED + " " + whose(orders) + " needed went past " + ModuleBound.limitOf(orders.values()) + ".";
+	}
+
+	/** Whose materials a put-down refusal that doesn't name its lot was about: the one module lot, else "a working module". Pure. */
+	private static String whose(Map<String, ModuleOrder> orders) {
+		return orders.size() == 1 ? "the " + workingName(orders, orders.keySet().iterator().next()) : "a working module";
 	}
 
 	/** What an order's bound is called: "its approved limit" once the player approved a held bill as its bound, else "its measured limit". Pure. */

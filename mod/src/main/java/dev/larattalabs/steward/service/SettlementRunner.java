@@ -2319,7 +2319,7 @@ public final class SettlementRunner {
 		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.BILL_CAP;
 	}
 
-	/** (LIFT-S) A {@code BILL_CAP} refusal's detail ({@code lot:<id>}, {@code unknown_lot:<id>}, or "" for the region's), or null for another error. */
+	/** (LIFT-S) A {@code BILL_CAP} refusal's detail ({@code lot:<id>}, {@code unknown_lot:<id>}, or one it can't read: never a region cap, WORDS-089), or null for another error. */
 	static @org.jspecify.annotations.Nullable String capDetail(@org.jspecify.annotations.Nullable Throwable err) {
 		Throwable e = err == null ? null : err.getCause() != null ? err.getCause() : err;
 		return e instanceof dev.larattalabs.architect.api.ArchitectRefused r && r.reason() == dev.larattalabs.architect.api.Reason.BILL_CAP ? r.detail() : null;
@@ -4133,7 +4133,7 @@ public final class SettlementRunner {
 			if (replanDistrict(err)) return;
 			// (QD-2, M5b) a composed town's realise refused at put-down (BILL_CAP, under a cap): nothing was written or taken; its orders are marked
 			// refused and saved before it is quoted again, so the next quote is put to the player, also after a restart; unsaved, the build stops
-			// (LIFT-S, Architect LCAP) its detail says which cap: a module lot's own (lot:<id>, named), the region's (""), or a lot the realise doesn't
+			// (LIFT-S, Architect LCAP) its detail says which cap: a module lot's own (lot:<id>, named), one it can't read (UNNAMED: no region cap is sent), or a lot the realise doesn't
 			// bind (unknown_lot:<id>: Steward's error, the build stops, never asked again)
 			// (LIFT-S GPT review P2) sent from READY_TO_PLACE too: a town placed without the player's word realises from there
 			if (billCapped(err) && composedModules() && (state.phase() == Pipeline.Phase.PLACING || state.phase() == Pipeline.Phase.READY_TO_PLACE)) {

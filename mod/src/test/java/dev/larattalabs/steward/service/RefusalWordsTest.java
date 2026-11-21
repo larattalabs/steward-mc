@@ -36,6 +36,8 @@ class RefusalWordsTest {
 		assertEquals(RefusalWords.GENERIC, RefusalWords.reason(null));
 		assertEquals(RefusalWords.GENERIC, RefusalWords.reason(Reason.OTHER));
 		assertEquals("someone is standing where it goes", RefusalWords.reason(Reason.PLAYER_IN_BOX));
+		// (WORDS-089) a bill cap is a module's bound, measured unless approved since: never "what you approved"
+		assertEquals("its bill went past its limit", RefusalWords.reason(Reason.BILL_CAP));
 	}
 
 	@Test

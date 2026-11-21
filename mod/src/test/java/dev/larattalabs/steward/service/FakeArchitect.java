@@ -226,7 +226,7 @@ final class FakeArchitect {
 	final List<dev.larattalabs.architect.api.ApprovedRealise> approved = new ArrayList<>();
 	/** (TESTABLE-ARCH) How {@code realiseApproved} is answered: APPLY (the region id {@code rg_realised}), REFUSE ({@code BILL_CAP}), or HOLD. */
 	Answer realiseAnswer = Answer.HOLD;
-	/** (TESTABLE-ARCH) The detail of a {@code BILL_CAP} refusal ({@code lot:<id>}, {@code unknown_lot:<id>}, or "" for the region's). */
+	/** (TESTABLE-ARCH) The detail of a {@code BILL_CAP} refusal ({@code lot:<id>}, {@code unknown_lot:<id>}, or "" for one Steward can't read). */
 	String capDetail = "lot:hall_1";
 	/** (place-words) When set, {@code realiseApproved} fails with it instead (a refusal other than BILL_CAP). */
 	RuntimeException realiseFailure;
