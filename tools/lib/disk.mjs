@@ -123,25 +123,120 @@ export function cleanupRun(items, { keep = null, hold = null, lstat = fs.lstatSy
 
 /**
  * A single driver's own items (not a --clients lead's): its world under saves, and its temp blueprint dirs. (batch 091 review P2) With --keep-world
- * the world is an item still, protected ('keep-world'): the run's record says it was kept, so a lead never takes the lane for empty.
+ * the world is an item still, protected ('keep-world'): the run's record says it was kept, so a lead never takes the lane for empty. (E2E-DISK-2)
+ * `protect` names any other fixed-name world (an explicit ARCHITECT_AUTOWORLD_NAME); an unprotected world goes only while its owner marker
+ * ({@link markWorld}) still names `owner`, read just before the delete: no owner, no marker or another run's, and it is not touched.
  */
-export function runItems({ world, saves, keepWorld = false, slotWait = false, tempInputs = [], tmp }) {
+export function runItems({ world, saves, keepWorld = false, protect = null, owner = null, readFile, slotWait = false, tempInputs = [], tmp }) {
+  const guard = protect ?? (keepWorld ? 'keep-world' : null);
   return [
     // (batch 091 final review P1, switched off per Noah 11-21) a driver that never got its slot never launched, so the world under its game dir
     // may be another driver's, made during the wait: it is not an item at all. Its temp blueprints (mkdtemp, unique) still go.
-    ...(slotWait ? [] : [{ path: world, root: saves, what: 'the e2e world', ...(keepWorld ? { protect: 'keep-world' } : {}) }]),
+    ...(slotWait ? [] : [{ path: world, root: saves, what: 'the e2e world', ...(guard ? { protect: guard } : {}), verify: () => ownsRunDir(world, owner, readFile ? { readFile } : {}) }]),
     ...tempInputs.map((p) => ({ path: p, root: tmp, what: 'a temp blueprint', always: true })),
   ];
 }
 
-/**
- * (batch 091 final review P1, Noah 11-21 via parent: "Merge with risky deletes off") A --clients lead neither claims nor deletes its lanes'
- * run-c<k> dirs: another run can reuse a lane between its claim and its delete. Off until E2E-DISK-2 gives each run its own dirs; the
- * helpers below stay for it. Each child still deletes its own passing world inside its lane (runItems).
- */
-export const DELETE_LANE_DIRS = false;
+// ------------------------------------------------------------------ E2E-DISK-2: per-run names, so every delete is provably this run's
 
-/** The owner marker a --clients lead writes into a run-c<k> it made (batch 091 review P1). */
+/**
+ * This run's tag (E2E-DISK-2): base36 time, pid and a random part, [a-z0-9_] only (an Architect blueprint id's characters). It names the run's world (`Steward E2E <tag>`), a --clients
+ * lead's lane dirs (`mod/run-c<k>-<tag>`), its library stub entries and its owner markers, so no other run ever computes the same path.
+ */
+export function runTag({ now = Date.now(), pid = process.pid, rand = Math.random } = {}) {
+  return `${now.toString(36)}_${pid.toString(36)}${Math.floor(rand() * 36 ** 4).toString(36).padStart(4, '0')}`;
+}
+
+/** The fixed e2e world name: --keep-world's, and every run's before E2E-DISK-2 (so the name of the leftovers a run never touches). */
+export const E2E_WORLD_NAME = 'Steward E2E';
+
+/**
+ * This driver's world (E2E-DISK-2): `Steward E2E <tag>`, new each run (perRun) and its to delete once it passed. With --keep-world, the fixed name
+ * (or ARCHITECT_AUTOWORLD_NAME), protected 'keep-world'; an explicit ARCHITECT_AUTOWORLD_NAME without it, that world, protected too (a world
+ * someone named may hold anything). -> {name, path, perRun, protect}.
+ */
+export function e2eWorld({ saves, tag, keepWorld = false, env = process.env }) {
+  const explicit = String(env.ARCHITECT_AUTOWORLD_NAME ?? '').trim() || null;
+  const name = keepWorld ? explicit ?? E2E_WORLD_NAME : explicit ?? `${E2E_WORLD_NAME} ${tag}`;
+  const protect = keepWorld ? 'keep-world' : explicit ? 'a named world (ARCHITECT_AUTOWORLD_NAME): never deleted' : null;
+  const w = { name, path: path.join(saves, name), perRun: !keepWorld && !explicit, protect };
+  // (fix round, GPT P1 #2) a per-run name can't be chosen by hand: another run's world is never opened, made or kept under its name
+  if (explicit && PER_RUN_WORLD.test(explicit)) w.refuse = `ARCHITECT_AUTOWORLD_NAME "${explicit}" has a run tag's shape (a per-run world's name): refused`;
+  return w;
+}
+
+/** A per-run world's name: `Steward E2E <tag>`. */
+const PER_RUN_WORLD = /^Steward E2E [a-z0-9_]+$/;
+
+/**
+ * Before the first launch (E2E-DISK-2): nothing is moved or deleted. A per-run world must not be there yet (else it is not this run's: refused);
+ * a fixed-name world opens as it is. `earlier` names the other e2e worlds under saves (old `Steward E2E`, `(last)`, other runs' kept worlds),
+ * left as they are. -> {ok, why?, earlier}.
+ */
+export function worldAtStart(world, { exists = fs.existsSync, list = (d) => fs.readdirSync(d) } = {}) {
+  let earlier = [];
+  try { earlier = list(path.dirname(world.path)).filter((n) => n.startsWith(E2E_WORLD_NAME) && n !== world.name); } catch { /* no saves yet */ }
+  if (world.perRun && exists(world.path)) return { ok: false, why: `${world.path} is already there: not this run's world (refused)`, earlier };
+  return { ok: true, earlier };
+}
+
+/**
+ * After the client made the world (E2E-DISK-2; fix round, GPT P1 #2): this run's owner marker, written exclusively ('wx') into it, only when this
+ * run's own client created it: the world was absent when this driver launched its first client (`absentAtLaunch`, lstat just before the launch),
+ * it is a real directory (lstat: a symlink is refused, never followed) born at or after that launch (`launchedAt`, birthtime), and this run's
+ * client log since that launch says `AutoWorld: creating world '<name>'` (Architect's AutoWorld creates only when no world of that name exists;
+ * a world it opened says "loading existing world"). Null when written, else why not: then the world is never this run's to delete. Fixed-name
+ * worlds (--keep-world, ARCHITECT_AUTOWORLD_NAME) are never marked: they are protected. Never throws.
+ */
+export function markWorld(world, owner, { lstat = fs.lstatSync, writeFile = fs.writeFileSync, launchedAt = null, absentAtLaunch = false, clientLog = '' } = {}) {
+  if (!world.perRun) return null;
+  if (!absentAtLaunch) return `${world.path} was there before this run launched its client`;
+  let st;
+  try { st = lstat(world.path); } catch { return `${world.path} is not there: the client made no world of this name`; }
+  if (st.isSymbolicLink()) return `${world.path} is a symlink`;
+  if (!st.isDirectory()) return `${world.path} is not a directory`;
+  if (!(launchedAt > 0) || !(st.birthtimeMs >= launchedAt)) return `${world.path} was born before this run launched its client`;
+  if (!String(clientLog).includes(`AutoWorld: creating world '${world.name}'`)) return `this run's client didn't create ${world.path} (its log says no "creating world")`;
+  try { writeFile(path.join(world.path, OWNER_FILE), JSON.stringify(owner), { flag: 'wx' }); } catch (e) { return `owner marker not written (${e?.code ?? e?.message})`; }
+  return null;
+}
+
+/**
+ * (fix round, GPT P1 #1) Whether a driver may run on gameDir: a lane dir of some run (`<mod>/run-c<k>-<tag>`) only by the child its lead started,
+ * whose E2E_LANE_OWNER ({run, pid}, JSON) is the dir's owner marker (only that lead writes it, once, exclusively). A driver started by hand on one,
+ * or with another lead's owner, is refused before it touches anything, so it never makes a world the lane's lead would delete with the lane.
+ * mod/run and old plain run-c<k> dirs aren't any run's lane: no check. Null when it may, else why not. Never throws.
+ */
+export function laneUse({ gameDir, modDir, laneOwner, readFile = (p) => fs.readFileSync(p, 'utf8') }) {
+  if (path.dirname(path.resolve(gameDir)) !== path.resolve(modDir) || !/^run-c\d+-[a-z0-9_]+$/.test(path.basename(gameDir))) return null;
+  let owner = null;
+  try { owner = JSON.parse(laneOwner); } catch { /* none or junk */ }
+  if (!owner?.run) return `refused: ${gameDir} is a --clients lead's lane dir, and this driver wasn't started by its lead (no E2E_LANE_OWNER)`;
+  const why = ownsRunDir(gameDir, owner, { readFile });
+  return why ? `refused: ${gameDir} is another lead's lane dir (${why})` : null;
+}
+
+/**
+ * (E2E-DISK-2) The names among `files` ({name: bytes}) whose bytes in dir differ or are missing: the fixed `e2e_stub` library entry is written only
+ * there (each through a temp file and a rename), never removed, so a run on the same game dir never sees it gone.
+ */
+export function filesToWrite(dir, files, readFile = fs.readFileSync) {
+  return Object.keys(files).filter((n) => {
+    try { return !Buffer.from(readFile(path.join(dir, n))).equals(Buffer.from(files[n])); } catch { return true; }
+  });
+}
+
+/** A --clients lead's lane dir name for client k (E2E-DISK-2): its own per run, so no other run can reuse it. */
+export const laneDirName = (k, tag) => `run-c${k}-${tag}`;
+
+/**
+ * (batch 091 final review P1, Noah 11-21: switched off until E2E-DISK-2) A --clients lead claims and deletes its lanes' dirs. On again with
+ * E2E-DISK-2: each lane dir is this run's own by name (`run-c<k>-<tag>`, {@link laneDirName}), made exclusively at its use, and its marker is
+ * read just before the delete, so no other run can reuse it between the claim and the delete. Old plain `run-c<k>` dirs are never items.
+ */
+export const DELETE_LANE_DIRS = true;
+
+/** The owner marker a --clients lead writes into a lane dir it made (batch 091 review P1), and a driver into its world (E2E-DISK-2). */
 export const OWNER_FILE = '.steward-e2e-owner.json';
 
 /**
@@ -163,18 +258,22 @@ export function ownsRunDir(dir, owner, { readFile = (p) => fs.readFileSync(p, 'u
 }
 
 /**
- * A --clients lead's own part: the run dirs `<mod>/run-c<k>` it claimed this run ({@link claimRunDir}), as cleanup items. Each is held (kept) unless
- * every lane that ran on it exited 0, wrote a summary with no failure and kept nothing; a dir no lane ran on is held too, and every one under the
- * lead's --keep-world (batch 091 review P2). Each is checked again, just before its delete, to hold this run's owner marker (`owner`).
- * Never mod/run, never a run-c<k> this run didn't claim (it isn't in `created`), never anything not named run-c<k> right under mod.
+ * A --clients lead's own part: the lane dirs `<mod>/run-c<k>-<tag>` it claimed this run ({@link claimRunDir}), as cleanup items. Each is held (kept)
+ * unless every lane that ran on it exited 0, wrote a summary with no failure, kept nothing and failed no delete; a dir no lane ran on is held too, and every one under
+ * the lead's --keep-world (batch 091 review P2). Each is checked again, just before its delete, to hold this run's owner marker (`owner`).
+ * Never mod/run, never a dir this run didn't claim (it isn't in `created`), never anything not named run-c<k>-<this run's tag> right under mod
+ * (E2E-DISK-2: an old plain run-c<k>, or another run's, is never an item; no tag, no items).
  */
-export function laneRunDirs({ modDir, created, lanes, owner = null, readFile, keepWorld = false }) {
+export function laneRunDirs({ modDir, created, lanes, owner = null, tag = null, readFile, keepWorld = false }) {
   const items = [];
+  if (!tag || !/^[a-z0-9_]+$/.test(tag)) return items;
   for (const dir of created) {
-    if (!/^run-c\d+$/.test(path.basename(dir)) || path.dirname(path.resolve(dir)) !== path.resolve(modDir)) continue;
+    const m = /^run-c(\d+)-(.+)$/.exec(path.basename(dir));
+    if (!m || m[2] !== tag || path.dirname(path.resolve(dir)) !== path.resolve(modDir)) continue;
     const on = lanes.filter((l) => l?.gameDir && path.resolve(l.gameDir) === path.resolve(dir));
-    const bad = on.find((l) => l.code !== 0 || !l.summary || l.summary.failed > 0 || l.summary.cleanup?.kept?.length);
-    const hold = keepWorld ? '--keep-world: its world is kept' : !on.length ? 'no client ran on it' : bad ? `client c${bad.k ?? '?'} ${bad.code !== 0 ? `exited ${bad.code}` : !bad.summary ? 'wrote no summary' : bad.summary.failed > 0 ? `had ${bad.summary.failed} failure(s)` : 'kept its world'}` : null;
+    // (E2E-DISK-2) a path the client could not, or would not, delete (cleanup.failed) holds the lane too: its exit counts checks only
+    const bad = on.find((l) => l.code !== 0 || !l.summary || l.summary.failed > 0 || l.summary.cleanup?.kept?.length || l.summary.cleanup?.failed?.length);
+    const hold = keepWorld ? '--keep-world: its world is kept' : !on.length ? 'no client ran on it' : bad ? `client c${bad.k ?? '?'} ${bad.code !== 0 ? `exited ${bad.code}` : !bad.summary ? 'wrote no summary' : bad.summary.failed > 0 ? `had ${bad.summary.failed} failure(s)` : bad.summary.cleanup?.kept?.length ? 'kept its world' : `could not delete ${bad.summary.cleanup.failed.length} path(s)`}` : null;
     items.push({ path: dir, root: modDir, what: 'a client run dir this run made', ...(hold ? { hold } : {}), verify: () => ownsRunDir(dir, owner, readFile ? { readFile } : {}) });
   }
   return items;

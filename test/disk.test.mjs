@@ -161,12 +161,14 @@ test("a --clients lead merges its clients' records, each kept dir naming its cli
 // ------------------------------------------------------------------ a --clients lead's run-c<k> dirs
 
 const pass = { failed: 0, cleanup: { deleted: [], kept: [], failed: [] } };
-const C2 = '/w/mod/run-c2', C3 = '/w/mod/run-c3';
+// (E2E-DISK-2) lane dirs carry their lead's tag
+const LT = 'lt1';
+const C2 = `/w/mod/run-c2-${LT}`, C3 = `/w/mod/run-c3-${LT}`;
 
 test('a run-c<k> the lead made goes when every lane on it passed', () => {
   const owner = { run: 'r1', pid: 1 };
   const readFile = () => JSON.stringify(owner);
-  const items = laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [{ k: 1, gameDir: '/w/mod/run', code: 0, summary: pass }, { k: 2, gameDir: C2, code: 0, summary: pass }], owner, readFile });
+  const items = laneRunDirs({ modDir: '/w/mod', tag: LT, created: [C2], lanes: [{ k: 1, gameDir: '/w/mod/run', code: 0, summary: pass }, { k: 2, gameDir: C2, code: 0, summary: pass }], owner, readFile });
   assert.deepEqual(items.map(({ verify, ...i }) => i), [{ path: C2, root: '/w/mod', what: 'a client run dir this run made' }]);
   const f = fakeFs([C2]);
   assert.deepEqual(cleanupRun(items, { ...f }).deleted, [C2]);
@@ -175,26 +177,26 @@ test('a run-c<k> the lead made goes when every lane on it passed', () => {
 test('a run-c<k> is kept when a lane on it failed, wrote no summary, kept its world, or none ran on it', () => {
   const failedLane = { k: 2, gameDir: C2, code: 1, summary: { failed: 2 } };
   const keptWorld = { k: 3, gameDir: C3, code: 0, summary: { failed: 0, cleanup: { kept: [{ path: `${C3}/saves/Steward E2E` }] } } };
-  const items = laneRunDirs({ modDir: '/w/mod', created: [C2, C3, '/w/mod/run-c4'], lanes: [failedLane, keptWorld, { waited: {} }] });
+  const items = laneRunDirs({ modDir: '/w/mod', tag: LT, created: [C2, C3, `/w/mod/run-c4-${LT}`], lanes: [failedLane, keptWorld, { waited: {} }] });
   assert.deepEqual(items.map((i) => i.hold), ['client c2 exited 1', 'client c3 kept its world', 'no client ran on it']);
   const f = fakeFs([C2, C3]);
   const r = cleanupRun(items, { ...f });
   assert.deepEqual(f.calls, []);
   assert.deepEqual(r.kept.map((k) => k.path), [C2, C3]);
-  assert.equal(laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [{ k: 2, gameDir: C2, code: 0, summary: null }] })[0].hold, 'client c2 wrote no summary');
+  assert.equal(laneRunDirs({ modDir: '/w/mod', tag: LT, created: [C2], lanes: [{ k: 2, gameDir: C2, code: 0, summary: null }] })[0].hold, 'client c2 wrote no summary');
 });
 
-test('never mod/run, never a pre-existing run-c<k> (not in created), never a dir not named run-c<k> right under mod', () => {
+test('never mod/run, never a pre-existing lane dir (not in created), never a dir not named run-c<k>-<tag> right under mod, never an old plain run-c<k>', () => {
   const lanes = [{ k: 1, gameDir: '/w/mod/run', code: 0, summary: pass }];
-  assert.deepEqual(laneRunDirs({ modDir: '/w/mod', created: ['/w/mod/run', '/w/mod/run-c2/x', '/w/other/run-c2', '/w/mod/src'], lanes }), []);
-  assert.deepEqual(laneRunDirs({ modDir: '/w/mod', created: [], lanes: [{ k: 2, gameDir: C2, code: 0, summary: pass }] }), []);
+  assert.deepEqual(laneRunDirs({ modDir: '/w/mod', tag: LT, created: ['/w/mod/run', `${C2}/x`, `/w/other/run-c2-${LT}`, '/w/mod/src', '/w/mod/run-c2'], lanes }), []);
+  assert.deepEqual(laneRunDirs({ modDir: '/w/mod', tag: LT, created: [], lanes: [{ k: 2, gameDir: C2, code: 0, summary: pass }] }), []);
 });
 
 test('addCleanup joins a lead\'s own record to its clients\' and redoes the note', () => {
   const into = { deleted: ['a'], kept: [], failed: [], note: null };
   addCleanup(into, { deleted: [], kept: [{ path: C2, why: 'x' }], failed: [] });
   assert.deepEqual(into.deleted, ['a']);
-  assert.match(into.note, /rm -rf '\/w\/mod\/run-c2'/);
+  assert.match(into.note, /rm -rf '\/w\/mod\/run-c2-lt1'/);
 });
 
 // ------------------------------------------------------------------ batch 091 review: ownership claimed at use, --keep-world kept
@@ -243,10 +245,10 @@ test("(batch 091 P1) another run makes, uses and keeps run-c2 during this lead's
   const mine = claimRunDir(C2, ME, f);
   assert.equal(mine.claimed, false);
   const created = mine.claimed ? [C2] : [];
-  const r = cleanupRun(laneRunDirs({ modDir: '/w/mod', created, lanes: [passLane(C2)], owner: ME, readFile: f.readFile }), { ...f });
+  const r = cleanupRun(laneRunDirs({ modDir: '/w/mod', tag: LT, created, lanes: [passLane(C2)], owner: ME, readFile: f.readFile }), { ...f });
   assert.deepEqual(r.deleted, []);
   // and were it named anyway, the marker read just before the delete refuses it
-  const named = cleanupRun(laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [passLane(C2)], owner: ME, readFile: f.readFile }), { ...f });
+  const named = cleanupRun(laneRunDirs({ modDir: '/w/mod', tag: LT, created: [C2], lanes: [passLane(C2)], owner: ME, readFile: f.readFile }), { ...f });
   assert.deepEqual(named.deleted, []);
   assert.match(named.failed[0].why, /not this run's/);
   assert.deepEqual(f.calls.filter((c) => c[0] === 'rm'), [], 'no recursive delete ran');
@@ -256,17 +258,17 @@ test('the marker is read again just before deleting: a dir whose marker changed 
   const f = ownFs(['/w/mod']);
   assert.equal(claimRunDir(C2, ME, f).claimed, true);
   f.files.set(`${C2}/${OWNER_FILE}`, JSON.stringify(OTHER));
-  let r = cleanupRun(laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [passLane(C2)], owner: ME, readFile: f.readFile }), { ...f });
+  let r = cleanupRun(laneRunDirs({ modDir: '/w/mod', tag: LT, created: [C2], lanes: [passLane(C2)], owner: ME, readFile: f.readFile }), { ...f });
   assert.deepEqual(r.deleted, []);
   f.files.delete(`${C2}/${OWNER_FILE}`);
-  r = cleanupRun(laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [passLane(C2)], owner: ME, readFile: f.readFile }), { ...f });
+  r = cleanupRun(laneRunDirs({ modDir: '/w/mod', tag: LT, created: [C2], lanes: [passLane(C2)], owner: ME, readFile: f.readFile }), { ...f });
   assert.deepEqual(r.deleted, []);
   assert.match(r.failed[0].why, /no owner marker/);
   // without an owner to check against, never deleted
-  r = cleanupRun(laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [passLane(C2)] }), { ...f });
+  r = cleanupRun(laneRunDirs({ modDir: '/w/mod', tag: LT, created: [C2], lanes: [passLane(C2)] }), { ...f });
   assert.deepEqual(r.deleted, []);
   f.files.set(`${C2}/${OWNER_FILE}`, JSON.stringify(ME));
-  r = cleanupRun(laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [passLane(C2)], owner: ME, readFile: f.readFile }), { ...f });
+  r = cleanupRun(laneRunDirs({ modDir: '/w/mod', tag: LT, created: [C2], lanes: [passLane(C2)], owner: ME, readFile: f.readFile }), { ...f });
   assert.deepEqual(r.deleted, [C2]);
 });
 
@@ -279,15 +281,16 @@ test('(batch 091 P2) --keep-world: the child reports its world kept (keep-world)
   assert.deepEqual(f.calls.filter((c) => c[0] === 'rm'), []);
   f.files.set(`${C2}/${OWNER_FILE}`, JSON.stringify(ME));
   const lane = { k: 2, gameDir: C2, code: 0, summary: { failed: 0, cleanup: child } };
-  const lead = cleanupRun(laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [lane], owner: ME, readFile: f.readFile }), { ...f });
+  const lead = cleanupRun(laneRunDirs({ modDir: '/w/mod', tag: LT, created: [C2], lanes: [lane], owner: ME, readFile: f.readFile }), { ...f });
   assert.deepEqual(lead.deleted, []);
   assert.equal(lead.kept[0].why, 'client c2 kept its world');
   // the lead's own --keep-world holds the lane even when a child said nothing kept (an older child)
-  const quiet = laneRunDirs({ modDir: '/w/mod', created: [C2], lanes: [passLane(C2)], owner: ME, readFile: f.readFile, keepWorld: true });
+  const quiet = laneRunDirs({ modDir: '/w/mod', tag: LT, created: [C2], lanes: [passLane(C2)], owner: ME, readFile: f.readFile, keepWorld: true });
   assert.match(quiet[0].hold, /--keep-world/);
   assert.deepEqual(cleanupRun(quiet, { ...f }).deleted, []);
-  // without --keep-world the world is this run's to delete on a pass
-  const plain = cleanupRun(runItems({ world, saves: `${C2}/saves`, keepWorld: false, tempInputs: [], tmp: TMP.root }), { ...f });
+  // without --keep-world the world is this run's to delete on a pass (E2E-DISK-2: while its marker names this run)
+  f.files.set(`${world}/${OWNER_FILE}`, JSON.stringify(ME));
+  const plain = cleanupRun(runItems({ world, saves: `${C2}/saves`, keepWorld: false, owner: ME, readFile: f.readFile, tempInputs: [], tmp: TMP.root }), { ...f });
   assert.deepEqual(plain.deleted, [world]);
 });
 
@@ -299,19 +302,242 @@ test('(B091 switch-off) a driver that never got its slot deletes no world, only 
   assert.equal(items.some((i) => i.path === world), false, 'the world is not an item after a slot wait');
   const r = cleanupRun(items, { keep: keepReason({ failed: 0, checks: 0, slotWait: true }), ...f });
   assert.equal(r.deleted.includes(world), false);
-  // with its slot, a passing run still deletes its own world
-  assert.deepEqual(cleanupRun(runItems({ world, saves: `${C2}/saves`, slotWait: false, tempInputs: [], tmp: TMP.root }), { ...f }).deleted, [world]);
+  // with its slot, a passing run still deletes its own world (E2E-DISK-2: marked by this run)
+  f.files.set(`${world}/${OWNER_FILE}`, JSON.stringify(ME));
+  assert.deepEqual(cleanupRun(runItems({ world, saves: `${C2}/saves`, slotWait: false, owner: ME, readFile: f.readFile, tempInputs: [], tmp: TMP.root }), { ...f }).deleted, [world]);
+});
+// (E2E-DISK-2) the switch-off's source check of DELETE_LANE_DIRS = false is replaced by the ownership-path check below.
+
+// ------------------------------------------------------------------ slice E2E-DISK-2: every delete provably this run's own (per-run names, markers)
+
+/** A fake lstat over ownFs dirs, with birth times (ms) and symlinks. */
+const statOf = (f, born = {}, links = []) => (p) => {
+  if (links.includes(p)) return { isSymbolicLink: () => true, isDirectory: () => false, birthtimeMs: born[p] ?? 0 };
+  if (!f.dirs.has(p)) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+  return { isSymbolicLink: () => false, isDirectory: () => true, birthtimeMs: born[p] ?? 0 };
+};
+const disk2 = await import('../tools/lib/disk.mjs');
+const src2 = () => fs2.readFileSync(new URL('../tools/e2e.mjs', import.meta.url), 'utf8');
+const fs2 = await import('node:fs');
+const TAG_A = 'mabc123_1x0001', TAG_B = 'mabc124_2y0002';
+const A = { run: TAG_A, pid: 101 }, B = { run: TAG_B, pid: 202 };
+
+test('(E2E-DISK-2) a run tag is short and name-safe, and two runs never share one', () => {
+  const t1 = disk2.runTag({ now: 1, pid: 5, rand: () => 0 }), t2 = disk2.runTag({ now: 1, pid: 6, rand: () => 0 });
+  assert.match(t1, /^[a-z0-9_]+$/, 'name-safe, and a valid blueprint id part (the stub entries carry it)');
+  assert.match(`e2e_stub_${disk2.runTag()}_ui`, /^[a-z0-9_]+$/);
+  assert.notEqual(t1, t2, 'the pid is in it');
+  assert.notEqual(disk2.runTag({ now: 1, pid: 5, rand: () => 0.5 }), t1, 'and a random part');
+  assert.ok(`Steward E2E ${disk2.runTag()}`.length <= 64, "Architect's AutoWorldSpec takes at most 64 characters");
 });
 
-test('(B091 switch-off) lane run dirs are never claimed or deleted: the flag is off and e2e.mjs gates both on it', async () => {
-  const disk = await import('../tools/lib/disk.mjs');
-  assert.equal(disk.DELETE_LANE_DIRS, false);
-  const src = (await import('node:fs')).readFileSync(new URL('../tools/e2e.mjs', import.meta.url), 'utf8');
-  assert.match(src, /if \(DELETE_LANE_DIRS && !host && c\.k > 1\)/, 'the claim is gated');
-  assert.match(src, /if \(DELETE_LANE_DIRS\) addCleanup\(cleanup, cleanupRun\(laneRunDirs\(/, 'the lead delete is gated');
-  assert.equal((src.match(/laneRunDirs\(/g) ?? []).length, 1, 'no other caller');
-  assert.equal((src.match(/claimRunDir\(/g) ?? []).length, 1, 'no other claim');
-  // (GPT P3) the driver passes its slot wait to runItems: without it a timed-out driver would delete the world again
-  assert.match(src, /runItems\(\{ world: WORLD, saves: path\.join\(GAME, 'saves'\), keepWorld, slotWait: !!slotWait,/, 'the caller passes slotWait');
-  assert.equal((src.match(/runItems\(/g) ?? []).length, 1, 'one runItems caller');
+test('(E2E-DISK-2 b) each driver gets its own world, named for its run; --keep-world and an explicit name are fixed and protected', () => {
+  const a = disk2.e2eWorld({ saves: '/w/mod/run/saves', tag: TAG_A, env: {} });
+  const b = disk2.e2eWorld({ saves: '/w/mod/run/saves', tag: TAG_B, env: {} });
+  assert.equal(a.name, `Steward E2E ${TAG_A}`);
+  assert.equal(a.path, `/w/mod/run/saves/Steward E2E ${TAG_A}`);
+  assert.equal(a.perRun, true);
+  assert.equal(a.protect, null);
+  assert.notEqual(a.path, b.path, 'two drivers on one game dir never share a world');
+  const kw = disk2.e2eWorld({ saves: '/w/mod/run/saves', tag: TAG_A, keepWorld: true, env: {} });
+  assert.deepEqual([kw.name, kw.perRun, kw.protect], ['Steward E2E', false, 'keep-world']);
+  const named = disk2.e2eWorld({ saves: '/s', tag: TAG_A, env: { ARCHITECT_AUTOWORLD_NAME: ' Mine ' } });
+  assert.deepEqual([named.name, named.perRun], ['Mine', false]);
+  assert.match(named.protect, /ARCHITECT_AUTOWORLD_NAME/);
+});
+
+test('(E2E-DISK-2 b, d) the start never moves or deletes a world: a per-run world already there is refused; earlier worlds are only named', () => {
+  const a = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: {} });
+  const there = new Set(['/w/saves', '/w/saves/Steward E2E', '/w/saves/Steward E2E (last)', `/w/saves/Steward E2E ${TAG_B}`]);
+  const list = () => ['Steward E2E', 'Steward E2E (last)', `Steward E2E ${TAG_B}`, 'Architect Dev'];
+  const r = disk2.worldAtStart(a, { exists: (p) => there.has(p), list });
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.earlier, ['Steward E2E', 'Steward E2E (last)', `Steward E2E ${TAG_B}`], 'named, not touched');
+  // B makes its world during A's slot wait: A's start and A's cleanup never name it
+  there.add(a.path);
+  const again = disk2.worldAtStart(a, { exists: (p) => there.has(p), list });
+  assert.equal(again.ok, false);
+  assert.match(again.why, /already there/);
+  assert.equal(disk2.worldAtStart(disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, keepWorld: true, env: {} }), { exists: (p) => there.has(p), list }).ok, true);
+});
+
+test('(E2E-DISK-2 c) the world is marked after its client made it, and deleted only while its marker names this run', () => {
+  const a = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: {} });
+  const f = ownFs(['/w/saves']);
+  const facts = { launchedAt: 1, absentAtLaunch: true, clientLog: `AutoWorld: creating world '${a.name}' (FLAT)` };
+  assert.match(disk2.markWorld(a, A, { ...f, lstat: statOf(f, { [a.path]: 5 }), ...facts }), /not there/, 'no world, no marker: said');
+  f.dirs.add(a.path);
+  assert.equal(disk2.markWorld(a, A, { ...f, lstat: statOf(f, { [a.path]: 5 }), ...facts }), null);
+  assert.deepEqual(f.calls.at(-1), ['write', `${a.path}/${OWNER_FILE}`, 'wx']);
+  const items = () => runItems({ world: a.path, saves: '/w/saves', owner: A, readFile: f.readFile, tempInputs: [], tmp: TMP.root });
+  // another run's marker (or none): not touched, after the slot went back or not
+  f.files.set(`${a.path}/${OWNER_FILE}`, JSON.stringify(B));
+  let r = cleanupRun(items(), { ...f });
+  assert.deepEqual(r.deleted, []);
+  assert.match(r.failed[0].why, /not this run's/);
+  f.files.delete(`${a.path}/${OWNER_FILE}`);
+  assert.deepEqual(cleanupRun(items(), { ...f }).deleted, []);
+  // no owner given: never deleted
+  assert.deepEqual(cleanupRun(runItems({ world: a.path, saves: '/w/saves', tempInputs: [], tmp: TMP.root }), { ...f }).deleted, []);
+  f.files.set(`${a.path}/${OWNER_FILE}`, JSON.stringify(A));
+  r = cleanupRun(items(), { ...f });
+  assert.deepEqual(r.deleted, [a.path]);
+  // a fixed-name world (keep-world, or named) is protected whatever its marker says
+  const p = cleanupRun(runItems({ world: '/w/saves/Mine', saves: '/w/saves', protect: 'named world', owner: A, readFile: f.readFile, tempInputs: [], tmp: TMP.root }), { ...ownFs(['/w/saves/Mine']) });
+  assert.equal(p.kept[0].why, 'named world');
+});
+
+test('(E2E-DISK-2 d) the fixed e2e_stub entry is never removed: written only where its bytes differ', () => {
+  const files = { 'e2e_stub.nbt': Buffer.from([1, 2]), 'e2e_stub.blueprint.json': Buffer.from('{}') };
+  const same = (p) => (p.endsWith('.nbt') ? Buffer.from([1, 2]) : Buffer.from('{}'));
+  assert.deepEqual(disk2.filesToWrite('/g/library/e2e_stub', files, same), []);
+  assert.deepEqual(disk2.filesToWrite('/g/library/e2e_stub', files, (p) => (p.endsWith('.nbt') ? Buffer.from([9]) : Buffer.from('{}'))), ['e2e_stub.nbt']);
+  assert.deepEqual(disk2.filesToWrite('/g/library/e2e_stub', files, () => { throw new Error('ENOENT'); }), Object.keys(files));
+});
+
+test('(E2E-DISK-2 a) lane dirs are per run: run-c<k>-<tag>, made exclusively; another lead\'s, or an old plain run-c<k>, is never an item', () => {
+  assert.equal(disk2.laneDirName(2, TAG_A), `run-c2-${TAG_A}`);
+  const CA = `/w/mod/run-c2-${TAG_A}`, CB = `/w/mod/run-c2-${TAG_B}`;
+  const OLD = '/w/mod/run-c2';
+  const f = ownFs(['/w/mod', OLD]);
+  f.files.set(`${OLD}/${OWNER_FILE}`, JSON.stringify(A));
+  assert.equal(claimRunDir(CA, A, f).claimed, true);
+  assert.equal(claimRunDir(CB, B, f).claimed, true, 'the other lead has its own dir: no reuse');
+  assert.equal(claimRunDir(CA, B, f).claimed, false, 'and can never claim this one');
+  const lanes = [passLane(CA), { ...passLane(CB), k: 3 }, { ...passLane(OLD), k: 4 }];
+  // even were the other lead's dir and an old plain run-c2 (marker or not) named, only this run's tag is an item
+  const items = laneRunDirs({ modDir: '/w/mod', created: [CA, CB, OLD], lanes, owner: A, tag: TAG_A, readFile: f.readFile });
+  assert.deepEqual(items.map((i) => i.path), [CA]);
+  assert.deepEqual(laneRunDirs({ modDir: '/w/mod', created: [CA], lanes, owner: A, readFile: f.readFile }), [], 'no tag, no items');
+  const r = cleanupRun(items, { ...f });
+  assert.deepEqual(r.deleted, [CA]);
+  assert.equal(f.dirs.has(CB) && f.dirs.has(OLD), true);
+});
+
+test('(E2E-DISK-2) e2e.mjs uses the ownership path: per-run world in the spawn env, marked, verified; lane dirs per run and deleted', () => {
+  const src = src2();
+  assert.equal(disk2.DELETE_LANE_DIRS, true);
+  assert.match(src, /env: \{ \.\.\.process\.env, ARCHITECT_AUTOWORLD_NAME: E2E_WORLD\.name,/, 'the spawn env carries the per-run name');
+  assert.doesNotMatch(src, /process\.env\.ARCHITECT_AUTOWORLD_NAME\s*=/, 'never set in process.env (a lead\'s children would inherit it)');
+  assert.match(src, /markWorld\(E2E_WORLD, runOwner, /, 'the world is marked');
+  assert.match(src, /runItems\(\{ world: WORLD, saves: path\.join\(GAME, 'saves'\), protect: E2E_WORLD\.protect, owner: runOwner, slotWait: !!slotWait,/, 'the world item is verified against this run');
+  assert.match(src, /laneDirName\(k, RUN_TAG\)/, 'lane dirs are named for this run');
+  assert.match(src, /laneRunDirs\(\{ modDir: path\.join\(ROOT, 'mod'\), created: leadMadeDirs, lanes: laneRuns, owner: runOwner, tag: RUN_TAG, keepWorld \}\)/);
+  const block = (name) => { const i = src.indexOf(`function ${name}(`); return src.slice(i, src.indexOf('\n}\n', i)); };
+  assert.doesNotMatch(block('freshWorld'), /rmSync|renameSync|unlinkSync/, 'freshWorld moves and removes nothing');
+  // ensureStubEntry removes only its own mkdtemp dir; the fixed entry is written file by file, never removed
+  const stub = block('ensureStubEntry');
+  assert.match(stub, /const tmp = fs\.mkdtempSync\(/);
+  assert.deepEqual(stub.match(/rmSync\([^,)]*/g), ['rmSync(tmp'], 'no other rm');
+  assert.doesNotMatch(stub, /recursive: true, force: true \}\);\n\s*writeBlueprint/, 'no rm before a write');
+  assert.match(src, /const STUB = `e2e_stub_\$\{RUN_TAG\}`/);
+  for (const [call, n] of [['runItems(', 1], ['laneRunDirs(', 1], ['claimRunDir(', 1], ['markWorld(', 1]]) assert.equal(src.split(call).length - 1, n, `one ${call} caller`);
+  for (const [call, n] of [['runItems(', 1], ['laneRunDirs(', 1], ['claimRunDir(', 1], ['markWorld(', 1]]) assert.equal(src.split(call).length - 1, n, `one ${call} caller`);
+});
+
+test('(E2E-DISK-2) a lane whose client could not delete something (cleanup.failed) holds its lane dir: failure keeps everything', () => {
+  const CA = `/w/mod/run-c2-${TAG_A}`;
+  const f = ownFs(['/w/mod', CA]);
+  f.files.set(`${CA}/${OWNER_FILE}`, JSON.stringify(A));
+  const lane = { k: 2, gameDir: CA, code: 0, summary: { failed: 0, cleanup: { deleted: [], kept: [], failed: [{ path: `${CA}/saves/Steward E2E ${TAG_B}`, why: "not this run's: not touched" }] } } };
+  const items = laneRunDirs({ modDir: '/w/mod', created: [CA], lanes: [lane], owner: A, tag: TAG_A, readFile: f.readFile });
+  assert.match(items[0].hold, /client c2 could not delete 1 path/);
+  const r = cleanupRun(items, { ...f });
+  assert.deepEqual(r.deleted, []);
+  assert.deepEqual(f.calls.filter((c) => c[0] === 'rm'), []);
+});
+
+// ------------------------------------------------------------------ E2E-DISK-2 fix round (GPT review NOT SAFE: P1 #1, P1 #2, P2 #4)
+
+const created = (name) => `[12:00:00] [Render thread/INFO] (architect) AutoWorld: creating world '${name}' (FLAT, seed 1, CREATIVE, cheats on)`;
+
+test('(fix P1 #1) a driver runs on a tagged lane dir only when its marker names the lead that passed it; by hand it refuses', () => {
+  const CA = `/w/mod/run-c2-${TAG_A}`;
+  const f = ownFs(['/w/mod']);
+  assert.equal(claimRunDir(CA, A, f).claimed, true);
+  // the lead's child: E2E_LANE_OWNER is the lead's owner
+  assert.equal(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', laneOwner: JSON.stringify(A), readFile: f.readFile }), null);
+  // driver B by hand on A's lane (no lane owner, or its own): refused
+  assert.match(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', laneOwner: undefined, readFile: f.readFile }), /refus/);
+  assert.match(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', laneOwner: JSON.stringify(B), readFile: f.readFile }), /refus/);
+  assert.match(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', laneOwner: 'junk', readFile: f.readFile }), /refus/);
+  // a tagged lane dir with no marker: refused too
+  f.files.delete(`${CA}/${OWNER_FILE}`);
+  assert.match(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', laneOwner: JSON.stringify(A), readFile: f.readFile }), /refus/);
+  // mod/run and an old plain run-c2 aren't lane dirs of any run: no check
+  assert.equal(disk2.laneUse({ gameDir: '/w/mod/run', modDir: '/w/mod', readFile: f.readFile }), null);
+  assert.equal(disk2.laneUse({ gameDir: '/w/mod/run-c2', modDir: '/w/mod', readFile: f.readFile }), null);
+});
+
+test('(fix P1 #1, lifecycle) B refused on A\'s lane makes nothing there, so A\'s delete of its lane takes only A\'s', () => {
+  const CA = `/w/mod/run-c2-${TAG_A}`;
+  const f = ownFs(['/w/mod']);
+  claimRunDir(CA, A, f);
+  const items = laneRunDirs({ modDir: '/w/mod', created: [CA], lanes: [passLane(CA)], owner: A, tag: TAG_A, readFile: f.readFile });
+  // B, by hand, after A's c2 passed: refused before it makes a world (the marker untouched)
+  assert.notEqual(disk2.laneUse({ gameDir: CA, modDir: '/w/mod', readFile: f.readFile }), null);
+  assert.equal([...f.dirs].some((d) => d.startsWith(`${CA}/saves`)), false);
+  assert.deepEqual(cleanupRun(items, { ...f }).deleted, [CA]);
+});
+
+test('(fix P1 #2) a world is marked only when this run\'s client created it: absent at launch, born after, a real dir, our client said "creating"', () => {
+  const a = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: {} });
+  const T = 1000;
+  const f = ownFs(['/w/saves', a.path]);
+  const mark = (o) => disk2.markWorld(a, A, { writeFile: f.writeFile, lstat: statOf(f, { [a.path]: 2000 }), launchedAt: T, absentAtLaunch: true, clientLog: created(a.name), ...o });
+  assert.match(mark({ absentAtLaunch: false }), /there before/);
+  assert.match(mark({ lstat: statOf(f, { [a.path]: 500 }) }), /before this run launched/);
+  assert.match(mark({ clientLog: `AutoWorld: loading existing world '${a.name}'` }), /didn't create/);
+  assert.match(mark({ clientLog: created(`${a.name}x`) }), /didn't create/);
+  assert.match(mark({ lstat: statOf(f, {}, [a.path]) }), /symlink/);
+  assert.match(mark({ lstat: statOf(ownFs(['/w/saves'])) }), /not there/);
+  assert.equal(f.files.has(`${a.path}/${OWNER_FILE}`), false, 'no marker written by any refusal');
+  assert.equal(mark(), null);
+  assert.equal(f.files.get(`${a.path}/${OWNER_FILE}`), JSON.stringify(A));
+});
+
+test('(fix P1 #2, lifecycle) B makes A\'s world name during A\'s wait: A never marks it, so never deletes it', () => {
+  const a = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: {} });
+  // B by an explicit name equal to A's: refused (the tag pattern can't be chosen through ARCHITECT_AUTOWORLD_NAME)
+  const b = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_B, env: { ARCHITECT_AUTOWORLD_NAME: a.name } });
+  assert.match(b.refuse, /tag/);
+  assert.match(disk2.e2eWorld({ saves: '/w/saves', tag: TAG_B, keepWorld: true, env: { ARCHITECT_AUTOWORLD_NAME: a.name } }).refuse, /tag/);
+  assert.equal(disk2.e2eWorld({ saves: '/w/saves', tag: TAG_B, env: { ARCHITECT_AUTOWORLD_NAME: 'Steward E2E' } }).refuse, undefined);
+  // were it made anyway (born before A's launch, or A's client only loaded it), A writes no marker and its cleanup deletes nothing
+  const f = ownFs(['/w/saves', a.path]);
+  const why = disk2.markWorld(a, A, { writeFile: f.writeFile, lstat: statOf(f, { [a.path]: 900 }), launchedAt: 1000, absentAtLaunch: true, clientLog: `AutoWorld: loading existing world '${a.name}'` });
+  assert.notEqual(why, null);
+  assert.deepEqual(cleanupRun(runItems({ world: a.path, saves: '/w/saves', owner: A, readFile: f.readFile, tempInputs: [], tmp: TMP.root }), { ...f }).deleted, []);
+  // an explicitly named world is never marked
+  const named = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: { ARCHITECT_AUTOWORLD_NAME: 'Mine' } });
+  const g = ownFs(['/w/saves', named.path]);
+  assert.equal(disk2.markWorld(named, A, { writeFile: g.writeFile, lstat: statOf(g, { [named.path]: 2000 }), launchedAt: 1000, absentAtLaunch: true, clientLog: created('Mine') }), null);
+  assert.equal(g.files.size, 0);
+});
+
+test('(fix P2 #4) ownership is read at the delete, not when the items are built: items first, then the marker changes or goes', () => {
+  const a = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: {} });
+  const CA = `/w/mod/run-c2-${TAG_A}`;
+  for (const after of [(f, p) => f.files.set(`${p}/${OWNER_FILE}`, JSON.stringify(B)), (f, p) => f.files.delete(`${p}/${OWNER_FILE}`)]) {
+    const f = ownFs(['/w/saves', a.path, '/w/mod', CA]);
+    f.files.set(`${a.path}/${OWNER_FILE}`, JSON.stringify(A));
+    f.files.set(`${CA}/${OWNER_FILE}`, JSON.stringify(A));
+    const world = runItems({ world: a.path, saves: '/w/saves', owner: A, readFile: f.readFile, tempInputs: [], tmp: TMP.root });
+    const lane = laneRunDirs({ modDir: '/w/mod', created: [CA], lanes: [passLane(CA)], owner: A, tag: TAG_A, readFile: f.readFile });
+    after(f, a.path);
+    after(f, CA);
+    const r = cleanupRun([...world, ...lane], { ...f });
+    assert.deepEqual(r.deleted, [], 'a marker changed after the items were built stops the delete');
+    assert.deepEqual(f.calls.filter((c) => c[0] === 'rm'), []);
+  }
+});
+
+test('(fix) e2e.mjs: a driver checks its lane before anything, the lead passes its owner, the marker needs the launch facts, module labels carry the tag', () => {
+  const src = src2();
+  assert.match(src, /E2E_LANE_OWNER: JSON\.stringify\(runOwner\)/, 'the lead passes its owner to each child');
+  assert.match(src, /laneUse\(\{ gameDir: GAME, modDir: path\.join\(ROOT, 'mod'\), laneOwner: process\.env\.E2E_LANE_OWNER \}\)/);
+  const i = src.indexOf('laneUse({ gameDir: GAME'), j = src.indexOf('await preflight();');
+  assert.ok(i > 0 && i < j, 'checked before preflight, freshWorld and the stub entries');
+  assert.match(src, /markWorld\(E2E_WORLD, runOwner, \{ launchedAt: firstLaunch\.at, absentAtLaunch: firstLaunch\.absent, clientLog: clientLogSince\(firstLaunch\.logAt\) \}\)/);
+  assert.match(src, /const lab = `e2e_\$\{RUN_TAG\}_\$\{\+\+nDevModule\}`;/);
 });
