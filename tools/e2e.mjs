@@ -29,7 +29,7 @@ import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
 import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup, claimRunDir, runItems, DELETE_LANE_DIRS, runTag, e2eWorld,
-  worldAtStart, markWorld, filesToWrite, laneDirName, laneUse } from './lib/disk.mjs';
+  worldAtStart, markWorld, filesToWrite, laneDirName, laneUse, claimAnswerFile } from './lib/disk.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -7114,13 +7114,21 @@ let nDevModule = 0;
 async function devModule(r, ms = 120_000) {
   const lab = `e2e_${RUN_TAG}_${++nDevModule}`;
   const f = path.join(GAME, 'steward-modules', `${lab}.json`);
-  await cmd(`/steward dev module ${lab} ${JSON.stringify(r)}`);
-  for (let t = 0; t < ms / 200; t++) {
-    if (fs.existsSync(f)) {
-      try { const o = JSON.parse(fs.readFileSync(f, 'utf8')); fs.rmSync(f, { force: true }); return o; } catch { /* still being written */ }
+  // (E2E-DISK-3 P2) the answer's name is this run's before the request: an empty placeholder made exclusively, which the mod writes over
+  const claim = claimAnswerFile(f);
+  if (claim) { console.log(`dev module ${lab}: ${claim}`); return null; }
+  try {
+    await cmd(`/steward dev module ${lab} ${JSON.stringify(r)}`);
+    for (let t = 0; t < ms / 200; t++) {
+      try { const o = JSON.parse(fs.readFileSync(f, 'utf8')); fs.rmSync(f, { force: true }); return o; } catch { /* the placeholder, or still being written */ }
+      await sleep(200);
     }
-    await sleep(200);
+  } catch (e) {
+    try { if (fs.readFileSync(f, 'utf8') === '') fs.rmSync(f, { force: true }); } catch {}
+    throw e;
   }
+  // no answer: this run's placeholder goes (a half-written answer stays, for a look)
+  try { if (fs.readFileSync(f, 'utf8') === '') fs.rmSync(f, { force: true }); } catch {}
   return null;
 }
 

@@ -165,8 +165,8 @@ export function e2eWorld({ saves, tag, keepWorld = false, env = process.env }) {
   return w;
 }
 
-/** A per-run world's name: `Steward E2E <tag>`. */
-const PER_RUN_WORLD = /^Steward E2E [a-z0-9_]+$/;
+/** A per-run world's name: `Steward E2E <tag>`, in any case or spacing (E2E-DISK-3: the disk ignores case, so `STEWARD E2E <TAG>` is that world). */
+const PER_RUN_WORLD = /^\s*steward\s+e2e\s+[a-z0-9_]+\s*$/i;
 
 /**
  * Before the first launch (E2E-DISK-2): nothing is moved or deleted. A per-run world must not be there yet (else it is not this run's: refused);
@@ -175,7 +175,7 @@ const PER_RUN_WORLD = /^Steward E2E [a-z0-9_]+$/;
  */
 export function worldAtStart(world, { exists = fs.existsSync, list = (d) => fs.readdirSync(d) } = {}) {
   let earlier = [];
-  try { earlier = list(path.dirname(world.path)).filter((n) => n.startsWith(E2E_WORLD_NAME) && n !== world.name); } catch { /* no saves yet */ }
+  try { earlier = list(path.dirname(world.path)).filter((n) => n.toLowerCase().startsWith(E2E_WORLD_NAME.toLowerCase()) && n.toLowerCase() !== world.name.toLowerCase()); } catch { /* no saves yet */ }
   if (world.perRun && exists(world.path)) return { ok: false, why: `${world.path} is already there: not this run's world (refused)`, earlier };
   return { ok: true, earlier };
 }
@@ -202,18 +202,60 @@ export function markWorld(world, owner, { lstat = fs.lstatSync, writeFile = fs.w
 }
 
 /**
- * (fix round, GPT P1 #1) Whether a driver may run on gameDir: a lane dir of some run (`<mod>/run-c<k>-<tag>`) only by the child its lead started,
- * whose E2E_LANE_OWNER ({run, pid}, JSON) is the dir's owner marker (only that lead writes it, once, exclusively). A driver started by hand on one,
- * or with another lead's owner, is refused before it touches anything, so it never makes a world the lane's lead would delete with the lane.
- * mod/run and old plain run-c<k> dirs aren't any run's lane: no check. Null when it may, else why not. Never throws.
+ * (E2E-DISK-3) p by its real path: symlinks resolved through the nearest existing ancestor (a dir not made yet keeps its tail as given), so an
+ * alias and its target compare equal. Case is left as the disk gives it: compare names in lower case, not by this alone.
  */
-export function laneUse({ gameDir, modDir, laneOwner, readFile = (p) => fs.readFileSync(p, 'utf8') }) {
-  if (path.dirname(path.resolve(gameDir)) !== path.resolve(modDir) || !/^run-c\d+-[a-z0-9_]+$/.test(path.basename(gameDir))) return null;
+export function realish(p, { realpath = fs.realpathSync.native, exists = fs.existsSync } = {}) {
+  const abs = path.resolve(p);
+  const base = existingAncestor(abs, exists);
+  let real = base;
+  try { real = realpath(base); } catch { /* unreadable: as given */ }
+  return path.join(real, path.relative(base, abs));
+}
+
+/** A lane dir's name (`run-c<k>-<tag>`), in any case: the disk ignores case, so `RUN-C2-<TAG>` is that lane. */
+const LANE_NAME = /^run-c\d+-[a-z0-9_]+$/i;
+
+/**
+ * (E2E-DISK-3) The lane dir gameDir is or sits in, by real path: the first component named like a lane whose parent is named `mod` (any case, any
+ * worktree's mod). -> {lane, exact} (lane: that dir's real path; exact: gameDir is the lane itself) or null.
+ */
+export function laneOf(gameDir, opts = {}) {
+  const parts = realish(gameDir, opts).split(path.sep);
+  for (let i = 1; i < parts.length; i++) {
+    if (LANE_NAME.test(parts[i]) && parts[i - 1].toLowerCase() === 'mod') return { lane: parts.slice(0, i + 1).join(path.sep), exact: i === parts.length - 1 };
+  }
+  return null;
+}
+
+/**
+ * (fix round, GPT P1 #1; E2E-DISK-3) Whether a driver may run on gameDir. A lane dir of some run (`<mod>/run-c<k>-<tag>`) only by the child its lead
+ * started, whose E2E_LANE_OWNER ({run, pid}, JSON) is the dir's owner marker (only that lead writes it, once, exclusively). A dir inside a lane never:
+ * no lead starts a child there. Judged on the real path (a symlink alias, a symlinked mod, another worktree's lane) and in any case, so a driver started
+ * by hand, or with another lead's owner, is refused before it touches anything and never makes a world the lane's lead would delete with the lane.
+ * mod/run and old plain run-c<k> dirs aren't any run's lane: no check. `modDir` is no longer needed (any mod counts). Null when it may, else why not.
+ * Never throws.
+ */
+export function laneUse({ gameDir, modDir: _modDir, laneOwner, readFile = (p) => fs.readFileSync(p, 'utf8'), realpath, exists }) {
+  const l = laneOf(gameDir, { ...(realpath ? { realpath } : {}), ...(exists ? { exists } : {}) });
+  if (!l) return null;
+  if (!l.exact) return `refused: ${gameDir} sits inside a --clients lead's lane dir (${l.lane}); no driver runs there`;
   let owner = null;
   try { owner = JSON.parse(laneOwner); } catch { /* none or junk */ }
-  if (!owner?.run) return `refused: ${gameDir} is a --clients lead's lane dir, and this driver wasn't started by its lead (no E2E_LANE_OWNER)`;
-  const why = ownsRunDir(gameDir, owner, { readFile });
-  return why ? `refused: ${gameDir} is another lead's lane dir (${why})` : null;
+  if (!owner?.run) return `refused: ${gameDir} is a --clients lead's lane dir (${l.lane}), and this driver wasn't started by its lead (no E2E_LANE_OWNER)`;
+  const why = ownsRunDir(l.lane, owner, { readFile });
+  return why ? `refused: ${gameDir} is another lead's lane dir (${l.lane}: ${why})` : null;
+}
+
+/**
+ * (E2E-DISK-3 P2) Claims a `/steward dev module` answer file before its request: an empty placeholder made exclusively ('wx', never through a symlink).
+ * The mod's writer (ModuleDev, Java) writes over it; until then it isn't JSON, so the reader keeps polling. A file already there (another run's, or a
+ * leftover) is never read as this run's answer. Null when claimed, else why not. Never throws.
+ */
+export function claimAnswerFile(f, { mkdir = (d) => fs.mkdirSync(d, { recursive: true }), writeFile = fs.writeFileSync } = {}) {
+  try { mkdir(path.dirname(f)); } catch (e) { return `${path.dirname(f)} not made (${e?.code ?? e?.message})`; }
+  try { writeFile(f, '', { flag: 'wx' }); } catch (e) { return e?.code === 'EEXIST' ? `${f} is already there: not this run's answer` : `${f} not claimed (${e?.code ?? e?.message})`; }
+  return null;
 }
 
 /**

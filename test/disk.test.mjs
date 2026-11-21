@@ -541,3 +541,104 @@ test('(fix) e2e.mjs: a driver checks its lane before anything, the lead passes i
   assert.match(src, /markWorld\(E2E_WORLD, runOwner, \{ launchedAt: firstLaunch\.at, absentAtLaunch: firstLaunch\.absent, clientLog: clientLogSince\(firstLaunch\.logAt\) \}\)/);
   assert.match(src, /const lab = `e2e_\$\{RUN_TAG\}_\$\{\+\+nDevModule\}`;/);
 });
+
+// ------------------------------------------------------------------ E2E-DISK-3: lanes by real path and any case, per-run names in any case (real temp dirs)
+
+const os3 = await import('node:os');
+const path3 = await import('node:path');
+/** A real worktree-like root: <root>/mod with A's lane run-c2-<TAG_A> claimed (real mkdir and marker). */
+function realLane(tag = TAG_A, owner = A, k = 2) {
+  const root = fs2.mkdtempSync(path3.join(os3.tmpdir(), 'disk3-'));
+  const mod = path3.join(root, 'mod');
+  fs2.mkdirSync(mod);
+  const lane = path3.join(mod, `run-c${k}-${tag}`);
+  assert.equal(claimRunDir(lane, owner).claimed, true);
+  return { root, mod, lane };
+}
+/** Whether the temp volume ignores case (APFS default): a case variant then names the very same dir. */
+const caseBlind = (p) => { try { return fs2.statSync(p.toUpperCase()).ino === fs2.statSync(p).ino; } catch { return false; } };
+
+test('(E2E-DISK-3 P1) the lead\'s own child still runs on its lane; mod/run and an old plain run-c<k> still need no check', () => {
+  const { mod, lane } = realLane();
+  assert.equal(disk2.laneUse({ gameDir: lane, modDir: mod, laneOwner: JSON.stringify(A) }), null);
+  assert.equal(disk2.laneUse({ gameDir: path3.join(mod, 'run'), modDir: mod }), null);
+  assert.equal(disk2.laneUse({ gameDir: path3.join(mod, 'run-c2'), modDir: mod }), null);
+});
+
+test('(E2E-DISK-3 P1) a game dir inside a lane is refused, even with the lane\'s own owner, whether it exists yet or not', () => {
+  const { mod, lane } = realLane();
+  fs2.mkdirSync(path3.join(lane, 'saves'));
+  for (const g of [path3.join(lane, 'saves'), path3.join(lane, 'x', 'y'), `${lane}/./saves/..`.replace(/\/\.\.$/, '/sub')]) {
+    for (const owner of [undefined, JSON.stringify(A), JSON.stringify(B)]) {
+      assert.match(disk2.laneUse({ gameDir: g, modDir: mod, laneOwner: owner }) ?? 'passed', /refus/, `${g} with ${owner}`);
+    }
+  }
+});
+
+test('(E2E-DISK-3 P1) a symlink alias of a lane (or of a dir in one, or with a tail not made yet) is the lane: refused unless it is the lead\'s child', () => {
+  const { root, mod, lane } = realLane();
+  const alias = path3.join(root, 'alias');
+  fs2.symlinkSync(lane, alias);
+  assert.match(disk2.laneUse({ gameDir: alias, modDir: mod }) ?? 'passed', /refus/);
+  assert.match(disk2.laneUse({ gameDir: alias, modDir: mod, laneOwner: JSON.stringify(B) }) ?? 'passed', /refus/);
+  assert.equal(disk2.laneUse({ gameDir: alias, modDir: mod, laneOwner: JSON.stringify(A) }), null, 'the same lane, by its real path');
+  assert.match(disk2.laneUse({ gameDir: path3.join(alias, 'not', 'made'), modDir: mod, laneOwner: JSON.stringify(A) }) ?? 'passed', /refus/);
+  // a symlinked mod dir, and a link into another worktree's lane (not under this driver's mod at all)
+  const modAlias = path3.join(root, 'modalias');
+  fs2.symlinkSync(mod, modAlias);
+  assert.match(disk2.laneUse({ gameDir: path3.join(modAlias, path3.basename(lane)), modDir: mod }) ?? 'passed', /refus/);
+  const other = realLane(TAG_B, B, 3);
+  const into = path3.join(root, 'into-other');
+  fs2.symlinkSync(other.lane, into);
+  assert.match(disk2.laneUse({ gameDir: into, modDir: mod }) ?? 'passed', /refus/);
+  assert.equal(disk2.laneUse({ gameDir: into, modDir: mod, laneOwner: JSON.stringify(B) }), null);
+});
+
+test('(E2E-DISK-3 P1) a case variant of a lane is the lane, judged by name (on a case-blind disk it is the very same dir)', () => {
+  const { mod, lane } = realLane();
+  const up = path3.join(mod, path3.basename(lane).toUpperCase());
+  const MOD = path3.join(path3.dirname(mod), 'MOD');
+  for (const g of [up, path3.join(MOD, path3.basename(lane)), path3.join(up, 'saves')]) {
+    assert.match(disk2.laneUse({ gameDir: g, modDir: mod }) ?? 'passed', /refus/, g);
+    assert.match(disk2.laneUse({ gameDir: g, modDir: mod, laneOwner: JSON.stringify(B) }) ?? 'passed', /refus/, g);
+  }
+  if (caseBlind(lane)) assert.equal(disk2.laneUse({ gameDir: up, modDir: mod, laneOwner: JSON.stringify(A) }), null, 'the lead\'s child, by another case');
+});
+
+test('(E2E-DISK-3 P1) a per-run world name is refused in any case or spacing, with or without --keep-world', () => {
+  const a = disk2.e2eWorld({ saves: '/w/saves', tag: TAG_A, env: {} });
+  for (const name of [a.name.toUpperCase(), a.name.toLowerCase(), `steward e2e ${TAG_A.toUpperCase()}`, `Steward  E2E\t${TAG_A}`]) {
+    for (const keepWorld of [false, true]) {
+      assert.match(disk2.e2eWorld({ saves: '/w/saves', tag: TAG_B, keepWorld, env: { ARCHITECT_AUTOWORLD_NAME: name } }).refuse ?? 'passed', /tag/, `${name} ${keepWorld}`);
+    }
+  }
+  // the fixed names stay allowed, in any case
+  for (const name of ['Steward E2E', 'STEWARD E2E', 'Mine']) assert.equal(disk2.e2eWorld({ saves: '/w/saves', tag: TAG_B, keepWorld: true, env: { ARCHITECT_AUTOWORLD_NAME: name } }).refuse, undefined);
+});
+
+test('(E2E-DISK-3 P1, real dirs) on this disk an upper-cased name may open another run\'s world: such a name is refused before any launch', () => {
+  const saves = fs2.mkdtempSync(path3.join(os3.tmpdir(), 'disk3-saves-'));
+  const a = disk2.e2eWorld({ saves, tag: TAG_A, env: {} });
+  fs2.mkdirSync(a.path);
+  const kw = disk2.e2eWorld({ saves, tag: TAG_B, keepWorld: true, env: { ARCHITECT_AUTOWORLD_NAME: a.name.toUpperCase() } });
+  if (caseBlind(a.path)) assert.equal(fs2.statSync(kw.path).ino, fs2.statSync(a.path).ino, 'the same dir here');
+  assert.match(kw.refuse ?? 'passed', /tag/);
+  // the earlier e2e worlds are named in any case
+  const s = disk2.worldAtStart(disk2.e2eWorld({ saves, tag: TAG_B, env: {} }), { list: () => ['steward e2e old', 'Other'] });
+  assert.deepEqual(s.earlier, ['steward e2e old']);
+});
+
+test('(E2E-DISK-3 P2) a module answer file is claimed exclusively before its request: a name already there is never read as this run\'s', () => {
+  const game = fs2.mkdtempSync(path3.join(os3.tmpdir(), 'disk3-game-'));
+  const f = path3.join(game, 'steward-modules', 'e2e_x_1.json');
+  assert.equal(disk2.claimAnswerFile(f), null);
+  assert.equal(fs2.readFileSync(f, 'utf8'), '', 'an empty placeholder: not JSON, so the reader keeps polling until the mod writes over it');
+  assert.match(disk2.claimAnswerFile(f) ?? 'claimed', /already there/);
+  // a symlink in its place is not followed
+  const g = path3.join(game, 'steward-modules', 'e2e_x_2.json');
+  fs2.symlinkSync(path3.join(game, 'elsewhere.json'), g);
+  assert.match(disk2.claimAnswerFile(g) ?? 'claimed', /already there/);
+  assert.equal(fs2.existsSync(path3.join(game, 'elsewhere.json')), false);
+  const src = src2();
+  assert.match(src, /const claim = claimAnswerFile\(f\);/, 'e2e.mjs claims the answer file before the request');
+});
