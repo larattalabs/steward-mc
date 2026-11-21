@@ -552,8 +552,8 @@ class ComposedPlacingCrashTest {
 		assertEquals(new TreeMap<>(ENTRIES), new TreeMap<>(a.approved.get(0).lotEntries()), "the realise binds the plan's lots, the cottage's designed entry included");
 		assertEquals(1, atSend.size());
 		assertEquals(Pipeline.Phase.PLACING, atSend.get(0).state().phase());
-		assertEquals(a.approved.get(0).maxBillPerLot(), ComposedModules.caps(PARTS, atSend.get(0).moduleOrders(), ENTRIES.keySet()).perLot(),
-			"sent with caps other than the saved bounds");
+		// (CRASH-T3, batch-089 review P3) the oracle reads the saved bounds itself, never through ComposedModules.caps, the code it checks
+		assertEquals(boundsAsCaps(atSend.get(0).moduleOrders()), a.approved.get(0).maxBillPerLot(), "sent with caps other than the saved bounds");
 		conserved();
 		assertFalse(world().isEmpty(), "Architect put it down");
 
@@ -804,6 +804,151 @@ class ComposedPlacingCrashTest {
 		assertEquals(Pipeline.Phase.PLACING, phase());
 		placedAndLogged(false);
 		conserved();
+	}
+
+	// ------------------------------------------------------------------ a quote that refuses, an Architect without lot caps, an old session (CRASH-T3)
+
+	/** Each order's saved bound read as a cap (item -> count), straight from its JSON: the test's own reading, independent of the runner's. */
+	static Map<String, Map<String, Integer>> boundsAsCaps(Map<String, ModuleOrder> orders) {
+		Map<String, Map<String, Integer>> out = new TreeMap<>();
+		orders.forEach((lot, o) -> {
+			Map<String, Integer> cap = new TreeMap<>();
+			o.bound().entrySet().forEach(e -> cap.put(e.getKey(), e.getValue().getAsInt()));
+			out.put(lot, cap);
+		});
+		return out;
+	}
+
+	/** Whether the build is still in its file (a build that stopped may have ended there). */
+	boolean onDisk() throws IOException {
+		return BuildStore.load(buildsFile).all().stream().anyMatch(b -> b.settlementId().equals(saved.settlementId()));
+	}
+
+	/** A quote of the whole town whose notes say a part of it isn't billed: Architect couldn't quote the whole bill. */
+	static Quote partNotBilled() {
+		return quote(false, List.of("lot " + HALL + ": not billed"), PARTS);
+	}
+
+	/** An exact quote with no bill for the hall's own lot (its fill still billed, so the hall's share is still a bill of items, as the caps read it). */
+	static Quote hallLotUnbilled() {
+		var p = PARTS.deepCopy();
+		p.remove("lot:" + HALL);
+		return quote(true, List.of(), p);
+	}
+
+	/**
+	 * A quote that can't hold every module lot ({@code refusing}) refuses the realise: at the first placing, and across a restart (approved and
+	 * placing, the resume's own quote refused), nothing is sent or drawn; the build as its file then holds it, resumed again, sends nothing either.
+	 */
+	void aRefusingQuoteNeverRealises(Quote refusing, String words) throws IOException {
+		runner(BOUNDED);
+		a.quote = refusing;
+		try (LogCapture log = LogCapture.open()) {
+			place();
+			assertEquals(0, a.count("regions.realiseApproved"), "realised on a quote that refuses: " + a.calls + " " + tails());
+			assertEquals(0, a.ledger.paid, "drawn on a quote that refuses");
+			assertEquals(1, a.count("regions.quoteApproved"), "reached the quote: " + a.calls);
+			assertTrue(ComposedRunnerOrderTest.said(log, words), log.lines.toString());
+		}
+		conserved();
+		SettlementRunner.clearForTest();
+
+		heldApprovedUnanswered();
+		long quotes = a.count("regions.quoteApproved");
+		a.quote = refusing;
+		try (LogCapture log = LogCapture.open()) {
+			crash();
+			assertEquals(0, a.count("regions.realiseApproved"), "the resume realised on a quote that refuses: " + a.calls + " " + tails());
+			assertEquals(0, a.ledger.paid, "the resume drew on a quote that refuses");
+			assertEquals(quotes + 1, a.count("regions.quoteApproved"), "the resume quoted: " + a.calls);
+			assertTrue(ComposedRunnerOrderTest.said(log, words), log.lines.toString());
+		}
+		conserved();
+		if (onDisk()) {
+			crash();
+			assertEquals(0, a.count("regions.realiseApproved"), "realised after the refusal's restart: " + a.calls + " " + tails());
+		}
+		assertEquals(0, a.ledger.paid);
+		conserved();
+	}
+
+	@Test
+	void aQuoteThatCannotBillTheWholeTownNeverRealisesOrDrawsAcrossARestart() throws IOException {
+		// (CRASH-T3, batch-089 review P2) the quote's notes say a part isn't billed: refused (check.refused), whatever the module lots' shares say
+		aRefusingQuoteNeverRealises(partNotBilled(), "Architect couldn't quote the whole bill");
+	}
+
+	@Test
+	void aQuoteMissingAModuleLotsBillNeverRealisesOrDrawsAcrossARestart() throws IOException {
+		// (CRASH-T3, batch-089 review P2) the quote bills the hall's fill but not its lot: refused (the verdict's), though the caps could be read
+		aRefusingQuoteNeverRealises(hallLotUnbilled(), "doesn't bill the working");
+	}
+
+	@Test
+	void aPlacingBuildResumedOnAnArchitectWithoutLotCapsSendsAndDrawsNothing() throws IOException {
+		// (CRASH-T3, batch-089 review P2) saved placing under an Architect with lot caps, resumed on one without: a composed realise from materials
+		// is never sent uncapped, so nothing is sent or drawn, and the restart after it sends nothing either
+		heldApprovedUnanswered();
+		var f = new HashSet<>(a.features);
+		f.remove(ComposedModules.LOT_CAP_FEATURE);
+		a.features = Set.copyOf(f);
+		a.quote = inexact();
+		long quotes = a.count("regions.quoteApproved");
+		try (LogCapture log = LogCapture.open()) {
+			crash();
+			assertEquals(0, a.count("regions.realiseApproved"), "sent with no lot caps: " + a.calls + " " + tails());
+			assertEquals(0, a.ledger.paid, "drawn with no lot caps");
+			assertEquals(quotes + 1, a.count("regions.quoteApproved"), "the resume quoted: " + a.calls);
+			assertTrue(ComposedRunnerOrderTest.said(log, "can't be held to their measured limits"), log.lines.toString());
+		}
+		conserved();
+		if (onDisk()) {
+			crash();
+			assertEquals(0, a.count("regions.realiseApproved"), "sent after the restart: " + a.calls + " " + tails());
+		}
+		assertEquals(0, a.ledger.paid);
+		conserved();
+	}
+
+	@Test
+	void anOldSessionsLateAnswersAfterTheRestoreAreIgnored() throws IOException {
+		// (CRASH-T3, batch-089 review P3) the approve's quote is in flight when the world stops; the resume quotes and realises (applied, its answer in
+		// flight) and the world stops again; the next resume takes the region as the build's. Then both old sessions' answers arrive: neither
+		// realises again, nor takes up the region the build now holds, nor draws or refunds
+		runner(BOUNDED);
+		a.quote = inexact();
+		place();
+		assertEquals(Pipeline.Phase.AWAITING_PLACEMENT_APPROVAL, phase(), tails());
+		a.quoteHold = true;
+		assertTrue(approveOnly().startsWith("Approved"), tails());
+		drain();
+		assertEquals(1, a.held.size(), "the approve's quote is in flight: " + a.calls);
+		var oldQuote = List.copyOf(a.held);
+		a.quoteHold = false;
+		a.realiseAnswer = FakeArchitect.Answer.HOLD;
+		crash();
+		assertEquals(1, a.approved.size(), "the resume realised: " + a.calls + " " + tails());
+		assertEquals(1, a.held.size(), "the realise's answer is in flight");
+		var oldRealise = List.copyOf(a.held);
+		crash();
+		assertEquals(FakeArchitect.REALISED, field("vRegionId"), "the realise found by its key: " + a.calls + " " + tails());
+		int paid = a.ledger.paid;
+		try (LogCapture log = LogCapture.open()) {
+			oldQuote.forEach(Runnable::run);
+			oldRealise.forEach(Runnable::run);
+			drain();
+			assertEquals(1, a.approved.size(), "an old session's quote realised again: " + a.calls + " " + tails());
+			assertEquals(0, a.ledger.returned, "an old session's answer took up the build's region: " + log.lines);
+			assertFalse(log.has("taking it up"), "an old session's answer took up the build's region: " + log.lines);
+		}
+		assertTrue(a.regions.get(FakeArchitect.REALISED).present, "the region stands");
+		assertEquals(paid, a.ledger.paid);
+		assertEquals(FakeArchitect.REALISED, field("vRegionId"));
+		assertEquals(FakeArchitect.REALISED, disk().vRegion());
+		assertEquals(Pipeline.Phase.PLACING, phase());
+		conserved();
+		placedAndLogged(false);
+		undoneBalances();
 	}
 
 	// ------------------------------------------------------------------ a crash between a step's two saves (CRASH-T2)
