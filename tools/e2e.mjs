@@ -3419,9 +3419,19 @@ async function composedSculptFlowBody() {
  * drawn part of its bill with more to draw (the carve and the water free held work under way), the client is halted uncleanly (nothing saved) and
  * restarted; the reconcile keeps draws = charges with no overshoot, the town finishes, and the same quote = draws, refund, conservation and world
  * checks run over the whole build (a duplicate lining debit after the restart would show as a draw past the quote).
+ *
+ * (B092-LEFT, batch 092 GPT review P2: the crash points left) `crash` names where the client is halted uncleanly (nothing saved) and restarted:
+ * - true ('lining'): part way through the river's paid lining, as above;
+ * - 'carve': while the river's free carve is written (its forms stage placing, the terrain sites going down), jobs slowed to widen the window;
+ * - 'water': while the river's free water is written (its fluids stage placing, before the batch is done), jobs slowed;
+ * - 'refund': built, saved (as an autosave would), then undone with jobs slowed, and halted once the stockpile has credited some of the sites'
+ *   refunds and not all (the group's removal not done). After the restart the removal finishes (on its own, else the player undoes again).
+ * After each restart the reconcile and the same checks run: draws = charges, quote = draws, every consumed unit refunded exactly once (nothing
+ * minted by a refund credited twice, nothing lost by one dropped), delivered = stock + overflow, no site left, the world as before.
  */
 async function composedSculptSurvivalFlow({ crash = false } = {}) {
-  const label = crash ? 'composed sculpt survival crash' : 'composed sculpt survival';
+  const mode = crash === true ? 'lining' : crash || null;
+  const label = !mode ? 'composed sculpt survival' : mode === 'lining' ? 'composed sculpt survival crash' : `composed sculpt survival crash ${mode}`;
   const LINING = ['minecraft:clay', 'minecraft:mud', 'minecraft:moss_block'];
   await cmd('/architect survival on');
   await cmd('/defaultgamemode survival');
@@ -3463,13 +3473,15 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
         if (!feeding || !dev) continue;
         const sp = await ledger().catch(() => null);
         // (B092-FIX crash) until the halt, the lining a little at a time (16 of each per poll), so the river is caught part way through its paid lining
-        const items = crash && !halted ? Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, c]) => [k, LINING.includes(k) ? Math.min(c, 16) : c])) : sp?.need;
+        const items = mode === 'lining' && !halted ? Object.fromEntries(Object.entries(sp?.need ?? {}).map(([k, c]) => [k, LINING.includes(k) ? Math.min(c, 16) : c])) : sp?.need;
         if (sp && Object.keys(items ?? {}).length && dev) await dev.request('dev.crate.insert', { site: `stockpile:${owner}`, items }).catch(() => null);
       }
     })();
     feeding = true;
     const sp0 = await ledger();
-    const snap = await snapBeforeBuild(claim, `sculpt-${crash ? 'crash-' : ''}before-${id}`);
+    const snap = await snapBeforeBuild(claim, `sculpt-${mode ? `crash-${mode}-` : ''}before-${id}`);
+    // (B092-LEFT) the carve and the water are written in a few seconds: jobs slowed (about 16 cells a tick) so the halt lands inside them
+    if (mode === 'carve' || mode === 'water') await dev.request('dev.placement.slow', { on: true });
     from = logSize();
     await cmd(`/steward start ${id} 3 30`);
     let region = null, built = false;
@@ -3478,16 +3490,62 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
     const said = () => preHalt + logSince(at);
     const capOf = async (q) => dev.request('dev.bc.cap', { region, rid: 0, ...q }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
     const sum = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
+    // an unclean halt (nothing saved since the last save) and a restart; the client's log before it kept
+    const haltRestart = async (lbl) => {
+      preHalt = said();
+      at = logSize();
+      await dev.request('dev.stockpile.halt', { mode: 'now' }, { timeoutMs: 10_000 }).catch(() => null);
+      for (let i = 0; i < 120 && client.exitCode === null; i++) await sleep(1000);
+      if (client.exitCode === null) { fail(lbl, 'dev.stockpile.halt did not halt the client in 120 s'); return false; }
+      dev = null;
+      await sleep(4000);
+      preHalt += logSince(at);
+      at = 0;
+      launch();
+      await connect();
+      await cmd('/architect survival on');
+      await cmd('/gamemode creative @p');
+      await sleep(5000);
+      return true;
+    };
+    // (B092-LEFT) the reconcile after a halt in the build: an unclean start, draws = charges, no overshoot, nothing held at a bill cap
+    const reconciled = async (lbl, where) => {
+      const a = await dev.request('dev.stockpile.audit', { owner }, { timeoutMs: 120_000 }).catch(() => ({}));
+      const c2 = await capOf({});
+      const total = plusItems(c2?.paid ?? {}, c2?.regionCharged ?? {});
+      const blocked = (c2?.targets ?? []).filter((t) => t.blocked === 'bill_cap').map((t) => t.id);
+      if (a.uncleanStart === true && c2 && !c2.refused && sameItems(c2.drawn, total) && !Object.keys(c2.overshoot ?? {}).length && !blocked.length)
+        return ok(lbl, `${where}; after the restart drawn ${sum(c2.drawn)} = paid ${sum(c2.paid)} + region ${sum(c2.regionCharged)}, no overshoot, nothing held`), { audit: a };
+      fail(lbl, `${where}; unclean ${a.uncleanStart}; cap ${JSON.stringify(c2).slice(0, 400)}; held ${blocked.join(',')}`);
+      return null;
+    };
+    const stageRe = mode === 'carve' ? /Group g\d+: stage forms approved -> placing/ : /Group g\d+: stage fluids approved -> placing/;
+    const stageDone = mode === 'carve' ? /Group g\d+: stage forms placing -> placed/ : /Batch b\d+ done: /;
     const end = Date.now() + 2_400_000;
+    let approvedAt = 0;
     while (Date.now() < end) {
-      await sleep(3000);
+      // (B092-LEFT) watching for the carve or the water: a short poll of the log, so the halt lands inside the stage
+      const watching = (mode === 'carve' || mode === 'water') && !halted;
+      await sleep(watching ? 150 : 3000);
       const since = said();
+      // inside the stage once at least one of its terrain sites is down (written, or being written) and the stage isn't done
+      const sites = watching && stageRe.test(since) ? (since.slice(since.search(stageRe)).match(/Placed cell site c\d+ \(architect:terrain\)/g) ?? []).length : 0;
+      if (watching && (sites > 0 || stageDone.test(since))) {
+        const lbl = `${label} halt mid-${mode}`;
+        if (stageDone.test(since)) return fail(lbl, `the ${mode === 'carve' ? 'forms' : 'fluids'} stage was done before the halt: ${since.match(stageDone)?.[0]}`);
+        if (!(await haltRestart(lbl))) return;
+        const inside = !stageDone.test(preHalt);
+        if (!inside) return fail(lbl, `the stage finished before the client halted: ${preHalt.match(stageDone)?.[0]}`);
+        halted = await reconciled(lbl, `halted uncleanly with the ${mode === 'carve' ? "river's carve (forms stage)" : "river's water (fluids stage)"} placing, ${sites} terrain site(s) down and the stage not done`);
+        if (!halted) return;
+        continue;
+      }
       if (new RegExp(`${name} is built: everything its plan laid out stands`).test(since)) { built = true; break; }
       const stopped = since.match(/(?:^|\s)Not placed: [^\n]*|The build stopped[^\n]*|Cancelled [^\n]*|plan modules of \S+ left out of the card's layout[^\n]*/);
       if (stopped) return fail(label, `stopped: ${stopped[0].slice(0, 300)}`);
       if (!region) region = savedBuild(id)?.vRegion ?? null;
       // (B092-FIX, GPT review P2 crash) an unclean halt once the river's paid lining has drawn part of its bill with more still to draw
-      if (crash && region && !halted) {
+      if (mode === 'lining' && region && !halted) {
         const c = await capOf({});
         const sp = await ledger().catch(() => null);
         const liningDrawn = LINING.filter((k) => (c?.drawn?.[k] ?? 0) > 0);
@@ -3495,37 +3553,22 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
         if (liningDrawn.length && liningOwed.length) {
           const lbl = `${label} halt mid-lining`;
           const before = { drawn: c.drawn, consumed: sp?.consumed };
-          preHalt = said();
-          at = logSize();
-          await dev.request('dev.stockpile.halt', { mode: 'now' }, { timeoutMs: 10_000 }).catch(() => null);
-          for (let i = 0; i < 120 && client.exitCode === null; i++) await sleep(1000);
-          if (client.exitCode === null) return fail(lbl, 'dev.stockpile.halt did not halt the client in 120 s');
-          dev = null;
-          await sleep(4000);
-          preHalt += logSince(at);
-          at = 0;
-          launch();
-          await connect();
-          await cmd('/architect survival on');
-          await cmd('/gamemode creative @p');
-          await sleep(5000);
-          const a = await dev.request('dev.stockpile.audit', { owner }, { timeoutMs: 120_000 }).catch(() => ({}));
-          const c2 = await capOf({});
-          const total = plusItems(c2?.paid ?? {}, c2?.regionCharged ?? {});
-          const blocked = (c2?.targets ?? []).filter((t) => t.blocked === 'bill_cap').map((t) => t.id);
-          halted = { audit: a, before };
-          if (a.uncleanStart === true && c2 && !c2.refused && sameItems(c2.drawn, total) && !Object.keys(c2.overshoot ?? {}).length && !blocked.length)
-            ok(lbl, `halted uncleanly with the lining part drawn (${liningDrawn.map((k) => `${before.drawn[k]} ${k.slice(10)}`).join(', ')}) and owed (${liningOwed.map((k) => k.slice(10)).join(', ')}); after the restart drawn ${sum(c2.drawn)} = paid ${sum(c2.paid)} + region ${sum(c2.regionCharged)}, no overshoot, nothing held`);
-          else return fail(lbl, `unclean ${a.uncleanStart}; cap ${JSON.stringify(c2).slice(0, 400)}; held ${blocked.join(',')}`);
+          if (!(await haltRestart(lbl))) return;
+          halted = await reconciled(lbl, `halted uncleanly with the lining part drawn (${liningDrawn.map((k) => `${before.drawn[k]} ${k.slice(10)}`).join(', ')}) and owed (${liningOwed.map((k) => k.slice(10)).join(', ')})`);
+          if (!halted) return;
           continue;
         }
       }
       const st = savedBuild(id)?.state;
-      if (st && /^AWAITING_(BIBLE|MASSING|PLACEMENT)_APPROVAL$/.test(st.phase ?? '')) await cmd(`/steward approve ${id}`);
+      if (st && /^AWAITING_(BIBLE|MASSING|PLACEMENT)_APPROVAL$/.test(st.phase ?? '') && Date.now() - approvedAt > 2500) {
+        approvedAt = Date.now();
+        await cmd(`/steward approve ${id}`);
+      }
     }
     feeding = false;
+    if (mode === 'carve' || mode === 'water') await dev.request('dev.placement.slow', { on: false }).catch(() => null);
     const since = said();
-    if (crash && !halted) fail(`${label} halt mid-lining`, `never halted: the river's lining never caught part way (region ${region})`);
+    if (mode && mode !== 'refund' && !halted) fail(`${label} halt mid-${mode}`, `never halted: the ${mode} never caught part way (region ${region})`);
     if (!built) return fail(label, `not built in 40 min; region ${region}; phase ${savedBuild(id)?.state?.phase}; ${since.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
     const placed = await sculptChecks(label, id, since);
     if (!placed) return;
@@ -3585,11 +3628,53 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
         ok(lbl, `the stockpile lost ${sum(lost)} units over ${Object.keys(lost).length} items, exactly what the sites drew (paid ${sum(c.paid)} + region ${sum(c.regionCharged)}); lining ${liningDrawn.map((k) => `${lost[k]} ${k.slice(10)}`).join(', ')}`);
       else fail(lbl, `lost-drawn ${JSON.stringify(minusItems(lost, drawn)).slice(0, 200)}; drawn-total ${JSON.stringify(minusItems(drawn, total)).slice(0, 200)}; lining ${liningDrawn.join(',')}; ${JSON.stringify(c).slice(0, 200)}`);
     }
-    await cmd(`/steward undo ${id}`);
     let lastOp = null;
-    for (let i = 0; i < 300 && lastOp?.kind !== 'PROJECT_REMOVED'; i++) {
-      await sleep(2000);
-      lastOp = settlements().find((x) => x.id === id)?.log.at(-1);
+    const removedBy = async (ms) => {
+      for (const until = Date.now() + ms; Date.now() < until && lastOp?.kind !== 'PROJECT_REMOVED';) {
+        await sleep(2000);
+        lastOp = settlements().find((x) => x.id === id)?.log.at(-1);
+      }
+      return lastOp?.kind === 'PROJECT_REMOVED';
+    };
+    if (mode === 'refund') {
+      // (B092-LEFT) the built town saved as an autosave would, then undone with jobs slowed, and halted once the stockpile has credited some of the
+      // sites' refunds and not all (the group's removal not done)
+      const lbl = `${label} halt mid-refund`;
+      // (no /save-all on the integrated server: Architect's save barrier, the ledger as saved = the live one)
+      const bar = await saveBarrier(dev).then((x) => x.how, (e) => `failed: ${e?.message ?? e}`);
+      if (/^failed/.test(bar)) return fail(lbl, `the built town couldn't be saved before the undo: ${bar}`);
+      await dev.request('dev.placement.slow', { on: true });
+      const refundRe = new RegExp(`Stockpile ${owner}: refund \\S+ returned`, 'g');
+      const doneRe = /Removal done of group g\d+/;
+      const mark = said().length;
+      await cmd(`/steward undo ${id}`);
+      let credited = 0, done = false;
+      for (const until = Date.now() + 600_000; Date.now() < until;) {
+        await sleep(100);
+        const u = said().slice(mark);
+        credited = (u.match(refundRe) ?? []).length;
+        done = doneRe.test(u);
+        if (credited > 0 || done) break;
+      }
+      if (done || !credited) return fail(lbl, `the removal ${done ? 'was done' : 'credited nothing'} before the halt (${credited} refund(s) seen)`);
+      if (!(await haltRestart(lbl))) return;
+      const atHalt = preHalt.slice(mark);
+      credited = (atHalt.match(refundRe) ?? []).length;
+      if (doneRe.test(atHalt)) return fail(lbl, `the removal finished before the client halted (${credited} refund line(s))`);
+      const a = await dev.request('dev.stockpile.audit', { owner }, { timeoutMs: 120_000 }).catch(() => ({}));
+      const own = await removedBy(180_000);
+      if (!own) {
+        // not finished on its own: the player undoes again
+        console.log(`note ${lbl}: the undo didn't finish on its own after the restart (last ${lastOp?.kind}); undone again`);
+        await cmd(`/steward undo ${id}`);
+        await removedBy(600_000);
+      }
+      if (a.uncleanStart === true && lastOp?.kind === 'PROJECT_REMOVED')
+        ok(lbl, `halted uncleanly with ${credited} site refund(s) credited and the group's removal not done; after the restart the undo finished ${own ? 'on its own' : 'when undone again'}`);
+      else fail(lbl, `unclean ${a.uncleanStart}; last op ${lastOp?.kind}`);
+    } else {
+      await cmd(`/steward undo ${id}`);
+      await removedBy(600_000);
     }
     await sleep(10_000);
     const spR = await ledger();
@@ -3616,6 +3701,157 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
   } finally {
     stop = true;
     if (feeder) await feeder;
+    await cmd('/steward dev modules {}').catch(() => null);
+    await cmd('/defaultgamemode creative');
+    await cmd('/architect survival off');
+  }
+}
+
+/**
+ * (B092-LEFT; B092-FIX's verifier leftover) A stale artifact on a sculpt site, end to end: the sculpt survival town held at its placement approval,
+ * its ledger read, then pillars stood on the plan's land so Architect refuses the realise ARTIFACT_STALE (its re-survey of the
+ * plan's tiles). SettlementRunner.sendApproved's stale handler stops a sculpt site at VPlan.staleRecheckStop before any pin, quote again, realise
+ * or spend: the stop said to the player, no re-check (no second realise, no other artifact), nothing drawn (stock and consumed as before), nothing
+ * placed (no region, no placed history, the world as it stood with the pillars), the approved artifact's pin let go. The pillars taken down, a
+ * new Start plans the site anew (another artifact) and reaches its placement approval; cancelled there.
+ */
+async function composedSculptStaleFlow() {
+  const label = 'composed sculpt stale';
+  await cmd('/architect survival on');
+  await cmd('/defaultgamemode survival');
+  await cmd('/gamemode creative @p');
+  let pillars = [];
+  try {
+    ok(`${label} source`, await composedSource());
+    const n = settlements().length;
+    await cmd(`/spreadplayers ${(n + 1) * 900} 96500 0 1 false @p`);
+    await dev.request('dev.waitChunks', { timeoutMs: 60_000 });
+    await clearAnimals();
+    await cmd('/clear @p');
+    await cmd('/steward claim');
+    const id = settlements().at(-1).id;
+    await closeScreens();
+    await cmd(`/steward expand ${id}`);
+    const name = 'River Stale';
+    await cmd(`/steward dev sim_answer card ${JSON.stringify(sculptCard(name))}`);
+    await cmd(`/steward dev sim_answer plan ${JSON.stringify(sculptAnswer())}`);
+    let from = logSize();
+    await cmd(`/steward describe ${id} a market town on a carved river with a big storage hall`);
+    if (!(await waitLog(from, /Saved\. Start building/, 120_000))) return fail(label, 'no card');
+    if (!(await waitLog(from, new RegExp(`plan for ${id}: [A-Z_]+ after`), 240_000))) return fail(label, 'no plan composed');
+    await closeScreens();
+    await clearAnimals();
+    const claim = settlements().find((x) => x.id === id).claim;
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius + 4}`);
+    const owner = `steward_mc:settlement/${id}`;
+    const ledger = async () => {
+      const r = await cmd(`/steward dev stockpile ${id}`);
+      const m = r.match(/stockpile \S+ (\{.*\})/);
+      return m ? unweathered(JSON.parse(m[1])) : null;
+    };
+    from = logSize();
+    await cmd(`/steward start ${id} 3 30`);
+    // the bible and the massings approved; held at the placement approval
+    let st = null;
+    for (const end = Date.now() + 1_200_000; Date.now() < end;) {
+      await sleep(3000);
+      st = savedBuild(id)?.state;
+      if (st?.phase === 'AWAITING_PLACEMENT_APPROVAL') break;
+      if (/^AWAITING_(BIBLE|MASSING)_APPROVAL$/.test(st?.phase ?? '')) await cmd(`/steward approve ${id}`);
+      if (/^(DONE|FAILED|CANCELLED)$/.test(st?.phase ?? '')) break;
+    }
+    const sha = logSince(from).match(new RegExp(`plan of ${id}: artifact ([0-9a-f]{64})`))?.[1] ?? null;
+    if (st?.phase !== 'AWAITING_PLACEMENT_APPROVAL' || !sha || !/Laying out the village from its plan/.test(logSince(from)))
+      return fail(`${label} held`, `phase ${st?.phase}; artifact ${sha}; ${logSince(from).split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+    // (a crate takes only what a build owes, as a hopper would: nothing can be stocked ahead of the realise) the ledger before the approval; a
+    // realise that went on would owe the town's bill (need), and draw it as it came
+    const sp0 = await ledger();
+    if (!sp0) return fail(`${label} held`, 'no stockpile ledger');
+    // pillars over the claim at the surface: the plan's tiles' columns change under it
+    const step = 8, r = claim.radius - 6;
+    for (let dx = -r; dx <= r; dx += step) for (let dz = -r; dz <= r; dz += step) pillars.push([claim.centerX + dx, claim.centerZ + dz]);
+    for (const [x, z] of pillars) await cmd(`/execute positioned ${x} 0 ${z} positioned over world_surface run fill ~ ~ ~ ~ ~2 ~ minecraft:cobblestone replace air`);
+    await cmd(`/tp @p ${claim.centerX} ~ ${claim.centerZ - claim.radius + 4}`);
+    await clearAnimals();
+    const snap = await snapBeforeBuild(claim, `sculpt-stale-${id}`);
+    const pinsOf = async (s) => JSON.stringify((await dev.call('dev.coa.artifact', { sha: s }).catch(() => ({})))?.pins ?? null);
+    const pinBefore = await pinsOf(sha);
+    from = logSize();
+    await cmd(`/steward approve ${id}`);
+    const stopRe = /the land changed under the shaped site while its buildings were designed[^\n]*start the build again to plan the site anew/;
+    const stopped = await waitLog(from, stopRe, 600_000);
+    await sleep(8000);
+    const since = logSince(from);
+    const chat = since.split('\n').filter((l) => /CHAT/.test(l));
+    // the stop: Architect's stale refusal, the sculpt stop logged and said, and no re-check
+    {
+      const lbl = `${label} stop`;
+      const staleSeen = new RegExp(`${id}: the artifact ${sha} is stale`).test(since);
+      const sculptStop = new RegExp(`${id}: a stale artifact on a sculpted site: stopped, not checked again`).test(since);
+      const said = chat.find((l) => stopRe.test(l));
+      const recheck = /checking it again/.test(since);
+      if (stopped && staleSeen && sculptStop && said && !recheck) ok(lbl, said.replace(/^.*\[CHAT\] /, '').slice(0, 220));
+      else fail(lbl, `stale ${staleSeen}; sculpt stop ${sculptStop}; said ${!!said}; re-check said ${recheck}; ${chat.slice(-3).join(' | ').slice(0, 300)}`);
+    }
+    // nothing more pinned, quoted or realised: one realise (the stale one), none after a re-check, no other artifact; the approved one let go
+    {
+      const lbl = `${label} no re-check`;
+      const realises = [...since.matchAll(new RegExp(`realise ${id}: artifact ([0-9a-f]{64}) under key \\S+ \\((first|after a re-check)\\)`, 'g'))];
+      const others = [...since.matchAll(new RegExp(`plan of ${id}: artifact ([0-9a-f]{64})`, 'g'))];
+      const quotes = [...since.matchAll(new RegExp(`composed modules ${id} quote ([0-9a-f]{64})`, 'g'))];
+      const pinAfter = await pinsOf(sha);
+      if (realises.length === 1 && realises[0][1] === sha && realises[0][2] === 'first' && others.length === 0 && quotes.every((q) => q[1] === sha) && quotes.length <= 1
+        && pinBefore.includes(owner) && !pinAfter.includes(owner))
+        ok(lbl, `one realise of ${sha.slice(0, 12)} (refused stale), no re-check, no other artifact, ${quotes.length} quote of it; its pin let go (${pinBefore} -> ${pinAfter})`);
+      else fail(lbl, `realises ${realises.map((x) => `${x[1].slice(0, 8)} ${x[2]}`).join('; ')}; other plans ${others.length}; quotes ${quotes.map((q) => q[1].slice(0, 8)).join(',')}; pins ${pinBefore} -> ${pinAfter}`);
+    }
+    // nothing drawn or charged: the stock and the consumed as before the approval, nothing owed
+    const sp1 = await ledger();
+    {
+      const lbl = `${label} no charge`;
+      const drew = drawsBetween(sp0, sp1);
+      const stockOff = minusItems(sp1?.stock, sp0?.stock);
+      const owed = Object.keys(sp1?.need ?? {});
+      if (sp1 && !Object.keys(drew).length && !Object.keys(stockOff).length && !Object.keys(minusItems(sp0?.stock, sp1?.stock)).length && !owed.length)
+        ok(lbl, `nothing drawn, consumed and stock as before (${Object.values(sp1.consumed ?? {}).reduce((a, b) => a + b, 0)} consumed), nothing owed (no bill put on the stockpile)`);
+      else fail(lbl, `drew ${JSON.stringify(drew)}; stock moved ${JSON.stringify(minusItems(sp1?.stock, sp0?.stock))}/${JSON.stringify(minusItems(sp0?.stock, sp1?.stock))}; owed ${owed.join(',')}`);
+    }
+    // nothing placed: no region, no placed history, the build ended, and the world in the claim as it stood with the pillars
+    {
+      const lbl = `${label} nothing placed`;
+      const b = savedBuild(id);
+      const placed = (settlements().find((x) => x.id === id)?.log ?? []).filter((e) => e.kind === 'PROJECT_PLACED');
+      const exclude = crateBoxes(sp0, sp1, sp1);
+      const d = snap?.error ? { error: snap.error } : await dev.call('dev.region.hash', { box: snap.box, mode: 'diff', file: snap.file, exclude, limit: 10_000 }, { timeoutMs: 1_800_000 })
+        .catch((e) => ({ error: String(e?.message ?? e) }));
+      const cells = (d?.list ?? []).filter((m) => !/^(growth|grazed)$/.test(String(m.class)));
+      const regions = since.match(/Group g\d+: stage \w+ approved -> placing/g) ?? [];
+      if (!d?.error && !b?.vRegion && !placed.length && !regions.length && !cells.length && /^(FAILED|CANCELLED|DONE)$|^$/.test(b?.state?.phase ?? ''))
+        ok(lbl, `no region, no placed history, no stage placing; the claim's ${d.checked ?? 'boxed'} cells as they stood (phase ${b?.state?.phase ?? 'ended'})`);
+      else fail(lbl, `region ${b?.vRegion}; placed ${placed.length}; stages ${regions.length}; phase ${b?.state?.phase}; ${d?.error ?? `${cells.length} cell(s) differ, e.g. ${cells.slice(0, 4).map((m) => `${m.pos} ${m.was} -> ${m.now} (${m.class})`).join('; ').slice(0, 300)}`}`);
+    }
+    // the pillars down; a new Start plans the site anew (another artifact) and lays out from it, held at its placement approval
+    for (const [x, z] of pillars) await cmd(`/fill ${x} -60 ${z} ${x} 300 ${z} minecraft:air replace minecraft:cobblestone`);
+    pillars = [];
+    from = logSize();
+    await cmd(`/steward start ${id} 3 30`);
+    let st2 = null;
+    for (const end = Date.now() + 1_200_000; Date.now() < end;) {
+      await sleep(3000);
+      st2 = savedBuild(id)?.state;
+      if (st2?.phase === 'AWAITING_PLACEMENT_APPROVAL') break;
+      if (/^AWAITING_(BIBLE|MASSING)_APPROVAL$/.test(st2?.phase ?? '')) await cmd(`/steward approve ${id}`);
+      if (/^(DONE|FAILED|CANCELLED)$/.test(st2?.phase ?? '')) break;
+    }
+    const since2 = logSince(from);
+    const sha2 = since2.match(new RegExp(`plan of ${id}: artifact ([0-9a-f]{64})`))?.[1] ?? null;
+    if (st2?.phase === 'AWAITING_PLACEMENT_APPROVAL' && sha2 && sha2 !== sha && /Laying out the village from its plan/.test(since2))
+      ok(`${label} new start`, `planned anew: artifact ${sha2.slice(0, 12)} (was ${sha.slice(0, 12)}), laid out from its plan, held at the placement approval`);
+    else fail(`${label} new start`, `phase ${st2?.phase}; artifact ${sha2} (was ${sha}); ${since2.split('\n').filter((l) => /CHAT/.test(l)).slice(-3).join(' | ').slice(0, 300)}`);
+    await cmd(`/steward cancel ${id}`);
+    await sleep(3000);
+  } finally {
+    if (pillars.length) for (const [x, z] of pillars) await cmd(`/fill ${x} -60 ${z} ${x} 300 ${z} minecraft:air replace minecraft:cobblestone`).catch(() => null);
     await cmd('/steward dev modules {}').catch(() => null);
     await cmd('/defaultgamemode creative');
     await cmd('/architect survival off');
@@ -10246,6 +10482,12 @@ try {
       await flow('composed-sculpt-survival', 'composed module hall sculpt survival stockpile bill refund water', () => composedSculptSurvivalFlow());
       // (B092-FIX, batch 092 GPT review P2) the same town halted uncleanly part way through the river's paid lining, restarted, finished and undone
       await flow('composed-sculpt-survival-crash', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: true }));
+      // (B092-LEFT) a stale artifact on a sculpt site: stopped before any re-check, pin, quote, realise or spend; a new Start plans it anew
+      // (B092-LEFT, batch 092 GPT review P2) the crash points left: during the free carve, the free water, and the undo's refund crediting
+      await flow('composed-sculpt-crash-carve', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'carve' }));
+      await flow('composed-sculpt-crash-water', 'composed module hall sculpt survival stockpile bill refund water restart crash', () => composedSculptSurvivalFlow({ crash: 'water' }));
+      await flow('composed-sculpt-crash-refund', 'composed module hall sculpt survival stockpile bill refund undo restart crash', () => composedSculptSurvivalFlow({ crash: 'refund' }));
+      await flow('composed-sculpt-stale', 'composed module hall sculpt survival stockpile bill stale', () => composedSculptStaleFlow());
       // (slice MODULE-TYPE-2) a bare module-type plan lot the catalog doesn't offer: left out of the first build, said, the rest built
       await flow('composed-unoffered', 'composed module farm plan first-build left out', () => composedUnofferedFlow());
       // (slice M5a; LIFT-S) a composed farm's bill from materials held, kept across a restart, re-checked stale and realised under its lot cap
