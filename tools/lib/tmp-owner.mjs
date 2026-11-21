@@ -11,7 +11,8 @@
 // inside the same process, so the dir and the sidecar data in it survive them. It runs on a normal end, process.exit (the slot timeout's exit 3),
 // an uncaught throw or rejection ('exit'), and SIGINT/SIGTERM/SIGHUP (the shutdown coordinator's last phase, after the client is stopped). A dir is removed only by its exact path, and only while its marker still
 // names this process (another run may have taken the same path since). STEWARD_KEEP_TMP=1 keeps them (debugging): marked `kept` from the start
-// (E2E-DISK-3), so neither the sweep nor a later run on the same game dir ever empties them; they go at a reboot or by hand.
+// (E2E-DISK-3), so a later run on the same game dir never empties them. (E2E-DISK-4) The sweep bounds them: a kept dir whose owner is gone goes
+// once untouched for 24 h, or oldest first while the kept total is past 8 GiB (STEWARD_KEEP_TMP_HOURS, STEWARD_KEEP_TMP_CAP_GIB).
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -136,7 +137,7 @@ const keep = (env = process.env) => env.STEWARD_KEEP_TMP === '1';
  * the dir is made again empty and unmarked, and the link left: a dev client on the same game dir then keeps writing to the RAM disk, not to a real
  * on-disk dir the next run would rename to sidecar-data.ssd and keep. Never throws. -> 'removed'|'kept'|'not-mine'|'gone'|'failed'.
  */
-export function removeOwned(dir, { link = null, env = process.env } = {}) {
+export function removeOwned(dir, { link = null, primary = owned.get(dir)?.primary ?? null, env = process.env } = {}) {
   owned.delete(dir);
   try {
     let st = null;
@@ -154,7 +155,7 @@ export function removeOwned(dir, { link = null, env = process.env } = {}) {
       try { markOwner(dir); } catch {}
       return 'failed';
     }
-    if (link) relink(link, dir);
+    if (link) (primary ? repoint(link, dir, primary) : relink(link, dir));
     return 'removed';
   } catch {
     try { if (fs.existsSync(dir)) markOwner(dir); } catch {}
@@ -168,6 +169,25 @@ function relink(link, dir) {
     if (fs.lstatSync(link).isSymbolicLink() && fs.readlinkSync(link) === dir) fs.mkdirSync(dir, { recursive: true });
   } catch {
     // no link (anymore): nothing to keep valid
+  }
+}
+
+/**
+ * (E2E-DISK-4) A fallback dir (`sidecar-<hash>-XXXXXX`, taken because the game dir's own held kept or a dev client's data) isn't made again: made
+ * again empty, one per run, they piled up. The link, when it still points at exactly dir, goes back to the game dir's own dir (`primary`, where it
+ * pointed before the run; made when absent), swapped in by a rename so it is never missing.
+ */
+function repoint(link, dir, primary) {
+  try {
+    if (!fs.lstatSync(link).isSymbolicLink() || fs.readlinkSync(link) !== dir) return;
+    fs.mkdirSync(primary, { recursive: true });
+    if (!fs.lstatSync(primary).isDirectory()) return;
+    const tmp = `${link}.repoint-${process.pid}`;
+    try { fs.unlinkSync(tmp); } catch {}
+    fs.symlinkSync(primary, tmp);
+    fs.renameSync(tmp, link);
+  } catch {
+    // left as it is: a dangling link is repaired at the next launch (repairSidecarData)
   }
 }
 
@@ -190,12 +210,13 @@ function hook() {
 }
 
 /**
- * Marks dir as this process's and removes it when the process ends ({link}: the symlink to unlink with it). With STEWARD_KEEP_TMP=1 the marker says
+ * Marks dir as this process's and removes it when the process ends ({link}: the game dir's symlink to it; {primary}: for a fallback dir, the
+ * game dir's own dir the link goes back to). With STEWARD_KEEP_TMP=1 the marker says
  * `kept` from the start (E2E-DISK-3): a SIGKILL skips the exit hook, and the data is still never swept. Returns dir.
  */
-export function own(dir, { link = null, extra = {}, env = process.env } = {}) {
+export function own(dir, { link = null, primary = null, extra = {}, env = process.env } = {}) {
   markOwner(dir, keep(env) ? { ...extra, kept: true } : extra);
-  owned.set(dir, { link });
+  owned.set(dir, { link, primary });
   hook();
   return dir;
 }
@@ -213,10 +234,60 @@ function lastTouched(dir, st) {
   return t;
 }
 
+/** (E2E-DISK-4) The kept-dir bounds' defaults: a dead owner's kept dir goes once untouched this long, or oldest first past this total. */
+export const KEPT_HOURS = 24;
+export const KEPT_CAP_GIB = 8;
+const GIB = 1024 ** 3;
+/** A fallback dir's name: the game dir's `sidecar-<hash>` plus mkdtemp's six characters. */
+export const FALLBACK_RE = /^sidecar-[0-9a-f]+-[A-Za-z0-9]{6}$/;
+/** An empty unmarked fallback is left this long (minutes) before the sweep takes it: a run marks its new one at once, a dev client fills it. */
+export const EMPTY_MINUTES = 10;
+
+/** The kept bounds from STEWARD_KEEP_TMP_HOURS and STEWARD_KEEP_TMP_CAP_GIB (numbers >= 0; 0 turns that bound off), else the defaults, said. */
+export function keptBounds(env = process.env) {
+  const warn = [];
+  const num = (k, d) => {
+    const raw = env[k];
+    if (raw == null || String(raw).trim() === '') return d;
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0) return n;
+    warn.push(`${k}=${JSON.stringify(raw)} is not a number >= 0: using ${d}`);
+    return d;
+  };
+  const out = { keptHours: num('STEWARD_KEEP_TMP_HOURS', KEPT_HOURS), keptCapBytes: num('STEWARD_KEEP_TMP_CAP_GIB', KEPT_CAP_GIB) * GIB };
+  if (warn.length) out.warning = warn.join('; ');
+  return out;
+}
+
+/** The bytes dir takes on its volume (allocated blocks), walked with lstat: symlinks are never followed. Never throws. */
+export function dirBytes(dir) {
+  let total = 0;
+  const walk = (p) => {
+    let st;
+    try { st = fs.lstatSync(p); } catch { return; }
+    total += Number.isFinite(st.blocks) ? st.blocks * 512 : st.size;
+    if (!st.isDirectory()) return;
+    let names = [];
+    try { names = fs.readdirSync(p); } catch { return; }
+    for (const n of names) walk(path.join(p, n));
+  };
+  walk(dir);
+  return total;
+}
+
 /**
  * Removes the direct children of root named `prefix*` that carry a valid owner marker whose owner is gone and that are untouched for `hours`
  * (default 0: a dead owner is decisive, the dir is that run's leftover). A dir without a marker, a symlink and a plain file are never touched (other
- * tools share TMPDIR); a live owner's dir is kept, and so is a dir marked `kept` (STEWARD_KEEP_TMP=1, E2E-DISK-3), whatever its owner. Never throws. -> { root, removed: [names], kept: [names], failed: [names] }.
+ * tools share TMPDIR), but for an empty fallback dir (below); a live owner's dir is always kept. Never throws.
+ *
+ * (E2E-DISK-4) Dirs marked `kept` (STEWARD_KEEP_TMP=1) are bounded, so repeated kept runs (2-6 GB each) can't fill the 24 GB RAM disk:
+ *   - a kept dir whose owner is gone goes once untouched for `keptHours` (24; 0: no age bound);
+ *   - while all kept dirs together (live owners' included: they count, but are never taken) pass `keptCapBytes` (8 GiB; 0: no cap), the dead
+ *     owners' go, oldest first; `overCap` says the total is still past it after that;
+ *   - a dead owner's kept fallback holding nothing but its marker goes at once.
+ * An empty unmarked fallback dir (`sidecar-<hash>-XXXXXX`, FALLBACK_RE; what a run before E2E-DISK-4 left) untouched for `emptyMinutes` goes too,
+ * by rmdir: never recursively, so a dir written into meanwhile stays.
+ * -> { root, removed: [names], kept: [names], failed: [names], swept: [{name, why, bytes?}], keptBytes, overCap }.
  *
  * (batch-074 GPT review P1) The snapshot `starts` is taken once, before the walk: a driver that starts after it and marks a dir before the walk
  * reaches it would read as gone. So just before each removal the marker is read again and must be byte-for-byte the one judged, and its owner is
@@ -225,10 +296,30 @@ function lastTouched(dir, st) {
  * recheck and the rmSync remains (a driver marking the very dir in that gap); renaming the dir away first would break a live owner's paths.
  */
 export function sweepStale({ root, prefix = 'sidecar-', hours = 0, now = Date.now(), starts = processStarts(), alive = pidAlive, dryRun = false,
-  gone = (o) => ownerGone(o, { alive }), between = null } = {}) {
-  const res = { root, removed: [], kept: [], failed: [] };
+  gone = (o) => ownerGone(o, { alive }), between = null, keptHours = KEPT_HOURS, keptCapBytes = KEPT_CAP_GIB * GIB,
+  emptyMinutes = EMPTY_MINUTES, sizeOf = dirBytes } = {}) {
+  const res = { root, removed: [], kept: [], failed: [], swept: [], keptBytes: 0, overCap: false };
   let names = [];
   try { names = fs.readdirSync(root).sort(); } catch { return res; }
+  /** The recheck, then the removal; -> true when removed (or would be, dry). */
+  const take = (name, p, raw, o, why, bytes) => {
+    try {
+      if (!dryRun) {
+        if (between) between(p);
+        if (!fs.lstatSync(p).isDirectory()) { res.kept.push(name); return false; } // swapped for a symlink meanwhile: not followed
+        // marked again since the judgement (another run took the name, or its run said kept), or its owner live after all: kept
+        if (rawOwner(p) !== raw || !gone(o)) { res.kept.push(name); return false; }
+        fs.rmSync(p, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 });
+      }
+      res.removed.push(name);
+      res.swept.push({ name, why, ...(bytes == null ? {} : { bytes }) });
+      return true;
+    } catch {
+      res.failed.push(name);
+      return false;
+    }
+  };
+  const keptLive = [], keptDead = [];
   for (const name of names) {
     if (!name.startsWith(prefix)) continue;
     const p = path.join(root, name);
@@ -237,21 +328,53 @@ export function sweepStale({ root, prefix = 'sidecar-', hours = 0, now = Date.no
     if (!st.isDirectory()) continue;
     const raw = rawOwner(p);
     const o = parseOwner(raw);
-    if (!o) continue;
-    if (isKept(o)) { res.kept.push(name); continue; }
-    if (isHeld(o, starts, alive) || (hours > 0 && (now - lastTouched(p, st)) / 3_600_000 < hours)) { res.kept.push(name); continue; }
-    try {
-      if (!dryRun) {
-        if (between) between(p);
-        if (!fs.lstatSync(p).isDirectory()) { res.kept.push(name); continue; } // swapped for a symlink meanwhile: not followed
-        // marked again since the judgement (another run took the name), or its owner live after all: kept
-        if (rawOwner(p) !== raw || isKept(parseOwner(rawOwner(p))) || !gone(o)) { res.kept.push(name); continue; }
-        fs.rmSync(p, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 });
+    if (!o) {
+      if (raw == null && FALLBACK_RE.test(name) && (now - lastTouched(p, st)) / 60_000 >= emptyMinutes) {
+        let empty = false;
+        try { empty = fs.readdirSync(p).length === 0; } catch {}
+        if (!empty) continue;
+        try {
+          if (!dryRun) fs.rmdirSync(p); // ENOTEMPTY when written into meanwhile: kept
+          res.removed.push(name);
+          res.swept.push({ name, why: 'an empty fallback dir' });
+        } catch (e) {
+          if (e?.code !== 'ENOTEMPTY' && e?.code !== 'ENOENT') res.failed.push(name);
+        }
       }
-      res.removed.push(name);
-    } catch {
-      res.failed.push(name);
+      continue;
     }
+    if (isHeld(o, starts, alive)) {
+      res.kept.push(name);
+      if (isKept(o)) keptLive.push({ name, p });
+      continue;
+    }
+    if (isKept(o)) {
+      let only = false;
+      try { only = FALLBACK_RE.test(name) && fs.readdirSync(p).every((n) => n === OWNER_FILE); } catch {}
+      if (only) { take(name, p, raw, o, 'a kept fallback dir holding nothing, its owner gone'); continue; }
+      keptDead.push({ name, p, raw, o, t: lastTouched(p, st) });
+      continue;
+    }
+    if (hours > 0 && (now - lastTouched(p, st)) / 3_600_000 < hours) { res.kept.push(name); continue; }
+    take(name, p, raw, o, 'its owner gone');
   }
+  // the kept dirs whose owner is gone: by age, then oldest first while the kept total is past the cap
+  const left = [];
+  for (const k of keptDead) {
+    const h = (now - k.t) / 3_600_000;
+    if (keptHours > 0 && h >= keptHours) take(k.name, k.p, k.raw, k.o, `kept, its owner gone, untouched ${Math.floor(h)} h (bound ${keptHours} h)`);
+    else left.push(k);
+  }
+  if (keptCapBytes > 0 && (left.length || keptLive.length)) {
+    for (const k of [...keptLive, ...left]) { k.bytes = sizeOf(k.p); res.keptBytes += k.bytes; }
+    left.sort((a, b) => a.t - b.t);
+    const cap = (b) => `${(b / GIB).toFixed(2)} GiB`;
+    while (res.keptBytes > keptCapBytes && left.length) {
+      const k = left.shift();
+      if (take(k.name, k.p, k.raw, k.o, `kept, its owner gone, the oldest while kept dirs total ${cap(res.keptBytes)} (cap ${cap(keptCapBytes)})`, k.bytes)) res.keptBytes -= k.bytes;
+    }
+    res.overCap = res.keptBytes > keptCapBytes;
+  }
+  for (const k of left) res.kept.push(k.name);
   return res;
 }

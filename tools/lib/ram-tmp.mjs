@@ -61,6 +61,7 @@ export function repairSidecarData(gameDir, env = process.env, root = RAM_TMP) {
  * fresh (E2E-DISK-3): only a dir this run owns, or whose owner is provably gone, is emptied; the empty unmarked dir a run leaves is taken as it is.
  * A dir marked `kept` (STEWARD_KEEP_TMP=1) or holding unmarked data (a dev client's) is left as it is and the run takes a new dir of its own
  * (`sidecar-<hash>-XXXXXX`, made exclusively). A dir held by another live run (one in its slot wait) refuses the run: nothing is emptied or relinked.
+ * (E2E-DISK-4) Such a fallback dir is removed at the run's end (not made again empty) and the link goes back to the game dir's own dir.
  */
 export function ramSidecarData(gameDir, env = process.env, root = RAM_TMP, { fresh = false, own = false, starts } = {}) {
   const link = path.join(gameDir, 'architect', 'sidecar-data');
@@ -84,7 +85,8 @@ export function ramSidecarData(gameDir, env = process.env, root = RAM_TMP, { fre
     return { mode: 'disk', dir: link, owned: own && made };
   }
   const hash = (s) => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.codePointAt(0), 16777619) >>> 0; return h.toString(16); };
-  let target = path.join(root, 'steward', `sidecar-${hash(path.resolve(gameDir))}`);
+  const primary = path.join(root, 'steward', `sidecar-${hash(path.resolve(gameDir))}`);
+  let target = primary;
   // fresh (an e2e run, whose world is new): start from an empty directory. The sidecar's designs, bibles and jobs pile up run after run
   // (6 GB in one checkout by 11-15), and a 24 GB RAM disk shared by every worktree filled up (ENOSPC) mid-run
   if (fresh) {
@@ -93,7 +95,8 @@ export function ramSidecarData(gameDir, env = process.env, root = RAM_TMP, { fre
     target = freshTarget(target, gameDir, starts);
   }
   fs.mkdirSync(target, { recursive: true });
-  if (own) ownDir(target, { link, env, extra: { tool: 'steward-e2e', gameDir: path.resolve(gameDir) } });
+  // (E2E-DISK-4) a fallback dir is removed at the run's end, the link going back to the game dir's own dir
+  if (own) ownDir(target, { link, primary: target === primary ? null : primary, env, extra: { tool: 'steward-e2e', gameDir: path.resolve(gameDir) } });
   let moved = null;
   if (st?.isSymbolicLink()) {
     if (fs.readlinkSync(link) === target) return { mode: 'ram', dir: target, owned: own };

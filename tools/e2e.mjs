@@ -19,7 +19,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { pickFlows, groupFlows, packFlows, codeBlocks, closureOf, fixtureRefs, hashPaths, hashText, hashLib, skipDecision, applySkips, isStrict } from './lib/e2e-flows.mjs';
 import { useRamTmp, ramSidecarData, RAM_TMP } from './lib/ram-tmp.mjs';
-import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
+import { sweepStale, cleanupOwned, keptBounds } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
@@ -492,8 +492,13 @@ async function preflight() {
   // the sidecar's data on the RAM disk when it's there (the 11-14 machine audit: ~3 GB written per worktree per 30 min); the world, logs and shots stay on disk
   // slice TMPSWEEP (mod/DEV.md "Temp dirs"): earlier runs' sidecar dirs whose owner is gone (a hard kill) go first; this run's own is owner-marked
   // and removed when this process ends, not when its client relaunches
-  const swept = sweepStale({ root: path.join(RAM_TMP, 'steward') });
-  if (swept.removed.length || swept.failed.length) console.log(`tmp-sweep: removed ${swept.removed.length} stale sidecar dir(s)${swept.removed.length ? ` (${swept.removed.join(', ')})` : ''}${swept.failed.length ? `, ${swept.failed.length} failed` : ''}`);
+  // (E2E-DISK-4) kept dirs (STEWARD_KEEP_TMP=1) whose owner is gone are bounded by age and a total cap; empty fallback dirs go too
+  const { warning: keptWarning, ...kept } = keptBounds();
+  if (keptWarning) console.log(`tmp-sweep: ${keptWarning}`);
+  const swept = sweepStale({ root: path.join(RAM_TMP, 'steward'), ...kept });
+  for (const s of swept.swept) console.log(`tmp-sweep: removed ${s.name}: ${s.why}${s.bytes ? `, ${(s.bytes / 1024 ** 3).toFixed(2)} GiB` : ''}`);
+  if (swept.failed.length) console.log(`tmp-sweep: ${swept.failed.length} failed (${swept.failed.join(', ')})`);
+  if (swept.overCap) console.log(`tmp-sweep: kept dirs still total ${(swept.keptBytes / 1024 ** 3).toFixed(2)} GiB, past the ${(kept.keptCapBytes / 1024 ** 3).toFixed(2)} GiB cap: the rest belong to live runs`);
   const sd = ramSidecarData(GAME, process.env, undefined, { fresh: true, own: true });
   ok('preflight', `no credentials, no other client; sidecar data on ${sd.mode === 'ram' ? `the RAM disk (${sd.dir})` : 'disk'}${sd.moved ? `, the old one kept at ${sd.moved}` : ''}${sd.owned ? ', removed at the end' : ''}`);
 }
