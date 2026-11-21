@@ -123,6 +123,30 @@ class ModuleTypeFirstBuildTest {
 		assertEquals(List.of(ComposedModules.notOfferedWords("crop field", "crop_farm")), r.said());
 	}
 
+	/** (GPT review P1) A bare module lot with no "for" stands for the card building of its own label or role, whatever that building's type. */
+	@Test
+	void aBareLotStandsForTheCardBuildingOfItsRole() throws Exception {
+		var card = StreetModulesTest.cardWith("""
+			[{"role": "farm", "type": "farm", "count": 1, "footprint": "L", "landmark": false},
+			 {"role": "cottage", "type": "cottage", "count": 2, "footprint": "S", "landmark": false}]""");
+		JsonObject plan = json("""
+			{"zones":[{"id":"town","program":{"lots":[{"id":"farm_1","type":"crop_farm","role":"farm","size":[11,12]},{"id":"cottage_1","type":"cottage","role":"cottage"}]}}]}""");
+		var specs = dev.larattalabs.steward.gateway.ProgramPlanner.lots(card, 3, 0).specs();
+		var r = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, Set.of(), card, specs, "x", "on Steward's streets");
+		assertEquals(1, r.removed(), "the farm the bare crop_farm lot was written for is never designed beside it");
+		assertTrue(r.specs().stream().noneMatch(s -> s.type().equals("farm")));
+		var left = List.of(new ProposalRules.Missing(0, card.program().get(0)));
+		assertTrue(StreetModules.withoutModules(plan, ModuleTypes.KNOWN, card, left).isEmpty(), "nor offered later as a left-out building");
+		// an ordinary building of another role stays
+		assertEquals(2, r.specs().size());
+	}
+
+	@Test
+	void anAskedModuleGoesToTheTownNotTheDistrictWithRoom() {
+		assertNull(Talk.moduleIn(null, new ProposalRules.Where("d_east", false)));
+		assertEquals("d_named", Talk.moduleIn("d_named", null));
+	}
+
 	// ------------------------------------------------------------------ MODULE-TYPE's final-pass P2s, P3, the wording
 
 	@Test

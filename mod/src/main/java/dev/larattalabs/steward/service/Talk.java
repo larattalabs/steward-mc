@@ -200,7 +200,7 @@ public final class Talk {
 					// (docs/MODULES.md 4.1) a working module asked for: offered when it can go here; else the steward says why, and the building asked for is
 					// its own priced proposal (the decorative stand-in), never a silent switch. (slice MODULE-TYPE; Noah 11-20, "Never as plain buildings")
 					// a building asked for in a module's type is asked of the module, whatever the model wrote in module. A full town's module grows the town.
-					String in = district != null ? district : where != null && !where.full() ? where.district() : null;
+					String in = moduleIn(district, where);
 					var kind = dev.larattalabs.steward.module.ModuleKind.of(module.id());
 					var v = kind.isEmpty() ? null : ModuleOffers.verdict(kind.get().id());
 					if (kind.isEmpty() || ModuleOffers.kinds().stream().noneMatch(k -> k.id().equals(kind.get().id()))) moduleNo = "there is no working " + module.id().replace('_', ' ') + " in the catalog";
@@ -256,6 +256,14 @@ public final class Talk {
 				+ ", designed: about $" + Proposals.estimate(new Proposal("x", role, "", a.building(), now, "asked")) + "."), a.building(), now, "asked", district, null);
 		String added = addProposal(s, p);
 		return added != null ? added : moduleNo == null ? a.reply() : "A working " + role + " can't go here: " + moduleNo + ". I put a decorative one in the inbox instead, as its own proposal at its own price.";
+	}
+
+	/**
+	 * (slice MODULE-TYPE-2, GPT review P2) Where an asked module goes: the district the player named, else the town (a module grows the town's region),
+	 * never the district that has street room ({@code where}: that room is for an ordinary building). Pure.
+	 */
+	static @Nullable String moduleIn(@Nullable String named, ProposalRules.@Nullable Where where) {
+		return named;
 	}
 
 	/** (slice MODULE-TYPE-2) The steps of a building ask, in order: the working module first when one is asked, then the town's room. */

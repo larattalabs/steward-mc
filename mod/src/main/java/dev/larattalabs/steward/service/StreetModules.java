@@ -60,7 +60,7 @@ final class StreetModules {
 		} else {
 			for (var a : asked) {
 				JsonObject lot = byId.get(a.lotId());
-				int at = pick(stands(a, lot), names(lot), kept.size(), i -> kept.get(i).type(), i -> kept.get(i).role());
+				int at = pick(stands(a, lot), names(lot), bare(lot), kept.size(), i -> kept.get(i).type(), i -> kept.get(i).role());
 				if (at >= 0) {
 					kept.remove(at);
 					removed++;
@@ -109,7 +109,7 @@ final class StreetModules {
 		int[] taken = new int[program.size()];
 		for (var a : asked) {
 			JsonObject lot = byId.get(a.lotId());
-			int at = pick(stands(a, lot), names(lot), program.size(), i -> taken[i] < program.get(i).count() ? program.get(i).type() : null, i -> program.get(i).role());
+			int at = pick(stands(a, lot), names(lot), bare(lot), program.size(), i -> taken[i] < program.get(i).count() ? program.get(i).type() : null, i -> program.get(i).role());
 			if (at >= 0) taken[at]++;
 		}
 		return taken;
@@ -142,7 +142,8 @@ final class StreetModules {
 	 * a type the one whose role is the lot's own (its label, role or id's words, {@code names}), else the first (GPT review: a "granary barn" module never
 	 * takes the "cattle barn"). {@code type} answers null for an index already taken.
 	 */
-	private static int pick(List<String> types, List<Set<String>> names, int size, java.util.function.IntFunction<@Nullable String> type, java.util.function.IntFunction<String> role) {
+	private static int pick(List<String> types, List<Set<String>> names, boolean bare, int size, java.util.function.IntFunction<@Nullable String> type,
+		java.util.function.IntFunction<String> role) {
 		for (String t : types) {
 			int first = -1;
 			// its label or role first, then its id's words (GPT fix check: a generic id never outranks the exact label)
@@ -150,7 +151,15 @@ final class StreetModules {
 			for (int i = 0; i < size && first < 0; i++) if (t.equals(type.apply(i))) first = i;
 			if (first >= 0) return first;
 		}
+		// (slice MODULE-TYPE-2, GPT review P1) a bare module lot has no "for": the card building it was written for is the one of its own label or role,
+		// whatever that building's type (a "farm" entry the composer wrote as a bare crop_farm lot), never left to be designed beside it
+		if (bare) for (int i = 0; i < size; i++) if (type.apply(i) != null && names.get(0).contains(slug(role.apply(i)))) return i;
 		return -1;
+	}
+
+	/** Whether a plan lot carries no module marker (its "for" can't say which card building it stands for). */
+	private static boolean bare(@Nullable JsonObject lot) {
+		return lot != null && !ComposedModules.marked(lot);
 	}
 
 	/** A module lot's own names, as slugs, in tiers: its label and role, then its id without the number. */
