@@ -3500,7 +3500,7 @@ async function composedModulesSurvivalFlow({ fillHalt = false } = {}) {
       const lbl = `${label} lot cap refusal`;
       const shorted = new RegExp(`composed modules ${id}: dev cap_short ${shortItem} in lot farm_1`).test(since);
       const refused = new RegExp(`composed modules ${id} realise refused at put-down \\(CapRefusal\\[scope=LOT, lot=farm_1\\]\\)`).test(since);
-      const named = /Not placed yet: when it was put down, the materials the working crop farm needed went past its limit\. Nothing was taken from the stockpile; I'll ask you again\./.test(since);
+      const named = /Not placed yet: when it was put down, the materials the working crop farm needed went past its (?:measured |approved )?limit\. Nothing was taken from the stockpile; I'll ask you again\./.test(since);
       const reask = holds.find((h) => /When it was put down, the materials (the working \w[\w ]*|a working module) needed went past its (measured |approved )?limit\./.test(h));
       const first = sent[0], last = sent.at(-1);
       if (shorted && refused && named && reask && sent.length >= 2 && first.perLot.farm_1?.[shortItem] === 0 && last.perLot.farm_1?.[shortItem] > 0)
