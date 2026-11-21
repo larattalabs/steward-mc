@@ -692,8 +692,8 @@ public final class ComposedModules {
 	 * <p>
 	 * (WORDS-089) There is no region cap behind {@code UNNAMED}: a composed realise is sent with lot caps only, never a region {@code maxBill}
 	 * ({@link Caps}; {@code ApprovedRealise.withMaxBillPerLot} with {@code maxBill} null), and a cap covers only the realise it comes with (BC-d).
-	 * So it is only a refusal whose detail doesn't name the lot (an Architect that answers without it, or a detail this Steward can't read): one of
-	 * the lot caps, but which isn't known. Never "what you approved": those caps are measured bounds unless the player approved a bill since.
+	 * Architect 0.89.0 (Quotes.capRefusal) refuses lot caps only as {@code lot:} or {@code unknown_lot:}, so it is only a refusal whose detail this
+	 * Steward can't read (a later or different Architect): one of the lot caps, but which isn't known. Never "what you approved": those caps are measured bounds unless the player approved a bill since.
 	 */
 	public record CapRefusal(Scope scope, @Nullable String lot) {
 		public enum Scope { LOT, UNKNOWN_LOT, UNNAMED }
@@ -719,8 +719,8 @@ public final class ComposedModules {
 	 */
 	public static String putDownWords(CapRefusal r, Map<String, ModuleOrder> orders) {
 		return switch (r.scope()) {
-			case LOT -> "Not placed yet: when it was put down, the materials the " + workingName(orders, r.lot()) + " needed went past its limit. Nothing was"
-				+ " taken from the stockpile; I'll ask you again.";
+			case LOT -> "Not placed yet: when it was put down, the materials the " + workingName(orders, r.lot()) + " needed went past "
+				+ (orders.get(r.lot()) == null ? "its limit" : limitWords(orders.get(r.lot()))) + ". Nothing was taken from the stockpile; I'll ask you again.";
 			case UNKNOWN_LOT -> "Not placed: Steward asked Architect to hold a lot the plan doesn't build (" + r.lot().replace('_', ' ') + ") to a bill. That's"
 				+ " Steward's mistake, so nothing is built and I won't ask again. Nothing was taken from the stockpile; start it again.";
 			case UNNAMED -> "Not placed yet: when it was put down, the materials " + whose(orders) + " needed went past " + ModuleBound.limitOf(orders.values())

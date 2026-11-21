@@ -90,7 +90,7 @@ class ComposedLotCapsTest {
 		assertEquals(ComposedModules.CapRefusal.Scope.LOT, lot.scope());
 		assertEquals("hall_1", lot.lot());
 		String w = ComposedModules.putDownWords(lot, orders());
-		assertTrue(w.contains("the materials the working storage hall needed went past its limit"), w);
+		assertTrue(w.contains("the materials the working storage hall needed went past its measured limit."), w);
 		assertTrue(w.contains("Nothing was taken from the stockpile; I'll ask you again."), w);
 		var unknown = ComposedModules.CapRefusal.of("unknown_lot:la");
 		assertEquals(ComposedModules.CapRefusal.Scope.UNKNOWN_LOT, unknown.scope());
