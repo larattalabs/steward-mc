@@ -267,6 +267,36 @@ class StreetModulesTest {
 		assertEquals(List.of(specs.get(0)), r.specs(), "the landmark barn stays");
 	}
 
+	/**
+	 * (batch 091 review P1) A card of one crop farm and one cottage, started at three buildings: the layout's padding never repeats the crop farm (a
+	 * module's type), and every lot of a module's type is left out, never designed as an ordinary building while the field is said as left out.
+	 */
+	@Test
+	void paddingNeverRepeatsAModulesTypeAndEveryLotOfOneIsLeftOut() throws Exception {
+		ConceptCard card = cardWith("""
+			[{"role": "crop field", "type": "crop_farm", "count": 1, "footprint": "M", "landmark": false},
+			 {"role": "cottage", "type": "cottage", "count": 1, "footprint": "S", "landmark": false}]""");
+		JsonObject plan = json("""
+			{"zones": [{"program": {"lots": [{"id": "crop_farm_1", "type": "crop_farm", "label": "crop field",
+			  "ext": {"steward_mc:module": {"id": "crop_farm", "for": "crop_farm"}}}, {"id": "cottage_1", "type": "cottage"}]}}]}""");
+		var specs = ProgramPlanner.lots(card, 3, 0).specs();
+		assertEquals(List.of("crop_farm", "cottage", "cottage"), specs.stream().map(LotSpec::type).toList(), "the padding is the ordinary cottage");
+		var r = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, OFFERED, card, specs, "x", "on Steward's streets");
+		assertEquals(List.of("cottage", "cottage"), r.specs().stream().map(LotSpec::type).toList(), "no crop farm left to design");
+		assertEquals(1, r.said().size());
+		// a card of only modules: nothing to pad with, fewer buildings
+		ConceptCard only = cardWith("""
+			[{"role": "crop field", "type": "crop_farm", "count": 1, "footprint": "M", "landmark": false}]""");
+		assertEquals(List.of("crop_farm"), ProgramPlanner.lots(only, 3, 0).specs().stream().map(LotSpec::type).toList());
+		// every lot of a module's type goes, each said (a layout holding two, e.g. a count of 2 for one module lot)
+		List<LotSpec> two = List.of(new LotSpec("crop_farm_1", "crop_farm", 14, 12), new LotSpec("cottage_1", "cottage", 11, 9), new LotSpec("crop_farm_2", "crop_farm", 14, 12));
+		var both = StreetModules.leaveOut(plan, ModuleTypes.KNOWN, OFFERED, null, two, "x", "on Steward's streets");
+		assertEquals(List.of("cottage_1"), both.specs().stream().map(LotSpec::id).toList());
+		assertEquals(2, both.removed());
+		assertEquals(2, both.said().size(), "the second crop farm is said too: " + both.said());
+		assertTrue(both.said().get(1).contains("never design one as an ordinary building"), both.said().get(1));
+	}
+
 	@Test
 	void theStartHintNeverPromisesEveryBuilding() throws Exception {
 		// (WORDS-089) said before the plan is composed: the storage hall may be a catalog module or, on the street fallback, left out

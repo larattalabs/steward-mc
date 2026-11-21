@@ -27,7 +27,7 @@ import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, ad
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
-import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup } from './lib/disk.mjs';
+import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup, claimRunDir, runItems } from './lib/disk.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -9737,8 +9737,6 @@ async function lead() {
   // slice SQ: one slot per client, held by this lead (its pid) and handed to the client's run (E2E_SLOT_TICKET); a lane whose slot doesn't come
   // runs after c1 on c1's slot, run dir and ports (runLanes)
   const t00 = Date.now();
-  // slice E2E-DISK: the client run dirs this lead makes now (not there yet), deleted at its end when their clients passed
-  leadMadeDirs = plan.filter((c) => c.k > 1 && !fs.existsSync(c.gameDir)).map((c) => c.gameDir);
   // (batch-074 review) the child drivers this lead started, and the client pids each said: a signal stops them (forwarded, bounded, then SIGKILL
   // and their clients by those pids) before the lead's slots go back
   const procs = new Map();
@@ -9756,6 +9754,13 @@ async function lead() {
     if (shuttingDownNow()) return { ...c, slot: s.slot ?? null, code: 130, seconds: 0, summary: null };
     const at = host ?? c;
     if (host) console.log(`client c${c.k}: on c${host.k}'s slot ${s.slot ?? '-'}, run dir and ports, after it`);
+    // slice E2E-DISK (batch 091 review P1): a lane's own run-c<k> is this lead's only when it makes it now, at its use (mkdir without -p, an owner
+    // marker); one already there (another run's, or an earlier one's) is used but never deleted
+    if (!host && c.k > 1) {
+      const cl = claimRunDir(at.gameDir, leadOwner);
+      if (cl.claimed) leadMadeDirs.push(at.gameDir);
+      else console.log(`disk: ${path.relative(ROOT, at.gameDir)} isn't this run's to delete: ${cl.why}`);
+    }
     fs.mkdirSync(c.out, { recursive: true });
     const args = [fileURLToPath(import.meta.url), mode, '--flows', c.flows.join(','), ...(keepWorld ? ['--keep-world'] : [])];
     const env = { ...process.env, E2E_CLIENT: `c${c.k}`, E2E_GAME_DIR: at.gameDir, E2E_OUT: c.out, STEWARD_PORT: String(at.sidecarPort), STEWARD_DEV_PORT: String(at.devPort),
@@ -9788,8 +9793,9 @@ async function lead() {
   return rows.map((r) => ({ ...r.result, ...(r.waited ? { waited: r.waited } : {}) }));
 }
 let laneRuns = null;
-/** The run-c<k> dirs a --clients lead made this run (slice E2E-DISK). */
+/** The run-c<k> dirs a --clients lead claimed this run (slice E2E-DISK; batch 091 review P1: claimed at their use, with this owner marker). */
 let leadMadeDirs = [];
+const leadOwner = { run: `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`, pid: process.pid };
 // (batch-074 review) the signals are the shutdown coordinator's: this driver's client (or a lead's child drivers) stops first, then the slots, then
 // the sidecar data
 installShutdown();
@@ -9941,20 +9947,18 @@ if (laneRuns) {
 const failed = results.filter((r) => !r.ok).length;
 const seconds = Math.round((Date.now() - started) / 1000);
 // slice E2E-DISK (mod/DEV.md "Disk"): what this run made goes once it passed, its world kept (and named) when it didn't. Each driver cleans its
-// own game dir (a --clients lead has none: it merges its clients' records). Only this run's world (never with --keep-world, never the dev world,
+// own game dir (a --clients lead has none: it merges its clients' records). Only this run's world (kept and said with --keep-world, never the dev world,
 // never the game dir's architect/, config or logs) and its temp blueprints; the sidecar data is TMPSWEEP's (removed above, always).
 let cleanup = null;
 if (!LEAD) {
   const keep = keepReason({ failed, checks: results.length, slotWait: !!slotWait, shuttingDown: shuttingDownNow() });
   const jvm = jvmOnPort();
-  const items = [
-    ...(keepWorld ? [] : [{ path: WORLD, root: path.join(GAME, 'saves'), what: 'the e2e world' }]),
-    ...tempInputs.map((p) => ({ path: p, root: os.tmpdir(), what: 'a temp blueprint', always: true })),
-  ];
+  // (batch 091 review P2) with --keep-world the world is reported kept ('keep-world'), so a lead never deletes the lane holding it
+  const items = runItems({ world: WORLD, saves: path.join(GAME, 'saves'), keepWorld, tempInputs, tmp: os.tmpdir() });
   cleanup = cleanupRun(items, { keep, hold: jvm ? `a client JVM (${jvm}) still runs on ${GAME}` : null });
 } else if (laneRuns) {
   cleanup = mergeCleanups(laneRuns.map((c) => ({ client: `c${c.k}`, cleanup: c.summary?.cleanup })));
-  addCleanup(cleanup, cleanupRun(laneRunDirs({ modDir: path.join(ROOT, 'mod'), created: leadMadeDirs, lanes: laneRuns })));
+  addCleanup(cleanup, cleanupRun(laneRunDirs({ modDir: path.join(ROOT, 'mod'), created: leadMadeDirs, lanes: laneRuns, owner: leadOwner, keepWorld })));
 }
 if (cleanup) {
   for (const p of cleanup.deleted) console.log(`disk: deleted ${p}`);
