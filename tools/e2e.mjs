@@ -23,7 +23,7 @@ import { sweepStale, cleanupOwned } from './lib/tmp-owner.mjs';
 import { checkCommand, saveBarrier } from './lib/save-barrier.mjs';
 import { judgeSort } from './lib/hall-sort.mjs';
 import { overflowGrew } from './lib/overflow.mjs';
-import { drawsBetween, quoteOff } from './lib/quote-draws.mjs';
+import { drawsBetween, partsTotal, judgeQuote } from './lib/quote-draws.mjs';
 import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, addedBoxes } from './lib/undo-audit.mjs';
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
@@ -3431,9 +3431,6 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
     const said = () => preHalt + logSince(at);
     const capOf = async (q) => dev.request('dev.bc.cap', { region, rid: 0, ...q }, { timeoutMs: 30_000 }).catch((e) => ({ refused: String(e) }));
     const sum = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
-    // (B092-FIX, GPT review P2) the structured quote of what the approval places: the artifact and its lots' entries (the steward's placement line),
-    // quoted (Architect's quoteApproved) before the placement is approved, while the land is as the realise will bill it
-    let quote = null;
     const end = Date.now() + 2_400_000;
     while (Date.now() < end) {
       await sleep(3000);
@@ -3477,16 +3474,7 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
         }
       }
       const st = savedBuild(id)?.state;
-      if (st && /^AWAITING_(BIBLE|MASSING|PLACEMENT)_APPROVAL$/.test(st.phase ?? '')) {
-        if (st.phase === 'AWAITING_PLACEMENT_APPROVAL' && !quote) {
-          const m = [...since.matchAll(new RegExp(`placement ${id}: artifact ([0-9a-f]{64}) entries (\\{[^\\n]*\\})`, 'g'))].at(-1);
-          if (m) {
-            const r = await dev.request('dev.region.quote', { sha: m[1], lotEntries: JSON.parse(m[2]) }, { timeoutMs: 300_000 }).catch((e) => ({ refused: String(e?.message ?? e) }));
-            quote = { ...r, sha: m[1], entries: JSON.parse(m[2]) };
-          }
-        }
-        await cmd(`/steward approve ${id}`);
-      }
+      if (st && /^AWAITING_(BIBLE|MASSING|PLACEMENT)_APPROVAL$/.test(st.phase ?? '')) await cmd(`/steward approve ${id}`);
     }
     feeding = false;
     const since = said();
@@ -3523,20 +3511,24 @@ async function composedSculptSurvivalFlow({ crash = false } = {}) {
       const drawn = c?.drawn ?? {};
       const total = plusItems(c?.paid ?? {}, c?.regionCharged ?? {});
       const liningDrawn = ['minecraft:clay', 'minecraft:mud', 'minecraft:moss_block'].filter((k) => (lost[k] ?? 0) > 0);
-      // (B092-FIX, batch 092 GPT review P2) the whole quote of the realised artifact and the stockpile's draws agree item by item, both ways: an
-      // extra draw of any item, a short or doubled one, fails (the carve and its water are in neither: free held work)
+      // (B092-FIX, batch 092 GPT review P2) the whole quote of the realised artifact and the stockpile's draws, item by item over both sides
+      // (tools/lib/quote-draws.mjs): the quote is Architect's quoteApproved of exactly the realise sent (its artifact and its lot entries, the module
+      // lots' bound entries among them), taken by the steward just before it and logged piece by piece with its exactness and notes; an extra draw
+      // of any item, a draw past the quote or a lining drawn short of it fails (the carve and its water are in neither: free held work)
       {
         const qlbl = `${label} quote = draws`;
         const realised = [...since.matchAll(new RegExp(`realise ${id}: artifact ([0-9a-f]{64}) under key \\S+ \\((?:first|after a re-check)\\) entries (\\{[^\\n]*\\})`, 'g'))].at(-1);
-        const sameArtifact = realised && quote && realised[1] === quote.sha && JSON.stringify(JSON.parse(realised[2])) === JSON.stringify(quote.entries);
+        const quoted = realised ? [...since.slice(0, realised.index).matchAll(new RegExp(`composed modules ${id} quote ([0-9a-f]{64}): (\\{.*?\\}) \\(exact (true|false), notes \\[(.*)\\]\\)$`, 'gm'))].at(-1) : null;
+        if (!realised || !quoted || quoted[1] !== realised[1]) return fail(qlbl, `no quote of the last realise (realise ${realised?.[1]?.slice(0, 12) ?? 'none'}; quote ${quoted?.[1]?.slice(0, 12) ?? 'none'})`);
+        let parts = null;
+        try { parts = JSON.parse(quoted[2]); } catch (e) { return fail(qlbl, `the quote's pieces unreadable: ${e.message}`); }
+        const quote = { bom: partsTotal(parts), exact: quoted[3] === 'true', notes: [quoted[4]] };
         const drew = drawsBetween(sp0, spB);
-        const off = quoteOff(quote?.bom ?? {}, drew);
-        const liningQuoted = LINING.filter((k) => (quote?.bom?.[k] ?? 0) > 0);
-        if (!quote || quote.refused) return fail(qlbl, `no quote of the placement: ${quote ? `${quote.refused} ${quote.reason ?? ''}` : 'no placement line at its approval'}`);
-        if (!sameArtifact) return fail(qlbl, `the last realise (${realised?.[1]?.slice(0, 12) ?? 'none'}) is not the artifact and entries quoted (${quote.sha.slice(0, 12)})`);
-        if (quote.survival && quote.exact === true && off.length === 0 && liningQuoted.length)
-          ok(qlbl, `the realised artifact's quote (${sum(quote.bom)} units over ${Object.keys(quote.bom).length} items, exact; lining ${liningQuoted.map((k) => `${quote.bom[k]} ${k.slice(10)}`).join(', ')}) = the stockpile's draws, item by item`);
-        else return fail(qlbl, `survival ${quote.survival}; exact ${quote.exact}; lining quoted ${liningQuoted.join(',') || 'none'}; off ${off.slice(0, 10).join(', ') || 'none'}; pieces ${JSON.stringify(quote.bomParts ?? {}).slice(0, 300)}; notes ${JSON.stringify(quote.notes ?? []).slice(0, 160)}`);
+        const j = judgeQuote(quote, drew, LINING);
+        const liningQuoted = LINING.filter((k) => (quote.bom[k] ?? 0) > 0);
+        if (liningQuoted.length && !j.fails.length)
+          ok(qlbl, `the realised artifact's quote (${sum(quote.bom)} units over ${Object.keys(quote.bom).length} items in ${Object.keys(parts).length} pieces, exact ${quote.exact}) against the stockpile's draws (${sum(drew)} over ${Object.keys(drew).length}): nothing unquoted, nothing past it, lining ${liningQuoted.map((k) => `${drew[k] ?? 0}/${quote.bom[k]} ${k.slice(10)}`).join(', ')}; under the quote (its upper bound): ${j.short.slice(0, 8).join(', ') || 'none'}`);
+        else return fail(qlbl, `lining quoted ${liningQuoted.join(',') || 'none'}; ${j.fails.slice(0, 10).join(', ') || 'no fails'}; under ${j.short.slice(0, 6).join(', ')}; pieces ${Object.keys(parts).join(', ')}`);
       }
       if (c && !c.refused && sameItems(lost, drawn) && sameItems(drawn, total) && liningDrawn.length)
         ok(lbl, `the stockpile lost ${sum(lost)} units over ${Object.keys(lost).length} items, exactly what the sites drew (paid ${sum(c.paid)} + region ${sum(c.regionCharged)}); lining ${liningDrawn.map((k) => `${lost[k]} ${k.slice(10)}`).join(', ')}`);
