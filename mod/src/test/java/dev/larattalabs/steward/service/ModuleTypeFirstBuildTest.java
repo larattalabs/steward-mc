@@ -182,6 +182,29 @@ class ModuleTypeFirstBuildTest {
 		assertEquals(plain, ComposedModules.apply(plain, Map.of(), Set.of()), "an already empty zone isn't Steward's to drop");
 	}
 
+	/**
+	 * (slice MODULE-TYPE-3) The parts that went with a dropped zone are said once before the check, by label or id words, a secret one never by name;
+	 * the plan built at Start and on a resume is the same.
+	 */
+	@Test
+	void thePartsThatWentWithADroppedZoneAreSaid() {
+		JsonObject plan = json("""
+			{"schemaVersion":"plan/0","zones":[
+			  {"id":"fields","required":true,"program":{"lots":[{"id":"crop_farm_1","type":"crop_farm","size":[13,14]}]}},
+			  {"id":"town","required":true,"program":{"lots":[{"id":"cottage_1","type":"cottage","size":[9,9]}]}}],
+			 "connectors":[{"id":"farm_lane","kind":"path","label":"Farm lane","from":{"part":"town"},"to":{"part":"fields"}}],
+			 "forms":[{"id":"cellar","kind":"hidden_room","host":"crop_farm_1"},{"id":"farm_pond","kind":"pond","where":{"inside":{"part":"fields"}}}],
+			 "dependencies":[{"part":"fields","after":["town"]}]}""");
+		var applied = SettlementRunner.withModulesApplied(plan, Map.of(), ModuleTypes.KNOWN, Set.of());
+		assertEquals(applied.plan(), SettlementRunner.withModules(plan, Map.of(), ModuleTypes.KNOWN, Set.of()), "the resume builds the plan Start checked");
+		assertEquals(List.of("farm_lane", "cellar", "farm_pond"), applied.dropped());
+		String said = SettlementRunner.droppedWords(applied.dropped(), plan, Secrets.of(plan, null));
+		assertEquals("The plan's Farm lane, farm pond and one more part are left out too: they served only what is left out.", said);
+		assertFalse(said.contains("cellar"));
+		assertNull(SettlementRunner.droppedWords(List.of(), plan, Secrets.NONE));
+		assertEquals("The plan's farm pond is left out too: it served only what is left out.", SettlementRunner.droppedWords(List.of("farm_pond"), plan, Secrets.NONE));
+	}
+
 	@Test
 	void anAskedModuleGoesToTheTownNotTheDistrictWithRoom() {
 		assertNull(Talk.moduleIn(null, new ProposalRules.Where("d_east", false)));

@@ -497,30 +497,53 @@ public final class ComposedModules {
 	 * stays as written. A copy; deterministic. Pure.
 	 */
 	public static JsonObject apply(JsonObject plan, Map<String, ModuleOrder> orders, Set<String> leftOut) {
+		return applied(plan, orders, leftOut).plan();
+	}
+
+	/**
+	 * As {@link #apply}, with the parts (connectors, forms, rules) that went with what was left out: (slice MODULE-TYPE-3) every other reference to a
+	 * left-out lot or a dropped district or zone is settled by {@link PlanPrune}, so Architect's check never meets an id the plan no longer holds. Pure.
+	 */
+	public static PlanPrune.Result applied(JsonObject plan, Map<String, ModuleOrder> orders, Set<String> leftOut) {
 		JsonObject out = plan.deepCopy();
-		if (!out.has("zones") || !out.get("zones").isJsonArray()) return out;
+		if (!out.has("zones") || !out.get("zones").isJsonArray()) return new PlanPrune.Result(out, List.of());
+		Set<String> gone = new java.util.HashSet<>();
+		// a gone lot or district, to its zone (a stand-in while that zone is built)
+		Map<String, String> zoneOf = new java.util.HashMap<>();
 		JsonArray zones = new JsonArray();
 		for (JsonElement z : out.getAsJsonArray("zones")) {
 			if (!z.isJsonObject() || !z.getAsJsonObject().has("program") || !z.getAsJsonObject().get("program").isJsonObject()) { zones.add(z); continue; }
+			String zoneId = z.getAsJsonObject().has("id") && z.getAsJsonObject().get("id").isJsonPrimitive() ? z.getAsJsonObject().get("id").getAsString() : null;
 			JsonObject program = z.getAsJsonObject().getAsJsonObject("program");
 			boolean emptied;
 			if (program.has("districts") && program.get("districts").isJsonArray()) {
 				JsonArray kept = new JsonArray();
 				int before = program.getAsJsonArray("districts").size();
-				for (JsonElement d : program.getAsJsonArray("districts")) if (!d.isJsonObject() || !rewrite(d.getAsJsonObject(), "lots", orders, leftOut)) kept.add(d);
+				for (JsonElement d : program.getAsJsonArray("districts")) {
+					if (!d.isJsonObject() || !rewrite(d.getAsJsonObject(), "lots", orders, leftOut, gone, zoneOf, zoneId)) { kept.add(d); continue; }
+					if (d.getAsJsonObject().has("id") && d.getAsJsonObject().get("id").isJsonPrimitive()) {
+						String did = d.getAsJsonObject().get("id").getAsString();
+						gone.add(did);
+						if (zoneId != null) zoneOf.put(did, zoneId);
+					}
+				}
 				program.add("districts", kept);
 				emptied = before > 0 && kept.isEmpty();
-			} else if (program.has("lots") && program.get("lots").isJsonArray()) emptied = rewrite(program, "lots", orders, leftOut);
-			else if (program.has("params") && program.get("params").isJsonObject()) emptied = rewrite(program.getAsJsonObject("params"), "lots", orders, leftOut);
+			} else if (program.has("lots") && program.get("lots").isJsonArray()) emptied = rewrite(program, "lots", orders, leftOut, gone, zoneOf, zoneId);
+			else if (program.has("params") && program.get("params").isJsonObject()) emptied = rewrite(program.getAsJsonObject("params"), "lots", orders, leftOut, gone, zoneOf, zoneId);
 			else emptied = false;
 			if (!emptied) zones.add(z);
+			else if (zoneId != null) gone.add(zoneId);
 		}
 		out.add("zones", zones);
-		return out;
+		Map<String, String> standIn = new java.util.HashMap<>();
+		zoneOf.forEach((id, zone) -> { if (!gone.contains(zone)) standIn.put(id, zone); });
+		return PlanPrune.prune(out, gone, standIn);
 	}
 
 	/** Rewrites {@code holder}'s lots; true when it had lots and every one was left out (the holder is then dropped by {@link #apply}). */
-	private static boolean rewrite(JsonObject holder, String member, Map<String, ModuleOrder> orders, Set<String> leftOut) {
+	private static boolean rewrite(JsonObject holder, String member, Map<String, ModuleOrder> orders, Set<String> leftOut, Set<String> gone,
+		Map<String, String> zoneOf, @Nullable String zoneId) {
 		if (!holder.has(member) || !holder.get(member).isJsonArray()) return false;
 		int before = holder.getAsJsonArray(member).size();
 		JsonArray next = new JsonArray();
@@ -528,7 +551,11 @@ public final class ComposedModules {
 			if (!l.isJsonObject() || !l.getAsJsonObject().has("id")) { next.add(l); continue; }
 			JsonObject lot = l.getAsJsonObject();
 			String id = lot.get("id").getAsString();
-			if (leftOut.contains(id)) continue;
+			if (leftOut.contains(id)) {
+				gone.add(id);
+				if (zoneId != null) zoneOf.put(id, zoneId);
+				continue;
+			}
 			ModuleOrder o = orders.get(id);
 			var kind = o == null ? java.util.Optional.<ModuleKind>empty() : ModuleKind.of(o.moduleId());
 			next.add(kind.isPresent() ? builtLot(lot, kind.get(), o) : lot);

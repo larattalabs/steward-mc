@@ -1844,6 +1844,12 @@ public final class SettlementRunner {
 	 * lots; a bare one of them stays (a build saved before the 11-20 rule finishes as it began), a marked one never does. Pure.
 	 */
 	static JsonObject withModules(JsonObject plan, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders, Map<String, String> types, java.util.Set<String> laidOut) {
+		return withModulesApplied(plan, orders, types, laidOut).plan();
+	}
+
+	/** As {@link #withModules(JsonObject, Map, Map, java.util.Set)}, with the parts that went with the left-out lots (slice MODULE-TYPE-3). Pure. */
+	static dev.larattalabs.steward.module.PlanPrune.Result withModulesApplied(JsonObject plan, Map<String, dev.larattalabs.steward.module.ModuleOrder> orders,
+		Map<String, String> types, java.util.Set<String> laidOut) {
 		java.util.Set<String> leftOut = new java.util.HashSet<>();
 		Map<String, JsonObject> byId = new HashMap<>();
 		for (JsonObject l : dev.larattalabs.steward.gateway.PPlan.lots(plan)) byId.putIfAbsent(l.get("id").getAsString(), l);
@@ -1852,7 +1858,30 @@ public final class SettlementRunner {
 			if (laidOut.contains(a.lotId()) && !dev.larattalabs.steward.module.ComposedModules.marked(byId.get(a.lotId()))) continue;
 			leftOut.add(a.lotId());
 		}
-		return dev.larattalabs.steward.module.ComposedModules.apply(plan, orders, leftOut);
+		return dev.larattalabs.steward.module.ComposedModules.applied(plan, orders, leftOut);
+	}
+
+	/**
+	 * (slice MODULE-TYPE-3) What the steward says, once before the check, of the parts that went with the left-out lots (a road, a wall, a rule that
+	 * served only them): each by its label, else its id's words; a secret part (S-7c-4) as "one part". Null when none went. Pure.
+	 */
+	static @org.jspecify.annotations.Nullable String droppedWords(java.util.List<String> dropped, JsonObject plan, Secrets secrets) {
+		if (dropped.isEmpty()) return null;
+		Map<String, String> labels = new HashMap<>();
+		for (String family : dev.larattalabs.steward.module.PlanPrune.FAMILIES)
+			if (plan.has(family) && plan.get(family).isJsonArray()) for (var e : plan.getAsJsonArray(family))
+				if (e.isJsonObject() && e.getAsJsonObject().has("id") && e.getAsJsonObject().has("label") && e.getAsJsonObject().get("label").isJsonPrimitive())
+					labels.put(e.getAsJsonObject().get("id").getAsString(), e.getAsJsonObject().get("label").getAsString());
+		List<String> names = new ArrayList<>();
+		int hidden = 0;
+		for (String id : dropped) {
+			if (secrets.hides(id)) hidden++;
+			else names.add(labels.getOrDefault(id, id.replace('_', ' ')));
+		}
+		if (hidden > 0) names.add(names.isEmpty() ? (hidden == 1 ? "one part" : hidden + " parts") : (hidden == 1 ? "one more part" : hidden + " more parts"));
+		String list = names.size() == 1 ? names.get(0) : String.join(", ", names.subList(0, names.size() - 1)) + " and " + names.get(names.size() - 1);
+		boolean one = dropped.size() == 1;
+		return "The plan's " + list + (one ? " is" : " are") + " left out too: " + (one ? "it" : "they") + " served only what is left out.";
 	}
 
 	/**
@@ -1973,7 +2002,10 @@ public final class SettlementRunner {
 		moduleOrders = Map.of();
 		JsonObject base = keptPlan();
 		var orders = decideModules(base);
-		JsonObject built = withModules(base, orders);
+		var applied = withModulesApplied(base, orders, ModuleOffers.moduleTypes(), java.util.Set.of());
+		JsonObject built = applied.plan();
+		String went = droppedWords(applied.dropped(), base, Secrets.of(base, null));
+		if (went != null) say(went);
 		int session = Session.current();
 		// a plan Architect can't check, or without lots: the flat village for a Patron town; a Supplied one stops before anything is spent (its survey was taken
 		// before its stockpile and that ground's protection, so Steward's own layout over it could pay for designs that then don't fit), and is started again
