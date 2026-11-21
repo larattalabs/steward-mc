@@ -125,12 +125,21 @@ export function cleanupRun(items, { keep = null, hold = null, lstat = fs.lstatSy
  * A single driver's own items (not a --clients lead's): its world under saves, and its temp blueprint dirs. (batch 091 review P2) With --keep-world
  * the world is an item still, protected ('keep-world'): the run's record says it was kept, so a lead never takes the lane for empty.
  */
-export function runItems({ world, saves, keepWorld = false, tempInputs = [], tmp }) {
+export function runItems({ world, saves, keepWorld = false, slotWait = false, tempInputs = [], tmp }) {
   return [
-    { path: world, root: saves, what: 'the e2e world', ...(keepWorld ? { protect: 'keep-world' } : {}) },
+    // (batch 091 final review P1, switched off per Noah 11-21) a driver that never got its slot never launched, so the world under its game dir
+    // may be another driver's, made during the wait: it is not an item at all. Its temp blueprints (mkdtemp, unique) still go.
+    ...(slotWait ? [] : [{ path: world, root: saves, what: 'the e2e world', ...(keepWorld ? { protect: 'keep-world' } : {}) }]),
     ...tempInputs.map((p) => ({ path: p, root: tmp, what: 'a temp blueprint', always: true })),
   ];
 }
+
+/**
+ * (batch 091 final review P1, Noah 11-21 via parent: "Merge with risky deletes off") A --clients lead neither claims nor deletes its lanes'
+ * run-c<k> dirs: another run can reuse a lane between its claim and its delete. Off until E2E-DISK-2 gives each run its own dirs; the
+ * helpers below stay for it. Each child still deletes its own passing world inside its lane (runItems).
+ */
+export const DELETE_LANE_DIRS = false;
 
 /** The owner marker a --clients lead writes into a run-c<k> it made (batch 091 review P1). */
 export const OWNER_FILE = '.steward-e2e-owner.json';

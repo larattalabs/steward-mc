@@ -27,7 +27,7 @@ import { judgeUndoWorld, auditWords, crateBoxes, ALLOWED_CLASSES, rootProbes, ad
 import { acquire as acquireSlot, release as releaseSlot, inheritedSlot, slotsOff, runLanes, waitLine } from './lib/slot-queue.mjs';
 import { install as installShutdown, onStop, shuttingDownNow, stopPid, childExited, listenerPid, commandOf, pidRuns, waitFor } from './lib/shutdown.mjs';
 import { processStart } from './lib/tmp-owner.mjs';
-import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup, claimRunDir, runItems } from './lib/disk.mjs';
+import { checkFreeSpace, EXIT_LOW_DISK, keepReason, cleanupRun, mergeCleanups, laneRunDirs, addCleanup, claimRunDir, runItems, DELETE_LANE_DIRS } from './lib/disk.mjs';
 // temp files on the RAM disk when it's there (its own clients and the build inherit TMPDIR)
 useRamTmp();
 
@@ -9756,7 +9756,8 @@ async function lead() {
     if (host) console.log(`client c${c.k}: on c${host.k}'s slot ${s.slot ?? '-'}, run dir and ports, after it`);
     // slice E2E-DISK (batch 091 review P1): a lane's own run-c<k> is this lead's only when it makes it now, at its use (mkdir without -p, an owner
     // marker); one already there (another run's, or an earlier one's) is used but never deleted
-    if (!host && c.k > 1) {
+    // switched off (DELETE_LANE_DIRS, Noah 11-21): no claim, no delete, until E2E-DISK-2
+    if (DELETE_LANE_DIRS && !host && c.k > 1) {
       const cl = claimRunDir(at.gameDir, leadOwner);
       if (cl.claimed) leadMadeDirs.push(at.gameDir);
       else console.log(`disk: ${path.relative(ROOT, at.gameDir)} isn't this run's to delete: ${cl.why}`);
@@ -9954,11 +9955,11 @@ if (!LEAD) {
   const keep = keepReason({ failed, checks: results.length, slotWait: !!slotWait, shuttingDown: shuttingDownNow() });
   const jvm = jvmOnPort();
   // (batch 091 review P2) with --keep-world the world is reported kept ('keep-world'), so a lead never deletes the lane holding it
-  const items = runItems({ world: WORLD, saves: path.join(GAME, 'saves'), keepWorld, tempInputs, tmp: os.tmpdir() });
+  const items = runItems({ world: WORLD, saves: path.join(GAME, 'saves'), keepWorld, slotWait: !!slotWait, tempInputs, tmp: os.tmpdir() });
   cleanup = cleanupRun(items, { keep, hold: jvm ? `a client JVM (${jvm}) still runs on ${GAME}` : null });
 } else if (laneRuns) {
   cleanup = mergeCleanups(laneRuns.map((c) => ({ client: `c${c.k}`, cleanup: c.summary?.cleanup })));
-  addCleanup(cleanup, cleanupRun(laneRunDirs({ modDir: path.join(ROOT, 'mod'), created: leadMadeDirs, lanes: laneRuns, owner: leadOwner, keepWorld })));
+  if (DELETE_LANE_DIRS) addCleanup(cleanup, cleanupRun(laneRunDirs({ modDir: path.join(ROOT, 'mod'), created: leadMadeDirs, lanes: laneRuns, owner: leadOwner, keepWorld })));
 }
 if (cleanup) {
   for (const p of cleanup.deleted) console.log(`disk: deleted ${p}`);

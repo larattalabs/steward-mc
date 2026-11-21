@@ -307,10 +307,12 @@ Minecraft/_work grew from 89 GB to about 977 GB (Steward about 684 GB), mostly e
 
 - **Cleanup after a run.** Each e2e driver (a `--clients` run's children each on their own run dir) ends by deleting what it made:
   - this run's world, `<run dir>/saves/Steward E2E` (200-470 MB), and its temp blueprint dirs (`steward-e2e-v2-*`, `steward-e2e-ui-*` in TMPDIR).
-  - A `--clients` lead also deletes each `mod/run-c<k>` it made this run, once every client on it exited 0 with no failure and kept nothing;
-    otherwise the dir is listed as kept. (Batch 091 review) The lead makes the dir when its lane starts (mkdir without -p, so one another run
-    made during the slot wait is never its own) and writes `.steward-e2e-owner.json` (run id, pid) into it; it deletes only a dir whose marker
-    still names this run, read again just before the delete. With `--keep-world` every lane's dir is kept.
+  - A `--clients` lead does **not** delete the `mod/run-c<k>` lane dirs (switched off, `DELETE_LANE_DIRS = false`, Noah 11-21: batch 091's
+    final review found another run can reuse a lane between its claim and its delete). Each child still deletes its own passing world inside
+    its lane, so a kept lane dir is small (config, logs, mods). The claim-and-marker helpers stay in `disk.mjs` for E2E-DISK-2, which gives
+    each run its own dirs.
+  - A driver whose slot never came (a slot wait) never launched, so it deletes no world: the world under its run dir may be another
+    driver's, made during the wait. Its temp blueprint dirs (unique, mkdtemp) still go.
   - The world is **kept** when a check failed, the run threw, no checks ran, or a signal stopped it; also while a client JVM of this run still
     runs on the run dir. summary.json's `cleanup` lists `deleted`, `kept` (path, why, client) and `note`, a quoted `rm -rf` line to delete
     what was kept; the run prints `disk: deleted|kept ...` lines. The nightly copies kept paths and the note into SUMMARY.md.

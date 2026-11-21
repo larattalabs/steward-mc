@@ -290,3 +290,25 @@ test('(batch 091 P2) --keep-world: the child reports its world kept (keep-world)
   const plain = cleanupRun(runItems({ world, saves: `${C2}/saves`, keepWorld: false, tempInputs: [], tmp: TMP.root }), { ...f });
   assert.deepEqual(plain.deleted, [world]);
 });
+
+// Noah 11-21 via parent ("Merge with risky deletes off"): batch 091's final GPT P1s are switched off, not fixed, until E2E-DISK-2.
+test('(B091 switch-off) a driver that never got its slot deletes no world, only its own temp blueprints', () => {
+  const world = `${C2}/saves/Steward E2E`;
+  const f = ownFs(['/w/mod', C2, world]);
+  const items = runItems({ world, saves: `${C2}/saves`, keepWorld: false, slotWait: true, tempInputs: [TMP.path], tmp: TMP.root });
+  assert.equal(items.some((i) => i.path === world), false, 'the world is not an item after a slot wait');
+  const r = cleanupRun(items, { keep: keepReason({ failed: 0, checks: 0, slotWait: true }), ...f });
+  assert.equal(r.deleted.includes(world), false);
+  // with its slot, a passing run still deletes its own world
+  assert.deepEqual(cleanupRun(runItems({ world, saves: `${C2}/saves`, slotWait: false, tempInputs: [], tmp: TMP.root }), { ...f }).deleted, [world]);
+});
+
+test('(B091 switch-off) lane run dirs are never claimed or deleted: the flag is off and e2e.mjs gates both on it', async () => {
+  const disk = await import('../tools/lib/disk.mjs');
+  assert.equal(disk.DELETE_LANE_DIRS, false);
+  const src = (await import('node:fs')).readFileSync(new URL('../tools/e2e.mjs', import.meta.url), 'utf8');
+  assert.match(src, /if \(DELETE_LANE_DIRS && !host && c\.k > 1\)/, 'the claim is gated');
+  assert.match(src, /if \(DELETE_LANE_DIRS\) addCleanup\(cleanup, cleanupRun\(laneRunDirs\(/, 'the lead delete is gated');
+  assert.equal((src.match(/laneRunDirs\(/g) ?? []).length, 1, 'no other caller');
+  assert.equal((src.match(/claimRunDir\(/g) ?? []).length, 1, 'no other claim');
+});
