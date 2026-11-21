@@ -1274,7 +1274,7 @@ public final class SettlementRunner {
 			settlement = existing != null ? existing : Settlement.found(DEV_ID, r.card(), claim, permission, Difficulty.PATRON, System.currentTimeMillis());
 			// landmarks run on the dearer model: the size's typical count, and at most one per four buildings
 			int maxLandmarks = dev.larattalabs.steward.model.BudgetPolicy.maxLandmarks(r.card().site().size(), buildings);
-			ProgramPlanner.Result program = ProgramPlanner.lots(r.card(), buildings, maxLandmarks);
+			ProgramPlanner.Result program = ProgramPlanner.lots(r.card(), buildings, maxLandmarks, ModuleOffers.moduleTypes());
 			if (planSpecs == null && !program.fromCard()) say("This card has no building program (it was described before programs existed), so this is a generic village. Describe it again to get buildings of its own.");
 			if (planSpecs == null && !program.leftOut().isEmpty()) say("Left out at " + Words.count(buildings, "building", "buildings") + ": " + String.join(", ", program.leftOut()) + ".");
 			// (slice PD) a plan district's first build: the plan's own lots (ids, sizes, labels, briefs), never the card's program

@@ -91,9 +91,11 @@ const q = (p) => `'${String(p).replace(/'/g, `'\\''`)}'`;
 export const deleteNote = (paths) => (paths.length ? `delete when done looking: rm -rf ${paths.map(q).join(' ')}` : null);
 
 /**
- * Deletes what a run made, or keeps it. items: [{path, root, what, always?, hold?}]: each path must be strictly inside its root (else it is never touched:
- * 'outside'), is lstat'ed first (a symlink is unlinked, never followed), and goes unless the run is kept (`keep`, a reason) or `hold` (a reason
- * this one item stays, e.g. a client JVM still on the game dir). `always` items (temp inputs) go even when the run is kept.
+ * Deletes what a run made, or keeps it. items: [{path, root, what, always?, hold?, protect?, verify?}]: each path must be strictly inside its root (else
+ * it is never touched: 'outside'), is lstat'ed first (a symlink is unlinked, never followed), and goes unless the run is kept (`keep`, a reason) or
+ * `hold` (a reason this one item stays, e.g. a client JVM still on the game dir). `protect` (a reason) keeps it whatever the run did, named by that
+ * reason (--keep-world's world: 'keep-world'). `always` items (temp inputs) go even when the run is kept. `verify` (batch 091 review), called just
+ * before the delete, answers null when the item is still this run's, else why not: then it is not touched (reported in failed).
  * -> {deleted: [path], kept: [{path, what, why}], failed: [{path, why}], note}. Never throws.
  */
 export function cleanupRun(items, { keep = null, hold = null, lstat = fs.lstatSync, rm = (p) => fs.rmSync(p, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 }), unlink = fs.unlinkSync } = {}) {
@@ -102,8 +104,11 @@ export function cleanupRun(items, { keep = null, hold = null, lstat = fs.lstatSy
     if (!it?.path || !it.root || !isInside(it.path, it.root)) { out.failed.push({ path: it?.path ?? null, why: `outside ${it?.root ?? 'its root'}: not touched` }); continue; }
     let st = null;
     try { st = lstat(it.path); } catch { continue; } // gone already (or never made)
-    const why = it.always ? null : (keep ?? it.hold ?? hold);
+    const why = it.always ? null : (it.protect ?? keep ?? it.hold ?? hold);
     if (why) { out.kept.push({ path: it.path, what: it.what, why }); continue; }
+    let mine;
+    try { mine = it.verify ? it.verify() : null; } catch (e) { mine = `ownership not checked (${e.message})`; }
+    if (mine) { out.failed.push({ path: it.path, why: `${mine}: not touched` }); continue; }
     try {
       if (st.isSymbolicLink()) unlink(it.path);
       else rm(it.path);
@@ -117,18 +122,60 @@ export function cleanupRun(items, { keep = null, hold = null, lstat = fs.lstatSy
 }
 
 /**
- * A --clients lead's own part: the run dirs `<mod>/run-c<k>` it made this run (they didn't exist before its lanes started), as cleanup items. Each
- * is held (kept) unless every lane that ran on it exited 0, wrote a summary with no failure and kept nothing; a dir no lane ran on is held too.
- * Never mod/run, never a run-c<k> that existed before (it isn't in `created`), never anything not named run-c<k> right under mod.
+ * A single driver's own items (not a --clients lead's): its world under saves, and its temp blueprint dirs. (batch 091 review P2) With --keep-world
+ * the world is an item still, protected ('keep-world'): the run's record says it was kept, so a lead never takes the lane for empty.
  */
-export function laneRunDirs({ modDir, created, lanes }) {
+export function runItems({ world, saves, keepWorld = false, slotWait = false, tempInputs = [], tmp }) {
+  return [
+    // (batch 091 final review P1, switched off per Noah 11-21) a driver that never got its slot never launched, so the world under its game dir
+    // may be another driver's, made during the wait: it is not an item at all. Its temp blueprints (mkdtemp, unique) still go.
+    ...(slotWait ? [] : [{ path: world, root: saves, what: 'the e2e world', ...(keepWorld ? { protect: 'keep-world' } : {}) }]),
+    ...tempInputs.map((p) => ({ path: p, root: tmp, what: 'a temp blueprint', always: true })),
+  ];
+}
+
+/**
+ * (batch 091 final review P1, Noah 11-21 via parent: "Merge with risky deletes off") A --clients lead neither claims nor deletes its lanes'
+ * run-c<k> dirs: another run can reuse a lane between its claim and its delete. Off until E2E-DISK-2 gives each run its own dirs; the
+ * helpers below stay for it. Each child still deletes its own passing world inside its lane (runItems).
+ */
+export const DELETE_LANE_DIRS = false;
+
+/** The owner marker a --clients lead writes into a run-c<k> it made (batch 091 review P1). */
+export const OWNER_FILE = '.steward-e2e-owner.json';
+
+/**
+ * (batch 091 review P1) Claims a lane's run dir for this run at the moment of use: mkdir without -p (it fails when the dir is there: made by another
+ * run, or left from an earlier one), then the owner marker {run, pid} written exclusively. -> {claimed: true} or {claimed: false, why}. Never throws.
+ */
+export function claimRunDir(dir, owner, { mkdir = (p) => fs.mkdirSync(p), writeFile = fs.writeFileSync } = {}) {
+  try { mkdir(dir); } catch (e) { return { claimed: false, why: e?.code === 'EEXIST' ? 'it existed before this run used it' : `not made (${e?.message})` }; }
+  try { writeFile(path.join(dir, OWNER_FILE), JSON.stringify(owner), { flag: 'wx' }); } catch (e) { return { claimed: false, why: `owner marker not written (${e?.message})` }; }
+  return { claimed: true };
+}
+
+/** Null when dir's owner marker names this run (its run id and pid), else why not. Never throws. */
+export function ownsRunDir(dir, owner, { readFile = (p) => fs.readFileSync(p, 'utf8') } = {}) {
+  if (!owner?.run) return 'no owner to check against';
+  let m;
+  try { m = JSON.parse(readFile(path.join(dir, OWNER_FILE))); } catch { return 'no owner marker'; }
+  return m?.run === owner.run && m?.pid === owner.pid ? null : `not this run's (its marker names ${m?.run ?? '?'}, pid ${m?.pid ?? '?'})`;
+}
+
+/**
+ * A --clients lead's own part: the run dirs `<mod>/run-c<k>` it claimed this run ({@link claimRunDir}), as cleanup items. Each is held (kept) unless
+ * every lane that ran on it exited 0, wrote a summary with no failure and kept nothing; a dir no lane ran on is held too, and every one under the
+ * lead's --keep-world (batch 091 review P2). Each is checked again, just before its delete, to hold this run's owner marker (`owner`).
+ * Never mod/run, never a run-c<k> this run didn't claim (it isn't in `created`), never anything not named run-c<k> right under mod.
+ */
+export function laneRunDirs({ modDir, created, lanes, owner = null, readFile, keepWorld = false }) {
   const items = [];
   for (const dir of created) {
     if (!/^run-c\d+$/.test(path.basename(dir)) || path.dirname(path.resolve(dir)) !== path.resolve(modDir)) continue;
     const on = lanes.filter((l) => l?.gameDir && path.resolve(l.gameDir) === path.resolve(dir));
     const bad = on.find((l) => l.code !== 0 || !l.summary || l.summary.failed > 0 || l.summary.cleanup?.kept?.length);
-    const hold = !on.length ? 'no client ran on it' : bad ? `client c${bad.k ?? '?'} ${bad.code !== 0 ? `exited ${bad.code}` : !bad.summary ? 'wrote no summary' : bad.summary.failed > 0 ? `had ${bad.summary.failed} failure(s)` : 'kept its world'}` : null;
-    items.push({ path: dir, root: modDir, what: 'a client run dir this run made', ...(hold ? { hold } : {}) });
+    const hold = keepWorld ? '--keep-world: its world is kept' : !on.length ? 'no client ran on it' : bad ? `client c${bad.k ?? '?'} ${bad.code !== 0 ? `exited ${bad.code}` : !bad.summary ? 'wrote no summary' : bad.summary.failed > 0 ? `had ${bad.summary.failed} failure(s)` : 'kept its world'}` : null;
+    items.push({ path: dir, root: modDir, what: 'a client run dir this run made', ...(hold ? { hold } : {}), verify: () => ownsRunDir(dir, owner, readFile ? { readFile } : {}) });
   }
   return items;
 }

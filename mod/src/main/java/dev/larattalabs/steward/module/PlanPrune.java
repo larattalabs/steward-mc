@@ -222,7 +222,8 @@ public final class PlanPrune {
 	/**
 	 * dependencies[] settled in place: an entry of a gone part goes, a gone after goes (an entry left with none goes); then (fix round, GPT P1) each
 	 * part still built that stood after a gone part, written or through a reference, is written after what that part stood after, transitively, unless
-	 * it already stands after it. The entries' count.
+	 * it already stands after it. (batch 091 review P2) An order on a part still built that only a removed reference held (an avoid item naming a
+	 * left-out lot stood for its zone) is written out the same way. The entries' count.
 	 */
 	private static int dependencies(JsonObject original, JsonObject plan, Set<String> gone) {
 		Map<String, Set<String>> before = order(original);
@@ -252,7 +253,12 @@ public final class PlanPrune {
 				String p = e.isJsonObject() ? str(e.getAsJsonObject(), "id") : null;
 				if (p == null) continue;
 				Set<String> need = new LinkedHashSet<>();
-				for (String g : before.getOrDefault(p, Set.of())) if (gone.contains(g)) expand(g, before, gone, need, new HashSet<>());
+				for (String g : before.getOrDefault(p, Set.of())) {
+					if (gone.contains(g)) expand(g, before, gone, need, new HashSet<>());
+					// (batch 091 review P2) a part still built that this one stood after only through a reference that went (an avoided left-out lot,
+					// read as its zone): the order is written out
+					else need.add(g);
+				}
 				need.remove(p);
 				need.removeAll(now.getOrDefault(p, Set.of()));
 				if (need.isEmpty()) continue;

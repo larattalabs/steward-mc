@@ -307,12 +307,16 @@ Minecraft/_work grew from 89 GB to about 977 GB (Steward about 684 GB), mostly e
 
 - **Cleanup after a run.** Each e2e driver (a `--clients` run's children each on their own run dir) ends by deleting what it made:
   - this run's world, `<run dir>/saves/Steward E2E` (200-470 MB), and its temp blueprint dirs (`steward-e2e-v2-*`, `steward-e2e-ui-*` in TMPDIR).
-  - A `--clients` lead also deletes each `mod/run-c<k>` it made this run (absent before its lanes started), once every client on it exited 0
-    with no failure and kept nothing; otherwise the dir is listed as kept.
+  - A `--clients` lead does **not** delete the `mod/run-c<k>` lane dirs (switched off, `DELETE_LANE_DIRS = false`, Noah 11-21: batch 091's
+    final review found another run can reuse a lane between its claim and its delete). Each child still deletes its own passing world inside
+    its lane, so a kept lane dir is small (config, logs, mods). The claim-and-marker helpers stay in `disk.mjs` for E2E-DISK-2, which gives
+    each run its own dirs.
+  - A driver whose slot never came (a slot wait) never launched, so it deletes no world: the world under its run dir may be another
+    driver's, made during the wait. Its temp blueprint dirs (unique, mkdtemp) still go.
   - The world is **kept** when a check failed, the run threw, no checks ran, or a signal stopped it; also while a client JVM of this run still
     runs on the run dir. summary.json's `cleanup` lists `deleted`, `kept` (path, why, client) and `note`, a quoted `rm -rf` line to delete
     what was kept; the run prints `disk: deleted|kept ...` lines. The nightly copies kept paths and the note into SUMMARY.md.
-  - Never touched: `--keep-world`'s world, `Steward E2E (last)` (an earlier run's world, moved aside by a later run's start; left as it is), the dev
+  - Never touched: `--keep-world`'s world (listed as kept, why `keep-world`), `Steward E2E (last)` (an earlier run's world, moved aside by a later run's start; left as it is), the dev
     world, the run dir's `architect/`, `config`, `logs`, `mods`, `options.txt`, `mod/run` itself, a `mod/run-c<k>` from an earlier run, `artifacts/`
     (summary.json, shots, snaps: the evidence). A path outside its own root is never deleted, and a symlink is unlinked, never followed.
   - The sidecar data stays TMPSWEEP's ("Temp dirs" above): removed at every end, failed or not, since keeping 2-6 GB per failed run on the

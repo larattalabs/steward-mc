@@ -114,6 +114,22 @@ class PlanPruneTest {
 		assertEquals("[{\"part\":\"quarters\",\"after\":[\"spire\"]}]", r.plan().getAsJsonArray("dependencies").toString());
 	}
 
+	/**
+	 * (batch 091 review P2) Architect reads an avoided lot as an order after its zone: the left-out lot's avoid item goes, and while its zone (the town)
+	 * is still built that order is written out, so the road still stands after the town (and fails with it).
+	 */
+	@Test
+	void anAvoidedLotsOrderAfterItsSurvivingZoneIsWrittenOut() {
+		var r = built("deps-avoid", plan("""
+			"connectors":[{"id":"a_road","kind":"road","from":{"anchor":"claim_s"},"to":{"anchor":"claim_center"},"avoid":[{"part":"crop_farm_3"},{"water":{}}]}]"""));
+		assertEquals(Set.of("town"), PlanPrune.order(plan("""
+			"connectors":[{"id":"a_road","kind":"road","from":{"anchor":"claim_s"},"to":{"anchor":"claim_center"},"avoid":[{"part":"crop_farm_3"}]}]""")).get("a_road"),
+			"as written: after the town, through the avoided lot");
+		assertEquals("[{\"water\":{}}]", part(r.plan(), "connectors", "a_road").get("avoid").toString(), "the gone lot isn't avoided as its whole zone");
+		assertEquals("[{\"part\":\"a_road\",\"after\":[\"town\"]}]", r.plan().getAsJsonArray("dependencies").toString());
+		assertEquals(Set.of("town"), PlanPrune.order(r.plan()).get("a_road"), "the road still stands after the town");
+	}
+
 	@Test
 	void aDependencyOnlyAfterADroppedZoneWithNoOrderOfItsOwnGoes() {
 		var r = built("deps-empty", plan("""

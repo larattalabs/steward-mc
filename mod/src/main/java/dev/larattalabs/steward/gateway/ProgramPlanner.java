@@ -48,6 +48,15 @@ public final class ProgramPlanner {
 	}
 
 	public static Result lots(ConceptCard c, int buildings, int maxLandmarks) {
+		return lots(c, buildings, maxLandmarks, dev.larattalabs.steward.module.ModuleTypes.KNOWN);
+	}
+
+	/**
+	 * As above; {@code moduleTypes}: the building types that are a module's ({@link dev.larattalabs.steward.module.ModuleTypes}). (batch 091 review P1)
+	 * The padding past the program's counts never repeats an entry of a module's type: a module is never designed as an ordinary building. With only
+	 * such entries left to pad with, fewer buildings are laid out.
+	 */
+	public static Result lots(ConceptCard c, int buildings, int maxLandmarks, Map<String, String> moduleTypes) {
 		if (buildings < 1) throw new IllegalArgumentException("buildings must be at least 1");
 		Ids ids = new Ids();
 		List<LotSpec> out = new ArrayList<>();
@@ -79,13 +88,17 @@ public final class ProgramPlanner {
 				if (slots == 0) break;
 				int n = taken.getOrDefault(b, 0);
 				if (!padding && n >= b.count()) continue;
+				if (padding && dev.larattalabs.steward.module.ModuleTypes.moduleOf(b.type(), moduleTypes) != null) continue;
 				out.add(spec(ids, b, false));
 				taken.put(b, n + 1);
 				slots--;
 				any = true;
 			}
-			// every entry is used up to its count: a larger settlement repeats the ordinary entries
-			if (!any) padding = true;
+			// every entry is used up to its count: a larger settlement repeats the ordinary entries (none of a module's type: then it stops short)
+			if (!any) {
+				if (padding) break;
+				padding = true;
+			}
 		}
 		List<String> leftOut = new ArrayList<>();
 		for (Building b : ordinary) {

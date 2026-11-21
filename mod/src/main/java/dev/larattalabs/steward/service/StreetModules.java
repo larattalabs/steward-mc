@@ -8,6 +8,7 @@ import dev.larattalabs.steward.model.ConceptCard;
 import dev.larattalabs.steward.model.ProposalRules;
 import dev.larattalabs.steward.module.ComposedModules;
 import dev.larattalabs.steward.module.ModuleKind;
+import dev.larattalabs.steward.module.ModuleTypes;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -67,6 +68,15 @@ final class StreetModules {
 				}
 			}
 		}
+		// (batch 091 review P1) every other lot of a module's type goes too (one the plan's module lots didn't take): never designed as an ordinary building
+		List<String> extra = new ArrayList<>();
+		for (int i = kept.size() - 1; i >= 0; i--) {
+			String id = ModuleTypes.moduleOf(kept.get(i).type(), types);
+			if (id == null) continue;
+			kept.remove(i);
+			removed++;
+			extra.add(0, id);
+		}
 		List<String> said = new ArrayList<>();
 		for (var a : asked) {
 			if (!ComposedModules.marked(byId.get(a.lotId())) && !offered.contains(a.moduleId())) {
@@ -77,6 +87,7 @@ final class StreetModules {
 			said.add(ComposedModules.leftOutWords(PPlan.role(byId.get(a.lotId())), why + ", so the town is laid out " + laidOut + ", where the working " + kind
 				+ " can't be placed yet"));
 		}
+		for (String id : extra) said.add("Another " + ModuleTypes.role(id) + " the card asks for is left out of the town too: " + ModuleTypes.rule(id) + ".");
 		return new Result(List.copyOf(kept), List.copyOf(said), removed);
 	}
 
